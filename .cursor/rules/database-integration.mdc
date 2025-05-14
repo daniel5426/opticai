@@ -1,0 +1,38 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# SQLite Database Integration
+
+This project uses better-sqlite3 for database integration in Electron. The database code is structured to follow Electron's security best practices by keeping all database operations in the main process.
+
+## Database Structure
+
+- [src/lib/db/schema.ts](mdc:src/lib/db/schema.ts) - Database schema definitions and table creation
+- [src/lib/db/index.ts](mdc:src/lib/db/index.ts) - DatabaseService class for database operations
+
+## Key Concepts
+
+1. **Main Process Database**: The database is initialized and accessed only in the Electron main process.
+
+2. **IPC Communication**: The renderer process (React) communicates with the database through IPC (Inter-Process Communication).
+
+3. **React Hook**: [src/lib/db/useDatabase.ts](mdc:src/lib/db/useDatabase.ts) provides a React hook for accessing the database from components.
+
+## Tables
+
+The database schema includes several related tables for a medical/optical management system:
+- users - Main user/patient information
+- medical_logs - Medical logs for users
+- optical_exams - Eye examination records
+- optical_eye_exam - Detailed eye exam data
+- contact_lens - Contact lens prescriptions
+- frames - Eyeglass frames information
+- billings - Financial records
+- And others related to optical services
+
+## Usage Example
+
+The [src/components/UserManager.tsx](mdc:src/components/UserManager.tsx) component demonstrates CRUD operations using the database.
+

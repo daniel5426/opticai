@@ -1,0 +1,35 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# Electron-Vite-React Project Overview
+
+This project is an Electron desktop application built with Vite, React, and TypeScript. The project includes SQLite database integration for data persistence and uses shadcn/ui for UI components.An all-in-one management system for optical clinics and stores, handling patient records, medical and optical exams, orders, billing, and inventory.
+Streamlines clinic operations from eye exams to lens and frame orders, ensuring efficient and accurate patient care.
+
+## UI Components
+
+The application uses [shadcn/ui](mdc:https:/ui.shadcn.com) for UI components, which provides:
+- Beautifully designed components
+- Accessibility-focused design
+- Tailwind CSS for styling
+- Customizable and reusable components
+- Its an app in hebrew, so ui need to be rtl
+- each new page created should be added a button in the appsidebar to go to it
+
+## Routing System
+
+The application uses [TanStack Router](mdc:https:/tanstack.com/router) for client-side routing:
+- Memory-based router optimized for Electron applications
+- Declarative route definitions in `src/routes/routes.tsx`
+- Root layout with outlet pattern in `src/routes/__root.tsx` 
+- Navigation through `Link` components:
+  ```tsx
+  <Link to="/path">Link Text</Link>
+  ```
+- Clean, type-safe routing with automatic type generation
+- Route parameters and nested routes support
+
+
+
