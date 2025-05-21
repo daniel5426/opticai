@@ -7,7 +7,30 @@ declare module "@tanstack/react-router" {
   }
 }
 
+// Create the memory history with error handling
 const history = createMemoryHistory({
   initialEntries: ["/"],
 });
-export const router = createRouter({ routeTree: rootTree, history: history });
+
+// Create router with error handlers
+export const router = createRouter({ 
+  routeTree: rootTree, 
+  history: history,
+  defaultErrorComponent: ({ error }) => {
+    console.error('Router error:', error);
+    return (
+      <div style={{ padding: '20px', textAlign: 'center' }}>
+        <h2>Navigation Error</h2>
+        <p>There was a problem loading this page.</p>
+        <button 
+          onClick={() => window.location.reload()}
+          style={{ padding: '8px 16px', marginTop: '16px', cursor: 'pointer' }}
+        >
+          Try Again
+        </button>
+      </div>
+    );
+  },
+  defaultPreloadStaleTime: 0,
+  defaultStaleTime: 0,
+});

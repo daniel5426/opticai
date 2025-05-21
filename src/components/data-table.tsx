@@ -104,7 +104,8 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs"
 
-export const schema = z.object({
+// Define the schema
+const schema = z.object({
   id: z.number(),
   header: z.string(),
   type: z.string(),
@@ -385,8 +386,13 @@ export function DataTable({
   
   // Force re-render on state changes
   React.useEffect(() => {
-    setRenderKey(prev => prev + 1)
-  }, [rowSelection, columnVisibility])
+    // Add a debounce to avoid excessive renders
+    const timer = setTimeout(() => {
+      setRenderKey(prev => prev + 1);
+    }, 100);
+    
+    return () => clearTimeout(timer);
+  }, [rowSelection, columnVisibility]);
 
   const table = useReactTable({
     data,

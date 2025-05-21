@@ -60,7 +60,7 @@ export interface OpticalEyeExam {
   old_pris?: number;
   old_base?: string;
   old_va?: string;
-  old_add?: number;
+  old_ad?: number;
   obj_sph?: number;
   obj_cyl?: number;
   obj_ax?: number;
@@ -74,12 +74,12 @@ export interface OpticalEyeExam {
   subj_va?: string;
   subj_pd?: string;
   subj_ph?: string;
-  add_fcc?: string;
-  add_read?: string;
-  add_int?: string;
-  add_bif?: string;
-  add_mul?: number;
-  add_j?: number;
+  ad_fcc?: string;
+  ad_read?: string;
+  ad_int?: string;
+  ad_bif?: string;
+  ad_mul?: number;
+  ad_j?: number;
 }
 
 export interface OpticalOrder {
@@ -93,7 +93,7 @@ export interface OpticalOrder {
   pris?: number;
   base?: string;
   va?: string;
-  add?: number;
+  ad?: number;
   diam?: number;
   secondary_base?: number;
   high_curvature?: number;
@@ -162,7 +162,7 @@ export interface ContactEye {
   sph?: number;
   cyl?: number;
   ax?: number;
-  read_add?: number;
+  read_ad?: number;
   va?: string;
   j?: string;
 }
@@ -284,7 +284,7 @@ export const createTables = (db: Database): void => {
       old_pris REAL,
       old_base TEXT,
       old_va TEXT,
-      old_add REAL,
+      old_ad REAL,
       obj_sph REAL,
       obj_cyl REAL,
       obj_ax INTEGER,
@@ -298,12 +298,12 @@ export const createTables = (db: Database): void => {
       subj_va TEXT,
       subj_pd TEXT,
       subj_ph TEXT,
-      add_fcc TEXT,
-      add_read TEXT,
-      add_int TEXT,
-      add_bif TEXT,
-      add_mul REAL,
-      add_j REAL,
+      ad_fcc TEXT,
+      ad_read TEXT,
+      ad_int TEXT,
+      ad_bif TEXT,
+      ad_mul REAL,
+      ad_j REAL,
       FOREIGN KEY(exam_id) REFERENCES optical_exams(id) ON DELETE CASCADE
     );
   `);
@@ -321,7 +321,7 @@ export const createTables = (db: Database): void => {
       pris REAL,
       base TEXT,
       va TEXT,
-      add REAL,
+      ad REAL,
       diam REAL,
       secondary_base REAL,
       high_curvature REAL,
@@ -405,7 +405,7 @@ export const createTables = (db: Database): void => {
       sph REAL,
       cyl REAL,
       ax INTEGER,
-      read_add REAL,
+      read_ad REAL,
       va TEXT,
       j TEXT,
       FOREIGN KEY(contact_lens_id) REFERENCES contact_lens(id)

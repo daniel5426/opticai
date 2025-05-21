@@ -2,10 +2,10 @@ import Database from 'better-sqlite3';
 import { app } from 'electron';
 import path from 'path';
 import fs from 'fs';
-import { createTables, User } from './schema';
+import { createTables, Client } from './schema';
 
 class DatabaseService {
-  private db: Database.Database | null = null;
+  private db: Database | null = null;
   private dbPath: string;
 
   constructor() {
@@ -41,12 +41,12 @@ class DatabaseService {
   }
 
   // User CRUD operations
-  createUser(user: User): number | null {
+  createUser(user: Client): number | null {
     if (!this.db) return null;
     
     try {
       const insertStmt = this.db.prepare(`
-        INSERT INTO users (
+        INSERT INTO clients (
           first_name, last_name, gender, national_id, date_of_birth,
           address_city, address_street, address_number, postal_code,
           phone_home, phone_work, phone_mobile, fax, email,
@@ -74,43 +74,43 @@ class DatabaseService {
     }
   }
 
-  getUser(id: number): User | null {
+  getUser(id: number): Client | null {
     if (!this.db) return null;
     
     try {
-      const stmt = this.db.prepare('SELECT * FROM users WHERE id = ?');
-      return stmt.get(id) as User | null;
+      const stmt = this.db.prepare('SELECT * FROM clients WHERE id = ?');
+      return stmt.get(id) as Client | null;
     } catch (error) {
       console.error('Error getting user:', error);
       return null;
     }
   }
 
-  getUserByNationalId(nationalId: string): User | null {
+  getUserByNationalId(nationalId: string): Client | null {
     if (!this.db) return null;
     
     try {
-      const stmt = this.db.prepare('SELECT * FROM users WHERE national_id = ?');
-      return stmt.get(nationalId) as User | null;
+      const stmt = this.db.prepare('SELECT * FROM clients WHERE national_id = ?');
+      return stmt.get(nationalId) as Client | null;
     } catch (error) {
       console.error('Error getting user by national ID:', error);
       return null;
     }
   }
 
-  getAllUsers(): User[] {
+  getAllUsers(): Client[] {
     if (!this.db) return [];
     
     try {
-      const stmt = this.db.prepare('SELECT * FROM users');
-      return stmt.all() as User[];
+      const stmt = this.db.prepare('SELECT * FROM clients');
+      return stmt.all() as Client[];
     } catch (error) {
       console.error('Error getting all users:', error);
       return [];
     }
   }
 
-  updateUser(id: number, userData: Partial<User>): boolean {
+  updateUser(id: number, userData: Partial<Client>): boolean {
     if (!this.db) return false;
     
     try {
@@ -121,7 +121,7 @@ class DatabaseService {
       const setClause = entries.map(([key]) => `${key} = ?`).join(', ');
       const values = entries.map(([, value]) => value);
       
-      const stmt = this.db.prepare(`UPDATE users SET ${setClause} WHERE id = ?`);
+      const stmt = this.db.prepare(`UPDATE clients SET ${setClause} WHERE id = ?`);
       const result = stmt.run(...values, id);
       
       return result.changes > 0;
@@ -135,7 +135,7 @@ class DatabaseService {
     if (!this.db) return false;
     
     try {
-      const stmt = this.db.prepare('DELETE FROM users WHERE id = ?');
+      const stmt = this.db.prepare('DELETE FROM clients WHERE id = ?');
       const result = stmt.run(id);
       
       return result.changes > 0;

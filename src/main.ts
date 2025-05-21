@@ -9,10 +9,18 @@ import {
 } from "electron-devtools-installer";
 
 const inDevelopment = process.env.NODE_ENV === "development";
+let mainWindow: BrowserWindow | null = null; // Store reference to the main window
 
 function createWindow() {
+  // Don't create a new window if one already exists
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.focus();
+    return mainWindow;
+  }
+
   const preload = path.join(__dirname, "preload.js");
-  const mainWindow = new BrowserWindow({
+  mainWindow = new BrowserWindow({
     width: 800,
     height: 600,
     webPreferences: {
@@ -27,6 +35,11 @@ function createWindow() {
   });
   registerListeners(mainWindow);
 
+  // Clean up the reference when window is closed
+  mainWindow.on('closed', () => {
+    mainWindow = null;
+  });
+
   if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
     mainWindow.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL);
   } else {
@@ -34,6 +47,8 @@ function createWindow() {
       path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`),
     );
   }
+
+  return mainWindow;
 }
 
 async function installExtensions() {

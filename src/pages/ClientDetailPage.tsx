@@ -6,19 +6,22 @@ import { SidebarProvider } from "@/components/ui/sidebar"
 import { SiteHeader } from "@/components/site-header"
 import { getClientById, updateClient } from "@/lib/db/clients-db"
 import { Client } from "@/lib/db/schema"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { toast } from "sonner"
+import { 
+  ClientDetailsTab, 
+  ClientExamsTab, 
+  ClientOrdersTab,
+  ClientBillingTab 
+} from "@/components/client"
 
 export default function ClientDetailPage() {
   const { clientId } = useParams({ from: "/clients/$clientId" })
   const [client, setClient] = useState<Client | undefined>(getClientById(Number(clientId)))
   const [isEditing, setIsEditing] = useState(false)
   const [formData, setFormData] = useState<Client>({} as Client)
+  const [activeTab, setActiveTab] = useState("details")
   const formRef = useRef<HTMLFormElement>(null)
   
   useEffect(() => {
@@ -27,12 +30,12 @@ export default function ClientDetailPage() {
     }
   }, [client])
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
     setFormData(prev => ({ ...prev, [name]: value }))
   }
 
-  const handleSelectChange = (value: string, name: string) => {
+  const handleSelectChange = (value: string | boolean, name: string) => {
     setFormData(prev => ({ ...prev, [name]: value }))
   }
   
@@ -76,8 +79,12 @@ export default function ClientDetailPage() {
           backLink="/clients"
           clientName={fullName}
         />
-        <div className="flex flex-col flex-1 p-4 lg:p-6" dir="rtl">
-          <Tabs defaultValue="details" className="w-full">
+        <div className="flex flex-col flex-1 p-4 lg:p-6 mb-40" dir="rtl">
+          <Tabs 
+            defaultValue="details" 
+            className="w-full"
+            onValueChange={(value) => setActiveTab(value)}
+          >
             <div className="flex justify-between items-center mb-4">
               <TabsList>
                 <TabsTrigger value="details">פרטים אישיים</TabsTrigger>
@@ -85,255 +92,40 @@ export default function ClientDetailPage() {
                 <TabsTrigger value="orders">הזמנות</TabsTrigger>
                 <TabsTrigger value="billing">חשבונות</TabsTrigger>
               </TabsList>
-              <Button 
-                variant={isEditing ? "outline" : "default"} 
-                onClick={() => isEditing ? handleSave() : setIsEditing(true)}
-              >
-                {isEditing ? "שמור שינויים" : "ערוך פרטים"}
-              </Button>
+              
+              {activeTab === "details" ? (
+                <Button 
+                  variant={isEditing ? "outline" : "default"} 
+                  onClick={() => isEditing ? handleSave() : setIsEditing(true)}
+                >
+                  {isEditing ? "שמור שינויים" : "ערוך פרטים"}
+                </Button>
+              ) : activeTab === "exams" ? (
+                <h2 className="text-xl font-semibold">בדיקות ראייה</h2>
+              ) : null}
             </div>
             
             <TabsContent value="details">
-              <form ref={formRef}>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <Card className="text-right">
-                    <CardHeader>
-                      <CardTitle>פרטים אישיים</CardTitle>
-                    </CardHeader>
-                    <CardContent className="grid grid-cols-2 gap-4" dir="rtl">
-                      <div>
-                        <Label>שם פרטי</Label>
-                        {isEditing ? (
-                          <Input 
-                            type="text"
-                            name="first_name"
-                            value={formData.first_name || ''}
-                            onChange={handleInputChange}
-                            className="mt-1"
-                          />
-                        ) : (
-                          <div>{client.first_name}</div>
-                        )}
-                      </div>
-                      <div>
-                        <Label>שם משפחה</Label>
-                        {isEditing ? (
-                          <Input 
-                            type="text"
-                            name="last_name"
-                            value={formData.last_name || ''}
-                            onChange={handleInputChange}
-                            className="mt-1"
-                          />
-                        ) : (
-                          <div>{client.last_name}</div>
-                        )}
-                      </div>
-                      <div>
-                        <Label>מגדר</Label>
-                        {isEditing ? (
-                          <Select 
-                            value={formData.gender || ''} 
-                            onValueChange={(value) => handleSelectChange(value, 'gender')}
-                          >
-                            <SelectTrigger className="mt-1">
-                              <SelectValue placeholder="בחר מגדר" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="זכר">זכר</SelectItem>
-                              <SelectItem value="נקבה">נקבה</SelectItem>
-                              <SelectItem value="אחר">אחר</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        ) : (
-                          <div>{client.gender}</div>
-                        )}
-                      </div>
-                      <div>
-                        <Label>תעודת זהות</Label>
-                        {isEditing ? (
-                          <Input 
-                            type="text"
-                            name="national_id"
-                            value={formData.national_id || ''}
-                            onChange={handleInputChange}
-                            className="mt-1"
-                          />
-                        ) : (
-                          <div>{client.national_id}</div>
-                        )}
-                      </div>
-                      <div>
-                        <Label>תאריך לידה</Label>
-                        {isEditing ? (
-                          <Input 
-                            type="date"
-                            name="date_of_birth"
-                            value={formData.date_of_birth || ''}
-                            onChange={handleInputChange}
-                            className="mt-1"
-                          />
-                        ) : (
-                          <div>{client.date_of_birth}</div>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                  
-                  <Card className="text-right">
-                    <CardHeader>
-                      <CardTitle>פרטי התקשרות</CardTitle>
-                    </CardHeader>
-                    <CardContent className="grid grid-cols-2 gap-4" dir="rtl">
-                      <div>
-                        <Label>עיר</Label>
-                        {isEditing ? (
-                          <Input 
-                            type="text"
-                            name="address_city"
-                            value={formData.address_city || ''}
-                            onChange={handleInputChange}
-                            className="mt-1"
-                          />
-                        ) : (
-                          <div>{client.address_city}</div>
-                        )}
-                      </div>
-                      <div>
-                        <Label>רחוב</Label>
-                        {isEditing ? (
-                          <Input 
-                            type="text"
-                            name="address_street"
-                            value={formData.address_street || ''}
-                            onChange={handleInputChange}
-                            className="mt-1"
-                          />
-                        ) : (
-                          <div>{client.address_street}</div>
-                        )}
-                      </div>
-                      <div>
-                        <Label>מספר</Label>
-                        {isEditing ? (
-                          <Input 
-                            type="text"
-                            name="address_number"
-                            value={formData.address_number || ''}
-                            onChange={handleInputChange}
-                            className="mt-1"
-                          />
-                        ) : (
-                          <div>{client.address_number}</div>
-                        )}
-                      </div>
-                      <div>
-                        <Label>מיקוד</Label>
-                        {isEditing ? (
-                          <Input 
-                            type="text"
-                            name="postal_code"
-                            value={formData.postal_code || ''}
-                            onChange={handleInputChange}
-                            className="mt-1"
-                          />
-                        ) : (
-                          <div>{client.postal_code}</div>
-                        )}
-                      </div>
-                      <div>
-                        <Label>טלפון נייד</Label>
-                        {isEditing ? (
-                          <Input 
-                            type="tel"
-                            name="phone_mobile"
-                            value={formData.phone_mobile || ''}
-                            onChange={handleInputChange}
-                            className="mt-1"
-                          />
-                        ) : (
-                          <div>{client.phone_mobile}</div>
-                        )}
-                      </div>
-                      <div>
-                        <Label>טלפון בית</Label>
-                        {isEditing ? (
-                          <Input 
-                            type="tel"
-                            name="phone_home"
-                            value={formData.phone_home || ''}
-                            onChange={handleInputChange}
-                            className="mt-1"
-                          />
-                        ) : (
-                          <div>{client.phone_home}</div>
-                        )}
-                      </div>
-                      <div>
-                        <Label>טלפון עבודה</Label>
-                        {isEditing ? (
-                          <Input 
-                            type="tel"
-                            name="phone_work"
-                            value={formData.phone_work || ''}
-                            onChange={handleInputChange}
-                            className="mt-1"
-                          />
-                        ) : (
-                          <div>{client.phone_work}</div>
-                        )}
-                      </div>
-                      <div>
-                        <Label>אימייל</Label>
-                        {isEditing ? (
-                          <Input 
-                            type="email"
-                            name="email"
-                            value={formData.email || ''}
-                            onChange={handleInputChange}
-                            className="mt-1"
-                          />
-                        ) : (
-                          <div>{client.email}</div>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                </div>
-              </form>
+              <ClientDetailsTab 
+                client={client}
+                formData={formData}
+                isEditing={isEditing}
+                handleInputChange={handleInputChange}
+                handleSelectChange={handleSelectChange}
+                formRef={formRef as React.RefObject<HTMLFormElement>}
+              />
             </TabsContent>
             
             <TabsContent value="exams">
-              <Card className="text-right">
-                <CardHeader>
-                  <CardTitle>בדיקות</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p>תוכן עבור בדיקות יוצג כאן.</p>
-                </CardContent>
-              </Card>
+              <ClientExamsTab />
             </TabsContent>
             
             <TabsContent value="orders">
-              <Card className="text-right">
-                <CardHeader>
-                  <CardTitle>הזמנות</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p>תוכן עבור הזמנות יוצג כאן.</p>
-                </CardContent>
-              </Card>
+              <ClientOrdersTab />
             </TabsContent>
             
             <TabsContent value="billing">
-              <Card className="text-right">
-                <CardHeader>
-                  <CardTitle>חשבונות</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p>תוכן עבור חשבונות יוצג כאן.</p>
-                </CardContent>
-              </Card>
+              <ClientBillingTab />
             </TabsContent>
           </Tabs>
         </div>
