@@ -1,5 +1,5 @@
 import React, { useState } from "react"
-import { Link } from "@tanstack/react-router"
+import { Link, useNavigate } from "@tanstack/react-router"
 import {
   Table,
   TableBody,
@@ -26,7 +26,8 @@ interface ExamsTableProps {
 
 export function ExamsTable({ data, clientId }: ExamsTableProps) {
   const [searchQuery, setSearchQuery] = useState("")
-  
+  const navigate = useNavigate()
+
   // Filter data based on search query
   const filteredData = data.filter((exam) => {
     const searchableFields = [
@@ -35,7 +36,7 @@ export function ExamsTable({ data, clientId }: ExamsTableProps) {
       exam.test_name,
       exam.exam_date,
     ]
-    
+
     return searchableFields.some(
       (field) => field && field.toLowerCase().includes(searchQuery.toLowerCase())
     )
@@ -49,14 +50,14 @@ export function ExamsTable({ data, clientId }: ExamsTableProps) {
             placeholder="חיפוש בדיקות..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-[250px]"
+            className="w-[250px]" dir="rtl"
           />
         </div>
-        <Link to={`/clients/${clientId}/exams/new`}>
+        <Link to="/clients/$clientId" params={{ clientId: String(clientId) }}>
           <Button>בדיקה חדשה</Button>
         </Link>
       </div>
-      
+
       <div className="rounded-md border">
         <Table dir="rtl">
           <TableHeader>
@@ -81,7 +82,19 @@ export function ExamsTable({ data, clientId }: ExamsTableProps) {
               </TableRow>
             ) : (
               filteredData.map((exam) => (
-                <TableRow key={exam.id}>
+                <TableRow 
+                  key={exam.id}
+                  className="cursor-pointer"
+                  onClick={() => {
+                    navigate({
+                      to: "/clients/$clientId/exams/$examId",
+                      params: { 
+                        clientId: String(clientId), 
+                        examId: String(exam.id) 
+                      }
+                    })
+                  }}
+                >
                   <TableCell>
                     {exam.exam_date ? new Date(exam.exam_date).toLocaleDateString('he-IL') : ''}
                   </TableCell>
@@ -105,7 +118,7 @@ export function ExamsTable({ data, clientId }: ExamsTableProps) {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <Link to={`/clients/${clientId}/exams/${exam.id}`}>
+                        <Link to="/clients/$clientId/exams/$examId" params={{ clientId: String(clientId), examId: String(exam.id) }}>
                           <DropdownMenuItem>פרטי בדיקה</DropdownMenuItem>
                         </Link>
                       </DropdownMenuContent>

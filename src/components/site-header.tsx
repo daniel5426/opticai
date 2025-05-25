@@ -9,9 +9,11 @@ interface SiteHeaderProps {
   title: string
   backLink?: string
   clientName?: string
+  clientBackLink?: string
+  examInfo?: string
 }
 
-export function SiteHeader({ title, backLink, clientName }: SiteHeaderProps) {
+export function SiteHeader({ title, backLink, clientName, clientBackLink, examInfo }: SiteHeaderProps) {
   return (
     <header className="flex h-(--header-height) shrink-0 items-center gap-2 border-b transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-(--header-height)">
       <div className="flex w-full items-center gap-1 px-4 lg:gap-2 lg:px-6 py-2">
@@ -28,7 +30,19 @@ export function SiteHeader({ title, backLink, clientName }: SiteHeaderProps) {
             {clientName && (
               <>
                 <Separator orientation="vertical" className="mx-2 data-[orientation=vertical]:h-4" />
-                <h1 className="text-base font-medium">{clientName}</h1>
+                {clientBackLink ? (
+                  <Link to={clientBackLink} className="text-muted-foreground hover:text-foreground">
+                    {clientName}
+                  </Link>
+                ) : (
+                  <h1 className="text-base font-medium">{clientName}</h1>
+                )}
+              </>
+            )}
+            {examInfo && (
+              <>
+                <Separator orientation="vertical" className="mx-2 data-[orientation=vertical]:h-4" />
+                <h1 className="text-base font-medium">{examInfo}</h1>
               </>
             )}
           </div>
