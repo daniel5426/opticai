@@ -53,7 +53,7 @@ export function ExamsTable({ data, clientId }: ExamsTableProps) {
             className="w-[250px]" dir="rtl"
           />
         </div>
-        <Link to="/clients/$clientId" params={{ clientId: String(clientId) }}>
+        <Link to="/clients/$clientId/exams/new" params={{ clientId: String(clientId) }}>
           <Button>בדיקה חדשה</Button>
         </Link>
       </div>

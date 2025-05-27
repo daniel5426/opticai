@@ -246,20 +246,55 @@ export function getEyeExamsByExamId(examId: number): OpticalEyeExam[] {
 }
 
 // Create a new exam
-export function createExam(exam: OpticalExam): OpticalExam {
-  const newExam = {
-    ...exam,
-    id: Math.max(0, ...mockOpticalExams.map(e => e.id || 0)) + 1
+export function createExam(exam: Partial<OpticalExam>): OpticalExam {
+  const newId = Math.max(0, ...mockOpticalExams.map(e => e.id || 0)) + 1;
+  const newExam: OpticalExam = {
+    id: newId,
+    client_id: exam.client_id || 0,
+    clinic: exam.clinic || '',
+    examiner_name: exam.examiner_name || '',
+    exam_date: exam.exam_date || new Date().toISOString().split('T')[0],
+    test_name: exam.test_name || '',
+    dominant_eye: exam.dominant_eye || '',
+    notes: exam.notes || ''
   };
   mockOpticalExams.push(newExam);
   return newExam;
 }
 
 // Create a new eye exam
-export function createEyeExam(eyeExam: OpticalEyeExam): OpticalEyeExam {
-  const newEyeExam = {
-    ...eyeExam,
-    id: Math.max(0, ...mockOpticalEyeExams.map(e => e.id || 0)) + 1
+export function createEyeExam(eyeExam: Partial<OpticalEyeExam>): OpticalEyeExam {
+  const newId = Math.max(0, ...mockOpticalEyeExams.map(e => e.id || 0)) + 1;
+  const newEyeExam: OpticalEyeExam = {
+    id: newId,
+    exam_id: eyeExam.exam_id || 0,
+    eye: eyeExam.eye || 'R',
+    old_sph: eyeExam.old_sph,
+    old_cyl: eyeExam.old_cyl,
+    old_ax: eyeExam.old_ax,
+    old_pris: eyeExam.old_pris,
+    old_base: eyeExam.old_base,
+    old_va: eyeExam.old_va,
+    old_ad: eyeExam.old_ad,
+    obj_sph: eyeExam.obj_sph,
+    obj_cyl: eyeExam.obj_cyl,
+    obj_ax: eyeExam.obj_ax,
+    obj_se: eyeExam.obj_se,
+    subj_fa: eyeExam.subj_fa,
+    subj_sph: eyeExam.subj_sph,
+    subj_cyl: eyeExam.subj_cyl,
+    subj_ax: eyeExam.subj_ax,
+    subj_pris: eyeExam.subj_pris,
+    subj_base: eyeExam.subj_base,
+    subj_va: eyeExam.subj_va,
+    subj_pd: eyeExam.subj_pd,
+    subj_ph: eyeExam.subj_ph,
+    ad_fcc: eyeExam.ad_fcc,
+    ad_read: eyeExam.ad_read,
+    ad_int: eyeExam.ad_int,
+    ad_bif: eyeExam.ad_bif,
+    ad_mul: eyeExam.ad_mul,
+    ad_j: eyeExam.ad_j
   };
   mockOpticalEyeExams.push(newEyeExam);
   return newEyeExam;

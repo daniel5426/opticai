@@ -75,9 +75,9 @@ export function ClientsTable({ data }: ClientsTableProps) {
           }}
           className="max-w-sm"
         />
-        <Button onClick={() => navigate({ to: "/clients/new" })}>
-          <PlusIcon className="ml-2 h-4 w-4" />
+        <Button onClick={() => navigate({ to: "/clients/new" })} dir="rtl">
           לקוח חדש
+          <PlusIcon className="mr-2 h-4 w-4" />
         </Button>
       </div>
       <div className="rounded-md border">
