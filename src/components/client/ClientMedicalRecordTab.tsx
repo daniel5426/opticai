@@ -157,7 +157,7 @@ export const ClientMedicalRecordTab = () => {
       </div>
 
       {records.length === 0 ? (
-        <div className="text-center py-10 text-muted-foreground">
+        <div className="text-center py-10 text-muted-foreground" dir="rtl">
           אין רשומות רפואיות להצגה. לחץ על "הוספת רשומה חדשה" כדי להתחיל.
         </div>
       ) : (

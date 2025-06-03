@@ -17,6 +17,8 @@ The application uses [shadcn/ui](mdc:https:/ui.shadcn.com) for UI components, wh
 - Customizable and reusable components
 - Its an app in hebrew, so ui need to be rtl
 - each new page created should be added a button in the appsidebar to go to it
+- ALWAYS in every page use: style={{scrollbarWidth: 'none'}}
+  to hide the vizible scrollbar without removing the functionality of scrolling
 
 ## Routing System
 

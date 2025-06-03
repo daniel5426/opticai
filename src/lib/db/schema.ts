@@ -48,6 +48,13 @@ export interface OpticalExam {
   test_name?: string;
   dominant_eye?: string;
   notes?: string;
+
+  comb_subj_va?: number;
+  comb_old_va?: number;
+  comb_fa?: number;
+  comb_fa_tuning?: number;
+  comb_pd_close?: number;
+  comb_pd_far?: number;
 }
 
 export interface OpticalEyeExam {
@@ -58,28 +65,31 @@ export interface OpticalEyeExam {
   old_cyl?: number;
   old_ax?: number;
   old_pris?: number;
-  old_base?: string;
-  old_va?: string;
+  old_base?: number;
+  old_va?: number;
   old_ad?: number;
   obj_sph?: number;
   obj_cyl?: number;
   obj_ax?: number;
   obj_se?: number;
-  subj_fa?: string;
+  subj_fa?: number;
+  subj_fa_tuning?: number;
   subj_sph?: number;
   subj_cyl?: number;
   subj_ax?: number;
   subj_pris?: number;
-  subj_base?: string;
-  subj_va?: string;
-  subj_pd?: string;
-  subj_ph?: string;
-  ad_fcc?: string;
-  ad_read?: string;
-  ad_int?: string;
-  ad_bif?: string;
+  subj_base?: number;
+  subj_va?: number;
+  subj_pd_close?: number;
+  subj_pd_far?: number;
+  subj_ph?: number;
+  ad_fcc?: number;
+  ad_read?: number;
+  ad_int?: number;
+  ad_bif?: number;
   ad_mul?: number;
   ad_j?: number;
+  iop?: number;
 }
 
 export interface OpticalOrder {
@@ -268,6 +278,12 @@ export const createTables = (db: Database): void => {
       test_name TEXT,
       dominant_eye CHAR(1) CHECK(dominant_eye IN ('R','L')),
       notes TEXT,
+      comb_subj_va REAL,
+      comb_old_va REAL,
+      comb_fa REAL,
+      comb_fa_tuning REAL,
+      comb_pd_close REAL,
+      comb_pd_far REAL,
       FOREIGN KEY(client_id) REFERENCES clients(id) ON DELETE CASCADE
     );
   `);
@@ -282,28 +298,31 @@ export const createTables = (db: Database): void => {
       old_cyl REAL,
       old_ax INTEGER,
       old_pris REAL,
-      old_base TEXT,
-      old_va TEXT,
+      old_base REAL,
+      old_va REAL,
       old_ad REAL,
       obj_sph REAL,
       obj_cyl REAL,
       obj_ax INTEGER,
       obj_se REAL,
-      subj_fa TEXT,
+      subj_fa REAL,
+      subj_fa_tuning REAL,
       subj_sph REAL,
       subj_cyl REAL,
       subj_ax INTEGER,
       subj_pris REAL,
-      subj_base TEXT,
-      subj_va TEXT,
-      subj_pd TEXT,
-      subj_ph TEXT,
-      ad_fcc TEXT,
-      ad_read TEXT,
-      ad_int TEXT,
-      ad_bif TEXT,
+      subj_base REAL,
+      subj_va REAL,
+      subj_pd_close REAL,
+      subj_pd_far REAL,
+      subj_ph REAL,
+      ad_fcc REAL,
+      ad_read REAL,
+      ad_int REAL,
+      ad_bif REAL,
       ad_mul REAL,
       ad_j REAL,
+      iop REAL,
       FOREIGN KEY(exam_id) REFERENCES optical_exams(id) ON DELETE CASCADE
     );
   `);

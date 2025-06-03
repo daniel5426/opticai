@@ -203,7 +203,7 @@
 }
 
 :root {
-  --sidebar: hsl(209, 100%, 91%);
+  --sidebar: hsl(199, 100%, 87%);
   --sidebar-foreground: hsl(0, 0%, 0%);
   --sidebar-primary: hsl(240 5.9% 10%);
   --sidebar-primary-foreground: hsl(0 0% 98%);

@@ -74,13 +74,13 @@ export default function ClientDetailPage() {
   return (
     <SidebarProvider dir="rtl">
       <AppSidebar variant="inset" side="right" />
-      <SidebarInset>
+      <SidebarInset className="overflow-auto scrollbar-hide" style={{scrollbarWidth: 'none', msOverflowStyle: 'none'}}>
         <SiteHeader 
           title="לקוחות" 
           backLink="/clients"
           clientName={fullName}
         />
-        <div className="flex flex-col flex-1 p-4 lg:p-6 mb-40" dir="rtl">
+        <div className="flex flex-col flex-1 p-4 lg:p-6 mb-30" dir="rtl">
           <Tabs 
             defaultValue="details" 
             className="w-full"

@@ -67,6 +67,7 @@ interface ClientDetailsTabProps {
   client: Client;
   formData: Client;
   isEditing: boolean;
+  mode?: 'view' | 'edit' | 'new';
   handleInputChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => void;
   handleSelectChange: (value: string | boolean, name: string) => void;
   formRef: React.RefObject<HTMLFormElement>;
@@ -76,13 +77,17 @@ export function ClientDetailsTab({
   client, 
   formData, 
   isEditing, 
+  mode = 'view',
   handleInputChange, 
   handleSelectChange,
   formRef
 }: ClientDetailsTabProps) {
+  const isNewMode = mode === 'new'
+  const showEditableFields = isEditing || isNewMode
+
   return (
     <form ref={formRef} className="px-1">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
         <Card className="text-right border-primary/10 shadow-sm">
         <CardHeader className="py-3 px-4 bg-gradient-to-l rounded-t-xl from-primary/5 to-transparent border-b-0 -mt-6 pt-4" dir="rtl">
             <CardTitle className="text-lg flex items-center gap-2">
@@ -96,7 +101,7 @@ export function ClientDetailsTab({
           <CardContent className="grid grid-cols-2 gap-2 py-2" dir="rtl">
             <div className="space-y-0.5">
               <LabelWithUnderline>שם פרטי</LabelWithUnderline>
-              {isEditing ? (
+              {showEditableFields ? (
                 <Input 
                   type="text"
                   name="first_name"
@@ -105,12 +110,12 @@ export function ClientDetailsTab({
                   className="mt-0.5 h-8 text-sm"
                 />
               ) : (
-                <div className="text-sm py-1 px-2 bg-muted/30 rounded min-h-8 flex items-center">{client.first_name}</div>
+                <div className="text-sm py-1 px-2 bg-muted/30 rounded min-h-8 flex items-center">{isNewMode ? '' : client.first_name}</div>
               )}
             </div>
             <div className="space-y-0.5">
               <LabelWithUnderline>שם משפחה</LabelWithUnderline>
-              {isEditing ? (
+              {showEditableFields ? (
                 <Input 
                   type="text"
                   name="last_name"
@@ -119,17 +124,17 @@ export function ClientDetailsTab({
                   className="mt-0.5 h-8 text-sm"
                 />
               ) : (
-                <div className="text-sm py-1 px-2 bg-muted/30 rounded min-h-8 flex items-center">{client.last_name}</div>
+                <div className="text-sm py-1 px-2 bg-muted/30 rounded min-h-8 flex items-center">{isNewMode ? '' : client.last_name}</div>
               )}
             </div>
             <div className="space-y-0.5">
               <LabelWithUnderline>מגדר</LabelWithUnderline>
-              {isEditing ? (
-                <Select 
+              {showEditableFields ? (
+                <Select dir="rtl"
                   value={formData.gender || ''} 
                   onValueChange={(value) => handleSelectChange(value, 'gender')}
                 >
-                  <SelectTrigger className="mt-0.5 h-8 text-sm">
+                  <SelectTrigger className="mt-0.5 h-8 text-sm w-full">
                     <SelectValue placeholder="בחר מגדר" />
                   </SelectTrigger>
                   <SelectContent>
@@ -139,12 +144,12 @@ export function ClientDetailsTab({
                   </SelectContent>
                 </Select>
               ) : (
-                <div className="text-sm py-1 px-2 bg-muted/30 rounded min-h-8 flex items-center">{client.gender}</div>
+                <div className="text-sm py-1 px-2 bg-muted/30 rounded min-h-8 flex items-center">{isNewMode ? '' : client.gender}</div>
               )}
             </div>
             <div className="space-y-0.5">
               <LabelWithUnderline>תעודת זהות</LabelWithUnderline>
-              {isEditing ? (
+              {showEditableFields ? (
                 <Input 
                   type="text"
                   name="national_id"
@@ -153,24 +158,24 @@ export function ClientDetailsTab({
                   className="mt-0.5 h-8 text-sm"
                 />
               ) : (
-                <div className="text-sm py-1 px-2 bg-muted/30 rounded min-h-8 flex items-center">{client.national_id}</div>
+                <div className="text-sm py-1 px-2 bg-muted/30 rounded min-h-8 flex items-center">{isNewMode ? '' : client.national_id}</div>
               )}
             </div>
             <div className="text-right space-y-0.5" dir="rtl">
               <LabelWithUnderline>תאריך לידה</LabelWithUnderline>
-              {isEditing ? (
+              {showEditableFields ? (
                 <DateInput
                   name="date_of_birth"
                   value={formData.date_of_birth}
                   onChange={handleInputChange}
                 />
               ) : (
-                <div className="text-sm py-1 px-2 bg-muted/30 rounded min-h-8 flex items-center">{client.date_of_birth}</div>
+                <div className="text-sm py-1 px-2 bg-muted/30 rounded min-h-8 flex items-center">{isNewMode ? '' : client.date_of_birth}</div>
               )}
             </div>
             <div className="space-y-0.5">
               <LabelWithUnderline>תעסוקה</LabelWithUnderline>
-              {isEditing ? (
+              {showEditableFields ? (
                 <Input 
                   type="text"
                   name="occupation"
@@ -179,12 +184,12 @@ export function ClientDetailsTab({
                   className="mt-0.5 h-8 text-sm"
                 />
               ) : (
-                <div className="text-sm py-1 px-2 bg-muted/30 rounded min-h-8 flex items-center">{client.occupation}</div>
+                <div className="text-sm py-1 px-2 bg-muted/30 rounded min-h-8 flex items-center">{isNewMode ? '' : client.occupation}</div>
               )}
             </div>
             <div className="space-y-0.5">
               <LabelWithUnderline>סטטוס</LabelWithUnderline>
-              {isEditing ? (
+              {showEditableFields ? (
                 <Input 
                   type="text"
                   name="status"
@@ -193,7 +198,7 @@ export function ClientDetailsTab({
                   className="mt-0.5 h-8 text-sm"
                 />
               ) : (
-                <div className="text-sm py-1 px-2 bg-muted/30 rounded min-h-8 flex items-center">{client.status}</div>
+                <div className="text-sm py-1 px-2 bg-muted/30 rounded min-h-8 flex items-center">{isNewMode ? '' : client.status}</div>
               )}
             </div>
           </CardContent>
@@ -211,7 +216,7 @@ export function ClientDetailsTab({
           <CardContent className="grid grid-cols-2 gap-2 py-2" dir="rtl">
             <div className="space-y-0.5">
               <LabelWithUnderline>עיר</LabelWithUnderline>
-              {isEditing ? (
+              {showEditableFields ? (
                 <Input 
                   type="text"
                   name="address_city"
@@ -220,12 +225,12 @@ export function ClientDetailsTab({
                   className="mt-0.5 h-8 text-sm"
                 />
               ) : (
-                <div className="text-sm py-1 px-2 bg-muted/30 rounded min-h-8 flex items-center">{client.address_city}</div>
+                <div className="text-sm py-1 px-2 bg-muted/30 rounded min-h-8 flex items-center">{isNewMode ? '' : client.address_city}</div>
               )}
             </div>
             <div className="space-y-0.5">
               <LabelWithUnderline>רחוב</LabelWithUnderline>
-              {isEditing ? (
+              {showEditableFields ? (
                 <Input 
                   type="text"
                   name="address_street"
@@ -234,12 +239,12 @@ export function ClientDetailsTab({
                   className="mt-0.5 h-8 text-sm"
                 />
               ) : (
-                <div className="text-sm py-1 px-2 bg-muted/30 rounded min-h-8 flex items-center">{client.address_street}</div>
+                <div className="text-sm py-1 px-2 bg-muted/30 rounded min-h-8 flex items-center">{isNewMode ? '' : client.address_street}</div>
               )}
             </div>
             <div className="space-y-0.5">
               <LabelWithUnderline>מספר</LabelWithUnderline>
-              {isEditing ? (
+              {showEditableFields ? (
                 <Input 
                   type="text"
                   name="address_number"
@@ -248,12 +253,12 @@ export function ClientDetailsTab({
                   className="mt-0.5 h-8 text-sm"
                 />
               ) : (
-                <div className="text-sm py-1 px-2 bg-muted/30 rounded min-h-8 flex items-center">{client.address_number}</div>
+                <div className="text-sm py-1 px-2 bg-muted/30 rounded min-h-8 flex items-center">{isNewMode ? '' : client.address_number}</div>
               )}
             </div>
             <div className="space-y-0.5">
               <LabelWithUnderline>מיקוד</LabelWithUnderline>
-              {isEditing ? (
+              {showEditableFields ? (
                 <Input 
                   type="text"
                   name="postal_code"
@@ -262,12 +267,12 @@ export function ClientDetailsTab({
                   className="mt-0.5 h-8 text-sm"
                 />
               ) : (
-                <div className="text-sm py-1 px-2 bg-muted/30 rounded min-h-8 flex items-center">{client.postal_code}</div>
+                <div className="text-sm py-1 px-2 bg-muted/30 rounded min-h-8 flex items-center">{isNewMode ? '' : client.postal_code}</div>
               )}
             </div>
             <div className="space-y-0.5">
               <LabelWithUnderline>טלפון נייד</LabelWithUnderline>
-              {isEditing ? (
+              {showEditableFields ? (
                 <Input 
                   type="tel"
                   name="phone_mobile"
@@ -277,12 +282,12 @@ export function ClientDetailsTab({
                   dir="rtl"
                 />
               ) : (
-                <div className="text-sm py-1 px-2 bg-muted/30 rounded min-h-8 flex items-center">{client.phone_mobile}</div>
+                <div className="text-sm py-1 px-2 bg-muted/30 rounded min-h-8 flex items-center">{isNewMode ? '' : client.phone_mobile}</div>
               )}
             </div>
             <div className="space-y-0.5">
               <LabelWithUnderline>טלפון בית</LabelWithUnderline>
-              {isEditing ? (
+              {showEditableFields ? (
                 <Input 
                   type="tel"
                   name="phone_home"
@@ -292,12 +297,12 @@ export function ClientDetailsTab({
                   dir="rtl"
                 />
               ) : (
-                <div className="text-sm py-1 px-2 bg-muted/30 rounded min-h-8 flex items-center">{client.phone_home}</div>
+                <div className="text-sm py-1 px-2 bg-muted/30 rounded min-h-8 flex items-center">{isNewMode ? '' : client.phone_home}</div>
               )}
             </div>
             <div className="space-y-0.5">
               <LabelWithUnderline>טלפון עבודה</LabelWithUnderline>
-              {isEditing ? (
+              {showEditableFields ? (
                 <Input 
                   type="tel"
                   name="phone_work"
@@ -307,12 +312,12 @@ export function ClientDetailsTab({
                   dir="rtl"
                 />
               ) : (
-                <div className="text-sm py-1 px-2 bg-muted/30 rounded min-h-8 flex items-center">{client.phone_work}</div>
+                <div className="text-sm py-1 px-2 bg-muted/30 rounded min-h-8 flex items-center">{isNewMode ? '' : client.phone_work}</div>
               )}
             </div>
             <div className="space-y-0.5">
               <LabelWithUnderline>אימייל</LabelWithUnderline>
-              {isEditing ? (
+              {showEditableFields ? (
                 <Input 
                   type="email"
                   name="email"
@@ -321,13 +326,13 @@ export function ClientDetailsTab({
                   className="mt-0.5 h-8 text-sm"
                 />
               ) : (
-                <div className="text-sm py-1 px-2 bg-muted/30 rounded min-h-8 flex items-center">{client.email}</div>
+                <div className="text-sm py-1 px-2 bg-muted/30 rounded min-h-8 flex items-center">{isNewMode ? '' : client.email}</div>
               )}
             </div>
           </CardContent>
         </Card>
         
-        <Card className="text-right md:col-span-2 border-primary/10 shadow-sm">
+        <Card className="text-right border-primary/10 shadow-sm">
           <CardHeader className="py-3 px-4 bg-gradient-to-l rounded-t-xl from-primary/5 to-transparent border-b-0 -mt-6 pt-4" dir="rtl">
             <CardTitle className="text-lg flex items-center gap-2">
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-primary">
@@ -337,160 +342,160 @@ export function ClientDetailsTab({
               פרטי חברות ושירות
             </CardTitle>
           </CardHeader>
-          <CardContent className="grid md:grid-cols-[9fr_3fr] gap-x-4 gap-y-1.5 py-2" dir="rtl">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-x-2 gap-y-1.5">
-              <div className="space-y-0.5">
-                <LabelWithUnderline>תאריך פתיחת תיק</LabelWithUnderline>
-                {isEditing ? (
-                  <DateInput
-                    name="file_creation_date"
-                    value={formData.file_creation_date}
-                    onChange={handleInputChange}
-                  />
-                ) : (
-                  <div className="text-sm py-1 px-2 bg-muted/30 rounded min-h-8 flex items-center">{client.file_creation_date}</div>
-                )}
-              </div>
-              <div className="space-y-0.5">
-                <LabelWithUnderline>תום חברות</LabelWithUnderline>
-                {isEditing ? (
-                  <DateInput
-                    name="membership_end"
-                    value={formData.membership_end}
-                    onChange={handleInputChange}
-                  />
-                ) : (
-                  <div className="text-sm py-1 px-2 bg-muted/30 rounded min-h-8 flex items-center">{client.membership_end}</div>
-                )}
-              </div>
-              <div className="space-y-0.5">
-                <LabelWithUnderline>תום שירות</LabelWithUnderline>
-                {isEditing ? (
-                  <DateInput
-                    name="service_end"
-                    value={formData.service_end}
-                    onChange={handleInputChange}
-                  />
-                ) : (
-                  <div className="text-sm py-1 px-2 bg-muted/30 rounded min-h-8 flex items-center">{client.service_end}</div>
-                )}
-              </div>
-              <div className="space-y-0.5">
-                <LabelWithUnderline>מחירון</LabelWithUnderline>
-                {isEditing ? (
-                  <Input 
-                    type="text"
-                    name="price_list"
-                    value={formData.price_list || ''}
-                    onChange={handleInputChange}
-                    className="mt-0.5 h-8 text-sm"
-                  />
-                ) : (
-                  <div className="text-sm py-1 px-2 bg-muted/30 rounded min-h-8 flex items-center">{client.price_list}</div>
-                )}
-              </div>
-              <div className="space-y-0.5">
-                <LabelWithUnderline>הנחה באחוזים</LabelWithUnderline>
-                {isEditing ? (
-                  <Input 
-                    type="number"
-                    name="discount_percent"
-                    value={formData.discount_percent || ''}
-                    onChange={handleInputChange}
-                    className="mt-0.5 h-8 text-sm"
-                  />
-                ) : (
-                  <div className="text-sm py-1 px-2 bg-muted/30 rounded min-h-8 flex items-center">{client.discount_percent !== undefined ? `${client.discount_percent}%` : ''}</div>
-                )}
-              </div>
-              <div className="space-y-0.5">
-                <LabelWithUnderline>קבוצת מיון</LabelWithUnderline>
-                {isEditing ? (
-                  <Input 
-                    type="text"
-                    name="sorting_group"
-                    value={formData.sorting_group || ''}
-                    onChange={handleInputChange}
-                    className="mt-0.5 h-8 text-sm"
-                  />
-                ) : (
-                  <div className="text-sm py-1 px-2 bg-muted/30 rounded min-h-8 flex items-center">{client.sorting_group}</div>
-                )}
-              </div>
-              <div className="space-y-0.5">
-                <LabelWithUnderline>גורם מפנה</LabelWithUnderline>
-                {isEditing ? (
-                  <Input 
-                    type="text"
-                    name="referring_party"
-                    value={formData.referring_party || ''}
-                    onChange={handleInputChange}
-                    className="mt-0.5 h-8 text-sm"
-                  />
-                ) : (
-                  <div className="text-sm py-1 px-2 bg-muted/30 rounded min-h-8 flex items-center">{client.referring_party}</div>
-                )}
-              </div>
-              <div className="space-y-0.5">
-                <div className="flex gap-2 justify-between">
-                  <div className="w-[48%]">
-                    <LabelWithUnderline>צ'קים חסומים</LabelWithUnderline>
-                    {isEditing ? (
-                      <Select 
-                        value={formData.blocked_checks ? 'true' : 'false'} 
-                        onValueChange={(value) => handleSelectChange(value === 'true' ? true : false, 'blocked_checks')}
-                      >
-                        <SelectTrigger className="mt-0.5 h-8 text-sm">
-                          <SelectValue placeholder="בחר" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="true">כן</SelectItem>
-                          <SelectItem value="false">לא</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    ) : (
-                      <div className="text-sm py-1 px-2 bg-muted/30 rounded min-h-8 flex items-center">{client.blocked_checks ? 'כן' : 'לא'}</div>
-                    )}
-                  </div>
-                  <div className="w-[48%]">
-                    <LabelWithUnderline>אשראי חסום</LabelWithUnderline>
-                    {isEditing ? (
-                      <Select 
-                        value={formData.blocked_credit ? 'true' : 'false'} 
-                        onValueChange={(value) => handleSelectChange(value === 'true' ? true : false, 'blocked_credit')}
-                      >
-                        <SelectTrigger className="mt-0.5 h-8 text-sm">
-                          <SelectValue placeholder="בחר" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="true">כן</SelectItem>
-                          <SelectItem value="false">לא</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    ) : (
-                      <div className="text-sm py-1 px-2 bg-muted/30 rounded min-h-8 flex items-center">{client.blocked_credit ? 'כן' : 'לא'}</div>
-                    )}
-                  </div>
+          <CardContent className="grid grid-cols-2 gap-2 py-2" dir="rtl">
+            <div className="space-y-0.5">
+              <LabelWithUnderline>תאריך פתיחת תיק</LabelWithUnderline>
+              {showEditableFields ? (
+                <DateInput
+                  name="file_creation_date"
+                  value={formData.file_creation_date}
+                  onChange={handleInputChange}
+                />
+              ) : (
+                <div className="text-sm py-1 px-2 bg-muted/30 rounded min-h-8 flex items-center">{isNewMode ? '' : client.file_creation_date}</div>
+              )}
+            </div>
+            <div className="space-y-0.5">
+              <LabelWithUnderline>תום חברות</LabelWithUnderline>
+              {showEditableFields ? (
+                <DateInput
+                  name="membership_end"
+                  value={formData.membership_end}
+                  onChange={handleInputChange}
+                />
+              ) : (
+                <div className="text-sm py-1 px-2 bg-muted/30 rounded min-h-8 flex items-center">{isNewMode ? '' : client.membership_end}</div>
+              )}
+            </div>
+            <div className="space-y-0.5">
+              <LabelWithUnderline>תום שירות</LabelWithUnderline>
+              {showEditableFields ? (
+                <DateInput
+                  name="service_end"
+                  value={formData.service_end}
+                  onChange={handleInputChange}
+                />
+              ) : (
+                <div className="text-sm py-1 px-2 bg-muted/30 rounded min-h-8 flex items-center">{isNewMode ? '' : client.service_end}</div>
+              )}
+            </div>
+            <div className="space-y-0.5">
+              <LabelWithUnderline>מחירון</LabelWithUnderline>
+              {showEditableFields ? (
+                <Input 
+                  type="text"
+                  name="price_list"
+                  value={formData.price_list || ''}
+                  onChange={handleInputChange}
+                  className="mt-0.5 h-8 text-sm"
+                />
+              ) : (
+                <div className="text-sm py-1 px-2 bg-muted/30 rounded min-h-8 flex items-center">{isNewMode ? '' : client.price_list}</div>
+              )}
+            </div>
+            <div className="space-y-0.5">
+              <LabelWithUnderline>הנחה באחוזים</LabelWithUnderline>
+              {showEditableFields ? (
+                <Input 
+                  type="number"
+                  name="discount_percent"
+                  value={formData.discount_percent || ''}
+                  onChange={handleInputChange}
+                  className="mt-0.5 h-8 text-sm"
+                />
+              ) : (
+                <div className="text-sm py-1 px-2 bg-muted/30 rounded min-h-8 flex items-center">{isNewMode ? '' : (client.discount_percent !== undefined ? `${client.discount_percent}%` : '')}</div>
+              )}
+            </div>
+            <div className="space-y-0.5">
+              <LabelWithUnderline>קבוצת מיון</LabelWithUnderline>
+              {showEditableFields ? (
+                <Input 
+                  type="text"
+                  name="sorting_group"
+                  value={formData.sorting_group || ''}
+                  onChange={handleInputChange}
+                  className="mt-0.5 h-8 text-sm"
+                />
+              ) : (
+                <div className="text-sm py-1 px-2 bg-muted/30 rounded min-h-8 flex items-center">{isNewMode ? '' : client.sorting_group}</div>
+              )}
+            </div>
+            <div className="space-y-0.5">
+              <LabelWithUnderline>גורם מפנה</LabelWithUnderline>
+              {showEditableFields ? (
+                <Input 
+                  type="text"
+                  name="referring_party"
+                  value={formData.referring_party || ''}
+                  onChange={handleInputChange}
+                  className="mt-0.5 h-8 text-sm"
+                />
+              ) : (
+                <div className="text-sm py-1 px-2 bg-muted/30 rounded min-h-8 flex items-center">{isNewMode ? '' : client.referring_party}</div>
+              )}
+            </div>
+            <div className="space-y-0.5">
+              <div className="grid grid-cols-2 gap-1">
+                <div>
+                  <LabelWithUnderline>צ'קים חסומים</LabelWithUnderline>
+                  {showEditableFields ? (
+                    <Select 
+                      value={formData.blocked_checks ? 'true' : 'false'} 
+                      onValueChange={(value) => handleSelectChange(value === 'true' ? true : false, 'blocked_checks')}
+                    >
+                      <SelectTrigger className="mt-0.5 h-8 text-xs">
+                        <SelectValue placeholder="בחר" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="true">כן</SelectItem>
+                        <SelectItem value="false">לא</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <div className="text-xs py-1 px-1 bg-muted/30 rounded min-h-8 flex items-center">{isNewMode ? 'לא' : (client.blocked_checks ? 'כן' : 'לא')}</div>
+                  )}
+                </div>
+                <div>
+                  <LabelWithUnderline>אשראי חסום</LabelWithUnderline>
+                  {showEditableFields ? (
+                    <Select 
+                      value={formData.blocked_credit ? 'true' : 'false'} 
+                      onValueChange={(value) => handleSelectChange(value === 'true' ? true : false, 'blocked_credit')}
+                    >
+                      <SelectTrigger className="mt-0.5 h-8 text-xs">
+                        <SelectValue placeholder="בחר" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="true">כן</SelectItem>
+                        <SelectItem value="false">לא</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <div className="text-xs py-1 px-1 bg-muted/30 rounded min-h-8 flex items-center">{isNewMode ? 'לא' : (client.blocked_credit ? 'כן' : 'לא')}</div>
+                  )}
                 </div>
               </div>
             </div>
-            
-            <div className="space-y-0.5">
-              <LabelWithUnderline>הערות</LabelWithUnderline>
-              {isEditing ? (
-                <textarea 
-                  name="notes"
-                  value={formData.notes || ''}
-                  onChange={handleInputChange}
-                  className="w-full h-[86px] min-h-[86px] mt-0.5 p-2 border rounded-md resize-y text-sm"
-                  rows={4}
-                />
-              ) : (
-                <div className="whitespace-pre-wrap text-sm p-2 bg-muted/30 rounded h-[86px] min-h-[86px]">{client.notes}</div>
-              )}
-            </div>
           </CardContent>
         </Card>
+      </div>
+      
+      <div className="rounded-md pt-4 mt-4" dir="rtl">
+        <label className="block text-base font-semibold mb-2">הערות</label>
+        {showEditableFields ? (
+          <textarea 
+            name="notes"
+            value={formData.notes || ''}
+            onChange={handleInputChange}
+            className="text-sm w-full min-h-[90px] p-3 border shadow-sm rounded-md resize-none"
+            rows={4}
+          />
+        ) : (
+          <div className="text-sm border shadow-sm p-3 rounded-md min-h-[106px]">
+            {isNewMode ? 'אין הערות' : (client.notes || 'אין הערות')}
+          </div>
+        )}
       </div>
     </form>
   )

@@ -9,10 +9,6 @@ export function ClientExamsTab() {
   const exams = getExamsByClientId(Number(clientId))
 
   return (
-    <Card className="text-right">
-      <CardContent>
-        <ExamsTable data={exams} clientId={Number(clientId)} />
-      </CardContent>
-    </Card>
+      <ExamsTable data={exams} clientId={Number(clientId)} />
   )
 } 
