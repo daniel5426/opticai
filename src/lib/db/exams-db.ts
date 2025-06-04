@@ -268,24 +268,28 @@ const mockOpticalEyeExams: OpticalEyeExam[] = [
 
 // Get all exams for a specific client
 export function getExamsByClientId(clientId: number): OpticalExam[] {
-  return mockOpticalExams.filter(exam => exam.client_id === clientId);
+  const exams = JSON.parse(localStorage.getItem('exams') || JSON.stringify(mockOpticalExams));
+  return exams.filter((exam: OpticalExam) => exam.client_id === clientId);
 }
 
 // Get a specific exam by ID
 export function getExamById(examId: number): OpticalExam | undefined {
-  return mockOpticalExams.find(exam => exam.id === examId);
+  const exams = JSON.parse(localStorage.getItem('exams') || JSON.stringify(mockOpticalExams));
+  return exams.find((exam: OpticalExam) => exam.id === examId);
 }
 
 // Get eye exams for a specific exam ID
 export function getEyeExamsByExamId(examId: number): OpticalEyeExam[] {
-  return mockOpticalEyeExams.filter(eyeExam => eyeExam.exam_id === examId);
+  const eyeExams = JSON.parse(localStorage.getItem('eyeExams') || JSON.stringify(mockOpticalEyeExams));
+  return eyeExams.filter((eyeExam: OpticalEyeExam) => eyeExam.exam_id === examId);
 }
 
 // Create a new exam
 export function createExam(exam: Partial<OpticalExam>): OpticalExam {
-  const newId = Math.max(0, ...mockOpticalExams.map(e => e.id || 0)) + 1;
+  const exams = JSON.parse(localStorage.getItem('exams') || JSON.stringify(mockOpticalExams));
+  const maxId = exams.length > 0 ? Math.max(...exams.map((e: OpticalExam) => e.id || 0)) : 0;
   const newExam: OpticalExam = {
-    id: newId,
+    id: maxId + 1,
     client_id: exam.client_id || 0,
     clinic: exam.clinic || '',
     examiner_name: exam.examiner_name || '',
@@ -293,63 +297,68 @@ export function createExam(exam: Partial<OpticalExam>): OpticalExam {
     test_name: exam.test_name || '',
     dominant_eye: exam.dominant_eye || '',
     notes: exam.notes || '',
-    comb_subj_va: exam.comb_subj_va || 0,
-    comb_old_va: exam.comb_old_va || 0,
-    comb_fa: exam.comb_fa || 0,
-    comb_fa_tuning: exam.comb_fa_tuning || 0,
-    comb_pd_close: exam.comb_pd_close || 0,
-    comb_pd_far: exam.comb_pd_far || 0
+    comb_subj_va: exam.comb_subj_va,
+    comb_old_va: exam.comb_old_va,
+    comb_fa: exam.comb_fa,
+    comb_fa_tuning: exam.comb_fa_tuning,
+    comb_pd_close: exam.comb_pd_close,
+    comb_pd_far: exam.comb_pd_far
   };
-  mockOpticalExams.push(newExam);
+  exams.push(newExam);
+  localStorage.setItem('exams', JSON.stringify(exams));
   return newExam;
 }
 
 // Create a new eye exam
 export function createEyeExam(eyeExam: Partial<OpticalEyeExam>): OpticalEyeExam {
-  const newId = Math.max(0, ...mockOpticalEyeExams.map(e => e.id || 0)) + 1;
+  const eyeExams = JSON.parse(localStorage.getItem('eyeExams') || JSON.stringify(mockOpticalEyeExams));
+  const maxId = eyeExams.length > 0 ? Math.max(...eyeExams.map((e: OpticalEyeExam) => e.id || 0)) : 0;
   const newEyeExam: OpticalEyeExam = {
-    id: newId,
+    id: maxId + 1,
     exam_id: eyeExam.exam_id || 0,
     eye: eyeExam.eye || 'R',
     old_sph: eyeExam.old_sph,
     old_cyl: eyeExam.old_cyl,
     old_ax: eyeExam.old_ax,
     old_pris: eyeExam.old_pris,
-    old_base: eyeExam.old_base || 0,
-    old_va: eyeExam.old_va || 0,
+    old_base: eyeExam.old_base,
+    old_va: eyeExam.old_va,
     old_ad: eyeExam.old_ad,
     obj_sph: eyeExam.obj_sph,
     obj_cyl: eyeExam.obj_cyl,
     obj_ax: eyeExam.obj_ax,
     obj_se: eyeExam.obj_se,
-    subj_fa: eyeExam.subj_fa || 0,
-    subj_fa_tuning: eyeExam.subj_fa_tuning || 0,
+    subj_fa: eyeExam.subj_fa,
+    subj_fa_tuning: eyeExam.subj_fa_tuning,
     subj_sph: eyeExam.subj_sph,
     subj_cyl: eyeExam.subj_cyl,
     subj_ax: eyeExam.subj_ax,
     subj_pris: eyeExam.subj_pris,
-    subj_base: eyeExam.subj_base || 0,
-    subj_va: eyeExam.subj_va || 0,
-    subj_pd_close: eyeExam.subj_pd_close || 0,
-    subj_pd_far: eyeExam.subj_pd_far || 0,
-    subj_ph: eyeExam.subj_ph || 0,
-    ad_fcc: eyeExam.ad_fcc || 0,
-    ad_read: eyeExam.ad_read || 0,
-    ad_int: eyeExam.ad_int || 0,
-    ad_bif: eyeExam.ad_bif || 0,
+    subj_base: eyeExam.subj_base,
+    subj_va: eyeExam.subj_va,
+    subj_pd_close: eyeExam.subj_pd_close,
+    subj_pd_far: eyeExam.subj_pd_far,
+    subj_ph: eyeExam.subj_ph,
+    ad_fcc: eyeExam.ad_fcc,
+    ad_read: eyeExam.ad_read,
+    ad_int: eyeExam.ad_int,
+    ad_bif: eyeExam.ad_bif,
     ad_mul: eyeExam.ad_mul,
     ad_j: eyeExam.ad_j,
-    iop: eyeExam.iop || 0
+    iop: eyeExam.iop
   };
-  mockOpticalEyeExams.push(newEyeExam);
+  eyeExams.push(newEyeExam);
+  localStorage.setItem('eyeExams', JSON.stringify(eyeExams));
   return newEyeExam;
 }
 
 // Update an exam
 export function updateExam(exam: OpticalExam): OpticalExam | undefined {
-  const index = mockOpticalExams.findIndex(e => e.id === exam.id);
+  const exams = JSON.parse(localStorage.getItem('exams') || JSON.stringify(mockOpticalExams));
+  const index = exams.findIndex((e: OpticalExam) => e.id === exam.id);
   if (index !== -1) {
-    mockOpticalExams[index] = exam;
+    exams[index] = exam;
+    localStorage.setItem('exams', JSON.stringify(exams));
     return exam;
   }
   return undefined;
@@ -357,9 +366,11 @@ export function updateExam(exam: OpticalExam): OpticalExam | undefined {
 
 // Update an eye exam
 export function updateEyeExam(eyeExam: OpticalEyeExam): OpticalEyeExam | undefined {
-  const index = mockOpticalEyeExams.findIndex(e => e.id === eyeExam.id);
+  const eyeExams = JSON.parse(localStorage.getItem('eyeExams') || JSON.stringify(mockOpticalEyeExams));
+  const index = eyeExams.findIndex((e: OpticalEyeExam) => e.id === eyeExam.id);
   if (index !== -1) {
-    mockOpticalEyeExams[index] = eyeExam;
+    eyeExams[index] = eyeExam;
+    localStorage.setItem('eyeExams', JSON.stringify(eyeExams));
     return eyeExam;
   }
   return undefined;

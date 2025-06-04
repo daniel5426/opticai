@@ -92,11 +92,23 @@ export interface OpticalEyeExam {
   iop?: number;
 }
 
-export interface OpticalOrder {
+export interface Order {
   id?: number;
   exam_id: number;
   order_date?: string;
   type?: string;
+  lens_id?: number;
+  frame_id?: number;
+
+  comb_va?: number;
+  comb_high?: number;
+  comb_pd?: number;
+}
+
+export interface OrderEye {
+  id?: number;
+  order_id: number;
+  eye: string;
   sph?: number;
   cyl?: number;
   ax?: number;
@@ -105,15 +117,14 @@ export interface OpticalOrder {
   va?: string;
   ad?: number;
   diam?: number;
-  secondary_base?: number;
-  high_curvature?: number;
+  s_base?: number;
+  high?: number;
   pd?: number;
-  lens_id?: number;
-  frame_id?: number;
 }
 
 export interface OrderLens {
   id?: number;
+  order_id: number;
   right_model?: string;
   left_model?: string;
   color?: string;
@@ -124,6 +135,7 @@ export interface OrderLens {
 
 export interface Frame {
   id?: number;
+  order_id: number;
   color?: string;
   supplier?: string;
   model?: string;
@@ -327,61 +339,6 @@ export const createTables = (db: Database): void => {
     );
   `);
 
-  // Create optical_orders table
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS optical_orders (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      exam_id INTEGER NOT NULL,
-      order_date DATE,
-      type TEXT,
-      sph REAL,
-      cyl REAL,
-      ax INTEGER,
-      pris REAL,
-      base TEXT,
-      va TEXT,
-      ad REAL,
-      diam REAL,
-      secondary_base REAL,
-      high_curvature REAL,
-      pd REAL,
-      lens_id INTEGER,
-      frame_id INTEGER,
-      FOREIGN KEY(exam_id) REFERENCES optical_exams(id) ON DELETE CASCADE,
-      FOREIGN KEY(lens_id) REFERENCES order_lenses(id),
-      FOREIGN KEY(frame_id) REFERENCES frames(id)
-    );
-  `);
-
-  // Create order_lenses table
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS order_lenses (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      right_model TEXT,
-      left_model TEXT,
-      color TEXT,
-      coating TEXT,
-      material TEXT,
-      supplier TEXT
-    );
-  `);
-
-  // Create frames table
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS frames (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      color TEXT,
-      supplier TEXT,
-      model TEXT,
-      manufacturer TEXT,
-      supplied_by TEXT,
-      bridge REAL,
-      width REAL,
-      height REAL,
-      length REAL
-    );
-  `);
-
   // Create contact_lens table
   db.exec(`
     CREATE TABLE IF NOT EXISTS contact_lens (
@@ -484,6 +441,76 @@ export const createTables = (db: Database): void => {
       discount REAL,
       line_total REAL,
       FOREIGN KEY(billings_id) REFERENCES billings(id)
+    );
+  `);
+
+  // Create orders table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS orders (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      exam_id INTEGER NOT NULL,
+      order_date DATE,
+      type TEXT,
+      lens_id INTEGER,
+      frame_id INTEGER,
+      comb_va REAL,
+      comb_high REAL,
+      comb_pd REAL,
+      FOREIGN KEY(exam_id) REFERENCES optical_exams(id) ON DELETE CASCADE
+    );
+  `);
+
+  // Create order_eyes table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS order_eyes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      order_id INTEGER NOT NULL,
+      eye TEXT CHECK(eye IN ('R','L')),
+      sph REAL,
+      cyl REAL,
+      ax INTEGER,
+      pris REAL,
+      base TEXT,
+      va TEXT,
+      ad REAL,
+      diam REAL,
+      s_base REAL,
+      high REAL,
+      pd REAL,
+      FOREIGN KEY(order_id) REFERENCES orders(id) ON DELETE CASCADE
+    );
+  `);
+
+  // Create order_lens table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS order_lens (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      order_id INTEGER NOT NULL,
+      right_model TEXT,
+      left_model TEXT,
+      color TEXT,
+      coating TEXT,
+      material TEXT,
+      supplier TEXT,
+      FOREIGN KEY(order_id) REFERENCES orders(id) ON DELETE CASCADE
+    );
+  `);
+
+  // Create frames table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS frames (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      order_id INTEGER NOT NULL,
+      color TEXT,
+      supplier TEXT,
+      model TEXT,
+      manufacturer TEXT,
+      supplied_by TEXT,
+      bridge REAL,
+      width REAL,
+      height REAL,
+      length REAL,
+      FOREIGN KEY(order_id) REFERENCES orders(id) ON DELETE CASCADE
     );
   `);
 };

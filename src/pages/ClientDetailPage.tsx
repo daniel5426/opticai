@@ -19,10 +19,16 @@ import {
 
 export default function ClientDetailPage() {
   const { clientId } = useParams({ from: "/clients/$clientId" })
+  
+  // Get search params to check for tab parameter
+  const searchParams = new URLSearchParams(window.location.search)
+  const initialTab = searchParams.get('tab') || 'details'
+  
   const [client, setClient] = useState<Client | undefined>(getClientById(Number(clientId)))
   const [isEditing, setIsEditing] = useState(false)
   const [formData, setFormData] = useState<Client>({} as Client)
-  const [activeTab, setActiveTab] = useState("details")
+  const [activeTab, setActiveTab] = useState(initialTab)
+  const [refreshKey, setRefreshKey] = useState(0)
   const formRef = useRef<HTMLFormElement>(null)
   
   useEffect(() => {
@@ -30,6 +36,13 @@ export default function ClientDetailPage() {
       setFormData({ ...client })
     }
   }, [client])
+
+  useEffect(() => {
+    // Refresh orders data when switching to orders tab
+    if (activeTab === 'orders') {
+      setRefreshKey(prev => prev + 1)
+    }
+  }, [activeTab])
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
@@ -82,7 +95,7 @@ export default function ClientDetailPage() {
         />
         <div className="flex flex-col flex-1 p-4 lg:p-6 mb-30" dir="rtl">
           <Tabs 
-            defaultValue="details" 
+            value={activeTab}
             className="w-full"
             onValueChange={(value) => setActiveTab(value)}
           >
@@ -127,7 +140,7 @@ export default function ClientDetailPage() {
             </TabsContent>
             
             <TabsContent value="orders">
-              <ClientOrdersTab />
+              <ClientOrdersTab key={refreshKey} />
             </TabsContent>
             
             <TabsContent value="billing">

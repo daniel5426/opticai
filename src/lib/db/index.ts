@@ -5,7 +5,7 @@ import fs from 'fs';
 import { createTables, Client } from './schema';
 
 class DatabaseService {
-  private db: Database | null = null;
+  private db: Database.Database | null = null;
   private dbPath: string;
 
   constructor() {

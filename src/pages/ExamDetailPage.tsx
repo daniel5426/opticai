@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react"
-import { useParams, useNavigate } from "@tanstack/react-router"
+import { useParams, useNavigate, Link } from "@tanstack/react-router"
 import { SidebarInset } from "@/components/ui/sidebar"
 import { AppSidebar } from "@/components/app-sidebar"
 import { SidebarProvider } from "@/components/ui/sidebar"
@@ -90,51 +90,54 @@ function PreviousObjectiveSection({ eye, data, onChange, isEditing }: EyeSection
 
   return (
     <div className="flex items-center gap-1 h-6 mb-3" dir="rtl">
-      <div className="grid grid-cols-12 gap-4 flex-1 pb-2">
-        <div>
+      <div className="grid grid-cols-24 gap-4 flex-1 pb-2" dir="ltr">
+        <div className="col-span-2">
           {eye === "R" && <Label htmlFor={`${eye}-old-sph`} className="text-[12px] block text-center">SPH</Label>}
           <Input id={`${eye}-old-sph`} type="number" step="0.25" value={data.old_sph?.toString() || ""} onChange={(e) => onChange(eye, "old_sph", e.target.value)} disabled={!isEditing} className="h-8 text-xs px-1" placeholder="0.00" />
         </div>
-        <div>
+        <div className="col-span-2">
           {eye === "R" && <Label htmlFor={`${eye}-old-cyl`} className="text-[12px] block text-center">CYL</Label>}
           <Input id={`${eye}-old-cyl`} type="number" step="0.25" value={data.old_cyl?.toString() || ""} onChange={(e) => onChange(eye, "old_cyl", e.target.value)} disabled={!isEditing} className="h-8 text-xs px-1" placeholder="0.00" />
         </div>
-        <div>
+        <div className="col-span-2">
           {eye === "R" && <Label htmlFor={`${eye}-old-ax`} className="text-[12px] block text-center">AXIS</Label>}
           <Input id={`${eye}-old-ax`} type="number" min="0" max="180" value={data.old_ax?.toString() || ""} onChange={(e) => onChange(eye, "old_ax", e.target.value)} disabled={!isEditing} className="h-8 text-xs px-1" placeholder="0" />
         </div>
-        <div>
-          {eye === "R" && <Label htmlFor={`${eye}-old-base`} className="text-[12px] block text-center">BASE</Label>}
-          <Input id={`${eye}-old-base`} type="number" step="0.1" value={data.old_base?.toString() || ""} onChange={(e) => onChange(eye, "old_base", e.target.value)} disabled={!isEditing} className="h-8 text-xs px-1" placeholder="0.0" />
-        </div>
-        <div>
+        <div className="col-span-2">
           {eye === "R" && <Label htmlFor={`${eye}-old-pris`} className="text-[12px] block text-center">PRIS</Label>}
           <Input id={`${eye}-old-pris`} type="number" step="0.5" value={data.old_pris?.toString() || ""} onChange={(e) => onChange(eye, "old_pris", e.target.value)} disabled={!isEditing} className="h-8 text-xs px-1" placeholder="0.0" />
         </div>
-        <div>
-          {eye === "R" && <Label htmlFor={`${eye}-old-va`} className="text-[12px] block text-center">VA</Label>}
-          <Input id={`${eye}-old-va`} type="number" step="0.1" value={data.old_va?.toString() || ""} onChange={(e) => onChange(eye, "old_va", e.target.value)} disabled={!isEditing} className="h-8 text-xs px-1" placeholder="0.0" />
+        <div className="col-span-2">
+          {eye === "R" && <Label htmlFor={`${eye}-old-base`} className="text-[12px] block text-center">BASE</Label>}
+          <Input id={`${eye}-old-base`} type="number" step="0.1" value={data.old_base?.toString() || ""} onChange={(e) => onChange(eye, "old_base", e.target.value)} disabled={!isEditing} className="h-8 text-xs px-1" placeholder="0.0" />
         </div>
-        <div>
+        <div className="col-span-3">
+          {eye === "R" && <Label htmlFor={`${eye}-old-va`} className="text-[12px] block text-center">VA</Label>}
+          <div className="relative" dir="ltr">
+            <Input id={`${eye}-old-va`} type="number" step="0.1" value={data.old_va?.toString() || ""} onChange={(e) => onChange(eye, "old_va", e.target.value)} disabled={!isEditing} className="h-8 text-xs px-1 pl-6" placeholder="0.0" />
+            <span className="absolute left-2 top-[53%] transform -translate-y-1/2 text-[14px] text-gray-500 pointer-events-none">6/</span>
+          </div>
+        </div>
+        <div className="col-span-2">
           {eye === "R" && <Label htmlFor={`${eye}-old-ad`} className="text-[12px] block text-center">ADD</Label>}
           <Input id={`${eye}-old-ad`} type="number" step="0.25" value={data.old_ad?.toString() || ""} onChange={(e) => onChange(eye, "old_ad", e.target.value)} disabled={!isEditing} className="h-8 text-xs px-1" placeholder="0.00" />
         </div>
 
-        <div className="flex items-end justify-center"><div className="w-px h-full bg-gray-300"></div></div>
+        <div className="col-span-1 flex items-end justify-center"><div className="w-px h-full bg-gray-300"></div></div>
 
-        <div>
+        <div className="col-span-2">
           {eye === "R" && <Label htmlFor={`${eye}-obj-sph`} className="text-[12px] block text-center">SPH</Label>}
           <Input id={`${eye}-obj-sph`} type="number" step="0.25" value={data.obj_sph?.toString() || ""} onChange={(e) => onChange(eye, "obj_sph", e.target.value)} disabled={!isEditing} className="h-8 text-xs px-1" placeholder="0.00" />
         </div>
-        <div>
+        <div className="col-span-2">
           {eye === "R" && <Label htmlFor={`${eye}-obj-cyl`} className="text-[12px] block text-center">CYL</Label>}
           <Input id={`${eye}-obj-cyl`} type="number" step="0.25" value={data.obj_cyl?.toString() || ""} onChange={(e) => onChange(eye, "obj_cyl", e.target.value)} disabled={!isEditing} className="h-8 text-xs px-1" placeholder="0.00" />
         </div>
-        <div>
+        <div className="col-span-2">
           {eye === "R" && <Label htmlFor={`${eye}-obj-ax`} className="text-[12px] block text-center">AXIS</Label>}
           <Input id={`${eye}-obj-ax`} type="number" min="0" max="180" value={data.obj_ax?.toString() || ""} onChange={(e) => onChange(eye, "obj_ax", e.target.value)} disabled={!isEditing} className="h-8 text-xs px-1" placeholder="0" />
         </div>
-        <div>
+        <div className="col-span-2">
           {eye === "R" && <Label htmlFor={`${eye}-obj-se`} className="text-[12px] block text-center">SE</Label>}
           <Input id={`${eye}-obj-se`} type="number" step="0.25" value={data.obj_se?.toString() || ""} onChange={(e) => onChange(eye, "obj_se", e.target.value)} disabled={!isEditing} className="h-8 text-xs px-1" placeholder="0.00" />
         </div>
@@ -153,9 +156,9 @@ function CombinedVaFields({ exam, onChange, isEditing, onMultifocalClick, onVHCo
 }) {
   return (
     <div className="flex items-center gap-1 h-10 mb-3" dir="rtl">
-      <div className="grid grid-cols-12 gap-4 flex-1">
-        <div></div>
-        <div className="flex justify-center items-center">
+      <div className="grid grid-cols-24 gap-4 flex-1" dir="ltr">
+        <div className="col-span-2"></div>
+        <div className="col-span-2 flex justify-center items-center">
           <Button 
             type="button"
             variant="outline" 
@@ -167,15 +170,20 @@ function CombinedVaFields({ exam, onChange, isEditing, onMultifocalClick, onVHCo
             MUL
           </Button>
         </div>
-        <div></div>
-        <div></div>
-        <div className="flex justify-center items-center">
+        <div className="col-span-2"></div>
+        <div className="col-span-2 flex justify-center items-center">
           <VHCalculatorModal onConfirm={onVHConfirm} disabled={!isEditing} />
         </div>
-        <div>
-          <Input type="number" step="0.1" value={exam.comb_old_va?.toString() || ""} onChange={(e) => onChange("comb_old_va", e.target.value)} disabled={!isEditing} className="h-8 text-xs px-1" placeholder="Old VA" />
+        <div className="col-span-2"></div>
+        <div className="col-span-3">
+          <div className="relative" dir="ltr">
+            <Input id={`comb-old-va`} type="number" step="0.1" value={exam.comb_old_va?.toString() || ""} onChange={(e) => onChange("comb_old_va", e.target.value)} disabled={!isEditing} className="h-8 text-xs px-1 pl-6" placeholder="0.0" />
+            <span className="absolute left-2 top-[53%] transform -translate-y-1/2 text-[14px] text-gray-500 pointer-events-none">6/</span>
+          </div>
         </div>
-        <div className="col-span-5"></div>
+        <div className="col-span-2"></div>
+        <div className="col-span-1"></div>
+        <div className="col-span-6"></div>
       </div>
       <span className="text-md font-medium pr-2 flex items-center justify-center w-6">C</span>
     </div>
@@ -187,44 +195,47 @@ function SubjectiveSection({ eye, data, onChange, isEditing }: EyeSectionProps) 
 
   return (
     <div className="flex items-center gap-1 h-6 mb-3" dir="rtl">
-      <div className="grid grid-cols-10 gap-4 flex-1 pb-2">
-        <div>
+      <div className="grid grid-cols-20 gap-4 flex-1 pb-2" dir="ltr">
+        <div className="col-span-2">
           {eye === "R" && <Label htmlFor={`${eye}-subj-fa`} className="text-[12px] block text-center">FA</Label>}
           <Input id={`${eye}-subj-fa`} type="number" step="0.1" value={data.subj_fa?.toString() || ""} onChange={(e) => onChange(eye, "subj_fa", e.target.value)} disabled={!isEditing} className="h-8 text-xs px-1" placeholder="FA" />
         </div>
-        <div>
+        <div className="col-span-2">
           {eye === "R" && <Label htmlFor={`${eye}-subj-fa-tuning`} className="text-[12px] block text-center">FA TUN</Label>}
           <Input id={`${eye}-subj-fa-tuning`} type="number" step="0.1" value={data.subj_fa_tuning?.toString() || ""} onChange={(e) => onChange(eye, "subj_fa_tuning", e.target.value)} disabled={!isEditing} className="h-8 text-xs px-1" placeholder="FA TUN" />
         </div>
-        <div>
+        <div className="col-span-2">
           {eye === "R" && <Label htmlFor={`${eye}-subj-sph`} className="text-[12px] block text-center">SPH</Label>}
           <Input id={`${eye}-subj-sph`} type="number" step="0.25" value={data.subj_sph?.toString() || ""} onChange={(e) => onChange(eye, "subj_sph", e.target.value)} disabled={!isEditing} className="h-8 text-xs px-1" placeholder="0.00" />
         </div>
-        <div>
+        <div className="col-span-2">
           {eye === "R" && <Label htmlFor={`${eye}-subj-cyl`} className="text-[12px] block text-center">CYL</Label>}
           <Input id={`${eye}-subj-cyl`} type="number" step="0.25" value={data.subj_cyl?.toString() || ""} onChange={(e) => onChange(eye, "subj_cyl", e.target.value)} disabled={!isEditing} className="h-8 text-xs px-1" placeholder="0.00" />
         </div>
-        <div>
+        <div className="col-span-2">
           {eye === "R" && <Label htmlFor={`${eye}-subj-ax`} className="text-[12px] block text-center">AXIS</Label>}
           <Input id={`${eye}-subj-ax`} type="number" min="0" max="180" value={data.subj_ax?.toString() || ""} onChange={(e) => onChange(eye, "subj_ax", e.target.value)} disabled={!isEditing} className="h-8 text-xs px-1" placeholder="0" />
         </div>
-        <div>
-          {eye === "R" && <Label htmlFor={`${eye}-subj-base`} className="text-[12px] block text-center">BASE</Label>}
-          <Input id={`${eye}-subj-base`} type="number" step="0.1" value={data.subj_base?.toString() || ""} onChange={(e) => onChange(eye, "subj_base", e.target.value)} disabled={!isEditing} className="h-8 text-xs px-1" placeholder="0.0" />
-        </div>
-        <div>
+        <div className="col-span-2">
           {eye === "R" && <Label htmlFor={`${eye}-subj-pris`} className="text-[12px] block text-center">PRIS</Label>}
           <Input id={`${eye}-subj-pris`} type="number" step="0.5" value={data.subj_pris?.toString() || ""} onChange={(e) => onChange(eye, "subj_pris", e.target.value)} disabled={!isEditing} className="h-8 text-xs px-1" placeholder="0.0" />
         </div>
-        <div>
-          {eye === "R" && <Label htmlFor={`${eye}-subj-va`} className="text-[12px] block text-center">VA</Label>}
-          <Input id={`${eye}-subj-va`} type="number" step="0.1" value={data.subj_va?.toString() || ""} onChange={(e) => onChange(eye, "subj_va", e.target.value)} disabled={!isEditing} className="h-8 text-xs px-1" placeholder="0.0" />
+        <div className="col-span-2">
+          {eye === "R" && <Label htmlFor={`${eye}-subj-base`} className="text-[12px] block text-center">BASE</Label>}
+          <Input id={`${eye}-subj-base`} type="number" step="0.1" value={data.subj_base?.toString() || ""} onChange={(e) => onChange(eye, "subj_base", e.target.value)} disabled={!isEditing} className="h-8 text-xs px-1" placeholder="0.0" />
         </div>
-        <div>
+        <div className="col-span-2">
+        {eye === "R" && <Label htmlFor={`${eye}-old-va`} className="text-[12px] block text-center">VA</Label>}
+          <div className="relative" dir="ltr">
+            <Input id={`${eye}-old-va`} type="number" step="0.1" value={data.old_va?.toString() || ""} onChange={(e) => onChange(eye, "old_va", e.target.value)} disabled={!isEditing} className="h-8 text-xs px-1 pl-6" placeholder="0.0" />
+            <span className="absolute left-2 top-[53%] transform -translate-y-1/2 text-[14px] text-gray-500 pointer-events-none">6/</span>
+          </div>
+        </div>
+        <div className="col-span-2">
           {eye === "R" && <Label htmlFor={`${eye}-subj-pd-close`} className="text-[12px] block text-center">PD CLOSE</Label>}
           <Input id={`${eye}-subj-pd-close`} type="number" step="0.5" value={data.subj_pd_close?.toString() || ""} onChange={(e) => onChange(eye, "subj_pd_close", e.target.value)} disabled={!isEditing} className="h-8 text-xs px-1" placeholder="PD" />
         </div>
-        <div>
+        <div className="col-span-2">
           {eye === "R" && <Label htmlFor={`${eye}-subj-pd-far`} className="text-[12px] block text-center">PD FAR</Label>}
           <Input id={`${eye}-subj-pd-far`} type="number" step="0.5" value={data.subj_pd_far?.toString() || ""} onChange={(e) => onChange(eye, "subj_pd_far", e.target.value)} disabled={!isEditing} className="h-8 text-xs px-1" placeholder="PD" />
         </div>
@@ -243,15 +254,15 @@ function CombinedSubjFields({ exam, onChange, isEditing, onVHConfirm, onMultifoc
 }) {
   return (
     <div className="flex items-center gap-1 h-10 mb-3" dir="rtl">
-      <div className="grid grid-cols-10 gap-4 flex-1">
-        <div>
+      <div className="grid grid-cols-20 gap-4 flex-1" dir="ltr">
+        <div className="col-span-2">
           <Input type="number" step="0.1" value={exam.comb_fa?.toString() || ""} onChange={(e) => onChange("comb_fa", e.target.value)} disabled={!isEditing} className="h-8 text-xs px-1" placeholder="FA" />
         </div>
-        <div>
+        <div className="col-span-2">
           <Input type="number" step="0.1" value={exam.comb_fa_tuning?.toString() || ""} onChange={(e) => onChange("comb_fa_tuning", e.target.value)} disabled={!isEditing} className="h-8 text-xs px-1" placeholder="FA TUN" />
         </div>
-        <div></div>
-        <div className="flex justify-center items-center">
+        <div className="col-span-2"></div>
+        <div className="col-span-2 flex justify-center items-center">
           <Button 
             type="button"
             variant="outline" 
@@ -263,18 +274,22 @@ function CombinedSubjFields({ exam, onChange, isEditing, onVHConfirm, onMultifoc
             MUL
           </Button>
         </div>
-        <div></div>
-        <div></div>
-        <div className="flex justify-center items-center">
+        <div className="col-span-2"></div>
+        <div className="col-span-2 flex justify-center items-center">
           <VHCalculatorModal onConfirm={onVHConfirm} disabled={!isEditing} />
         </div>
-        <div>
-          <Input type="number" step="0.1" value={exam.comb_subj_va?.toString() || ""} onChange={(e) => onChange("comb_subj_va", e.target.value)} disabled={!isEditing} className="h-8 text-xs px-1" placeholder="VA" />
+
+        <div className="col-span-2"></div>
+        <div className="col-span-2">
+        <div className="relative" dir="ltr">
+            <Input id={`comb-subj-va`} type="number" step="0.1" value={exam.comb_subj_va?.toString() || ""} onChange={(e) => onChange("comb_subj_va", e.target.value)} disabled={!isEditing} className="h-8 text-xs px-1 pl-6" placeholder="0.0" />
+            <span className="absolute left-2 top-[53%] transform -translate-y-1/2 text-[14px] text-gray-500 pointer-events-none">6/</span>
+          </div>
         </div>
-        <div>
+        <div className="col-span-2">
           <Input type="number" step="0.5" value={exam.comb_pd_close?.toString() || ""} onChange={(e) => onChange("comb_pd_close", e.target.value)} disabled={!isEditing} className="h-8 text-xs px-1" placeholder="PD Close" />
         </div>
-        <div>
+        <div className="col-span-2">
           <Input type="number" step="0.5" value={exam.comb_pd_far?.toString() || ""} onChange={(e) => onChange("comb_pd_far", e.target.value)} disabled={!isEditing} className="h-8 text-xs px-1" placeholder="PD Far" />
         </div>
       </div>
@@ -288,7 +303,7 @@ function AdditionSection({ eye, data, onChange, isEditing }: EyeSectionProps) {
 
   return (
     <div className="flex items-center gap-1 h-10 mb-3" dir="rtl">
-      <div className="grid grid-cols-7 gap-4 flex-1">
+      <div className="grid grid-cols-7 gap-9 flex-1" dir="ltr">
         <div>
           {eye === "R" && <Label htmlFor={`${eye}-ad-fcc`} className="text-[12px] block text-center">FCC</Label>}
           <Input id={`${eye}-ad-fcc`} type="number" step="0.25" value={data.ad_fcc?.toString() || ""} onChange={(e) => onChange(eye, "ad_fcc", e.target.value)} disabled={!isEditing} className="h-8 text-xs px-1" placeholder="FCC" />
@@ -318,7 +333,7 @@ function AdditionSection({ eye, data, onChange, isEditing }: EyeSectionProps) {
           <Input id={`${eye}-iop`} type="number" step="0.1" value={data.iop?.toString() || ""} onChange={(e) => onChange(eye, "iop", e.target.value)} disabled={!isEditing} className="h-8 text-xs px-1" placeholder="IOP" />
         </div>
       </div>
-      <span className="text-md font-medium pr-2 flex items-center justify-center w-6">{eyeLabel}</span>
+      <span className={`text-md font-medium pr-2 flex items-center justify-center w-6 ${eyeLabel === "L" ? "pb-1" : "pt-4"}`}>{eyeLabel}</span>
     </div>
   );
 }
@@ -864,6 +879,13 @@ export default function ExamDetailPage({
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-xl font-semibold">{isNewMode ? "בדיקה חדשה" : "פרטי בדיקה"}</h2>
             <div className="flex gap-2">
+              {!isNewMode && !isEditing && exam?.id && (
+                <Link to="/clients/$clientId/orders/new" params={{ clientId: String(clientId) }} search={{ examId: String(exam.id) }}>
+                  <Button variant="outline">
+                    יצירת הזמנה
+                  </Button>
+                </Link>
+              )}
               {isNewMode && onCancel && (
                 <Button variant="outline" onClick={onCancel}>
                   ביטול
@@ -982,12 +1004,12 @@ export default function ExamDetailPage({
                     <TabsContent value="previous-objective">
                       <Card>
                         <CardContent className="px-4 pt-4 space-y-1">
-                          <div className="relative mb-4 pt-2">
-                            <div className="absolute top-[-27px] right-[calc(100%*7/24)] transform translate-x-1/2 bg-background px-2 font-medium text-muted-foreground">
-                            Old refraction
-                            </div>
-                            <div className="absolute top-[-27px] right-[calc(100%*5/6)] transform translate-x-1/2 bg-background px-2 font-medium text-muted-foreground">
+                          <div className="relative mb-4 pt-2" dir="rtl">
+                            <div className="absolute top-[-27px] left-[calc(100%*20/27)] transform translate-x-1/2 bg-background px-2 font-medium text-muted-foreground">
                               Objective
+                            </div>
+                            <div className="absolute top-[-27px] left-[calc(100%*6/29)] transform translate-x-1/2 bg-background px-2 font-medium text-muted-foreground">
+                            Old refraction
                             </div>
                           </div>
                           <PreviousObjectiveSection eye="R" data={rightEyeFormData} onChange={handleEyeFieldChange} isEditing={isEditing} />

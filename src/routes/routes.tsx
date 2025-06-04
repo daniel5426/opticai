@@ -7,6 +7,8 @@ import ClientDetailPage from "@/pages/ClientDetailPage";
 import NewClientPage from "@/pages/NewClientPage";
 import ExamDetailPage from "@/pages/ExamDetailPage";
 import ExamCreatePage from "@/pages/ExamCreatePage";
+import OrderDetailPage from "@/pages/OrderDetailPage";
+import OrderCreatePage from "@/pages/OrderCreatePage";
 
 // TODO: Steps to add a new route:
 // 1. Create a new page component in the '../pages/' directory (e.g., NewPage.tsx)
@@ -69,6 +71,18 @@ export const ExamCreateRoute = createRoute({
   component: ExamCreatePage,
 });
 
+export const OrderDetailRoute = createRoute({
+  getParentRoute: () => RootRoute,
+  path: "/clients/$clientId/orders/$orderId",
+  component: OrderDetailPage,
+});
+
+export const OrderCreateRoute = createRoute({
+  getParentRoute: () => RootRoute,
+  path: "/clients/$clientId/orders/new",
+  component: OrderCreatePage,
+});
+
 export const rootTree = RootRoute.addChildren([
   HomeRoute,
   SecondPageRoute,
@@ -77,4 +91,6 @@ export const rootTree = RootRoute.addChildren([
   ClientDetailRoute,
   ExamDetailRoute,
   ExamCreateRoute,
+  OrderDetailRoute,
+  OrderCreateRoute,
 ]);
