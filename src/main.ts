@@ -304,6 +304,99 @@ function setupIpcHandlers() {
     }
   });
 
+  // Order Details operations
+  ipcMain.handle('db-get-order-details-by-order', async (event, orderId: number) => {
+    try {
+      return dbService.getOrderDetailsByOrderId(orderId);
+    } catch (error) {
+      console.error('Error getting order details:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-create-order-details', async (event, orderDetailsData) => {
+    try {
+      return dbService.createOrderDetails(orderDetailsData);
+    } catch (error) {
+      console.error('Error creating order details:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-update-order-details', async (event, orderDetailsData) => {
+    try {
+      return dbService.updateOrderDetails(orderDetailsData);
+    } catch (error) {
+      console.error('Error updating order details:', error);
+      throw error;
+    }
+  });
+
+  // Billing operations
+  ipcMain.handle('db-get-billing-by-order', async (event, orderId: number) => {
+    try {
+      return dbService.getBillingByOrderId(orderId);
+    } catch (error) {
+      console.error('Error getting billing by order:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-create-billing', async (event, billingData) => {
+    try {
+      return dbService.createBilling(billingData);
+    } catch (error) {
+      console.error('Error creating billing:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-update-billing', async (event, billingData) => {
+    try {
+      return dbService.updateBilling(billingData);
+    } catch (error) {
+      console.error('Error updating billing:', error);
+      throw error;
+    }
+  });
+
+  // Order Line Item operations
+  ipcMain.handle('db-get-order-line-items-by-billing', async (event, billingId: number) => {
+    try {
+      return dbService.getOrderLineItemsByBillingId(billingId);
+    } catch (error) {
+      console.error('Error getting order line items by billing:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-create-order-line-item', async (event, orderLineItemData) => {
+    try {
+      return dbService.createOrderLineItem(orderLineItemData);
+    } catch (error) {
+      console.error('Error creating order line item:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-update-order-line-item', async (event, orderLineItemData) => {
+    try {
+      return dbService.updateOrderLineItem(orderLineItemData);
+    } catch (error) {
+      console.error('Error updating order line item:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-delete-order-line-item', async (event, orderLineItemId: number) => {
+    try {
+      return dbService.deleteOrderLineItem(orderLineItemId);
+    } catch (error) {
+      console.error('Error deleting order line item:', error);
+      throw error;
+    }
+  });
+
   // Medical Log operations
   ipcMain.handle('db-get-medical-logs-by-client', async (event, clientId: number) => {
     try {
@@ -319,6 +412,24 @@ function setupIpcHandlers() {
       return dbService.createMedicalLog(logData);
     } catch (error) {
       console.error('Error creating medical log:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-delete-medical-log', async (event, id: number) => {
+    try {
+      return dbService.deleteMedicalLog(id);
+    } catch (error) {
+      console.error('Error deleting medical log:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-update-medical-log', async (event, logData) => {
+    try {
+      return dbService.updateMedicalLog(logData);
+    } catch (error) {
+      console.error('Error updating medical log:', error);
       throw error;
     }
   });

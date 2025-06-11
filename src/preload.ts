@@ -43,7 +43,25 @@ contextBridge.exposeInMainWorld('electronAPI', {
   createFrame: (frameData: any) => ipcRenderer.invoke('db-create-frame', frameData),
   updateFrame: (frameData: any) => ipcRenderer.invoke('db-update-frame', frameData),
 
+  // Order Details operations
+  getOrderDetailsByOrder: (orderId: number) => ipcRenderer.invoke('db-get-order-details-by-order', orderId),
+  createOrderDetails: (orderDetailsData: any) => ipcRenderer.invoke('db-create-order-details', orderDetailsData),
+  updateOrderDetails: (orderDetailsData: any) => ipcRenderer.invoke('db-update-order-details', orderDetailsData),
+
+  // Billing operations
+  getBillingByOrder: (orderId: number) => ipcRenderer.invoke('db-get-billing-by-order', orderId),
+  createBilling: (billingData: any) => ipcRenderer.invoke('db-create-billing', billingData),
+  updateBilling: (billingData: any) => ipcRenderer.invoke('db-update-billing', billingData),
+
+  // Order Line Item operations
+  getOrderLineItemsByBilling: (billingId: number) => ipcRenderer.invoke('db-get-order-line-items-by-billing', billingId),
+  createOrderLineItem: (orderLineItemData: any) => ipcRenderer.invoke('db-create-order-line-item', orderLineItemData),
+  updateOrderLineItem: (orderLineItemData: any) => ipcRenderer.invoke('db-update-order-line-item', orderLineItemData),
+  deleteOrderLineItem: (orderLineItemId: number) => ipcRenderer.invoke('db-delete-order-line-item', orderLineItemId),
+
   // Medical Log operations
   getMedicalLogsByClient: (clientId: number) => ipcRenderer.invoke('db-get-medical-logs-by-client', clientId),
   createMedicalLog: (logData: any) => ipcRenderer.invoke('db-create-medical-log', logData),
+  updateMedicalLog: (logData: any) => ipcRenderer.invoke('db-update-medical-log', logData),
+  deleteMedicalLog: (id: number) => ipcRenderer.invoke('db-delete-medical-log', id),
 });

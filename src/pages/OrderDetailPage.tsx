@@ -11,15 +11,27 @@ import {
   getOrderEyesByOrderId, 
   getOrderLensByOrderId, 
   getFrameByOrderId,
+  getOrderDetailsByOrderId,
   updateOrder,
   updateOrderEye,
   updateOrderLens,
   updateFrame,
+  updateOrderDetails,
   createOrder,
   createOrderEye,
   createOrderLens,
-  createFrame
+  createFrame,
+  createOrderDetails
 } from "@/lib/db/orders-db"
+import { 
+  getBillingByOrderId, 
+  getOrderLineItemsByBillingId, 
+  createBilling, 
+  updateBilling, 
+  createOrderLineItem, 
+  updateOrderLineItem, 
+  deleteOrderLineItem 
+} from "@/lib/db/billing-db"
 import { Order, OrderEye, OrderLens, Frame, OrderDetails, Client, OpticalExam, Billing, OrderLineItem } from "@/lib/db/schema"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -226,7 +238,10 @@ export default function OrderDetailPage({
   const [leftEyeOrder, setLeftEyeOrder] = useState<OrderEye | null>(null)
   const [orderLens, setOrderLens] = useState<OrderLens | null>(null)
   const [frame, setFrame] = useState<Frame | null>(null)
+  const [orderDetails, setOrderDetails] = useState<OrderDetails | null>(null)
+  const [billing, setBilling] = useState<Billing | null>(null)
   const [orderLineItems, setOrderLineItems] = useState<OrderLineItem[]>([])
+  const [deletedOrderLineItemIds, setDeletedOrderLineItemIds] = useState<number[]>([])
   
   const isNewMode = mode === 'new'
   const [isEditing, setIsEditing] = useState(isNewMode)
@@ -269,10 +284,12 @@ export default function OrderDetailPage({
           setOrder(orderData || null)
           
           if (orderData) {
-            const [orderEyesData, orderLensData, frameData] = await Promise.all([
+            const [orderEyesData, orderLensData, frameData, orderDetailsData, billingData] = await Promise.all([
               getOrderEyesByOrderId(Number(orderId)),
               getOrderLensByOrderId(Number(orderId)),
-              getFrameByOrderId(Number(orderId))
+              getFrameByOrderId(Number(orderId)),
+              getOrderDetailsByOrderId(Number(orderId)),
+              getBillingByOrderId(Number(orderId))
             ])
             
             const rightEye = orderEyesData.find(e => e.eye === "R")
@@ -282,8 +299,13 @@ export default function OrderDetailPage({
             setLeftEyeOrder(leftEye || null)
             setOrderLens(orderLensData || null)
             setFrame(frameData || null)
+            setOrderDetails(orderDetailsData || null)
+            setBilling(billingData || null)
             
-
+            if (billingData && billingData.id) {
+              const orderLineItemsData = await getOrderLineItemsByBillingId(billingData.id)
+              setOrderLineItems(orderLineItemsData || [])
+            }
           }
         } else if (examId) {
           const examData = await getExamById(Number(examId))
@@ -315,7 +337,13 @@ export default function OrderDetailPage({
     if (frame) {
       setFrameFormData({ ...frame })
     }
-  }, [order, rightEyeOrder, leftEyeOrder, orderLens, frame])
+    if (orderDetails) {
+      setOrderDetailsFormData({ ...orderDetails })
+    }
+    if (billing) {
+      setBillingFormData({ ...billing })
+    }
+  }, [order, rightEyeOrder, leftEyeOrder, orderLens, frame, orderDetails, billing])
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
@@ -402,6 +430,12 @@ export default function OrderDetailPage({
     setFormData(prev => ({ ...prev, [field]: processedValue }));
   };
 
+  const handleDeleteOrderLineItem = (id: number) => {
+    if (id > 0) {
+      setDeletedOrderLineItemIds(prev => [...prev, id])
+    }
+    setOrderLineItems(prev => prev.filter(item => item.id !== id))
+  }
 
   const handleSave = async () => {
     console.log('Starting save process...')
@@ -418,13 +452,15 @@ export default function OrderDetailPage({
         const newOrder = await createOrder({
           order_date: formData.order_date,
           type: formData.type,
+          dominant_eye: formData.dominant_eye,
+          examiner_name: formData.examiner_name,
           comb_va: formData.comb_va,
           comb_high: formData.comb_high,
           comb_pd: formData.comb_pd
         })
         
         if (newOrder && newOrder.id) {
-          const [newRightEyeOrder, newLeftEyeOrder, newOrderLens, newFrame] = await Promise.all([
+          const [newRightEyeOrder, newLeftEyeOrder, newOrderLens, newFrame, newOrderDetails] = await Promise.all([
             createOrderEye({
               ...rightEyeFormData,
               order_id: newOrder.id,
@@ -442,10 +478,49 @@ export default function OrderDetailPage({
             createFrame({
               ...frameFormData,
               order_id: newOrder.id,
+            }),
+            createOrderDetails({
+              ...orderDetailsFormData,
+              order_id: newOrder.id,
             })
           ])
           
-          if (newRightEyeOrder && newLeftEyeOrder && newOrderLens && newFrame) {
+          let newBilling: Billing | null = null
+          let savedOrderLineItems: OrderLineItem[] = []
+          
+          console.log('New order - Billing form data:', billingFormData)
+          console.log('New order - Order line items:', orderLineItems)
+          
+          const hasBillingData = Object.values(billingFormData).some(value => 
+            value !== undefined && value !== null && value !== ''
+          );
+          
+          if (hasBillingData || orderLineItems.length > 0) {
+            console.log('Creating billing for new order...')
+            newBilling = await createBilling({
+              ...billingFormData,
+              order_id: newOrder.id,
+            })
+            
+            console.log('Created billing:', newBilling)
+            
+            if (newBilling && newBilling.id && orderLineItems.length > 0) {
+              console.log('Creating line items for new order...')
+              savedOrderLineItems = await Promise.all(
+                orderLineItems.map(item => {
+                  console.log('Creating line item:', item)
+                  const { id, ...itemWithoutId } = item;
+                  return createOrderLineItem({
+                    ...itemWithoutId,
+                    billings_id: newBilling!.id!
+                  })
+                })
+              ).then(results => results.filter(Boolean) as OrderLineItem[])
+              console.log('Saved line items:', savedOrderLineItems)
+            }
+          }
+          
+          if (newRightEyeOrder && newLeftEyeOrder && newOrderLens && newFrame && newOrderDetails) {
             toast.success("הזמנה חדשה נוצרה בהצלחה")
             if (onSave) {
               onSave(newOrder, newRightEyeOrder, newLeftEyeOrder, newOrderLens, newFrame)
@@ -457,26 +532,96 @@ export default function OrderDetailPage({
           toast.error("לא הצלחנו ליצור את ההזמנה")
         }
       } else {
-        const [updatedOrder, updatedRightEyeOrder, updatedLeftEyeOrder, updatedOrderLens, updatedFrame] = await Promise.all([
+        const [updatedOrder, updatedRightEyeOrder, updatedLeftEyeOrder, updatedOrderLens, updatedFrame, updatedOrderDetails] = await Promise.all([
           updateOrder(formData),
           updateOrderEye(rightEyeFormData),
           updateOrderEye(leftEyeFormData),
           updateOrderLens(lensFormData),
-          updateFrame(frameFormData)
+          updateFrame(frameFormData),
+          orderDetailsFormData.id ? updateOrderDetails(orderDetailsFormData) : createOrderDetails({
+            ...orderDetailsFormData,
+            order_id: formData.id!
+          })
         ])
         
-        if (updatedOrder && updatedRightEyeOrder && updatedLeftEyeOrder && updatedOrderLens && updatedFrame) {
+        let updatedBilling: Billing | null = null
+        console.log('Billing form data:', billingFormData)
+        console.log('Order line items:', orderLineItems)
+        
+        const hasBillingData = Object.values(billingFormData).some(value => 
+          value !== undefined && value !== null && value !== ''
+        );
+        
+        if (billingFormData.id) {
+          console.log('Updating existing billing...')
+          const billingResult = await updateBilling(billingFormData)
+          updatedBilling = billingResult || null
+        } else if (hasBillingData || orderLineItems.length > 0) {
+          console.log('Creating new billing...')
+          const billingResult = await createBilling({
+            ...billingFormData,
+            order_id: formData.id!
+          })
+          updatedBilling = billingResult || null
+        }
+        
+        console.log('Updated billing:', updatedBilling)
+        
+        if (updatedBilling && updatedBilling.id) {
+          console.log('Processing line items...')
+          // Delete removed order line items
+          if (deletedOrderLineItemIds.length > 0) {
+            console.log('Deleting line items:', deletedOrderLineItemIds)
+            await Promise.all(
+              deletedOrderLineItemIds.map(id => deleteOrderLineItem(id))
+            )
+            setDeletedOrderLineItemIds([])
+          }
+          
+          // Update or create existing order line items
+          const lineItemResults = await Promise.all(
+            orderLineItems.map(async (item) => {
+              if (item.id && item.id > 0) {
+                // Existing database record - update it
+                console.log('Updating line item:', item.id)
+                return updateOrderLineItem({
+                  ...item,
+                  billings_id: updatedBilling.id!
+                })
+              } else {
+                // New item (has negative temp ID or no ID) - create it
+                console.log('Creating new line item:', item)
+                const { id, ...itemWithoutId } = item;
+                return createOrderLineItem({
+                  ...itemWithoutId,
+                  billings_id: updatedBilling.id!
+                })
+              }
+            })
+          )
+          console.log('Line item results:', lineItemResults)
+        }
+        
+        if (updatedOrder && updatedRightEyeOrder && updatedLeftEyeOrder && updatedOrderLens && updatedFrame && updatedOrderDetails) {
           setIsEditing(false)
           setOrder(updatedOrder)
           setRightEyeOrder(updatedRightEyeOrder)
           setLeftEyeOrder(updatedLeftEyeOrder)
           setOrderLens(updatedOrderLens)
           setFrame(updatedFrame)
+          setOrderDetails(updatedOrderDetails)
+          if (updatedBilling) {
+            setBilling(updatedBilling)
+          }
           setFormData({ ...updatedOrder })
           setRightEyeFormData({ ...updatedRightEyeOrder })
           setLeftEyeFormData({ ...updatedLeftEyeOrder })
           setLensFormData({ ...updatedOrderLens })
           setFrameFormData({ ...updatedFrame })
+          setOrderDetailsFormData({ ...updatedOrderDetails })
+          if (updatedBilling) {
+            setBillingFormData({ ...updatedBilling })
+          }
           toast.success("פרטי ההזמנה עודכנו בהצלחה")
           if (onSave) {
             onSave(updatedOrder, updatedRightEyeOrder, updatedLeftEyeOrder, updatedOrderLens, updatedFrame)
@@ -657,9 +802,10 @@ export default function OrderDetailPage({
               </Card>
 
               <Tabs defaultValue="prescription" className="w-full" dir="rtl">
-                <TabsList className="grid w-full grid-cols-2">
+                <TabsList className="grid w-full grid-cols-3">
                   <TabsTrigger value="prescription">מרשם</TabsTrigger>
                   <TabsTrigger value="order">הזמנה</TabsTrigger>
+                  <TabsTrigger value="notes">הערות</TabsTrigger>
                 </TabsList>
                 
                 <TabsContent value="prescription" className="space-y-4">
@@ -852,9 +998,6 @@ export default function OrderDetailPage({
                 
                 <TabsContent value="order" className="space-y-4">
                   <Card>
-                    <CardHeader className="pb-3">
-                      <CardTitle className="text-base">כללי</CardTitle>
-                    </CardHeader>
                     <CardContent className="space-y-3">
                       <div className="grid grid-cols-5 gap-3">
                         <div>
@@ -1023,6 +1166,37 @@ export default function OrderDetailPage({
                     </CardContent>
                   </Card>
                 </TabsContent>
+                
+                <TabsContent value="notes" className="space-y-4">
+                  <Card>
+                    <CardContent className="pt-4">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <Label className="text-sm">הערות</Label>
+                          <Textarea
+                            name="notes"
+                            value={orderDetailsFormData.notes || ''}
+                            onChange={(e) => setOrderDetailsFormData(prev => ({ ...prev, notes: e.target.value }))}
+                            disabled={!isEditing}
+                            className="mt-1.5 min-h-[100px]"
+                            placeholder="הכנס הערות כלליות..."
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-sm">הערות להזמנת עדשות</Label>
+                          <Textarea
+                            name="lens_order_notes"
+                            value={orderDetailsFormData.lens_order_notes || ''}
+                            onChange={(e) => setOrderDetailsFormData(prev => ({ ...prev, lens_order_notes: e.target.value }))}
+                            disabled={!isEditing}
+                            className="mt-1.5 min-h-[100px]"
+                            placeholder="הכנס הערות להזמנת עדשות..."
+                          />
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </TabsContent>
               </Tabs>
             </div>
           </form>
@@ -1035,6 +1209,7 @@ export default function OrderDetailPage({
             orderLineItems={orderLineItems}
             setOrderLineItems={setOrderLineItems}
             isEditing={isEditing}
+            handleDeleteOrderLineItem={handleDeleteOrderLineItem}
           />
         </TabsContent>
       </Tabs>

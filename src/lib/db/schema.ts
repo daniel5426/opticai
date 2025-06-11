@@ -211,6 +211,7 @@ export interface Billing {
   id?: number;
   contact_lens_id?: number;
   optical_exams_id?: number;
+  order_id?: number;
   total_before_discount?: number;
   discount_amount?: number;
   discount_percent?: number;
@@ -237,6 +238,8 @@ export interface OrderDetails {
   priority?: string;
   promised_date?: string;
   approval_date?: string;
+  notes?: string;
+  lens_order_notes?: string;
 }
 
 export interface OrderLineItem {
@@ -435,6 +438,7 @@ export const createTables = (db: Database): void => {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       contact_lens_id INTEGER,
       optical_exams_id INTEGER,
+      order_id INTEGER,
       total_before_discount REAL,
       discount_amount REAL,
       discount_percent REAL,
@@ -443,7 +447,8 @@ export const createTables = (db: Database): void => {
       installment_count INTEGER,
       notes TEXT,
       FOREIGN KEY(contact_lens_id) REFERENCES contact_lens(id),
-      FOREIGN KEY(optical_exams_id) REFERENCES optical_exams(id)
+      FOREIGN KEY(optical_exams_id) REFERENCES optical_exams(id),
+      FOREIGN KEY(order_id) REFERENCES orders(id)
     );
   `);
 
@@ -553,6 +558,8 @@ export const createTables = (db: Database): void => {
       priority TEXT,
       promised_date DATE,
       approval_date DATE,
+      notes TEXT,
+      lens_order_notes TEXT,
       FOREIGN KEY(order_id) REFERENCES orders(id) ON DELETE CASCADE
     );
   `);

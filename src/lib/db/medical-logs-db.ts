@@ -17,4 +17,22 @@ export async function createMedicalLog(log: Omit<MedicalLog, 'id'>): Promise<Med
     console.error('Error creating medical log:', error);
     return null;
   }
+}
+
+export async function updateMedicalLog(log: MedicalLog): Promise<MedicalLog | null> {
+  try {
+    return await window.electronAPI.updateMedicalLog(log);
+  } catch (error) {
+    console.error('Error updating medical log:', error);
+    return null;
+  }
+}
+
+export async function deleteMedicalLog(id: number): Promise<boolean> {
+  try {
+    return await window.electronAPI.deleteMedicalLog(id);
+  } catch (error) {
+    console.error('Error deleting medical log:', error);
+    return false;
+  }
 } 

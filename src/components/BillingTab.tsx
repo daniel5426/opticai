@@ -14,6 +14,7 @@ interface BillingTabProps {
   orderLineItems: OrderLineItem[];
   setOrderLineItems: React.Dispatch<React.SetStateAction<OrderLineItem[]>>;
   isEditing: boolean;
+  handleDeleteOrderLineItem: (id: number) => void;
 }
 
 export function BillingTab({
@@ -21,7 +22,8 @@ export function BillingTab({
   setBillingFormData,
   orderLineItems,
   setOrderLineItems,
-  isEditing
+  isEditing,
+  handleDeleteOrderLineItem
 }: BillingTabProps) {
   const [editingLineId, setEditingLineId] = useState<number | null>(null);
   const [newLineItem, setNewLineItem] = useState<Partial<OrderLineItem>>({});
@@ -116,9 +118,9 @@ export function BillingTab({
 
   const addNewLineItem = () => {
     if (newLineItem.description && newLineItem.description.trim() !== '') {
-      const newId = Math.max(0, ...orderLineItems.map(item => item.id || 0)) + 1;
+      const tempId = -(Math.max(0, ...orderLineItems.map(item => Math.abs(item.id || 0))) + 1);
       const itemToAdd: OrderLineItem = {
-        id: newId,
+        id: tempId,
         billings_id: billingFormData.id || 0,
         description: newLineItem.description,
         sku: newLineItem.sku || '',
@@ -136,7 +138,7 @@ export function BillingTab({
   };
 
   const deleteLineItem = (id: number) => {
-    setOrderLineItems(prev => prev.filter(item => item.id !== id));
+    handleDeleteOrderLineItem(id);
   };
 
   return (

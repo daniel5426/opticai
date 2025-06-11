@@ -49,9 +49,22 @@ export interface ElectronAPI {
   createOrderDetails: (orderDetailsData: any) => Promise<any>;
   updateOrderDetails: (orderDetailsData: any) => Promise<any>;
 
+  // Billing operations
+  getBillingByOrder: (orderId: number) => Promise<any>;
+  createBilling: (billingData: any) => Promise<any>;
+  updateBilling: (billingData: any) => Promise<any>;
+
+  // Order Line Item operations
+  getOrderLineItemsByBilling: (billingId: number) => Promise<any[]>;
+  createOrderLineItem: (orderLineItemData: any) => Promise<any>;
+  updateOrderLineItem: (orderLineItemData: any) => Promise<any>;
+  deleteOrderLineItem: (orderLineItemId: number) => Promise<boolean>;
+
   // Medical Log operations
   getMedicalLogsByClient: (clientId: number) => Promise<any[]>;
   createMedicalLog: (logData: any) => Promise<any>;
+  updateMedicalLog: (logData: any) => Promise<any>;
+  deleteMedicalLog: (id: number) => Promise<boolean>;
 }
 
 declare global {

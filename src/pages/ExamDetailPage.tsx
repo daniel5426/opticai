@@ -6,7 +6,7 @@ import { SidebarProvider } from "@/components/ui/sidebar"
 import { SiteHeader } from "@/components/site-header"
 import { getClientById } from "@/lib/db/clients-db"
 import { getExamById, getEyeExamsByExamId, updateExam, updateEyeExam, createExam, createEyeExam } from "@/lib/db/exams-db"
-import { OpticalExam, OpticalEyeExam } from "@/lib/db/schema"
+import { OpticalExam, OpticalEyeExam, Client } from "@/lib/db/schema"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -595,7 +595,6 @@ export default function ExamDetailPage({
     routeClientId = params.clientId;
     routeExamId = params.examId;
   } catch {
-    // If we're not in the route context, params will be undefined
     routeClientId = undefined;
     routeExamId = undefined;
   }
@@ -603,15 +602,14 @@ export default function ExamDetailPage({
   const clientId = propClientId || routeClientId
   const examId = propExamId || routeExamId
   
-  const client = getClientById(Number(clientId))
-  const exam = examId ? getExamById(Number(examId)) : null
-  const eyeExams = examId ? getEyeExamsByExamId(Number(examId)) : []
-  
-  const rightEyeExam = eyeExams.find(e => e.eye === "R")
-  const leftEyeExam = eyeExams.find(e => e.eye === "L")
-  
   const isNewMode = mode === 'new'
   const [isEditing, setIsEditing] = useState(isNewMode)
+  const [loading, setLoading] = useState(!isNewMode)
+  const [client, setClient] = useState<Client | null>(null)
+  const [exam, setExam] = useState<OpticalExam | null>(null)
+  const [rightEyeExam, setRightEyeExam] = useState<OpticalEyeExam | null>(null)
+  const [leftEyeExam, setLeftEyeExam] = useState<OpticalEyeExam | null>(null)
+  
   const [formData, setFormData] = useState<OpticalExam>(isNewMode ? {
     client_id: Number(clientId),
     exam_date: new Date().toISOString().split('T')[0],
@@ -632,6 +630,39 @@ export default function ExamDetailPage({
   
   const formRef = useRef<HTMLFormElement>(null)
   const navigate = useNavigate()
+  
+  useEffect(() => {
+    const loadData = async () => {
+      if (!clientId) return
+      
+      try {
+        setLoading(true)
+        
+        const clientData = await getClientById(Number(clientId))
+        setClient(clientData || null)
+        
+        if (examId && !isNewMode) {
+          const examData = await getExamById(Number(examId))
+          setExam(examData || null)
+          
+          if (examData) {
+            const eyeExams = await getEyeExamsByExamId(Number(examId))
+            const rightEye = eyeExams.find(e => e.eye === "R") || null
+            const leftEye = eyeExams.find(e => e.eye === "L") || null
+            setRightEyeExam(rightEye)
+            setLeftEyeExam(leftEye)
+          }
+        }
+      } catch (error) {
+        console.error('Error loading exam data:', error)
+        toast.error('שגיאה בטעינת נתוני הבדיקה')
+      } finally {
+        setLoading(false)
+      }
+    }
+    
+    loadData()
+  }, [clientId, examId, isNewMode])
   
   useEffect(() => {
     if (exam) {
@@ -702,11 +733,10 @@ export default function ExamDetailPage({
     setFormData(prev => ({ ...prev, [name]: value }))
   }
   
-  const handleSave = () => {
+  const handleSave = async () => {
     if (formRef.current) {
       if (isNewMode) {
-        // Create new exam
-        const newExam = createExam({
+        const newExam = await createExam({
           client_id: Number(clientId),
           exam_date: formData.exam_date,
           test_name: formData.test_name,
@@ -723,15 +753,13 @@ export default function ExamDetailPage({
         })
         
         if (newExam && newExam.id) {
-          // Create right eye exam data
-          const newRightEyeExam = createEyeExam({
+          const newRightEyeExam = await createEyeExam({
             ...rightEyeFormData,
             exam_id: newExam.id,
             eye: 'R',
           })
           
-          // Create left eye exam data
-          const newLeftEyeExam = createEyeExam({
+          const newLeftEyeExam = await createEyeExam({
             ...leftEyeFormData,
             exam_id: newExam.id,
             eye: 'L',
@@ -749,18 +777,20 @@ export default function ExamDetailPage({
           toast.error("לא הצלחנו ליצור את הבדיקה")
         }
       } else {
-        // Update existing exam
-        const updatedExam = updateExam(formData)
+        const updatedExam = await updateExam(formData)
         
-        const updatedRightEyeExam = updateEyeExam(rightEyeFormData)
+        const updatedRightEyeExam = await updateEyeExam(rightEyeFormData)
         
-        const updatedLeftEyeExam = updateEyeExam(leftEyeFormData)
+        const updatedLeftEyeExam = await updateEyeExam(leftEyeFormData)
         
         if (updatedExam && updatedRightEyeExam && updatedLeftEyeExam) {
           setIsEditing(false)
-          if (exam) setFormData({ ...updatedExam });
-          if (rightEyeExam) setRightEyeFormData({ ...updatedRightEyeExam });
-          if (leftEyeExam) setLeftEyeFormData({ ...updatedLeftEyeExam });
+          setExam(updatedExam)
+          setRightEyeExam(updatedRightEyeExam)
+          setLeftEyeExam(updatedLeftEyeExam)
+          setFormData({ ...updatedExam })
+          setRightEyeFormData({ ...updatedRightEyeExam })
+          setLeftEyeFormData({ ...updatedLeftEyeExam })
           toast.success("פרטי הבדיקה עודכנו בהצלחה")
           if (onSave) {
             onSave(updatedExam, updatedRightEyeExam, updatedLeftEyeExam)
@@ -847,6 +877,20 @@ export default function ExamDetailPage({
 
     toast.success("צילינדר הופחת ב-0.25D להתאמה מולטיפוקלית");
   };
+  
+  if (loading) {
+    return (
+      <SidebarProvider dir="rtl">
+        <AppSidebar variant="inset" side="right" />
+        <SidebarInset>
+          <SiteHeader title="לקוחות" backLink="/clients" />
+          <div className="flex flex-col items-center justify-center h-full">
+            <h1 className="text-2xl">טוען נתונים...</h1>
+          </div>
+        </SidebarInset>
+      </SidebarProvider>
+    )
+  }
   
   if (!client || (!isNewMode && (!exam || !rightEyeExam || !leftEyeExam))) {
     return (

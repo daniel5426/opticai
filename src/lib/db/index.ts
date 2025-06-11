@@ -40,12 +40,38 @@ class DatabaseService {
       this.db.pragma('foreign_keys = ON');
       
       createTables(this.db);
+      this.migrateDatabase();
       
       this.seedInitialData();
       
       console.log('Database initialized successfully at:', this.dbPath);
     } catch (error) {
       console.error('Failed to initialize database:', error);
+    }
+  }
+
+  private migrateDatabase(): void {
+    if (!this.db) return;
+
+    try {
+      // Check if notes columns exist in order_details table
+      const tableInfo = this.db.prepare("PRAGMA table_info(order_details)").all() as any[];
+      const hasNotesColumn = tableInfo.some(col => col.name === 'notes');
+      const hasLensOrderNotesColumn = tableInfo.some(col => col.name === 'lens_order_notes');
+
+      // Add notes column if it doesn't exist
+      if (!hasNotesColumn) {
+        this.db.exec('ALTER TABLE order_details ADD COLUMN notes TEXT');
+        console.log('Added notes column to order_details table');
+      }
+
+      // Add lens_order_notes column if it doesn't exist
+      if (!hasLensOrderNotesColumn) {
+        this.db.exec('ALTER TABLE order_details ADD COLUMN lens_order_notes TEXT');
+        console.log('Added lens_order_notes column to order_details table');
+      }
+    } catch (error) {
+      console.error('Error during database migration:', error);
     }
   }
 
@@ -736,6 +762,36 @@ class DatabaseService {
     }
   }
 
+  deleteMedicalLog(id: number): boolean {
+    if (!this.db) return false;
+    
+    try {
+      const stmt = this.db.prepare('DELETE FROM medical_logs WHERE id = ?');
+      const result = stmt.run(id);
+      return result.changes > 0;
+    } catch (error) {
+      console.error('Error deleting medical log:', error);
+      return false;
+    }
+  }
+
+  updateMedicalLog(log: MedicalLog): MedicalLog | null {
+    if (!this.db || !log.id) return null;
+    
+    try {
+      const stmt = this.db.prepare(`
+        UPDATE medical_logs SET client_id = ?, log_date = ?, log = ?
+        WHERE id = ?
+      `);
+      
+      stmt.run(log.client_id, log.log_date, log.log, log.id);
+      return log;
+    } catch (error) {
+      console.error('Error updating medical log:', error);
+      return null;
+    }
+  }
+
   // Utility methods
   // Order Details CRUD operations
   createOrderDetails(orderDetails: Omit<OrderDetails, 'id'>): OrderDetails | null {
@@ -746,8 +802,9 @@ class DatabaseService {
         INSERT INTO order_details (
           order_id, branch, supplier_status, bag_number, advisor, delivered_by,
           technician, delivered_at, warranty_expiration, delivery_location,
-          manufacturing_lab, order_status, priority, promised_date, approval_date
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          manufacturing_lab, order_status, priority, promised_date, approval_date,
+          notes, lens_order_notes
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
       
       const result = stmt.run(
@@ -755,7 +812,8 @@ class DatabaseService {
         orderDetails.bag_number, orderDetails.advisor, orderDetails.delivered_by,
         orderDetails.technician, orderDetails.delivered_at, orderDetails.warranty_expiration,
         orderDetails.delivery_location, orderDetails.manufacturing_lab, orderDetails.order_status,
-        orderDetails.priority, orderDetails.promised_date, orderDetails.approval_date
+        orderDetails.priority, orderDetails.promised_date, orderDetails.approval_date,
+        orderDetails.notes, orderDetails.lens_order_notes
       );
       
       return { ...orderDetails, id: result.lastInsertRowid as number };
@@ -785,7 +843,8 @@ class DatabaseService {
         UPDATE order_details SET 
           order_id = ?, branch = ?, supplier_status = ?, bag_number = ?, advisor = ?, delivered_by = ?,
           technician = ?, delivered_at = ?, warranty_expiration = ?, delivery_location = ?,
-          manufacturing_lab = ?, order_status = ?, priority = ?, promised_date = ?, approval_date = ?
+          manufacturing_lab = ?, order_status = ?, priority = ?, promised_date = ?, approval_date = ?,
+          notes = ?, lens_order_notes = ?
         WHERE id = ?
       `);
       
@@ -795,6 +854,7 @@ class DatabaseService {
         orderDetails.technician, orderDetails.delivered_at, orderDetails.warranty_expiration,
         orderDetails.delivery_location, orderDetails.manufacturing_lab, orderDetails.order_status,
         orderDetails.priority, orderDetails.promised_date, orderDetails.approval_date,
+        orderDetails.notes, orderDetails.lens_order_notes,
         orderDetails.id
       );
       
@@ -802,6 +862,168 @@ class DatabaseService {
     } catch (error) {
       console.error('Error updating order details:', error);
       return null;
+    }
+  }
+
+  // Billing CRUD operations
+  createBilling(billing: Omit<Billing, 'id'>): Billing | null {
+    if (!this.db) return null;
+    
+    try {
+      const stmt = this.db.prepare(`
+        INSERT INTO billings (
+          contact_lens_id, optical_exams_id, order_id, total_before_discount, discount_amount, 
+          discount_percent, total_after_discount, prepayment_amount, installment_count, notes
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+      
+      const result = stmt.run(
+        this.sanitizeValue(billing.contact_lens_id), 
+        this.sanitizeValue(billing.optical_exams_id),
+        this.sanitizeValue(billing.order_id),
+        this.sanitizeValue(billing.total_before_discount), 
+        this.sanitizeValue(billing.discount_amount),
+        this.sanitizeValue(billing.discount_percent), 
+        this.sanitizeValue(billing.total_after_discount),
+        this.sanitizeValue(billing.prepayment_amount), 
+        this.sanitizeValue(billing.installment_count),
+        this.sanitizeValue(billing.notes)
+      );
+      
+      return { ...billing, id: result.lastInsertRowid as number };
+    } catch (error) {
+      console.error('Error creating billing:', error);
+      return null;
+    }
+  }
+
+  getBillingByOrderId(orderId: number): Billing | null {
+    if (!this.db) return null;
+    
+    try {
+      const stmt = this.db.prepare('SELECT * FROM billings WHERE order_id = ?');
+      return stmt.get(orderId) as Billing | null;
+    } catch (error) {
+      console.error('Error getting billing by order:', error);
+      return null;
+    }
+  }
+
+  updateBilling(billing: Billing): Billing | null {
+    if (!this.db || !billing.id) return null;
+    
+    try {
+      const stmt = this.db.prepare(`
+        UPDATE billings SET 
+          contact_lens_id = ?, optical_exams_id = ?, order_id = ?, total_before_discount = ?, discount_amount = ?,
+          discount_percent = ?, total_after_discount = ?, prepayment_amount = ?, installment_count = ?, notes = ?
+        WHERE id = ?
+      `);
+      
+      stmt.run(
+        this.sanitizeValue(billing.contact_lens_id), 
+        this.sanitizeValue(billing.optical_exams_id),
+        this.sanitizeValue(billing.order_id),
+        this.sanitizeValue(billing.total_before_discount), 
+        this.sanitizeValue(billing.discount_amount),
+        this.sanitizeValue(billing.discount_percent), 
+        this.sanitizeValue(billing.total_after_discount),
+        this.sanitizeValue(billing.prepayment_amount), 
+        this.sanitizeValue(billing.installment_count),
+        this.sanitizeValue(billing.notes),
+        billing.id
+      );
+      
+      return billing;
+    } catch (error) {
+      console.error('Error updating billing:', error);
+      return null;
+    }
+  }
+
+  // Order Line Item CRUD operations
+  createOrderLineItem(orderLineItem: Omit<OrderLineItem, 'id'>): OrderLineItem | null {
+    if (!this.db) return null;
+    
+    try {
+      const stmt = this.db.prepare(`
+        INSERT INTO order_line_item (
+          billings_id, sku, description, supplied_by, supplied, price, quantity, discount, line_total
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+      
+      const result = stmt.run(
+        orderLineItem.billings_id,
+        this.sanitizeValue(orderLineItem.sku),
+        this.sanitizeValue(orderLineItem.description),
+        this.sanitizeValue(orderLineItem.supplied_by),
+        this.sanitizeValue(orderLineItem.supplied),
+        this.sanitizeValue(orderLineItem.price),
+        this.sanitizeValue(orderLineItem.quantity),
+        this.sanitizeValue(orderLineItem.discount),
+        this.sanitizeValue(orderLineItem.line_total)
+      );
+      
+      return { ...orderLineItem, id: result.lastInsertRowid as number };
+    } catch (error) {
+      console.error('Error creating order line item:', error);
+      return null;
+    }
+  }
+
+  getOrderLineItemsByBillingId(billingId: number): OrderLineItem[] {
+    if (!this.db) return [];
+    
+    try {
+      const stmt = this.db.prepare('SELECT * FROM order_line_item WHERE billings_id = ?');
+      return stmt.all(billingId) as OrderLineItem[];
+    } catch (error) {
+      console.error('Error getting order line items by billing:', error);
+      return [];
+    }
+  }
+
+  updateOrderLineItem(orderLineItem: OrderLineItem): OrderLineItem | null {
+    if (!this.db || !orderLineItem.id) return null;
+    
+    try {
+      const stmt = this.db.prepare(`
+        UPDATE order_line_item SET 
+          billings_id = ?, sku = ?, description = ?, supplied_by = ?, supplied = ?, 
+          price = ?, quantity = ?, discount = ?, line_total = ?
+        WHERE id = ?
+      `);
+      
+      stmt.run(
+        orderLineItem.billings_id,
+        this.sanitizeValue(orderLineItem.sku),
+        this.sanitizeValue(orderLineItem.description),
+        this.sanitizeValue(orderLineItem.supplied_by),
+        this.sanitizeValue(orderLineItem.supplied),
+        this.sanitizeValue(orderLineItem.price),
+        this.sanitizeValue(orderLineItem.quantity),
+        this.sanitizeValue(orderLineItem.discount),
+        this.sanitizeValue(orderLineItem.line_total),
+        orderLineItem.id
+      );
+      
+      return orderLineItem;
+    } catch (error) {
+      console.error('Error updating order line item:', error);
+      return null;
+    }
+  }
+
+  deleteOrderLineItem(orderLineItemId: number): boolean {
+    if (!this.db) return false;
+    
+    try {
+      const stmt = this.db.prepare('DELETE FROM order_line_item WHERE id = ?');
+      const result = stmt.run(orderLineItemId);
+      return result.changes > 0;
+    } catch (error) {
+      console.error('Error deleting order line item:', error);
+      return false;
     }
   }
 
