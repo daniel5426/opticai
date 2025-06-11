@@ -4,34 +4,54 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Textarea } from "@/components/ui/textarea"
 import { toast } from "sonner"
 import { PencilIcon, SaveIcon, TrashIcon } from "lucide-react"
+import { useParams } from "@tanstack/react-router"
+import { getMedicalLogsByClientId, createMedicalLog } from "@/lib/db/medical-logs-db"
+import { MedicalLog } from "@/lib/db/schema"
 
-type MedicalRecord = {
-  id: number
-  date: Date
-  content: string
+type MedicalRecord = MedicalLog & {
   isEditing?: boolean
   isDatePickerOpen?: boolean
   tempDateValue?: string
 }
 
 export const ClientMedicalRecordTab = () => {
+  const { clientId } = useParams({ from: "/clients/$clientId" })
   const [records, setRecords] = useState<MedicalRecord[]>([])
-  const [nextId, setNextId] = useState(1)
+  const [loading, setLoading] = useState(true)
   const datePickerRefs = useRef<{ [key: number]: HTMLDivElement | null }>({})
+
+  useEffect(() => {
+    const loadMedicalLogs = async () => {
+      try {
+        setLoading(true)
+        const logs = await getMedicalLogsByClientId(Number(clientId))
+        setRecords(logs.map(log => ({
+          ...log,
+          isEditing: false,
+          isDatePickerOpen: false
+        })))
+      } catch (error) {
+        console.error('Error loading medical logs:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    loadMedicalLogs()
+  }, [clientId])
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       records.forEach(record => {
-        if (record.isDatePickerOpen) {
+        if (record.isDatePickerOpen && record.id !== undefined) {
           const pickerElement = datePickerRefs.current[record.id]
           if (pickerElement && !pickerElement.contains(event.target as Node)) {
-            // Apply the date if tempDateValue is valid
             if (record.tempDateValue) {
               const newDate = new Date(record.tempDateValue)
               if (!isNaN(newDate.getTime())) {
                 setRecords(prevRecords => 
                   prevRecords.map(r => 
-                    r.id === record.id ? { ...r, date: newDate, isDatePickerOpen: false, tempDateValue: undefined } : r
+                    r.id === record.id ? { ...r, log_date: record.tempDateValue, isDatePickerOpen: false, tempDateValue: undefined } : r
                   )
                 )
                 toast.success("תאריך הרשומה עודכן בהצלחה")
@@ -39,7 +59,6 @@ export const ClientMedicalRecordTab = () => {
               }
             }
             
-            // Just close the picker if no valid date
             setRecords(prevRecords => 
               prevRecords.map(r => 
                 r.id === record.id ? { ...r, isDatePickerOpen: false, tempDateValue: undefined } : r
@@ -58,31 +77,57 @@ export const ClientMedicalRecordTab = () => {
 
   const addNewRecord = () => {
     const newRecord: MedicalRecord = {
-      id: nextId,
-      date: new Date(),
-      content: "",
+      id: 0,
+      client_id: Number(clientId),
+      log_date: new Date().toISOString().split('T')[0],
+      log: "",
       isEditing: true,
       isDatePickerOpen: false
     }
     setRecords([newRecord, ...records])
-    setNextId(nextId + 1)
   }
 
   const handleContentChange = (id: number, content: string) => {
     setRecords(
       records.map(record =>
-        record.id === id ? { ...record, content } : record
+        record.id === id ? { ...record, log: content } : record
       )
     )
   }
 
-  const saveRecord = (id: number) => {
-    setRecords(
-      records.map(record =>
-        record.id === id ? { ...record, isEditing: false } : record
-      )
-    )
-    toast.success("הרשומה נשמרה בהצלחה")
+  const saveRecord = async (id: number) => {
+    const record = records.find(r => r.id === id)
+    if (!record) return
+
+    try {
+      if (id === 0) {
+        const newLog = await createMedicalLog({
+          client_id: Number(clientId),
+          log_date: record.log_date || new Date().toISOString().split('T')[0],
+          log: record.log || ""
+        })
+        
+        if (newLog) {
+          setRecords(prev => 
+            prev.map(r => 
+              r.id === id ? { ...newLog, isEditing: false } : r
+            )
+          )
+          toast.success("הרשומה נשמרה בהצלחה")
+        } else {
+          toast.error("שגיאה בשמירת הרשומה")
+        }
+      } else {
+        setRecords(prev =>
+          prev.map(r =>
+            r.id === id ? { ...r, isEditing: false } : r
+          )
+        )
+        toast.success("הרשומה עודכנה בהצלחה")
+      }
+    } catch (error) {
+      toast.error("שגיאה בשמירת הרשומה")
+    }
   }
 
   const editRecord = (id: number) => {
@@ -94,7 +139,11 @@ export const ClientMedicalRecordTab = () => {
   }
 
   const deleteRecord = (id: number) => {
-    setRecords(records.filter(record => record.id !== id))
+    if (id === 0) {
+      setRecords(records.filter(record => record.id !== id))
+    } else {
+      setRecords(records.filter(record => record.id !== id))
+    }
     toast.success("הרשומה נמחקה בהצלחה")
   }
 
@@ -106,7 +155,7 @@ export const ClientMedicalRecordTab = () => {
           r.id === id ? { 
             ...r, 
             isDatePickerOpen: !r.isDatePickerOpen,
-            tempDateValue: !r.isDatePickerOpen ? formatDateForInput(r.date) : r.tempDateValue 
+            tempDateValue: !r.isDatePickerOpen ? r.log_date : r.tempDateValue 
           } : r
         )
       )
@@ -121,20 +170,20 @@ export const ClientMedicalRecordTab = () => {
       )
     )
     
-    // Only update the actual date if we have a complete, valid date
-    if (inputValue.length === 10) { // YYYY-MM-DD format is 10 chars
+    if (inputValue.length === 10) {
       const newDate = new Date(inputValue)
       if (!isNaN(newDate.getTime())) {
         setRecords(prevRecords =>
           prevRecords.map(record =>
-            record.id === id ? { ...record, date: newDate } : record
+            record.id === id ? { ...record, log_date: inputValue } : record
           )
         )
       }
     }
   }
 
-  const formatDate = (date: Date) => {
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString)
     return new Intl.DateTimeFormat('he-IL', {
       year: 'numeric',
       month: 'long',
@@ -142,11 +191,12 @@ export const ClientMedicalRecordTab = () => {
     }).format(date)
   }
 
-  const formatDateForInput = (date: Date) => {
-    const year = date.getFullYear()
-    const month = String(date.getMonth() + 1).padStart(2, '0')
-    const day = String(date.getDate()).padStart(2, '0')
-    return `${year}-${month}-${day}`
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-32">
+        <div className="text-lg">טוען רשומות רפואיות...</div>
+      </div>
+    )
   }
 
   return (
@@ -162,83 +212,87 @@ export const ClientMedicalRecordTab = () => {
         </div>
       ) : (
         <div className="relative mr-6">
-          {/* Timeline items */}
           <div className="space-y-8">
             {records.map((record, index) => (
-              <div key={record.id} className="relative">
-                {/* Timeline vertical line segment (only between dots) */}
+              <div key={record.id ?? `new-${index}`} className="relative">
                 {index < records.length - 1 && (
                   <div className="absolute top-6 h-[calc(100%+2rem-6px)] right-3 w-0.5 bg-muted" />
                 )}
 
-                {/* Timeline container with dot and date */}
                 <div className="relative h-6">
-                  {/* Timeline dot */}
                   <div className="absolute right-3 w-6 h-6 bg-primary rounded-full -mr-3 z-10 flex items-center justify-center">
                     <div className="w-2 h-2 bg-background rounded-full" />
                   </div>
 
-                  {/* Date positioned to the right of dot with actions */}
-                  <div className="absolute right-12 top-1/2 -translate-y-1/2 flex items-center">
-                    {/* Date display */}
-                    <div className="relative">
+                  <div className="absolute right-10 top-1/2 -translate-y-1/2 flex items-center">
+                    <div className="relative mr-3">
                       <span 
                         className="text-sm text-muted-foreground cursor-pointer hover:text-primary"
-                        onClick={() => toggleDatePicker(record.id)}
+                        onClick={() => record.id !== undefined && toggleDatePicker(record.id)}
                       >
-                        {formatDate(record.date)}
+                        {record.log_date ? formatDate(record.log_date) : 'תאריך לא זמין'}
                       </span>
                       
-                      {record.isDatePickerOpen && (
+                      {record.isDatePickerOpen && record.id !== undefined && (
                         <div 
                           className="absolute top-6 right-0 z-50 bg-background p-1 rounded-md border shadow-md" 
-                          ref={(el) => { datePickerRefs.current[record.id] = el }}
+                          ref={(el) => { datePickerRefs.current[record.id!] = el }}
                         >
                           <input
                             type="date"
-                            value={record.tempDateValue || formatDateForInput(record.date)}
-                            onChange={(e) => handleDateInputChange(record.id, e)}
-                            className="text-sm p-1"
-                            autoFocus
+                            value={record.tempDateValue || record.log_date || ''}
+                            onChange={(e) => record.id !== undefined && handleDateInputChange(record.id, e)}
+                            className="text-sm border rounded px-2 py-1"
                           />
                         </div>
                       )}
                     </div>
-
-                    {/* Action icons */}
-                    <div className="flex items-center mr-2 space-x-2">
+                    
+                    <div className="mr-1 flex gap-1">
                       {record.isEditing ? (
-                        <SaveIcon
-                          className="h-3.5 w-3.5 ml-2 text-primary cursor-pointer hover:text-primary/80"
-                          onClick={() => saveRecord(record.id)}
-                        />
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => record.id !== undefined && saveRecord(record.id)}
+                          className="h-8 w-8 p-0"
+                        >
+                          <SaveIcon className="h-4 w-4" />
+                        </Button>
                       ) : (
-                        <PencilIcon
-                          className="h-3.5 w-3.5 ml-2 text-muted-foreground cursor-pointer hover:text-primary"
-                          onClick={() => editRecord(record.id)}
-                        />
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => record.id !== undefined && editRecord(record.id)}
+                          className="h-8 w-8 p-0"
+                        >
+                          <PencilIcon className="h-4 w-4" />
+                        </Button>
                       )}
-                      <TrashIcon
-                        className="h-3.5 w-3.5 text-muted-foreground cursor-pointer hover:text-destructive"
-                        onClick={() => deleteRecord(record.id)}
-                      />
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => record.id !== undefined && deleteRecord(record.id)}
+                        className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                      >
+                        <TrashIcon className="h-4 w-4" />
+                      </Button>
                     </div>
                   </div>
                 </div>
 
-                {/* Timeline content */}
-                <Card className="mr-10 border-none shadow-none">
-                  <CardContent className="p-1" dir="rtl">
+                <Card className="mr-14 border-none shadow-none">
+                  <CardContent className=" border-none">
                     {record.isEditing ? (
                       <Textarea
-                        value={record.content}
-                        onChange={(e: ChangeEvent<HTMLTextAreaElement>) => handleContentChange(record.id, e.target.value)}
-                        placeholder="הכנס תוכן רשומה רפואית..."
-                        className="min-h-[100px]"
+                        value={record.log || ""}
+                        onChange={(e) => record.id !== undefined && handleContentChange(record.id, e.target.value)}
+                        placeholder="הזן את תוכן הרשומה הרפואית..."
+                        className="min-h-[100px] resize-none"
+                        dir="rtl"
                       />
                     ) : (
-                      <div className="whitespace-pre-wrap">
-                        {record.content || <span className="text-muted-foreground italic">אין תוכן</span>}
+                      <div className="whitespace-pre-wrap text-sm" dir="rtl">
+                        {record.log || "אין תוכן"}
                       </div>
                     )}
                   </CardContent>

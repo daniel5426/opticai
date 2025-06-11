@@ -33,5 +33,76 @@ The application uses [TanStack Router](mdc:https:/tanstack.com/router) for clien
 - Clean, type-safe routing with automatic type generation
 - Route parameters and nested routes support
 
+## Database System
 
+The application uses SQLite with better-sqlite3 for local data persistence:
 
+### Database Structure
+- **Location**: `database.sqlite` in Electron's user data directory
+- **Service**: Centralized `DatabaseService` class in `src/lib/db/index.ts`
+- **Schema**: TypeScript interfaces and table definitions in `src/lib/db/schema.ts`
+- **API Layer**: Database wrapper functions in `src/lib/db/` (e.g., `clients-db.ts`, `orders-db.ts`)
+
+### Key Database Features
+- **WAL Mode**: Write-Ahead Logging for better performance
+- **Foreign Keys**: Enabled for referential integrity
+- **Auto-initialization**: Tables created on first run with seed data
+- **TypeScript Integration**: Fully typed interfaces for all entities
+
+### Making Database Schema Changes
+
+**⚠️ IMPORTANT**: When modifying database schemas, follow this process:
+
+1. **Update Interface** (`src/lib/db/schema.ts`):
+   ```typescript
+   export interface TableName {
+     id?: number;
+     new_field?: string;  // Add new fields here
+     // ... existing fields
+   }
+   ```
+
+2. **Update Table Creation** (`src/lib/db/schema.ts` in `createTables` function):
+   ```sql
+   CREATE TABLE IF NOT EXISTS table_name (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     new_field TEXT,  -- Add new columns here
+     -- ... existing columns
+   );
+   ```
+
+3. **Update Database Service Methods** (`src/lib/db/index.ts`):
+   - Update `create`, `update`, `get` methods to handle new fields
+   - Add new fields to INSERT/UPDATE SQL statements
+   - Update parameter lists to include new fields
+
+4. **Update API Layer** (relevant `*-db.ts` files):
+   - Ensure wrapper functions handle new fields correctly
+
+5. **Database Reset** (Development):
+   - **Delete** the existing database file from user data directory
+   - **Restart** the application to recreate with new schema
+   - Database path: `%APPDATA%/electron-shadcn Template/database.sqlite`
+
+### Database Entities
+- **Clients**: Patient information and demographics
+- **Medical Logs**: Medical history and notes
+- **Optical Exams**: Vision test results and measurements
+- **Optical Eye Exams**: Per-eye detailed exam data
+- **Orders**: Eyewear orders (independent of exams)
+- **Order Eyes**: Per-eye prescription data for orders
+- **Order Lens**: Lens specifications for orders
+- **Frames**: Frame details for orders
+- **Contact Lens**: Contact lens exam data
+- **Contact Eye**: Per-eye contact lens data
+- **Contact Lens Orders**: Contact lens order details
+- **Billing**: Billing and payment information
+- **Order Line Items**: Detailed billing line items
+
+### Best Practices
+- Always use TypeScript interfaces for type safety
+- Keep schema definitions and database service in sync
+- Use the wrapper functions in `*-db.ts` files instead of direct database calls
+- Test database operations after schema changes
+- Use proper error handling in database operations
+- Delete old database during development when schema changes

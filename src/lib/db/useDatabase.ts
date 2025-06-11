@@ -1,5 +1,8 @@
-import { useState } from 'react';
-import { Client } from './schema';
+import { useState, useEffect } from 'react'
+import { Client, OpticalExam, Order } from './schema'
+import * as clientsDb from './clients-db'
+import * as examsDb from './exams-db'
+import * as ordersDb from './orders-db'
 
 // Define return types for each database operation
 type DbOperationResult<T> = {
@@ -9,120 +12,86 @@ type DbOperationResult<T> = {
 };
 
 export const useDatabase = () => {
-  // General state for ongoing operations
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<Error | null>(null);
+  const [clients, setClients] = useState<Client[]>([])
+  const [exams, setExams] = useState<OpticalExam[]>([])
+  const [orders, setOrders] = useState<Order[]>([])
+  const [loading, setLoading] = useState(true)
 
-  // Create a client
-  const createClient = async (client: Client): Promise<DbOperationResult<number>> => {
-    setLoading(true);
-    setError(null);
-    
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        setLoading(true)
+        const [clientsData, examsData, ordersData] = await Promise.all([
+          clientsDb.getAllClients(),
+          [],
+          []
+        ])
+        setClients(clientsData)
+        setExams(examsData)
+        setOrders(ordersData)
+      } catch (error) {
+        console.error('Error loading database data:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    loadData()
+  }, [])
+
+  const refreshClients = async () => {
     try {
-      const clientId = await window.ipcRenderer.invoke('db-create-client', client);
-      setLoading(false);
-      return { data: clientId, loading: false, error: null };
-    } catch (err) {
-      const error = err instanceof Error ? err : new Error(String(err));
-      setError(error);
-      setLoading(false);
-      return { data: null, loading: false, error };
+      const clientsData = await clientsDb.getAllClients()
+      setClients(clientsData)
+    } catch (error) {
+      console.error('Error refreshing clients:', error)
     }
-  };
+  }
 
-  // Get a client by ID
-  const getClient = async (id: number): Promise<DbOperationResult<Client>> => {
-    setLoading(true);
-    setError(null);
-    
+  const refreshExamsByClient = async (clientId: number) => {
     try {
-      const client = await window.ipcRenderer.invoke('db-get-client', id);
-      setLoading(false);
-      return { data: client, loading: false, error: null };
-    } catch (err) {
-      const error = err instanceof Error ? err : new Error(String(err));
-      setError(error);
-      setLoading(false);
-      return { data: null, loading: false, error };
+      const examsData = await examsDb.getExamsByClientId(clientId)
+      setExams(examsData)
+    } catch (error) {
+      console.error('Error refreshing exams:', error)
     }
-  };
+  }
 
-  // Get a client by national ID
-  const getClientByNationalId = async (nationalId: string): Promise<DbOperationResult<Client>> => {
-    setLoading(true);
-    setError(null);
-    
+  const refreshOrdersByClient = async (clientId: number) => {
     try {
-      const client = await window.ipcRenderer.invoke('db-get-client-by-national-id', nationalId);
-      setLoading(false);
-      return { data: client, loading: false, error: null };
-    } catch (err) {
-      const error = err instanceof Error ? err : new Error(String(err));
-      setError(error);
-      setLoading(false);
-      return { data: null, loading: false, error };
+      const ordersData = await ordersDb.getOrdersByClientId(clientId)
+      setOrders(ordersData)
+    } catch (error) {
+      console.error('Error refreshing orders:', error)
     }
-  };
-
-  // Get all clients
-  const getAllClients = async (): Promise<DbOperationResult<Client[]>> => {
-    setLoading(true);
-    setError(null);
-    
-    try {
-      const clients = await window.ipcRenderer.invoke('db-get-all-clients');
-      setLoading(false);
-      return { data: clients, loading: false, error: null };
-    } catch (err) {
-      const error = err instanceof Error ? err : new Error(String(err));
-      setError(error);
-      setLoading(false);
-      return { data: null, loading: false, error };
-    }
-  };
-
-  // Update a client
-  const updateClient = async (id: number, clientData: Partial<Client>): Promise<DbOperationResult<boolean>> => {
-    setLoading(true);
-    setError(null);
-    
-    try { 
-      const success = await window.ipcRenderer.invoke('db-update-client', id, clientData);
-      setLoading(false);
-      return { data: success, loading: false, error: null };
-    } catch (err) {
-      const error = err instanceof Error ? err : new Error(String(err));
-      setError(error);
-      setLoading(false);
-      return { data: null, loading: false, error };
-    }
-  };
-
-  // Delete a client
-  const deleteClient = async (id: number): Promise<DbOperationResult<boolean>> => {
-    setLoading(true);
-    setError(null);
-    
-    try { 
-      const success = await window.ipcRenderer.invoke('db-delete-client', id);
-      setLoading(false);
-      return { data: success, loading: false, error: null };
-    } catch (err) {
-      const error = err instanceof Error ? err : new Error(String(err));
-      setError(error);
-      setLoading(false);
-      return { data: null, loading: false, error };
-    }
-  };
+  }
 
   return {
+    clients,
+    exams,
+    orders,
     loading,
-    error,
-    createClient,
-    getClient,
-    getClientByNationalId,
-    getAllClients,
-    updateClient,
-    deleteClient
-  };
-}; 
+    refreshClients,
+    refreshExamsByClient,
+    refreshOrdersByClient,
+    
+    // Client operations
+    createClient: clientsDb.createClient,
+    updateClient: clientsDb.updateClient,
+    deleteClient: clientsDb.deleteClient,
+    getClientById: clientsDb.getClientById,
+    
+    // Exam operations
+    getExamsByClientId: examsDb.getExamsByClientId,
+    getExamById: examsDb.getExamById,
+    createExam: examsDb.createExam,
+    updateExam: examsDb.updateExam,
+    
+    // Order operations
+    getOrdersByClientId: ordersDb.getOrdersByClientId,
+    getOrderById: ordersDb.getOrderById,
+    createOrder: ordersDb.createOrder,
+    updateOrder: ordersDb.updateOrder,
+    deleteOrder: ordersDb.deleteOrder,
+  }
+} 

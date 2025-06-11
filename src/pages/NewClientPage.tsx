@@ -29,10 +29,15 @@ export default function NewClientPage() {
     setFormData((prev) => ({ ...prev, [name]: value }))
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     try {
-      const newClient = createClient(formData)
+      // Add file creation date
+      const clientData = {
+        ...formData,
+        file_creation_date: new Date().toISOString().split('T')[0]
+      }
+      const newClient = await createClient(clientData)
       if (newClient) {
         toast.success("לקוח נוצר בהצלחה")
         navigate({ to: "/clients/$clientId", params: { clientId: String(newClient.id) } })

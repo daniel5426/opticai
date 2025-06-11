@@ -1,3 +1,4 @@
+import React from "react"
 import { createMemoryHistory, createRouter } from "@tanstack/react-router";
 import { rootTree } from "./routes";
 

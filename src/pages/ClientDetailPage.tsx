@@ -24,7 +24,8 @@ export default function ClientDetailPage() {
   const searchParams = new URLSearchParams(window.location.search)
   const initialTab = searchParams.get('tab') || 'details'
   
-  const [client, setClient] = useState<Client | undefined>(getClientById(Number(clientId)))
+  const [client, setClient] = useState<Client | undefined>(undefined)
+  const [loading, setLoading] = useState(true)
   const [isEditing, setIsEditing] = useState(false)
   const [formData, setFormData] = useState<Client>({} as Client)
   const [activeTab, setActiveTab] = useState(initialTab)
@@ -32,10 +33,23 @@ export default function ClientDetailPage() {
   const formRef = useRef<HTMLFormElement>(null)
   
   useEffect(() => {
-    if (client) {
-      setFormData({ ...client })
+    const loadClient = async () => {
+      try {
+        setLoading(true)
+        const clientData = await getClientById(Number(clientId))
+        setClient(clientData)
+        if (clientData) {
+          setFormData({ ...clientData })
+        }
+      } catch (error) {
+        console.error('Error loading client:', error)
+      } finally {
+        setLoading(false)
+      }
     }
-  }, [client])
+
+    loadClient()
+  }, [clientId])
 
   useEffect(() => {
     // Refresh orders data when switching to orders tab
@@ -53,19 +67,37 @@ export default function ClientDetailPage() {
     setFormData(prev => ({ ...prev, [name]: value }))
   }
   
-  const handleSave = () => {
+  const handleSave = async () => {
     if (formRef.current) {
-      // Update client data in the database
-      const updatedClient = updateClient(formData)
-      
-      if (updatedClient) {
-        setClient(updatedClient)
-        setIsEditing(false)
-        toast.success("פרטי הלקוח עודכנו בהצלחה")
-      } else {
+      try {
+        // Update client data in the database
+        const updatedClient = await updateClient(formData)
+        
+        if (updatedClient) {
+          setClient(updatedClient)
+          setIsEditing(false)
+          toast.success("פרטי הלקוח עודכנו בהצלחה")
+        } else {
+          toast.error("לא הצלחנו לשמור את השינויים")
+        }
+      } catch (error) {
         toast.error("לא הצלחנו לשמור את השינויים")
       }
     }
+  }
+  
+  if (loading) {
+    return (
+      <SidebarProvider dir="rtl">
+        <AppSidebar variant="inset" side="right" />
+        <SidebarInset>
+          <SiteHeader title="לקוחות" backLink="/clients" />
+          <div className="flex flex-col items-center justify-center h-full">
+            <div className="text-lg">טוען פרטי לקוח...</div>
+          </div>
+        </SidebarInset>
+      </SidebarProvider>
+    )
   }
   
   if (!client) {

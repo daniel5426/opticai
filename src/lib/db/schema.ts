@@ -94,9 +94,10 @@ export interface OpticalEyeExam {
 
 export interface Order {
   id?: number;
-  exam_id: number;
   order_date?: string;
   type?: string;
+  dominant_eye?: string;
+  examiner_name?: string;
   lens_id?: number;
   frame_id?: number;
 
@@ -217,6 +218,25 @@ export interface Billing {
   prepayment_amount?: number;
   installment_count?: number;
   notes?: string;
+}
+
+export interface OrderDetails {
+  id?: number;
+  order_id: number;
+  branch?: string;
+  supplier_status?: string;
+  bag_number?: string;
+  advisor?: string;
+  delivered_by?: string;
+  technician?: string;
+  delivered_at?: string;
+  warranty_expiration?: string;
+  delivery_location?: string;
+  manufacturing_lab?: string;
+  order_status?: string;
+  priority?: string;
+  promised_date?: string;
+  approval_date?: string;
 }
 
 export interface OrderLineItem {
@@ -448,15 +468,15 @@ export const createTables = (db: Database): void => {
   db.exec(`
     CREATE TABLE IF NOT EXISTS orders (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      exam_id INTEGER NOT NULL,
       order_date DATE,
       type TEXT,
+      dominant_eye CHAR(1) CHECK(dominant_eye IN ('R','L')),
+      examiner_name TEXT,
       lens_id INTEGER,
       frame_id INTEGER,
       comb_va REAL,
       comb_high REAL,
-      comb_pd REAL,
-      FOREIGN KEY(exam_id) REFERENCES optical_exams(id) ON DELETE CASCADE
+      comb_pd REAL
     );
   `);
 
@@ -510,6 +530,29 @@ export const createTables = (db: Database): void => {
       width REAL,
       height REAL,
       length REAL,
+      FOREIGN KEY(order_id) REFERENCES orders(id) ON DELETE CASCADE
+    );
+  `);
+
+  // Create order_details table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS order_details (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      order_id INTEGER NOT NULL,
+      branch TEXT,
+      supplier_status TEXT,
+      bag_number TEXT,
+      advisor TEXT,
+      delivered_by TEXT,
+      technician TEXT,
+      delivered_at DATE,
+      warranty_expiration DATE,
+      delivery_location TEXT,
+      manufacturing_lab TEXT,
+      order_status TEXT,
+      priority TEXT,
+      promised_date DATE,
+      approval_date DATE,
       FOREIGN KEY(order_id) REFERENCES orders(id) ON DELETE CASCADE
     );
   `);

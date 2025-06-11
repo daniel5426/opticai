@@ -4,9 +4,6 @@ import { SidebarInset } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { SiteHeader } from "@/components/site-header";
-import { SectionCards } from "@/components/section-cards";
-import { ChartAreaInteractive } from "@/components/chart-area-interactive";
-import data from "@/lib/db/data.json"
 
 // Lazy load the DataTable component
 const DataTable = lazy(() => import("@/components/data-table").then(module => ({
@@ -48,18 +45,6 @@ export default function HomePage() {
         <SiteHeader title="דף הבית" />
         <div className="flex flex-col flex-1">
           <div className="@container/main flex flex-col gap-2">
-            <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
-              <SectionCards />
-              <div className="px-4 lg:px-6">
-                <ChartAreaInteractive />
-              </div>
-              <DataTableErrorBoundary>
-                <Suspense fallback={<div className="p-4 text-center">Loading data table...</div>}>
-                  <DataTable data={data} />
-                </Suspense>
-              </DataTableErrorBoundary>
-              <div className="h-12"></div>
-            </div>
           </div>
         </div>
       </SidebarInset>

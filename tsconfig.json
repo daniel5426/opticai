@@ -19,7 +19,8 @@
     },
     "outDir": "dist",
     "moduleResolution": "node",
-    "resolveJsonModule": true
+    "resolveJsonModule": true,
+    "typeRoots": ["./node_modules/@types", "./src/types"]
   },
-  "include": ["src/**/*", "./package.json", "./forge.config.ts", "src/lib/db/**/*.json"]
+  "include": ["src/**/*", "./package.json", "./forge.config.ts", "src/lib/db/**/*.json", "src/types.d.ts", "src/types/**/*.d.ts"]
 }

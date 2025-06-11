@@ -1,4 +1,5 @@
-import React, { useState } from "react"
+import React from "react"
+import { useState } from "react"
 import { Link, useNavigate } from "@tanstack/react-router"
 import {
   Table,
@@ -18,7 +19,6 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { MoreHorizontal } from "lucide-react"
 import { Order } from "@/lib/db/schema"
-import { getExamById } from "@/lib/db/exams-db"
 
 interface OrdersTableProps {
   data: Order[]
@@ -29,23 +29,20 @@ export function OrdersTable({ data, clientId }: OrdersTableProps) {
   const [searchQuery, setSearchQuery] = useState("")
   const navigate = useNavigate()
 
-  // Filter data based on search query
   const filteredData = data.filter((order) => {
-    const exam = order.exam_id ? getExamById(order.exam_id) : null
     const searchableFields = [
-      order.type,
-      order.order_date,
-      exam?.test_name || '',
-      exam?.clinic || '',
+      order.type || '',
+      order.order_date || '',
+      order.examiner_name || '',
     ]
 
     return searchableFields.some(
-      (field) => field && field.toLowerCase().includes(searchQuery.toLowerCase())
+      (field) => field.toLowerCase().includes(searchQuery.toLowerCase())
     )
   })
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4" style={{scrollbarWidth: 'none'}}>
       <div className="flex justify-between items-center">
         <div className="flex gap-2">
           <Input
@@ -66,7 +63,7 @@ export function OrdersTable({ data, clientId }: OrdersTableProps) {
             <TableRow>
               <TableHead className="text-right">תאריך הזמנה</TableHead>
               <TableHead className="text-right">סוג הזמנה</TableHead>
-              <TableHead className="text-right">מבדיקה</TableHead>
+              <TableHead className="text-right">בודק</TableHead>
               <TableHead className="text-right">VA</TableHead>
               <TableHead className="text-right">PD</TableHead>
               <TableHead className="text-right w-[50px]"></TableHead>
@@ -84,7 +81,6 @@ export function OrdersTable({ data, clientId }: OrdersTableProps) {
               </TableRow>
             ) : (
               filteredData.map((order) => {
-                const exam = order.exam_id ? getExamById(order.exam_id) : null
                 return (
                   <TableRow 
                     key={order.id}
@@ -103,9 +99,7 @@ export function OrdersTable({ data, clientId }: OrdersTableProps) {
                       {order.order_date ? new Date(order.order_date).toLocaleDateString('he-IL') : ''}
                     </TableCell>
                     <TableCell>{order.type}</TableCell>
-                    <TableCell>
-                      {exam ? `${exam.test_name} - ${new Date(exam.exam_date).toLocaleDateString('he-IL')}` : ''}
-                    </TableCell>
+                    <TableCell>{order.examiner_name}</TableCell>
                     <TableCell>{order.comb_va ? `6/${order.comb_va}` : ''}</TableCell>
                     <TableCell>{order.comb_pd}</TableCell>
                     <TableCell>

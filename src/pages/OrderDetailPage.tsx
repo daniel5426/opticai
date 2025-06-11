@@ -20,13 +20,17 @@ import {
   createOrderLens,
   createFrame
 } from "@/lib/db/orders-db"
-import { Order, OrderEye, OrderLens, Frame } from "@/lib/db/schema"
+import { Order, OrderEye, OrderLens, Frame, OrderDetails, Client, OpticalExam, Billing, OrderLineItem } from "@/lib/db/schema"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { toast } from "sonner"
+import { Textarea } from "@/components/ui/textarea"
+import { Plus, Edit, Trash2, Save, X } from "lucide-react"
+import { BillingTab } from "@/components/BillingTab"
 
 interface DateInputProps {
   name: string;
@@ -210,29 +214,29 @@ export default function OrderDetailPage({
   const clientId = propClientId || routeClientId
   const orderId = propOrderId || routeOrderId
   
-  // For new orders, check if we're coming from an exam
   const searchParams = new URLSearchParams(window.location.search);
   const examIdFromSearch = searchParams.get('examId');
   const examId = propExamId || examIdFromSearch || undefined;
   
-  const client = getClientById(Number(clientId))
-  const order = orderId ? getOrderById(Number(orderId)) : null
-  const exam = order?.exam_id ? getExamById(order.exam_id) : (examId ? getExamById(Number(examId)) : null)
-  const orderEyes = orderId ? getOrderEyesByOrderId(Number(orderId)) : []
-  const orderLens = orderId ? getOrderLensByOrderId(Number(orderId)) : null
-  const frame = orderId ? getFrameByOrderId(Number(orderId)) : null
-  
-  const rightEyeOrder = orderEyes.find(e => e.eye === "R")
-  const leftEyeOrder = orderEyes.find(e => e.eye === "L")
+  const [loading, setLoading] = useState(true)
+  const [client, setClient] = useState<Client | null>(null)
+  const [order, setOrder] = useState<Order | null>(null)
+  const [exam, setExam] = useState<OpticalExam | null>(null)
+  const [rightEyeOrder, setRightEyeOrder] = useState<OrderEye | null>(null)
+  const [leftEyeOrder, setLeftEyeOrder] = useState<OrderEye | null>(null)
+  const [orderLens, setOrderLens] = useState<OrderLens | null>(null)
+  const [frame, setFrame] = useState<Frame | null>(null)
+  const [orderLineItems, setOrderLineItems] = useState<OrderLineItem[]>([])
   
   const isNewMode = mode === 'new'
   const [isEditing, setIsEditing] = useState(isNewMode)
   const [formData, setFormData] = useState<Order>(() => {
     if (isNewMode) {
       return {
-        exam_id: examId ? Number(examId) : (exam?.id || 0),
         order_date: new Date().toISOString().split('T')[0],
         type: '',
+        dominant_eye: '',
+        examiner_name: '',
         comb_va: undefined,
         comb_high: undefined,
         comb_pd: undefined
@@ -244,9 +248,56 @@ export default function OrderDetailPage({
   const [leftEyeFormData, setLeftEyeFormData] = useState<OrderEye>(isNewMode ? { order_id: 0, eye: 'L' } as OrderEye : {} as OrderEye)
   const [lensFormData, setLensFormData] = useState<OrderLens>(isNewMode ? { order_id: 0 } as OrderLens : {} as OrderLens)
   const [frameFormData, setFrameFormData] = useState<Frame>(isNewMode ? { order_id: 0 } as Frame : {} as Frame)
+  const [orderDetailsFormData, setOrderDetailsFormData] = useState<OrderDetails>(isNewMode ? { order_id: 0 } as OrderDetails : {} as OrderDetails)
+  const [billingFormData, setBillingFormData] = useState<Billing>(isNewMode ? {} as Billing : {} as Billing)
   
   const formRef = useRef<HTMLFormElement>(null)
   const navigate = useNavigate()
+  
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        setLoading(true)
+        
+        if (clientId) {
+          const clientData = await getClientById(Number(clientId))
+          setClient(clientData || null)
+        }
+        
+        if (orderId) {
+          const orderData = await getOrderById(Number(orderId))
+          setOrder(orderData || null)
+          
+          if (orderData) {
+            const [orderEyesData, orderLensData, frameData] = await Promise.all([
+              getOrderEyesByOrderId(Number(orderId)),
+              getOrderLensByOrderId(Number(orderId)),
+              getFrameByOrderId(Number(orderId))
+            ])
+            
+            const rightEye = orderEyesData.find(e => e.eye === "R")
+            const leftEye = orderEyesData.find(e => e.eye === "L")
+            
+            setRightEyeOrder(rightEye || null)
+            setLeftEyeOrder(leftEye || null)
+            setOrderLens(orderLensData || null)
+            setFrame(frameData || null)
+            
+
+          }
+        } else if (examId) {
+          const examData = await getExamById(Number(examId))
+          setExam(examData || null)
+        }
+      } catch (error) {
+        console.error('Error loading data:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    loadData()
+  }, [clientId, orderId, examId])
   
   useEffect(() => {
     if (order) {
@@ -269,7 +320,6 @@ export default function OrderDetailPage({
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
     
-    // Handle numeric fields for Order model
     const numericFields = ['comb_va', 'comb_high', 'comb_pd']
     if (numericFields.includes(name)) {
       const numValue = parseFloat(value)
@@ -287,7 +337,6 @@ export default function OrderDetailPage({
   const handleFrameInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target
     
-    // Handle numeric fields for Frame model
     const numericFields = ['bridge', 'width', 'height', 'length']
     if (numericFields.includes(name)) {
       const numValue = parseFloat(value)
@@ -331,6 +380,11 @@ export default function OrderDetailPage({
       processedValue = undefined;
     }
   
+    if (eye === 'R') {
+      setRightEyeFormData(prev => ({ ...prev, [field]: processedValue }));
+    } else {
+      setLeftEyeFormData(prev => ({ ...prev, [field]: processedValue }));
+    }
   };
   
   const handleOrderFieldChange = (field: keyof Order, rawValue: string) => {
@@ -347,107 +401,108 @@ export default function OrderDetailPage({
     
     setFormData(prev => ({ ...prev, [field]: processedValue }));
   };
-  
-  const handleSave = () => {
+
+
+  const handleSave = async () => {
     console.log('Starting save process...')
-    console.log('Form data:', formData)
-    console.log('Right eye data:', rightEyeFormData)
-    console.log('Left eye data:', leftEyeFormData)
-    console.log('Lens data:', lensFormData)
-    console.log('Frame data:', frameFormData)
     
-    // Validate required fields
     if (!formData.type) {
       toast.error("אנא בחר סוג הזמנה")
       return
     }
     
-    if (isNewMode) {
-      console.log('Creating new order with exam_id:', formData.exam_id)
-      
-      // Create new order
-      const newOrder = createOrder({
-        exam_id: formData.exam_id || 0,
-        order_date: formData.order_date,
-        type: formData.type,
-        comb_va: formData.comb_va,
-        comb_high: formData.comb_high,
-        comb_pd: formData.comb_pd
-      })
-      
-      console.log('Created order result:', newOrder)
-      
-      if (newOrder && newOrder.id) {
-        // Create right eye order data
-        const newRightEyeOrder = createOrderEye({
-          ...rightEyeFormData,
-          order_id: newOrder.id,
-          eye: 'R',
+    try {
+      if (isNewMode) {
+        console.log('Creating new order...')
+        
+        const newOrder = await createOrder({
+          order_date: formData.order_date,
+          type: formData.type,
+          comb_va: formData.comb_va,
+          comb_high: formData.comb_high,
+          comb_pd: formData.comb_pd
         })
         
-        // Create left eye order data
-        const newLeftEyeOrder = createOrderEye({
-          ...leftEyeFormData,
-          order_id: newOrder.id,
-          eye: 'L',
-        })
-        
-        // Create lens data
-        const newOrderLens = createOrderLens({
-          ...lensFormData,
-          order_id: newOrder.id,
-        })
-        
-        // Create frame data
-        const newFrame = createFrame({
-          ...frameFormData,
-          order_id: newOrder.id,
-        })
-        
-        console.log('Created related data:', {
-          rightEye: newRightEyeOrder,
-          leftEye: newLeftEyeOrder,
-          lens: newOrderLens,
-          frame: newFrame
-        })
-        
-        if (newRightEyeOrder && newLeftEyeOrder && newOrderLens && newFrame) {
-          console.log('All data created successfully, calling onSave callback')
-          toast.success("הזמנה חדשה נוצרה בהצלחה")
-          if (onSave) {
-            onSave(newOrder, newRightEyeOrder, newLeftEyeOrder, newOrderLens, newFrame)
+        if (newOrder && newOrder.id) {
+          const [newRightEyeOrder, newLeftEyeOrder, newOrderLens, newFrame] = await Promise.all([
+            createOrderEye({
+              ...rightEyeFormData,
+              order_id: newOrder.id,
+              eye: 'R',
+            }),
+            createOrderEye({
+              ...leftEyeFormData,
+              order_id: newOrder.id,
+              eye: 'L',
+            }),
+            createOrderLens({
+              ...lensFormData,
+              order_id: newOrder.id,
+            }),
+            createFrame({
+              ...frameFormData,
+              order_id: newOrder.id,
+            })
+          ])
+          
+          if (newRightEyeOrder && newLeftEyeOrder && newOrderLens && newFrame) {
+            toast.success("הזמנה חדשה נוצרה בהצלחה")
+            if (onSave) {
+              onSave(newOrder, newRightEyeOrder, newLeftEyeOrder, newOrderLens, newFrame)
+            }
+          } else {
+            toast.error("לא הצלחנו ליצור את נתוני ההזמנה")
           }
         } else {
-          console.error('Failed to create some related data')
-          toast.error("לא הצלחנו ליצור את נתוני ההזמנה")
+          toast.error("לא הצלחנו ליצור את ההזמנה")
         }
       } else {
-        console.error('Failed to create order')
-        toast.error("לא הצלחנו ליצור את ההזמנה")
-      }
-    } else {
-      // Update existing order
-      const updatedOrder = updateOrder(formData)
-      const updatedRightEyeOrder = updateOrderEye(rightEyeFormData)
-      const updatedLeftEyeOrder = updateOrderEye(leftEyeFormData)
-      const updatedOrderLens = updateOrderLens(lensFormData)
-      const updatedFrame = updateFrame(frameFormData)
-      
-      if (updatedOrder && updatedRightEyeOrder && updatedLeftEyeOrder && updatedOrderLens && updatedFrame) {
-        setIsEditing(false)
-        if (order) setFormData({ ...updatedOrder });
-        if (rightEyeOrder) setRightEyeFormData({ ...updatedRightEyeOrder });
-        if (leftEyeOrder) setLeftEyeFormData({ ...updatedLeftEyeOrder });
-        if (orderLens) setLensFormData({ ...updatedOrderLens });
-        if (frame) setFrameFormData({ ...updatedFrame });
-        toast.success("פרטי ההזמנה עודכנו בהצלחה")
-        if (onSave) {
-          onSave(updatedOrder, updatedRightEyeOrder, updatedLeftEyeOrder, updatedOrderLens, updatedFrame)
+        const [updatedOrder, updatedRightEyeOrder, updatedLeftEyeOrder, updatedOrderLens, updatedFrame] = await Promise.all([
+          updateOrder(formData),
+          updateOrderEye(rightEyeFormData),
+          updateOrderEye(leftEyeFormData),
+          updateOrderLens(lensFormData),
+          updateFrame(frameFormData)
+        ])
+        
+        if (updatedOrder && updatedRightEyeOrder && updatedLeftEyeOrder && updatedOrderLens && updatedFrame) {
+          setIsEditing(false)
+          setOrder(updatedOrder)
+          setRightEyeOrder(updatedRightEyeOrder)
+          setLeftEyeOrder(updatedLeftEyeOrder)
+          setOrderLens(updatedOrderLens)
+          setFrame(updatedFrame)
+          setFormData({ ...updatedOrder })
+          setRightEyeFormData({ ...updatedRightEyeOrder })
+          setLeftEyeFormData({ ...updatedLeftEyeOrder })
+          setLensFormData({ ...updatedOrderLens })
+          setFrameFormData({ ...updatedFrame })
+          toast.success("פרטי ההזמנה עודכנו בהצלחה")
+          if (onSave) {
+            onSave(updatedOrder, updatedRightEyeOrder, updatedLeftEyeOrder, updatedOrderLens, updatedFrame)
+          }
+        } else {
+          toast.error("לא הצלחנו לשמור את השינויים")
         }
-      } else {
-        toast.error("לא הצלחנו לשמור את השינויים")
       }
+    } catch (error) {
+      console.error('Error saving order:', error)
+      toast.error("שגיאה בשמירת ההזמנה")
     }
+  }
+  
+  if (loading) {
+    return (
+      <SidebarProvider dir="rtl">
+        <AppSidebar variant="inset" side="right" />
+        <SidebarInset>
+          <SiteHeader title="לקוחות" backLink="/clients" />
+          <div className="flex flex-col items-center justify-center h-full">
+            <h1 className="text-2xl">טוען...</h1>
+          </div>
+        </SidebarInset>
+      </SidebarProvider>
+    )
   }
   
   if (!client || (!isNewMode && (!order || !rightEyeOrder || !leftEyeOrder))) {
@@ -467,9 +522,9 @@ export default function OrderDetailPage({
   const fullName = `${client.first_name} ${client.last_name}`.trim()
   
   return (
-    <SidebarProvider dir="rtl" style={{scrollbarWidth: 'none'}}>
-      <AppSidebar variant="inset" side="right" />
-      <SidebarInset>
+          <SidebarProvider dir="rtl" style={{scrollbarWidth: 'none', msOverflowStyle: 'none'}}>
+        <AppSidebar variant="inset" side="right" />
+        <SidebarInset style={{scrollbarWidth: 'none', msOverflowStyle: 'none'}}>
         <SiteHeader 
           title="לקוחות" 
           backLink="/clients"
@@ -478,37 +533,38 @@ export default function OrderDetailPage({
           examInfo={isNewMode ? "הזמנה חדשה" : `הזמנה מס' ${orderId}`}
         />
         <div className="flex flex-col flex-1 p-4 lg:p-6 mb-10" dir="rtl" style={{scrollbarWidth: 'none', msOverflowStyle: 'none'}}>
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-semibold">{isNewMode ? "הזמנה חדשה" : "פרטי הזמנה"}</h2>
-            <div className="flex gap-2">
-              {isNewMode && onCancel && (
-                <Button variant="outline" onClick={onCancel}>
-                  ביטול
+          <Tabs defaultValue="order" className="w-full" dir="rtl">
+            <div className="flex justify-between items-center mb-4">
+              <TabsList className="grid grid-cols-2 w-auto">
+                <TabsTrigger value="order">הזמנה</TabsTrigger>
+                <TabsTrigger value="billing">חיובים</TabsTrigger>
+              </TabsList>
+              <div className="flex gap-2">
+                {isNewMode && onCancel && (
+                  <Button variant="outline" onClick={onCancel}>
+                    ביטול
+                  </Button>
+                )}
+                <Button 
+                  variant={isEditing ? "outline" : "default"} 
+                  onClick={() => {
+                    if (isNewMode || isEditing) {
+                      handleSave();
+                    } else {
+                      setIsEditing(true);
+                    }
+                  }}
+                >
+                  {isNewMode ? "שמור הזמנה" : (isEditing ? "שמור שינויים" : "ערוך הזמנה")}
                 </Button>
-              )}
-              <Button 
-                variant={isEditing ? "outline" : "default"} 
-                onClick={() => {
-                  console.log('Button clicked! isEditing:', isEditing, 'isNewMode:', isNewMode)
-                  if (isNewMode || isEditing) {
-                    console.log('Calling handleSave...')
-                    handleSave();
-                  } else {
-                    console.log('Setting editing mode to true...')
-                    setIsEditing(true);
-                  }
-                }}
-              >
-                {isNewMode ? "שמור הזמנה" : (isEditing ? "שמור שינויים" : "ערוך הזמנה")}
-              </Button>
+              </div>
             </div>
-          </div>
-          
-          <form ref={formRef} className="pt-4">
-            <div className="grid grid-cols-1 gap-4">
-              {/* Order Basic Info */}
+            
+            <TabsContent value="order" className="space-y-4">
+              <form ref={formRef} className="pt-4 pb-10" style={{scrollbarWidth: 'none', msOverflowStyle: 'none'}}>
+                <div className="grid grid-cols-1 gap-4">
               <div className="rounded-md">
-                <div className="grid grid-cols-4 gap-x-3 gap-y-2">
+                <div className="grid grid-cols-5 gap-x-3 gap-y-2">
                   <div className="col-span-1">
                     <label className="font-semibold text-base">תאריך הזמנה</label>
                     <DateInput
@@ -519,7 +575,7 @@ export default function OrderDetailPage({
                       disabled={!isEditing}
                     />
                   </div>
-                  <div className="col-span-1">
+                                    <div className="col-span-1">
                     <label className="font-semibold text-base">סוג הזמנה</label>
                     <div className="h-1"></div>
                     <Select dir="rtl"
@@ -538,13 +594,39 @@ export default function OrderDetailPage({
                       </SelectContent>
                     </Select>
                   </div>
+                  
                   <div className="col-span-1">
-                    <label className="font-semibold text-base">מבדיקה</label>
+                    <label className="font-semibold text-base">עין דומיננטית</label>
                     <div className="h-1"></div>
-                    <div className="border h-9 px-3 rounded-md text-sm flex items-center">
-                      {exam ? `${exam.test_name} - ${exam.exam_date ? new Date(exam.exam_date).toLocaleDateString('he-IL') : ''}` : 'אין בדיקה מקושרת'}
-                    </div>
+                    <Select dir="rtl"
+                      disabled={!isEditing}
+                      value={formData.dominant_eye || ''} 
+                      onValueChange={(value) => handleSelectChange(value, 'dominant_eye')}
+                    >
+                      <SelectTrigger className="h-9 text-sm">
+                        <SelectValue placeholder="בחר עין" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="R" className="text-sm">ימין (R)</SelectItem>
+                        <SelectItem value="L" className="text-sm">שמאל (L)</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
+                  
+                  <div className="col-span-1">
+                    <label className="font-semibold text-base">שם הבוחן</label>
+                    <div className="h-1"></div>
+                    <Input 
+                      type="text"
+                      name="examiner_name"
+                      value={formData.examiner_name || ''}
+                      onChange={handleInputChange}
+                      disabled={!isEditing}
+                      className="text-sm h-9"
+                      placeholder="שם הבוחן"
+                    />
+                  </div>
+ 
                   <div className="col-span-1">
                     <label className="font-semibold text-base">PD כללי</label>
                     <div className="h-1"></div>
@@ -560,8 +642,8 @@ export default function OrderDetailPage({
                   </div>
                 </div>
               </div>
-                            {/* Eye Data Card */}
-                            <Card>
+              
+              <Card>
                 <CardContent className="px-4 pt-4 space-y-2">
                   <div className="relative mb-4 pt-2">
                     <div className="absolute top-[-27px] right-1/2 transform translate-x-1/2 bg-background px-2 font-medium text-muted-foreground">
@@ -574,188 +656,388 @@ export default function OrderDetailPage({
                 </CardContent>
               </Card>
 
-              {/* Lens and Frame Details Combined Block */}
-              <div className="grid grid-cols-2 gap-6">
-                {/* Lens Details Block */}
-                <Card>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-base">פרטי עדשות</CardTitle>
-                  </CardHeader>
-                  <CardContent className="grid grid-cols-2 gap-3">
-                    <div>
-                      <Label className="text-sm">דגם עדשה ימין</Label>
-                      <Input
-                        name="right_model"
-                        value={lensFormData.right_model || ''}
-                        onChange={handleLensInputChange}
-                        disabled={!isEditing}
-                        className="mt-1.5"
-                      />
-                    </div>
-                    <div>
-                      <Label className="text-sm">דגם עדשה שמאל</Label>
-                      <Input
-                        name="left_model"
-                        value={lensFormData.left_model || ''}
-                        onChange={handleLensInputChange}
-                        disabled={!isEditing}
-                        className="mt-1.5"
-                      />
-                    </div>
-                    <div>
-                      <Label className="text-sm">צבע</Label>
-                      <Input
-                        name="color"
-                        value={lensFormData.color || ''}
-                        onChange={handleLensInputChange}
-                        disabled={!isEditing}
-                        className="mt-1.5"
-                      />
-                    </div>
-                    <div>
-                      <Label className="text-sm">ציפוי</Label>
-                      <Input
-                        name="coating"
-                        value={lensFormData.coating || ''}
-                        onChange={handleLensInputChange}
-                        disabled={!isEditing}
-                        className="mt-1.5"
-                      />
-                    </div>
-                    <div>
-                      <Label className="text-sm">חומר</Label>
-                      <Input
-                        name="material"
-                        value={lensFormData.material || ''}
-                        onChange={handleLensInputChange}
-                        disabled={!isEditing}
-                        className="mt-1.5"
-                      />
-                    </div>
-                    <div>
-                      <Label className="text-sm">ספק</Label>
-                      <Input
-                        name="supplier"
-                        value={lensFormData.supplier || ''}
-                        onChange={handleLensInputChange}
-                        disabled={!isEditing}
-                        className="mt-1.5"
-                      />
-                    </div>
-                  </CardContent>
-                </Card>
+              <Tabs defaultValue="prescription" className="w-full" dir="rtl">
+                <TabsList className="grid w-full grid-cols-2">
+                  <TabsTrigger value="prescription">מרשם</TabsTrigger>
+                  <TabsTrigger value="order">הזמנה</TabsTrigger>
+                </TabsList>
+                
+                <TabsContent value="prescription" className="space-y-4">
+                  <div className="grid grid-cols-2 gap-6">
+                    <Card>
+                      <CardHeader >
+                        <CardTitle className="text-base">פרטי עדשות</CardTitle>
+                      </CardHeader>
+                      <CardContent className="grid grid-cols-2 gap-3">
+                        <div>
+                          <Label className="text-sm">דגם עדשה ימין</Label>
+                          <Input
+                            name="right_model"
+                            value={lensFormData.right_model || ''}
+                            onChange={handleLensInputChange}
+                            disabled={!isEditing}
+                            className="mt-1.5"
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-sm">דגם עדשה שמאל</Label>
+                          <Input
+                            name="left_model"
+                            value={lensFormData.left_model || ''}
+                            onChange={handleLensInputChange}
+                            disabled={!isEditing}
+                            className="mt-1.5"
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-sm">צבע</Label>
+                          <Input
+                            name="color"
+                            value={lensFormData.color || ''}
+                            onChange={handleLensInputChange}
+                            disabled={!isEditing}
+                            className="mt-1.5"
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-sm">ציפוי</Label>
+                          <Input
+                            name="coating"
+                            value={lensFormData.coating || ''}
+                            onChange={handleLensInputChange}
+                            disabled={!isEditing}
+                            className="mt-1.5"
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-sm">חומר</Label>
+                          <Input
+                            name="material"
+                            value={lensFormData.material || ''}
+                            onChange={handleLensInputChange}
+                            disabled={!isEditing}
+                            className="mt-1.5"
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-sm">ספק</Label>
+                          <Input
+                            name="supplier"
+                            value={lensFormData.supplier || ''}
+                            onChange={handleLensInputChange}
+                            disabled={!isEditing}
+                            className="mt-1.5"
+                          />
+                        </div>
+                      </CardContent>
+                    </Card>
 
-                {/* Frame Details Block */}
-                <Card>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-base">פרטי מסגרת</CardTitle>
-                  </CardHeader>
-                  <CardContent className="grid grid-cols-2 gap-3">
-                    <div>
-                      <Label className="text-sm">יצרן</Label>
-                      <Input
-                        name="manufacturer"
-                        value={frameFormData.manufacturer || ''}
-                        onChange={handleFrameInputChange}
-                        disabled={!isEditing}
-                        className="mt-1.5"
-                      />
-                    </div>
-                    <div>
-                      <Label className="text-sm">דגם</Label>
-                      <Input
-                        name="model"
-                        value={frameFormData.model || ''}
-                        onChange={handleFrameInputChange}
-                        disabled={!isEditing}
-                        className="mt-1.5"
-                      />
-                    </div>
-                    <div>
-                      <Label className="text-sm">צבע</Label>
-                      <Input
-                        name="color"
-                        value={frameFormData.color || ''}
-                        onChange={handleFrameInputChange}
-                        disabled={!isEditing}
-                        className="mt-1.5"
-                      />
-                    </div>
-                    <div>
-                      <Label className="text-sm">ספק</Label>
-                      <Input
-                        name="supplier"
-                        value={frameFormData.supplier || ''}
-                        onChange={handleFrameInputChange}
-                        disabled={!isEditing}
-                        className="mt-1.5"
-                      />
-                    </div>
-                    <div>
-                      <Label className="text-sm">סופק על ידי</Label>
-                      <Select dir="rtl"
-                        disabled={!isEditing}
-                        value={frameFormData.supplied_by || ''} 
-                        onValueChange={(value) => handleFrameSelectChange(value, 'supplied_by')}
-                      >
-                        <SelectTrigger className="mt-1.5">
-                          <SelectValue placeholder="בחר" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="חנות" className="text-sm">חנות</SelectItem>
-                          <SelectItem value="לקוח" className="text-sm">לקוח</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <Label className="text-sm">גשר</Label>
-                      <Input
-                        name="bridge"
-                        type="number"
-                        value={frameFormData.bridge || ''}
-                        onChange={handleFrameInputChange}
-                        disabled={!isEditing}
-                        className="mt-1.5"
-                      />
-                    </div>
-                    <div>
-                      <Label className="text-sm">רוחב</Label>
-                      <Input
-                        name="width"
-                        type="number"
-                        value={frameFormData.width || ''}
-                        onChange={handleFrameInputChange}
-                        disabled={!isEditing}
-                        className="mt-1.5"
-                      />
-                    </div>
-                    <div>
-                      <Label className="text-sm">גובה</Label>
-                      <Input
-                        name="height"
-                        type="number"
-                        value={frameFormData.height || ''}
-                        onChange={handleFrameInputChange}
-                        disabled={!isEditing}
-                        className="mt-1.5"
-                      />
-                    </div>
-                    <div>
-                      <Label className="text-sm">אורך זרוע</Label>
-                      <Input
-                        name="length"
-                        type="number"
-                        value={frameFormData.length || ''}
-                        onChange={handleFrameInputChange}
-                        disabled={!isEditing}
-                        className="mt-1.5"
-                      />
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
+                    <Card>
+                      <CardHeader >
+                        <CardTitle className="text-base">פרטי מסגרת</CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-3">
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <Label className="text-sm">יצרן</Label>
+                            <Input
+                              name="manufacturer"
+                              value={frameFormData.manufacturer || ''}
+                              onChange={handleFrameInputChange}
+                              disabled={!isEditing}
+                              className="mt-1.5"
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-sm">דגם</Label>
+                            <Input
+                              name="model"
+                              value={frameFormData.model || ''}
+                              onChange={handleFrameInputChange}
+                              disabled={!isEditing}
+                              className="mt-1.5"
+                            />
+                          </div>
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <Label className="text-sm">צבע</Label>
+                            <Input
+                              name="color"
+                              value={frameFormData.color || ''}
+                              onChange={handleFrameInputChange}
+                              disabled={!isEditing}
+                              className="mt-1.5"
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-sm">ספק</Label>
+                            <Input
+                              name="supplier"
+                              value={frameFormData.supplier || ''}
+                              onChange={handleFrameInputChange}
+                              disabled={!isEditing}
+                              className="mt-1.5"
+                            />
+                          </div>
+                        </div>
+                        
+                        <div className="grid grid-cols-5 gap-3">
+                          <div>
+                            <Label className="text-sm">סופק על ידי</Label>
+                            <Select dir="rtl"
+                                disabled={!isEditing}
+                              value={frameFormData.supplied_by || ''} 
+                              onValueChange={(value) => handleFrameSelectChange(value, 'supplied_by')}
+                            >
+                              <SelectTrigger className="mt-1.5">
+                                <SelectValue placeholder="בחר" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="חנות" className="text-sm">חנות</SelectItem>
+                                <SelectItem value="לקוח" className="text-sm">לקוח</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div>
+                            <Label className="text-sm">גשר</Label>
+                            <Input
+                              name="bridge"
+                              type="number"
+                              value={frameFormData.bridge || ''}
+                              onChange={handleFrameInputChange}
+                              disabled={!isEditing}
+                              className="mt-1.5"
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-sm">רוחב</Label>
+                            <Input
+                              name="width"
+                              type="number"
+                              value={frameFormData.width || ''}
+                              onChange={handleFrameInputChange}
+                              disabled={!isEditing}
+                              className="mt-1.5"
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-sm">גובה</Label>
+                            <Input
+                              name="height"
+                              type="number"
+                              value={frameFormData.height || ''}
+                              onChange={handleFrameInputChange}
+                              disabled={!isEditing}
+                              className="mt-1.5"
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-sm">אורך זרוע</Label>
+                            <Input
+                              name="length"
+                              type="number"
+                              value={frameFormData.length || ''}
+                              onChange={handleFrameInputChange}
+                              disabled={!isEditing}
+                              className="mt-1.5"
+                            />
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+                </TabsContent>
+                
+                <TabsContent value="order" className="space-y-4">
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base">כללי</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <div className="grid grid-cols-5 gap-3">
+                        <div>
+                          <Label className="text-sm">סניף</Label>
+                          <Input
+                            name="branch"
+                            value={orderDetailsFormData.branch || ''}
+                            onChange={(e) => setOrderDetailsFormData(prev => ({ ...prev, branch: e.target.value }))}
+                            disabled={!isEditing}
+                            className="mt-1.5"
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-sm">סטטוס ספק</Label>
+                          <Input
+                            name="supplier_status"
+                            value={orderDetailsFormData.supplier_status || ''}
+                            onChange={(e) => setOrderDetailsFormData(prev => ({ ...prev, supplier_status: e.target.value }))}
+                            disabled={!isEditing}
+                            className="mt-1.5"
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-sm">מספר שקית</Label>
+                          <Input
+                            name="bag_number"
+                            value={orderDetailsFormData.bag_number || ''}
+                            onChange={(e) => setOrderDetailsFormData(prev => ({ ...prev, bag_number: e.target.value }))}
+                            disabled={!isEditing}
+                            className="mt-1.5"
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-sm">יועץ</Label>
+                          <Input
+                            name="advisor"
+                            value={orderDetailsFormData.advisor || ''}
+                            onChange={(e) => setOrderDetailsFormData(prev => ({ ...prev, advisor: e.target.value }))}
+                            disabled={!isEditing}
+                            className="mt-1.5"
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-sm">מוסר</Label>
+                          <Input
+                            name="delivered_by"
+                            value={orderDetailsFormData.delivered_by || ''}
+                            onChange={(e) => setOrderDetailsFormData(prev => ({ ...prev, delivered_by: e.target.value }))}
+                            disabled={!isEditing}
+                            className="mt-1.5"
+                          />
+                        </div>
+                      </div>
+                      
+                      <div className="grid grid-cols-5 gap-3">
+                        <div>
+                          <Label className="text-sm">טכני</Label>
+                          <Input
+                            name="technician"
+                            value={orderDetailsFormData.technician || ''}
+                            onChange={(e) => setOrderDetailsFormData(prev => ({ ...prev, technician: e.target.value }))}
+                            disabled={!isEditing}
+                            className="mt-1.5"
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-sm">אספקה בסניף</Label>
+                          <Input
+                            name="delivery_location"
+                            value={orderDetailsFormData.delivery_location || ''}
+                            onChange={(e) => setOrderDetailsFormData(prev => ({ ...prev, delivery_location: e.target.value }))}
+                            disabled={!isEditing}
+                            className="mt-1.5"
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-sm">מעבדה מייצרת</Label>
+                          <Input
+                            name="manufacturing_lab"
+                            value={orderDetailsFormData.manufacturing_lab || ''}
+                            onChange={(e) => setOrderDetailsFormData(prev => ({ ...prev, manufacturing_lab: e.target.value }))}
+                            disabled={!isEditing}
+                            className="mt-1.5"
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-sm">סטטוס הזמנה</Label>
+                          <Select dir="rtl"
+                            disabled={!isEditing}
+                            value={orderDetailsFormData.order_status || ''} 
+                            onValueChange={(value) => setOrderDetailsFormData(prev => ({ ...prev, order_status: value }))}
+                          >
+                            <SelectTrigger className="mt-1.5 h-9 w-full">
+                              <SelectValue placeholder="בחר סטטוס" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="חדש" className="text-sm">חדש</SelectItem>
+                              <SelectItem value="בייצור" className="text-sm">בייצור</SelectItem>
+                              <SelectItem value="מוכן" className="text-sm">מוכן</SelectItem>
+                              <SelectItem value="נמסר" className="text-sm">נמסר</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div>
+                          <Label className="text-sm">עדיפות</Label>
+                          <Select dir="rtl"
+                            disabled={!isEditing}
+                            value={orderDetailsFormData.priority || ''} 
+                            onValueChange={(value) => setOrderDetailsFormData(prev => ({ ...prev, priority: value }))}
+                          >
+                            <SelectTrigger className="mt-1.5 h-9 w-full">
+                              <SelectValue placeholder="בחר עדיפות" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="רגיל" className="text-sm">רגיל</SelectItem>
+                              <SelectItem value="דחוף" className="text-sm">דחוף</SelectItem>
+                              <SelectItem value="מיידי" className="text-sm">מיידי</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                      
+                      <div className="grid grid-cols-5 gap-3">
+                        <div>
+                          <Label className="text-sm">נמסר בתאריך</Label>
+                          <DateInput
+                            name="delivered_at"
+                            value={orderDetailsFormData.delivered_at}
+                            onChange={(e) => setOrderDetailsFormData(prev => ({ ...prev, delivered_at: e.target.value }))}
+                            disabled={!isEditing}
+                            className="mt-1.5"
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-sm">תאריך תום אחריות</Label>
+                          <DateInput
+                            name="warranty_expiration"
+                            value={orderDetailsFormData.warranty_expiration}
+                            onChange={(e) => setOrderDetailsFormData(prev => ({ ...prev, warranty_expiration: e.target.value }))}
+                            disabled={!isEditing}
+                            className="mt-1.5"
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-sm">הובטח לתאריך</Label>
+                          <DateInput
+                            name="promised_date"
+                            value={orderDetailsFormData.promised_date}
+                            onChange={(e) => setOrderDetailsFormData(prev => ({ ...prev, promised_date: e.target.value }))}
+                            disabled={!isEditing}
+                            className="mt-1.5"
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-sm">תאריך אישור</Label>
+                          <DateInput
+                            name="approval_date"
+                            value={orderDetailsFormData.approval_date}
+                            onChange={(e) => setOrderDetailsFormData(prev => ({ ...prev, approval_date: e.target.value }))}
+                            disabled={!isEditing}
+                            className="mt-1.5"
+                          />
+                        </div>
+                        <div></div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+              </Tabs>
             </div>
           </form>
+        </TabsContent>
+        
+        <TabsContent value="billing" className="space-y-4">
+          <BillingTab
+            billingFormData={billingFormData}
+            setBillingFormData={setBillingFormData}
+            orderLineItems={orderLineItems}
+            setOrderLineItems={setOrderLineItems}
+            isEditing={isEditing}
+          />
+        </TabsContent>
+      </Tabs>
         </div>
       </SidebarInset>
     </SidebarProvider>
