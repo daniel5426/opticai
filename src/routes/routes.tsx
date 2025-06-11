@@ -9,6 +9,7 @@ import ExamDetailPage from "@/pages/ExamDetailPage";
 import ExamCreatePage from "@/pages/ExamCreatePage";
 import OrderDetailPage from "@/pages/OrderDetailPage";
 import OrderCreatePage from "@/pages/OrderCreatePage";
+import ContactLensDetailPage from "@/pages/ContactLensDetailPage";
 
 // TODO: Steps to add a new route:
 // 1. Create a new page component in the '../pages/' directory (e.g., NewPage.tsx)
@@ -83,6 +84,18 @@ export const OrderCreateRoute = createRoute({
   component: OrderCreatePage,
 });
 
+export const ContactLensDetailRoute = createRoute({
+  getParentRoute: () => RootRoute,
+  path: "/clients/$clientId/contact-lenses/$contactLensId",
+  component: ContactLensDetailPage,
+});
+
+export const ContactLensCreateRoute = createRoute({
+  getParentRoute: () => RootRoute,
+  path: "/clients/$clientId/contact-lenses/new",
+  component: ContactLensDetailPage,
+});
+
 export const rootTree = RootRoute.addChildren([
   HomeRoute,
   SecondPageRoute,
@@ -93,4 +106,6 @@ export const rootTree = RootRoute.addChildren([
   ExamCreateRoute,
   OrderDetailRoute,
   OrderCreateRoute,
+  ContactLensDetailRoute,
+  ContactLensCreateRoute,
 ]);
