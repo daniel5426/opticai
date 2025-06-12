@@ -97,6 +97,107 @@ interface ContactEyeSectionProps {
 
 
 
+function SchirmerKSection({ eye, data, onChange, isEditing }: ContactEyeSectionProps) {
+  const eyeLabel = eye === "R" ? "R" : "L";
+
+  return (
+    <div className="flex items-center gap-1 h-6" dir="rtl">
+      <div className="grid grid-cols-24 gap-4 flex-1 pb-2" dir="ltr">
+        <div className="col-span-3">
+          {eye === "R" && <Label className="text-[12px] block text-center">TEST</Label>}
+          <Input 
+            type="number" 
+            step="0.1" 
+            value={data.schirmer_test?.toString() || ""} 
+            onChange={(e) => onChange(eye, "schirmer_test", e.target.value)} 
+            disabled={!isEditing} 
+            className="h-8 text-xs px-1" 
+          />
+        </div>
+        <div className="col-span-3">
+          {eye === "R" && <Label className="text-[12px] block text-center">BUT</Label>}
+          <Input 
+            type="number" 
+            step="0.1" 
+            value={data.schirmer_but?.toString() || ""} 
+            onChange={(e) => onChange(eye, "schirmer_but", e.target.value)} 
+            disabled={!isEditing} 
+            className="h-8 text-xs px-1" 
+          />
+        </div>
+        <div className="col-span-3">
+          {eye === "R" && <Label className="text-[12px] block text-center">RH</Label>}
+          <Input 
+            type="number" 
+            step="0.01" 
+            value={data.k_h?.toString() || ""} 
+            onChange={(e) => onChange(eye, "k_h", e.target.value)} 
+            disabled={!isEditing} 
+            className="h-8 text-xs px-1" 
+          />
+        </div>
+        <div className="col-span-3">
+          {eye === "R" && <Label className="text-[12px] block text-center">RV</Label>}
+          <Input 
+            type="number" 
+            step="0.01" 
+            value={data.k_v?.toString() || ""} 
+            onChange={(e) => onChange(eye, "k_v", e.target.value)} 
+            disabled={!isEditing} 
+            className="h-8 text-xs px-1" 
+          />
+        </div>
+        <div className="col-span-3">
+          {eye === "R" && <Label className="text-[12px] block text-center">AVG</Label>}
+          <Input 
+            type="number" 
+            step="0.01" 
+            value={data.k_avg?.toString() || ""} 
+            onChange={(e) => onChange(eye, "k_avg", e.target.value)} 
+            disabled={!isEditing} 
+            className="h-8 text-xs px-1" 
+          />
+        </div>
+        <div className="col-span-3">
+          {eye === "R" && <Label className="text-[12px] block text-center">CYL</Label>}
+          <Input 
+            type="number" 
+            step="0.01" 
+            value={data.k_cyl?.toString() || ""} 
+            onChange={(e) => onChange(eye, "k_cyl", e.target.value)} 
+            disabled={!isEditing} 
+            className="h-8 text-xs px-1" 
+          />
+        </div>
+        <div className="col-span-3">
+          {eye === "R" && <Label className="text-[12px] block text-center">AX</Label>}
+          <Input 
+            type="number" 
+            min="0" 
+            max="180" 
+            value={data.k_ax?.toString() || ""} 
+            onChange={(e) => onChange(eye, "k_ax", e.target.value)} 
+            disabled={!isEditing} 
+            className="h-8 text-xs px-1" 
+          />
+        </div>
+        <div className="col-span-3">
+          {eye === "R" && <Label className="text-[12px] block text-center">ECC</Label>}
+          <Input 
+            type="number" 
+            step="0.01" 
+            value={data.k_ecc?.toString() || ""} 
+            onChange={(e) => onChange(eye, "k_ecc", e.target.value)} 
+            disabled={!isEditing} 
+            className="h-8 text-xs px-1" 
+          />
+        </div>
+      </div>
+      <span className={`text-md font-medium pr-2 flex items-center justify-center w-6 ${eyeLabel === "L" ? "pb-2" : "pt-2"}`}>{eyeLabel}</span>
+    </div>
+  );
+}
+
 function ExamSection({ eye, data, onChange, isEditing }: ContactEyeSectionProps) {
   const eyeLabel = eye === "R" ? "R" : "L";
 
@@ -910,29 +1011,271 @@ export default function ContactLensDetailPage({
                     
                     <TabsContent value="prescription" className="space-y-4">
                       <Card>
-                        <CardHeader>
-                          <CardTitle className="text-base">פרטי עדשות מגע</CardTitle>
-                        </CardHeader>
-                        <CardContent className="grid grid-cols-2 gap-3">
-                          <div>
-                            <Label className="text-sm">ספק</Label>
-                            <Input
-                              name="supplier"
-                              value={rightEyeFormData.supplier || ''}
-                              onChange={(e) => handleContactEyeFieldChange('R', 'supplier', e.target.value)}
-                              disabled={!isEditing}
-                              className="mt-1.5"
-                            />
-                          </div>
-                          <div>
-                            <Label className="text-sm">חומר</Label>
-                            <Input
-                              name="material"
-                              value={rightEyeFormData.material || ''}
-                              onChange={(e) => handleContactEyeFieldChange('R', 'material', e.target.value)}
-                              disabled={!isEditing}
-                              className="mt-1.5"
-                            />
+                        <CardContent className="px-4 pt-4">
+                          <div className="flex gap-6" dir="rtl">
+                            <div className="w-48">
+                              <div className="relative pt-2">
+                                <div className="absolute top-[-27px] right-1/2 transform translate-x-1/2 bg-background px-2 font-medium text-muted-foreground">
+                                  מדידות
+                                </div>
+                              </div>
+                              <div className="space-y-2">
+                                <div className="grid grid-cols-2 gap-2">
+                                  <div>
+                                    <Label className="text-[12px] block text-center">קוטר אישון</Label>
+                                    <Input
+                                      type="number"
+                                      step="0.1"
+                                      value={formData.pupil_diameter?.toString() || ''}
+                                      onChange={(e) => handleContactLensFieldChange('pupil_diameter', e.target.value)}
+                                      disabled={!isEditing}
+                                      className="h-8 text-xs px-1"
+                                    />
+                                  </div>
+                                  <div>
+                                    <Label className="text-[12px] block text-center">קוטר קרנית</Label>
+                                    <Input
+                                      type="number"
+                                      step="0.1"
+                                      value={formData.corneal_diameter?.toString() || ''}
+                                      onChange={(e) => handleContactLensFieldChange('corneal_diameter', e.target.value)}
+                                      disabled={!isEditing}
+                                      className="h-8 text-xs px-1"
+                                    />
+                                  </div>
+                                </div>
+                                <div className="grid grid-cols-2 gap-2">
+                                  <div>
+                                    <Label className="text-[12px] block text-center">פתח עפעף</Label>
+                                    <Input
+                                      type="number"
+                                      step="0.1"
+                                      value={formData.eyelid_aperture?.toString() || ''}
+                                      onChange={(e) => handleContactLensFieldChange('eyelid_aperture', e.target.value)}
+                                      disabled={!isEditing}
+                                      className="h-8 text-xs px-1"
+                                    />
+                                  </div>
+                                  <div></div>
+                                </div>
+                              </div>
+                            </div>
+                            
+                            <div className="w-px bg-border"></div>
+                            
+                            <div className="flex-1 flex gap-6">
+                              <div className="w-48">
+                                <div className="relative mb-4 pt-2">
+                                  <div className="absolute top-[-27px] right-1/2 transform translate-x-1/2 bg-background px-2 font-medium text-muted-foreground">
+                                    Schirmer Test
+                                  </div>
+                                </div>
+                                <div className="space-y-1">
+                                  <div className="flex items-center gap-1 h-6 mb-3" dir="rtl">
+                                    <div className="grid grid-cols-6 gap-4 flex-1 pb-2" dir="ltr">
+                                      <div className="col-span-3">
+                                        <Label className="text-[12px] block text-center">TEST</Label>
+                                        <Input 
+                                          type="number" 
+                                          step="0.1" 
+                                          value={rightEyeFormData.schirmer_test?.toString() || ""} 
+                                          onChange={(e) => handleContactEyeFieldChange("R", "schirmer_test", e.target.value)} 
+                                          disabled={!isEditing} 
+                                          className="h-8 text-xs px-1" 
+                                        />
+                                      </div>
+                                      <div className="col-span-3">
+                                        <Label className="text-[12px] block text-center">BUT</Label>
+                                        <Input 
+                                          type="number" 
+                                          step="0.1" 
+                                          value={rightEyeFormData.schirmer_but?.toString() || ""} 
+                                          onChange={(e) => handleContactEyeFieldChange("R", "schirmer_but", e.target.value)} 
+                                          disabled={!isEditing} 
+                                          className="h-8 text-xs px-1" 
+                                        />
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <div className="h-2"></div>
+                                  <div className="flex items-center gap-1 h-6 mb-3" dir="rtl">
+                                    <div className="grid grid-cols-6 gap-4 flex-1 pb-2" dir="ltr">
+                                      <div className="col-span-3">
+                                        <Input 
+                                          type="number" 
+                                          step="0.1" 
+                                          value={leftEyeFormData.schirmer_test?.toString() || ""} 
+                                          onChange={(e) => handleContactEyeFieldChange("L", "schirmer_test", e.target.value)} 
+                                          disabled={!isEditing} 
+                                          className="h-8 text-xs px-1" 
+                                        />
+                                      </div>
+                                      <div className="col-span-3">
+                                        <Input 
+                                          type="number" 
+                                          step="0.1" 
+                                          value={leftEyeFormData.schirmer_but?.toString() || ""} 
+                                          onChange={(e) => handleContactEyeFieldChange("L", "schirmer_but", e.target.value)} 
+                                          disabled={!isEditing} 
+                                          className="h-8 text-xs px-1" 
+                                        />
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                              
+                              <div className="w-px bg-border"></div>
+                              
+                              <div className="flex-1">
+                                <div className="relative mb-4 pt-2">
+                                  <div className="absolute top-[-27px] right-1/2 transform translate-x-1/2 bg-background px-2 font-medium text-muted-foreground">
+                                    קרטומטר
+                                  </div>
+                                </div>
+                                <div className="space-y-1">
+                                                                    <div className="flex items-center gap-1 h-6 mb-3" dir="rtl">
+                                    <div className="grid grid-cols-18 gap-4 flex-1 pb-2" dir="ltr">
+                                      <div className="col-span-3">
+                                        <Label className="text-[12px] block text-center">RH</Label>
+                                        <Input 
+                                          type="number" 
+                                          step="0.01" 
+                                          value={rightEyeFormData.k_h?.toString() || ""} 
+                                          onChange={(e) => handleContactEyeFieldChange("R", "k_h", e.target.value)} 
+                                          disabled={!isEditing} 
+                                          className="h-8 text-xs px-1" 
+                                        />
+                                      </div>
+                                      <div className="col-span-3">
+                                        <Label className="text-[12px] block text-center">RV</Label>
+                                        <Input 
+                                          type="number" 
+                                          step="0.01" 
+                                          value={rightEyeFormData.k_v?.toString() || ""} 
+                                          onChange={(e) => handleContactEyeFieldChange("R", "k_v", e.target.value)} 
+                                          disabled={!isEditing} 
+                                          className="h-8 text-xs px-1" 
+                                        />
+                                      </div>
+                                      <div className="col-span-3">
+                                        <Label className="text-[12px] block text-center">AVG</Label>
+                                        <Input 
+                                          type="number" 
+                                          step="0.01" 
+                                          value={rightEyeFormData.k_avg?.toString() || ""} 
+                                          onChange={(e) => handleContactEyeFieldChange("R", "k_avg", e.target.value)} 
+                                          disabled={!isEditing} 
+                                          className="h-8 text-xs px-1" 
+                                        />
+                                      </div>
+                                      <div className="col-span-3">
+                                        <Label className="text-[12px] block text-center">CYL</Label>
+                                        <Input 
+                                          type="number" 
+                                          step="0.01" 
+                                          value={rightEyeFormData.k_cyl?.toString() || ""} 
+                                          onChange={(e) => handleContactEyeFieldChange("R", "k_cyl", e.target.value)} 
+                                          disabled={!isEditing} 
+                                          className="h-8 text-xs px-1" 
+                                        />
+                                      </div>
+                                      <div className="col-span-3">
+                                        <Label className="text-[12px] block text-center">AX</Label>
+                                        <Input 
+                                          type="number" 
+                                          min="0" 
+                                          max="180" 
+                                          value={rightEyeFormData.k_ax?.toString() || ""} 
+                                          onChange={(e) => handleContactEyeFieldChange("R", "k_ax", e.target.value)} 
+                                          disabled={!isEditing} 
+                                          className="h-8 text-xs px-1" 
+                                        />
+                                      </div>
+                                      <div className="col-span-3">
+                                        <Label className="text-[12px] block text-center">ECC</Label>
+                                        <Input 
+                                          type="number" 
+                                          step="0.01" 
+                                          value={rightEyeFormData.k_ecc?.toString() || ""} 
+                                          onChange={(e) => handleContactEyeFieldChange("R", "k_ecc", e.target.value)} 
+                                          disabled={!isEditing} 
+                                          className="h-8 text-xs px-1" 
+                                        />
+                                      </div>
+                                    </div>
+                                    <span className="text-md font-medium pr-2 flex items-center justify-center w-6 pt-2">R</span>
+                                  </div>
+                                  <div className="h-2"></div>
+                                                                    <div className="flex items-center gap-1 h-6 mb-3" dir="rtl">
+                                    <div className="grid grid-cols-18 gap-4 flex-1 pb-2" dir="ltr">
+                                      <div className="col-span-3">
+                                        <Input 
+                                          type="number" 
+                                          step="0.01" 
+                                          value={leftEyeFormData.k_h?.toString() || ""} 
+                                          onChange={(e) => handleContactEyeFieldChange("L", "k_h", e.target.value)} 
+                                          disabled={!isEditing} 
+                                          className="h-8 text-xs px-1" 
+                                        />
+                                      </div>
+                                      <div className="col-span-3">
+                                        <Input 
+                                          type="number" 
+                                          step="0.01" 
+                                          value={leftEyeFormData.k_v?.toString() || ""} 
+                                          onChange={(e) => handleContactEyeFieldChange("L", "k_v", e.target.value)} 
+                                          disabled={!isEditing} 
+                                          className="h-8 text-xs px-1" 
+                                        />
+                                      </div>
+                                      <div className="col-span-3">
+                                        <Input 
+                                          type="number" 
+                                          step="0.01" 
+                                          value={leftEyeFormData.k_avg?.toString() || ""} 
+                                          onChange={(e) => handleContactEyeFieldChange("L", "k_avg", e.target.value)} 
+                                          disabled={!isEditing} 
+                                          className="h-8 text-xs px-1" 
+                                        />
+                                      </div>
+                                      <div className="col-span-3">
+                                        <Input 
+                                          type="number" 
+                                          step="0.01" 
+                                          value={leftEyeFormData.k_cyl?.toString() || ""} 
+                                          onChange={(e) => handleContactEyeFieldChange("L", "k_cyl", e.target.value)} 
+                                          disabled={!isEditing} 
+                                          className="h-8 text-xs px-1" 
+                                        />
+                                      </div>
+                                      <div className="col-span-3">
+                                        <Input 
+                                          type="number" 
+                                          min="0" 
+                                          max="180" 
+                                          value={leftEyeFormData.k_ax?.toString() || ""} 
+                                          onChange={(e) => handleContactEyeFieldChange("L", "k_ax", e.target.value)} 
+                                          disabled={!isEditing} 
+                                          className="h-8 text-xs px-1" 
+                                        />
+                                      </div>
+                                      <div className="col-span-3">
+                                        <Input 
+                                          type="number" 
+                                          step="0.01" 
+                                          value={leftEyeFormData.k_ecc?.toString() || ""} 
+                                          onChange={(e) => handleContactEyeFieldChange("L", "k_ecc", e.target.value)} 
+                                          disabled={!isEditing} 
+                                          className="h-8 text-xs px-1" 
+                                        />
+                                      </div>
+                                    </div>
+                                    <span className="text-md font-medium pr-2 flex items-center justify-center w-6 pb-2">L</span>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
                           </div>
                         </CardContent>
                       </Card>
