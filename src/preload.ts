@@ -50,6 +50,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Billing operations
   getBillingByOrder: (orderId: number) => ipcRenderer.invoke('db-get-billing-by-order', orderId),
+  getBillingByContactLens: (contactLensId: number) => ipcRenderer.invoke('db-get-billing-by-contact-lens', contactLensId),
   createBilling: (billingData: any) => ipcRenderer.invoke('db-create-billing', billingData),
   updateBilling: (billingData: any) => ipcRenderer.invoke('db-update-billing', billingData),
 
@@ -64,4 +65,21 @@ contextBridge.exposeInMainWorld('electronAPI', {
   createMedicalLog: (logData: any) => ipcRenderer.invoke('db-create-medical-log', logData),
   updateMedicalLog: (logData: any) => ipcRenderer.invoke('db-update-medical-log', logData),
   deleteMedicalLog: (id: number) => ipcRenderer.invoke('db-delete-medical-log', id),
+
+  // Contact Lens operations
+  getContactLensesByClient: (clientId: number) => ipcRenderer.invoke('db-get-contact-lenses-by-client', clientId),
+  getContactLens: (contactLensId: number) => ipcRenderer.invoke('db-get-contact-lens', contactLensId),
+  createContactLens: (contactLensData: any) => ipcRenderer.invoke('db-create-contact-lens', contactLensData),
+  updateContactLens: (contactLensData: any) => ipcRenderer.invoke('db-update-contact-lens', contactLensData),
+  deleteContactLens: (contactLensId: number) => ipcRenderer.invoke('db-delete-contact-lens', contactLensId),
+
+  // Contact Eye operations
+  getContactEyesByContactLens: (contactLensId: number) => ipcRenderer.invoke('db-get-contact-eyes-by-contact-lens', contactLensId),
+  createContactEye: (contactEyeData: any) => ipcRenderer.invoke('db-create-contact-eye', contactEyeData),
+  updateContactEye: (contactEyeData: any) => ipcRenderer.invoke('db-update-contact-eye', contactEyeData),
+
+  // Contact Lens Order operations
+  getContactLensOrderByContactLens: (contactLensId: number) => ipcRenderer.invoke('db-get-contact-lens-order-by-contact-lens', contactLensId),
+  createContactLensOrder: (contactLensOrderData: any) => ipcRenderer.invoke('db-create-contact-lens-order', contactLensOrderData),
+  updateContactLensOrder: (contactLensOrderData: any) => ipcRenderer.invoke('db-update-contact-lens-order', contactLensOrderData),
 });

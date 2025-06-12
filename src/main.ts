@@ -342,6 +342,15 @@ function setupIpcHandlers() {
     }
   });
 
+  ipcMain.handle('db-get-billing-by-contact-lens', async (event, contactLensId: number) => {
+    try {
+      return dbService.getBillingByContactLensId(contactLensId);
+    } catch (error) {
+      console.error('Error getting billing by contact lens:', error);
+      throw error;
+    }
+  });
+
   ipcMain.handle('db-create-billing', async (event, billingData) => {
     try {
       return dbService.createBilling(billingData);
@@ -430,6 +439,108 @@ function setupIpcHandlers() {
       return dbService.updateMedicalLog(logData);
     } catch (error) {
       console.error('Error updating medical log:', error);
+      throw error;
+    }
+  });
+
+  // Contact Lens operations
+  ipcMain.handle('db-get-contact-lenses-by-client', async (event, clientId: number) => {
+    try {
+      return dbService.getContactLensesByClientId(clientId);
+    } catch (error) {
+      console.error('Error getting contact lenses by client:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-get-contact-lens', async (event, contactLensId: number) => {
+    try {
+      return dbService.getContactLensById(contactLensId);
+    } catch (error) {
+      console.error('Error getting contact lens:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-create-contact-lens', async (event, contactLensData) => {
+    try {
+      return dbService.createContactLens(contactLensData);
+    } catch (error) {
+      console.error('Error creating contact lens:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-update-contact-lens', async (event, contactLensData) => {
+    try {
+      return dbService.updateContactLens(contactLensData);
+    } catch (error) {
+      console.error('Error updating contact lens:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-delete-contact-lens', async (event, contactLensId: number) => {
+    try {
+      return dbService.deleteContactLens(contactLensId);
+    } catch (error) {
+      console.error('Error deleting contact lens:', error);
+      throw error;
+    }
+  });
+
+  // Contact Eye operations
+  ipcMain.handle('db-get-contact-eyes-by-contact-lens', async (event, contactLensId: number) => {
+    try {
+      return dbService.getContactEyesByContactLensId(contactLensId);
+    } catch (error) {
+      console.error('Error getting contact eyes by contact lens:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-create-contact-eye', async (event, contactEyeData) => {
+    try {
+      return dbService.createContactEye(contactEyeData);
+    } catch (error) {
+      console.error('Error creating contact eye:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-update-contact-eye', async (event, contactEyeData) => {
+    try {
+      return dbService.updateContactEye(contactEyeData);
+    } catch (error) {
+      console.error('Error updating contact eye:', error);
+      throw error;
+    }
+  });
+
+  // Contact Lens Order operations
+  ipcMain.handle('db-get-contact-lens-order-by-contact-lens', async (event, contactLensId: number) => {
+    try {
+      return dbService.getContactLensOrderByContactLensId(contactLensId);
+    } catch (error) {
+      console.error('Error getting contact lens order by contact lens:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-create-contact-lens-order', async (event, contactLensOrderData) => {
+    try {
+      return dbService.createContactLensOrder(contactLensOrderData);
+    } catch (error) {
+      console.error('Error creating contact lens order:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-update-contact-lens-order', async (event, contactLensOrderData) => {
+    try {
+      return dbService.updateContactLensOrder(contactLensOrderData);
+    } catch (error) {
+      console.error('Error updating contact lens order:', error);
       throw error;
     }
   });

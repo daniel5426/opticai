@@ -99,3 +99,12 @@ export async function deleteContactLens(contactLensId: number): Promise<boolean>
     return false;
   }
 }
+
+export async function getBillingByContactLensId(contactLensId: number): Promise<any> {
+  try {
+    return await window.electronAPI.getBillingByContactLens(contactLensId);
+  } catch (error) {
+    console.error('Error getting billing by contact lens:', error);
+    return null;
+  }
+}

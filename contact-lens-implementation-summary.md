@@ -106,3 +106,113 @@ To complete the implementation, the following would need to be done:
 5. **Form Handlers**: Complete the form submission and validation logic in ContactLensDetailPage
 
 The current implementation provides the complete UI structure and data flow architecture needed for a full contact lens management system.
+
+## Issues Discovered & Fixed During Implementation
+
+### 1. Missing Backend Infrastructure
+During implementation, we discovered the contact lens system was incomplete and had several critical missing components:
+
+#### Database Service Layer Issues
+- **Missing CRUD operations** in `src/lib/db/index.ts` for ContactLens, ContactEye, and ContactLensOrder
+- **Missing client_id field** in ContactLens interface and database schema
+- **Incorrect foreign key constraints** - missing `ON DELETE CASCADE` for proper cascading deletes
+
+#### IPC Communication Gaps
+- **No IPC handlers** in `src/main.ts` for contact lens operations
+- **Missing preload exposures** in `src/preload.ts` to make functions available to renderer
+- **Incomplete ElectronAPI types** in `src/types/electron.d.ts`
+
+#### API Wrapper Layer Missing
+- **No wrapper functions** in `src/lib/db/contact-lens-db.ts` for UI components to use
+
+### 2. Frontend Component Issues
+- **ContactLensCreatePage.tsx was missing** - route was incorrectly pointing to DetailPage
+- **ContactLensDetailPage.tsx was incomplete**:
+  - Empty onChange handlers for all input fields
+  - Missing data loading logic for existing records
+  - No save functionality implemented
+  - Missing proper form state management
+
+### 3. Schema & Database Fixes Applied
+
+#### Schema Updates (`src/lib/db/schema.ts`)
+- **Added missing client_id field** to ContactLens interface and database table
+- **Fixed foreign key constraints** with `ON DELETE CASCADE` for proper cascading deletes
+
+#### Database Service Implementation (`src/lib/db/index.ts`)
+- **Implemented all CRUD operations** for ContactLens, ContactEye, and ContactLensOrder
+- **Fixed delete functionality** to use CASCADE delete instead of manual deletion chains
+- **Added billing integration** with getBillingByContactLensId function
+
+### 4. IPC Handler Implementation (`src/main.ts`)
+- **Added all missing IPC handlers** for ContactLens, ContactEye, and ContactLensOrder operations
+- **Implemented billing handlers** for contact lens billing integration
+
+### 5. Preload API Updates (`src/preload.ts`)
+- **Exposed all contact lens functions** to renderer process through IPC
+- **Added type-safe function declarations** for ContactLens, ContactEye, ContactLensOrder, and Billing operations
+
+### 6. TypeScript Declarations (`src/types/electron.d.ts`)
+- **Added all missing type declarations** for contact lens operations in ElectronAPI interface
+- **Ensured type safety** for all CRUD operations and billing integration
+
+### 7. API Wrapper Functions (`src/lib/db/contact-lens-db.ts`)
+- **Created complete wrapper layer** with error handling for all contact lens operations
+- **Implemented CRUD functions** for ContactLens, ContactEye, ContactLensOrder, and Billing
+- **Added proper error handling** and logging for all database operations
+
+### 8. Frontend Component Fixes
+
+#### ContactLensCreatePage.tsx
+- **Created complete create page component** with proper save/cancel handlers
+- **Added loading states and error handling** for user feedback
+- **Implemented navigation logic** for successful saves and cancellations
+
+#### ContactLensDetailPage.tsx Fixes  
+- **Added missing data loading logic** for both new and edit modes
+- **Implemented proper input change handlers** for all form fields
+- **Added complete save functionality** for ContactLens, ContactEye, and ContactLensOrder
+- **Fixed form state management** and validation
+
+### 9. Route Configuration Fix (`src/routes/routes.tsx`)
+- **Fixed ContactLensCreateRoute** to use ContactLensCreatePage instead of ContactLensDetailPage
+- **Proper route separation** between create and detail functionality
+
+### 10. Delete Functionality Added
+- **Added delete button** to contact lens table with confirmation dialog
+- **Implemented cascade delete** with proper error handling and user feedback
+- **Added table refresh** functionality after successful deletion
+
+## Common Errors Encountered & Solutions
+
+### "No handler registered for 'db-*'" Errors
+**Cause**: Missing IPC handlers in main.ts, preload.ts, or electron.d.ts
+**Solution**: Ensure all 4 layers are properly connected: main.ts → preload.ts → electron.d.ts → wrapper functions
+
+### "no such column: client_id" Errors
+**Cause**: Database schema was outdated and missing the client_id field
+**Solution**: Delete existing database file and restart application to recreate schema
+
+### "FOREIGN KEY constraint failed" Errors
+**Cause**: Missing `ON DELETE CASCADE` in foreign key relationships
+**Solution**: Add CASCADE to all foreign key constraints and use simple delete operations
+
+### Empty Form Fields Not Saving
+**Cause**: Missing or empty onChange handlers in form components
+**Solution**: Implement proper handleInputChange, handleSelectChange functions
+
+### Navigation Issues in Create Mode
+**Cause**: Route configuration pointing to wrong component
+**Solution**: Create separate CreatePage component and update route configuration
+
+## Final Implementation Status
+
+✅ **Complete Backend Infrastructure**: All CRUD operations, IPC handlers, and API wrappers implemented
+✅ **Working Frontend Components**: ContactLensCreatePage and fixed ContactLensDetailPage with proper save/load functionality
+✅ **Database Schema**: Fixed with client_id field and proper CASCADE constraints
+✅ **Error Handling**: Comprehensive try-catch blocks and user feedback
+✅ **Delete Functionality**: Confirmation dialogs and automatic table refresh
+✅ **Type Safety**: Complete TypeScript interfaces and type declarations
+✅ **Route Configuration**: Proper routing with separate create and detail pages
+
+The contact lens system now has feature parity with the order system and includes all the missing backend infrastructure that was required for proper functionality.

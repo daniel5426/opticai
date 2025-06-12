@@ -909,6 +909,18 @@ class DatabaseService {
     }
   }
 
+  getBillingByContactLensId(contactLensId: number): Billing | null {
+    if (!this.db) return null;
+    
+    try {
+      const stmt = this.db.prepare('SELECT * FROM billings WHERE contact_lens_id = ?');
+      return stmt.get(contactLensId) as Billing | null;
+    } catch (error) {
+      console.error('Error getting billing by contact lens:', error);
+      return null;
+    }
+  }
+
   updateBilling(billing: Billing): Billing | null {
     if (!this.db || !billing.id) return null;
     
@@ -1024,6 +1036,304 @@ class DatabaseService {
     } catch (error) {
       console.error('Error deleting order line item:', error);
       return false;
+    }
+  }
+
+  // Contact Lens CRUD operations
+  createContactLens(contactLens: Omit<ContactLens, 'id'>): ContactLens | null {
+    if (!this.db) return null;
+    
+    try {
+      const stmt = this.db.prepare(`
+        INSERT INTO contact_lens (
+          client_id, exam_date, type, examiner_name, comb_va, pupil_diameter, corneal_diameter, eyelid_aperture, notes, notes_for_supplier
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+      
+      const result = stmt.run(
+        contactLens.client_id,
+        this.sanitizeValue(contactLens.exam_date),
+        this.sanitizeValue(contactLens.type),
+        this.sanitizeValue(contactLens.examiner_name),
+        this.sanitizeValue(contactLens.comb_va),
+        this.sanitizeValue(contactLens.pupil_diameter),
+        this.sanitizeValue(contactLens.corneal_diameter),
+        this.sanitizeValue(contactLens.eyelid_aperture),
+        this.sanitizeValue(contactLens.notes),
+        this.sanitizeValue(contactLens.notes_for_supplier)
+      );
+      
+      return { ...contactLens, id: result.lastInsertRowid as number };
+    } catch (error) {
+      console.error('Error creating contact lens:', error);
+      return null;
+    }
+  }
+
+  getContactLensById(id: number): ContactLens | null {
+    if (!this.db) return null;
+    
+    try {
+      const stmt = this.db.prepare('SELECT * FROM contact_lens WHERE id = ?');
+      return stmt.get(id) as ContactLens | null;
+    } catch (error) {
+      console.error('Error getting contact lens by ID:', error);
+      return null;
+    }
+  }
+
+  getContactLensesByClientId(clientId: number): ContactLens[] {
+    if (!this.db) return [];
+    
+    try {
+      const stmt = this.db.prepare('SELECT * FROM contact_lens WHERE client_id = ? ORDER BY exam_date DESC');
+      return stmt.all(clientId) as ContactLens[];
+    } catch (error) {
+      console.error('Error getting contact lenses by client ID:', error);
+      return [];
+    }
+  }
+
+  updateContactLens(contactLens: ContactLens): ContactLens | null {
+    if (!this.db || !contactLens.id) return null;
+    
+    try {
+      const stmt = this.db.prepare(`
+        UPDATE contact_lens SET 
+          client_id = ?, exam_date = ?, type = ?, examiner_name = ?, comb_va = ?, pupil_diameter = ?, corneal_diameter = ?,
+          eyelid_aperture = ?, notes = ?, notes_for_supplier = ?
+        WHERE id = ?
+      `);
+      
+      stmt.run(
+        contactLens.client_id,
+        this.sanitizeValue(contactLens.exam_date),
+        this.sanitizeValue(contactLens.type),
+        this.sanitizeValue(contactLens.examiner_name),
+        this.sanitizeValue(contactLens.comb_va),
+        this.sanitizeValue(contactLens.pupil_diameter),
+        this.sanitizeValue(contactLens.corneal_diameter),
+        this.sanitizeValue(contactLens.eyelid_aperture),
+        this.sanitizeValue(contactLens.notes),
+        this.sanitizeValue(contactLens.notes_for_supplier),
+        contactLens.id
+      );
+      
+      return contactLens;
+    } catch (error) {
+      console.error('Error updating contact lens:', error);
+      return null;
+    }
+  }
+
+  deleteContactLens(id: number): boolean {
+    if (!this.db) return false;
+    
+    try {
+      const stmt = this.db.prepare('DELETE FROM contact_lens WHERE id = ?');
+      const result = stmt.run(id);
+      return result.changes > 0;
+    } catch (error) {
+      console.error('Error deleting contact lens:', error);
+      return false;
+    }
+  }
+
+  // Contact Eye CRUD operations
+  createContactEye(contactEye: Omit<ContactEye, 'id'>): ContactEye | null {
+    if (!this.db) return null;
+    
+    try {
+      const stmt = this.db.prepare(`
+        INSERT INTO contact_eye (
+          contact_lens_id, eye, schirmer_test, schirmer_but, k_h, k_v, k_avg, k_cyl, k_ax, k_ecc,
+          lens_type, model, supplier, material, color, quantity, order_quantity, dx, bc, bc_2, oz, diam,
+          sph, cyl, ax, read_ad, va, j
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+      
+      const result = stmt.run(
+        contactEye.contact_lens_id,
+        this.sanitizeValue(contactEye.eye),
+        this.sanitizeValue(contactEye.schirmer_test),
+        this.sanitizeValue(contactEye.schirmer_but),
+        this.sanitizeValue(contactEye.k_h),
+        this.sanitizeValue(contactEye.k_v),
+        this.sanitizeValue(contactEye.k_avg),
+        this.sanitizeValue(contactEye.k_cyl),
+        this.sanitizeValue(contactEye.k_ax),
+        this.sanitizeValue(contactEye.k_ecc),
+        this.sanitizeValue(contactEye.lens_type),
+        this.sanitizeValue(contactEye.model),
+        this.sanitizeValue(contactEye.supplier),
+        this.sanitizeValue(contactEye.material),
+        this.sanitizeValue(contactEye.color),
+        this.sanitizeValue(contactEye.quantity),
+        this.sanitizeValue(contactEye.order_quantity),
+        this.sanitizeValue(contactEye.dx),
+        this.sanitizeValue(contactEye.bc),
+        this.sanitizeValue(contactEye.bc_2),
+        this.sanitizeValue(contactEye.oz),
+        this.sanitizeValue(contactEye.diam),
+        this.sanitizeValue(contactEye.sph),
+        this.sanitizeValue(contactEye.cyl),
+        this.sanitizeValue(contactEye.ax),
+        this.sanitizeValue(contactEye.read_ad),
+        this.sanitizeValue(contactEye.va),
+        this.sanitizeValue(contactEye.j)
+      );
+      
+      return { ...contactEye, id: result.lastInsertRowid as number };
+    } catch (error) {
+      console.error('Error creating contact eye:', error);
+      return null;
+    }
+  }
+
+  getContactEyesByContactLensId(contactLensId: number): ContactEye[] {
+    if (!this.db) return [];
+    
+    try {
+      const stmt = this.db.prepare('SELECT * FROM contact_eye WHERE contact_lens_id = ?');
+      return stmt.all(contactLensId) as ContactEye[];
+    } catch (error) {
+      console.error('Error getting contact eyes by contact lens ID:', error);
+      return [];
+    }
+  }
+
+  updateContactEye(contactEye: ContactEye): ContactEye | null {
+    if (!this.db || !contactEye.id) return null;
+    
+    try {
+      const stmt = this.db.prepare(`
+        UPDATE contact_eye SET 
+          contact_lens_id = ?, eye = ?, schirmer_test = ?, schirmer_but = ?, k_h = ?, k_v = ?, k_avg = ?,
+          k_cyl = ?, k_ax = ?, k_ecc = ?, lens_type = ?, model = ?, supplier = ?, material = ?, color = ?,
+          quantity = ?, order_quantity = ?, dx = ?, bc = ?, bc_2 = ?, oz = ?, diam = ?, sph = ?, cyl = ?, ax = ?,
+          read_ad = ?, va = ?, j = ?
+        WHERE id = ?
+      `);
+      
+      stmt.run(
+        contactEye.contact_lens_id,
+        this.sanitizeValue(contactEye.eye),
+        this.sanitizeValue(contactEye.schirmer_test),
+        this.sanitizeValue(contactEye.schirmer_but),
+        this.sanitizeValue(contactEye.k_h),
+        this.sanitizeValue(contactEye.k_v),
+        this.sanitizeValue(contactEye.k_avg),
+        this.sanitizeValue(contactEye.k_cyl),
+        this.sanitizeValue(contactEye.k_ax),
+        this.sanitizeValue(contactEye.k_ecc),
+        this.sanitizeValue(contactEye.lens_type),
+        this.sanitizeValue(contactEye.model),
+        this.sanitizeValue(contactEye.supplier),
+        this.sanitizeValue(contactEye.material),
+        this.sanitizeValue(contactEye.color),
+        this.sanitizeValue(contactEye.quantity),
+        this.sanitizeValue(contactEye.order_quantity),
+        this.sanitizeValue(contactEye.dx),
+        this.sanitizeValue(contactEye.bc),
+        this.sanitizeValue(contactEye.bc_2),
+        this.sanitizeValue(contactEye.oz),
+        this.sanitizeValue(contactEye.diam),
+        this.sanitizeValue(contactEye.sph),
+        this.sanitizeValue(contactEye.cyl),
+        this.sanitizeValue(contactEye.ax),
+        this.sanitizeValue(contactEye.read_ad),
+        this.sanitizeValue(contactEye.va),
+        this.sanitizeValue(contactEye.j),
+        contactEye.id
+      );
+      
+      return contactEye;
+    } catch (error) {
+      console.error('Error updating contact eye:', error);
+      return null;
+    }
+  }
+
+  // Contact Lens Order CRUD operations
+  createContactLensOrder(contactLensOrder: Omit<ContactLensOrder, 'id'>): ContactLensOrder | null {
+    if (!this.db) return null;
+    
+    try {
+      const stmt = this.db.prepare(`
+        INSERT INTO contact_lens_order (
+          contact_lens_id, branch, supply_in_branch, order_status, advisor, deliverer, delivery_date,
+          priority, guaranteed_date, approval_date, cleaning_solution, disinfection_solution, rinsing_solution
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+      
+      const result = stmt.run(
+        contactLensOrder.contact_lens_id,
+        this.sanitizeValue(contactLensOrder.branch),
+        this.sanitizeValue(contactLensOrder.supply_in_branch),
+        this.sanitizeValue(contactLensOrder.order_status),
+        this.sanitizeValue(contactLensOrder.advisor),
+        this.sanitizeValue(contactLensOrder.deliverer),
+        this.sanitizeValue(contactLensOrder.delivery_date),
+        this.sanitizeValue(contactLensOrder.priority),
+        this.sanitizeValue(contactLensOrder.guaranteed_date),
+        this.sanitizeValue(contactLensOrder.approval_date),
+        this.sanitizeValue(contactLensOrder.cleaning_solution),
+        this.sanitizeValue(contactLensOrder.disinfection_solution),
+        this.sanitizeValue(contactLensOrder.rinsing_solution)
+      );
+      
+      return { ...contactLensOrder, id: result.lastInsertRowid as number };
+    } catch (error) {
+      console.error('Error creating contact lens order:', error);
+      return null;
+    }
+  }
+
+  getContactLensOrderByContactLensId(contactLensId: number): ContactLensOrder | null {
+    if (!this.db) return null;
+    
+    try {
+      const stmt = this.db.prepare('SELECT * FROM contact_lens_order WHERE contact_lens_id = ?');
+      return stmt.get(contactLensId) as ContactLensOrder | null;
+    } catch (error) {
+      console.error('Error getting contact lens order by contact lens ID:', error);
+      return null;
+    }
+  }
+
+  updateContactLensOrder(contactLensOrder: ContactLensOrder): ContactLensOrder | null {
+    if (!this.db || !contactLensOrder.id) return null;
+    
+    try {
+      const stmt = this.db.prepare(`
+        UPDATE contact_lens_order SET 
+          contact_lens_id = ?, branch = ?, supply_in_branch = ?, order_status = ?, advisor = ?,
+          deliverer = ?, delivery_date = ?, priority = ?, guaranteed_date = ?, approval_date = ?,
+          cleaning_solution = ?, disinfection_solution = ?, rinsing_solution = ?
+        WHERE id = ?
+      `);
+      
+      stmt.run(
+        contactLensOrder.contact_lens_id,
+        this.sanitizeValue(contactLensOrder.branch),
+        this.sanitizeValue(contactLensOrder.supply_in_branch),
+        this.sanitizeValue(contactLensOrder.order_status),
+        this.sanitizeValue(contactLensOrder.advisor),
+        this.sanitizeValue(contactLensOrder.deliverer),
+        this.sanitizeValue(contactLensOrder.delivery_date),
+        this.sanitizeValue(contactLensOrder.priority),
+        this.sanitizeValue(contactLensOrder.guaranteed_date),
+        this.sanitizeValue(contactLensOrder.approval_date),
+        this.sanitizeValue(contactLensOrder.cleaning_solution),
+        this.sanitizeValue(contactLensOrder.disinfection_solution),
+        this.sanitizeValue(contactLensOrder.rinsing_solution),
+        contactLensOrder.id
+      );
+      
+      return contactLensOrder;
+    } catch (error) {
+      console.error('Error updating contact lens order:', error);
+      return null;
     }
   }
 

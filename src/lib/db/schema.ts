@@ -150,9 +150,11 @@ export interface Frame {
 
 export interface ContactLens {
   id?: number;
+  client_id: number;
   exam_date?: string;
   type?: string;
   examiner_name?: string;
+  comb_va?: number;
   pupil_diameter?: number;
   corneal_diameter?: number;
   eyelid_aperture?: number;
@@ -164,14 +166,20 @@ export interface ContactEye {
   id?: number;
   contact_lens_id: number;
   eye: string;
+
+  // schirmer test
   schirmer_test?: number;
   schirmer_but?: number;
+
+  // k values
   k_h?: number;
   k_v?: number;
   k_avg?: number;
   k_cyl?: number;
   k_ax?: number;
   k_ecc?: number;
+
+  // contact details
   lens_type?: string;
   model?: string;
   supplier?: string;
@@ -179,15 +187,19 @@ export interface ContactEye {
   color?: string;
   quantity?: number;
   order_quantity?: number;
+  dx?: boolean;
+
+  // exam
   bc?: number;
+  bc_2?: number;
   oz?: number;
   diam?: number;
   sph?: number;
   cyl?: number;
   ax?: number;
   read_ad?: number;
-  va?: string;
-  j?: string;
+  va?: number;
+  j?: number;
 }
 
 export interface ContactLensOrder {
@@ -366,14 +378,17 @@ export const createTables = (db: Database): void => {
   db.exec(`
     CREATE TABLE IF NOT EXISTS contact_lens (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
+      client_id INTEGER NOT NULL,
       exam_date DATE,
       type TEXT,
       examiner_name TEXT,
+      comb_va REAL,
       pupil_diameter REAL,
       corneal_diameter REAL,
       eyelid_aperture REAL,
       notes TEXT,
-      notes_for_supplier TEXT
+      notes_for_supplier TEXT,
+      FOREIGN KEY(client_id) REFERENCES clients(id) ON DELETE CASCADE
     );
   `);
 
@@ -398,16 +413,18 @@ export const createTables = (db: Database): void => {
       color TEXT,
       quantity INTEGER,
       order_quantity INTEGER,
+      dx BOOLEAN,
       bc REAL,
+      bc_2 REAL,
       oz REAL,
       diam REAL,
       sph REAL,
       cyl REAL,
       ax INTEGER,
       read_ad REAL,
-      va TEXT,
-      j TEXT,
-      FOREIGN KEY(contact_lens_id) REFERENCES contact_lens(id)
+      va REAL,
+      j REAL,
+      FOREIGN KEY(contact_lens_id) REFERENCES contact_lens(id) ON DELETE CASCADE
     );
   `);
 
@@ -428,7 +445,7 @@ export const createTables = (db: Database): void => {
       cleaning_solution TEXT,
       disinfection_solution TEXT,
       rinsing_solution TEXT,
-      FOREIGN KEY(contact_lens_id) REFERENCES contact_lens(id)
+      FOREIGN KEY(contact_lens_id) REFERENCES contact_lens(id) ON DELETE CASCADE
     );
   `);
 
@@ -446,9 +463,8 @@ export const createTables = (db: Database): void => {
       prepayment_amount REAL,
       installment_count INTEGER,
       notes TEXT,
-      FOREIGN KEY(contact_lens_id) REFERENCES contact_lens(id),
-      FOREIGN KEY(optical_exams_id) REFERENCES optical_exams(id),
-      FOREIGN KEY(order_id) REFERENCES orders(id)
+      FOREIGN KEY(contact_lens_id) REFERENCES contact_lens(id) ON DELETE CASCADE,
+      FOREIGN KEY(order_id) REFERENCES orders(id) ON DELETE CASCADE
     );
   `);
 
@@ -465,7 +481,7 @@ export const createTables = (db: Database): void => {
       quantity REAL,
       discount REAL,
       line_total REAL,
-      FOREIGN KEY(billings_id) REFERENCES billings(id)
+      FOREIGN KEY(billings_id) REFERENCES billings(id) ON DELETE CASCADE
     );
   `);
 

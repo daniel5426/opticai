@@ -51,6 +51,7 @@ export interface ElectronAPI {
 
   // Billing operations
   getBillingByOrder: (orderId: number) => Promise<any>;
+  getBillingByContactLens: (contactLensId: number) => Promise<any>;
   createBilling: (billingData: any) => Promise<any>;
   updateBilling: (billingData: any) => Promise<any>;
 
@@ -65,6 +66,23 @@ export interface ElectronAPI {
   createMedicalLog: (logData: any) => Promise<any>;
   updateMedicalLog: (logData: any) => Promise<any>;
   deleteMedicalLog: (id: number) => Promise<boolean>;
+
+  // Contact Lens operations
+  getContactLensesByClient: (clientId: number) => Promise<any[]>;
+  getContactLens: (contactLensId: number) => Promise<any>;
+  createContactLens: (contactLensData: any) => Promise<any>;
+  updateContactLens: (contactLensData: any) => Promise<any>;
+  deleteContactLens: (contactLensId: number) => Promise<boolean>;
+
+  // Contact Eye operations
+  getContactEyesByContactLens: (contactLensId: number) => Promise<any[]>;
+  createContactEye: (contactEyeData: any) => Promise<any>;
+  updateContactEye: (contactEyeData: any) => Promise<any>;
+
+  // Contact Lens Order operations
+  getContactLensOrderByContactLens: (contactLensId: number) => Promise<any>;
+  createContactLensOrder: (contactLensOrderData: any) => Promise<any>;
+  updateContactLensOrder: (contactLensOrderData: any) => Promise<any>;
 }
 
 declare global {

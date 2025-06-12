@@ -17,17 +17,41 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { MoreHorizontal } from "lucide-react"
+import { MoreHorizontal, Trash2 } from "lucide-react"
 import { ContactLens } from "@/lib/db/schema"
+import { deleteContactLens } from "@/lib/db/contact-lens-db"
+import { toast } from "sonner"
 
 interface ContactLensTableProps {
   data: ContactLens[]
   clientId: number
+  onContactLensDeleted?: () => void
 }
 
-export function ContactLensTable({ data, clientId }: ContactLensTableProps) {
+export function ContactLensTable({ data, clientId, onContactLensDeleted }: ContactLensTableProps) {
   const [searchQuery, setSearchQuery] = useState("")
   const navigate = useNavigate()
+
+  const handleDeleteContactLens = async (contactLensId: number, event: React.MouseEvent) => {
+    event.stopPropagation()
+    
+    if (window.confirm('האם אתה בטוח שברצונך למחוק את בדיקת עדשות המגע הזו?')) {
+      try {
+        const success = await deleteContactLens(contactLensId)
+        if (success) {
+          toast.success("בדיקת עדשות המגע נמחקה בהצלחה")
+          if (onContactLensDeleted) {
+            onContactLensDeleted()
+          }
+        } else {
+          toast.error("שגיאה במחיקת בדיקת עדשות המגע")
+        }
+      } catch (error) {
+        console.error('Error deleting contact lens:', error)
+        toast.error("שגיאה במחיקת בדיקת עדשות המגע")
+      }
+    }
+  }
 
   const filteredData = data.filter((contactLens) => {
     const searchableFields = [
@@ -100,7 +124,7 @@ export function ContactLensTable({ data, clientId }: ContactLensTableProps) {
                     </TableCell>
                     <TableCell>{contactLens.type}</TableCell>
                     <TableCell>{contactLens.examiner_name}</TableCell>
-                    <TableCell>{contactLens.comb_va ? `6/${contactLens.comb_va}` : ''}</TableCell>
+                    <TableCell></TableCell>
                     <TableCell>{contactLens.corneal_diameter}</TableCell>
                     <TableCell>
                       <DropdownMenu>
@@ -108,6 +132,7 @@ export function ContactLensTable({ data, clientId }: ContactLensTableProps) {
                           <Button
                             variant="ghost"
                             className="h-8 w-8 p-0"
+                            onClick={(e) => e.stopPropagation()}
                           >
                             <span className="sr-only">פתח תפריט</span>
                             <MoreHorizontal className="h-4 w-4" />
@@ -117,6 +142,13 @@ export function ContactLensTable({ data, clientId }: ContactLensTableProps) {
                           <Link to="/clients/$clientId/contact-lenses/$contactLensId" params={{ clientId: String(clientId), contactLensId: String(contactLens.id) }}>
                             <DropdownMenuItem>פרטי עדשות מגע</DropdownMenuItem>
                           </Link>
+                          <DropdownMenuItem 
+                            className="text-red-600 focus:text-red-600"
+                            onClick={(e) => handleDeleteContactLens(contactLens.id!, e)}
+                          >
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            מחק בדיקה
+                          </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>

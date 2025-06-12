@@ -25,6 +25,7 @@ import {
   updateOrderLineItem, 
   deleteOrderLineItem 
 } from "@/lib/db/billing-db"
+import { getBillingByContactLensId } from "@/lib/db/contact-lens-db"
 import { ContactLens, ContactEye, ContactLensOrder, Client, Billing, OrderLineItem } from "@/lib/db/schema"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -94,94 +95,261 @@ interface ContactEyeSectionProps {
   isEditing: boolean;
 }
 
-function ContactEyeSection({ eye, data, onChange, isEditing }: ContactEyeSectionProps) {
+
+
+function ExamSection({ eye, data, onChange, isEditing }: ContactEyeSectionProps) {
   const eyeLabel = eye === "R" ? "R" : "L";
 
   return (
-    <div className="grid grid-cols-8 gap-3 items-center mb-4" dir="rtl">
-      <span className="text-md font-medium text-center">{eyeLabel}</span>
-      
-      <div>
-        {eye === "R" && <Label className="text-[12px] block text-center">K-H</Label>}
-        <Input 
-          type="number" 
-          step="0.01" 
-          value={data.k_h?.toString() || ""} 
-          onChange={(e) => onChange(eye, "k_h", e.target.value)} 
-          disabled={!isEditing} 
-          className="h-8 text-xs" 
-        />
+    <div className="flex items-center gap-1 h-6 mb-3" dir="rtl">
+      <div className="grid grid-cols-21 gap-4 flex-1 pb-2" dir="ltr">
+        <div className="col-span-2">
+          {eye === "R" && <Label className="text-[12px] block text-center">BC</Label>}
+          <Input 
+            type="number" 
+            step="0.01" 
+            value={data.bc?.toString() || ""} 
+            onChange={(e) => onChange(eye, "bc", e.target.value)} 
+            disabled={!isEditing} 
+            className="h-8 text-xs px-1" 
+          />
+        </div>
+        <div className="col-span-2">
+          {eye === "R" && <Label className="text-[12px] block text-center">BC-2</Label>}
+          <Input 
+            type="number" 
+            step="0.01" 
+            value={data.bc_2?.toString() || ""} 
+            onChange={(e) => onChange(eye, "bc_2", e.target.value)} 
+            disabled={!isEditing} 
+            className="h-8 text-xs px-1" 
+          />
+        </div>
+        <div className="col-span-2">
+          {eye === "R" && <Label className="text-[12px] block text-center">OZ</Label>}
+          <Input 
+            type="number" 
+            step="0.1" 
+            value={data.oz?.toString() || ""} 
+            onChange={(e) => onChange(eye, "oz", e.target.value)} 
+            disabled={!isEditing} 
+            className="h-8 text-xs px-1" 
+          />
+        </div>
+        <div className="col-span-2">
+          {eye === "R" && <Label className="text-[12px] block text-center">DIAM</Label>}
+          <Input 
+            type="number" 
+            step="0.1" 
+            value={data.diam?.toString() || ""} 
+            onChange={(e) => onChange(eye, "diam", e.target.value)} 
+            disabled={!isEditing} 
+            className="h-8 text-xs px-1" 
+          />
+        </div>
+        <div className="col-span-2">
+          {eye === "R" && <Label className="text-[12px] block text-center">SPH</Label>}
+          <Input 
+            type="number" 
+            step="0.25" 
+            value={data.sph?.toString() || ""} 
+            onChange={(e) => onChange(eye, "sph", e.target.value)} 
+            disabled={!isEditing} 
+            className="h-8 text-xs px-1" 
+          />
+        </div>
+        <div className="col-span-2">
+          {eye === "R" && <Label className="text-[12px] block text-center">CYL</Label>}
+          <Input 
+            type="number" 
+            step="0.25" 
+            value={data.cyl?.toString() || ""} 
+            onChange={(e) => onChange(eye, "cyl", e.target.value)} 
+            disabled={!isEditing} 
+            className="h-8 text-xs px-1" 
+          />
+        </div>
+        <div className="col-span-2">
+          {eye === "R" && <Label className="text-[12px] block text-center">AXIS</Label>}
+          <Input 
+            type="number" 
+            min="0" 
+            max="180" 
+            value={data.ax?.toString() || ""} 
+            onChange={(e) => onChange(eye, "ax", e.target.value)} 
+            disabled={!isEditing} 
+            className="h-8 text-xs px-1" 
+          />
+        </div>
+        <div className="col-span-2">
+          {eye === "R" && <Label className="text-[12px] block text-center">ADD</Label>}
+          <Input 
+            type="number" 
+            step="0.25" 
+            value={data.read_ad?.toString() || ""} 
+            onChange={(e) => onChange(eye, "read_ad", e.target.value)} 
+            disabled={!isEditing} 
+            className="h-8 text-xs px-1" 
+          />
+        </div>
+        <div className="col-span-3">
+          {eye === "R" && <Label className="text-[12px] block text-center">VA</Label>}
+          <div className="relative" dir="ltr">
+            <Input 
+              type="number" 
+              step="0.1"
+              value={data.va?.toString() || ""} 
+              onChange={(e) => onChange(eye, "va", e.target.value)} 
+              disabled={!isEditing} 
+              className="h-8 text-xs px-1 pl-6" 
+            />
+            <span className="absolute left-2 top-[53%] transform -translate-y-1/2 text-[14px] text-gray-500 pointer-events-none">6/</span>
+          </div>
+        </div>
+        <div className="col-span-2">
+          {eye === "R" && <Label className="text-[12px] block text-center">J</Label>}
+          <Input 
+            type="number" 
+            step="0.1"
+            value={data.j?.toString() || ""} 
+            onChange={(e) => onChange(eye, "j", e.target.value)} 
+            disabled={!isEditing} 
+            className="h-8 text-xs px-1" 
+          />
+        </div>
       </div>
-      
-      <div>
-        {eye === "R" && <Label className="text-[12px] block text-center">K-V</Label>}
-        <Input 
-          type="number" 
-          step="0.01" 
-          value={data.k_v?.toString() || ""} 
-          onChange={(e) => onChange(eye, "k_v", e.target.value)} 
-          disabled={!isEditing} 
-          className="h-8 text-xs" 
-        />
+      <span className={`text-md font-medium pr-2 flex items-center justify-center w-6 ${eyeLabel === "L" ? "pb-2" : "pt-2"}`}>{eyeLabel}</span>
+    </div>
+  );
+}
+
+function CombinedVaContactLensSection({ contactLens, onChange, isEditing }: { 
+  contactLens: ContactLens, 
+  onChange: (field: keyof ContactLens, value: string) => void, 
+  isEditing: boolean
+}) {
+  return (
+    <div className="flex items-center gap-1 h-10 mb-3" dir="rtl">
+      <div className="grid grid-cols-21 gap-4 flex-1" dir="ltr">
+        <div className="col-span-2"></div>
+        <div className="col-span-2"></div>
+        <div className="col-span-2"></div>
+        <div className="col-span-2"></div>
+        <div className="col-span-2"></div>
+        <div className="col-span-2"></div>
+        <div className="col-span-2"></div>
+        <div className="col-span-2"></div>
+        <div className="col-span-3">
+          <div className="relative" dir="ltr">
+            <Input 
+              type="number" 
+              step="0.1" 
+              value={contactLens.comb_va?.toString() || ""} 
+              onChange={(e) => onChange("comb_va", e.target.value)} 
+              disabled={!isEditing} 
+              className="h-8 text-xs px-1 pl-6" 
+              placeholder="0.0"
+            />
+            <span className="absolute left-2 top-[53%] transform -translate-y-1/2 text-[14px] text-gray-500 pointer-events-none">6/</span>
+          </div>
+        </div>
+        <div className="col-span-2"></div>
       </div>
-      
-      <div>
-        {eye === "R" && <Label className="text-[12px] block text-center">BC</Label>}
-        <Input 
-          type="number" 
-          step="0.01" 
-          value={data.bc?.toString() || ""} 
-          onChange={(e) => onChange(eye, "bc", e.target.value)} 
-          disabled={!isEditing} 
-          className="h-8 text-xs" 
-        />
+      <span className="text-md font-medium pr-2 flex items-center justify-center w-6">C</span>
+    </div>
+  );
+}
+
+function ContactDetailsSection({ eye, data, onChange, isEditing }: ContactEyeSectionProps) {
+  const eyeLabel = eye === "R" ? "R" : "L";
+
+  return (
+    <div className="flex items-center gap-1 h-6 mb-3" dir="rtl">
+      <div className="grid grid-cols-8 gap-4 flex-1 pb-2" dir="ltr">
+        <div className="col-span-1">
+          {eye === "R" && <Label className="text-[12px] block text-center">Type</Label>}
+          <Input 
+            type="text" 
+            value={data.lens_type || ""} 
+            onChange={(e) => onChange(eye, "lens_type", e.target.value)} 
+            disabled={!isEditing} 
+            className="h-8 text-xs px-1" 
+          />
+        </div>
+        <div className="col-span-1">
+          {eye === "R" && <Label className="text-[12px] block text-center">Model</Label>}
+          <Input 
+            type="text" 
+            value={data.model || ""} 
+            onChange={(e) => onChange(eye, "model", e.target.value)} 
+            disabled={!isEditing} 
+            className="h-8 text-xs px-1" 
+          />
+        </div>
+        <div className="col-span-1">
+          {eye === "R" && <Label className="text-[12px] block text-center">Supplier</Label>}
+          <Input 
+            type="text" 
+            value={data.supplier || ""} 
+            onChange={(e) => onChange(eye, "supplier", e.target.value)} 
+            disabled={!isEditing} 
+            className="h-8 text-xs px-1" 
+          />
+        </div>
+        <div className="col-span-1">
+          {eye === "R" && <Label className="text-[12px] block text-center">Material</Label>}
+          <Input 
+            type="text" 
+            value={data.material || ""} 
+            onChange={(e) => onChange(eye, "material", e.target.value)} 
+            disabled={!isEditing} 
+            className="h-8 text-xs px-1" 
+          />
+        </div>
+        <div className="col-span-1">
+          {eye === "R" && <Label className="text-[12px] block text-center">Color</Label>}
+          <Input 
+            type="text" 
+            value={data.color || ""} 
+            onChange={(e) => onChange(eye, "color", e.target.value)} 
+            disabled={!isEditing} 
+            className="h-8 text-xs px-1" 
+          />
+        </div>
+        <div className="col-span-1">
+          {eye === "R" && <Label className="text-[12px] block text-center">Qty</Label>}
+          <Input 
+            type="number" 
+            value={data.quantity?.toString() || ""} 
+            onChange={(e) => onChange(eye, "quantity", e.target.value)} 
+            disabled={!isEditing} 
+            className="h-8 text-xs px-1" 
+          />
+        </div>
+        <div className="col-span-1">
+          {eye === "R" && <Label className="text-[12px] block text-center">Order Qty</Label>}
+          <Input 
+            type="number" 
+            value={data.order_quantity?.toString() || ""} 
+            onChange={(e) => onChange(eye, "order_quantity", e.target.value)} 
+            disabled={!isEditing} 
+            className="h-8 text-xs px-1" 
+          />
+        </div>
+        <div className="col-span-1">
+          {eye === "R" && <Label className="text-[12px] block text-center">DX</Label>}
+          <div className="flex items-center justify-center h-8">
+            <input 
+              type="checkbox" 
+              checked={data.dx || false} 
+              onChange={(e) => onChange(eye, "dx", e.target.checked.toString())} 
+              disabled={!isEditing} 
+              className="h-4 w-4" 
+            />
+          </div>
+        </div>
       </div>
-      
-      <div>
-        {eye === "R" && <Label className="text-[12px] block text-center">SPH</Label>}
-        <Input 
-          type="number" 
-          step="0.25" 
-          value={data.sph?.toString() || ""} 
-          onChange={(e) => onChange(eye, "sph", e.target.value)} 
-          disabled={!isEditing} 
-          className="h-8 text-xs" 
-        />
-      </div>
-      
-      <div>
-        {eye === "R" && <Label className="text-[12px] block text-center">CYL</Label>}
-        <Input 
-          type="number" 
-          step="0.25" 
-          value={data.cyl?.toString() || ""} 
-          onChange={(e) => onChange(eye, "cyl", e.target.value)} 
-          disabled={!isEditing} 
-          className="h-8 text-xs" 
-        />
-      </div>
-      
-      <div>
-        {eye === "R" && <Label className="text-[12px] block text-center">VA</Label>}
-        <Input 
-          type="text" 
-          value={data.va || ""} 
-          onChange={(e) => onChange(eye, "va", e.target.value)} 
-          disabled={!isEditing} 
-          className="h-8 text-xs" 
-        />
-      </div>
-      
-      <div>
-        {eye === "R" && <Label className="text-[12px] block text-center">דגם</Label>}
-        <Input 
-          type="text" 
-          value={data.model || ""} 
-          onChange={(e) => onChange(eye, "model", e.target.value)} 
-          disabled={!isEditing} 
-          className="h-8 text-xs" 
-        />
-      </div>
+      <span className={`text-md font-medium pr-2 flex items-center justify-center w-6 ${eyeLabel === "L" ? "pb-2" : "pt-2"}`}>{eyeLabel}</span>
     </div>
   );
 }
@@ -249,6 +417,125 @@ export default function ContactLensDetailPage({
   
   const formRef = useRef<HTMLFormElement>(null)
   const navigate = useNavigate()
+  
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        setLoading(true)
+        
+        if (clientId) {
+          const clientData = await getClientById(Number(clientId))
+          setClient(clientData || null)
+        }
+        
+        if (contactLensId) {
+          const contactLensData = await getContactLensById(Number(contactLensId))
+          setContactLens(contactLensData || null)
+          
+          if (contactLensData) {
+            const [contactEyesData, contactLensOrderData, billingData] = await Promise.all([
+              getContactEyesByContactLensId(Number(contactLensId)),
+              getContactLensOrderByContactLensId(Number(contactLensId)),
+              getBillingByContactLensId(Number(contactLensId))
+            ])
+            
+            const rightEyeData = contactEyesData.find(e => e.eye === "R")
+            const leftEyeData = contactEyesData.find(e => e.eye === "L")
+            
+            setRightEye(rightEyeData || null)
+            setLeftEye(leftEyeData || null)
+            setContactLensOrder(contactLensOrderData || null)
+            setBilling(billingData || null)
+            
+            if (billingData && billingData.id) {
+              const orderLineItemsData = await getOrderLineItemsByBillingId(billingData.id)
+              setOrderLineItems(orderLineItemsData || [])
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error loading data:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    loadData()
+  }, [clientId, contactLensId])
+  
+  useEffect(() => {
+    if (contactLens) {
+      setFormData({ ...contactLens })
+    }
+    if (rightEye) {
+      setRightEyeFormData({ ...rightEye })
+    }
+    if (leftEye) {
+      setLeftEyeFormData({ ...leftEye })
+    }
+    if (contactLensOrder) {
+      setContactLensOrderFormData({ ...contactLensOrder })
+    }
+    if (billing) {
+      setBillingFormData({ ...billing })
+    }
+  }, [contactLens, rightEye, leftEye, contactLensOrder, billing])
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target
+    setFormData(prev => ({ ...prev, [name]: value }))
+  }
+
+  const handleContactLensFieldChange = (field: keyof ContactLens, rawValue: string) => {
+    let processedValue: string | number | undefined = rawValue;
+    
+    const numericFields: (keyof ContactLens)[] = [
+      "comb_va", "pupil_diameter", "corneal_diameter", "eyelid_aperture"
+    ];
+    
+    if (numericFields.includes(field)) {
+      const val = parseFloat(rawValue);
+      processedValue = rawValue === "" || isNaN(val) ? undefined : val;
+    }
+    
+    setFormData(prev => ({ ...prev, [field]: processedValue }));
+  };
+
+  const handleSelectChange = (value: string, name: string) => {
+    setFormData(prev => ({ ...prev, [name]: value }))
+  }
+
+  const handleContactEyeFieldChange = (
+    eye: 'R' | 'L',
+    field: keyof ContactEye,
+    rawValue: string
+  ) => {
+    let processedValue: string | number | boolean | undefined = rawValue;
+  
+    const numericFields: (keyof ContactEye)[] = [
+      "k_h", "k_v", "k_avg", "k_cyl", "k_ax", "k_ecc", "bc", "bc_2", "oz", "diam", "sph", "cyl", "ax", "read_ad", "schirmer_test", "schirmer_but", "quantity", "order_quantity", "va", "j"
+    ];
+    const integerFields: (keyof ContactEye)[] = ["ax", "k_ax", "diam", "quantity", "order_quantity"];
+    const booleanFields: (keyof ContactEye)[] = ["dx"];
+  
+    if (booleanFields.includes(field)) {
+      processedValue = rawValue === "true";
+    } else if (numericFields.includes(field)) {
+      const val = parseFloat(rawValue);
+      processedValue = rawValue === "" || isNaN(val) ? undefined : val;
+    } else if (integerFields.includes(field)) {
+      const val = parseInt(rawValue, 10);
+      processedValue = rawValue === "" || isNaN(val) ? undefined : val;
+    } else if (rawValue === "") {
+      processedValue = undefined;
+    }
+  
+    if (eye === 'R') {
+      setRightEyeFormData(prev => ({ ...prev, [field]: processedValue }));
+    } else {
+      setLeftEyeFormData(prev => ({ ...prev, [field]: processedValue }));
+    }
+  };
 
   const handleDeleteOrderLineItem = (id: number) => {
     if (id > 0) {
@@ -256,7 +543,203 @@ export default function ContactLensDetailPage({
     }
     setOrderLineItems(prev => prev.filter(item => item.id !== id))
   }
+
+  const handleSave = async () => {
+    console.log('Starting save process...')
+    
+    if (!formData.type) {
+      toast.error("אנא בחר סוג עדשה")
+      return
+    }
+    
+    try {
+      if (isNewMode) {
+        console.log('Creating new contact lens...')
+        
+        const newContactLens = await createContactLens({
+          client_id: Number(clientId),
+          exam_date: formData.exam_date,
+          type: formData.type,
+          examiner_name: formData.examiner_name,
+          comb_va: formData.comb_va,
+          pupil_diameter: formData.pupil_diameter,
+          corneal_diameter: formData.corneal_diameter,
+          eyelid_aperture: formData.eyelid_aperture,
+          notes: formData.notes,
+          notes_for_supplier: formData.notes_for_supplier
+        })
+        
+        if (newContactLens && newContactLens.id) {
+          const [newRightEye, newLeftEye, newContactLensOrder] = await Promise.all([
+            createContactEye({
+              ...rightEyeFormData,
+              contact_lens_id: newContactLens.id,
+              eye: 'R',
+            }),
+            createContactEye({
+              ...leftEyeFormData,
+              contact_lens_id: newContactLens.id,
+              eye: 'L',
+            }),
+            createContactLensOrder({
+              ...contactLensOrderFormData,
+              contact_lens_id: newContactLens.id,
+            })
+          ])
+          
+          let newBilling: Billing | null = null
+          let savedOrderLineItems: OrderLineItem[] = []
+          
+          const hasBillingData = Object.values(billingFormData).some(value => 
+            value !== undefined && value !== null && value !== ''
+          );
+          
+          if (hasBillingData || orderLineItems.length > 0) {
+            console.log('Creating billing for new contact lens...')
+            newBilling = await createBilling({
+              ...billingFormData,
+              contact_lens_id: newContactLens.id,
+            })
+            
+            if (newBilling && newBilling.id && orderLineItems.length > 0) {
+              console.log('Creating line items for new contact lens...')
+              savedOrderLineItems = await Promise.all(
+                orderLineItems.map(item => {
+                  const { id, ...itemWithoutId } = item;
+                  return createOrderLineItem({
+                    ...itemWithoutId,
+                    billings_id: newBilling!.id!
+                  })
+                })
+              ).then(results => results.filter(Boolean) as OrderLineItem[])
+            }
+          }
+          
+          if (newRightEye && newLeftEye && newContactLensOrder) {
+            toast.success("עדשות מגע חדשות נוצרו בהצלחה")
+            if (onSave) {
+              onSave(newContactLens, newRightEye, newLeftEye, newContactLensOrder)
+            }
+          } else {
+            toast.error("לא הצלחנו ליצור את נתוני עדשות המגע")
+          }
+        } else {
+          toast.error("לא הצלחנו ליצור את עדשות המגע")
+        }
+      } else {
+        const [updatedContactLens, updatedRightEye, updatedLeftEye, updatedContactLensOrder] = await Promise.all([
+          updateContactLens(formData),
+          updateContactEye(rightEyeFormData),
+          updateContactEye(leftEyeFormData),
+          contactLensOrderFormData.id ? updateContactLensOrder(contactLensOrderFormData) : createContactLensOrder({
+            ...contactLensOrderFormData,
+            contact_lens_id: formData.id!
+          })
+        ])
+        
+        let updatedBilling: Billing | null = null
+        
+        const hasBillingData = Object.values(billingFormData).some(value => 
+          value !== undefined && value !== null && value !== ''
+        );
+        
+        if (billingFormData.id) {
+          console.log('Updating existing billing...')
+          const billingResult = await updateBilling(billingFormData)
+          updatedBilling = billingResult || null
+        } else if (hasBillingData || orderLineItems.length > 0) {
+          console.log('Creating new billing...')
+          const billingResult = await createBilling({
+            ...billingFormData,
+            contact_lens_id: formData.id!
+          })
+          updatedBilling = billingResult || null
+        }
+        
+        if (updatedBilling && updatedBilling.id) {
+          if (deletedOrderLineItemIds.length > 0) {
+            await Promise.all(
+              deletedOrderLineItemIds.map(id => deleteOrderLineItem(id))
+            )
+            setDeletedOrderLineItemIds([])
+          }
+          
+          const lineItemResults = await Promise.all(
+            orderLineItems.map(async (item) => {
+              if (item.id && item.id > 0) {
+                return updateOrderLineItem({
+                  ...item,
+                  billings_id: updatedBilling.id!
+                })
+              } else {
+                const { id, ...itemWithoutId } = item;
+                return createOrderLineItem({
+                  ...itemWithoutId,
+                  billings_id: updatedBilling.id!
+                })
+              }
+            })
+          )
+        }
+        
+        if (updatedContactLens && updatedRightEye && updatedLeftEye && updatedContactLensOrder) {
+          setIsEditing(false)
+          setContactLens(updatedContactLens)
+          setRightEye(updatedRightEye)
+          setLeftEye(updatedLeftEye)
+          setContactLensOrder(updatedContactLensOrder)
+          if (updatedBilling) {
+            setBilling(updatedBilling)
+          }
+          setFormData({ ...updatedContactLens })
+          setRightEyeFormData({ ...updatedRightEye })
+          setLeftEyeFormData({ ...updatedLeftEye })
+          setContactLensOrderFormData({ ...updatedContactLensOrder })
+          if (updatedBilling) {
+            setBillingFormData({ ...updatedBilling })
+          }
+          toast.success("פרטי עדשות המגע עודכנו בהצלחה")
+          if (onSave) {
+            onSave(updatedContactLens, updatedRightEye, updatedLeftEye, updatedContactLensOrder)
+          }
+        } else {
+          toast.error("לא הצלחנו לשמור את השינויים")
+        }
+      }
+    } catch (error) {
+      console.error('Error saving contact lens:', error)
+      toast.error("שגיאה בשמירת עדשות המגע")
+    }
+  }
   
+  if (loading) {
+    return (
+      <SidebarProvider dir="rtl">
+        <AppSidebar variant="inset" side="right" />
+        <SidebarInset>
+          <SiteHeader title="לקוחות" backLink="/clients" />
+          <div className="flex flex-col items-center justify-center h-full">
+            <h1 className="text-2xl">טוען...</h1>
+          </div>
+        </SidebarInset>
+      </SidebarProvider>
+    )
+  }
+  
+  if (!client || (!isNewMode && (!contactLens || !rightEye || !leftEye))) {
+    return (
+      <SidebarProvider dir="rtl">
+        <AppSidebar variant="inset" side="right" />
+        <SidebarInset>
+          <SiteHeader title="לקוחות" backLink="/clients" />
+          <div className="flex flex-col items-center justify-center h-full">
+            <h1 className="text-2xl">{isNewMode ? "לקוח לא נמצא" : "עדשות מגע לא נמצאו"}</h1>
+          </div>
+        </SidebarInset>
+      </SidebarProvider>
+    )
+  }
+
   const fullName = client ? `${client.first_name} ${client.last_name}`.trim() : ''
   
   return (
@@ -287,7 +770,7 @@ export default function ContactLensDetailPage({
                   variant={isEditing ? "outline" : "default"} 
                   onClick={() => {
                     if (isNewMode || isEditing) {
-                      // handleSave();
+                      handleSave();
                     } else {
                       setIsEditing(true);
                     }
@@ -309,7 +792,7 @@ export default function ContactLensDetailPage({
                           name="exam_date"
                           className="h-9"
                           value={formData.exam_date}
-                          onChange={() => {}}
+                          onChange={handleInputChange}
                           disabled={!isEditing}
                         />
                       </div>
@@ -320,7 +803,7 @@ export default function ContactLensDetailPage({
                         <Select dir="rtl"
                           disabled={!isEditing}
                           value={formData.type || ''} 
-                          onValueChange={() => {}}
+                          onValueChange={(value) => handleSelectChange(value, 'type')}
                         >
                           <SelectTrigger className="h-9 text-sm">
                             <SelectValue placeholder="בחר סוג" />
@@ -340,7 +823,7 @@ export default function ContactLensDetailPage({
                           type="text"
                           name="examiner_name"
                           value={formData.examiner_name || ''}
-                          onChange={() => {}}
+                          onChange={handleInputChange}
                           disabled={!isEditing}
                           className="text-sm h-9"
                           placeholder="שם הבוחן"
@@ -355,7 +838,7 @@ export default function ContactLensDetailPage({
                           step="0.1"
                           name="pupil_diameter"
                           value={formData.pupil_diameter || ''}
-                          onChange={() => {}}
+                          onChange={handleInputChange}
                           disabled={!isEditing}
                           className="text-sm h-9"
                         />
@@ -369,7 +852,7 @@ export default function ContactLensDetailPage({
                           step="0.1"
                           name="corneal_diameter"
                           value={formData.corneal_diameter || ''}
-                          onChange={() => {}}
+                          onChange={handleInputChange}
                           disabled={!isEditing}
                           className="text-sm h-9"
                         />
@@ -377,17 +860,46 @@ export default function ContactLensDetailPage({
                     </div>
                   </div>
                   
-                  <Card>
-                    <CardContent className="px-4 pt-4 space-y-2">
-                      <div className="relative mb-4 pt-2">
-                        <div className="absolute top-[-27px] right-1/2 transform translate-x-1/2 bg-background px-2 font-medium text-muted-foreground">
-                          נתוני עיניים - עדשות מגע
-                        </div>
+                  <Tabs defaultValue="exam-details" className="w-full pt-2">
+                    <div className="flex flex-row-reverse gap-4">
+                      <TabsList className="flex flex-col py-4 h-fit min-w-[140px] bg-sidebar/50 gap-2">
+                        <TabsTrigger value="exam-details" className="justify-start">פרטי בדיקה</TabsTrigger>
+                        <TabsTrigger value="contact-details" className="justify-start">פרטי עדשות</TabsTrigger>
+                      </TabsList>
+
+                      <div className="flex-1">
+                        <TabsContent value="exam-details">
+                          <Card>
+                            <CardContent className="px-4 pt-4 space-y-1">
+                              <div className="relative mb-4 pt-2">
+                                <div className="absolute top-[-27px] right-1/2 transform translate-x-1/2 bg-background px-2 font-medium text-muted-foreground">
+                                  נתוני בדיקה - עדשות מגע
+                                </div>
+                              </div>
+                              <ExamSection eye="R" data={rightEyeFormData} onChange={handleContactEyeFieldChange} isEditing={isEditing} />
+                              <CombinedVaContactLensSection contactLens={formData} onChange={handleContactLensFieldChange} isEditing={isEditing} />
+                              <ExamSection eye="L" data={leftEyeFormData} onChange={handleContactEyeFieldChange} isEditing={isEditing} />
+                            </CardContent>
+                          </Card>
+                        </TabsContent>
+
+                        <TabsContent value="contact-details">
+                          <Card>
+                            <CardContent className="px-4 pt-4 space-y-1">
+                              <div className="relative mb-4 pt-2">
+                                <div className="absolute top-[-27px] right-1/2 transform translate-x-1/2 bg-background px-2 font-medium text-muted-foreground">
+                                  פרטי עדשות מגע
+                                </div>
+                              </div>
+                              <ContactDetailsSection eye="R" data={rightEyeFormData} onChange={handleContactEyeFieldChange} isEditing={isEditing} />
+                              <div className="h-2"></div>
+                              <ContactDetailsSection eye="L" data={leftEyeFormData} onChange={handleContactEyeFieldChange} isEditing={isEditing} />
+                            </CardContent>
+                          </Card>
+                        </TabsContent>
                       </div>
-                      <ContactEyeSection eye="R" data={rightEyeFormData} onChange={() => {}} isEditing={isEditing} />
-                      <ContactEyeSection eye="L" data={leftEyeFormData} onChange={() => {}} isEditing={isEditing} />
-                    </CardContent>
-                  </Card>
+                    </div>
+                  </Tabs>
 
                   <Tabs defaultValue="prescription" className="w-full" dir="rtl">
                     <TabsList className="grid w-full grid-cols-3">
@@ -407,7 +919,7 @@ export default function ContactLensDetailPage({
                             <Input
                               name="supplier"
                               value={rightEyeFormData.supplier || ''}
-                              onChange={() => {}}
+                              onChange={(e) => handleContactEyeFieldChange('R', 'supplier', e.target.value)}
                               disabled={!isEditing}
                               className="mt-1.5"
                             />
@@ -417,7 +929,7 @@ export default function ContactLensDetailPage({
                             <Input
                               name="material"
                               value={rightEyeFormData.material || ''}
-                              onChange={() => {}}
+                              onChange={(e) => handleContactEyeFieldChange('R', 'material', e.target.value)}
                               disabled={!isEditing}
                               className="mt-1.5"
                             />
@@ -435,7 +947,7 @@ export default function ContactLensDetailPage({
                               <Input
                                 name="branch"
                                 value={contactLensOrderFormData.branch || ''}
-                                onChange={() => {}}
+                                onChange={(e) => setContactLensOrderFormData(prev => ({ ...prev, branch: e.target.value }))}
                                 disabled={!isEditing}
                                 className="mt-1.5"
                               />
@@ -445,7 +957,7 @@ export default function ContactLensDetailPage({
                               <Select dir="rtl"
                                 disabled={!isEditing}
                                 value={contactLensOrderFormData.order_status || ''} 
-                                onValueChange={() => {}}
+                                onValueChange={(value) => setContactLensOrderFormData(prev => ({ ...prev, order_status: value }))}
                               >
                                 <SelectTrigger className="mt-1.5">
                                   <SelectValue placeholder="בחר סטטוס" />
@@ -463,7 +975,7 @@ export default function ContactLensDetailPage({
                               <Input
                                 name="advisor"
                                 value={contactLensOrderFormData.advisor || ''}
-                                onChange={() => {}}
+                                onChange={(e) => setContactLensOrderFormData(prev => ({ ...prev, advisor: e.target.value }))}
                                 disabled={!isEditing}
                                 className="mt-1.5"
                               />
@@ -479,25 +991,25 @@ export default function ContactLensDetailPage({
                           <div className="grid grid-cols-2 gap-4">
                             <div>
                               <Label className="text-sm">הערות</Label>
-                              <Textarea
-                                name="notes"
-                                value={formData.notes || ''}
-                                onChange={() => {}}
-                                disabled={!isEditing}
-                                className="mt-1.5 min-h-[100px]"
-                                placeholder="הכנס הערות כלליות..."
-                              />
+                                                          <Textarea
+                              name="notes"
+                              value={formData.notes || ''}
+                              onChange={handleInputChange}
+                              disabled={!isEditing}
+                              className="mt-1.5 min-h-[100px]"
+                              placeholder="הכנס הערות כלליות..."
+                            />
                             </div>
                             <div>
                               <Label className="text-sm">הערות לספק</Label>
-                              <Textarea
-                                name="notes_for_supplier"
-                                value={formData.notes_for_supplier || ''}
-                                onChange={() => {}}
-                                disabled={!isEditing}
-                                className="mt-1.5 min-h-[100px]"
-                                placeholder="הכנס הערות לספק..."
-                              />
+                                                          <Textarea
+                              name="notes_for_supplier"
+                              value={formData.notes_for_supplier || ''}
+                              onChange={handleInputChange}
+                              disabled={!isEditing}
+                              className="mt-1.5 min-h-[100px]"
+                              placeholder="הכנס הערות לספק..."
+                            />
                             </div>
                           </div>
                         </CardContent>

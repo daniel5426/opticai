@@ -9,21 +9,25 @@ export function ClientContactLensTab() {
   const [contactLenses, setContactLenses] = useState<ContactLens[]>([])
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    const loadContactLenses = async () => {
-      try {
-        setLoading(true)
-        const contactLensesData = await getContactLensesByClientId(Number(clientId))
-        setContactLenses(contactLensesData)
-      } catch (error) {
-        console.error('Error loading contact lenses:', error)
-      } finally {
-        setLoading(false)
-      }
+  const loadContactLenses = async () => {
+    try {
+      setLoading(true)
+      const contactLensesData = await getContactLensesByClientId(Number(clientId))
+      setContactLenses(contactLensesData)
+    } catch (error) {
+      console.error('Error loading contact lenses:', error)
+    } finally {
+      setLoading(false)
     }
+  }
 
+  useEffect(() => {
     loadContactLenses()
   }, [clientId])
+
+  const handleContactLensDeleted = () => {
+    loadContactLenses()
+  }
 
   if (loading) {
     return (
@@ -34,6 +38,10 @@ export function ClientContactLensTab() {
   }
 
   return (
-    <ContactLensTable data={contactLenses} clientId={Number(clientId)} />
+    <ContactLensTable 
+      data={contactLenses} 
+      clientId={Number(clientId)} 
+      onContactLensDeleted={handleContactLensDeleted}
+    />
   )
 }

@@ -51,38 +51,124 @@ The application uses SQLite with better-sqlite3 for local data persistence:
 
 ### Making Database Schema Changes
 
-**⚠️ IMPORTANT**: When modifying database schemas, follow this process:
+**⚠️ IMPORTANT**: When adding new database entities or modifying schemas, follow this complete process:
 
-1. **Update Interface** (`src/lib/db/schema.ts`):
-   ```typescript
-   export interface TableName {
-     id?: number;
-     new_field?: string;  // Add new fields here
-     // ... existing fields
-   }
-   ```
+#### 1. Schema Definition (`src/lib/db/schema.ts`)
+```typescript
+// Add/update interface
+export interface TableName {
+  id?: number;
+  new_field?: string;
+  foreign_key_id?: number;
+  // ... existing fields
+}
 
-2. **Update Table Creation** (`src/lib/db/schema.ts` in `createTables` function):
-   ```sql
-   CREATE TABLE IF NOT EXISTS table_name (
-     id INTEGER PRIMARY KEY AUTOINCREMENT,
-     new_field TEXT,  -- Add new columns here
-     -- ... existing columns
-   );
-   ```
+// Add table creation in createTables function
+CREATE TABLE IF NOT EXISTS table_name (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  new_field TEXT,
+  foreign_key_id INTEGER,
+  -- Use ON DELETE CASCADE for proper cascading deletes
+  FOREIGN KEY(foreign_key_id) REFERENCES parent_table(id) ON DELETE CASCADE
+);
+```
 
-3. **Update Database Service Methods** (`src/lib/db/index.ts`):
-   - Update `create`, `update`, `get` methods to handle new fields
-   - Add new fields to INSERT/UPDATE SQL statements
-   - Update parameter lists to include new fields
+#### 2. Database Service Methods (`src/lib/db/index.ts`)
+```typescript
+// Add CRUD operations for new entity
+createTableName(data: Omit<TableName, 'id'>): TableName | null {
+  // Implementation with proper sanitizeValue() calls
+}
 
-4. **Update API Layer** (relevant `*-db.ts` files):
-   - Ensure wrapper functions handle new fields correctly
+getTableNameById(id: number): TableName | null {
+  // Implementation
+}
 
-5. **Database Reset** (Development):
-   - **Delete** the existing database file from user data directory
-   - **Restart** the application to recreate with new schema
-   - Database path: `%APPDATA%/electron-shadcn Template/database.sqlite`
+updateTableName(data: TableName): TableName | null {
+  // Implementation with all fields
+}
+
+deleteTableName(id: number): boolean {
+  // Simple delete - cascading handled by DB constraints
+}
+```
+
+#### 3. IPC Handlers (`src/main.ts`)
+```typescript
+// Add IPC handlers for all CRUD operations
+ipcMain.handle('db-create-table-name', async (_, data) => {
+  return dbService.createTableName(data);
+});
+
+ipcMain.handle('db-get-table-name', async (_, id) => {
+  return dbService.getTableNameById(id);
+});
+
+ipcMain.handle('db-update-table-name', async (_, data) => {
+  return dbService.updateTableName(data);
+});
+
+ipcMain.handle('db-delete-table-name', async (_, id) => {
+  return dbService.deleteTableName(id);
+});
+```
+
+#### 4. Preload API (`src/preload.ts`)
+```typescript
+// Expose functions to renderer process
+createTableName: (data: any) => ipcRenderer.invoke('db-create-table-name', data),
+getTableNameById: (id: number) => ipcRenderer.invoke('db-get-table-name', id),
+updateTableName: (data: any) => ipcRenderer.invoke('db-update-table-name', data),
+deleteTableName: (id: number) => ipcRenderer.invoke('db-delete-table-name', id),
+```
+
+#### 5. ElectronAPI Types (`src/types/electron.d.ts`)
+```typescript
+// Add type declarations
+interface ElectronAPI {
+  // ... existing methods
+  createTableName: (data: Omit<TableName, 'id'>) => Promise<TableName | null>;
+  getTableNameById: (id: number) => Promise<TableName | null>;
+  updateTableName: (data: TableName) => Promise<TableName | null>;
+  deleteTableName: (id: number) => Promise<boolean>;
+}
+```
+
+#### 6. API Layer (`src/lib/db/table-name-db.ts`)
+```typescript
+// Create wrapper functions for UI components
+export async function createTableName(data: Omit<TableName, 'id'>): Promise<TableName | null> {
+  try {
+    return await window.electronAPI.createTableName(data);
+  } catch (error) {
+    console.error('Error creating table name:', error);
+    return null;
+  }
+}
+// ... other CRUD wrapper functions
+```
+
+#### 7. Database Reset (Development)
+- **Delete** the existing database file from user data directory
+- **Restart** the application to recreate with new schema
+- Database path: `%APPDATA%/electron-shadcn Template/database.sqlite`
+
+#### 8. Common Issues & Solutions
+
+**Foreign Key Constraint Errors:**
+- Ensure all foreign key relationships use `ON DELETE CASCADE`
+- Verify parent records exist before creating child records
+- Use proper cascading deletes instead of manual deletion chains
+
+**"No handler registered" Errors:**
+- Check all 4 layers: main.ts → preload.ts → electron.d.ts → wrapper functions
+- Ensure IPC channel names match exactly across all files
+- Verify functions are properly exposed in preload API
+
+**"Column doesn't exist" Errors:**
+- Delete old database file to recreate schema
+- Ensure new fields are included in both interface and CREATE TABLE
+- Update all INSERT/UPDATE statements with new fields
 
 ### Database Entities
 - **Clients**: Patient information and demographics
