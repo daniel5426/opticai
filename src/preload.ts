@@ -1,5 +1,21 @@
 import { contextBridge, ipcRenderer } from 'electron';
 
+// Expose theme functionality
+contextBridge.exposeInMainWorld('themeMode', {
+  current: () => ipcRenderer.invoke('theme-mode:current'),
+  toggle: () => ipcRenderer.invoke('theme-mode:toggle'),
+  dark: () => ipcRenderer.invoke('theme-mode:dark'),
+  light: () => ipcRenderer.invoke('theme-mode:light'),
+  system: () => ipcRenderer.invoke('theme-mode:system'),
+});
+
+// Expose window controls
+contextBridge.exposeInMainWorld('electronWindow', {
+  minimize: () => ipcRenderer.invoke('window:minimize'),
+  maximize: () => ipcRenderer.invoke('window:maximize'),
+  close: () => ipcRenderer.invoke('window:close'),
+});
+
 // Expose APIs to renderer process
 contextBridge.exposeInMainWorld('electronAPI', {
   // Client operations
@@ -94,4 +110,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getReferralEyesByReferral: (referralId: number) => ipcRenderer.invoke('db-get-referral-eyes-by-referral', referralId),
   createReferralEye: (referralEyeData: any) => ipcRenderer.invoke('db-create-referral-eye', referralEyeData),
   updateReferralEye: (referralEyeData: any) => ipcRenderer.invoke('db-update-referral-eye', referralEyeData),
+
+  // Appointment operations
+  getAppointmentsByClient: (clientId: number) => ipcRenderer.invoke('db-get-appointments-by-client', clientId),
+  getAppointment: (appointmentId: number) => ipcRenderer.invoke('db-get-appointment', appointmentId),
+  createAppointment: (appointmentData: any) => ipcRenderer.invoke('db-create-appointment', appointmentData),
+  updateAppointment: (appointmentData: any) => ipcRenderer.invoke('db-update-appointment', appointmentData),
+  deleteAppointment: (appointmentId: number) => ipcRenderer.invoke('db-delete-appointment', appointmentId),
 });

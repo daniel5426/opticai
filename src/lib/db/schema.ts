@@ -156,6 +156,16 @@ export interface ReferralEye {
   pd?: number;
 }
 
+export interface Appointment {
+  id?: number;
+  client_id: number;
+  date?: string;
+  time?: string;
+  client_name?: string;
+  exam_name?: string;
+  note?: string;
+}
+
 
 export interface OrderLens {
   id?: number;
@@ -650,6 +660,20 @@ export const createTables = (db: Database): void => {
       high REAL,
       pd REAL,
       FOREIGN KEY(referral_id) REFERENCES referrals(id) ON DELETE CASCADE
+    );
+  `);
+
+  // Create appointments table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS appointments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      client_id INTEGER NOT NULL,
+      date DATE,
+      time TEXT,
+      client_name TEXT,
+      exam_name TEXT,
+      note TEXT,
+      FOREIGN KEY(client_id) REFERENCES clients(id) ON DELETE CASCADE
     );
   `);
 };

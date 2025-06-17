@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Button } from "@/components/ui/button"
 
 // Custom label component with underline
 function LabelWithUnderline({ children }: { children: React.ReactNode }) {
@@ -71,6 +72,8 @@ interface ClientDetailsTabProps {
   handleInputChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => void;
   handleSelectChange: (value: string | boolean, name: string) => void;
   formRef: React.RefObject<HTMLFormElement>;
+  setIsEditing?: (editing: boolean) => void;
+  handleSave?: () => void;
 }
 
 export function ClientDetailsTab({ 
@@ -80,13 +83,26 @@ export function ClientDetailsTab({
   mode = 'view',
   handleInputChange, 
   handleSelectChange,
-  formRef
+  formRef,
+  setIsEditing,
+  handleSave
 }: ClientDetailsTabProps) {
   const isNewMode = mode === 'new'
   const showEditableFields = isEditing || isNewMode
 
   return (
     <form ref={formRef} className="px-1">
+      {mode === 'view' && setIsEditing && handleSave && (
+        <div className="flex justify-between items-center mb-4">
+          <Button 
+            variant={isEditing ? "outline" : "default"} 
+            onClick={() => isEditing ? handleSave() : setIsEditing(true)}
+          >
+            {isEditing ? "שמור שינויים" : "ערוך פרטים"}
+          </Button>
+          <h2 className="text-xl font-semibold">פרטים אישיים</h2>
+        </div>
+      )}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
         <Card className="text-right border-primary/10 shadow-sm">
         <CardHeader className="py-3 px-4 bg-gradient-to-l rounded-t-xl from-primary/5 to-transparent border-b-0 -mt-6 pt-4" dir="rtl">

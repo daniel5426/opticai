@@ -36,21 +36,10 @@ export function ClientReferralTab() {
   }
 
   return (
-    <div className="space-y-4" style={{scrollbarWidth: 'none'}}>
-      <div className="flex justify-between items-center" dir="rtl">
-        <h3 className="text-lg font-semibold">הפניות</h3>
-        <Link to="/referrals/create" search={{ clientId }}>
-          <Button>
-            <Plus className="h-4 w-4 mr-2" />
-            הפניה חדשה
-          </Button>
-        </Link>
-      </div>
-      
       <ReferralTable 
         referrals={referrals} 
         onRefresh={loadReferrals}
+        clientId={Number(clientId)}
       />
-    </div>
   )
 } 

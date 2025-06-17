@@ -44,6 +44,9 @@ export function OrdersTable({ data, clientId }: OrdersTableProps) {
   return (
     <div className="space-y-4" style={{scrollbarWidth: 'none'}}>
       <div className="flex justify-between items-center">
+      <Link to="/clients/$clientId/orders/new" params={{ clientId: String(clientId) }}>
+          <Button>הזמנה חדשה</Button>
+        </Link>
         <div className="flex gap-2">
           <Input
             placeholder="חיפוש הזמנות..."
@@ -52,9 +55,6 @@ export function OrdersTable({ data, clientId }: OrdersTableProps) {
             className="w-[250px]" dir="rtl"
           />
         </div>
-        <Link to="/clients/$clientId/orders/new" params={{ clientId: String(clientId) }}>
-          <Button>הזמנה חדשה</Button>
-        </Link>
       </div>
 
       <div className="rounded-md border">

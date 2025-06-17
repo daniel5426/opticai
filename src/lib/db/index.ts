@@ -19,7 +19,8 @@ import {
   Billing,
   OrderLineItem,
   Referral,
-  ReferralEye
+  ReferralEye,
+  Appointment
 } from './schema';
 
 class DatabaseService {
@@ -1478,7 +1479,7 @@ class DatabaseService {
     if (!this.db) return [];
     
     try {
-      const stmt = this.db.prepare('SELECT id, referral_id, eye, sph, cyl, ax, pris, base, va, add_power as add, decent, s_base, high, pd FROM referral_eye WHERE referral_id = ? ORDER BY eye');
+      const stmt = this.db.prepare('SELECT id, referral_id, eye, sph, cyl, ax, pris, base, va, add_power as "add", decent, s_base, high, pd FROM referral_eye WHERE referral_id = ? ORDER BY eye');
       return stmt.all(referralId) as ReferralEye[];
     } catch (error) {
       console.error('Error getting referral eyes by referral:', error);
@@ -1518,6 +1519,96 @@ class DatabaseService {
     } catch (error) {
       console.error('Error updating referral eye:', error);
       return null;
+    }
+  }
+
+  // Appointment CRUD operations
+  createAppointment(appointment: Omit<Appointment, 'id'>): Appointment | null {
+    if (!this.db) return null;
+    
+    try {
+      const stmt = this.db.prepare(`
+        INSERT INTO appointments (client_id, date, time, client_name, exam_name, note)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `);
+      
+      const result = stmt.run(
+        appointment.client_id,
+        this.sanitizeValue(appointment.date),
+        this.sanitizeValue(appointment.time),
+        this.sanitizeValue(appointment.client_name),
+        this.sanitizeValue(appointment.exam_name),
+        this.sanitizeValue(appointment.note)
+      );
+      
+      return { ...appointment, id: result.lastInsertRowid as number };
+    } catch (error) {
+      console.error('Error creating appointment:', error);
+      return null;
+    }
+  }
+
+  getAppointmentById(id: number): Appointment | null {
+    if (!this.db) return null;
+    
+    try {
+      const stmt = this.db.prepare('SELECT * FROM appointments WHERE id = ?');
+      return stmt.get(id) as Appointment || null;
+    } catch (error) {
+      console.error('Error getting appointment:', error);
+      return null;
+    }
+  }
+
+  getAppointmentsByClientId(clientId: number): Appointment[] {
+    if (!this.db) return [];
+    
+    try {
+      const stmt = this.db.prepare('SELECT * FROM appointments WHERE client_id = ? ORDER BY date DESC, time DESC');
+      return stmt.all(clientId) as Appointment[];
+    } catch (error) {
+      console.error('Error getting appointments:', error);
+      return [];
+    }
+  }
+
+  updateAppointment(appointment: Appointment): Appointment | null {
+    if (!this.db || !appointment.id) return null;
+    
+    try {
+      const stmt = this.db.prepare(`
+        UPDATE appointments SET
+          client_id = ?, date = ?, time = ?, client_name = ?, exam_name = ?, note = ?
+        WHERE id = ?
+      `);
+      
+      stmt.run(
+        appointment.client_id,
+        this.sanitizeValue(appointment.date),
+        this.sanitizeValue(appointment.time),
+        this.sanitizeValue(appointment.client_name),
+        this.sanitizeValue(appointment.exam_name),
+        this.sanitizeValue(appointment.note),
+        appointment.id
+      );
+      
+      return appointment;
+    } catch (error) {
+      console.error('Error updating appointment:', error);
+      return null;
+    }
+  }
+
+  deleteAppointment(id: number): boolean {
+    if (!this.db) return false;
+    
+    try {
+      const stmt = this.db.prepare('DELETE FROM appointments WHERE id = ?');
+      const result = stmt.run(id);
+      return result.changes > 0;
+    } catch (error) {
+      console.error('Error deleting appointment:', error);
+      return false;
     }
   }
 

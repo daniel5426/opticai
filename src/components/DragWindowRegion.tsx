@@ -12,31 +12,31 @@ interface DragWindowRegionProps {
 
 export default function DragWindowRegion({ title }: DragWindowRegionProps) {
   return (
-    <div className="bg-sidebar">
-    <div className=" flex w-screen items-stretch justify-between">
-      <div className="draglayer w-full bg-sidebar">
-        {title && (
-          <div className="flex flex-1 select-none whitespace-nowrap p-1 text-xs text-gray-400">
-            {title}
-          </div>
-        )}
+    <div className="bg-sidebar border-sidebar-border">
+      <div className="flex w-screen items-center h-8">
+        <div className="draglayer flex-1 bg-sidebar px-3">
+          {title && (
+            <div className="flex items-center select-none whitespace-nowrap text-sm text-sidebar-foreground/70 font-medium">
+              {title}
+            </div>
+          )}
+        </div>
+        <div className="flex items-center">
+          <ModeToggle />
+          <WindowButtons />
+        </div>
       </div>
-      <div className="flex items-center mx-2">
-        <ModeToggle />
-      </div>
-      <WindowButtons />
-    </div>
     </div>
   );
 }
 
 function WindowButtons() {
   return (
-    <div className="bg-sidebar flex gap-1">
+    <div className="flex">
       <button
         title="Minimize"
         type="button"
-        className="p-1 hover:bg-slate-300 px-2"
+        className="flex items-center justify-center w-10 h-8 text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-colors"
         onClick={minimizeWindow}
       >
         <svg
@@ -52,7 +52,7 @@ function WindowButtons() {
       <button
         title="Maximize"
         type="button"
-        className="p-1 hover:bg-slate-300 px-2"
+        className="flex items-center justify-center w-10 h-8 text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-colors"
         onClick={maximizeWindow}
       >
         <svg
@@ -75,7 +75,7 @@ function WindowButtons() {
       <button
         type="button"
         title="Close"
-        className="p-1 hover:bg-red-300 px-2"
+        className="flex items-center justify-center w-10 h-8 text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-red-500 hover:text-white transition-colors"
         onClick={closeWindow}
       >
         <svg

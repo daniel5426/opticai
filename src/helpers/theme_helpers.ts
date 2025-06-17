@@ -8,6 +8,14 @@ export interface ThemePreferences {
 }
 
 export async function getCurrentTheme(): Promise<ThemePreferences> {
+  if (!window.themeMode) {
+    console.error('themeMode is not available on window object');
+    return {
+      system: 'system' as ThemeMode,
+      local: null,
+    };
+  }
+  
   const currentTheme = await window.themeMode.current();
   const localTheme = localStorage.getItem(THEME_KEY) as ThemeMode | null;
 
@@ -18,6 +26,11 @@ export async function getCurrentTheme(): Promise<ThemePreferences> {
 }
 
 export async function setTheme(newTheme: ThemeMode) {
+  if (!window.themeMode) {
+    console.error('themeMode is not available on window object');
+    return;
+  }
+
   switch (newTheme) {
     case "dark":
       await window.themeMode.dark();
@@ -38,6 +51,11 @@ export async function setTheme(newTheme: ThemeMode) {
 }
 
 export async function toggleTheme() {
+  if (!window.themeMode) {
+    console.error('themeMode is not available on window object');
+    return;
+  }
+
   const isDarkMode = await window.themeMode.toggle();
   const newTheme = isDarkMode ? "dark" : "light";
 

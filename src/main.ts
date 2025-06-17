@@ -26,7 +26,7 @@ function createWindow() {
     width: 1200,
     height: 800,
     webPreferences: {
-      devTools: inDevelopment,
+      devTools: true,
       contextIsolation: true,
       nodeIntegration: false,
       nodeIntegrationInSubFrames: false,
@@ -36,6 +36,14 @@ function createWindow() {
     titleBarStyle: "hidden",
   });
   registerListeners(mainWindow);
+
+  // Add keyboard shortcut for DevTools
+  mainWindow.webContents.on('before-input-event', (event, input) => {
+    if (input.control && input.shift && input.key.toLowerCase() === 'i') {
+      mainWindow?.webContents.toggleDevTools();
+      event.preventDefault();
+    }
+  });
 
   // Clean up the reference when window is closed
   mainWindow.on('closed', () => {
@@ -615,6 +623,52 @@ function setupIpcHandlers() {
       return dbService.updateReferralEye(referralEyeData);
     } catch (error) {
       console.error('Error updating referral eye:', error);
+      throw error;
+    }
+  });
+
+  // Appointment operations
+  ipcMain.handle('db-get-appointments-by-client', async (event, clientId: number) => {
+    try {
+      return dbService.getAppointmentsByClientId(clientId);
+    } catch (error) {
+      console.error('Error getting appointments by client:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-get-appointment', async (event, appointmentId: number) => {
+    try {
+      return dbService.getAppointmentById(appointmentId);
+    } catch (error) {
+      console.error('Error getting appointment:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-create-appointment', async (event, appointmentData) => {
+    try {
+      return dbService.createAppointment(appointmentData);
+    } catch (error) {
+      console.error('Error creating appointment:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-update-appointment', async (event, appointmentData) => {
+    try {
+      return dbService.updateAppointment(appointmentData);
+    } catch (error) {
+      console.error('Error updating appointment:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-delete-appointment', async (event, appointmentId: number) => {
+    try {
+      return dbService.deleteAppointment(appointmentId);
+    } catch (error) {
+      console.error('Error deleting appointment:', error);
       throw error;
     }
   });

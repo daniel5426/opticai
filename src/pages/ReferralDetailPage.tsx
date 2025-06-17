@@ -271,9 +271,10 @@ export default function ReferralDetailPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-4 gap-4 p-4 border rounded-lg">
+            <div className="grid grid-cols-4 gap-4 p-4 rounded-lg">
               <div>
-                <Label>תאריך</Label>
+                <Label className="font-semibold text-base">תאריך</Label>
+                <div className="h-1"></div>
                 <Input
                   type="date"
                   name="date"
@@ -282,7 +283,8 @@ export default function ReferralDetailPage() {
                 />
               </div>
               <div>
-                <Label>סוג הפניה</Label>
+                <Label className="font-semibold text-base">סוג הפניה</Label>
+                <div className="h-1"></div>
                 <Input
                   name="type"
                   value={formData.type || ''}
@@ -291,7 +293,8 @@ export default function ReferralDetailPage() {
                 />
               </div>
               <div>
-                <Label>סניף</Label>
+                <Label className="font-semibold text-base">סניף</Label>
+                <div className="h-1"></div>
                 <Input
                   name="branch"
                   value={formData.branch || ''}
@@ -300,7 +303,8 @@ export default function ReferralDetailPage() {
                 />
               </div>
               <div>
-                <Label>נמען</Label>
+                <Label className="font-semibold text-base">נמען</Label>
+                <div className="h-1"></div>
                 <Input
                   name="recipient"
                   value={formData.recipient || ''}
@@ -311,9 +315,7 @@ export default function ReferralDetailPage() {
             </div>
 
             {/* Eye Data Section - Same layout as ExamDetailPage */}
-            <div className="border rounded-lg p-4">
-              <h3 className="text-lg font-semibold mb-4">נתוני עיניים</h3>
-              
+            <div className="border rounded-lg p-4">              
               {/* Header Row */}
               <div className="flex items-center gap-1 h-6 mb-3" dir="rtl">
                 <div className="grid grid-cols-16 gap-4 flex-1 pb-2" dir="ltr">
@@ -566,7 +568,8 @@ export default function ReferralDetailPage() {
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label>הערות הפניה</Label>
+                <Label className="font-semibold text-base">הערות הפניה</Label>
+                <div className="h-1"></div>
                 <Textarea
                   name="referral_notes"
                   value={formData.referral_notes || ''}
@@ -576,7 +579,8 @@ export default function ReferralDetailPage() {
                 />
               </div>
               <div>
-                <Label>הערות מרשם</Label>
+                <Label className="font-semibold text-base">הערות מרשם</Label>
+                <div className="h-1"></div>
                 <Textarea
                   name="prescription_notes"
                   value={formData.prescription_notes || ''}

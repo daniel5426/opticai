@@ -16,7 +16,8 @@ import {
   ClientBillingTab,
   ClientMedicalRecordTab,
   ClientContactLensTab,
-  ClientReferralTab
+  ClientReferralTab,
+  ClientAppointmentsTab
 } from "@/components/client"
 
 export default function ClientDetailPage() {
@@ -126,6 +127,10 @@ export default function ClientDetailPage() {
           title="לקוחות" 
           backLink="/clients"
           clientName={fullName}
+          tabs={{
+            activeTab,
+            onTabChange: setActiveTab
+          }}
         />
         <div className="flex flex-col flex-1 p-4 lg:p-6 mb-30" dir="rtl">
           <Tabs 
@@ -133,29 +138,6 @@ export default function ClientDetailPage() {
             className="w-full"
             onValueChange={(value) => setActiveTab(value)}
           >
-            <div className="flex justify-between items-center mb-4">
-              <TabsList>
-                <TabsTrigger value="details">פרטים אישיים</TabsTrigger>
-                <TabsTrigger value="exams">בדיקות</TabsTrigger>
-                <TabsTrigger value="medical">רשומות רפואיות</TabsTrigger>
-                <TabsTrigger value="orders">הזמנות</TabsTrigger>
-                <TabsTrigger value="contact-lenses">עדשות מגע</TabsTrigger>
-                <TabsTrigger value="referrals">הפניות</TabsTrigger>
-                <TabsTrigger value="billing">חשבונות</TabsTrigger>
-              </TabsList>
-              
-              {activeTab === "details" ? (
-                <Button 
-                  variant={isEditing ? "outline" : "default"} 
-                  onClick={() => isEditing ? handleSave() : setIsEditing(true)}
-                >
-                  {isEditing ? "שמור שינויים" : "ערוך פרטים"}
-                </Button>
-              ) : activeTab === "exams" ? (
-                <h2 className="text-xl font-semibold">בדיקות ראייה</h2>
-              ) : null}
-            </div>
-            
             <TabsContent value="details">
               <ClientDetailsTab 
                 client={client}
@@ -164,6 +146,8 @@ export default function ClientDetailPage() {
                 handleInputChange={handleInputChange}
                 handleSelectChange={handleSelectChange}
                 formRef={formRef as React.RefObject<HTMLFormElement>}
+                setIsEditing={setIsEditing}
+                handleSave={handleSave}
               />
             </TabsContent>
             
@@ -185,6 +169,10 @@ export default function ClientDetailPage() {
             
             <TabsContent value="referrals">
               <ClientReferralTab />
+            </TabsContent>
+            
+            <TabsContent value="appointments">
+              <ClientAppointmentsTab />
             </TabsContent>
             
             <TabsContent value="billing">

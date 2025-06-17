@@ -95,6 +95,13 @@ export interface ElectronAPI {
   getReferralEyesByReferral: (referralId: number) => Promise<any[]>;
   createReferralEye: (referralEyeData: any) => Promise<any>;
   updateReferralEye: (referralEyeData: any) => Promise<any>;
+
+  // Appointment operations
+  getAppointmentsByClient: (clientId: number) => Promise<any[]>;
+  getAppointment: (appointmentId: number) => Promise<any>;
+  createAppointment: (appointmentData: any) => Promise<any>;
+  updateAppointment: (appointmentData: any) => Promise<any>;
+  deleteAppointment: (appointmentId: number) => Promise<boolean>;
 }
 
 declare global {
