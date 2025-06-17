@@ -12,6 +12,7 @@ export interface ElectronAPI {
 
   // Exam operations
   getExamsByClient: (clientId: number) => Promise<any[]>;
+  getAllExams: () => Promise<any[]>;
   getExam: (examId: number) => Promise<any>;
   createExam: (examData: any) => Promise<any>;
   updateExam: (examData: any) => Promise<any>;
@@ -24,6 +25,7 @@ export interface ElectronAPI {
 
   // Order operations
   getOrdersByClient: (clientId: number) => Promise<any[]>;
+  getAllOrders: () => Promise<any[]>;
   getOrder: (orderId: number) => Promise<any>;
   createOrder: (orderData: any) => Promise<any>;
   updateOrder: (orderData: any) => Promise<any>;

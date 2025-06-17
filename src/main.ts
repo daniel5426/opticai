@@ -111,10 +111,25 @@ function setupIpcHandlers() {
   // Exam operations
   ipcMain.handle('db-get-exams-by-client', async (event, clientId: number) => {
     try {
-      return dbService.getExamsByClientId(clientId);
+      console.log(`Getting exams for client ${clientId}`);
+      const exams = dbService.getExamsByClientId(clientId);
+      console.log(`Found ${exams.length} exams`);
+      return exams;
     } catch (error) {
-      console.error('Error getting exams by client:', error);
-      throw error;
+      console.error('Error in get-exams-by-client:', error);
+      return [];
+    }
+  });
+
+  ipcMain.handle('db-get-all-exams', async () => {
+    try {
+      console.log('Getting all exams');
+      const exams = dbService.getAllExams();
+      console.log(`Found ${exams.length} exams`);
+      return exams;
+    } catch (error) {
+      console.error('Error in get-all-exams:', error);
+      return [];
     }
   });
 
@@ -461,6 +476,18 @@ function setupIpcHandlers() {
     }
   });
 
+  ipcMain.handle('db-get-all-contact-lenses', async () => {
+    try {
+      console.log('Getting all contact lenses');
+      const contactLenses = dbService.getAllContactLenses();
+      console.log(`Found ${contactLenses.length} contact lenses`);
+      return contactLenses;
+    } catch (error) {
+      console.error('Error in get-all-contact-lenses:', error);
+      return [];
+    }
+  });
+
   ipcMain.handle('db-get-contact-lens', async (event, contactLensId: number) => {
     try {
       return dbService.getContactLensById(contactLensId);
@@ -560,6 +587,18 @@ function setupIpcHandlers() {
     } catch (error) {
       console.error('Error getting referrals by client:', error);
       throw error;
+    }
+  });
+
+  ipcMain.handle('db-get-all-referrals', async () => {
+    try {
+      console.log('Getting all referrals');
+      const referrals = dbService.getAllReferrals();
+      console.log(`Found ${referrals.length} referrals`);
+      return referrals;
+    } catch (error) {
+      console.error('Error in get-all-referrals:', error);
+      return [];
     }
   });
 
@@ -670,6 +709,30 @@ function setupIpcHandlers() {
     } catch (error) {
       console.error('Error deleting appointment:', error);
       throw error;
+    }
+  });
+
+  ipcMain.handle('db-get-all-appointments', async () => {
+    try {
+      console.log('Getting all appointments');
+      const appointments = dbService.getAllAppointments();
+      console.log(`Found ${appointments.length} appointments`);
+      return appointments;
+    } catch (error) {
+      console.error('Error in get-all-appointments:', error);
+      return [];
+    }
+  });
+
+  ipcMain.handle('db-get-all-orders', async () => {
+    try {
+      console.log('Getting all orders');
+      const orders = dbService.getAllOrders();
+      console.log(`Found ${orders.length} orders`);
+      return orders;
+    } catch (error) {
+      console.error('Error in get-all-orders:', error);
+      return [];
     }
   });
 }

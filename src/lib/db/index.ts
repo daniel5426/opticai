@@ -373,6 +373,18 @@ class DatabaseService {
     }
   }
 
+  getAllExams(): OpticalExam[] {
+    if (!this.db) return [];
+    
+    try {
+      const stmt = this.db.prepare('SELECT * FROM optical_exams ORDER BY exam_date DESC');
+      return stmt.all() as OpticalExam[];
+    } catch (error) {
+      console.error('Error getting all exams:', error);
+      return [];
+    }
+  }
+
   updateExam(exam: OpticalExam): OpticalExam | null {
     if (!this.db || !exam.id) return null;
     
@@ -528,6 +540,18 @@ class DatabaseService {
       return stmt.all() as Order[];
     } catch (error) {
       console.error('Error getting orders by client:', error);
+      return [];
+    }
+  }
+
+  getAllOrders(): Order[] {
+    if (!this.db) return [];
+    
+    try {
+      const stmt = this.db.prepare('SELECT * FROM orders ORDER BY order_date DESC');
+      return stmt.all() as Order[];
+    } catch (error) {
+      console.error('Error getting all orders:', error);
       return [];
     }
   }
@@ -1092,7 +1116,19 @@ class DatabaseService {
       const stmt = this.db.prepare('SELECT * FROM contact_lens WHERE client_id = ? ORDER BY exam_date DESC');
       return stmt.all(clientId) as ContactLens[];
     } catch (error) {
-      console.error('Error getting contact lenses by client ID:', error);
+      console.error('Error getting contact lenses by client:', error);
+      return [];
+    }
+  }
+
+  getAllContactLenses(): ContactLens[] {
+    if (!this.db) return [];
+    
+    try {
+      const stmt = this.db.prepare('SELECT * FROM contact_lens ORDER BY exam_date DESC');
+      return stmt.all() as ContactLens[];
+    } catch (error) {
+      console.error('Error getting all contact lenses:', error);
       return [];
     }
   }
@@ -1388,10 +1424,22 @@ class DatabaseService {
     if (!this.db) return [];
     
     try {
-      const stmt = this.db.prepare('SELECT * FROM referrals WHERE client_id = ? ORDER BY date DESC');
+      const stmt = this.db.prepare('SELECT * FROM referrals WHERE client_id = ? ORDER BY referral_date DESC');
       return stmt.all(clientId) as Referral[];
     } catch (error) {
       console.error('Error getting referrals by client:', error);
+      return [];
+    }
+  }
+
+  getAllReferrals(): Referral[] {
+    if (!this.db) return [];
+    
+    try {
+      const stmt = this.db.prepare('SELECT * FROM referrals ORDER BY referral_date DESC');
+      return stmt.all() as Referral[];
+    } catch (error) {
+      console.error('Error getting all referrals:', error);
       return [];
     }
   }
@@ -1564,10 +1612,22 @@ class DatabaseService {
     if (!this.db) return [];
     
     try {
-      const stmt = this.db.prepare('SELECT * FROM appointments WHERE client_id = ? ORDER BY date DESC, time DESC');
+      const stmt = this.db.prepare('SELECT * FROM appointments WHERE client_id = ? ORDER BY appointment_date DESC');
       return stmt.all(clientId) as Appointment[];
     } catch (error) {
-      console.error('Error getting appointments:', error);
+      console.error('Error getting appointments by client:', error);
+      return [];
+    }
+  }
+
+  getAllAppointments(): Appointment[] {
+    if (!this.db) return [];
+    
+    try {
+      const stmt = this.db.prepare('SELECT * FROM appointments ORDER BY appointment_date DESC');
+      return stmt.all() as Appointment[];
+    } catch (error) {
+      console.error('Error getting all appointments:', error);
       return [];
     }
   }
