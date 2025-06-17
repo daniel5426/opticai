@@ -127,26 +127,26 @@ function SchirmerKSection({ eye, data, onChange, isEditing }: ContactEyeSectionP
         </div>
         <div className="col-span-3">
           {eye === "R" && <Label className="text-[12px] block text-center">RH</Label>}
-          <Input 
-            type="number" 
-            step="0.01" 
-            value={data.k_h?.toString() || ""} 
-            onChange={(e) => onChange(eye, "k_h", e.target.value)} 
-            disabled={!isEditing} 
+        <Input 
+          type="number" 
+          step="0.01" 
+          value={data.k_h?.toString() || ""} 
+          onChange={(e) => onChange(eye, "k_h", e.target.value)} 
+          disabled={!isEditing} 
             className="h-8 text-xs px-1" 
-          />
-        </div>
+        />
+      </div>
         <div className="col-span-3">
           {eye === "R" && <Label className="text-[12px] block text-center">RV</Label>}
-          <Input 
-            type="number" 
-            step="0.01" 
-            value={data.k_v?.toString() || ""} 
-            onChange={(e) => onChange(eye, "k_v", e.target.value)} 
-            disabled={!isEditing} 
+        <Input 
+          type="number" 
+          step="0.01" 
+          value={data.k_v?.toString() || ""} 
+          onChange={(e) => onChange(eye, "k_v", e.target.value)} 
+          disabled={!isEditing} 
             className="h-8 text-xs px-1" 
-          />
-        </div>
+        />
+      </div>
         <div className="col-span-3">
           {eye === "R" && <Label className="text-[12px] block text-center">AVG</Label>}
           <Input 
@@ -205,16 +205,16 @@ function ExamSection({ eye, data, onChange, isEditing }: ContactEyeSectionProps)
     <div className="flex items-center gap-1 h-6 mb-3" dir="rtl">
       <div className="grid grid-cols-21 gap-4 flex-1 pb-2" dir="ltr">
         <div className="col-span-2">
-          {eye === "R" && <Label className="text-[12px] block text-center">BC</Label>}
-          <Input 
-            type="number" 
-            step="0.01" 
-            value={data.bc?.toString() || ""} 
-            onChange={(e) => onChange(eye, "bc", e.target.value)} 
-            disabled={!isEditing} 
+        {eye === "R" && <Label className="text-[12px] block text-center">BC</Label>}
+        <Input 
+          type="number" 
+          step="0.01" 
+          value={data.bc?.toString() || ""} 
+          onChange={(e) => onChange(eye, "bc", e.target.value)} 
+          disabled={!isEditing} 
             className="h-8 text-xs px-1" 
-          />
-        </div>
+        />
+      </div>
         <div className="col-span-2">
           {eye === "R" && <Label className="text-[12px] block text-center">BC-2</Label>}
           <Input 
@@ -249,27 +249,27 @@ function ExamSection({ eye, data, onChange, isEditing }: ContactEyeSectionProps)
           />
         </div>
         <div className="col-span-2">
-          {eye === "R" && <Label className="text-[12px] block text-center">SPH</Label>}
-          <Input 
-            type="number" 
-            step="0.25" 
-            value={data.sph?.toString() || ""} 
-            onChange={(e) => onChange(eye, "sph", e.target.value)} 
-            disabled={!isEditing} 
+        {eye === "R" && <Label className="text-[12px] block text-center">SPH</Label>}
+        <Input 
+          type="number" 
+          step="0.25" 
+          value={data.sph?.toString() || ""} 
+          onChange={(e) => onChange(eye, "sph", e.target.value)} 
+          disabled={!isEditing} 
             className="h-8 text-xs px-1" 
-          />
-        </div>
+        />
+      </div>
         <div className="col-span-2">
-          {eye === "R" && <Label className="text-[12px] block text-center">CYL</Label>}
-          <Input 
-            type="number" 
-            step="0.25" 
-            value={data.cyl?.toString() || ""} 
-            onChange={(e) => onChange(eye, "cyl", e.target.value)} 
-            disabled={!isEditing} 
+        {eye === "R" && <Label className="text-[12px] block text-center">CYL</Label>}
+        <Input 
+          type="number" 
+          step="0.25" 
+          value={data.cyl?.toString() || ""} 
+          onChange={(e) => onChange(eye, "cyl", e.target.value)} 
+          disabled={!isEditing} 
             className="h-8 text-xs px-1" 
-          />
-        </div>
+        />
+      </div>
         <div className="col-span-2">
           {eye === "R" && <Label className="text-[12px] block text-center">AXIS</Label>}
           <Input 
@@ -294,18 +294,18 @@ function ExamSection({ eye, data, onChange, isEditing }: ContactEyeSectionProps)
           />
         </div>
         <div className="col-span-3">
-          {eye === "R" && <Label className="text-[12px] block text-center">VA</Label>}
+        {eye === "R" && <Label className="text-[12px] block text-center">VA</Label>}
           <div className="relative" dir="ltr">
-            <Input 
+        <Input 
               type="number" 
               step="0.1"
               value={data.va?.toString() || ""} 
-              onChange={(e) => onChange(eye, "va", e.target.value)} 
-              disabled={!isEditing} 
+          onChange={(e) => onChange(eye, "va", e.target.value)} 
+          disabled={!isEditing} 
               className="h-8 text-xs px-1 pl-6" 
-            />
+        />
             <span className="absolute left-2 top-[53%] transform -translate-y-1/2 text-[14px] text-gray-500 pointer-events-none">6/</span>
-          </div>
+      </div>
         </div>
         <div className="col-span-2">
           {eye === "R" && <Label className="text-[12px] block text-center">J</Label>}
@@ -379,14 +379,14 @@ function ContactDetailsSection({ eye, data, onChange, isEditing }: ContactEyeSec
         </div>
         <div className="col-span-1">
           {eye === "R" && <Label className="text-[12px] block text-center">Model</Label>}
-          <Input 
-            type="text" 
-            value={data.model || ""} 
-            onChange={(e) => onChange(eye, "model", e.target.value)} 
-            disabled={!isEditing} 
+        <Input 
+          type="text" 
+          value={data.model || ""} 
+          onChange={(e) => onChange(eye, "model", e.target.value)} 
+          disabled={!isEditing} 
             className="h-8 text-xs px-1" 
-          />
-        </div>
+        />
+      </div>
         <div className="col-span-1">
           {eye === "R" && <Label className="text-[12px] block text-center">Supplier</Label>}
           <Input 
@@ -584,8 +584,8 @@ export default function ContactLensDetailPage({
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
-    setFormData(prev => ({ ...prev, [name]: value }))
-  }
+      setFormData(prev => ({ ...prev, [name]: value }))
+    }
 
   const handleContactLensFieldChange = (field: keyof ContactLens, rawValue: string) => {
     let processedValue: string | number | undefined = rawValue;
@@ -906,7 +906,7 @@ export default function ContactLensDetailPage({
                           value={formData.type || ''} 
                           onValueChange={(value) => handleSelectChange(value, 'type')}
                         >
-                          <SelectTrigger className="h-9 text-sm">
+                          <SelectTrigger className="h-9 text-sm w-full">
                             <SelectValue placeholder="בחר סוג" />
                           </SelectTrigger>
                           <SelectContent>
@@ -970,18 +970,18 @@ export default function ContactLensDetailPage({
 
                       <div className="flex-1">
                         <TabsContent value="exam-details">
-                          <Card>
+                  <Card>
                             <CardContent className="px-4 pt-4 space-y-1">
-                              <div className="relative mb-4 pt-2">
-                                <div className="absolute top-[-27px] right-1/2 transform translate-x-1/2 bg-background px-2 font-medium text-muted-foreground">
+                      <div className="relative mb-4 pt-2">
+                        <div className="absolute top-[-27px] right-1/2 transform translate-x-1/2 bg-background px-2 font-medium text-muted-foreground">
                                   נתוני בדיקה - עדשות מגע
-                                </div>
-                              </div>
+                        </div>
+                      </div>
                               <ExamSection eye="R" data={rightEyeFormData} onChange={handleContactEyeFieldChange} isEditing={isEditing} />
                               <CombinedVaContactLensSection contactLens={formData} onChange={handleContactLensFieldChange} isEditing={isEditing} />
                               <ExamSection eye="L" data={leftEyeFormData} onChange={handleContactEyeFieldChange} isEditing={isEditing} />
-                            </CardContent>
-                          </Card>
+                    </CardContent>
+                  </Card>
                         </TabsContent>
 
                         <TabsContent value="contact-details">
@@ -1021,25 +1021,25 @@ export default function ContactLensDetailPage({
                               </div>
                               <div className="space-y-2">
                                 <div className="grid grid-cols-2 gap-2">
-                                  <div>
+                          <div>
                                     <Label className="text-[12px] block text-center">קוטר אישון</Label>
-                                    <Input
+                            <Input
                                       type="number"
                                       step="0.1"
                                       value={formData.pupil_diameter?.toString() || ''}
                                       onChange={(e) => handleContactLensFieldChange('pupil_diameter', e.target.value)}
-                                      disabled={!isEditing}
+                              disabled={!isEditing}
                                       className="h-8 text-xs px-1"
-                                    />
-                                  </div>
-                                  <div>
+                            />
+                          </div>
+                          <div>
                                     <Label className="text-[12px] block text-center">קוטר קרנית</Label>
-                                    <Input
+                            <Input
                                       type="number"
                                       step="0.1"
                                       value={formData.corneal_diameter?.toString() || ''}
                                       onChange={(e) => handleContactLensFieldChange('corneal_diameter', e.target.value)}
-                                      disabled={!isEditing}
+                              disabled={!isEditing}
                                       className="h-8 text-xs px-1"
                                     />
                                   </div>
@@ -1064,9 +1064,9 @@ export default function ContactLensDetailPage({
                             <div className="w-px bg-border"></div>
                             
                             <div className="flex-1 flex gap-6">
-                              <div className="w-48">
+                              <div className="w-54">
                                 <div className="relative mb-4 pt-2">
-                                  <div className="absolute top-[-27px] right-1/2 transform translate-x-1/2 bg-background px-2 font-medium text-muted-foreground">
+                                  <div className="absolute top-[-27px] right-1/2 transform translate-x-1/2 bg-background font-medium text-muted-foreground">
                                     Schirmer Test
                                   </div>
                                 </div>
@@ -1097,7 +1097,7 @@ export default function ContactLensDetailPage({
                                       </div>
                                     </div>
                                   </div>
-                                  <div className="h-2"></div>
+                                  <div className="h-6"></div>
                                   <div className="flex items-center gap-1 h-6 mb-3" dir="rtl">
                                     <div className="grid grid-cols-6 gap-4 flex-1 pb-2" dir="ltr">
                                       <div className="col-span-3">
@@ -1206,7 +1206,7 @@ export default function ContactLensDetailPage({
                                     </div>
                                     <span className="text-md font-medium pr-2 flex items-center justify-center w-6 pt-2">R</span>
                                   </div>
-                                  <div className="h-2"></div>
+                                  <div className="h-6"></div>
                                                                     <div className="flex items-center gap-1 h-6 mb-3" dir="rtl">
                                     <div className="grid grid-cols-18 gap-4 flex-1 pb-2" dir="ltr">
                                       <div className="col-span-3">
@@ -1283,8 +1283,8 @@ export default function ContactLensDetailPage({
                     
                     <TabsContent value="order" className="space-y-4">
                       <Card>
-                        <CardContent className="space-y-3">
-                          <div className="grid grid-cols-3 gap-3">
+                        <CardContent className="space-y-4 pt-4">
+                          <div className="grid grid-cols-5 gap-3">
                             <div>
                               <Label className="text-sm">סניף</Label>
                               <Input
@@ -1296,13 +1296,23 @@ export default function ContactLensDetailPage({
                               />
                             </div>
                             <div>
+                              <Label className="text-sm">אספקה בסניף</Label>
+                              <Input
+                                name="supply_in_branch"
+                                value={contactLensOrderFormData.supply_in_branch || ''}
+                                onChange={(e) => setContactLensOrderFormData(prev => ({ ...prev, supply_in_branch: e.target.value }))}
+                                disabled={!isEditing}
+                                className="mt-1.5"
+                              />
+                            </div>
+                            <div>
                               <Label className="text-sm">סטטוס הזמנה</Label>
                               <Select dir="rtl"
                                 disabled={!isEditing}
                                 value={contactLensOrderFormData.order_status || ''} 
                                 onValueChange={(value) => setContactLensOrderFormData(prev => ({ ...prev, order_status: value }))}
                               >
-                                <SelectTrigger className="mt-1.5">
+                                <SelectTrigger className="mt-1.5 h-10 w-full">
                                   <SelectValue placeholder="בחר סטטוס" />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -1323,6 +1333,102 @@ export default function ContactLensDetailPage({
                                 className="mt-1.5"
                               />
                             </div>
+                            <div>
+                              <Label className="text-sm">משלוח</Label>
+                              <Input
+                                name="deliverer"
+                                value={contactLensOrderFormData.deliverer || ''}
+                                onChange={(e) => setContactLensOrderFormData(prev => ({ ...prev, deliverer: e.target.value }))}
+                                disabled={!isEditing}
+                                className="mt-1.5"
+                              />
+                            </div>
+                          </div>
+                          
+                          <div className="grid grid-cols-5 gap-3">
+                            <div>
+                              <Label className="text-sm">תאריך משלוח</Label>
+                              <DateInput
+                                name="delivery_date"
+                                value={contactLensOrderFormData.delivery_date}
+                                onChange={(e) => setContactLensOrderFormData(prev => ({ ...prev, delivery_date: e.target.value }))}
+                                disabled={!isEditing}
+                                className="mt-1.5"
+                              />
+                            </div>
+                            <div>
+                              <Label className="text-sm">עדיפות</Label>
+                              <Select dir="rtl"
+                                disabled={!isEditing}
+                                value={contactLensOrderFormData.priority || ''} 
+                                onValueChange={(value) => setContactLensOrderFormData(prev => ({ ...prev, priority: value }))}
+                              >
+                                <SelectTrigger className="mt-1.5 h-10 w-full">
+                                  <SelectValue placeholder="בחר עדיפות" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="רגיל" className="text-sm">רגיל</SelectItem>
+                                  <SelectItem value="דחוף" className="text-sm">דחוף</SelectItem>
+                                  <SelectItem value="גבוה" className="text-sm">גבוה</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div>
+                              <Label className="text-sm">תאריך מובטח</Label>
+                              <DateInput
+                                name="guaranteed_date"
+                                value={contactLensOrderFormData.guaranteed_date}
+                                onChange={(e) => setContactLensOrderFormData(prev => ({ ...prev, guaranteed_date: e.target.value }))}
+                                disabled={!isEditing}
+                                className="mt-1.5"
+                              />
+                            </div>
+                            <div>
+                              <Label className="text-sm">תאריך אישור</Label>
+                              <DateInput
+                                name="approval_date"
+                                value={contactLensOrderFormData.approval_date}
+                                onChange={(e) => setContactLensOrderFormData(prev => ({ ...prev, approval_date: e.target.value }))}
+                                disabled={!isEditing}
+                                className="mt-1.5"
+                              />
+                            </div>
+                            <div>
+                              <Label className="text-sm">תמיסת ניקוי</Label>
+                              <Input
+                                name="cleaning_solution"
+                                value={contactLensOrderFormData.cleaning_solution || ''}
+                                onChange={(e) => setContactLensOrderFormData(prev => ({ ...prev, cleaning_solution: e.target.value }))}
+                                disabled={!isEditing}
+                                className="mt-1.5"
+                              />
+                            </div>
+                          </div>
+                          
+                          <div className="grid grid-cols-5 gap-3">
+                            <div>
+                              <Label className="text-sm">תמיסת חיטוי</Label>
+                              <Input
+                                name="disinfection_solution"
+                                value={contactLensOrderFormData.disinfection_solution || ''}
+                                onChange={(e) => setContactLensOrderFormData(prev => ({ ...prev, disinfection_solution: e.target.value }))}
+                                disabled={!isEditing}
+                                className="mt-1.5"
+                              />
+                            </div>
+                            <div>
+                              <Label className="text-sm">תמיסת שטיפה</Label>
+                              <Input
+                                name="rinsing_solution"
+                                value={contactLensOrderFormData.rinsing_solution || ''}
+                                onChange={(e) => setContactLensOrderFormData(prev => ({ ...prev, rinsing_solution: e.target.value }))}
+                                disabled={!isEditing}
+                                className="mt-1.5"
+                              />
+                            </div>
+                            <div></div>
+                            <div></div>
+                            <div></div>
                           </div>
                         </CardContent>
                       </Card>

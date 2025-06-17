@@ -1016,14 +1016,14 @@ export default function ExamDetailPage({
                   </div>
                   <div className="col-span-1">
                     <label className="font-semibold text-base">עין דומיננטית</label>
-                    <div className="h-1"></div>
+                    <div className="h-1 w-full"></div>
                     
                       <Select dir="rtl"
                       disabled={!isEditing}
                         value={formData.dominant_eye || ''} 
                         onValueChange={(value) => handleSelectChange(value, 'dominant_eye')}
                       >
-                        <SelectTrigger className="h-6 text-sm">
+                        <SelectTrigger className="h-6 text-sm w-full">
                           <SelectValue placeholder="בחר עין" />
                         </SelectTrigger>
                         <SelectContent>

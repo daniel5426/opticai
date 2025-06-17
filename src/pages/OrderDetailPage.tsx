@@ -728,7 +728,7 @@ export default function OrderDetailPage({
                       value={formData.type || ''} 
                       onValueChange={(value) => handleSelectChange(value, 'type')}
                     >
-                      <SelectTrigger className="h-9 text-sm">
+                      <SelectTrigger className="h-9 text-sm w-full">
                         <SelectValue placeholder="בחר סוג" />
                       </SelectTrigger>
                       <SelectContent>
@@ -748,12 +748,12 @@ export default function OrderDetailPage({
                       value={formData.dominant_eye || ''} 
                       onValueChange={(value) => handleSelectChange(value, 'dominant_eye')}
                     >
-                      <SelectTrigger className="h-9 text-sm">
+                      <SelectTrigger className="h-9 text-sm w-full">
                         <SelectValue placeholder="בחר עין" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="R" className="text-sm">ימין (R)</SelectItem>
-                        <SelectItem value="L" className="text-sm">שמאל (L)</SelectItem>
+                        <SelectItem value="R" className="text-sm">ימין</SelectItem>
+                        <SelectItem value="L" className="text-sm">שמאל</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>

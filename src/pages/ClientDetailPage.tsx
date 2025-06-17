@@ -15,7 +15,8 @@ import {
   ClientOrdersTab,
   ClientBillingTab,
   ClientMedicalRecordTab,
-  ClientContactLensTab
+  ClientContactLensTab,
+  ClientReferralTab
 } from "@/components/client"
 
 export default function ClientDetailPage() {
@@ -139,6 +140,7 @@ export default function ClientDetailPage() {
                 <TabsTrigger value="medical">רשומות רפואיות</TabsTrigger>
                 <TabsTrigger value="orders">הזמנות</TabsTrigger>
                 <TabsTrigger value="contact-lenses">עדשות מגע</TabsTrigger>
+                <TabsTrigger value="referrals">הפניות</TabsTrigger>
                 <TabsTrigger value="billing">חשבונות</TabsTrigger>
               </TabsList>
               
@@ -179,6 +181,10 @@ export default function ClientDetailPage() {
             
             <TabsContent value="contact-lenses">
               <ClientContactLensTab />
+            </TabsContent>
+            
+            <TabsContent value="referrals">
+              <ClientReferralTab />
             </TabsContent>
             
             <TabsContent value="billing">

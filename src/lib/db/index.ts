@@ -17,7 +17,9 @@ import {
   ContactEye,
   ContactLensOrder,
   Billing,
-  OrderLineItem
+  OrderLineItem,
+  Referral,
+  ReferralEye
 } from './schema';
 
 class DatabaseService {
@@ -1333,6 +1335,188 @@ class DatabaseService {
       return contactLensOrder;
     } catch (error) {
       console.error('Error updating contact lens order:', error);
+      return null;
+    }
+  }
+
+  // Referral CRUD operations
+  createReferral(referral: Omit<Referral, 'id'>): Referral | null {
+    if (!this.db) return null;
+    
+    try {
+      const stmt = this.db.prepare(`
+        INSERT INTO referrals (
+          client_id, referral_notes, prescription_notes, comb_va, comb_high, comb_pd,
+          date, type, branch, recipient
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+      
+      const result = stmt.run(
+        referral.client_id,
+        this.sanitizeValue(referral.referral_notes),
+        this.sanitizeValue(referral.prescription_notes),
+        this.sanitizeValue(referral.comb_va),
+        this.sanitizeValue(referral.comb_high),
+        this.sanitizeValue(referral.comb_pd),
+        this.sanitizeValue(referral.date),
+        this.sanitizeValue(referral.type),
+        this.sanitizeValue(referral.branch),
+        this.sanitizeValue(referral.recipient)
+      );
+      
+      return { ...referral, id: result.lastInsertRowid as number };
+    } catch (error) {
+      console.error('Error creating referral:', error);
+      return null;
+    }
+  }
+
+  getReferralById(id: number): Referral | null {
+    if (!this.db) return null;
+    
+    try {
+      const stmt = this.db.prepare('SELECT * FROM referrals WHERE id = ?');
+      return stmt.get(id) as Referral | null;
+    } catch (error) {
+      console.error('Error getting referral:', error);
+      return null;
+    }
+  }
+
+  getReferralsByClientId(clientId: number): Referral[] {
+    if (!this.db) return [];
+    
+    try {
+      const stmt = this.db.prepare('SELECT * FROM referrals WHERE client_id = ? ORDER BY date DESC');
+      return stmt.all(clientId) as Referral[];
+    } catch (error) {
+      console.error('Error getting referrals by client:', error);
+      return [];
+    }
+  }
+
+  updateReferral(referral: Referral): Referral | null {
+    if (!this.db || !referral.id) return null;
+    
+    try {
+      const stmt = this.db.prepare(`
+        UPDATE referrals SET 
+        client_id = ?, referral_notes = ?, prescription_notes = ?, comb_va = ?, comb_high = ?, comb_pd = ?,
+        date = ?, type = ?, branch = ?, recipient = ?
+        WHERE id = ?
+      `);
+      
+      stmt.run(
+        referral.client_id,
+        this.sanitizeValue(referral.referral_notes),
+        this.sanitizeValue(referral.prescription_notes),
+        this.sanitizeValue(referral.comb_va),
+        this.sanitizeValue(referral.comb_high),
+        this.sanitizeValue(referral.comb_pd),
+        this.sanitizeValue(referral.date),
+        this.sanitizeValue(referral.type),
+        this.sanitizeValue(referral.branch),
+        this.sanitizeValue(referral.recipient),
+        referral.id
+      );
+      
+      return referral;
+    } catch (error) {
+      console.error('Error updating referral:', error);
+      return null;
+    }
+  }
+
+  deleteReferral(id: number): boolean {
+    if (!this.db) return false;
+    
+    try {
+      const stmt = this.db.prepare('DELETE FROM referrals WHERE id = ?');
+      const result = stmt.run(id);
+      return result.changes > 0;
+    } catch (error) {
+      console.error('Error deleting referral:', error);
+      return false;
+    }
+  }
+
+  // ReferralEye CRUD operations
+  createReferralEye(referralEye: Omit<ReferralEye, 'id'>): ReferralEye | null {
+    if (!this.db) return null;
+    
+    try {
+      const stmt = this.db.prepare(`
+        INSERT INTO referral_eye (
+          referral_id, eye, sph, cyl, ax, pris, base, va, add_power, decent, s_base, high, pd
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+      
+      const result = stmt.run(
+        referralEye.referral_id,
+        referralEye.eye,
+        this.sanitizeValue(referralEye.sph),
+        this.sanitizeValue(referralEye.cyl),
+        this.sanitizeValue(referralEye.ax),
+        this.sanitizeValue(referralEye.pris),
+        this.sanitizeValue(referralEye.base),
+        this.sanitizeValue(referralEye.va),
+        this.sanitizeValue(referralEye.add),
+        this.sanitizeValue(referralEye.decent),
+        this.sanitizeValue(referralEye.s_base),
+        this.sanitizeValue(referralEye.high),
+        this.sanitizeValue(referralEye.pd)
+      );
+      
+      return { ...referralEye, id: result.lastInsertRowid as number };
+    } catch (error) {
+      console.error('Error creating referral eye:', error);
+      return null;
+    }
+  }
+
+  getReferralEyesByReferralId(referralId: number): ReferralEye[] {
+    if (!this.db) return [];
+    
+    try {
+      const stmt = this.db.prepare('SELECT id, referral_id, eye, sph, cyl, ax, pris, base, va, add_power as add, decent, s_base, high, pd FROM referral_eye WHERE referral_id = ? ORDER BY eye');
+      return stmt.all(referralId) as ReferralEye[];
+    } catch (error) {
+      console.error('Error getting referral eyes by referral:', error);
+      return [];
+    }
+  }
+
+  updateReferralEye(referralEye: ReferralEye): ReferralEye | null {
+    if (!this.db || !referralEye.id) return null;
+    
+    try {
+      const stmt = this.db.prepare(`
+        UPDATE referral_eye SET 
+        referral_id = ?, eye = ?, sph = ?, cyl = ?, ax = ?, pris = ?, base = ?, va = ?, 
+        add_power = ?, decent = ?, s_base = ?, high = ?, pd = ?
+        WHERE id = ?
+      `);
+      
+      stmt.run(
+        referralEye.referral_id,
+        referralEye.eye,
+        this.sanitizeValue(referralEye.sph),
+        this.sanitizeValue(referralEye.cyl),
+        this.sanitizeValue(referralEye.ax),
+        this.sanitizeValue(referralEye.pris),
+        this.sanitizeValue(referralEye.base),
+        this.sanitizeValue(referralEye.va),
+        this.sanitizeValue(referralEye.add),
+        this.sanitizeValue(referralEye.decent),
+        this.sanitizeValue(referralEye.s_base),
+        this.sanitizeValue(referralEye.high),
+        this.sanitizeValue(referralEye.pd),
+        referralEye.id
+      );
+      
+      return referralEye;
+    } catch (error) {
+      console.error('Error updating referral eye:', error);
       return null;
     }
   }

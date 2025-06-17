@@ -82,4 +82,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getContactLensOrderByContactLens: (contactLensId: number) => ipcRenderer.invoke('db-get-contact-lens-order-by-contact-lens', contactLensId),
   createContactLensOrder: (contactLensOrderData: any) => ipcRenderer.invoke('db-create-contact-lens-order', contactLensOrderData),
   updateContactLensOrder: (contactLensOrderData: any) => ipcRenderer.invoke('db-update-contact-lens-order', contactLensOrderData),
+
+  // Referral operations
+  getReferralsByClient: (clientId: number) => ipcRenderer.invoke('db-get-referrals-by-client', clientId),
+  getReferral: (referralId: number) => ipcRenderer.invoke('db-get-referral', referralId),
+  createReferral: (referralData: any) => ipcRenderer.invoke('db-create-referral', referralData),
+  updateReferral: (referralData: any) => ipcRenderer.invoke('db-update-referral', referralData),
+  deleteReferral: (referralId: number) => ipcRenderer.invoke('db-delete-referral', referralId),
+
+  // ReferralEye operations
+  getReferralEyesByReferral: (referralId: number) => ipcRenderer.invoke('db-get-referral-eyes-by-referral', referralId),
+  createReferralEye: (referralEyeData: any) => ipcRenderer.invoke('db-create-referral-eye', referralEyeData),
+  updateReferralEye: (referralEyeData: any) => ipcRenderer.invoke('db-update-referral-eye', referralEyeData),
 });

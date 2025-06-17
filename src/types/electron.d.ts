@@ -83,6 +83,18 @@ export interface ElectronAPI {
   getContactLensOrderByContactLens: (contactLensId: number) => Promise<any>;
   createContactLensOrder: (contactLensOrderData: any) => Promise<any>;
   updateContactLensOrder: (contactLensOrderData: any) => Promise<any>;
+
+  // Referral operations
+  getReferralsByClient: (clientId: number) => Promise<any[]>;
+  getReferral: (referralId: number) => Promise<any>;
+  createReferral: (referralData: any) => Promise<any>;
+  updateReferral: (referralData: any) => Promise<any>;
+  deleteReferral: (referralId: number) => Promise<boolean>;
+
+  // ReferralEye operations
+  getReferralEyesByReferral: (referralId: number) => Promise<any[]>;
+  createReferralEye: (referralEyeData: any) => Promise<any>;
+  updateReferralEye: (referralEyeData: any) => Promise<any>;
 }
 
 declare global {

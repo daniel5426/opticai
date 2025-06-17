@@ -114,14 +114,48 @@ export interface OrderEye {
   cyl?: number;
   ax?: number;
   pris?: number;
-  base?: string;
-  va?: string;
+  base?: number;
+  va?: number;
   ad?: number;
   diam?: number;
   s_base?: number;
   high?: number;
   pd?: number;
 }
+
+export interface Referral {
+  id?: number;
+  client_id: number;
+  referral_notes: string;
+  prescription_notes?: string;
+  comb_va?: number;
+  comb_high?: number;
+  comb_pd?: number;
+
+  // referral details
+  date?: string;
+  type?: string;
+  branch?: string;
+  recipient?: string;
+}
+
+export interface ReferralEye {
+  id?: number;
+  referral_id: number;
+  eye: string;
+  sph?: number;
+  cyl?: number;
+  ax?: number;
+  pris?: number;
+  base?: number;
+  va?: number;
+  add?: number;
+  decent?: number;
+  s_base?: number;
+  high?: number;
+  pd?: number;
+}
+
 
 export interface OrderLens {
   id?: number;
@@ -511,8 +545,8 @@ export const createTables = (db: Database): void => {
       cyl REAL,
       ax INTEGER,
       pris REAL,
-      base TEXT,
-      va TEXT,
+      base REAL,
+      va REAL,
       ad REAL,
       diam REAL,
       s_base REAL,
@@ -577,6 +611,45 @@ export const createTables = (db: Database): void => {
       notes TEXT,
       lens_order_notes TEXT,
       FOREIGN KEY(order_id) REFERENCES orders(id) ON DELETE CASCADE
+    );
+  `);
+
+  // Create referrals table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS referrals (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      client_id INTEGER NOT NULL,
+      referral_notes TEXT,
+      prescription_notes TEXT,
+      comb_va REAL,
+      comb_high REAL,
+      comb_pd REAL,
+      date DATE,
+      type TEXT,
+      branch TEXT,
+      recipient TEXT,
+      FOREIGN KEY(client_id) REFERENCES clients(id) ON DELETE CASCADE
+    );
+  `);
+
+  // Create referral_eye table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS referral_eye (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      referral_id INTEGER NOT NULL,
+      eye TEXT CHECK(eye IN ('R','L')),
+      sph REAL,
+      cyl REAL,
+      ax INTEGER,
+      pris REAL,
+      base REAL,
+      va REAL,
+      add_power REAL,
+      decent REAL,
+      s_base REAL,
+      high REAL,
+      pd REAL,
+      FOREIGN KEY(referral_id) REFERENCES referrals(id) ON DELETE CASCADE
     );
   `);
 };

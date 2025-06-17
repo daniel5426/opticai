@@ -544,6 +544,80 @@ function setupIpcHandlers() {
       throw error;
     }
   });
+
+  // Referral operations
+  ipcMain.handle('db-get-referrals-by-client', async (event, clientId: number) => {
+    try {
+      return dbService.getReferralsByClientId(clientId);
+    } catch (error) {
+      console.error('Error getting referrals by client:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-get-referral', async (event, referralId: number) => {
+    try {
+      return dbService.getReferralById(referralId);
+    } catch (error) {
+      console.error('Error getting referral:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-create-referral', async (event, referralData) => {
+    try {
+      return dbService.createReferral(referralData);
+    } catch (error) {
+      console.error('Error creating referral:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-update-referral', async (event, referralData) => {
+    try {
+      return dbService.updateReferral(referralData);
+    } catch (error) {
+      console.error('Error updating referral:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-delete-referral', async (event, referralId: number) => {
+    try {
+      return dbService.deleteReferral(referralId);
+    } catch (error) {
+      console.error('Error deleting referral:', error);
+      throw error;
+    }
+  });
+
+  // ReferralEye operations
+  ipcMain.handle('db-get-referral-eyes-by-referral', async (event, referralId: number) => {
+    try {
+      return dbService.getReferralEyesByReferralId(referralId);
+    } catch (error) {
+      console.error('Error getting referral eyes by referral:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-create-referral-eye', async (event, referralEyeData) => {
+    try {
+      return dbService.createReferralEye(referralEyeData);
+    } catch (error) {
+      console.error('Error creating referral eye:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-update-referral-eye', async (event, referralEyeData) => {
+    try {
+      return dbService.updateReferralEye(referralEyeData);
+    } catch (error) {
+      console.error('Error updating referral eye:', error);
+      throw error;
+    }
+  });
 }
 
 async function installExtensions() {

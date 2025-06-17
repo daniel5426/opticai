@@ -11,6 +11,7 @@ import OrderDetailPage from "@/pages/OrderDetailPage";
 import OrderCreatePage from "@/pages/OrderCreatePage";
 import ContactLensDetailPage from "@/pages/ContactLensDetailPage";
 import ContactLensCreatePage from "@/pages/ContactLensCreatePage";
+import ReferralDetailPage from "@/pages/ReferralDetailPage";
 
 // TODO: Steps to add a new route:
 // 1. Create a new page component in the '../pages/' directory (e.g., NewPage.tsx)
@@ -59,6 +60,9 @@ export const ClientDetailRoute = createRoute({
   getParentRoute: () => RootRoute,
   path: "/clients/$clientId",
   component: ClientDetailPage,
+  validateSearch: (search: Record<string, unknown>) => ({
+    tab: search.tab as string,
+  }),
 });
 
 export const ExamDetailRoute = createRoute({
@@ -97,6 +101,21 @@ export const ContactLensCreateRoute = createRoute({
   component: ContactLensCreatePage,
 });
 
+export const ReferralDetailRoute = createRoute({
+  getParentRoute: () => RootRoute,
+  path: "/referrals/$referralId",
+  component: ReferralDetailPage,
+});
+
+export const ReferralCreateRoute = createRoute({
+  getParentRoute: () => RootRoute,
+  path: "/referrals/create",
+  component: ReferralDetailPage,
+  validateSearch: (search: Record<string, unknown>) => ({
+    clientId: search.clientId as string,
+  }),
+});
+
 export const rootTree = RootRoute.addChildren([
   HomeRoute,
   SecondPageRoute,
@@ -109,4 +128,6 @@ export const rootTree = RootRoute.addChildren([
   OrderCreateRoute,
   ContactLensDetailRoute,
   ContactLensCreateRoute,
+  ReferralDetailRoute,
+  ReferralCreateRoute,
 ]);
