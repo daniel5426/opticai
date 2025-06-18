@@ -27,6 +27,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Exam operations
   getExamsByClient: (clientId: number) => ipcRenderer.invoke('db-get-exams-by-client', clientId),
+  getAllExams: () => ipcRenderer.invoke('db-get-all-exams'),
   getExam: (examId: number) => ipcRenderer.invoke('db-get-exam', examId),
   createExam: (examData: any) => ipcRenderer.invoke('db-create-exam', examData),
   updateExam: (examData: any) => ipcRenderer.invoke('db-update-exam', examData),
@@ -39,6 +40,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Order operations
   getOrdersByClient: (clientId: number) => ipcRenderer.invoke('db-get-orders-by-client', clientId),
+  getAllOrders: () => ipcRenderer.invoke('db-get-all-orders'),
   getOrder: (orderId: number) => ipcRenderer.invoke('db-get-order', orderId),
   createOrder: (orderData: any) => ipcRenderer.invoke('db-create-order', orderData),
   updateOrder: (orderData: any) => ipcRenderer.invoke('db-update-order', orderData),
@@ -84,6 +86,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Contact Lens operations
   getContactLensesByClient: (clientId: number) => ipcRenderer.invoke('db-get-contact-lenses-by-client', clientId),
+  getAllContactLenses: () => ipcRenderer.invoke('db-get-all-contact-lenses'),
   getContactLens: (contactLensId: number) => ipcRenderer.invoke('db-get-contact-lens', contactLensId),
   createContactLens: (contactLensData: any) => ipcRenderer.invoke('db-create-contact-lens', contactLensData),
   updateContactLens: (contactLensData: any) => ipcRenderer.invoke('db-update-contact-lens', contactLensData),
@@ -101,6 +104,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Referral operations
   getReferralsByClient: (clientId: number) => ipcRenderer.invoke('db-get-referrals-by-client', clientId),
+  getAllReferrals: () => ipcRenderer.invoke('db-get-all-referrals'),
   getReferral: (referralId: number) => ipcRenderer.invoke('db-get-referral', referralId),
   createReferral: (referralData: any) => ipcRenderer.invoke('db-create-referral', referralData),
   updateReferral: (referralData: any) => ipcRenderer.invoke('db-update-referral', referralData),
@@ -113,6 +117,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Appointment operations
   getAppointmentsByClient: (clientId: number) => ipcRenderer.invoke('db-get-appointments-by-client', clientId),
+  getAllAppointments: () => ipcRenderer.invoke('db-get-all-appointments'),
   getAppointment: (appointmentId: number) => ipcRenderer.invoke('db-get-appointment', appointmentId),
   createAppointment: (appointmentData: any) => ipcRenderer.invoke('db-create-appointment', appointmentData),
   updateAppointment: (appointmentData: any) => ipcRenderer.invoke('db-update-appointment', appointmentData),
