@@ -10,6 +10,15 @@ export async function getContactLensesByClientId(clientId: number): Promise<Cont
   }
 }
 
+export async function getAllContactLenses(): Promise<ContactLens[]> {
+  try {
+    return await window.electronAPI.getAllContactLenses();
+  } catch (error) {
+    console.error('Error getting all contact lenses:', error);
+    return [];
+  }
+}
+
 export async function getContactLensById(contactLensId: number): Promise<ContactLens | undefined> {
   try {
     return await window.electronAPI.getContactLens(contactLensId);

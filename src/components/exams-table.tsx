@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { MoreHorizontal } from "lucide-react";
 import { OpticalExam } from "@/lib/db/schema";
+import { ClientSelectModal } from "@/components/ClientSelectModal";
 
 interface ExamsTableProps {
   data: OpticalExam[];
@@ -44,14 +45,8 @@ export function ExamsTable({ data, clientId }: ExamsTableProps) {
   });
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4" dir="rtl">
       <div className="flex items-center justify-between">
-        <Link
-          to="/clients/$clientId/exams/new"
-          params={{ clientId: String(clientId) }}
-        >
-          <Button>בדיקה חדשה</Button>
-        </Link>
         <div className="flex gap-2">
           <Input
             placeholder="חיפוש בדיקות..."
@@ -61,6 +56,25 @@ export function ExamsTable({ data, clientId }: ExamsTableProps) {
             dir="rtl"
           />
         </div>
+        {clientId > 0 ? (
+          <Link
+            to="/clients/$clientId/exams/new"
+            params={{ clientId: String(clientId) }}
+          >
+            <Button>בדיקה חדשה</Button>
+          </Link>
+        ) : (
+          <ClientSelectModal
+            triggerText="בדיקה חדשה"
+            onClientSelect={(selectedClientId) => {
+              navigate({
+                to: "/clients/$clientId/exams/new",
+                params: { clientId: String(selectedClientId) },
+              });
+            }}
+          />
+        )}
+
       </div>
 
       <div className="rounded-md border">
@@ -91,7 +105,7 @@ export function ExamsTable({ data, clientId }: ExamsTableProps) {
                     navigate({
                       to: "/clients/$clientId/exams/$examId",
                       params: {
-                        clientId: String(clientId),
+                        clientId: String(exam.client_id),
                         examId: String(exam.id),
                       },
                     });
@@ -122,7 +136,7 @@ export function ExamsTable({ data, clientId }: ExamsTableProps) {
                         <Link
                           to="/clients/$clientId/exams/$examId"
                           params={{
-                            clientId: String(clientId),
+                            clientId: String(exam.client_id),
                             examId: String(exam.id),
                           }}
                         >

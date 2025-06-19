@@ -15,6 +15,11 @@ import {
   IconSearch,
   IconSettings,
   IconUsers,
+  IconEye,
+  IconShoppingCart,
+  IconCircleDot,
+  IconArrowForward,
+  IconCalendar,
 } from "@tabler/icons-react"
 import { Link } from "@tanstack/react-router"
 
@@ -69,6 +74,31 @@ const data = {
     },
   ],
   documents: [
+    {
+      name: "בדיקות",
+      url: "/exams",
+      icon: IconEye,
+    },
+    {
+      name: "הזמנות",
+      url: "/orders",
+      icon: IconShoppingCart,
+    },
+    {
+      name: "עדשות מגע",
+      url: "/contact-lenses",
+      icon: IconCircleDot,
+    },
+    {
+      name: "הפניות",
+      url: "/referrals",
+      icon: IconArrowForward,
+    },
+    {
+      name: "תורים",
+      url: "/appointments",
+      icon: IconCalendar,
+    },
   ],
 }
 

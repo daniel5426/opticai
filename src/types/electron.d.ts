@@ -71,6 +71,7 @@ export interface ElectronAPI {
 
   // Contact Lens operations
   getContactLensesByClient: (clientId: number) => Promise<any[]>;
+  getAllContactLenses: () => Promise<any[]>;
   getContactLens: (contactLensId: number) => Promise<any>;
   createContactLens: (contactLensData: any) => Promise<any>;
   updateContactLens: (contactLensData: any) => Promise<any>;
@@ -88,6 +89,7 @@ export interface ElectronAPI {
 
   // Referral operations
   getReferralsByClient: (clientId: number) => Promise<any[]>;
+  getAllReferrals: () => Promise<any[]>;
   getReferral: (referralId: number) => Promise<any>;
   createReferral: (referralData: any) => Promise<any>;
   updateReferral: (referralData: any) => Promise<any>;
@@ -100,6 +102,7 @@ export interface ElectronAPI {
 
   // Appointment operations
   getAppointmentsByClient: (clientId: number) => Promise<any[]>;
+  getAllAppointments: () => Promise<any[]>;
   getAppointment: (appointmentId: number) => Promise<any>;
   createAppointment: (appointmentData: any) => Promise<any>;
   updateAppointment: (appointmentData: any) => Promise<any>;

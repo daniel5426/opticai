@@ -20,6 +20,7 @@ import {
 import { Referral } from "@/lib/db/schema";
 import { deleteReferral } from "@/lib/db/referral-db";
 import { toast } from "sonner";
+import { ClientSelectModal } from "@/components/ClientSelectModal";
 
 interface ReferralTableProps {
   referrals: Referral[];
@@ -72,12 +73,6 @@ export function ReferralTable({
   return (
     <div className="space-y-4" style={{ scrollbarWidth: "none" }}>
       <div className="flex items-center justify-between">
-        <Link to="/referrals/create" search={{ clientId: String(clientId) }}>
-          <Button>
-            <Plus className="mr-2 h-4 w-4" />
-            הפניה חדשה
-          </Button>
-        </Link>
         <Input
           placeholder="חיפוש הפניות..."
           value={searchTerm}
@@ -85,6 +80,24 @@ export function ReferralTable({
           className="w-[250px]"
           dir="rtl"
         />
+                {clientId > 0 ? (
+          <Link to="/referrals/create" search={{ clientId: String(clientId) }}>
+            <Button>
+              <Plus className="mr-2 h-4 w-4" />
+              הפניה חדשה
+            </Button>
+          </Link>
+        ) : (
+          <ClientSelectModal
+            triggerText="הפניה חדשה"
+            onClientSelect={(selectedClientId) => {
+              navigate({
+                to: "/referrals/create",
+                search: { clientId: String(selectedClientId) },
+              });
+            }}
+          />
+        )}
       </div>
 
       <div

@@ -31,6 +31,18 @@ export default function NewClientPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    
+    // Validate required fields
+    if (!formData.first_name?.trim()) {
+      toast.error("שם פרטי הוא שדה חובה")
+      return
+    }
+    
+    if (!formData.last_name?.trim()) {
+      toast.error("שם משפחה הוא שדה חובה")
+      return
+    }
+    
     try {
       // Add file creation date
       const clientData = {
@@ -40,7 +52,7 @@ export default function NewClientPage() {
       const newClient = await createClient(clientData)
       if (newClient) {
         toast.success("לקוח נוצר בהצלחה")
-        navigate({ to: "/clients/$clientId", params: { clientId: String(newClient.id) } })
+        navigate({ to: "/clients/$clientId", params: { clientId: String(newClient.id) }, search: { tab: "details" } })
       } else {
         toast.error("שגיאה ביצירת לקוח חדש")
       }
@@ -69,7 +81,12 @@ export default function NewClientPage() {
         >
           
           <div className="flex justify-between items-center mb-6">
-            <h1 className="text-2xl font-bold" dir="rtl">יצירת לקוח חדש</h1>
+            <div dir="rtl">
+              <h1 className="text-2xl font-bold">יצירת לקוח חדש</h1>
+              <p className="text-sm text-muted-foreground mt-1">
+                שדות המסומנים ב<span className="text-red-500">*</span> הם חובה
+              </p>
+            </div>
             <div className="flex gap-2">
               <Button variant="outline" onClick={handleCancel}>
                 ביטול

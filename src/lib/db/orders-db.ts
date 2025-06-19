@@ -10,6 +10,15 @@ export async function getOrdersByClientId(clientId: number): Promise<Order[]> {
   }
 }
 
+export async function getAllOrders(): Promise<Order[]> {
+  try {
+    return await window.electronAPI.getAllOrders();
+  } catch (error) {
+    console.error('Error getting all orders:', error);
+    return [];
+  }
+}
+
 export async function getOrderById(orderId: number): Promise<Order | undefined> {
   try {
     return await window.electronAPI.getOrder(orderId);

@@ -48,6 +48,32 @@ export function ThemeProvider({
     root.classList.add(theme)
   }, [theme])
 
+  // Sync with Electron native theme
+  useEffect(() => {
+    const syncElectronTheme = async () => {
+      const themeMode = (window as any).themeMode
+      if (!themeMode) return
+
+      try {
+        switch (theme) {
+          case "dark":
+            await themeMode.dark()
+            break
+          case "light":
+            await themeMode.light()
+            break
+          case "system":
+            await themeMode.system()
+            break
+        }
+      } catch (error) {
+        console.error('Error syncing theme with Electron:', error)
+      }
+    }
+
+    syncElectronTheme()
+  }, [theme])
+
   const value = {
     theme,
     setTheme: (theme: Theme) => {

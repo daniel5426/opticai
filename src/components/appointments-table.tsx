@@ -27,6 +27,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { MoreHorizontal } from "lucide-react"
 import { Appointment } from "@/lib/db/schema"
 import { toast } from "sonner"
+import { ClientSelectModal } from "@/components/ClientSelectModal"
 
 interface AppointmentsTableProps {
   data: Appointment[]
@@ -106,6 +107,7 @@ export function AppointmentsTable({ data, clientId, onAppointmentChange }: Appoi
           toast.error("שגיאה בעדכון התור")
         }
       } else {
+        console.log('Creating appointment with data:', formData)
         const result = await window.electronAPI.createAppointment(formData)
         if (result) {
           toast.success("התור נוצר בהצלחה")
@@ -116,6 +118,7 @@ export function AppointmentsTable({ data, clientId, onAppointmentChange }: Appoi
       closeDialog()
       onAppointmentChange()
     } catch (error) {
+      console.error('Error saving appointment:', error)
       toast.error("שגיאה בשמירת התור")
     }
   }
@@ -151,12 +154,22 @@ export function AppointmentsTable({ data, clientId, onAppointmentChange }: Appoi
 
   return (
     <div className="space-y-4" style={{scrollbarWidth: 'none'}}>
-      <div className="flex justify-between items-center">
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen} >
-          <DialogTrigger asChild>
-            <Button onClick={openCreateDialog}>תור חדש</Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-[425px] [&>button]:left-4 [&>button]:right-auto" dir="rtl">
+      <div className="flex justify-between items-center">        
+        <div className="flex gap-2">
+          <Input
+            placeholder="חיפוש תורים..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-[250px]" 
+            dir="rtl"
+          />
+        </div>
+        {clientId > 0 ? (
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen} >
+            <DialogTrigger asChild>
+              <Button onClick={openCreateDialog}>תור חדש</Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[425px] [&>button]:left-4 [&>button]:right-auto" dir="rtl">
             <DialogHeader className="text-right">
               <DialogTitle className="text-right">{editingAppointment ? 'עריכת תור' : 'תור חדש'}</DialogTitle>
             </DialogHeader>
@@ -229,17 +242,99 @@ export function AppointmentsTable({ data, clientId, onAppointmentChange }: Appoi
             </div>
           </DialogContent>
         </Dialog>
-        
-        <div className="flex gap-2">
-          <Input
-            placeholder="חיפוש תורים..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-[250px]" 
-            dir="rtl"
+        ) : (
+          <ClientSelectModal
+            triggerText="תור חדש"
+            onClientSelect={(selectedClientId) => {
+              setEditingAppointment(null)
+              setFormData({
+                client_id: selectedClientId,
+                date: '',
+                time: '',
+                client_name: '',
+                exam_name: '',
+                note: ''
+              })
+              setIsDialogOpen(true)
+            }}
           />
-        </div>
+        )}
       </div>
+
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen} >
+        <DialogContent className="sm:max-w-[425px] [&>button]:left-4 [&>button]:right-auto" dir="rtl">
+          <DialogHeader className="text-right">
+            <DialogTitle className="text-right">{editingAppointment ? 'עריכת תור' : 'תור חדש'}</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-2 gap-4" dir="rtl">
+              <div className="space-y-2">
+                <Label htmlFor="time" className="text-right block">שעה</Label>
+                <Input
+                  id="time"
+                  name="time"
+                  type="time"
+                  value={formData.time}
+                  onChange={handleInputChange}
+                  style={{ textAlign: 'right', direction: 'rtl', paddingLeft: '55%' }}
+                  className="[&::-webkit-datetime-edit]:text-right"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="date" className="text-right block">תאריך</Label>
+                <Input
+                  id="date"
+                  name="date"
+                  type="date"
+                  value={formData.date}
+                  onChange={handleInputChange}
+                  style={{ textAlign: 'right', direction: 'rtl', paddingLeft: '25%' }}
+                  className="[&::-webkit-datetime-edit]:text-right"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="client_name" className="text-right">שם לקוח</Label>
+              <Input
+                id="client_name"
+                name="client_name"
+                value={formData.client_name}
+                onChange={handleInputChange}
+                className="col-span-3"
+                dir="rtl"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="exam_name" className="text-right">סוג בדיקה</Label>
+              <Input
+                id="exam_name"
+                name="exam_name"
+                value={formData.exam_name}
+                onChange={handleInputChange}
+                className="col-span-3"
+                dir="rtl"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="note" className="text-right">הערות</Label>
+              <Textarea
+                id="note"
+                name="note"
+                value={formData.note}
+                onChange={handleInputChange}
+                className="col-span-3"
+                dir="rtl"
+              />
+            </div>
+          </div>
+          <div className="flex justify-start gap-2">
+            <Button onClick={handleSave}>שמור</Button>
+            <Button variant="outline" onClick={closeDialog}>
+              ביטול
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <div className="rounded-md border">
         <Table dir="rtl">
@@ -258,7 +353,7 @@ export function AppointmentsTable({ data, clientId, onAppointmentChange }: Appoi
               <TableRow>
                 <TableCell
                   colSpan={6}
-                  className="h-24 text-center"
+                  className="h-24 text-center text-muted-foreground"
                 >
                   לא נמצאו תורים לתצוגה
                 </TableCell>

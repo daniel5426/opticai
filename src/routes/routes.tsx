@@ -12,6 +12,11 @@ import OrderCreatePage from "@/pages/OrderCreatePage";
 import ContactLensDetailPage from "@/pages/ContactLensDetailPage";
 import ContactLensCreatePage from "@/pages/ContactLensCreatePage";
 import ReferralDetailPage from "@/pages/ReferralDetailPage";
+import AllExamsPage from "@/pages/AllExamsPage";
+import AllOrdersPage from "@/pages/AllOrdersPage";
+import AllContactLensesPage from "@/pages/AllContactLensesPage";
+import AllReferralsPage from "@/pages/AllReferralsPage";
+import AllAppointmentsPage from "@/pages/AllAppointmentsPage";
 
 // TODO: Steps to add a new route:
 // 1. Create a new page component in the '../pages/' directory (e.g., NewPage.tsx)
@@ -116,6 +121,37 @@ export const ReferralCreateRoute = createRoute({
   }),
 });
 
+// Global pages routes
+export const AllExamsRoute = createRoute({
+  getParentRoute: () => RootRoute,
+  path: "/exams",
+  component: AllExamsPage,
+});
+
+export const AllOrdersRoute = createRoute({
+  getParentRoute: () => RootRoute,
+  path: "/orders",
+  component: AllOrdersPage,
+});
+
+export const AllContactLensesRoute = createRoute({
+  getParentRoute: () => RootRoute,
+  path: "/contact-lenses",
+  component: AllContactLensesPage,
+});
+
+export const AllReferralsRoute = createRoute({
+  getParentRoute: () => RootRoute,
+  path: "/referrals",
+  component: AllReferralsPage,
+});
+
+export const AllAppointmentsRoute = createRoute({
+  getParentRoute: () => RootRoute,
+  path: "/appointments",
+  component: AllAppointmentsPage,
+});
+
 export const rootTree = RootRoute.addChildren([
   HomeRoute,
   SecondPageRoute,
@@ -130,4 +166,9 @@ export const rootTree = RootRoute.addChildren([
   ContactLensCreateRoute,
   ReferralDetailRoute,
   ReferralCreateRoute,
+  AllExamsRoute,
+  AllOrdersRoute,
+  AllContactLensesRoute,
+  AllReferralsRoute,
+  AllAppointmentsRoute,
 ]);

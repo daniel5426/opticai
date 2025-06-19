@@ -21,6 +21,7 @@ import { MoreHorizontal, Trash2 } from "lucide-react";
 import { ContactLens } from "@/lib/db/schema";
 import { deleteContactLens } from "@/lib/db/contact-lens-db";
 import { toast } from "sonner";
+import { ClientSelectModal } from "@/components/ClientSelectModal";
 
 interface ContactLensTableProps {
   data: ContactLens[];
@@ -75,12 +76,6 @@ export function ContactLensTable({
   return (
     <div className="space-y-4" style={{ scrollbarWidth: "none" }}>
       <div className="flex items-center justify-between">
-        <Link
-          to="/clients/$clientId/contact-lenses/new"
-          params={{ clientId: String(clientId) }}
-        >
-          <Button>עדשות מגע חדש</Button>
-        </Link>
         <div className="flex gap-2">
           <Input
             placeholder="חיפוש עדשות מגע..."
@@ -90,6 +85,25 @@ export function ContactLensTable({
             dir="rtl"
           />
         </div>
+        {clientId > 0 ? (
+          <Link
+            to="/clients/$clientId/contact-lenses/new"
+            params={{ clientId: String(clientId) }}
+          >
+            <Button>עדשות מגע חדש</Button>
+          </Link>
+        ) : (
+          <ClientSelectModal
+            triggerText="עדשות מגע חדש"
+            onClientSelect={(selectedClientId) => {
+              navigate({
+                to: "/clients/$clientId/contact-lenses/new",
+                params: { clientId: String(selectedClientId) },
+              });
+            }}
+          />
+        )}
+
       </div>
 
       <div className="rounded-md border">
@@ -107,7 +121,7 @@ export function ContactLensTable({
           <TableBody>
             {filteredData.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="h-24 text-center">
+                <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
                   לא נמצאו בדיקות עדשות מגע לתצוגה
                 </TableCell>
               </TableRow>
@@ -121,7 +135,7 @@ export function ContactLensTable({
                       navigate({
                         to: "/clients/$clientId/contact-lenses/$contactLensId",
                         params: {
-                          clientId: String(clientId),
+                          clientId: String(contactLens.client_id),
                           contactLensId: String(contactLens.id),
                         },
                       });
@@ -154,7 +168,7 @@ export function ContactLensTable({
                           <Link
                             to="/clients/$clientId/contact-lenses/$contactLensId"
                             params={{
-                              clientId: String(clientId),
+                              clientId: String(contactLens.client_id),
                               contactLensId: String(contactLens.id),
                             }}
                           >

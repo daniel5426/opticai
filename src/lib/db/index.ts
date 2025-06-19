@@ -1424,7 +1424,7 @@ class DatabaseService {
     if (!this.db) return [];
     
     try {
-      const stmt = this.db.prepare('SELECT * FROM referrals WHERE client_id = ? ORDER BY referral_date DESC');
+      const stmt = this.db.prepare('SELECT * FROM referrals WHERE client_id = ? ORDER BY date DESC');
       return stmt.all(clientId) as Referral[];
     } catch (error) {
       console.error('Error getting referrals by client:', error);
@@ -1436,7 +1436,7 @@ class DatabaseService {
     if (!this.db) return [];
     
     try {
-      const stmt = this.db.prepare('SELECT * FROM referrals ORDER BY referral_date DESC');
+      const stmt = this.db.prepare('SELECT * FROM referrals ORDER BY date DESC');
       return stmt.all() as Referral[];
     } catch (error) {
       console.error('Error getting all referrals:', error);
@@ -1612,7 +1612,7 @@ class DatabaseService {
     if (!this.db) return [];
     
     try {
-      const stmt = this.db.prepare('SELECT * FROM appointments WHERE client_id = ? ORDER BY appointment_date DESC');
+      const stmt = this.db.prepare('SELECT * FROM appointments WHERE client_id = ? ORDER BY date DESC');
       return stmt.all(clientId) as Appointment[];
     } catch (error) {
       console.error('Error getting appointments by client:', error);
@@ -1624,7 +1624,7 @@ class DatabaseService {
     if (!this.db) return [];
     
     try {
-      const stmt = this.db.prepare('SELECT * FROM appointments ORDER BY appointment_date DESC');
+      const stmt = this.db.prepare('SELECT * FROM appointments ORDER BY date DESC');
       return stmt.all() as Appointment[];
     } catch (error) {
       console.error('Error getting all appointments:', error);

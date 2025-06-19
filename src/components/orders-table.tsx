@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { MoreHorizontal } from "lucide-react"
 import { Order } from "@/lib/db/schema"
+import { ClientSelectModal } from "@/components/ClientSelectModal"
 
 interface OrdersTableProps {
   data: Order[]
@@ -44,9 +45,6 @@ export function OrdersTable({ data, clientId }: OrdersTableProps) {
   return (
     <div className="space-y-4" style={{scrollbarWidth: 'none'}}>
       <div className="flex justify-between items-center">
-      <Link to="/clients/$clientId/orders/new" params={{ clientId: String(clientId) }}>
-          <Button>הזמנה חדשה</Button>
-        </Link>
         <div className="flex gap-2">
           <Input
             placeholder="חיפוש הזמנות..."
@@ -55,6 +53,21 @@ export function OrdersTable({ data, clientId }: OrdersTableProps) {
             className="w-[250px]" dir="rtl"
           />
         </div>
+        {clientId > 0 ? (
+          <Link to="/clients/$clientId/orders/new" params={{ clientId: String(clientId) }}>
+            <Button>הזמנה חדשה</Button>
+          </Link>
+        ) : (
+          <ClientSelectModal
+            triggerText="הזמנה חדשה"
+            onClientSelect={(selectedClientId) => {
+              navigate({
+                to: "/clients/$clientId/orders/new",
+                params: { clientId: String(selectedClientId) },
+              });
+            }}
+          />
+        )}
       </div>
 
       <div className="rounded-md border">
@@ -74,7 +87,7 @@ export function OrdersTable({ data, clientId }: OrdersTableProps) {
               <TableRow>
                 <TableCell
                   colSpan={6}
-                  className="h-24 text-center"
+                  className="h-24 text-center text-muted-foreground"
                 >
                   לא נמצאו הזמנות לתצוגה
                 </TableCell>
@@ -84,15 +97,18 @@ export function OrdersTable({ data, clientId }: OrdersTableProps) {
                 return (
                   <TableRow 
                     key={order.id}
-                    className="cursor-pointer"
+                    className={clientId > 0 ? "cursor-pointer" : ""}
                     onClick={() => {
-                      navigate({
-                        to: "/clients/$clientId/orders/$orderId",
-                        params: { 
-                          clientId: String(clientId), 
-                          orderId: String(order.id) 
-                        }
-                      })
+                      // Only allow navigation if we have a valid client ID
+                      if (clientId > 0) {
+                        navigate({
+                          to: "/clients/$clientId/orders/$orderId",
+                          params: { 
+                            clientId: String(clientId), 
+                            orderId: String(order.id) 
+                          }
+                        })
+                      }
                     }}
                   >
                     <TableCell>
@@ -103,22 +119,24 @@ export function OrdersTable({ data, clientId }: OrdersTableProps) {
                     <TableCell>{order.comb_va ? `6/${order.comb_va}` : ''}</TableCell>
                     <TableCell>{order.comb_pd}</TableCell>
                     <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            className="h-8 w-8 p-0"
-                          >
-                            <span className="sr-only">פתח תפריט</span>
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <Link to="/clients/$clientId/orders/$orderId" params={{ clientId: String(clientId), orderId: String(order.id) }}>
-                            <DropdownMenuItem>פרטי הזמנה</DropdownMenuItem>
-                          </Link>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                      {clientId > 0 && (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              className="h-8 w-8 p-0"
+                            >
+                              <span className="sr-only">פתח תפריט</span>
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <Link to="/clients/$clientId/orders/$orderId" params={{ clientId: String(clientId), orderId: String(order.id) }}>
+                              <DropdownMenuItem>פרטי הזמנה</DropdownMenuItem>
+                            </Link>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      )}
                     </TableCell>
                   </TableRow>
                 )

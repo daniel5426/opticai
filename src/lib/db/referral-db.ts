@@ -10,6 +10,15 @@ export async function getReferralsByClientId(clientId: number): Promise<Referral
   }
 }
 
+export async function getAllReferrals(): Promise<Referral[]> {
+  try {
+    return await window.electronAPI.getAllReferrals();
+  } catch (error) {
+    console.error('Error getting all referrals:', error);
+    return [];
+  }
+}
+
 export async function getReferralById(referralId: number): Promise<Referral | null> {
   try {
     return await window.electronAPI.getReferral(referralId);

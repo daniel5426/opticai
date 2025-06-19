@@ -10,6 +10,15 @@ export async function getExamsByClientId(clientId: number): Promise<OpticalExam[
   }
 }
 
+export async function getAllExams(): Promise<OpticalExam[]> {
+  try {
+    return await window.electronAPI.getAllExams();
+  } catch (error) {
+    console.error('Error getting all exams:', error);
+    return [];
+  }
+}
+
 export async function getExamById(examId: number): Promise<OpticalExam | undefined> {
   try {
     return await window.electronAPI.getExam(examId);

@@ -9,6 +9,15 @@ export async function getAppointmentsByClient(clientId: number): Promise<Appoint
   }
 }
 
+export async function getAllAppointments(): Promise<Appointment[]> {
+  try {
+    return await window.electronAPI.getAllAppointments();
+  } catch (error) {
+    console.error('Error getting all appointments:', error);
+    return [];
+  }
+}
+
 export async function getAppointmentById(id: number): Promise<Appointment | null> {
   try {
     return await window.electronAPI.getAppointment(id);
