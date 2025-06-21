@@ -72,11 +72,11 @@ export function BillingTab({
         const numericFields = ['price', 'quantity', 'discount'];
         if (numericFields.includes(field)) {
           const numValue = parseFloat(value);
-          (newItem as any)[field] = value === '' || isNaN(numValue) ? undefined : numValue;
+          (newItem as Record<string, unknown>)[field] = value === '' || isNaN(numValue) ? undefined : numValue;
         } else if (field === 'supplied') {
-          (newItem as any)[field] = value === 'true';
+          (newItem as Record<string, unknown>)[field] = value === 'true';
         } else {
-          (newItem as any)[field] = value;
+          (newItem as Record<string, unknown>)[field] = value;
         }
         
         if (field === 'price' || field === 'quantity' || field === 'discount') {
@@ -95,11 +95,11 @@ export function BillingTab({
           const numericFields = ['price', 'quantity', 'discount'];
           if (numericFields.includes(field)) {
             const numValue = parseFloat(value);
-            (updatedItem as any)[field] = value === '' || isNaN(numValue) ? undefined : numValue;
+            (updatedItem as Record<string, unknown>)[field] = value === '' || isNaN(numValue) ? undefined : numValue;
           } else if (field === 'supplied') {
-            (updatedItem as any)[field] = value === 'true';
+            (updatedItem as Record<string, unknown>)[field] = value === 'true';
           } else {
-            (updatedItem as any)[field] = value;
+            (updatedItem as Record<string, unknown>)[field] = value;
           }
           
           if (field === 'price' || field === 'quantity' || field === 'discount') {
@@ -177,7 +177,7 @@ export function BillingTab({
             </div>
             
             <div>
-              <Label className="text-sm">סה"כ לפני הנחה</Label>
+              <Label className="text-sm">סה&quot;כ לפני הנחה</Label>
               <Input
                 name="total_before_discount"
                 type="number"
@@ -215,7 +215,7 @@ export function BillingTab({
               </div>
             </div>
             <div>
-              <Label className="text-sm">סה"כ אחרי הנחה</Label>
+              <Label className="text-sm">סה&quot;כ אחרי הנחה</Label>
               <Input
                 name="total_after_discount"
                 type="number"
@@ -255,9 +255,9 @@ export function BillingTab({
                   <th className="text-right p-2 text-sm font-medium">מחיר</th>
                   <th className="text-right p-2 text-sm font-medium">כמות</th>
                   <th className="text-right p-2 text-sm font-medium">הנחה</th>
-                  <th className="text-right p-2 text-sm font-medium">סיפק ע"י</th>
+                  <th className="text-right p-2 text-sm font-medium">סיפק ע&quot;י</th>
                   <th className="text-right p-2 text-sm font-medium">סופק</th>
-                  <th className="text-right p-2 text-sm font-medium">סה"כ</th>
+                  <th className="text-right p-2 text-sm font-medium">סה&quot;כ</th>
                   <th className="text-right p-2 text-sm font-medium">פעולות</th>
                 </tr>
               </thead>

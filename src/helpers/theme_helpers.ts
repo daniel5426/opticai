@@ -1,4 +1,5 @@
-import { ThemeMode } from "@/types/theme-mode";
+/// <reference path="../types/electron.d.ts" />
+import { ThemeMode } from "../types/theme-mode";
 
 const THEME_KEY = "theme";
 
@@ -16,7 +17,7 @@ export async function getCurrentTheme(): Promise<ThemePreferences> {
     };
   }
   
-  const currentTheme = await window.themeMode.current();
+  const currentTheme = await window.themeMode.current() as ThemeMode;
   const localTheme = localStorage.getItem(THEME_KEY) as ThemeMode | null;
 
   return {

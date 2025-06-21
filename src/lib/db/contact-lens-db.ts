@@ -1,5 +1,4 @@
-/// <reference path="../../types/electron.d.ts" />
-import { ContactLens, ContactEye, ContactLensOrder } from './schema'
+import { ContactLens, ContactEye, ContactLensOrder, Billing } from './schema'
 
 export async function getContactLensesByClientId(clientId: number): Promise<ContactLens[]> {
   try {
@@ -109,7 +108,7 @@ export async function deleteContactLens(contactLensId: number): Promise<boolean>
   }
 }
 
-export async function getBillingByContactLensId(contactLensId: number): Promise<any> {
+export async function getBillingByContactLensId(contactLensId: number): Promise<Billing | null> {
   try {
     return await window.electronAPI.getBillingByContactLens(contactLensId);
   } catch (error) {

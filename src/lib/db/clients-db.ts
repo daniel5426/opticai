@@ -1,4 +1,3 @@
-/// <reference path="../../types/electron.d.ts" />
 import { Client } from "./schema";
 
 // Function to get all clients

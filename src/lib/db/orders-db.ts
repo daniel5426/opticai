@@ -1,4 +1,3 @@
-/// <reference path="../../types/electron.d.ts" />
 import { Order, OrderEye, OrderLens, Frame, OrderDetails } from './schema'
 
 export async function getOrdersByClientId(clientId: number): Promise<Order[]> {

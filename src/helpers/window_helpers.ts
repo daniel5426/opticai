@@ -1,3 +1,5 @@
+/// <reference path="../types/electron.d.ts" />
+
 export async function minimizeWindow() {
   if (!window.electronWindow) {
     console.error('electronWindow is not available on window object');

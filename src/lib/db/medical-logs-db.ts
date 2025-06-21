@@ -1,4 +1,3 @@
-/// <reference path="../../types/electron.d.ts" />
 import { MedicalLog } from "./schema";
 
 export async function getMedicalLogsByClientId(clientId: number): Promise<MedicalLog[]> {

@@ -1,4 +1,3 @@
-/// <reference path="../../types/electron.d.ts" />
 import { Billing, OrderLineItem } from './schema'
 
 export async function getBillingByOrderId(orderId: number): Promise<Billing | undefined> {

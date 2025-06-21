@@ -109,10 +109,26 @@ export interface ElectronAPI {
   deleteAppointment: (appointmentId: number) => Promise<boolean>;
 }
 
+interface ThemeMode {
+  current: () => Promise<string>;
+  dark: () => Promise<void>;
+  light: () => Promise<void>;
+  system: () => Promise<boolean>;
+  toggle: () => Promise<boolean>;
+}
+
+interface ElectronWindow {
+  minimize: () => Promise<void>;
+  maximize: () => Promise<void>;
+  close: () => Promise<void>;
+}
+
 declare global {
   interface Window {
     ipcRenderer: IpcRenderer;
     electronAPI: ElectronAPI;
+    themeMode: ThemeMode;
+    electronWindow: ElectronWindow;
   }
 }
 

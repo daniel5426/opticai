@@ -1,4 +1,3 @@
-/// <reference path="../../types/electron.d.ts" />
 import { OpticalExam, OpticalEyeExam } from "./schema";
 
 export async function getExamsByClientId(clientId: number): Promise<OpticalExam[]> {

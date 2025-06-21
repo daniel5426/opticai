@@ -1,4 +1,3 @@
-/// <reference path="../../types/electron.d.ts" />
 import { Referral, ReferralEye } from './schema'
 
 export async function getReferralsByClientId(clientId: number): Promise<Referral[]> {
