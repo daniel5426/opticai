@@ -1,8 +1,5 @@
 import React, { useState, useRef, useEffect } from "react"
 import { useParams } from "@tanstack/react-router"
-import { SidebarInset } from "@/components/ui/sidebar"
-import { AppSidebar } from "@/components/app-sidebar"
-import { SidebarProvider } from "@/components/ui/sidebar"
 import { SiteHeader } from "@/components/site-header"
 import { getClientById, updateClient } from "@/lib/db/clients-db"
 import { Client } from "@/lib/db/schema"
@@ -91,96 +88,87 @@ export default function ClientDetailPage() {
   
   if (loading) {
     return (
-      <SidebarProvider dir="rtl">
-        <AppSidebar variant="inset" side="right" />
-        <SidebarInset>
-          <SiteHeader title="לקוחות" backLink="/clients" />
-          <div className="flex flex-col items-center justify-center h-full">
-            <div className="text-lg">טוען פרטי לקוח...</div>
-          </div>
-        </SidebarInset>
-      </SidebarProvider>
+      <>
+        <SiteHeader title="לקוחות" backLink="/clients" />
+        <div className="flex flex-col items-center justify-center h-full">
+          <div className="text-lg">טוען פרטי לקוח...</div>
+        </div>
+      </>
     )
   }
   
   if (!client) {
     return (
-      <SidebarProvider dir="rtl">
-        <AppSidebar variant="inset" side="right" />
-        <SidebarInset>
-          <SiteHeader title="לקוחות" backLink="/clients" />
-          <div className="flex flex-col items-center justify-center h-full">
-            <h1 className="text-2xl">לקוח לא נמצא</h1>
-          </div>
-        </SidebarInset>
-      </SidebarProvider>
+      <>
+        <SiteHeader title="לקוחות" backLink="/clients" />
+        <div className="flex flex-col items-center justify-center h-full">
+          <h1 className="text-2xl">לקוח לא נמצא</h1>
+        </div>
+      </>
     )
   }
 
   const fullName = `${client.first_name} ${client.last_name}`.trim()
   
   return (
-    <SidebarProvider dir="rtl">
-      <AppSidebar variant="inset" side="right" />
-      <SidebarInset className="overflow-auto scrollbar-hide" style={{scrollbarWidth: 'none', msOverflowStyle: 'none'}}>
-        <SiteHeader 
-          title="לקוחות" 
-          backLink="/clients"
-          clientName={fullName}
-          tabs={{
-            activeTab,
-            onTabChange: setActiveTab
-          }}
-        />
-        <div className="flex flex-col flex-1 p-4 lg:p-6 mb-30" dir="rtl">
-          <Tabs 
-            value={activeTab}
-            className="w-full"
-            onValueChange={(value) => setActiveTab(value)}
-          >
-            <TabsContent value="details">
-              <ClientDetailsTab 
-                client={client}
-                formData={formData}
-                isEditing={isEditing}
-                handleInputChange={handleInputChange}
-                handleSelectChange={handleSelectChange}
-                formRef={formRef as React.RefObject<HTMLFormElement>}
-                setIsEditing={setIsEditing}
-                handleSave={handleSave}
-              />
-            </TabsContent>
-            
-            <TabsContent value="exams">
-              <ClientExamsTab />
-            </TabsContent>
-            
-            <TabsContent value="medical">
-              <ClientMedicalRecordTab />
-            </TabsContent>
-            
-            <TabsContent value="orders">
-              <ClientOrdersTab key={refreshKey} />
-            </TabsContent>
-            
-            <TabsContent value="contact-lenses">
-              <ClientContactLensTab />
-            </TabsContent>
-            
-            <TabsContent value="referrals">
-              <ClientReferralTab />
-            </TabsContent>
-            
-            <TabsContent value="appointments">
-              <ClientAppointmentsTab />
-            </TabsContent>
-            
-            <TabsContent value="billing">
-              <ClientBillingTab />
-            </TabsContent>
-          </Tabs>
-        </div>
-      </SidebarInset>
-    </SidebarProvider>
+    <>
+      <SiteHeader 
+        title="לקוחות" 
+        backLink="/clients"
+        clientName={fullName}
+        tabs={{
+          activeTab,
+          onTabChange: setActiveTab
+        }}
+      />
+      <div className="flex flex-col flex-1 p-4 lg:p-6 mb-30 overflow-auto scrollbar-hide" dir="rtl" style={{scrollbarWidth: 'none', msOverflowStyle: 'none'}}>
+        <Tabs 
+          value={activeTab}
+          className="w-full"
+          onValueChange={(value) => setActiveTab(value)}
+        >
+          <TabsContent value="details">
+            <ClientDetailsTab 
+              client={client}
+              formData={formData}
+              isEditing={isEditing}
+              handleInputChange={handleInputChange}
+              handleSelectChange={handleSelectChange}
+              formRef={formRef as React.RefObject<HTMLFormElement>}
+              setIsEditing={setIsEditing}
+              handleSave={handleSave}
+            />
+          </TabsContent>
+          
+          <TabsContent value="exams">
+            <ClientExamsTab />
+          </TabsContent>
+          
+          <TabsContent value="medical">
+            <ClientMedicalRecordTab />
+          </TabsContent>
+          
+          <TabsContent value="orders">
+            <ClientOrdersTab key={refreshKey} />
+          </TabsContent>
+          
+          <TabsContent value="contact-lenses">
+            <ClientContactLensTab />
+          </TabsContent>
+          
+          <TabsContent value="referrals">
+            <ClientReferralTab />
+          </TabsContent>
+          
+          <TabsContent value="appointments">
+            <ClientAppointmentsTab />
+          </TabsContent>
+          
+          <TabsContent value="billing">
+            <ClientBillingTab />
+          </TabsContent>
+        </Tabs>
+      </div>
+    </>
   )
 } 

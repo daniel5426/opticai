@@ -37,16 +37,12 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
 import { cn } from "@/utils/tailwind"
+import { User } from "@/lib/db/schema"
 
 const data = {
-  user: {
-    name: "shadcn",
-    email: "m@example.com",
-    avatar: "/avatars/shadcn.jpg",
-  },
   navMain: [
     {
-      title: "Dashboard",
+      title: "דשבורד",
       url: "/",
       icon: IconDashboard,
     },
@@ -59,7 +55,7 @@ const data = {
   navSecondary: [
     {
       title: "Settings",
-      url: "#",
+      url: "/settings",
       icon: IconSettings,
     },
     {
@@ -102,7 +98,14 @@ const data = {
   ],
 }
 
-export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+export function AppSidebar({ 
+  clinicName, 
+  currentUser, 
+  ...props 
+}: React.ComponentProps<typeof Sidebar> & { 
+  clinicName?: string;
+  currentUser?: User;
+}) {
   return (
     <Sidebar collapsible="offcanvas" {...props}>
       <SidebarHeader>
@@ -114,7 +117,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             >
               <Link to="/">
                 <IconInnerShadowTop className="!size-5" />
-                <span className="text-base font-semibold">אופטיקל קליניק</span>
+                <span className="text-base font-semibold">{clinicName || "אופטיקל קליניק"}</span>
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
@@ -126,7 +129,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         <NavSecondary items={data.navSecondary} className="mt-auto" />
       </SidebarContent>
       <SidebarFooter>
-        <NavUser user={data.user} />
+        <NavUser currentUser={currentUser} />
       </SidebarFooter>
     </Sidebar>
   )

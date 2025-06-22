@@ -12,9 +12,9 @@ interface DragWindowRegionProps {
 
 export default function DragWindowRegion({ title }: DragWindowRegionProps) {
   return (
-    <div className="bg-sidebar border-sidebar-border">
+    <div className="bg-secondary border-sidebar-border">
       <div className="flex w-screen items-center h-8">
-        <div className="draglayer flex-1 bg-sidebar px-3">
+        <div className="draglayer flex-1 bg-secondary px-3">
           {title && (
             <div className="flex items-center select-none whitespace-nowrap text-sm text-sidebar-foreground/70 font-medium">
               {title}

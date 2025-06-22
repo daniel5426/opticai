@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from "react"
+import { applyThemeColorsFromSettings } from "@/helpers/theme_helpers"
 
 type Theme = "dark" | "light" | "system"
 
@@ -35,17 +36,22 @@ export function ThemeProvider({
 
     root.classList.remove("light", "dark")
 
+    let actualTheme = theme
     if (theme === "system") {
-      const systemTheme = window.matchMedia("(prefers-color-scheme: dark)")
+      actualTheme = window.matchMedia("(prefers-color-scheme: dark)")
         .matches
         ? "dark"
         : "light"
-
-      root.classList.add(systemTheme)
-      return
     }
 
-    root.classList.add(theme)
+    root.classList.add(actualTheme)
+    
+    if (actualTheme === "dark") {
+      root.style.removeProperty('--primary')
+      root.style.removeProperty('--secondary')
+    } else {
+      applyThemeColorsFromSettings()
+    }
   }, [theme])
 
   // Sync with Electron native theme

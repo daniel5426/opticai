@@ -1,8 +1,5 @@
 import React, { useState, useRef, useEffect } from "react"
 import { useParams, useNavigate, Link } from "@tanstack/react-router"
-import { SidebarInset } from "@/components/ui/sidebar"
-import { AppSidebar } from "@/components/app-sidebar"
-import { SidebarProvider } from "@/components/ui/sidebar"
 import { SiteHeader } from "@/components/site-header"
 import { getClientById } from "@/lib/db/clients-db"
 import { getExamById, getEyeExamsByExamId, updateExam, updateEyeExam, createExam, createEyeExam } from "@/lib/db/exams-db"
@@ -880,38 +877,30 @@ export default function ExamDetailPage({
   
   if (loading) {
     return (
-      <SidebarProvider dir="rtl">
-        <AppSidebar variant="inset" side="right" />
-        <SidebarInset>
-          <SiteHeader title="לקוחות" backLink="/clients" />
-          <div className="flex flex-col items-center justify-center h-full">
-            <h1 className="text-2xl">טוען נתונים...</h1>
-          </div>
-        </SidebarInset>
-      </SidebarProvider>
+      <>
+        <SiteHeader title="לקוחות" backLink="/clients" />
+        <div className="flex flex-col items-center justify-center h-full">
+          <h1 className="text-2xl">טוען נתונים...</h1>
+        </div>
+      </>
     )
   }
   
   if (!client || (!isNewMode && (!exam || !rightEyeExam || !leftEyeExam))) {
     return (
-      <SidebarProvider dir="rtl">
-        <AppSidebar variant="inset" side="right" />
-        <SidebarInset>
-          <SiteHeader title="לקוחות" backLink="/clients" />
-          <div className="flex flex-col items-center justify-center h-full">
-            <h1 className="text-2xl">{isNewMode ? "לקוח לא נמצא" : "בדיקה לא נמצאה"}</h1>
-          </div>
-        </SidebarInset>
-      </SidebarProvider>
+      <>
+        <SiteHeader title="לקוחות" backLink="/clients" />
+        <div className="flex flex-col items-center justify-center h-full">
+          <h1 className="text-2xl">{isNewMode ? "לקוח לא נמצא" : "בדיקה לא נמצאה"}</h1>
+        </div>
+      </>
     )
   }
 
   const fullName = `${client.first_name} ${client.last_name}`.trim()
   
   return (
-    <SidebarProvider dir="rtl">
-      <AppSidebar variant="inset" side="right" />
-      <SidebarInset>
+    <>
         <SiteHeader 
           title="לקוחות" 
           backLink="/clients"
@@ -1115,7 +1104,6 @@ export default function ExamDetailPage({
             </div>
           </form>
         </div>
-      </SidebarInset>
-    </SidebarProvider>
-  )
+      </>
+    )
 } 

@@ -17,6 +17,8 @@ import AllOrdersPage from "@/pages/AllOrdersPage";
 import AllContactLensesPage from "@/pages/AllContactLensesPage";
 import AllReferralsPage from "@/pages/AllReferralsPage";
 import AllAppointmentsPage from "@/pages/AllAppointmentsPage";
+import SettingsPage from "@/pages/SettingsPage";
+import UserSelectionPage from "@/pages/UserSelectionPage";
 
 // TODO: Steps to add a new route:
 // 1. Create a new page component in the '../pages/' directory (e.g., NewPage.tsx)
@@ -152,6 +154,12 @@ export const AllAppointmentsRoute = createRoute({
   component: AllAppointmentsPage,
 });
 
+export const SettingsRoute = createRoute({
+  getParentRoute: () => RootRoute,
+  path: "/settings",
+  component: SettingsPage,
+});
+
 export const rootTree = RootRoute.addChildren([
   HomeRoute,
   SecondPageRoute,
@@ -171,4 +179,5 @@ export const rootTree = RootRoute.addChildren([
   AllContactLensesRoute,
   AllReferralsRoute,
   AllAppointmentsRoute,
+  SettingsRoute,
 ]);

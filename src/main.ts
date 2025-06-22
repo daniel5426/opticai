@@ -735,6 +735,89 @@ function setupIpcHandlers() {
       return [];
     }
   });
+
+  // Settings operations
+  ipcMain.handle('db-get-settings', async () => {
+    try {
+      return dbService.getSettings();
+    } catch (error) {
+      console.error('Error getting settings:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-update-settings', async (event, settingsData) => {
+    try {
+      return dbService.updateSettings(settingsData);
+    } catch (error) {
+      console.error('Error updating settings:', error);
+      throw error;
+    }
+  });
+
+  // User operations
+  ipcMain.handle('db-get-all-users', async () => {
+    try {
+      return dbService.getAllUsers();
+    } catch (error) {
+      console.error('Error getting all users:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-get-user', async (event, userId: number) => {
+    try {
+      return dbService.getUserById(userId);
+    } catch (error) {
+      console.error('Error getting user:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-get-user-by-username', async (event, username: string) => {
+    try {
+      return dbService.getUserByUsername(username);
+    } catch (error) {
+      console.error('Error getting user by username:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-create-user', async (event, userData) => {
+    try {
+      return dbService.createUser(userData);
+    } catch (error) {
+      console.error('Error creating user:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-update-user', async (event, userData) => {
+    try {
+      return dbService.updateUser(userData);
+    } catch (error) {
+      console.error('Error updating user:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-delete-user', async (event, userId: number) => {
+    try {
+      return dbService.deleteUser(userId);
+    } catch (error) {
+      console.error('Error deleting user:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-authenticate-user', async (event, username: string, password?: string) => {
+    try {
+      return dbService.authenticateUser(username, password);
+    } catch (error) {
+      console.error('Error authenticating user:', error);
+      throw error;
+    }
+  });
 }
 
 async function installExtensions() {

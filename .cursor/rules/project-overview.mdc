@@ -19,6 +19,7 @@ The application uses [shadcn/ui](mdc:https:/ui.shadcn.com) for UI components, wh
 - each new page created should be added a button in the appsidebar to go to it
 - ALWAYS in every page or component use: style={{scrollbarWidth: 'none'}}
   to hide the vizible scrollbar without removing the functionality of scrolling
+- ALWAYS if you want to create a modal use the src/components/ui/cusom-modal.tsx component
 
 ## Routing System
 

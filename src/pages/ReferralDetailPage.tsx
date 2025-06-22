@@ -1,8 +1,5 @@
 import React, { useState, useEffect } from "react"
 import { useParams, useNavigate, useSearch, useLocation } from "@tanstack/react-router"
-import { SidebarInset } from "@/components/ui/sidebar"
-import { AppSidebar } from "@/components/app-sidebar"
-import { SidebarProvider } from "@/components/ui/sidebar"
 import { SiteHeader } from "@/components/site-header"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -224,30 +221,25 @@ export default function ReferralDetailPage() {
 
   if (loading) {
     return (
-      <SidebarProvider dir="rtl">
-        <AppSidebar variant="inset" side="right" />
-        <SidebarInset>
-          <SiteHeader 
-            title="לקוחות" 
-            backLink="/clients"
-            clientName={client ? `${client.first_name} ${client.last_name}`.trim() : ''}
-            clientBackLink={clientIdFromSearch ? `/clients/${clientIdFromSearch}` : "/clients"}
-            examInfo="הפניה"
-          />
-          <div className="flex flex-col items-center justify-center h-full">
-            <div className="text-lg">טוען נתוני הפניה...</div>
-          </div>
-        </SidebarInset>
-      </SidebarProvider>
+      <>
+        <SiteHeader 
+          title="לקוחות" 
+          backLink="/clients"
+          clientName={client ? `${client.first_name} ${client.last_name}`.trim() : ''}
+          clientBackLink={clientIdFromSearch ? `/clients/${clientIdFromSearch}` : "/clients"}
+          examInfo="הפניה"
+        />
+        <div className="flex flex-col items-center justify-center h-full">
+          <div className="text-lg">טוען נתוני הפניה...</div>
+        </div>
+      </>
     )
   }
 
   const fullName = client ? `${client.first_name} ${client.last_name}`.trim() : ''
   
   return (
-    <SidebarProvider dir="rtl">
-      <AppSidebar variant="inset" side="right" />
-      <SidebarInset className="overflow-auto scrollbar-hide" style={{scrollbarWidth: 'none'}}>
+    <>
         <SiteHeader 
           title="לקוחות" 
           backLink="/clients"
@@ -592,7 +584,6 @@ export default function ReferralDetailPage() {
             </div>
           </div>
         </div>
-      </SidebarInset>
-    </SidebarProvider>
-  )
+      </>
+    )
 } 

@@ -1,8 +1,5 @@
 import React, { useState, useRef, useEffect } from "react"
 import { useParams, useNavigate } from "@tanstack/react-router"
-import { SidebarInset } from "@/components/ui/sidebar"
-import { AppSidebar } from "@/components/app-sidebar"
-import { SidebarProvider } from "@/components/ui/sidebar"
 import { SiteHeader } from "@/components/site-header"
 import { getClientById } from "@/lib/db/clients-db"
 import { 
@@ -815,38 +812,30 @@ export default function ContactLensDetailPage({
   
   if (loading) {
     return (
-      <SidebarProvider dir="rtl">
-        <AppSidebar variant="inset" side="right" />
-        <SidebarInset>
-          <SiteHeader title="לקוחות" backLink="/clients" />
-          <div className="flex flex-col items-center justify-center h-full">
-            <h1 className="text-2xl">טוען...</h1>
-          </div>
-        </SidebarInset>
-      </SidebarProvider>
+      <>
+        <SiteHeader title="לקוחות" backLink="/clients" />
+        <div className="flex flex-col items-center justify-center h-full">
+          <h1 className="text-2xl">טוען...</h1>
+        </div>
+      </>
     )
   }
   
   if (!client || (!isNewMode && (!contactLens || !rightEye || !leftEye))) {
     return (
-      <SidebarProvider dir="rtl">
-        <AppSidebar variant="inset" side="right" />
-        <SidebarInset>
-          <SiteHeader title="לקוחות" backLink="/clients" />
-          <div className="flex flex-col items-center justify-center h-full">
-            <h1 className="text-2xl">{isNewMode ? "לקוח לא נמצא" : "עדשות מגע לא נמצאו"}</h1>
-          </div>
-        </SidebarInset>
-      </SidebarProvider>
+      <>
+        <SiteHeader title="לקוחות" backLink="/clients" />
+        <div className="flex flex-col items-center justify-center h-full">
+          <h1 className="text-2xl">{isNewMode ? "לקוח לא נמצא" : "עדשות מגע לא נמצאו"}</h1>
+        </div>
+      </>
     )
   }
 
   const fullName = client ? `${client.first_name} ${client.last_name}`.trim() : ''
   
   return (
-    <SidebarProvider dir="rtl" style={{scrollbarWidth: 'none', msOverflowStyle: 'none'}}>
-      <AppSidebar variant="inset" side="right" />
-      <SidebarInset style={{scrollbarWidth: 'none', msOverflowStyle: 'none'}}>
+    <>
         <SiteHeader 
           title="לקוחות" 
           backLink="/clients"
@@ -963,7 +952,7 @@ export default function ContactLensDetailPage({
                   
                   <Tabs defaultValue="exam-details" className="w-full pt-2">
                     <div className="flex flex-row-reverse gap-4">
-                      <TabsList className="flex flex-col py-4 h-fit min-w-[140px] bg-sidebar/50 gap-2">
+                      <TabsList className="flex flex-col py-4 h-fit min-w-[140px] bg-secondary/50 gap-2">
                         <TabsTrigger value="exam-details" className="justify-start">פרטי בדיקה</TabsTrigger>
                         <TabsTrigger value="contact-details" className="justify-start">פרטי עדשות</TabsTrigger>
                       </TabsList>
@@ -1481,7 +1470,6 @@ export default function ContactLensDetailPage({
             </TabsContent>
           </Tabs>
         </div>
-      </SidebarInset>
-    </SidebarProvider>
-  )
+      </>
+    )
 }

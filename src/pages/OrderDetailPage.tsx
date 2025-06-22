@@ -1,8 +1,5 @@
 import React, { useState, useRef, useEffect } from "react"
 import { useParams, useNavigate } from "@tanstack/react-router"
-import { SidebarInset } from "@/components/ui/sidebar"
-import { AppSidebar } from "@/components/app-sidebar"
-import { SidebarProvider } from "@/components/ui/sidebar"
 import { SiteHeader } from "@/components/site-header"
 import { getClientById } from "@/lib/db/clients-db"
 import { getExamById } from "@/lib/db/exams-db"
@@ -638,38 +635,30 @@ export default function OrderDetailPage({
   
   if (loading) {
     return (
-      <SidebarProvider dir="rtl">
-        <AppSidebar variant="inset" side="right" />
-        <SidebarInset>
-          <SiteHeader title="לקוחות" backLink="/clients" />
-          <div className="flex flex-col items-center justify-center h-full">
-            <h1 className="text-2xl">טוען...</h1>
-          </div>
-        </SidebarInset>
-      </SidebarProvider>
+      <>
+        <SiteHeader title="לקוחות" backLink="/clients" />
+        <div className="flex flex-col items-center justify-center h-full">
+          <h1 className="text-2xl">טוען...</h1>
+        </div>
+      </>
     )
   }
   
   if (!client || (!isNewMode && (!order || !rightEyeOrder || !leftEyeOrder))) {
     return (
-      <SidebarProvider dir="rtl">
-        <AppSidebar variant="inset" side="right" />
-        <SidebarInset>
-          <SiteHeader title="לקוחות" backLink="/clients" />
-          <div className="flex flex-col items-center justify-center h-full">
-            <h1 className="text-2xl">{isNewMode ? "לקוח לא נמצא" : "הזמנה לא נמצאה"}</h1>
-          </div>
-        </SidebarInset>
-      </SidebarProvider>
+      <>
+        <SiteHeader title="לקוחות" backLink="/clients" />
+        <div className="flex flex-col items-center justify-center h-full">
+          <h1 className="text-2xl">{isNewMode ? "לקוח לא נמצא" : "הזמנה לא נמצאה"}</h1>
+        </div>
+      </>
     )
   }
 
   const fullName = `${client.first_name} ${client.last_name}`.trim()
   
   return (
-          <SidebarProvider dir="rtl" style={{scrollbarWidth: 'none', msOverflowStyle: 'none'}}>
-        <AppSidebar variant="inset" side="right" />
-        <SidebarInset style={{scrollbarWidth: 'none', msOverflowStyle: 'none'}}>
+    <>
         <SiteHeader 
           title="לקוחות" 
           backLink="/clients"
@@ -1214,7 +1203,6 @@ export default function OrderDetailPage({
         </TabsContent>
       </Tabs>
         </div>
-      </SidebarInset>
-    </SidebarProvider>
-  )
+      </>
+    )
 } 

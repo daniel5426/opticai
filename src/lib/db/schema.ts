@@ -161,7 +161,9 @@ export interface Appointment {
   client_id: number;
   date?: string;
   time?: string;
-  client_name?: string;
+  first_name?: string;
+  last_name?: string;
+  phone_mobile?: string;
   exam_name?: string;
   note?: string;
 }
@@ -310,6 +312,56 @@ export interface OrderLineItem {
   discount?: number;
   line_total?: number;
 }
+
+export interface Settings {
+  id?: number;
+  // General Info
+  clinic_name?: string;
+  clinic_position?: string;
+  clinic_email?: string;
+  clinic_phone?: string;
+  clinic_address?: string;
+  clinic_city?: string;
+  clinic_postal_code?: string;
+  clinic_directions?: string;
+  clinic_website?: string;
+  manager_name?: string;
+  license_number?: string;
+  
+  // Customization
+  clinic_logo_path?: string;
+  primary_theme_color?: string;
+  secondary_theme_color?: string;
+  
+  // Work Configuration
+  work_start_time?: string;
+  work_end_time?: string;
+  appointment_duration?: number; // in minutes
+  send_email_before_appointment?: boolean;
+  email_days_before?: number; // 1 or 2 days before
+  email_time?: string; // time to send the reminder email
+  working_days?: string; // JSON string of array of working days
+  break_start_time?: string;
+  break_end_time?: string;
+  max_appointments_per_day?: number;
+  
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface User {
+  id?: number;
+  username: string;
+  email?: string;
+  phone?: string;
+  password?: string;
+  role: 'admin' | 'worker' | 'viewer';
+  is_active?: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
+
 
 export const createTables = (db: Database): void => {
   // Create clients table
@@ -670,11 +722,75 @@ export const createTables = (db: Database): void => {
       client_id INTEGER NOT NULL,
       date DATE,
       time TEXT,
-      client_name TEXT,
+      first_name TEXT,
+      last_name TEXT,
+      phone_mobile TEXT,
       exam_name TEXT,
       note TEXT,
       FOREIGN KEY(client_id) REFERENCES clients(id) ON DELETE CASCADE
     );
+  `);
+
+  // Create settings table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS settings (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      clinic_name TEXT,
+      clinic_position TEXT,
+      clinic_email TEXT,
+      clinic_phone TEXT,
+      clinic_address TEXT,
+      clinic_city TEXT,
+      clinic_postal_code TEXT,
+      clinic_directions TEXT,
+      clinic_website TEXT,
+      manager_name TEXT,
+      license_number TEXT,
+      clinic_logo_path TEXT,
+      primary_theme_color TEXT DEFAULT '#3b82f6',
+      secondary_theme_color TEXT DEFAULT '#8b5cf6',
+      work_start_time TEXT DEFAULT '08:00',
+      work_end_time TEXT DEFAULT '18:00',
+      appointment_duration INTEGER DEFAULT 30,
+      send_email_before_appointment BOOLEAN DEFAULT 0,
+      email_days_before INTEGER DEFAULT 1,
+      email_time TEXT DEFAULT '10:00',
+      working_days TEXT DEFAULT '["sunday","monday","tuesday","wednesday","thursday"]',
+      break_start_time TEXT,
+      break_end_time TEXT,
+      max_appointments_per_day INTEGER DEFAULT 20,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+
+  // Insert default settings if no settings exist
+  db.exec(`
+    INSERT OR IGNORE INTO settings (id, clinic_name) 
+    SELECT 1, 'מרפאת עיניים'
+    WHERE NOT EXISTS (SELECT 1 FROM settings WHERE id = 1);
+  `);
+
+  // Create users table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      username TEXT UNIQUE NOT NULL,
+      email TEXT,
+      phone TEXT,
+      password TEXT,
+      role TEXT CHECK(role IN ('admin','worker','viewer')) NOT NULL DEFAULT 'worker',
+      is_active BOOLEAN DEFAULT 1,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+
+  // Insert default admin user if no users exist
+  db.exec(`
+    INSERT OR IGNORE INTO users (id, username, password, role) 
+    SELECT 1, 'admin', 'admin', 'admin'
+    WHERE NOT EXISTS (SELECT 1 FROM users WHERE id = 1);
   `);
 };
   

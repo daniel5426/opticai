@@ -5,22 +5,28 @@ import { Input } from "@/components/ui/input"
 import { getAllClients } from "@/lib/db/clients-db"
 import { Client } from "@/lib/db/schema"
 import { useNavigate } from "@tanstack/react-router"
+import { CustomModal } from "@/components/ui/custom-modal"
 
 interface ClientSelectModalProps {
-  triggerText: string
+  triggerText?: string
   onClientSelect: (clientId: number) => void
   variant?: "default" | "table"
+  isOpen?: boolean
+  onClose?: () => void
 }
 
-export function ClientSelectModal({ triggerText, onClientSelect, variant = "default" }: ClientSelectModalProps) {
+export function ClientSelectModal({ triggerText, onClientSelect, variant = "default", isOpen, onClose }: ClientSelectModalProps) {
   const [clients, setClients] = useState<Client[]>([])
-  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [internalOpen, setInternalOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
   const [loading, setLoading] = useState(false)
 
+  const isControlled = isOpen !== undefined
+  const modalOpen = isControlled ? !!isOpen : internalOpen
+
   useEffect(() => {
     const loadClients = async () => {
-      if (isModalOpen && clients.length === 0) {
+      if (modalOpen && clients.length === 0) {
         try {
           setLoading(true)
           const clientsData = await getAllClients()
@@ -34,7 +40,15 @@ export function ClientSelectModal({ triggerText, onClientSelect, variant = "defa
     }
 
     loadClients()
-  }, [isModalOpen, clients.length])
+  }, [modalOpen, clients.length])
+
+  // Cleanup when component unmounts or modal closes
+  useEffect(() => {
+    if (!modalOpen) {
+      setSearchQuery("")
+      setLoading(false)
+    }
+  }, [modalOpen])
 
   // Filter clients based on search query
   const filteredClients = clients.filter(client => {
@@ -47,26 +61,50 @@ export function ClientSelectModal({ triggerText, onClientSelect, variant = "defa
   })
 
   const handleClientSelect = (clientId: number) => {
-    setIsModalOpen(false)
     setSearchQuery("")
     onClientSelect(clientId)
+    // Close the modal after selection
+    if (isControlled) {
+      onClose?.()
+    } else {
+      setInternalOpen(false)
+    }
+  }
+
+  const handleModalClose = () => {
+    if (isControlled) {
+      onClose?.()
+    } else {
+      setInternalOpen(false)
+    }
+    setSearchQuery("")
+  }
+
+  const handleTriggerClick = () => {
+    if (!isControlled) {
+      setInternalOpen(true)
+    }
   }
 
   return (
-    <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-      <DialogTrigger asChild>
-        <Button>{triggerText}</Button>
-      </DialogTrigger>
-      <DialogContent className="max-w-md" dir="rtl">
-        <DialogHeader>
-          <DialogTitle>בחר לקוח</DialogTitle>
-        </DialogHeader>
+    <>
+      {triggerText && (
+        <Button onClick={handleTriggerClick}>{triggerText}</Button>
+      )}
+      
+      <CustomModal
+        isOpen={modalOpen}
+        onClose={handleModalClose}
+        title="בחר לקוח"
+        className="max-w-md"
+      >
         <div className="space-y-4">
           <Input
             placeholder="חיפוש לקוח..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             dir="rtl"
+            autoFocus={false}
           />
           <div className="max-h-[300px] overflow-y-auto" style={{scrollbarWidth: 'none'}}>
             {loading ? (
@@ -80,9 +118,16 @@ export function ClientSelectModal({ triggerText, onClientSelect, variant = "defa
             ) : (
               filteredClients.map((client) => (
                 <div
-                  key={client.id}
-                  className="p-3 border rounded-md cursor-pointer hover:bg-gray-50 mb-2"
+                  key={`client-${client.id}`}
+                  className="p-3 border rounded-md cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 mb-2"
                   onClick={() => handleClientSelect(client.id!)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
+                      handleClientSelect(client.id!)
+                    }
+                  }}
+                  tabIndex={0}
                 >
                   <div className="font-medium">
                     {client.first_name} {client.last_name}
@@ -95,7 +140,7 @@ export function ClientSelectModal({ triggerText, onClientSelect, variant = "defa
             )}
           </div>
         </div>
-      </DialogContent>
-    </Dialog>
+      </CustomModal>
+    </>
   )
 } 

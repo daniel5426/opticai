@@ -1,7 +1,4 @@
 import React, { useState, useEffect } from "react"
-import { SidebarInset } from "@/components/ui/sidebar"
-import { AppSidebar } from "@/components/app-sidebar"
-import { SidebarProvider } from "@/components/ui/sidebar"
 import { SiteHeader } from "@/components/site-header"
 import { getAllAppointments } from "@/lib/db/appointments-db"
 import { getAllClients } from "@/lib/db/clients-db"
@@ -63,35 +60,28 @@ export default function AllAppointmentsPage() {
 
   if (loading) {
     return (
-      <SidebarProvider dir="rtl">
-        <AppSidebar variant="inset" side="right" />
-        <SidebarInset>
-          <SiteHeader title="תורים" />
-          <div className="flex flex-col items-center justify-center h-full">
-            <div className="text-lg">טוען תורים...</div>
-          </div>
-        </SidebarInset>
-      </SidebarProvider>
+      <>
+        <SiteHeader title="תורים" />
+        <div className="flex flex-col items-center justify-center h-full">
+          <div className="text-lg">טוען תורים...</div>
+        </div>
+      </>
     )
   }
 
   return (
-    <SidebarProvider dir="rtl">
-      <AppSidebar variant="inset" side="right" />
-      <SidebarInset className="overflow-auto" style={{scrollbarWidth: 'none'}}>
-        <SiteHeader title="תורים" />
-        <div className="flex flex-col flex-1 p-4 lg:p-6" dir="rtl" style={{scrollbarWidth: 'none'}}>
-          <div className="flex items-center justify-between mb-4">
-            <h1 className="text-2xl font-bold">כל התורים</h1>
-
-          </div>
-          <AppointmentsTable 
-            data={appointments} 
-            clientId={selectedClientId || 0} 
-            onAppointmentChange={handleAppointmentChange}
-          />
+    <>
+      <SiteHeader title="תורים" />
+      <div className="flex flex-col flex-1 p-4 lg:p-6 overflow-auto" dir="rtl" style={{scrollbarWidth: 'none'}}>
+        <div className="flex items-center justify-between mb-4">
+          <h1 className="text-2xl font-bold">כל התורים</h1>
         </div>
-      </SidebarInset>
-    </SidebarProvider>
+        <AppointmentsTable 
+          data={appointments} 
+          clientId={selectedClientId || 0} 
+          onAppointmentChange={handleAppointmentChange}
+        />
+      </div>
+    </>
   )
 } 

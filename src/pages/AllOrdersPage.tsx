@@ -1,7 +1,4 @@
 import React, { useState, useEffect } from "react"
-import { SidebarInset } from "@/components/ui/sidebar"
-import { AppSidebar } from "@/components/app-sidebar"
-import { SidebarProvider } from "@/components/ui/sidebar"
 import { SiteHeader } from "@/components/site-header"
 import { getAllOrders } from "@/lib/db/orders-db"
 import { Order } from "@/lib/db/schema"
@@ -39,30 +36,24 @@ export default function AllOrdersPage() {
 
   if (loading) {
     return (
-      <SidebarProvider dir="rtl">
-        <AppSidebar variant="inset" side="right" />
-        <SidebarInset>
-          <SiteHeader title="הזמנות" />
-          <div className="flex flex-col items-center justify-center h-full">
-            <div className="text-lg">טוען הזמנות...</div>
-          </div>
-        </SidebarInset>
-      </SidebarProvider>
+      <>
+        <SiteHeader title="הזמנות" />
+        <div className="flex flex-col items-center justify-center h-full">
+          <div className="text-lg">טוען הזמנות...</div>
+        </div>
+      </>
     )
   }
 
   return (
-    <SidebarProvider dir="rtl">
-      <AppSidebar variant="inset" side="right" />
-      <SidebarInset className="overflow-auto" style={{scrollbarWidth: 'none'}}>
-        <SiteHeader title="הזמנות" />
-        <div className="flex flex-col flex-1 p-4 lg:p-6" dir="rtl" style={{scrollbarWidth: 'none'}}>
-          <div className="flex items-center justify-between mb-4">
-            <h1 className="text-2xl font-bold">כל ההזמנות</h1>
-          </div>
-          <OrdersTable data={orders} clientId={0} />
+    <>
+      <SiteHeader title="הזמנות" />
+      <div className="flex flex-col flex-1 p-4 lg:p-6 overflow-auto" dir="rtl" style={{scrollbarWidth: 'none'}}>
+        <div className="flex items-center justify-between mb-4">
+          <h1 className="text-2xl font-bold">כל ההזמנות</h1>
         </div>
-      </SidebarInset>
-    </SidebarProvider>
+        <OrdersTable data={orders} clientId={0} />
+      </div>
+    </>
   )
 } 

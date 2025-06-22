@@ -107,6 +107,19 @@ export interface ElectronAPI {
   createAppointment: (appointmentData: any) => Promise<any>;
   updateAppointment: (appointmentData: any) => Promise<any>;
   deleteAppointment: (appointmentId: number) => Promise<boolean>;
+
+  // Settings operations
+  getSettings: () => Promise<any>;
+  updateSettings: (settingsData: any) => Promise<any>;
+
+  // User operations
+  getAllUsers: () => Promise<any[]>;
+  getUser: (userId: number) => Promise<any>;
+  getUserByUsername: (username: string) => Promise<any>;
+  createUser: (userData: any) => Promise<any>;
+  updateUser: (userData: any) => Promise<any>;
+  deleteUser: (userId: number) => Promise<boolean>;
+  authenticateUser: (username: string, password?: string) => Promise<any>;
 }
 
 declare global {

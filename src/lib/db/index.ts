@@ -20,7 +20,9 @@ import {
   OrderLineItem,
   Referral,
   ReferralEye,
-  Appointment
+  Appointment,
+  Settings,
+  User
 } from './schema';
 
 class DatabaseService {
@@ -58,9 +60,9 @@ class DatabaseService {
 
     try {
       // Check if notes columns exist in order_details table
-      const tableInfo = this.db.prepare("PRAGMA table_info(order_details)").all() as any[];
-      const hasNotesColumn = tableInfo.some(col => col.name === 'notes');
-      const hasLensOrderNotesColumn = tableInfo.some(col => col.name === 'lens_order_notes');
+      const orderDetailsInfo = this.db.prepare("PRAGMA table_info(order_details)").all() as any[];
+      const hasNotesColumn = orderDetailsInfo.some(col => col.name === 'notes');
+      const hasLensOrderNotesColumn = orderDetailsInfo.some(col => col.name === 'lens_order_notes');
 
       // Add notes column if it doesn't exist
       if (!hasNotesColumn) {
@@ -72,6 +74,62 @@ class DatabaseService {
       if (!hasLensOrderNotesColumn) {
         this.db.exec('ALTER TABLE order_details ADD COLUMN lens_order_notes TEXT');
         console.log('Added lens_order_notes column to order_details table');
+      }
+
+      // Check if appointments table has the old client_name column
+      const appointmentsInfo = this.db.prepare("PRAGMA table_info(appointments)").all() as any[];
+      const hasClientNameColumn = appointmentsInfo.some(col => col.name === 'client_name');
+      const hasFirstNameColumn = appointmentsInfo.some(col => col.name === 'first_name');
+      const hasLastNameColumn = appointmentsInfo.some(col => col.name === 'last_name');
+      const hasPhoneMobileColumn = appointmentsInfo.some(col => col.name === 'phone_mobile');
+
+      // If the old structure exists, migrate to new structure
+      if (hasClientNameColumn && (!hasFirstNameColumn || !hasLastNameColumn || !hasPhoneMobileColumn)) {
+        console.log('Migrating appointments table structure...');
+        
+        // Create backup of existing data
+        const existingAppointments = this.db.prepare('SELECT * FROM appointments').all() as any[];
+        
+        // Drop and recreate table with new structure
+        this.db.exec('DROP TABLE appointments');
+        this.db.exec(`
+          CREATE TABLE appointments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            client_id INTEGER NOT NULL,
+            date DATE,
+            time TEXT,
+            first_name TEXT,
+            last_name TEXT,
+            phone_mobile TEXT,
+            exam_name TEXT,
+            note TEXT,
+            FOREIGN KEY(client_id) REFERENCES clients(id) ON DELETE CASCADE
+          )
+        `);
+        
+        // Restore data with client name split (if possible)
+        for (const appointment of existingAppointments) {
+          const clientNameParts = (appointment.client_name || '').split(' ');
+          const firstName = clientNameParts[0] || '';
+          const lastName = clientNameParts.slice(1).join(' ') || '';
+          
+          this.db.prepare(`
+            INSERT INTO appointments (id, client_id, date, time, first_name, last_name, phone_mobile, exam_name, note)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `).run(
+            appointment.id,
+            appointment.client_id,
+            appointment.date,
+            appointment.time,
+            firstName,
+            lastName,
+            '', // phone_mobile will be empty for migrated records
+            appointment.exam_name,
+            appointment.note
+          );
+        }
+        
+        console.log('Appointments table migration completed');
       }
     } catch (error) {
       console.error('Error during database migration:', error);
@@ -1576,15 +1634,17 @@ class DatabaseService {
     
     try {
       const stmt = this.db.prepare(`
-        INSERT INTO appointments (client_id, date, time, client_name, exam_name, note)
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO appointments (client_id, date, time, first_name, last_name, phone_mobile, exam_name, note)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       `);
       
       const result = stmt.run(
         appointment.client_id,
         this.sanitizeValue(appointment.date),
         this.sanitizeValue(appointment.time),
-        this.sanitizeValue(appointment.client_name),
+        this.sanitizeValue(appointment.first_name),
+        this.sanitizeValue(appointment.last_name),
+        this.sanitizeValue(appointment.phone_mobile),
         this.sanitizeValue(appointment.exam_name),
         this.sanitizeValue(appointment.note)
       );
@@ -1638,7 +1698,7 @@ class DatabaseService {
     try {
       const stmt = this.db.prepare(`
         UPDATE appointments SET
-          client_id = ?, date = ?, time = ?, client_name = ?, exam_name = ?, note = ?
+          client_id = ?, date = ?, time = ?, first_name = ?, last_name = ?, phone_mobile = ?, exam_name = ?, note = ?
         WHERE id = ?
       `);
       
@@ -1646,7 +1706,9 @@ class DatabaseService {
         appointment.client_id,
         this.sanitizeValue(appointment.date),
         this.sanitizeValue(appointment.time),
-        this.sanitizeValue(appointment.client_name),
+        this.sanitizeValue(appointment.first_name),
+        this.sanitizeValue(appointment.last_name),
+        this.sanitizeValue(appointment.phone_mobile),
         this.sanitizeValue(appointment.exam_name),
         this.sanitizeValue(appointment.note),
         appointment.id
@@ -1674,6 +1736,194 @@ class DatabaseService {
 
   getDatabase(): Database.Database | null {
     return this.db;
+  }
+
+  // Settings CRUD operations
+  getSettings(): Settings | null {
+    if (!this.db) return null;
+    
+    try {
+      const stmt = this.db.prepare('SELECT * FROM settings WHERE id = 1');
+      return stmt.get() as Settings || null;
+    } catch (error) {
+      console.error('Error getting settings:', error);
+      return null;
+    }
+  }
+
+  updateSettings(settings: Settings): Settings | null {
+    if (!this.db) return null;
+    
+    try {
+      const stmt = this.db.prepare(`
+        UPDATE settings SET 
+        clinic_name = ?, clinic_position = ?, clinic_email = ?, clinic_phone = ?,
+        clinic_address = ?, clinic_city = ?, clinic_postal_code = ?, clinic_website = ?,
+        manager_name = ?, license_number = ?, clinic_logo_path = ?,
+        primary_theme_color = ?, secondary_theme_color = ?,
+        work_start_time = ?, work_end_time = ?, appointment_duration = ?,
+        send_email_before_appointment = ?, email_days_before = ?, email_time = ?,
+        working_days = ?, break_start_time = ?, break_end_time = ?, max_appointments_per_day = ?,
+        updated_at = CURRENT_TIMESTAMP
+        WHERE id = 1
+      `);
+      
+      stmt.run(
+        this.sanitizeValue(settings.clinic_name),
+        this.sanitizeValue(settings.clinic_position),
+        this.sanitizeValue(settings.clinic_email),
+        this.sanitizeValue(settings.clinic_phone),
+        this.sanitizeValue(settings.clinic_address),
+        this.sanitizeValue(settings.clinic_city),
+        this.sanitizeValue(settings.clinic_postal_code),
+        this.sanitizeValue(settings.clinic_website),
+        this.sanitizeValue(settings.manager_name),
+        this.sanitizeValue(settings.license_number),
+        this.sanitizeValue(settings.clinic_logo_path),
+        this.sanitizeValue(settings.primary_theme_color),
+        this.sanitizeValue(settings.secondary_theme_color),
+        this.sanitizeValue(settings.work_start_time),
+        this.sanitizeValue(settings.work_end_time),
+        this.sanitizeValue(settings.appointment_duration),
+        this.sanitizeValue(settings.send_email_before_appointment),
+        this.sanitizeValue(settings.email_days_before),
+        this.sanitizeValue(settings.email_time),
+        this.sanitizeValue(settings.working_days),
+        this.sanitizeValue(settings.break_start_time),
+        this.sanitizeValue(settings.break_end_time),
+        this.sanitizeValue(settings.max_appointments_per_day)
+      );
+      
+      return this.getSettings();
+    } catch (error) {
+      console.error('Error updating settings:', error);
+      return null;
+    }
+  }
+
+  // User CRUD operations
+  createUser(user: Omit<User, 'id' | 'created_at' | 'updated_at'>): User | null {
+    if (!this.db) return null;
+    
+    try {
+      const stmt = this.db.prepare(`
+        INSERT INTO users (username, email, phone, password, role, is_active)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `);
+      
+      const result = stmt.run(
+        user.username,
+        this.sanitizeValue(user.email),
+        this.sanitizeValue(user.phone),
+        this.sanitizeValue(user.password),
+        user.role,
+        this.sanitizeValue(user.is_active ?? true)
+      );
+      
+      return { ...user, id: result.lastInsertRowid as number };
+    } catch (error) {
+      console.error('Error creating user:', error);
+      return null;
+    }
+  }
+
+  getUserById(id: number): User | null {
+    if (!this.db) return null;
+    
+    try {
+      const stmt = this.db.prepare('SELECT * FROM users WHERE id = ?');
+      return stmt.get(id) as User | null;
+    } catch (error) {
+      console.error('Error getting user:', error);
+      return null;
+    }
+  }
+
+  getUserByUsername(username: string): User | null {
+    if (!this.db) return null;
+    
+    try {
+      const stmt = this.db.prepare('SELECT * FROM users WHERE username = ?');
+      return stmt.get(username) as User | null;
+    } catch (error) {
+      console.error('Error getting user by username:', error);
+      return null;
+    }
+  }
+
+  getAllUsers(): User[] {
+    if (!this.db) return [];
+    
+    try {
+      const stmt = this.db.prepare('SELECT * FROM users WHERE is_active = 1 ORDER BY username');
+      return stmt.all() as User[];
+    } catch (error) {
+      console.error('Error getting all users:', error);
+      return [];
+    }
+  }
+
+  updateUser(user: User): User | null {
+    if (!this.db || !user.id) return null;
+    
+    try {
+      const stmt = this.db.prepare(`
+        UPDATE users SET 
+        username = ?, email = ?, phone = ?, password = ?, role = ?, is_active = ?,
+        updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+      `);
+      
+      stmt.run(
+        user.username,
+        this.sanitizeValue(user.email),
+        this.sanitizeValue(user.phone),
+        this.sanitizeValue(user.password),
+        user.role,
+        this.sanitizeValue(user.is_active ?? true),
+        user.id
+      );
+      
+      return user;
+    } catch (error) {
+      console.error('Error updating user:', error);
+      return null;
+    }
+  }
+
+  deleteUser(id: number): boolean {
+    if (!this.db) return false;
+    
+    try {
+      const stmt = this.db.prepare('UPDATE users SET is_active = 0 WHERE id = ?');
+      const result = stmt.run(id);
+      return result.changes > 0;
+    } catch (error) {
+      console.error('Error deleting user:', error);
+      return false;
+    }
+  }
+
+  authenticateUser(username: string, password?: string): User | null {
+    if (!this.db) return null;
+    
+    try {
+      let stmt;
+      let user;
+      
+      if (password && password.trim() !== '') {
+        stmt = this.db.prepare('SELECT * FROM users WHERE username = ? AND password = ? AND is_active = 1');
+        user = stmt.get(username, password) as User | null;
+      } else {
+        stmt = this.db.prepare(`SELECT * FROM users WHERE username = ? AND (password IS NULL OR password = '' OR TRIM(password) = '') AND is_active = 1`);
+        user = stmt.get(username) as User | null;
+      }
+      
+      return user;
+    } catch (error) {
+      console.error('Error authenticating user:', error);
+      return null;
+    }
   }
 }
 

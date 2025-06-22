@@ -122,4 +122,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
   createAppointment: (appointmentData: any) => ipcRenderer.invoke('db-create-appointment', appointmentData),
   updateAppointment: (appointmentData: any) => ipcRenderer.invoke('db-update-appointment', appointmentData),
   deleteAppointment: (appointmentId: number) => ipcRenderer.invoke('db-delete-appointment', appointmentId),
+
+  // Settings operations
+  getSettings: () => ipcRenderer.invoke('db-get-settings'),
+  updateSettings: (settingsData: any) => ipcRenderer.invoke('db-update-settings', settingsData),
+
+  // User operations
+  getAllUsers: () => ipcRenderer.invoke('db-get-all-users'),
+  getUser: (userId: number) => ipcRenderer.invoke('db-get-user', userId),
+  getUserByUsername: (username: string) => ipcRenderer.invoke('db-get-user-by-username', username),
+  createUser: (userData: any) => ipcRenderer.invoke('db-create-user', userData),
+  updateUser: (userData: any) => ipcRenderer.invoke('db-update-user', userData),
+  deleteUser: (userId: number) => ipcRenderer.invoke('db-delete-user', userId),
+  authenticateUser: (username: string, password?: string) => ipcRenderer.invoke('db-authenticate-user', username, password),
 });

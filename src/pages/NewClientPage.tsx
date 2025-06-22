@@ -1,8 +1,5 @@
 import React, { useRef, useState } from "react"
 import { useNavigate } from "@tanstack/react-router"
-import { SidebarInset } from "@/components/ui/sidebar"
-import { AppSidebar } from "@/components/app-sidebar"
-import { SidebarProvider } from "@/components/ui/sidebar"
 import { SiteHeader } from "@/components/site-header"
 import { Button } from "@/components/ui/button"
 import { createClient } from "@/lib/db/clients-db"
@@ -66,52 +63,49 @@ export default function NewClientPage() {
   }
 
   return (
-    <SidebarProvider dir="rtl" className="h-full">
-      <AppSidebar variant="inset" side="right" />
-      <SidebarInset>
-        <SiteHeader 
-          title="לקוח חדש" 
-          backLink="/clients"
-        />
-        <div 
-          className="container mx-auto p-6 max-w-7xl pb-30 overflow-y-auto" 
-          style={{
-            scrollbarWidth: 'none'
-          }}
-        >
-          
-          <div className="flex justify-between items-center mb-6">
-            <div dir="rtl">
-              <h1 className="text-2xl font-bold">יצירת לקוח חדש</h1>
-              <p className="text-sm text-muted-foreground mt-1">
-                שדות המסומנים ב<span className="text-red-500">*</span> הם חובה
-              </p>
-            </div>
-            <div className="flex gap-2">
-              <Button variant="outline" onClick={handleCancel}>
-                ביטול
-              </Button>
-              <Button 
-                onClick={handleSubmit}
-                type="submit"
-              >
-                שמירה
-              </Button>
-            </div>
+    <>
+      <SiteHeader 
+        title="לקוח חדש" 
+        backLink="/clients"
+      />
+      <div 
+        className="container mx-auto p-6 max-w-7xl pb-30 overflow-y-auto" 
+        style={{
+          scrollbarWidth: 'none'
+        }}
+      >
+        
+        <div className="flex justify-between items-center mb-6">
+          <div dir="rtl">
+            <h1 className="text-2xl font-bold">יצירת לקוח חדש</h1>
+            <p className="text-sm text-muted-foreground mt-1">
+              שדות המסומנים ב<span className="text-red-500">*</span> הם חובה
+            </p>
           </div>
-          <div className="flex flex-col gap-4" dir="ltr">
-            <ClientDetailsTab
-              client={{} as Client}
-              formData={formData}
-              isEditing={false}
-              mode="new"
-              handleInputChange={handleInputChange}
-            handleSelectChange={handleSelectChange}
-              formRef={formRef}
-            />
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={handleCancel}>
+              ביטול
+            </Button>
+            <Button 
+              onClick={handleSubmit}
+              type="submit"
+            >
+              שמירה
+            </Button>
           </div>
         </div>
-      </SidebarInset>
-    </SidebarProvider>
+        <div className="flex flex-col gap-4" dir="ltr">
+          <ClientDetailsTab
+            client={{} as Client}
+            formData={formData}
+            isEditing={false}
+            mode="new"
+            handleInputChange={handleInputChange}
+          handleSelectChange={handleSelectChange}
+            formRef={formRef}
+          />
+        </div>
+      </div>
+    </>
   )
 } 

@@ -6,6 +6,7 @@ import "./localization/i18n";
 import { updateAppLanguage } from "./helpers/language_helpers";
 import { router } from "./routes/router";
 import { RouterProvider } from "@tanstack/react-router";
+import { UserProvider } from "./contexts/UserContext";
 
 // Simple error boundary component
 class ErrorBoundary extends React.Component<{ children: ReactNode }> {
@@ -56,7 +57,9 @@ export default function App() {
   return (
     <ErrorBoundary>
       <Suspense fallback={<Loading />}>
-        <RouterProvider router={router} />
+        <UserProvider>
+          <RouterProvider router={router} />
+        </UserProvider>
       </Suspense>
     </ErrorBoundary>
   );

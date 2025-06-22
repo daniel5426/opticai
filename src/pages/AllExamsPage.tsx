@@ -1,7 +1,4 @@
 import React, { useState, useEffect } from "react"
-import { SidebarInset } from "@/components/ui/sidebar"
-import { AppSidebar } from "@/components/app-sidebar"
-import { SidebarProvider } from "@/components/ui/sidebar"
 import { SiteHeader } from "@/components/site-header"
 import { getAllExams } from "@/lib/db/exams-db"
 import { OpticalExam } from "@/lib/db/schema"
@@ -39,30 +36,24 @@ export default function AllExamsPage() {
 
   if (loading) {
     return (
-      <SidebarProvider dir="rtl">
-        <AppSidebar variant="inset" side="right" />
-        <SidebarInset>
-          <SiteHeader title="בדיקות" />
-          <div className="flex flex-col items-center justify-center h-full">
-            <div className="text-lg">טוען בדיקות...</div>
-          </div>
-        </SidebarInset>
-      </SidebarProvider>
+      <>
+        <SiteHeader title="בדיקות" />
+        <div className="flex flex-col items-center justify-center h-full">
+          <div className="text-lg">טוען בדיקות...</div>
+        </div>
+      </>
     )
   }
 
   return (
-    <SidebarProvider dir="rtl">
-      <AppSidebar variant="inset" side="right" />
-      <SidebarInset className="overflow-auto" style={{scrollbarWidth: 'none'}}>
-        <SiteHeader title="בדיקות" />
-        <div className="flex flex-col flex-1 p-4 lg:p-6" dir="rtl" style={{scrollbarWidth: 'none'}}>
-          <div className="flex items-center justify-between mb-4">
-            <h1 className="text-2xl font-bold">כל הבדיקות</h1>
-          </div>
-          <ExamsTable data={exams} clientId={0} />
+    <>
+      <SiteHeader title="בדיקות" />
+      <div className="flex flex-col flex-1 p-4 lg:p-6 overflow-auto" dir="rtl" style={{scrollbarWidth: 'none'}}>
+        <div className="flex items-center justify-between mb-4">
+          <h1 className="text-2xl font-bold">כל הבדיקות</h1>
         </div>
-      </SidebarInset>
-    </SidebarProvider>
+        <ExamsTable data={exams} clientId={0} />
+      </div>
+    </>
   )
 } 
