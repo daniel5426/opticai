@@ -19,6 +19,7 @@ import AllReferralsPage from "@/pages/AllReferralsPage";
 import AllAppointmentsPage from "@/pages/AllAppointmentsPage";
 import SettingsPage from "@/pages/SettingsPage";
 import UserSelectionPage from "@/pages/UserSelectionPage";
+import { AIAssistantPage } from "@/pages/AIAssistantPage";
 
 // TODO: Steps to add a new route:
 // 1. Create a new page component in the '../pages/' directory (e.g., NewPage.tsx)
@@ -160,6 +161,12 @@ export const SettingsRoute = createRoute({
   component: SettingsPage,
 });
 
+export const AIAssistantRoute = createRoute({
+  getParentRoute: () => RootRoute,
+  path: "/ai-assistant",
+  component: AIAssistantPage,
+});
+
 export const rootTree = RootRoute.addChildren([
   HomeRoute,
   SecondPageRoute,
@@ -180,4 +187,5 @@ export const rootTree = RootRoute.addChildren([
   AllReferralsRoute,
   AllAppointmentsRoute,
   SettingsRoute,
+  AIAssistantRoute,
 ]);

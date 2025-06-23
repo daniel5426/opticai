@@ -164,6 +164,7 @@ export interface Appointment {
   first_name?: string;
   last_name?: string;
   phone_mobile?: string;
+  email?: string;
   exam_name?: string;
   note?: string;
 }
@@ -359,6 +360,22 @@ export interface User {
   is_active?: boolean;
   created_at?: string;
   updated_at?: string;
+}
+
+export interface Chat {
+  id?: number;
+  title: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface ChatMessage {
+  id?: number;
+  chat_id: number;
+  type: 'user' | 'ai';
+  content: string;
+  timestamp?: string;
+  data?: string; // JSON string for additional data
 }
 
 
@@ -725,6 +742,7 @@ export const createTables = (db: Database): void => {
       first_name TEXT,
       last_name TEXT,
       phone_mobile TEXT,
+      email TEXT,
       exam_name TEXT,
       note TEXT,
       FOREIGN KEY(client_id) REFERENCES clients(id) ON DELETE CASCADE
@@ -748,7 +766,7 @@ export const createTables = (db: Database): void => {
       license_number TEXT,
       clinic_logo_path TEXT,
       primary_theme_color TEXT DEFAULT '#3b82f6',
-      secondary_theme_color TEXT DEFAULT '#8b5cf6',
+      secondary_theme_color TEXT DEFAULT '#cde3f4',
       work_start_time TEXT DEFAULT '08:00',
       work_end_time TEXT DEFAULT '18:00',
       appointment_duration INTEGER DEFAULT 30,
@@ -791,6 +809,29 @@ export const createTables = (db: Database): void => {
     INSERT OR IGNORE INTO users (id, username, password, role) 
     SELECT 1, 'admin', 'admin', 'admin'
     WHERE NOT EXISTS (SELECT 1 FROM users WHERE id = 1);
+  `);
+
+  // Create chats table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS chats (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+
+  // Create chat_messages table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS chat_messages (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      chat_id INTEGER NOT NULL,
+      type TEXT CHECK(type IN ('user','ai')) NOT NULL,
+      content TEXT NOT NULL,
+      timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+      data TEXT,
+      FOREIGN KEY(chat_id) REFERENCES chats(id) ON DELETE CASCADE
+    );
   `);
 };
   

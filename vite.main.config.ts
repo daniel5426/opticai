@@ -10,7 +10,7 @@ export default defineConfig({
   },
   build: {
     rollupOptions: {
-      external: ['better-sqlite3', 'electron', 'path', 'fs']
+      external: ['better-sqlite3', 'electron', 'path', 'fs', 'express', 'cors', 'os', 'http']
     }
   }
 });

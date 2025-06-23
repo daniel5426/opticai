@@ -1,9 +1,10 @@
 /// <reference path="../../types/electron.d.ts" />
 import { User } from './schema'
+import { connectionManager } from './connection-manager';
 
 export async function getAllUsers(): Promise<User[]> {
   try {
-    return await window.electronAPI.getAllUsers();
+    return await connectionManager.getAllUsers();
   } catch (error) {
     console.error('Error getting all users:', error);
     return [];
@@ -57,7 +58,8 @@ export async function deleteUser(userId: number): Promise<boolean> {
 
 export async function authenticateUser(username: string, password?: string): Promise<User | null> {
   try {
-    return await window.electronAPI.authenticateUser(username, password);
+    const result = await connectionManager.authenticateUser(username, password);
+    return result.success ? result.user : null;
   } catch (error) {
     console.error('Error authenticating user:', error);
     return null;

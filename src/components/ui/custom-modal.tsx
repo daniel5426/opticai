@@ -5,13 +5,14 @@ import { Button } from './button'
 interface CustomModalProps {
   isOpen: boolean
   onClose: () => void
+  width?: string
   title: string
   subtitle?: string
   children: React.ReactNode
   className?: string
 }
 
-export function CustomModal({ isOpen, onClose, title, subtitle, children, className = '' }: CustomModalProps) {
+export function CustomModal({ isOpen, onClose, title, subtitle, children, className = '', width = 'max-w-md' }: CustomModalProps) {
   const modalRef = useRef<HTMLDivElement>(null)
   const overlayRef = useRef<HTMLDivElement>(null)
 
@@ -79,7 +80,7 @@ export function CustomModal({ isOpen, onClose, title, subtitle, children, classN
     >
       <div
         ref={modalRef}
-        className={`bg-white dark:bg-gray-800 rounded-lg shadow-lg max-w-md w-full max-h-[90vh] overflow-auto ${className}`}
+        className={`bg-white dark:bg-gray-800 rounded-lg shadow-lg ${width} max-h-[90vh] overflow-auto ${className}`}
         onClick={(e) => e.stopPropagation()}
         tabIndex={-1}
         style={{ scrollbarWidth: 'none' }}

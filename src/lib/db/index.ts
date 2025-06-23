@@ -22,7 +22,9 @@ import {
   ReferralEye,
   Appointment,
   Settings,
-  User
+  User,
+  Chat,
+  ChatMessage
 } from './schema';
 
 class DatabaseService {
@@ -1923,6 +1925,150 @@ class DatabaseService {
     } catch (error) {
       console.error('Error authenticating user:', error);
       return null;
+    }
+  }
+
+  // Chat CRUD operations
+  createChat(title: string): Chat | null {
+    if (!this.db) return null;
+    
+    try {
+      const stmt = this.db.prepare(`
+        INSERT INTO chats (title) VALUES (?)
+      `);
+      
+      const result = stmt.run(title);
+      return { id: result.lastInsertRowid as number, title };
+    } catch (error) {
+      console.error('Error creating chat:', error);
+      return null;
+    }
+  }
+
+  getChatById(id: number): Chat | null {
+    if (!this.db) return null;
+    
+    try {
+      const stmt = this.db.prepare('SELECT * FROM chats WHERE id = ?');
+      return stmt.get(id) as Chat | null;
+    } catch (error) {
+      console.error('Error getting chat:', error);
+      return null;
+    }
+  }
+
+  getAllChats(): Chat[] {
+    if (!this.db) return [];
+    
+    try {
+      const stmt = this.db.prepare('SELECT * FROM chats ORDER BY updated_at DESC');
+      return stmt.all() as Chat[];
+    } catch (error) {
+      console.error('Error getting all chats:', error);
+      return [];
+    }
+  }
+
+  updateChat(chat: Chat): Chat | null {
+    if (!this.db || !chat.id) return null;
+    
+    try {
+      const stmt = this.db.prepare(`
+        UPDATE chats SET title = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?
+      `);
+      
+      stmt.run(chat.title, chat.id);
+      return chat;
+    } catch (error) {
+      console.error('Error updating chat:', error);
+      return null;
+    }
+  }
+
+  deleteChat(id: number): boolean {
+    if (!this.db) return false;
+    
+    try {
+      const stmt = this.db.prepare('DELETE FROM chats WHERE id = ?');
+      const result = stmt.run(id);
+      return result.changes > 0;
+    } catch (error) {
+      console.error('Error deleting chat:', error);
+      return false;
+    }
+  }
+
+  // Chat Message CRUD operations
+  createChatMessage(chatMessage: Omit<ChatMessage, 'id' | 'timestamp'>): ChatMessage | null {
+    if (!this.db) return null;
+    
+    try {
+      const stmt = this.db.prepare(`
+        INSERT INTO chat_messages (chat_id, type, content, data) VALUES (?, ?, ?, ?)
+      `);
+      
+      const result = stmt.run(
+        chatMessage.chat_id,
+        chatMessage.type,
+        chatMessage.content,
+        this.sanitizeValue(chatMessage.data)
+      );
+      
+      // Update chat's updated_at timestamp
+      this.db.prepare('UPDATE chats SET updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(chatMessage.chat_id);
+      
+      return { ...chatMessage, id: result.lastInsertRowid as number };
+    } catch (error) {
+      console.error('Error creating chat message:', error);
+      return null;
+    }
+  }
+
+  getChatMessagesByChatId(chatId: number): ChatMessage[] {
+    if (!this.db) return [];
+    
+    try {
+      const stmt = this.db.prepare('SELECT * FROM chat_messages WHERE chat_id = ? ORDER BY timestamp ASC');
+      return stmt.all(chatId) as ChatMessage[];
+    } catch (error) {
+      console.error('Error getting chat messages:', error);
+      return [];
+    }
+  }
+
+  updateChatMessage(chatMessage: ChatMessage): ChatMessage | null {
+    if (!this.db || !chatMessage.id) return null;
+    
+    try {
+      const stmt = this.db.prepare(`
+        UPDATE chat_messages SET chat_id = ?, type = ?, content = ?, data = ? WHERE id = ?
+      `);
+      
+      stmt.run(
+        chatMessage.chat_id,
+        chatMessage.type,
+        chatMessage.content,
+        this.sanitizeValue(chatMessage.data),
+        chatMessage.id
+      );
+      
+      return chatMessage;
+    } catch (error) {
+      console.error('Error updating chat message:', error);
+      return null;
+    }
+  }
+
+  deleteChatMessage(id: number): boolean {
+    if (!this.db) return false;
+    
+    try {
+      const stmt = this.db.prepare('DELETE FROM chat_messages WHERE id = ?');
+      const result = stmt.run(id);
+      return result.changes > 0;
+    } catch (error) {
+      console.error('Error deleting chat message:', error);
+      return false;
     }
   }
 }

@@ -9,9 +9,235 @@ import {
   REACT_DEVELOPER_TOOLS,
 } from "electron-devtools-installer";
 import { dbService } from "./lib/db/index";
+import express from "express";
+import cors from "cors";
+import { Server } from "http";
+import os from "os";
+// Import will be done dynamically to allow hot reload
 
 const inDevelopment = process.env.NODE_ENV === "development";
 let mainWindow: BrowserWindow | null = null; // Store reference to the main window
+
+// Server Mode Variables
+let expressApp: express.Application | null = null;
+let httpServer: Server | null = null;
+const SERVER_PORT = 3000;
+
+// AI Agent Variables
+let aiAgent: any = null;
+const AI_PROXY_SERVER_URL = 'http://localhost:8001';
+
+function setupExpressRoutes(app: express.Application) {
+  app.use(cors());
+  app.use(express.json());
+
+  // Client operations
+  app.get('/api/clients', (req, res) => {
+    try {
+      const clients = dbService.getAllClients();
+      res.json(clients);
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to get clients' });
+    }
+  });
+
+  app.get('/api/clients/:id', (req, res) => {
+    try {
+      const client = dbService.getClientById(parseInt(req.params.id));
+      if (!client) {
+        res.status(404).json({ error: 'Client not found' });
+      } else {
+        res.json(client);
+      }
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to get client' });
+    }
+  });
+
+  app.post('/api/clients', (req, res) => {
+    try {
+      const client = dbService.createClient(req.body);
+      res.json(client);
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to create client' });
+    }
+  });
+
+  app.put('/api/clients/:id', (req, res) => {
+    try {
+      const client = dbService.updateClient({ ...req.body, id: parseInt(req.params.id) });
+      res.json(client);
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to update client' });
+    }
+  });
+
+  app.delete('/api/clients/:id', (req, res) => {
+    try {
+      const result = dbService.deleteClient(parseInt(req.params.id));
+      res.json({ success: result });
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to delete client' });
+    }
+  });
+
+  // Exam operations
+  app.get('/api/exams', (req, res) => {
+    try {
+      const exams = dbService.getAllExams();
+      res.json(exams);
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to get exams' });
+    }
+  });
+
+  app.get('/api/exams/client/:clientId', (req, res) => {
+    try {
+      const exams = dbService.getExamsByClientId(parseInt(req.params.clientId));
+      res.json(exams);
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to get exams' });
+    }
+  });
+
+  app.get('/api/exams/:id', (req, res) => {
+    try {
+      const exam = dbService.getExamById(parseInt(req.params.id));
+      res.json(exam);
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to get exam' });
+    }
+  });
+
+  app.post('/api/exams', (req, res) => {
+    try {
+      const exam = dbService.createExam(req.body);
+      res.json(exam);
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to create exam' });
+    }
+  });
+
+  app.put('/api/exams/:id', (req, res) => {
+    try {
+      const exam = dbService.updateExam({ ...req.body, id: parseInt(req.params.id) });
+      res.json(exam);
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to update exam' });
+    }
+  });
+
+  app.delete('/api/exams/:id', (req, res) => {
+    try {
+      const result = dbService.deleteExam(parseInt(req.params.id));
+      res.json({ success: result });
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to delete exam' });
+    }
+  });
+
+  // Users operations
+  app.get('/api/users', (req, res) => {
+    try {
+      const users = dbService.getAllUsers();
+      res.json(users);
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to get users' });
+    }
+  });
+
+  app.get('/api/users/:id', (req, res) => {
+    try {
+      const user = dbService.getUserById(parseInt(req.params.id));
+      res.json(user);
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to get user' });
+    }
+  });
+
+  app.post('/api/users', (req, res) => {
+    try {
+      const user = dbService.createUser(req.body);
+      res.json(user);
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to create user' });
+    }
+  });
+
+  app.put('/api/users/:id', (req, res) => {
+    try {
+      const user = dbService.updateUser({ ...req.body, id: parseInt(req.params.id) });
+      res.json(user);
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to update user' });
+    }
+  });
+
+  app.delete('/api/users/:id', (req, res) => {
+    try {
+      const result = dbService.deleteUser(parseInt(req.params.id));
+      res.json({ success: result });
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to delete user' });
+    }
+  });
+
+  app.post('/api/auth', (req, res) => {
+    try {
+      const { username, password } = req.body;
+      const user = dbService.authenticateUser(username, password);
+      res.json({ user, success: !!user });
+    } catch (error) {
+      res.status(500).json({ error: 'Authentication failed' });
+    }
+  });
+}
+
+function startExpressServer(): Promise<boolean> {
+  return new Promise((resolve) => {
+    if (httpServer) {
+      console.log('Server already running');
+      resolve(true);
+      return;
+    }
+
+    try {
+      expressApp = express();
+      setupExpressRoutes(expressApp);
+
+      httpServer = expressApp.listen(SERVER_PORT, '0.0.0.0', () => {
+        console.log(`Server is running on port ${SERVER_PORT}`);
+        resolve(true);
+      });
+
+      httpServer.on('error', (error) => {
+        console.error('Server error:', error);
+        httpServer = null;
+        expressApp = null;
+        resolve(false);
+      });
+    } catch (error) {
+      console.error('Failed to start server:', error);
+      resolve(false);
+    }
+  });
+}
+
+function stopExpressServer(): Promise<void> {
+  return new Promise((resolve) => {
+    if (!httpServer) {
+      resolve();
+      return;
+    }
+
+    httpServer.close(() => {
+      console.log('Server stopped');
+      httpServer = null;
+      expressApp = null;
+      resolve();
+    });
+  });
+}
 
 function createWindow() {
   // Don't create a new window if one already exists
@@ -818,6 +1044,220 @@ function setupIpcHandlers() {
       throw error;
     }
   });
+
+  // Server Mode operations
+  ipcMain.handle('start-server-mode', async () => {
+    try {
+      return await startExpressServer();
+    } catch (error) {
+      console.error('Error starting server mode:', error);
+      return false;
+    }
+  });
+
+  ipcMain.handle('stop-server-mode', async () => {
+    try {
+      await stopExpressServer();
+    } catch (error) {
+      console.error('Error stopping server mode:', error);
+    }
+  });
+
+  ipcMain.handle('get-server-info', async () => {
+    try {
+      if (!httpServer) return null;
+      
+      const networkInterfaces = os.networkInterfaces();
+      const addresses: string[] = [];
+      
+      for (const name of Object.keys(networkInterfaces)) {
+        for (const net of networkInterfaces[name] || []) {
+          if (net.family === 'IPv4' && !net.internal) {
+            addresses.push(net.address);
+          }
+        }
+      }
+      
+      return {
+        hostname: os.hostname(),
+        addresses,
+        port: SERVER_PORT,
+        urls: addresses.map(addr => `http://${addr}:${SERVER_PORT}`)
+      };
+    } catch (error) {
+      console.error('Error getting server info:', error);
+      return null;
+    }
+  });
+
+  // AI Agent operations
+  ipcMain.handle('ai-initialize', async () => {
+    try {
+      // Dynamically import the module
+      const { AIAgent } = await import('./lib/ai/ai-agent');
+      
+      // Always recreate the agent (helpful for development)
+      aiAgent = new AIAgent(
+        { proxyServerUrl: AI_PROXY_SERVER_URL },
+        dbService
+      );
+      return { success: true };
+    } catch (error) {
+      console.error('Error initializing AI agent:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle('ai-chat', async (event, message: string, conversationHistory: any[]) => {
+    try {
+      if (!aiAgent) {
+        throw new Error('AI agent not initialized');
+      }
+      return await aiAgent.processMessage(message, conversationHistory);
+    } catch (error) {
+      console.error('Error processing AI message:', error);
+      return {
+        success: false,
+        message: 'Sorry, I encountered an error while processing your request.',
+        error: error instanceof Error ? error.message : String(error)
+      };
+    }
+  });
+
+  ipcMain.handle('ai-chat-stream', async (event, message: string, conversationHistory: any[]) => {
+    try {
+      if (!aiAgent) {
+        throw new Error('AI agent not initialized');
+      }
+      
+      // Start the streaming process
+      const stream = aiAgent.processMessageStream(message, conversationHistory);
+      let fullMessage = '';
+      
+      for await (const chunk of stream) {
+        fullMessage += chunk;
+        // Send chunk to renderer process
+        event.sender.send('ai-chat-stream-chunk', { chunk, fullMessage });
+      }
+      
+      // Send completion signal
+      event.sender.send('ai-chat-stream-complete', { message: fullMessage });
+      
+      return {
+        success: true,
+        message: fullMessage
+      };
+    } catch (error) {
+      console.error('Error processing AI streaming message:', error);
+      event.sender.send('ai-chat-stream-error', {
+        error: error instanceof Error ? error.message : String(error)
+      });
+      return {
+        success: false,
+        message: 'Sorry, I encountered an error while processing your request.',
+        error: error instanceof Error ? error.message : String(error)
+      };
+    }
+  });
+
+  ipcMain.handle('ai-execute-action', async (event, action: string, data: any) => {
+    try {
+      if (!aiAgent) {
+        throw new Error('AI agent not initialized');
+      }
+      return await aiAgent.executeAction(action, data);
+    } catch (error) {
+      console.error('Error executing AI action:', error);
+      return {
+        success: false,
+        message: 'Failed to execute action',
+        error: error instanceof Error ? error.message : String(error)
+      };
+    }
+  });
+
+  // Chat operations
+  ipcMain.handle('db-create-chat', async (event, title: string) => {
+    try {
+      return dbService.createChat(title);
+    } catch (error) {
+      console.error('Error creating chat:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-get-chat', async (event, chatId: number) => {
+    try {
+      return dbService.getChatById(chatId);
+    } catch (error) {
+      console.error('Error getting chat:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-get-all-chats', async () => {
+    try {
+      return dbService.getAllChats();
+    } catch (error) {
+      console.error('Error getting all chats:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-update-chat', async (event, chatData) => {
+    try {
+      return dbService.updateChat(chatData);
+    } catch (error) {
+      console.error('Error updating chat:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-delete-chat', async (event, chatId: number) => {
+    try {
+      return dbService.deleteChat(chatId);
+    } catch (error) {
+      console.error('Error deleting chat:', error);
+      throw error;
+    }
+  });
+
+  // Chat Message operations
+  ipcMain.handle('db-create-chat-message', async (event, chatMessageData) => {
+    try {
+      return dbService.createChatMessage(chatMessageData);
+    } catch (error) {
+      console.error('Error creating chat message:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-get-chat-messages', async (event, chatId: number) => {
+    try {
+      return dbService.getChatMessagesByChatId(chatId);
+    } catch (error) {
+      console.error('Error getting chat messages:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-update-chat-message', async (event, chatMessageData) => {
+    try {
+      return dbService.updateChatMessage(chatMessageData);
+    } catch (error) {
+      console.error('Error updating chat message:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-delete-chat-message', async (event, chatMessageId: number) => {
+    try {
+      return dbService.deleteChatMessage(chatMessageId);
+    } catch (error) {
+      console.error('Error deleting chat message:', error);
+      throw error;
+    }
+  });
 }
 
 async function installExtensions() {
@@ -836,7 +1276,8 @@ app.whenReady().then(() => {
 }).then(installExtensions);
 
 //osX only
-app.on("window-all-closed", () => {
+app.on("window-all-closed", async () => {
+  await stopExpressServer();
   dbService.close();
   if (process.platform !== "darwin") {
     app.quit();
@@ -850,6 +1291,7 @@ app.on("activate", () => {
 });
 //osX only ends
 
-app.on("before-quit", () => {
+app.on("before-quit", async () => {
+  await stopExpressServer();
   dbService.close();
 });

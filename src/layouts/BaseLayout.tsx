@@ -1,4 +1,4 @@
-import React, { useState, useEffect, createContext, useContext } from "react";
+import React, { useState, useEffect } from "react";
 import DragWindowRegion from "@/components/DragWindowRegion";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
@@ -8,22 +8,8 @@ import { getSettings } from "@/lib/db/settings-db";
 import { applyThemeColorsFromSettings } from "@/helpers/theme_helpers";
 import { Settings } from "@/lib/db/schema";
 import { useUser } from "@/contexts/UserContext";
+import { SettingsContext } from "@/contexts/SettingsContext";
 import UserSelectionPage from "@/pages/UserSelectionPage";
-
-interface SettingsContextType {
-  settings: Settings | null;
-  updateSettings: (newSettings: Settings) => void;
-}
-
-const SettingsContext = createContext<SettingsContextType | undefined>(undefined);
-
-export const useSettings = () => {
-  const context = useContext(SettingsContext);
-  if (!context) {
-    throw new Error('useSettings must be used within BaseLayout');
-  }
-  return context;
-};
 
 export default function BaseLayout({
   children,
@@ -59,23 +45,25 @@ export default function BaseLayout({
       <ThemeProvider defaultTheme="light" storageKey="vite-ui-theme">
         <SettingsContext.Provider value={{ settings, updateSettings }}>
           {isLoading ? (
-            <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center">
+            <div className="min-h-screen bg-white flex items-center justify-center">
               <div className="text-white text-xl">טוען...</div>
             </div>
           ) : !currentUser ? (
             <UserSelectionPage />
           ) : (
-            <>
+            <div className="flex flex-col h-screen">
               <DragWindowRegion title="" />
-              <SidebarProvider dir="rtl">
-                <AppSidebar variant="inset" side="right" clinicName={settings?.clinic_name} currentUser={currentUser} />
-                <SidebarInset className="flex flex-col h-screen overflow-hidden" style={{scrollbarWidth: 'none'}}>
-                  <main className="flex-1 overflow-auto" style={{scrollbarWidth: 'none'}}>
-                    {children}
-                  </main>
-                </SidebarInset>
-              </SidebarProvider>
-            </>
+              <div className="flex-1 flex overflow-hidden">
+                <SidebarProvider dir="rtl">
+                  <AppSidebar variant="inset" side="right" clinicName={settings?.clinic_name} currentUser={currentUser} />
+                  <SidebarInset className="flex flex-col flex-1 overflow-hidden" style={{scrollbarWidth: 'none'}}>
+                    <main className="flex-1 overflow-auto" style={{scrollbarWidth: 'none'}}>
+                      {children}
+                    </main>
+                  </SidebarInset>
+                </SidebarProvider>
+              </div>
+            </div>
           )}
         </SettingsContext.Provider>
         <Toaster />

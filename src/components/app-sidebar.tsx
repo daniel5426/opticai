@@ -20,6 +20,7 @@ import {
   IconCircleDot,
   IconArrowForward,
   IconCalendar,
+  IconRobot,
 } from "@tabler/icons-react"
 import { Link } from "@tanstack/react-router"
 
@@ -50,6 +51,11 @@ const data = {
       title: "לקוחות",
       url: "/clients",
       icon: IconUsers,
+    },
+    {
+      title: "עוזר חכם",
+      url: "/ai-assistant",
+      icon: IconRobot,
     }
   ],
   navSecondary: [

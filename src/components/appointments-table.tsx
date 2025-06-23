@@ -30,6 +30,7 @@ import { toast } from "sonner"
 import { ClientSelectModal } from "@/components/ClientSelectModal"
 import { cleanupModalArtifacts } from "@/lib/utils"
 import { CustomModal } from "@/components/ui/custom-modal"
+import { ClientWarningModal } from "@/components/ClientWarningModal"
 
 interface AppointmentsTableProps {
   data: Appointment[]
@@ -52,6 +53,7 @@ export function AppointmentsTable({ data, clientId, onAppointmentChange }: Appoi
     first_name: '',
     last_name: '',
     phone_mobile: '',
+    email: '',
     exam_name: '',
     note: ''
   })
@@ -60,6 +62,7 @@ export function AppointmentsTable({ data, clientId, onAppointmentChange }: Appoi
     first_name: string
     last_name: string
     phone_mobile: string
+    email: string
     date: string
     time: string
     exam_name: string
@@ -68,10 +71,21 @@ export function AppointmentsTable({ data, clientId, onAppointmentChange }: Appoi
     first_name: '',
     last_name: '',
     phone_mobile: '',
+    email: '',
     date: '',
     time: '',
     exam_name: '',
     note: ''
+  })
+
+  const [existingClientWarning, setExistingClientWarning] = useState<{
+    show: boolean
+    clients: Client[]
+    type: 'name' | 'phone' | 'email' | 'multiple'
+  }>({
+    show: false,
+    clients: [],
+    type: 'name'
   })
 
   const filteredData = data.filter((appointment) => {
@@ -98,6 +112,7 @@ export function AppointmentsTable({ data, clientId, onAppointmentChange }: Appoi
       first_name: '',
       last_name: '',
       phone_mobile: '',
+      email: '',
       exam_name: '',
       note: ''
     })
@@ -105,6 +120,7 @@ export function AppointmentsTable({ data, clientId, onAppointmentChange }: Appoi
       first_name: '',
       last_name: '',
       phone_mobile: '',
+      email: '',
       date: '',
       time: '',
       exam_name: '',
@@ -112,6 +128,7 @@ export function AppointmentsTable({ data, clientId, onAppointmentChange }: Appoi
     })
     setSelectedClient(null)
     setEditingAppointment(null)
+    setExistingClientWarning({ show: false, clients: [], type: 'name' })
   }
 
   const closeAllDialogs = () => {
@@ -210,12 +227,86 @@ export function AppointmentsTable({ data, clientId, onAppointmentChange }: Appoi
     }
   }
 
-  const handleSaveNewClientAndAppointment = async () => {
+  const checkForExistingClients = async () => {
+    if (!newClientFormData.first_name.trim() || !newClientFormData.last_name.trim()) {
+      toast.error("שם פרטי ושם משפחה הם שדות חובה")
+      return false
+    }
+
     try {
+      const allClients = await window.electronAPI.getAllClients()
+      const existingClients: Client[] = []
+      let warningType: 'name' | 'phone' | 'email' | 'multiple' = 'name'
+
+      const nameMatches = allClients.filter(client => 
+        client.first_name?.toLowerCase().trim() === newClientFormData.first_name.toLowerCase().trim() &&
+        client.last_name?.toLowerCase().trim() === newClientFormData.last_name.toLowerCase().trim()
+      )
+
+      const phoneMatches = newClientFormData.phone_mobile.trim() 
+        ? allClients.filter(client => 
+            client.phone_mobile?.trim() === newClientFormData.phone_mobile.trim()
+          )
+        : []
+
+      const emailMatches = newClientFormData.email.trim() 
+        ? allClients.filter(client => 
+            client.email?.toLowerCase().trim() === newClientFormData.email.toLowerCase().trim()
+          )
+        : []
+
+      const matchTypes = []
+      if (nameMatches.length > 0) {
+        existingClients.push(...nameMatches)
+        matchTypes.push('name')
+      }
+      if (phoneMatches.length > 0) {
+        existingClients.push(...phoneMatches)
+        matchTypes.push('phone')
+      }
+      if (emailMatches.length > 0) {
+        existingClients.push(...emailMatches)
+        matchTypes.push('email')
+      }
+
+      if (matchTypes.length > 1) {
+        warningType = 'multiple'
+      } else if (matchTypes.length === 1) {
+        warningType = matchTypes[0] as 'name' | 'phone' | 'email'
+      }
+
+      if (existingClients.length > 0) {
+        const uniqueClients = existingClients.filter((client, index, self) => 
+          index === self.findIndex(c => c.id === client.id)
+        )
+        setExistingClientWarning({
+          show: true,
+          clients: uniqueClients,
+          type: warningType
+        })
+        return false
+      }
+
+      return true
+    } catch (error) {
+      console.error('Error checking for existing clients:', error)
+      toast.error("שגיאה בבדיקת לקוחות קיימים")
+      return false
+    }
+  }
+
+  const handleSaveNewClientAndAppointment = async (forceCreate = false) => {
+    try {
+      if (!forceCreate) {
+        const canProceed = await checkForExistingClients()
+        if (!canProceed) return
+      }
+
       const newClient = await window.electronAPI.createClient({
         first_name: newClientFormData.first_name,
         last_name: newClientFormData.last_name,
-        phone_mobile: newClientFormData.phone_mobile
+        phone_mobile: newClientFormData.phone_mobile,
+        email: newClientFormData.email
       })
 
       if (newClient && newClient.id) {
@@ -244,6 +335,33 @@ export function AppointmentsTable({ data, clientId, onAppointmentChange }: Appoi
     } catch (error) {
       console.error('Error creating client and appointment:', error)
       toast.error("שגיאה ביצירת לקוח ותור")
+    }
+  }
+
+  const handleUseExistingClient = async (existingClient: Client) => {
+    try {
+      const appointmentData = {
+        client_id: existingClient.id!,
+        date: newClientFormData.date,
+        time: newClientFormData.time,
+        first_name: existingClient.first_name || '',
+        last_name: existingClient.last_name || '',
+        phone_mobile: existingClient.phone_mobile || '',
+        exam_name: newClientFormData.exam_name,
+        note: newClientFormData.note
+      }
+
+      const result = await window.electronAPI.createAppointment(appointmentData)
+      if (result) {
+        toast.success("תור נוצר עם לקוח קיים בהצלחה")
+        closeAllDialogs()
+        onAppointmentChange()
+      } else {
+        toast.error("שגיאה ביצירת התור")
+      }
+    } catch (error) {
+      console.error('Error creating appointment with existing client:', error)
+      toast.error("שגיאה ביצירת תור עם לקוח קיים")
     }
   }
 
@@ -314,27 +432,40 @@ export function AppointmentsTable({ data, clientId, onAppointmentChange }: Appoi
         <div className="grid gap-4 max-h-[60vh] overflow-auto p-1" style={{scrollbarWidth: 'none'}}>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="new-first-name" className="text-right block">שם פרטי</Label>
+              <Label htmlFor="new-first-name" className="text-right block">שם פרטי *</Label>
               <Input
                 id="new-first-name"
                 name="first_name"
                 value={newClientFormData.first_name}
                 onChange={handleNewClientInputChange}
                 dir="rtl"
+                required
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="new-last-name" className="text-right block">שם משפחה</Label>
+              <Label htmlFor="new-last-name" className="text-right block">שם משפחה *</Label>
               <Input
                 id="new-last-name"
                 name="last_name"
                 value={newClientFormData.last_name}
                 onChange={handleNewClientInputChange}
                 dir="rtl"
+                required
               />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="new-email" className="text-right block">אימייל</Label>
+              <Input
+                id="new-email"
+                name="email"
+                type="email"
+                value={newClientFormData.email}
+                onChange={handleNewClientInputChange}
+                dir="rtl"
+              />
+            </div>
             <div className="space-y-2">
               <Label htmlFor="new-phone" className="text-right block">טלפון נייד</Label>
               <Input
@@ -345,29 +476,8 @@ export function AppointmentsTable({ data, clientId, onAppointmentChange }: Appoi
                 dir="rtl"
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="new-exam-name" className="text-right block">סוג בדיקה</Label>
-              <Input
-                id="new-exam-name"
-                name="exam_name"
-                value={newClientFormData.exam_name}
-                onChange={handleNewClientInputChange}
-                dir="rtl"
-              />
-            </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="new-time" className="text-right block">שעה</Label>
-              <Input
-                id="new-time"
-                name="time"
-                type="time"
-                value={newClientFormData.time}
-                onChange={handleNewClientInputChange}
-                style={{ textAlign: 'right', direction: 'rtl', paddingLeft: '55%' }}
-              />
-            </div>
             <div className="space-y-2">
               <Label htmlFor="new-date" className="text-right block">תאריך</Label>
               <Input
@@ -379,6 +489,27 @@ export function AppointmentsTable({ data, clientId, onAppointmentChange }: Appoi
                 style={{ textAlign: 'right', direction: 'rtl', paddingLeft: '25%' }}
               />
             </div>
+            <div className="space-y-2">
+              <Label htmlFor="new-time" className="text-right block">שעה</Label>
+              <Input
+                id="new-time"
+                name="time"
+                type="time"
+                value={newClientFormData.time}
+                onChange={handleNewClientInputChange}
+                style={{ textAlign: 'right', direction: 'rtl', paddingLeft: '55%' }}
+              />
+            </div>
+          </div>
+          <div className="space-y-2 pb-2">
+            <Label htmlFor="new-exam-name" className="text-right block">סוג בדיקה</Label>
+            <Input
+              id="new-exam-name"
+              name="exam_name"
+              value={newClientFormData.exam_name}
+              onChange={handleNewClientInputChange}
+              dir="rtl"
+            />
           </div>
           <div className="space-y-2 pb-2">
             <Label htmlFor="new-note" className="text-right block">הערות</Label>
@@ -390,9 +521,11 @@ export function AppointmentsTable({ data, clientId, onAppointmentChange }: Appoi
               dir="rtl"
             />
           </div>
+
+
         </div>
         <div className="flex justify-start gap-2 mt-4">
-          <Button onClick={handleSaveNewClientAndAppointment}>שמור</Button>
+          <Button onClick={() => handleSaveNewClientAndAppointment(false)}>שמור</Button>
           <Button variant="outline" onClick={closeAllDialogs}>ביטול</Button>
         </div>
       </CustomModal>
@@ -466,6 +599,16 @@ export function AppointmentsTable({ data, clientId, onAppointmentChange }: Appoi
         </div>
       </CustomModal>
 
+      {/* Client Warning Modal */}
+      <ClientWarningModal
+        isOpen={existingClientWarning.show}
+        onClose={() => setExistingClientWarning({ show: false, clients: [], type: 'name' })}
+        clients={existingClientWarning.clients}
+        warningType={existingClientWarning.type}
+        onUseExistingClient={handleUseExistingClient}
+        onCreateNewAnyway={() => handleSaveNewClientAndAppointment(true)}
+      />
+
       <div className="rounded-md border">
         <Table dir="rtl">
           <TableHeader>
@@ -475,6 +618,7 @@ export function AppointmentsTable({ data, clientId, onAppointmentChange }: Appoi
               <TableHead className="text-right">שם פרטי</TableHead>
               <TableHead className="text-right">שם משפחה</TableHead>
               <TableHead className="text-right">טלפון</TableHead>
+              <TableHead className="text-right">אימייל</TableHead>
               <TableHead className="text-right">סוג בדיקה</TableHead>
               <TableHead className="text-right">הערות</TableHead>
               <TableHead className="text-right w-[50px]"></TableHead>
@@ -484,7 +628,7 @@ export function AppointmentsTable({ data, clientId, onAppointmentChange }: Appoi
             {filteredData.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={8}
+                  colSpan={9}
                   className="h-24 text-center text-muted-foreground"
                 >
                   לא נמצאו תורים לתצוגה
@@ -505,6 +649,7 @@ export function AppointmentsTable({ data, clientId, onAppointmentChange }: Appoi
                     <TableCell>{appointment.first_name}</TableCell>
                     <TableCell>{appointment.last_name}</TableCell>
                     <TableCell>{appointment.phone_mobile}</TableCell>
+                    <TableCell>{appointment.email}</TableCell>
                     <TableCell>{appointment.exam_name}</TableCell>
                     <TableCell>{appointment.note}</TableCell>
                     <TableCell>

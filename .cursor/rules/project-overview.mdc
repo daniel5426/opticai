@@ -15,11 +15,15 @@ The application uses [shadcn/ui](mdc:https:/ui.shadcn.com) for UI components, wh
 - Accessibility-focused design
 - Tailwind CSS for styling
 - Customizable and reusable components
+
+ALWAYS FOLLOW THOSE GUIDELINE FOR UI:
 - Its an app in hebrew, so ui need to be rtl
 - each new page created should be added a button in the appsidebar to go to it
 - ALWAYS in every page or component use: style={{scrollbarWidth: 'none'}}
   to hide the vizible scrollbar without removing the functionality of scrolling
 - ALWAYS if you want to create a modal use the src/components/ui/cusom-modal.tsx component
+- When creating classic buttons try to use icons instead of label text, use text only if its an unusual button
+- try to not have dupclicated codes, create components when a part of code is used multiple time.
 
 ## Routing System
 

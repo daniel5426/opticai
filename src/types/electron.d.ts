@@ -120,6 +120,36 @@ export interface ElectronAPI {
   updateUser: (userData: any) => Promise<any>;
   deleteUser: (userId: number) => Promise<boolean>;
   authenticateUser: (username: string, password?: string) => Promise<any>;
+
+  // Server Mode operations
+  startServerMode: () => Promise<boolean>;
+  stopServerMode: () => Promise<void>;
+  getServerInfo: () => Promise<{ hostname: string; addresses: string[]; port: number; urls: string[] } | null>;
+
+  // AI Agent operations
+  aiInitialize: () => Promise<{ success: boolean; error?: string }>;
+  aiChat: (message: string, conversationHistory: any[]) => Promise<{ success: boolean; message: string; data?: any; error?: string }>;
+  aiChatStream: (message: string, conversationHistory: any[]) => Promise<{ success: boolean; message: string; data?: any; error?: string }>;
+  aiExecuteAction: (action: string, data: any) => Promise<{ success: boolean; message: string; data?: any; error?: string }>;
+  
+  // AI Stream listeners
+  onAiStreamChunk: (callback: (data: { chunk: string; fullMessage: string }) => void) => void;
+  onAiStreamComplete: (callback: (data: { message: string }) => void) => void;
+  onAiStreamError: (callback: (data: { error: string }) => void) => void;
+  removeAiStreamListeners: () => void;
+
+  // Chat operations
+  createChat: (title: string) => Promise<any>;
+  getChatById: (chatId: number) => Promise<any>;
+  getAllChats: () => Promise<any[]>;
+  updateChat: (chatData: any) => Promise<any>;
+  deleteChat: (chatId: number) => Promise<boolean>;
+
+  // Chat Message operations
+  createChatMessage: (chatMessageData: any) => Promise<any>;
+  getChatMessages: (chatId: number) => Promise<any[]>;
+  updateChatMessage: (chatMessageData: any) => Promise<any>;
+  deleteChatMessage: (chatMessageId: number) => Promise<boolean>;
 }
 
 declare global {

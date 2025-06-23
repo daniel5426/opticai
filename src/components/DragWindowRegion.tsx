@@ -5,6 +5,7 @@ import {
 } from "@/helpers/window_helpers";
 import React, { type ReactNode } from "react";
 import { ModeToggle } from "@/components/mode-toggle";
+import { RotateCcw } from "lucide-react";
 
 interface DragWindowRegionProps {
   title?: ReactNode;
@@ -23,10 +24,28 @@ export default function DragWindowRegion({ title }: DragWindowRegionProps) {
         </div>
         <div className="flex items-center">
           <ModeToggle />
+          <RefreshButton />
           <WindowButtons />
         </div>
       </div>
     </div>
+  );
+}
+
+function RefreshButton() {
+  const handleRefresh = () => {
+    window.location.reload();
+  };
+
+  return (
+    <button
+      title="Refresh App"
+      type="button"
+      className="flex items-center justify-center w-10 h-8 text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-colors"
+      onClick={handleRefresh}
+    >
+      <RotateCcw className="h-4 w-4" />
+    </button>
   );
 }
 

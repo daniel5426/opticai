@@ -27,6 +27,7 @@ import { ClientSelectModal } from "@/components/ClientSelectModal"
 import { toast } from "sonner"
 import { cleanupModalArtifacts } from "@/lib/utils"
 import { CustomModal } from "@/components/ui/custom-modal"
+import { ClientWarningModal } from "@/components/ClientWarningModal"
 
 interface TimeSlot {
   type: 'appointment' | 'free' | 'free-slot' | 'collapse'
@@ -74,6 +75,7 @@ export default function HomePage() {
     first_name: string
     last_name: string
     phone_mobile: string
+    email: string
     date: string
     time: string
     exam_name: string
@@ -82,10 +84,21 @@ export default function HomePage() {
     first_name: '',
     last_name: '',
     phone_mobile: '',
+    email: '',
     date: '',
     time: '',
     exam_name: '',
     note: ''
+  })
+
+  const [existingClientWarning, setExistingClientWarning] = useState<{
+    show: boolean
+    clients: Client[]
+    type: 'name' | 'phone' | 'email' | 'multiple'
+  }>({
+    show: false,
+    clients: [],
+    type: 'name'
   })
 
   const loadData = async () => {
@@ -380,12 +393,14 @@ export default function HomePage() {
       first_name: '',
       last_name: '',
       phone_mobile: '',
+      email: '',
       date: '',
       time: '',
       exam_name: '',
       note: ''
     })
     setSelectedClient(null)
+    setExistingClientWarning({ show: false, clients: [], type: 'name' })
   }
 
   const closeAllDialogs = () => {
@@ -505,12 +520,85 @@ export default function HomePage() {
     }
   }
 
-  const handleSaveNewClientAndAppointment = async () => {
+  const checkForExistingClients = async () => {
+    if (!newClientFormData.first_name.trim() || !newClientFormData.last_name.trim()) {
+      toast.error("שם פרטי ושם משפחה הם שדות חובה")
+      return false
+    }
+
     try {
+      const existingClients: Client[] = []
+      let warningType: 'name' | 'phone' | 'email' | 'multiple' = 'name'
+
+      const nameMatches = clients.filter(client => 
+        client.first_name?.toLowerCase().trim() === newClientFormData.first_name.toLowerCase().trim() &&
+        client.last_name?.toLowerCase().trim() === newClientFormData.last_name.toLowerCase().trim()
+      )
+
+      const phoneMatches = newClientFormData.phone_mobile.trim() 
+        ? clients.filter(client => 
+            client.phone_mobile?.trim() === newClientFormData.phone_mobile.trim()
+          )
+        : []
+
+      const emailMatches = newClientFormData.email.trim() 
+        ? clients.filter(client => 
+            client.email?.toLowerCase().trim() === newClientFormData.email.toLowerCase().trim()
+          )
+        : []
+
+      const matchTypes = []
+      if (nameMatches.length > 0) {
+        existingClients.push(...nameMatches)
+        matchTypes.push('name')
+      }
+      if (phoneMatches.length > 0) {
+        existingClients.push(...phoneMatches)
+        matchTypes.push('phone')
+      }
+      if (emailMatches.length > 0) {
+        existingClients.push(...emailMatches)
+        matchTypes.push('email')
+      }
+
+      if (matchTypes.length > 1) {
+        warningType = 'multiple'
+      } else if (matchTypes.length === 1) {
+        warningType = matchTypes[0] as 'name' | 'phone' | 'email'
+      }
+
+      if (existingClients.length > 0) {
+        const uniqueClients = existingClients.filter((client, index, self) => 
+          index === self.findIndex(c => c.id === client.id)
+        )
+        setExistingClientWarning({
+          show: true,
+          clients: uniqueClients,
+          type: warningType
+        })
+        return false
+      }
+
+      return true
+    } catch (error) {
+      console.error('Error checking for existing clients:', error)
+      toast.error("שגיאה בבדיקת לקוחות קיימים")
+      return false
+    }
+  }
+
+  const handleSaveNewClientAndAppointment = async (forceCreate = false) => {
+    try {
+      if (!forceCreate) {
+        const canProceed = await checkForExistingClients()
+        if (!canProceed) return
+      }
+
       const newClient = await window.electronAPI.createClient({
         first_name: newClientFormData.first_name,
         last_name: newClientFormData.last_name,
-        phone_mobile: newClientFormData.phone_mobile
+        phone_mobile: newClientFormData.phone_mobile,
+        email: newClientFormData.email
       })
 
       if (newClient && newClient.id) {
@@ -539,6 +627,33 @@ export default function HomePage() {
     } catch (error) {
       console.error('Error creating client and appointment:', error)
       toast.error("שגיאה ביצירת לקוח ותור")
+    }
+  }
+
+  const handleUseExistingClient = async (existingClient: Client) => {
+    try {
+      const appointmentData = {
+        client_id: existingClient.id!,
+        date: newClientFormData.date,
+        time: newClientFormData.time,
+        first_name: existingClient.first_name || '',
+        last_name: existingClient.last_name || '',
+        phone_mobile: existingClient.phone_mobile || '',
+        exam_name: newClientFormData.exam_name,
+        note: newClientFormData.note
+      }
+
+      const result = await window.electronAPI.createAppointment(appointmentData)
+      if (result) {
+        toast.success("תור נוצר עם לקוח קיים בהצלחה")
+        await loadData()
+        closeAllDialogs()
+      } else {
+        toast.error("שגיאה ביצירת התור")
+      }
+    } catch (error) {
+      console.error('Error creating appointment with existing client:', error)
+      toast.error("שגיאה ביצירת תור עם לקוח קיים")
     }
   }
 
@@ -628,16 +743,6 @@ export default function HomePage() {
     }
   }
 
-  if (loading) {
-    return (
-      <>
-        <SiteHeader title="דשבורד" />
-        <div className="flex flex-col items-center justify-center h-full">
-          <div className="text-lg">טוען נתונים...</div>
-        </div>
-      </>
-    )
-  }
 
   return (
     <>
@@ -872,27 +977,40 @@ export default function HomePage() {
             <div className="grid gap-4 max-h-[60vh] overflow-auto p-1" style={{scrollbarWidth: 'none'}}>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="new-first-name" className="text-right block">שם פרטי</Label>
+                  <Label htmlFor="new-first-name" className="text-right block">שם פרטי *</Label>
                   <Input
                     id="new-first-name"
                     name="first_name"
                     value={newClientFormData.first_name}
                     onChange={handleNewClientInputChange}
                     dir="rtl"
+                    required
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="new-last-name" className="text-right block">שם משפחה</Label>
+                  <Label htmlFor="new-last-name" className="text-right block">שם משפחה *</Label>
                   <Input
                     id="new-last-name"
                     name="last_name"
                     value={newClientFormData.last_name}
                     onChange={handleNewClientInputChange}
                     dir="rtl"
+                    required
                   />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="new-email" className="text-right block">אימייל</Label>
+                  <Input
+                    id="new-email"
+                    name="email"
+                    type="email"
+                    value={newClientFormData.email}
+                    onChange={handleNewClientInputChange}
+                    dir="rtl"
+                  />
+                </div>
                 <div className="space-y-2">
                   <Label htmlFor="new-phone" className="text-right block">טלפון נייד</Label>
                   <Input
@@ -903,16 +1021,16 @@ export default function HomePage() {
                     dir="rtl"
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="new-exam-name" className="text-right block">סוג בדיקה</Label>
-                  <Input
-                    id="new-exam-name"
-                    name="exam_name"
-                    value={newClientFormData.exam_name}
-                    onChange={handleNewClientInputChange}
-                    dir="rtl"
-                  />
-                </div>
+              </div>
+              <div className="space-y-2 pb-2">
+                <Label htmlFor="new-exam-name" className="text-right block">סוג בדיקה</Label>
+                <Input
+                  id="new-exam-name"
+                  name="exam_name"
+                  value={newClientFormData.exam_name}
+                  onChange={handleNewClientInputChange}
+                  dir="rtl"
+                />
               </div>
               <div className="space-y-2 pb-2">
                 <Label htmlFor="new-note" className="text-right block">הערות</Label>
@@ -924,9 +1042,11 @@ export default function HomePage() {
                   dir="rtl"
                 />
               </div>
+
+              
             </div>
             <div className="flex justify-start gap-2 mt-4">
-              <Button onClick={handleSaveNewClientAndAppointment}>שמור</Button>
+              <Button onClick={() => handleSaveNewClientAndAppointment(false)}>שמור</Button>
               <Button variant="outline" onClick={closeAllDialogs}>ביטול</Button>
             </div>
           </CustomModal>
@@ -975,6 +1095,16 @@ export default function HomePage() {
               <Button variant="outline" onClick={closeAllDialogs}>ביטול</Button>
             </div>
           </CustomModal>
+
+          {/* Client Warning Modal */}
+          <ClientWarningModal
+            isOpen={existingClientWarning.show}
+            onClose={() => setExistingClientWarning({ show: false, clients: [], type: 'name' })}
+            clients={existingClientWarning.clients}
+            warningType={existingClientWarning.type}
+            onUseExistingClient={handleUseExistingClient}
+            onCreateNewAnyway={() => handleSaveNewClientAndAppointment(true)}
+          />
       </>
     )
 }

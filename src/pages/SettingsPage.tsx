@@ -15,9 +15,10 @@ import { getAllUsers, createUser, updateUser, deleteUser } from "@/lib/db/users-
 import { applyThemeColorsFromSettings } from "@/helpers/theme_helpers"
 import { CustomModal } from "@/components/ui/custom-modal"
 import { Badge } from "@/components/ui/badge"
-import { IconPlus } from "@tabler/icons-react"
-import { useSettings } from "@/layouts/BaseLayout"
+import { IconPlus, IconEdit, IconTrash } from "@tabler/icons-react"
+import { useSettings } from "@/hooks/useSettings"
 import { useUser } from "@/contexts/UserContext"
+import { ServerConnectionSettings } from "@/components/ServerConnectionSettings"
 
 export default function SettingsPage() {
   const { settings, updateSettings: updateBaseSettings } = useSettings()
@@ -774,24 +775,25 @@ export default function SettingsPage() {
                                 <div key={user.id} className={`flex items-center justify-between p-4 border rounded-lg ${
                                   user.id === currentUser?.id ? 'border-primary/50 border-2' : ''
                                 }`}>
-                                  <div className="flex items-center gap-4">
+                                  <div className="flex items-center gap-2">
                                     {currentUser?.role === 'admin' && user.id !== currentUser?.id && (
                                       <Button 
                                         variant="outline" 
-                                        size="sm"
+                                        size="icon"
                                         onClick={() => handleUserDelete(user.id!)}
-                                        className="text-red-600 hover:text-red-700"
+                                        className="text-red-600 hover:text-red-700 h-8 w-8"
                                       >
-                                        מחק
+                                        <IconTrash className="h-4 w-4" />
                                       </Button>
                                     )}
                                     {(currentUser?.role === 'admin' || user.id === currentUser?.id) && (
                                       <Button 
                                         variant="outline" 
-                                        size="sm"
+                                        size="icon"
                                         onClick={() => openEditUserModal(user)}
+                                        className="h-8 w-8"
                                       >
-                                        ערוך
+                                        <IconEdit className="h-4 w-4" />
                                       </Button>
                                     )}
                                   </div>
@@ -826,6 +828,10 @@ export default function SettingsPage() {
                       </CardContent>
                     </Card>
                   </TabsContent>
+
+                  <TabsContent value="server" className="space-y-6 mt-0">
+                    <ServerConnectionSettings />
+                  </TabsContent>
                 </div>
 
                 {/* Vertical TabsList on the Right */}
@@ -834,6 +840,7 @@ export default function SettingsPage() {
                   <TabsTrigger value="customization" className="w-full justify-end text-right">התאמה אישית</TabsTrigger>
                   <TabsTrigger value="preferences" className="w-full justify-end text-right">ניהול זמן</TabsTrigger>
                   <TabsTrigger value="notifications" className="w-full justify-end text-right">התראות</TabsTrigger>
+                  <TabsTrigger value="server" className="w-full justify-end text-right">חיבור לשרת</TabsTrigger>
                   <TabsTrigger value="users" className="w-full justify-end text-right">
                     {currentUser?.role === 'admin' ? 'ניהול משתמשים' : 'פרופיל אישי'}
                   </TabsTrigger>
@@ -879,42 +886,44 @@ export default function SettingsPage() {
                 />
               </div>
               
-              <div className="space-y-2">
-                <Label htmlFor="phone" className="text-right block">טלפון</Label>
-                <Input
-                  id="phone"
-                  value={userForm.phone}
-                  onChange={(e) => handleUserFormChange('phone', e.target.value)}
-                  placeholder="050-1234567"
-                  className="text-right"
-                  dir="rtl"
-                />
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="role" className="text-right block">תפקיד *</Label>
-                {currentUser?.role === 'admin' ? (
-                  <Select
-                    value={userForm.role}
-                    onValueChange={(value) => handleUserFormChange('role', value)}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="role" className="text-right block">תפקיד *</Label>
+                  {currentUser?.role === 'admin' ? (
+                    <Select
+                      value={userForm.role}
+                      onValueChange={(value) => handleUserFormChange('role', value)}
+                      dir="rtl"
+                    >
+                      <SelectTrigger className="text-right" dir="rtl">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="admin">מנהל</SelectItem>
+                        <SelectItem value="worker">עובד</SelectItem>
+                        <SelectItem value="viewer">צופה</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <div className="px-3 py-2 bg-muted rounded-md text-right">
+                      {userForm.role === 'admin' ? 'מנהל' : 
+                       userForm.role === 'worker' ? 'עובד' : 'צופה'}
+                      <span className="text-xs text-muted-foreground mr-2">(לא ניתן לשינוי)</span>
+                    </div>
+                  )}
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="phone" className="text-right block">טלפון</Label>
+                  <Input
+                    id="phone"
+                    value={userForm.phone}
+                    onChange={(e) => handleUserFormChange('phone', e.target.value)}
+                    placeholder="050-1234567"
+                    className="text-right"
                     dir="rtl"
-                  >
-                    <SelectTrigger className="text-right" dir="rtl">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="admin">מנהל</SelectItem>
-                      <SelectItem value="worker">עובד</SelectItem>
-                      <SelectItem value="viewer">צופה</SelectItem>
-                    </SelectContent>
-                  </Select>
-                ) : (
-                  <div className="px-3 py-2 bg-muted rounded-md text-right">
-                    {userForm.role === 'admin' ? 'מנהל' : 
-                     userForm.role === 'worker' ? 'עובד' : 'צופה'}
-                    <span className="text-xs text-muted-foreground mr-2">(לא ניתן לשינוי)</span>
-                  </div>
-                )}
+                  />
+                </div>
               </div>
               <div className="space-y-1">
               <Label htmlFor="hasPassword" className="font-medium">הגדר סיסמה</Label>

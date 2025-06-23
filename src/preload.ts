@@ -135,4 +135,44 @@ contextBridge.exposeInMainWorld('electronAPI', {
   updateUser: (userData: any) => ipcRenderer.invoke('db-update-user', userData),
   deleteUser: (userId: number) => ipcRenderer.invoke('db-delete-user', userId),
   authenticateUser: (username: string, password?: string) => ipcRenderer.invoke('db-authenticate-user', username, password),
+
+  // Server Mode operations
+  startServerMode: () => ipcRenderer.invoke('start-server-mode'),
+  stopServerMode: () => ipcRenderer.invoke('stop-server-mode'),
+  getServerInfo: () => ipcRenderer.invoke('get-server-info'),
+
+  // AI Agent operations
+  aiInitialize: () => ipcRenderer.invoke('ai-initialize'),
+  aiChat: (message: string, conversationHistory: any[]) => ipcRenderer.invoke('ai-chat', message, conversationHistory),
+  aiChatStream: (message: string, conversationHistory: any[]) => ipcRenderer.invoke('ai-chat-stream', message, conversationHistory),
+  aiExecuteAction: (action: string, data: any) => ipcRenderer.invoke('ai-execute-action', action, data),
+  
+  // AI Stream listeners
+  onAiStreamChunk: (callback: (data: { chunk: string; fullMessage: string }) => void) => {
+    ipcRenderer.on('ai-chat-stream-chunk', (_, data) => callback(data));
+  },
+  onAiStreamComplete: (callback: (data: { message: string }) => void) => {
+    ipcRenderer.on('ai-chat-stream-complete', (_, data) => callback(data));
+  },
+  onAiStreamError: (callback: (data: { error: string }) => void) => {
+    ipcRenderer.on('ai-chat-stream-error', (_, data) => callback(data));
+  },
+  removeAiStreamListeners: () => {
+    ipcRenderer.removeAllListeners('ai-chat-stream-chunk');
+    ipcRenderer.removeAllListeners('ai-chat-stream-complete');
+    ipcRenderer.removeAllListeners('ai-chat-stream-error');
+  },
+
+  // Chat operations
+  createChat: (title: string) => ipcRenderer.invoke('db-create-chat', title),
+  getChatById: (chatId: number) => ipcRenderer.invoke('db-get-chat', chatId),
+  getAllChats: () => ipcRenderer.invoke('db-get-all-chats'),
+  updateChat: (chatData: any) => ipcRenderer.invoke('db-update-chat', chatData),
+  deleteChat: (chatId: number) => ipcRenderer.invoke('db-delete-chat', chatId),
+
+  // Chat Message operations
+  createChatMessage: (chatMessageData: any) => ipcRenderer.invoke('db-create-chat-message', chatMessageData),
+  getChatMessages: (chatId: number) => ipcRenderer.invoke('db-get-chat-messages', chatId),
+  updateChatMessage: (chatMessageData: any) => ipcRenderer.invoke('db-update-chat-message', chatMessageData),
+  deleteChatMessage: (chatMessageId: number) => ipcRenderer.invoke('db-delete-chat-message', chatMessageId),
 });
