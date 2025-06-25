@@ -23,6 +23,7 @@ export default function ReferralDetailPage() {
   const navigate = useNavigate()
   const [loading, setLoading] = useState(true)
   const [client, setClient] = useState<Client | null>(null)
+  const [activeTab, setActiveTab] = useState('referrals')
   
   // Check if we're on the create route
   const isNewReferral = location.pathname === '/referrals/create'
@@ -157,7 +158,16 @@ export default function ReferralDetailPage() {
     setFormData(prev => ({ ...prev, [name]: value }))
   }
 
-
+  const handleTabChange = (value: string) => {
+    const clientId = isNewReferral ? clientIdFromSearch : formData.client_id?.toString()
+    if (clientId && value !== 'referrals') {
+      navigate({ 
+        to: "/clients/$clientId", 
+        params: { clientId: String(clientId) },
+        search: { tab: value } 
+      })
+    }
+  }
 
   const handleSave = async () => {
     try {
@@ -228,6 +238,10 @@ export default function ReferralDetailPage() {
           clientName={client ? `${client.first_name} ${client.last_name}`.trim() : ''}
           clientBackLink={clientIdFromSearch ? `/clients/${clientIdFromSearch}` : "/clients"}
           examInfo="הפניה"
+          tabs={{
+            activeTab,
+            onTabChange: handleTabChange
+          }}
         />
         <div className="flex flex-col items-center justify-center h-full">
           <div className="text-lg">טוען נתוני הפניה...</div>
@@ -246,6 +260,10 @@ export default function ReferralDetailPage() {
           clientName={fullName}
           clientBackLink={clientIdFromSearch || formData.client_id ? `/clients/${clientIdFromSearch || formData.client_id}` : "/clients"}
           examInfo={isNewReferral ? "הפניה חדשה" : `הפניה מס' ${referralId}`}
+          tabs={{
+            activeTab,
+            onTabChange: handleTabChange
+          }}
         />
         <div className="flex flex-col flex-1 p-4 lg:p-6" dir="rtl" style={{scrollbarWidth: 'none'}}>
           <div className="space-y-6">

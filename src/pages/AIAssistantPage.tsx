@@ -374,12 +374,6 @@ export function AIAssistantPage() {
     return (
       <>
         <SiteHeader title="העוזר החכם" />
-        <div className="flex flex-col flex-1 p-4 lg:p-6 gap-6 overflow-auto pb-16" dir="rtl" style={{scrollbarWidth: 'none'}}>
-          <div className="flex flex-col items-center justify-center flex-1">
-            <h2 className="text-xl font-semibold mb-2">מאתחל את העוזר החכם...</h2>
-            <p className="text-muted-foreground">אנא המתן בזמן שאנחנו מתחילים את המערכת</p>
-          </div>
-        </div>
       </>
     );
   }

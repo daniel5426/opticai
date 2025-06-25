@@ -25,7 +25,25 @@ import {
   User,
   Chat,
   ChatMessage,
-  EmailLog
+  EmailLog,
+  LookupSupplier,
+  LookupClinic,
+  LookupOrderType,
+  LookupReferralType,
+  LookupLensModel,
+  LookupColor,
+  LookupMaterial,
+  LookupCoating,
+  LookupManufacturer,
+  LookupFrameModel,
+  LookupContactLensType,
+  LookupContactEyeLensType,
+  LookupContactEyeMaterial,
+  LookupCleaningSolution,
+  LookupDisinfectionSolution,
+  LookupRinsingSolution,
+  LookupManufacturingLab,
+  LookupAdvisor
 } from './schema';
 
 class DatabaseService {
@@ -2116,6 +2134,970 @@ class DatabaseService {
     } catch (error) {
       console.error('Error deleting chat message:', error);
       return false;
+    }
+  }
+
+  emailTestConnection(): boolean {
+    try {
+      return true
+    } catch (error) {
+      console.error('Error testing email connection:', error)
+      return false
+    }
+  }
+
+  // Lookup table methods
+  getAllLookupSuppliers(): LookupSupplier[] {
+    try {
+      const stmt = this.db.prepare('SELECT * FROM lookup_supplier ORDER BY name');
+      return stmt.all() as LookupSupplier[];
+    } catch (error) {
+      console.error('Error getting all suppliers:', error);
+      return [];
+    }
+  }
+
+  createLookupSupplier(data: Omit<LookupSupplier, 'id'>): LookupSupplier | null {
+    try {
+      const stmt = this.db.prepare('INSERT INTO lookup_supplier (name) VALUES (?)');
+      const result = stmt.run(this.sanitizeValue(data.name));
+      return this.getLookupSupplierById(result.lastInsertRowid as number);
+    } catch (error) {
+      console.error('Error creating supplier:', error);
+      return null;
+    }
+  }
+
+  updateLookupSupplier(data: LookupSupplier): LookupSupplier | null {
+    try {
+      const stmt = this.db.prepare('UPDATE lookup_supplier SET name = ? WHERE id = ?');
+      stmt.run(this.sanitizeValue(data.name), data.id);
+      return this.getLookupSupplierById(data.id!);
+    } catch (error) {
+      console.error('Error updating supplier:', error);
+      return null;
+    }
+  }
+
+  deleteLookupSupplier(id: number): boolean {
+    try {
+      const stmt = this.db.prepare('DELETE FROM lookup_supplier WHERE id = ?');
+      const result = stmt.run(id);
+      return result.changes > 0;
+    } catch (error) {
+      console.error('Error deleting supplier:', error);
+      return false;
+    }
+  }
+
+  getLookupSupplierById(id: number): LookupSupplier | null {
+    try {
+      const stmt = this.db.prepare('SELECT * FROM lookup_supplier WHERE id = ?');
+      return stmt.get(id) as LookupSupplier || null;
+    } catch (error) {
+      console.error('Error getting supplier by id:', error);
+      return null;
+    }
+  }
+
+  getAllLookupClinics(): LookupClinic[] {
+    try {
+      const stmt = this.db.prepare('SELECT * FROM lookup_clinic ORDER BY name');
+      return stmt.all() as LookupClinic[];
+    } catch (error) {
+      console.error('Error getting all clinics:', error);
+      return [];
+    }
+  }
+
+  createLookupClinic(data: Omit<LookupClinic, 'id'>): LookupClinic | null {
+    try {
+      const stmt = this.db.prepare('INSERT INTO lookup_clinic (name) VALUES (?)');
+      const result = stmt.run(this.sanitizeValue(data.name));
+      return this.getLookupClinicById(result.lastInsertRowid as number);
+    } catch (error) {
+      console.error('Error creating clinic:', error);
+      return null;
+    }
+  }
+
+  updateLookupClinic(data: LookupClinic): LookupClinic | null {
+    try {
+      const stmt = this.db.prepare('UPDATE lookup_clinic SET name = ? WHERE id = ?');
+      stmt.run(this.sanitizeValue(data.name), data.id);
+      return this.getLookupClinicById(data.id!);
+    } catch (error) {
+      console.error('Error updating clinic:', error);
+      return null;
+    }
+  }
+
+  deleteLookupClinic(id: number): boolean {
+    try {
+      const stmt = this.db.prepare('DELETE FROM lookup_clinic WHERE id = ?');
+      const result = stmt.run(id);
+      return result.changes > 0;
+    } catch (error) {
+      console.error('Error deleting clinic:', error);
+      return false;
+    }
+  }
+
+  getLookupClinicById(id: number): LookupClinic | null {
+    try {
+      const stmt = this.db.prepare('SELECT * FROM lookup_clinic WHERE id = ?');
+      return stmt.get(id) as LookupClinic || null;
+    } catch (error) {
+      console.error('Error getting clinic by id:', error);
+      return null;
+    }
+  }
+
+  getAllLookupOrderTypes(): LookupOrderType[] {
+    try {
+      const stmt = this.db.prepare('SELECT * FROM lookup_order_type ORDER BY name');
+      return stmt.all() as LookupOrderType[];
+    } catch (error) {
+      console.error('Error getting all order types:', error);
+      return [];
+    }
+  }
+
+  createLookupOrderType(data: Omit<LookupOrderType, 'id'>): LookupOrderType | null {
+    try {
+      const stmt = this.db.prepare('INSERT INTO lookup_order_type (name) VALUES (?)');
+      const result = stmt.run(this.sanitizeValue(data.name));
+      return this.getLookupOrderTypeById(result.lastInsertRowid as number);
+    } catch (error) {
+      console.error('Error creating order type:', error);
+      return null;
+    }
+  }
+
+  updateLookupOrderType(data: LookupOrderType): LookupOrderType | null {
+    try {
+      const stmt = this.db.prepare('UPDATE lookup_order_type SET name = ? WHERE id = ?');
+      stmt.run(this.sanitizeValue(data.name), data.id);
+      return this.getLookupOrderTypeById(data.id!);
+    } catch (error) {
+      console.error('Error updating order type:', error);
+      return null;
+    }
+  }
+
+  deleteLookupOrderType(id: number): boolean {
+    try {
+      const stmt = this.db.prepare('DELETE FROM lookup_order_type WHERE id = ?');
+      const result = stmt.run(id);
+      return result.changes > 0;
+    } catch (error) {
+      console.error('Error deleting order type:', error);
+      return false;
+    }
+  }
+
+  getLookupOrderTypeById(id: number): LookupOrderType | null {
+    try {
+      const stmt = this.db.prepare('SELECT * FROM lookup_order_type WHERE id = ?');
+      return stmt.get(id) as LookupOrderType || null;
+    } catch (error) {
+      console.error('Error getting order type by id:', error);
+      return null;
+    }
+  }
+
+  getAllLookupReferralTypes(): LookupReferralType[] {
+    try {
+      const stmt = this.db.prepare('SELECT * FROM lookup_referral_type ORDER BY name');
+      return stmt.all() as LookupReferralType[];
+    } catch (error) {
+      console.error('Error getting all referral types:', error);
+      return [];
+    }
+  }
+
+  createLookupReferralType(data: Omit<LookupReferralType, 'id'>): LookupReferralType | null {
+    try {
+      const stmt = this.db.prepare('INSERT INTO lookup_referral_type (name) VALUES (?)');
+      const result = stmt.run(this.sanitizeValue(data.name));
+      return this.getLookupReferralTypeById(result.lastInsertRowid as number);
+    } catch (error) {
+      console.error('Error creating referral type:', error);
+      return null;
+    }
+  }
+
+  updateLookupReferralType(data: LookupReferralType): LookupReferralType | null {
+    try {
+      const stmt = this.db.prepare('UPDATE lookup_referral_type SET name = ? WHERE id = ?');
+      stmt.run(this.sanitizeValue(data.name), data.id);
+      return this.getLookupReferralTypeById(data.id!);
+    } catch (error) {
+      console.error('Error updating referral type:', error);
+      return null;
+    }
+  }
+
+  deleteLookupReferralType(id: number): boolean {
+    try {
+      const stmt = this.db.prepare('DELETE FROM lookup_referral_type WHERE id = ?');
+      const result = stmt.run(id);
+      return result.changes > 0;
+    } catch (error) {
+      console.error('Error deleting referral type:', error);
+      return false;
+    }
+  }
+
+  getLookupReferralTypeById(id: number): LookupReferralType | null {
+    try {
+      const stmt = this.db.prepare('SELECT * FROM lookup_referral_type WHERE id = ?');
+      return stmt.get(id) as LookupReferralType || null;
+    } catch (error) {
+      console.error('Error getting referral type by id:', error);
+      return null;
+    }
+  }
+
+  getAllLookupLensModels(): LookupLensModel[] {
+    try {
+      const stmt = this.db.prepare('SELECT * FROM lookup_lens_model ORDER BY name');
+      return stmt.all() as LookupLensModel[];
+    } catch (error) {
+      console.error('Error getting all lens models:', error);
+      return [];
+    }
+  }
+
+  createLookupLensModel(data: Omit<LookupLensModel, 'id'>): LookupLensModel | null {
+    try {
+      const stmt = this.db.prepare('INSERT INTO lookup_lens_model (name) VALUES (?)');
+      const result = stmt.run(this.sanitizeValue(data.name));
+      return this.getLookupLensModelById(result.lastInsertRowid as number);
+    } catch (error) {
+      console.error('Error creating lens model:', error);
+      return null;
+    }
+  }
+
+  updateLookupLensModel(data: LookupLensModel): LookupLensModel | null {
+    try {
+      const stmt = this.db.prepare('UPDATE lookup_lens_model SET name = ? WHERE id = ?');
+      stmt.run(this.sanitizeValue(data.name), data.id);
+      return this.getLookupLensModelById(data.id!);
+    } catch (error) {
+      console.error('Error updating lens model:', error);
+      return null;
+    }
+  }
+
+  deleteLookupLensModel(id: number): boolean {
+    try {
+      const stmt = this.db.prepare('DELETE FROM lookup_lens_model WHERE id = ?');
+      const result = stmt.run(id);
+      return result.changes > 0;
+    } catch (error) {
+      console.error('Error deleting lens model:', error);
+      return false;
+    }
+  }
+
+  getLookupLensModelById(id: number): LookupLensModel | null {
+    try {
+      const stmt = this.db.prepare('SELECT * FROM lookup_lens_model WHERE id = ?');
+      return stmt.get(id) as LookupLensModel || null;
+    } catch (error) {
+      console.error('Error getting lens model by id:', error);
+      return null;
+    }
+  }
+
+  getAllLookupColors(): LookupColor[] {
+    try {
+      const stmt = this.db.prepare('SELECT * FROM lookup_color ORDER BY name');
+      return stmt.all() as LookupColor[];
+    } catch (error) {
+      console.error('Error getting all colors:', error);
+      return [];
+    }
+  }
+
+  createLookupColor(data: Omit<LookupColor, 'id'>): LookupColor | null {
+    try {
+      const stmt = this.db.prepare('INSERT INTO lookup_color (name) VALUES (?)');
+      const result = stmt.run(this.sanitizeValue(data.name));
+      return this.getLookupColorById(result.lastInsertRowid as number);
+    } catch (error) {
+      console.error('Error creating color:', error);
+      return null;
+    }
+  }
+
+  updateLookupColor(data: LookupColor): LookupColor | null {
+    try {
+      const stmt = this.db.prepare('UPDATE lookup_color SET name = ? WHERE id = ?');
+      stmt.run(this.sanitizeValue(data.name), data.id);
+      return this.getLookupColorById(data.id!);
+    } catch (error) {
+      console.error('Error updating color:', error);
+      return null;
+    }
+  }
+
+  deleteLookupColor(id: number): boolean {
+    try {
+      const stmt = this.db.prepare('DELETE FROM lookup_color WHERE id = ?');
+      const result = stmt.run(id);
+      return result.changes > 0;
+    } catch (error) {
+      console.error('Error deleting color:', error);
+      return false;
+    }
+  }
+
+  getLookupColorById(id: number): LookupColor | null {
+    try {
+      const stmt = this.db.prepare('SELECT * FROM lookup_color WHERE id = ?');
+      return stmt.get(id) as LookupColor || null;
+    } catch (error) {
+      console.error('Error getting color by id:', error);
+      return null;
+    }
+  }
+
+  getAllLookupMaterials(): LookupMaterial[] {
+    try {
+      const stmt = this.db.prepare('SELECT * FROM lookup_material ORDER BY name');
+      return stmt.all() as LookupMaterial[];
+    } catch (error) {
+      console.error('Error getting all materials:', error);
+      return [];
+    }
+  }
+
+  createLookupMaterial(data: Omit<LookupMaterial, 'id'>): LookupMaterial | null {
+    try {
+      const stmt = this.db.prepare('INSERT INTO lookup_material (name) VALUES (?)');
+      const result = stmt.run(this.sanitizeValue(data.name));
+      return this.getLookupMaterialById(result.lastInsertRowid as number);
+    } catch (error) {
+      console.error('Error creating material:', error);
+      return null;
+    }
+  }
+
+  updateLookupMaterial(data: LookupMaterial): LookupMaterial | null {
+    try {
+      const stmt = this.db.prepare('UPDATE lookup_material SET name = ? WHERE id = ?');
+      stmt.run(this.sanitizeValue(data.name), data.id);
+      return this.getLookupMaterialById(data.id!);
+    } catch (error) {
+      console.error('Error updating material:', error);
+      return null;
+    }
+  }
+
+  deleteLookupMaterial(id: number): boolean {
+    try {
+      const stmt = this.db.prepare('DELETE FROM lookup_material WHERE id = ?');
+      const result = stmt.run(id);
+      return result.changes > 0;
+    } catch (error) {
+      console.error('Error deleting material:', error);
+      return false;
+    }
+  }
+
+  getLookupMaterialById(id: number): LookupMaterial | null {
+    try {
+      const stmt = this.db.prepare('SELECT * FROM lookup_material WHERE id = ?');
+      return stmt.get(id) as LookupMaterial || null;
+    } catch (error) {
+      console.error('Error getting material by id:', error);
+      return null;
+    }
+  }
+
+  getAllLookupCoatings(): LookupCoating[] {
+    try {
+      const stmt = this.db.prepare('SELECT * FROM lookup_coating ORDER BY name');
+      return stmt.all() as LookupCoating[];
+    } catch (error) {
+      console.error('Error getting all coatings:', error);
+      return [];
+    }
+  }
+
+  createLookupCoating(data: Omit<LookupCoating, 'id'>): LookupCoating | null {
+    try {
+      const stmt = this.db.prepare('INSERT INTO lookup_coating (name) VALUES (?)');
+      const result = stmt.run(this.sanitizeValue(data.name));
+      return this.getLookupCoatingById(result.lastInsertRowid as number);
+    } catch (error) {
+      console.error('Error creating coating:', error);
+      return null;
+    }
+  }
+
+  updateLookupCoating(data: LookupCoating): LookupCoating | null {
+    try {
+      const stmt = this.db.prepare('UPDATE lookup_coating SET name = ? WHERE id = ?');
+      stmt.run(this.sanitizeValue(data.name), data.id);
+      return this.getLookupCoatingById(data.id!);
+    } catch (error) {
+      console.error('Error updating coating:', error);
+      return null;
+    }
+  }
+
+  deleteLookupCoating(id: number): boolean {
+    try {
+      const stmt = this.db.prepare('DELETE FROM lookup_coating WHERE id = ?');
+      const result = stmt.run(id);
+      return result.changes > 0;
+    } catch (error) {
+      console.error('Error deleting coating:', error);
+      return false;
+    }
+  }
+
+  getLookupCoatingById(id: number): LookupCoating | null {
+    try {
+      const stmt = this.db.prepare('SELECT * FROM lookup_coating WHERE id = ?');
+      return stmt.get(id) as LookupCoating || null;
+    } catch (error) {
+      console.error('Error getting coating by id:', error);
+      return null;
+    }
+  }
+
+  getAllLookupManufacturers(): LookupManufacturer[] {
+    try {
+      const stmt = this.db.prepare('SELECT * FROM lookup_manufacturer ORDER BY name');
+      return stmt.all() as LookupManufacturer[];
+    } catch (error) {
+      console.error('Error getting all manufacturers:', error);
+      return [];
+    }
+  }
+
+  createLookupManufacturer(data: Omit<LookupManufacturer, 'id'>): LookupManufacturer | null {
+    try {
+      const stmt = this.db.prepare('INSERT INTO lookup_manufacturer (name) VALUES (?)');
+      const result = stmt.run(this.sanitizeValue(data.name));
+      return this.getLookupManufacturerById(result.lastInsertRowid as number);
+    } catch (error) {
+      console.error('Error creating manufacturer:', error);
+      return null;
+    }
+  }
+
+  updateLookupManufacturer(data: LookupManufacturer): LookupManufacturer | null {
+    try {
+      const stmt = this.db.prepare('UPDATE lookup_manufacturer SET name = ? WHERE id = ?');
+      stmt.run(this.sanitizeValue(data.name), data.id);
+      return this.getLookupManufacturerById(data.id!);
+    } catch (error) {
+      console.error('Error updating manufacturer:', error);
+      return null;
+    }
+  }
+
+  deleteLookupManufacturer(id: number): boolean {
+    try {
+      const stmt = this.db.prepare('DELETE FROM lookup_manufacturer WHERE id = ?');
+      const result = stmt.run(id);
+      return result.changes > 0;
+    } catch (error) {
+      console.error('Error deleting manufacturer:', error);
+      return false;
+    }
+  }
+
+  getLookupManufacturerById(id: number): LookupManufacturer | null {
+    try {
+      const stmt = this.db.prepare('SELECT * FROM lookup_manufacturer WHERE id = ?');
+      return stmt.get(id) as LookupManufacturer || null;
+    } catch (error) {
+      console.error('Error getting manufacturer by id:', error);
+      return null;
+    }
+  }
+
+  getAllLookupFrameModels(): LookupFrameModel[] {
+    try {
+      const stmt = this.db.prepare('SELECT * FROM lookup_frame_model ORDER BY name');
+      return stmt.all() as LookupFrameModel[];
+    } catch (error) {
+      console.error('Error getting all frame models:', error);
+      return [];
+    }
+  }
+
+  createLookupFrameModel(data: Omit<LookupFrameModel, 'id'>): LookupFrameModel | null {
+    try {
+      const stmt = this.db.prepare('INSERT INTO lookup_frame_model (name) VALUES (?)');
+      const result = stmt.run(this.sanitizeValue(data.name));
+      return this.getLookupFrameModelById(result.lastInsertRowid as number);
+    } catch (error) {
+      console.error('Error creating frame model:', error);
+      return null;
+    }
+  }
+
+  updateLookupFrameModel(data: LookupFrameModel): LookupFrameModel | null {
+    try {
+      const stmt = this.db.prepare('UPDATE lookup_frame_model SET name = ? WHERE id = ?');
+      stmt.run(this.sanitizeValue(data.name), data.id);
+      return this.getLookupFrameModelById(data.id!);
+    } catch (error) {
+      console.error('Error updating frame model:', error);
+      return null;
+    }
+  }
+
+  deleteLookupFrameModel(id: number): boolean {
+    try {
+      const stmt = this.db.prepare('DELETE FROM lookup_frame_model WHERE id = ?');
+      const result = stmt.run(id);
+      return result.changes > 0;
+    } catch (error) {
+      console.error('Error deleting frame model:', error);
+      return false;
+    }
+  }
+
+  getLookupFrameModelById(id: number): LookupFrameModel | null {
+    try {
+      const stmt = this.db.prepare('SELECT * FROM lookup_frame_model WHERE id = ?');
+      return stmt.get(id) as LookupFrameModel || null;
+    } catch (error) {
+      console.error('Error getting frame model by id:', error);
+      return null;
+    }
+  }
+
+  getAllLookupContactLensTypes(): LookupContactLensType[] {
+    try {
+      const stmt = this.db.prepare('SELECT * FROM lookup_contact_lens_type ORDER BY name');
+      return stmt.all() as LookupContactLensType[];
+    } catch (error) {
+      console.error('Error getting all contact lens types:', error);
+      return [];
+    }
+  }
+
+  createLookupContactLensType(data: Omit<LookupContactLensType, 'id'>): LookupContactLensType | null {
+    try {
+      const stmt = this.db.prepare('INSERT INTO lookup_contact_lens_type (name) VALUES (?)');
+      const result = stmt.run(this.sanitizeValue(data.name));
+      return this.getLookupContactLensTypeById(result.lastInsertRowid as number);
+    } catch (error) {
+      console.error('Error creating contact lens type:', error);
+      return null;
+    }
+  }
+
+  updateLookupContactLensType(data: LookupContactLensType): LookupContactLensType | null {
+    try {
+      const stmt = this.db.prepare('UPDATE lookup_contact_lens_type SET name = ? WHERE id = ?');
+      stmt.run(this.sanitizeValue(data.name), data.id);
+      return this.getLookupContactLensTypeById(data.id!);
+    } catch (error) {
+      console.error('Error updating contact lens type:', error);
+      return null;
+    }
+  }
+
+  deleteLookupContactLensType(id: number): boolean {
+    try {
+      const stmt = this.db.prepare('DELETE FROM lookup_contact_lens_type WHERE id = ?');
+      const result = stmt.run(id);
+      return result.changes > 0;
+    } catch (error) {
+      console.error('Error deleting contact lens type:', error);
+      return false;
+    }
+  }
+
+  getLookupContactLensTypeById(id: number): LookupContactLensType | null {
+    try {
+      const stmt = this.db.prepare('SELECT * FROM lookup_contact_lens_type WHERE id = ?');
+      return stmt.get(id) as LookupContactLensType || null;
+    } catch (error) {
+      console.error('Error getting contact lens type by id:', error);
+      return null;
+    }
+  }
+
+  getAllLookupContactEyeLensTypes(): LookupContactEyeLensType[] {
+    try {
+      const stmt = this.db.prepare('SELECT * FROM lookup_contact_eye_lens_type ORDER BY name');
+      return stmt.all() as LookupContactEyeLensType[];
+    } catch (error) {
+      console.error('Error getting all contact eye lens types:', error);
+      return [];
+    }
+  }
+
+  createLookupContactEyeLensType(data: Omit<LookupContactEyeLensType, 'id'>): LookupContactEyeLensType | null {
+    try {
+      const stmt = this.db.prepare('INSERT INTO lookup_contact_eye_lens_type (name) VALUES (?)');
+      const result = stmt.run(this.sanitizeValue(data.name));
+      return this.getLookupContactEyeLensTypeById(result.lastInsertRowid as number);
+    } catch (error) {
+      console.error('Error creating contact eye lens type:', error);
+      return null;
+    }
+  }
+
+  updateLookupContactEyeLensType(data: LookupContactEyeLensType): LookupContactEyeLensType | null {
+    try {
+      const stmt = this.db.prepare('UPDATE lookup_contact_eye_lens_type SET name = ? WHERE id = ?');
+      stmt.run(this.sanitizeValue(data.name), data.id);
+      return this.getLookupContactEyeLensTypeById(data.id!);
+    } catch (error) {
+      console.error('Error updating contact eye lens type:', error);
+      return null;
+    }
+  }
+
+  deleteLookupContactEyeLensType(id: number): boolean {
+    try {
+      const stmt = this.db.prepare('DELETE FROM lookup_contact_eye_lens_type WHERE id = ?');
+      const result = stmt.run(id);
+      return result.changes > 0;
+    } catch (error) {
+      console.error('Error deleting contact eye lens type:', error);
+      return false;
+    }
+  }
+
+  getLookupContactEyeLensTypeById(id: number): LookupContactEyeLensType | null {
+    try {
+      const stmt = this.db.prepare('SELECT * FROM lookup_contact_eye_lens_type WHERE id = ?');
+      return stmt.get(id) as LookupContactEyeLensType || null;
+    } catch (error) {
+      console.error('Error getting contact eye lens type by id:', error);
+      return null;
+    }
+  }
+
+  getAllLookupContactEyeMaterials(): LookupContactEyeMaterial[] {
+    try {
+      const stmt = this.db.prepare('SELECT * FROM lookup_contact_eye_material ORDER BY name');
+      return stmt.all() as LookupContactEyeMaterial[];
+    } catch (error) {
+      console.error('Error getting all contact eye materials:', error);
+      return [];
+    }
+  }
+
+  createLookupContactEyeMaterial(data: Omit<LookupContactEyeMaterial, 'id'>): LookupContactEyeMaterial | null {
+    try {
+      const stmt = this.db.prepare('INSERT INTO lookup_contact_eye_material (name) VALUES (?)');
+      const result = stmt.run(this.sanitizeValue(data.name));
+      return this.getLookupContactEyeMaterialById(result.lastInsertRowid as number);
+    } catch (error) {
+      console.error('Error creating contact eye material:', error);
+      return null;
+    }
+  }
+
+  updateLookupContactEyeMaterial(data: LookupContactEyeMaterial): LookupContactEyeMaterial | null {
+    try {
+      const stmt = this.db.prepare('UPDATE lookup_contact_eye_material SET name = ? WHERE id = ?');
+      stmt.run(this.sanitizeValue(data.name), data.id);
+      return this.getLookupContactEyeMaterialById(data.id!);
+    } catch (error) {
+      console.error('Error updating contact eye material:', error);
+      return null;
+    }
+  }
+
+  deleteLookupContactEyeMaterial(id: number): boolean {
+    try {
+      const stmt = this.db.prepare('DELETE FROM lookup_contact_eye_material WHERE id = ?');
+      const result = stmt.run(id);
+      return result.changes > 0;
+    } catch (error) {
+      console.error('Error deleting contact eye material:', error);
+      return false;
+    }
+  }
+
+  getLookupContactEyeMaterialById(id: number): LookupContactEyeMaterial | null {
+    try {
+      const stmt = this.db.prepare('SELECT * FROM lookup_contact_eye_material WHERE id = ?');
+      return stmt.get(id) as LookupContactEyeMaterial || null;
+    } catch (error) {
+      console.error('Error getting contact eye material by id:', error);
+      return null;
+    }
+  }
+
+  getAllLookupCleaningSolutions(): LookupCleaningSolution[] {
+    try {
+      const stmt = this.db.prepare('SELECT * FROM lookup_cleaning_solution ORDER BY name');
+      return stmt.all() as LookupCleaningSolution[];
+    } catch (error) {
+      console.error('Error getting all cleaning solutions:', error);
+      return [];
+    }
+  }
+
+  createLookupCleaningSolution(data: Omit<LookupCleaningSolution, 'id'>): LookupCleaningSolution | null {
+    try {
+      const stmt = this.db.prepare('INSERT INTO lookup_cleaning_solution (name) VALUES (?)');
+      const result = stmt.run(this.sanitizeValue(data.name));
+      return this.getLookupCleaningSolutionById(result.lastInsertRowid as number);
+    } catch (error) {
+      console.error('Error creating cleaning solution:', error);
+      return null;
+    }
+  }
+
+  updateLookupCleaningSolution(data: LookupCleaningSolution): LookupCleaningSolution | null {
+    try {
+      const stmt = this.db.prepare('UPDATE lookup_cleaning_solution SET name = ? WHERE id = ?');
+      stmt.run(this.sanitizeValue(data.name), data.id);
+      return this.getLookupCleaningSolutionById(data.id!);
+    } catch (error) {
+      console.error('Error updating cleaning solution:', error);
+      return null;
+    }
+  }
+
+  deleteLookupCleaningSolution(id: number): boolean {
+    try {
+      const stmt = this.db.prepare('DELETE FROM lookup_cleaning_solution WHERE id = ?');
+      const result = stmt.run(id);
+      return result.changes > 0;
+    } catch (error) {
+      console.error('Error deleting cleaning solution:', error);
+      return false;
+    }
+  }
+
+  getLookupCleaningSolutionById(id: number): LookupCleaningSolution | null {
+    try {
+      const stmt = this.db.prepare('SELECT * FROM lookup_cleaning_solution WHERE id = ?');
+      return stmt.get(id) as LookupCleaningSolution || null;
+    } catch (error) {
+      console.error('Error getting cleaning solution by id:', error);
+      return null;
+    }
+  }
+
+  getAllLookupDisinfectionSolutions(): LookupDisinfectionSolution[] {
+    try {
+      const stmt = this.db.prepare('SELECT * FROM lookup_disinfection_solution ORDER BY name');
+      return stmt.all() as LookupDisinfectionSolution[];
+    } catch (error) {
+      console.error('Error getting all disinfection solutions:', error);
+      return [];
+    }
+  }
+
+  createLookupDisinfectionSolution(data: Omit<LookupDisinfectionSolution, 'id'>): LookupDisinfectionSolution | null {
+    try {
+      const stmt = this.db.prepare('INSERT INTO lookup_disinfection_solution (name) VALUES (?)');
+      const result = stmt.run(this.sanitizeValue(data.name));
+      return this.getLookupDisinfectionSolutionById(result.lastInsertRowid as number);
+    } catch (error) {
+      console.error('Error creating disinfection solution:', error);
+      return null;
+    }
+  }
+
+  updateLookupDisinfectionSolution(data: LookupDisinfectionSolution): LookupDisinfectionSolution | null {
+    try {
+      const stmt = this.db.prepare('UPDATE lookup_disinfection_solution SET name = ? WHERE id = ?');
+      stmt.run(this.sanitizeValue(data.name), data.id);
+      return this.getLookupDisinfectionSolutionById(data.id!);
+    } catch (error) {
+      console.error('Error updating disinfection solution:', error);
+      return null;
+    }
+  }
+
+  deleteLookupDisinfectionSolution(id: number): boolean {
+    try {
+      const stmt = this.db.prepare('DELETE FROM lookup_disinfection_solution WHERE id = ?');
+      const result = stmt.run(id);
+      return result.changes > 0;
+    } catch (error) {
+      console.error('Error deleting disinfection solution:', error);
+      return false;
+    }
+  }
+
+  getLookupDisinfectionSolutionById(id: number): LookupDisinfectionSolution | null {
+    try {
+      const stmt = this.db.prepare('SELECT * FROM lookup_disinfection_solution WHERE id = ?');
+      return stmt.get(id) as LookupDisinfectionSolution || null;
+    } catch (error) {
+      console.error('Error getting disinfection solution by id:', error);
+      return null;
+    }
+  }
+
+  getAllLookupRinsingSolutions(): LookupRinsingSolution[] {
+    try {
+      const stmt = this.db.prepare('SELECT * FROM lookup_rinsing_solution ORDER BY name');
+      return stmt.all() as LookupRinsingSolution[];
+    } catch (error) {
+      console.error('Error getting all rinsing solutions:', error);
+      return [];
+    }
+  }
+
+  createLookupRinsingSolution(data: Omit<LookupRinsingSolution, 'id'>): LookupRinsingSolution | null {
+    try {
+      const stmt = this.db.prepare('INSERT INTO lookup_rinsing_solution (name) VALUES (?)');
+      const result = stmt.run(this.sanitizeValue(data.name));
+      return this.getLookupRinsingSolutionById(result.lastInsertRowid as number);
+    } catch (error) {
+      console.error('Error creating rinsing solution:', error);
+      return null;
+    }
+  }
+
+  updateLookupRinsingSolution(data: LookupRinsingSolution): LookupRinsingSolution | null {
+    try {
+      const stmt = this.db.prepare('UPDATE lookup_rinsing_solution SET name = ? WHERE id = ?');
+      stmt.run(this.sanitizeValue(data.name), data.id);
+      return this.getLookupRinsingSolutionById(data.id!);
+    } catch (error) {
+      console.error('Error updating rinsing solution:', error);
+      return null;
+    }
+  }
+
+  deleteLookupRinsingSolution(id: number): boolean {
+    try {
+      const stmt = this.db.prepare('DELETE FROM lookup_rinsing_solution WHERE id = ?');
+      const result = stmt.run(id);
+      return result.changes > 0;
+    } catch (error) {
+      console.error('Error deleting rinsing solution:', error);
+      return false;
+    }
+  }
+
+  getLookupRinsingSolutionById(id: number): LookupRinsingSolution | null {
+    try {
+      const stmt = this.db.prepare('SELECT * FROM lookup_rinsing_solution WHERE id = ?');
+      return stmt.get(id) as LookupRinsingSolution || null;
+    } catch (error) {
+      console.error('Error getting rinsing solution by id:', error);
+      return null;
+    }
+  }
+
+  getAllLookupManufacturingLabs(): LookupManufacturingLab[] {
+    try {
+      const stmt = this.db.prepare('SELECT * FROM lookup_manufacturing_lab ORDER BY name');
+      return stmt.all() as LookupManufacturingLab[];
+    } catch (error) {
+      console.error('Error getting all manufacturing labs:', error);
+      return [];
+    }
+  }
+
+  createLookupManufacturingLab(data: Omit<LookupManufacturingLab, 'id'>): LookupManufacturingLab | null {
+    try {
+      const stmt = this.db.prepare('INSERT INTO lookup_manufacturing_lab (name) VALUES (?)');
+      const result = stmt.run(this.sanitizeValue(data.name));
+      return this.getLookupManufacturingLabById(result.lastInsertRowid as number);
+    } catch (error) {
+      console.error('Error creating manufacturing lab:', error);
+      return null;
+    }
+  }
+
+  updateLookupManufacturingLab(data: LookupManufacturingLab): LookupManufacturingLab | null {
+    try {
+      const stmt = this.db.prepare('UPDATE lookup_manufacturing_lab SET name = ? WHERE id = ?');
+      stmt.run(this.sanitizeValue(data.name), data.id);
+      return this.getLookupManufacturingLabById(data.id!);
+    } catch (error) {
+      console.error('Error updating manufacturing lab:', error);
+      return null;
+    }
+  }
+
+  deleteLookupManufacturingLab(id: number): boolean {
+    try {
+      const stmt = this.db.prepare('DELETE FROM lookup_manufacturing_lab WHERE id = ?');
+      const result = stmt.run(id);
+      return result.changes > 0;
+    } catch (error) {
+      console.error('Error deleting manufacturing lab:', error);
+      return false;
+    }
+  }
+
+  getLookupManufacturingLabById(id: number): LookupManufacturingLab | null {
+    try {
+      const stmt = this.db.prepare('SELECT * FROM lookup_manufacturing_lab WHERE id = ?');
+      return stmt.get(id) as LookupManufacturingLab || null;
+    } catch (error) {
+      console.error('Error getting manufacturing lab by id:', error);
+      return null;
+    }
+  }
+
+  getAllLookupAdvisors(): LookupAdvisor[] {
+    try {
+      const stmt = this.db.prepare('SELECT * FROM lookup_advisor ORDER BY name');
+      return stmt.all() as LookupAdvisor[];
+    } catch (error) {
+      console.error('Error getting all advisors:', error);
+      return [];
+    }
+  }
+
+  createLookupAdvisor(data: Omit<LookupAdvisor, 'id'>): LookupAdvisor | null {
+    try {
+      const stmt = this.db.prepare('INSERT INTO lookup_advisor (name) VALUES (?)');
+      const result = stmt.run(this.sanitizeValue(data.name));
+      return this.getLookupAdvisorById(result.lastInsertRowid as number);
+    } catch (error) {
+      console.error('Error creating advisor:', error);
+      return null;
+    }
+  }
+
+  updateLookupAdvisor(data: LookupAdvisor): LookupAdvisor | null {
+    try {
+      const stmt = this.db.prepare('UPDATE lookup_advisor SET name = ? WHERE id = ?');
+      stmt.run(this.sanitizeValue(data.name), data.id);
+      return this.getLookupAdvisorById(data.id!);
+    } catch (error) {
+      console.error('Error updating advisor:', error);
+      return null;
+    }
+  }
+
+  deleteLookupAdvisor(id: number): boolean {
+    try {
+      const stmt = this.db.prepare('DELETE FROM lookup_advisor WHERE id = ?');
+      const result = stmt.run(id);
+      return result.changes > 0;
+    } catch (error) {
+      console.error('Error deleting advisor:', error);
+      return false;
+    }
+  }
+
+  getLookupAdvisorById(id: number): LookupAdvisor | null {
+    try {
+      const stmt = this.db.prepare('SELECT * FROM lookup_advisor WHERE id = ?');
+      return stmt.get(id) as LookupAdvisor || null;
+    } catch (error) {
+      console.error('Error getting advisor by id:', error);
+      return null;
     }
   }
 }

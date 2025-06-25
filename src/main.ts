@@ -1326,6 +1326,654 @@ function setupIpcHandlers() {
     }
   });
 
+  // Lookup table operations
+  ipcMain.handle('db-get-all-lookup-suppliers', async () => {
+    try {
+      return dbService.getAllLookupSuppliers();
+    } catch (error) {
+      console.error('Error getting all suppliers:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-create-lookup-supplier', async (event, data) => {
+    try {
+      return dbService.createLookupSupplier(data);
+    } catch (error) {
+      console.error('Error creating supplier:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-update-lookup-supplier', async (event, data) => {
+    try {
+      return dbService.updateLookupSupplier(data);
+    } catch (error) {
+      console.error('Error updating supplier:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-delete-lookup-supplier', async (event, id: number) => {
+    try {
+      return dbService.deleteLookupSupplier(id);
+    } catch (error) {
+      console.error('Error deleting supplier:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-get-all-lookup-clinics', async () => {
+    try {
+      return dbService.getAllLookupClinics();
+    } catch (error) {
+      console.error('Error getting all clinics:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-create-lookup-clinic', async (event, data) => {
+    try {
+      return dbService.createLookupClinic(data);
+    } catch (error) {
+      console.error('Error creating clinic:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-update-lookup-clinic', async (event, data) => {
+    try {
+      return dbService.updateLookupClinic(data);
+    } catch (error) {
+      console.error('Error updating clinic:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-delete-lookup-clinic', async (event, id: number) => {
+    try {
+      return dbService.deleteLookupClinic(id);
+    } catch (error) {
+      console.error('Error deleting clinic:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-get-all-lookup-order-types', async () => {
+    try {
+      return dbService.getAllLookupOrderTypes();
+    } catch (error) {
+      console.error('Error getting all order types:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-create-lookup-order-type', async (event, data) => {
+    try {
+      return dbService.createLookupOrderType(data);
+    } catch (error) {
+      console.error('Error creating order type:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-update-lookup-order-type', async (event, data) => {
+    try {
+      return dbService.updateLookupOrderType(data);
+    } catch (error) {
+      console.error('Error updating order type:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-delete-lookup-order-type', async (event, id: number) => {
+    try {
+      return dbService.deleteLookupOrderType(id);
+    } catch (error) {
+      console.error('Error deleting order type:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-get-all-lookup-referral-types', async () => {
+    try {
+      return dbService.getAllLookupReferralTypes();
+    } catch (error) {
+      console.error('Error getting all referral types:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-create-lookup-referral-type', async (event, data) => {
+    try {
+      return dbService.createLookupReferralType(data);
+    } catch (error) {
+      console.error('Error creating referral type:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-update-lookup-referral-type', async (event, data) => {
+    try {
+      return dbService.updateLookupReferralType(data);
+    } catch (error) {
+      console.error('Error updating referral type:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-delete-lookup-referral-type', async (event, id: number) => {
+    try {
+      return dbService.deleteLookupReferralType(id);
+    } catch (error) {
+      console.error('Error deleting referral type:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-get-all-lookup-lens-models', async () => {
+    try {
+      return dbService.getAllLookupLensModels();
+    } catch (error) {
+      console.error('Error getting all lens models:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-create-lookup-lens-model', async (event, data) => {
+    try {
+      return dbService.createLookupLensModel(data);
+    } catch (error) {
+      console.error('Error creating lens model:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-update-lookup-lens-model', async (event, data) => {
+    try {
+      return dbService.updateLookupLensModel(data);
+    } catch (error) {
+      console.error('Error updating lens model:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-delete-lookup-lens-model', async (event, id: number) => {
+    try {
+      return dbService.deleteLookupLensModel(id);
+    } catch (error) {
+      console.error('Error deleting lens model:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-get-all-lookup-colors', async () => {
+    try {
+      return dbService.getAllLookupColors();
+    } catch (error) {
+      console.error('Error getting all colors:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-create-lookup-color', async (event, data) => {
+    try {
+      return dbService.createLookupColor(data);
+    } catch (error) {
+      console.error('Error creating color:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-update-lookup-color', async (event, data) => {
+    try {
+      return dbService.updateLookupColor(data);
+    } catch (error) {
+      console.error('Error updating color:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-delete-lookup-color', async (event, id: number) => {
+    try {
+      return dbService.deleteLookupColor(id);
+    } catch (error) {
+      console.error('Error deleting color:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-get-all-lookup-materials', async () => {
+    try {
+      return dbService.getAllLookupMaterials();
+    } catch (error) {
+      console.error('Error getting all materials:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-create-lookup-material', async (event, data) => {
+    try {
+      return dbService.createLookupMaterial(data);
+    } catch (error) {
+      console.error('Error creating material:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-update-lookup-material', async (event, data) => {
+    try {
+      return dbService.updateLookupMaterial(data);
+    } catch (error) {
+      console.error('Error updating material:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-delete-lookup-material', async (event, id: number) => {
+    try {
+      return dbService.deleteLookupMaterial(id);
+    } catch (error) {
+      console.error('Error deleting material:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-get-all-lookup-coatings', async () => {
+    try {
+      return dbService.getAllLookupCoatings();
+    } catch (error) {
+      console.error('Error getting all coatings:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-create-lookup-coating', async (event, data) => {
+    try {
+      return dbService.createLookupCoating(data);
+    } catch (error) {
+      console.error('Error creating coating:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-update-lookup-coating', async (event, data) => {
+    try {
+      return dbService.updateLookupCoating(data);
+    } catch (error) {
+      console.error('Error updating coating:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-delete-lookup-coating', async (event, id: number) => {
+    try {
+      return dbService.deleteLookupCoating(id);
+    } catch (error) {
+      console.error('Error deleting coating:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-get-all-lookup-manufacturers', async () => {
+    try {
+      return dbService.getAllLookupManufacturers();
+    } catch (error) {
+      console.error('Error getting all manufacturers:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-create-lookup-manufacturer', async (event, data) => {
+    try {
+      return dbService.createLookupManufacturer(data);
+    } catch (error) {
+      console.error('Error creating manufacturer:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-update-lookup-manufacturer', async (event, data) => {
+    try {
+      return dbService.updateLookupManufacturer(data);
+    } catch (error) {
+      console.error('Error updating manufacturer:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-delete-lookup-manufacturer', async (event, id: number) => {
+    try {
+      return dbService.deleteLookupManufacturer(id);
+    } catch (error) {
+      console.error('Error deleting manufacturer:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-get-all-lookup-frame-models', async () => {
+    try {
+      return dbService.getAllLookupFrameModels();
+    } catch (error) {
+      console.error('Error getting all frame models:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-create-lookup-frame-model', async (event, data) => {
+    try {
+      return dbService.createLookupFrameModel(data);
+    } catch (error) {
+      console.error('Error creating frame model:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-update-lookup-frame-model', async (event, data) => {
+    try {
+      return dbService.updateLookupFrameModel(data);
+    } catch (error) {
+      console.error('Error updating frame model:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-delete-lookup-frame-model', async (event, id: number) => {
+    try {
+      return dbService.deleteLookupFrameModel(id);
+    } catch (error) {
+      console.error('Error deleting frame model:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-get-all-lookup-contact-lens-types', async () => {
+    try {
+      return dbService.getAllLookupContactLensTypes();
+    } catch (error) {
+      console.error('Error getting all contact lens types:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-create-lookup-contact-lens-type', async (event, data) => {
+    try {
+      return dbService.createLookupContactLensType(data);
+    } catch (error) {
+      console.error('Error creating contact lens type:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-update-lookup-contact-lens-type', async (event, data) => {
+    try {
+      return dbService.updateLookupContactLensType(data);
+    } catch (error) {
+      console.error('Error updating contact lens type:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-delete-lookup-contact-lens-type', async (event, id: number) => {
+    try {
+      return dbService.deleteLookupContactLensType(id);
+    } catch (error) {
+      console.error('Error deleting contact lens type:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-get-all-lookup-contact-eye-lens-types', async () => {
+    try {
+      return dbService.getAllLookupContactEyeLensTypes();
+    } catch (error) {
+      console.error('Error getting all contact eye lens types:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-create-lookup-contact-eye-lens-type', async (event, data) => {
+    try {
+      return dbService.createLookupContactEyeLensType(data);
+    } catch (error) {
+      console.error('Error creating contact eye lens type:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-update-lookup-contact-eye-lens-type', async (event, data) => {
+    try {
+      return dbService.updateLookupContactEyeLensType(data);
+    } catch (error) {
+      console.error('Error updating contact eye lens type:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-delete-lookup-contact-eye-lens-type', async (event, id: number) => {
+    try {
+      return dbService.deleteLookupContactEyeLensType(id);
+    } catch (error) {
+      console.error('Error deleting contact eye lens type:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-get-all-lookup-contact-eye-materials', async () => {
+    try {
+      return dbService.getAllLookupContactEyeMaterials();
+    } catch (error) {
+      console.error('Error getting all contact eye materials:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-create-lookup-contact-eye-material', async (event, data) => {
+    try {
+      return dbService.createLookupContactEyeMaterial(data);
+    } catch (error) {
+      console.error('Error creating contact eye material:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-update-lookup-contact-eye-material', async (event, data) => {
+    try {
+      return dbService.updateLookupContactEyeMaterial(data);
+    } catch (error) {
+      console.error('Error updating contact eye material:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-delete-lookup-contact-eye-material', async (event, id: number) => {
+    try {
+      return dbService.deleteLookupContactEyeMaterial(id);
+    } catch (error) {
+      console.error('Error deleting contact eye material:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-get-all-lookup-cleaning-solutions', async () => {
+    try {
+      return dbService.getAllLookupCleaningSolutions();
+    } catch (error) {
+      console.error('Error getting all cleaning solutions:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-create-lookup-cleaning-solution', async (event, data) => {
+    try {
+      return dbService.createLookupCleaningSolution(data);
+    } catch (error) {
+      console.error('Error creating cleaning solution:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-update-lookup-cleaning-solution', async (event, data) => {
+    try {
+      return dbService.updateLookupCleaningSolution(data);
+    } catch (error) {
+      console.error('Error updating cleaning solution:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-delete-lookup-cleaning-solution', async (event, id: number) => {
+    try {
+      return dbService.deleteLookupCleaningSolution(id);
+    } catch (error) {
+      console.error('Error deleting cleaning solution:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-get-all-lookup-disinfection-solutions', async () => {
+    try {
+      return dbService.getAllLookupDisinfectionSolutions();
+    } catch (error) {
+      console.error('Error getting all disinfection solutions:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-create-lookup-disinfection-solution', async (event, data) => {
+    try {
+      return dbService.createLookupDisinfectionSolution(data);
+    } catch (error) {
+      console.error('Error creating disinfection solution:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-update-lookup-disinfection-solution', async (event, data) => {
+    try {
+      return dbService.updateLookupDisinfectionSolution(data);
+    } catch (error) {
+      console.error('Error updating disinfection solution:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-delete-lookup-disinfection-solution', async (event, id: number) => {
+    try {
+      return dbService.deleteLookupDisinfectionSolution(id);
+    } catch (error) {
+      console.error('Error deleting disinfection solution:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-get-all-lookup-rinsing-solutions', async () => {
+    try {
+      return dbService.getAllLookupRinsingSolutions();
+    } catch (error) {
+      console.error('Error getting all rinsing solutions:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-create-lookup-rinsing-solution', async (event, data) => {
+    try {
+      return dbService.createLookupRinsingSolution(data);
+    } catch (error) {
+      console.error('Error creating rinsing solution:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-update-lookup-rinsing-solution', async (event, data) => {
+    try {
+      return dbService.updateLookupRinsingSolution(data);
+    } catch (error) {
+      console.error('Error updating rinsing solution:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-delete-lookup-rinsing-solution', async (event, id: number) => {
+    try {
+      return dbService.deleteLookupRinsingSolution(id);
+    } catch (error) {
+      console.error('Error deleting rinsing solution:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-get-all-lookup-manufacturing-labs', async () => {
+    try {
+      return dbService.getAllLookupManufacturingLabs();
+    } catch (error) {
+      console.error('Error getting all manufacturing labs:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-create-lookup-manufacturing-lab', async (event, data) => {
+    try {
+      return dbService.createLookupManufacturingLab(data);
+    } catch (error) {
+      console.error('Error creating manufacturing lab:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-update-lookup-manufacturing-lab', async (event, data) => {
+    try {
+      return dbService.updateLookupManufacturingLab(data);
+    } catch (error) {
+      console.error('Error updating manufacturing lab:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-delete-lookup-manufacturing-lab', async (event, id: number) => {
+    try {
+      return dbService.deleteLookupManufacturingLab(id);
+    } catch (error) {
+      console.error('Error deleting manufacturing lab:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-get-all-lookup-advisors', async () => {
+    try {
+      return dbService.getAllLookupAdvisors();
+    } catch (error) {
+      console.error('Error getting all advisors:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-create-lookup-advisor', async (event, data) => {
+    try {
+      return dbService.createLookupAdvisor(data);
+    } catch (error) {
+      console.error('Error creating advisor:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-update-lookup-advisor', async (event, data) => {
+    try {
+      return dbService.updateLookupAdvisor(data);
+    } catch (error) {
+      console.error('Error updating advisor:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-delete-lookup-advisor', async (event, id: number) => {
+    try {
+      return dbService.deleteLookupAdvisor(id);
+    } catch (error) {
+      console.error('Error deleting advisor:', error);
+      throw error;
+    }
+  });
 
 }
 

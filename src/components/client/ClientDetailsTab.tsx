@@ -202,6 +202,27 @@ export function ClientDetailsTab({
               )}
             </div>
             <div className="space-y-2">
+              <ModernLabel>קופת חולים</ModernLabel>
+              {showEditableFields ? (
+                <Select dir="rtl"
+                  value={formData.health_fund || ''} 
+                  onValueChange={(value) => handleSelectChange(value, 'health_fund')}
+                >
+                  <SelectTrigger className="h-10 border-2 focus:border-primary transition-colors">
+                    <SelectValue placeholder="בחר קופת חולים" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="כללית">כללית</SelectItem>
+                    <SelectItem value="מכבי">מכבי</SelectItem>
+                    <SelectItem value="מאוחדת">מאוחדת</SelectItem>
+                    <SelectItem value="לאומית">לאומית</SelectItem>
+                  </SelectContent>
+                </Select>
+              ) : (
+                <div className="text-sm py-2.5 px-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg border min-h-10 flex items-center font-medium">{isNewMode ? 'לא נבחר' : client.health_fund || 'לא נבחר'}</div>
+              )}
+            </div>
+            <div className="space-y-2">
               <ModernLabel>תעסוקה</ModernLabel>
               {showEditableFields ? (
                 <Input 

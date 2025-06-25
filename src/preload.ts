@@ -186,4 +186,95 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Email Log operations
   getEmailLogsByAppointment: (appointmentId: number) => ipcRenderer.invoke('db-get-email-logs-by-appointment', appointmentId),
   getAllEmailLogs: () => ipcRenderer.invoke('db-get-all-email-logs'),
+
+  // Lookup table operations
+  getAllLookupSuppliers: () => ipcRenderer.invoke('db-get-all-lookup-suppliers'),
+  createLookupSupplier: (data: any) => ipcRenderer.invoke('db-create-lookup-supplier', data),
+  updateLookupSupplier: (data: any) => ipcRenderer.invoke('db-update-lookup-supplier', data),
+  deleteLookupSupplier: (id: number) => ipcRenderer.invoke('db-delete-lookup-supplier', id),
+
+  getAllLookupClinics: () => ipcRenderer.invoke('db-get-all-lookup-clinics'),
+  createLookupClinic: (data: any) => ipcRenderer.invoke('db-create-lookup-clinic', data),
+  updateLookupClinic: (data: any) => ipcRenderer.invoke('db-update-lookup-clinic', data),
+  deleteLookupClinic: (id: number) => ipcRenderer.invoke('db-delete-lookup-clinic', id),
+
+  getAllLookupOrderTypes: () => ipcRenderer.invoke('db-get-all-lookup-order-types'),
+  createLookupOrderType: (data: any) => ipcRenderer.invoke('db-create-lookup-order-type', data),
+  updateLookupOrderType: (data: any) => ipcRenderer.invoke('db-update-lookup-order-type', data),
+  deleteLookupOrderType: (id: number) => ipcRenderer.invoke('db-delete-lookup-order-type', id),
+
+  getAllLookupReferralTypes: () => ipcRenderer.invoke('db-get-all-lookup-referral-types'),
+  createLookupReferralType: (data: any) => ipcRenderer.invoke('db-create-lookup-referral-type', data),
+  updateLookupReferralType: (data: any) => ipcRenderer.invoke('db-update-lookup-referral-type', data),
+  deleteLookupReferralType: (id: number) => ipcRenderer.invoke('db-delete-lookup-referral-type', id),
+
+  getAllLookupLensModels: () => ipcRenderer.invoke('db-get-all-lookup-lens-models'),
+  createLookupLensModel: (data: any) => ipcRenderer.invoke('db-create-lookup-lens-model', data),
+  updateLookupLensModel: (data: any) => ipcRenderer.invoke('db-update-lookup-lens-model', data),
+  deleteLookupLensModel: (id: number) => ipcRenderer.invoke('db-delete-lookup-lens-model', id),
+
+  getAllLookupColors: () => ipcRenderer.invoke('db-get-all-lookup-colors'),
+  createLookupColor: (data: any) => ipcRenderer.invoke('db-create-lookup-color', data),
+  updateLookupColor: (data: any) => ipcRenderer.invoke('db-update-lookup-color', data),
+  deleteLookupColor: (id: number) => ipcRenderer.invoke('db-delete-lookup-color', id),
+
+  getAllLookupMaterials: () => ipcRenderer.invoke('db-get-all-lookup-materials'),
+  createLookupMaterial: (data: any) => ipcRenderer.invoke('db-create-lookup-material', data),
+  updateLookupMaterial: (data: any) => ipcRenderer.invoke('db-update-lookup-material', data),
+  deleteLookupMaterial: (id: number) => ipcRenderer.invoke('db-delete-lookup-material', id),
+
+  getAllLookupCoatings: () => ipcRenderer.invoke('db-get-all-lookup-coatings'),
+  createLookupCoating: (data: any) => ipcRenderer.invoke('db-create-lookup-coating', data),
+  updateLookupCoating: (data: any) => ipcRenderer.invoke('db-update-lookup-coating', data),
+  deleteLookupCoating: (id: number) => ipcRenderer.invoke('db-delete-lookup-coating', id),
+
+  getAllLookupManufacturers: () => ipcRenderer.invoke('db-get-all-lookup-manufacturers'),
+  createLookupManufacturer: (data: any) => ipcRenderer.invoke('db-create-lookup-manufacturer', data),
+  updateLookupManufacturer: (data: any) => ipcRenderer.invoke('db-update-lookup-manufacturer', data),
+  deleteLookupManufacturer: (id: number) => ipcRenderer.invoke('db-delete-lookup-manufacturer', id),
+
+  getAllLookupFrameModels: () => ipcRenderer.invoke('db-get-all-lookup-frame-models'),
+  createLookupFrameModel: (data: any) => ipcRenderer.invoke('db-create-lookup-frame-model', data),
+  updateLookupFrameModel: (data: any) => ipcRenderer.invoke('db-update-lookup-frame-model', data),
+  deleteLookupFrameModel: (id: number) => ipcRenderer.invoke('db-delete-lookup-frame-model', id),
+
+  getAllLookupContactLensTypes: () => ipcRenderer.invoke('db-get-all-lookup-contact-lens-types'),
+  createLookupContactLensType: (data: any) => ipcRenderer.invoke('db-create-lookup-contact-lens-type', data),
+  updateLookupContactLensType: (data: any) => ipcRenderer.invoke('db-update-lookup-contact-lens-type', data),
+  deleteLookupContactLensType: (id: number) => ipcRenderer.invoke('db-delete-lookup-contact-lens-type', id),
+
+  getAllLookupContactEyeLensTypes: () => ipcRenderer.invoke('db-get-all-lookup-contact-eye-lens-types'),
+  createLookupContactEyeLensType: (data: any) => ipcRenderer.invoke('db-create-lookup-contact-eye-lens-type', data),
+  updateLookupContactEyeLensType: (data: any) => ipcRenderer.invoke('db-update-lookup-contact-eye-lens-type', data),
+  deleteLookupContactEyeLensType: (id: number) => ipcRenderer.invoke('db-delete-lookup-contact-eye-lens-type', id),
+
+  getAllLookupContactEyeMaterials: () => ipcRenderer.invoke('db-get-all-lookup-contact-eye-materials'),
+  createLookupContactEyeMaterial: (data: any) => ipcRenderer.invoke('db-create-lookup-contact-eye-material', data),
+  updateLookupContactEyeMaterial: (data: any) => ipcRenderer.invoke('db-update-lookup-contact-eye-material', data),
+  deleteLookupContactEyeMaterial: (id: number) => ipcRenderer.invoke('db-delete-lookup-contact-eye-material', id),
+
+  getAllLookupCleaningSolutions: () => ipcRenderer.invoke('db-get-all-lookup-cleaning-solutions'),
+  createLookupCleaningSolution: (data: any) => ipcRenderer.invoke('db-create-lookup-cleaning-solution', data),
+  updateLookupCleaningSolution: (data: any) => ipcRenderer.invoke('db-update-lookup-cleaning-solution', data),
+  deleteLookupCleaningSolution: (id: number) => ipcRenderer.invoke('db-delete-lookup-cleaning-solution', id),
+
+  getAllLookupDisinfectionSolutions: () => ipcRenderer.invoke('db-get-all-lookup-disinfection-solutions'),
+  createLookupDisinfectionSolution: (data: any) => ipcRenderer.invoke('db-create-lookup-disinfection-solution', data),
+  updateLookupDisinfectionSolution: (data: any) => ipcRenderer.invoke('db-update-lookup-disinfection-solution', data),
+  deleteLookupDisinfectionSolution: (id: number) => ipcRenderer.invoke('db-delete-lookup-disinfection-solution', id),
+
+  getAllLookupRinsingSolutions: () => ipcRenderer.invoke('db-get-all-lookup-rinsing-solutions'),
+  createLookupRinsingSolution: (data: any) => ipcRenderer.invoke('db-create-lookup-rinsing-solution', data),
+  updateLookupRinsingSolution: (data: any) => ipcRenderer.invoke('db-update-lookup-rinsing-solution', data),
+  deleteLookupRinsingSolution: (id: number) => ipcRenderer.invoke('db-delete-lookup-rinsing-solution', id),
+
+  getAllLookupManufacturingLabs: () => ipcRenderer.invoke('db-get-all-lookup-manufacturing-labs'),
+  createLookupManufacturingLab: (data: any) => ipcRenderer.invoke('db-create-lookup-manufacturing-lab', data),
+  updateLookupManufacturingLab: (data: any) => ipcRenderer.invoke('db-update-lookup-manufacturing-lab', data),
+  deleteLookupManufacturingLab: (id: number) => ipcRenderer.invoke('db-delete-lookup-manufacturing-lab', id),
+
+  getAllLookupAdvisors: () => ipcRenderer.invoke('db-get-all-lookup-advisors'),
+  createLookupAdvisor: (data: any) => ipcRenderer.invoke('db-create-lookup-advisor', data),
+  updateLookupAdvisor: (data: any) => ipcRenderer.invoke('db-update-lookup-advisor', data),
+  deleteLookupAdvisor: (id: number) => ipcRenderer.invoke('db-delete-lookup-advisor', id),
 });

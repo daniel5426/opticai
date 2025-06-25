@@ -14,7 +14,7 @@ interface DragWindowRegionProps {
 export default function DragWindowRegion({ title }: DragWindowRegionProps) {
   return (
     <div className="bg-secondary border-sidebar-border">
-      <div className="flex w-screen items-center h-8">
+      <div className="draglayer bg-secondary flex w-screen items-center h-8">
         <div className="draglayer flex-1 bg-secondary px-3">
           {title && (
             <div className="flex items-center select-none whitespace-nowrap text-sm text-sidebar-foreground/70 font-medium">
@@ -94,7 +94,7 @@ function WindowButtons() {
       <button
         type="button"
         title="Close"
-        className="flex items-center justify-center w-10 h-8 text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-red-500 hover:text-white transition-colors"
+        className="flex items-center justify-center w-10 h-8 text-sidebar-foreground/60 hover:bg-red-500 hover:text-white transition-colors"
         onClick={closeWindow}
       >
         <svg

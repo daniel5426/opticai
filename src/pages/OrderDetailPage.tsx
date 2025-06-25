@@ -42,6 +42,9 @@ import { Plus, Edit, Trash2, Save, X } from "lucide-react"
 import { BillingTab } from "@/components/BillingTab"
 import { UserSelect } from "@/components/ui/user-select"
 import { useUser } from "@/contexts/UserContext"
+import { Separator } from "@/components/ui/separator"
+import { Badge } from "@/components/ui/badge"
+import { LookupSelect } from "@/components/ui/lookup-select"
 
 interface DateInputProps {
   name: string;
@@ -245,6 +248,7 @@ export default function OrderDetailPage({
   
   const isNewMode = mode === 'new'
   const [isEditing, setIsEditing] = useState(isNewMode)
+  const [activeTab, setActiveTab] = useState('orders')
   const [formData, setFormData] = useState<Order>(() => {
     if (isNewMode) {
       return {
@@ -269,6 +273,16 @@ export default function OrderDetailPage({
   const formRef = useRef<HTMLFormElement>(null)
   const navigate = useNavigate()
   
+  const handleTabChange = (value: string) => {
+    if (clientId && value !== 'orders') {
+      navigate({ 
+        to: "/clients/$clientId", 
+        params: { clientId: String(clientId) },
+        search: { tab: value } 
+      })
+    }
+  }
+
   useEffect(() => {
     const loadData = async () => {
       try {
@@ -639,7 +653,14 @@ export default function OrderDetailPage({
   if (loading) {
     return (
       <>
-        <SiteHeader title="לקוחות" backLink="/clients" />
+        <SiteHeader 
+          title="לקוחות" 
+          backLink="/clients" 
+          tabs={{
+            activeTab,
+            onTabChange: handleTabChange
+          }}
+        />
         <div className="flex flex-col items-center justify-center h-full">
           <h1 className="text-2xl">טוען...</h1>
         </div>
@@ -650,7 +671,14 @@ export default function OrderDetailPage({
   if (!client || (!isNewMode && (!order || !rightEyeOrder || !leftEyeOrder))) {
     return (
       <>
-        <SiteHeader title="לקוחות" backLink="/clients" />
+        <SiteHeader 
+          title="לקוחות" 
+          backLink="/clients" 
+          tabs={{
+            activeTab,
+            onTabChange: handleTabChange
+          }}
+        />
         <div className="flex flex-col items-center justify-center h-full">
           <h1 className="text-2xl">{isNewMode ? "לקוח לא נמצא" : "הזמנה לא נמצאה"}</h1>
         </div>
@@ -668,6 +696,10 @@ export default function OrderDetailPage({
           clientName={fullName}
           clientBackLink={`/clients/${clientId}`}
           examInfo={isNewMode ? "הזמנה חדשה" : `הזמנה מס' ${orderId}`}
+          tabs={{
+            activeTab,
+            onTabChange: handleTabChange
+          }}
         />
         <div className="flex flex-col flex-1 p-4 lg:p-6 mb-10" dir="rtl" style={{scrollbarWidth: 'none', msOverflowStyle: 'none'}}>
           <Tabs defaultValue="order" className="w-full" dir="rtl">
@@ -701,7 +733,7 @@ export default function OrderDetailPage({
               <form ref={formRef} className="pt-4 pb-10" style={{scrollbarWidth: 'none', msOverflowStyle: 'none'}}>
                 <div className="grid grid-cols-1 gap-4">
               <div className="rounded-md">
-                <div className="grid grid-cols-5 gap-x-3 gap-y-2">
+                <div className="grid grid-cols-4 gap-x-3 gap-y-2">
                   <div className="col-span-1">
                     <label className="font-semibold text-base">תאריך הזמנה</label>
                     <DateInput
@@ -715,21 +747,14 @@ export default function OrderDetailPage({
                                     <div className="col-span-1">
                     <label className="font-semibold text-base">סוג הזמנה</label>
                     <div className="h-1"></div>
-                    <Select dir="rtl"
+                    <LookupSelect
+                      value={formData.type || ''}
+                      onChange={(value) => setFormData(prev => ({ ...prev, type: value }))}
+                      lookupType="orderType"
+                      placeholder="בחר או הקלד סוג הזמנה..."
                       disabled={!isEditing}
-                      value={formData.type || ''} 
-                      onValueChange={(value) => handleSelectChange(value, 'type')}
-                    >
-                      <SelectTrigger className="h-9 text-sm w-full">
-                        <SelectValue placeholder="בחר סוג" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="משקפי ראייה" className="text-sm">משקפי ראייה</SelectItem>
-                        <SelectItem value="משקפי קריאה" className="text-sm">משקפי קריאה</SelectItem>
-                        <SelectItem value="משקפי שמש" className="text-sm">משקפי שמש</SelectItem>
-                        <SelectItem value="משקפי מולטיפוקל" className="text-sm">משקפי מולטיפוקל</SelectItem>
-                      </SelectContent>
-                    </Select>
+                      className="h-9"
+                    />
                   </div>
                   
                   <div className="col-span-1">
@@ -765,19 +790,7 @@ export default function OrderDetailPage({
                     )}
                   </div>
  
-                  <div className="col-span-1">
-                    <label className="font-semibold text-base">PD כללי</label>
-                    <div className="h-1"></div>
-                    <Input 
-                      type="number"
-                      step="0.5"
-                      name="comb_pd"
-                      value={formData.comb_pd || ''}
-                      onChange={handleInputChange}
-                      disabled={!isEditing}
-                      className="text-sm h-9"
-                    />
-                  </div>
+
                 </div>
               </div>
               
@@ -785,7 +798,7 @@ export default function OrderDetailPage({
                 <CardContent className="px-4 pt-4 space-y-2">
                   <div className="relative mb-4 pt-2">
                     <div className="absolute top-[-27px] right-1/2 transform translate-x-1/2 bg-background px-2 font-medium text-muted-foreground">
-                      נתוני עיניים
+                      מרשם סופי
                     </div>
                   </div>
                   <OrderEyeSection eye="R" data={rightEyeFormData} onChange={handleEyeFieldChange} isEditing={isEditing} />
@@ -810,60 +823,66 @@ export default function OrderDetailPage({
                       <CardContent className="grid grid-cols-2 gap-3">
                         <div>
                           <Label className="text-sm">דגם עדשה ימין</Label>
-                          <Input
-                            name="right_model"
+                          <LookupSelect
                             value={lensFormData.right_model || ''}
-                            onChange={handleLensInputChange}
+                            onChange={(value) => setLensFormData(prev => ({ ...prev, right_model: value }))}
+                            lookupType="lensModel"
+                            placeholder="בחר או הקלד דגם עדשה..."
                             disabled={!isEditing}
                             className="mt-1.5"
                           />
                         </div>
                         <div>
                           <Label className="text-sm">דגם עדשה שמאל</Label>
-                          <Input
-                            name="left_model"
+                          <LookupSelect
                             value={lensFormData.left_model || ''}
-                            onChange={handleLensInputChange}
+                            onChange={(value) => setLensFormData(prev => ({ ...prev, left_model: value }))}
+                            lookupType="lensModel"
+                            placeholder="בחר או הקלד דגם עדשה..."
                             disabled={!isEditing}
                             className="mt-1.5"
                           />
                         </div>
                         <div>
                           <Label className="text-sm">צבע</Label>
-                          <Input
-                            name="color"
+                          <LookupSelect
                             value={lensFormData.color || ''}
-                            onChange={handleLensInputChange}
+                            onChange={(value) => setLensFormData(prev => ({ ...prev, color: value }))}
+                            lookupType="color"
+                            placeholder="בחר או הקלד צבע..."
                             disabled={!isEditing}
                             className="mt-1.5"
                           />
                         </div>
                         <div>
                           <Label className="text-sm">ציפוי</Label>
-                          <Input
-                            name="coating"
+                          <LookupSelect
                             value={lensFormData.coating || ''}
-                            onChange={handleLensInputChange}
+                            onChange={(value) => setLensFormData(prev => ({ ...prev, coating: value }))}
+                            lookupType="coating"
+                            placeholder="בחר או הקלד ציפוי..."
                             disabled={!isEditing}
                             className="mt-1.5"
                           />
                         </div>
                         <div>
                           <Label className="text-sm">חומר</Label>
-                          <Input
-                            name="material"
+                          <LookupSelect
                             value={lensFormData.material || ''}
-                            onChange={handleLensInputChange}
+                            onChange={(value) => setLensFormData(prev => ({ ...prev, material: value }))}
+                            lookupType="material"
+                            placeholder="בחר או הקלד חומר..."
                             disabled={!isEditing}
                             className="mt-1.5"
                           />
                         </div>
                         <div>
                           <Label className="text-sm">ספק</Label>
-                          <Input
-                            name="supplier"
+                          <LookupSelect
                             value={lensFormData.supplier || ''}
-                            onChange={handleLensInputChange}
+                            onChange={(value) => setLensFormData(prev => ({ ...prev, supplier: value }))}
+                            lookupType="supplier"
+                            placeholder="בחר או הקלד ספק..."
                             disabled={!isEditing}
                             className="mt-1.5"
                           />
@@ -879,20 +898,22 @@ export default function OrderDetailPage({
                         <div className="grid grid-cols-2 gap-3">
                           <div>
                             <Label className="text-sm">יצרן</Label>
-                            <Input
-                              name="manufacturer"
+                            <LookupSelect
                               value={frameFormData.manufacturer || ''}
-                              onChange={handleFrameInputChange}
+                              onChange={(value) => setFrameFormData(prev => ({ ...prev, manufacturer: value }))}
+                              lookupType="manufacturer"
+                              placeholder="בחר או הקלד יצרן..."
                               disabled={!isEditing}
                               className="mt-1.5"
                             />
                           </div>
                           <div>
                             <Label className="text-sm">דגם</Label>
-                            <Input
-                              name="model"
+                            <LookupSelect
                               value={frameFormData.model || ''}
-                              onChange={handleFrameInputChange}
+                              onChange={(value) => setFrameFormData(prev => ({ ...prev, model: value }))}
+                              lookupType="frameModel"
+                              placeholder="בחר או הקלד דגם מסגרת..."
                               disabled={!isEditing}
                               className="mt-1.5"
                             />
@@ -902,20 +923,22 @@ export default function OrderDetailPage({
                         <div className="grid grid-cols-2 gap-3">
                           <div>
                             <Label className="text-sm">צבע</Label>
-                            <Input
-                              name="color"
+                            <LookupSelect
                               value={frameFormData.color || ''}
-                              onChange={handleFrameInputChange}
+                              onChange={(value) => setFrameFormData(prev => ({ ...prev, color: value }))}
+                              lookupType="color"
+                              placeholder="בחר או הקלד צבע..."
                               disabled={!isEditing}
                               className="mt-1.5"
                             />
                           </div>
                           <div>
                             <Label className="text-sm">ספק</Label>
-                            <Input
-                              name="supplier"
+                            <LookupSelect
                               value={frameFormData.supplier || ''}
-                              onChange={handleFrameInputChange}
+                              onChange={(value) => setFrameFormData(prev => ({ ...prev, supplier: value }))}
+                              lookupType="supplier"
+                              placeholder="בחר או הקלד ספק..."
                               disabled={!isEditing}
                               className="mt-1.5"
                             />
@@ -995,10 +1018,11 @@ export default function OrderDetailPage({
                       <div className="grid grid-cols-5 gap-3">
                         <div>
                           <Label className="text-sm">סניף</Label>
-                          <Input
-                            name="branch"
+                          <LookupSelect
                             value={orderDetailsFormData.branch || ''}
-                            onChange={(e) => setOrderDetailsFormData(prev => ({ ...prev, branch: e.target.value }))}
+                            onChange={(value) => setOrderDetailsFormData(prev => ({ ...prev, branch: value }))}
+                            lookupType="clinic"
+                            placeholder="בחר או הקלד סניף..."
                             disabled={!isEditing}
                             className="mt-1.5"
                           />
@@ -1025,10 +1049,11 @@ export default function OrderDetailPage({
                         </div>
                         <div>
                           <Label className="text-sm">יועץ</Label>
-                          <Input
-                            name="advisor"
+                          <LookupSelect
                             value={orderDetailsFormData.advisor || ''}
-                            onChange={(e) => setOrderDetailsFormData(prev => ({ ...prev, advisor: e.target.value }))}
+                            onChange={(value) => setOrderDetailsFormData(prev => ({ ...prev, advisor: value }))}
+                            lookupType="advisor"
+                            placeholder="בחר או הקלד יועץ..."
                             disabled={!isEditing}
                             className="mt-1.5"
                           />
@@ -1068,10 +1093,11 @@ export default function OrderDetailPage({
                         </div>
                         <div>
                           <Label className="text-sm">מעבדה מייצרת</Label>
-                          <Input
-                            name="manufacturing_lab"
+                          <LookupSelect
                             value={orderDetailsFormData.manufacturing_lab || ''}
-                            onChange={(e) => setOrderDetailsFormData(prev => ({ ...prev, manufacturing_lab: e.target.value }))}
+                            onChange={(value) => setOrderDetailsFormData(prev => ({ ...prev, manufacturing_lab: value }))}
+                            lookupType="manufacturingLab"
+                            placeholder="בחר או הקלד מעבדה..."
                             disabled={!isEditing}
                             className="mt-1.5"
                           />

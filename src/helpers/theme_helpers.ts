@@ -81,6 +81,25 @@ export async function getCurrentTheme(): Promise<ThemePreferences> {
   };
 }
 
+export async function getActualThemeState(): Promise<{ electronTheme: ThemeMode; isDark: boolean }> {
+  const themeMode = (window as any).themeMode;
+  if (!themeMode) {
+    console.error('themeMode is not available on window object');
+    return {
+      electronTheme: 'system' as ThemeMode,
+      isDark: document.documentElement.classList.contains('dark'),
+    };
+  }
+  
+  const electronTheme = await themeMode.current();
+  const isDark = document.documentElement.classList.contains('dark');
+  
+  return {
+    electronTheme,
+    isDark,
+  };
+}
+
 export async function setTheme(newTheme: ThemeMode) {
   const themeMode = (window as any).themeMode;
   if (!themeMode) {
@@ -126,14 +145,30 @@ export async function toggleTheme() {
 }
 
 export async function syncThemeWithLocal() {
-  const { local } = await getCurrentTheme();
-  if (!local) {
-    setTheme("system");
+  const themeMode = (window as any).themeMode;
+  if (!themeMode) {
+    console.error('themeMode is not available on window object');
     return;
   }
 
-  await setTheme(local);
-  await applyThemeColorsFromSettings();
+  try {
+    const { local } = await getCurrentTheme();
+    
+    if (!local) {
+      // No saved theme preference - get current Electron state and save it
+      const currentThemeSource = await themeMode.current();
+      const themeToSave = currentThemeSource === "system" ? "system" : currentThemeSource;
+      localStorage.setItem(THEME_KEY, themeToSave);
+      await setTheme(themeToSave);
+    } else {
+      // Apply saved theme preference
+      await setTheme(local);
+    }
+    
+    await applyThemeColorsFromSettings();
+  } catch (error) {
+    console.error('Error syncing theme with local storage:', error);
+  }
 }
 
 function updateDocumentTheme(isDark: boolean) {

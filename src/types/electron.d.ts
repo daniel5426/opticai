@@ -161,6 +161,97 @@ export interface ElectronAPI {
   // Email Log operations
   getEmailLogsByAppointment: (appointmentId: number) => Promise<any[]>;
   getAllEmailLogs: () => Promise<any[]>;
+
+  // Lookup table operations
+  getAllLookupSuppliers: () => Promise<any[]>;
+  createLookupSupplier: (data: any) => Promise<any>;
+  updateLookupSupplier: (data: any) => Promise<any>;
+  deleteLookupSupplier: (id: number) => Promise<boolean>;
+
+  getAllLookupClinics: () => Promise<any[]>;
+  createLookupClinic: (data: any) => Promise<any>;
+  updateLookupClinic: (data: any) => Promise<any>;
+  deleteLookupClinic: (id: number) => Promise<boolean>;
+
+  getAllLookupOrderTypes: () => Promise<any[]>;
+  createLookupOrderType: (data: any) => Promise<any>;
+  updateLookupOrderType: (data: any) => Promise<any>;
+  deleteLookupOrderType: (id: number) => Promise<boolean>;
+
+  getAllLookupReferralTypes: () => Promise<any[]>;
+  createLookupReferralType: (data: any) => Promise<any>;
+  updateLookupReferralType: (data: any) => Promise<any>;
+  deleteLookupReferralType: (id: number) => Promise<boolean>;
+
+  getAllLookupLensModels: () => Promise<any[]>;
+  createLookupLensModel: (data: any) => Promise<any>;
+  updateLookupLensModel: (data: any) => Promise<any>;
+  deleteLookupLensModel: (id: number) => Promise<boolean>;
+
+  getAllLookupColors: () => Promise<any[]>;
+  createLookupColor: (data: any) => Promise<any>;
+  updateLookupColor: (data: any) => Promise<any>;
+  deleteLookupColor: (id: number) => Promise<boolean>;
+
+  getAllLookupMaterials: () => Promise<any[]>;
+  createLookupMaterial: (data: any) => Promise<any>;
+  updateLookupMaterial: (data: any) => Promise<any>;
+  deleteLookupMaterial: (id: number) => Promise<boolean>;
+
+  getAllLookupCoatings: () => Promise<any[]>;
+  createLookupCoating: (data: any) => Promise<any>;
+  updateLookupCoating: (data: any) => Promise<any>;
+  deleteLookupCoating: (id: number) => Promise<boolean>;
+
+  getAllLookupManufacturers: () => Promise<any[]>;
+  createLookupManufacturer: (data: any) => Promise<any>;
+  updateLookupManufacturer: (data: any) => Promise<any>;
+  deleteLookupManufacturer: (id: number) => Promise<boolean>;
+
+  getAllLookupFrameModels: () => Promise<any[]>;
+  createLookupFrameModel: (data: any) => Promise<any>;
+  updateLookupFrameModel: (data: any) => Promise<any>;
+  deleteLookupFrameModel: (id: number) => Promise<boolean>;
+
+  getAllLookupContactLensTypes: () => Promise<any[]>;
+  createLookupContactLensType: (data: any) => Promise<any>;
+  updateLookupContactLensType: (data: any) => Promise<any>;
+  deleteLookupContactLensType: (id: number) => Promise<boolean>;
+
+  getAllLookupContactEyeLensTypes: () => Promise<any[]>;
+  createLookupContactEyeLensType: (data: any) => Promise<any>;
+  updateLookupContactEyeLensType: (data: any) => Promise<any>;
+  deleteLookupContactEyeLensType: (id: number) => Promise<boolean>;
+
+  getAllLookupContactEyeMaterials: () => Promise<any[]>;
+  createLookupContactEyeMaterial: (data: any) => Promise<any>;
+  updateLookupContactEyeMaterial: (data: any) => Promise<any>;
+  deleteLookupContactEyeMaterial: (id: number) => Promise<boolean>;
+
+  getAllLookupCleaningSolutions: () => Promise<any[]>;
+  createLookupCleaningSolution: (data: any) => Promise<any>;
+  updateLookupCleaningSolution: (data: any) => Promise<any>;
+  deleteLookupCleaningSolution: (id: number) => Promise<boolean>;
+
+  getAllLookupDisinfectionSolutions: () => Promise<any[]>;
+  createLookupDisinfectionSolution: (data: any) => Promise<any>;
+  updateLookupDisinfectionSolution: (data: any) => Promise<any>;
+  deleteLookupDisinfectionSolution: (id: number) => Promise<boolean>;
+
+  getAllLookupRinsingSolutions: () => Promise<any[]>;
+  createLookupRinsingSolution: (data: any) => Promise<any>;
+  updateLookupRinsingSolution: (data: any) => Promise<any>;
+  deleteLookupRinsingSolution: (id: number) => Promise<boolean>;
+
+  getAllLookupManufacturingLabs: () => Promise<any[]>;
+  createLookupManufacturingLab: (data: any) => Promise<any>;
+  updateLookupManufacturingLab: (data: any) => Promise<any>;
+  deleteLookupManufacturingLab: (id: number) => Promise<boolean>;
+
+  getAllLookupAdvisors: () => Promise<any[]>;
+  createLookupAdvisor: (data: any) => Promise<any>;
+  updateLookupAdvisor: (data: any) => Promise<any>;
+  deleteLookupAdvisor: (id: number) => Promise<boolean>;
 }
 
 declare global {

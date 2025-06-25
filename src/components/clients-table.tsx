@@ -59,7 +59,7 @@ export function ClientsTable({ data }: ClientsTableProps) {
 
   const handleRowClick = (clientId: number | undefined) => {
     if (clientId !== undefined) {
-      navigate({ to: "/clients/$clientId", params: { clientId: String(clientId) }, search: { tab: "orders" } })
+      navigate({ to: "/clients/$clientId", params: { clientId: String(clientId) }, search: { tab: "details" } })
     }
   }
 

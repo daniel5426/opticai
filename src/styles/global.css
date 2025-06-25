@@ -199,6 +199,9 @@
     @apply bg-background;
     -webkit-app-region: drag;
   }
+  .draglayer button {
+    -webkit-app-region: no-drag;
+  }
   button {
     @apply cursor-pointer;
   }

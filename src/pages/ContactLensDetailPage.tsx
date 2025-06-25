@@ -35,6 +35,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { BillingTab } from "@/components/BillingTab"
 import { UserSelect } from "@/components/ui/user-select"
 import { useUser } from "@/contexts/UserContext"
+import { LookupSelect } from "@/components/ui/lookup-select"
 
 interface DateInputProps {
   name: string;
@@ -93,8 +94,6 @@ interface ContactEyeSectionProps {
   onChange: (eye: "R" | "L", field: keyof ContactEye, value: string) => void;
   isEditing: boolean;
 }
-
-
 
 function SchirmerKSection({ eye, data, onChange, isEditing }: ContactEyeSectionProps) {
   const eyeLabel = eye === "R" ? "R" : "L";
@@ -388,32 +387,35 @@ function ContactDetailsSection({ eye, data, onChange, isEditing }: ContactEyeSec
       </div>
         <div className="col-span-1">
           {eye === "R" && <Label className="text-[12px] block text-center">Supplier</Label>}
-          <Input 
-            type="text" 
-            value={data.supplier || ""} 
-            onChange={(e) => onChange(eye, "supplier", e.target.value)} 
-            disabled={!isEditing} 
-            className="h-8 text-xs px-1" 
+          <LookupSelect
+            value={data.supplier || ""}
+            onChange={(value) => onChange(eye, "supplier", value)}
+            lookupType="supplier"
+            placeholder="בחר ספק..."
+            disabled={!isEditing}
+            className="h-8 text-xs"
           />
         </div>
         <div className="col-span-1">
           {eye === "R" && <Label className="text-[12px] block text-center">Material</Label>}
-          <Input 
-            type="text" 
-            value={data.material || ""} 
-            onChange={(e) => onChange(eye, "material", e.target.value)} 
-            disabled={!isEditing} 
-            className="h-8 text-xs px-1" 
+          <LookupSelect
+            value={data.material || ""}
+            onChange={(value) => onChange(eye, "material", value)}
+            lookupType="contactEyeMaterial"
+            placeholder="בחר חומר..."
+            disabled={!isEditing}
+            className="h-8 text-xs"
           />
         </div>
         <div className="col-span-1">
           {eye === "R" && <Label className="text-[12px] block text-center">Color</Label>}
-          <Input 
-            type="text" 
-            value={data.color || ""} 
-            onChange={(e) => onChange(eye, "color", e.target.value)} 
-            disabled={!isEditing} 
-            className="h-8 text-xs px-1" 
+          <LookupSelect
+            value={data.color || ""}
+            onChange={(value) => onChange(eye, "color", value)}
+            lookupType="color"
+            placeholder="בחר צבע..."
+            disabled={!isEditing}
+            className="h-8 text-xs"
           />
         </div>
         <div className="col-span-1">
@@ -501,24 +503,35 @@ export default function ContactLensDetailPage({
   
   const isNewMode = mode === 'new'
   const [isEditing, setIsEditing] = useState(isNewMode)
-  const [formData, setFormData] = useState<ContactLens>(() => {
-    if (isNewMode) {
-      return {
-        exam_date: new Date().toISOString().split('T')[0],
-        type: '',
-        user_id: currentUser?.id
-      } as ContactLens
-    }
-    return {} as ContactLens
-  })
-  const [rightEyeFormData, setRightEyeFormData] = useState<ContactEye>(isNewMode ? { contact_lens_id: 0, eye: 'R' } as ContactEye : {} as ContactEye)
-  const [leftEyeFormData, setLeftEyeFormData] = useState<ContactEye>(isNewMode ? { contact_lens_id: 0, eye: 'L' } as ContactEye : {} as ContactEye)
-  const [contactLensOrderFormData, setContactLensOrderFormData] = useState<ContactLensOrder>(isNewMode ? { contact_lens_id: 0 } as ContactLensOrder : {} as ContactLensOrder)
+  const [activeTab, setActiveTab] = useState('contact-lenses')
+  const [formData, setFormData] = useState<ContactLens>(isNewMode ? {
+    client_id: Number(clientId),
+    exam_date: new Date().toISOString().split('T')[0],
+    type: '',
+    user_id: currentUser?.id,
+    pupil_diameter: undefined,
+    corneal_diameter: undefined,
+    eyelid_aperture: undefined,
+    comb_va: undefined
+  } as ContactLens : {} as ContactLens)
+  const [rightEyeFormData, setRightEyeFormData] = useState<ContactEye>(isNewMode ? { eye: 'R' } as ContactEye : {} as ContactEye)
+  const [leftEyeFormData, setLeftEyeFormData] = useState<ContactEye>(isNewMode ? { eye: 'L' } as ContactEye : {} as ContactEye)
+  const [contactLensOrderFormData, setContactLensOrderFormData] = useState<ContactLensOrder>(isNewMode ? {} as ContactLensOrder : {} as ContactLensOrder)
   const [billingFormData, setBillingFormData] = useState<Billing>(isNewMode ? {} as Billing : {} as Billing)
   
   const formRef = useRef<HTMLFormElement>(null)
   const navigate = useNavigate()
   
+  const handleTabChange = (value: string) => {
+    if (clientId && value !== 'contact-lenses') {
+      navigate({ 
+        to: "/clients/$clientId", 
+        params: { clientId: String(clientId) },
+        search: { tab: value } 
+      })
+    }
+  }
+
   useEffect(() => {
     const loadData = async () => {
       try {
@@ -816,7 +829,14 @@ export default function ContactLensDetailPage({
   if (loading) {
     return (
       <>
-        <SiteHeader title="לקוחות" backLink="/clients" />
+        <SiteHeader 
+          title="לקוחות" 
+          backLink="/clients" 
+          tabs={{
+            activeTab,
+            onTabChange: handleTabChange
+          }}
+        />
         <div className="flex flex-col items-center justify-center h-full">
           <h1 className="text-2xl">טוען...</h1>
         </div>
@@ -827,7 +847,14 @@ export default function ContactLensDetailPage({
   if (!client || (!isNewMode && (!contactLens || !rightEye || !leftEye))) {
     return (
       <>
-        <SiteHeader title="לקוחות" backLink="/clients" />
+        <SiteHeader 
+          title="לקוחות" 
+          backLink="/clients" 
+          tabs={{
+            activeTab,
+            onTabChange: handleTabChange
+          }}
+        />
         <div className="flex flex-col items-center justify-center h-full">
           <h1 className="text-2xl">{isNewMode ? "לקוח לא נמצא" : "עדשות מגע לא נמצאו"}</h1>
         </div>
@@ -845,6 +872,10 @@ export default function ContactLensDetailPage({
           clientName={fullName}
           clientBackLink={`/clients/${clientId}`}
           examInfo={isNewMode ? "עדשות מגע חדש" : `עדשות מגע מס' ${contactLensId}`}
+          tabs={{
+            activeTab,
+            onTabChange: handleTabChange
+          }}
         />
         <div className="flex flex-col flex-1 p-4 lg:p-6 mb-10" dir="rtl" style={{scrollbarWidth: 'none', msOverflowStyle: 'none'}}>
           <Tabs defaultValue="exam" className="w-full" dir="rtl">
@@ -1280,20 +1311,22 @@ export default function ContactLensDetailPage({
                           <div className="grid grid-cols-5 gap-3">
                             <div>
                               <Label className="text-sm">סניף</Label>
-                              <Input
-                                name="branch"
+                              <LookupSelect
                                 value={contactLensOrderFormData.branch || ''}
-                                onChange={(e) => setContactLensOrderFormData(prev => ({ ...prev, branch: e.target.value }))}
+                                onChange={(value) => setContactLensOrderFormData(prev => ({ ...prev, branch: value }))}
+                                lookupType="clinic"
+                                placeholder="בחר או הקלד סניף..."
                                 disabled={!isEditing}
                                 className="mt-1.5"
                               />
                             </div>
                             <div>
                               <Label className="text-sm">אספקה בסניף</Label>
-                              <Input
-                                name="supply_in_branch"
+                              <LookupSelect
                                 value={contactLensOrderFormData.supply_in_branch || ''}
-                                onChange={(e) => setContactLensOrderFormData(prev => ({ ...prev, supply_in_branch: e.target.value }))}
+                                onChange={(value) => setContactLensOrderFormData(prev => ({ ...prev, supply_in_branch: value }))}
+                                lookupType="clinic"
+                                placeholder="בחר או הקלד סניף..."
                                 disabled={!isEditing}
                                 className="mt-1.5"
                               />
@@ -1318,10 +1351,11 @@ export default function ContactLensDetailPage({
                             </div>
                             <div>
                               <Label className="text-sm">יועץ</Label>
-                              <Input
-                                name="advisor"
+                              <LookupSelect
                                 value={contactLensOrderFormData.advisor || ''}
-                                onChange={(e) => setContactLensOrderFormData(prev => ({ ...prev, advisor: e.target.value }))}
+                                onChange={(value) => setContactLensOrderFormData(prev => ({ ...prev, advisor: value }))}
+                                lookupType="advisor"
+                                placeholder="בחר או הקלד יועץ..."
                                 disabled={!isEditing}
                                 className="mt-1.5"
                               />
@@ -1388,10 +1422,11 @@ export default function ContactLensDetailPage({
                             </div>
                             <div>
                               <Label className="text-sm">תמיסת ניקוי</Label>
-                              <Input
-                                name="cleaning_solution"
+                              <LookupSelect
                                 value={contactLensOrderFormData.cleaning_solution || ''}
-                                onChange={(e) => setContactLensOrderFormData(prev => ({ ...prev, cleaning_solution: e.target.value }))}
+                                onChange={(value) => setContactLensOrderFormData(prev => ({ ...prev, cleaning_solution: value }))}
+                                lookupType="cleaningSolution"
+                                placeholder="בחר או הקלד תמיסת ניקוי..."
                                 disabled={!isEditing}
                                 className="mt-1.5"
                               />
@@ -1401,20 +1436,22 @@ export default function ContactLensDetailPage({
                           <div className="grid grid-cols-5 gap-3">
                             <div>
                               <Label className="text-sm">תמיסת חיטוי</Label>
-                              <Input
-                                name="disinfection_solution"
+                              <LookupSelect
                                 value={contactLensOrderFormData.disinfection_solution || ''}
-                                onChange={(e) => setContactLensOrderFormData(prev => ({ ...prev, disinfection_solution: e.target.value }))}
+                                onChange={(value) => setContactLensOrderFormData(prev => ({ ...prev, disinfection_solution: value }))}
+                                lookupType="disinfectionSolution"
+                                placeholder="בחר או הקלד תמיסת חיטוי..."
                                 disabled={!isEditing}
                                 className="mt-1.5"
                               />
                             </div>
                             <div>
                               <Label className="text-sm">תמיסת שטיפה</Label>
-                              <Input
-                                name="rinsing_solution"
+                              <LookupSelect
                                 value={contactLensOrderFormData.rinsing_solution || ''}
-                                onChange={(e) => setContactLensOrderFormData(prev => ({ ...prev, rinsing_solution: e.target.value }))}
+                                onChange={(value) => setContactLensOrderFormData(prev => ({ ...prev, rinsing_solution: value }))}
+                                lookupType="rinsingSolution"
+                                placeholder="בחר או הקלד תמיסת שטיפה..."
                                 disabled={!isEditing}
                                 className="mt-1.5"
                               />

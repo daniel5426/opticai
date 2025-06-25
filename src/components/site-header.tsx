@@ -20,7 +20,7 @@ interface SiteHeaderProps {
 
 export function SiteHeader({ title, backLink, clientName, clientBackLink, examInfo, tabs }: SiteHeaderProps) {
   return (
-    <header className="flex h-(--header-height) shrink-0 items-center gap-2 border-b transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-(--header-height)" dir="rtl">
+    <header className="flex h-(--header-height) shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-(--header-height)" dir="rtl">
       <div className="flex w-full items-center justify-between px-4 lg:px-6 py-2">
         {/* Right side - Navigation (in RTL, this appears on the right) */}
         <div className="flex items-center gap-1 lg:gap-2">
@@ -73,7 +73,6 @@ export function SiteHeader({ title, backLink, clientName, clientBackLink, examIn
                 <TabsTrigger value="contact-lenses">עדשות מגע</TabsTrigger>
                 <TabsTrigger value="referrals">הפניות</TabsTrigger>
                 <TabsTrigger value="appointments">תורים</TabsTrigger>
-                <TabsTrigger value="billing">חשבונות</TabsTrigger>
               </TabsList>
             </Tabs>
           )}

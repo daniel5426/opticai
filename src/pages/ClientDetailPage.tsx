@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react"
-import { useParams } from "@tanstack/react-router"
+import { useParams, useSearch } from "@tanstack/react-router"
 import { SiteHeader } from "@/components/site-header"
 import { getClientById, updateClient } from "@/lib/db/clients-db"
 import { Client } from "@/lib/db/schema"
@@ -21,8 +21,31 @@ export default function ClientDetailPage() {
   const { clientId } = useParams({ from: "/clients/$clientId" })
   
   // Get search params to check for tab parameter
-  const searchParams = new URLSearchParams(window.location.search)
-  const initialTab = searchParams.get('tab') || 'details'
+  let initialTab = 'details'
+  try {
+    const searchParams = useSearch({ from: "/clients/$clientId" })
+    const urlTab = (searchParams as any)?.tab
+    
+    if (urlTab) {
+      // If URL specifies a tab, use it
+      initialTab = urlTab
+    } else {
+      // If no URL tab, check localStorage for remembered tab
+      const rememberedTab = localStorage.getItem(`client-${clientId}-last-tab`)
+      initialTab = rememberedTab || 'details'
+    }
+  } catch {
+    // Fallback to URL search params or localStorage
+    const urlSearchParams = new URLSearchParams(window.location.search)
+    const urlTab = urlSearchParams.get('tab')
+    
+    if (urlTab) {
+      initialTab = urlTab
+    } else {
+      const rememberedTab = localStorage.getItem(`client-${clientId}-last-tab`)
+      initialTab = rememberedTab || 'details'
+    }
+  }
   
   const [client, setClient] = useState<Client | undefined>(undefined)
   const [loading, setLoading] = useState(true)
@@ -56,7 +79,12 @@ export default function ClientDetailPage() {
     if (activeTab === 'orders') {
       setRefreshKey(prev => prev + 1)
     }
-  }, [activeTab])
+    
+    // Save current tab to localStorage for this client
+    if (clientId && activeTab) {
+      localStorage.setItem(`client-${clientId}-last-tab`, activeTab)
+    }
+  }, [activeTab, clientId])
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target

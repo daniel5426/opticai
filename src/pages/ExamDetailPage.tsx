@@ -594,21 +594,28 @@ export default function ExamDetailPage({
     routeClientId = params.clientId;
     routeExamId = params.examId;
   } catch {
-    routeClientId = undefined;
-    routeExamId = undefined;
+    try {
+      const params = useParams({ from: "/clients/$clientId/exams/new" });
+      routeClientId = params.clientId;
+    } catch {
+      routeClientId = undefined;
+      routeExamId = undefined;
+    }
   }
   
   const clientId = propClientId || routeClientId
   const examId = propExamId || routeExamId
   
-  const isNewMode = mode === 'new'
-  const [isEditing, setIsEditing] = useState(isNewMode)
-  const [loading, setLoading] = useState(!isNewMode)
+  const [loading, setLoading] = useState(true)
   const [client, setClient] = useState<Client | null>(null)
   const [exam, setExam] = useState<OpticalExam | null>(null)
   const [rightEyeExam, setRightEyeExam] = useState<OpticalEyeExam | null>(null)
   const [leftEyeExam, setLeftEyeExam] = useState<OpticalEyeExam | null>(null)
   const { currentUser } = useUser()
+  
+  const isNewMode = mode === 'new'
+  const [isEditing, setIsEditing] = useState(isNewMode)
+  const [activeTab, setActiveTab] = useState('exams')
   
   const [formData, setFormData] = useState<OpticalExam>(isNewMode ? {
     client_id: Number(clientId),
@@ -878,10 +885,27 @@ export default function ExamDetailPage({
     toast.success("צילינדר הופחת ב-0.25D להתאמה מולטיפוקלית");
   };
   
+  const handleTabChange = (value: string) => {
+    if (clientId && value !== 'exams') {
+      navigate({ 
+        to: "/clients/$clientId", 
+        params: { clientId: String(clientId) },
+        search: { tab: value } 
+      })
+    }
+  }
+
   if (loading) {
     return (
       <>
-        <SiteHeader title="לקוחות" backLink="/clients" />
+        <SiteHeader 
+          title="לקוחות" 
+          backLink="/clients" 
+          tabs={{
+            activeTab,
+            onTabChange: handleTabChange
+          }}
+        />
         <div className="flex flex-col items-center justify-center h-full">
           <h1 className="text-2xl">טוען נתונים...</h1>
         </div>
@@ -892,7 +916,14 @@ export default function ExamDetailPage({
   if (!client || (!isNewMode && (!exam || !rightEyeExam || !leftEyeExam))) {
     return (
       <>
-        <SiteHeader title="לקוחות" backLink="/clients" />
+        <SiteHeader 
+          title="לקוחות" 
+          backLink="/clients" 
+          tabs={{
+            activeTab,
+            onTabChange: handleTabChange
+          }}
+        />
         <div className="flex flex-col items-center justify-center h-full">
           <h1 className="text-2xl">{isNewMode ? "לקוח לא נמצא" : "בדיקה לא נמצאה"}</h1>
         </div>
@@ -910,6 +941,10 @@ export default function ExamDetailPage({
           clientName={fullName}
           clientBackLink={`/clients/${clientId}`}
           examInfo={isNewMode ? "בדיקה חדשה" : `בדיקה מס' ${examId}`}
+          tabs={{
+            activeTab,
+            onTabChange: handleTabChange
+          }}
         />
         <div className="flex flex-col flex-1 p-4 lg:p-6 mb-10" dir="rtl">
           <div className="flex justify-between items-center mb-4">

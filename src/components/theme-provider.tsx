@@ -30,10 +30,55 @@ export function ThemeProvider({
   const [theme, setTheme] = useState<Theme>(
     () => (localStorage.getItem(storageKey) as Theme) || defaultTheme
   )
+  const [isInitialized, setIsInitialized] = useState(false)
+
+  // Initialize theme on startup - sync with Electron's native theme
+  useEffect(() => {
+    const initializeTheme = async () => {
+      const themeMode = (window as any).themeMode
+      if (!themeMode) {
+        setIsInitialized(true)
+        return
+      }
+
+      try {
+        const savedTheme = localStorage.getItem(storageKey) as Theme
+        
+        if (savedTheme) {
+          // If we have a saved theme, apply it to both React and Electron
+          switch (savedTheme) {
+            case "dark":
+              await themeMode.dark()
+              break
+            case "light":
+              await themeMode.light()
+              break
+            case "system":
+              await themeMode.system()
+              break
+          }
+          setTheme(savedTheme)
+        } else {
+          // No saved theme - determine current state from Electron and save it
+          const currentThemeSource = await themeMode.current()
+          const determinedTheme = currentThemeSource === "system" ? "system" : currentThemeSource
+          localStorage.setItem(storageKey, determinedTheme)
+          setTheme(determinedTheme)
+        }
+      } catch (error) {
+        console.error('Error initializing theme:', error)
+      } finally {
+        setIsInitialized(true)
+      }
+    }
+
+    initializeTheme()
+  }, [storageKey])
 
   useEffect(() => {
-    const root = window.document.documentElement
+    if (!isInitialized) return
 
+    const root = window.document.documentElement
     root.classList.remove("light", "dark")
 
     let actualTheme = theme
@@ -52,10 +97,12 @@ export function ThemeProvider({
     } else {
       applyThemeColorsFromSettings()
     }
-  }, [theme])
+  }, [theme, isInitialized])
 
-  // Sync with Electron native theme
+  // Sync with Electron native theme when theme changes
   useEffect(() => {
+    if (!isInitialized) return
+
     const syncElectronTheme = async () => {
       const themeMode = (window as any).themeMode
       if (!themeMode) return
@@ -78,7 +125,7 @@ export function ThemeProvider({
     }
 
     syncElectronTheme()
-  }, [theme])
+  }, [theme, isInitialized])
 
   const value = {
     theme,

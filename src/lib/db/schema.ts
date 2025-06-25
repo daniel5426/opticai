@@ -7,6 +7,7 @@ export interface Client {
   gender?: string;
   national_id?: string;
   date_of_birth?: string;
+  health_fund?: string;
   address_city?: string;
   address_street?: string;
   address_number?: string;
@@ -395,7 +396,113 @@ export interface EmailLog {
   error_message?: string;
 }
 
+export interface LookupSupplier {
+  id?: number;
+  name: string;
+  created_at?: string;
+}
 
+export interface LookupClinic {
+  id?: number;
+  name: string;
+  created_at?: string;
+}
+
+export interface LookupOrderType {
+  id?: number;
+  name: string;
+  created_at?: string;
+}
+
+export interface LookupReferralType {
+  id?: number;
+  name: string;
+  created_at?: string;
+}
+
+export interface LookupLensModel {
+  id?: number;
+  name: string;
+  created_at?: string;
+}
+
+export interface LookupColor {
+  id?: number;
+  name: string;
+  created_at?: string;
+}
+
+export interface LookupMaterial {
+  id?: number;
+  name: string;
+  created_at?: string;
+}
+
+export interface LookupCoating {
+  id?: number;
+  name: string;
+  created_at?: string;
+}
+
+export interface LookupManufacturer {
+  id?: number;
+  name: string;
+  created_at?: string;
+}
+
+export interface LookupFrameModel {
+  id?: number;
+  name: string;
+  created_at?: string;
+}
+
+export interface LookupContactLensType {
+  id?: number;
+  name: string;
+  created_at?: string;
+}
+
+export interface LookupContactEyeLensType {
+  id?: number;
+  name: string;
+  created_at?: string;
+}
+
+export interface LookupContactEyeMaterial {
+  id?: number;
+  name: string;
+  created_at?: string;
+}
+
+export interface LookupCleaningSolution {
+  id?: number;
+  name: string;
+  created_at?: string;
+}
+
+export interface LookupDisinfectionSolution {
+  id?: number;
+  name: string;
+  created_at?: string;
+}
+
+export interface LookupRinsingSolution {
+  id?: number;
+  name: string;
+  created_at?: string;
+}
+
+export interface LookupManufacturingLab {
+  id?: number;
+  name: string;
+  created_at?: string;
+}
+
+export interface LookupAdvisor {
+  id?: number;
+  name: string;
+  created_at?: string;
+}
 
 export const createTables = (db: Database): void => {
   // Create clients table
@@ -407,6 +514,7 @@ export const createTables = (db: Database): void => {
       gender TEXT,
       national_id TEXT UNIQUE,
       date_of_birth DATE,
+      health_fund TEXT,
       address_city TEXT,
       address_street TEXT,
       address_number TEXT,
@@ -875,5 +983,218 @@ export const createTables = (db: Database): void => {
       FOREIGN KEY(appointment_id) REFERENCES appointments(id) ON DELETE CASCADE
     );
   `);
+
+  // Create lookup tables for field data selection
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS lookup_supplier (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT UNIQUE NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS lookup_clinic (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT UNIQUE NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS lookup_order_type (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT UNIQUE NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS lookup_referral_type (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT UNIQUE NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS lookup_lens_model (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT UNIQUE NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS lookup_color (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT UNIQUE NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS lookup_material (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT UNIQUE NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS lookup_coating (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT UNIQUE NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS lookup_manufacturer (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT UNIQUE NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS lookup_frame_model (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT UNIQUE NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS lookup_contact_lens_type (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT UNIQUE NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS lookup_contact_eye_lens_type (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT UNIQUE NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS lookup_contact_eye_material (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT UNIQUE NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS lookup_cleaning_solution (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT UNIQUE NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS lookup_disinfection_solution (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT UNIQUE NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS lookup_rinsing_solution (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT UNIQUE NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS lookup_manufacturing_lab (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT UNIQUE NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS lookup_advisor (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT UNIQUE NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+
+  // Insert default values for lookup tables
+  const defaultColors = ['שחור', 'חום', 'כחול', 'ירוק', 'אפור', 'אדום', 'ורוד', 'סגול', 'כתום', 'צהוב', 'לבן', 'שקוף'];
+  const defaultMaterials = ['פלסטיק', 'מתכת', 'טיטניום', 'אלומיניום', 'אצטט', 'פוליקרבונט', 'TR90'];
+  const defaultCoatings = ['אנטי-רפלקס', 'הקשיה', 'UV', 'כחול אור', 'מגנטי', 'פוטוכרומטי'];
+  const defaultOrderTypes = ['משקפיים', 'עדשות מגע', 'משקפי שמש', 'תיקון', 'החלפה'];
+  const defaultReferralTypes = ['רופא עיניים', 'מרפאת עיניים', 'בית חולים', 'מומחה'];
+  const defaultContactLensTypes = ['יומיות', 'דו-שבועיות', 'חודשיות', 'שנתיות', 'טוריות', 'מולטיפוקל'];
+  const defaultContactEyeLensTypes = ['רכות', 'קשות', 'היברידיות', 'סקלרליות'];
+  const defaultContactEyeMaterials = ['סיליקון הידרוגל', 'הידרוגל', 'PMMA', 'RGP'];
+  const defaultCleaningSolutions = ['מיצלר', 'אנזימטי', 'חלבון', 'יומי'];
+  const defaultDisinfectionSolutions = ['פרוקסיד מימן', 'מולטי פרפוס', 'UV', 'חום'];
+  const defaultRinsingSolutions = ['מלוח', 'מיצלר', 'מים מזוקקים'];
+
+  // Insert default colors
+  defaultColors.forEach(color => {
+    db.exec(`INSERT OR IGNORE INTO lookup_color (name) VALUES ('${color}');`);
+  });
+
+  // Insert default materials
+  defaultMaterials.forEach(material => {
+    db.exec(`INSERT OR IGNORE INTO lookup_material (name) VALUES ('${material}');`);
+  });
+
+  // Insert default coatings
+  defaultCoatings.forEach(coating => {
+    db.exec(`INSERT OR IGNORE INTO lookup_coating (name) VALUES ('${coating}');`);
+  });
+
+  // Insert default order types
+  defaultOrderTypes.forEach(type => {
+    db.exec(`INSERT OR IGNORE INTO lookup_order_type (name) VALUES ('${type}');`);
+  });
+
+  // Insert default referral types
+  defaultReferralTypes.forEach(type => {
+    db.exec(`INSERT OR IGNORE INTO lookup_referral_type (name) VALUES ('${type}');`);
+  });
+
+  // Insert default contact lens types
+  defaultContactLensTypes.forEach(type => {
+    db.exec(`INSERT OR IGNORE INTO lookup_contact_lens_type (name) VALUES ('${type}');`);
+  });
+
+  // Insert default contact eye lens types
+  defaultContactEyeLensTypes.forEach(type => {
+    db.exec(`INSERT OR IGNORE INTO lookup_contact_eye_lens_type (name) VALUES ('${type}');`);
+  });
+
+  // Insert default contact eye materials
+  defaultContactEyeMaterials.forEach(material => {
+    db.exec(`INSERT OR IGNORE INTO lookup_contact_eye_material (name) VALUES ('${material}');`);
+  });
+
+  // Insert default cleaning solutions
+  defaultCleaningSolutions.forEach(solution => {
+    db.exec(`INSERT OR IGNORE INTO lookup_cleaning_solution (name) VALUES ('${solution}');`);
+  });
+
+  // Insert default disinfection solutions
+  defaultDisinfectionSolutions.forEach(solution => {
+    db.exec(`INSERT OR IGNORE INTO lookup_disinfection_solution (name) VALUES ('${solution}');`);
+  });
+
+  // Insert default rinsing solutions
+  defaultRinsingSolutions.forEach(solution => {
+    db.exec(`INSERT OR IGNORE INTO lookup_rinsing_solution (name) VALUES ('${solution}');`);
+  });
 };
   
