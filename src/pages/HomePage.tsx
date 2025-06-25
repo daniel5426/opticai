@@ -28,6 +28,8 @@ import { toast } from "sonner"
 import { cleanupModalArtifacts } from "@/lib/utils"
 import { CustomModal } from "@/components/ui/custom-modal"
 import { ClientWarningModal } from "@/components/ClientWarningModal"
+import { UserSelect } from "@/components/ui/user-select"
+import { useUser } from "@/contexts/UserContext"
 
 interface TimeSlot {
   type: 'appointment' | 'free' | 'free-slot' | 'collapse'
@@ -45,23 +47,41 @@ interface DragData {
   sourceSlot: TimeSlot
 }
 
+function ClientName({ clientId }: { clientId: number }) {
+  const [client, setClient] = React.useState<Client | null>(null)
+
+  React.useEffect(() => {
+    const loadClient = async () => {
+      try {
+        const clientData = await window.electronAPI.getClient(clientId)
+        setClient(clientData)
+      } catch (error) {
+        console.error('Error loading client:', error)
+      }
+    }
+    loadClient()
+  }, [clientId])
+
+  if (!client) return <span>טוען...</span>
+  return <span>{`${client.first_name || ''} ${client.last_name || ''}`.trim()}</span>
+}
+
 export default function HomePage() {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date())
   const [appointments, setAppointments] = useState<Appointment[]>([])
   const [clients, setClients] = useState<Client[]>([])
   const [settings, setSettings] = useState<Settings | null>(null)
   const [loading, setLoading] = useState(true)
+  const { currentUser } = useUser()
 
   const [draggedData, setDraggedData] = useState<DragData | null>(null)
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [selectedTimeSlot, setSelectedTimeSlot] = useState<string>('')
   const [formData, setFormData] = useState<Omit<Appointment, 'id'>>({
     client_id: 0,
+    user_id: currentUser?.id,
     date: '',
     time: '',
-    first_name: '',
-    last_name: '',
-    phone_mobile: '',
     exam_name: '',
     note: ''
   })
@@ -76,6 +96,7 @@ export default function HomePage() {
     last_name: string
     phone_mobile: string
     email: string
+    user_id?: number
     date: string
     time: string
     exam_name: string
@@ -85,6 +106,7 @@ export default function HomePage() {
     last_name: '',
     phone_mobile: '',
     email: '',
+    user_id: currentUser?.id,
     date: '',
     time: '',
     exam_name: '',
@@ -274,9 +296,6 @@ export default function HomePage() {
             client_id: -1,
             date: format(selectedDate, 'yyyy-MM-dd'),
             time: BREAK_START,
-            first_name: 'הפסקה',
-            last_name: '',
-            phone_mobile: '',
             exam_name: 'זמן הפסקה',
             note: 'הפסקה'
           },
@@ -381,11 +400,9 @@ export default function HomePage() {
   const resetAllForms = () => {
     setFormData({
       client_id: 0,
+      user_id: currentUser?.id,
       date: '',
       time: '',
-      first_name: '',
-      last_name: '',
-      phone_mobile: '',
       exam_name: '',
       note: ''
     })
@@ -394,6 +411,7 @@ export default function HomePage() {
       last_name: '',
       phone_mobile: '',
       email: '',
+      user_id: currentUser?.id,
       date: '',
       time: '',
       exam_name: '',
@@ -416,11 +434,9 @@ export default function HomePage() {
     resetAllForms()
     setFormData({
       client_id: 0,
+      user_id: currentUser?.id,
       date: format(selectedDate, 'yyyy-MM-dd'),
       time: timeSlot,
-      first_name: '',
-      last_name: '',
-      phone_mobile: '',
       exam_name: '',
       note: ''
     })
@@ -432,6 +448,7 @@ export default function HomePage() {
     resetAllForms()
     setNewClientFormData(prev => ({
       ...prev,
+      user_id: currentUser?.id,
       date: format(selectedDate, 'yyyy-MM-dd'),
       time: timeSlot
     }))
@@ -453,11 +470,9 @@ export default function HomePage() {
       }
       setFormData({
         client_id: appointment.client_id,
+        user_id: appointment.user_id || currentUser?.id,
         date: appointment.date || '',
         time: appointment.time || '',
-        first_name: appointment.first_name || '',
-        last_name: appointment.last_name || '',
-        phone_mobile: appointment.phone_mobile || '',
         exam_name: appointment.exam_name || '',
         note: appointment.note || ''
       })
@@ -475,11 +490,9 @@ export default function HomePage() {
         setFormData(prev => ({
           ...prev,
           client_id: selectedClientId,
+          user_id: currentUser?.id,
           date: format(selectedDate, 'yyyy-MM-dd'),
           time: selectedTimeSlot,
-          first_name: client.first_name || '',
-          last_name: client.last_name || '',
-          phone_mobile: client.phone_mobile || '',
           exam_name: '',
           note: ''
         }))
@@ -604,6 +617,7 @@ export default function HomePage() {
       if (newClient && newClient.id) {
         const appointmentData = {
           client_id: newClient.id,
+          user_id: newClientFormData.user_id,
           date: newClientFormData.date,
           time: newClientFormData.time,
           first_name: newClientFormData.first_name,
@@ -634,11 +648,9 @@ export default function HomePage() {
     try {
       const appointmentData = {
         client_id: existingClient.id!,
+        user_id: newClientFormData.user_id,
         date: newClientFormData.date,
         time: newClientFormData.time,
-        first_name: existingClient.first_name || '',
-        last_name: existingClient.last_name || '',
-        phone_mobile: existingClient.phone_mobile || '',
         exam_name: newClientFormData.exam_name,
         note: newClientFormData.note
       }
@@ -855,23 +867,23 @@ export default function HomePage() {
                             key={`${slot.startTime}-${slot.endTime}-${index}`}
                             className={
                               slot.type === 'free-slot' ? 'hover:bg-gray-50 dark:hover:bg-gray-800' :
-                                            slot.appointment?.first_name === 'הפסקה' ? 'bg-orange-50 hover:bg-orange-100 dark:bg-orange-900/20 dark:hover:bg-orange-900/30' :
+                                            slot.appointment?.exam_name === 'זמן הפסקה' ? 'bg-orange-50 hover:bg-orange-100 dark:bg-orange-900/20 dark:hover:bg-orange-900/30' :
               'hover:bg-gray-50 dark:hover:bg-gray-800'
             }
-            onDragOver={(slot.type === 'free-slot' || (slot.type === 'appointment' && slot.appointment?.first_name !== 'הפסקה')) ? handleDragOver : undefined}
-            onDrop={(slot.type === 'free-slot' || (slot.type === 'appointment' && slot.appointment?.first_name !== 'הפסקה')) ? (e) => handleDrop(e, slot) : undefined}
+            onDragOver={(slot.type === 'free-slot' || (slot.type === 'appointment' && slot.appointment?.exam_name !== 'זמן הפסקה')) ? handleDragOver : undefined}
+            onDrop={(slot.type === 'free-slot' || (slot.type === 'appointment' && slot.appointment?.exam_name !== 'זמן הפסקה')) ? (e) => handleDrop(e, slot) : undefined}
                           >
                                                           <TableCell className="font-medium">
                                {slot.type === 'appointment' && (
                                                     <div 
                     className="flex items-center gap-2"
-                    draggable={slot.appointment?.first_name !== 'הפסקה'}
-                    onDragStart={(e) => slot.appointment && slot.appointment.first_name !== 'הפסקה' && handleDragStart(e, slot.appointment, slot, index)}
+                    draggable={slot.appointment?.exam_name !== 'זמן הפסקה'}
+                    onDragStart={(e) => slot.appointment && slot.appointment.exam_name !== 'זמן הפסקה' && handleDragStart(e, slot.appointment, slot, index)}
                   >
-                    {slot.appointment?.first_name !== 'הפסקה' && (
+                    {slot.appointment?.exam_name !== 'זמן הפסקה' && (
                       <GripVertical className="h-4 w-4 cursor-grab text-gray-400 dark:text-gray-500" />
                     )}
-                    {slot.appointment?.first_name === 'הפסקה' && (
+                    {slot.appointment?.exam_name === 'זמן הפסקה' && (
                       <div className="w-4 h-4 flex items-center justify-center">
                         <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
                       </div>
@@ -883,7 +895,7 @@ export default function HomePage() {
                                  <div 
                                    className="flex items-center gap-2"
                                    draggable
-                                   onDragStart={(e) => handleDragStart(e, { id: -1, client_id: -1, date: format(selectedDate, 'yyyy-MM-dd'), time: slot.startTime, first_name: '', last_name: '', phone_mobile: '', exam_name: '', note: '' }, slot, index)}
+                                   onDragStart={(e) => handleDragStart(e, { id: -1, client_id: -1, date: format(selectedDate, 'yyyy-MM-dd'), time: slot.startTime, exam_name: '', note: '' }, slot, index)}
                                  >
                                    <GripVertical className="h-4 w-4 cursor-grab text-gray-400 dark:text-gray-500" />
                                    {slot.startTime}
@@ -892,7 +904,7 @@ export default function HomePage() {
                             </TableCell>
                                         <TableCell>
               {slot.type === 'appointment' ? (
-                slot.appointment?.first_name === 'הפסקה' ? (
+                slot.appointment?.exam_name === 'זמן הפסקה' ? (
                   <Badge variant="outline" className="text-orange-600 border-orange-600 dark:text-orange-400 dark:border-orange-400">
                     הפסקה
                   </Badge>
@@ -904,7 +916,9 @@ export default function HomePage() {
               )}
             </TableCell>
             <TableCell>
-              {slot.type === 'appointment' ? `${slot.appointment?.first_name || ''} ${slot.appointment?.last_name || ''}`.trim() : ''}
+              {slot.type === 'appointment' && slot.appointment ? (
+                slot.appointment.exam_name === 'זמן הפסקה' ? 'הפסקה' : <ClientName clientId={slot.appointment.client_id} />
+              ) : ''}
             </TableCell>
                             <TableCell>
                               {slot.type === 'appointment' ? slot.appointment?.exam_name : ''}
@@ -913,7 +927,7 @@ export default function HomePage() {
                               {slot.type === 'appointment' ? slot.appointment?.note : ''}
                             </TableCell>
                             <TableCell>
-                              {slot.type === 'appointment' && slot.appointment?.first_name !== 'הפסקה' && (
+                              {slot.type === 'appointment' && slot.appointment?.exam_name !== 'זמן הפסקה' && (
                                 <Button
                                   variant="ghost"
                                   size="sm"
@@ -1022,15 +1036,24 @@ export default function HomePage() {
                   />
                 </div>
               </div>
-              <div className="space-y-2 pb-2">
-                <Label htmlFor="new-exam-name" className="text-right block">סוג בדיקה</Label>
-                <Input
-                  id="new-exam-name"
-                  name="exam_name"
-                  value={newClientFormData.exam_name}
-                  onChange={handleNewClientInputChange}
-                  dir="rtl"
-                />
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="new-exam-name" className="text-right block">סוג בדיקה</Label>
+                  <Input
+                    id="new-exam-name"
+                    name="exam_name"
+                    value={newClientFormData.exam_name}
+                    onChange={handleNewClientInputChange}
+                    dir="rtl"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="new-examiner" className="text-right block">בודק</Label>
+                  <UserSelect
+                    value={newClientFormData.user_id}
+                    onValueChange={(userId) => setNewClientFormData(prev => ({ ...prev, user_id: userId }))}
+                  />
+                </div>
               </div>
               <div className="space-y-2 pb-2">
                 <Label htmlFor="new-note" className="text-right block">הערות</Label>
@@ -1067,25 +1090,30 @@ export default function HomePage() {
                   </div>
                 </div>
               )}
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="exam_name" className="text-right">סוג בדיקה</Label>
+              <div className="space-y-2">
+                <Label htmlFor="exam_name" className="text-right block">סוג בדיקה</Label>
                 <Input
                   id="exam_name"
                   name="exam_name"
                   value={formData.exam_name}
                   onChange={handleInputChange}
-                  className="col-span-3"
                   dir="rtl"
                 />
               </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="note" className="text-right">הערות</Label>
+              <div className="space-y-2">
+                <Label htmlFor="examiner" className="text-right block">בודק</Label>
+                <UserSelect
+                  value={formData.user_id}
+                  onValueChange={(userId) => setFormData(prev => ({ ...prev, user_id: userId }))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="note" className="text-right block">הערות</Label>
                 <Textarea
                   id="note"
                   name="note"
                   value={formData.note}
                   onChange={handleInputChange}
-                  className="col-span-3"
                   dir="rtl"
                 />
               </div>

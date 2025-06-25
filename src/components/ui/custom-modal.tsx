@@ -12,7 +12,7 @@ interface CustomModalProps {
   className?: string
 }
 
-export function CustomModal({ isOpen, onClose, title, subtitle, children, className = '', width = 'max-w-md' }: CustomModalProps) {
+export function CustomModal({ isOpen, onClose, title, subtitle, children, className = '', width = 'max-w-lg' }: CustomModalProps) {
   const modalRef = useRef<HTMLDivElement>(null)
   const overlayRef = useRef<HTMLDivElement>(null)
 
@@ -77,6 +77,7 @@ export function CustomModal({ isOpen, onClose, title, subtitle, children, classN
       className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"
       onClick={handleOverlayClick}
       style={{ pointerEvents: 'auto' }}
+      dir="rtl"
     >
       <div
         ref={modalRef}

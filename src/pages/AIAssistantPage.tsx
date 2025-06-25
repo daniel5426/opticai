@@ -168,8 +168,6 @@ export function AIAssistantPage() {
     };
   }, []);
 
-
-
   const initializeAI = async () => {
     try {
       const result = await window.electronAPI.aiInitialize();
@@ -356,13 +354,6 @@ export function AIAssistantPage() {
     }
   };
 
-  const suggestedActions = [
-    'מה התור הקרוב ביותר שלי?',
-    'תן לי סיכום של המטופלים החדשים השבוע',
-    'איזה בדיקות נעשו היום?',
-    'הצג לי את הסטטיסטיקות של המרפאה'
-  ];
-
   if (initError) {
     return (
       <>
@@ -394,7 +385,7 @@ export function AIAssistantPage() {
   }
 
   const Greeting = () => (
-    <div className="w-full mx-auto max-w-3xl px-4 py-8">
+    <div className="flex items-center justify-center flex-1">
       <div className="text-center space-y-6">
         <div>
           <h1 className="text-2xl font-semibold mb-2">ברוכים הבאים לעוזר החכם</h1>
@@ -402,23 +393,6 @@ export function AIAssistantPage() {
             איך אני יכול לעזור לך היום עם ניהול המרפאה?
           </p>
         </div>
-      </div>
-    </div>
-  );
-
-  const SuggestedActions = () => (
-    <div className="w-full mx-auto max-w-3xl px-4 mb-6">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        {suggestedActions.map((action, index) => (
-          <Button
-            key={index}
-            variant="ghost"
-            className="h-auto p-4 text-right justify-start border border-border/50 hover:border-border hover:bg-accent/50"
-            onClick={() => setInputValue(action)}
-          >
-            <span className="text-sm">{action}</span>
-          </Button>
-        ))}
       </div>
     </div>
   );
@@ -566,9 +540,6 @@ export function AIAssistantPage() {
           <ThinkingMessage />
         )}
 
-        {/* Suggested Actions */}
-        {messages.length === 0 && <SuggestedActions />}
-
         <div ref={messagesEndRef} className="shrink-0 min-w-[24px] min-h-[24px]" />
       </div>
 
@@ -600,7 +571,7 @@ export function AIAssistantPage() {
               }}
               onKeyDown={handleKeyPress}
               className={cn(
-                "min-h-[48px] shadow-lg max-h-[520px] overflow-hidden resize-none rounded-3xl text-base bg-muted border-0 focus:ring-0  pb-12 pr-4 pl-12",
+                "min-h-[68px] h-24 focus-visible:ring-0 shadow-sm  max-h-[520px] overflow-hidden resize-none rounded-3xl text-base bg-muted border-1  pb-12 pr-4 pl-12",
               )}
               style={{ direction: 'rtl' }}
               rows={1}
@@ -630,7 +601,7 @@ export function AIAssistantPage() {
             </div>
           </div>
           
-          <p className="text-xs text-muted-foreground mt-2 text-center" dir="rtl">
+          <p className="text-xs text-muted-foreground mt-3 text-center" dir="rtl">
             העוזר החכם יכול לטעות. אנא בדקו מידע חשוב.
           </p>
         </div>

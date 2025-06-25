@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import {
   Table,
@@ -17,8 +17,9 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { MoreHorizontal } from "lucide-react";
-import { OpticalExam } from "@/lib/db/schema";
+import { OpticalExam, User } from "@/lib/db/schema";
 import { ClientSelectModal } from "@/components/ClientSelectModal";
+import { getAllUsers } from "@/lib/db/users-db";
 
 interface ExamsTableProps {
   data: OpticalExam[];
@@ -27,12 +28,31 @@ interface ExamsTableProps {
 
 export function ExamsTable({ data, clientId }: ExamsTableProps) {
   const [searchQuery, setSearchQuery] = useState("");
+  const [users, setUsers] = useState<User[]>([]);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const loadUsers = async () => {
+      try {
+        const usersData = await getAllUsers();
+        setUsers(usersData);
+      } catch (error) {
+        console.error('Error loading users:', error);
+      }
+    };
+    loadUsers();
+  }, []);
+
+  const getUserName = (userId?: number): string => {
+    if (!userId) return '';
+    const user = users.find(u => u.id === userId);
+    return user?.username || '';
+  };
 
   // Filter data based on search query
   const filteredData = data.filter((exam) => {
     const searchableFields = [
-      exam.examiner_name,
+      getUserName(exam.user_id),
       exam.clinic,
       exam.test_name,
       exam.exam_date,
@@ -118,7 +138,7 @@ export function ExamsTable({ data, clientId }: ExamsTableProps) {
                   </TableCell>
                   <TableCell>{exam.test_name}</TableCell>
                   <TableCell>{exam.clinic}</TableCell>
-                  <TableCell>{exam.examiner_name}</TableCell>
+                  <TableCell>{getUserName(exam.user_id)}</TableCell>
                   <TableCell>
                     {exam.notes && exam.notes.length > 30
                       ? `${exam.notes.substring(0, 30)}...`

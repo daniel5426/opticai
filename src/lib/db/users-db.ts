@@ -59,7 +59,17 @@ export async function deleteUser(userId: number): Promise<boolean> {
 export async function authenticateUser(username: string, password?: string): Promise<User | null> {
   try {
     const result = await connectionManager.authenticateUser(username, password);
-    return result.success ? result.user : null;
+    
+    // Handle different return formats:
+    // Local mode returns User | null directly
+    // Remote mode returns { success: boolean, user?: User }
+    if (result && typeof result === 'object' && 'success' in result) {
+      // Remote mode format
+      return result.success ? result.user : null;
+    } else {
+      // Local mode format (User | null)
+      return result;
+    }
   } catch (error) {
     console.error('Error authenticating user:', error);
     return null;

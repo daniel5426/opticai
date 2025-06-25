@@ -33,6 +33,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { toast } from "sonner"
 import { Textarea } from "@/components/ui/textarea"
 import { BillingTab } from "@/components/BillingTab"
+import { UserSelect } from "@/components/ui/user-select"
+import { useUser } from "@/contexts/UserContext"
 
 interface DateInputProps {
   name: string;
@@ -495,6 +497,7 @@ export default function ContactLensDetailPage({
   const [billing, setBilling] = useState<Billing | null>(null)
   const [orderLineItems, setOrderLineItems] = useState<OrderLineItem[]>([])
   const [deletedOrderLineItemIds, setDeletedOrderLineItemIds] = useState<number[]>([])
+  const { currentUser } = useUser()
   
   const isNewMode = mode === 'new'
   const [isEditing, setIsEditing] = useState(isNewMode)
@@ -503,7 +506,7 @@ export default function ContactLensDetailPage({
       return {
         exam_date: new Date().toISOString().split('T')[0],
         type: '',
-        examiner_name: ''
+        user_id: currentUser?.id
       } as ContactLens
     }
     return {} as ContactLens
@@ -658,7 +661,7 @@ export default function ContactLensDetailPage({
           client_id: Number(clientId),
           exam_date: formData.exam_date,
           type: formData.type,
-          examiner_name: formData.examiner_name,
+          user_id: formData.user_id,
           comb_va: formData.comb_va,
           pupil_diameter: formData.pupil_diameter,
           corneal_diameter: formData.corneal_diameter,
@@ -907,17 +910,18 @@ export default function ContactLensDetailPage({
                       </div>
                       
                       <div className="col-span-1">
-                        <label className="font-semibold text-base">שם הבוחן</label>
+                        <label className="font-semibold text-base">בודק</label>
                         <div className="h-1"></div>
-                        <Input 
-                          type="text"
-                          name="examiner_name"
-                          value={formData.examiner_name || ''}
-                          onChange={handleInputChange}
-                          disabled={!isEditing}
-                          className="text-sm h-9"
-                          placeholder="שם הבוחן"
-                        />
+                        {isEditing ? (
+                          <UserSelect
+                            value={formData.user_id}
+                            onValueChange={(userId) => setFormData(prev => ({ ...prev, user_id: userId }))}
+                          />
+                        ) : (
+                          <div className="border h-9 px-3 rounded-md text-sm flex items-center">
+                            {formData.user_id ? 'משתמש נבחר' : 'לא נבחר בודק'}
+                          </div>
+                        )}
                       </div>
                       
                       <div className="col-span-1">

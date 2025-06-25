@@ -12,6 +12,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { toast } from "sonner"
+import { UserSelect } from "@/components/ui/user-select"
+import { useUser } from "@/contexts/UserContext"
 
 // Custom label component with underline - This component is not used in the current file.
 // function LabelWithUnderline({ children }: { children: React.ReactNode }) {
@@ -606,13 +608,14 @@ export default function ExamDetailPage({
   const [exam, setExam] = useState<OpticalExam | null>(null)
   const [rightEyeExam, setRightEyeExam] = useState<OpticalEyeExam | null>(null)
   const [leftEyeExam, setLeftEyeExam] = useState<OpticalEyeExam | null>(null)
+  const { currentUser } = useUser()
   
   const [formData, setFormData] = useState<OpticalExam>(isNewMode ? {
     client_id: Number(clientId),
     exam_date: new Date().toISOString().split('T')[0],
     test_name: '',
     clinic: '',
-    examiner_name: '',
+    user_id: currentUser?.id,
     notes: '',
     dominant_eye: '',
     comb_subj_va: undefined,
@@ -738,7 +741,7 @@ export default function ExamDetailPage({
           exam_date: formData.exam_date,
           test_name: formData.test_name,
           clinic: formData.clinic,
-          examiner_name: formData.examiner_name,
+          user_id: formData.user_id,
           notes: formData.notes,
           dominant_eye: formData.dominant_eye,
           comb_subj_va: formData.comb_subj_va,
@@ -989,18 +992,17 @@ export default function ExamDetailPage({
                     )}
                   </div>
                   <div className="col-span-1">
-                    <label className="font-semibold text-base">שם הבודק</label>
+                    <label className="font-semibold text-base">בודק</label>
                     <div className="h-1"></div>
                     {isEditing ? (
-                      <Input 
-                        type="text"
-                        name="examiner_name"
-                        value={formData.examiner_name || ''}
-                        onChange={handleInputChange}
-                        className="text-sm py-1"
+                      <UserSelect
+                        value={formData.user_id}
+                        onValueChange={(userId) => setFormData(prev => ({ ...prev, user_id: userId }))}
                       />
                     ) : (
-                      <div className="border h-9 px-3 rounded-md text-sm flex items-center">{isNewMode ? formData.examiner_name : exam?.examiner_name}</div>
+                      <div className="border h-9 px-3 rounded-md text-sm flex items-center">
+                        {formData.user_id ? 'משתמש נבחר' : 'לא נבחר בודק'}
+                      </div>
                     )}
                   </div>
                   <div className="col-span-1">

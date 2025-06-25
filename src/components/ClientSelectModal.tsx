@@ -96,9 +96,8 @@ export function ClientSelectModal({ triggerText, onClientSelect, variant = "defa
         isOpen={modalOpen}
         onClose={handleModalClose}
         title="בחר לקוח"
-        className="max-w-md"
       >
-        <div className="space-y-4">
+        <div className="space-y-4 w-md">
           <Input
             placeholder="חיפוש לקוח..."
             value={searchQuery}

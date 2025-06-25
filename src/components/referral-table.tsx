@@ -72,7 +72,7 @@ export function ReferralTable({
 
   return (
     <div className="space-y-4" style={{ scrollbarWidth: "none" }}>
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between" dir="rtl">
         <Input
           placeholder="חיפוש הפניות..."
           value={searchTerm}

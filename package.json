@@ -7,6 +7,8 @@
   "private": true,
   "scripts": {
     "dev": "electron-forge start",
+    "dev:forge": "electron-forge start",
+    "reset": "rm '/Users/danielbenassayag/Library/Application Support/electron-shadcn Template/database.sqlite' && npm run dev",
     "start": "electron-forge start",
     "package": "electron-forge package",
     "make": "electron-forge make",
@@ -64,6 +66,8 @@
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.31.0",
     "vite": "^6.3.3",
+    "vite-plugin-electron": "^0.29.0",
+    "vite-plugin-electron-renderer": "^0.14.6",
     "vitest": "^3.1.2"
   },
   "dependencies": {
@@ -99,6 +103,7 @@
     "@tanstack/router-devtools": "^1.117.1",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.3",
+    "@types/nodemailer": "^6.4.17",
     "@vitejs/plugin-react": "^4.4.1",
     "babel-plugin-react-compiler": "^19.0.0-beta-e993439-20250328",
     "better-sqlite3": "^11.10.0",
@@ -113,6 +118,8 @@
     "langchain": "^0.2.20",
     "lucide-react": "^0.503.0",
     "next-themes": "^0.4.6",
+    "node-cron": "^4.1.1",
+    "nodemailer": "^7.0.3",
     "openai": "^4.52.0",
     "react": "^19.1.0",
     "react-day-picker": "^9.7.0",

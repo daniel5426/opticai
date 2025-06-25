@@ -1,5 +1,5 @@
 import React from "react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import {
   Table,
@@ -18,10 +18,11 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { MoreHorizontal, Trash2 } from "lucide-react";
-import { ContactLens } from "@/lib/db/schema";
+import { ContactLens, User } from "@/lib/db/schema";
 import { deleteContactLens } from "@/lib/db/contact-lens-db";
 import { toast } from "sonner";
 import { ClientSelectModal } from "@/components/ClientSelectModal";
+import { getAllUsers } from "@/lib/db/users-db";
 
 interface ContactLensTableProps {
   data: ContactLens[];
@@ -35,7 +36,26 @@ export function ContactLensTable({
   onContactLensDeleted,
 }: ContactLensTableProps) {
   const [searchQuery, setSearchQuery] = useState("");
+  const [users, setUsers] = useState<User[]>([]);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const loadUsers = async () => {
+      try {
+        const usersData = await getAllUsers();
+        setUsers(usersData);
+      } catch (error) {
+        console.error('Error loading users:', error);
+      }
+    };
+    loadUsers();
+  }, []);
+
+  const getUserName = (userId?: number): string => {
+    if (!userId) return '';
+    const user = users.find(u => u.id === userId);
+    return user?.username || '';
+  };
 
   const handleDeleteContactLens = async (
     contactLensId: number,
@@ -65,7 +85,7 @@ export function ContactLensTable({
     const searchableFields = [
       contactLens.type || "",
       contactLens.exam_date || "",
-      contactLens.examiner_name || "",
+      getUserName(contactLens.user_id),
     ];
 
     return searchableFields.some((field) =>
@@ -75,7 +95,7 @@ export function ContactLensTable({
 
   return (
     <div className="space-y-4" style={{ scrollbarWidth: "none" }}>
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between" dir="rtl">
         <div className="flex gap-2">
           <Input
             placeholder="חיפוש עדשות מגע..."
@@ -149,7 +169,7 @@ export function ContactLensTable({
                         : ""}
                     </TableCell>
                     <TableCell>{contactLens.type}</TableCell>
-                    <TableCell>{contactLens.examiner_name}</TableCell>
+                    <TableCell>{getUserName(contactLens.user_id)}</TableCell>
                     <TableCell></TableCell>
                     <TableCell>{contactLens.corneal_diameter}</TableCell>
                     <TableCell>

@@ -40,6 +40,8 @@ import { toast } from "sonner"
 import { Textarea } from "@/components/ui/textarea"
 import { Plus, Edit, Trash2, Save, X } from "lucide-react"
 import { BillingTab } from "@/components/BillingTab"
+import { UserSelect } from "@/components/ui/user-select"
+import { useUser } from "@/contexts/UserContext"
 
 interface DateInputProps {
   name: string;
@@ -239,6 +241,7 @@ export default function OrderDetailPage({
   const [billing, setBilling] = useState<Billing | null>(null)
   const [orderLineItems, setOrderLineItems] = useState<OrderLineItem[]>([])
   const [deletedOrderLineItemIds, setDeletedOrderLineItemIds] = useState<number[]>([])
+  const { currentUser } = useUser()
   
   const isNewMode = mode === 'new'
   const [isEditing, setIsEditing] = useState(isNewMode)
@@ -248,7 +251,7 @@ export default function OrderDetailPage({
         order_date: new Date().toISOString().split('T')[0],
         type: '',
         dominant_eye: '',
-        examiner_name: '',
+        user_id: currentUser?.id,
         comb_va: undefined,
         comb_high: undefined,
         comb_pd: undefined
@@ -450,7 +453,7 @@ export default function OrderDetailPage({
           order_date: formData.order_date,
           type: formData.type,
           dominant_eye: formData.dominant_eye,
-          examiner_name: formData.examiner_name,
+          user_id: formData.user_id,
           comb_va: formData.comb_va,
           comb_high: formData.comb_high,
           comb_pd: formData.comb_pd
@@ -748,17 +751,18 @@ export default function OrderDetailPage({
                   </div>
                   
                   <div className="col-span-1">
-                    <label className="font-semibold text-base">שם הבוחן</label>
+                    <label className="font-semibold text-base">בודק</label>
                     <div className="h-1"></div>
-                    <Input 
-                      type="text"
-                      name="examiner_name"
-                      value={formData.examiner_name || ''}
-                      onChange={handleInputChange}
-                      disabled={!isEditing}
-                      className="text-sm h-9"
-                      placeholder="שם הבוחן"
-                    />
+                    {isEditing ? (
+                      <UserSelect
+                        value={formData.user_id}
+                        onValueChange={(userId) => setFormData(prev => ({ ...prev, user_id: userId }))}
+                      />
+                    ) : (
+                      <div className="border h-9 px-3 rounded-md text-sm flex items-center">
+                        {formData.user_id ? 'משתמש נבחר' : 'לא נבחר בודק'}
+                      </div>
+                    )}
                   </div>
  
                   <div className="col-span-1">

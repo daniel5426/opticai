@@ -24,7 +24,8 @@ import {
   Settings,
   User,
   Chat,
-  ChatMessage
+  ChatMessage,
+  EmailLog
 } from './schema';
 
 class DatabaseService {
@@ -78,21 +79,21 @@ class DatabaseService {
         console.log('Added lens_order_notes column to order_details table');
       }
 
-      // Check if appointments table has the old client_name column
+      // Check if appointments table has redundant client fields that should be removed
       const appointmentsInfo = this.db.prepare("PRAGMA table_info(appointments)").all() as any[];
-      const hasClientNameColumn = appointmentsInfo.some(col => col.name === 'client_name');
       const hasFirstNameColumn = appointmentsInfo.some(col => col.name === 'first_name');
       const hasLastNameColumn = appointmentsInfo.some(col => col.name === 'last_name');
       const hasPhoneMobileColumn = appointmentsInfo.some(col => col.name === 'phone_mobile');
+      const hasEmailColumn = appointmentsInfo.some(col => col.name === 'email');
 
-      // If the old structure exists, migrate to new structure
-      if (hasClientNameColumn && (!hasFirstNameColumn || !hasLastNameColumn || !hasPhoneMobileColumn)) {
-        console.log('Migrating appointments table structure...');
+      // If redundant client fields exist, migrate to new structure
+      if (hasFirstNameColumn || hasLastNameColumn || hasPhoneMobileColumn || hasEmailColumn) {
+        console.log('Migrating appointments table to remove redundant client fields...');
         
         // Create backup of existing data
         const existingAppointments = this.db.prepare('SELECT * FROM appointments').all() as any[];
         
-        // Drop and recreate table with new structure
+        // Drop and recreate table with new structure (without redundant client fields)
         this.db.exec('DROP TABLE appointments');
         this.db.exec(`
           CREATE TABLE appointments (
@@ -100,38 +101,28 @@ class DatabaseService {
             client_id INTEGER NOT NULL,
             date DATE,
             time TEXT,
-            first_name TEXT,
-            last_name TEXT,
-            phone_mobile TEXT,
             exam_name TEXT,
             note TEXT,
             FOREIGN KEY(client_id) REFERENCES clients(id) ON DELETE CASCADE
           )
         `);
         
-        // Restore data with client name split (if possible)
+        // Restore data without the redundant client fields
         for (const appointment of existingAppointments) {
-          const clientNameParts = (appointment.client_name || '').split(' ');
-          const firstName = clientNameParts[0] || '';
-          const lastName = clientNameParts.slice(1).join(' ') || '';
-          
           this.db.prepare(`
-            INSERT INTO appointments (id, client_id, date, time, first_name, last_name, phone_mobile, exam_name, note)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO appointments (id, client_id, date, time, exam_name, note)
+            VALUES (?, ?, ?, ?, ?, ?)
           `).run(
             appointment.id,
             appointment.client_id,
             appointment.date,
             appointment.time,
-            firstName,
-            lastName,
-            '', // phone_mobile will be empty for migrated records
             appointment.exam_name,
             appointment.note
           );
         }
         
-        console.log('Appointments table migration completed');
+        console.log('Appointments table migration completed - redundant client fields removed');
       }
     } catch (error) {
       console.error('Error during database migration:', error);
@@ -189,7 +180,7 @@ class DatabaseService {
             const exam = this.createExam({
               client_id: createdClient.id!,
               clinic: "מרפאת עיניים ראשית",
-              examiner_name: "ד״ר אביב כהן",
+              user_id: 1,
               exam_date: "2024-01-15",
               test_name: "בדיקת ראייה מקיפה",
               dominant_eye: "R",
@@ -391,13 +382,13 @@ class DatabaseService {
     try {
       const stmt = this.db.prepare(`
         INSERT INTO optical_exams (
-          client_id, clinic, examiner_name, exam_date, test_name, dominant_eye, notes,
+          client_id, clinic, user_id, exam_date, test_name, dominant_eye, notes,
           comb_subj_va, comb_old_va, comb_fa, comb_fa_tuning, comb_pd_close, comb_pd_far
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
       
       const result = stmt.run(
-        exam.client_id, exam.clinic, exam.examiner_name, exam.exam_date, exam.test_name, 
+        exam.client_id, exam.clinic, this.sanitizeValue(exam.user_id), exam.exam_date, exam.test_name, 
         exam.dominant_eye, exam.notes, exam.comb_subj_va, exam.comb_old_va, exam.comb_fa, 
         exam.comb_fa_tuning, exam.comb_pd_close, exam.comb_pd_far
       );
@@ -451,14 +442,14 @@ class DatabaseService {
     try {
       const stmt = this.db.prepare(`
         UPDATE optical_exams SET 
-        client_id = ?, clinic = ?, examiner_name = ?, exam_date = ?, test_name = ?, 
+        client_id = ?, clinic = ?, user_id = ?, exam_date = ?, test_name = ?, 
         dominant_eye = ?, notes = ?, comb_subj_va = ?, comb_old_va = ?, comb_fa = ?, 
         comb_fa_tuning = ?, comb_pd_close = ?, comb_pd_far = ?
         WHERE id = ?
       `);
       
       stmt.run(
-        exam.client_id, exam.clinic, exam.examiner_name, exam.exam_date, exam.test_name, 
+        exam.client_id, exam.clinic, this.sanitizeValue(exam.user_id), exam.exam_date, exam.test_name, 
         exam.dominant_eye, exam.notes, exam.comb_subj_va, exam.comb_old_va, exam.comb_fa, 
         exam.comb_fa_tuning, exam.comb_pd_close, exam.comb_pd_far, exam.id
       );
@@ -561,12 +552,12 @@ class DatabaseService {
     
     try {
       const stmt = this.db.prepare(`
-        INSERT INTO orders (order_date, type, dominant_eye, examiner_name, lens_id, frame_id, comb_va, comb_high, comb_pd)
+        INSERT INTO orders (order_date, type, dominant_eye, user_id, lens_id, frame_id, comb_va, comb_high, comb_pd)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
       
       const result = stmt.run(
-        order.order_date, order.type, order.dominant_eye, order.examiner_name, order.lens_id, order.frame_id, 
+        order.order_date, order.type, order.dominant_eye, this.sanitizeValue(order.user_id), order.lens_id, order.frame_id, 
         order.comb_va, order.comb_high, order.comb_pd
       );
       
@@ -621,12 +612,12 @@ class DatabaseService {
     
     try {
       const stmt = this.db.prepare(`
-        UPDATE orders SET order_date = ?, type = ?, dominant_eye = ?, examiner_name = ?, lens_id = ?, frame_id = ?, comb_va = ?, comb_high = ?, comb_pd = ?
+        UPDATE orders SET order_date = ?, type = ?, dominant_eye = ?, user_id = ?, lens_id = ?, frame_id = ?, comb_va = ?, comb_high = ?, comb_pd = ?
         WHERE id = ?
       `);
       
       stmt.run(
-        order.order_date, order.type, order.dominant_eye, order.examiner_name, order.lens_id, order.frame_id, 
+        order.order_date, order.type, order.dominant_eye, this.sanitizeValue(order.user_id), order.lens_id, order.frame_id, 
         order.comb_va, order.comb_high, order.comb_pd, order.id
       );
       
@@ -825,11 +816,11 @@ class DatabaseService {
     
     try {
       const stmt = this.db.prepare(`
-        INSERT INTO medical_logs (client_id, log_date, log)
-        VALUES (?, ?, ?)
+        INSERT INTO medical_logs (client_id, user_id, log_date, log)
+        VALUES (?, ?, ?, ?)
       `);
       
-      const result = stmt.run(log.client_id, log.log_date, log.log);
+      const result = stmt.run(log.client_id, this.sanitizeValue(log.user_id), log.log_date, log.log);
       return { ...log, id: result.lastInsertRowid as number };
     } catch (error) {
       console.error('Error creating medical log:', error);
@@ -867,11 +858,11 @@ class DatabaseService {
     
     try {
       const stmt = this.db.prepare(`
-        UPDATE medical_logs SET client_id = ?, log_date = ?, log = ?
+        UPDATE medical_logs SET client_id = ?, user_id = ?, log_date = ?, log = ?
         WHERE id = ?
       `);
       
-      stmt.run(log.client_id, log.log_date, log.log, log.id);
+      stmt.run(log.client_id, this.sanitizeValue(log.user_id), log.log_date, log.log, log.id);
       return log;
     } catch (error) {
       console.error('Error updating medical log:', error);
@@ -1133,7 +1124,7 @@ class DatabaseService {
     try {
       const stmt = this.db.prepare(`
         INSERT INTO contact_lens (
-          client_id, exam_date, type, examiner_name, comb_va, pupil_diameter, corneal_diameter, eyelid_aperture, notes, notes_for_supplier
+          client_id, exam_date, type, user_id, comb_va, pupil_diameter, corneal_diameter, eyelid_aperture, notes, notes_for_supplier
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
       
@@ -1141,7 +1132,7 @@ class DatabaseService {
         contactLens.client_id,
         this.sanitizeValue(contactLens.exam_date),
         this.sanitizeValue(contactLens.type),
-        this.sanitizeValue(contactLens.examiner_name),
+        this.sanitizeValue(contactLens.user_id),
         this.sanitizeValue(contactLens.comb_va),
         this.sanitizeValue(contactLens.pupil_diameter),
         this.sanitizeValue(contactLens.corneal_diameter),
@@ -1193,14 +1184,14 @@ class DatabaseService {
     }
   }
 
-  updateContactLens(contactLens: ContactLens): ContactLens | null {
+    updateContactLens(contactLens: ContactLens): ContactLens | null {
     if (!this.db || !contactLens.id) return null;
     
     try {
       const stmt = this.db.prepare(`
         UPDATE contact_lens SET 
-          client_id = ?, exam_date = ?, type = ?, examiner_name = ?, comb_va = ?, pupil_diameter = ?, corneal_diameter = ?,
-          eyelid_aperture = ?, notes = ?, notes_for_supplier = ?
+        client_id = ?, exam_date = ?, type = ?, user_id = ?, comb_va = ?, pupil_diameter = ?, corneal_diameter = ?,
+        eyelid_aperture = ?, notes = ?, notes_for_supplier = ?
         WHERE id = ?
       `);
       
@@ -1208,7 +1199,7 @@ class DatabaseService {
         contactLens.client_id,
         this.sanitizeValue(contactLens.exam_date),
         this.sanitizeValue(contactLens.type),
-        this.sanitizeValue(contactLens.examiner_name),
+        this.sanitizeValue(contactLens.user_id),
         this.sanitizeValue(contactLens.comb_va),
         this.sanitizeValue(contactLens.pupil_diameter),
         this.sanitizeValue(contactLens.corneal_diameter),
@@ -1443,13 +1434,14 @@ class DatabaseService {
     try {
       const stmt = this.db.prepare(`
         INSERT INTO referrals (
-          client_id, referral_notes, prescription_notes, comb_va, comb_high, comb_pd,
+          client_id, user_id, referral_notes, prescription_notes, comb_va, comb_high, comb_pd,
           date, type, branch, recipient
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
       
       const result = stmt.run(
         referral.client_id,
+        this.sanitizeValue(referral.user_id),
         this.sanitizeValue(referral.referral_notes),
         this.sanitizeValue(referral.prescription_notes),
         this.sanitizeValue(referral.comb_va),
@@ -1510,13 +1502,14 @@ class DatabaseService {
     try {
       const stmt = this.db.prepare(`
         UPDATE referrals SET 
-        client_id = ?, referral_notes = ?, prescription_notes = ?, comb_va = ?, comb_high = ?, comb_pd = ?,
+        client_id = ?, user_id = ?, referral_notes = ?, prescription_notes = ?, comb_va = ?, comb_high = ?, comb_pd = ?,
         date = ?, type = ?, branch = ?, recipient = ?
         WHERE id = ?
       `);
       
       stmt.run(
         referral.client_id,
+        this.sanitizeValue(referral.user_id),
         this.sanitizeValue(referral.referral_notes),
         this.sanitizeValue(referral.prescription_notes),
         this.sanitizeValue(referral.comb_va),
@@ -1636,17 +1629,15 @@ class DatabaseService {
     
     try {
       const stmt = this.db.prepare(`
-        INSERT INTO appointments (client_id, date, time, first_name, last_name, phone_mobile, exam_name, note)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO appointments (client_id, user_id, date, time, exam_name, note)
+        VALUES (?, ?, ?, ?, ?, ?)
       `);
       
       const result = stmt.run(
         appointment.client_id,
+        this.sanitizeValue(appointment.user_id),
         this.sanitizeValue(appointment.date),
         this.sanitizeValue(appointment.time),
-        this.sanitizeValue(appointment.first_name),
-        this.sanitizeValue(appointment.last_name),
-        this.sanitizeValue(appointment.phone_mobile),
         this.sanitizeValue(appointment.exam_name),
         this.sanitizeValue(appointment.note)
       );
@@ -1700,17 +1691,15 @@ class DatabaseService {
     try {
       const stmt = this.db.prepare(`
         UPDATE appointments SET
-          client_id = ?, date = ?, time = ?, first_name = ?, last_name = ?, phone_mobile = ?, exam_name = ?, note = ?
+          client_id = ?, user_id = ?, date = ?, time = ?, exam_name = ?, note = ?
         WHERE id = ?
       `);
       
       stmt.run(
         appointment.client_id,
+        this.sanitizeValue(appointment.user_id),
         this.sanitizeValue(appointment.date),
         this.sanitizeValue(appointment.time),
-        this.sanitizeValue(appointment.first_name),
-        this.sanitizeValue(appointment.last_name),
-        this.sanitizeValue(appointment.phone_mobile),
         this.sanitizeValue(appointment.exam_name),
         this.sanitizeValue(appointment.note),
         appointment.id
@@ -1760,12 +1749,14 @@ class DatabaseService {
       const stmt = this.db.prepare(`
         UPDATE settings SET 
         clinic_name = ?, clinic_position = ?, clinic_email = ?, clinic_phone = ?,
-        clinic_address = ?, clinic_city = ?, clinic_postal_code = ?, clinic_website = ?,
+        clinic_address = ?, clinic_city = ?, clinic_postal_code = ?, clinic_directions = ?, clinic_website = ?,
         manager_name = ?, license_number = ?, clinic_logo_path = ?,
         primary_theme_color = ?, secondary_theme_color = ?,
         work_start_time = ?, work_end_time = ?, appointment_duration = ?,
         send_email_before_appointment = ?, email_days_before = ?, email_time = ?,
         working_days = ?, break_start_time = ?, break_end_time = ?, max_appointments_per_day = ?,
+        email_provider = ?, email_smtp_host = ?, email_smtp_port = ?, email_smtp_secure = ?,
+        email_username = ?, email_password = ?, email_from_name = ?,
         updated_at = CURRENT_TIMESTAMP
         WHERE id = 1
       `);
@@ -1778,6 +1769,7 @@ class DatabaseService {
         this.sanitizeValue(settings.clinic_address),
         this.sanitizeValue(settings.clinic_city),
         this.sanitizeValue(settings.clinic_postal_code),
+        this.sanitizeValue(settings.clinic_directions),
         this.sanitizeValue(settings.clinic_website),
         this.sanitizeValue(settings.manager_name),
         this.sanitizeValue(settings.license_number),
@@ -1793,7 +1785,14 @@ class DatabaseService {
         this.sanitizeValue(settings.working_days),
         this.sanitizeValue(settings.break_start_time),
         this.sanitizeValue(settings.break_end_time),
-        this.sanitizeValue(settings.max_appointments_per_day)
+        this.sanitizeValue(settings.max_appointments_per_day),
+        this.sanitizeValue(settings.email_provider),
+        this.sanitizeValue(settings.email_smtp_host),
+        this.sanitizeValue(settings.email_smtp_port),
+        this.sanitizeValue(settings.email_smtp_secure),
+        this.sanitizeValue(settings.email_username),
+        this.sanitizeValue(settings.email_password),
+        this.sanitizeValue(settings.email_from_name)
       );
       
       return this.getSettings();
@@ -1925,6 +1924,54 @@ class DatabaseService {
     } catch (error) {
       console.error('Error authenticating user:', error);
       return null;
+    }
+  }
+
+  // Email Log CRUD operations
+  createEmailLog(emailLog: Omit<EmailLog, 'id'>): EmailLog | null {
+    if (!this.db) return null;
+    
+    try {
+      const stmt = this.db.prepare(`
+        INSERT INTO email_logs (appointment_id, email_address, success, error_message)
+        VALUES (?, ?, ?, ?)
+      `);
+      
+      const result = stmt.run(
+        emailLog.appointment_id,
+        this.sanitizeValue(emailLog.email_address),
+        emailLog.success ? 1 : 0,
+        this.sanitizeValue(emailLog.error_message)
+      );
+      
+      return { ...emailLog, id: result.lastInsertRowid as number };
+    } catch (error) {
+      console.error('Error creating email log:', error);
+      return null;
+    }
+  }
+
+  getEmailLogsByAppointment(appointmentId: number): EmailLog[] {
+    if (!this.db) return [];
+    
+    try {
+      const stmt = this.db.prepare('SELECT * FROM email_logs WHERE appointment_id = ? ORDER BY sent_at DESC');
+      return stmt.all(appointmentId) as EmailLog[];
+    } catch (error) {
+      console.error('Error getting email logs by appointment:', error);
+      return [];
+    }
+  }
+
+  getAllEmailLogs(): EmailLog[] {
+    if (!this.db) return [];
+    
+    try {
+      const stmt = this.db.prepare('SELECT * FROM email_logs ORDER BY sent_at DESC');
+      return stmt.all() as EmailLog[];
+    } catch (error) {
+      console.error('Error getting all email logs:', error);
+      return [];
     }
   }
 

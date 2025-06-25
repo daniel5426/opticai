@@ -95,6 +95,7 @@ export function ClientDetailsTab({
       {mode === 'view' && setIsEditing && handleSave && (
         <div className="flex justify-between items-center mb-4">
           <Button 
+            type="button"
             variant={isEditing ? "outline" : "default"} 
             onClick={() => isEditing ? handleSave() : setIsEditing(true)}
           >

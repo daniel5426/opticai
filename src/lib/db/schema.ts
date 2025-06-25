@@ -35,6 +35,7 @@ export interface Client {
 export interface MedicalLog {
   id?: number;
   client_id: number;
+  user_id?: number;
   log_date?: string;
   log?: string;
 }
@@ -43,7 +44,7 @@ export interface OpticalExam {
   id?: number;
   client_id: number;
   clinic?: string;
-  examiner_name?: string;
+  user_id?: number;
   exam_date?: string;
   test_name?: string;
   dominant_eye?: string;
@@ -97,7 +98,7 @@ export interface Order {
   order_date?: string;
   type?: string;
   dominant_eye?: string;
-  examiner_name?: string;
+  user_id?: number;
   lens_id?: number;
   frame_id?: number;
 
@@ -126,6 +127,7 @@ export interface OrderEye {
 export interface Referral {
   id?: number;
   client_id: number;
+  user_id?: number;
   referral_notes: string;
   prescription_notes?: string;
   comb_va?: number;
@@ -159,12 +161,9 @@ export interface ReferralEye {
 export interface Appointment {
   id?: number;
   client_id: number;
+  user_id?: number;
   date?: string;
   time?: string;
-  first_name?: string;
-  last_name?: string;
-  phone_mobile?: string;
-  email?: string;
   exam_name?: string;
   note?: string;
 }
@@ -200,7 +199,7 @@ export interface ContactLens {
   client_id: number;
   exam_date?: string;
   type?: string;
-  examiner_name?: string;
+  user_id?: number;
   comb_va?: number;
   pupil_diameter?: number;
   corneal_diameter?: number;
@@ -346,6 +345,15 @@ export interface Settings {
   break_end_time?: string;
   max_appointments_per_day?: number;
   
+  // Email Configuration
+  email_provider?: string; // 'gmail', 'outlook', 'yahoo', 'custom'
+  email_smtp_host?: string;
+  email_smtp_port?: number;
+  email_smtp_secure?: boolean;
+  email_username?: string;
+  email_password?: string; // Will be encrypted
+  email_from_name?: string;
+  
   created_at?: string;
   updated_at?: string;
 }
@@ -376,6 +384,15 @@ export interface ChatMessage {
   content: string;
   timestamp?: string;
   data?: string; // JSON string for additional data
+}
+
+export interface EmailLog {
+  id?: number;
+  appointment_id: number;
+  email_address: string;
+  sent_at?: string;
+  success: boolean;
+  error_message?: string;
 }
 
 
@@ -421,9 +438,11 @@ export const createTables = (db: Database): void => {
     CREATE TABLE IF NOT EXISTS medical_logs (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       client_id INTEGER NOT NULL,
+      user_id INTEGER,
       log_date DATE,
       log TEXT,
-      FOREIGN KEY(client_id) REFERENCES clients(id) ON DELETE CASCADE
+      FOREIGN KEY(client_id) REFERENCES clients(id) ON DELETE CASCADE,
+      FOREIGN KEY(user_id) REFERENCES users(id)
     );
   `);
 
@@ -433,7 +452,7 @@ export const createTables = (db: Database): void => {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       client_id INTEGER NOT NULL,
       clinic TEXT,
-      examiner_name TEXT,
+      user_id INTEGER,
       exam_date DATE,
       test_name TEXT,
       dominant_eye CHAR(1) CHECK(dominant_eye IN ('R','L')),
@@ -444,7 +463,8 @@ export const createTables = (db: Database): void => {
       comb_fa_tuning REAL,
       comb_pd_close REAL,
       comb_pd_far REAL,
-      FOREIGN KEY(client_id) REFERENCES clients(id) ON DELETE CASCADE
+      FOREIGN KEY(client_id) REFERENCES clients(id) ON DELETE CASCADE,
+      FOREIGN KEY(user_id) REFERENCES users(id)
     );
   `);
 
@@ -494,14 +514,15 @@ export const createTables = (db: Database): void => {
       client_id INTEGER NOT NULL,
       exam_date DATE,
       type TEXT,
-      examiner_name TEXT,
+      user_id INTEGER,
       comb_va REAL,
       pupil_diameter REAL,
       corneal_diameter REAL,
       eyelid_aperture REAL,
       notes TEXT,
       notes_for_supplier TEXT,
-      FOREIGN KEY(client_id) REFERENCES clients(id) ON DELETE CASCADE
+      FOREIGN KEY(client_id) REFERENCES clients(id) ON DELETE CASCADE,
+      FOREIGN KEY(user_id) REFERENCES users(id)
     );
   `);
 
@@ -605,12 +626,13 @@ export const createTables = (db: Database): void => {
       order_date DATE,
       type TEXT,
       dominant_eye CHAR(1) CHECK(dominant_eye IN ('R','L')),
-      examiner_name TEXT,
+      user_id INTEGER,
       lens_id INTEGER,
       frame_id INTEGER,
       comb_va REAL,
       comb_high REAL,
-      comb_pd REAL
+      comb_pd REAL,
+      FOREIGN KEY(user_id) REFERENCES users(id)
     );
   `);
 
@@ -698,6 +720,7 @@ export const createTables = (db: Database): void => {
     CREATE TABLE IF NOT EXISTS referrals (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       client_id INTEGER NOT NULL,
+      user_id INTEGER,
       referral_notes TEXT,
       prescription_notes TEXT,
       comb_va REAL,
@@ -707,7 +730,8 @@ export const createTables = (db: Database): void => {
       type TEXT,
       branch TEXT,
       recipient TEXT,
-      FOREIGN KEY(client_id) REFERENCES clients(id) ON DELETE CASCADE
+      FOREIGN KEY(client_id) REFERENCES clients(id) ON DELETE CASCADE,
+      FOREIGN KEY(user_id) REFERENCES users(id)
     );
   `);
 
@@ -737,15 +761,13 @@ export const createTables = (db: Database): void => {
     CREATE TABLE IF NOT EXISTS appointments (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       client_id INTEGER NOT NULL,
+      user_id INTEGER,
       date DATE,
       time TEXT,
-      first_name TEXT,
-      last_name TEXT,
-      phone_mobile TEXT,
-      email TEXT,
       exam_name TEXT,
       note TEXT,
-      FOREIGN KEY(client_id) REFERENCES clients(id) ON DELETE CASCADE
+      FOREIGN KEY(client_id) REFERENCES clients(id) ON DELETE CASCADE,
+      FOREIGN KEY(user_id) REFERENCES users(id)
     );
   `);
 
@@ -777,6 +799,13 @@ export const createTables = (db: Database): void => {
       break_start_time TEXT,
       break_end_time TEXT,
       max_appointments_per_day INTEGER DEFAULT 20,
+      email_provider TEXT DEFAULT 'gmail',
+      email_smtp_host TEXT,
+      email_smtp_port INTEGER,
+      email_smtp_secure BOOLEAN DEFAULT 1,
+      email_username TEXT,
+      email_password TEXT,
+      email_from_name TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
@@ -831,6 +860,19 @@ export const createTables = (db: Database): void => {
       timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
       data TEXT,
       FOREIGN KEY(chat_id) REFERENCES chats(id) ON DELETE CASCADE
+    );
+  `);
+
+  // Create email_logs table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS email_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      appointment_id INTEGER NOT NULL,
+      email_address TEXT NOT NULL,
+      sent_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      success BOOLEAN NOT NULL,
+      error_message TEXT,
+      FOREIGN KEY(appointment_id) REFERENCES appointments(id) ON DELETE CASCADE
     );
   `);
 };

@@ -1,5 +1,5 @@
 import React from "react"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Link, useNavigate } from "@tanstack/react-router"
 import {
   Table,
@@ -18,8 +18,9 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { MoreHorizontal } from "lucide-react"
-import { Order } from "@/lib/db/schema"
+import { Order, User } from "@/lib/db/schema"
 import { ClientSelectModal } from "@/components/ClientSelectModal"
+import { getAllUsers } from "@/lib/db/users-db"
 
 interface OrdersTableProps {
   data: Order[]
@@ -28,13 +29,32 @@ interface OrdersTableProps {
 
 export function OrdersTable({ data, clientId }: OrdersTableProps) {
   const [searchQuery, setSearchQuery] = useState("")
+  const [users, setUsers] = useState<User[]>([])
   const navigate = useNavigate()
+
+  useEffect(() => {
+    const loadUsers = async () => {
+      try {
+        const usersData = await getAllUsers()
+        setUsers(usersData)
+      } catch (error) {
+        console.error('Error loading users:', error)
+      }
+    }
+    loadUsers()
+  }, [])
+
+  const getUserName = (userId?: number): string => {
+    if (!userId) return ''
+    const user = users.find(u => u.id === userId)
+    return user?.username || ''
+  }
 
   const filteredData = data.filter((order) => {
     const searchableFields = [
       order.type || '',
       order.order_date || '',
-      order.examiner_name || '',
+      getUserName(order.user_id),
     ]
 
     return searchableFields.some(
@@ -44,7 +64,7 @@ export function OrdersTable({ data, clientId }: OrdersTableProps) {
 
   return (
     <div className="space-y-4" style={{scrollbarWidth: 'none'}}>
-      <div className="flex justify-between items-center">
+      <div className="flex justify-between items-center" dir="rtl">
         <div className="flex gap-2">
           <Input
             placeholder="חיפוש הזמנות..."
@@ -115,7 +135,7 @@ export function OrdersTable({ data, clientId }: OrdersTableProps) {
                       {order.order_date ? new Date(order.order_date).toLocaleDateString('he-IL') : ''}
                     </TableCell>
                     <TableCell>{order.type}</TableCell>
-                    <TableCell>{order.examiner_name}</TableCell>
+                    <TableCell>{getUserName(order.user_id)}</TableCell>
                     <TableCell>{order.comb_va ? `6/${order.comb_va}` : ''}</TableCell>
                     <TableCell>{order.comb_pd}</TableCell>
                     <TableCell>

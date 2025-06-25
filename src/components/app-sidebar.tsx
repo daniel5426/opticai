@@ -60,17 +60,17 @@ const data = {
   ],
   navSecondary: [
     {
-      title: "Settings",
+      title: "הגדרות",
       url: "/settings",
       icon: IconSettings,
     },
     {
-      title: "Get Help",
+      title: "קבלת עזרה",
       url: "#",
       icon: IconHelp,
     },
     {
-      title: "Search",
+      title: "חיפוש",
       url: "#",
       icon: IconSearch,
     },

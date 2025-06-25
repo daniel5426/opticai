@@ -19,6 +19,7 @@ import { IconPlus, IconEdit, IconTrash } from "@tabler/icons-react"
 import { useSettings } from "@/hooks/useSettings"
 import { useUser } from "@/contexts/UserContext"
 import { ServerConnectionSettings } from "@/components/ServerConnectionSettings"
+import { getEmailProviderConfig } from "@/lib/email/email-providers"
 
 export default function SettingsPage() {
   const { settings, updateSettings: updateBaseSettings } = useSettings()
@@ -263,6 +264,21 @@ export default function SettingsPage() {
         console.error('Error deleting user:', error)
         toast.error('שגיאה במחיקת המשתמש')
       }
+    }
+  }
+
+  const handleTestEmailConnection = async () => {
+    try {
+      toast.info('בודק חיבור אימייל...')
+      const result = await window.electronAPI.emailTestConnection()
+      if (result) {
+        toast.success('חיבור האימייל תקין!')
+      } else {
+        toast.error('שגיאה בחיבור האימייל. בדוק את ההגדרות.')
+      }
+    } catch (error) {
+      console.error('Error testing email connection:', error)
+      toast.error('שגיאה בבדיקת חיבור האימייל')
     }
   }
 
@@ -697,34 +713,212 @@ export default function SettingsPage() {
                         </div>
                         
                         {localSettings.send_email_before_appointment ? (
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-muted/30 rounded-lg shadow-sm">
-                            <div className="space-y-2">
-                              <Label htmlFor="email_days_before" className="text-right block">כמה ימים מראש</Label>
-                              <Select
-                                value={String(localSettings.email_days_before || 1)}
-                                onValueChange={(value) => handleInputChange('email_days_before', Number(value))}
-                              >
-                                <SelectTrigger className="text-right " dir="rtl">
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="1">יום אחד</SelectItem>
-                                  <SelectItem value="2">יומיים</SelectItem>
-                                </SelectContent>
-                              </Select>
+                          <div className="space-y-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-muted/30 rounded-lg shadow-sm">
+                              <div className="space-y-2">
+                                <Label htmlFor="email_days_before" className="text-right block">כמה ימים מראש</Label>
+                                <Select
+                                  value={String(localSettings.email_days_before || 1)}
+                                  onValueChange={(value) => handleInputChange('email_days_before', Number(value))}
+                                >
+                                  <SelectTrigger className="text-right " dir="rtl">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="1">יום אחד</SelectItem>
+                                    <SelectItem value="2">יומיים</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <div className="space-y-2">
+                                <Label htmlFor="email_time" className="text-right block">שעת שליחה</Label>
+                                <Input
+                                  id="email_time"
+                                  type="time"
+                                  value={localSettings.email_time || '10:00'}
+                                  onChange={(e) => handleInputChange('email_time', e.target.value)}
+                                  className="text-center "
+                                />
+                              </div>
                             </div>
-                            <div className="space-y-2">
-                              <Label htmlFor="email_time" className="text-right block">שעת שליחה</Label>
-                              <Input
-                                id="email_time"
-                                type="time"
-                                value={localSettings.email_time || '10:00'}
-                                onChange={(e) => handleInputChange('email_time', e.target.value)}
-                                className="text-center "
-                              />
+                            
+                            <div className="p-4 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                              <h4 className="text-sm font-medium text-blue-800 dark:text-blue-200 mb-2 text-right">הגדרת אימייל</h4>
+                              <p className="text-xs text-blue-700 dark:text-blue-300 text-right" dir="rtl">
+                                הגדר את פרטי שרת האימייל בלשונית ההגדרות למטה כדי לשלוח תזכורות ללקוחות.
+                              </p>
                             </div>
                           </div>
                         ) : null}
+                      </CardContent>
+                    </Card>
+                  </TabsContent>
+
+                  <TabsContent value="email" className="space-y-6 mt-0" dir="rtl">
+                    {/* Email Configuration */}
+                    <Card className="shadow-md border-none">
+                      <CardHeader>
+                        <CardTitle className="text-right">הגדרות שרת אימייל</CardTitle>
+                        <p className="text-sm text-muted-foreground text-right">הגדר את פרטי שרת האימייל לשליחת תזכורות ללקוחות</p>
+                      </CardHeader>
+                      <CardContent className="space-y-6" dir="rtl">
+                        {/* Email Provider Selection */}
+                        <div className="space-y-2">
+                          <Label htmlFor="email_provider" className="text-sm font-medium text-right block">
+                            ספק אימייל
+                          </Label>
+                          <Select
+                            dir="rtl"
+                            value={localSettings.email_provider || "gmail"}
+                            onValueChange={(value) => {
+                              handleInputChange('email_provider', value);
+                              if (value !== 'custom') {
+                                const provider = getEmailProviderConfig(value);
+                                if (provider) {
+                                  handleInputChange('email_smtp_host', provider.host);
+                                  handleInputChange('email_smtp_port', provider.port);
+                                  handleInputChange('email_smtp_secure', provider.secure);
+                                }
+                              }
+                            }}
+                          >
+                            <SelectTrigger className="text-right h-9" dir="rtl">
+                              <SelectValue placeholder="בחר ספק אימייל" />
+                            </SelectTrigger>
+                            <SelectContent dir="rtl">
+                              <SelectItem value="gmail">Gmail</SelectItem>
+                              <SelectItem value="outlook">Outlook / Hotmail</SelectItem>
+                              <SelectItem value="yahoo">Yahoo Mail</SelectItem>
+                              <SelectItem value="custom">הגדרה מותאמת אישית</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        {/* Authentication Details */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="email_username" className="text-sm font-medium text-right block">
+                              כתובת אימייל
+                            </Label>
+                            <Input
+                              id="email_username"
+                              type="email"
+                              value={localSettings.email_username || ""}
+                              onChange={(e) => handleInputChange('email_username', e.target.value)}
+                              className="text-right h-9"
+                              placeholder="clinic@example.com"
+                              dir="rtl"
+                            />
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label htmlFor="email_password" className="text-sm font-medium text-right block">
+                              סיסמה
+                            </Label>
+                            <Input
+                              id="email_password"
+                              type="password"
+                              value={localSettings.email_password || ""}
+                              onChange={(e) => handleInputChange('email_password', e.target.value)}
+                              className="text-right h-9"
+                              placeholder="••••••••"
+                              dir="rtl"
+                            />
+                          </div>
+                        </div>
+
+                        {/* Optional From Name */}
+                        <div className="space-y-2">
+                          <Label htmlFor="email_from_name" className="text-sm font-medium text-right block">
+                            שם השולח (אופציונלי)
+                          </Label>
+                          <Input
+                            id="email_from_name"
+                            value={localSettings.email_from_name || ""}
+                            onChange={(e) => handleInputChange('email_from_name', e.target.value)}
+                            className="text-right h-9"
+                            placeholder="מרפאת העיניים שלנו"
+                            dir="rtl"
+                          />
+                        </div>
+
+                        {/* Custom SMTP Settings */}
+                        {localSettings.email_provider === 'custom' && (
+                          <>
+                            <Separator className="my-4" />
+                            <div className="space-y-4">
+                              <h4 className="text-sm font-medium text-right">הגדרות SMTP מותאמות</h4>
+                              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div className="space-y-2">
+                                  <Label htmlFor="email_smtp_host" className="text-sm font-medium text-right block">
+                                    שרת SMTP
+                                  </Label>
+                                  <Input
+                                    id="email_smtp_host"
+                                    value={localSettings.email_smtp_host || ""}
+                                    onChange={(e) => handleInputChange('email_smtp_host', e.target.value)}
+                                    className="text-right h-9"
+                                    placeholder="smtp.example.com"
+                                    dir="rtl"
+                                  />
+                                </div>
+
+                                <div className="space-y-2">
+                                  <Label htmlFor="email_smtp_port" className="text-sm font-medium text-right block">
+                                    פורט
+                                  </Label>
+                                  <Input
+                                    id="email_smtp_port"
+                                    type="number"
+                                    value={localSettings.email_smtp_port || 587}
+                                    onChange={(e) => handleInputChange('email_smtp_port', parseInt(e.target.value))}
+                                    className="text-center h-9"
+                                    dir="ltr"
+                                  />
+                                </div>
+
+                                <div className="space-y-2">
+                                  <Label className="text-sm font-medium text-right block mb-2">אבטחה</Label>
+                                  <div className="flex items-center justify-between rounded-lg h-9 px-3 border bg-background">
+                                    <Switch
+                                      id="email_smtp_secure"
+                                      checked={localSettings.email_smtp_secure || false}
+                                      onCheckedChange={(checked) => handleInputChange('email_smtp_secure', checked)}
+                                    />
+                                    <Label htmlFor="email_smtp_secure" className="text-sm cursor-pointer">
+                                      SSL/TLS
+                                    </Label>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </>
+                        )}
+
+                        {/* Email Provider Instructions */}
+                        {localSettings.email_provider && (
+                          <div className="p-4 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                            <h4 className="text-sm font-medium text-blue-800 dark:text-blue-200 mb-2 text-right">
+                              הוראות עבור {getEmailProviderConfig(localSettings.email_provider)?.displayName}
+                            </h4>
+                            <p className="text-xs text-blue-700 dark:text-blue-300 text-right" dir="rtl">
+                              {getEmailProviderConfig(localSettings.email_provider)?.instructions}
+                            </p>
+                          </div>
+                        )}
+
+                        {/* Test Email Connection */}
+                        <div className="flex justify-start pt-4">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={handleTestEmailConnection}
+                            disabled={!localSettings.email_username || !localSettings.email_password}
+                            className="px-6"
+                          >
+                            בדוק חיבור אימייל
+                          </Button>
+                        </div>
                       </CardContent>
                     </Card>
                   </TabsContent>
@@ -840,6 +1034,7 @@ export default function SettingsPage() {
                   <TabsTrigger value="customization" className="w-full justify-end text-right">התאמה אישית</TabsTrigger>
                   <TabsTrigger value="preferences" className="w-full justify-end text-right">ניהול זמן</TabsTrigger>
                   <TabsTrigger value="notifications" className="w-full justify-end text-right">התראות</TabsTrigger>
+                  <TabsTrigger value="email" className="w-full justify-end text-right">הגדרות אימייל</TabsTrigger>
                   <TabsTrigger value="server" className="w-full justify-end text-right">חיבור לשרת</TabsTrigger>
                   <TabsTrigger value="users" className="w-full justify-end text-right">
                     {currentUser?.role === 'admin' ? 'ניהול משתמשים' : 'פרופיל אישי'}

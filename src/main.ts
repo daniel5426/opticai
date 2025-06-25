@@ -13,6 +13,8 @@ import express from "express";
 import cors from "cors";
 import { Server } from "http";
 import os from "os";
+import { emailScheduler } from "./lib/email/email-scheduler";
+import { emailService } from "./lib/email/email-service";
 // Import will be done dynamically to allow hot reload
 
 const inDevelopment = process.env.NODE_ENV === "development";
@@ -1258,6 +1260,73 @@ function setupIpcHandlers() {
       throw error;
     }
   });
+
+  // Email operations
+  ipcMain.handle('email-test-connection', async () => {
+    try {
+      await emailService.updateFromSettings();
+      return await emailService.testConnection();
+    } catch (error) {
+      console.error('Error testing email connection:', error);
+      return false;
+    }
+  });
+
+  ipcMain.handle('email-send-test-reminder', async (event, appointmentId: number) => {
+    try {
+      const appointment = await dbService.getAppointmentById(appointmentId);
+      if (!appointment) {
+        return false;
+      }
+      
+      const client = await dbService.getClientById(appointment.client_id);
+      if (!client || !client.email) {
+        return false;
+      }
+
+      const settings = await dbService.getSettings();
+      if (!settings) {
+        return false;
+      }
+
+      await emailService.updateFromSettings();
+      return await emailService.sendAppointmentReminder(appointment, client, settings);
+    } catch (error) {
+      console.error('Error sending test reminder:', error);
+      return false;
+    }
+  });
+
+  ipcMain.handle('email-scheduler-status', async () => {
+    try {
+      return emailScheduler.getStatus();
+    } catch (error) {
+      console.error('Error getting scheduler status:', error);
+      return { isRunning: false, nextRun: null };
+    }
+  });
+
+  ipcMain.handle('email-scheduler-restart', async () => {
+    try {
+      emailScheduler.restart();
+      return true;
+    } catch (error) {
+      console.error('Error restarting scheduler:', error);
+      return false;
+    }
+  });
+
+  // Email Log operations
+  ipcMain.handle('db-get-email-logs', async (event, appointmentId: number) => {
+    try {
+      return dbService.getEmailLogsByAppointment(appointmentId);
+    } catch (error) {
+      console.error('Error getting email logs:', error);
+      throw error;
+    }
+  });
+
+
 }
 
 async function installExtensions() {

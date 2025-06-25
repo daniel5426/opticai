@@ -175,4 +175,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getChatMessages: (chatId: number) => ipcRenderer.invoke('db-get-chat-messages', chatId),
   updateChatMessage: (chatMessageData: any) => ipcRenderer.invoke('db-update-chat-message', chatMessageData),
   deleteChatMessage: (chatMessageId: number) => ipcRenderer.invoke('db-delete-chat-message', chatMessageId),
+
+  // Email operations
+  emailTestConnection: () => ipcRenderer.invoke('email-test-connection'),
+  emailSendTestReminder: (appointmentId: number) => ipcRenderer.invoke('email-send-test-reminder', appointmentId),
+  emailSchedulerStatus: () => ipcRenderer.invoke('email-scheduler-status'),
+  emailSchedulerRestart: () => ipcRenderer.invoke('email-scheduler-restart'),
+  emailUpdateConfig: (config: any) => ipcRenderer.invoke('email-update-config', config),
+
+  // Email Log operations
+  getEmailLogsByAppointment: (appointmentId: number) => ipcRenderer.invoke('db-get-email-logs-by-appointment', appointmentId),
+  getAllEmailLogs: () => ipcRenderer.invoke('db-get-all-email-logs'),
 });

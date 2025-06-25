@@ -150,6 +150,17 @@ export interface ElectronAPI {
   getChatMessages: (chatId: number) => Promise<any[]>;
   updateChatMessage: (chatMessageData: any) => Promise<any>;
   deleteChatMessage: (chatMessageId: number) => Promise<boolean>;
+
+  // Email operations
+  emailTestConnection: () => Promise<boolean>;
+  emailSendTestReminder: (appointmentId: number) => Promise<boolean>;
+  emailSchedulerStatus: () => Promise<{ isRunning: boolean; nextRun: string | null }>;
+  emailSchedulerRestart: () => Promise<boolean>;
+  emailUpdateConfig: (config: any) => Promise<boolean>;
+
+  // Email Log operations
+  getEmailLogsByAppointment: (appointmentId: number) => Promise<any[]>;
+  getAllEmailLogs: () => Promise<any[]>;
 }
 
 declare global {
