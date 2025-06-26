@@ -3,7 +3,7 @@ import { useParams, useNavigate, Link } from "@tanstack/react-router"
 import { SiteHeader } from "@/components/site-header"
 import { getClientById } from "@/lib/db/clients-db"
 import { getExamById, getEyeExamsByExamId, updateExam, updateEyeExam, createExam, createEyeExam } from "@/lib/db/exams-db"
-import { OpticalExam, OpticalEyeExam, Client } from "@/lib/db/schema"
+import { OpticalExam, OpticalEyeExam, Client, User } from "@/lib/db/schema"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -14,6 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { toast } from "sonner"
 import { UserSelect } from "@/components/ui/user-select"
 import { useUser } from "@/contexts/UserContext"
+import { getAllUsers } from "@/lib/db/users-db"
 
 // Custom label component with underline - This component is not used in the current file.
 // function LabelWithUnderline({ children }: { children: React.ReactNode }) {
@@ -611,6 +612,7 @@ export default function ExamDetailPage({
   const [exam, setExam] = useState<OpticalExam | null>(null)
   const [rightEyeExam, setRightEyeExam] = useState<OpticalEyeExam | null>(null)
   const [leftEyeExam, setLeftEyeExam] = useState<OpticalEyeExam | null>(null)
+  const [users, setUsers] = useState<User[]>([])
   const { currentUser } = useUser()
   
   const isNewMode = mode === 'new'
@@ -644,6 +646,10 @@ export default function ExamDetailPage({
       
       try {
         setLoading(true)
+        
+        // Load users for display purposes
+        const usersData = await getAllUsers()
+        setUsers(usersData)
         
         const clientData = await getClientById(Number(clientId))
         setClient(clientData || null)
@@ -938,7 +944,7 @@ export default function ExamDetailPage({
         <SiteHeader 
           title="לקוחות" 
           backLink="/clients"
-          clientName={fullName}
+          client={client}
           clientBackLink={`/clients/${clientId}`}
           examInfo={isNewMode ? "בדיקה חדשה" : `בדיקה מס' ${examId}`}
           tabs={{
@@ -1012,7 +1018,7 @@ export default function ExamDetailPage({
                     )}
                   </div>
                   <div className="col-span-1">
-                    <label className="font-semibold text-base">מרפאה</label>
+                    <label className="font-semibold text-base">סניף</label>
                     <div className="h-1"></div>
                     {isEditing ? (
                       <Input 
@@ -1036,7 +1042,9 @@ export default function ExamDetailPage({
                       />
                     ) : (
                       <div className="border h-9 px-3 rounded-md text-sm flex items-center">
-                        {formData.user_id ? 'משתמש נבחר' : 'לא נבחר בודק'}
+                        {formData.user_id ? (
+                          users.find(u => u.id === formData.user_id)?.username || 'משתמש לא נמצא'
+                        ) : 'לא נבחר בודק'}
                       </div>
                     )}
                   </div>

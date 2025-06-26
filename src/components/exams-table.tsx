@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { MoreHorizontal } from "lucide-react";
+import { MoreHorizontal, Plus } from "lucide-react";
 import { OpticalExam, User } from "@/lib/db/schema";
 import { ClientSelectModal } from "@/components/ClientSelectModal";
 import { getAllUsers } from "@/lib/db/users-db";
@@ -81,7 +81,9 @@ export function ExamsTable({ data, clientId }: ExamsTableProps) {
             to="/clients/$clientId/exams/new"
             params={{ clientId: String(clientId) }}
           >
-            <Button>בדיקה חדשה</Button>
+            <Button>בדיקה חדשה
+              <Plus className="h-4 w-4 mr-2" />
+              </Button>
           </Link>
         ) : (
           <ClientSelectModal
@@ -103,7 +105,7 @@ export function ExamsTable({ data, clientId }: ExamsTableProps) {
             <TableRow>
               <TableHead className="text-right">תאריך בדיקה</TableHead>
               <TableHead className="text-right">סוג בדיקה</TableHead>
-              <TableHead className="text-right">מרפאה</TableHead>
+                              <TableHead className="text-right">סניף</TableHead>
               <TableHead className="text-right">בודק</TableHead>
               <TableHead className="text-right">הערות</TableHead>
               <TableHead className="w-[50px] text-right"></TableHead>

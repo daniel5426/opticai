@@ -23,7 +23,7 @@ import {
   deleteOrderLineItem 
 } from "@/lib/db/billing-db"
 import { getBillingByContactLensId } from "@/lib/db/contact-lens-db"
-import { ContactLens, ContactEye, ContactLensOrder, Client, Billing, OrderLineItem } from "@/lib/db/schema"
+import { ContactLens, ContactEye, ContactLensOrder, Client, Billing, OrderLineItem, User } from "@/lib/db/schema"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -35,6 +35,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { BillingTab } from "@/components/BillingTab"
 import { UserSelect } from "@/components/ui/user-select"
 import { useUser } from "@/contexts/UserContext"
+import { getAllUsers } from "@/lib/db/users-db"
 import { LookupSelect } from "@/components/ui/lookup-select"
 
 interface DateInputProps {
@@ -499,6 +500,7 @@ export default function ContactLensDetailPage({
   const [billing, setBilling] = useState<Billing | null>(null)
   const [orderLineItems, setOrderLineItems] = useState<OrderLineItem[]>([])
   const [deletedOrderLineItemIds, setDeletedOrderLineItemIds] = useState<number[]>([])
+  const [users, setUsers] = useState<User[]>([])
   const { currentUser } = useUser()
   
   const isNewMode = mode === 'new'
@@ -536,6 +538,10 @@ export default function ContactLensDetailPage({
     const loadData = async () => {
       try {
         setLoading(true)
+        
+        // Load users for display purposes
+        const usersData = await getAllUsers()
+        setUsers(usersData)
         
         if (clientId) {
           const clientData = await getClientById(Number(clientId))
@@ -869,7 +875,7 @@ export default function ContactLensDetailPage({
         <SiteHeader 
           title="לקוחות" 
           backLink="/clients"
-          clientName={fullName}
+          client={client}
           clientBackLink={`/clients/${clientId}`}
           examInfo={isNewMode ? "עדשות מגע חדש" : `עדשות מגע מס' ${contactLensId}`}
           tabs={{
@@ -950,7 +956,9 @@ export default function ContactLensDetailPage({
                           />
                         ) : (
                           <div className="border h-9 px-3 rounded-md text-sm flex items-center">
-                            {formData.user_id ? 'משתמש נבחר' : 'לא נבחר בודק'}
+                            {formData.user_id ? (
+                              users.find(u => u.id === formData.user_id)?.username || 'משתמש לא נמצא'
+                            ) : 'לא נבחר בודק'}
                           </div>
                         )}
                       </div>

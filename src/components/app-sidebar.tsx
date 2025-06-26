@@ -21,6 +21,7 @@ import {
   IconArrowForward,
   IconCalendar,
   IconRobot,
+  IconFiles,
 } from "@tabler/icons-react"
 import { Link } from "@tanstack/react-router"
 
@@ -100,6 +101,11 @@ const data = {
       name: "תורים",
       url: "/appointments",
       icon: IconCalendar,
+    },
+    {
+      name: "קבצים",
+      url: "/files",
+      icon: IconFiles,
     },
   ],
 }

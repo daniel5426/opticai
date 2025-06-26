@@ -2,14 +2,14 @@ import Database from 'better-sqlite3';
 import { app } from 'electron';
 import path from 'path';
 import fs from 'fs';
-import { 
-  createTables, 
-  Client, 
-  OpticalExam, 
-  OpticalEyeExam, 
-  Order, 
-  OrderEye, 
-  OrderLens, 
+import {
+  createTables,
+  Client,
+  OpticalExam,
+  OpticalEyeExam,
+  Order,
+  OrderEye,
+  OrderLens,
   Frame,
   OrderDetails,
   MedicalLog,
@@ -26,6 +26,7 @@ import {
   Chat,
   ChatMessage,
   EmailLog,
+  File,
   LookupSupplier,
   LookupClinic,
   LookupOrderType,
@@ -53,7 +54,7 @@ class DatabaseService {
   constructor() {
     const userDataPath = app.getPath('userData');
     this.dbPath = path.join(userDataPath, 'database.sqlite');
-    
+
     if (!fs.existsSync(userDataPath)) {
       fs.mkdirSync(userDataPath, { recursive: true });
     }
@@ -64,12 +65,12 @@ class DatabaseService {
       this.db = new Database(this.dbPath);
       this.db.pragma('journal_mode = WAL');
       this.db.pragma('foreign_keys = ON');
-      
+
       createTables(this.db);
       this.migrateDatabase();
-      
+
       this.seedInitialData();
-      
+
       console.log('Database initialized successfully at:', this.dbPath);
     } catch (error) {
       console.error('Failed to initialize database:', error);
@@ -107,10 +108,10 @@ class DatabaseService {
       // If redundant client fields exist, migrate to new structure
       if (hasFirstNameColumn || hasLastNameColumn || hasPhoneMobileColumn || hasEmailColumn) {
         console.log('Migrating appointments table to remove redundant client fields...');
-        
+
         // Create backup of existing data
         const existingAppointments = this.db.prepare('SELECT * FROM appointments').all() as any[];
-        
+
         // Drop and recreate table with new structure (without redundant client fields)
         this.db.exec('DROP TABLE appointments');
         this.db.exec(`
@@ -124,7 +125,7 @@ class DatabaseService {
             FOREIGN KEY(client_id) REFERENCES clients(id) ON DELETE CASCADE
           )
         `);
-        
+
         // Restore data without the redundant client fields
         for (const appointment of existingAppointments) {
           this.db.prepare(`
@@ -139,7 +140,7 @@ class DatabaseService {
             appointment.note
           );
         }
-        
+
         console.log('Appointments table migration completed - redundant client fields removed');
       }
     } catch (error) {
@@ -149,13 +150,13 @@ class DatabaseService {
 
   private seedInitialData(): void {
     if (!this.db) return;
-    
+
     try {
       const clientCount = this.db.prepare('SELECT COUNT(*) as count FROM clients').get() as { count: number };
-      
+
       if (clientCount.count === 0) {
         console.log('Seeding database with initial data...');
-        
+
         const clients = [
           {
             first_name: "דוד",
@@ -191,7 +192,7 @@ class DatabaseService {
             file_creation_date: new Date().toISOString().split('T')[0]
           }
         ];
-        
+
         clients.forEach(client => {
           const createdClient = this.createClient(client);
           if (createdClient) {
@@ -210,7 +211,7 @@ class DatabaseService {
               comb_pd_close: 62,
               comb_pd_far: 64
             });
-            
+
             if (exam) {
               this.createEyeExam({
                 exam_id: exam.id!,
@@ -226,7 +227,7 @@ class DatabaseService {
                 subj_pd_close: 32,
                 subj_pd_far: 33
               });
-              
+
               this.createEyeExam({
                 exam_id: exam.id!,
                 eye: "L",
@@ -244,7 +245,7 @@ class DatabaseService {
             }
           }
         });
-        
+
         console.log('Initial data seeded successfully');
       }
     } catch (error) {
@@ -273,7 +274,7 @@ class DatabaseService {
   // Client CRUD operations
   createClient(client: Omit<Client, 'id'>): Client | null {
     if (!this.db) return null;
-    
+
     try {
       const stmt = this.db.prepare(`
         INSERT INTO clients (
@@ -285,38 +286,38 @@ class DatabaseService {
           sorting_group, referring_party, file_location, occupation, status, notes
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
-      
+
       const result = stmt.run(
-        this.sanitizeValue(client.first_name), 
-        this.sanitizeValue(client.last_name), 
-        this.sanitizeValue(client.gender), 
-        this.sanitizeValue(client.national_id), 
+        this.sanitizeValue(client.first_name),
+        this.sanitizeValue(client.last_name),
+        this.sanitizeValue(client.gender),
+        this.sanitizeValue(client.national_id),
         this.sanitizeValue(client.date_of_birth),
-        this.sanitizeValue(client.address_city), 
-        this.sanitizeValue(client.address_street), 
-        this.sanitizeValue(client.address_number), 
+        this.sanitizeValue(client.address_city),
+        this.sanitizeValue(client.address_street),
+        this.sanitizeValue(client.address_number),
         this.sanitizeValue(client.postal_code),
-        this.sanitizeValue(client.phone_home), 
-        this.sanitizeValue(client.phone_work), 
-        this.sanitizeValue(client.phone_mobile), 
-        this.sanitizeValue(client.fax), 
+        this.sanitizeValue(client.phone_home),
+        this.sanitizeValue(client.phone_work),
+        this.sanitizeValue(client.phone_mobile),
+        this.sanitizeValue(client.fax),
         this.sanitizeValue(client.email),
-        this.sanitizeValue(client.service_center), 
-        this.sanitizeValue(client.file_creation_date), 
-        this.sanitizeValue(client.membership_end), 
+        this.sanitizeValue(client.service_center),
+        this.sanitizeValue(client.file_creation_date),
+        this.sanitizeValue(client.membership_end),
         this.sanitizeValue(client.service_end),
-        this.sanitizeValue(client.price_list), 
-        this.sanitizeValue(client.discount_percent), 
-        this.sanitizeValue(client.blocked_checks), 
+        this.sanitizeValue(client.price_list),
+        this.sanitizeValue(client.discount_percent),
+        this.sanitizeValue(client.blocked_checks),
         this.sanitizeValue(client.blocked_credit),
-        this.sanitizeValue(client.sorting_group), 
-        this.sanitizeValue(client.referring_party), 
-        this.sanitizeValue(client.file_location), 
-        this.sanitizeValue(client.occupation), 
-        this.sanitizeValue(client.status), 
+        this.sanitizeValue(client.sorting_group),
+        this.sanitizeValue(client.referring_party),
+        this.sanitizeValue(client.file_location),
+        this.sanitizeValue(client.occupation),
+        this.sanitizeValue(client.status),
         this.sanitizeValue(client.notes)
       );
-      
+
       return { ...client, id: result.lastInsertRowid as number };
     } catch (error) {
       console.error('Error creating client:', error);
@@ -326,7 +327,7 @@ class DatabaseService {
 
   getClientById(id: number): Client | null {
     if (!this.db) return null;
-    
+
     try {
       const stmt = this.db.prepare('SELECT * FROM clients WHERE id = ?');
       return stmt.get(id) as Client | null;
@@ -338,7 +339,7 @@ class DatabaseService {
 
   getAllClients(): Client[] {
     if (!this.db) return [];
-    
+
     try {
       const stmt = this.db.prepare('SELECT * FROM clients ORDER BY first_name, last_name');
       return stmt.all() as Client[];
@@ -350,7 +351,7 @@ class DatabaseService {
 
   updateClient(client: Client): Client | null {
     if (!this.db || !client.id) return null;
-    
+
     try {
       const stmt = this.db.prepare(`
         UPDATE clients SET 
@@ -362,7 +363,7 @@ class DatabaseService {
         sorting_group = ?, referring_party = ?, file_location = ?, occupation = ?, status = ?, notes = ?
         WHERE id = ?
       `);
-      
+
       stmt.run(
         this.sanitizeValue(client.first_name), this.sanitizeValue(client.last_name), this.sanitizeValue(client.gender), this.sanitizeValue(client.national_id), this.sanitizeValue(client.date_of_birth),
         this.sanitizeValue(client.address_city), this.sanitizeValue(client.address_street), this.sanitizeValue(client.address_number), this.sanitizeValue(client.postal_code),
@@ -372,7 +373,7 @@ class DatabaseService {
         this.sanitizeValue(client.sorting_group), this.sanitizeValue(client.referring_party), this.sanitizeValue(client.file_location), this.sanitizeValue(client.occupation), this.sanitizeValue(client.status), this.sanitizeValue(client.notes),
         client.id
       );
-      
+
       return client;
     } catch (error) {
       console.error('Error updating client:', error);
@@ -382,7 +383,7 @@ class DatabaseService {
 
   deleteClient(id: number): boolean {
     if (!this.db) return false;
-    
+
     try {
       const stmt = this.db.prepare('DELETE FROM clients WHERE id = ?');
       const result = stmt.run(id);
@@ -396,7 +397,7 @@ class DatabaseService {
   // Optical Exam CRUD operations
   createExam(exam: Omit<OpticalExam, 'id'>): OpticalExam | null {
     if (!this.db) return null;
-    
+
     try {
       const stmt = this.db.prepare(`
         INSERT INTO optical_exams (
@@ -404,13 +405,13 @@ class DatabaseService {
           comb_subj_va, comb_old_va, comb_fa, comb_fa_tuning, comb_pd_close, comb_pd_far
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
-      
+
       const result = stmt.run(
-        exam.client_id, exam.clinic, this.sanitizeValue(exam.user_id), exam.exam_date, exam.test_name, 
-        exam.dominant_eye, exam.notes, exam.comb_subj_va, exam.comb_old_va, exam.comb_fa, 
+        exam.client_id, exam.clinic, this.sanitizeValue(exam.user_id), exam.exam_date, exam.test_name,
+        exam.dominant_eye, exam.notes, exam.comb_subj_va, exam.comb_old_va, exam.comb_fa,
         exam.comb_fa_tuning, exam.comb_pd_close, exam.comb_pd_far
       );
-      
+
       return { ...exam, id: result.lastInsertRowid as number };
     } catch (error) {
       console.error('Error creating exam:', error);
@@ -420,7 +421,7 @@ class DatabaseService {
 
   getExamById(id: number): OpticalExam | null {
     if (!this.db) return null;
-    
+
     try {
       const stmt = this.db.prepare('SELECT * FROM optical_exams WHERE id = ?');
       return stmt.get(id) as OpticalExam | null;
@@ -432,7 +433,7 @@ class DatabaseService {
 
   getExamsByClientId(clientId: number): OpticalExam[] {
     if (!this.db) return [];
-    
+
     try {
       const stmt = this.db.prepare('SELECT * FROM optical_exams WHERE client_id = ? ORDER BY exam_date DESC');
       return stmt.all(clientId) as OpticalExam[];
@@ -444,7 +445,7 @@ class DatabaseService {
 
   getAllExams(): OpticalExam[] {
     if (!this.db) return [];
-    
+
     try {
       const stmt = this.db.prepare('SELECT * FROM optical_exams ORDER BY exam_date DESC');
       return stmt.all() as OpticalExam[];
@@ -456,7 +457,7 @@ class DatabaseService {
 
   updateExam(exam: OpticalExam): OpticalExam | null {
     if (!this.db || !exam.id) return null;
-    
+
     try {
       const stmt = this.db.prepare(`
         UPDATE optical_exams SET 
@@ -465,13 +466,13 @@ class DatabaseService {
         comb_fa_tuning = ?, comb_pd_close = ?, comb_pd_far = ?
         WHERE id = ?
       `);
-      
+
       stmt.run(
-        exam.client_id, exam.clinic, this.sanitizeValue(exam.user_id), exam.exam_date, exam.test_name, 
-        exam.dominant_eye, exam.notes, exam.comb_subj_va, exam.comb_old_va, exam.comb_fa, 
+        exam.client_id, exam.clinic, this.sanitizeValue(exam.user_id), exam.exam_date, exam.test_name,
+        exam.dominant_eye, exam.notes, exam.comb_subj_va, exam.comb_old_va, exam.comb_fa,
         exam.comb_fa_tuning, exam.comb_pd_close, exam.comb_pd_far, exam.id
       );
-      
+
       return exam;
     } catch (error) {
       console.error('Error updating exam:', error);
@@ -481,7 +482,7 @@ class DatabaseService {
 
   deleteExam(id: number): boolean {
     if (!this.db) return false;
-    
+
     try {
       const stmt = this.db.prepare('DELETE FROM optical_exams WHERE id = ?');
       const result = stmt.run(id);
@@ -495,7 +496,7 @@ class DatabaseService {
   // Eye Exam CRUD operations
   createEyeExam(eyeExam: Omit<OpticalEyeExam, 'id'>): OpticalEyeExam | null {
     if (!this.db) return null;
-    
+
     try {
       const stmt = this.db.prepare(`
         INSERT INTO optical_eye_exam (
@@ -505,16 +506,16 @@ class DatabaseService {
           ad_fcc, ad_read, ad_int, ad_bif, ad_mul, ad_j, iop
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
-      
+
       const result = stmt.run(
-        eyeExam.exam_id, eyeExam.eye, eyeExam.old_sph, eyeExam.old_cyl, eyeExam.old_ax, 
+        eyeExam.exam_id, eyeExam.eye, eyeExam.old_sph, eyeExam.old_cyl, eyeExam.old_ax,
         eyeExam.old_pris, eyeExam.old_base, eyeExam.old_va, eyeExam.old_ad,
-        eyeExam.obj_sph, eyeExam.obj_cyl, eyeExam.obj_ax, eyeExam.obj_se, 
+        eyeExam.obj_sph, eyeExam.obj_cyl, eyeExam.obj_ax, eyeExam.obj_se,
         eyeExam.subj_fa, eyeExam.subj_fa_tuning, eyeExam.subj_sph, eyeExam.subj_cyl, eyeExam.subj_ax,
         eyeExam.subj_pris, eyeExam.subj_base, eyeExam.subj_va, eyeExam.subj_pd_close, eyeExam.subj_pd_far, eyeExam.subj_ph,
         eyeExam.ad_fcc, eyeExam.ad_read, eyeExam.ad_int, eyeExam.ad_bif, eyeExam.ad_mul, eyeExam.ad_j, eyeExam.iop
       );
-      
+
       return { ...eyeExam, id: result.lastInsertRowid as number };
     } catch (error) {
       console.error('Error creating eye exam:', error);
@@ -524,7 +525,7 @@ class DatabaseService {
 
   getEyeExamsByExamId(examId: number): OpticalEyeExam[] {
     if (!this.db) return [];
-    
+
     try {
       const stmt = this.db.prepare('SELECT * FROM optical_eye_exam WHERE exam_id = ? ORDER BY eye');
       return stmt.all(examId) as OpticalEyeExam[];
@@ -536,7 +537,7 @@ class DatabaseService {
 
   updateEyeExam(eyeExam: OpticalEyeExam): OpticalEyeExam | null {
     if (!this.db || !eyeExam.id) return null;
-    
+
     try {
       const stmt = this.db.prepare(`
         UPDATE optical_eye_exam SET 
@@ -546,17 +547,17 @@ class DatabaseService {
         ad_fcc = ?, ad_read = ?, ad_int = ?, ad_bif = ?, ad_mul = ?, ad_j = ?, iop = ?
         WHERE id = ?
       `);
-      
+
       stmt.run(
-        eyeExam.exam_id, eyeExam.eye, eyeExam.old_sph, eyeExam.old_cyl, eyeExam.old_ax, 
+        eyeExam.exam_id, eyeExam.eye, eyeExam.old_sph, eyeExam.old_cyl, eyeExam.old_ax,
         eyeExam.old_pris, eyeExam.old_base, eyeExam.old_va, eyeExam.old_ad,
-        eyeExam.obj_sph, eyeExam.obj_cyl, eyeExam.obj_ax, eyeExam.obj_se, 
+        eyeExam.obj_sph, eyeExam.obj_cyl, eyeExam.obj_ax, eyeExam.obj_se,
         eyeExam.subj_fa, eyeExam.subj_fa_tuning, eyeExam.subj_sph, eyeExam.subj_cyl, eyeExam.subj_ax,
         eyeExam.subj_pris, eyeExam.subj_base, eyeExam.subj_va, eyeExam.subj_pd_close, eyeExam.subj_pd_far, eyeExam.subj_ph,
         eyeExam.ad_fcc, eyeExam.ad_read, eyeExam.ad_int, eyeExam.ad_bif, eyeExam.ad_mul, eyeExam.ad_j, eyeExam.iop,
         eyeExam.id
       );
-      
+
       return eyeExam;
     } catch (error) {
       console.error('Error updating eye exam:', error);
@@ -567,18 +568,18 @@ class DatabaseService {
   // Order CRUD operations
   createOrder(order: Omit<Order, 'id'>): Order | null {
     if (!this.db) return null;
-    
+
     try {
       const stmt = this.db.prepare(`
         INSERT INTO orders (order_date, type, dominant_eye, user_id, lens_id, frame_id, comb_va, comb_high, comb_pd)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
-      
+
       const result = stmt.run(
-        order.order_date, order.type, order.dominant_eye, this.sanitizeValue(order.user_id), order.lens_id, order.frame_id, 
+        order.order_date, order.type, order.dominant_eye, this.sanitizeValue(order.user_id), order.lens_id, order.frame_id,
         order.comb_va, order.comb_high, order.comb_pd
       );
-      
+
       return { ...order, id: result.lastInsertRowid as number };
     } catch (error) {
       console.error('Error creating order:', error);
@@ -588,7 +589,7 @@ class DatabaseService {
 
   getOrderById(id: number): Order | null {
     if (!this.db) return null;
-    
+
     try {
       const stmt = this.db.prepare('SELECT * FROM orders WHERE id = ?');
       return stmt.get(id) as Order | null;
@@ -600,7 +601,7 @@ class DatabaseService {
 
   getOrdersByClientId(clientId: number): Order[] {
     if (!this.db) return [];
-    
+
     try {
       const stmt = this.db.prepare(`
         SELECT * FROM orders 
@@ -615,7 +616,7 @@ class DatabaseService {
 
   getAllOrders(): Order[] {
     if (!this.db) return [];
-    
+
     try {
       const stmt = this.db.prepare('SELECT * FROM orders ORDER BY order_date DESC');
       return stmt.all() as Order[];
@@ -627,18 +628,18 @@ class DatabaseService {
 
   updateOrder(order: Order): Order | null {
     if (!this.db || !order.id) return null;
-    
+
     try {
       const stmt = this.db.prepare(`
         UPDATE orders SET order_date = ?, type = ?, dominant_eye = ?, user_id = ?, lens_id = ?, frame_id = ?, comb_va = ?, comb_high = ?, comb_pd = ?
         WHERE id = ?
       `);
-      
+
       stmt.run(
-        order.order_date, order.type, order.dominant_eye, this.sanitizeValue(order.user_id), order.lens_id, order.frame_id, 
+        order.order_date, order.type, order.dominant_eye, this.sanitizeValue(order.user_id), order.lens_id, order.frame_id,
         order.comb_va, order.comb_high, order.comb_pd, order.id
       );
-      
+
       return order;
     } catch (error) {
       console.error('Error updating order:', error);
@@ -648,7 +649,7 @@ class DatabaseService {
 
   deleteOrder(id: number): boolean {
     if (!this.db) return false;
-    
+
     try {
       const stmt = this.db.prepare('DELETE FROM orders WHERE id = ?');
       const result = stmt.run(id);
@@ -662,19 +663,19 @@ class DatabaseService {
   // Order Eye CRUD operations
   createOrderEye(orderEye: Omit<OrderEye, 'id'>): OrderEye | null {
     if (!this.db) return null;
-    
+
     try {
       const stmt = this.db.prepare(`
         INSERT INTO order_eyes (order_id, eye, sph, cyl, ax, pris, base, va, ad, diam, s_base, high, pd)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
-      
+
       const result = stmt.run(
         orderEye.order_id, orderEye.eye, orderEye.sph, orderEye.cyl, orderEye.ax,
         orderEye.pris, orderEye.base, orderEye.va, orderEye.ad, orderEye.diam,
         orderEye.s_base, orderEye.high, orderEye.pd
       );
-      
+
       return { ...orderEye, id: result.lastInsertRowid as number };
     } catch (error) {
       console.error('Error creating order eye:', error);
@@ -684,7 +685,7 @@ class DatabaseService {
 
   getOrderEyesByOrderId(orderId: number): OrderEye[] {
     if (!this.db) return [];
-    
+
     try {
       const stmt = this.db.prepare('SELECT * FROM order_eyes WHERE order_id = ? ORDER BY eye');
       return stmt.all(orderId) as OrderEye[];
@@ -696,19 +697,19 @@ class DatabaseService {
 
   updateOrderEye(orderEye: OrderEye): OrderEye | null {
     if (!this.db || !orderEye.id) return null;
-    
+
     try {
       const stmt = this.db.prepare(`
         UPDATE order_eyes SET order_id = ?, eye = ?, sph = ?, cyl = ?, ax = ?, pris = ?, base = ?, va = ?, ad = ?, diam = ?, s_base = ?, high = ?, pd = ?
         WHERE id = ?
       `);
-      
+
       stmt.run(
         orderEye.order_id, orderEye.eye, orderEye.sph, orderEye.cyl, orderEye.ax,
         orderEye.pris, orderEye.base, orderEye.va, orderEye.ad, orderEye.diam,
         orderEye.s_base, orderEye.high, orderEye.pd, orderEye.id
       );
-      
+
       return orderEye;
     } catch (error) {
       console.error('Error updating order eye:', error);
@@ -719,18 +720,18 @@ class DatabaseService {
   // Order Lens CRUD operations
   createOrderLens(orderLens: Omit<OrderLens, 'id'>): OrderLens | null {
     if (!this.db) return null;
-    
+
     try {
       const stmt = this.db.prepare(`
         INSERT INTO order_lens (order_id, right_model, left_model, color, coating, material, supplier)
         VALUES (?, ?, ?, ?, ?, ?, ?)
       `);
-      
+
       const result = stmt.run(
         orderLens.order_id, orderLens.right_model, orderLens.left_model,
         orderLens.color, orderLens.coating, orderLens.material, orderLens.supplier
       );
-      
+
       return { ...orderLens, id: result.lastInsertRowid as number };
     } catch (error) {
       console.error('Error creating order lens:', error);
@@ -740,7 +741,7 @@ class DatabaseService {
 
   getOrderLensByOrderId(orderId: number): OrderLens | null {
     if (!this.db) return null;
-    
+
     try {
       const stmt = this.db.prepare('SELECT * FROM order_lens WHERE order_id = ?');
       return stmt.get(orderId) as OrderLens | null;
@@ -752,19 +753,19 @@ class DatabaseService {
 
   updateOrderLens(orderLens: OrderLens): OrderLens | null {
     if (!this.db || !orderLens.id) return null;
-    
+
     try {
       const stmt = this.db.prepare(`
         UPDATE order_lens SET order_id = ?, right_model = ?, left_model = ?, color = ?, coating = ?, material = ?, supplier = ?
         WHERE id = ?
       `);
-      
+
       stmt.run(
         orderLens.order_id, orderLens.right_model, orderLens.left_model,
         orderLens.color, orderLens.coating, orderLens.material, orderLens.supplier,
         orderLens.id
       );
-      
+
       return orderLens;
     } catch (error) {
       console.error('Error updating order lens:', error);
@@ -775,18 +776,18 @@ class DatabaseService {
   // Frame CRUD operations
   createFrame(frame: Omit<Frame, 'id'>): Frame | null {
     if (!this.db) return null;
-    
+
     try {
       const stmt = this.db.prepare(`
         INSERT INTO frames (order_id, color, supplier, model, manufacturer, supplied_by, bridge, width, height, length)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
-      
+
       const result = stmt.run(
         frame.order_id, frame.color, frame.supplier, frame.model, frame.manufacturer,
         frame.supplied_by, frame.bridge, frame.width, frame.height, frame.length
       );
-      
+
       return { ...frame, id: result.lastInsertRowid as number };
     } catch (error) {
       console.error('Error creating frame:', error);
@@ -796,7 +797,7 @@ class DatabaseService {
 
   getFrameByOrderId(orderId: number): Frame | null {
     if (!this.db) return null;
-    
+
     try {
       const stmt = this.db.prepare('SELECT * FROM frames WHERE order_id = ?');
       return stmt.get(orderId) as Frame | null;
@@ -808,19 +809,19 @@ class DatabaseService {
 
   updateFrame(frame: Frame): Frame | null {
     if (!this.db || !frame.id) return null;
-    
+
     try {
       const stmt = this.db.prepare(`
         UPDATE frames SET order_id = ?, color = ?, supplier = ?, model = ?, manufacturer = ?, supplied_by = ?, bridge = ?, width = ?, height = ?, length = ?
         WHERE id = ?
       `);
-      
+
       stmt.run(
         frame.order_id, frame.color, frame.supplier, frame.model, frame.manufacturer,
         frame.supplied_by, frame.bridge, frame.width, frame.height, frame.length,
         frame.id
       );
-      
+
       return frame;
     } catch (error) {
       console.error('Error updating frame:', error);
@@ -831,13 +832,13 @@ class DatabaseService {
   // Medical Log operations
   createMedicalLog(log: Omit<MedicalLog, 'id'>): MedicalLog | null {
     if (!this.db) return null;
-    
+
     try {
       const stmt = this.db.prepare(`
         INSERT INTO medical_logs (client_id, user_id, log_date, log)
         VALUES (?, ?, ?, ?)
       `);
-      
+
       const result = stmt.run(log.client_id, this.sanitizeValue(log.user_id), log.log_date, log.log);
       return { ...log, id: result.lastInsertRowid as number };
     } catch (error) {
@@ -848,7 +849,7 @@ class DatabaseService {
 
   getMedicalLogsByClientId(clientId: number): MedicalLog[] {
     if (!this.db) return [];
-    
+
     try {
       const stmt = this.db.prepare('SELECT * FROM medical_logs WHERE client_id = ? ORDER BY log_date DESC');
       return stmt.all(clientId) as MedicalLog[];
@@ -860,7 +861,7 @@ class DatabaseService {
 
   deleteMedicalLog(id: number): boolean {
     if (!this.db) return false;
-    
+
     try {
       const stmt = this.db.prepare('DELETE FROM medical_logs WHERE id = ?');
       const result = stmt.run(id);
@@ -873,13 +874,13 @@ class DatabaseService {
 
   updateMedicalLog(log: MedicalLog): MedicalLog | null {
     if (!this.db || !log.id) return null;
-    
+
     try {
       const stmt = this.db.prepare(`
         UPDATE medical_logs SET client_id = ?, user_id = ?, log_date = ?, log = ?
         WHERE id = ?
       `);
-      
+
       stmt.run(log.client_id, this.sanitizeValue(log.user_id), log.log_date, log.log, log.id);
       return log;
     } catch (error) {
@@ -892,7 +893,7 @@ class DatabaseService {
   // Order Details CRUD operations
   createOrderDetails(orderDetails: Omit<OrderDetails, 'id'>): OrderDetails | null {
     if (!this.db) return null;
-    
+
     try {
       const stmt = this.db.prepare(`
         INSERT INTO order_details (
@@ -902,7 +903,7 @@ class DatabaseService {
           notes, lens_order_notes
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
-      
+
       const result = stmt.run(
         orderDetails.order_id, orderDetails.branch, orderDetails.supplier_status,
         orderDetails.bag_number, orderDetails.advisor, orderDetails.delivered_by,
@@ -911,7 +912,7 @@ class DatabaseService {
         orderDetails.priority, orderDetails.promised_date, orderDetails.approval_date,
         orderDetails.notes, orderDetails.lens_order_notes
       );
-      
+
       return { ...orderDetails, id: result.lastInsertRowid as number };
     } catch (error) {
       console.error('Error creating order details:', error);
@@ -921,7 +922,7 @@ class DatabaseService {
 
   getOrderDetailsByOrderId(orderId: number): OrderDetails | null {
     if (!this.db) return null;
-    
+
     try {
       const stmt = this.db.prepare('SELECT * FROM order_details WHERE order_id = ?');
       return stmt.get(orderId) as OrderDetails | null;
@@ -933,7 +934,7 @@ class DatabaseService {
 
   updateOrderDetails(orderDetails: OrderDetails): OrderDetails | null {
     if (!this.db || !orderDetails.id) return null;
-    
+
     try {
       const stmt = this.db.prepare(`
         UPDATE order_details SET 
@@ -943,7 +944,7 @@ class DatabaseService {
           notes = ?, lens_order_notes = ?
         WHERE id = ?
       `);
-      
+
       stmt.run(
         orderDetails.order_id, orderDetails.branch, orderDetails.supplier_status,
         orderDetails.bag_number, orderDetails.advisor, orderDetails.delivered_by,
@@ -953,7 +954,7 @@ class DatabaseService {
         orderDetails.notes, orderDetails.lens_order_notes,
         orderDetails.id
       );
-      
+
       return orderDetails;
     } catch (error) {
       console.error('Error updating order details:', error);
@@ -964,7 +965,7 @@ class DatabaseService {
   // Billing CRUD operations
   createBilling(billing: Omit<Billing, 'id'>): Billing | null {
     if (!this.db) return null;
-    
+
     try {
       const stmt = this.db.prepare(`
         INSERT INTO billings (
@@ -972,20 +973,20 @@ class DatabaseService {
           discount_percent, total_after_discount, prepayment_amount, installment_count, notes
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
-      
+
       const result = stmt.run(
-        this.sanitizeValue(billing.contact_lens_id), 
+        this.sanitizeValue(billing.contact_lens_id),
         this.sanitizeValue(billing.optical_exams_id),
         this.sanitizeValue(billing.order_id),
-        this.sanitizeValue(billing.total_before_discount), 
+        this.sanitizeValue(billing.total_before_discount),
         this.sanitizeValue(billing.discount_amount),
-        this.sanitizeValue(billing.discount_percent), 
+        this.sanitizeValue(billing.discount_percent),
         this.sanitizeValue(billing.total_after_discount),
-        this.sanitizeValue(billing.prepayment_amount), 
+        this.sanitizeValue(billing.prepayment_amount),
         this.sanitizeValue(billing.installment_count),
         this.sanitizeValue(billing.notes)
       );
-      
+
       return { ...billing, id: result.lastInsertRowid as number };
     } catch (error) {
       console.error('Error creating billing:', error);
@@ -995,7 +996,7 @@ class DatabaseService {
 
   getBillingByOrderId(orderId: number): Billing | null {
     if (!this.db) return null;
-    
+
     try {
       const stmt = this.db.prepare('SELECT * FROM billings WHERE order_id = ?');
       return stmt.get(orderId) as Billing | null;
@@ -1007,7 +1008,7 @@ class DatabaseService {
 
   getBillingByContactLensId(contactLensId: number): Billing | null {
     if (!this.db) return null;
-    
+
     try {
       const stmt = this.db.prepare('SELECT * FROM billings WHERE contact_lens_id = ?');
       return stmt.get(contactLensId) as Billing | null;
@@ -1019,7 +1020,7 @@ class DatabaseService {
 
   updateBilling(billing: Billing): Billing | null {
     if (!this.db || !billing.id) return null;
-    
+
     try {
       const stmt = this.db.prepare(`
         UPDATE billings SET 
@@ -1027,21 +1028,21 @@ class DatabaseService {
           discount_percent = ?, total_after_discount = ?, prepayment_amount = ?, installment_count = ?, notes = ?
         WHERE id = ?
       `);
-      
+
       stmt.run(
-        this.sanitizeValue(billing.contact_lens_id), 
+        this.sanitizeValue(billing.contact_lens_id),
         this.sanitizeValue(billing.optical_exams_id),
         this.sanitizeValue(billing.order_id),
-        this.sanitizeValue(billing.total_before_discount), 
+        this.sanitizeValue(billing.total_before_discount),
         this.sanitizeValue(billing.discount_amount),
-        this.sanitizeValue(billing.discount_percent), 
+        this.sanitizeValue(billing.discount_percent),
         this.sanitizeValue(billing.total_after_discount),
-        this.sanitizeValue(billing.prepayment_amount), 
+        this.sanitizeValue(billing.prepayment_amount),
         this.sanitizeValue(billing.installment_count),
         this.sanitizeValue(billing.notes),
         billing.id
       );
-      
+
       return billing;
     } catch (error) {
       console.error('Error updating billing:', error);
@@ -1052,14 +1053,14 @@ class DatabaseService {
   // Order Line Item CRUD operations
   createOrderLineItem(orderLineItem: Omit<OrderLineItem, 'id'>): OrderLineItem | null {
     if (!this.db) return null;
-    
+
     try {
       const stmt = this.db.prepare(`
         INSERT INTO order_line_item (
           billings_id, sku, description, supplied_by, supplied, price, quantity, discount, line_total
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
-      
+
       const result = stmt.run(
         orderLineItem.billings_id,
         this.sanitizeValue(orderLineItem.sku),
@@ -1071,7 +1072,7 @@ class DatabaseService {
         this.sanitizeValue(orderLineItem.discount),
         this.sanitizeValue(orderLineItem.line_total)
       );
-      
+
       return { ...orderLineItem, id: result.lastInsertRowid as number };
     } catch (error) {
       console.error('Error creating order line item:', error);
@@ -1081,7 +1082,7 @@ class DatabaseService {
 
   getOrderLineItemsByBillingId(billingId: number): OrderLineItem[] {
     if (!this.db) return [];
-    
+
     try {
       const stmt = this.db.prepare('SELECT * FROM order_line_item WHERE billings_id = ?');
       return stmt.all(billingId) as OrderLineItem[];
@@ -1093,7 +1094,7 @@ class DatabaseService {
 
   updateOrderLineItem(orderLineItem: OrderLineItem): OrderLineItem | null {
     if (!this.db || !orderLineItem.id) return null;
-    
+
     try {
       const stmt = this.db.prepare(`
         UPDATE order_line_item SET 
@@ -1101,7 +1102,7 @@ class DatabaseService {
           price = ?, quantity = ?, discount = ?, line_total = ?
         WHERE id = ?
       `);
-      
+
       stmt.run(
         orderLineItem.billings_id,
         this.sanitizeValue(orderLineItem.sku),
@@ -1114,7 +1115,7 @@ class DatabaseService {
         this.sanitizeValue(orderLineItem.line_total),
         orderLineItem.id
       );
-      
+
       return orderLineItem;
     } catch (error) {
       console.error('Error updating order line item:', error);
@@ -1124,7 +1125,7 @@ class DatabaseService {
 
   deleteOrderLineItem(orderLineItemId: number): boolean {
     if (!this.db) return false;
-    
+
     try {
       const stmt = this.db.prepare('DELETE FROM order_line_item WHERE id = ?');
       const result = stmt.run(orderLineItemId);
@@ -1138,14 +1139,14 @@ class DatabaseService {
   // Contact Lens CRUD operations
   createContactLens(contactLens: Omit<ContactLens, 'id'>): ContactLens | null {
     if (!this.db) return null;
-    
+
     try {
       const stmt = this.db.prepare(`
         INSERT INTO contact_lens (
           client_id, exam_date, type, user_id, comb_va, pupil_diameter, corneal_diameter, eyelid_aperture, notes, notes_for_supplier
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
-      
+
       const result = stmt.run(
         contactLens.client_id,
         this.sanitizeValue(contactLens.exam_date),
@@ -1158,7 +1159,7 @@ class DatabaseService {
         this.sanitizeValue(contactLens.notes),
         this.sanitizeValue(contactLens.notes_for_supplier)
       );
-      
+
       return { ...contactLens, id: result.lastInsertRowid as number };
     } catch (error) {
       console.error('Error creating contact lens:', error);
@@ -1168,7 +1169,7 @@ class DatabaseService {
 
   getContactLensById(id: number): ContactLens | null {
     if (!this.db) return null;
-    
+
     try {
       const stmt = this.db.prepare('SELECT * FROM contact_lens WHERE id = ?');
       return stmt.get(id) as ContactLens | null;
@@ -1180,7 +1181,7 @@ class DatabaseService {
 
   getContactLensesByClientId(clientId: number): ContactLens[] {
     if (!this.db) return [];
-    
+
     try {
       const stmt = this.db.prepare('SELECT * FROM contact_lens WHERE client_id = ? ORDER BY exam_date DESC');
       return stmt.all(clientId) as ContactLens[];
@@ -1192,7 +1193,7 @@ class DatabaseService {
 
   getAllContactLenses(): ContactLens[] {
     if (!this.db) return [];
-    
+
     try {
       const stmt = this.db.prepare('SELECT * FROM contact_lens ORDER BY exam_date DESC');
       return stmt.all() as ContactLens[];
@@ -1202,9 +1203,9 @@ class DatabaseService {
     }
   }
 
-    updateContactLens(contactLens: ContactLens): ContactLens | null {
+  updateContactLens(contactLens: ContactLens): ContactLens | null {
     if (!this.db || !contactLens.id) return null;
-    
+
     try {
       const stmt = this.db.prepare(`
         UPDATE contact_lens SET 
@@ -1212,7 +1213,7 @@ class DatabaseService {
         eyelid_aperture = ?, notes = ?, notes_for_supplier = ?
         WHERE id = ?
       `);
-      
+
       stmt.run(
         contactLens.client_id,
         this.sanitizeValue(contactLens.exam_date),
@@ -1226,7 +1227,7 @@ class DatabaseService {
         this.sanitizeValue(contactLens.notes_for_supplier),
         contactLens.id
       );
-      
+
       return contactLens;
     } catch (error) {
       console.error('Error updating contact lens:', error);
@@ -1236,7 +1237,7 @@ class DatabaseService {
 
   deleteContactLens(id: number): boolean {
     if (!this.db) return false;
-    
+
     try {
       const stmt = this.db.prepare('DELETE FROM contact_lens WHERE id = ?');
       const result = stmt.run(id);
@@ -1250,7 +1251,7 @@ class DatabaseService {
   // Contact Eye CRUD operations
   createContactEye(contactEye: Omit<ContactEye, 'id'>): ContactEye | null {
     if (!this.db) return null;
-    
+
     try {
       const stmt = this.db.prepare(`
         INSERT INTO contact_eye (
@@ -1259,7 +1260,7 @@ class DatabaseService {
           sph, cyl, ax, read_ad, va, j
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
-      
+
       const result = stmt.run(
         contactEye.contact_lens_id,
         this.sanitizeValue(contactEye.eye),
@@ -1290,7 +1291,7 @@ class DatabaseService {
         this.sanitizeValue(contactEye.va),
         this.sanitizeValue(contactEye.j)
       );
-      
+
       return { ...contactEye, id: result.lastInsertRowid as number };
     } catch (error) {
       console.error('Error creating contact eye:', error);
@@ -1300,7 +1301,7 @@ class DatabaseService {
 
   getContactEyesByContactLensId(contactLensId: number): ContactEye[] {
     if (!this.db) return [];
-    
+
     try {
       const stmt = this.db.prepare('SELECT * FROM contact_eye WHERE contact_lens_id = ?');
       return stmt.all(contactLensId) as ContactEye[];
@@ -1312,7 +1313,7 @@ class DatabaseService {
 
   updateContactEye(contactEye: ContactEye): ContactEye | null {
     if (!this.db || !contactEye.id) return null;
-    
+
     try {
       const stmt = this.db.prepare(`
         UPDATE contact_eye SET 
@@ -1322,7 +1323,7 @@ class DatabaseService {
           read_ad = ?, va = ?, j = ?
         WHERE id = ?
       `);
-      
+
       stmt.run(
         contactEye.contact_lens_id,
         this.sanitizeValue(contactEye.eye),
@@ -1354,7 +1355,7 @@ class DatabaseService {
         this.sanitizeValue(contactEye.j),
         contactEye.id
       );
-      
+
       return contactEye;
     } catch (error) {
       console.error('Error updating contact eye:', error);
@@ -1365,7 +1366,7 @@ class DatabaseService {
   // Contact Lens Order CRUD operations
   createContactLensOrder(contactLensOrder: Omit<ContactLensOrder, 'id'>): ContactLensOrder | null {
     if (!this.db) return null;
-    
+
     try {
       const stmt = this.db.prepare(`
         INSERT INTO contact_lens_order (
@@ -1373,7 +1374,7 @@ class DatabaseService {
           priority, guaranteed_date, approval_date, cleaning_solution, disinfection_solution, rinsing_solution
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
-      
+
       const result = stmt.run(
         contactLensOrder.contact_lens_id,
         this.sanitizeValue(contactLensOrder.branch),
@@ -1389,7 +1390,7 @@ class DatabaseService {
         this.sanitizeValue(contactLensOrder.disinfection_solution),
         this.sanitizeValue(contactLensOrder.rinsing_solution)
       );
-      
+
       return { ...contactLensOrder, id: result.lastInsertRowid as number };
     } catch (error) {
       console.error('Error creating contact lens order:', error);
@@ -1399,7 +1400,7 @@ class DatabaseService {
 
   getContactLensOrderByContactLensId(contactLensId: number): ContactLensOrder | null {
     if (!this.db) return null;
-    
+
     try {
       const stmt = this.db.prepare('SELECT * FROM contact_lens_order WHERE contact_lens_id = ?');
       return stmt.get(contactLensId) as ContactLensOrder | null;
@@ -1411,7 +1412,7 @@ class DatabaseService {
 
   updateContactLensOrder(contactLensOrder: ContactLensOrder): ContactLensOrder | null {
     if (!this.db || !contactLensOrder.id) return null;
-    
+
     try {
       const stmt = this.db.prepare(`
         UPDATE contact_lens_order SET 
@@ -1420,7 +1421,7 @@ class DatabaseService {
           cleaning_solution = ?, disinfection_solution = ?, rinsing_solution = ?
         WHERE id = ?
       `);
-      
+
       stmt.run(
         contactLensOrder.contact_lens_id,
         this.sanitizeValue(contactLensOrder.branch),
@@ -1437,7 +1438,7 @@ class DatabaseService {
         this.sanitizeValue(contactLensOrder.rinsing_solution),
         contactLensOrder.id
       );
-      
+
       return contactLensOrder;
     } catch (error) {
       console.error('Error updating contact lens order:', error);
@@ -1448,7 +1449,7 @@ class DatabaseService {
   // Referral CRUD operations
   createReferral(referral: Omit<Referral, 'id'>): Referral | null {
     if (!this.db) return null;
-    
+
     try {
       const stmt = this.db.prepare(`
         INSERT INTO referrals (
@@ -1456,7 +1457,7 @@ class DatabaseService {
           date, type, branch, recipient
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
-      
+
       const result = stmt.run(
         referral.client_id,
         this.sanitizeValue(referral.user_id),
@@ -1470,7 +1471,7 @@ class DatabaseService {
         this.sanitizeValue(referral.branch),
         this.sanitizeValue(referral.recipient)
       );
-      
+
       return { ...referral, id: result.lastInsertRowid as number };
     } catch (error) {
       console.error('Error creating referral:', error);
@@ -1480,7 +1481,7 @@ class DatabaseService {
 
   getReferralById(id: number): Referral | null {
     if (!this.db) return null;
-    
+
     try {
       const stmt = this.db.prepare('SELECT * FROM referrals WHERE id = ?');
       return stmt.get(id) as Referral | null;
@@ -1492,7 +1493,7 @@ class DatabaseService {
 
   getReferralsByClientId(clientId: number): Referral[] {
     if (!this.db) return [];
-    
+
     try {
       const stmt = this.db.prepare('SELECT * FROM referrals WHERE client_id = ? ORDER BY date DESC');
       return stmt.all(clientId) as Referral[];
@@ -1504,7 +1505,7 @@ class DatabaseService {
 
   getAllReferrals(): Referral[] {
     if (!this.db) return [];
-    
+
     try {
       const stmt = this.db.prepare('SELECT * FROM referrals ORDER BY date DESC');
       return stmt.all() as Referral[];
@@ -1516,7 +1517,7 @@ class DatabaseService {
 
   updateReferral(referral: Referral): Referral | null {
     if (!this.db || !referral.id) return null;
-    
+
     try {
       const stmt = this.db.prepare(`
         UPDATE referrals SET 
@@ -1524,7 +1525,7 @@ class DatabaseService {
         date = ?, type = ?, branch = ?, recipient = ?
         WHERE id = ?
       `);
-      
+
       stmt.run(
         referral.client_id,
         this.sanitizeValue(referral.user_id),
@@ -1539,7 +1540,7 @@ class DatabaseService {
         this.sanitizeValue(referral.recipient),
         referral.id
       );
-      
+
       return referral;
     } catch (error) {
       console.error('Error updating referral:', error);
@@ -1549,7 +1550,7 @@ class DatabaseService {
 
   deleteReferral(id: number): boolean {
     if (!this.db) return false;
-    
+
     try {
       const stmt = this.db.prepare('DELETE FROM referrals WHERE id = ?');
       const result = stmt.run(id);
@@ -1563,14 +1564,14 @@ class DatabaseService {
   // ReferralEye CRUD operations
   createReferralEye(referralEye: Omit<ReferralEye, 'id'>): ReferralEye | null {
     if (!this.db) return null;
-    
+
     try {
       const stmt = this.db.prepare(`
         INSERT INTO referral_eye (
           referral_id, eye, sph, cyl, ax, pris, base, va, add_power, decent, s_base, high, pd
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
-      
+
       const result = stmt.run(
         referralEye.referral_id,
         referralEye.eye,
@@ -1586,7 +1587,7 @@ class DatabaseService {
         this.sanitizeValue(referralEye.high),
         this.sanitizeValue(referralEye.pd)
       );
-      
+
       return { ...referralEye, id: result.lastInsertRowid as number };
     } catch (error) {
       console.error('Error creating referral eye:', error);
@@ -1596,7 +1597,7 @@ class DatabaseService {
 
   getReferralEyesByReferralId(referralId: number): ReferralEye[] {
     if (!this.db) return [];
-    
+
     try {
       const stmt = this.db.prepare('SELECT id, referral_id, eye, sph, cyl, ax, pris, base, va, add_power as "add", decent, s_base, high, pd FROM referral_eye WHERE referral_id = ? ORDER BY eye');
       return stmt.all(referralId) as ReferralEye[];
@@ -1608,7 +1609,7 @@ class DatabaseService {
 
   updateReferralEye(referralEye: ReferralEye): ReferralEye | null {
     if (!this.db || !referralEye.id) return null;
-    
+
     try {
       const stmt = this.db.prepare(`
         UPDATE referral_eye SET 
@@ -1616,7 +1617,7 @@ class DatabaseService {
         add_power = ?, decent = ?, s_base = ?, high = ?, pd = ?
         WHERE id = ?
       `);
-      
+
       stmt.run(
         referralEye.referral_id,
         referralEye.eye,
@@ -1633,7 +1634,7 @@ class DatabaseService {
         this.sanitizeValue(referralEye.pd),
         referralEye.id
       );
-      
+
       return referralEye;
     } catch (error) {
       console.error('Error updating referral eye:', error);
@@ -1644,13 +1645,13 @@ class DatabaseService {
   // Appointment CRUD operations
   createAppointment(appointment: Omit<Appointment, 'id'>): Appointment | null {
     if (!this.db) return null;
-    
+
     try {
       const stmt = this.db.prepare(`
         INSERT INTO appointments (client_id, user_id, date, time, exam_name, note)
         VALUES (?, ?, ?, ?, ?, ?)
       `);
-      
+
       const result = stmt.run(
         appointment.client_id,
         this.sanitizeValue(appointment.user_id),
@@ -1659,7 +1660,7 @@ class DatabaseService {
         this.sanitizeValue(appointment.exam_name),
         this.sanitizeValue(appointment.note)
       );
-      
+
       return { ...appointment, id: result.lastInsertRowid as number };
     } catch (error) {
       console.error('Error creating appointment:', error);
@@ -1669,7 +1670,7 @@ class DatabaseService {
 
   getAppointmentById(id: number): Appointment | null {
     if (!this.db) return null;
-    
+
     try {
       const stmt = this.db.prepare('SELECT * FROM appointments WHERE id = ?');
       return stmt.get(id) as Appointment || null;
@@ -1681,7 +1682,7 @@ class DatabaseService {
 
   getAppointmentsByClientId(clientId: number): Appointment[] {
     if (!this.db) return [];
-    
+
     try {
       const stmt = this.db.prepare('SELECT * FROM appointments WHERE client_id = ? ORDER BY date DESC');
       return stmt.all(clientId) as Appointment[];
@@ -1693,7 +1694,7 @@ class DatabaseService {
 
   getAllAppointments(): Appointment[] {
     if (!this.db) return [];
-    
+
     try {
       const stmt = this.db.prepare('SELECT * FROM appointments ORDER BY date DESC');
       return stmt.all() as Appointment[];
@@ -1705,14 +1706,14 @@ class DatabaseService {
 
   updateAppointment(appointment: Appointment): Appointment | null {
     if (!this.db || !appointment.id) return null;
-    
+
     try {
       const stmt = this.db.prepare(`
         UPDATE appointments SET
           client_id = ?, user_id = ?, date = ?, time = ?, exam_name = ?, note = ?
         WHERE id = ?
       `);
-      
+
       stmt.run(
         appointment.client_id,
         this.sanitizeValue(appointment.user_id),
@@ -1722,7 +1723,7 @@ class DatabaseService {
         this.sanitizeValue(appointment.note),
         appointment.id
       );
-      
+
       return appointment;
     } catch (error) {
       console.error('Error updating appointment:', error);
@@ -1732,7 +1733,7 @@ class DatabaseService {
 
   deleteAppointment(id: number): boolean {
     if (!this.db) return false;
-    
+
     try {
       const stmt = this.db.prepare('DELETE FROM appointments WHERE id = ?');
       const result = stmt.run(id);
@@ -1750,7 +1751,7 @@ class DatabaseService {
   // Settings CRUD operations
   getSettings(): Settings | null {
     if (!this.db) return null;
-    
+
     try {
       const stmt = this.db.prepare('SELECT * FROM settings WHERE id = 1');
       return stmt.get() as Settings || null;
@@ -1762,7 +1763,7 @@ class DatabaseService {
 
   updateSettings(settings: Settings): Settings | null {
     if (!this.db) return null;
-    
+
     try {
       const stmt = this.db.prepare(`
         UPDATE settings SET 
@@ -1778,7 +1779,7 @@ class DatabaseService {
         updated_at = CURRENT_TIMESTAMP
         WHERE id = 1
       `);
-      
+
       stmt.run(
         this.sanitizeValue(settings.clinic_name),
         this.sanitizeValue(settings.clinic_position),
@@ -1812,7 +1813,7 @@ class DatabaseService {
         this.sanitizeValue(settings.email_password),
         this.sanitizeValue(settings.email_from_name)
       );
-      
+
       return this.getSettings();
     } catch (error) {
       console.error('Error updating settings:', error);
@@ -1823,13 +1824,13 @@ class DatabaseService {
   // User CRUD operations
   createUser(user: Omit<User, 'id' | 'created_at' | 'updated_at'>): User | null {
     if (!this.db) return null;
-    
+
     try {
       const stmt = this.db.prepare(`
         INSERT INTO users (username, email, phone, password, role, is_active)
         VALUES (?, ?, ?, ?, ?, ?)
       `);
-      
+
       const result = stmt.run(
         user.username,
         this.sanitizeValue(user.email),
@@ -1838,7 +1839,7 @@ class DatabaseService {
         user.role,
         this.sanitizeValue(user.is_active ?? true)
       );
-      
+
       return { ...user, id: result.lastInsertRowid as number };
     } catch (error) {
       console.error('Error creating user:', error);
@@ -1848,7 +1849,7 @@ class DatabaseService {
 
   getUserById(id: number): User | null {
     if (!this.db) return null;
-    
+
     try {
       const stmt = this.db.prepare('SELECT * FROM users WHERE id = ?');
       return stmt.get(id) as User | null;
@@ -1860,7 +1861,7 @@ class DatabaseService {
 
   getUserByUsername(username: string): User | null {
     if (!this.db) return null;
-    
+
     try {
       const stmt = this.db.prepare('SELECT * FROM users WHERE username = ?');
       return stmt.get(username) as User | null;
@@ -1872,7 +1873,7 @@ class DatabaseService {
 
   getAllUsers(): User[] {
     if (!this.db) return [];
-    
+
     try {
       const stmt = this.db.prepare('SELECT * FROM users WHERE is_active = 1 ORDER BY username');
       return stmt.all() as User[];
@@ -1884,7 +1885,7 @@ class DatabaseService {
 
   updateUser(user: User): User | null {
     if (!this.db || !user.id) return null;
-    
+
     try {
       const stmt = this.db.prepare(`
         UPDATE users SET 
@@ -1892,7 +1893,7 @@ class DatabaseService {
         updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
       `);
-      
+
       stmt.run(
         user.username,
         this.sanitizeValue(user.email),
@@ -1902,7 +1903,7 @@ class DatabaseService {
         this.sanitizeValue(user.is_active ?? true),
         user.id
       );
-      
+
       return user;
     } catch (error) {
       console.error('Error updating user:', error);
@@ -1912,7 +1913,7 @@ class DatabaseService {
 
   deleteUser(id: number): boolean {
     if (!this.db) return false;
-    
+
     try {
       const stmt = this.db.prepare('UPDATE users SET is_active = 0 WHERE id = ?');
       const result = stmt.run(id);
@@ -1925,11 +1926,11 @@ class DatabaseService {
 
   authenticateUser(username: string, password?: string): User | null {
     if (!this.db) return null;
-    
+
     try {
       let stmt;
       let user;
-      
+
       if (password && password.trim() !== '') {
         stmt = this.db.prepare('SELECT * FROM users WHERE username = ? AND password = ? AND is_active = 1');
         user = stmt.get(username, password) as User | null;
@@ -1937,7 +1938,7 @@ class DatabaseService {
         stmt = this.db.prepare(`SELECT * FROM users WHERE username = ? AND (password IS NULL OR password = '' OR TRIM(password) = '') AND is_active = 1`);
         user = stmt.get(username) as User | null;
       }
-      
+
       return user;
     } catch (error) {
       console.error('Error authenticating user:', error);
@@ -1948,20 +1949,20 @@ class DatabaseService {
   // Email Log CRUD operations
   createEmailLog(emailLog: Omit<EmailLog, 'id'>): EmailLog | null {
     if (!this.db) return null;
-    
+
     try {
       const stmt = this.db.prepare(`
         INSERT INTO email_logs (appointment_id, email_address, success, error_message)
         VALUES (?, ?, ?, ?)
       `);
-      
+
       const result = stmt.run(
         emailLog.appointment_id,
         this.sanitizeValue(emailLog.email_address),
         emailLog.success ? 1 : 0,
         this.sanitizeValue(emailLog.error_message)
       );
-      
+
       return { ...emailLog, id: result.lastInsertRowid as number };
     } catch (error) {
       console.error('Error creating email log:', error);
@@ -1971,7 +1972,7 @@ class DatabaseService {
 
   getEmailLogsByAppointment(appointmentId: number): EmailLog[] {
     if (!this.db) return [];
-    
+
     try {
       const stmt = this.db.prepare('SELECT * FROM email_logs WHERE appointment_id = ? ORDER BY sent_at DESC');
       return stmt.all(appointmentId) as EmailLog[];
@@ -1983,7 +1984,7 @@ class DatabaseService {
 
   getAllEmailLogs(): EmailLog[] {
     if (!this.db) return [];
-    
+
     try {
       const stmt = this.db.prepare('SELECT * FROM email_logs ORDER BY sent_at DESC');
       return stmt.all() as EmailLog[];
@@ -1996,12 +1997,12 @@ class DatabaseService {
   // Chat CRUD operations
   createChat(title: string): Chat | null {
     if (!this.db) return null;
-    
+
     try {
       const stmt = this.db.prepare(`
         INSERT INTO chats (title) VALUES (?)
       `);
-      
+
       const result = stmt.run(title);
       return { id: result.lastInsertRowid as number, title };
     } catch (error) {
@@ -2012,7 +2013,7 @@ class DatabaseService {
 
   getChatById(id: number): Chat | null {
     if (!this.db) return null;
-    
+
     try {
       const stmt = this.db.prepare('SELECT * FROM chats WHERE id = ?');
       return stmt.get(id) as Chat | null;
@@ -2024,7 +2025,7 @@ class DatabaseService {
 
   getAllChats(): Chat[] {
     if (!this.db) return [];
-    
+
     try {
       const stmt = this.db.prepare('SELECT * FROM chats ORDER BY updated_at DESC');
       return stmt.all() as Chat[];
@@ -2036,12 +2037,12 @@ class DatabaseService {
 
   updateChat(chat: Chat): Chat | null {
     if (!this.db || !chat.id) return null;
-    
+
     try {
       const stmt = this.db.prepare(`
         UPDATE chats SET title = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?
       `);
-      
+
       stmt.run(chat.title, chat.id);
       return chat;
     } catch (error) {
@@ -2052,7 +2053,7 @@ class DatabaseService {
 
   deleteChat(id: number): boolean {
     if (!this.db) return false;
-    
+
     try {
       const stmt = this.db.prepare('DELETE FROM chats WHERE id = ?');
       const result = stmt.run(id);
@@ -2066,22 +2067,22 @@ class DatabaseService {
   // Chat Message CRUD operations
   createChatMessage(chatMessage: Omit<ChatMessage, 'id' | 'timestamp'>): ChatMessage | null {
     if (!this.db) return null;
-    
+
     try {
       const stmt = this.db.prepare(`
         INSERT INTO chat_messages (chat_id, type, content, data) VALUES (?, ?, ?, ?)
       `);
-      
+
       const result = stmt.run(
         chatMessage.chat_id,
         chatMessage.type,
         chatMessage.content,
         this.sanitizeValue(chatMessage.data)
       );
-      
+
       // Update chat's updated_at timestamp
       this.db.prepare('UPDATE chats SET updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(chatMessage.chat_id);
-      
+
       return { ...chatMessage, id: result.lastInsertRowid as number };
     } catch (error) {
       console.error('Error creating chat message:', error);
@@ -2091,7 +2092,7 @@ class DatabaseService {
 
   getChatMessagesByChatId(chatId: number): ChatMessage[] {
     if (!this.db) return [];
-    
+
     try {
       const stmt = this.db.prepare('SELECT * FROM chat_messages WHERE chat_id = ? ORDER BY timestamp ASC');
       return stmt.all(chatId) as ChatMessage[];
@@ -2103,12 +2104,12 @@ class DatabaseService {
 
   updateChatMessage(chatMessage: ChatMessage): ChatMessage | null {
     if (!this.db || !chatMessage.id) return null;
-    
+
     try {
       const stmt = this.db.prepare(`
         UPDATE chat_messages SET chat_id = ?, type = ?, content = ?, data = ? WHERE id = ?
       `);
-      
+
       stmt.run(
         chatMessage.chat_id,
         chatMessage.type,
@@ -2116,7 +2117,7 @@ class DatabaseService {
         this.sanitizeValue(chatMessage.data),
         chatMessage.id
       );
-      
+
       return chatMessage;
     } catch (error) {
       console.error('Error updating chat message:', error);
@@ -2126,7 +2127,7 @@ class DatabaseService {
 
   deleteChatMessage(id: number): boolean {
     if (!this.db) return false;
-    
+
     try {
       const stmt = this.db.prepare('DELETE FROM chat_messages WHERE id = ?');
       const result = stmt.run(id);
@@ -2148,6 +2149,8 @@ class DatabaseService {
 
   // Lookup table methods
   getAllLookupSuppliers(): LookupSupplier[] {
+    if (!this.db) return [];
+
     try {
       const stmt = this.db.prepare('SELECT * FROM lookup_supplier ORDER BY name');
       return stmt.all() as LookupSupplier[];
@@ -2158,6 +2161,8 @@ class DatabaseService {
   }
 
   createLookupSupplier(data: Omit<LookupSupplier, 'id'>): LookupSupplier | null {
+    if (!this.db) return null;
+
     try {
       const stmt = this.db.prepare('INSERT INTO lookup_supplier (name) VALUES (?)');
       const result = stmt.run(this.sanitizeValue(data.name));
@@ -2169,6 +2174,8 @@ class DatabaseService {
   }
 
   updateLookupSupplier(data: LookupSupplier): LookupSupplier | null {
+    if (!this.db) return null;
+
     try {
       const stmt = this.db.prepare('UPDATE lookup_supplier SET name = ? WHERE id = ?');
       stmt.run(this.sanitizeValue(data.name), data.id);
@@ -2180,6 +2187,8 @@ class DatabaseService {
   }
 
   deleteLookupSupplier(id: number): boolean {
+    if (!this.db) return false;
+
     try {
       const stmt = this.db.prepare('DELETE FROM lookup_supplier WHERE id = ?');
       const result = stmt.run(id);
@@ -2191,6 +2200,8 @@ class DatabaseService {
   }
 
   getLookupSupplierById(id: number): LookupSupplier | null {
+    if (!this.db) return null;
+
     try {
       const stmt = this.db.prepare('SELECT * FROM lookup_supplier WHERE id = ?');
       return stmt.get(id) as LookupSupplier || null;
@@ -2201,6 +2212,8 @@ class DatabaseService {
   }
 
   getAllLookupClinics(): LookupClinic[] {
+    if (!this.db) return [];
+
     try {
       const stmt = this.db.prepare('SELECT * FROM lookup_clinic ORDER BY name');
       return stmt.all() as LookupClinic[];
@@ -2211,6 +2224,8 @@ class DatabaseService {
   }
 
   createLookupClinic(data: Omit<LookupClinic, 'id'>): LookupClinic | null {
+    if (!this.db) return null;
+
     try {
       const stmt = this.db.prepare('INSERT INTO lookup_clinic (name) VALUES (?)');
       const result = stmt.run(this.sanitizeValue(data.name));
@@ -2222,6 +2237,8 @@ class DatabaseService {
   }
 
   updateLookupClinic(data: LookupClinic): LookupClinic | null {
+    if (!this.db) return null;
+
     try {
       const stmt = this.db.prepare('UPDATE lookup_clinic SET name = ? WHERE id = ?');
       stmt.run(this.sanitizeValue(data.name), data.id);
@@ -2233,6 +2250,8 @@ class DatabaseService {
   }
 
   deleteLookupClinic(id: number): boolean {
+    if (!this.db) return false;
+
     try {
       const stmt = this.db.prepare('DELETE FROM lookup_clinic WHERE id = ?');
       const result = stmt.run(id);
@@ -2244,6 +2263,8 @@ class DatabaseService {
   }
 
   getLookupClinicById(id: number): LookupClinic | null {
+    if (!this.db) return null;
+
     try {
       const stmt = this.db.prepare('SELECT * FROM lookup_clinic WHERE id = ?');
       return stmt.get(id) as LookupClinic || null;
@@ -2254,6 +2275,8 @@ class DatabaseService {
   }
 
   getAllLookupOrderTypes(): LookupOrderType[] {
+    if (!this.db) return [];
+
     try {
       const stmt = this.db.prepare('SELECT * FROM lookup_order_type ORDER BY name');
       return stmt.all() as LookupOrderType[];
@@ -2264,6 +2287,8 @@ class DatabaseService {
   }
 
   createLookupOrderType(data: Omit<LookupOrderType, 'id'>): LookupOrderType | null {
+    if (!this.db) return null;
+
     try {
       const stmt = this.db.prepare('INSERT INTO lookup_order_type (name) VALUES (?)');
       const result = stmt.run(this.sanitizeValue(data.name));
@@ -2275,6 +2300,8 @@ class DatabaseService {
   }
 
   updateLookupOrderType(data: LookupOrderType): LookupOrderType | null {
+    if (!this.db) return null;
+
     try {
       const stmt = this.db.prepare('UPDATE lookup_order_type SET name = ? WHERE id = ?');
       stmt.run(this.sanitizeValue(data.name), data.id);
@@ -2286,6 +2313,8 @@ class DatabaseService {
   }
 
   deleteLookupOrderType(id: number): boolean {
+    if (!this.db) return false;
+
     try {
       const stmt = this.db.prepare('DELETE FROM lookup_order_type WHERE id = ?');
       const result = stmt.run(id);
@@ -2297,6 +2326,8 @@ class DatabaseService {
   }
 
   getLookupOrderTypeById(id: number): LookupOrderType | null {
+    if (!this.db) return null;
+
     try {
       const stmt = this.db.prepare('SELECT * FROM lookup_order_type WHERE id = ?');
       return stmt.get(id) as LookupOrderType || null;
@@ -2307,6 +2338,8 @@ class DatabaseService {
   }
 
   getAllLookupReferralTypes(): LookupReferralType[] {
+    if (!this.db) return [];
+
     try {
       const stmt = this.db.prepare('SELECT * FROM lookup_referral_type ORDER BY name');
       return stmt.all() as LookupReferralType[];
@@ -2317,6 +2350,8 @@ class DatabaseService {
   }
 
   createLookupReferralType(data: Omit<LookupReferralType, 'id'>): LookupReferralType | null {
+    if (!this.db) return null;
+
     try {
       const stmt = this.db.prepare('INSERT INTO lookup_referral_type (name) VALUES (?)');
       const result = stmt.run(this.sanitizeValue(data.name));
@@ -2328,6 +2363,8 @@ class DatabaseService {
   }
 
   updateLookupReferralType(data: LookupReferralType): LookupReferralType | null {
+    if (!this.db) return null;
+
     try {
       const stmt = this.db.prepare('UPDATE lookup_referral_type SET name = ? WHERE id = ?');
       stmt.run(this.sanitizeValue(data.name), data.id);
@@ -2339,6 +2376,8 @@ class DatabaseService {
   }
 
   deleteLookupReferralType(id: number): boolean {
+    if (!this.db) return false;
+
     try {
       const stmt = this.db.prepare('DELETE FROM lookup_referral_type WHERE id = ?');
       const result = stmt.run(id);
@@ -2350,6 +2389,8 @@ class DatabaseService {
   }
 
   getLookupReferralTypeById(id: number): LookupReferralType | null {
+    if (!this.db) return null;
+
     try {
       const stmt = this.db.prepare('SELECT * FROM lookup_referral_type WHERE id = ?');
       return stmt.get(id) as LookupReferralType || null;
@@ -2360,6 +2401,8 @@ class DatabaseService {
   }
 
   getAllLookupLensModels(): LookupLensModel[] {
+    if (!this.db) return [];
+
     try {
       const stmt = this.db.prepare('SELECT * FROM lookup_lens_model ORDER BY name');
       return stmt.all() as LookupLensModel[];
@@ -2370,6 +2413,8 @@ class DatabaseService {
   }
 
   createLookupLensModel(data: Omit<LookupLensModel, 'id'>): LookupLensModel | null {
+    if (!this.db) return null;
+
     try {
       const stmt = this.db.prepare('INSERT INTO lookup_lens_model (name) VALUES (?)');
       const result = stmt.run(this.sanitizeValue(data.name));
@@ -2381,6 +2426,8 @@ class DatabaseService {
   }
 
   updateLookupLensModel(data: LookupLensModel): LookupLensModel | null {
+    if (!this.db) return null;
+
     try {
       const stmt = this.db.prepare('UPDATE lookup_lens_model SET name = ? WHERE id = ?');
       stmt.run(this.sanitizeValue(data.name), data.id);
@@ -2392,6 +2439,8 @@ class DatabaseService {
   }
 
   deleteLookupLensModel(id: number): boolean {
+    if (!this.db) return false;
+
     try {
       const stmt = this.db.prepare('DELETE FROM lookup_lens_model WHERE id = ?');
       const result = stmt.run(id);
@@ -2403,6 +2452,8 @@ class DatabaseService {
   }
 
   getLookupLensModelById(id: number): LookupLensModel | null {
+    if (!this.db) return null;
+
     try {
       const stmt = this.db.prepare('SELECT * FROM lookup_lens_model WHERE id = ?');
       return stmt.get(id) as LookupLensModel || null;
@@ -2413,6 +2464,8 @@ class DatabaseService {
   }
 
   getAllLookupColors(): LookupColor[] {
+    if (!this.db) return [];
+
     try {
       const stmt = this.db.prepare('SELECT * FROM lookup_color ORDER BY name');
       return stmt.all() as LookupColor[];
@@ -2423,6 +2476,8 @@ class DatabaseService {
   }
 
   createLookupColor(data: Omit<LookupColor, 'id'>): LookupColor | null {
+    if (!this.db) return null;
+
     try {
       const stmt = this.db.prepare('INSERT INTO lookup_color (name) VALUES (?)');
       const result = stmt.run(this.sanitizeValue(data.name));
@@ -2434,6 +2489,8 @@ class DatabaseService {
   }
 
   updateLookupColor(data: LookupColor): LookupColor | null {
+    if (!this.db) return null;
+
     try {
       const stmt = this.db.prepare('UPDATE lookup_color SET name = ? WHERE id = ?');
       stmt.run(this.sanitizeValue(data.name), data.id);
@@ -2445,6 +2502,8 @@ class DatabaseService {
   }
 
   deleteLookupColor(id: number): boolean {
+    if (!this.db) return false;
+
     try {
       const stmt = this.db.prepare('DELETE FROM lookup_color WHERE id = ?');
       const result = stmt.run(id);
@@ -2456,6 +2515,8 @@ class DatabaseService {
   }
 
   getLookupColorById(id: number): LookupColor | null {
+    if (!this.db) return null;
+
     try {
       const stmt = this.db.prepare('SELECT * FROM lookup_color WHERE id = ?');
       return stmt.get(id) as LookupColor || null;
@@ -2466,6 +2527,8 @@ class DatabaseService {
   }
 
   getAllLookupMaterials(): LookupMaterial[] {
+    if (!this.db) return [];
+
     try {
       const stmt = this.db.prepare('SELECT * FROM lookup_material ORDER BY name');
       return stmt.all() as LookupMaterial[];
@@ -2476,6 +2539,8 @@ class DatabaseService {
   }
 
   createLookupMaterial(data: Omit<LookupMaterial, 'id'>): LookupMaterial | null {
+    if (!this.db) return null;
+
     try {
       const stmt = this.db.prepare('INSERT INTO lookup_material (name) VALUES (?)');
       const result = stmt.run(this.sanitizeValue(data.name));
@@ -2487,6 +2552,8 @@ class DatabaseService {
   }
 
   updateLookupMaterial(data: LookupMaterial): LookupMaterial | null {
+    if (!this.db) return null;
+
     try {
       const stmt = this.db.prepare('UPDATE lookup_material SET name = ? WHERE id = ?');
       stmt.run(this.sanitizeValue(data.name), data.id);
@@ -2498,6 +2565,8 @@ class DatabaseService {
   }
 
   deleteLookupMaterial(id: number): boolean {
+    if (!this.db) return false;
+
     try {
       const stmt = this.db.prepare('DELETE FROM lookup_material WHERE id = ?');
       const result = stmt.run(id);
@@ -2509,6 +2578,8 @@ class DatabaseService {
   }
 
   getLookupMaterialById(id: number): LookupMaterial | null {
+    if (!this.db) return null;
+
     try {
       const stmt = this.db.prepare('SELECT * FROM lookup_material WHERE id = ?');
       return stmt.get(id) as LookupMaterial || null;
@@ -2519,6 +2590,8 @@ class DatabaseService {
   }
 
   getAllLookupCoatings(): LookupCoating[] {
+    if (!this.db) return [];
+
     try {
       const stmt = this.db.prepare('SELECT * FROM lookup_coating ORDER BY name');
       return stmt.all() as LookupCoating[];
@@ -2529,6 +2602,8 @@ class DatabaseService {
   }
 
   createLookupCoating(data: Omit<LookupCoating, 'id'>): LookupCoating | null {
+    if (!this.db) return null;
+
     try {
       const stmt = this.db.prepare('INSERT INTO lookup_coating (name) VALUES (?)');
       const result = stmt.run(this.sanitizeValue(data.name));
@@ -2540,6 +2615,8 @@ class DatabaseService {
   }
 
   updateLookupCoating(data: LookupCoating): LookupCoating | null {
+    if (!this.db) return null;
+
     try {
       const stmt = this.db.prepare('UPDATE lookup_coating SET name = ? WHERE id = ?');
       stmt.run(this.sanitizeValue(data.name), data.id);
@@ -2551,6 +2628,8 @@ class DatabaseService {
   }
 
   deleteLookupCoating(id: number): boolean {
+    if (!this.db) return false;
+
     try {
       const stmt = this.db.prepare('DELETE FROM lookup_coating WHERE id = ?');
       const result = stmt.run(id);
@@ -2562,6 +2641,8 @@ class DatabaseService {
   }
 
   getLookupCoatingById(id: number): LookupCoating | null {
+    if (!this.db) return null;
+
     try {
       const stmt = this.db.prepare('SELECT * FROM lookup_coating WHERE id = ?');
       return stmt.get(id) as LookupCoating || null;
@@ -2572,6 +2653,8 @@ class DatabaseService {
   }
 
   getAllLookupManufacturers(): LookupManufacturer[] {
+    if (!this.db) return [];
+
     try {
       const stmt = this.db.prepare('SELECT * FROM lookup_manufacturer ORDER BY name');
       return stmt.all() as LookupManufacturer[];
@@ -2582,6 +2665,8 @@ class DatabaseService {
   }
 
   createLookupManufacturer(data: Omit<LookupManufacturer, 'id'>): LookupManufacturer | null {
+    if (!this.db) return null;
+
     try {
       const stmt = this.db.prepare('INSERT INTO lookup_manufacturer (name) VALUES (?)');
       const result = stmt.run(this.sanitizeValue(data.name));
@@ -2593,6 +2678,8 @@ class DatabaseService {
   }
 
   updateLookupManufacturer(data: LookupManufacturer): LookupManufacturer | null {
+    if (!this.db) return null;
+
     try {
       const stmt = this.db.prepare('UPDATE lookup_manufacturer SET name = ? WHERE id = ?');
       stmt.run(this.sanitizeValue(data.name), data.id);
@@ -2604,6 +2691,8 @@ class DatabaseService {
   }
 
   deleteLookupManufacturer(id: number): boolean {
+    if (!this.db) return false;
+
     try {
       const stmt = this.db.prepare('DELETE FROM lookup_manufacturer WHERE id = ?');
       const result = stmt.run(id);
@@ -2615,6 +2704,8 @@ class DatabaseService {
   }
 
   getLookupManufacturerById(id: number): LookupManufacturer | null {
+    if (!this.db) return null;
+
     try {
       const stmt = this.db.prepare('SELECT * FROM lookup_manufacturer WHERE id = ?');
       return stmt.get(id) as LookupManufacturer || null;
@@ -2625,6 +2716,8 @@ class DatabaseService {
   }
 
   getAllLookupFrameModels(): LookupFrameModel[] {
+    if (!this.db) return [];
+
     try {
       const stmt = this.db.prepare('SELECT * FROM lookup_frame_model ORDER BY name');
       return stmt.all() as LookupFrameModel[];
@@ -2635,6 +2728,8 @@ class DatabaseService {
   }
 
   createLookupFrameModel(data: Omit<LookupFrameModel, 'id'>): LookupFrameModel | null {
+    if (!this.db) return null;
+
     try {
       const stmt = this.db.prepare('INSERT INTO lookup_frame_model (name) VALUES (?)');
       const result = stmt.run(this.sanitizeValue(data.name));
@@ -2646,6 +2741,8 @@ class DatabaseService {
   }
 
   updateLookupFrameModel(data: LookupFrameModel): LookupFrameModel | null {
+    if (!this.db) return null;
+
     try {
       const stmt = this.db.prepare('UPDATE lookup_frame_model SET name = ? WHERE id = ?');
       stmt.run(this.sanitizeValue(data.name), data.id);
@@ -2657,6 +2754,8 @@ class DatabaseService {
   }
 
   deleteLookupFrameModel(id: number): boolean {
+    if (!this.db) return false;
+
     try {
       const stmt = this.db.prepare('DELETE FROM lookup_frame_model WHERE id = ?');
       const result = stmt.run(id);
@@ -2668,6 +2767,8 @@ class DatabaseService {
   }
 
   getLookupFrameModelById(id: number): LookupFrameModel | null {
+    if (!this.db) return null;
+
     try {
       const stmt = this.db.prepare('SELECT * FROM lookup_frame_model WHERE id = ?');
       return stmt.get(id) as LookupFrameModel || null;
@@ -2678,6 +2779,8 @@ class DatabaseService {
   }
 
   getAllLookupContactLensTypes(): LookupContactLensType[] {
+    if (!this.db) return [];
+
     try {
       const stmt = this.db.prepare('SELECT * FROM lookup_contact_lens_type ORDER BY name');
       return stmt.all() as LookupContactLensType[];
@@ -2688,6 +2791,8 @@ class DatabaseService {
   }
 
   createLookupContactLensType(data: Omit<LookupContactLensType, 'id'>): LookupContactLensType | null {
+    if (!this.db) return null;
+
     try {
       const stmt = this.db.prepare('INSERT INTO lookup_contact_lens_type (name) VALUES (?)');
       const result = stmt.run(this.sanitizeValue(data.name));
@@ -2699,6 +2804,8 @@ class DatabaseService {
   }
 
   updateLookupContactLensType(data: LookupContactLensType): LookupContactLensType | null {
+    if (!this.db) return null;
+
     try {
       const stmt = this.db.prepare('UPDATE lookup_contact_lens_type SET name = ? WHERE id = ?');
       stmt.run(this.sanitizeValue(data.name), data.id);
@@ -2710,6 +2817,8 @@ class DatabaseService {
   }
 
   deleteLookupContactLensType(id: number): boolean {
+    if (!this.db) return false;
+
     try {
       const stmt = this.db.prepare('DELETE FROM lookup_contact_lens_type WHERE id = ?');
       const result = stmt.run(id);
@@ -2721,6 +2830,8 @@ class DatabaseService {
   }
 
   getLookupContactLensTypeById(id: number): LookupContactLensType | null {
+    if (!this.db) return null;
+
     try {
       const stmt = this.db.prepare('SELECT * FROM lookup_contact_lens_type WHERE id = ?');
       return stmt.get(id) as LookupContactLensType || null;
@@ -2731,6 +2842,8 @@ class DatabaseService {
   }
 
   getAllLookupContactEyeLensTypes(): LookupContactEyeLensType[] {
+    if (!this.db) return [];
+
     try {
       const stmt = this.db.prepare('SELECT * FROM lookup_contact_eye_lens_type ORDER BY name');
       return stmt.all() as LookupContactEyeLensType[];
@@ -2741,6 +2854,8 @@ class DatabaseService {
   }
 
   createLookupContactEyeLensType(data: Omit<LookupContactEyeLensType, 'id'>): LookupContactEyeLensType | null {
+    if (!this.db) return null;
+
     try {
       const stmt = this.db.prepare('INSERT INTO lookup_contact_eye_lens_type (name) VALUES (?)');
       const result = stmt.run(this.sanitizeValue(data.name));
@@ -2752,6 +2867,8 @@ class DatabaseService {
   }
 
   updateLookupContactEyeLensType(data: LookupContactEyeLensType): LookupContactEyeLensType | null {
+    if (!this.db) return null;
+
     try {
       const stmt = this.db.prepare('UPDATE lookup_contact_eye_lens_type SET name = ? WHERE id = ?');
       stmt.run(this.sanitizeValue(data.name), data.id);
@@ -2763,6 +2880,8 @@ class DatabaseService {
   }
 
   deleteLookupContactEyeLensType(id: number): boolean {
+    if (!this.db) return false;
+
     try {
       const stmt = this.db.prepare('DELETE FROM lookup_contact_eye_lens_type WHERE id = ?');
       const result = stmt.run(id);
@@ -2774,6 +2893,8 @@ class DatabaseService {
   }
 
   getLookupContactEyeLensTypeById(id: number): LookupContactEyeLensType | null {
+    if (!this.db) return null;
+
     try {
       const stmt = this.db.prepare('SELECT * FROM lookup_contact_eye_lens_type WHERE id = ?');
       return stmt.get(id) as LookupContactEyeLensType || null;
@@ -2784,6 +2905,8 @@ class DatabaseService {
   }
 
   getAllLookupContactEyeMaterials(): LookupContactEyeMaterial[] {
+    if (!this.db) return [];
+
     try {
       const stmt = this.db.prepare('SELECT * FROM lookup_contact_eye_material ORDER BY name');
       return stmt.all() as LookupContactEyeMaterial[];
@@ -2794,6 +2917,8 @@ class DatabaseService {
   }
 
   createLookupContactEyeMaterial(data: Omit<LookupContactEyeMaterial, 'id'>): LookupContactEyeMaterial | null {
+    if (!this.db) return null;
+
     try {
       const stmt = this.db.prepare('INSERT INTO lookup_contact_eye_material (name) VALUES (?)');
       const result = stmt.run(this.sanitizeValue(data.name));
@@ -2805,6 +2930,8 @@ class DatabaseService {
   }
 
   updateLookupContactEyeMaterial(data: LookupContactEyeMaterial): LookupContactEyeMaterial | null {
+    if (!this.db) return null;
+
     try {
       const stmt = this.db.prepare('UPDATE lookup_contact_eye_material SET name = ? WHERE id = ?');
       stmt.run(this.sanitizeValue(data.name), data.id);
@@ -2816,6 +2943,8 @@ class DatabaseService {
   }
 
   deleteLookupContactEyeMaterial(id: number): boolean {
+    if (!this.db) return false;
+
     try {
       const stmt = this.db.prepare('DELETE FROM lookup_contact_eye_material WHERE id = ?');
       const result = stmt.run(id);
@@ -2827,6 +2956,8 @@ class DatabaseService {
   }
 
   getLookupContactEyeMaterialById(id: number): LookupContactEyeMaterial | null {
+    if (!this.db) return null;
+
     try {
       const stmt = this.db.prepare('SELECT * FROM lookup_contact_eye_material WHERE id = ?');
       return stmt.get(id) as LookupContactEyeMaterial || null;
@@ -2837,6 +2968,8 @@ class DatabaseService {
   }
 
   getAllLookupCleaningSolutions(): LookupCleaningSolution[] {
+    if (!this.db) return [];
+
     try {
       const stmt = this.db.prepare('SELECT * FROM lookup_cleaning_solution ORDER BY name');
       return stmt.all() as LookupCleaningSolution[];
@@ -2847,6 +2980,8 @@ class DatabaseService {
   }
 
   createLookupCleaningSolution(data: Omit<LookupCleaningSolution, 'id'>): LookupCleaningSolution | null {
+    if (!this.db) return null;
+
     try {
       const stmt = this.db.prepare('INSERT INTO lookup_cleaning_solution (name) VALUES (?)');
       const result = stmt.run(this.sanitizeValue(data.name));
@@ -2858,6 +2993,8 @@ class DatabaseService {
   }
 
   updateLookupCleaningSolution(data: LookupCleaningSolution): LookupCleaningSolution | null {
+    if (!this.db) return null;
+
     try {
       const stmt = this.db.prepare('UPDATE lookup_cleaning_solution SET name = ? WHERE id = ?');
       stmt.run(this.sanitizeValue(data.name), data.id);
@@ -2869,6 +3006,8 @@ class DatabaseService {
   }
 
   deleteLookupCleaningSolution(id: number): boolean {
+    if (!this.db) return false;
+
     try {
       const stmt = this.db.prepare('DELETE FROM lookup_cleaning_solution WHERE id = ?');
       const result = stmt.run(id);
@@ -2880,6 +3019,8 @@ class DatabaseService {
   }
 
   getLookupCleaningSolutionById(id: number): LookupCleaningSolution | null {
+    if (!this.db) return null;
+
     try {
       const stmt = this.db.prepare('SELECT * FROM lookup_cleaning_solution WHERE id = ?');
       return stmt.get(id) as LookupCleaningSolution || null;
@@ -2890,6 +3031,8 @@ class DatabaseService {
   }
 
   getAllLookupDisinfectionSolutions(): LookupDisinfectionSolution[] {
+    if (!this.db) return [];
+
     try {
       const stmt = this.db.prepare('SELECT * FROM lookup_disinfection_solution ORDER BY name');
       return stmt.all() as LookupDisinfectionSolution[];
@@ -2900,6 +3043,8 @@ class DatabaseService {
   }
 
   createLookupDisinfectionSolution(data: Omit<LookupDisinfectionSolution, 'id'>): LookupDisinfectionSolution | null {
+    if (!this.db) return null;
+
     try {
       const stmt = this.db.prepare('INSERT INTO lookup_disinfection_solution (name) VALUES (?)');
       const result = stmt.run(this.sanitizeValue(data.name));
@@ -2911,6 +3056,8 @@ class DatabaseService {
   }
 
   updateLookupDisinfectionSolution(data: LookupDisinfectionSolution): LookupDisinfectionSolution | null {
+    if (!this.db) return null;
+
     try {
       const stmt = this.db.prepare('UPDATE lookup_disinfection_solution SET name = ? WHERE id = ?');
       stmt.run(this.sanitizeValue(data.name), data.id);
@@ -2922,6 +3069,8 @@ class DatabaseService {
   }
 
   deleteLookupDisinfectionSolution(id: number): boolean {
+    if (!this.db) return false;
+
     try {
       const stmt = this.db.prepare('DELETE FROM lookup_disinfection_solution WHERE id = ?');
       const result = stmt.run(id);
@@ -2933,6 +3082,8 @@ class DatabaseService {
   }
 
   getLookupDisinfectionSolutionById(id: number): LookupDisinfectionSolution | null {
+    if (!this.db) return null;
+
     try {
       const stmt = this.db.prepare('SELECT * FROM lookup_disinfection_solution WHERE id = ?');
       return stmt.get(id) as LookupDisinfectionSolution || null;
@@ -2943,6 +3094,8 @@ class DatabaseService {
   }
 
   getAllLookupRinsingSolutions(): LookupRinsingSolution[] {
+    if (!this.db) return [];
+
     try {
       const stmt = this.db.prepare('SELECT * FROM lookup_rinsing_solution ORDER BY name');
       return stmt.all() as LookupRinsingSolution[];
@@ -2953,6 +3106,8 @@ class DatabaseService {
   }
 
   createLookupRinsingSolution(data: Omit<LookupRinsingSolution, 'id'>): LookupRinsingSolution | null {
+    if (!this.db) return null;
+
     try {
       const stmt = this.db.prepare('INSERT INTO lookup_rinsing_solution (name) VALUES (?)');
       const result = stmt.run(this.sanitizeValue(data.name));
@@ -2964,6 +3119,8 @@ class DatabaseService {
   }
 
   updateLookupRinsingSolution(data: LookupRinsingSolution): LookupRinsingSolution | null {
+    if (!this.db) return null;
+
     try {
       const stmt = this.db.prepare('UPDATE lookup_rinsing_solution SET name = ? WHERE id = ?');
       stmt.run(this.sanitizeValue(data.name), data.id);
@@ -2975,6 +3132,8 @@ class DatabaseService {
   }
 
   deleteLookupRinsingSolution(id: number): boolean {
+    if (!this.db) return false;
+
     try {
       const stmt = this.db.prepare('DELETE FROM lookup_rinsing_solution WHERE id = ?');
       const result = stmt.run(id);
@@ -2986,6 +3145,8 @@ class DatabaseService {
   }
 
   getLookupRinsingSolutionById(id: number): LookupRinsingSolution | null {
+    if (!this.db) return null;
+
     try {
       const stmt = this.db.prepare('SELECT * FROM lookup_rinsing_solution WHERE id = ?');
       return stmt.get(id) as LookupRinsingSolution || null;
@@ -2996,6 +3157,8 @@ class DatabaseService {
   }
 
   getAllLookupManufacturingLabs(): LookupManufacturingLab[] {
+    if (!this.db) return [];
+
     try {
       const stmt = this.db.prepare('SELECT * FROM lookup_manufacturing_lab ORDER BY name');
       return stmt.all() as LookupManufacturingLab[];
@@ -3006,6 +3169,8 @@ class DatabaseService {
   }
 
   createLookupManufacturingLab(data: Omit<LookupManufacturingLab, 'id'>): LookupManufacturingLab | null {
+    if (!this.db) return null;
+
     try {
       const stmt = this.db.prepare('INSERT INTO lookup_manufacturing_lab (name) VALUES (?)');
       const result = stmt.run(this.sanitizeValue(data.name));
@@ -3017,6 +3182,8 @@ class DatabaseService {
   }
 
   updateLookupManufacturingLab(data: LookupManufacturingLab): LookupManufacturingLab | null {
+    if (!this.db) return null;
+
     try {
       const stmt = this.db.prepare('UPDATE lookup_manufacturing_lab SET name = ? WHERE id = ?');
       stmt.run(this.sanitizeValue(data.name), data.id);
@@ -3028,6 +3195,8 @@ class DatabaseService {
   }
 
   deleteLookupManufacturingLab(id: number): boolean {
+    if (!this.db) return false;
+
     try {
       const stmt = this.db.prepare('DELETE FROM lookup_manufacturing_lab WHERE id = ?');
       const result = stmt.run(id);
@@ -3039,6 +3208,8 @@ class DatabaseService {
   }
 
   getLookupManufacturingLabById(id: number): LookupManufacturingLab | null {
+    if (!this.db) return null;
+
     try {
       const stmt = this.db.prepare('SELECT * FROM lookup_manufacturing_lab WHERE id = ?');
       return stmt.get(id) as LookupManufacturingLab || null;
@@ -3049,6 +3220,8 @@ class DatabaseService {
   }
 
   getAllLookupAdvisors(): LookupAdvisor[] {
+    if (!this.db) return [];
+
     try {
       const stmt = this.db.prepare('SELECT * FROM lookup_advisor ORDER BY name');
       return stmt.all() as LookupAdvisor[];
@@ -3059,6 +3232,8 @@ class DatabaseService {
   }
 
   createLookupAdvisor(data: Omit<LookupAdvisor, 'id'>): LookupAdvisor | null {
+    if (!this.db) return null;
+
     try {
       const stmt = this.db.prepare('INSERT INTO lookup_advisor (name) VALUES (?)');
       const result = stmt.run(this.sanitizeValue(data.name));
@@ -3070,6 +3245,8 @@ class DatabaseService {
   }
 
   updateLookupAdvisor(data: LookupAdvisor): LookupAdvisor | null {
+    if (!this.db) return null;
+
     try {
       const stmt = this.db.prepare('UPDATE lookup_advisor SET name = ? WHERE id = ?');
       stmt.run(this.sanitizeValue(data.name), data.id);
@@ -3081,6 +3258,8 @@ class DatabaseService {
   }
 
   deleteLookupAdvisor(id: number): boolean {
+    if (!this.db) return false;
+
     try {
       const stmt = this.db.prepare('DELETE FROM lookup_advisor WHERE id = ?');
       const result = stmt.run(id);
@@ -3092,12 +3271,120 @@ class DatabaseService {
   }
 
   getLookupAdvisorById(id: number): LookupAdvisor | null {
+    if (!this.db) return null;
+
     try {
       const stmt = this.db.prepare('SELECT * FROM lookup_advisor WHERE id = ?');
       return stmt.get(id) as LookupAdvisor || null;
     } catch (error) {
       console.error('Error getting advisor by id:', error);
       return null;
+    }
+  }
+
+  // File CRUD operations
+  createFile(file: Omit<File, 'id'>): File | null {
+    if (!this.db) return null;
+
+    try {
+      const stmt = this.db.prepare(`
+        INSERT INTO files (
+          client_id, file_name, file_path, file_size, file_type, uploaded_by, notes
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+      `);
+
+      const result = stmt.run(
+        file.client_id,
+        this.sanitizeValue(file.file_name),
+        this.sanitizeValue(file.file_path),
+        this.sanitizeValue(file.file_size),
+        this.sanitizeValue(file.file_type),
+        this.sanitizeValue(file.uploaded_by),
+        this.sanitizeValue(file.notes)
+      );
+
+      return { ...file, id: result.lastInsertRowid as number };
+    } catch (error) {
+      console.error('Error creating file:', error);
+      return null;
+    }
+  }
+
+  getFileById(id: number): File | null {
+    if (!this.db) return null;
+
+    try {
+      const stmt = this.db.prepare('SELECT * FROM files WHERE id = ?');
+      return stmt.get(id) as File | null;
+    } catch (error) {
+      console.error('Error getting file:', error);
+      return null;
+    }
+  }
+
+  getFilesByClientId(clientId: number): File[] {
+    if (!this.db) return [];
+
+    try {
+      const stmt = this.db.prepare('SELECT * FROM files WHERE client_id = ? ORDER BY upload_date DESC');
+      return stmt.all(clientId) as File[];
+    } catch (error) {
+      console.error('Error getting files by client:', error);
+      return [];
+    }
+  }
+
+  getAllFiles(): File[] {
+    if (!this.db) return [];
+
+    try {
+      const stmt = this.db.prepare('SELECT * FROM files ORDER BY upload_date DESC');
+      return stmt.all() as File[];
+    } catch (error) {
+      console.error('Error getting all files:', error);
+      return [];
+    }
+  }
+
+  updateFile(file: File): File | null {
+    if (!this.db || !file.id) return null;
+
+    try {
+      const stmt = this.db.prepare(`
+        UPDATE files SET 
+        client_id = ?, file_name = ?, file_path = ?, file_size = ?, 
+        file_type = ?, uploaded_by = ?, notes = ?
+        WHERE id = ?
+      `);
+
+      stmt.run(
+        file.client_id,
+        this.sanitizeValue(file.file_name),
+        this.sanitizeValue(file.file_path),
+        this.sanitizeValue(file.file_size),
+        this.sanitizeValue(file.file_type),
+        this.sanitizeValue(file.uploaded_by),
+        this.sanitizeValue(file.notes),
+        file.id
+      );
+
+      return file;
+    } catch (error) {
+      console.error('Error updating file:', error);
+      return null;
+    }
+  }
+
+  deleteFile(id: number): boolean {
+    if (!this.db) return false;
+
+    try {
+      const stmt = this.db.prepare('DELETE FROM files WHERE id = ?');
+      const result = stmt.run(id);
+      return result.changes > 0;
+    } catch (error) {
+      console.error('Error deleting file:', error);
+      return false;
     }
   }
 }

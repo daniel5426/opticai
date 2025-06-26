@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Textarea } from "@/components/ui/textarea"
 import { toast } from "sonner"
-import { PencilIcon, SaveIcon, TrashIcon } from "lucide-react"
+import { PencilIcon, Plus, SaveIcon, TrashIcon } from "lucide-react"
 import { useParams } from "@tanstack/react-router"
 import { getMedicalLogsByClientId, createMedicalLog, updateMedicalLog, deleteMedicalLog } from "@/lib/db/medical-logs-db"
 import { MedicalLog } from "@/lib/db/schema"
@@ -261,7 +261,6 @@ export const ClientMedicalRecordTab = () => {
   if (loading) {
     return (
       <div className="flex justify-center items-center h-32">
-        <div className="text-lg">טוען רשומות רפואיות...</div>
       </div>
     )
   }
@@ -269,8 +268,11 @@ export const ClientMedicalRecordTab = () => {
   return (
     <div className="flex flex-col w-full">
       <div className="flex justify-between items-center mb-6">
-        <Button onClick={addNewRecord}>הוספת רשומה חדשה</Button>
-        <h2 className="text-xl font-semibold">רשומות רפואיות</h2>
+        <Button onClick={addNewRecord} dir="rtl"
+        >רשומה חדשה
+          <Plus className="h-4 w-4 mr-2" />
+          </Button>
+        <h2 className="text-xl font-semibold">גליון רפואי</h2>
       </div>
 
       {records.length === 0 ? (

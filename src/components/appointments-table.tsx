@@ -24,7 +24,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { MoreHorizontal, ChevronDown, UserPlus, Users } from "lucide-react"
+import { MoreHorizontal, ChevronDown, UserPlus, Users, Plus } from "lucide-react"
 import { Appointment, Client, User } from "@/lib/db/schema"
 import { toast } from "sonner"
 import { ClientSelectModal } from "@/components/ClientSelectModal"
@@ -491,7 +491,10 @@ export function AppointmentsTable({ data, clientId, onAppointmentChange }: Appoi
         </div>
         
         {clientId > 0 ? (
-          <Button onClick={openDirectAppointmentDialog}>תור חדש</Button>
+          <Button onClick={openDirectAppointmentDialog}
+          >תור חדש
+              <Plus className="h-4 w-4 mr-2" />
+              </Button>
         ) : (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

@@ -504,6 +504,18 @@ export interface LookupAdvisor {
   created_at?: string;
 }
 
+export interface File {
+  id?: number;
+  client_id: number;
+  file_name: string;
+  file_path: string;
+  file_size?: number;
+  file_type?: string;
+  upload_date?: string;
+  uploaded_by?: number;
+  notes?: string;
+}
+
 export const createTables = (db: Database): void => {
   // Create clients table
   db.exec(`
@@ -876,6 +888,23 @@ export const createTables = (db: Database): void => {
       note TEXT,
       FOREIGN KEY(client_id) REFERENCES clients(id) ON DELETE CASCADE,
       FOREIGN KEY(user_id) REFERENCES users(id)
+    );
+  `);
+
+  // Create files table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS files (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      client_id INTEGER NOT NULL,
+      file_name TEXT NOT NULL,
+      file_path TEXT NOT NULL,
+      file_size INTEGER,
+      file_type TEXT,
+      upload_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+      uploaded_by INTEGER,
+      notes TEXT,
+      FOREIGN KEY(client_id) REFERENCES clients(id) ON DELETE CASCADE,
+      FOREIGN KEY(uploaded_by) REFERENCES users(id)
     );
   `);
 

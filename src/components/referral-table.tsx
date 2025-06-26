@@ -83,8 +83,9 @@ export function ReferralTable({
                 {clientId > 0 ? (
           <Link to="/referrals/create" search={{ clientId: String(clientId) }}>
             <Button>
-              <Plus className="mr-2 h-4 w-4" />
               הפניה חדשה
+              <Plus className="mr-2 h-4 w-4" />
+
             </Button>
           </Link>
         ) : (

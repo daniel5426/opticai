@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { MoreHorizontal } from "lucide-react"
+import { MoreHorizontal, Plus } from "lucide-react"
 import { Order, User } from "@/lib/db/schema"
 import { ClientSelectModal } from "@/components/ClientSelectModal"
 import { getAllUsers } from "@/lib/db/users-db"
@@ -75,7 +75,9 @@ export function OrdersTable({ data, clientId }: OrdersTableProps) {
         </div>
         {clientId > 0 ? (
           <Link to="/clients/$clientId/orders/new" params={{ clientId: String(clientId) }}>
-            <Button>הזמנה חדשה</Button>
+            <Button>הזמנה חדשה
+              <Plus className="h-4 w-4 mr-2" />
+              </Button>
           </Link>
         ) : (
           <ClientSelectModal

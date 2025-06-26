@@ -121,6 +121,14 @@ export interface ElectronAPI {
   deleteUser: (userId: number) => Promise<boolean>;
   authenticateUser: (username: string, password?: string) => Promise<any>;
 
+  // File operations
+  getFilesByClient: (clientId: number) => Promise<any[]>;
+  getAllFiles: () => Promise<any[]>;
+  getFile: (fileId: number) => Promise<any>;
+  createFile: (fileData: any) => Promise<any>;
+  updateFile: (fileData: any) => Promise<any>;
+  deleteFile: (fileId: number) => Promise<boolean>;
+
   // Server Mode operations
   startServerMode: () => Promise<boolean>;
   stopServerMode: () => Promise<void>;

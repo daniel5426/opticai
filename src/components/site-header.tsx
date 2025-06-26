@@ -1,15 +1,18 @@
-import React from "react"
+import React, { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Link } from "@tanstack/react-router"
-import { ChevronLeft } from "lucide-react"
+import { ChevronLeft, User, Phone, IdCard, Calendar } from "lucide-react"
+import { Client } from "@/lib/db/schema"
 
 interface SiteHeaderProps {
   title: string
   backLink?: string
   clientName?: string
+  client?: Client
   clientBackLink?: string
   examInfo?: string
   tabs?: {
@@ -18,7 +21,59 @@ interface SiteHeaderProps {
   }
 }
 
-export function SiteHeader({ title, backLink, clientName, clientBackLink, examInfo, tabs }: SiteHeaderProps) {
+function calculateAge(dateOfBirth: string | undefined): number | null {
+  if (!dateOfBirth) return null
+  
+  const birthDate = new Date(dateOfBirth)
+  const today = new Date()
+  let age = today.getFullYear() - birthDate.getFullYear()
+  const monthDiff = today.getMonth() - birthDate.getMonth()
+  
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+    age--
+  }
+  
+  return age
+}
+
+function ClientTooltip({ client }: { client: Client }) {
+  const age = calculateAge(client.date_of_birth)
+  
+  return (
+    <div className="space-y-3 p-1" dir="rtl">
+      <div className="flex items-center gap-2 text-sm">
+        <User className="h-4 w-4 text-muted-foreground" />
+        <span className="font-medium">{client.gender || 'לא צוין'}</span>
+      </div>
+      
+      {age && (
+        <div className="flex items-center gap-2 text-sm">
+          <Calendar className="h-4 w-4 text-muted-foreground" />
+          <span>גיל {age}</span>
+        </div>
+      )}
+      
+      {client.national_id && (
+        <div className="flex items-center gap-2 text-sm">
+          <IdCard className="h-4 w-4 text-muted-foreground" />
+          <span dir="ltr">{client.national_id}</span>
+        </div>
+      )}
+      
+      {client.phone_mobile && (
+        <div className="flex items-center gap-2 text-sm">
+          <Phone className="h-4 w-4 text-muted-foreground" />
+          <span dir="ltr">{client.phone_mobile}</span>
+        </div>
+      )}
+    </div>
+  )
+}
+
+export function SiteHeader({ title, backLink, clientName, client, clientBackLink, examInfo, tabs }: SiteHeaderProps) {
+  const displayName = client ? `${client.first_name} ${client.last_name}`.trim() : clientName
+  const [isHovering, setIsHovering] = useState(false)
+
   return (
     <header className="flex h-(--header-height) shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-(--header-height)" dir="rtl">
       <div className="flex w-full items-center justify-between px-4 lg:px-6 py-2">
@@ -34,15 +89,54 @@ export function SiteHeader({ title, backLink, clientName, clientBackLink, examIn
               <Link to={backLink} className="flex items-center gap-1 text-muted-foreground hover:text-foreground">
                 <span>{title}</span>
               </Link>
-              {clientName && (
+              {displayName && (
                 <>
                   <Separator orientation="vertical" className="mx-2 data-[orientation=vertical]:h-4" />
-                  {clientBackLink ? (
-                    <Link to={clientBackLink} className="text-muted-foreground hover:text-foreground">
-                      {clientName}
-                    </Link>
+                  {client ? (
+                    <Popover open={isHovering} onOpenChange={setIsHovering}>
+                      <PopoverTrigger asChild>
+                        <div
+                          onMouseEnter={() => setIsHovering(true)}
+                          onMouseLeave={() => setIsHovering(false)}
+                        >
+                          {clientBackLink ? (
+                            <Link 
+                              to={clientBackLink} 
+                              className="text-muted-foreground hover:text-foreground transition-all duration-200 hover:bg-muted/50 px-2 py-1 rounded-md cursor-pointer"
+                            >
+                              {displayName}
+                            </Link>
+                          ) : (
+                            <div className="text-base font-medium transition-all duration-200 hover:bg-muted/50 px-2 py-1 rounded-md cursor-pointer">
+                              {displayName}
+                            </div>
+                          )}
+                        </div>
+                      </PopoverTrigger>
+                      <PopoverContent 
+                        className="w-64 p-4 shadow-lg border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60"
+                        side="bottom"
+                        align="end"
+                        sideOffset={8}
+                        onMouseEnter={() => setIsHovering(true)}
+                        onMouseLeave={() => setIsHovering(false)}
+                      >
+                        <div className="space-y-2">
+                          <div className="font-semibold text-base border-b pb-2 mb-3" dir="rtl">
+                            {displayName}
+                          </div>
+                          <ClientTooltip client={client} />
+                        </div>
+                      </PopoverContent>
+                    </Popover>
                   ) : (
-                    <h1 className="text-base font-medium">{clientName}</h1>
+                    clientBackLink ? (
+                      <Link to={clientBackLink} className="text-muted-foreground hover:text-foreground">
+                        {displayName}
+                      </Link>
+                    ) : (
+                      <h1 className="text-base font-medium">{displayName}</h1>
+                    )
                   )}
                 </>
               )}
@@ -68,11 +162,12 @@ export function SiteHeader({ title, backLink, clientName, clientBackLink, examIn
               <TabsList>
                 <TabsTrigger value="details">פרטים אישיים</TabsTrigger>
                 <TabsTrigger value="exams">בדיקות</TabsTrigger>
-                <TabsTrigger value="medical">רשומות רפואיות</TabsTrigger>
+                <TabsTrigger value="medical">גליון רפואי</TabsTrigger>
                 <TabsTrigger value="orders">הזמנות</TabsTrigger>
                 <TabsTrigger value="contact-lenses">עדשות מגע</TabsTrigger>
                 <TabsTrigger value="referrals">הפניות</TabsTrigger>
                 <TabsTrigger value="appointments">תורים</TabsTrigger>
+                <TabsTrigger value="files">קבצים</TabsTrigger>
               </TabsList>
             </Tabs>
           )}

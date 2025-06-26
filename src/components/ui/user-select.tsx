@@ -44,8 +44,7 @@ export function UserSelect({ value, onValueChange, placeholder = "בחר משת�
   if (loading) {
     return (
       <Select disabled>
-        <SelectTrigger>
-          <SelectValue placeholder="טוען משתמשים..." />
+        <SelectTrigger className="w-full">
         </SelectTrigger>
       </Select>
     )
@@ -58,7 +57,7 @@ export function UserSelect({ value, onValueChange, placeholder = "בחר משת�
       disabled={disabled}
       dir="rtl"
     >
-      <SelectTrigger>
+      <SelectTrigger className="w-full">
         <SelectValue placeholder={placeholder} />
       </SelectTrigger>
       <SelectContent>

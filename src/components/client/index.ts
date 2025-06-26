@@ -5,4 +5,5 @@ export { ClientBillingTab } from "./ClientBillingTab";
 export { ClientMedicalRecordTab } from "./ClientMedicalRecordTab";
 export { ClientContactLensTab } from "./ClientContactLensTab";
 export { ClientReferralTab } from "./ClientReferralTab";
-export { ClientAppointmentsTab } from "./ClientAppointmentsTab"; 
+export { ClientAppointmentsTab } from "./ClientAppointmentsTab";
+export { ClientFilesTab } from "./ClientFilesTab"; 

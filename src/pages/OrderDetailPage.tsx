@@ -29,7 +29,7 @@ import {
   updateOrderLineItem, 
   deleteOrderLineItem 
 } from "@/lib/db/billing-db"
-import { Order, OrderEye, OrderLens, Frame, OrderDetails, Client, OpticalExam, Billing, OrderLineItem } from "@/lib/db/schema"
+import { Order, OrderEye, OrderLens, Frame, OrderDetails, Client, OpticalExam, Billing, OrderLineItem, User } from "@/lib/db/schema"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -42,6 +42,7 @@ import { Plus, Edit, Trash2, Save, X } from "lucide-react"
 import { BillingTab } from "@/components/BillingTab"
 import { UserSelect } from "@/components/ui/user-select"
 import { useUser } from "@/contexts/UserContext"
+import { getAllUsers } from "@/lib/db/users-db"
 import { Separator } from "@/components/ui/separator"
 import { Badge } from "@/components/ui/badge"
 import { LookupSelect } from "@/components/ui/lookup-select"
@@ -244,6 +245,7 @@ export default function OrderDetailPage({
   const [billing, setBilling] = useState<Billing | null>(null)
   const [orderLineItems, setOrderLineItems] = useState<OrderLineItem[]>([])
   const [deletedOrderLineItemIds, setDeletedOrderLineItemIds] = useState<number[]>([])
+  const [users, setUsers] = useState<User[]>([])
   const { currentUser } = useUser()
   
   const isNewMode = mode === 'new'
@@ -287,6 +289,10 @@ export default function OrderDetailPage({
     const loadData = async () => {
       try {
         setLoading(true)
+        
+        // Load users for display purposes
+        const usersData = await getAllUsers()
+        setUsers(usersData)
         
         if (clientId) {
           const clientData = await getClientById(Number(clientId))
@@ -693,7 +699,7 @@ export default function OrderDetailPage({
         <SiteHeader 
           title="לקוחות" 
           backLink="/clients"
-          clientName={fullName}
+          client={client}
           clientBackLink={`/clients/${clientId}`}
           examInfo={isNewMode ? "הזמנה חדשה" : `הזמנה מס' ${orderId}`}
           tabs={{
@@ -785,7 +791,9 @@ export default function OrderDetailPage({
                       />
                     ) : (
                       <div className="border h-9 px-3 rounded-md text-sm flex items-center">
-                        {formData.user_id ? 'משתמש נבחר' : 'לא נבחר בודק'}
+                        {formData.user_id ? (
+                          users.find(u => u.id === formData.user_id)?.username || 'משתמש לא נמצא'
+                        ) : 'לא נבחר בודק'}
                       </div>
                     )}
                   </div>

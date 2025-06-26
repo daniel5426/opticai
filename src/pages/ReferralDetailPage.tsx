@@ -235,7 +235,7 @@ export default function ReferralDetailPage() {
         <SiteHeader 
           title="לקוחות" 
           backLink="/clients"
-          clientName={client ? `${client.first_name} ${client.last_name}`.trim() : ''}
+          client={client || undefined}
           clientBackLink={clientIdFromSearch ? `/clients/${clientIdFromSearch}` : "/clients"}
           examInfo="הפניה"
           tabs={{
@@ -257,7 +257,7 @@ export default function ReferralDetailPage() {
         <SiteHeader 
           title="לקוחות" 
           backLink="/clients"
-          clientName={fullName}
+          client={client || undefined}
           clientBackLink={clientIdFromSearch || formData.client_id ? `/clients/${clientIdFromSearch || formData.client_id}` : "/clients"}
           examInfo={isNewReferral ? "הפניה חדשה" : `הפניה מס' ${referralId}`}
           tabs={{

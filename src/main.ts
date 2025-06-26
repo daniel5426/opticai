@@ -1047,6 +1047,61 @@ function setupIpcHandlers() {
     }
   });
 
+  // File operations
+  ipcMain.handle('db-get-files-by-client', async (event, clientId: number) => {
+    try {
+      return dbService.getFilesByClientId(clientId);
+    } catch (error) {
+      console.error('Error getting files by client:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-get-all-files', async () => {
+    try {
+      return dbService.getAllFiles();
+    } catch (error) {
+      console.error('Error getting all files:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-get-file', async (event, fileId: number) => {
+    try {
+      return dbService.getFileById(fileId);
+    } catch (error) {
+      console.error('Error getting file:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-create-file', async (event, fileData) => {
+    try {
+      return dbService.createFile(fileData);
+    } catch (error) {
+      console.error('Error creating file:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-update-file', async (event, fileData) => {
+    try {
+      return dbService.updateFile(fileData);
+    } catch (error) {
+      console.error('Error updating file:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-delete-file', async (event, fileId: number) => {
+    try {
+      return dbService.deleteFile(fileId);
+    } catch (error) {
+      console.error('Error deleting file:', error);
+      throw error;
+    }
+  });
+
   // Server Mode operations
   ipcMain.handle('start-server-mode', async () => {
     try {

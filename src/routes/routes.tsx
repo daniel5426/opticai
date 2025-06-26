@@ -17,6 +17,7 @@ import AllOrdersPage from "@/pages/AllOrdersPage";
 import AllContactLensesPage from "@/pages/AllContactLensesPage";
 import AllReferralsPage from "@/pages/AllReferralsPage";
 import AllAppointmentsPage from "@/pages/AllAppointmentsPage";
+import AllFilesPage from "@/pages/AllFilesPage";
 import SettingsPage from "@/pages/SettingsPage";
 import UserSelectionPage from "@/pages/UserSelectionPage";
 import { AIAssistantPage } from "@/pages/AIAssistantPage";
@@ -155,6 +156,12 @@ export const AllAppointmentsRoute = createRoute({
   component: AllAppointmentsPage,
 });
 
+export const AllFilesRoute = createRoute({
+  getParentRoute: () => RootRoute,
+  path: "/files",
+  component: AllFilesPage,
+});
+
 export const SettingsRoute = createRoute({
   getParentRoute: () => RootRoute,
   path: "/settings",
@@ -186,6 +193,7 @@ export const rootTree = RootRoute.addChildren([
   AllContactLensesRoute,
   AllReferralsRoute,
   AllAppointmentsRoute,
+  AllFilesRoute,
   SettingsRoute,
   AIAssistantRoute,
 ]);

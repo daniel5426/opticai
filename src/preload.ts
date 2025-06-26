@@ -136,6 +136,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
   deleteUser: (userId: number) => ipcRenderer.invoke('db-delete-user', userId),
   authenticateUser: (username: string, password?: string) => ipcRenderer.invoke('db-authenticate-user', username, password),
 
+  // File operations
+  getFilesByClient: (clientId: number) => ipcRenderer.invoke('db-get-files-by-client', clientId),
+  getAllFiles: () => ipcRenderer.invoke('db-get-all-files'),
+  getFile: (fileId: number) => ipcRenderer.invoke('db-get-file', fileId),
+  createFile: (fileData: any) => ipcRenderer.invoke('db-create-file', fileData),
+  updateFile: (fileData: any) => ipcRenderer.invoke('db-update-file', fileData),
+  deleteFile: (fileId: number) => ipcRenderer.invoke('db-delete-file', fileId),
+
   // Server Mode operations
   startServerMode: () => ipcRenderer.invoke('start-server-mode'),
   stopServerMode: () => ipcRenderer.invoke('stop-server-mode'),

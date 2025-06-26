@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { MoreHorizontal, Trash2 } from "lucide-react";
+import { MoreHorizontal, Plus, Trash2 } from "lucide-react";
 import { ContactLens, User } from "@/lib/db/schema";
 import { deleteContactLens } from "@/lib/db/contact-lens-db";
 import { toast } from "sonner";
@@ -110,7 +110,9 @@ export function ContactLensTable({
             to="/clients/$clientId/contact-lenses/new"
             params={{ clientId: String(clientId) }}
           >
-            <Button>עדשות מגע חדש</Button>
+            <Button>עדשות מגע חדש
+              <Plus className="h-4 w-4 mr-2" />
+              </Button>
           </Link>
         ) : (
           <ClientSelectModal

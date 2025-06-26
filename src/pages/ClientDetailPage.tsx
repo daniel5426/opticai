@@ -14,7 +14,8 @@ import {
   ClientMedicalRecordTab,
   ClientContactLensTab,
   ClientReferralTab,
-  ClientAppointmentsTab
+  ClientAppointmentsTab,
+  ClientFilesTab
 } from "@/components/client"
 
 export default function ClientDetailPage() {
@@ -143,7 +144,7 @@ export default function ClientDetailPage() {
       <SiteHeader 
         title="לקוחות" 
         backLink="/clients"
-        clientName={fullName}
+        client={client}
         tabs={{
           activeTab,
           onTabChange: setActiveTab
@@ -190,6 +191,10 @@ export default function ClientDetailPage() {
           
           <TabsContent value="appointments">
             <ClientAppointmentsTab />
+          </TabsContent>
+          
+          <TabsContent value="files">
+            <ClientFilesTab />
           </TabsContent>
           
           <TabsContent value="billing">
