@@ -397,30 +397,142 @@ function setupIpcHandlers() {
     }
   });
 
-  // Eye Exam operations
-  ipcMain.handle('db-get-eye-exams-by-exam', async (event, examId: number) => {
+  // Old Refraction Exam operations
+  ipcMain.handle('db-get-old-refraction-exam', async (event, examId: number) => {
     try {
-      return dbService.getEyeExamsByExamId(examId);
+      return dbService.getOldRefractionExamByExamId(examId);
     } catch (error) {
-      console.error('Error getting eye exams:', error);
+      console.error('Error getting old refraction exam:', error);
       throw error;
     }
   });
 
-  ipcMain.handle('db-create-eye-exam', async (event, eyeExamData) => {
+  ipcMain.handle('db-create-old-refraction-exam', async (event, examData) => {
     try {
-      return dbService.createEyeExam(eyeExamData);
+      return dbService.createOldRefractionExam(examData);
     } catch (error) {
-      console.error('Error creating eye exam:', error);
+      console.error('Error creating old refraction exam:', error);
       throw error;
     }
   });
 
-  ipcMain.handle('db-update-eye-exam', async (event, eyeExamData) => {
+  ipcMain.handle('db-update-old-refraction-exam', async (event, examData) => {
     try {
-      return dbService.updateEyeExam(eyeExamData);
+      return dbService.updateOldRefractionExam(examData);
     } catch (error) {
-      console.error('Error updating eye exam:', error);
+      console.error('Error updating old refraction exam:', error);
+      throw error;
+    }
+  });
+
+  // Objective Exam operations
+  ipcMain.handle('db-get-objective-exam', async (event, examId: number) => {
+    try {
+      return dbService.getObjectiveExamByExamId(examId);
+    } catch (error) {
+      console.error('Error getting objective exam:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-create-objective-exam', async (event, examData) => {
+    try {
+      return dbService.createObjectiveExam(examData);
+    } catch (error) {
+      console.error('Error creating objective exam:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-update-objective-exam', async (event, examData) => {
+    try {
+      return dbService.updateObjectiveExam(examData);
+    } catch (error) {
+      console.error('Error updating objective exam:', error);
+      throw error;
+    }
+  });
+
+  // Subjective Exam operations
+  ipcMain.handle('db-get-subjective-exam', async (event, examId: number) => {
+    try {
+      return dbService.getSubjectiveExamByExamId(examId);
+    } catch (error) {
+      console.error('Error getting subjective exam:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-create-subjective-exam', async (event, examData) => {
+    try {
+      return dbService.createSubjectiveExam(examData);
+    } catch (error) {
+      console.error('Error creating subjective exam:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-update-subjective-exam', async (event, examData) => {
+    try {
+      return dbService.updateSubjectiveExam(examData);
+    } catch (error) {
+      console.error('Error updating subjective exam:', error);
+      throw error;
+    }
+  });
+
+  // Addition Exam operations
+  ipcMain.handle('db-get-addition-exam', async (event, examId: number) => {
+    try {
+      return dbService.getAdditionExamByExamId(examId);
+    } catch (error) {
+      console.error('Error getting addition exam:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-create-addition-exam', async (event, examData) => {
+    try {
+      return dbService.createAdditionExam(examData);
+    } catch (error) {
+      console.error('Error creating addition exam:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-update-addition-exam', async (event, examData) => {
+    try {
+      return dbService.updateAdditionExam(examData);
+    } catch (error) {
+      console.error('Error updating addition exam:', error);
+      throw error;
+    }
+  });
+
+  // Final Subjective Exam operations
+  ipcMain.handle('db-get-final-subjective-exam', async (event, examId: number) => {
+    try {
+      return dbService.getFinalSubjectiveExamByExamId(examId);
+    } catch (error) {
+      console.error('Error getting final subjective exam:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-create-final-subjective-exam', async (event, examData) => {
+    try {
+      return dbService.createFinalSubjectiveExam(examData);
+    } catch (error) {
+      console.error('Error creating final subjective exam:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-update-final-subjective-exam', async (event, examData) => {
+    try {
+      return dbService.updateFinalSubjectiveExam(examData);
+    } catch (error) {
+      console.error('Error updating final subjective exam:', error);
       throw error;
     }
   });

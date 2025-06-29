@@ -93,42 +93,46 @@ export function SiteHeader({ title, backLink, clientName, client, clientBackLink
                 <>
                   <Separator orientation="vertical" className="mx-2 data-[orientation=vertical]:h-4" />
                   {client ? (
-                    <Popover open={isHovering} onOpenChange={setIsHovering}>
-                      <PopoverTrigger asChild>
-                        <div
+                    <div className="flex items-center gap-1">
+                      <Popover open={isHovering} onOpenChange={setIsHovering}>
+                        <PopoverTrigger asChild>
+                          <div
+                            className="p-1 hover:bg-muted/50 rounded-md cursor-pointer transition-all duration-200"
+                            onMouseEnter={() => setIsHovering(true)}
+                            onMouseLeave={() => setIsHovering(false)}
+                          >
+                            <User className="h-4 w-4 text-muted-foreground hover:text-foreground" />
+                          </div>
+                        </PopoverTrigger>
+                        <PopoverContent 
+                          className="w-64 p-4 shadow-lg border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60"
+                          side="bottom"
+                          align="end"
+                          sideOffset={0}
                           onMouseEnter={() => setIsHovering(true)}
                           onMouseLeave={() => setIsHovering(false)}
                         >
-                          {clientBackLink ? (
-                            <Link 
-                              to={clientBackLink} 
-                              className="text-muted-foreground hover:text-foreground transition-all duration-200 hover:bg-muted/50 px-2 py-1 rounded-md cursor-pointer"
-                            >
-                              {displayName}
-                            </Link>
-                          ) : (
-                            <div className="text-base font-medium transition-all duration-200 hover:bg-muted/50 px-2 py-1 rounded-md cursor-pointer">
+                          <div className="space-y-2">
+                            <div className="font-semibold text-base border-b pb-2 mb-3" dir="rtl">
                               {displayName}
                             </div>
-                          )}
-                        </div>
-                      </PopoverTrigger>
-                      <PopoverContent 
-                        className="w-64 p-4 shadow-lg border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60"
-                        side="bottom"
-                        align="end"
-                        sideOffset={8}
-                        onMouseEnter={() => setIsHovering(true)}
-                        onMouseLeave={() => setIsHovering(false)}
-                      >
-                        <div className="space-y-2">
-                          <div className="font-semibold text-base border-b pb-2 mb-3" dir="rtl">
-                            {displayName}
+                            <ClientTooltip client={client} />
                           </div>
-                          <ClientTooltip client={client} />
+                        </PopoverContent>
+                      </Popover>
+                      {clientBackLink ? (
+                        <Link 
+                          to={clientBackLink} 
+                          className="text-muted-foreground hover:text-foreground transition-all duration-200 hover:bg-muted/50 px-2 py-1 rounded-md"
+                        >
+                          {displayName}
+                        </Link>
+                      ) : (
+                        <div className="text-base font-medium px-2 py-1">
+                          {displayName}
                         </div>
-                      </PopoverContent>
-                    </Popover>
+                      )}
+                    </div>
                   ) : (
                     clientBackLink ? (
                       <Link to={clientBackLink} className="text-muted-foreground hover:text-foreground">

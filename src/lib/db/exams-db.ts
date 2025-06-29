@@ -1,6 +1,7 @@
 /// <reference path="../../types/electron.d.ts" />
-import { OpticalExam, OpticalEyeExam } from "./schema";
+import { OpticalExam, OldRefractionExam, ObjectiveExam, SubjectiveExam, AdditionExam } from "./schema";
 
+// Optical Exam functions
 export async function getExamsByClientId(clientId: number): Promise<OpticalExam[]> {
   try {
     return await window.electronAPI.getExamsByClient(clientId);
@@ -28,29 +29,11 @@ export async function getExamById(examId: number): Promise<OpticalExam | undefin
   }
 }
 
-export async function getEyeExamsByExamId(examId: number): Promise<OpticalEyeExam[]> {
-  try {
-    return await window.electronAPI.getEyeExamsByExam(examId);
-  } catch (error) {
-    console.error('Error getting eye exams:', error);
-    return [];
-  }
-}
-
 export async function createExam(exam: Omit<OpticalExam, 'id'>): Promise<OpticalExam | null> {
   try {
     return await window.electronAPI.createExam(exam);
   } catch (error) {
     console.error('Error creating exam:', error);
-    return null;
-  }
-}
-
-export async function createEyeExam(eyeExam: Omit<OpticalEyeExam, 'id'>): Promise<OpticalEyeExam | null> {
-  try {
-    return await window.electronAPI.createEyeExam(eyeExam);
-  } catch (error) {
-    console.error('Error creating eye exam:', error);
     return null;
   }
 }
@@ -64,11 +47,114 @@ export async function updateExam(exam: OpticalExam): Promise<OpticalExam | undef
   }
 }
 
-export async function updateEyeExam(eyeExam: OpticalEyeExam): Promise<OpticalEyeExam | undefined> {
+// Old Refraction Exam functions
+export async function getOldRefractionExamByExamId(examId: number): Promise<OldRefractionExam | undefined> {
   try {
-    return await window.electronAPI.updateEyeExam(eyeExam);
+    return await window.electronAPI.getOldRefractionExam(examId);
   } catch (error) {
-    console.error('Error updating eye exam:', error);
+    console.error('Error getting old refraction exam:', error);
+    return undefined;
+  }
+}
+
+export async function createOldRefractionExam(exam: Omit<OldRefractionExam, 'id'>): Promise<OldRefractionExam | null> {
+  try {
+    return await window.electronAPI.createOldRefractionExam(exam);
+  } catch (error) {
+    console.error('Error creating old refraction exam:', error);
+    return null;
+  }
+}
+
+export async function updateOldRefractionExam(exam: OldRefractionExam): Promise<OldRefractionExam | undefined> {
+  try {
+    return await window.electronAPI.updateOldRefractionExam(exam);
+  } catch (error) {
+    console.error('Error updating old refraction exam:', error);
+    return undefined;
+  }
+}
+
+// Objective Exam functions
+export async function getObjectiveExamByExamId(examId: number): Promise<ObjectiveExam | undefined> {
+  try {
+    return await window.electronAPI.getObjectiveExam(examId);
+  } catch (error) {
+    console.error('Error getting objective exam:', error);
+    return undefined;
+  }
+}
+
+export async function createObjectiveExam(exam: Omit<ObjectiveExam, 'id'>): Promise<ObjectiveExam | null> {
+  try {
+    return await window.electronAPI.createObjectiveExam(exam);
+  } catch (error) {
+    console.error('Error creating objective exam:', error);
+    return null;
+  }
+}
+
+export async function updateObjectiveExam(exam: ObjectiveExam): Promise<ObjectiveExam | undefined> {
+  try {
+    return await window.electronAPI.updateObjectiveExam(exam);
+  } catch (error) {
+    console.error('Error updating objective exam:', error);
+    return undefined;
+  }
+}
+
+// Subjective Exam functions
+export async function getSubjectiveExamByExamId(examId: number): Promise<SubjectiveExam | undefined> {
+  try {
+    return await window.electronAPI.getSubjectiveExam(examId);
+  } catch (error) {
+    console.error('Error getting subjective exam:', error);
+    return undefined;
+  }
+}
+
+export async function createSubjectiveExam(exam: Omit<SubjectiveExam, 'id'>): Promise<SubjectiveExam | null> {
+  try {
+    return await window.electronAPI.createSubjectiveExam(exam);
+  } catch (error) {
+    console.error('Error creating subjective exam:', error);
+    return null;
+  }
+}
+
+export async function updateSubjectiveExam(exam: SubjectiveExam): Promise<SubjectiveExam | undefined> {
+  try {
+    return await window.electronAPI.updateSubjectiveExam(exam);
+  } catch (error) {
+    console.error('Error updating subjective exam:', error);
+    return undefined;
+  }
+}
+
+// Addition Exam functions
+export async function getAdditionExamByExamId(examId: number): Promise<AdditionExam | undefined> {
+  try {
+    return await window.electronAPI.getAdditionExam(examId);
+  } catch (error) {
+    console.error('Error getting addition exam:', error);
+    return undefined;
+  }
+}
+
+export async function createAdditionExam(exam: Omit<AdditionExam, 'id'>): Promise<AdditionExam | null> {
+  try {
+    return await window.electronAPI.createAdditionExam(exam);
+  } catch (error) {
+    console.error('Error creating addition exam:', error);
+    return null;
+  }
+}
+
+export async function updateAdditionExam(exam: AdditionExam): Promise<AdditionExam | undefined> {
+  try {
+    return await window.electronAPI.updateAdditionExam(exam);
+  } catch (error) {
+    console.error('Error updating addition exam:', error);
     return undefined;
   }
 } 

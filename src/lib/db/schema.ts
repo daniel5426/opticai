@@ -50,48 +50,120 @@ export interface OpticalExam {
   test_name?: string;
   dominant_eye?: string;
   notes?: string;
+}
 
-  comb_subj_va?: number;
-  comb_old_va?: number;
+export interface OldRefractionExam {
+  id?: number;
+  exam_id: number;
+  r_sph?: number;
+  l_sph?: number;
+  r_cyl?: number;
+  l_cyl?: number;
+  r_ax?: number;
+  l_ax?: number;
+  r_pris?: number;
+  l_pris?: number;
+  r_base?: number;
+  l_base?: number;
+  r_va?: number;
+  l_va?: number;
+  r_ad?: number;
+  l_ad?: number;
+  comb_va?: number;
+}
+
+export interface ObjectiveExam {
+  id?: number;
+  exam_id: number;
+  r_sph?: number;
+  l_sph?: number;
+  r_cyl?: number;
+  l_cyl?: number;
+  r_ax?: number;
+  l_ax?: number;
+  r_se?: number;
+  l_se?: number;
+}
+
+export interface SubjectiveExam {
+  id?: number;
+  exam_id: number;
+  r_fa?: number;
+  l_fa?: number;
+  r_fa_tuning?: number;
+  l_fa_tuning?: number;
+  r_sph?: number;
+  l_sph?: number;
+  r_cyl?: number;
+  l_cyl?: number;
+  r_ax?: number;
+  l_ax?: number;
+  r_pris?: number;
+  l_pris?: number;
+  r_base?: number;
+  l_base?: number;
+  r_va?: number;
+  l_va?: number;
+  r_ph?: number;
+  l_ph?: number;
+  r_pd_close?: number;
+  l_pd_close?: number;
+  r_pd_far?: number;
+  l_pd_far?: number;
+  comb_va?: number;
   comb_fa?: number;
   comb_fa_tuning?: number;
   comb_pd_close?: number;
   comb_pd_far?: number;
 }
 
-export interface OpticalEyeExam {
+export interface AdditionExam {
   id?: number;
   exam_id: number;
-  eye: string;
-  old_sph?: number;
-  old_cyl?: number;
-  old_ax?: number;
-  old_pris?: number;
-  old_base?: number;
-  old_va?: number;
-  old_ad?: number;
-  obj_sph?: number;
-  obj_cyl?: number;
-  obj_ax?: number;
-  obj_se?: number;
-  subj_fa?: number;
-  subj_fa_tuning?: number;
-  subj_sph?: number;
-  subj_cyl?: number;
-  subj_ax?: number;
-  subj_pris?: number;
-  subj_base?: number;
-  subj_va?: number;
-  subj_pd_close?: number;
-  subj_pd_far?: number;
-  subj_ph?: number;
-  ad_fcc?: number;
-  ad_read?: number;
-  ad_int?: number;
-  ad_bif?: number;
-  ad_mul?: number;
-  ad_j?: number;
-  iop?: number;
+  r_fcc?: number;
+  l_fcc?: number;
+  r_read?: number;
+  l_read?: number;
+  r_int?: number;
+  l_int?: number;
+  r_bif?: number;
+  l_bif?: number;
+  r_mul?: number;
+  l_mul?: number;
+  r_j?: number;
+  l_j?: number;
+  r_iop?: number;
+  l_iop?: number;
+}
+
+export interface FinalSubjectiveExam {
+  id?: number;
+  exam_id: number;
+  r_sph?: number;
+  l_sph?: number;
+  r_cyl?: number;
+  l_cyl?: number;
+  r_ax?: number;
+  l_ax?: number;
+  r_pr_h?: number;
+  l_pr_h?: number;
+  r_base_h?: string;
+  l_base_h?: string;
+  r_pr_v?: number;
+  l_pr_v?: number;
+  r_base_v?: string;
+  l_base_v?: string;
+  r_va?: number;
+  l_va?: number;
+  r_j?: number;
+  l_j?: number;
+  r_pd_far?: number;
+  l_pd_far?: number;
+  r_pd_close?: number;
+  l_pd_close?: number;
+  comb_pd_far?: number;
+  comb_pd_close?: number;
+  comb_va?: number;
 }
 
 export interface Order {
@@ -577,52 +649,141 @@ export const createTables = (db: Database): void => {
       test_name TEXT,
       dominant_eye CHAR(1) CHECK(dominant_eye IN ('R','L')),
       notes TEXT,
-      comb_subj_va REAL,
-      comb_old_va REAL,
-      comb_fa REAL,
-      comb_fa_tuning REAL,
-      comb_pd_close REAL,
-      comb_pd_far REAL,
       FOREIGN KEY(client_id) REFERENCES clients(id) ON DELETE CASCADE,
       FOREIGN KEY(user_id) REFERENCES users(id)
     );
   `);
 
-  // Create optical_eye_exam table
+  // Create old_refraction_exams table
   db.exec(`
-    CREATE TABLE IF NOT EXISTS optical_eye_exam (
+    CREATE TABLE IF NOT EXISTS old_refraction_exams (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       exam_id INTEGER NOT NULL,
-      eye CHAR(1) CHECK(eye IN ('R','L')),
-      old_sph REAL,
-      old_cyl REAL,
-      old_ax INTEGER,
-      old_pris REAL,
-      old_base REAL,
-      old_va REAL,
-      old_ad REAL,
-      obj_sph REAL,
-      obj_cyl REAL,
-      obj_ax INTEGER,
-      obj_se REAL,
-      subj_fa REAL,
-      subj_fa_tuning REAL,
-      subj_sph REAL,
-      subj_cyl REAL,
-      subj_ax INTEGER,
-      subj_pris REAL,
-      subj_base REAL,
-      subj_va REAL,
-      subj_pd_close REAL,
-      subj_pd_far REAL,
-      subj_ph REAL,
-      ad_fcc REAL,
-      ad_read REAL,
-      ad_int REAL,
-      ad_bif REAL,
-      ad_mul REAL,
-      ad_j REAL,
-      iop REAL,
+      r_sph REAL,
+      l_sph REAL,
+      r_cyl REAL,
+      l_cyl REAL,
+      r_ax INTEGER,
+      l_ax INTEGER,
+      r_pris REAL,
+      l_pris REAL,
+      r_base REAL,
+      l_base REAL,
+      r_va REAL,
+      l_va REAL,
+      r_ad REAL,
+      l_ad REAL,
+      comb_va REAL,
+      FOREIGN KEY(exam_id) REFERENCES optical_exams(id) ON DELETE CASCADE
+    );
+  `);
+
+  // Create objective_exams table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS objective_exams (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      exam_id INTEGER NOT NULL,
+      r_sph REAL,
+      l_sph REAL,
+      r_cyl REAL,
+      l_cyl REAL,
+      r_ax INTEGER,
+      l_ax INTEGER,
+      r_se REAL,
+      l_se REAL,
+      FOREIGN KEY(exam_id) REFERENCES optical_exams(id) ON DELETE CASCADE
+    );
+  `);
+
+  // Create subjective_exams table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS subjective_exams (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      exam_id INTEGER NOT NULL,
+      r_fa REAL,
+      l_fa REAL,
+      r_fa_tuning REAL,
+      l_fa_tuning REAL,
+      r_sph REAL,
+      l_sph REAL,
+      r_cyl REAL,
+      l_cyl REAL,
+      r_ax INTEGER,
+      l_ax INTEGER,
+      r_pris REAL,
+      l_pris REAL,
+      r_base REAL,
+      l_base REAL,
+      r_va REAL,
+      l_va REAL,
+      r_ph REAL,
+      l_ph REAL,
+      r_pd_close REAL,
+      l_pd_close REAL,
+      r_pd_far REAL,
+      l_pd_far REAL,
+      comb_va REAL,
+      comb_fa REAL,
+      comb_fa_tuning REAL,
+      comb_pd_close REAL,
+      comb_pd_far REAL,
+      FOREIGN KEY(exam_id) REFERENCES optical_exams(id) ON DELETE CASCADE
+    );
+  `);
+
+  // Create addition_exams table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS addition_exams (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      exam_id INTEGER NOT NULL,
+      r_fcc REAL,
+      l_fcc REAL,
+      r_read REAL,
+      l_read REAL,
+      r_int REAL,
+      l_int REAL,
+      r_bif REAL,
+      l_bif REAL,
+      r_mul REAL,
+      l_mul REAL,
+      r_j INTEGER,
+      l_j INTEGER,
+      r_iop REAL,
+      l_iop REAL,
+      FOREIGN KEY(exam_id) REFERENCES optical_exams(id) ON DELETE CASCADE
+    );
+  `);
+
+  // Create final_subjective_exams table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS final_subjective_exams (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      exam_id INTEGER NOT NULL,
+      r_sph REAL,
+      l_sph REAL,
+      r_cyl REAL,
+      l_cyl REAL,
+      r_ax INTEGER,
+      l_ax INTEGER,
+      r_pr_h REAL,
+      l_pr_h REAL,
+      r_base_h TEXT,
+      l_base_h TEXT,
+      r_pr_v REAL,
+      l_pr_v REAL,
+      r_base_v TEXT,
+      l_base_v TEXT,
+      r_va REAL,
+      l_va REAL,
+      r_j INTEGER,
+      l_j INTEGER,
+      r_pd_far REAL,
+      l_pd_far REAL,
+      r_pd_close REAL,
+      l_pd_close REAL,
+      comb_pd_far REAL,
+      comb_pd_close REAL,
+      comb_va REAL,
       FOREIGN KEY(exam_id) REFERENCES optical_exams(id) ON DELETE CASCADE
     );
   `);

@@ -457,6 +457,8 @@ export default function OrderDetailPage({
     setOrderLineItems(prev => prev.filter(item => item.id !== id))
   }
 
+
+
   const handleSave = async () => {
     console.log('Starting save process...')
     
@@ -540,6 +542,8 @@ export default function OrderDetailPage({
             }
           }
           
+
+
           if (newRightEyeOrder && newLeftEyeOrder && newOrderLens && newFrame && newOrderDetails) {
             toast.success("הזמנה חדשה נוצרה בהצלחה")
             if (onSave) {
@@ -622,6 +626,8 @@ export default function OrderDetailPage({
           console.log('Line item results:', lineItemResults)
         }
         
+
+
         if (updatedOrder && updatedRightEyeOrder && updatedLeftEyeOrder && updatedOrderLens && updatedFrame && updatedOrderDetails) {
           setIsEditing(false)
           setOrder(updatedOrder)
@@ -814,6 +820,8 @@ export default function OrderDetailPage({
                   <OrderEyeSection eye="L" data={leftEyeFormData} onChange={handleEyeFieldChange} isEditing={isEditing} />
                 </CardContent>
               </Card>
+
+
 
               <Tabs defaultValue="prescription" className="w-full" dir="rtl">
                 <TabsList className="grid w-full grid-cols-3">

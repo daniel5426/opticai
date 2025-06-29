@@ -33,10 +33,30 @@ contextBridge.exposeInMainWorld('electronAPI', {
   updateExam: (examData: any) => ipcRenderer.invoke('db-update-exam', examData),
   deleteExam: (examId: number) => ipcRenderer.invoke('db-delete-exam', examId),
 
-  // Eye Exam operations
-  getEyeExamsByExam: (examId: number) => ipcRenderer.invoke('db-get-eye-exams-by-exam', examId),
-  createEyeExam: (eyeExamData: any) => ipcRenderer.invoke('db-create-eye-exam', eyeExamData),
-  updateEyeExam: (eyeExamData: any) => ipcRenderer.invoke('db-update-eye-exam', eyeExamData),
+  // Old Refraction Exam operations
+  getOldRefractionExam: (examId: number) => ipcRenderer.invoke('db-get-old-refraction-exam', examId),
+  createOldRefractionExam: (examData: any) => ipcRenderer.invoke('db-create-old-refraction-exam', examData),
+  updateOldRefractionExam: (examData: any) => ipcRenderer.invoke('db-update-old-refraction-exam', examData),
+
+  // Objective Exam operations
+  getObjectiveExam: (examId: number) => ipcRenderer.invoke('db-get-objective-exam', examId),
+  createObjectiveExam: (examData: any) => ipcRenderer.invoke('db-create-objective-exam', examData),
+  updateObjectiveExam: (examData: any) => ipcRenderer.invoke('db-update-objective-exam', examData),
+
+  // Subjective Exam operations
+  getSubjectiveExam: (examId: number) => ipcRenderer.invoke('db-get-subjective-exam', examId),
+  createSubjectiveExam: (examData: any) => ipcRenderer.invoke('db-create-subjective-exam', examData),
+  updateSubjectiveExam: (examData: any) => ipcRenderer.invoke('db-update-subjective-exam', examData),
+
+  // Addition Exam operations
+  getAdditionExam: (examId: number) => ipcRenderer.invoke('db-get-addition-exam', examId),
+  createAdditionExam: (examData: any) => ipcRenderer.invoke('db-create-addition-exam', examData),
+  updateAdditionExam: (examData: any) => ipcRenderer.invoke('db-update-addition-exam', examData),
+
+  // Final Subjective Exam operations
+  getFinalSubjectiveExam: (examId: number) => ipcRenderer.invoke('db-get-final-subjective-exam', examId),
+  createFinalSubjectiveExam: (examData: any) => ipcRenderer.invoke('db-create-final-subjective-exam', examData),
+  updateFinalSubjectiveExam: (examData: any) => ipcRenderer.invoke('db-update-final-subjective-exam', examData),
 
   // Order operations
   getOrdersByClient: (clientId: number) => ipcRenderer.invoke('db-get-orders-by-client', clientId),

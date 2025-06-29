@@ -6,7 +6,11 @@ import {
   createTables,
   Client,
   OpticalExam,
-  OpticalEyeExam,
+  OldRefractionExam,
+  ObjectiveExam,
+  SubjectiveExam,
+  AdditionExam,
+  FinalSubjectiveExam,
   Order,
   OrderEye,
   OrderLens,
@@ -203,44 +207,69 @@ class DatabaseService {
               exam_date: "2024-01-15",
               test_name: "בדיקת ראייה מקיפה",
               dominant_eye: "R",
-              notes: "בדיקה ראשונית",
-              comb_subj_va: 1.0,
-              comb_old_va: 0.8,
-              comb_fa: 6,
-              comb_fa_tuning: 0,
-              comb_pd_close: 62,
-              comb_pd_far: 64
+              notes: "בדיקה ראשונית"
             });
 
             if (exam) {
-              this.createEyeExam({
+              // Create old refraction exam data
+              this.createOldRefractionExam({
                 exam_id: exam.id!,
-                eye: "R",
-                old_sph: -1.25,
-                old_cyl: -0.5,
-                old_ax: 180,
-                old_va: 0.6,
-                subj_sph: -1.5,
-                subj_cyl: -0.75,
-                subj_ax: 175,
-                subj_va: 1.0,
-                subj_pd_close: 32,
-                subj_pd_far: 33
+                r_sph: -1.25,
+                l_sph: -1.0,
+                r_cyl: -0.5,
+                l_cyl: -0.25,
+                r_ax: 180,
+                l_ax: 90,
+                r_va: 0.6,
+                l_va: 0.6,
+                comb_va: 0.8
               });
 
-              this.createEyeExam({
+              // Create objective exam data
+              this.createObjectiveExam({
                 exam_id: exam.id!,
-                eye: "L",
-                old_sph: -1.0,
-                old_cyl: -0.25,
-                old_ax: 90,
-                old_va: 0.6,
-                subj_sph: -1.25,
-                subj_cyl: -0.5,
-                subj_ax: 85,
-                subj_va: 1.0,
-                subj_pd_close: 31,
-                subj_pd_far: 32
+                r_sph: -1.5,
+                l_sph: -1.25,
+                r_cyl: -0.75,
+                l_cyl: -0.5,
+                r_ax: 175,
+                l_ax: 85,
+                r_se: -1.875,
+                l_se: -1.5
+              });
+
+              // Create subjective exam data
+              this.createSubjectiveExam({
+                exam_id: exam.id!,
+                r_fa: 6,
+                l_fa: 6,
+                r_sph: -1.5,
+                l_sph: -1.25,
+                r_cyl: -0.75,
+                l_cyl: -0.5,
+                r_ax: 175,
+                l_ax: 85,
+                r_va: 1.0,
+                l_va: 1.0,
+                r_pd_close: 32,
+                l_pd_close: 31,
+                r_pd_far: 33,
+                l_pd_far: 32,
+                comb_va: 1.0,
+                comb_fa: 6,
+                comb_pd_close: 62,
+                comb_pd_far: 64
+              });
+
+              // Create addition exam data
+              this.createAdditionExam({
+                exam_id: exam.id!,
+                r_fcc: 0.75,
+                l_fcc: 0.75,
+                r_read: 1.0,
+                l_read: 1.0,
+                r_j: 1,
+                l_j: 1
               });
             }
           }
@@ -401,15 +430,13 @@ class DatabaseService {
     try {
       const stmt = this.db.prepare(`
         INSERT INTO optical_exams (
-          client_id, clinic, user_id, exam_date, test_name, dominant_eye, notes,
-          comb_subj_va, comb_old_va, comb_fa, comb_fa_tuning, comb_pd_close, comb_pd_far
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          client_id, clinic, user_id, exam_date, test_name, dominant_eye, notes
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
       `);
 
       const result = stmt.run(
         exam.client_id, exam.clinic, this.sanitizeValue(exam.user_id), exam.exam_date, exam.test_name,
-        exam.dominant_eye, exam.notes, exam.comb_subj_va, exam.comb_old_va, exam.comb_fa,
-        exam.comb_fa_tuning, exam.comb_pd_close, exam.comb_pd_far
+        exam.dominant_eye, exam.notes
       );
 
       return { ...exam, id: result.lastInsertRowid as number };
@@ -462,15 +489,13 @@ class DatabaseService {
       const stmt = this.db.prepare(`
         UPDATE optical_exams SET 
         client_id = ?, clinic = ?, user_id = ?, exam_date = ?, test_name = ?, 
-        dominant_eye = ?, notes = ?, comb_subj_va = ?, comb_old_va = ?, comb_fa = ?, 
-        comb_fa_tuning = ?, comb_pd_close = ?, comb_pd_far = ?
+        dominant_eye = ?, notes = ?
         WHERE id = ?
       `);
 
       stmt.run(
         exam.client_id, exam.clinic, this.sanitizeValue(exam.user_id), exam.exam_date, exam.test_name,
-        exam.dominant_eye, exam.notes, exam.comb_subj_va, exam.comb_old_va, exam.comb_fa,
-        exam.comb_fa_tuning, exam.comb_pd_close, exam.comb_pd_far, exam.id
+        exam.dominant_eye, exam.notes, exam.id
       );
 
       return exam;
@@ -493,74 +518,316 @@ class DatabaseService {
     }
   }
 
-  // Eye Exam CRUD operations
-  createEyeExam(eyeExam: Omit<OpticalEyeExam, 'id'>): OpticalEyeExam | null {
+  // Old Refraction Exam CRUD operations
+  createOldRefractionExam(exam: Omit<OldRefractionExam, 'id'>): OldRefractionExam | null {
     if (!this.db) return null;
 
     try {
       const stmt = this.db.prepare(`
-        INSERT INTO optical_eye_exam (
-          exam_id, eye, old_sph, old_cyl, old_ax, old_pris, old_base, old_va, old_ad,
-          obj_sph, obj_cyl, obj_ax, obj_se, subj_fa, subj_fa_tuning, subj_sph, subj_cyl, subj_ax,
-          subj_pris, subj_base, subj_va, subj_pd_close, subj_pd_far, subj_ph,
-          ad_fcc, ad_read, ad_int, ad_bif, ad_mul, ad_j, iop
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO old_refraction_exams (
+          exam_id, r_sph, l_sph, r_cyl, l_cyl, r_ax, l_ax, r_pris, l_pris, r_base, l_base,
+          r_va, l_va, r_ad, l_ad, comb_va
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
 
       const result = stmt.run(
-        eyeExam.exam_id, eyeExam.eye, eyeExam.old_sph, eyeExam.old_cyl, eyeExam.old_ax,
-        eyeExam.old_pris, eyeExam.old_base, eyeExam.old_va, eyeExam.old_ad,
-        eyeExam.obj_sph, eyeExam.obj_cyl, eyeExam.obj_ax, eyeExam.obj_se,
-        eyeExam.subj_fa, eyeExam.subj_fa_tuning, eyeExam.subj_sph, eyeExam.subj_cyl, eyeExam.subj_ax,
-        eyeExam.subj_pris, eyeExam.subj_base, eyeExam.subj_va, eyeExam.subj_pd_close, eyeExam.subj_pd_far, eyeExam.subj_ph,
-        eyeExam.ad_fcc, eyeExam.ad_read, eyeExam.ad_int, eyeExam.ad_bif, eyeExam.ad_mul, eyeExam.ad_j, eyeExam.iop
+        exam.exam_id, exam.r_sph, exam.l_sph, exam.r_cyl, exam.l_cyl, exam.r_ax, exam.l_ax,
+        exam.r_pris, exam.l_pris, exam.r_base, exam.l_base, exam.r_va, exam.l_va,
+        exam.r_ad, exam.l_ad, exam.comb_va
       );
 
-      return { ...eyeExam, id: result.lastInsertRowid as number };
+      return { ...exam, id: result.lastInsertRowid as number };
     } catch (error) {
-      console.error('Error creating eye exam:', error);
+      console.error('Error creating old refraction exam:', error);
       return null;
     }
   }
 
-  getEyeExamsByExamId(examId: number): OpticalEyeExam[] {
-    if (!this.db) return [];
+  getOldRefractionExamByExamId(examId: number): OldRefractionExam | null {
+    if (!this.db) return null;
 
     try {
-      const stmt = this.db.prepare('SELECT * FROM optical_eye_exam WHERE exam_id = ? ORDER BY eye');
-      return stmt.all(examId) as OpticalEyeExam[];
+      const stmt = this.db.prepare('SELECT * FROM old_refraction_exams WHERE exam_id = ?');
+      return stmt.get(examId) as OldRefractionExam | null;
     } catch (error) {
-      console.error('Error getting eye exams:', error);
-      return [];
+      console.error('Error getting old refraction exam:', error);
+      return null;
     }
   }
 
-  updateEyeExam(eyeExam: OpticalEyeExam): OpticalEyeExam | null {
-    if (!this.db || !eyeExam.id) return null;
+  updateOldRefractionExam(exam: OldRefractionExam): OldRefractionExam | null {
+    if (!this.db || !exam.id) return null;
 
     try {
       const stmt = this.db.prepare(`
-        UPDATE optical_eye_exam SET 
-        exam_id = ?, eye = ?, old_sph = ?, old_cyl = ?, old_ax = ?, old_pris = ?, old_base = ?, old_va = ?, old_ad = ?,
-        obj_sph = ?, obj_cyl = ?, obj_ax = ?, obj_se = ?, subj_fa = ?, subj_fa_tuning = ?, subj_sph = ?, subj_cyl = ?, subj_ax = ?,
-        subj_pris = ?, subj_base = ?, subj_va = ?, subj_pd_close = ?, subj_pd_far = ?, subj_ph = ?,
-        ad_fcc = ?, ad_read = ?, ad_int = ?, ad_bif = ?, ad_mul = ?, ad_j = ?, iop = ?
+        UPDATE old_refraction_exams SET 
+        exam_id = ?, r_sph = ?, l_sph = ?, r_cyl = ?, l_cyl = ?, r_ax = ?, l_ax = ?,
+        r_pris = ?, l_pris = ?, r_base = ?, l_base = ?, r_va = ?, l_va = ?, r_ad = ?, l_ad = ?, comb_va = ?
         WHERE id = ?
       `);
 
       stmt.run(
-        eyeExam.exam_id, eyeExam.eye, eyeExam.old_sph, eyeExam.old_cyl, eyeExam.old_ax,
-        eyeExam.old_pris, eyeExam.old_base, eyeExam.old_va, eyeExam.old_ad,
-        eyeExam.obj_sph, eyeExam.obj_cyl, eyeExam.obj_ax, eyeExam.obj_se,
-        eyeExam.subj_fa, eyeExam.subj_fa_tuning, eyeExam.subj_sph, eyeExam.subj_cyl, eyeExam.subj_ax,
-        eyeExam.subj_pris, eyeExam.subj_base, eyeExam.subj_va, eyeExam.subj_pd_close, eyeExam.subj_pd_far, eyeExam.subj_ph,
-        eyeExam.ad_fcc, eyeExam.ad_read, eyeExam.ad_int, eyeExam.ad_bif, eyeExam.ad_mul, eyeExam.ad_j, eyeExam.iop,
-        eyeExam.id
+        exam.exam_id, exam.r_sph, exam.l_sph, exam.r_cyl, exam.l_cyl, exam.r_ax, exam.l_ax,
+        exam.r_pris, exam.l_pris, exam.r_base, exam.l_base, exam.r_va, exam.l_va,
+        exam.r_ad, exam.l_ad, exam.comb_va, exam.id
       );
 
-      return eyeExam;
+      return exam;
     } catch (error) {
-      console.error('Error updating eye exam:', error);
+      console.error('Error updating old refraction exam:', error);
+      return null;
+    }
+  }
+
+  // Objective Exam CRUD operations
+  createObjectiveExam(exam: Omit<ObjectiveExam, 'id'>): ObjectiveExam | null {
+    if (!this.db) return null;
+
+    try {
+      const stmt = this.db.prepare(`
+        INSERT INTO objective_exams (
+          exam_id, r_sph, l_sph, r_cyl, l_cyl, r_ax, l_ax, r_se, l_se
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+
+      const result = stmt.run(
+        exam.exam_id, exam.r_sph, exam.l_sph, exam.r_cyl, exam.l_cyl,
+        exam.r_ax, exam.l_ax, exam.r_se, exam.l_se
+      );
+
+      return { ...exam, id: result.lastInsertRowid as number };
+    } catch (error) {
+      console.error('Error creating objective exam:', error);
+      return null;
+    }
+  }
+
+  getObjectiveExamByExamId(examId: number): ObjectiveExam | null {
+    if (!this.db) return null;
+
+    try {
+      const stmt = this.db.prepare('SELECT * FROM objective_exams WHERE exam_id = ?');
+      return stmt.get(examId) as ObjectiveExam | null;
+    } catch (error) {
+      console.error('Error getting objective exam:', error);
+      return null;
+    }
+  }
+
+  updateObjectiveExam(exam: ObjectiveExam): ObjectiveExam | null {
+    if (!this.db || !exam.id) return null;
+
+    try {
+      const stmt = this.db.prepare(`
+        UPDATE objective_exams SET 
+        exam_id = ?, r_sph = ?, l_sph = ?, r_cyl = ?, l_cyl = ?, r_ax = ?, l_ax = ?, r_se = ?, l_se = ?
+        WHERE id = ?
+      `);
+
+      stmt.run(
+        exam.exam_id, exam.r_sph, exam.l_sph, exam.r_cyl, exam.l_cyl,
+        exam.r_ax, exam.l_ax, exam.r_se, exam.l_se, exam.id
+      );
+
+      return exam;
+    } catch (error) {
+      console.error('Error updating objective exam:', error);
+      return null;
+    }
+  }
+
+  // Subjective Exam CRUD operations
+  createSubjectiveExam(exam: Omit<SubjectiveExam, 'id'>): SubjectiveExam | null {
+    if (!this.db) return null;
+
+    try {
+      const stmt = this.db.prepare(`
+        INSERT INTO subjective_exams (
+          exam_id, r_fa, l_fa, r_fa_tuning, l_fa_tuning, r_sph, l_sph, r_cyl, l_cyl, r_ax, l_ax,
+          r_pris, l_pris, r_base, l_base, r_va, l_va, r_ph, l_ph, r_pd_close, l_pd_close,
+          r_pd_far, l_pd_far, comb_va, comb_fa, comb_fa_tuning, comb_pd_close, comb_pd_far
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+
+      const result = stmt.run(
+        exam.exam_id, exam.r_fa, exam.l_fa, exam.r_fa_tuning, exam.l_fa_tuning,
+        exam.r_sph, exam.l_sph, exam.r_cyl, exam.l_cyl, exam.r_ax, exam.l_ax,
+        exam.r_pris, exam.l_pris, exam.r_base, exam.l_base, exam.r_va, exam.l_va,
+        exam.r_ph, exam.l_ph, exam.r_pd_close, exam.l_pd_close, exam.r_pd_far, exam.l_pd_far,
+        exam.comb_va, exam.comb_fa, exam.comb_fa_tuning, exam.comb_pd_close, exam.comb_pd_far
+      );
+
+      return { ...exam, id: result.lastInsertRowid as number };
+    } catch (error) {
+      console.error('Error creating subjective exam:', error);
+      return null;
+    }
+  }
+
+  getSubjectiveExamByExamId(examId: number): SubjectiveExam | null {
+    if (!this.db) return null;
+
+    try {
+      const stmt = this.db.prepare('SELECT * FROM subjective_exams WHERE exam_id = ?');
+      return stmt.get(examId) as SubjectiveExam | null;
+    } catch (error) {
+      console.error('Error getting subjective exam:', error);
+      return null;
+    }
+  }
+
+  updateSubjectiveExam(exam: SubjectiveExam): SubjectiveExam | null {
+    if (!this.db || !exam.id) return null;
+
+    try {
+      const stmt = this.db.prepare(`
+        UPDATE subjective_exams SET 
+        exam_id = ?, r_fa = ?, l_fa = ?, r_fa_tuning = ?, l_fa_tuning = ?, r_sph = ?, l_sph = ?, r_cyl = ?, l_cyl = ?,
+        r_ax = ?, l_ax = ?, r_pris = ?, l_pris = ?, r_base = ?, l_base = ?, r_va = ?, l_va = ?, r_ph = ?, l_ph = ?,
+        r_pd_close = ?, l_pd_close = ?, r_pd_far = ?, l_pd_far = ?, comb_va = ?, comb_fa = ?, comb_fa_tuning = ?,
+        comb_pd_close = ?, comb_pd_far = ?
+        WHERE id = ?
+      `);
+
+      stmt.run(
+        exam.exam_id, exam.r_fa, exam.l_fa, exam.r_fa_tuning, exam.l_fa_tuning,
+        exam.r_sph, exam.l_sph, exam.r_cyl, exam.l_cyl, exam.r_ax, exam.l_ax,
+        exam.r_pris, exam.l_pris, exam.r_base, exam.l_base, exam.r_va, exam.l_va,
+        exam.r_ph, exam.l_ph, exam.r_pd_close, exam.l_pd_close, exam.r_pd_far, exam.l_pd_far,
+        exam.comb_va, exam.comb_fa, exam.comb_fa_tuning, exam.comb_pd_close, exam.comb_pd_far, exam.id
+      );
+
+      return exam;
+    } catch (error) {
+      console.error('Error updating subjective exam:', error);
+      return null;
+    }
+  }
+
+  // Addition Exam CRUD operations
+  createAdditionExam(exam: Omit<AdditionExam, 'id'>): AdditionExam | null {
+    if (!this.db) return null;
+
+    try {
+      const stmt = this.db.prepare(`
+        INSERT INTO addition_exams (
+          exam_id, r_fcc, l_fcc, r_read, l_read, r_int, l_int, r_bif, l_bif,
+          r_mul, l_mul, r_j, l_j, r_iop, l_iop
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+
+      const result = stmt.run(
+        exam.exam_id, exam.r_fcc, exam.l_fcc, exam.r_read, exam.l_read,
+        exam.r_int, exam.l_int, exam.r_bif, exam.l_bif, exam.r_mul, exam.l_mul,
+        exam.r_j, exam.l_j, exam.r_iop, exam.l_iop
+      );
+
+      return { ...exam, id: result.lastInsertRowid as number };
+    } catch (error) {
+      console.error('Error creating addition exam:', error);
+      return null;
+    }
+  }
+
+  getAdditionExamByExamId(examId: number): AdditionExam | null {
+    if (!this.db) return null;
+
+    try {
+      const stmt = this.db.prepare('SELECT * FROM addition_exams WHERE exam_id = ?');
+      return stmt.get(examId) as AdditionExam | null;
+    } catch (error) {
+      console.error('Error getting addition exam:', error);
+      return null;
+    }
+  }
+
+  updateAdditionExam(exam: AdditionExam): AdditionExam | null {
+    if (!this.db || !exam.id) return null;
+
+    try {
+      const stmt = this.db.prepare(`
+        UPDATE addition_exams SET 
+        exam_id = ?, r_fcc = ?, l_fcc = ?, r_read = ?, l_read = ?, r_int = ?, l_int = ?, r_bif = ?, l_bif = ?,
+        r_mul = ?, l_mul = ?, r_j = ?, l_j = ?, r_iop = ?, l_iop = ?
+        WHERE id = ?
+      `);
+
+      stmt.run(
+        exam.exam_id, exam.r_fcc, exam.l_fcc, exam.r_read, exam.l_read,
+        exam.r_int, exam.l_int, exam.r_bif, exam.l_bif, exam.r_mul, exam.l_mul,
+        exam.r_j, exam.l_j, exam.r_iop, exam.l_iop, exam.id
+      );
+
+      return exam;
+    } catch (error) {
+      console.error('Error updating addition exam:', error);
+      return null;
+    }
+  }
+
+  createFinalSubjectiveExam(exam: Omit<FinalSubjectiveExam, 'id'>): FinalSubjectiveExam | null {
+    if (!this.db) return null;
+
+    try {
+      const stmt = this.db.prepare(`
+        INSERT INTO final_subjective_exams (
+          exam_id, r_sph, l_sph, r_cyl, l_cyl, r_ax, l_ax, r_pr_h, l_pr_h, r_base_h, l_base_h,
+          r_pr_v, l_pr_v, r_base_v, l_base_v, r_va, l_va, r_j, l_j, r_pd_far, l_pd_far,
+          r_pd_close, l_pd_close, comb_pd_far, comb_pd_close, comb_va
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+
+      const result = stmt.run(
+        exam.exam_id, exam.r_sph, exam.l_sph, exam.r_cyl, exam.l_cyl, exam.r_ax, exam.l_ax,
+        exam.r_pr_h, exam.l_pr_h, exam.r_base_h, exam.l_base_h, exam.r_pr_v, exam.l_pr_v,
+        exam.r_base_v, exam.l_base_v, exam.r_va, exam.l_va, exam.r_j, exam.l_j,
+        exam.r_pd_far, exam.l_pd_far, exam.r_pd_close, exam.l_pd_close,
+        exam.comb_pd_far, exam.comb_pd_close, exam.comb_va
+      );
+
+      return { ...exam, id: result.lastInsertRowid as number };
+    } catch (error) {
+      console.error('Error creating final subjective exam:', error);
+      return null;
+    }
+  }
+
+  getFinalSubjectiveExamByExamId(examId: number): FinalSubjectiveExam | null {
+    if (!this.db) return null;
+
+    try {
+      const stmt = this.db.prepare('SELECT * FROM final_subjective_exams WHERE exam_id = ?');
+      return stmt.get(examId) as FinalSubjectiveExam | null;
+    } catch (error) {
+      console.error('Error getting final subjective exam:', error);
+      return null;
+    }
+  }
+
+  updateFinalSubjectiveExam(exam: FinalSubjectiveExam): FinalSubjectiveExam | null {
+    if (!this.db || !exam.id) return null;
+
+    try {
+      const stmt = this.db.prepare(`
+        UPDATE final_subjective_exams SET 
+        exam_id = ?, r_sph = ?, l_sph = ?, r_cyl = ?, l_cyl = ?, r_ax = ?, l_ax = ?, r_pr_h = ?, l_pr_h = ?,
+        r_base_h = ?, l_base_h = ?, r_pr_v = ?, l_pr_v = ?, r_base_v = ?, l_base_v = ?, r_va = ?, l_va = ?,
+        r_j = ?, l_j = ?, r_pd_far = ?, l_pd_far = ?, r_pd_close = ?, l_pd_close = ?, comb_pd_far = ?,
+        comb_pd_close = ?, comb_va = ?
+        WHERE id = ?
+      `);
+
+      stmt.run(
+        exam.exam_id, exam.r_sph, exam.l_sph, exam.r_cyl, exam.l_cyl, exam.r_ax, exam.l_ax,
+        exam.r_pr_h, exam.l_pr_h, exam.r_base_h, exam.l_base_h, exam.r_pr_v, exam.l_pr_v,
+        exam.r_base_v, exam.l_base_v, exam.r_va, exam.l_va, exam.r_j, exam.l_j,
+        exam.r_pd_far, exam.l_pd_far, exam.r_pd_close, exam.l_pd_close,
+        exam.comb_pd_far, exam.comb_pd_close, exam.comb_va, exam.id
+      );
+
+      return exam;
+    } catch (error) {
+      console.error('Error updating final subjective exam:', error);
       return null;
     }
   }

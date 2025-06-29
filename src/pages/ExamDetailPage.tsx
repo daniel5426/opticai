@@ -2,28 +2,22 @@ import React, { useState, useRef, useEffect } from "react"
 import { useParams, useNavigate, Link } from "@tanstack/react-router"
 import { SiteHeader } from "@/components/site-header"
 import { getClientById } from "@/lib/db/clients-db"
-import { getExamById, getEyeExamsByExamId, updateExam, updateEyeExam, createExam, createEyeExam } from "@/lib/db/exams-db"
-import { OpticalExam, OpticalEyeExam, Client, User } from "@/lib/db/schema"
+import { getExamById, getOldRefractionExamByExamId, getObjectiveExamByExamId, getSubjectiveExamByExamId, getAdditionExamByExamId, updateExam, updateOldRefractionExam, updateObjectiveExam, updateSubjectiveExam, updateAdditionExam, createExam, createOldRefractionExam, createObjectiveExam, createSubjectiveExam, createAdditionExam } from "@/lib/db/exams-db"
+import { OpticalExam, OldRefractionExam, ObjectiveExam, SubjectiveExam, AdditionExam, Client, User, FinalSubjectiveExam } from "@/lib/db/schema"
+import { getFinalSubjectiveExamByExamId, createFinalSubjectiveExam, updateFinalSubjectiveExam } from "@/lib/db/final-subjective-db"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { toast } from "sonner"
 import { UserSelect } from "@/components/ui/user-select"
 import { useUser } from "@/contexts/UserContext"
 import { getAllUsers } from "@/lib/db/users-db"
-
-// Custom label component with underline - This component is not used in the current file.
-// function LabelWithUnderline({ children }: { children: React.ReactNode }) {
-//   return (
-//     <Label className="border-none pb-1 mb-1 inline-block border-black">
-//       {children}
-//     </Label>
-//   )
-// }
+import { OldRefractionObjectiveTab } from "@/components/exam/OldRefractionObjectiveTab"
+import { SubjectiveTab } from "@/components/exam/SubjectiveTab"
+import { AdditionTab } from "@/components/exam/AdditionTab"
+import { FinalSubjectiveTab } from "@/components/exam/FinalSubjectiveTab"
 
 interface DateInputProps {
   name: string;
@@ -76,508 +70,17 @@ function DateInput({ name, value, onChange, className, disabled }: DateInputProp
   );
 }
 
-// Section Components for Optical Eye Exam
 
-interface EyeSectionProps {
-  eye: "R" | "L";
-  data: OpticalEyeExam;
-  onChange: (eye: "R" | "L", field: keyof OpticalEyeExam, value: string) => void;
-  isEditing: boolean;
-}
 
-function PreviousObjectiveSection({ eye, data, onChange, isEditing }: EyeSectionProps) {
-  const eyeLabel = eye === "R" ? "R" : "L";
 
-  return (
-    <div className="flex items-center gap-1 h-6 mb-3" dir="rtl">
-      <div className="grid grid-cols-24 gap-4 flex-1 pb-2" dir="ltr">
-        <div className="col-span-2">
-          {eye === "R" && <Label htmlFor={`${eye}-old-sph`} className="text-[12px] block text-center">SPH</Label>}
-          <Input id={`${eye}-old-sph`} type="number" step="0.25" value={data.old_sph?.toString() || ""} onChange={(e) => onChange(eye, "old_sph", e.target.value)} disabled={!isEditing} className="h-8 text-xs px-1" placeholder="0.00" />
-        </div>
-        <div className="col-span-2">
-          {eye === "R" && <Label htmlFor={`${eye}-old-cyl`} className="text-[12px] block text-center">CYL</Label>}
-          <Input id={`${eye}-old-cyl`} type="number" step="0.25" value={data.old_cyl?.toString() || ""} onChange={(e) => onChange(eye, "old_cyl", e.target.value)} disabled={!isEditing} className="h-8 text-xs px-1" placeholder="0.00" />
-        </div>
-        <div className="col-span-2">
-          {eye === "R" && <Label htmlFor={`${eye}-old-ax`} className="text-[12px] block text-center">AXIS</Label>}
-          <Input id={`${eye}-old-ax`} type="number" min="0" max="180" value={data.old_ax?.toString() || ""} onChange={(e) => onChange(eye, "old_ax", e.target.value)} disabled={!isEditing} className="h-8 text-xs px-1" placeholder="0" />
-        </div>
-        <div className="col-span-2">
-          {eye === "R" && <Label htmlFor={`${eye}-old-pris`} className="text-[12px] block text-center">PRIS</Label>}
-          <Input id={`${eye}-old-pris`} type="number" step="0.5" value={data.old_pris?.toString() || ""} onChange={(e) => onChange(eye, "old_pris", e.target.value)} disabled={!isEditing} className="h-8 text-xs px-1" placeholder="0.0" />
-        </div>
-        <div className="col-span-2">
-          {eye === "R" && <Label htmlFor={`${eye}-old-base`} className="text-[12px] block text-center">BASE</Label>}
-          <Input id={`${eye}-old-base`} type="number" step="0.1" value={data.old_base?.toString() || ""} onChange={(e) => onChange(eye, "old_base", e.target.value)} disabled={!isEditing} className="h-8 text-xs px-1" placeholder="0.0" />
-        </div>
-        <div className="col-span-3">
-          {eye === "R" && <Label htmlFor={`${eye}-old-va`} className="text-[12px] block text-center">VA</Label>}
-          <div className="relative" dir="ltr">
-            <Input id={`${eye}-old-va`} type="number" step="0.1" value={data.old_va?.toString() || ""} onChange={(e) => onChange(eye, "old_va", e.target.value)} disabled={!isEditing} className="h-8 text-xs px-1 pl-6" placeholder="0.0" />
-            <span className="absolute left-2 top-[53%] transform -translate-y-1/2 text-[14px] text-gray-500 pointer-events-none">6/</span>
-          </div>
-        </div>
-        <div className="col-span-2">
-          {eye === "R" && <Label htmlFor={`${eye}-old-ad`} className="text-[12px] block text-center">ADD</Label>}
-          <Input id={`${eye}-old-ad`} type="number" step="0.25" value={data.old_ad?.toString() || ""} onChange={(e) => onChange(eye, "old_ad", e.target.value)} disabled={!isEditing} className="h-8 text-xs px-1" placeholder="0.00" />
-        </div>
 
-        <div className="col-span-1 flex items-end justify-center"><div className="w-px h-full bg-gray-300"></div></div>
 
-        <div className="col-span-2">
-          {eye === "R" && <Label htmlFor={`${eye}-obj-sph`} className="text-[12px] block text-center">SPH</Label>}
-          <Input id={`${eye}-obj-sph`} type="number" step="0.25" value={data.obj_sph?.toString() || ""} onChange={(e) => onChange(eye, "obj_sph", e.target.value)} disabled={!isEditing} className="h-8 text-xs px-1" placeholder="0.00" />
-        </div>
-        <div className="col-span-2">
-          {eye === "R" && <Label htmlFor={`${eye}-obj-cyl`} className="text-[12px] block text-center">CYL</Label>}
-          <Input id={`${eye}-obj-cyl`} type="number" step="0.25" value={data.obj_cyl?.toString() || ""} onChange={(e) => onChange(eye, "obj_cyl", e.target.value)} disabled={!isEditing} className="h-8 text-xs px-1" placeholder="0.00" />
-        </div>
-        <div className="col-span-2">
-          {eye === "R" && <Label htmlFor={`${eye}-obj-ax`} className="text-[12px] block text-center">AXIS</Label>}
-          <Input id={`${eye}-obj-ax`} type="number" min="0" max="180" value={data.obj_ax?.toString() || ""} onChange={(e) => onChange(eye, "obj_ax", e.target.value)} disabled={!isEditing} className="h-8 text-xs px-1" placeholder="0" />
-        </div>
-        <div className="col-span-2">
-          {eye === "R" && <Label htmlFor={`${eye}-obj-se`} className="text-[12px] block text-center">SE</Label>}
-          <Input id={`${eye}-obj-se`} type="number" step="0.25" value={data.obj_se?.toString() || ""} onChange={(e) => onChange(eye, "obj_se", e.target.value)} disabled={!isEditing} className="h-8 text-xs px-1" placeholder="0.00" />
-        </div>
-      </div>
-      <span className={`text-md font-medium pr-2 flex items-center justify-center w-6 ${eyeLabel === "L" ? "pb-2" : "pt-2"}`}>{eyeLabel}</span>
-    </div>
-  );
-}
-
-function CombinedVaFields({ exam, onChange, isEditing, onMultifocalClick, onVHConfirm }: { 
-  exam: OpticalExam, 
-  onChange: (field: keyof OpticalExam, value: string) => void, 
-  isEditing: boolean,
-  onMultifocalClick: () => void,
-  onVHConfirm: (rightPris: number, rightBase: number, leftPris: number, leftBase: number) => void
-}) {
-  return (
-    <div className="flex items-center gap-1 h-10 mb-3" dir="rtl">
-      <div className="grid grid-cols-24 gap-4 flex-1" dir="ltr">
-        <div className="col-span-2"></div>
-        <div className="col-span-2 flex justify-center items-center">
-          <Button 
-            type="button"
-            variant="outline" 
-            size="sm" 
-            className="h-8 text-xs px-2" 
-            disabled={!isEditing}
-            onClick={onMultifocalClick}
-          >
-            MUL
-          </Button>
-        </div>
-        <div className="col-span-2"></div>
-        <div className="col-span-2 flex justify-center items-center">
-          <VHCalculatorModal onConfirm={onVHConfirm} disabled={!isEditing} />
-        </div>
-        <div className="col-span-2"></div>
-        <div className="col-span-3">
-          <div className="relative" dir="ltr">
-            <Input id={`comb-old-va`} type="number" step="0.1" value={exam.comb_old_va?.toString() || ""} onChange={(e) => onChange("comb_old_va", e.target.value)} disabled={!isEditing} className="h-8 text-xs px-1 pl-6" placeholder="0.0" />
-            <span className="absolute left-2 top-[53%] transform -translate-y-1/2 text-[14px] text-gray-500 pointer-events-none">6/</span>
-          </div>
-        </div>
-        <div className="col-span-2"></div>
-        <div className="col-span-1"></div>
-        <div className="col-span-6"></div>
-      </div>
-      <span className="text-md font-medium pr-2 flex items-center justify-center w-6">C</span>
-    </div>
-  );
-}
-
-function SubjectiveSection({ eye, data, onChange, isEditing }: EyeSectionProps) {
-  const eyeLabel = eye === "R" ? "R" : "L";
-
-  return (
-    <div className="flex items-center gap-1 h-6 mb-3" dir="rtl">
-      <div className="grid grid-cols-20 gap-4 flex-1 pb-2" dir="ltr">
-        <div className="col-span-2">
-          {eye === "R" && <Label htmlFor={`${eye}-subj-fa`} className="text-[12px] block text-center">FA</Label>}
-          <Input id={`${eye}-subj-fa`} type="number" step="0.1" value={data.subj_fa?.toString() || ""} onChange={(e) => onChange(eye, "subj_fa", e.target.value)} disabled={!isEditing} className="h-8 text-xs px-1" placeholder="FA" />
-        </div>
-        <div className="col-span-2">
-          {eye === "R" && <Label htmlFor={`${eye}-subj-fa-tuning`} className="text-[12px] block text-center">FA TUN</Label>}
-          <Input id={`${eye}-subj-fa-tuning`} type="number" step="0.1" value={data.subj_fa_tuning?.toString() || ""} onChange={(e) => onChange(eye, "subj_fa_tuning", e.target.value)} disabled={!isEditing} className="h-8 text-xs px-1" placeholder="FA TUN" />
-        </div>
-        <div className="col-span-2">
-          {eye === "R" && <Label htmlFor={`${eye}-subj-sph`} className="text-[12px] block text-center">SPH</Label>}
-          <Input id={`${eye}-subj-sph`} type="number" step="0.25" value={data.subj_sph?.toString() || ""} onChange={(e) => onChange(eye, "subj_sph", e.target.value)} disabled={!isEditing} className="h-8 text-xs px-1" placeholder="0.00" />
-        </div>
-        <div className="col-span-2">
-          {eye === "R" && <Label htmlFor={`${eye}-subj-cyl`} className="text-[12px] block text-center">CYL</Label>}
-          <Input id={`${eye}-subj-cyl`} type="number" step="0.25" value={data.subj_cyl?.toString() || ""} onChange={(e) => onChange(eye, "subj_cyl", e.target.value)} disabled={!isEditing} className="h-8 text-xs px-1" placeholder="0.00" />
-        </div>
-        <div className="col-span-2">
-          {eye === "R" && <Label htmlFor={`${eye}-subj-ax`} className="text-[12px] block text-center">AXIS</Label>}
-          <Input id={`${eye}-subj-ax`} type="number" min="0" max="180" value={data.subj_ax?.toString() || ""} onChange={(e) => onChange(eye, "subj_ax", e.target.value)} disabled={!isEditing} className="h-8 text-xs px-1" placeholder="0" />
-        </div>
-        <div className="col-span-2">
-          {eye === "R" && <Label htmlFor={`${eye}-subj-pris`} className="text-[12px] block text-center">PRIS</Label>}
-          <Input id={`${eye}-subj-pris`} type="number" step="0.5" value={data.subj_pris?.toString() || ""} onChange={(e) => onChange(eye, "subj_pris", e.target.value)} disabled={!isEditing} className="h-8 text-xs px-1" placeholder="0.0" />
-        </div>
-        <div className="col-span-2">
-          {eye === "R" && <Label htmlFor={`${eye}-subj-base`} className="text-[12px] block text-center">BASE</Label>}
-          <Input id={`${eye}-subj-base`} type="number" step="0.1" value={data.subj_base?.toString() || ""} onChange={(e) => onChange(eye, "subj_base", e.target.value)} disabled={!isEditing} className="h-8 text-xs px-1" placeholder="0.0" />
-        </div>
-        <div className="col-span-2">
-        {eye === "R" && <Label htmlFor={`${eye}-old-va`} className="text-[12px] block text-center">VA</Label>}
-          <div className="relative" dir="ltr">
-            <Input id={`${eye}-old-va`} type="number" step="0.1" value={data.old_va?.toString() || ""} onChange={(e) => onChange(eye, "old_va", e.target.value)} disabled={!isEditing} className="h-8 text-xs px-1 pl-6" placeholder="0.0" />
-            <span className="absolute left-2 top-[53%] transform -translate-y-1/2 text-[14px] text-gray-500 pointer-events-none">6/</span>
-          </div>
-        </div>
-        <div className="col-span-2">
-          {eye === "R" && <Label htmlFor={`${eye}-subj-pd-close`} className="text-[12px] block text-center">PD CLOSE</Label>}
-          <Input id={`${eye}-subj-pd-close`} type="number" step="0.5" value={data.subj_pd_close?.toString() || ""} onChange={(e) => onChange(eye, "subj_pd_close", e.target.value)} disabled={!isEditing} className="h-8 text-xs px-1" placeholder="PD" />
-        </div>
-        <div className="col-span-2">
-          {eye === "R" && <Label htmlFor={`${eye}-subj-pd-far`} className="text-[12px] block text-center">PD FAR</Label>}
-          <Input id={`${eye}-subj-pd-far`} type="number" step="0.5" value={data.subj_pd_far?.toString() || ""} onChange={(e) => onChange(eye, "subj_pd_far", e.target.value)} disabled={!isEditing} className="h-8 text-xs px-1" placeholder="PD" />
-        </div>
-      </div>
-      <span className={`text-md font-medium pr-2 flex items-center justify-center w-6 ${eyeLabel === "L" ? "pb-2" : "pt-2"}`}>{eyeLabel}</span>
-    </div>
-  );
-}
-
-function CombinedSubjFields({ exam, onChange, isEditing, onVHConfirm, onMultifocalClick }: { 
-  exam: OpticalExam, 
-  onChange: (field: keyof OpticalExam, value: string) => void, 
-  isEditing: boolean,
-  onVHConfirm: (rightPris: number, rightBase: number, leftPris: number, leftBase: number) => void,
-  onMultifocalClick: () => void
-}) {
-  return (
-    <div className="flex items-center gap-1 h-10 mb-3" dir="rtl">
-      <div className="grid grid-cols-20 gap-4 flex-1" dir="ltr">
-        <div className="col-span-2">
-          <Input type="number" step="0.1" value={exam.comb_fa?.toString() || ""} onChange={(e) => onChange("comb_fa", e.target.value)} disabled={!isEditing} className="h-8 text-xs px-1" placeholder="FA" />
-        </div>
-        <div className="col-span-2">
-          <Input type="number" step="0.1" value={exam.comb_fa_tuning?.toString() || ""} onChange={(e) => onChange("comb_fa_tuning", e.target.value)} disabled={!isEditing} className="h-8 text-xs px-1" placeholder="FA TUN" />
-        </div>
-        <div className="col-span-2"></div>
-        <div className="col-span-2 flex justify-center items-center">
-          <Button 
-            type="button"
-            variant="outline" 
-            size="sm" 
-            className="h-8 text-xs px-2" 
-            disabled={!isEditing}
-            onClick={onMultifocalClick}
-          >
-            MUL
-          </Button>
-        </div>
-        <div className="col-span-2"></div>
-        <div className="col-span-2 flex justify-center items-center">
-          <VHCalculatorModal onConfirm={onVHConfirm} disabled={!isEditing} />
-        </div>
-
-        <div className="col-span-2"></div>
-        <div className="col-span-2">
-        <div className="relative" dir="ltr">
-            <Input id={`comb-subj-va`} type="number" step="0.1" value={exam.comb_subj_va?.toString() || ""} onChange={(e) => onChange("comb_subj_va", e.target.value)} disabled={!isEditing} className="h-8 text-xs px-1 pl-6" placeholder="0.0" />
-            <span className="absolute left-2 top-[53%] transform -translate-y-1/2 text-[14px] text-gray-500 pointer-events-none">6/</span>
-          </div>
-        </div>
-        <div className="col-span-2">
-          <Input type="number" step="0.5" value={exam.comb_pd_close?.toString() || ""} onChange={(e) => onChange("comb_pd_close", e.target.value)} disabled={!isEditing} className="h-8 text-xs px-1" placeholder="PD Close" />
-        </div>
-        <div className="col-span-2">
-          <Input type="number" step="0.5" value={exam.comb_pd_far?.toString() || ""} onChange={(e) => onChange("comb_pd_far", e.target.value)} disabled={!isEditing} className="h-8 text-xs px-1" placeholder="PD Far" />
-        </div>
-      </div>
-      <span className="text-md font-medium pr-2 flex items-center justify-center w-6">C</span>  
-    </div>
-  );
-}
-
-function AdditionSection({ eye, data, onChange, isEditing }: EyeSectionProps) {
-  const eyeLabel = eye === "R" ? "R" : "L";
-
-  return (
-    <div className="flex items-center gap-1 h-10 mb-3" dir="rtl">
-      <div className="grid grid-cols-7 gap-9 flex-1" dir="ltr">
-        <div>
-          {eye === "R" && <Label htmlFor={`${eye}-ad-fcc`} className="text-[12px] block text-center">FCC</Label>}
-          <Input id={`${eye}-ad-fcc`} type="number" step="0.25" value={data.ad_fcc?.toString() || ""} onChange={(e) => onChange(eye, "ad_fcc", e.target.value)} disabled={!isEditing} className="h-8 text-xs px-1" placeholder="FCC" />
-        </div>
-        <div>
-          {eye === "R" && <Label htmlFor={`${eye}-ad-read`} className="text-[12px] block text-center">READ</Label>}
-          <Input id={`${eye}-ad-read`} type="number" step="0.25" value={data.ad_read?.toString() || ""} onChange={(e) => onChange(eye, "ad_read", e.target.value)} disabled={!isEditing} className="h-8 text-xs px-1" placeholder="READ" />
-        </div>
-        <div>
-          {eye === "R" && <Label htmlFor={`${eye}-ad-int`} className="text-[12px] block text-center">INT</Label>}
-          <Input id={`${eye}-ad-int`} type="number" step="0.25" value={data.ad_int?.toString() || ""} onChange={(e) => onChange(eye, "ad_int", e.target.value)} disabled={!isEditing} className="h-8 text-xs px-1" placeholder="INT" />
-        </div>
-        <div>
-          {eye === "R" && <Label htmlFor={`${eye}-ad-bif`} className="text-[12px] block text-center">BIF</Label>}
-          <Input id={`${eye}-ad-bif`} type="number" step="0.25" value={data.ad_bif?.toString() || ""} onChange={(e) => onChange(eye, "ad_bif", e.target.value)} disabled={!isEditing} className="h-8 text-xs px-1" placeholder="BIF" />
-        </div>
-        <div>
-          {eye === "R" && <Label htmlFor={`${eye}-ad-mul`} className="text-[12px] block text-center">MUL</Label>}
-          <Input id={`${eye}-ad-mul`} type="number" step="0.25" value={data.ad_mul?.toString() || ""} onChange={(e) => onChange(eye, "ad_mul", e.target.value)} disabled={!isEditing} className="h-8 text-xs px-1" placeholder="0.00" />
-        </div>
-        <div>
-          {eye === "R" && <Label htmlFor={`${eye}-ad-j`} className="text-[12px] block text-center">J</Label>}
-          <Input id={`${eye}-ad-j`} type="number" value={data.ad_j?.toString() || ""} onChange={(e) => onChange(eye, "ad_j", e.target.value)} disabled={!isEditing} className="h-8 text-xs px-1" placeholder="0" />
-        </div>
-        <div>
-          {eye === "R" && <Label htmlFor={`${eye}-iop`} className="text-[12px] block text-center">IOP</Label>}
-          <Input id={`${eye}-iop`} type="number" step="0.1" value={data.iop?.toString() || ""} onChange={(e) => onChange(eye, "iop", e.target.value)} disabled={!isEditing} className="h-8 text-xs px-1" placeholder="IOP" />
-        </div>
-      </div>
-      <span className={`text-md font-medium pr-2 flex items-center justify-center w-6 ${eyeLabel === "L" ? "pb-1" : "pt-4"}`}>{eyeLabel}</span>
-    </div>
-  );
-}
-
-interface VHCalculatorProps {
-  onConfirm: (rightPris: number, rightBase: number, leftPris: number, leftBase: number) => void;
-  disabled?: boolean;
-}
-
-function VHCalculatorModal({ onConfirm, disabled = false }: VHCalculatorProps) {
-  const [isOpen, setIsOpen] = useState(false);
-  const [rightPrisH, setRightPrisH] = useState<number>(0);
-  const [rightBaseH, setRightBaseH] = useState<string>("");
-  const [rightPrisV, setRightPrisV] = useState<number>(0);
-  const [rightBaseV, setRightBaseV] = useState<string>("");
-  const [leftPrisH, setLeftPrisH] = useState<number>(0);
-  const [leftBaseH, setLeftBaseH] = useState<string>("");
-  const [leftPrisV, setLeftPrisV] = useState<number>(0);
-  const [leftBaseV, setLeftBaseV] = useState<string>("");
-
-  const baseOptions = ["IN", "OUT", "UP", "DOWN"];
-
-  const calculateResultingPrism = (prisH: number, baseH: string, prisV: number, baseV: string) => {
-    if (!prisH && !prisV) return { pris: 0, base: 0 };
-    
-    let hComponent = 0, vComponent = 0;
-    
-    if (baseH === "IN") hComponent = -prisH;
-    else if (baseH === "OUT") hComponent = prisH;
-    
-    if (baseV === "UP") vComponent = prisV;
-    else if (baseV === "DOWN") vComponent = -prisV;
-    
-    const resultingPris = Math.sqrt(hComponent * hComponent + vComponent * vComponent);
-    let resultingBase = 0;
-    
-    if (hComponent !== 0 || vComponent !== 0) {
-      resultingBase = Math.atan2(vComponent, hComponent) * (180 / Math.PI);
-      if (resultingBase < 0) resultingBase += 360;
-    }
-    
-    return {
-      pris: Math.round(resultingPris * 100) / 100,
-      base: Math.round(resultingBase)
-    };
-  };
-
-  const rightResult = calculateResultingPrism(rightPrisH, rightBaseH, rightPrisV, rightBaseV);
-  const leftResult = calculateResultingPrism(leftPrisH, leftBaseH, leftPrisV, leftBaseV);
-
-  const handleConfirm = () => {
-    onConfirm(rightResult.pris, rightResult.base, leftResult.pris, leftResult.base);
-    setIsOpen(false);
-  };
-
-  return (
-    <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      <DialogTrigger asChild>
-        <Button variant="outline" size="sm" className="h-8 text-xs px-2" type="button" disabled={disabled}>
-          V + H
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="!w-[880px] !max-w-[1200px]" dir="rtl" showCloseButton={false}>
-        <DialogHeader dir="rtl" className="text-center pb-4">
-          <DialogTitle className="text-center text-2xl">חישוב פריזמה</DialogTitle>
-        </DialogHeader>
-        <div className="space-y-6 w-full" dir="rtl">
-          {/* Column Headers */}
-          <div className="flex items-center gap-4 w-full min-w-fit" dir="ltr">
-            <span className="text-lg font-medium w-8 text-center flex-shrink-0"></span>
-            <div className="flex items-center gap-4 flex-shrink-0">
-              <div className="w-24 flex-shrink-0">
-                <Label className="text-xs block text-center mb-1">PRIS.H</Label>
-              </div>
-              <div className="w-24 flex-shrink-0">
-                <Label className="text-xs block text-center mb-1">BASE.H</Label>
-              </div>
-              <div className="w-10 flex justify-center flex-shrink-0">
-              </div>
-              <div className="w-24 flex-shrink-0">
-                <Label className="text-xs block text-center mb-1">PRIS.V</Label>
-              </div>
-              <div className="w-24 flex-shrink-0">
-                <Label className="text-xs block text-center mb-1">BASE.V</Label>
-              </div>
-              <div className="w-10 flex justify-center flex-shrink-0">
-              </div>
-              <div className="w-24 flex-shrink-0">
-                <Label className="text-xs block text-center mb-1">PRIS</Label>
-              </div>
-              <div className="w-24 flex-shrink-0">
-                <Label className="text-xs block text-center mb-1">BASE</Label>
-              </div>
-            </div>
-          </div>
-
-          {/* R Row */}
-          <div className="flex items-center gap-4 w-full min-w-fit" dir="ltr">
-            <span className="text-lg font-medium w-8 text-center flex-shrink-0">R</span>
-            <div className="flex items-center gap-4 flex-shrink-0">
-              <div className="w-24 flex-shrink-0">
-                <Input 
-                  type="number" 
-                  step="0.5" 
-                  value={rightPrisH || ""} 
-                  onChange={(e) => setRightPrisH(Number(e.target.value))} 
-                  className="h-9 text-sm px-2 text-right" 
-                  dir="rtl"
-                />
-              </div>
-              <div className="w-24 flex-shrink-0">
-                <Select value={rightBaseH} onValueChange={setRightBaseH}>
-                  <SelectTrigger className="h-9 text-sm w-full min-w-[60px]">
-                    <SelectValue placeholder="בחר" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {baseOptions.map(option => (
-                      <SelectItem key={option} value={option}>{option}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="w-10 flex justify-center flex-shrink-0">
-                <span className="text-2xl font-bold">+</span>
-              </div>
-              <div className="w-24 flex-shrink-0">
-                <Input 
-                  type="number" 
-                  step="0.5" 
-                  value={rightPrisV || ""} 
-                  onChange={(e) => setRightPrisV(Number(e.target.value))} 
-                  className="h-9 text-sm px-2 text-right" 
-                  dir="rtl"
-                />
-              </div>
-              <div className="w-24 flex-shrink-0">
-                <Select value={rightBaseV} onValueChange={setRightBaseV}>
-                  <SelectTrigger className="h-9 text-sm w-full min-w-[60px]">
-                    <SelectValue placeholder="בחר" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {baseOptions.map(option => (
-                      <SelectItem key={option} value={option}>{option}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="w-10 flex justify-center flex-shrink-0">
-                <span className="text-2xl font-bold">=</span>
-              </div>
-              <div className="w-24 flex-shrink-0">
-                <div className="h-9 text-sm px-2 border rounded flex items-center justify-center bg-gray-50 font-medium">
-                  {rightResult.pris}
-                </div>
-              </div>
-              <div className="w-24 flex-shrink-0">
-                <div className="h-9 text-sm px-2 border rounded flex items-center justify-center bg-gray-50 font-medium">
-                  {rightResult.base}°
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* L Row */}
-          <div className="flex items-center gap-4 w-full min-w-fit" dir="ltr">
-            <span className="text-lg font-medium w-8 text-center flex-shrink-0">L</span>
-            <div className="flex items-center gap-4 flex-shrink-0">
-              <div className="w-24 flex-shrink-0">
-                <Input 
-                  type="number" 
-                  step="0.5" 
-                  value={leftPrisH || ""} 
-                  onChange={(e) => setLeftPrisH(Number(e.target.value))} 
-                  className="h-9 text-sm px-2 text-right" 
-                  dir="rtl"
-                />
-              </div>
-              <div className="w-24 flex-shrink-0">
-                <Select value={leftBaseH} onValueChange={setLeftBaseH}>
-                  <SelectTrigger className="h-9 text-sm w-full min-w-[60px]">
-                    <SelectValue placeholder="בחר" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {baseOptions.map(option => (
-                      <SelectItem key={option} value={option}>{option}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="w-10 flex justify-center flex-shrink-0">
-                <span className="text-2xl font-bold">+</span>
-              </div>
-              <div className="w-24 flex-shrink-0">
-                <Input 
-                  type="number" 
-                  step="0.5" 
-                  value={leftPrisV || ""} 
-                  onChange={(e) => setLeftPrisV(Number(e.target.value))} 
-                  className="h-9 text-sm px-2 text-right" 
-                  dir="rtl"
-                />
-              </div>
-              <div className="w-24 flex-shrink-0">
-                <Select value={leftBaseV} onValueChange={setLeftBaseV}>
-                  <SelectTrigger className="h-9 text-sm w-full min-w-[60px]">
-                    <SelectValue placeholder="בחר" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {baseOptions.map(option => (
-                      <SelectItem key={option} value={option}>{option}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="w-10 flex justify-center flex-shrink-0">
-                <span className="text-2xl font-bold">=</span>
-              </div>
-              <div className="w-24 flex-shrink-0">
-                <div className="h-9 text-sm px-2 border rounded flex items-center justify-center bg-gray-50 font-medium">
-                  {leftResult.pris}
-                </div>
-              </div>
-              <div className="w-24 flex-shrink-0">
-                <div className="h-9 text-sm px-2 border rounded flex items-center justify-center bg-gray-50 font-medium">
-                  {leftResult.base}°
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex justify-center pt-6">
-            <Button onClick={handleConfirm} type="button" className="px-8">אישור</Button>
-          </div>
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-}
 
 interface ExamDetailPageProps {
   mode?: 'view' | 'edit' | 'new';
   clientId?: string;
   examId?: string;
-  onSave?: (exam: OpticalExam, rightEyeExam: OpticalEyeExam, leftEyeExam: OpticalEyeExam) => void;
+  onSave?: (exam: OpticalExam, oldRefractionExam: OldRefractionExam, objectiveExam: ObjectiveExam, subjectiveExam: SubjectiveExam, additionExam: AdditionExam) => void;
   onCancel?: () => void;
 }
 
@@ -610,8 +113,11 @@ export default function ExamDetailPage({
   const [loading, setLoading] = useState(true)
   const [client, setClient] = useState<Client | null>(null)
   const [exam, setExam] = useState<OpticalExam | null>(null)
-  const [rightEyeExam, setRightEyeExam] = useState<OpticalEyeExam | null>(null)
-  const [leftEyeExam, setLeftEyeExam] = useState<OpticalEyeExam | null>(null)
+  const [oldRefractionExam, setOldRefractionExam] = useState<OldRefractionExam | null>(null)
+  const [objectiveExam, setObjectiveExam] = useState<ObjectiveExam | null>(null)
+  const [subjectiveExam, setSubjectiveExam] = useState<SubjectiveExam | null>(null)
+  const [additionExam, setAdditionExam] = useState<AdditionExam | null>(null)
+  const [finalSubjectiveExam, setFinalSubjectiveExam] = useState<FinalSubjectiveExam | null>(null)
   const [users, setUsers] = useState<User[]>([])
   const { currentUser } = useUser()
   
@@ -626,16 +132,13 @@ export default function ExamDetailPage({
     clinic: '',
     user_id: currentUser?.id,
     notes: '',
-    dominant_eye: '',
-    comb_subj_va: undefined,
-    comb_old_va: undefined,
-    comb_fa: undefined,
-    comb_fa_tuning: undefined,
-    comb_pd_close: undefined,
-    comb_pd_far: undefined
+    dominant_eye: ''
   } as OpticalExam : {} as OpticalExam)
-  const [rightEyeFormData, setRightEyeFormData] = useState<OpticalEyeExam>(isNewMode ? { eye: 'R' } as OpticalEyeExam : {} as OpticalEyeExam)
-  const [leftEyeFormData, setLeftEyeFormData] = useState<OpticalEyeExam>(isNewMode ? { eye: 'L' } as OpticalEyeExam : {} as OpticalEyeExam)
+  const [oldRefractionFormData, setOldRefractionFormData] = useState<OldRefractionExam>(isNewMode ? { exam_id: 0 } as OldRefractionExam : {} as OldRefractionExam)
+  const [objectiveFormData, setObjectiveFormData] = useState<ObjectiveExam>(isNewMode ? { exam_id: 0 } as ObjectiveExam : {} as ObjectiveExam)
+  const [subjectiveFormData, setSubjectiveFormData] = useState<SubjectiveExam>(isNewMode ? { exam_id: 0 } as SubjectiveExam : {} as SubjectiveExam)
+  const [additionFormData, setAdditionFormData] = useState<AdditionExam>(isNewMode ? { exam_id: 0 } as AdditionExam : {} as AdditionExam)
+  const [finalSubjectiveFormData, setFinalSubjectiveFormData] = useState<FinalSubjectiveExam>(isNewMode ? { exam_id: 0 } as FinalSubjectiveExam : {} as FinalSubjectiveExam)
   
   const formRef = useRef<HTMLFormElement>(null)
   const navigate = useNavigate()
@@ -659,11 +162,17 @@ export default function ExamDetailPage({
           setExam(examData || null)
           
           if (examData) {
-            const eyeExams = await getEyeExamsByExamId(Number(examId))
-            const rightEye = eyeExams.find(e => e.eye === "R") || null
-            const leftEye = eyeExams.find(e => e.eye === "L") || null
-            setRightEyeExam(rightEye)
-            setLeftEyeExam(leftEye)
+            const oldRefractionData = await getOldRefractionExamByExamId(Number(examId))
+            const objectiveData = await getObjectiveExamByExamId(Number(examId))
+            const subjectiveData = await getSubjectiveExamByExamId(Number(examId))
+            const additionData = await getAdditionExamByExamId(Number(examId))
+            const finalSubjectiveData = await getFinalSubjectiveExamByExamId(Number(examId))
+            
+            setOldRefractionExam(oldRefractionData || null)
+            setObjectiveExam(objectiveData || null)
+            setSubjectiveExam(subjectiveData || null)
+            setAdditionExam(additionData || null)
+            setFinalSubjectiveExam(finalSubjectiveData || null)
           }
         }
       } catch (error) {
@@ -681,13 +190,22 @@ export default function ExamDetailPage({
     if (exam) {
       setFormData({ ...exam })
     }
-    if (rightEyeExam) {
-      setRightEyeFormData({ ...rightEyeExam })
+    if (oldRefractionExam) {
+      setOldRefractionFormData({ ...oldRefractionExam })
     }
-    if (leftEyeExam) {
-      setLeftEyeFormData({ ...leftEyeExam })
+    if (objectiveExam) {
+      setObjectiveFormData({ ...objectiveExam })
     }
-  }, [exam, rightEyeExam, leftEyeExam])
+    if (subjectiveExam) {
+      setSubjectiveFormData({ ...subjectiveExam })
+    }
+    if (additionExam) {
+      setAdditionFormData({ ...additionExam })
+    }
+    if (finalSubjectiveExam) {
+      setFinalSubjectiveFormData({ ...finalSubjectiveExam })
+    }
+  }, [exam, oldRefractionExam, objectiveExam, subjectiveExam, additionExam, finalSubjectiveExam])
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
@@ -697,34 +215,22 @@ export default function ExamDetailPage({
   const handleExamFieldChange = (field: keyof OpticalExam, rawValue: string) => {
     let processedValue: string | number | undefined = rawValue;
     
-    const numericFields: (keyof OpticalExam)[] = [
-      "comb_subj_va", "comb_old_va", "comb_fa", "comb_fa_tuning", "comb_pd_close", "comb_pd_far"
-    ];
-    
-    if (numericFields.includes(field)) {
-      const val = parseFloat(rawValue);
-      processedValue = rawValue === "" || isNaN(val) ? undefined : val;
+    if (rawValue === "" && typeof processedValue !== 'boolean') {
+      processedValue = undefined;
     }
     
     setFormData(prev => ({ ...prev, [field]: processedValue }));
   };
 
-  const handleEyeFieldChange = (
-    eye: 'R' | 'L',
-    field: keyof OpticalEyeExam,
-    rawValue: string
-  ) => {
+  const handleOldRefractionFieldChange = (field: keyof OldRefractionExam, rawValue: string) => {
     let processedValue: string | number | undefined = rawValue;
-  
-    const numericFields: (keyof OpticalEyeExam)[] = [
-      "old_sph", "old_cyl", "old_pris", "old_ad", 
-      "obj_sph", "obj_cyl", "obj_se", 
-      "subj_fa", "subj_fa_tuning", "subj_sph", "subj_cyl", "subj_pris", 
-      "subj_pd_close", "subj_pd_far", "subj_va", "subj_ph",
-      "ad_fcc", "ad_read", "ad_int", "ad_bif", "ad_mul", "iop"
+    
+    const numericFields: (keyof OldRefractionExam)[] = [
+      "r_sph", "r_cyl", "r_pris", "r_base", "r_va", "r_ad",
+      "l_sph", "l_cyl", "l_pris", "l_base", "l_va", "l_ad", "comb_va"
     ];
-    const integerFields: (keyof OpticalEyeExam)[] = ["old_ax", "obj_ax", "subj_ax", "ad_j"];
-  
+    const integerFields: (keyof OldRefractionExam)[] = ["r_ax", "l_ax"];
+    
     if (numericFields.includes(field)) {
       const val = parseFloat(rawValue);
       processedValue = rawValue === "" || isNaN(val) ? undefined : val;
@@ -732,19 +238,121 @@ export default function ExamDetailPage({
       const val = parseInt(rawValue, 10);
       processedValue = rawValue === "" || isNaN(val) ? undefined : val;
     } else if (rawValue === "" && typeof processedValue !== 'boolean') {
-        processedValue = undefined;
+      processedValue = undefined;
     }
-  
-    if (eye === 'R') {
-      setRightEyeFormData(prev => ({ ...prev, [field]: processedValue }));
-    } else {
-      setLeftEyeFormData(prev => ({ ...prev, [field]: processedValue }));
+    
+    setOldRefractionFormData(prev => ({ ...prev, [field]: processedValue }));
+  };
+
+  const handleObjectiveFieldChange = (field: keyof ObjectiveExam, rawValue: string) => {
+    let processedValue: string | number | undefined = rawValue;
+    
+    const numericFields: (keyof ObjectiveExam)[] = [
+      "r_sph", "r_cyl", "r_se", "l_sph", "l_cyl", "l_se"
+    ];
+    const integerFields: (keyof ObjectiveExam)[] = ["r_ax", "l_ax"];
+    
+    if (numericFields.includes(field)) {
+      const val = parseFloat(rawValue);
+      processedValue = rawValue === "" || isNaN(val) ? undefined : val;
+    } else if (integerFields.includes(field)) {
+      const val = parseInt(rawValue, 10);
+      processedValue = rawValue === "" || isNaN(val) ? undefined : val;
+    } else if (rawValue === "" && typeof processedValue !== 'boolean') {
+      processedValue = undefined;
     }
+    
+    setObjectiveFormData(prev => ({ ...prev, [field]: processedValue }));
+  };
+
+  const handleSubjectiveFieldChange = (field: keyof SubjectiveExam, rawValue: string) => {
+    let processedValue: string | number | undefined = rawValue;
+    
+    const numericFields: (keyof SubjectiveExam)[] = [
+      "r_fa", "r_fa_tuning", "r_sph", "r_cyl", "r_pris", "r_base", "r_va", "r_pd_close", "r_pd_far",
+      "l_fa", "l_fa_tuning", "l_sph", "l_cyl", "l_pris", "l_base", "l_va", "l_pd_close", "l_pd_far",
+      "comb_fa", "comb_fa_tuning", "comb_va", "comb_pd_close", "comb_pd_far"
+    ];
+    const integerFields: (keyof SubjectiveExam)[] = ["r_ax", "l_ax"];
+    
+    if (numericFields.includes(field)) {
+      const val = parseFloat(rawValue);
+      processedValue = rawValue === "" || isNaN(val) ? undefined : val;
+    } else if (integerFields.includes(field)) {
+      const val = parseInt(rawValue, 10);
+      processedValue = rawValue === "" || isNaN(val) ? undefined : val;
+    } else if (rawValue === "" && typeof processedValue !== 'boolean') {
+      processedValue = undefined;
+    }
+    
+    setSubjectiveFormData(prev => ({ ...prev, [field]: processedValue }));
+  };
+
+  const handleAdditionFieldChange = (field: keyof AdditionExam, rawValue: string) => {
+    let processedValue: string | number | undefined = rawValue;
+    
+    const numericFields: (keyof AdditionExam)[] = [
+      "r_fcc", "r_read", "r_int", "r_bif", "r_mul", "r_iop",
+      "l_fcc", "l_read", "l_int", "l_bif", "l_mul", "l_iop"
+    ];
+    const integerFields: (keyof AdditionExam)[] = ["r_j", "l_j"];
+    
+    if (numericFields.includes(field)) {
+      const val = parseFloat(rawValue);
+      processedValue = rawValue === "" || isNaN(val) ? undefined : val;
+    } else if (integerFields.includes(field)) {
+      const val = parseInt(rawValue, 10);
+      processedValue = rawValue === "" || isNaN(val) ? undefined : val;
+    } else if (rawValue === "" && typeof processedValue !== 'boolean') {
+      processedValue = undefined;
+    }
+    
+    setAdditionFormData(prev => ({ ...prev, [field]: processedValue }));
   };
 
   const handleSelectChange = (value: string, name: string) => {
     setFormData(prev => ({ ...prev, [name]: value }))
   }
+
+  const handleFinalSubjectiveChange = (field: keyof FinalSubjectiveExam, rawValue: string) => {
+    let processedValue: string | number | undefined = rawValue;
+    
+    const numericFields: (keyof FinalSubjectiveExam)[] = [
+      "r_sph", "l_sph", "r_cyl", "l_cyl", "r_ax", "l_ax", "r_pr_h", "l_pr_h", 
+      "r_pr_v", "l_pr_v", "r_va", "l_va", "r_j", "l_j", "r_pd_far", "l_pd_far", 
+      "r_pd_close", "l_pd_close", "comb_pd_far", "comb_pd_close", "comb_va"
+    ];
+    const integerFields: (keyof FinalSubjectiveExam)[] = ["r_ax", "l_ax", "r_j", "l_j"];
+    
+    if (numericFields.includes(field)) {
+      const val = parseFloat(rawValue);
+      processedValue = rawValue === "" || isNaN(val) ? undefined : val;
+    } else if (integerFields.includes(field)) {
+      const val = parseInt(rawValue, 10);
+      processedValue = rawValue === "" || isNaN(val) ? undefined : val;
+    } else if (rawValue === "") {
+      processedValue = undefined;
+    }
+    
+    setFinalSubjectiveFormData(prev => ({ ...prev, [field]: processedValue }));
+  };
+
+  const handleFinalSubjectiveVHConfirm = (
+    rightPrisH: number, rightBaseH: string, rightPrisV: number, rightBaseV: string,
+    leftPrisH: number, leftBaseH: string, leftPrisV: number, leftBaseV: string
+  ) => {
+    setFinalSubjectiveFormData(prev => ({
+      ...prev,
+      r_pr_h: rightPrisH,
+      r_base_h: rightBaseH,
+      r_pr_v: rightPrisV,
+      r_base_v: rightBaseV,
+      l_pr_h: leftPrisH,
+      l_base_h: leftBaseH,
+      l_pr_v: leftPrisV,
+      l_base_v: leftBaseV,
+    }));
+  };
   
   const handleSave = async () => {
     if (formRef.current) {
@@ -756,57 +364,98 @@ export default function ExamDetailPage({
           clinic: formData.clinic,
           user_id: formData.user_id,
           notes: formData.notes,
-          dominant_eye: formData.dominant_eye,
-          comb_subj_va: formData.comb_subj_va,
-          comb_old_va: formData.comb_old_va,
-          comb_fa: formData.comb_fa,
-          comb_fa_tuning: formData.comb_fa_tuning,
-          comb_pd_close: formData.comb_pd_close,
-          comb_pd_far: formData.comb_pd_far
+          dominant_eye: formData.dominant_eye
         })
         
         if (newExam && newExam.id) {
-          const newRightEyeExam = await createEyeExam({
-            ...rightEyeFormData,
-            exam_id: newExam.id,
-            eye: 'R',
+          const newOldRefractionExam = await createOldRefractionExam({
+            ...oldRefractionFormData,
+            exam_id: newExam.id
           })
           
-          const newLeftEyeExam = await createEyeExam({
-            ...leftEyeFormData,
-            exam_id: newExam.id,
-            eye: 'L',
+          const newObjectiveExam = await createObjectiveExam({
+            ...objectiveFormData,
+            exam_id: newExam.id
           })
           
-          if (newRightEyeExam && newLeftEyeExam) {
+          const newSubjectiveExam = await createSubjectiveExam({
+            ...subjectiveFormData,
+            exam_id: newExam.id
+          })
+          
+          const newAdditionExam = await createAdditionExam({
+            ...additionFormData,
+            exam_id: newExam.id
+          })
+          
+          // Save final subjective exam data if there's data
+          let newFinalSubjectiveExam: FinalSubjectiveExam | null = null
+          const hasFinalSubjectiveData = Object.values(finalSubjectiveFormData).some(value => 
+            value !== undefined && value !== null && value !== ''
+          );
+          
+          if (hasFinalSubjectiveData) {
+            newFinalSubjectiveExam = await createFinalSubjectiveExam({
+              ...finalSubjectiveFormData,
+              exam_id: newExam.id
+            });
+          }
+          
+          if (newOldRefractionExam && newObjectiveExam && newSubjectiveExam && newAdditionExam) {
             toast.success("בדיקה חדשה נוצרה בהצלחה")
             if (onSave) {
-              onSave(newExam, newRightEyeExam, newLeftEyeExam)
+              onSave(newExam, newOldRefractionExam, newObjectiveExam, newSubjectiveExam, newAdditionExam)
             }
           } else {
-            toast.error("לא הצלחנו ליצור את נתוני העין")
+            toast.error("לא הצלחנו ליצור את נתוני הבדיקה")
           }
         } else {
           toast.error("לא הצלחנו ליצור את הבדיקה")
         }
       } else {
         const updatedExam = await updateExam(formData)
+        const updatedOldRefractionExam = await updateOldRefractionExam(oldRefractionFormData)
+        const updatedObjectiveExam = await updateObjectiveExam(objectiveFormData)
+        const updatedSubjectiveExam = await updateSubjectiveExam(subjectiveFormData)
+        const updatedAdditionExam = await updateAdditionExam(additionFormData)
         
-        const updatedRightEyeExam = await updateEyeExam(rightEyeFormData)
+        // Save final subjective exam data if there's data
+        let updatedFinalSubjective: FinalSubjectiveExam | null = null
+        const hasFinalSubjectiveData = Object.values(finalSubjectiveFormData).some(value => 
+          value !== undefined && value !== null && value !== ''
+        );
         
-        const updatedLeftEyeExam = await updateEyeExam(leftEyeFormData)
+        if (hasFinalSubjectiveData) {
+          if (finalSubjectiveExam && finalSubjectiveExam.id) {
+            updatedFinalSubjective = await updateFinalSubjectiveExam(finalSubjectiveFormData);
+          } else {
+            updatedFinalSubjective = await createFinalSubjectiveExam({
+              ...finalSubjectiveFormData,
+              exam_id: Number(examId)
+            });
+          }
+          
+          if (updatedFinalSubjective) {
+            setFinalSubjectiveExam(updatedFinalSubjective);
+            setFinalSubjectiveFormData({ ...updatedFinalSubjective });
+          }
+        }
         
-        if (updatedExam && updatedRightEyeExam && updatedLeftEyeExam) {
+        if (updatedExam && updatedOldRefractionExam && updatedObjectiveExam && updatedSubjectiveExam && updatedAdditionExam) {
           setIsEditing(false)
           setExam(updatedExam)
-          setRightEyeExam(updatedRightEyeExam)
-          setLeftEyeExam(updatedLeftEyeExam)
+          setOldRefractionExam(updatedOldRefractionExam)
+          setObjectiveExam(updatedObjectiveExam)
+          setSubjectiveExam(updatedSubjectiveExam)
+          setAdditionExam(updatedAdditionExam)
           setFormData({ ...updatedExam })
-          setRightEyeFormData({ ...updatedRightEyeExam })
-          setLeftEyeFormData({ ...updatedLeftEyeExam })
+          setOldRefractionFormData({ ...updatedOldRefractionExam })
+          setObjectiveFormData({ ...updatedObjectiveExam })
+          setSubjectiveFormData({ ...updatedSubjectiveExam })
+          setAdditionFormData({ ...updatedAdditionExam })
           toast.success("פרטי הבדיקה עודכנו בהצלחה")
           if (onSave) {
-            onSave(updatedExam, updatedRightEyeExam, updatedLeftEyeExam)
+            onSave(updatedExam, updatedOldRefractionExam, updatedObjectiveExam, updatedSubjectiveExam, updatedAdditionExam)
           }
         } else {
           toast.error("לא הצלחנו לשמור את השינויים")
@@ -816,36 +465,30 @@ export default function ExamDetailPage({
   }
 
   const handleVHConfirm = (rightPris: number, rightBase: number, leftPris: number, leftBase: number) => {
-    setRightEyeFormData(prev => ({ 
+    setSubjectiveFormData(prev => ({ 
       ...prev, 
-      subj_pris: rightPris,
-      subj_base: rightBase 
-    }));
-    setLeftEyeFormData(prev => ({ 
-      ...prev, 
-      subj_pris: leftPris,
-      subj_base: leftBase 
+      r_pris: rightPris,
+      r_base: rightBase,
+      l_pris: leftPris,
+      l_base: leftBase 
     }));
     toast.success("ערכי פריזמה עודכנו");
   };
 
   const handleVHConfirmOldRefraction = (rightPris: number, rightBase: number, leftPris: number, leftBase: number) => {
-    setRightEyeFormData(prev => ({ 
+    setOldRefractionFormData(prev => ({ 
       ...prev, 
-      old_pris: rightPris,
-      old_base: rightBase 
-    }));
-    setLeftEyeFormData(prev => ({ 
-      ...prev, 
-      old_pris: leftPris,
-      old_base: leftBase 
+      r_pris: rightPris,
+      r_base: rightBase,
+      l_pris: leftPris,
+      l_base: leftBase 
     }));
     toast.success("ערכי פריזמה עודכנו (רפרקציה ישנה)");
   };
 
   const handleMultifocalOldRefraction = () => {
-    const rightOldCyl = rightEyeFormData.old_cyl || 0;
-    const leftOldCyl = leftEyeFormData.old_cyl || 0;
+    const rightOldCyl = oldRefractionFormData.r_cyl || 0;
+    const leftOldCyl = oldRefractionFormData.l_cyl || 0;
     
     if (rightOldCyl === 0 && leftOldCyl === 0) {
       toast.info("אין ערכי צילינדר לעדכון");
@@ -855,21 +498,18 @@ export default function ExamDetailPage({
     const newRightCyl = Math.max(0, Math.abs(rightOldCyl) - 0.25) * Math.sign(rightOldCyl || 1);
     const newLeftCyl = Math.max(0, Math.abs(leftOldCyl) - 0.25) * Math.sign(leftOldCyl || 1);
 
-    setRightEyeFormData(prev => ({ 
+    setOldRefractionFormData(prev => ({ 
       ...prev, 
-      old_cyl: newRightCyl === 0 ? undefined : newRightCyl
-    }));
-    setLeftEyeFormData(prev => ({ 
-      ...prev, 
-      old_cyl: newLeftCyl === 0 ? undefined : newLeftCyl
+      r_cyl: newRightCyl === 0 ? undefined : newRightCyl,
+      l_cyl: newLeftCyl === 0 ? undefined : newLeftCyl
     }));
 
     toast.success("צילינדר הופחת ב-0.25D להתאמה מולטיפוקלית");
   };
 
   const handleMultifocalSubjective = () => {
-    const rightSubjCyl = rightEyeFormData.subj_cyl || 0;
-    const leftSubjCyl = leftEyeFormData.subj_cyl || 0;
+    const rightSubjCyl = subjectiveFormData.r_cyl || 0;
+    const leftSubjCyl = subjectiveFormData.l_cyl || 0;
     
     if (rightSubjCyl === 0 && leftSubjCyl === 0) {
       toast.info("אין ערכי צילינדר לעדכון");
@@ -879,13 +519,10 @@ export default function ExamDetailPage({
     const newRightCyl = Math.max(0, Math.abs(rightSubjCyl) - 0.25) * Math.sign(rightSubjCyl || 1);
     const newLeftCyl = Math.max(0, Math.abs(leftSubjCyl) - 0.25) * Math.sign(leftSubjCyl || 1);
 
-    setRightEyeFormData(prev => ({ 
+    setSubjectiveFormData(prev => ({ 
       ...prev, 
-      subj_cyl: newRightCyl === 0 ? undefined : newRightCyl
-    }));
-    setLeftEyeFormData(prev => ({ 
-      ...prev, 
-      subj_cyl: newLeftCyl === 0 ? undefined : newLeftCyl
+      r_cyl: newRightCyl === 0 ? undefined : newRightCyl,
+      l_cyl: newLeftCyl === 0 ? undefined : newLeftCyl
     }));
 
     toast.success("צילינדר הופחת ב-0.25D להתאמה מולטיפוקלית");
@@ -919,7 +556,7 @@ export default function ExamDetailPage({
     )
   }
   
-  if (!client || (!isNewMode && (!exam || !rightEyeExam || !leftEyeExam))) {
+  if (!client || (!isNewMode && (!exam || !oldRefractionExam || !objectiveExam || !subjectiveExam || !additionExam))) {
     return (
       <>
         <SiteHeader 
@@ -977,8 +614,11 @@ export default function ExamDetailPage({
                     // When starting to edit, ensure formData is based on the latest DB state
                     // This is already handled by useEffect, but good to be mindful
                     if (exam) setFormData({ ...exam });
-                    if (rightEyeExam) setRightEyeFormData({ ...rightEyeExam });
-                    if (leftEyeExam) setLeftEyeFormData({ ...leftEyeExam });
+                    if (oldRefractionExam) setOldRefractionFormData({ ...oldRefractionExam });
+                    if (objectiveExam) setObjectiveFormData({ ...objectiveExam });
+                    if (subjectiveExam) setSubjectiveFormData({ ...subjectiveExam });
+                    if (additionExam) setAdditionFormData({ ...additionExam });
+                    if (finalSubjectiveExam) setFinalSubjectiveFormData({ ...finalSubjectiveExam });
                     setIsEditing(true);
                   }
                 }}
@@ -1070,64 +710,38 @@ export default function ExamDetailPage({
                 </div>
               </div>
               
-              <Tabs defaultValue="previous-objective" className="w-full pt-2">
-                <div className="flex flex-row-reverse gap-4">
-                  <TabsList className="flex flex-col py-4 h-fit min-w-[140px] bg-sidebar/50 gap-2">
-                    <TabsTrigger value="previous-objective" className="justify-start">Old refraction<br />& objective</TabsTrigger>
-                    <TabsTrigger value="subjective" className="justify-start">Subjective</TabsTrigger>
-                    <TabsTrigger value="addition" className="justify-start">Addition</TabsTrigger>
-                  </TabsList>
+              <div className="space-y-6 pt-2">
+                <OldRefractionObjectiveTab
+                  oldRefractionData={oldRefractionFormData}
+                  objectiveData={objectiveFormData}
+                  onOldRefractionChange={handleOldRefractionFieldChange}
+                  onObjectiveChange={handleObjectiveFieldChange}
+                  isEditing={isEditing}
+                  onMultifocalClick={handleMultifocalOldRefraction}
+                  onVHConfirm={handleVHConfirmOldRefraction}
+                />
 
-                  <div className="flex-1">
-                    <TabsContent value="previous-objective">
-                      <Card>
-                        <CardContent className="px-4 pt-4 space-y-1">
-                          <div className="relative mb-4 pt-2" dir="rtl">
-                            <div className="absolute top-[-27px] left-[calc(100%*20/27)] transform translate-x-1/2 bg-background px-2 font-medium text-muted-foreground">
-                              Objective
-                            </div>
-                            <div className="absolute top-[-27px] left-[calc(100%*6/29)] transform translate-x-1/2 bg-background px-2 font-medium text-muted-foreground">
-                            Old refraction
-                            </div>
-                          </div>
-                          <PreviousObjectiveSection eye="R" data={rightEyeFormData} onChange={handleEyeFieldChange} isEditing={isEditing} />
-                          <CombinedVaFields exam={formData} onChange={handleExamFieldChange} isEditing={isEditing} onMultifocalClick={handleMultifocalOldRefraction} onVHConfirm={handleVHConfirmOldRefraction} />
-                          <PreviousObjectiveSection eye="L" data={leftEyeFormData} onChange={handleEyeFieldChange} isEditing={isEditing} />
-                        </CardContent>
-                      </Card>
-                    </TabsContent>
+                <SubjectiveTab
+                  subjectiveData={subjectiveFormData}
+                  onSubjectiveChange={handleSubjectiveFieldChange}
+                  isEditing={isEditing}
+                  onVHConfirm={handleVHConfirm}
+                  onMultifocalClick={handleMultifocalSubjective}
+                />
 
-                    <TabsContent value="subjective">
-                      <Card>
-                        <CardContent className="px-4 pt-4 space-y-1">
-                          <div className="relative mb-4 pt-2">
-                            <div className="absolute top-[-27px] right-1/2 transform translate-x-1/2 bg-background px-2 font-medium text-muted-foreground">
-                                Subjective
-                            </div>
-                          </div>
-                          <SubjectiveSection eye="R" data={rightEyeFormData} onChange={handleEyeFieldChange} isEditing={isEditing} />
-                          <CombinedSubjFields exam={formData} onChange={handleExamFieldChange} isEditing={isEditing} onVHConfirm={handleVHConfirm} onMultifocalClick={handleMultifocalSubjective} />
-                          <SubjectiveSection eye="L" data={leftEyeFormData} onChange={handleEyeFieldChange} isEditing={isEditing} />
-                        </CardContent>
-                      </Card>
-                    </TabsContent>
+                <FinalSubjectiveTab
+                  finalSubjectiveData={finalSubjectiveFormData}
+                  onFinalSubjectiveChange={handleFinalSubjectiveChange}
+                  isEditing={isEditing}
+                  onVHConfirm={handleFinalSubjectiveVHConfirm}
+                />
 
-                    <TabsContent value="addition">
-                      <Card>
-                        <CardContent className="px-4 pt-4 space-y-1">
-                          <div className="relative mb-1 pt-2">
-                            <div className="absolute top-[-27px] right-1/2 transform translate-x-1/2 bg-background px-2 font-medium text-muted-foreground">
-                              Addition
-                            </div>
-                          </div>
-                          <AdditionSection eye="R" data={rightEyeFormData} onChange={handleEyeFieldChange} isEditing={isEditing} />
-                          <AdditionSection eye="L" data={leftEyeFormData} onChange={handleEyeFieldChange} isEditing={isEditing} />
-                        </CardContent>
-                      </Card>
-                    </TabsContent>
-                  </div>
-                </div>
-              </Tabs>
+                <AdditionTab
+                  additionData={additionFormData}
+                  onAdditionChange={handleAdditionFieldChange}
+                  isEditing={isEditing}
+                />
+              </div>
               
               {/* Notes Section */}
               <div className=" rounded-md ">

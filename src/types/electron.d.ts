@@ -18,10 +18,30 @@ export interface ElectronAPI {
   updateExam: (examData: any) => Promise<any>;
   deleteExam: (examId: number) => Promise<boolean>;
 
-  // Eye Exam operations
-  getEyeExamsByExam: (examId: number) => Promise<any[]>;
-  createEyeExam: (eyeExamData: any) => Promise<any>;
-  updateEyeExam: (eyeExamData: any) => Promise<any>;
+  // Old Refraction Exam operations
+  getOldRefractionExam: (examId: number) => Promise<any>;
+  createOldRefractionExam: (examData: any) => Promise<any>;
+  updateOldRefractionExam: (examData: any) => Promise<any>;
+
+  // Objective Exam operations
+  getObjectiveExam: (examId: number) => Promise<any>;
+  createObjectiveExam: (examData: any) => Promise<any>;
+  updateObjectiveExam: (examData: any) => Promise<any>;
+
+  // Subjective Exam operations
+  getSubjectiveExam: (examId: number) => Promise<any>;
+  createSubjectiveExam: (examData: any) => Promise<any>;
+  updateSubjectiveExam: (examData: any) => Promise<any>;
+
+  // Addition Exam operations
+  getAdditionExam: (examId: number) => Promise<any>;
+  createAdditionExam: (examData: any) => Promise<any>;
+  updateAdditionExam: (examData: any) => Promise<any>;
+
+  // Final Subjective Exam operations
+  getFinalSubjectiveExam: (examId: number) => Promise<any>;
+  createFinalSubjectiveExam: (examData: any) => Promise<any>;
+  updateFinalSubjectiveExam: (examData: any) => Promise<any>;
 
   // Order operations
   getOrdersByClient: (clientId: number) => Promise<any[]>;
