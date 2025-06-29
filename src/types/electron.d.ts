@@ -1,3 +1,52 @@
+import { 
+  Client, 
+  OpticalExam, 
+  OldRefractionExam, 
+  ObjectiveExam, 
+  SubjectiveExam, 
+  AdditionExam, 
+  FinalSubjectiveExam, 
+  Order, 
+  OrderEye, 
+  OrderLens, 
+  Frame, 
+  OrderDetails, 
+  Billing, 
+  OrderLineItem, 
+  MedicalLog, 
+  ContactLens, 
+  ContactEye, 
+  ContactLensOrder, 
+  Referral, 
+  ReferralEye, 
+  Appointment, 
+  Settings, 
+  User, 
+  Chat, 
+  ChatMessage, 
+  EmailLog, 
+  File, 
+  ExamLayout,
+  LookupSupplier,
+  LookupClinic,
+  LookupOrderType,
+  LookupReferralType,
+  LookupLensModel,
+  LookupColor,
+  LookupMaterial,
+  LookupCoating,
+  LookupManufacturer,
+  LookupFrameModel,
+  LookupContactLensType,
+  LookupContactEyeLensType,
+  LookupContactEyeMaterial,
+  LookupCleaningSolution,
+  LookupDisinfectionSolution,
+  LookupRinsingSolution,
+  LookupManufacturingLab,
+  LookupAdvisor 
+} from '@/lib/db/schema';
+
 interface IpcRenderer {
   invoke(channel: string, ...args: any[]): Promise<any>;
 }
@@ -276,10 +325,18 @@ export interface ElectronAPI {
   updateLookupManufacturingLab: (data: any) => Promise<any>;
   deleteLookupManufacturingLab: (id: number) => Promise<boolean>;
 
-  getAllLookupAdvisors: () => Promise<any[]>;
-  createLookupAdvisor: (data: any) => Promise<any>;
-  updateLookupAdvisor: (data: any) => Promise<any>;
+  getAllLookupAdvisors: () => Promise<LookupAdvisor[]>;
+  createLookupAdvisor: (data: Omit<LookupAdvisor, 'id'>) => Promise<LookupAdvisor | null>;
+  updateLookupAdvisor: (data: LookupAdvisor) => Promise<LookupAdvisor | null>;
   deleteLookupAdvisor: (id: number) => Promise<boolean>;
+
+  // Exam Layout operations
+  getAllExamLayouts: () => Promise<ExamLayout[]>;
+  getExamLayoutById: (id: number) => Promise<ExamLayout | null>;
+  createExamLayout: (layoutData: Omit<ExamLayout, 'id'>) => Promise<ExamLayout | null>;
+  updateExamLayout: (layoutData: ExamLayout) => Promise<ExamLayout | null>;
+  deleteExamLayout: (id: number) => Promise<boolean>;
+  getDefaultExamLayout: () => Promise<ExamLayout | null>;
 }
 
 declare global {

@@ -48,7 +48,8 @@ import {
   LookupDisinfectionSolution,
   LookupRinsingSolution,
   LookupManufacturingLab,
-  LookupAdvisor
+  LookupAdvisor,
+  ExamLayout
 } from './schema';
 
 class DatabaseService {
@@ -430,13 +431,13 @@ class DatabaseService {
     try {
       const stmt = this.db.prepare(`
         INSERT INTO optical_exams (
-          client_id, clinic, user_id, exam_date, test_name, dominant_eye, notes
-        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+          client_id, clinic, user_id, exam_date, test_name, dominant_eye, layout_id, notes
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       `);
 
       const result = stmt.run(
         exam.client_id, exam.clinic, this.sanitizeValue(exam.user_id), exam.exam_date, exam.test_name,
-        exam.dominant_eye, exam.notes
+        exam.dominant_eye, this.sanitizeValue(exam.layout_id), exam.notes
       );
 
       return { ...exam, id: result.lastInsertRowid as number };
@@ -489,13 +490,13 @@ class DatabaseService {
       const stmt = this.db.prepare(`
         UPDATE optical_exams SET 
         client_id = ?, clinic = ?, user_id = ?, exam_date = ?, test_name = ?, 
-        dominant_eye = ?, notes = ?
+        dominant_eye = ?, layout_id = ?, notes = ?
         WHERE id = ?
       `);
 
       stmt.run(
         exam.client_id, exam.clinic, this.sanitizeValue(exam.user_id), exam.exam_date, exam.test_name,
-        exam.dominant_eye, exam.notes, exam.id
+        exam.dominant_eye, this.sanitizeValue(exam.layout_id), exam.notes, exam.id
       );
 
       return exam;
@@ -3652,6 +3653,102 @@ class DatabaseService {
     } catch (error) {
       console.error('Error deleting file:', error);
       return false;
+    }
+  }
+
+  // Exam Layout CRUD operations
+  createExamLayout(layout: Omit<ExamLayout, 'id'>): ExamLayout | null {
+    if (!this.db) return null;
+
+    try {
+      const stmt = this.db.prepare(`
+        INSERT INTO exam_layouts (name, layout_data, is_default)
+        VALUES (?, ?, ?)
+      `);
+
+      const result = stmt.run(
+        layout.name,
+        layout.layout_data,
+        this.sanitizeValue(layout.is_default)
+      );
+
+      return { ...layout, id: result.lastInsertRowid as number };
+    } catch (error) {
+      console.error('Error creating exam layout:', error);
+      return null;
+    }
+  }
+
+  getExamLayoutById(id: number): ExamLayout | null {
+    if (!this.db) return null;
+
+    try {
+      const stmt = this.db.prepare('SELECT * FROM exam_layouts WHERE id = ?');
+      return stmt.get(id) as ExamLayout | null;
+    } catch (error) {
+      console.error('Error getting exam layout by ID:', error);
+      return null;
+    }
+  }
+
+  getAllExamLayouts(): ExamLayout[] {
+    if (!this.db) return [];
+
+    try {
+      const stmt = this.db.prepare('SELECT * FROM exam_layouts ORDER BY created_at DESC');
+      return stmt.all() as ExamLayout[];
+    } catch (error) {
+      console.error('Error getting all exam layouts:', error);
+      return [];
+    }
+  }
+
+  updateExamLayout(layout: ExamLayout): ExamLayout | null {
+    if (!this.db || !layout.id) return null;
+
+    try {
+      const stmt = this.db.prepare(`
+        UPDATE exam_layouts SET 
+          name = ?, layout_data = ?, is_default = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+      `);
+
+      stmt.run(
+        layout.name,
+        layout.layout_data,
+        this.sanitizeValue(layout.is_default),
+        layout.id
+      );
+
+      return layout;
+    } catch (error) {
+      console.error('Error updating exam layout:', error);
+      return null;
+    }
+  }
+
+  deleteExamLayout(id: number): boolean {
+    if (!this.db) return false;
+
+    try {
+      const stmt = this.db.prepare('DELETE FROM exam_layouts WHERE id = ?');
+      const result = stmt.run(id);
+      return result.changes > 0;
+    } catch (error) {
+      console.error('Error deleting exam layout:', error);
+      return false;
+    }
+  }
+
+  getDefaultExamLayout(): ExamLayout | null {
+    if (!this.db) return null;
+
+    try {
+      const stmt = this.db.prepare('SELECT * FROM exam_layouts WHERE is_default = 1 LIMIT 1');
+      return stmt.get() as ExamLayout | null;
+    } catch (error) {
+      console.error('Error getting default exam layout:', error);
+      return null;
     }
   }
 }

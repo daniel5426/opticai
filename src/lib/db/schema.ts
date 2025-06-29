@@ -49,6 +49,7 @@ export interface OpticalExam {
   exam_date?: string;
   test_name?: string;
   dominant_eye?: string;
+  layout_id?: number;
   notes?: string;
 }
 
@@ -135,7 +136,7 @@ export interface AdditionExam {
   r_iop?: number;
   l_iop?: number;
 }
-
+ 
 export interface FinalSubjectiveExam {
   id?: number;
   exam_id: number;
@@ -588,6 +589,15 @@ export interface File {
   notes?: string;
 }
 
+export interface ExamLayout {
+  id?: number;
+  name: string;
+  layout_data: string; // JSON string of layout configuration with custom widths
+  is_default?: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
 export const createTables = (db: Database): void => {
   // Create clients table
   db.exec(`
@@ -648,9 +658,11 @@ export const createTables = (db: Database): void => {
       exam_date DATE,
       test_name TEXT,
       dominant_eye CHAR(1) CHECK(dominant_eye IN ('R','L')),
+      layout_id INTEGER,
       notes TEXT,
       FOREIGN KEY(client_id) REFERENCES clients(id) ON DELETE CASCADE,
-      FOREIGN KEY(user_id) REFERENCES users(id)
+      FOREIGN KEY(user_id) REFERENCES users(id),
+      FOREIGN KEY(layout_id) REFERENCES exam_layouts(id)
     );
   `);
 
@@ -1386,5 +1398,37 @@ export const createTables = (db: Database): void => {
   defaultRinsingSolutions.forEach(solution => {
     db.exec(`INSERT OR IGNORE INTO lookup_rinsing_solution (name) VALUES ('${solution}');`);
   });
+
+  // Create exam_layouts table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS exam_layouts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      layout_data TEXT NOT NULL,
+      is_default BOOLEAN DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+
+  // Insert default layout if no layouts exist
+  const defaultLayoutData = JSON.stringify({
+    rows: [
+      { id: 'row-1', cards: [{ id: 'exam-details', type: 'exam-details' }] },
+      { id: 'row-2', cards: [{ id: 'old-refraction', type: 'old-refraction' }] },
+      { id: 'row-3', cards: [{ id: 'objective', type: 'objective' }] },
+      { id: 'row-4', cards: [{ id: 'subjective', type: 'subjective' }] },
+      { id: 'row-5', cards: [{ id: 'final-subjective', type: 'final-subjective' }] },
+      { id: 'row-6', cards: [{ id: 'addition', type: 'addition' }] },
+      { id: 'row-7', cards: [{ id: 'notes', type: 'notes' }] }
+    ],
+    customWidths: {}
+  });
+
+  db.exec(`
+    INSERT OR IGNORE INTO exam_layouts (id, name, layout_data, is_default) 
+    SELECT 1, 'ברירת מחדל', '${defaultLayoutData}', 1
+    WHERE NOT EXISTS (SELECT 1 FROM exam_layouts WHERE id = 1);
+  `);
 };
   

@@ -22,6 +22,7 @@ import {
   IconCalendar,
   IconRobot,
   IconFiles,
+  IconLayoutGrid,
 } from "@tabler/icons-react"
 import { Link } from "@tanstack/react-router"
 
@@ -52,6 +53,11 @@ const data = {
       title: "לקוחות",
       url: "/clients",
       icon: IconUsers,
+    },
+    {
+      title: "פריסות בדיקה",
+      url: "/exam-layouts",
+      icon: IconLayoutGrid,
     },
     {
       title: "עוזר חכם",

@@ -3,9 +3,8 @@ import { useParams, useNavigate, Link } from "@tanstack/react-router"
 import { SiteHeader } from "@/components/site-header"
 import { getClientById } from "@/lib/db/clients-db"
 import { getExamById, getOldRefractionExamByExamId, getObjectiveExamByExamId, getSubjectiveExamByExamId, getAdditionExamByExamId, updateExam, updateOldRefractionExam, updateObjectiveExam, updateSubjectiveExam, updateAdditionExam, createExam, createOldRefractionExam, createObjectiveExam, createSubjectiveExam, createAdditionExam } from "@/lib/db/exams-db"
-import { OpticalExam, OldRefractionExam, ObjectiveExam, SubjectiveExam, AdditionExam, Client, User, FinalSubjectiveExam, ExamLayout } from "@/lib/db/schema"
+import { OpticalExam, OldRefractionExam, ObjectiveExam, SubjectiveExam, AdditionExam, Client, User, FinalSubjectiveExam } from "@/lib/db/schema"
 import { getFinalSubjectiveExamByExamId, createFinalSubjectiveExam, updateFinalSubjectiveExam } from "@/lib/db/final-subjective-db"
-import { getAllExamLayouts, getDefaultExamLayout } from "@/lib/db/exam-layouts-db"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -15,12 +14,11 @@ import { toast } from "sonner"
 import { UserSelect } from "@/components/ui/user-select"
 import { useUser } from "@/contexts/UserContext"
 import { getAllUsers } from "@/lib/db/users-db"
-import { OldRefractionTab, ObjectiveTab } from "@/components/exam/OldRefractionObjectiveTab"
+import { OldRefractionObjectiveTab } from "@/components/exam/OldRefractionObjectiveTab"
 import { SubjectiveTab } from "@/components/exam/SubjectiveTab"
 import { AdditionTab } from "@/components/exam/AdditionTab"
 import { FinalSubjectiveTab } from "@/components/exam/FinalSubjectiveTab"
 import { Card } from "@/components/ui/card"
-
 
 interface DateInputProps {
   name: string;
@@ -42,7 +40,7 @@ function DateInput({ name, value, onChange, className, disabled }: DateInputProp
   return (
     <div className="relative mt-1">
       <div 
-        className={`text-sm text-right pr-10 h-8 rounded-md border px-3 py-2 border-input flex items-center ${disabled ? 'cursor-not-allowed bg-gray-100' : 'cursor-pointer'} ${className || ''}`}
+        className={`text-sm text-right pr-10 h-8 rounded-md border px-3 py-2 border-input bg-transparent flex items-center ${disabled ? 'cursor-not-allowed bg-gray-100' : 'cursor-pointer'} ${className || ''}`}
         dir="rtl"
         onClick={openDatePicker}
       >
@@ -73,6 +71,12 @@ function DateInput({ name, value, onChange, className, disabled }: DateInputProp
   );
 }
 
+
+
+
+
+
+
 interface ExamDetailPageProps {
   mode?: 'view' | 'edit' | 'new';
   clientId?: string;
@@ -80,20 +84,6 @@ interface ExamDetailPageProps {
   onSave?: (exam: OpticalExam, oldRefractionExam: OldRefractionExam, objectiveExam: ObjectiveExam, subjectiveExam: SubjectiveExam, additionExam: AdditionExam) => void;
   onCancel?: () => void;
 }
-
-
-
-interface CardItem {
-  id: string
-  type: 'exam-details' | 'old-refraction' | 'objective' | 'subjective' | 'final-subjective' | 'addition' | 'notes'
-}
-
-interface CardRow {
-  id: string
-  cards: CardItem[]
-}
-
-
 
 export default function ExamDetailPage({ 
   mode = 'view', 
@@ -130,8 +120,6 @@ export default function ExamDetailPage({
   const [additionExam, setAdditionExam] = useState<AdditionExam | null>(null)
   const [finalSubjectiveExam, setFinalSubjectiveExam] = useState<FinalSubjectiveExam | null>(null)
   const [users, setUsers] = useState<User[]>([])
-  const [availableLayouts, setAvailableLayouts] = useState<ExamLayout[]>([])
-  const [selectedLayoutId, setSelectedLayoutId] = useState<string>("")
   const { currentUser } = useUser()
   
   const isNewMode = mode === 'new'
@@ -144,7 +132,6 @@ export default function ExamDetailPage({
     test_name: '',
     clinic: '',
     user_id: currentUser?.id,
-    layout_id: undefined,
     notes: '',
     dominant_eye: ''
   } as OpticalExam : {} as OpticalExam)
@@ -157,77 +144,6 @@ export default function ExamDetailPage({
   const formRef = useRef<HTMLFormElement>(null)
   const navigate = useNavigate()
   
-  const [cardRows, setCardRows] = useState<CardRow[]>([
-    { id: 'row-1', cards: [{ id: 'exam-details', type: 'exam-details' }] },
-    { id: 'row-2', cards: [{ id: 'old-refraction', type: 'old-refraction' }] },
-    { id: 'row-3', cards: [{ id: 'objective', type: 'objective' }] },
-    { id: 'row-4', cards: [{ id: 'subjective', type: 'subjective' }] },
-    { id: 'row-5', cards: [{ id: 'final-subjective', type: 'final-subjective' }] },
-    { id: 'row-6', cards: [{ id: 'addition', type: 'addition' }] },
-    { id: 'row-7', cards: [{ id: 'notes', type: 'notes' }] }
-  ])
-  
-  const [customWidths, setCustomWidths] = useState<Record<string, Record<string, number>>>({})
-
-  const getColumnCount = (type: CardItem['type']): number => {
-    const columnCounts = {
-      'exam-details': 5,
-      'old-refraction': 15,
-      'objective': 8,
-      'subjective': 20,
-      'final-subjective': 22,
-      'addition': 7,
-      'notes': 1
-    }
-    return columnCounts[type]
-  }
-
-  const calculateCardWidth = (cards: CardItem[], rowId: string): Record<string, number> => {
-    if (cards.length === 1) {
-      return { [cards[0].id]: 100 }
-    }
-    
-    // Check if we have custom widths for this row
-    const rowCustomWidths = customWidths[rowId]
-    if (rowCustomWidths && cards.length === 2) {
-      const leftCard = cards[0]
-      const rightCard = cards[1]
-      if (rowCustomWidths[leftCard.id] !== undefined) {
-        return {
-          [leftCard.id]: rowCustomWidths[leftCard.id],
-          [rightCard.id]: 100 - rowCustomWidths[leftCard.id]
-        }
-      }
-    }
-    
-    const totalColumns = cards.reduce((sum, card) => sum + getColumnCount(card.type), 0)
-    const widths: Record<string, number> = {}
-    
-    cards.forEach(card => {
-      const cardColumns = getColumnCount(card.type)
-      widths[card.id] = (cardColumns / totalColumns) * 100
-    })
-    
-    return widths
-  }
-
-  const canAddToRow = (rowCards: CardItem[], newType: CardItem['type']): boolean => {
-    // Can't add exam-details or notes to any row, and can't add to rows containing them
-    if (newType === 'exam-details' || newType === 'notes') return false
-    if (rowCards.some(card => card.type === 'exam-details' || card.type === 'notes')) return false
-    
-    // Can't add duplicate components to the same row
-    if (rowCards.some(card => card.type === newType)) return false
-    
-    return true
-  }
-
-  const hasNoteCard = (cards: CardItem[]): boolean => {
-    return cards.some(card => card.type === 'notes')
-  }
-
-
-  
   useEffect(() => {
     const loadData = async () => {
       if (!clientId) return
@@ -235,9 +151,9 @@ export default function ExamDetailPage({
       try {
         setLoading(true)
         
-        // Load available layouts
-        const layoutsData = await getAllExamLayouts()
-        setAvailableLayouts(layoutsData)
+        // Load users for display purposes
+        const usersData = await getAllUsers()
+        setUsers(usersData)
         
         const clientData = await getClientById(Number(clientId))
         setClient(clientData || null)
@@ -247,32 +163,6 @@ export default function ExamDetailPage({
           setExam(examData || null)
           
           if (examData) {
-            // Use the layout saved with the exam, or fall back to default
-            let layoutToUse = null
-            if (examData.layout_id) {
-              layoutToUse = layoutsData.find(layout => layout.id === examData.layout_id)
-            }
-            
-            if (!layoutToUse) {
-              // Fall back to default layout if exam layout not found
-              layoutToUse = await getDefaultExamLayout()
-              if (!layoutToUse && layoutsData.length > 0) {
-                layoutToUse = layoutsData[0]
-              }
-            }
-            
-            if (layoutToUse) {
-              setSelectedLayoutId(String(layoutToUse.id))
-              const parsedLayout = JSON.parse(layoutToUse.layout_data)
-              if (Array.isArray(parsedLayout)) {
-                setCardRows(parsedLayout)
-                setCustomWidths({})
-              } else {
-                setCardRows(parsedLayout.rows || [])
-                setCustomWidths(parsedLayout.customWidths || {})
-              }
-            }
-            
             const oldRefractionData = await getOldRefractionExamByExamId(Number(examId))
             const objectiveData = await getObjectiveExamByExamId(Number(examId))
             const subjectiveData = await getSubjectiveExamByExamId(Number(examId))
@@ -285,29 +175,7 @@ export default function ExamDetailPage({
             setAdditionExam(additionData || null)
             setFinalSubjectiveExam(finalSubjectiveData || null)
           }
-        } else {
-          // For new exams, use default layout
-          let defaultLayout = await getDefaultExamLayout()
-          if (!defaultLayout && layoutsData.length > 0) {
-            defaultLayout = layoutsData[0]
-          }
-          
-          if (defaultLayout) {
-            setSelectedLayoutId(String(defaultLayout.id))
-            const parsedLayout = JSON.parse(defaultLayout.layout_data)
-            if (Array.isArray(parsedLayout)) {
-              setCardRows(parsedLayout)
-              setCustomWidths({})
-            } else {
-              setCardRows(parsedLayout.rows || [])
-              setCustomWidths(parsedLayout.customWidths || {})
-            }
-          }
         }
-        
-        // Load users for display purposes
-        const usersData = await getAllUsers()
-        setUsers(usersData)
       } catch (error) {
         console.error('Error loading exam data:', error)
         toast.error('שגיאה בטעינת נתוני הבדיקה')
@@ -496,7 +364,6 @@ export default function ExamDetailPage({
           test_name: formData.test_name,
           clinic: formData.clinic,
           user_id: formData.user_id,
-          layout_id: selectedLayoutId ? Number(selectedLayoutId) : undefined,
           notes: formData.notes,
           dominant_eye: formData.dominant_eye
         })
@@ -547,11 +414,7 @@ export default function ExamDetailPage({
           toast.error("לא הצלחנו ליצור את הבדיקה")
         }
       } else {
-        const updatedFormData = {
-          ...formData,
-          layout_id: selectedLayoutId ? Number(selectedLayoutId) : undefined
-        }
-        const updatedExam = await updateExam(updatedFormData)
+        const updatedExam = await updateExam(formData)
         const updatedOldRefractionExam = await updateOldRefractionExam(oldRefractionFormData)
         const updatedObjectiveExam = await updateObjectiveExam(objectiveFormData)
         const updatedSubjectiveExam = await updateSubjectiveExam(subjectiveFormData)
@@ -676,180 +539,6 @@ export default function ExamDetailPage({
     }
   }
 
-  const handleLayoutChange = async (layoutId: string) => {
-    try {
-      setSelectedLayoutId(layoutId)
-      setFormData(prev => ({ ...prev, layout_id: Number(layoutId) }))
-      const selectedLayout = availableLayouts.find(layout => layout.id === Number(layoutId))
-      if (selectedLayout && selectedLayout.layout_data) {
-        const parsedLayout = JSON.parse(selectedLayout.layout_data)
-        if (Array.isArray(parsedLayout)) {
-          setCardRows(parsedLayout)
-          setCustomWidths({})
-        } else {
-          setCardRows(parsedLayout.rows || [])
-          setCustomWidths(parsedLayout.customWidths || {})
-        }
-        toast.success(`פריסה "${selectedLayout.name}" הוחלה`)
-      }
-    } catch (error) {
-      console.error('Error applying layout:', error)
-      toast.error('שגיאה בהחלת הפריסה')
-    }
-  }
-
-  const renderCard = (item: CardItem, hideEyeLabels: boolean = false, matchHeight: boolean = false) => {
-    switch (item.type) {
-      case 'exam-details':
-        return (
-          <Card className="w-full p-4  shadow-md border-[1px] ">
-            <div className="grid grid-cols-5 gap-x-3 gap-y-2 w-full">
-              <div className="col-span-1">
-                <label className="font-semibold text-base">תאריך בדיקה</label>
-                <DateInput
-                  name="exam_date"
-                  className={`h-9 ${isEditing ? 'bg-white' : 'bg-accent/50'}`}
-                  value={formData.exam_date}
-                  onChange={handleInputChange}
-                  disabled={!isEditing}
-                />
-              </div>
-              <div className="col-span-1">
-                <label className="font-semibold text-base">שם הבדיקה</label>
-                <div className="h-1"></div>
-                {isEditing ? (
-                  <Input 
-                    type="text"
-                    name="test_name"
-                    value={formData.test_name || ''}
-                    onChange={handleInputChange}
-                    className="text-sm pt-1 bg-white"
-                  />
-                ) : (
-                  <div className="border h-9 px-3 rounded-md text-sm flex items-center bg-accent/50">{isNewMode ? formData.test_name : exam?.test_name}</div>
-                )}
-              </div>
-              <div className="col-span-1">
-                <label className="font-semibold text-base">סניף</label>
-                <div className="h-1"></div>
-                {isEditing ? (
-                  <Input 
-                    type="text"
-                    name="clinic"
-                    value={formData.clinic || ''}
-                    onChange={handleInputChange}
-                    className="text-sm bg-white"
-                  />
-                ) : (
-                  <div className="border h-9 px-3 rounded-md text-sm flex items-center bg-accent/50">{isNewMode ? formData.clinic : exam?.clinic}</div>
-                )}
-              </div>
-              <div className="col-span-1">
-                <label className="font-semibold text-base">בודק</label>
-                <div className="h-1"></div>
-                
-                  <UserSelect
-                    value={formData.user_id}
-                    disabled={!isEditing}
-                    onValueChange={(userId) => setFormData(prev => ({ ...prev, user_id: userId }))}
-                  />
-              </div>
-              <div className="col-span-1">
-                <label className="font-semibold text-base">עין דומיננטית</label>
-                <div className="h-1 w-full"></div>
-                <Select dir="rtl"
-                disabled={!isEditing}
-                  value={formData.dominant_eye || ''} 
-                  onValueChange={(value) => handleSelectChange(value, 'dominant_eye')}
-                >
-                  <SelectTrigger className={`h-6 text-sm w-full ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}>
-                    <SelectValue placeholder="בחר עין" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="R" className="text-sm">ימין</SelectItem>
-                    <SelectItem value="L" className="text-sm">שמאל</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          </Card>
-        )
-      
-      case 'old-refraction':
-        return (
-          <OldRefractionTab
-            oldRefractionData={oldRefractionFormData}
-            onOldRefractionChange={handleOldRefractionFieldChange}
-            isEditing={isEditing}
-            onMultifocalClick={handleMultifocalOldRefraction}
-            onVHConfirm={handleVHConfirmOldRefraction}
-            hideEyeLabels={hideEyeLabels}
-          />
-        )
-      
-      case 'objective':
-        return (
-          <ObjectiveTab
-            objectiveData={objectiveFormData}
-            onObjectiveChange={handleObjectiveFieldChange}
-            isEditing={isEditing}
-            hideEyeLabels={hideEyeLabels}
-          />
-        )
-      
-      case 'subjective':
-        return (
-          <SubjectiveTab
-            subjectiveData={subjectiveFormData}
-            onSubjectiveChange={handleSubjectiveFieldChange}
-            isEditing={isEditing}
-            onVHConfirm={handleVHConfirm}
-            onMultifocalClick={handleMultifocalSubjective}
-            hideEyeLabels={hideEyeLabels}
-          />
-        )
-      
-      case 'final-subjective':
-        return (
-          <FinalSubjectiveTab
-            finalSubjectiveData={finalSubjectiveFormData}
-            onFinalSubjectiveChange={handleFinalSubjectiveChange}
-            isEditing={isEditing}
-            onVHConfirm={handleFinalSubjectiveVHConfirm}
-            hideEyeLabels={hideEyeLabels}
-          />
-        )
-      
-      case 'addition':
-        return (
-          <AdditionTab
-            additionData={additionFormData}
-            onAdditionChange={handleAdditionFieldChange}
-            isEditing={isEditing}
-            hideEyeLabels={hideEyeLabels}
-          />
-        )
-      
-      case 'notes':
-        return (
-          <Card className={`w-full p-5 shadow-md border-[1px] ${matchHeight ? 'h-full flex flex-col' : ''}`} dir="rtl">
-            <label className="block text-base font-semibold mb-[-10px]">הערות</label>
-            <textarea 
-              name="notes"
-              disabled={!isEditing}
-              value={formData.notes || ''}
-              onChange={handleInputChange}
-              className={`text-sm w-full p-3 border rounded-xl ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default ${matchHeight ? 'flex-1' : 'min-h-[90px]'}`}
-              rows={matchHeight ? undefined : 4}
-            />
-          </Card>
-        )
-      
-      default:
-        return null
-    }
-  }
-
   if (loading) {
     return (
       <>
@@ -863,7 +552,7 @@ export default function ExamDetailPage({
         />
         <div className="flex flex-col items-center justify-center h-full">
           <h1 className="text-2xl">טוען נתונים...</h1>
-            </div>
+        </div>
       </>
     )
   }
@@ -912,22 +601,6 @@ export default function ExamDetailPage({
                   </Button>
                 </Link>
               )}
-              
-                <div className="flex items-center gap-2">
-                  <Select value={selectedLayoutId} disabled={!isEditing} onValueChange={handleLayoutChange} dir="rtl">
-                    <SelectTrigger className="">
-                      <SelectValue placeholder="בחר פריסה" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {availableLayouts.map((layout) => (
-                        <SelectItem key={layout.id} value={String(layout.id)}>
-                          {layout.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              
               {isNewMode && onCancel && (
                 <Button variant="outline" onClick={onCancel}>
                   ביטול
@@ -939,7 +612,9 @@ export default function ExamDetailPage({
                   if (isEditing) {
                     handleSave();
                   } else {
-                    if (exam) setFormData({ ...exam, layout_id: selectedLayoutId ? Number(selectedLayoutId) : exam.layout_id });
+                    // When starting to edit, ensure formData is based on the latest DB state
+                    // This is already handled by useEffect, but good to be mindful
+                    if (exam) setFormData({ ...exam });
                     if (oldRefractionExam) setOldRefractionFormData({ ...oldRefractionExam });
                     if (objectiveExam) setObjectiveFormData({ ...objectiveExam });
                     if (subjectiveExam) setSubjectiveFormData({ ...subjectiveExam });
@@ -955,30 +630,134 @@ export default function ExamDetailPage({
           </div>
           
           <form ref={formRef} className="pt-4">
-            <div className="space-y-4" style={{scrollbarWidth: 'none'}}>
-              {cardRows.map((row, rowIndex) => {
-                const cardWidths = calculateCardWidth(row.cards, row.id)
-                
-                return (
-                  <div key={row.id} className="w-full">
-                    <div className="flex gap-4 w-full items-start">
-                      <div className="flex gap-4 flex-1" dir="ltr">
-                        {row.cards.map((card, index) => (
-                          <div 
-                            key={card.id}
-                            style={{ 
-                              width: `${cardWidths[card.id]}%`,
-                              minWidth: row.cards.length > 1 ? '200px' : 'auto'
-                            }}
-                          >
-                            {renderCard(card, index == 1, hasNoteCard(row.cards) && row.cards.length === 2)}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
+            <div className="grid grid-cols-1 gap-4">
+              <Card className="p-4 rounded-md shadow-lg border-none bg-accent/50">
+                <div className="grid grid-cols-5 gap-x-3 gap-y-2">
+                  <div className="col-span-1">
+                    <label className="font-semibold text-base">תאריך בדיקה</label>
+                    <DateInput
+                      name="exam_date"
+                      className="h-9"
+                      value={formData.exam_date}
+                      onChange={handleInputChange}
+                      disabled={!isEditing}
+                    />
                   </div>
-                )
-              })}
+                  <div className="col-span-1">
+                    <label className="font-semibold text-base">שם הבדיקה</label>
+                    <div className="h-1"></div>
+                    {isEditing ? (
+                      <Input 
+                        type="text"
+                        name="test_name"
+                        value={formData.test_name || ''}
+                        onChange={handleInputChange}
+                        className="text-sm pt-1"
+                      />
+                    ) : (
+                      <div className="border h-9 px-3 rounded-md text-sm flex items-center">{isNewMode ? formData.test_name : exam?.test_name}</div>
+                    )}
+                  </div>
+                  <div className="col-span-1">
+                    <label className="font-semibold text-base">סניף</label>
+                    <div className="h-1"></div>
+                    {isEditing ? (
+                      <Input 
+                        type="text"
+                        name="clinic"
+                        value={formData.clinic || ''}
+                        onChange={handleInputChange}
+                        className="text-sm"
+                      />
+                    ) : (
+                      <div className="border h-9 px-3 rounded-md text-sm flex items-center">{isNewMode ? formData.clinic : exam?.clinic}</div>
+                    )}
+                  </div>
+                  <div className="col-span-1">
+                    <label className="font-semibold text-base">בודק</label>
+                    <div className="h-1"></div>
+                    {isEditing ? (
+                      <UserSelect
+                        value={formData.user_id}
+                        onValueChange={(userId) => setFormData(prev => ({ ...prev, user_id: userId }))}
+                      />
+                    ) : (
+                      <div className="border h-9 px-3 rounded-md text-sm flex items-center">
+                        {formData.user_id ? (
+                          users.find(u => u.id === formData.user_id)?.username || 'משתמש לא נמצא'
+                        ) : 'לא נבחר בודק'}
+                      </div>
+                    )}
+                  </div>
+                  <div className="col-span-1">
+                    <label className="font-semibold text-base">עין דומיננטית</label>
+                    <div className="h-1 w-full"></div>
+                    
+                      <Select dir="rtl"
+                      disabled={!isEditing}
+                        value={formData.dominant_eye || ''} 
+                        onValueChange={(value) => handleSelectChange(value, 'dominant_eye')}
+                      >
+                        <SelectTrigger className="h-6 text-sm w-full">
+                          <SelectValue placeholder="בחר עין" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="R" className="text-sm">ימין</SelectItem>
+                          <SelectItem value="L" className="text-sm">שמאל</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    
+                  </div>
+                </div>
+              </Card>
+              
+              <div className="space-y-6 pt-2">
+                <OldRefractionObjectiveTab
+                  oldRefractionData={oldRefractionFormData}
+                  objectiveData={objectiveFormData}
+                  onOldRefractionChange={handleOldRefractionFieldChange}
+                  onObjectiveChange={handleObjectiveFieldChange}
+                  isEditing={isEditing}
+                  onMultifocalClick={handleMultifocalOldRefraction}
+                  onVHConfirm={handleVHConfirmOldRefraction}
+                />
+
+                <SubjectiveTab
+                  subjectiveData={subjectiveFormData}
+                  onSubjectiveChange={handleSubjectiveFieldChange}
+                  isEditing={isEditing}
+                  onVHConfirm={handleVHConfirm}
+                  onMultifocalClick={handleMultifocalSubjective}
+                />
+
+                <FinalSubjectiveTab
+                  finalSubjectiveData={finalSubjectiveFormData}
+                  onFinalSubjectiveChange={handleFinalSubjectiveChange}
+                  isEditing={isEditing}
+                  onVHConfirm={handleFinalSubjectiveVHConfirm}
+                />
+
+                <AdditionTab
+                  additionData={additionFormData}
+                  onAdditionChange={handleAdditionFieldChange}
+                  isEditing={isEditing}
+                />
+              </div>
+              
+              {/* Notes Section */}
+              <Card className=" rounded-md p-5 shadow-lg border-none bg-accent/50">
+                <label className="block text-base font-semibold mb-[-10px]">הערות</label>
+                
+                  <textarea 
+                    name="notes"
+                    disabled={!isEditing}
+                    value={formData.notes || ''}
+                    onChange={handleInputChange}
+                    className="text-sm w-full min-h-[90px] p-3 border rounded-md"
+                    rows={4}
+                  />
+                
+              </Card>
             </div>
           </form>
         </div>

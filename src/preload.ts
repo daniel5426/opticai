@@ -305,4 +305,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   createLookupAdvisor: (data: any) => ipcRenderer.invoke('db-create-lookup-advisor', data),
   updateLookupAdvisor: (data: any) => ipcRenderer.invoke('db-update-lookup-advisor', data),
   deleteLookupAdvisor: (id: number) => ipcRenderer.invoke('db-delete-lookup-advisor', id),
+
+  // Exam Layout operations
+  getAllExamLayouts: () => ipcRenderer.invoke('db-get-all-exam-layouts'),
+  getExamLayoutById: (id: number) => ipcRenderer.invoke('db-get-exam-layout', id),
+  createExamLayout: (layoutData: any) => ipcRenderer.invoke('db-create-exam-layout', layoutData),
+  updateExamLayout: (layoutData: any) => ipcRenderer.invoke('db-update-exam-layout', layoutData),
+  deleteExamLayout: (id: number) => ipcRenderer.invoke('db-delete-exam-layout', id),
+  getDefaultExamLayout: () => ipcRenderer.invoke('db-get-default-exam-layout'),
 });

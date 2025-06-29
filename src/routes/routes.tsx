@@ -21,6 +21,8 @@ import AllFilesPage from "@/pages/AllFilesPage";
 import SettingsPage from "@/pages/SettingsPage";
 import UserSelectionPage from "@/pages/UserSelectionPage";
 import { AIAssistantPage } from "@/pages/AIAssistantPage";
+import ExamLayoutsPage from "@/pages/ExamLayoutsPage";
+import ExamLayoutEditorPage from "@/pages/ExamLayoutEditorPage";
 
 // TODO: Steps to add a new route:
 // 1. Create a new page component in the '../pages/' directory (e.g., NewPage.tsx)
@@ -174,6 +176,28 @@ export const AIAssistantRoute = createRoute({
   component: AIAssistantPage,
 });
 
+
+export const ExamLayoutsRoute = createRoute({
+  getParentRoute: () => RootRoute,
+  path: "/exam-layouts",
+  component: ExamLayoutsPage,
+});
+
+export const ExamLayoutEditorRoute = createRoute({
+  getParentRoute: () => RootRoute,
+  path: "/exam-layouts/new",
+  component: ExamLayoutEditorPage,
+  validateSearch: (search: Record<string, unknown>) => ({
+    name: search.name as string,
+  }),
+});
+
+export const ExamLayoutEditorDetailRoute = createRoute({
+  getParentRoute: () => RootRoute,
+  path: "/exam-layouts/$layoutId",
+  component: ExamLayoutEditorPage,
+});
+
 export const rootTree = RootRoute.addChildren([
   HomeRoute,
   SecondPageRoute,
@@ -196,4 +220,7 @@ export const rootTree = RootRoute.addChildren([
   AllFilesRoute,
   SettingsRoute,
   AIAssistantRoute,
+  ExamLayoutsRoute,
+  ExamLayoutEditorRoute,
+  ExamLayoutEditorDetailRoute,
 ]);

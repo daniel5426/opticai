@@ -2142,6 +2142,61 @@ function setupIpcHandlers() {
     }
   });
 
+  // Exam Layout operations
+  ipcMain.handle('db-get-all-exam-layouts', async () => {
+    try {
+      return dbService.getAllExamLayouts();
+    } catch (error) {
+      console.error('Error getting all exam layouts:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-get-exam-layout', async (event, id: number) => {
+    try {
+      return dbService.getExamLayoutById(id);
+    } catch (error) {
+      console.error('Error getting exam layout:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-create-exam-layout', async (event, layoutData) => {
+    try {
+      return dbService.createExamLayout(layoutData);
+    } catch (error) {
+      console.error('Error creating exam layout:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-update-exam-layout', async (event, layoutData) => {
+    try {
+      return dbService.updateExamLayout(layoutData);
+    } catch (error) {
+      console.error('Error updating exam layout:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-delete-exam-layout', async (event, id: number) => {
+    try {
+      return dbService.deleteExamLayout(id);
+    } catch (error) {
+      console.error('Error deleting exam layout:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-get-default-exam-layout', async () => {
+    try {
+      return dbService.getDefaultExamLayout();
+    } catch (error) {
+      console.error('Error getting default exam layout:', error);
+      throw error;
+    }
+  });
+
 }
 
 async function installExtensions() {
