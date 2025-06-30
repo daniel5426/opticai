@@ -1,45 +1,34 @@
-import React, { useState, useEffect } from "react"
-import { useParams, Link } from "@tanstack/react-router"
-import { Button } from "@/components/ui/button"
+import React from "react"
+import { useParams } from "@tanstack/react-router"
 import { ReferralTable } from "@/components/referral-table"
-import { getReferralsByClientId } from "@/lib/db/referral-db"
+import { useClientData } from "@/contexts/ClientDataContext"
 import { Referral } from "@/lib/db/schema"
-import { Plus } from "lucide-react"
 
 export function ClientReferralTab() {
   const { clientId } = useParams({ from: "/clients/$clientId" })
-  const [referrals, setReferrals] = useState<Referral[]>([])
-  const [loading, setLoading] = useState(true)
+  const { referrals, loading, refreshReferrals } = useClientData()
+  const [currentReferrals, setCurrentReferrals] = React.useState<Referral[]>(referrals)
 
-  const loadReferrals = async () => {
-    try {
-      setLoading(true)
-      const referralData = await getReferralsByClientId(Number(clientId))
-      setReferrals(referralData)
-    } catch (error) {
-      console.error('Error loading referrals:', error)
-    } finally {
-      setLoading(false)
-    }
+  React.useEffect(() => {
+    setCurrentReferrals(referrals)
+  }, [referrals])
+
+  const handleReferralDeleted = (deletedReferralId: number) => {
+    setCurrentReferrals(prevReferrals => prevReferrals.filter(referral => referral.id !== deletedReferralId))
   }
 
-  useEffect(() => {
-    loadReferrals()
-  }, [clientId])
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-lg">טוען הפניות...</div>
-      </div>
-    )
+  const handleReferralDeleteFailed = () => {
+    refreshReferrals()
   }
+
 
   return (
-      <ReferralTable 
-        referrals={referrals} 
-        onRefresh={loadReferrals}
-        clientId={Number(clientId)}
-      />
+    <ReferralTable 
+      referrals={currentReferrals} 
+      onReferralDeleted={handleReferralDeleted}
+      onReferralDeleteFailed={handleReferralDeleteFailed}
+      clientId={Number(clientId)}
+      loading={loading.referrals}
+    />
   )
 } 

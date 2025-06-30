@@ -407,6 +407,15 @@ function setupIpcHandlers() {
     }
   });
 
+  ipcMain.handle('db-get-old-refraction-exam-by-layout', async (event, layoutId: number) => {
+    try {
+      return dbService.getOldRefractionExamByLayoutId(layoutId);
+    } catch (error) {
+      console.error('Error getting old refraction exam by layout:', error);
+      throw error;
+    }
+  });
+
   ipcMain.handle('db-create-old-refraction-exam', async (event, examData) => {
     try {
       return dbService.createOldRefractionExam(examData);
@@ -431,6 +440,15 @@ function setupIpcHandlers() {
       return dbService.getObjectiveExamByExamId(examId);
     } catch (error) {
       console.error('Error getting objective exam:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-get-objective-exam-by-layout', async (event, layoutId: number) => {
+    try {
+      return dbService.getObjectiveExamByLayoutId(layoutId);
+    } catch (error) {
+      console.error('Error getting objective exam by layout:', error);
       throw error;
     }
   });
@@ -463,6 +481,15 @@ function setupIpcHandlers() {
     }
   });
 
+  ipcMain.handle('db-get-subjective-exam-by-layout', async (event, layoutId: number) => {
+    try {
+      return dbService.getSubjectiveExamByLayoutId(layoutId);
+    } catch (error) {
+      console.error('Error getting subjective exam by layout:', error);
+      throw error;
+    }
+  });
+
   ipcMain.handle('db-create-subjective-exam', async (event, examData) => {
     try {
       return dbService.createSubjectiveExam(examData);
@@ -487,6 +514,15 @@ function setupIpcHandlers() {
       return dbService.getAdditionExamByExamId(examId);
     } catch (error) {
       console.error('Error getting addition exam:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-get-addition-exam-by-layout', async (event, layoutId: number) => {
+    try {
+      return dbService.getAdditionExamByLayoutId(layoutId);
+    } catch (error) {
+      console.error('Error getting addition exam by layout:', error);
       throw error;
     }
   });
@@ -519,6 +555,15 @@ function setupIpcHandlers() {
     }
   });
 
+  ipcMain.handle('db-get-final-subjective-exam-by-layout', async (event, layoutId: number) => {
+    try {
+      return dbService.getFinalSubjectiveExamByLayoutId(layoutId);
+    } catch (error) {
+      console.error('Error getting final subjective exam by layout:', error);
+      throw error;
+    }
+  });
+
   ipcMain.handle('db-create-final-subjective-exam', async (event, examData) => {
     try {
       return dbService.createFinalSubjectiveExam(examData);
@@ -533,6 +578,15 @@ function setupIpcHandlers() {
       return dbService.updateFinalSubjectiveExam(examData);
     } catch (error) {
       console.error('Error updating final subjective exam:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-delete-final-subjective-exam', async (event, id: number) => {
+    try {
+      return dbService.deleteFinalSubjectiveExam(id);
+    } catch (error) {
+      console.error('Error deleting final subjective exam:', error);
       throw error;
     }
   });
@@ -2197,6 +2251,87 @@ function setupIpcHandlers() {
     }
   });
 
+  ipcMain.handle('db-get-layouts-by-exam', async (event, examId: number) => {
+    try {
+      return dbService.getLayoutsByExamId(examId);
+    } catch (error) {
+      console.error('Error getting layouts by exam:', error);
+      throw error;
+    }
+  });
+
+  // ExamLayoutInstance operations
+  ipcMain.handle('db-get-exam-layout-instance', async (event, id: number) => {
+    try {
+      return dbService.getExamLayoutInstanceById(id);
+    } catch (error) {
+      console.error('Error getting exam layout instance:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-get-exam-layout-instances-by-exam', async (event, examId: number) => {
+    try {
+      return dbService.getExamLayoutInstancesByExamId(examId);
+    } catch (error) {
+      console.error('Error getting exam layout instances by exam:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-get-active-exam-layout-instance', async (event, examId: number) => {
+    try {
+      return dbService.getActiveExamLayoutInstanceByExamId(examId);
+    } catch (error) {
+      console.error('Error getting active exam layout instance:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-create-exam-layout-instance', async (event, instanceData) => {
+    try {
+      return dbService.createExamLayoutInstance(instanceData);
+    } catch (error) {
+      console.error('Error creating exam layout instance:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-update-exam-layout-instance', async (event, instanceData) => {
+    try {
+      return dbService.updateExamLayoutInstance(instanceData);
+    } catch (error) {
+      console.error('Error updating exam layout instance:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-delete-exam-layout-instance', async (event, id: number) => {
+    try {
+      return dbService.deleteExamLayoutInstance(id);
+    } catch (error) {
+      console.error('Error deleting exam layout instance:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-set-active-exam-layout-instance', async (event, examId: number, layoutInstanceId: number) => {
+    try {
+      return dbService.setActiveExamLayoutInstance(examId, layoutInstanceId);
+    } catch (error) {
+      console.error('Error setting active exam layout instance:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db-ensure-exam-has-layout', async (event, examId: number) => {
+    try {
+      return dbService.ensureExamHasLayout(examId);
+    } catch (error) {
+      console.error('Error ensuring exam has layout:', error);
+      throw error;
+    }
+  });
 }
 
 async function installExtensions() {

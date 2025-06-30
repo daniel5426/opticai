@@ -49,7 +49,8 @@ import {
   LookupRinsingSolution,
   LookupManufacturingLab,
   LookupAdvisor,
-  ExamLayout
+  ExamLayout,
+  ExamLayoutInstance
 } from './schema';
 
 class DatabaseService {
@@ -212,9 +213,28 @@ class DatabaseService {
             });
 
             if (exam) {
+              // First create a default layout
+              const layout = this.createExamLayout({
+                name: "Default Layout",
+                layout_data: "[]",
+                is_default: true
+              });
+              
+              if (!layout) return;
+
+              // Create a layout instance for this exam
+              const layoutInstance = this.createExamLayoutInstance({
+                exam_id: exam.id!,
+                layout_id: layout.id!,
+                is_active: true,
+                order: 0
+              });
+
+              if (!layoutInstance) return;
+              
               // Create old refraction exam data
               this.createOldRefractionExam({
-                exam_id: exam.id!,
+                layout_id: layout.id!,
                 r_sph: -1.25,
                 l_sph: -1.0,
                 r_cyl: -0.5,
@@ -228,7 +248,7 @@ class DatabaseService {
 
               // Create objective exam data
               this.createObjectiveExam({
-                exam_id: exam.id!,
+                layout_id: layout.id!,
                 r_sph: -1.5,
                 l_sph: -1.25,
                 r_cyl: -0.75,
@@ -241,7 +261,7 @@ class DatabaseService {
 
               // Create subjective exam data
               this.createSubjectiveExam({
-                exam_id: exam.id!,
+                layout_id: layout.id!,
                 r_fa: 6,
                 l_fa: 6,
                 r_sph: -1.5,
@@ -264,7 +284,7 @@ class DatabaseService {
 
               // Create addition exam data
               this.createAdditionExam({
-                exam_id: exam.id!,
+                layout_id: layout.id!,
                 r_fcc: 0.75,
                 l_fcc: 0.75,
                 r_read: 1.0,
@@ -431,13 +451,13 @@ class DatabaseService {
     try {
       const stmt = this.db.prepare(`
         INSERT INTO optical_exams (
-          client_id, clinic, user_id, exam_date, test_name, dominant_eye, layout_id, notes
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          client_id, clinic, user_id, exam_date, test_name, dominant_eye, notes
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
       `);
 
       const result = stmt.run(
         exam.client_id, exam.clinic, this.sanitizeValue(exam.user_id), exam.exam_date, exam.test_name,
-        exam.dominant_eye, this.sanitizeValue(exam.layout_id), exam.notes
+        exam.dominant_eye, exam.notes
       );
 
       return { ...exam, id: result.lastInsertRowid as number };
@@ -490,13 +510,13 @@ class DatabaseService {
       const stmt = this.db.prepare(`
         UPDATE optical_exams SET 
         client_id = ?, clinic = ?, user_id = ?, exam_date = ?, test_name = ?, 
-        dominant_eye = ?, layout_id = ?, notes = ?
+        dominant_eye = ?, notes = ?
         WHERE id = ?
       `);
 
       stmt.run(
         exam.client_id, exam.clinic, this.sanitizeValue(exam.user_id), exam.exam_date, exam.test_name,
-        exam.dominant_eye, this.sanitizeValue(exam.layout_id), exam.notes, exam.id
+        exam.dominant_eye, exam.notes, exam.id
       );
 
       return exam;
@@ -508,11 +528,10 @@ class DatabaseService {
 
   deleteExam(id: number): boolean {
     if (!this.db) return false;
-
     try {
       const stmt = this.db.prepare('DELETE FROM optical_exams WHERE id = ?');
-      const result = stmt.run(id);
-      return result.changes > 0;
+      stmt.run(id);
+      return true;
     } catch (error) {
       console.error('Error deleting exam:', error);
       return false;
@@ -526,13 +545,13 @@ class DatabaseService {
     try {
       const stmt = this.db.prepare(`
         INSERT INTO old_refraction_exams (
-          exam_id, r_sph, l_sph, r_cyl, l_cyl, r_ax, l_ax, r_pris, l_pris, r_base, l_base,
+          layout_id, r_sph, l_sph, r_cyl, l_cyl, r_ax, l_ax, r_pris, l_pris, r_base, l_base,
           r_va, l_va, r_ad, l_ad, comb_va
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
 
       const result = stmt.run(
-        exam.exam_id, exam.r_sph, exam.l_sph, exam.r_cyl, exam.l_cyl, exam.r_ax, exam.l_ax,
+        exam.layout_id, exam.r_sph, exam.l_sph, exam.r_cyl, exam.l_cyl, exam.r_ax, exam.l_ax,
         exam.r_pris, exam.l_pris, exam.r_base, exam.l_base, exam.r_va, exam.l_va,
         exam.r_ad, exam.l_ad, exam.comb_va
       );
@@ -548,10 +567,27 @@ class DatabaseService {
     if (!this.db) return null;
 
     try {
-      const stmt = this.db.prepare('SELECT * FROM old_refraction_exams WHERE exam_id = ?');
+      const stmt = this.db.prepare(`
+        SELECT * FROM old_refraction_exams 
+        WHERE layout_id IN (
+          SELECT layout_id FROM exam_layout_instances WHERE exam_id = ? AND is_active = 1
+        )
+      `);
       return stmt.get(examId) as OldRefractionExam | null;
     } catch (error) {
       console.error('Error getting old refraction exam:', error);
+      return null;
+    }
+  }
+
+  getOldRefractionExamByLayoutId(layoutId: number): OldRefractionExam | null {
+    if (!this.db) return null;
+
+    try {
+      const stmt = this.db.prepare('SELECT * FROM old_refraction_exams WHERE layout_id = ?');
+      return stmt.get(layoutId) as OldRefractionExam | null;
+    } catch (error) {
+      console.error('Error getting old refraction exam by layout ID:', error);
       return null;
     }
   }
@@ -562,13 +598,13 @@ class DatabaseService {
     try {
       const stmt = this.db.prepare(`
         UPDATE old_refraction_exams SET 
-        exam_id = ?, r_sph = ?, l_sph = ?, r_cyl = ?, l_cyl = ?, r_ax = ?, l_ax = ?,
+        layout_id = ?, r_sph = ?, l_sph = ?, r_cyl = ?, l_cyl = ?, r_ax = ?, l_ax = ?,
         r_pris = ?, l_pris = ?, r_base = ?, l_base = ?, r_va = ?, l_va = ?, r_ad = ?, l_ad = ?, comb_va = ?
         WHERE id = ?
       `);
 
       stmt.run(
-        exam.exam_id, exam.r_sph, exam.l_sph, exam.r_cyl, exam.l_cyl, exam.r_ax, exam.l_ax,
+        exam.layout_id, exam.r_sph, exam.l_sph, exam.r_cyl, exam.l_cyl, exam.r_ax, exam.l_ax,
         exam.r_pris, exam.l_pris, exam.r_base, exam.l_base, exam.r_va, exam.l_va,
         exam.r_ad, exam.l_ad, exam.comb_va, exam.id
       );
@@ -587,12 +623,12 @@ class DatabaseService {
     try {
       const stmt = this.db.prepare(`
         INSERT INTO objective_exams (
-          exam_id, r_sph, l_sph, r_cyl, l_cyl, r_ax, l_ax, r_se, l_se
+          layout_id, r_sph, l_sph, r_cyl, l_cyl, r_ax, l_ax, r_se, l_se
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
 
       const result = stmt.run(
-        exam.exam_id, exam.r_sph, exam.l_sph, exam.r_cyl, exam.l_cyl,
+        exam.layout_id, exam.r_sph, exam.l_sph, exam.r_cyl, exam.l_cyl,
         exam.r_ax, exam.l_ax, exam.r_se, exam.l_se
       );
 
@@ -607,10 +643,27 @@ class DatabaseService {
     if (!this.db) return null;
 
     try {
-      const stmt = this.db.prepare('SELECT * FROM objective_exams WHERE exam_id = ?');
+      const stmt = this.db.prepare(`
+        SELECT * FROM objective_exams 
+        WHERE layout_id IN (
+          SELECT layout_id FROM exam_layout_instances WHERE exam_id = ? AND is_active = 1
+        )
+      `);
       return stmt.get(examId) as ObjectiveExam | null;
     } catch (error) {
       console.error('Error getting objective exam:', error);
+      return null;
+    }
+  }
+
+  getObjectiveExamByLayoutId(layoutId: number): ObjectiveExam | null {
+    if (!this.db) return null;
+
+    try {
+      const stmt = this.db.prepare('SELECT * FROM objective_exams WHERE layout_id = ?');
+      return stmt.get(layoutId) as ObjectiveExam | null;
+    } catch (error) {
+      console.error('Error getting objective exam by layout ID:', error);
       return null;
     }
   }
@@ -621,12 +674,12 @@ class DatabaseService {
     try {
       const stmt = this.db.prepare(`
         UPDATE objective_exams SET 
-        exam_id = ?, r_sph = ?, l_sph = ?, r_cyl = ?, l_cyl = ?, r_ax = ?, l_ax = ?, r_se = ?, l_se = ?
+        layout_id = ?, r_sph = ?, l_sph = ?, r_cyl = ?, l_cyl = ?, r_ax = ?, l_ax = ?, r_se = ?, l_se = ?
         WHERE id = ?
       `);
 
       stmt.run(
-        exam.exam_id, exam.r_sph, exam.l_sph, exam.r_cyl, exam.l_cyl,
+        exam.layout_id, exam.r_sph, exam.l_sph, exam.r_cyl, exam.l_cyl,
         exam.r_ax, exam.l_ax, exam.r_se, exam.l_se, exam.id
       );
 
@@ -644,14 +697,14 @@ class DatabaseService {
     try {
       const stmt = this.db.prepare(`
         INSERT INTO subjective_exams (
-          exam_id, r_fa, l_fa, r_fa_tuning, l_fa_tuning, r_sph, l_sph, r_cyl, l_cyl, r_ax, l_ax,
+          layout_id, r_fa, l_fa, r_fa_tuning, l_fa_tuning, r_sph, l_sph, r_cyl, l_cyl, r_ax, l_ax,
           r_pris, l_pris, r_base, l_base, r_va, l_va, r_ph, l_ph, r_pd_close, l_pd_close,
           r_pd_far, l_pd_far, comb_va, comb_fa, comb_fa_tuning, comb_pd_close, comb_pd_far
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
 
       const result = stmt.run(
-        exam.exam_id, exam.r_fa, exam.l_fa, exam.r_fa_tuning, exam.l_fa_tuning,
+        exam.layout_id, exam.r_fa, exam.l_fa, exam.r_fa_tuning, exam.l_fa_tuning,
         exam.r_sph, exam.l_sph, exam.r_cyl, exam.l_cyl, exam.r_ax, exam.l_ax,
         exam.r_pris, exam.l_pris, exam.r_base, exam.l_base, exam.r_va, exam.l_va,
         exam.r_ph, exam.l_ph, exam.r_pd_close, exam.l_pd_close, exam.r_pd_far, exam.l_pd_far,
@@ -669,10 +722,27 @@ class DatabaseService {
     if (!this.db) return null;
 
     try {
-      const stmt = this.db.prepare('SELECT * FROM subjective_exams WHERE exam_id = ?');
+      const stmt = this.db.prepare(`
+        SELECT * FROM subjective_exams 
+        WHERE layout_id IN (
+          SELECT layout_id FROM exam_layout_instances WHERE exam_id = ? AND is_active = 1
+        )
+      `);
       return stmt.get(examId) as SubjectiveExam | null;
     } catch (error) {
       console.error('Error getting subjective exam:', error);
+      return null;
+    }
+  }
+
+  getSubjectiveExamByLayoutId(layoutId: number): SubjectiveExam | null {
+    if (!this.db) return null;
+
+    try {
+      const stmt = this.db.prepare('SELECT * FROM subjective_exams WHERE layout_id = ?');
+      return stmt.get(layoutId) as SubjectiveExam | null;
+    } catch (error) {
+      console.error('Error getting subjective exam by layout ID:', error);
       return null;
     }
   }
@@ -683,7 +753,7 @@ class DatabaseService {
     try {
       const stmt = this.db.prepare(`
         UPDATE subjective_exams SET 
-        exam_id = ?, r_fa = ?, l_fa = ?, r_fa_tuning = ?, l_fa_tuning = ?, r_sph = ?, l_sph = ?, r_cyl = ?, l_cyl = ?,
+        layout_id = ?, r_fa = ?, l_fa = ?, r_fa_tuning = ?, l_fa_tuning = ?, r_sph = ?, l_sph = ?, r_cyl = ?, l_cyl = ?,
         r_ax = ?, l_ax = ?, r_pris = ?, l_pris = ?, r_base = ?, l_base = ?, r_va = ?, l_va = ?, r_ph = ?, l_ph = ?,
         r_pd_close = ?, l_pd_close = ?, r_pd_far = ?, l_pd_far = ?, comb_va = ?, comb_fa = ?, comb_fa_tuning = ?,
         comb_pd_close = ?, comb_pd_far = ?
@@ -691,7 +761,7 @@ class DatabaseService {
       `);
 
       stmt.run(
-        exam.exam_id, exam.r_fa, exam.l_fa, exam.r_fa_tuning, exam.l_fa_tuning,
+        exam.layout_id, exam.r_fa, exam.l_fa, exam.r_fa_tuning, exam.l_fa_tuning,
         exam.r_sph, exam.l_sph, exam.r_cyl, exam.l_cyl, exam.r_ax, exam.l_ax,
         exam.r_pris, exam.l_pris, exam.r_base, exam.l_base, exam.r_va, exam.l_va,
         exam.r_ph, exam.l_ph, exam.r_pd_close, exam.l_pd_close, exam.r_pd_far, exam.l_pd_far,
@@ -712,13 +782,13 @@ class DatabaseService {
     try {
       const stmt = this.db.prepare(`
         INSERT INTO addition_exams (
-          exam_id, r_fcc, l_fcc, r_read, l_read, r_int, l_int, r_bif, l_bif,
+          layout_id, r_fcc, l_fcc, r_read, l_read, r_int, l_int, r_bif, l_bif,
           r_mul, l_mul, r_j, l_j, r_iop, l_iop
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
 
       const result = stmt.run(
-        exam.exam_id, exam.r_fcc, exam.l_fcc, exam.r_read, exam.l_read,
+        exam.layout_id, exam.r_fcc, exam.l_fcc, exam.r_read, exam.l_read,
         exam.r_int, exam.l_int, exam.r_bif, exam.l_bif, exam.r_mul, exam.l_mul,
         exam.r_j, exam.l_j, exam.r_iop, exam.l_iop
       );
@@ -734,10 +804,27 @@ class DatabaseService {
     if (!this.db) return null;
 
     try {
-      const stmt = this.db.prepare('SELECT * FROM addition_exams WHERE exam_id = ?');
+      const stmt = this.db.prepare(`
+        SELECT * FROM addition_exams 
+        WHERE layout_id IN (
+          SELECT layout_id FROM exam_layout_instances WHERE exam_id = ? AND is_active = 1
+        )
+      `);
       return stmt.get(examId) as AdditionExam | null;
     } catch (error) {
       console.error('Error getting addition exam:', error);
+      return null;
+    }
+  }
+
+  getAdditionExamByLayoutId(layoutId: number): AdditionExam | null {
+    if (!this.db) return null;
+
+    try {
+      const stmt = this.db.prepare('SELECT * FROM addition_exams WHERE layout_id = ?');
+      return stmt.get(layoutId) as AdditionExam | null;
+    } catch (error) {
+      console.error('Error getting addition exam by layout ID:', error);
       return null;
     }
   }
@@ -748,13 +835,13 @@ class DatabaseService {
     try {
       const stmt = this.db.prepare(`
         UPDATE addition_exams SET 
-        exam_id = ?, r_fcc = ?, l_fcc = ?, r_read = ?, l_read = ?, r_int = ?, l_int = ?, r_bif = ?, l_bif = ?,
-        r_mul = ?, l_mul = ?, r_j = ?, l_j = ?, r_iop = ?, l_iop = ?
+        layout_id = ?, r_fcc = ?, l_fcc = ?, r_read = ?, l_read = ?, r_int = ?, l_int = ?,
+        r_bif = ?, l_bif = ?, r_mul = ?, l_mul = ?, r_j = ?, l_j = ?, r_iop = ?, l_iop = ?
         WHERE id = ?
       `);
 
       stmt.run(
-        exam.exam_id, exam.r_fcc, exam.l_fcc, exam.r_read, exam.l_read,
+        exam.layout_id, exam.r_fcc, exam.l_fcc, exam.r_read, exam.l_read,
         exam.r_int, exam.l_int, exam.r_bif, exam.l_bif, exam.r_mul, exam.l_mul,
         exam.r_j, exam.l_j, exam.r_iop, exam.l_iop, exam.id
       );
@@ -772,14 +859,14 @@ class DatabaseService {
     try {
       const stmt = this.db.prepare(`
         INSERT INTO final_subjective_exams (
-          exam_id, r_sph, l_sph, r_cyl, l_cyl, r_ax, l_ax, r_pr_h, l_pr_h, r_base_h, l_base_h,
+          layout_id, r_sph, l_sph, r_cyl, l_cyl, r_ax, l_ax, r_pr_h, l_pr_h, r_base_h, l_base_h,
           r_pr_v, l_pr_v, r_base_v, l_base_v, r_va, l_va, r_j, l_j, r_pd_far, l_pd_far,
           r_pd_close, l_pd_close, comb_pd_far, comb_pd_close, comb_va
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
 
       const result = stmt.run(
-        exam.exam_id, exam.r_sph, exam.l_sph, exam.r_cyl, exam.l_cyl, exam.r_ax, exam.l_ax,
+        exam.layout_id, exam.r_sph, exam.l_sph, exam.r_cyl, exam.l_cyl, exam.r_ax, exam.l_ax,
         exam.r_pr_h, exam.l_pr_h, exam.r_base_h, exam.l_base_h, exam.r_pr_v, exam.l_pr_v,
         exam.r_base_v, exam.l_base_v, exam.r_va, exam.l_va, exam.r_j, exam.l_j,
         exam.r_pd_far, exam.l_pd_far, exam.r_pd_close, exam.l_pd_close,
@@ -797,10 +884,27 @@ class DatabaseService {
     if (!this.db) return null;
 
     try {
-      const stmt = this.db.prepare('SELECT * FROM final_subjective_exams WHERE exam_id = ?');
+      const stmt = this.db.prepare(`
+        SELECT * FROM final_subjective_exams 
+        WHERE layout_id IN (
+          SELECT layout_id FROM exam_layout_instances WHERE exam_id = ? AND is_active = 1
+        )
+      `);
       return stmt.get(examId) as FinalSubjectiveExam | null;
     } catch (error) {
       console.error('Error getting final subjective exam:', error);
+      return null;
+    }
+  }
+
+  getFinalSubjectiveExamByLayoutId(layoutId: number): FinalSubjectiveExam | null {
+    if (!this.db) return null;
+
+    try {
+      const stmt = this.db.prepare('SELECT * FROM final_subjective_exams WHERE layout_id = ?');
+      return stmt.get(layoutId) as FinalSubjectiveExam | null;
+    } catch (error) {
+      console.error('Error getting final subjective exam by layout ID:', error);
       return null;
     }
   }
@@ -811,7 +915,7 @@ class DatabaseService {
     try {
       const stmt = this.db.prepare(`
         UPDATE final_subjective_exams SET 
-        exam_id = ?, r_sph = ?, l_sph = ?, r_cyl = ?, l_cyl = ?, r_ax = ?, l_ax = ?, r_pr_h = ?, l_pr_h = ?,
+        layout_id = ?, r_sph = ?, l_sph = ?, r_cyl = ?, l_cyl = ?, r_ax = ?, l_ax = ?, r_pr_h = ?, l_pr_h = ?,
         r_base_h = ?, l_base_h = ?, r_pr_v = ?, l_pr_v = ?, r_base_v = ?, l_base_v = ?, r_va = ?, l_va = ?,
         r_j = ?, l_j = ?, r_pd_far = ?, l_pd_far = ?, r_pd_close = ?, l_pd_close = ?, comb_pd_far = ?,
         comb_pd_close = ?, comb_va = ?
@@ -819,7 +923,7 @@ class DatabaseService {
       `);
 
       stmt.run(
-        exam.exam_id, exam.r_sph, exam.l_sph, exam.r_cyl, exam.l_cyl, exam.r_ax, exam.l_ax,
+        exam.layout_id, exam.r_sph, exam.l_sph, exam.r_cyl, exam.l_cyl, exam.r_ax, exam.l_ax,
         exam.r_pr_h, exam.l_pr_h, exam.r_base_h, exam.l_base_h, exam.r_pr_v, exam.l_pr_v,
         exam.r_base_v, exam.l_base_v, exam.r_va, exam.l_va, exam.r_j, exam.l_j,
         exam.r_pd_far, exam.l_pd_far, exam.r_pd_close, exam.l_pd_close,
@@ -3695,7 +3799,7 @@ class DatabaseService {
     if (!this.db) return [];
 
     try {
-      const stmt = this.db.prepare('SELECT * FROM exam_layouts ORDER BY created_at DESC');
+      const stmt = this.db.prepare('SELECT * FROM exam_layouts WHERE is_active = 1 ORDER BY created_at DESC');
       return stmt.all() as ExamLayout[];
     } catch (error) {
       console.error('Error getting all exam layouts:', error);
@@ -3708,8 +3812,8 @@ class DatabaseService {
 
     try {
       const stmt = this.db.prepare(`
-        UPDATE exam_layouts SET 
-          name = ?, layout_data = ?, is_default = ?, updated_at = CURRENT_TIMESTAMP
+        UPDATE exam_layouts 
+        SET name = ?, layout_data = ?, is_default = ?, updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
       `);
 
@@ -3731,11 +3835,11 @@ class DatabaseService {
     if (!this.db) return false;
 
     try {
-      const stmt = this.db.prepare('DELETE FROM exam_layouts WHERE id = ?');
+      const stmt = this.db.prepare('UPDATE exam_layouts SET is_active = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?');
       const result = stmt.run(id);
       return result.changes > 0;
     } catch (error) {
-      console.error('Error deleting exam layout:', error);
+      console.error('Error deactivating exam layout:', error);
       return false;
     }
   }
@@ -3749,6 +3853,222 @@ class DatabaseService {
     } catch (error) {
       console.error('Error getting default exam layout:', error);
       return null;
+    }
+  }
+
+  // Get all layouts for a specific exam
+  getLayoutsByExamId(examId: number): ExamLayout[] {
+    if (!this.db) return [];
+
+    try {
+      // First get instances for the exam
+      const instances = this.getExamLayoutInstancesByExamId(examId);
+      if (instances.length === 0) return [];
+      
+      // Then get the layouts from those instances
+      const layouts: ExamLayout[] = [];
+      for (const instance of instances) {
+        const layout = this.getExamLayoutById(instance.layout_id);
+        if (layout) layouts.push(layout);
+      }
+      
+      return layouts;
+    } catch (error) {
+      console.error('Error getting layouts for exam:', error);
+      return [];
+    }
+  }
+
+  // Deactivate all layouts for a specific exam
+  deactivateAllLayoutsForExam(examId: number): boolean {
+    if (!this.db) return false;
+
+    try {
+      const stmt = this.db.prepare(`
+        UPDATE exam_layout_instances 
+        SET is_active = 0, updated_at = CURRENT_TIMESTAMP
+        WHERE exam_id = ?
+      `);
+
+      stmt.run(examId);
+      return true;
+    } catch (error) {
+      console.error('Error deactivating exam layout instances:', error);
+      return false;
+    }
+  }
+
+  // ExamLayoutInstance CRUD operations
+  
+  createExamLayoutInstance(data: Omit<ExamLayoutInstance, 'id'>): ExamLayoutInstance | null {
+    if (!this.db) return null;
+
+    try {
+      const stmt = this.db.prepare(`
+        INSERT INTO exam_layout_instances (exam_id, layout_id, is_active, \`order\`)
+        VALUES (?, ?, ?, ?)
+      `);
+
+      const result = stmt.run(
+        data.exam_id,
+        data.layout_id,
+        this.sanitizeValue(data.is_active),
+        this.sanitizeValue(data.order)
+      );
+
+      return { ...data, id: result.lastInsertRowid as number };
+    } catch (error) {
+      console.error('Error creating exam layout instance:', error);
+      return null;
+    }
+  }
+
+  getExamLayoutInstanceById(id: number): ExamLayoutInstance | null {
+    if (!this.db) return null;
+
+    try {
+      const stmt = this.db.prepare('SELECT * FROM exam_layout_instances WHERE id = ?');
+      return stmt.get(id) as ExamLayoutInstance | null;
+    } catch (error) {
+      console.error('Error getting exam layout instance by ID:', error);
+      return null;
+    }
+  }
+
+  getExamLayoutInstancesByExamId(examId: number): ExamLayoutInstance[] {
+    if (!this.db) return [];
+
+    try {
+      const stmt = this.db.prepare('SELECT * FROM exam_layout_instances WHERE exam_id = ? ORDER BY `order` ASC');
+      return stmt.all(examId) as ExamLayoutInstance[];
+    } catch (error) {
+      console.error('Error getting exam layout instances by exam ID:', error);
+      return [];
+    }
+  }
+
+  getActiveExamLayoutInstanceByExamId(examId: number): ExamLayoutInstance | null {
+    if (!this.db) return null;
+
+    try {
+      const stmt = this.db.prepare('SELECT * FROM exam_layout_instances WHERE exam_id = ? AND is_active = 1 LIMIT 1');
+      return stmt.get(examId) as ExamLayoutInstance | null;
+    } catch (error) {
+      console.error('Error getting active exam layout instance by exam ID:', error);
+      return null;
+    }
+  }
+
+  updateExamLayoutInstance(data: ExamLayoutInstance): ExamLayoutInstance | null {
+    if (!this.db || !data.id) return null;
+
+    try {
+      const stmt = this.db.prepare(`
+        UPDATE exam_layout_instances 
+        SET exam_id = ?, layout_id = ?, is_active = ?, \`order\` = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+      `);
+
+      stmt.run(
+        data.exam_id,
+        data.layout_id,
+        this.sanitizeValue(data.is_active),
+        this.sanitizeValue(data.order),
+        data.id
+      );
+
+      return data;
+    } catch (error) {
+      console.error('Error updating exam layout instance:', error);
+      return null;
+    }
+  }
+
+  deleteExamLayoutInstance(id: number): boolean {
+    if (!this.db) return false;
+
+    try {
+      const stmt = this.db.prepare('DELETE FROM exam_layout_instances WHERE id = ?');
+      const result = stmt.run(id);
+      return result.changes > 0;
+    } catch (error) {
+      console.error('Error deleting exam layout instance:', error);
+      return false;
+    }
+  }
+
+  setActiveExamLayoutInstance(examId: number, layoutInstanceId: number): boolean {
+    if (!this.db) return false;
+
+    try {
+      // First, set all instances for this exam to not active
+      this.db.prepare(`
+        UPDATE exam_layout_instances 
+        SET is_active = 0, updated_at = CURRENT_TIMESTAMP
+        WHERE exam_id = ?
+      `).run(examId);
+
+      // Then set the specified layout instance to active
+      const stmt = this.db.prepare(`
+        UPDATE exam_layout_instances 
+        SET is_active = 1, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ? AND exam_id = ?
+      `);
+      const result = stmt.run(layoutInstanceId, examId);
+
+      return result.changes > 0;
+    } catch (error) {
+      console.error('Error setting active exam layout instance:', error);
+      return false;
+    }
+  }
+
+  // Helper method to ensure an exam has at least one layout
+  ensureExamHasLayout(examId: number): ExamLayoutInstance | null {
+    if (!this.db) return null;
+
+    try {
+      // Check if exam already has layouts
+      const existingLayouts = this.getExamLayoutInstancesByExamId(examId);
+      
+      if (existingLayouts.length > 0) {
+        // If there's no active layout, set the first one as active
+        const activeLayout = existingLayouts.find(l => l.is_active);
+        if (!activeLayout) {
+          this.setActiveExamLayoutInstance(examId, existingLayouts[0].id!);
+          return { ...existingLayouts[0], is_active: true };
+        }
+        return activeLayout;
+      }
+      
+      // No layouts found, create one from the default template
+      const defaultLayout = this.getDefaultExamLayout();
+      if (!defaultLayout) return null;
+      
+      // Create a layout instance using the default layout
+      const layoutInstance = this.createExamLayoutInstance({
+        exam_id: examId,
+        layout_id: defaultLayout.id!,
+        is_active: true,
+        order: 0
+      });
+      
+      return layoutInstance;
+    } catch (error) {
+      console.error('Error ensuring exam has layout:', error);
+      return null;
+    }
+  }
+
+  deleteFinalSubjectiveExam(id: number): boolean {
+    if (!this.db) return false;
+    try {
+      const stmt = this.db.prepare('DELETE FROM final_subjective_exams WHERE id = ?');
+      stmt.run(id);
+      return true;
+    } catch (error) {
+      console.error('Error deleting final subjective exam:', error);
+      return false;
     }
   }
 }

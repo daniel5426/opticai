@@ -37,6 +37,14 @@ export default function AllAppointmentsPage() {
     loadData()
   }, [])
 
+  const handleAppointmentDeleted = (deletedAppointmentId: number) => {
+    setAppointments(prevAppointments => prevAppointments.filter(appointment => appointment.id !== deletedAppointmentId))
+  }
+
+  const handleAppointmentDeleteFailed = () => {
+    loadData()
+  }
+
   // Filter clients based on search query
   const filteredClients = clients.filter(client => {
     const fullName = `${client.first_name} ${client.last_name}`.toLowerCase()
@@ -58,17 +66,6 @@ export default function AllAppointmentsPage() {
     loadData()
   }
 
-  if (loading) {
-    return (
-      <>
-        <SiteHeader title="תורים" />
-        <div className="flex flex-col items-center justify-center h-full">
-          <div className="text-lg">טוען תורים...</div>
-        </div>
-      </>
-    )
-  }
-
   return (
     <>
       <SiteHeader title="תורים" />
@@ -80,6 +77,9 @@ export default function AllAppointmentsPage() {
           data={appointments} 
           clientId={selectedClientId || 0} 
           onAppointmentChange={handleAppointmentChange}
+          onAppointmentDeleted={handleAppointmentDeleted}
+          onAppointmentDeleteFailed={handleAppointmentDeleteFailed}
+          loading={loading}
         />
       </div>
     </>

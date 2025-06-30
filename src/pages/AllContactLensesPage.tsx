@@ -27,26 +27,19 @@ export default function AllContactLensesPage() {
     loadData()
   }, [])
 
+  const handleContactLensDeleted = (deletedContactLensId: number) => {
+    setContactLenses(prevContactLenses => prevContactLenses.filter(cl => cl.id !== deletedContactLensId))
+  }
+
+  const handleContactLensDeleteFailed = () => {
+    loadData()
+  }
+
   const handleClientSelect = (clientId: number) => {
     navigate({
       to: "/clients/$clientId/contact-lenses/new",
       params: { clientId: String(clientId) }
     })
-  }
-
-  const handleContactLensDeleted = () => {
-    loadData()
-  }
-
-  if (loading) {
-    return (
-      <>
-        <SiteHeader title="עדשות מגע" />
-        <div className="flex flex-col items-center justify-center h-full">
-          <div className="text-lg">טוען עדשות מגע...</div>
-        </div>
-      </>
-    )
   }
 
   return (
@@ -60,6 +53,8 @@ export default function AllContactLensesPage() {
           data={contactLenses} 
           clientId={0} 
           onContactLensDeleted={handleContactLensDeleted}
+          onContactLensDeleteFailed={handleContactLensDeleteFailed}
+          loading={loading}
         />
       </div>
     </>

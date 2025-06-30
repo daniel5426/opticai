@@ -10,13 +10,13 @@ import {
   ClientDetailsTab, 
   ClientExamsTab, 
   ClientOrdersTab,
-  ClientBillingTab,
   ClientMedicalRecordTab,
   ClientContactLensTab,
   ClientReferralTab,
   ClientAppointmentsTab,
   ClientFilesTab
 } from "@/components/client"
+import { ClientDataProvider } from "@/contexts/ClientDataContext"
 
 export default function ClientDetailPage() {
   const { clientId } = useParams({ from: "/clients/$clientId" })
@@ -115,32 +115,11 @@ export default function ClientDetailPage() {
     }
   }
   
-  if (loading) {
-    return (
-      <>
-        <SiteHeader title="לקוחות" backLink="/clients" />
-        <div className="flex flex-col items-center justify-center h-full">
-          <div className="text-lg">טוען פרטי לקוח...</div>
-        </div>
-      </>
-    )
-  }
   
-  if (!client) {
-    return (
-      <>
-        <SiteHeader title="לקוחות" backLink="/clients" />
-        <div className="flex flex-col items-center justify-center h-full">
-          <h1 className="text-2xl">לקוח לא נמצא</h1>
-        </div>
-      </>
-    )
-  }
 
-  const fullName = `${client.first_name} ${client.last_name}`.trim()
   
   return (
-    <>
+    <ClientDataProvider clientId={Number(clientId)}>
       <SiteHeader 
         title="לקוחות" 
         backLink="/clients"
@@ -158,7 +137,7 @@ export default function ClientDetailPage() {
         >
           <TabsContent value="details">
             <ClientDetailsTab 
-              client={client}
+              client={client || {} as Client}
               formData={formData}
               isEditing={isEditing}
               handleInputChange={handleInputChange}
@@ -197,11 +176,8 @@ export default function ClientDetailPage() {
             <ClientFilesTab />
           </TabsContent>
           
-          <TabsContent value="billing">
-            <ClientBillingTab />
-          </TabsContent>
         </Tabs>
       </div>
-    </>
+    </ClientDataProvider>
   )
 } 

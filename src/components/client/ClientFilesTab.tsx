@@ -1,43 +1,35 @@
-import React, { useState, useEffect } from "react"
+import React from "react"
 import { FilesTable } from "@/components/files-table"
-import { getFilesByClientId } from "@/lib/db/files-db"
 import { useParams } from "@tanstack/react-router"
+import { useClientData } from "@/contexts/ClientDataContext"
 import { File } from "@/lib/db/schema"
 
 export function ClientFilesTab() {
   const { clientId } = useParams({ from: "/clients/$clientId" })
-  const [files, setFiles] = useState<File[]>([])
-  const [loading, setLoading] = useState(true)
+  const { files, loading, refreshFiles } = useClientData()
+  const [currentFiles, setCurrentFiles] = React.useState<File[]>(files)
 
-  const loadFiles = async () => {
-    try {
-      setLoading(true)
-      const filesData = await getFilesByClientId(Number(clientId))
-      setFiles(filesData)
-    } catch (error) {
-      console.error('Error loading files:', error)
-    } finally {
-      setLoading(false)
-    }
+  React.useEffect(() => {
+    setCurrentFiles(files)
+  }, [files])
+
+  const handleFileDeleted = (deletedFileId: number) => {
+    setCurrentFiles(prevFiles => prevFiles.filter(file => file.id !== deletedFileId))
   }
 
-  useEffect(() => {
-    loadFiles()
-  }, [clientId])
-
-  if (loading) {
-    return (
-      <div className="flex justify-center items-center h-32">
-        <div className="text-lg">טוען קבצים...</div>
-      </div>
-    )
+  const handleFileDeleteFailed = () => {
+    refreshFiles()
   }
+
 
   return (
     <FilesTable 
-      data={files} 
+      data={currentFiles} 
       clientId={Number(clientId)} 
-      onFileUploaded={loadFiles}
+      onFileUploaded={refreshFiles}
+      onFileDeleted={handleFileDeleted}
+      onFileDeleteFailed={handleFileDeleteFailed}
+      loading={loading.files}
     />
   )
 } 

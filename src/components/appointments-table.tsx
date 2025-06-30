@@ -24,7 +24,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { MoreHorizontal, ChevronDown, UserPlus, Users, Plus } from "lucide-react"
+import { MoreHorizontal, ChevronDown, UserPlus, Users, Plus, Trash2 } from "lucide-react"
 import { Appointment, Client, User } from "@/lib/db/schema"
 import { toast } from "sonner"
 import { ClientSelectModal } from "@/components/ClientSelectModal"
@@ -33,17 +33,21 @@ import { CustomModal } from "@/components/ui/custom-modal"
 import { ClientWarningModal } from "@/components/ClientWarningModal"
 import { UserSelect } from "@/components/ui/user-select"
 import { useUser } from "@/contexts/UserContext"
+import { Skeleton } from "@/components/ui/skeleton"
 
 interface AppointmentsTableProps {
   data: Appointment[]
   clientId: number
   onAppointmentChange: () => void
+  onAppointmentDeleted: (appointmentId: number) => void
+  onAppointmentDeleteFailed: () => void
+  loading: boolean
 }
 
 interface AppointmentTableRowProps {
   appointment: Appointment
   onEdit: (appointment: Appointment) => void
-  onDelete: (id: number) => void
+  onDelete: (appointment: Appointment) => void
   onSendEmail: (id: number) => void
 }
 
@@ -78,64 +82,62 @@ function AppointmentTableRow({ appointment, onEdit, onDelete, onSendEmail }: App
   }, [appointment.user_id])
 
   return (
-    <TableRow 
-      className="cursor-pointer"
-      onClick={() => onEdit(appointment)}
-    >
-      <TableCell>
+    <TableRow>
+      <TableCell
+        onClick={() => onEdit(appointment)}
+        className="cursor-pointer"
+      >
         {appointment.date ? new Date(appointment.date).toLocaleDateString('he-IL') : ''}
       </TableCell>
-      <TableCell>{appointment.time}</TableCell>
-      <TableCell>{client ? `${client.first_name || ''} ${client.last_name || ''}`.trim() : 'טוען...'}</TableCell>
-      <TableCell>{appointment.exam_name}</TableCell>
-      <TableCell>{user?.username || ''}</TableCell>
-      <TableCell>{appointment.note}</TableCell>
+      <TableCell
+        onClick={() => onEdit(appointment)}
+        className="cursor-pointer"
+      >{appointment.time}</TableCell>
+      <TableCell
+        onClick={() => onEdit(appointment)}
+        className="cursor-pointer"
+      >{client ? `${client.first_name || ''} ${client.last_name || ''}`.trim() : 'טוען...'}</TableCell>
+      <TableCell
+        onClick={() => onEdit(appointment)}
+        className="cursor-pointer"
+      >{appointment.exam_name}</TableCell>
+      <TableCell
+        onClick={() => onEdit(appointment)}
+        className="cursor-pointer"
+      >{user?.username || ''}</TableCell>
+      <TableCell
+        onClick={() => onEdit(appointment)}
+        className="cursor-pointer"
+      >{appointment.note}</TableCell>
       <TableCell>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="ghost"
-              className="h-8 w-8 p-0"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <span className="sr-only">פתח תפריט</span>
-              <MoreHorizontal className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={(e) => {
+        <div className="flex items-center">
+          <Button
+            variant="ghost"
+            className="h-8 w-8 p-0"
+            onClick={(e) => {
               e.stopPropagation()
               onEdit(appointment)
-            }}>
-              עריכה
-            </DropdownMenuItem>
-            {client?.email && (
-              <DropdownMenuItem 
-                onClick={(e) => {
-                  e.stopPropagation()
-                  appointment.id && onSendEmail(appointment.id)
-                }}
-              >
-                שלח תזכורת במייל
-              </DropdownMenuItem>
-            )}
-            <DropdownMenuItem 
-              onClick={(e) => {
-                e.stopPropagation()
-                appointment.id && onDelete(appointment.id)
-              }}
-              className="text-red-600"
-            >
-              מחיקה
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+            }}
+          >
+            <MoreHorizontal className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            className="h-8 w-8 p-0"
+            onClick={(e) => {
+              e.stopPropagation()
+              onDelete(appointment)
+            }}
+          >
+            <Trash2 className="h-4 w-4 text-red-600" />
+          </Button>
+        </div>
       </TableCell>
     </TableRow>
   )
 }
 
-export function AppointmentsTable({ data, clientId, onAppointmentChange }: AppointmentsTableProps) {
+export function AppointmentsTable({ data, clientId, onAppointmentChange, onAppointmentDeleted, onAppointmentDeleteFailed, loading }: AppointmentsTableProps) {
   const [searchQuery, setSearchQuery] = useState("")
   const [isAppointmentDialogOpen, setIsAppointmentDialogOpen] = useState(false)
   const [isNewClientDialogOpen, setIsNewClientDialogOpen] = useState(false)
@@ -143,6 +145,8 @@ export function AppointmentsTable({ data, clientId, onAppointmentChange }: Appoi
   const [editingAppointment, setEditingAppointment] = useState<Appointment | null>(null)
   const [selectedClient, setSelectedClient] = useState<Client | null>(null)
   const { currentUser } = useUser()
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
+  const [appointmentToDelete, setAppointmentToDelete] = useState<Appointment | null>(null)
   
   const [appointmentFormData, setAppointmentFormData] = useState<Omit<Appointment, 'id'>>({
     client_id: clientId,
@@ -448,18 +452,31 @@ export function AppointmentsTable({ data, clientId, onAppointmentChange }: Appoi
     }
   }
 
-  const handleDelete = async (appointmentId: number) => {
-    try {
-      const result = await window.electronAPI.deleteAppointment(appointmentId)
-      if (result) {
-        toast.success("התור נמחק בהצלחה")
-        onAppointmentChange()
-      } else {
-        toast.error("שגיאה במחיקת התור")
+  const handleDelete = (appointment: Appointment) => {
+    setAppointmentToDelete(appointment);
+    setIsDeleteModalOpen(true);
+  }
+
+  const handleDeleteConfirm = async () => {
+    if (appointmentToDelete && appointmentToDelete.id !== undefined) {
+      try {
+        const deletedAppointmentId = appointmentToDelete.id;
+        onAppointmentDeleted(deletedAppointmentId);
+        toast.success("התור נמחק בהצלחה");
+
+        const result = await window.electronAPI.deleteAppointment(deletedAppointmentId);
+        if (!result) {
+          toast.error("שגיאה במחיקת התור. מרענן נתונים...");
+          onAppointmentDeleteFailed();
+        }
+      } catch (error) {
+        toast.error("שגיאה במחיקת התור");
+        onAppointmentDeleteFailed();
+      } finally {
+        setAppointmentToDelete(null);
       }
-    } catch (error) {
-      toast.error("שגיאה במחיקת התור")
     }
+    setIsDeleteModalOpen(false);
   }
 
   const handleSendTestEmail = async (appointmentId: number) => {
@@ -726,6 +743,16 @@ export function AppointmentsTable({ data, clientId, onAppointmentChange }: Appoi
         onCreateNewAnyway={() => handleSaveNewClientAndAppointment(true)}
       />
 
+      <CustomModal
+        isOpen={isDeleteModalOpen}
+        onClose={() => setIsDeleteModalOpen(false)}
+        title="מחיקת תור"
+        description={appointmentToDelete ? `האם אתה בטוח שברצונך למחוק את התור בתאריך ${appointmentToDelete.date ? new Date(appointmentToDelete.date).toLocaleDateString('he-IL') : ''}?` : "האם אתה בטוח שברצונך למחוק את התור?"}
+        onConfirm={handleDeleteConfirm}
+        confirmText="מחק"
+        cancelText="בטל"
+      />
+
       <div className="rounded-md border">
         <Table dir="rtl">
           <TableHeader>
@@ -740,27 +767,27 @@ export function AppointmentsTable({ data, clientId, onAppointmentChange }: Appoi
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredData.length === 0 ? (
+            {loading ? (
+              Array.from({ length: 10 }).map((_, i) => (
+                <TableRow key={i}>
+                </TableRow>
+              ))
+            ) : filteredData.length > 0 ? (
+              filteredData.map((appointment) => (
+                <AppointmentTableRow
+                  key={appointment.id}
+                  appointment={appointment}
+                  onEdit={openEditDialog}
+                  onDelete={handleDelete}
+                  onSendEmail={handleSendTestEmail}
+                />
+              ))
+            ) : (
               <TableRow>
-                <TableCell
-                  colSpan={7}
-                  className="h-24 text-center text-muted-foreground"
-                >
-                  לא נמצאו תורים לתצוגה
+                <TableCell colSpan={7} className="text-center">
+                  לא נמצאו תורים.
                 </TableCell>
               </TableRow>
-            ) : (
-              filteredData.map((appointment) => {
-                return (
-                  <AppointmentTableRow 
-                    key={appointment.id}
-                    appointment={appointment}
-                    onEdit={openEditDialog}
-                    onDelete={handleDelete}
-                    onSendEmail={handleSendTestEmail}
-                  />
-                )
-              })
             )}
           </TableBody>
         </Table>

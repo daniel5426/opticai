@@ -1,47 +1,34 @@
-import React, { useState, useEffect } from "react"
-import { ContactLensTable } from "@/components/contact-lens-table"
-import { getContactLensesByClientId } from "@/lib/db/contact-lens-db"
+import React from "react"
 import { useParams } from "@tanstack/react-router"
 import { ContactLens } from "@/lib/db/schema"
+import { ContactLensTable } from "@/components/contact-lens-table"
+import { useClientData } from "@/contexts/ClientDataContext"
 
 export function ClientContactLensTab() {
   const { clientId } = useParams({ from: "/clients/$clientId" })
-  const [contactLenses, setContactLenses] = useState<ContactLens[]>([])
-  const [loading, setLoading] = useState(true)
+  const { contactLenses, loading, refreshContactLenses } = useClientData()
+  const [currentContactLenses, setCurrentContactLenses] = React.useState<ContactLens[]>(contactLenses)
 
-  const loadContactLenses = async () => {
-    try {
-      setLoading(true)
-      const contactLensesData = await getContactLensesByClientId(Number(clientId))
-      setContactLenses(contactLensesData)
-    } catch (error) {
-      console.error('Error loading contact lenses:', error)
-    } finally {
-      setLoading(false)
-    }
+  React.useEffect(() => {
+    setCurrentContactLenses(contactLenses)
+  }, [contactLenses])
+
+  const handleContactLensDeleted = (deletedContactLensId: number) => {
+    setCurrentContactLenses(prevContactLenses => prevContactLenses.filter(cl => cl.id !== deletedContactLensId))
   }
 
-  useEffect(() => {
-    loadContactLenses()
-  }, [clientId])
-
-  const handleContactLensDeleted = () => {
-    loadContactLenses()
+  const handleContactLensDeleteFailed = () => {
+    refreshContactLenses()
   }
 
-  if (loading) {
-    return (
-      <div className="flex justify-center items-center h-32">
-        <div className="text-lg">טוען עדשות מגע...</div>
-      </div>
-    )
-  }
 
   return (
     <ContactLensTable 
-      data={contactLenses} 
+      data={currentContactLenses} 
       clientId={Number(clientId)} 
       onContactLensDeleted={handleContactLensDeleted}
+      onContactLensDeleteFailed={handleContactLensDeleteFailed}
+      loading={loading.contactLenses}
     />
   )
 }

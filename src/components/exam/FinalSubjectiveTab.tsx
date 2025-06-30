@@ -30,8 +30,8 @@ function FinalSubjectiveSection({ eye, data, onChange, isEditing, hideLabels = f
   };
 
   return (
-    <div className="flex items-center gap-1 h-6 mb-3" dir="rtl">
-      <div className="grid grid-cols-22 gap-4 flex-1 pb-2 w-full" dir="ltr">
+    <div className="flex items-center gap-1 h-6" dir="rtl">
+      <div className="grid grid-cols-22 gap-4 flex-1 w-full" dir="ltr">
         <div className="col-span-2">
           {eye === "R" && <Label htmlFor={`${eye}-final-sph`} className="text-[12px] block text-center">SPH</Label>}
           <Input id={`${eye}-final-sph`} type="number" step="0.25" value={getFieldValue("sph")} onChange={(e) => handleChange("sph", e.target.value)} disabled={!isEditing} className={`h-8 text-xs px-1 ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`} placeholder="0.00" />
@@ -51,10 +51,10 @@ function FinalSubjectiveSection({ eye, data, onChange, isEditing, hideLabels = f
         <div className="col-span-2">
           {eye === "R" && <Label htmlFor={`${eye}-final-base-h`} className="text-[12px] block text-center">BASE.H</Label>}
           <Select value={getFieldValue("base_h")} onValueChange={(value) => handleChange("base_h", value)} disabled={!isEditing}>
-            <SelectTrigger className={`h-8 text-xs w-full ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100`}>
+            <SelectTrigger size="xs" className={`h-8 text-xs w-full ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100`}>
               <SelectValue placeholder="" />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent >
               <SelectItem value="IN">IN</SelectItem>
               <SelectItem value="OUT">OUT</SelectItem>
             </SelectContent>
@@ -67,7 +67,7 @@ function FinalSubjectiveSection({ eye, data, onChange, isEditing, hideLabels = f
         <div className="col-span-2">
           {eye === "R" && <Label htmlFor={`${eye}-final-base-v`} className="text-[12px] block text-center">BASE.V</Label>}
           <Select value={getFieldValue("base_v")} onValueChange={(value) => handleChange("base_v", value)} disabled={!isEditing}>
-            <SelectTrigger className={`h-8 text-xs w-full ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100`}>
+            <SelectTrigger size="xs" className={`h-8 text-xs w-full ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100`}>
               <SelectValue placeholder="" />
             </SelectTrigger>
             <SelectContent>
@@ -96,7 +96,7 @@ function FinalSubjectiveSection({ eye, data, onChange, isEditing, hideLabels = f
           <Input id={`${eye}-final-pd-far`} type="number" step="0.5" value={getFieldValue("pd_far")} onChange={(e) => handleChange("pd_far", e.target.value)} disabled={!isEditing} className={`h-8 text-xs px-1 ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`} placeholder="PD" />
         </div>
       </div>
-      {!hideLabels && <span className={`text-md font-medium pr-2 flex items-center justify-center w-6 ${eyeLabel === "L" ? "pb-2" : "pt-2"}`}>{eyeLabel}</span>}
+      {!hideLabels && <span className={`text-md font-medium pr-2 flex items-center justify-center w-6 ${eyeLabel === "L" ? "" : "pt-4"}`}>{eyeLabel}</span>}
     </div>
   );
 }
@@ -280,7 +280,7 @@ function CombinedFinalSubjFields({ finalSubjectiveData, onChange, isEditing, onV
   hideLabels?: boolean
 }) {
   return (
-    <div className="flex items-center gap-1 h-10 mb-3" dir="rtl">
+    <div className="flex items-center gap-1 h-10 my-2 mt-4" dir="rtl">
       <div className="grid grid-cols-22 gap-4 flex-1 w-full" dir="ltr">
         <div className="col-span-2"></div>
         <div className="col-span-2"></div>

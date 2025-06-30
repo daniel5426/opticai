@@ -24,15 +24,20 @@ import { getAllUsers } from "@/lib/db/users-db"
 import { getAllClients } from "@/lib/db/clients-db"
 import { deleteFile, createFile } from "@/lib/db/files-db"
 import { toast } from "sonner"
+import { CustomModal } from "@/components/ui/custom-modal"
+import { Skeleton } from "@/components/ui/skeleton"
 
 interface FilesTableProps {
   data: FileType[]
   clientId: number
+  onFileDeleted: (fileId: number) => void
+  onFileDeleteFailed: () => void
   onFileUploaded?: () => void
   onClientSelectForUpload?: (files: FileList, clientId: number) => void
+  loading: boolean
 }
 
-export function FilesTable({ data, clientId, onFileUploaded, onClientSelectForUpload }: FilesTableProps) {
+export function FilesTable({ data, clientId, onFileDeleted, onFileDeleteFailed, onFileUploaded, onClientSelectForUpload, loading }: FilesTableProps) {
   const [searchQuery, setSearchQuery] = useState("")
   const [users, setUsers] = useState<User[]>([])
   const [clients, setClients] = useState<Client[]>([])
@@ -42,6 +47,8 @@ export function FilesTable({ data, clientId, onFileUploaded, onClientSelectForUp
   const [pendingFiles, setPendingFiles] = useState<FileList | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const navigate = useNavigate()
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
+  const [fileToDelete, setFileToDelete] = useState<FileType | null>(null)
 
   useEffect(() => {
     const loadData = async () => {
@@ -104,21 +111,27 @@ export function FilesTable({ data, clientId, onFileUploaded, onClientSelectForUp
     return Math.round(bytes / Math.pow(1024, i) * 100) / 100 + ' ' + sizes[i]
   }
 
-  const handleDelete = async (fileId: number, fileName: string) => {
-    if (confirm(`האם אתה בטוח שברצונך למחוק את הקובץ "${fileName}"?`)) {
+  const handleDeleteConfirm = async () => {
+    if (fileToDelete && fileToDelete.id !== undefined) {
       try {
-        const success = await deleteFile(fileId)
-        if (success) {
-          toast.success("הקובץ נמחק בהצלחה")
-          onFileUploaded?.()
-        } else {
-          toast.error("שגיאה במחיקת הקובץ")
+        const deletedFileId = fileToDelete.id;
+        onFileDeleted(deletedFileId);
+        toast.success("הקובץ נמחק בהצלחה");
+
+        const success = await deleteFile(deletedFileId);
+        if (!success) {
+          toast.error("שגיאה במחיקת הקובץ. מרענן נתונים...");
+          onFileDeleteFailed();
         }
       } catch (error) {
-        console.error('Error deleting file:', error)
-        toast.error("שגיאה במחיקת הקובץ")
+        console.error('Error deleting file:', error);
+        toast.error("שגיאה במחיקת הקובץ");
+        onFileDeleteFailed();
+      } finally {
+        setFileToDelete(null);
       }
     }
+    setIsDeleteModalOpen(false);
   }
 
   const handleDownload = (file: FileType) => {
@@ -319,72 +332,69 @@ export function FilesTable({ data, clientId, onFileUploaded, onClientSelectForUp
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredData.length === 0 ? (
+            {loading ? (
+              Array.from({ length: 10 }).map((_, i) => (
+                <TableRow key={i}>
+                </TableRow>
+              ))
+            ) : filteredData.length > 0 ? (
+              filteredData.map((file) => (
+                <TableRow key={file.id} className="cursor-pointer" onClick={() => handleDownload(file)}>
+                  <TableCell>{getFileIcon(file.file_type)}</TableCell>
+                  <TableCell className="font-medium">{file.file_name}</TableCell>
+                  <TableCell>{getSimpleFileType(file.file_type)}</TableCell>
+                  <TableCell>{formatFileSize(file.file_size)}</TableCell>
+                  <TableCell>{file.upload_date ? new Date(file.upload_date).toLocaleDateString('he-IL') : ''}</TableCell>
+                  <TableCell>{getUserName(file.uploaded_by)}</TableCell>
+                  {clientId === 0 && (
+                    <TableCell>
+                      <button
+                        onClick={() => navigate({
+                          to: "/clients/$clientId",
+                          params: { clientId: String(file.client_id) },
+                          search: { tab: 'files' }
+                        })}
+                        className="text-blue-600 hover:underline"
+                      >
+                        {getClientName(file.client_id)}
+                      </button>
+                    </TableCell>
+                  )}
+                  <TableCell>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" className="h-8 w-8 p-0" onClick={(e) => e.stopPropagation()}>
+                          <span className="sr-only">Open menu</span>
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleDownload(file) }}>
+                          <Download className="ml-2 h-4 w-4" />
+                          <span>הורדה</span>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem 
+                          onClick={(e) => { 
+                            e.stopPropagation()
+                            setFileToDelete(file)
+                            setIsDeleteModalOpen(true)
+                           }} 
+                          className="text-red-600 focus:text-red-600 focus:bg-red-50"
+                        >
+                          <Trash2 className="ml-2 h-4 w-4" />
+                          <span>מחיקה</span>
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TableCell>
+                </TableRow>
+              ))
+            ) : (
               <TableRow>
-                <TableCell
-                  colSpan={clientId === 0 ? 8 : 7}
-                  className="h-24 text-center text-muted-foreground"
-                >
-                  לא נמצאו קבצים לתצוגה
+                <TableCell colSpan={7} className="h-24 text-center">
+                  לא נמצאו קבצים.
                 </TableCell>
               </TableRow>
-            ) : (
-              filteredData.map((file) => {
-                return (
-                  <TableRow key={file.id}>
-                    <TableCell>
-                      {getFileIcon(file.file_type)}
-                    </TableCell>
-                    <TableCell>{file.file_name}</TableCell>
-                    <TableCell>{getSimpleFileType(file.file_type)}</TableCell>
-                    <TableCell>{formatFileSize(file.file_size)}</TableCell>
-                    <TableCell>
-                      {file.upload_date ? new Date(file.upload_date).toLocaleDateString('he-IL') : ''}
-                    </TableCell>
-                    <TableCell>{getUserName(file.uploaded_by)}</TableCell>
-                    {clientId === 0 && (
-                      <TableCell>
-                        <button
-                          onClick={() => navigate({
-                            to: "/clients/$clientId",
-                            params: { clientId: String(file.client_id) },
-                            search: { tab: 'files' }
-                          })}
-                          className="text-blue-600 hover:underline"
-                        >
-                          {getClientName(file.client_id)}
-                        </button>
-                      </TableCell>
-                    )}
-                    <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            className="h-8 w-8 p-0"
-                          >
-                            <span className="sr-only">פתח תפריט</span>
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => handleDownload(file)}>
-                            <Download className="h-4 w-4 ml-2" />
-                            הורדה
-                          </DropdownMenuItem>
-                          <DropdownMenuItem 
-                            onClick={() => handleDelete(file.id!, file.file_name)}
-                            className="text-red-600"
-                          >
-                            <Trash2 className="h-4 w-4 ml-2" />
-                            מחיקה
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                )
-              })
             )}
           </TableBody>
         </Table>
@@ -398,6 +408,16 @@ export function FilesTable({ data, clientId, onFileUploaded, onClientSelectForUp
           setShowClientSelect(false)
           setPendingFiles(null)
         }}
+      />
+
+      <CustomModal
+        isOpen={isDeleteModalOpen}
+        onClose={() => setIsDeleteModalOpen(false)}
+        title="מחיקת קובץ"
+        description={fileToDelete ? `האם אתה בטוח שברצונך למחוק את הקובץ "${fileToDelete.file_name}"?` : "האם אתה בטוח שברצונך למחוק את הקובץ?"}
+        onConfirm={handleDeleteConfirm}
+        confirmText="מחק"
+        cancelText="בטל"
       />
     </div>
   )

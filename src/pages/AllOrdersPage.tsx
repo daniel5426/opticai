@@ -11,38 +11,35 @@ export default function AllOrdersPage() {
   const [loading, setLoading] = useState(true)
   const navigate = useNavigate()
 
-  useEffect(() => {
-    const loadData = async () => {
-      try {
-        setLoading(true)
-        const ordersData = await getAllOrders()
-        setOrders(ordersData)
-      } catch (error) {
-        console.error('Error loading data:', error)
-      } finally {
-        setLoading(false)
-      }
+  const loadData = async () => {
+    try {
+      setLoading(true)
+      const ordersData = await getAllOrders()
+      setOrders(ordersData)
+    } catch (error) {
+      console.error('Error loading data:', error)
+    } finally {
+      setLoading(false)
     }
+  }
 
+  useEffect(() => {
     loadData()
   }, [])
+
+  const handleOrderDeleted = (deletedOrderId: number) => {
+    setOrders(prevOrders => prevOrders.filter(order => order.id !== deletedOrderId))
+  }
+
+  const handleOrderDeleteFailed = () => {
+    loadData()
+  }
 
   const handleClientSelect = (clientId: number) => {
     navigate({
       to: "/clients/$clientId/orders/new",
       params: { clientId: String(clientId) }
     })
-  }
-
-  if (loading) {
-    return (
-      <>
-        <SiteHeader title="הזמנות" />
-        <div className="flex flex-col items-center justify-center h-full">
-          <div className="text-lg">טוען הזמנות...</div>
-        </div>
-      </>
-    )
   }
 
   return (
@@ -52,7 +49,13 @@ export default function AllOrdersPage() {
         <div className="flex items-center justify-between mb-4">
           <h1 className="text-2xl font-bold">כל ההזמנות</h1>
         </div>
-        <OrdersTable data={orders} clientId={0} />
+        <OrdersTable 
+          data={orders} 
+          clientId={0} 
+          onOrderDeleted={handleOrderDeleted} 
+          onOrderDeleteFailed={handleOrderDeleteFailed}
+          loading={loading}
+        />
       </div>
     </>
   )

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react"
+import React, { useState, useEffect, useCallback } from "react"
 import { SiteHeader } from "@/components/site-header"
 import { ExamLayoutsTable } from "@/components/exam-layouts-table"
 import { getAllExamLayouts } from "@/lib/db/exam-layouts-db"
@@ -7,22 +7,35 @@ import { ExamLayout } from "@/lib/db/schema"
 export default function ExamLayoutsPage() {
   const [layouts, setLayouts] = useState<ExamLayout[]>([])
   const [loading, setLoading] = useState(true)
+  const [refreshCounter, setRefreshCounter] = useState(0)
 
-  const loadLayouts = async () => {
+  const loadLayouts = useCallback(async () => {
     try {
-      setLoading(true)
+      // Only show loading indicator on initial load
+      if (layouts.length === 0) {
+        setLoading(true);
+      }
+      
       const layoutsData = await getAllExamLayouts()
+      
+      // Use functional update to ensure we're working with the latest state
       setLayouts(layoutsData)
     } catch (error) {
       console.error('Error loading exam layouts:', error)
     } finally {
       setLoading(false)
     }
-  }
+  }, [layouts.length])
 
+  // Trigger refresh without showing loading state
+  const handleRefresh = useCallback(() => {
+    setRefreshCounter(prev => prev + 1);
+  }, []);
+
+  // Initial load and background refreshes
   useEffect(() => {
     loadLayouts()
-  }, [])
+  }, [refreshCounter, loadLayouts])
 
   if (loading) {
     return (
@@ -32,7 +45,6 @@ export default function ExamLayoutsPage() {
           backLink="/"
         />
         <div className="flex flex-col items-center justify-center h-full">
-          <h1 className="text-2xl">טוען נתונים...</h1>
         </div>
       </>
     )
@@ -49,7 +61,7 @@ export default function ExamLayoutsPage() {
           <h2 className="text-xl font-semibold">ניהול פריסות בדיקה</h2>
         </div>
         
-        <ExamLayoutsTable data={layouts} onRefresh={loadLayouts} />
+        <ExamLayoutsTable data={layouts} onRefresh={handleRefresh} />
       </div>
     </>
   )

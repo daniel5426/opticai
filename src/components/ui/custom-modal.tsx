@@ -8,11 +8,15 @@ interface CustomModalProps {
   width?: string
   title: string
   subtitle?: string
-  children: React.ReactNode
+  description?: string
+  children?: React.ReactNode
   className?: string
+  onConfirm?: () => void
+  confirmText?: string
+  cancelText?: string
 }
 
-export function CustomModal({ isOpen, onClose, title, subtitle, children, className = '', width = 'max-w-lg' }: CustomModalProps) {
+export function CustomModal({ isOpen, onClose, title, subtitle, description, children, className = '', width = 'max-w-lg', onConfirm, confirmText = 'אישור', cancelText = 'ביטול' }: CustomModalProps) {
   const modalRef = useRef<HTMLDivElement>(null)
   const overlayRef = useRef<HTMLDivElement>(null)
 
@@ -112,9 +116,23 @@ export function CustomModal({ isOpen, onClose, title, subtitle, children, classN
         <div className="px-6 p-3" dir="rtl">
         <div className="space-y-4">
 
+          {description && <p className="text-sm text-muted-foreground mb-4">{description}</p>}
+
           {children}
           </div>
         </div>
+
+        {onConfirm && (
+          <div className="flex justify-end p-4 border-t border-gray-200 dark:border-gray-700">
+            <Button variant="outline" onClick={onClose} className="ml-2">
+              {cancelText}
+            </Button>
+            <Button onClick={onConfirm}>
+              {confirmText}
+            </Button>
+          </div>
+        )}
+
       </div>
     </div>
   )

@@ -26,37 +26,45 @@ contextBridge.exposeInMainWorld('electronAPI', {
   deleteClient: (id: number) => ipcRenderer.invoke('db-delete-client', id),
 
   // Exam operations
+  getExamsByClientId: (clientId: number) => ipcRenderer.invoke('db-get-exams-by-client', clientId),
   getExamsByClient: (clientId: number) => ipcRenderer.invoke('db-get-exams-by-client', clientId),
   getAllExams: () => ipcRenderer.invoke('db-get-all-exams'),
-  getExam: (examId: number) => ipcRenderer.invoke('db-get-exam', examId),
+  getExam: (id: number) => ipcRenderer.invoke('db-get-exam', id),
+  getExamById: (id: number) => ipcRenderer.invoke('db-get-exam', id),
   createExam: (examData: any) => ipcRenderer.invoke('db-create-exam', examData),
   updateExam: (examData: any) => ipcRenderer.invoke('db-update-exam', examData),
-  deleteExam: (examId: number) => ipcRenderer.invoke('db-delete-exam', examId),
+  deleteExam: (id: number) => ipcRenderer.invoke('db-delete-exam', id),
 
   // Old Refraction Exam operations
   getOldRefractionExam: (examId: number) => ipcRenderer.invoke('db-get-old-refraction-exam', examId),
+  getOldRefractionExamByLayout: (layoutId: number) => ipcRenderer.invoke('db-get-old-refraction-exam-by-layout', layoutId),
   createOldRefractionExam: (examData: any) => ipcRenderer.invoke('db-create-old-refraction-exam', examData),
   updateOldRefractionExam: (examData: any) => ipcRenderer.invoke('db-update-old-refraction-exam', examData),
 
   // Objective Exam operations
   getObjectiveExam: (examId: number) => ipcRenderer.invoke('db-get-objective-exam', examId),
+  getObjectiveExamByLayout: (layoutId: number) => ipcRenderer.invoke('db-get-objective-exam-by-layout', layoutId),
   createObjectiveExam: (examData: any) => ipcRenderer.invoke('db-create-objective-exam', examData),
   updateObjectiveExam: (examData: any) => ipcRenderer.invoke('db-update-objective-exam', examData),
 
   // Subjective Exam operations
   getSubjectiveExam: (examId: number) => ipcRenderer.invoke('db-get-subjective-exam', examId),
+  getSubjectiveExamByLayout: (layoutId: number) => ipcRenderer.invoke('db-get-subjective-exam-by-layout', layoutId),
   createSubjectiveExam: (examData: any) => ipcRenderer.invoke('db-create-subjective-exam', examData),
   updateSubjectiveExam: (examData: any) => ipcRenderer.invoke('db-update-subjective-exam', examData),
 
   // Addition Exam operations
   getAdditionExam: (examId: number) => ipcRenderer.invoke('db-get-addition-exam', examId),
+  getAdditionExamByLayout: (layoutId: number) => ipcRenderer.invoke('db-get-addition-exam-by-layout', layoutId),
   createAdditionExam: (examData: any) => ipcRenderer.invoke('db-create-addition-exam', examData),
   updateAdditionExam: (examData: any) => ipcRenderer.invoke('db-update-addition-exam', examData),
 
   // Final Subjective Exam operations
   getFinalSubjectiveExam: (examId: number) => ipcRenderer.invoke('db-get-final-subjective-exam', examId),
+  getFinalSubjectiveExamByLayout: (layoutId: number) => ipcRenderer.invoke('db-get-final-subjective-exam-by-layout', layoutId),
   createFinalSubjectiveExam: (examData: any) => ipcRenderer.invoke('db-create-final-subjective-exam', examData),
   updateFinalSubjectiveExam: (examData: any) => ipcRenderer.invoke('db-update-final-subjective-exam', examData),
+  deleteFinalSubjectiveExam: (id: number) => ipcRenderer.invoke('db-delete-final-subjective-exam', id),
 
   // Order operations
   getOrdersByClient: (clientId: number) => ipcRenderer.invoke('db-get-orders-by-client', clientId),
@@ -313,4 +321,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
   updateExamLayout: (layoutData: any) => ipcRenderer.invoke('db-update-exam-layout', layoutData),
   deleteExamLayout: (id: number) => ipcRenderer.invoke('db-delete-exam-layout', id),
   getDefaultExamLayout: () => ipcRenderer.invoke('db-get-default-exam-layout'),
+  getLayoutsByExamId: (examId: number) => ipcRenderer.invoke('db-get-layouts-by-exam', examId),
+
+  // Exam Layout Instance operations
+  getExamLayoutInstanceById: (id: number) => ipcRenderer.invoke('db-get-exam-layout-instance', id),
+  getExamLayoutInstancesByExamId: (examId: number) => ipcRenderer.invoke('db-get-exam-layout-instances-by-exam', examId),
+  getActiveExamLayoutInstanceByExamId: (examId: number) => ipcRenderer.invoke('db-get-active-exam-layout-instance', examId),
+  createExamLayoutInstance: (instanceData: any) => ipcRenderer.invoke('db-create-exam-layout-instance', instanceData),
+  updateExamLayoutInstance: (instanceData: any) => ipcRenderer.invoke('db-update-exam-layout-instance', instanceData),
+  deleteExamLayoutInstance: (id: number) => ipcRenderer.invoke('db-delete-exam-layout-instance', id),
+  setActiveExamLayoutInstance: (examId: number, layoutInstanceId: number) => ipcRenderer.invoke('db-set-active-exam-layout-instance', examId, layoutInstanceId),
+  ensureExamHasLayout: (examId: number) => ipcRenderer.invoke('db-ensure-exam-has-layout', examId),
 });

@@ -32,8 +32,8 @@ function EyeSection({ eye, data, onChange, isEditing, type, hideLabels = false }
 
   if (type === 'old-refraction') {
       return (
-    <div className="flex items-center gap-1 h-6 mb-3" dir="rtl">
-        <div className="grid grid-cols-15 gap-4 flex-1 pb-2 w-full" dir="ltr">
+    <div className="flex items-center gap-1 h-6" dir="rtl">
+        <div className="grid grid-cols-15 gap-4 flex-1 w-full" dir="ltr">
           <div className="col-span-2">
             {eye === "R" && <Label htmlFor={`${eye}-old-sph`} className="text-[12px] block text-center">SPH</Label>}
             <Input id={`${eye}-old-sph`} type="number" step="0.25" value={getFieldValue("sph")} onChange={(e) => handleChange("sph", e.target.value)} disabled={!isEditing} className={`h-8 text-xs px-1 ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`} placeholder="0.00" />
@@ -66,15 +66,15 @@ function EyeSection({ eye, data, onChange, isEditing, type, hideLabels = false }
             <Input id={`${eye}-old-ad`} type="number" step="0.25" value={getFieldValue("ad")} onChange={(e) => handleChange("ad", e.target.value)} disabled={!isEditing} className={`h-8 text-xs px-1 ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`} placeholder="0.00" />
           </div>
         </div>
-        {!hideLabels && <span className={`text-md font-medium pr-2 flex items-center justify-center w-6 ${eyeLabel === "L" ? "pb-2" : "pt-2"}`}>{eyeLabel}</span>}
+        {!hideLabels && <span className={`text-md font-medium pr-2 flex items-center justify-center w-6 ${eyeLabel === "L" ? "" : "pt-4"}`}>{eyeLabel}</span>}
       </div>
     );
   }
 
   if (type === 'objective') {
     return (
-      <div className="flex items-center gap-1 h-6 mb-3" dir="rtl">
-        <div className="grid grid-cols-8 gap-4 flex-1 pb-2 w-full" dir="ltr">
+      <div className="flex items-center gap-1 h-6" dir="rtl">
+        <div className="grid grid-cols-8 gap-4 flex-1 w-full" dir="ltr">
           <div className="col-span-2">
             {eye === "R" && <Label htmlFor={`${eye}-obj-sph`} className="text-[12px] block text-center">SPH</Label>}
             <Input id={`${eye}-obj-sph`} type="number" step="0.25" value={getFieldValue("sph")} onChange={(e) => handleChange("sph", e.target.value)} disabled={!isEditing} className={`h-8 text-xs px-1 ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`} placeholder="0.00" />
@@ -92,7 +92,7 @@ function EyeSection({ eye, data, onChange, isEditing, type, hideLabels = false }
             <Input id={`${eye}-obj-se`} type="number" step="0.25" value={getFieldValue("se")} onChange={(e) => handleChange("se", e.target.value)} disabled={!isEditing} className={`h-8 text-xs px-1 ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`} placeholder="0.00" />
           </div>
         </div>
-        {!hideLabels && <span className={`text-md font-medium pr-2 flex items-center justify-center w-6 ${eyeLabel === "L" ? "pb-2" : "pt-2"}`}>{eyeLabel}</span>}
+        {!hideLabels && <span className={`text-md font-medium pr-2 flex items-center justify-center w-6 ${eyeLabel === "L" ? "" : "pt-4"}`}>{eyeLabel}</span>}
       </div>
     );
   }
@@ -341,7 +341,7 @@ function CombinedVaFields({ oldRefractionData, onOldRefractionChange, isEditing,
   hideLabels?: boolean
 }) {
   return (
-    <div className="flex items-center gap-1 h-10 mb-3" dir="rtl">
+    <div className="flex items-center gap-1 h-10 my-2 mt-4" dir="rtl">
       <div className="grid grid-cols-15 gap-4 flex-1 w-full" dir="ltr">
         <div className="col-span-2"></div>
         <div className="col-span-2 flex justify-center items-center">
@@ -412,13 +412,15 @@ interface ObjectiveTabProps {
   onObjectiveChange: (field: keyof ObjectiveExam, value: string) => void;
   isEditing: boolean;
   hideEyeLabels?: boolean;
+  needsMiddleSpacer?: boolean;
 }
 
 export function ObjectiveTab({
   objectiveData,
   onObjectiveChange,
   isEditing,
-  hideEyeLabels = false
+  hideEyeLabels = false,
+  needsMiddleSpacer = false
 }: ObjectiveTabProps) {
   return (
     <Card className="w-full shadow-md border-[1px] ">
@@ -429,7 +431,8 @@ export function ObjectiveTab({
           </div>
         </div>
         <EyeSection eye="R" data={objectiveData} onChange={onObjectiveChange} isEditing={isEditing} type="objective" hideLabels={hideEyeLabels} />
-        <div className="h-10 mb-3"></div>
+        {needsMiddleSpacer && <div className="h-7 mb-2"></div>}
+        <div className="h-3 mb-3"></div>
         <EyeSection eye="L" data={objectiveData} onChange={onObjectiveChange} isEditing={isEditing} type="objective" hideLabels={hideEyeLabels} />
       </CardContent>
     </Card>

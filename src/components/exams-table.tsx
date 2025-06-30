@@ -16,20 +16,30 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { MoreHorizontal, Plus } from "lucide-react";
+import { MoreHorizontal, Plus, Trash2 } from "lucide-react";
 import { OpticalExam, User } from "@/lib/db/schema";
 import { ClientSelectModal } from "@/components/ClientSelectModal";
 import { getAllUsers } from "@/lib/db/users-db";
+import { CustomModal } from "@/components/ui/custom-modal";
+import { deleteExam } from "@/lib/db/exams-db";
+import { toast } from "sonner";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface ExamsTableProps {
   data: OpticalExam[];
   clientId: number;
+  onExamDeleted: (examId: number) => void;
+  onExamDeleteFailed: () => void;
+  loading: boolean;
 }
 
-export function ExamsTable({ data, clientId }: ExamsTableProps) {
+export function ExamsTable({ data, clientId, onExamDeleted, onExamDeleteFailed, loading }: ExamsTableProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [users, setUsers] = useState<User[]>([]);
   const navigate = useNavigate();
+
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [examToDelete, setExamToDelete] = useState<OpticalExam | null>(null);
 
   useEffect(() => {
     const loadUsers = async () => {
@@ -63,6 +73,30 @@ export function ExamsTable({ data, clientId }: ExamsTableProps) {
         field && field.toLowerCase().includes(searchQuery.toLowerCase()),
     );
   });
+
+  const handleDeleteConfirm = async () => {
+    if (examToDelete && examToDelete.id !== undefined) {
+      try {
+        const deletedExamId = examToDelete.id;
+        // Optimistically update the UI
+        onExamDeleted(deletedExamId);
+        toast.success("בדיקה נמחקה בהצלחה");
+
+        const success = await deleteExam(deletedExamId);
+        if (!success) {
+          // Revert optimistic update if API call fails (you might need to refetch or pass original data back)
+          toast.error("אירעה שגיאה בעת מחיקת הבדיקה. מרענן נתונים...");
+          onExamDeleteFailed(); // Trigger full refresh
+        }
+      } catch (error) {
+        toast.error("אירעה שגיאה בעת מחיקת הבדיקה");
+        onExamDeleteFailed(); // Trigger full refresh on error
+      } finally {
+        setExamToDelete(null);
+      }
+    }
+    setIsDeleteModalOpen(false);
+  };
 
   return (
     <div className="space-y-4" dir="rtl">
@@ -112,67 +146,70 @@ export function ExamsTable({ data, clientId }: ExamsTableProps) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredData.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={6} className="h-24 text-center">
-                  לא נמצאו בדיקות לתצוגה
-                </TableCell>
-              </TableRow>
-            ) : (
-              filteredData.map((exam) => (
-                <TableRow
-                  key={exam.id}
-                  className="cursor-pointer"
-                  onClick={() => {
-                    navigate({
-                      to: "/clients/$clientId/exams/$examId",
-                      params: {
-                        clientId: String(exam.client_id),
-                        examId: String(exam.id),
-                      },
-                    });
-                  }}
-                >
-                  <TableCell>
-                    {exam.exam_date
-                      ? new Date(exam.exam_date).toLocaleDateString("he-IL")
-                      : ""}
-                  </TableCell>
-                  <TableCell>{exam.test_name}</TableCell>
-                  <TableCell>{exam.clinic}</TableCell>
-                  <TableCell>{getUserName(exam.user_id)}</TableCell>
-                  <TableCell>
-                    {exam.notes && exam.notes.length > 30
-                      ? `${exam.notes.substring(0, 30)}...`
-                      : exam.notes}
-                  </TableCell>
-                  <TableCell>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" className="h-8 w-8 p-0">
-                          <span className="sr-only">פתח תפריט</span>
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <Link
-                          to="/clients/$clientId/exams/$examId"
-                          params={{
-                            clientId: String(exam.client_id),
-                            examId: String(exam.id),
-                          }}
-                        >
-                          <DropdownMenuItem>פרטי בדיקה</DropdownMenuItem>
-                        </Link>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+            {loading ? (
+                Array.from({ length: 10 }).map((_, i) => (
+                  <TableRow key={i}>
+                  </TableRow>
+                ))
+              ) : filteredData.length > 0 ? (
+                filteredData.map((exam) => (
+                  <TableRow
+                    key={exam.id}
+                    className="cursor-pointer"
+                    onClick={() => {
+                      navigate({
+                        to: "/clients/$clientId/exams/$examId",
+                        params: {
+                          clientId: String(exam.client_id),
+                          examId: String(exam.id),
+                        },
+                      });
+                    }}
+                  >
+                    <TableCell>
+                      {exam.exam_date
+                        ? new Date(exam.exam_date).toLocaleDateString("he-IL")
+                        : ""}
+                    </TableCell>
+                    <TableCell>{exam.test_name}</TableCell>
+                    <TableCell>{exam.clinic}</TableCell>
+                    <TableCell>{getUserName(exam.user_id)}</TableCell>
+                    <TableCell>
+                      {exam.notes && exam.notes.length > 30
+                        ? `${exam.notes.substring(0, 30)}...`
+                        : exam.notes}
+                    </TableCell>
+                    <TableCell>
+                      <Button variant="ghost" className="h-8 w-8 p-0" onClick={(e) => {
+                        e.stopPropagation();
+                        setExamToDelete(exam);
+                        setIsDeleteModalOpen(true);
+                      }}>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={6} className="h-24 text-center">
+                    לא נמצאו בדיקות לתצוגה
                   </TableCell>
                 </TableRow>
-              ))
-            )}
+              )}
           </TableBody>
         </Table>
       </div>
+
+      <CustomModal
+        isOpen={isDeleteModalOpen}
+        onClose={() => setIsDeleteModalOpen(false)}
+        title="מחיקת בדיקה"
+        description={examToDelete ? `האם אתה בטוח שברצונך למחוק את הבדיקה של ${examToDelete.test_name || 'בדיקה זו'} מיום ${examToDelete.exam_date ? new Date(examToDelete.exam_date).toLocaleDateString('he-IL') : ''}? פעולה זו אינה הפיכה.` : "האם אתה בטוח שברצונך למחוק בדיקה זו? פעולה זו אינה הפיכה."}
+        onConfirm={handleDeleteConfirm}
+        confirmText="מחק"
+        cancelText="בטל"
+      />
     </div>
   );
 }

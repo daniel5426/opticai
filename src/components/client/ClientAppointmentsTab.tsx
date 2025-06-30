@@ -1,44 +1,40 @@
-import React, { useState, useEffect } from "react"
+import React from "react"
 import { useParams } from "@tanstack/react-router"
 import { AppointmentsTable } from "@/components/appointments-table"
-import { getAppointmentsByClient } from "@/lib/db/appointments-db"
+import { useClientData } from "@/contexts/ClientDataContext"
 import { Appointment } from "@/lib/db/schema"
 
 export function ClientAppointmentsTab() {
   const { clientId } = useParams({ from: "/clients/$clientId" })
-  const [appointments, setAppointments] = useState<Appointment[]>([])
-  const [loading, setLoading] = useState(true)
+  const { appointments, loading, refreshAppointments } = useClientData()
+  const [currentAppointments, setCurrentAppointments] = React.useState<Appointment[]>(appointments)
 
-  const loadAppointments = async () => {
-    try {
-      setLoading(true)
-      const appointmentsData = await getAppointmentsByClient(Number(clientId))
-      setAppointments(appointmentsData)
-    } catch (error) {
-      console.error('Error loading appointments:', error)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  useEffect(() => {
-    loadAppointments()
-  }, [clientId])
+  React.useEffect(() => {
+    setCurrentAppointments(appointments)
+  }, [appointments])
 
   const handleAppointmentChange = () => {
-    loadAppointments()
+    refreshAppointments()
   }
 
-  if (loading) {
-    return <div>טוען תורים...</div>
+  const handleAppointmentDeleted = (deletedAppointmentId: number) => {
+    setCurrentAppointments(prevAppointments => prevAppointments.filter(appointment => appointment.id !== deletedAppointmentId))
   }
+
+  const handleAppointmentDeleteFailed = () => {
+    refreshAppointments()
+  }
+
 
   return (
     <div className="space-y-4" style={{scrollbarWidth: 'none'}}>
       <AppointmentsTable 
-        data={appointments} 
+        data={currentAppointments} 
         clientId={Number(clientId)} 
         onAppointmentChange={handleAppointmentChange} 
+        onAppointmentDeleted={handleAppointmentDeleted}
+        onAppointmentDeleteFailed={handleAppointmentDeleteFailed}
+        loading={loading.appointments}
       />
     </div>
   )

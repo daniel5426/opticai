@@ -1,40 +1,34 @@
-import React, { useState, useEffect } from "react"
-import { Card, CardContent } from "@/components/ui/card"
+import React from "react"
 import { ExamsTable } from "@/components/exams-table"
-import { getExamsByClientId } from "@/lib/db/exams-db"
 import { useParams } from "@tanstack/react-router"
-import { OpticalExam } from "@/lib/db/schema"
+import { useClientData } from "@/contexts/ClientDataContext"
+import { OpticalExam } from "@/lib/db/schema";
 
 export function ClientExamsTab() {
   const { clientId } = useParams({ from: "/clients/$clientId" })
-  const [exams, setExams] = useState<OpticalExam[]>([])
-  const [loading, setLoading] = useState(true)
+  const { exams, loading, refreshExams } = useClientData()
+  const [currentExams, setCurrentExams] = React.useState<OpticalExam[]>(exams);
 
-  useEffect(() => {
-    const loadExams = async () => {
-      try {
-        setLoading(true)
-        const examsData = await getExamsByClientId(Number(clientId))
-        setExams(examsData)
-      } catch (error) {
-        console.error('Error loading exams:', error)
-      } finally {
-        setLoading(false)
-      }
-    }
+  React.useEffect(() => {
+    setCurrentExams(exams);
+  }, [exams]);
 
-    loadExams()
-  }, [clientId])
+  const handleExamDeleted = (deletedExamId: number) => {
+    setCurrentExams(prevExams => prevExams.filter(exam => exam.id !== deletedExamId));
+  };
 
-  if (loading) {
-    return (
-      <div className="flex justify-center items-center h-32">
-        <div className="text-lg">טוען בדיקות...</div>
-      </div>
-    )
-  }
+  const handleExamDeleteFailed = () => {
+    refreshExams(); // Trigger a full refresh only on failure
+  };
+
 
   return (
-    <ExamsTable data={exams} clientId={Number(clientId)} />
+    <ExamsTable 
+      data={currentExams} 
+      clientId={Number(clientId)} 
+      onExamDeleted={handleExamDeleted} 
+      onExamDeleteFailed={handleExamDeleteFailed}
+      loading={loading.exams}
+    />
   )
 } 

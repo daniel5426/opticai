@@ -5,8 +5,9 @@ import { Textarea } from "@/components/ui/textarea"
 import { toast } from "sonner"
 import { PencilIcon, Plus, SaveIcon, TrashIcon } from "lucide-react"
 import { useParams } from "@tanstack/react-router"
-import { getMedicalLogsByClientId, createMedicalLog, updateMedicalLog, deleteMedicalLog } from "@/lib/db/medical-logs-db"
+import { createMedicalLog, updateMedicalLog, deleteMedicalLog } from "@/lib/db/medical-logs-db"
 import { MedicalLog } from "@/lib/db/schema"
+import { useClientData } from "@/contexts/ClientDataContext"
 
 type MedicalRecord = MedicalLog & {
   isEditing?: boolean
@@ -16,39 +17,26 @@ type MedicalRecord = MedicalLog & {
 
 export const ClientMedicalRecordTab = () => {
   const { clientId } = useParams({ from: "/clients/$clientId" })
+  const { medicalLogs, loading, refreshMedicalLogs } = useClientData()
   const [records, setRecords] = useState<MedicalRecord[]>([])
-  const [loading, setLoading] = useState(true)
   const [tempIdCounter, setTempIdCounter] = useState(-1)
   const datePickerRefs = useRef<{ [key: number]: HTMLDivElement | null }>({})
 
   useEffect(() => {
-    const loadMedicalLogs = async () => {
-      try {
-        setLoading(true)
-        const logs = await getMedicalLogsByClientId(Number(clientId))
-        const sortedLogs = logs.sort((a, b) => {
-          const dateA = new Date(a.log_date || '').getTime()
-          const dateB = new Date(b.log_date || '').getTime()
-          if (dateB !== dateA) {
-            return dateB - dateA
-          }
-          // If dates are equal, sort by ID (newer/negative IDs first)
-          return (b.id || 0) - (a.id || 0)
-        })
-        setRecords(sortedLogs.map(log => ({
-          ...log,
-          isEditing: false,
-          isDatePickerOpen: false
-        })))
-      } catch (error) {
-        console.error('Error loading medical logs:', error)
-      } finally {
-        setLoading(false)
+    const sortedLogs = medicalLogs.sort((a, b) => {
+      const dateA = new Date(a.log_date || '').getTime()
+      const dateB = new Date(b.log_date || '').getTime()
+      if (dateB !== dateA) {
+        return dateB - dateA
       }
-    }
-
-    loadMedicalLogs()
-  }, [clientId])
+      return (b.id || 0) - (a.id || 0)
+    })
+    setRecords(sortedLogs.map(log => ({
+      ...log,
+      isEditing: false,
+      isDatePickerOpen: false
+    })))
+  }, [medicalLogs])
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -69,7 +57,6 @@ export const ClientMedicalRecordTab = () => {
                     if (dateB !== dateA) {
                       return dateB - dateA
                     }
-                    // If dates are equal, sort by ID (newer/negative IDs first)
                     return (b.id || 0) - (a.id || 0)
                   })
                 })
@@ -114,7 +101,6 @@ export const ClientMedicalRecordTab = () => {
         if (dateB !== dateA) {
           return dateB - dateA
         }
-        // If dates are equal, sort by ID (newer/negative IDs first)
         return (b.id || 0) - (a.id || 0)
       })
     })
@@ -134,7 +120,6 @@ export const ClientMedicalRecordTab = () => {
 
     try {
       if (id < 0) {
-        // New record - create it
         const newLog = await createMedicalLog({
           client_id: Number(clientId),
           log_date: record.log_date || new Date().toISOString().split('T')[0],
@@ -152,16 +137,15 @@ export const ClientMedicalRecordTab = () => {
               if (dateB !== dateA) {
                 return dateB - dateA
               }
-              // If dates are equal, sort by ID (newer/negative IDs first)
               return (b.id || 0) - (a.id || 0)
             })
           })
+          refreshMedicalLogs()
           toast.success("הרשומה נשמרה בהצלחה")
         } else {
           toast.error("שגיאה בשמירת הרשומה")
         }
       } else {
-        // Existing record - update it
         const updatedLog = await updateMedicalLog({
           id: record.id,
           client_id: record.client_id,
@@ -175,6 +159,7 @@ export const ClientMedicalRecordTab = () => {
               r.id === id ? { ...updatedLog, isEditing: false } : r
             )
           )
+          refreshMedicalLogs()
           toast.success("הרשומה עודכנה בהצלחה")
         } else {
           toast.error("שגיאה בעדכון הרשומה")
@@ -196,14 +181,13 @@ export const ClientMedicalRecordTab = () => {
   const deleteRecord = async (id: number) => {
     try {
       if (id < 0) {
-        // New unsaved record - just remove from state
         setRecords(records.filter(record => record.id !== id))
         toast.success("הרשומה נמחקה")
       } else {
-        // Existing record - delete from database
         const success = await deleteMedicalLog(id)
         if (success) {
           setRecords(records.filter(record => record.id !== id))
+          refreshMedicalLogs()
           toast.success("הרשומה נמחקה בהצלחה")
         } else {
           toast.error("שגיאה במחיקת הרשומה")
@@ -258,7 +242,7 @@ export const ClientMedicalRecordTab = () => {
     }).format(date)
   }
 
-  if (loading) {
+  if (loading.medicalLogs) {
     return (
       <div className="flex justify-center items-center h-32">
       </div>

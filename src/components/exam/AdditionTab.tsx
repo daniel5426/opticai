@@ -26,8 +26,8 @@ function AdditionSection({ eye, data, onChange, isEditing, hideLabels = false }:
   };
 
   return (
-    <div className="flex items-center gap-1 h-10 mb-3" dir="rtl">
-      <div className="grid grid-cols-7 gap-9 flex-1 w-full" dir="ltr">
+    <div className="flex items-center gap-1 h-6" dir="rtl">
+      <div className="grid grid-cols-7 gap-4 flex-1 w-full" dir="ltr">
         <div>
           {eye === "R" && <Label htmlFor={`${eye}-ad-fcc`} className="text-[12px] block text-center">FCC</Label>}
           <Input id={`${eye}-ad-fcc`} type="number" step="0.25" value={getFieldValue("fcc")} onChange={(e) => handleChange("fcc", e.target.value)} disabled={!isEditing} className={`h-8 text-xs px-1 ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`} placeholder="FCC" />
@@ -57,7 +57,7 @@ function AdditionSection({ eye, data, onChange, isEditing, hideLabels = false }:
           <Input id={`${eye}-iop`} type="number" step="0.1" value={getFieldValue("iop")} onChange={(e) => handleChange("iop", e.target.value)} disabled={!isEditing} className={`h-8 text-xs px-1 ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`} placeholder="IOP" />
         </div>
       </div>
-      {!hideLabels && <span className={`text-md font-medium pr-2 flex items-center justify-center w-6 ${eyeLabel === "L" ? "pb-1" : "pt-4"}`}>{eyeLabel}</span>}
+      {!hideLabels && <span className={`text-md font-medium pr-2 flex items-center justify-center w-6 ${eyeLabel === "L" ? "" : "pt-4"}`}>{eyeLabel}</span>}
     </div>
   );
 }
@@ -67,23 +67,27 @@ interface AdditionTabProps {
   onAdditionChange: (field: keyof AdditionExam, value: string) => void;
   isEditing: boolean;
   hideEyeLabels?: boolean;
+  needsMiddleSpacer?: boolean;
 }
 
 export function AdditionTab({
   additionData,
   onAdditionChange,
   isEditing,
-  hideEyeLabels = false
+  hideEyeLabels = false,
+  needsMiddleSpacer = false
 }: AdditionTabProps) {
   return (
     <Card className="w-full shadow-md border-[1px] ">
       <CardContent className="px-4 pt-4 space-y-1">
-        <div className="relative mb-1 pt-2">
-          <div className="absolute top-[-27px] right-1/2 transform translate-x-1/2  px-2 font-medium text-muted-foreground">
+      <div className="relative mb-4 pt-2" dir="rtl">
+          <div className="absolute top-[-27px] left-1/2 transform -translate-x-1/2 px-2 font-medium text-muted-foreground">
             Addition
           </div>
         </div>
         <AdditionSection eye="R" data={additionData} onChange={onAdditionChange} isEditing={isEditing} hideLabels={hideEyeLabels} />
+        {needsMiddleSpacer && <div className="h-7 mb-2"></div>}
+        <div className="h-3 mb-3"></div>
         <AdditionSection eye="L" data={additionData} onChange={onAdditionChange} isEditing={isEditing} hideLabels={hideEyeLabels} />
       </CardContent>
     </Card>

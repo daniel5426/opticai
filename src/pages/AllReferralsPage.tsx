@@ -33,22 +33,19 @@ export default function AllReferralsPage() {
     loadData()
   }, [])
 
+  const handleReferralDeleted = (deletedReferralId: number) => {
+    setReferrals(prevReferrals => prevReferrals.filter(referral => referral.id !== deletedReferralId))
+  }
+
+  const handleReferralDeleteFailed = () => {
+    loadData()
+  }
+
   const handleClientSelect = (clientId: number) => {
     navigate({
       to: "/referrals/create",
       search: { clientId: String(clientId) }
     })
-  }
-
-  if (loading) {
-    return (
-      <>
-        <SiteHeader title="הפניות" />
-        <div className="flex flex-col items-center justify-center h-full">
-          <div className="text-lg">טוען הפניות...</div>
-        </div>
-      </>
-    )
   }
 
   return (
@@ -60,8 +57,10 @@ export default function AllReferralsPage() {
         </div>
         <ReferralTable 
           referrals={referrals} 
-          onRefresh={loadData} 
-          clientId={0} 
+          onReferralDeleted={handleReferralDeleted}
+          onReferralDeleteFailed={handleReferralDeleteFailed}
+          clientId={0}
+          loading={loading}
         />
       </div>
     </>

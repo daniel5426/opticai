@@ -49,13 +49,12 @@ export interface OpticalExam {
   exam_date?: string;
   test_name?: string;
   dominant_eye?: string;
-  layout_id?: number;
   notes?: string;
 }
 
 export interface OldRefractionExam {
   id?: number;
-  exam_id: number;
+  layout_id: number;
   r_sph?: number;
   l_sph?: number;
   r_cyl?: number;
@@ -75,7 +74,7 @@ export interface OldRefractionExam {
 
 export interface ObjectiveExam {
   id?: number;
-  exam_id: number;
+  layout_id: number;
   r_sph?: number;
   l_sph?: number;
   r_cyl?: number;
@@ -88,7 +87,7 @@ export interface ObjectiveExam {
 
 export interface SubjectiveExam {
   id?: number;
-  exam_id: number;
+  layout_id: number;
   r_fa?: number;
   l_fa?: number;
   r_fa_tuning?: number;
@@ -120,7 +119,7 @@ export interface SubjectiveExam {
 
 export interface AdditionExam {
   id?: number;
-  exam_id: number;
+  layout_id: number;
   r_fcc?: number;
   l_fcc?: number;
   r_read?: number;
@@ -139,7 +138,7 @@ export interface AdditionExam {
  
 export interface FinalSubjectiveExam {
   id?: number;
-  exam_id: number;
+  layout_id: number;
   r_sph?: number;
   l_sph?: number;
   r_cyl?: number;
@@ -594,6 +593,17 @@ export interface ExamLayout {
   name: string;
   layout_data: string; // JSON string of layout configuration with custom widths
   is_default?: boolean;
+  is_active?: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface ExamLayoutInstance {
+  id?: number;
+  exam_id: number;
+  layout_id: number;
+  is_active?: boolean;
+  order?: number;
   created_at?: string;
   updated_at?: string;
 }
@@ -658,11 +668,9 @@ export const createTables = (db: Database): void => {
       exam_date DATE,
       test_name TEXT,
       dominant_eye CHAR(1) CHECK(dominant_eye IN ('R','L')),
-      layout_id INTEGER,
       notes TEXT,
       FOREIGN KEY(client_id) REFERENCES clients(id) ON DELETE CASCADE,
-      FOREIGN KEY(user_id) REFERENCES users(id),
-      FOREIGN KEY(layout_id) REFERENCES exam_layouts(id)
+      FOREIGN KEY(user_id) REFERENCES users(id)
     );
   `);
 
@@ -670,7 +678,7 @@ export const createTables = (db: Database): void => {
   db.exec(`
     CREATE TABLE IF NOT EXISTS old_refraction_exams (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      exam_id INTEGER NOT NULL,
+      layout_id INTEGER NOT NULL,
       r_sph REAL,
       l_sph REAL,
       r_cyl REAL,
@@ -686,7 +694,7 @@ export const createTables = (db: Database): void => {
       r_ad REAL,
       l_ad REAL,
       comb_va REAL,
-      FOREIGN KEY(exam_id) REFERENCES optical_exams(id) ON DELETE CASCADE
+      FOREIGN KEY(layout_id) REFERENCES exam_layouts(id) ON DELETE CASCADE
     );
   `);
 
@@ -694,7 +702,7 @@ export const createTables = (db: Database): void => {
   db.exec(`
     CREATE TABLE IF NOT EXISTS objective_exams (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      exam_id INTEGER NOT NULL,
+      layout_id INTEGER NOT NULL,
       r_sph REAL,
       l_sph REAL,
       r_cyl REAL,
@@ -703,7 +711,7 @@ export const createTables = (db: Database): void => {
       l_ax INTEGER,
       r_se REAL,
       l_se REAL,
-      FOREIGN KEY(exam_id) REFERENCES optical_exams(id) ON DELETE CASCADE
+      FOREIGN KEY(layout_id) REFERENCES exam_layouts(id) ON DELETE CASCADE
     );
   `);
 
@@ -711,7 +719,7 @@ export const createTables = (db: Database): void => {
   db.exec(`
     CREATE TABLE IF NOT EXISTS subjective_exams (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      exam_id INTEGER NOT NULL,
+      layout_id INTEGER NOT NULL,
       r_fa REAL,
       l_fa REAL,
       r_fa_tuning REAL,
@@ -739,7 +747,7 @@ export const createTables = (db: Database): void => {
       comb_fa_tuning REAL,
       comb_pd_close REAL,
       comb_pd_far REAL,
-      FOREIGN KEY(exam_id) REFERENCES optical_exams(id) ON DELETE CASCADE
+      FOREIGN KEY(layout_id) REFERENCES exam_layouts(id) ON DELETE CASCADE
     );
   `);
 
@@ -747,7 +755,7 @@ export const createTables = (db: Database): void => {
   db.exec(`
     CREATE TABLE IF NOT EXISTS addition_exams (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      exam_id INTEGER NOT NULL,
+      layout_id INTEGER NOT NULL,
       r_fcc REAL,
       l_fcc REAL,
       r_read REAL,
@@ -762,7 +770,7 @@ export const createTables = (db: Database): void => {
       l_j INTEGER,
       r_iop REAL,
       l_iop REAL,
-      FOREIGN KEY(exam_id) REFERENCES optical_exams(id) ON DELETE CASCADE
+      FOREIGN KEY(layout_id) REFERENCES exam_layouts(id) ON DELETE CASCADE
     );
   `);
 
@@ -770,7 +778,7 @@ export const createTables = (db: Database): void => {
   db.exec(`
     CREATE TABLE IF NOT EXISTS final_subjective_exams (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      exam_id INTEGER NOT NULL,
+      layout_id INTEGER NOT NULL,
       r_sph REAL,
       l_sph REAL,
       r_cyl REAL,
@@ -796,7 +804,7 @@ export const createTables = (db: Database): void => {
       comb_pd_far REAL,
       comb_pd_close REAL,
       comb_va REAL,
-      FOREIGN KEY(exam_id) REFERENCES optical_exams(id) ON DELETE CASCADE
+      FOREIGN KEY(layout_id) REFERENCES exam_layouts(id) ON DELETE CASCADE
     );
   `);
 
@@ -1406,8 +1414,24 @@ export const createTables = (db: Database): void => {
       name TEXT NOT NULL,
       layout_data TEXT NOT NULL,
       is_default BOOLEAN DEFAULT 0,
+      is_active BOOLEAN DEFAULT 1,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+
+  // Create exam_layout_instances table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS exam_layout_instances (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      exam_id INTEGER NOT NULL,
+      layout_id INTEGER NOT NULL,
+      is_active BOOLEAN DEFAULT 0,
+      \`order\` INTEGER DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY(exam_id) REFERENCES optical_exams(id) ON DELETE CASCADE,
+      FOREIGN KEY(layout_id) REFERENCES exam_layouts(id) ON DELETE CASCADE
     );
   `);
 

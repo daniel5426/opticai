@@ -11,30 +11,32 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Referral } from "@/lib/db/schema";
 import { deleteReferral } from "@/lib/db/referral-db";
 import { toast } from "sonner";
 import { ClientSelectModal } from "@/components/ClientSelectModal";
+import { CustomModal } from "@/components/ui/custom-modal";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface ReferralTableProps {
   referrals: Referral[];
-  onRefresh: () => void;
+  onReferralDeleted: (referralId: number) => void;
+  onReferralDeleteFailed: () => void;
   clientId: number;
+  loading: boolean;
 }
 
 export function ReferralTable({
   referrals,
-  onRefresh,
+  onReferralDeleted,
+  onReferralDeleteFailed,
   clientId,
+  loading,
 }: ReferralTableProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const navigate = useNavigate();
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [referralToDelete, setReferralToDelete] = useState<Referral | null>(null);
 
   const filteredReferrals = referrals.filter(
     (referral) =>
@@ -44,30 +46,31 @@ export function ReferralTable({
       referral.date?.includes(searchTerm),
   );
 
-  const handleDeleteClick = async (
-    referral: Referral,
-    event: React.MouseEvent,
-  ) => {
-    event.stopPropagation();
-
-    if (window.confirm("האם אתה בטוח שברצונך למחוק את ההפניה הזו?")) {
+  const handleDeleteConfirm = async () => {
+    if (referralToDelete && referralToDelete.id !== undefined) {
       try {
-        const success = await deleteReferral(referral.id!);
-        if (success) {
-          toast.success("ההפניה נמחקה בהצלחה");
-          onRefresh();
-        } else {
-          toast.error("לא הצלחנו למחוק את ההפניה");
+        const deletedReferralId = referralToDelete.id;
+        onReferralDeleted(deletedReferralId);
+        toast.success("ההפניה נמחקה בהצלחה");
+
+        const success = await deleteReferral(deletedReferralId);
+        if (!success) {
+          toast.error("לא הצלחנו למחוק את ההפניה. מרענן נתונים...");
+          onReferralDeleteFailed();
         }
       } catch (error) {
         console.error("Error deleting referral:", error);
         toast.error("לא הצלחנו למחוק את ההפניה");
+        onReferralDeleteFailed();
+      } finally {
+        setReferralToDelete(null);
       }
     }
+    setIsDeleteModalOpen(false);
   };
 
-  const handleRowClick = (referralId: number) => {
-    navigate({ to: `/referrals/${referralId}` });
+  const handleRowClick = (referral: Referral) => {
+    navigate({ to: "/referrals/$referralId", params: { referralId: String(referral.id) } });
   };
 
   return (
@@ -80,12 +83,11 @@ export function ReferralTable({
           className="w-[250px]"
           dir="rtl"
         />
-                {clientId > 0 ? (
+        {clientId > 0 ? (
           <Link to="/referrals/create" search={{ clientId: String(clientId) }}>
             <Button>
               הפניה חדשה
               <Plus className="mr-2 h-4 w-4" />
-
             </Button>
           </Link>
         ) : (
@@ -117,21 +119,17 @@ export function ReferralTable({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredReferrals.length === 0 ? (
-              <TableRow>
-                <TableCell
-                  colSpan={6}
-                  className="text-muted-foreground py-8 text-center"
-                >
-                  לא נמצאו הפניות
-                </TableCell>
-              </TableRow>
-            ) : (
+            {loading ? (
+              Array.from({ length: 10 }).map((_, i) => (
+                <TableRow key={i}>
+                </TableRow>
+              ))
+            ) : filteredReferrals.length > 0 ? (
               filteredReferrals.map((referral) => (
                 <TableRow
                   key={referral.id}
                   className="cursor-pointer"
-                  onClick={() => handleRowClick(referral.id!)}
+                  onClick={() => handleRowClick(referral)}
                 >
                   <TableCell className="text-right">
                     {referral.date
@@ -151,42 +149,42 @@ export function ReferralTable({
                     {referral.comb_va || "-"}
                   </TableCell>
                   <TableCell className="text-right">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          className="h-8 w-8 p-0"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem asChild>
-                          <Link
-                            to="/referrals/$referralId"
-                            params={{ referralId: String(referral.id) }}
-                            className="cursor-pointer"
-                          >
-                            צפה/ערוך
-                          </Link>
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={(e) => handleDeleteClick(referral, e)}
-                          className="cursor-pointer text-red-600"
-                        >
-                          <Trash2 className="mr-2 h-4 w-4" />
-                          מחק
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                    <Button
+                      variant="ghost"
+                      className="h-8 w-8 p-0"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setReferralToDelete(referral);
+                        setIsDeleteModalOpen(true);
+                      }}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
                   </TableCell>
                 </TableRow>
               ))
+            ) : (
+              <TableRow>
+                <TableCell
+                  colSpan={6}
+                  className="text-muted-foreground py-8 text-center"
+                >
+                  לא נמצאו הפניות
+                </TableCell>
+              </TableRow>
             )}
           </TableBody>
         </Table>
       </div>
+      <CustomModal
+        isOpen={isDeleteModalOpen}
+        onClose={() => setIsDeleteModalOpen(false)}
+        title="מחיקת הפניה"
+        description={referralToDelete ? `האם אתה בטוח שברצונך למחוק את ההפניה אל "${referralToDelete.recipient}"?` : "האם אתה בטוח שברצונך למחוק את ההפניה?"}
+        onConfirm={handleDeleteConfirm}
+        confirmText="מחק"
+        cancelText="בטל"
+      />
     </div>
   );
 }

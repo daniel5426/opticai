@@ -26,15 +26,12 @@ export default function AllFilesPage() {
     loadFiles()
   }, [])
 
-  if (loading) {
-    return (
-      <>
-        <SiteHeader title="קבצים" />
-        <div className="flex flex-col items-center justify-center h-full">
-          <div className="text-lg">טוען קבצים...</div>
-        </div>
-      </>
-    )
+  const handleFileDeleted = (deletedFileId: number) => {
+    setFiles(prevFiles => prevFiles.filter(file => file.id !== deletedFileId))
+  }
+
+  const handleFileDeleteFailed = () => {
+    loadFiles()
   }
 
   return (
@@ -52,6 +49,9 @@ export default function AllFilesPage() {
           data={files} 
           clientId={0} 
           onFileUploaded={loadFiles}
+          onFileDeleted={handleFileDeleted}
+          onFileDeleteFailed={handleFileDeleteFailed}
+          loading={loading}
         />
       </div>
     </>

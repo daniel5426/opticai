@@ -1,5 +1,4 @@
-import React from "react";
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import {
   Table,
@@ -9,35 +8,37 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { MoreHorizontal, Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import { ContactLens, User } from "@/lib/db/schema";
 import { deleteContactLens } from "@/lib/db/contact-lens-db";
 import { toast } from "sonner";
 import { ClientSelectModal } from "@/components/ClientSelectModal";
 import { getAllUsers } from "@/lib/db/users-db";
+import { CustomModal } from "@/components/ui/custom-modal";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface ContactLensTableProps {
   data: ContactLens[];
   clientId: number;
-  onContactLensDeleted?: () => void;
+  onContactLensDeleted: (id: number) => void;
+  onContactLensDeleteFailed: () => void;
+  loading: boolean;
 }
 
 export function ContactLensTable({
   data,
   clientId,
   onContactLensDeleted,
+  onContactLensDeleteFailed,
+  loading
 }: ContactLensTableProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [users, setUsers] = useState<User[]>([]);
   const navigate = useNavigate();
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [contactLensToDelete, setContactLensToDelete] = useState<ContactLens | null>(null);
 
   useEffect(() => {
     const loadUsers = async () => {
@@ -57,28 +58,27 @@ export function ContactLensTable({
     return user?.username || '';
   };
 
-  const handleDeleteContactLens = async (
-    contactLensId: number,
-    event: React.MouseEvent,
-  ) => {
-    event.stopPropagation();
-
-    if (window.confirm("האם אתה בטוח שברצונך למחוק את בדיקת עדשות המגע הזו?")) {
+  const handleDeleteConfirm = async () => {
+    if (contactLensToDelete && contactLensToDelete.id !== undefined) {
       try {
-        const success = await deleteContactLens(contactLensId);
-        if (success) {
-          toast.success("בדיקת עדשות המגע נמחקה בהצלחה");
-          if (onContactLensDeleted) {
-            onContactLensDeleted();
-          }
-        } else {
-          toast.error("שגיאה במחיקת בדיקת עדשות המגע");
+        const deletedContactLensId = contactLensToDelete.id;
+        onContactLensDeleted(deletedContactLensId);
+        toast.success("בדיקת עדשות המגע נמחקה בהצלחה");
+
+        const success = await deleteContactLens(deletedContactLensId);
+        if (!success) {
+          toast.error("שגיאה במחיקת בדיקת עדשות המגע. מרענן נתונים...");
+          onContactLensDeleteFailed();
         }
       } catch (error) {
         console.error("Error deleting contact lens:", error);
         toast.error("שגיאה במחיקת בדיקת עדשות המגע");
+        onContactLensDeleteFailed();
+      } finally {
+        setContactLensToDelete(null);
       }
     }
+    setIsDeleteModalOpen(false);
   };
 
   const filteredData = data.filter((contactLens) => {
@@ -141,13 +141,12 @@ export function ContactLensTable({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredData.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
-                  לא נמצאו בדיקות עדשות מגע לתצוגה
-                </TableCell>
-              </TableRow>
-            ) : (
+            {loading ? (
+              Array.from({ length: 10 }).map((_, i) => (
+                <TableRow key={i}>
+                </TableRow>
+              ))
+            ) : filteredData.length > 0 ? (
               filteredData.map((contactLens) => {
                 return (
                   <TableRow
@@ -175,46 +174,40 @@ export function ContactLensTable({
                     <TableCell></TableCell>
                     <TableCell>{contactLens.corneal_diameter}</TableCell>
                     <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            className="h-8 w-8 p-0"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <span className="sr-only">פתח תפריט</span>
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <Link
-                            to="/clients/$clientId/contact-lenses/$contactLensId"
-                            params={{
-                              clientId: String(contactLens.client_id),
-                              contactLensId: String(contactLens.id),
-                            }}
-                          >
-                            <DropdownMenuItem>פרטי עדשות מגע</DropdownMenuItem>
-                          </Link>
-                          <DropdownMenuItem
-                            className="text-red-600 focus:text-red-600"
-                            onClick={(e) =>
-                              handleDeleteContactLens(contactLens.id!, e)
-                            }
-                          >
-                            <Trash2 className="mr-2 h-4 w-4" />
-                            מחק בדיקה
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                      <Button
+                        variant="ghost"
+                        className="h-8 w-8 p-0"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setContactLensToDelete(contactLens);
+                          setIsDeleteModalOpen(true);
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
                     </TableCell>
                   </TableRow>
                 );
               })
+            ) : (
+              <TableRow>
+                <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
+                  לא נמצאו בדיקות עדשות מגע לתצוגה
+                </TableCell>
+              </TableRow>
             )}
           </TableBody>
         </Table>
       </div>
+      <CustomModal
+        isOpen={isDeleteModalOpen}
+        onClose={() => setIsDeleteModalOpen(false)}
+        title="מחיקת בדיקת עדשות מגע"
+        description={contactLensToDelete ? `האם אתה בטוח שברצונך למחוק את בדיקת עדשות המגע מיום ${contactLensToDelete.exam_date ? new Date(contactLensToDelete.exam_date).toLocaleDateString('he-IL') : ''}?` : "האם אתה בטוח שברצונך למחוק את הבדיקה?"}
+        onConfirm={handleDeleteConfirm}
+        confirmText="מחק"
+        cancelText="בטל"
+      />
     </div>
   );
 }

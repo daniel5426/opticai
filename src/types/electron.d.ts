@@ -27,6 +27,7 @@ import {
   EmailLog, 
   File, 
   ExamLayout,
+  ExamLayoutInstance,
   LookupSupplier,
   LookupClinic,
   LookupOrderType,
@@ -69,28 +70,34 @@ export interface ElectronAPI {
 
   // Old Refraction Exam operations
   getOldRefractionExam: (examId: number) => Promise<any>;
+  getOldRefractionExamByLayout: (layoutId: number) => Promise<any>;
   createOldRefractionExam: (examData: any) => Promise<any>;
   updateOldRefractionExam: (examData: any) => Promise<any>;
 
   // Objective Exam operations
   getObjectiveExam: (examId: number) => Promise<any>;
+  getObjectiveExamByLayout: (layoutId: number) => Promise<any>;
   createObjectiveExam: (examData: any) => Promise<any>;
   updateObjectiveExam: (examData: any) => Promise<any>;
 
   // Subjective Exam operations
   getSubjectiveExam: (examId: number) => Promise<any>;
+  getSubjectiveExamByLayout: (layoutId: number) => Promise<any>;
   createSubjectiveExam: (examData: any) => Promise<any>;
   updateSubjectiveExam: (examData: any) => Promise<any>;
 
   // Addition Exam operations
   getAdditionExam: (examId: number) => Promise<any>;
+  getAdditionExamByLayout: (layoutId: number) => Promise<any>;
   createAdditionExam: (examData: any) => Promise<any>;
   updateAdditionExam: (examData: any) => Promise<any>;
 
   // Final Subjective Exam operations
   getFinalSubjectiveExam: (examId: number) => Promise<any>;
+  getFinalSubjectiveExamByLayout: (layoutId: number) => Promise<any>;
   createFinalSubjectiveExam: (examData: any) => Promise<any>;
-  updateFinalSubjectiveExam: (examData: any) => Promise<any>;
+  updateFinalSubjectiveExam: (data: FinalSubjectiveExam) => Promise<FinalSubjectiveExam | undefined>;
+  deleteFinalSubjectiveExam: (id: number) => Promise<boolean>;
 
   // Order operations
   getOrdersByClient: (clientId: number) => Promise<any[]>;
@@ -337,6 +344,18 @@ export interface ElectronAPI {
   updateExamLayout: (layoutData: ExamLayout) => Promise<ExamLayout | null>;
   deleteExamLayout: (id: number) => Promise<boolean>;
   getDefaultExamLayout: () => Promise<ExamLayout | null>;
+  getLayoutsByExamId: (examId: number) => Promise<ExamLayout[]>;
+  deactivateAllLayoutsForExam: (examId: number) => Promise<boolean>;
+  
+  // ExamLayoutInstance operations
+  getExamLayoutInstanceById: (id: number) => Promise<ExamLayoutInstance | null>;
+  getExamLayoutInstancesByExamId: (examId: number) => Promise<ExamLayoutInstance[]>;
+  getActiveExamLayoutInstanceByExamId: (examId: number) => Promise<ExamLayoutInstance | null>;
+  createExamLayoutInstance: (data: Omit<ExamLayoutInstance, 'id'>) => Promise<ExamLayoutInstance | null>;
+  updateExamLayoutInstance: (data: ExamLayoutInstance) => Promise<ExamLayoutInstance | null>;
+  deleteExamLayoutInstance: (id: number) => Promise<boolean>;
+  setActiveExamLayoutInstance: (examId: number, layoutInstanceId: number) => Promise<boolean>;
+  ensureExamHasLayout: (examId: number) => Promise<ExamLayoutInstance | null>;
 }
 
 declare global {

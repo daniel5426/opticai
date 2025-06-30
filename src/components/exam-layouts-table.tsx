@@ -8,16 +8,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { MoreHorizontal, Plus } from "lucide-react";
+import { Plus, Star, Trash2 } from "lucide-react";
 import { ExamLayout } from "@/lib/db/schema";
+import { toast } from "sonner";
+import { deleteExamLayout, updateExamLayout } from "@/lib/db/exam-layouts-db";
 
 interface ExamLayoutsTableProps {
   data: ExamLayout[];
@@ -26,18 +22,124 @@ interface ExamLayoutsTableProps {
 
 export function ExamLayoutsTable({ data, onRefresh }: ExamLayoutsTableProps) {
   const [searchQuery, setSearchQuery] = useState("");
+  const [localData, setLocalData] = useState<ExamLayout[]>(data);
+  const [isProcessing, setIsProcessing] = useState<{[key: number]: boolean}>({});
   const navigate = useNavigate();
 
-  const filteredData = data.filter((layout) => {
+  // Update local data when props change
+  React.useEffect(() => {
+    setLocalData(data);
+  }, [data]);
+
+  const filteredData = localData.filter((layout) => {
     return layout.name && layout.name.toLowerCase().includes(searchQuery.toLowerCase());
   });
 
   const handleCreateNew = () => {
-    const layoutCount = data.length + 1;
+    const layoutCount = localData.length + 1;
     navigate({
       to: "/exam-layouts/new",
       search: { name: `פריסה ${layoutCount}` }
     });
+  };
+
+  const handleSetDefault = async (layoutId: number | undefined) => {
+    if (!layoutId) return;
+    
+    // Prevent multiple clicks
+    if (isProcessing[layoutId]) return;
+    setIsProcessing(prev => ({ ...prev, [layoutId]: true }));
+
+    try {
+      // Optimistically update UI first
+      const updatedLayouts = localData.map(layout => ({
+        ...layout,
+        is_default: layout.id === layoutId
+      }));
+      setLocalData(updatedLayouts);
+
+      // Then update in database
+      for (const layout of data) {
+        if (layout.id !== layoutId && layout.is_default) {
+          await updateExamLayout({
+            ...layout,
+            is_default: false
+          });
+        }
+      }
+
+      const layoutToUpdate = data.find(layout => layout.id === layoutId);
+      if (layoutToUpdate) {
+        await updateExamLayout({
+          ...layoutToUpdate,
+          is_default: true
+        });
+      }
+
+      toast.success("הפריסה הוגדרה כברירת מחדל");
+      
+      // Trigger refresh in parent component without causing a flicker
+      onRefresh();
+      
+      // Clear processing state
+      setTimeout(() => {
+        setIsProcessing(prev => ({ ...prev, [layoutId]: false }));
+      }, 300);
+    } catch (error) {
+      console.error("Error setting default layout:", error);
+      toast.error("שגיאה בהגדרת פריסת ברירת מחדל");
+      // Revert optimistic update
+      setLocalData(data);
+      setIsProcessing(prev => ({ ...prev, [layoutId]: false }));
+    }
+  };
+
+  const handleDeleteLayout = async (layoutId: number | undefined, event: React.MouseEvent) => {
+    event.stopPropagation(); // Prevent row click from triggering
+    if (!layoutId) return;
+
+    // Prevent multiple clicks
+    if (isProcessing[layoutId]) return;
+    setIsProcessing(prev => ({ ...prev, [layoutId]: true }));
+
+    // Check if this is the default layout
+    const isDefault = localData.find(layout => layout.id === layoutId)?.is_default;
+    if (isDefault) {
+      toast.error("לא ניתן למחוק פריסת ברירת מחדל");
+      setIsProcessing(prev => ({ ...prev, [layoutId]: false }));
+      return;
+    }
+
+    try {
+      // Optimistically update UI first
+      const updatedLayouts = localData.filter(layout => layout.id !== layoutId);
+      setLocalData(updatedLayouts);
+
+      // Then delete from database
+      const success = await deleteExamLayout(layoutId);
+      if (success) {
+        toast.success("הפריסה הוסרה בהצלחה");
+        
+        // Trigger refresh in parent component without causing a flicker
+        onRefresh();
+        
+        // Clear processing state
+        setTimeout(() => {
+          setIsProcessing(prev => ({ ...prev, [layoutId]: false }));
+        }, 300);
+      } else {
+        toast.error("שגיאה בהסרת הפריסה");
+        // Revert optimistic update
+        setLocalData(data);
+        setIsProcessing(prev => ({ ...prev, [layoutId]: false }));
+      }
+    } catch (error) {
+      console.error("Error deactivating layout:", error);
+      toast.error("שגיאה בהסרת הפריסה");
+      // Revert optimistic update
+      setLocalData(data);
+      setIsProcessing(prev => ({ ...prev, [layoutId]: false }));
+    }
   };
 
   return (
@@ -66,7 +168,7 @@ export function ExamLayoutsTable({ data, onRefresh }: ExamLayoutsTableProps) {
               <TableHead className="text-right">ברירת מחדל</TableHead>
               <TableHead className="text-right">תאריך יצירה</TableHead>
               <TableHead className="text-right">עדכון אחרון</TableHead>
-              <TableHead className="w-[50px] text-right"></TableHead>
+              <TableHead className="w-[100px] text-right">פעולות</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -101,22 +203,33 @@ export function ExamLayoutsTable({ data, onRefresh }: ExamLayoutsTableProps) {
                       : ""}
                   </TableCell>
                   <TableCell>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" className="h-8 w-8 p-0">
-                          <span className="sr-only">פתח תפריט</span>
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <Link
-                          to="/exam-layouts/$layoutId"
-                          params={{ layoutId: String(layout.id) }}
-                        >
-                          <DropdownMenuItem>עריכה</DropdownMenuItem>
-                        </Link>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                    <div className="flex items-center gap-2">
+                      <Button 
+                        variant="ghost" 
+                        size="icon"
+                        className="h-8 w-8 p-1"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleSetDefault(layout.id);
+                        }}
+                        title={layout.is_default ? "פריסת ברירת מחדל" : "הגדר כברירת מחדל"}
+                        disabled={isProcessing[layout.id || 0] || layout.is_default}
+                      >
+                        <Star 
+                          className={`h-5 w-5 transition-colors ${layout.is_default ? 'fill-yellow-400 text-yellow-400' : 'text-gray-400'}`} 
+                        />
+                      </Button>
+                      <Button 
+                        variant="ghost" 
+                        size="icon"
+                        className="h-8 w-8 p-1 text-red-500 hover:text-red-700 hover:bg-red-50"
+                        onClick={(e) => handleDeleteLayout(layout.id, e)}
+                        title="מחק פריסה"
+                        disabled={isProcessing[layout.id || 0] || layout.is_default}
+                      >
+                        <Trash2 className="h-5 w-5" />
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))

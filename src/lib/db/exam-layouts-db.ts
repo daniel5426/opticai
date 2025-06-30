@@ -1,4 +1,4 @@
-import { ExamLayout } from './schema'
+import { ExamLayout, ExamLayoutInstance } from './schema'
 
 export async function getAllExamLayouts(): Promise<ExamLayout[]> {
   try {
@@ -50,6 +50,107 @@ export async function getDefaultExamLayout(): Promise<ExamLayout | null> {
     return await window.electronAPI.getDefaultExamLayout()
   } catch (error) {
     console.error('Error getting default exam layout:', error)
+    return null
+  }
+}
+
+// Get layouts for a specific exam
+export async function getLayoutsByExamId(examId: number): Promise<ExamLayout[]> {
+  try {
+    return await window.electronAPI.getLayoutsByExamId(examId)
+  } catch (error) {
+    console.error('Error getting layouts for exam:', error)
+    return []
+  }
+}
+
+// ExamLayoutInstance API
+export async function getExamLayoutInstanceById(id: number): Promise<ExamLayoutInstance | null> {
+  try {
+    return await window.electronAPI.getExamLayoutInstanceById(id)
+  } catch (error) {
+    console.error('Error getting exam layout instance by id:', error)
+    return null
+  }
+}
+
+export async function getExamLayoutInstancesByExamId(examId: number): Promise<ExamLayoutInstance[]> {
+  try {
+    return await window.electronAPI.getExamLayoutInstancesByExamId(examId)
+  } catch (error) {
+    console.error('Error getting exam layout instances for exam:', error)
+    return []
+  }
+}
+
+export async function getActiveExamLayoutInstanceByExamId(examId: number): Promise<ExamLayoutInstance | null> {
+  try {
+    return await window.electronAPI.getActiveExamLayoutInstanceByExamId(examId)
+  } catch (error) {
+    console.error('Error getting active exam layout instance:', error)
+    return null
+  }
+}
+
+export async function createExamLayoutInstance(instance: Omit<ExamLayoutInstance, 'id'>): Promise<ExamLayoutInstance | null> {
+  try {
+    return await window.electronAPI.createExamLayoutInstance(instance)
+  } catch (error) {
+    console.error('Error creating exam layout instance:', error)
+    return null
+  }
+}
+
+export async function updateExamLayoutInstance(instance: ExamLayoutInstance): Promise<ExamLayoutInstance | null> {
+  try {
+    return await window.electronAPI.updateExamLayoutInstance(instance)
+  } catch (error) {
+    console.error('Error updating exam layout instance:', error)
+    return null
+  }
+}
+
+export async function deleteExamLayoutInstance(id: number): Promise<boolean> {
+  try {
+    return await window.electronAPI.deleteExamLayoutInstance(id)
+  } catch (error) {
+    console.error('Error deleting exam layout instance:', error)
+    return false
+  }
+}
+
+export async function setActiveExamLayoutInstance(examId: number, layoutInstanceId: number): Promise<boolean> {
+  try {
+    return await window.electronAPI.setActiveExamLayoutInstance(examId, layoutInstanceId)
+  } catch (error) {
+    console.error('Error setting active exam layout instance:', error)
+    return false
+  }
+}
+
+// Ensure an exam has at least one layout instance
+export async function ensureExamHasLayout(examId: number): Promise<ExamLayoutInstance | null> {
+  try {
+    return await window.electronAPI.ensureExamHasLayout(examId)
+  } catch (error) {
+    console.error('Error ensuring exam has layout instance:', error)
+    return null
+  }
+}
+
+// Add a layout to an exam 
+export async function addLayoutToExam(examId: number, layoutId: number, isActive: boolean = false, order: number = 0): Promise<ExamLayoutInstance | null> {
+  try {
+    const instance: Omit<ExamLayoutInstance, 'id'> = {
+      exam_id: examId,
+      layout_id: layoutId,
+      is_active: isActive,
+      order: order
+    };
+    
+    return await createExamLayoutInstance(instance)
+  } catch (error) {
+    console.error('Error adding layout to exam:', error)
     return null
   }
 } 

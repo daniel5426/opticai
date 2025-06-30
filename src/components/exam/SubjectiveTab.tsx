@@ -30,8 +30,8 @@ function SubjectiveSection({ eye, data, onChange, isEditing, hideLabels = false 
   };
 
   return (
-    <div className="flex items-center gap-1 h-6 mb-3" dir="rtl">
-      <div className="grid grid-cols-20 gap-4 flex-1 pb-2 w-full" dir="ltr">
+    <div className="flex items-center gap-1 h-6" dir="rtl">
+      <div className="grid grid-cols-20 gap-4 flex-1 w-full" dir="ltr">
         <div className="col-span-2">
           {eye === "R" && <Label htmlFor={`${eye}-subj-fa`} className="text-[12px] block text-center">FA</Label>}
           <Input id={`${eye}-subj-fa`} type="number" step="0.1" value={getFieldValue("fa")} onChange={(e) => handleChange("fa", e.target.value)} disabled={!isEditing} className={`h-8 text-xs px-1 ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`} placeholder="FA" />
@@ -76,7 +76,7 @@ function SubjectiveSection({ eye, data, onChange, isEditing, hideLabels = false 
           <Input id={`${eye}-subj-pd-far`} type="number" step="0.5" value={getFieldValue("pd_far")} onChange={(e) => handleChange("pd_far", e.target.value)} disabled={!isEditing} className={`h-8 text-xs px-1 ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`} placeholder="PD" />
         </div>
       </div>
-      {!hideLabels && <span className={`text-md font-medium pr-2 flex items-center justify-center w-6 ${eyeLabel === "L" ? "pb-2" : "pt-2"}`}>{eyeLabel}</span>}
+      {!hideLabels && <span className={`text-md font-medium pr-2 flex items-center justify-center w-6 ${eyeLabel === "L" ? "" : "pt-4"}`}>{eyeLabel}</span>}
     </div>
   );
 }
@@ -322,7 +322,7 @@ function CombinedSubjFields({ subjectiveData, onSubjectiveChange, isEditing, onV
   hideLabels?: boolean
 }) {
   return (
-    <div className="flex items-center gap-1 h-10 mb-3" dir="rtl">
+    <div className="flex items-center gap-1 h-10 my-2 mt-4" dir="rtl">
       <div className="grid grid-cols-20 gap-4 flex-1 w-full" dir="ltr">
         <div className="col-span-2">
           <Input type="number" step="0.1" value={subjectiveData.comb_fa?.toString() || ""} onChange={(e) => onSubjectiveChange("comb_fa", e.target.value)} disabled={!isEditing} className={`h-8 text-xs px-1 ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`} placeholder="FA" />
