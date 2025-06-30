@@ -97,7 +97,7 @@
     "@radix-ui/react-tooltip": "^1.2.6",
     "@tabler/icons-react": "^3.31.0",
     "@tailwindcss/vite": "^4.1.4",
-    "@tanstack/react-query": "^5.74.7",
+    "@tanstack/react-query": "^5.81.5",
     "@tanstack/react-router": "^1.117.1",
     "@tanstack/react-table": "^8.21.3",
     "@tanstack/router-devtools": "^1.117.1",
