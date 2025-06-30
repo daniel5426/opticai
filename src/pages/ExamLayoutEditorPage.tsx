@@ -191,14 +191,14 @@ function CardResizer({ rowId, leftCardId, rightCardId, isEditing, cardCount, onR
       let newLeftPercent = 0
       const newLeftWidth = startLeftWidth + deltaX
       if (cardCount === 3) {
-        newLeftPercent = (newLeftWidth / containerWidth) * 133
+        newLeftPercent = (newLeftWidth / containerWidth) * 141
       } else {
-        newLeftPercent = (newLeftWidth / containerWidth) * 100
+        newLeftPercent = (newLeftWidth / containerWidth) * 102
       }
 
       
       // Apply constraints
-      newLeftPercent = Math.max(30, Math.min(70, newLeftPercent))
+      newLeftPercent = Math.max(20, Math.min(80, newLeftPercent))
       
       onResize(rowId, leftCardId, rightCardId, newLeftPercent)
     }
