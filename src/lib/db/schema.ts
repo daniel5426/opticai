@@ -54,7 +54,7 @@ export interface OpticalExam {
 
 export interface OldRefractionExam {
   id?: number;
-  layout_id: number;
+  layout_instance_id: number;
   r_sph?: number;
   l_sph?: number;
   r_cyl?: number;
@@ -74,7 +74,7 @@ export interface OldRefractionExam {
 
 export interface ObjectiveExam {
   id?: number;
-  layout_id: number;
+  layout_instance_id: number;
   r_sph?: number;
   l_sph?: number;
   r_cyl?: number;
@@ -87,7 +87,7 @@ export interface ObjectiveExam {
 
 export interface SubjectiveExam {
   id?: number;
-  layout_id: number;
+  layout_instance_id: number;
   r_fa?: number;
   l_fa?: number;
   r_fa_tuning?: number;
@@ -119,7 +119,7 @@ export interface SubjectiveExam {
 
 export interface AdditionExam {
   id?: number;
-  layout_id: number;
+  layout_instance_id: number;
   r_fcc?: number;
   l_fcc?: number;
   r_read?: number;
@@ -138,7 +138,7 @@ export interface AdditionExam {
  
 export interface FinalSubjectiveExam {
   id?: number;
-  layout_id: number;
+  layout_instance_id: number;
   r_sph?: number;
   l_sph?: number;
   r_cyl?: number;
@@ -678,7 +678,7 @@ export const createTables = (db: Database): void => {
   db.exec(`
     CREATE TABLE IF NOT EXISTS old_refraction_exams (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      layout_id INTEGER NOT NULL,
+      layout_instance_id INTEGER NOT NULL,
       r_sph REAL,
       l_sph REAL,
       r_cyl REAL,
@@ -694,7 +694,7 @@ export const createTables = (db: Database): void => {
       r_ad REAL,
       l_ad REAL,
       comb_va REAL,
-      FOREIGN KEY(layout_id) REFERENCES exam_layouts(id) ON DELETE CASCADE
+      FOREIGN KEY(layout_instance_id) REFERENCES exam_layout_instances(id) ON DELETE CASCADE
     );
   `);
 
@@ -702,7 +702,7 @@ export const createTables = (db: Database): void => {
   db.exec(`
     CREATE TABLE IF NOT EXISTS objective_exams (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      layout_id INTEGER NOT NULL,
+      layout_instance_id INTEGER NOT NULL,
       r_sph REAL,
       l_sph REAL,
       r_cyl REAL,
@@ -711,7 +711,7 @@ export const createTables = (db: Database): void => {
       l_ax INTEGER,
       r_se REAL,
       l_se REAL,
-      FOREIGN KEY(layout_id) REFERENCES exam_layouts(id) ON DELETE CASCADE
+      FOREIGN KEY(layout_instance_id) REFERENCES exam_layout_instances(id) ON DELETE CASCADE
     );
   `);
 
@@ -719,7 +719,7 @@ export const createTables = (db: Database): void => {
   db.exec(`
     CREATE TABLE IF NOT EXISTS subjective_exams (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      layout_id INTEGER NOT NULL,
+      layout_instance_id INTEGER NOT NULL,
       r_fa REAL,
       l_fa REAL,
       r_fa_tuning REAL,
@@ -747,7 +747,7 @@ export const createTables = (db: Database): void => {
       comb_fa_tuning REAL,
       comb_pd_close REAL,
       comb_pd_far REAL,
-      FOREIGN KEY(layout_id) REFERENCES exam_layouts(id) ON DELETE CASCADE
+      FOREIGN KEY(layout_instance_id) REFERENCES exam_layout_instances(id) ON DELETE CASCADE
     );
   `);
 
@@ -755,7 +755,7 @@ export const createTables = (db: Database): void => {
   db.exec(`
     CREATE TABLE IF NOT EXISTS addition_exams (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      layout_id INTEGER NOT NULL,
+      layout_instance_id INTEGER NOT NULL,
       r_fcc REAL,
       l_fcc REAL,
       r_read REAL,
@@ -770,7 +770,7 @@ export const createTables = (db: Database): void => {
       l_j INTEGER,
       r_iop REAL,
       l_iop REAL,
-      FOREIGN KEY(layout_id) REFERENCES exam_layouts(id) ON DELETE CASCADE
+      FOREIGN KEY(layout_instance_id) REFERENCES exam_layout_instances(id) ON DELETE CASCADE
     );
   `);
 
@@ -778,7 +778,7 @@ export const createTables = (db: Database): void => {
   db.exec(`
     CREATE TABLE IF NOT EXISTS final_subjective_exams (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      layout_id INTEGER NOT NULL,
+      layout_instance_id INTEGER NOT NULL,
       r_sph REAL,
       l_sph REAL,
       r_cyl REAL,
@@ -804,7 +804,7 @@ export const createTables = (db: Database): void => {
       comb_pd_far REAL,
       comb_pd_close REAL,
       comb_va REAL,
-      FOREIGN KEY(layout_id) REFERENCES exam_layouts(id) ON DELETE CASCADE
+      FOREIGN KEY(layout_instance_id) REFERENCES exam_layout_instances(id) ON DELETE CASCADE
     );
   `);
 

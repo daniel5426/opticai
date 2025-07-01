@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from "react"
 import { useParams, useNavigate, Link } from "@tanstack/react-router"
 import { SiteHeader } from "@/components/site-header"
 import { getClientById } from "@/lib/db/clients-db"
-import { getExamById, getOldRefractionExamByExamId, getObjectiveExamByExamId, getSubjectiveExamByExamId, getAdditionExamByExamId, updateExam, updateOldRefractionExam, updateObjectiveExam, updateSubjectiveExam, updateAdditionExam, createExam, createOldRefractionExam, createObjectiveExam, createSubjectiveExam, createAdditionExam, getOldRefractionExamByLayoutId, getObjectiveExamByLayoutId, getSubjectiveExamByLayoutId, getAdditionExamByLayoutId, getFinalSubjectiveExamByLayoutId } from "@/lib/db/exams-db"
+import { getExamById, getOldRefractionExamByExamId, getObjectiveExamByExamId, getSubjectiveExamByExamId, getAdditionExamByExamId, updateExam, updateOldRefractionExam, updateObjectiveExam, updateSubjectiveExam, updateAdditionExam, createExam, createOldRefractionExam, createObjectiveExam, createSubjectiveExam, createAdditionExam, getOldRefractionExamByLayoutInstanceId, getObjectiveExamByLayoutInstanceId, getSubjectiveExamByLayoutInstanceId, getAdditionExamByLayoutInstanceId, getFinalSubjectiveExamByLayoutInstanceId } from "@/lib/db/exams-db"
 import { OpticalExam, OldRefractionExam, ObjectiveExam, SubjectiveExam, AdditionExam, Client, User, FinalSubjectiveExam, ExamLayout, ExamLayoutInstance } from "@/lib/db/schema"
 import { getFinalSubjectiveExamByExamId, createFinalSubjectiveExam, updateFinalSubjectiveExam } from "@/lib/db/final-subjective-db"
 import { getAllExamLayouts, getDefaultExamLayout, getLayoutsByExamId, getExamLayoutInstancesByExamId, getActiveExamLayoutInstanceByExamId, setActiveExamLayoutInstance, addLayoutToExam, ensureExamHasLayout, getExamLayoutById, deleteExamLayoutInstance } from "@/lib/db/exam-layouts-db"
@@ -15,6 +15,7 @@ import { UserSelect } from "@/components/ui/user-select"
 import { useUser } from "@/contexts/UserContext"
 import { getAllUsers } from "@/lib/db/users-db"
 import { ExamCardRenderer, CardItem, DetailProps, calculateCardWidth, hasNoteCard } from "@/components/exam/ExamCardRenderer"
+import { useClientData } from "@/contexts/ClientDataContext"
 
 
 interface ExamDetailPageProps {
@@ -77,6 +78,16 @@ export default function ExamDetailPage({
   const [activeLayoutId, setActiveLayoutId] = useState<number | null>(null)
   const [layoutTabs, setLayoutTabs] = useState<LayoutTab[]>([])
   const { currentUser } = useUser()
+  
+  // Get the client data context to refresh exams after save
+  let refreshExams: (() => Promise<void>) | undefined;
+  try {
+    const clientDataContext = useClientData();
+    refreshExams = clientDataContext.refreshExams;
+  } catch {
+    // Context not available - this is fine for modal usage
+    refreshExams = undefined;
+  }
 
   const isNewMode = mode === 'new'
   const [isEditing, setIsEditing] = useState(isNewMode)
@@ -136,8 +147,11 @@ export default function ExamDetailPage({
             const layoutInstances = await getExamLayoutInstancesByExamId(Number(examId))
             
             if (layoutInstances.length > 0) {
+              console.log('Found layout instances for exam:', examId, layoutInstances);
+              
               // Get the active layout instance
               const activeInstance = await getActiveExamLayoutInstanceByExamId(Number(examId))
+              console.log('Active layout instance:', activeInstance);
               
               // Convert instances to layout tabs
               const tabs = await Promise.all(layoutInstances.map(async (instance) => {
@@ -151,6 +165,7 @@ export default function ExamDetailPage({
                 };
               }));
               
+              console.log('Layout tabs created:', tabs);
               setLayoutTabs(tabs)
               
               // Find active layout instance
@@ -160,7 +175,7 @@ export default function ExamDetailPage({
                 // Get the active layout data
                 const activeLayout = await getExamLayoutById(activeInstance.layout_id)
                 
-                if (activeLayout && activeLayout.layout_data) {
+                if (activeLayout && activeLayout.layout_data && activeInstance.id) {
                   // Load the layout
                   const parsedLayout = JSON.parse(activeLayout.layout_data)
                   if (Array.isArray(parsedLayout)) {
@@ -172,11 +187,17 @@ export default function ExamDetailPage({
                   }
                 
                   // Now load exam components for this layout
-                  const oldRefractionData = await getOldRefractionExamByLayoutId(activeInstance.layout_id)
-                  const objectiveData = await getObjectiveExamByLayoutId(activeInstance.layout_id)
-                  const subjectiveData = await getSubjectiveExamByLayoutId(activeInstance.layout_id)
-                  const additionData = await getAdditionExamByLayoutId(activeInstance.layout_id)
-                  const finalSubjectiveData = await getFinalSubjectiveExamByLayoutId(activeInstance.layout_id)
+                  const oldRefractionData = await getOldRefractionExamByLayoutInstanceId(activeInstance.id)
+                  const objectiveData = await getObjectiveExamByLayoutInstanceId(activeInstance.id)
+                  const subjectiveData = await getSubjectiveExamByLayoutInstanceId(activeInstance.id)
+                  const additionData = await getAdditionExamByLayoutInstanceId(activeInstance.id)
+                  const finalSubjectiveData = await getFinalSubjectiveExamByLayoutInstanceId(activeInstance.id)
+
+                  // Debug logging for missing components
+                  if (!oldRefractionData) console.warn('Missing old refraction data for layout instance:', activeInstance.id)
+                  if (!objectiveData) console.warn('Missing objective data for layout instance:', activeInstance.id)
+                  if (!subjectiveData) console.warn('Missing subjective data for layout instance:', activeInstance.id)
+                  if (!additionData) console.warn('Missing addition data for layout instance:', activeInstance.id)
 
                   setOldRefractionExam(oldRefractionData || null)
                   setObjectiveExam(objectiveData || null)
@@ -271,11 +292,11 @@ export default function ExamDetailPage({
             }])
             
             // Initialize empty form data for new components
-            setOldRefractionFormData({ layout_id: defaultLayout.id || 0 } as OldRefractionExam)
-            setObjectiveFormData({ layout_id: defaultLayout.id || 0 } as ObjectiveExam)
-            setSubjectiveFormData({ layout_id: defaultLayout.id || 0 } as SubjectiveExam)
-            setAdditionFormData({ layout_id: defaultLayout.id || 0 } as AdditionExam)
-            setFinalSubjectiveFormData({ layout_id: defaultLayout.id || 0 } as FinalSubjectiveExam)
+            setOldRefractionFormData({ layout_instance_id: defaultLayout.id || 0 } as OldRefractionExam)
+            setObjectiveFormData({ layout_instance_id: defaultLayout.id || 0 } as ObjectiveExam)
+            setSubjectiveFormData({ layout_instance_id: defaultLayout.id || 0 } as SubjectiveExam)
+            setAdditionFormData({ layout_instance_id: defaultLayout.id || 0 } as AdditionExam)
+            setFinalSubjectiveFormData({ layout_instance_id: defaultLayout.id || 0 } as FinalSubjectiveExam)
           }
         }
 
@@ -299,20 +320,46 @@ export default function ExamDetailPage({
     }
     if (oldRefractionExam) {
       setOldRefractionFormData({ ...oldRefractionExam })
+    } else if (!isNewMode) {
+      // Initialize with empty data but preserve layout_instance_id for existing exams
+      const activeLayout = layoutTabs.find(tab => tab.isActive);
+      if (activeLayout) {
+        setOldRefractionFormData({ layout_instance_id: activeLayout.id } as OldRefractionExam);
+      }
     }
     if (objectiveExam) {
       setObjectiveFormData({ ...objectiveExam })
+    } else if (!isNewMode) {
+      const activeLayout = layoutTabs.find(tab => tab.isActive);
+      if (activeLayout) {
+        setObjectiveFormData({ layout_instance_id: activeLayout.id } as ObjectiveExam);
+      }
     }
     if (subjectiveExam) {
       setSubjectiveFormData({ ...subjectiveExam })
+    } else if (!isNewMode) {
+      const activeLayout = layoutTabs.find(tab => tab.isActive);
+      if (activeLayout) {
+        setSubjectiveFormData({ layout_instance_id: activeLayout.id } as SubjectiveExam);
+      }
     }
     if (additionExam) {
       setAdditionFormData({ ...additionExam })
+    } else if (!isNewMode) {
+      const activeLayout = layoutTabs.find(tab => tab.isActive);
+      if (activeLayout) {
+        setAdditionFormData({ layout_instance_id: activeLayout.id } as AdditionExam);
+      }
     }
     if (finalSubjectiveExam) {
       setFinalSubjectiveFormData({ ...finalSubjectiveExam })
+    } else if (!isNewMode) {
+      const activeLayout = layoutTabs.find(tab => tab.isActive);
+      if (activeLayout) {
+        setFinalSubjectiveFormData({ layout_instance_id: activeLayout.id } as FinalSubjectiveExam);
+      }
     }
-  }, [exam, oldRefractionExam, objectiveExam, subjectiveExam, additionExam, finalSubjectiveExam])
+  }, [exam, oldRefractionExam, objectiveExam, subjectiveExam, additionExam, finalSubjectiveExam, layoutTabs, isNewMode])
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
@@ -481,7 +528,7 @@ export default function ExamDetailPage({
             true  // Make it active
           );
           
-          if (!layoutInstance) {
+          if (!layoutInstance || !layoutInstance.id) {
             toast.error("שגיאה ביצירת פריסת בדיקה");
             return;
           }
@@ -489,22 +536,22 @@ export default function ExamDetailPage({
           // Create exam components
           const newOldRefractionExam = await createOldRefractionExam({
             ...oldRefractionFormData,
-            layout_id: activeLayout.layout_id
+            layout_instance_id: layoutInstance.id!
           })
 
           const newObjectiveExam = await createObjectiveExam({
             ...objectiveFormData,
-            layout_id: activeLayout.layout_id
+            layout_instance_id: layoutInstance.id!
           })
 
           const newSubjectiveExam = await createSubjectiveExam({
             ...subjectiveFormData,
-            layout_id: activeLayout.layout_id
+            layout_instance_id: layoutInstance.id!
           })
 
           const newAdditionExam = await createAdditionExam({
             ...additionFormData,
-            layout_id: activeLayout.layout_id
+            layout_instance_id: layoutInstance.id!
           })
 
           // Save final subjective exam data if there's data
@@ -516,12 +563,20 @@ export default function ExamDetailPage({
           if (hasFinalSubjectiveData) {
             newFinalSubjectiveExam = await createFinalSubjectiveExam({
               ...finalSubjectiveFormData,
-              layout_id: activeLayout.layout_id
+              layout_instance_id: layoutInstance.id!
             });
           }
 
           if (newOldRefractionExam && newObjectiveExam && newSubjectiveExam && newAdditionExam) {
             toast.success("בדיקה חדשה נוצרה בהצלחה")
+            // Refresh the client data context
+            if (refreshExams) {
+              await refreshExams();
+            }
+            
+            // Small delay to ensure database operations complete
+            await new Promise(resolve => setTimeout(resolve, 100));
+            
             if (onSave) {
               onSave(newExam, newOldRefractionExam, newObjectiveExam, newSubjectiveExam, newAdditionExam)
             }
@@ -543,28 +598,65 @@ export default function ExamDetailPage({
         }
         
         // Update the active layout status in the database
-        await setActiveExamLayoutInstance(Number(examId), activeLayout.id);
+        const setActiveResult = await setActiveExamLayoutInstance(Number(examId), activeLayout.id);
+        if (!setActiveResult) {
+          console.error('Failed to set active layout instance:', examId, activeLayout.id);
+          toast.error("שגיאה בעדכון פריסה פעילה");
+          return;
+        }
         
-        // Update exam components with the active layout
-        const updatedOldRefractionExam = await updateOldRefractionExam({
-          ...oldRefractionFormData,
-          layout_id: activeLayout.layout_id
-        })
+        // Update exam components with the active layout (using upsert logic)
+        let updatedOldRefractionExam = null;
+        if (oldRefractionFormData.id) {
+          updatedOldRefractionExam = await updateOldRefractionExam({
+            ...oldRefractionFormData,
+            layout_instance_id: activeLayout.id
+          });
+        } else {
+          updatedOldRefractionExam = await createOldRefractionExam({
+            ...oldRefractionFormData,
+            layout_instance_id: activeLayout.id
+          });
+        }
         
-        const updatedObjectiveExam = await updateObjectiveExam({
-          ...objectiveFormData,
-          layout_id: activeLayout.layout_id
-        })
+        let updatedObjectiveExam = null;
+        if (objectiveFormData.id) {
+          updatedObjectiveExam = await updateObjectiveExam({
+            ...objectiveFormData,
+            layout_instance_id: activeLayout.id
+          });
+        } else {
+          updatedObjectiveExam = await createObjectiveExam({
+            ...objectiveFormData,
+            layout_instance_id: activeLayout.id
+          });
+        }
         
-        const updatedSubjectiveExam = await updateSubjectiveExam({
-          ...subjectiveFormData,
-          layout_id: activeLayout.layout_id
-        })
+        let updatedSubjectiveExam = null;
+        if (subjectiveFormData.id) {
+          updatedSubjectiveExam = await updateSubjectiveExam({
+            ...subjectiveFormData,
+            layout_instance_id: activeLayout.id
+          });
+        } else {
+          updatedSubjectiveExam = await createSubjectiveExam({
+            ...subjectiveFormData,
+            layout_instance_id: activeLayout.id
+          });
+        }
         
-        const updatedAdditionExam = await updateAdditionExam({
-          ...additionFormData,
-          layout_id: activeLayout.layout_id
-        })
+        let updatedAdditionExam = null;
+        if (additionFormData.id) {
+          updatedAdditionExam = await updateAdditionExam({
+            ...additionFormData,
+            layout_instance_id: activeLayout.id
+          });
+        } else {
+          updatedAdditionExam = await createAdditionExam({
+            ...additionFormData,
+            layout_instance_id: activeLayout.id
+          });
+        }
 
         // Save final subjective exam data if there's data
         let updatedFinalSubjective: FinalSubjectiveExam | null = null
@@ -573,24 +665,35 @@ export default function ExamDetailPage({
         );
 
         if (hasFinalSubjectiveData) {
-          if (finalSubjectiveExam && finalSubjectiveExam.id) {
+          console.log('Saving final subjective data:', finalSubjectiveFormData);
+          if (finalSubjectiveFormData.id) {
             updatedFinalSubjective = await updateFinalSubjectiveExam({
               ...finalSubjectiveFormData,
-              layout_id: activeLayout.layout_id,
-              id: finalSubjectiveExam.id
+              layout_instance_id: activeLayout.id
             });
           } else {
             updatedFinalSubjective = await createFinalSubjectiveExam({
               ...finalSubjectiveFormData,
-              layout_id: activeLayout.layout_id
+              layout_instance_id: activeLayout.id
             });
           }
 
           if (updatedFinalSubjective) {
             setFinalSubjectiveExam(updatedFinalSubjective);
             setFinalSubjectiveFormData({ ...updatedFinalSubjective });
+            console.log('Final subjective exam saved successfully');
+          } else {
+            console.error('Failed to save final subjective exam');
           }
         }
+
+        console.log('Save results:', {
+          exam: !!updatedExam,
+          oldRefraction: !!updatedOldRefractionExam,
+          objective: !!updatedObjectiveExam,
+          subjective: !!updatedSubjectiveExam,
+          addition: !!updatedAdditionExam
+        });
 
         if (updatedExam && updatedOldRefractionExam && updatedObjectiveExam && updatedSubjectiveExam && updatedAdditionExam) {
           setIsEditing(false)
@@ -605,6 +708,14 @@ export default function ExamDetailPage({
           setSubjectiveFormData({ ...updatedSubjectiveExam })
           setAdditionFormData({ ...updatedAdditionExam })
           toast.success("פרטי הבדיקה עודכנו בהצלחה")
+          // Refresh the client data context
+          if (refreshExams) {
+            await refreshExams();
+          }
+          
+          // Small delay to ensure database operations complete
+          await new Promise(resolve => setTimeout(resolve, 100));
+          
           if (onSave) {
             onSave(updatedExam, updatedOldRefractionExam, updatedObjectiveExam, updatedSubjectiveExam, updatedAdditionExam)
           }
@@ -771,11 +882,6 @@ export default function ExamDetailPage({
       setLayoutTabs(updatedTabs)
       setActiveLayoutId(selectedTab.layout_id)
       
-      // Update the active layout in the database if we have an exam
-      if (exam && exam.id && !isNewMode) {
-        await setActiveExamLayoutInstance(exam.id, tabId)
-      }
-      
       // Apply the layout
       const parsedLayout = JSON.parse(selectedTab.layout_data)
       if (Array.isArray(parsedLayout)) {
@@ -784,6 +890,45 @@ export default function ExamDetailPage({
       } else {
         setCardRows(parsedLayout.rows || [])
         setCustomWidths(parsedLayout.customWidths || {})
+      }
+      
+      // Load exam components for this layout
+      if (!isNewMode) {
+        console.log('Loading exam components for layout:', selectedTab.layout_id);
+        
+        const oldRefractionData = await getOldRefractionExamByLayoutInstanceId(selectedTab.id)
+        const objectiveData = await getObjectiveExamByLayoutInstanceId(selectedTab.id)
+        const subjectiveData = await getSubjectiveExamByLayoutInstanceId(selectedTab.id)  
+        const additionData = await getAdditionExamByLayoutInstanceId(selectedTab.id)
+        const finalSubjectiveData = await getFinalSubjectiveExamByLayoutInstanceId(selectedTab.id)
+
+        console.log('Loaded exam components:', {
+          oldRefraction: !!oldRefractionData,
+          objective: !!objectiveData,
+          subjective: !!subjectiveData,
+          addition: !!additionData,
+          finalSubjective: !!finalSubjectiveData
+        });
+
+        setOldRefractionExam(oldRefractionData || null)
+        setObjectiveExam(objectiveData || null)
+        setSubjectiveExam(subjectiveData || null)
+        setAdditionExam(additionData || null)
+        setFinalSubjectiveExam(finalSubjectiveData || null)
+        
+        // Update form data with loaded components or empty data with layout_instance_id
+        setOldRefractionFormData(oldRefractionData || { layout_instance_id: selectedTab.id } as OldRefractionExam)
+        setObjectiveFormData(objectiveData || { layout_instance_id: selectedTab.id } as ObjectiveExam)
+        setSubjectiveFormData(subjectiveData || { layout_instance_id: selectedTab.id } as SubjectiveExam)
+        setAdditionFormData(additionData || { layout_instance_id: selectedTab.id } as AdditionExam)
+        setFinalSubjectiveFormData(finalSubjectiveData || { layout_instance_id: selectedTab.id } as FinalSubjectiveExam)
+      }
+      
+      // Update the active layout in the database in the background (non-blocking)
+      if (exam && exam.id && !isNewMode) {
+        setActiveExamLayoutInstance(exam.id, tabId).catch(error => {
+          console.error('Error updating active layout in database:', error)
+        })
       }
     } catch (error) {
       console.error('Error changing layout tab:', error)
@@ -987,7 +1132,26 @@ export default function ExamDetailPage({
     )
   }
 
-  if (!client || (!isNewMode && (!exam || !oldRefractionExam || !objectiveExam || !subjectiveExam || !additionExam))) {
+  if (!client || (!isNewMode && !exam)) {
+    // Debug logging to identify what is missing (only show if essential items are missing)
+    if (!isNewMode && !loading) {
+      console.error('Missing essential data:', {
+        client: !!client,
+        exam: !!exam,
+        examId,
+        clientId,
+        loading
+      });
+      
+      // Log exam components status for debugging (but don't fail on missing components)
+      console.log('Exam components status:', {
+        oldRefractionExam: !!oldRefractionExam,
+        objectiveExam: !!objectiveExam,
+        subjectiveExam: !!subjectiveExam,
+        additionExam: !!additionExam,
+        layoutTabs: layoutTabs.length
+      });
+    }
     return (
       <>
         <SiteHeader
@@ -1093,16 +1257,16 @@ export default function ExamDetailPage({
 
         {/* Layout Tabs */}
         {layoutTabs.length > 0 && (
-          <div className="mb-6">
+          <div className="">
             <div className="flex flex-wrap items-center gap-2">
               {layoutTabs.map((tab) => (
                 <div 
                   key={tab.id}
                   className={`
-                    group relative flex items-center gap-2 px-4 py-2.5 rounded-lg transition-all duration-200 cursor-pointer
+                    group relative flex items-center gap-2 px-4 py-2 rounded-t-xl transition-all duration-200 cursor-pointer
                     ${tab.isActive 
                       ? 'bg-primary text-primary-foreground shadow-md' 
-                      : 'bg-muted/50 hover:bg-muted text-foreground'}
+                      : 'hover:bg-muted text-foreground'}
                   `}
                   onClick={() => handleLayoutTabChange(tab.id)}
                 >

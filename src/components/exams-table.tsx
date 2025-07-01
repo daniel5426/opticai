@@ -208,7 +208,9 @@ export function ExamsTable({ data, clientId, onExamDeleted, onExamDeleteFailed, 
         description={examToDelete ? `האם אתה בטוח שברצונך למחוק את הבדיקה של ${examToDelete.test_name || 'בדיקה זו'} מיום ${examToDelete.exam_date ? new Date(examToDelete.exam_date).toLocaleDateString('he-IL') : ''}? פעולה זו אינה הפיכה.` : "האם אתה בטוח שברצונך למחוק בדיקה זו? פעולה זו אינה הפיכה."}
         onConfirm={handleDeleteConfirm}
         confirmText="מחק"
+        className="text-center"
         cancelText="בטל"
+        showCloseButton={false}
       />
     </div>
   );

@@ -14,9 +14,10 @@ interface CustomModalProps {
   onConfirm?: () => void
   confirmText?: string
   cancelText?: string
+  showCloseButton?: boolean
 }
 
-export function CustomModal({ isOpen, onClose, title, subtitle, description, children, className = '', width = 'max-w-lg', onConfirm, confirmText = 'אישור', cancelText = 'ביטול' }: CustomModalProps) {
+export function CustomModal({ isOpen, onClose, title, subtitle, description, children, className = '', width = 'max-w-lg', onConfirm, confirmText = 'אישור', cancelText = 'ביטול', showCloseButton = true }: CustomModalProps) {
   const modalRef = useRef<HTMLDivElement>(null)
   const overlayRef = useRef<HTMLDivElement>(null)
 
@@ -92,7 +93,7 @@ export function CustomModal({ isOpen, onClose, title, subtitle, description, chi
       >
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-gray-200 dark:border-gray-700">
-          <div className="text-right flex-1" dir="rtl">
+          <div className=" flex-1" dir="rtl">
             <h2 className="text-lg font-semibold">
               {title}
             </h2>
@@ -102,14 +103,15 @@ export function CustomModal({ isOpen, onClose, title, subtitle, description, chi
               </p>
             )}
           </div>
-          <Button
+          {showCloseButton && 
+          (<Button
             variant="ghost"
             size="sm"
             onClick={onClose}
             className="h-8 w-8 p-0 ml-2"
           >
             <X className="h-4 w-4" />
-          </Button>
+          </Button>)}
         </div>
         
         {/* Content */}
@@ -123,7 +125,7 @@ export function CustomModal({ isOpen, onClose, title, subtitle, description, chi
         </div>
 
         {onConfirm && (
-          <div className="flex justify-end p-4 border-t border-gray-200 dark:border-gray-700">
+          <div className="flex justify-center p-4 border-t border-gray-200 dark:border-gray-700" dir="rtl">
             <Button variant="outline" onClick={onClose} className="ml-2">
               {cancelText}
             </Button>

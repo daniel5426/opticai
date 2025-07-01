@@ -140,11 +140,11 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({ item, rowCards, mo
   const isComponentWithoutMiddleRow = componentsDontHaveMiddleRow.includes(item.type);
   const needsMiddleSpacer = isComponentWithoutMiddleRow && hasSiblingWithMiddleRow && rowCards.length > 1;
 
-  const emptyOldRefractionData: OldRefractionExam = { layout_id: 0 }
-  const emptyObjectiveData: ObjectiveExam = { layout_id: 0 }
-  const emptySubjectiveData: SubjectiveExam = { layout_id: 0 }
-  const emptyAdditionData: AdditionExam = { layout_id: 0 }
-  const emptyFinalSubjectiveData: FinalSubjectiveExam = { layout_id: 0 }
+  const emptyOldRefractionData: OldRefractionExam = { layout_instance_id: 0 }
+  const emptyObjectiveData: ObjectiveExam = { layout_instance_id: 0 }
+  const emptySubjectiveData: SubjectiveExam = { layout_instance_id: 0 }
+  const emptyAdditionData: AdditionExam = { layout_instance_id: 0 }
+  const emptyFinalSubjectiveData: FinalSubjectiveExam = { layout_instance_id: 0 }
 
   switch (item.type) {
     case 'exam-details':

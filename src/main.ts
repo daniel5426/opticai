@@ -407,11 +407,11 @@ function setupIpcHandlers() {
     }
   });
 
-  ipcMain.handle('db-get-old-refraction-exam-by-layout', async (event, layoutId: number) => {
+  ipcMain.handle('db-get-old-refraction-exam-by-layout-instance', async (event, layoutInstanceId: number) => {
     try {
-      return dbService.getOldRefractionExamByLayoutId(layoutId);
+      return dbService.getOldRefractionExamByLayoutInstanceId(layoutInstanceId);
     } catch (error) {
-      console.error('Error getting old refraction exam by layout:', error);
+      console.error('Error getting old refraction exam by layout instance:', error);
       throw error;
     }
   });
@@ -444,11 +444,11 @@ function setupIpcHandlers() {
     }
   });
 
-  ipcMain.handle('db-get-objective-exam-by-layout', async (event, layoutId: number) => {
+  ipcMain.handle('db-get-objective-exam-by-layout-instance', async (event, layoutInstanceId: number) => {
     try {
-      return dbService.getObjectiveExamByLayoutId(layoutId);
+      return dbService.getObjectiveExamByLayoutInstanceId(layoutInstanceId);
     } catch (error) {
-      console.error('Error getting objective exam by layout:', error);
+      console.error('Error getting objective exam by layout instance:', error);
       throw error;
     }
   });
@@ -481,11 +481,11 @@ function setupIpcHandlers() {
     }
   });
 
-  ipcMain.handle('db-get-subjective-exam-by-layout', async (event, layoutId: number) => {
+  ipcMain.handle('db-get-subjective-exam-by-layout-instance', async (event, layoutInstanceId: number) => {
     try {
-      return dbService.getSubjectiveExamByLayoutId(layoutId);
+      return dbService.getSubjectiveExamByLayoutInstanceId(layoutInstanceId);
     } catch (error) {
-      console.error('Error getting subjective exam by layout:', error);
+      console.error('Error getting subjective exam by layout instance:', error);
       throw error;
     }
   });
@@ -518,11 +518,11 @@ function setupIpcHandlers() {
     }
   });
 
-  ipcMain.handle('db-get-addition-exam-by-layout', async (event, layoutId: number) => {
+  ipcMain.handle('db-get-addition-exam-by-layout-instance', async (event, layoutInstanceId: number) => {
     try {
-      return dbService.getAdditionExamByLayoutId(layoutId);
+      return dbService.getAdditionExamByLayoutInstanceId(layoutInstanceId);
     } catch (error) {
-      console.error('Error getting addition exam by layout:', error);
+      console.error('Error getting addition exam by layout instance:', error);
       throw error;
     }
   });
@@ -555,11 +555,11 @@ function setupIpcHandlers() {
     }
   });
 
-  ipcMain.handle('db-get-final-subjective-exam-by-layout', async (event, layoutId: number) => {
+  ipcMain.handle('db-get-final-subjective-exam-by-layout-instance', async (event, layoutInstanceId: number) => {
     try {
-      return dbService.getFinalSubjectiveExamByLayoutId(layoutId);
+      return dbService.getFinalSubjectiveExamByLayoutInstanceId(layoutInstanceId);
     } catch (error) {
-      console.error('Error getting final subjective exam by layout:', error);
+      console.error('Error getting final subjective exam by layout instance:', error);
       throw error;
     }
   });

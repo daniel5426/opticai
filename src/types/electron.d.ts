@@ -69,34 +69,34 @@ export interface ElectronAPI {
   deleteExam: (examId: number) => Promise<boolean>;
 
   // Old Refraction Exam operations
-  getOldRefractionExam: (examId: number) => Promise<any>;
-  getOldRefractionExamByLayout: (layoutId: number) => Promise<any>;
-  createOldRefractionExam: (examData: any) => Promise<any>;
-  updateOldRefractionExam: (examData: any) => Promise<any>;
+  getOldRefractionExam: (examId: number) => Promise<OldRefractionExam | null>;
+  getOldRefractionExamByLayoutInstance: (layoutInstanceId: number) => Promise<OldRefractionExam | null>;
+  createOldRefractionExam: (examData: any) => Promise<OldRefractionExam | null>;
+  updateOldRefractionExam: (examData: any) => Promise<OldRefractionExam | null>;
 
   // Objective Exam operations
-  getObjectiveExam: (examId: number) => Promise<any>;
-  getObjectiveExamByLayout: (layoutId: number) => Promise<any>;
-  createObjectiveExam: (examData: any) => Promise<any>;
-  updateObjectiveExam: (examData: any) => Promise<any>;
+  getObjectiveExam: (examId: number) => Promise<ObjectiveExam | null>;
+  getObjectiveExamByLayoutInstance: (layoutInstanceId: number) => Promise<ObjectiveExam | null>;
+  createObjectiveExam: (examData: any) => Promise<ObjectiveExam | null>;
+  updateObjectiveExam: (examData: any) => Promise<ObjectiveExam | null>;
 
   // Subjective Exam operations
-  getSubjectiveExam: (examId: number) => Promise<any>;
-  getSubjectiveExamByLayout: (layoutId: number) => Promise<any>;
-  createSubjectiveExam: (examData: any) => Promise<any>;
-  updateSubjectiveExam: (examData: any) => Promise<any>;
+  getSubjectiveExam: (examId: number) => Promise<SubjectiveExam | null>;
+  getSubjectiveExamByLayoutInstance: (layoutInstanceId: number) => Promise<SubjectiveExam | null>;
+  createSubjectiveExam: (examData: any) => Promise<SubjectiveExam | null>;
+  updateSubjectiveExam: (examData: any) => Promise<SubjectiveExam | null>;
 
   // Addition Exam operations
-  getAdditionExam: (examId: number) => Promise<any>;
-  getAdditionExamByLayout: (layoutId: number) => Promise<any>;
-  createAdditionExam: (examData: any) => Promise<any>;
-  updateAdditionExam: (examData: any) => Promise<any>;
+  getAdditionExam: (examId: number) => Promise<AdditionExam | null>;
+  getAdditionExamByLayoutInstance: (layoutInstanceId: number) => Promise<AdditionExam | null>;
+  createAdditionExam: (examData: any) => Promise<AdditionExam | null>;
+  updateAdditionExam: (examData: any) => Promise<AdditionExam | null>;
 
   // Final Subjective Exam operations
-  getFinalSubjectiveExam: (examId: number) => Promise<any>;
-  getFinalSubjectiveExamByLayout: (layoutId: number) => Promise<any>;
-  createFinalSubjectiveExam: (examData: any) => Promise<any>;
-  updateFinalSubjectiveExam: (data: FinalSubjectiveExam) => Promise<FinalSubjectiveExam | undefined>;
+  getFinalSubjectiveExam: (examId: number) => Promise<FinalSubjectiveExam | null>;
+  getFinalSubjectiveExamByLayoutInstance: (layoutInstanceId: number) => Promise<FinalSubjectiveExam | null>;
+  createFinalSubjectiveExam: (examData: any) => Promise<FinalSubjectiveExam | null>;
+  updateFinalSubjectiveExam: (examData: any) => Promise<FinalSubjectiveExam | null>;
   deleteFinalSubjectiveExam: (id: number) => Promise<boolean>;
 
   // Order operations
