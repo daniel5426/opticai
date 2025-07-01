@@ -38,6 +38,7 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  useSidebar,
 } from "@/components/ui/sidebar"
 import { cn } from "@/utils/tailwind"
 import { User } from "@/lib/db/schema"
@@ -53,11 +54,6 @@ const data = {
       title: "לקוחות",
       url: "/clients",
       icon: IconUsers,
-    },
-    {
-      title: "פריסות בדיקה",
-      url: "/exam-layouts",
-      icon: IconLayoutGrid,
     },
     {
       title: "עוזר חכם",
@@ -118,12 +114,31 @@ const data = {
 
 export function AppSidebar({ 
   clinicName, 
-  currentUser, 
+  currentUser,
+  logoPath,
+  isLogoLoaded,
   ...props 
 }: React.ComponentProps<typeof Sidebar> & { 
   clinicName?: string;
   currentUser?: User;
+  logoPath?: string | null;
+  isLogoLoaded?: boolean;
 }) {
+  const { state } = useSidebar()
+  const hasLogo = logoPath;
+  const [isLogoVisible, setIsLogoVisible] = React.useState(false)
+
+  React.useEffect(() => {
+    if (state === 'collapsed') {
+      setIsLogoVisible(false);
+    } else if (state === 'expanded' && isLogoLoaded) {
+      const timer = setTimeout(() => {
+        setIsLogoVisible(true);
+      }, 250);
+      return () => clearTimeout(timer);
+    }
+  }, [state, isLogoLoaded])
+
   return (
     <Sidebar collapsible="offcanvas" {...props}>
       <SidebarHeader>
@@ -134,8 +149,20 @@ export function AppSidebar({
               className="data-[slot=sidebar-menu-button]:!p-1.5"
             >
               <Link to="/">
-                <IconInnerShadowTop className="!size-5" />
-                <span className="text-base font-semibold">{clinicName || "אופטיקל קליניק"}</span>
+                {hasLogo ? (
+                  <img 
+                    src={logoPath} 
+                    alt="לוגו המרפאה" 
+                    className={cn(
+                      "!size-8 rounded object-cover",
+                      state === 'expanded' && 'transition-opacity duration-300',
+                      isLogoLoaded && isLogoVisible ? "opacity-100" : "opacity-0"
+                    )}
+                  />
+                ) : (
+                  <IconInnerShadowTop className="!size-5" />
+                )}
+                <span className="text-base font-semibold">{clinicName || ""}</span>
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>

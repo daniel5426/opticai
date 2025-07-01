@@ -48,7 +48,7 @@ export interface OpticalExam {
   user_id?: number;
   exam_date?: string;
   test_name?: string;
-  dominant_eye?: string;
+  dominant_eye?: string | null;
   notes?: string;
 }
 

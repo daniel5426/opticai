@@ -42,7 +42,8 @@ export default function ExamLayoutsPage() {
       <>
         <SiteHeader 
           title="פריסות בדיקה"
-          backLink="/"
+          parentTitle="הגדרות"
+          parentLink="/settings"
         />
         <div className="flex flex-col items-center justify-center h-full">
         </div>
@@ -54,7 +55,8 @@ export default function ExamLayoutsPage() {
     <>
       <SiteHeader 
         title="פריסות בדיקה"
-        backLink="/"
+        parentTitle="הגדרות"
+        parentLink="/settings"
       />
       <div className="flex flex-col flex-1 p-4 lg:p-6 mb-10" dir="rtl">
         <div className="flex justify-between items-center mb-6">

@@ -100,7 +100,7 @@ export default function ExamDetailPage({
     clinic: '',
     user_id: currentUser?.id,
     notes: '',
-    dominant_eye: ''
+    dominant_eye: null
   } : {})
   
   const [oldRefractionFormData, setOldRefractionFormData] = useState<OldRefractionExam>({} as OldRefractionExam)
@@ -501,16 +501,19 @@ export default function ExamDetailPage({
   const handleSave = async () => {
     if (formRef.current) {
       if (isNewMode) {
-        
-        const newExam = await createExam({
+        const examData = {
           client_id: Number(clientId),
-          exam_date: formData.exam_date,
-          test_name: formData.test_name,
-          clinic: formData.clinic,
-          user_id: formData.user_id,
-          notes: formData.notes,
-          dominant_eye: formData.dominant_eye
-        })
+          exam_date: formData.exam_date || new Date().toISOString().split('T')[0],
+          test_name: formData.test_name || '',
+          clinic: formData.clinic || '',
+          user_id: formData.user_id || currentUser?.id,
+          notes: formData.notes || '',
+          dominant_eye: formData.dominant_eye || null
+        }
+        
+        console.log('Creating exam with data:', examData)
+        const newExam = await createExam(examData)
+        console.log('Create exam result:', newExam)
 
         if (newExam && newExam.id) {
           // Make sure we have an active layout
@@ -1263,14 +1266,13 @@ export default function ExamDetailPage({
                 <div 
                   key={tab.id}
                   className={`
-                    group relative flex items-center gap-2 px-4 py-2 rounded-t-xl transition-all duration-200 cursor-pointer
+                    group relative rounded-t-xl transition-all duration-200 cursor-pointer overflow-hidden
                     ${tab.isActive 
                       ? 'bg-primary text-primary-foreground shadow-md' 
                       : 'hover:bg-muted text-foreground'}
                   `}
                   onClick={() => handleLayoutTabChange(tab.id)}
                 >
-                  <span className="text-sm font-medium">{tab.name}</span>
                   {layoutTabs.length > 1 && isEditing && (
                     <button 
                       type="button"
@@ -1279,21 +1281,13 @@ export default function ExamDetailPage({
                         e.stopPropagation();
                         handleRemoveLayoutTab(tab.id);
                       }}
-                      className={`
-                        absolute top-1/2 -translate-y-1/2 right-2
-                        rounded-full p-1 opacity-0 group-hover:opacity-100
-                        transition-opacity duration-200
-                        flex items-center justify-center
-                        ${tab.isActive 
-                          ? 'hover:bg-primary-foreground/20 text-primary-foreground/80' 
-                          : 'hover:bg-muted-foreground/20 text-muted-foreground'}
-                        hover:text-red-500
-                      `}
+                      className="absolute top-1 right-1 rounded-full w-[14px] h-[14px] opacity-0 group-hover:opacity-100 transition-all duration-200 flex items-center justify-center hover:bg-red-500 hover:text-white z-10"
                       aria-label="הסר לשונית"
                     >
-                      <XIcon className="h-3.5 w-3.5" />
+                      <XIcon className="h-2.5 w-2.5" />
                     </button>
                   )}
+                  <span className="text-sm py-2 px-5 font-medium whitespace-nowrap block">{tab.name}</span>
                 </div>
               ))}
             </div>

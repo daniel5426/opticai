@@ -17,36 +17,49 @@ export default function BaseLayout({
   children: React.ReactNode;
 }) {
   const [settings, setSettings] = useState<Settings | null>(null);
-  const { currentUser, isLoading } = useUser();
+  const [isSettingsLoading, setIsSettingsLoading] = useState(true);
+  const [isLogoLoaded, setIsLogoLoaded] = useState(false);
+  const { currentUser, isLoading: isUserLoading } = useUser();
   
   const updateSettings = (newSettings: Settings) => {
     setSettings(newSettings);
   };
   
   useEffect(() => {
-    const loadSettings = async () => {
+    const loadInitialSettings = async () => {
       try {
-        const settingsData = await getSettings();
-        setSettings(settingsData);
-        
-        if (settingsData) {
-          await applyThemeColorsFromSettings(settingsData);
+        const dbSettings = await getSettings();
+        if (dbSettings) {
+          setSettings(dbSettings);
+          applyThemeColorsFromSettings(dbSettings);
         }
-      } catch (error) {
-        console.error('Error loading settings in BaseLayout:', error);
+      } finally {
+        setIsSettingsLoading(false);
       }
     };
-
-    loadSettings();
+    loadInitialSettings();
   }, []);
+
+  useEffect(() => {
+    if (settings?.clinic_logo_path) {
+      const img = new Image();
+      img.src = settings.clinic_logo_path;
+      img.onload = () => setIsLogoLoaded(true);
+      img.onerror = () => setIsLogoLoaded(true); // Treat error as loaded to not block UI
+    } else {
+      setIsLogoLoaded(true); // No logo to load
+    }
+  }, [settings]);
+
+  const isLoading = isUserLoading || isSettingsLoading;
 
   return (
     <>
       <ThemeProvider defaultTheme="light" storageKey="vite-ui-theme">
         <SettingsContext.Provider value={{ settings, updateSettings }}>
           {isLoading ? (
-            <div className="min-h-screen bg-white flex items-center justify-center">
-              <div className="text-white text-xl">טוען...</div>
+            <div className="min-h-screen bg-background flex items-center justify-center">
+              <div className="text-foreground text-xl">טוען...</div>
             </div>
           ) : !currentUser ? (
             <UserSelectionPage />
@@ -55,7 +68,14 @@ export default function BaseLayout({
               <DragWindowRegion title="" />
               <div className="flex-1 flex overflow-hidden">
                 <SidebarProvider dir="rtl">
-                  <AppSidebar variant="inset" side="right" clinicName={settings?.clinic_name} currentUser={currentUser} />
+                  <AppSidebar 
+                    variant="inset" 
+                    side="right" 
+                    clinicName={settings?.clinic_name} 
+                    currentUser={currentUser} 
+                    logoPath={settings?.clinic_logo_path}
+                    isLogoLoaded={isLogoLoaded}
+                  />
                   <SidebarInset className="flex flex-col flex-1 overflow-hidden" style={{scrollbarWidth: 'none'}}>
                     <main className="flex-1 overflow-auto" style={{scrollbarWidth: 'none'}}>
                       {children}

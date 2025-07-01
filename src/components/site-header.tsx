@@ -11,6 +11,8 @@ import { Client } from "@/lib/db/schema"
 interface SiteHeaderProps {
   title: string
   backLink?: string
+  parentTitle?: string
+  parentLink?: string
   clientName?: string
   client?: Client
   clientBackLink?: string
@@ -70,7 +72,7 @@ function ClientTooltip({ client }: { client: Client }) {
   )
 }
 
-export function SiteHeader({ title, backLink, clientName, client, clientBackLink, examInfo, tabs }: SiteHeaderProps) {
+export function SiteHeader({ title, backLink, parentTitle, parentLink, clientName, client, clientBackLink, examInfo, tabs }: SiteHeaderProps) {
   const displayName = client ? `${client.first_name} ${client.last_name}`.trim() : clientName
   const [isHovering, setIsHovering] = useState(false)
 
@@ -84,11 +86,21 @@ export function SiteHeader({ title, backLink, clientName, client, clientBackLink
             orientation="vertical"
             className="mx-2 data-[orientation=vertical]:h-4"
           />
-          {backLink ? (
+          {backLink || parentTitle ? (
             <div className="flex items-center gap-2">
-              <Link to={backLink} className="flex items-center gap-1 text-muted-foreground hover:text-foreground">
-                <span>{title}</span>
-              </Link>
+              {parentTitle && parentLink ? (
+                <>
+                  <Link to={parentLink} className="flex items-center gap-1 text-muted-foreground hover:text-foreground">
+                    <span>{parentTitle}</span>
+                  </Link>
+                  <Separator orientation="vertical" className="mx-2 data-[orientation=vertical]:h-4" />
+                  <h1 className="text-base font-medium">{title}</h1>
+                </>
+              ) : backLink ? (
+                <Link to={backLink} className="flex items-center gap-1 text-muted-foreground hover:text-foreground">
+                  <span>{title}</span>
+                </Link>
+              ) : null}
               {displayName && (
                 <>
                   <Separator orientation="vertical" className="mx-2 data-[orientation=vertical]:h-4" />

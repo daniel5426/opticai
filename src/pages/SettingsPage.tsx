@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react"
+import { Link } from "@tanstack/react-router"
 import { SiteHeader } from "@/components/site-header"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -15,7 +16,7 @@ import { getAllUsers, createUser, updateUser, deleteUser } from "@/lib/db/users-
 import { applyThemeColorsFromSettings } from "@/helpers/theme_helpers"
 import { CustomModal } from "@/components/ui/custom-modal"
 import { Badge } from "@/components/ui/badge"
-import { IconPlus, IconEdit, IconTrash } from "@tabler/icons-react"
+import { IconPlus, IconEdit, IconTrash, IconLayoutGrid } from "@tabler/icons-react"
 import { useSettings } from "@/hooks/useSettings"
 import { useUser } from "@/contexts/UserContext"
 import { ServerConnectionSettings } from "@/components/ServerConnectionSettings"
@@ -540,6 +541,24 @@ export default function SettingsPage() {
                   </TabsContent>
 
                   <TabsContent value="customization" className="space-y-6 mt-0">
+                    {/* Layout Management */}
+                    <Card className="shadow-md border-none">
+                      <CardContent>
+                        <div className="flex items-center justify-between">
+                          <Link to="/exam-layouts">
+                            <Button variant="outline" className="flex items-center gap-2">
+                              <IconLayoutGrid className="h-4 w-4" />
+                              נהל פריסות בדיקה
+                            </Button>
+                          </Link>
+                          <div className="text-right">
+                            <h3 className="font-medium">פריסות בדיקה</h3>
+                            <p className="text-sm text-muted-foreground">יצירה ועריכה של פריסות בדיקה מותאמות אישית</p>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+
                     {/* Branding & Appearance */}
                     <Card className="shadow-md border-none">
                       <CardHeader>
