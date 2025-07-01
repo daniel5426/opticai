@@ -1,69 +1,62 @@
 import React, { useState } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Button } from "@/components/ui/button"
-import { AdditionExam } from "@/lib/db/schema"
+import { ObjectiveExam } from "@/lib/db/schema"
 import { ChevronUp, ChevronDown } from "lucide-react"
 
-interface AdditionTabProps {
-  additionData: AdditionExam;
-  onAdditionChange: (field: keyof AdditionExam, value: string) => void;
+interface ObjectiveTabProps {
+  objectiveData: ObjectiveExam;
+  onObjectiveChange: (field: keyof ObjectiveExam, value: string) => void;
   isEditing: boolean;
   hideEyeLabels?: boolean;
   needsMiddleSpacer?: boolean;
 }
 
-export function AdditionTab({
-  additionData,
-  onAdditionChange,
+export function ObjectiveTab({
+  objectiveData,
+  onObjectiveChange,
   isEditing,
   hideEyeLabels = false,
   needsMiddleSpacer = false
-}: AdditionTabProps) {
+}: ObjectiveTabProps) {
   const [hoveredEye, setHoveredEye] = useState<"R" | "L" | null>(null);
-  
+
   const columns = [
-    { key: "fcc", label: "FCC", step: "0.25" },
-    { key: "read", label: "READ", step: "0.25" },
-    { key: "int", label: "INT", step: "0.25" },
-    { key: "bif", label: "BIF", step: "0.25" },
-    { key: "mul", label: "MUL", step: "0.25" },
-    { key: "j", label: "J", step: "1" },
-    { key: "iop", label: "IOP", step: "0.1" },
+    { key: "sph", label: "SPH", step: "0.25" },
+    { key: "cyl", label: "CYL", step: "0.25" },
+    { key: "ax", label: "AXIS", step: "1", min: "0", max: "180" },
+    { key: "se", label: "SE", step: "0.25" },
   ];
 
   const getFieldValue = (eye: "R" | "L", field: string) => {
-    const eyeField = `${eye.toLowerCase()}_${field}` as keyof AdditionExam;
-    return additionData[eyeField]?.toString() || "";
+    const eyeField = `${eye.toLowerCase()}_${field}` as keyof ObjectiveExam;
+    return objectiveData[eyeField]?.toString() || "";
   };
 
   const handleChange = (eye: "R" | "L", field: string, value: string) => {
-    const eyeField = `${eye.toLowerCase()}_${field}` as keyof AdditionExam;
-    onAdditionChange(eyeField, value);
+    const eyeField = `${eye.toLowerCase()}_${field}` as keyof ObjectiveExam;
+    onObjectiveChange(eyeField, value);
   };
 
   const copyFromOtherEye = (fromEye: "R" | "L") => {
     const toEye = fromEye === "R" ? "L" : "R";
     columns.forEach(({ key }) => {
-      const fromField = `${fromEye.toLowerCase()}_${key}` as keyof AdditionExam;
-      const toField = `${toEye.toLowerCase()}_${key}` as keyof AdditionExam;
-      const value = additionData[fromField]?.toString() || "";
-      onAdditionChange(toField, value);
+      const fromField = `${fromEye.toLowerCase()}_${key}` as keyof ObjectiveExam;
+      const toField = `${toEye.toLowerCase()}_${key}` as keyof ObjectiveExam;
+      const value = objectiveData[fromField]?.toString() || "";
+      onObjectiveChange(toField, value);
     });
   };
 
-
-
   return (
     <Card className="w-full shadow-md border-[1px] pb-4 pt-3">
-      <CardContent className="px-4 " style={{scrollbarWidth: 'none'}}>
+      <CardContent className="px-4" style={{scrollbarWidth: 'none'}}>
         <div className="space-y-3">
           <div className="text-center">
-            <h3 className="font-medium text-muted-foreground">Addition</h3>
+            <h3 className="font-medium text-muted-foreground">Objective</h3>
           </div>
           
-          <div className={`grid ${hideEyeLabels ? 'grid-cols-[repeat(7,1fr)]' : 'grid-cols-[20px_repeat(7,1fr)]'} gap-2 items-center`}>
+          <div className={`grid ${hideEyeLabels ? 'grid-cols-[repeat(4,1fr)]' : 'grid-cols-[20px_repeat(4,1fr)]'} gap-2 items-center`}>
             {!hideEyeLabels && <div></div>}
             {columns.map(({ key, label }) => (
               <div key={key} className="h-4 flex items-center justify-center">
@@ -84,18 +77,20 @@ export function AdditionTab({
                 {hoveredEye === "L" ? <ChevronDown size={16} /> : "R"}
               </span>
             </div>}
-            {columns.map(({ key, step }) => (
+            {columns.map(({ key, step, min, max }) => (
               <Input
                 key={`r-${key}`}
                 type="number"
                 step={step}
+                min={min}
+                max={max}
                 value={getFieldValue("R", key)}
                 onChange={(e) => handleChange("R", key, e.target.value)}
                 disabled={!isEditing}
                 className={`h-8 pr-1 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
               />
             ))}
-            
+
             {needsMiddleSpacer && (
               <>
                 {!hideEyeLabels && <div className="h-8" />}
@@ -116,11 +111,13 @@ export function AdditionTab({
                 {hoveredEye === "R" ? <ChevronUp size={16} /> : "L"}
               </span>
             </div>}
-            {columns.map(({ key, step }) => (
+            {columns.map(({ key, step, min, max }) => (
               <Input
                 key={`l-${key}`}
                 type="number"
                 step={step}
+                min={min}
+                max={max}
                 value={getFieldValue("L", key)}
                 onChange={(e) => handleChange("L", key, e.target.value)}
                 disabled={!isEditing}

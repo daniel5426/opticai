@@ -1,7 +1,8 @@
 import React from "react"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { OldRefractionTab, ObjectiveTab } from "@/components/exam/OldRefractionObjectiveTab"
+import { OldRefractionTab } from "@/components/exam/OldRefractionTab"
+import { ObjectiveTab } from "@/components/exam/ObjectiveTab"
 import { SubjectiveTab } from "@/components/exam/SubjectiveTab"
 import { AdditionTab } from "@/components/exam/AdditionTab"
 import { FinalSubjectiveTab } from "@/components/exam/FinalSubjectiveTab"
@@ -65,12 +66,12 @@ const DateInput = (props: React.ComponentProps<typeof Input> & {value: any}) => 
 const getColumnCount = (type: CardItem['type']): number => {
   switch (type) {
     case 'exam-details': return 5
-    case 'old-refraction': return 15
-    case 'objective': return 15
-    case 'subjective': return 22
-    case 'final-subjective': return 22
+    case 'old-refraction': return 7
+    case 'objective': return 4
+    case 'subjective': return 10
+    case 'final-subjective': return 11
     case 'addition': return 7
-    case 'notes': return 1
+    case 'notes': return 2
   }
 }
 
@@ -85,33 +86,29 @@ export const calculateCardWidth = (cards: CardItem[], rowId: string, customWidth
   
     const rowCustomWidths = customWidths[rowId]
     
-    // Handle custom widths for any number of cards
+    // Check if custom widths are valid for the current set of cards
     if (rowCustomWidths) {
-      const widths: Record<string, number> = {}
-      let totalCustomWidth = 0
-      let cardsWithCustomWidth = 0
+      const customWidthKeys = Object.keys(rowCustomWidths);
+      const cardIds = cards.map(c => c.id);
       
-      // First pass: assign custom widths and calculate total
-      cards.forEach(card => {
-        if (rowCustomWidths[card.id] !== undefined) {
+      const areKeysIdentical = customWidthKeys.length === cardIds.length && customWidthKeys.every(key => cardIds.includes(key));
+      
+      if (areKeysIdentical) {
+        // Custom widths are valid, use them
+        const widths: Record<string, number> = {}
+        let totalCustomWidth = 0
+        
+        cards.forEach(card => {
           widths[card.id] = rowCustomWidths[card.id]
           totalCustomWidth += rowCustomWidths[card.id]
-          cardsWithCustomWidth++
-        }
-      })
-      
-      // If we have custom widths, handle the remaining cards
-      if (cardsWithCustomWidth > 0) {
-        const remainingWidth = 100 - totalCustomWidth
-        const cardsWithoutCustomWidth = cards.length - cardsWithCustomWidth
-        
-        if (cardsWithoutCustomWidth > 0) {
-          const defaultWidthPerCard = remainingWidth / cardsWithoutCustomWidth
-          cards.forEach(card => {
-            if (rowCustomWidths[card.id] === undefined) {
-              widths[card.id] = defaultWidthPerCard
-            }
-          })
+        })
+
+        // Normalize widths to sum to 100% in case of minor floating point errors
+        if (Math.abs(100 - totalCustomWidth) > 0.1) {
+            const scale = 100 / totalCustomWidth;
+            Object.keys(widths).forEach(key => {
+                widths[key] *= scale;
+            });
         }
         
         return widths

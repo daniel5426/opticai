@@ -191,7 +191,7 @@ function CardResizer({ rowId, leftCardId, rightCardId, isEditing, cardCount, onR
       let newLeftPercent = 0
       const newLeftWidth = startLeftWidth + deltaX
       if (cardCount === 3) {
-        newLeftPercent = (newLeftWidth / containerWidth) * 141
+        newLeftPercent = (newLeftWidth / containerWidth) * 103
       } else {
         newLeftPercent = (newLeftWidth / containerWidth) * 102
       }
@@ -384,26 +384,31 @@ export default function ExamLayoutEditorPage() {
   }
 
   const handleAddComponent = (rowIndex: number, componentType: CardItem['type']): boolean => {
-    let success = false
-    setCardRows(prevRows => {
-      const newRows = [...prevRows]
-      const targetRow = newRows[rowIndex]
-      
-      if (!canAddToRow(targetRow.cards, componentType)) {
-        toast.error("לא ניתן להוסיף רכיב זה לשורה הזו")
-        return prevRows
-      }
-      
-      const newCardId = `${componentType}-${Date.now()}`
-      newRows[rowIndex] = {
-        ...targetRow,
-        cards: [...targetRow.cards, { id: newCardId, type: componentType }]
-      }
-      
-      success = true
-      return newRows
+    const targetRow = cardRows[rowIndex]
+    if (!canAddToRow(targetRow.cards, componentType)) {
+      toast.error("לא ניתן להוסיף רכיב זה לשורה הזו")
+      return false
+    }
+
+    const newCardId = `${componentType}-${Date.now()}`
+    const newCard = { id: newCardId, type: componentType }
+
+    setCardRows(prevRows => 
+      prevRows.map((row, index) => {
+        if (index === rowIndex) {
+          return { ...row, cards: [...row.cards, newCard] }
+        }
+        return row
+      })
+    )
+
+    setCustomWidths(prev => {
+      const newWidths = { ...prev }
+      delete newWidths[targetRow.id]
+      return newWidths
     })
-    return success
+
+    return true
   }
 
   const handleAddRow = () => {
@@ -418,37 +423,31 @@ export default function ExamLayoutEditorPage() {
   }
 
   const handleRemoveCard = (rowIndex: number, cardId: string) => {
-    let toastMessage = ""
-    
-    setCardRows(prevRows => {
-      const newRows = [...prevRows]
-      const targetRow = newRows[rowIndex]
-      
-      // Filter out the card to be removed
-      const updatedCards = targetRow.cards.filter(card => card.id !== cardId)
-      
-      if (updatedCards.length === 0) {
-        // If row becomes empty, remove the entire row (except if it's the last row)
-        if (newRows.length > 1) {
-          newRows.splice(rowIndex, 1)
-          toastMessage = "הרכיב והשורה הריקה הוסרו"
-        } else {
-          // Keep at least one row, but make it empty
-          newRows[rowIndex] = { ...targetRow, cards: [] }
-          toastMessage = "הרכיב הוסר"
-        }
-      } else {
-        // Update the row with remaining cards
-        newRows[rowIndex] = { ...targetRow, cards: updatedCards }
-        toastMessage = "הרכיב הוסר"
-      }
-      
-      return newRows
+    const targetRow = cardRows[rowIndex]
+    const newCards = targetRow.cards.filter(card => card.id !== cardId)
+    let toastMessage = "הרכיב הוסר"
+
+    if (newCards.length === 0 && cardRows.length > 1) {
+      setCardRows(prevRows => prevRows.filter((_, i) => i !== rowIndex))
+      toastMessage = "הרכיב והשורה הריקה הוסרו"
+    } else {
+      setCardRows(prevRows =>
+        prevRows.map((row, index) => {
+          if (index === rowIndex) {
+            return { ...row, cards: newCards }
+          }
+          return row
+        })
+      )
+    }
+
+    setCustomWidths(prev => {
+      const newWidths = { ...prev }
+      delete newWidths[targetRow.id]
+      return newWidths
     })
     
-    if (toastMessage) {
-      toast.success(toastMessage)
-    }
+    toast.success(toastMessage)
   }
 
   const handleSaveLayout = async () => {

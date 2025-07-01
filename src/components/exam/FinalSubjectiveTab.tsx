@@ -6,100 +6,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { FinalSubjectiveExam } from "@/lib/db/schema"
-import { toast } from "sonner"
-
-interface EyeSectionProps {
-  eye: "R" | "L";
-  data: FinalSubjectiveExam;
-  onChange: (field: keyof FinalSubjectiveExam, value: string) => void;
-  isEditing: boolean;
-  hideLabels?: boolean;
-}
-
-function FinalSubjectiveSection({ eye, data, onChange, isEditing, hideLabels = false }: EyeSectionProps) {
-  const eyeLabel = eye === "R" ? "R" : "L";
-
-  const getFieldValue = (field: string) => {
-    const eyeField = `${eye.toLowerCase()}_${field}` as keyof FinalSubjectiveExam;
-    return data[eyeField]?.toString() || "";
-  };
-
-  const handleChange = (field: string, value: string) => {
-    const eyeField = `${eye.toLowerCase()}_${field}` as keyof FinalSubjectiveExam;
-    onChange(eyeField, value);
-  };
-
-  return (
-    <div className="flex items-center gap-1 h-6" dir="rtl">
-      <div className="grid grid-cols-22 gap-4 flex-1 w-full" dir="ltr">
-        <div className="col-span-2">
-          {eye === "R" && <Label htmlFor={`${eye}-final-sph`} className="text-[12px] block text-center">SPH</Label>}
-          <Input id={`${eye}-final-sph`} type="number" step="0.25" value={getFieldValue("sph")} onChange={(e) => handleChange("sph", e.target.value)} disabled={!isEditing} className={`h-8 text-xs px-1 ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`} placeholder="0.00" />
-        </div>
-        <div className="col-span-2">
-          {eye === "R" && <Label htmlFor={`${eye}-final-cyl`} className="text-[12px] block text-center">CYL</Label>}
-          <Input id={`${eye}-final-cyl`} type="number" step="0.25" value={getFieldValue("cyl")} onChange={(e) => handleChange("cyl", e.target.value)} disabled={!isEditing} className={`h-8 text-xs px-1 ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`} placeholder="0.00" />
-        </div>
-        <div className="col-span-2">
-          {eye === "R" && <Label htmlFor={`${eye}-final-ax`} className="text-[12px] block text-center">AXIS</Label>}
-          <Input id={`${eye}-final-ax`} type="number" min="0" max="180" value={getFieldValue("ax")} onChange={(e) => handleChange("ax", e.target.value)} disabled={!isEditing} className={`h-8 text-xs px-1 ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`} placeholder="0" />
-        </div>
-        <div className="col-span-2">
-          {eye === "R" && <Label htmlFor={`${eye}-final-pr-h`} className="text-[12px] block text-center">PR.H</Label>}
-          <Input id={`${eye}-final-pr-h`} type="number" step="0.5" value={getFieldValue("pr_h")} onChange={(e) => handleChange("pr_h", e.target.value)} disabled={!isEditing} className={`h-8 text-xs px-1 ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`} placeholder="0.0" />
-        </div>
-        <div className="col-span-2">
-          {eye === "R" && <Label htmlFor={`${eye}-final-base-h`} className="text-[12px] block text-center">BASE.H</Label>}
-          <Select value={getFieldValue("base_h")} onValueChange={(value) => handleChange("base_h", value)} disabled={!isEditing}>
-            <SelectTrigger size="xs" className={`h-8 text-xs w-full ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100`}>
-              <SelectValue placeholder="" />
-            </SelectTrigger>
-            <SelectContent >
-              <SelectItem value="IN">IN</SelectItem>
-              <SelectItem value="OUT">OUT</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="col-span-2">
-          {eye === "R" && <Label htmlFor={`${eye}-final-pr-v`} className="text-[12px] block text-center">PR.V</Label>}
-          <Input id={`${eye}-final-pr-v`} type="number" step="0.5" value={getFieldValue("pr_v")} onChange={(e) => handleChange("pr_v", e.target.value)} disabled={!isEditing} className={`h-8 text-xs px-1 ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`} placeholder="0.0" />
-        </div>
-        <div className="col-span-2">
-          {eye === "R" && <Label htmlFor={`${eye}-final-base-v`} className="text-[12px] block text-center">BASE.V</Label>}
-          <Select value={getFieldValue("base_v")} onValueChange={(value) => handleChange("base_v", value)} disabled={!isEditing}>
-            <SelectTrigger size="xs" className={`h-8 text-xs w-full ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100`}>
-              <SelectValue placeholder="" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="UP">UP</SelectItem>
-              <SelectItem value="DOWN">DOWN</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="col-span-2">
-          {eye === "R" && <Label htmlFor={`${eye}-final-va`} className="text-[12px] block text-center">VA</Label>}
-          <div className="relative" dir="ltr">
-            <Input id={`${eye}-final-va`} type="number" step="0.1" value={getFieldValue("va")} onChange={(e) => handleChange("va", e.target.value)} disabled={!isEditing} className={`h-8 text-xs px-1 pl-6 ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`} placeholder="0.0" />
-            <span className="absolute left-2 top-[53%] transform -translate-y-1/2 text-[14px] text-gray-500 pointer-events-none">6/</span>
-          </div>
-        </div>
-        <div className="col-span-2">
-          {eye === "R" && <Label htmlFor={`${eye}-final-j`} className="text-[12px] block text-center">J</Label>}
-          <Input id={`${eye}-final-j`} type="number" value={getFieldValue("j")} onChange={(e) => handleChange("j", e.target.value)} disabled={!isEditing} className={`h-8 text-xs px-1 ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`} placeholder="0" />
-        </div>
-        <div className="col-span-2">
-          {eye === "R" && <Label htmlFor={`${eye}-final-pd-close`} className="text-[12px] block text-center">PD CLOSE</Label>}
-          <Input id={`${eye}-final-pd-close`} type="number" step="0.5" value={getFieldValue("pd_close")} onChange={(e) => handleChange("pd_close", e.target.value)} disabled={!isEditing} className={`h-8 text-xs px-1 ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`} placeholder="PD" />
-        </div>
-        <div className="col-span-2">
-          {eye === "R" && <Label htmlFor={`${eye}-final-pd-far`} className="text-[12px] block text-center">PD FAR</Label>}
-          <Input id={`${eye}-final-pd-far`} type="number" step="0.5" value={getFieldValue("pd_far")} onChange={(e) => handleChange("pd_far", e.target.value)} disabled={!isEditing} className={`h-8 text-xs px-1 ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`} placeholder="PD" />
-        </div>
-      </div>
-      {!hideLabels && <span className={`text-md font-medium pr-2 flex items-center justify-center w-6 ${eyeLabel === "L" ? "" : "pt-4"}`}>{eyeLabel}</span>}
-    </div>
-  );
-}
+import { ChevronUp, ChevronDown } from "lucide-react"
 
 interface VHCalculatorProps {
   onConfirm: (rightPrisH: number, rightBaseH: string, rightPrisV: number, rightBaseV: string, leftPrisH: number, leftBaseH: string, leftPrisV: number, leftBaseV: string) => void;
@@ -166,7 +73,7 @@ function VHCalculatorModal({ onConfirm, disabled = false }: VHCalculatorProps) {
                   step="0.5" 
                   value={rightPrisH || ""} 
                   onChange={(e) => setRightPrisH(Number(e.target.value))} 
-                  className="h-9 text-sm px-2 text-right bg-white" 
+                  className="h-9 pr-1 text-sm px-2 text-right bg-white" 
                   dir="rtl"
                 />
               </div>
@@ -191,7 +98,7 @@ function VHCalculatorModal({ onConfirm, disabled = false }: VHCalculatorProps) {
                   step="0.5" 
                   value={rightPrisV || ""} 
                   onChange={(e) => setRightPrisV(Number(e.target.value))} 
-                  className="h-9 text-sm px-2 text-right bg-white" 
+                  className="h-9 pr-1 text-sm px-2 text-right bg-white" 
                   dir="rtl"
                 />
               </div>
@@ -219,7 +126,7 @@ function VHCalculatorModal({ onConfirm, disabled = false }: VHCalculatorProps) {
                   step="0.5" 
                   value={leftPrisH || ""} 
                   onChange={(e) => setLeftPrisH(Number(e.target.value))} 
-                  className="h-9 text-sm px-2 text-right bg-white" 
+                  className="h-9 pr-1 text-sm px-2 text-right bg-white" 
                   dir="rtl"
                 />
               </div>
@@ -244,7 +151,7 @@ function VHCalculatorModal({ onConfirm, disabled = false }: VHCalculatorProps) {
                   step="0.5" 
                   value={leftPrisV || ""} 
                   onChange={(e) => setLeftPrisV(Number(e.target.value))} 
-                  className="h-9 text-sm px-2 text-right bg-white" 
+                  className="h-9 pr-1 text-sm px-2 text-right bg-white" 
                   dir="rtl"
                 />
               </div>
@@ -272,44 +179,6 @@ function VHCalculatorModal({ onConfirm, disabled = false }: VHCalculatorProps) {
   );
 }
 
-function CombinedFinalSubjFields({ finalSubjectiveData, onChange, isEditing, onVHConfirm, hideLabels = false }: { 
-  finalSubjectiveData: FinalSubjectiveExam, 
-  onChange: (field: keyof FinalSubjectiveExam, value: string) => void, 
-  isEditing: boolean,
-  onVHConfirm: (rightPrisH: number, rightBaseH: string, rightPrisV: number, rightBaseV: string, leftPrisH: number, leftBaseH: string, leftPrisV: number, leftBaseV: string) => void,
-  hideLabels?: boolean
-}) {
-  return (
-    <div className="flex items-center gap-1 h-10 my-2 mt-4" dir="rtl">
-      <div className="grid grid-cols-22 gap-4 flex-1 w-full" dir="ltr">
-        <div className="col-span-2"></div>
-        <div className="col-span-2"></div>
-        <div className="col-span-2"></div>
-        <div className="col-span-2"></div>
-        <div className="col-span-2"></div>
-        <div className="col-span-2"></div>
-        <div className="col-span-2 flex justify-center items-center">
-          <VHCalculatorModal onConfirm={onVHConfirm} disabled={!isEditing} />
-        </div>
-        <div className="col-span-2">
-        <div className="relative" dir="ltr">
-            <Input id={`comb-final-va`} type="number" step="0.1" value={finalSubjectiveData.comb_va?.toString() || ""} onChange={(e) => onChange("comb_va", e.target.value)} disabled={!isEditing} className={`h-8 text-xs px-1 pl-6 ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`} placeholder="0.0" />
-            <span className="absolute left-2 top-[53%] transform -translate-y-1/2 text-[14px] text-gray-500 pointer-events-none">6/</span>
-          </div>
-        </div>
-        <div className="col-span-2"></div>
-        <div className="col-span-2">
-          <Input type="number" step="0.5" value={finalSubjectiveData.comb_pd_close?.toString() || ""} onChange={(e) => onChange("comb_pd_close", e.target.value)} disabled={!isEditing} className={`h-8 text-xs px-1 ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`} placeholder="PD Close" />
-        </div>
-        <div className="col-span-2">
-          <Input type="number" step="0.5" value={finalSubjectiveData.comb_pd_far?.toString() || ""} onChange={(e) => onChange("comb_pd_far", e.target.value)} disabled={!isEditing} className={`h-8 text-xs px-1 ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`} placeholder="PD Far" />
-        </div>
-      </div>
-      {!hideLabels && <span className="text-md font-medium pr-2 flex items-center justify-center w-6">C</span>}  
-    </div>
-  );
-}
-
 interface FinalSubjectiveTabProps {
   finalSubjectiveData: FinalSubjectiveExam;
   onFinalSubjectiveChange: (field: keyof FinalSubjectiveExam, value: string) => void;
@@ -325,17 +194,171 @@ export function FinalSubjectiveTab({
   onVHConfirm,
   hideEyeLabels = false
 }: FinalSubjectiveTabProps) {
+  const [hoveredEye, setHoveredEye] = useState<"R" | "L" | null>(null);
+
+  const columns = [
+    { key: "sph", label: "SPH", step: "0.25" },
+    { key: "cyl", label: "CYL", step: "0.25" },
+    { key: "ax", label: "AXIS", step: "1", min: "0", max: "180" },
+    { key: "pr_h", label: "PR.H", step: "0.5" },
+    { key: "base_h", label: "BASE.H", type: "select", options: ["IN", "OUT"] },
+    { key: "pr_v", label: "PR.V", step: "0.5" },
+    { key: "base_v", label: "BASE.V", type: "select", options: ["UP", "DOWN"] },
+    { key: "va", label: "VA", step: "0.1", type: "va" },
+    { key: "j", label: "J", step: "1" },
+    { key: "pd_close", label: "PD CLOSE", step: "0.5" },
+    { key: "pd_far", label: "PD FAR", step: "0.5" },
+  ];
+
+  const getFieldValue = (eye: "R" | "L" | "C", field: string) => {
+    if (eye === "C") {
+      const combField = `comb_${field}` as keyof FinalSubjectiveExam;
+      return finalSubjectiveData[combField]?.toString() || "";
+    }
+    const eyeField = `${eye.toLowerCase()}_${field}` as keyof FinalSubjectiveExam;
+    return finalSubjectiveData[eyeField]?.toString() || "";
+  };
+
+  const handleChange = (eye: "R" | "L" | "C", field: string, value: string) => {
+    if (eye === "C") {
+      const combField = `comb_${field}` as keyof FinalSubjectiveExam;
+      onFinalSubjectiveChange(combField, value);
+    } else {
+      const eyeField = `${eye.toLowerCase()}_${field}` as keyof FinalSubjectiveExam;
+      onFinalSubjectiveChange(eyeField, value);
+    }
+  };
+
+  const copyFromOtherEye = (fromEye: "R" | "L") => {
+    const toEye = fromEye === "R" ? "L" : "R";
+    columns.forEach(({ key }) => {
+      const fromField = `${fromEye.toLowerCase()}_${key}` as keyof FinalSubjectiveExam;
+      const toField = `${toEye.toLowerCase()}_${key}` as keyof FinalSubjectiveExam;
+      const value = finalSubjectiveData[fromField]?.toString() || "";
+      onFinalSubjectiveChange(toField, value);
+    });
+  };
+
+  const renderInput = (eye: "R" | "L", { key, step, min, max, type, options }: (typeof columns)[number]) => {
+    switch (type) {
+      case "va":
+        return (
+          <div className="relative">
+            <Input
+              type="number" step={step} value={getFieldValue(eye, key)}
+              onChange={(e) => handleChange(eye, key, e.target.value)}
+              disabled={!isEditing}
+              className={`h-8 pr-1 text-xs pl-6 ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
+            />
+            <span className="absolute left-2 top-[53%] transform -translate-y-1/2 text-[14px] text-gray-500 pointer-events-none">6/</span>
+          </div>
+        );
+      case "select":
+        return (
+          <Select value={getFieldValue(eye, key)} onValueChange={(value) => handleChange(eye, key, value)} disabled={!isEditing}>
+            <SelectTrigger size="xs" className={`h-8 text-xs w-full ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100`}>
+              <SelectValue placeholder="" />
+            </SelectTrigger>
+            <SelectContent>
+              {options?.map(opt => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        );
+      default:
+        return (
+          <Input
+            type="number" step={step} min={min} max={max}
+            value={getFieldValue(eye, key)}
+            onChange={(e) => handleChange(eye, key, e.target.value)}
+            disabled={!isEditing}
+            className={`h-8 pr-1 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
+          />
+        );
+    }
+  };
+
   return (
-    <Card className="w-full shadow-md border-[1px] ">
-      <CardContent className="px-4 pt-4 space-y-1">
-        <div className="relative mb-4 pt-2">
-          <div className="absolute top-[-27px] right-1/2 transform translate-x-1/2 px-2 font-medium text-muted-foreground">
-            Final Subjective
+    <Card className="w-full shadow-md border-[1px] pb-4 pt-3">
+      <CardContent className="px-4" style={{scrollbarWidth: 'none'}}>
+        <div className="space-y-3">
+          <div className="text-center">
+            <h3 className="font-medium text-muted-foreground">Final Subjective</h3>
+          </div>
+          
+          <div className={`grid ${hideEyeLabels ? 'grid-cols-[repeat(11,1fr)]' : 'grid-cols-[20px_repeat(11,1fr)]'} gap-2 items-center`}>
+            {!hideEyeLabels && <div></div>}
+            {columns.map(({ key, label }) => (
+              <div key={key} className="h-4 flex items-center justify-center">
+                <span className="text-xs font-medium text-muted-foreground text-center">
+                  {label}
+                </span>
+              </div>
+            ))}
+            
+            {!hideEyeLabels && <div className="flex items-center justify-center">
+              <span 
+                className="text-base font-medium cursor-pointer hover:bg-accent rounded-full px-2"
+                onMouseEnter={() => setHoveredEye("R")}
+                onMouseLeave={() => setHoveredEye(null)}
+                onClick={() => copyFromOtherEye("L")}
+                title="Click to copy from L eye"
+              >
+                {hoveredEye === "L" ? <ChevronDown size={16} /> : "R"}
+              </span>
+            </div>}
+            {columns.map(col => <div key={`r-${col.key}`}>{renderInput("R", col)}</div>)}
+            
+            {!hideEyeLabels && <div className="flex items-center justify-center h-8">
+              <span className="text-base font-medium">C</span>
+            </div>}
+            {columns.map(({ key, step }) => {
+              if (key === 'pr_v') {
+                return (
+                  <div key="c-vh-calculator" className="flex justify-center">
+                    <VHCalculatorModal onConfirm={onVHConfirm} disabled={!isEditing} />
+                  </div>
+                );
+              }
+              if (key === 'va') {
+                return (
+                  <div key="c-va-input" className="relative">
+                    <Input
+                      type="number" step={step} value={getFieldValue("C", "va")}
+                      onChange={(e) => handleChange("C", "va", e.target.value)}
+                      disabled={!isEditing}
+                      className={`h-8 text-xs pl-6 ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
+                    />
+                    <span className="absolute left-2 top-[53%] transform -translate-y-1/2 text-[14px] text-gray-500 pointer-events-none">6/</span>
+                  </div>
+                );
+              }
+              if (key === 'pd_close' || key === 'pd_far') {
+                 return (
+                  <Input
+                    key={`c-${key}`} type="number" step={step} value={getFieldValue("C", key)}
+                    onChange={(e) => handleChange("C", key, e.target.value)}
+                    disabled={!isEditing}
+                    className={`h-8 pr-1 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
+                  />
+                );
+              }
+              return <div key={`c-spacer-${key}`} />;
+            })}
+            
+            {!hideEyeLabels && <div className="flex items-center justify-center">
+              <span 
+                className="text-base font-medium cursor-pointer hover:bg-accent rounded-full px-2"
+                onMouseEnter={() => setHoveredEye("L")}
+                onMouseLeave={() => setHoveredEye(null)}
+                onClick={() => copyFromOtherEye("R")}
+                title="Click to copy from R eye"
+              >
+                {hoveredEye === "R" ? <ChevronUp size={16} /> : "L"}
+              </span>
+            </div>}
+            {columns.map(col => <div key={`l-${col.key}`}>{renderInput("L", col)}</div>)}
           </div>
         </div>
-        <FinalSubjectiveSection eye="R" data={finalSubjectiveData} onChange={onFinalSubjectiveChange} isEditing={isEditing} hideLabels={hideEyeLabels} />
-        <CombinedFinalSubjFields finalSubjectiveData={finalSubjectiveData} onChange={onFinalSubjectiveChange} isEditing={isEditing} onVHConfirm={onVHConfirm} hideLabels={hideEyeLabels} />
-        <FinalSubjectiveSection eye="L" data={finalSubjectiveData} onChange={onFinalSubjectiveChange} isEditing={isEditing} hideLabels={hideEyeLabels} />
       </CardContent>
     </Card>
   );

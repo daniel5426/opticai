@@ -5,9 +5,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { OpticalExam, SubjectiveExam } from "@/lib/db/schema"
+import { OldRefractionExam } from "@/lib/db/schema"
 import { ChevronUp, ChevronDown } from "lucide-react"
-import { toast } from "sonner"
 
 interface VHCalculatorProps {
   onConfirm: (rightPris: number, rightBase: number, leftPris: number, leftBase: number) => void;
@@ -109,7 +108,7 @@ function VHCalculatorModal({ onConfirm, disabled = false }: VHCalculatorProps) {
                   step="0.5" 
                   value={rightPrisH || ""} 
                   onChange={(e) => setRightPrisH(Number(e.target.value))} 
-                  className="h-9 text-sm px-2 text-right bg-white" 
+                  className="h-9 pr-1 text-sm px-2 text-right bg-white" 
                   dir="rtl"
                 />
               </div>
@@ -134,7 +133,7 @@ function VHCalculatorModal({ onConfirm, disabled = false }: VHCalculatorProps) {
                   step="0.5" 
                   value={rightPrisV || ""} 
                   onChange={(e) => setRightPrisV(Number(e.target.value))} 
-                  className="h-9 text-sm px-2 text-right bg-white" 
+                  className="h-9 pr-1 text-sm px-2 text-right bg-white" 
                   dir="rtl"
                 />
               </div>
@@ -175,7 +174,7 @@ function VHCalculatorModal({ onConfirm, disabled = false }: VHCalculatorProps) {
                   step="0.5" 
                   value={leftPrisH || ""} 
                   onChange={(e) => setLeftPrisH(Number(e.target.value))} 
-                  className="h-9 text-sm px-2 text-right bg-white" 
+                  className="h-9 pr-1 text-sm px-2 text-right bg-white" 
                   dir="rtl"
                 />
               </div>
@@ -200,7 +199,7 @@ function VHCalculatorModal({ onConfirm, disabled = false }: VHCalculatorProps) {
                   step="0.5" 
                   value={leftPrisV || ""} 
                   onChange={(e) => setLeftPrisV(Number(e.target.value))} 
-                  className="h-9 text-sm px-2 text-right bg-white" 
+                  className="h-9 pr-1 text-sm px-2 text-right bg-white" 
                   dir="rtl"
                 />
               </div>
@@ -241,64 +240,61 @@ function VHCalculatorModal({ onConfirm, disabled = false }: VHCalculatorProps) {
   );
 }
 
-interface SubjectiveTabProps {
-  subjectiveData: SubjectiveExam;
-  onSubjectiveChange: (field: keyof SubjectiveExam, value: string) => void;
+interface OldRefractionTabProps {
+  oldRefractionData: OldRefractionExam;
+  onOldRefractionChange: (field: keyof OldRefractionExam, value: string) => void;
   isEditing: boolean;
-  onVHConfirm: (rightPris: number, rightBase: number, leftPris: number, leftBase: number) => void;
   onMultifocalClick: () => void;
+  onVHConfirm: (rightPris: number, rightBase: number, leftPris: number, leftBase: number) => void;
   hideEyeLabels?: boolean;
 }
 
-export function SubjectiveTab({
-  subjectiveData,
-  onSubjectiveChange,
+export function OldRefractionTab({
+  oldRefractionData,
+  onOldRefractionChange,
   isEditing,
-  onVHConfirm,
   onMultifocalClick,
+  onVHConfirm,
   hideEyeLabels = false
-}: SubjectiveTabProps) {
+}: OldRefractionTabProps) {
   const [hoveredEye, setHoveredEye] = useState<"R" | "L" | null>(null);
-  
+
   const columns = [
-    { key: "fa", label: "FA", step: "0.1" },
-    { key: "fa_tuning", label: "FA TUN", step: "0.1" },
     { key: "sph", label: "SPH", step: "0.25" },
     { key: "cyl", label: "CYL", step: "0.25" },
     { key: "ax", label: "AXIS", step: "1", min: "0", max: "180" },
     { key: "pris", label: "PRIS", step: "0.5" },
     { key: "base", label: "BASE", step: "0.1" },
     { key: "va", label: "VA", step: "0.1" },
-    { key: "pd_close", label: "PD CLOSE", step: "0.5" },
-    { key: "pd_far", label: "PD FAR", step: "0.5" }
+    { key: "ad", label: "ADD", step: "0.25" },
   ];
 
   const getFieldValue = (eye: "R" | "L" | "C", field: string) => {
     if (eye === "C") {
-      const combField = `comb_${field}` as keyof SubjectiveExam;
-      return subjectiveData[combField]?.toString() || "";
+      const combField = `comb_va` as keyof OldRefractionExam;
+      return oldRefractionData[combField]?.toString() || "";
     }
-    const eyeField = `${eye.toLowerCase()}_${field}` as keyof SubjectiveExam;
-    return subjectiveData[eyeField]?.toString() || "";
+    const eyeField = `${eye.toLowerCase()}_${field}` as keyof OldRefractionExam;
+    return oldRefractionData[eyeField]?.toString() || "";
   };
 
   const handleChange = (eye: "R" | "L" | "C", field: string, value: string) => {
     if (eye === "C") {
-      const combField = `comb_${field}` as keyof SubjectiveExam;
-      onSubjectiveChange(combField, value);
+      const combField = `comb_va` as keyof OldRefractionExam;
+      onOldRefractionChange(combField, value);
     } else {
-      const eyeField = `${eye.toLowerCase()}_${field}` as keyof SubjectiveExam;
-      onSubjectiveChange(eyeField, value);
+      const eyeField = `${eye.toLowerCase()}_${field}` as keyof OldRefractionExam;
+      onOldRefractionChange(eyeField, value);
     }
   };
 
   const copyFromOtherEye = (fromEye: "R" | "L") => {
     const toEye = fromEye === "R" ? "L" : "R";
     columns.forEach(({ key }) => {
-      const fromField = `${fromEye.toLowerCase()}_${key}` as keyof SubjectiveExam;
-      const toField = `${toEye.toLowerCase()}_${key}` as keyof SubjectiveExam;
-      const value = subjectiveData[fromField]?.toString() || "";
-      onSubjectiveChange(toField, value);
+      const fromField = `${fromEye.toLowerCase()}_${key}` as keyof OldRefractionExam;
+      const toField = `${toEye.toLowerCase()}_${key}` as keyof OldRefractionExam;
+      const value = oldRefractionData[fromField]?.toString() || "";
+      onOldRefractionChange(toField, value);
     });
   };
 
@@ -307,10 +303,10 @@ export function SubjectiveTab({
       <CardContent className="px-4" style={{scrollbarWidth: 'none'}}>
         <div className="space-y-3">
           <div className="text-center">
-            <h3 className="font-medium text-muted-foreground">Subjective</h3>
+            <h3 className="font-medium text-muted-foreground">Old Refraction</h3>
           </div>
           
-          <div className={`grid ${hideEyeLabels ? 'grid-cols-[repeat(10,1fr)]' : 'grid-cols-[20px_repeat(10,1fr)]'} gap-2 items-center`}>
+          <div className={`grid ${hideEyeLabels ? 'grid-cols-[repeat(7,1fr)]' : 'grid-cols-[20px_repeat(7,1fr)]'} gap-2 items-center`}>
             {!hideEyeLabels && <div></div>}
             {columns.map(({ key, label }) => (
               <div key={key} className="h-4 flex items-center justify-center">
@@ -360,25 +356,13 @@ export function SubjectiveTab({
               </div>
             ))}
             
-            {!hideEyeLabels && <div className="flex items-center justify-center">
+            {!hideEyeLabels && <div className="flex items-center justify-center h-8">
               <span className="text-base font-medium">C</span>
             </div>}
             {columns.map(({ key, step }) => {
-              if (key === "fa" || key === "fa_tuning") {
+              if (key === 'cyl') {
                 return (
-                  <Input
-                    key={`c-${key}`}
-                    type="number"
-                    step={step}
-                    value={getFieldValue("C", key)}
-                    onChange={(e) => handleChange("C", key, e.target.value)}
-                    disabled={!isEditing}
-                    className={`h-8 pr-1 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
-                  />
-                );
-              } else if (key === "cyl") {
-                return (
-                  <div key={`c-${key}`} className="flex justify-center">
+                  <div key="c-mul-button" className="flex justify-center">
                     <Button 
                       type="button"
                       variant="outline" 
@@ -390,42 +374,31 @@ export function SubjectiveTab({
                       MUL
                     </Button>
                   </div>
-                );
-              } else if (key === "pris") {
+                )
+              }
+              if (key === 'pris') {
                 return (
-                  <div key={`c-${key}`} className="flex justify-center">
+                  <div key="c-vh-calculator" className="flex justify-center">
                     <VHCalculatorModal onConfirm={onVHConfirm} disabled={!isEditing} />
                   </div>
-                );
-              } else if (key === "va") {
+                )
+              }
+              if (key === 'va') {
                 return (
-                  <div key={`c-${key}`} className="relative">
+                  <div key="c-va-input" className="relative">
                     <Input
                       type="number"
                       step={step}
-                      value={getFieldValue("C", key)}
-                      onChange={(e) => handleChange("C", key, e.target.value)}
+                      value={getFieldValue("C", "va")}
+                      onChange={(e) => handleChange("C", "va", e.target.value)}
                       disabled={!isEditing}
                       className={`h-8 pr-1 text-xs pl-6 ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
                     />
                     <span className="absolute left-2 top-[53%] transform -translate-y-1/2 text-[14px] text-gray-500 pointer-events-none">6/</span>
                   </div>
-                );
-              } else if (key === "pd_close" || key === "pd_far") {
-                return (
-                  <Input
-                    key={`c-${key}`}
-                    type="number"
-                    step={step}
-                    value={getFieldValue("C", key)}
-                    onChange={(e) => handleChange("C", key, e.target.value)}
-                    disabled={!isEditing}
-                    className={`h-8 pr-1 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
-                  />
-                );
-              } else {
-                return <div key={`c-${key}`}></div>;
+                )
               }
+              return <div key={`c-spacer-${key}`} />
             })}
             
             {!hideEyeLabels && <div className="flex items-center justify-center">
