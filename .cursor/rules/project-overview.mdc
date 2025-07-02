@@ -21,7 +21,7 @@ ALWAYS FOLLOW THOSE GUIDELINE FOR UI:
 - each new page created should be added a button in the appsidebar to go to it
 - ALWAYS in every page or component use: style={{scrollbarWidth: 'none'}}
   to hide the vizible scrollbar without removing the functionality of scrolling
-- ALWAYS if you want to create a modal use the src/components/ui/cusom-modal.tsx component
+- ALWAYS if you want to create a modal use the [src/components/ui/cusom-modal.tsx](mdc:src/components/ui/cusom-modal.tsx) component
 - When creating classic buttons try to use icons instead of label text, use text only if its an unusual button
 - try to not have dupclicated codes, create components when a part of code is used multiple time.
 
@@ -40,31 +40,28 @@ The application uses [TanStack Router](mdc:https:/tanstack.com/router) for clien
 
 ## Database System
 
-The application uses SQLite with better-sqlite3 for local data persistence:
-
-### Database Structure
-- **Location**: `database.sqlite` in Electron's user data directory
-- **Service**: Centralized `DatabaseService` class in `src/lib/db/index.ts`
-- **Schema**: TypeScript interfaces and table definitions in `src/lib/db/schema.ts`
-- **API Layer**: Database wrapper functions in `src/lib/db/` (e.g., `clients-db.ts`, `orders-db.ts`)
+The application uses SQLite with better-sqlite3 for local data persistence. A major refactoring has simplified database interactions by implementing a generic IPC channel (`db-operation`).
 
 ### Key Database Features
-- **WAL Mode**: Write-Ahead Logging for better performance
-- **Foreign Keys**: Enabled for referential integrity
-- **Auto-initialization**: Tables created on first run with seed data
-- **TypeScript Integration**: Fully typed interfaces for all entities
+- **Generic IPC Handler**: A single `'db-operation'` channel in [src/main.ts](mdc:src/main.ts) dynamically calls methods on the `DatabaseService`. This eliminates the need to register individual IPC handlers for each database operation.
+- **Dynamic Connection Manager**: The renderer process uses a `connectionManager` ([src/lib/db/connection-manager.ts](mdc:src/lib/db/connection-manager.ts)), which is a Proxy that forwards calls to the main process via the generic IPC channel, providing a clean and type-safe API.
+- **Type Safety**: End-to-end type safety is maintained. `DBServiceType` is generated from the `DatabaseService` class, ensuring that calls from the renderer process via `connectionManager` are fully typed.
+- **WAL Mode**: Write-Ahead Logging for better performance.
+- **Foreign Keys**: Enabled for referential integrity.
+- **Auto-initialization**: Tables created on first run with seed data.
+- **TypeScript Integration**: Fully typed interfaces for all entities.
 
 ### Making Database Schema Changes
 
-**⚠️ IMPORTANT**: When adding new database entities or modifying schemas, follow this complete process:
+**⚠️ IMPORTANT**: When adding new database entities or modifying schemas, the process is now much simpler:
 
 #### 1. Schema Definition (`src/lib/db/schema.ts`)
+This step remains the same. Define the TypeScript interface and add the `CREATE TABLE` statement in the `createTables` function.
 ```typescript
 // Add/update interface
 export interface TableName {
   id?: number;
   new_field?: string;
-  foreign_key_id?: number;
   // ... existing fields
 }
 
@@ -72,128 +69,62 @@ export interface TableName {
 CREATE TABLE IF NOT EXISTS table_name (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   new_field TEXT,
-  foreign_key_id INTEGER,
-  -- Use ON DELETE CASCADE for proper cascading deletes
-  FOREIGN KEY(foreign_key_id) REFERENCES parent_table(id) ON DELETE CASCADE
+  // ... existing fields
 );
 ```
 
 #### 2. Database Service Methods (`src/lib/db/index.ts`)
+This step also remains the same. Add the corresponding CRUD methods for the new entity to the `DatabaseService` class in [src/lib/db/index.ts](mdc:src/lib/db/index.ts). These methods are automatically exposed to the renderer process.
 ```typescript
 // Add CRUD operations for new entity
 createTableName(data: Omit<TableName, 'id'>): TableName | null {
-  // Implementation with proper sanitizeValue() calls
+  // Implementation
 }
 
 getTableNameById(id: number): TableName | null {
   // Implementation
 }
+// ... other methods
+```
 
-updateTableName(data: TableName): TableName | null {
-  // Implementation with all fields
+#### 3. API Layer (`src/lib/db/table-name-db.ts`)
+Create a new `src/lib/db/table-name-db.ts` file (or add to an existing one). The functions in this file should simply call the corresponding methods on the `connectionManager`.
+```typescript
+import { connectionManager } from './connection-manager';
+import { TableName } from './schema';
+
+export function createTableName(data: Omit<TableName, 'id'>) {
+  return connectionManager.createTableName(data);
 }
 
-deleteTableName(id: number): boolean {
-  // Simple delete - cascading handled by DB constraints
+export function getTableNameById(id: number) {
+  return connectionManager.getTableNameById(id);
 }
+// ... other wrapper functions
 ```
+With this new architecture, you no longer need to manually edit [src/main.ts](mdc:src/main.ts), [src/preload.ts](mdc:src/preload.ts), or [src/types/electron.d.ts](mdc:src/types/electron.d.ts) when adding new database operations.
 
-#### 3. IPC Handlers (`src/main.ts`)
-```typescript
-// Add IPC handlers for all CRUD operations
-ipcMain.handle('db-create-table-name', async (_, data) => {
-  return dbService.createTableName(data);
-});
-
-ipcMain.handle('db-get-table-name', async (_, id) => {
-  return dbService.getTableNameById(id);
-});
-
-ipcMain.handle('db-update-table-name', async (_, data) => {
-  return dbService.updateTableName(data);
-});
-
-ipcMain.handle('db-delete-table-name', async (_, id) => {
-  return dbService.deleteTableName(id);
-});
-```
-
-#### 4. Preload API (`src/preload.ts`)
-```typescript
-// Expose functions to renderer process
-createTableName: (data: any) => ipcRenderer.invoke('db-create-table-name', data),
-getTableNameById: (id: number) => ipcRenderer.invoke('db-get-table-name', id),
-updateTableName: (data: any) => ipcRenderer.invoke('db-update-table-name', data),
-deleteTableName: (id: number) => ipcRenderer.invoke('db-delete-table-name', id),
-```
-
-#### 5. ElectronAPI Types (`src/types/electron.d.ts`)
-```typescript
-// Add type declarations
-interface ElectronAPI {
-  // ... existing methods
-  createTableName: (data: Omit<TableName, 'id'>) => Promise<TableName | null>;
-  getTableNameById: (id: number) => Promise<TableName | null>;
-  updateTableName: (data: TableName) => Promise<TableName | null>;
-  deleteTableName: (id: number) => Promise<boolean>;
-}
-```
-
-#### 6. API Layer (`src/lib/db/table-name-db.ts`)
-```typescript
-// Create wrapper functions for UI components
-export async function createTableName(data: Omit<TableName, 'id'>): Promise<TableName | null> {
-  try {
-    return await window.electronAPI.createTableName(data);
-  } catch (error) {
-    console.error('Error creating table name:', error);
-    return null;
-  }
-}
-// ... other CRUD wrapper functions
-```
-
-#### 7. Database Reset (Development)
+### Database Reset (Development)
 - **Delete** the existing database file from user data directory
 - **Restart** the application to recreate with new schema
 - Database path: `%APPDATA%/electron-shadcn Template/database.sqlite`
 
-#### 8. Common Issues & Solutions
+### Common Issues & Solutions
 
-**Foreign Key Constraint Errors:**
-- Ensure all foreign key relationships use `ON DELETE CASCADE`
-- Verify parent records exist before creating child records
-- Use proper cascading deletes instead of manual deletion chains
-
-**"No handler registered" Errors:**
-- Check all 4 layers: main.ts → preload.ts → electron.d.ts → wrapper functions
-- Ensure IPC channel names match exactly across all files
-- Verify functions are properly exposed in preload API
+**"DB method '...' not found" Errors:**
+- Ensure the method name in your renderer call (e.g., `connectionManager.myMethod()`) exactly matches the method name in the `DatabaseService` class in `src/lib/db/index.ts`.
+- Make sure you have restarted the application after making changes to [src/lib/db/index.ts](mdc:src/lib/db/index.ts).
 
 **"Column doesn't exist" Errors:**
 - Delete old database file to recreate schema
 - Ensure new fields are included in both interface and CREATE TABLE
 - Update all INSERT/UPDATE statements with new fields
 
-### Database Entities
-- **Clients**: Patient information and demographics
-- **Medical Logs**: Medical history and notes
-- **Optical Exams**: Vision test results and measurements
-- **Optical Eye Exams**: Per-eye detailed exam data
-- **Orders**: Eyewear orders (independent of exams)
-- **Order Eyes**: Per-eye prescription data for orders
-- **Order Lens**: Lens specifications for orders
-- **Frames**: Frame details for orders
-- **Contact Lens**: Contact lens exam data
-- **Contact Eye**: Per-eye contact lens data
-- **Contact Lens Orders**: Contact lens order details
-- **Billing**: Billing and payment information
-- **Order Line Items**: Detailed billing line items
 
 ### Best Practices
 - Always use TypeScript interfaces for type safety
 - Keep schema definitions and database service in sync
-- Use the wrapper functions in `*-db.ts` files instead of direct database calls
+- Use the `connectionManager` via wrapper functions in `*-db.ts` files for all database calls from the renderer process.
 - Test database operations after schema changes
 - Use proper error handling in database operations
 - Delete old database during development when schema changes

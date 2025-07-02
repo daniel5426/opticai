@@ -135,7 +135,33 @@ export interface AdditionExam {
   r_iop?: number;
   l_iop?: number;
 }
- 
+
+export interface RetinoscopExam {
+  id?: number;
+  layout_instance_id: number;
+  r_sph?: number;
+  l_sph?: number;
+  r_cyl?: number;
+  l_cyl?: number;
+  r_ax?: number;
+  l_ax?: number;
+  r_reflex?: string;
+  l_reflex?: string;
+}
+
+export interface RetinoscopDilationExam {
+  id?: number;
+  layout_instance_id: number;
+  r_sph?: number;
+  l_sph?: number;
+  r_cyl?: number;
+  l_cyl?: number;
+  r_ax?: number;
+  l_ax?: number;
+  r_reflex?: string;
+  l_reflex?: string;
+}
+
 export interface FinalSubjectiveExam {
   id?: number;
   layout_instance_id: number;
@@ -240,7 +266,6 @@ export interface Appointment {
   exam_name?: string;
   note?: string;
 }
-
 
 export interface OrderLens {
   id?: number;
@@ -608,6 +633,28 @@ export interface ExamLayoutInstance {
   updated_at?: string;
 }
 
+export interface UncorrectedVAExam {
+  id?: number;
+  layout_instance_id: number;
+  r_fv?: string;
+  l_fv?: string;
+  r_iv?: string;
+  l_iv?: string;
+  r_nv_j?: string;
+  l_nv_j?: string;
+}
+
+export interface KeratometerExam {
+  id?: number;
+  layout_instance_id: number;
+  r_k1?: number;
+  r_k2?: number;
+  r_axis?: number;
+  l_k1?: number;
+  l_k2?: number;
+  l_axis?: number;
+}
+
 export const createTables = (db: Database): void => {
   // Create clients table
   db.exec(`
@@ -770,6 +817,40 @@ export const createTables = (db: Database): void => {
       l_j INTEGER,
       r_iop REAL,
       l_iop REAL,
+      FOREIGN KEY(layout_instance_id) REFERENCES exam_layout_instances(id) ON DELETE CASCADE
+    );
+  `);
+
+  // Create retinoscop_exams table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS retinoscop_exams (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      layout_instance_id INTEGER NOT NULL,
+      r_sph REAL,
+      l_sph REAL,
+      r_cyl REAL,
+      l_cyl REAL,
+      r_ax INTEGER,
+      l_ax INTEGER,
+      r_reflex TEXT,
+      l_reflex TEXT,
+      FOREIGN KEY(layout_instance_id) REFERENCES exam_layout_instances(id) ON DELETE CASCADE
+    );
+  `);
+
+  // Create retinoscop_dilation_exams table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS retinoscop_dilation_exams (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      layout_instance_id INTEGER NOT NULL,
+      r_sph REAL,
+      l_sph REAL,
+      r_cyl REAL,
+      l_cyl REAL,
+      r_ax INTEGER,
+      l_ax INTEGER,
+      r_reflex TEXT,
+      l_reflex TEXT,
       FOREIGN KEY(layout_instance_id) REFERENCES exam_layout_instances(id) ON DELETE CASCADE
     );
   `);
@@ -1453,6 +1534,36 @@ export const createTables = (db: Database): void => {
     INSERT OR IGNORE INTO exam_layouts (id, name, layout_data, is_default) 
     SELECT 1, 'ברירת מחדל', '${defaultLayoutData}', 1
     WHERE NOT EXISTS (SELECT 1 FROM exam_layouts WHERE id = 1);
+  `);
+
+  // Create uncorrected_va_exams table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS uncorrected_va_exams (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      layout_instance_id INTEGER NOT NULL,
+      r_fv TEXT,
+      l_fv TEXT,
+      r_iv TEXT,
+      l_iv TEXT,
+      r_nv_j TEXT,
+      l_nv_j TEXT,
+      FOREIGN KEY(layout_instance_id) REFERENCES exam_layout_instances(id) ON DELETE CASCADE
+    );
+  `);
+
+  // Create keratometer_exams table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS keratometer_exams (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      layout_instance_id INTEGER NOT NULL,
+      r_k1 REAL,
+      r_k2 REAL,
+      r_axis INTEGER,
+      l_k1 REAL,
+      l_k2 REAL,
+      l_axis INTEGER,
+      FOREIGN KEY(layout_instance_id) REFERENCES exam_layout_instances(id) ON DELETE CASCADE
+    );
   `);
 };
   

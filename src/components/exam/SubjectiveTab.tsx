@@ -361,7 +361,6 @@ export function SubjectiveTab({
             ))}
             
             {!hideEyeLabels && <div className="flex items-center justify-center">
-              <span className="text-base font-medium">C</span>
             </div>}
             {columns.map(({ key, step }) => {
               if (key === "fa" || key === "fa_tuning") {

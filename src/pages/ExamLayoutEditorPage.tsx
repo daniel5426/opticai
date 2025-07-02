@@ -95,6 +95,10 @@ function AddComponentDrawer({ isEditing, onAddComponent }: AddComponentDrawerPro
     { id: 'subjective', label: 'Subjective', description: 'סובייקטיבי' },
     { id: 'final-subjective', label: 'Final Subjective', description: 'סובייקטיבי סופי' },
     { id: 'addition', label: 'Addition', description: 'תוספות' },
+    { id: 'retinoscop', label: 'Retinoscopy', description: 'רטינוסקופיה' },
+    { id: 'retinoscop-dilation', label: 'Retinoscopy with dilation', description: 'רטינוסקופיה עם הרחבה' },
+    { id: 'uncorrected-va', label: 'Uncorrected VA', description: 'ראייה לא מתוקנת' },
+    { id: 'keratometer', label: 'Keratometer', description: 'קראטומטר' },
     { id: 'notes', label: 'Notes', description: 'הערות' },
   ] as const
 
@@ -492,8 +496,11 @@ export default function ExamLayoutEditorPage() {
     return (
       <>
         <SiteHeader 
-          title="פריסות בדיקה"
-          backLink="/exam-layouts"
+          title={layoutName}
+          parentTitle="פריסות בדיקה"
+          parentLink="/exam-layouts"
+          grandparentTitle="הגדרות"
+          grandparentLink="/settings"
         />
       </>
     )
@@ -502,8 +509,11 @@ export default function ExamLayoutEditorPage() {
   return (
     <>
       <SiteHeader 
-        title="פריסות בדיקה"
-        backLink="/exam-layouts"
+        title={layoutName}
+        parentTitle="פריסות בדיקה"
+        parentLink="/exam-layouts"
+        grandparentTitle="הגדרות"
+        grandparentLink="/settings"
       />
       <div className="flex flex-col flex-1 p-4 lg:p-6 mb-10" dir="rtl">
         <div className="flex justify-between items-center mb-6">
@@ -603,7 +613,7 @@ export default function ExamLayoutEditorPage() {
                                   item={card}
                                   rowCards={row.cards}
                                   mode="editor"
-                                  hideEyeLabels={index === 1}
+                                  hideEyeLabels={index > 0}
                                   matchHeight={hasNoteCard(row.cards) && row.cards.length > 1}
                                 />
                               </div>
@@ -661,7 +671,7 @@ export default function ExamLayoutEditorPage() {
                               item={card}
                               rowCards={row.cards}
                               mode="editor"
-                              hideEyeLabels={index === 1}
+                              hideEyeLabels={index > 0}
                               matchHeight={false}
                             />
                           </div>

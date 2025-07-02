@@ -2,7 +2,7 @@ import { Settings } from "./schema";
 
 export async function getSettings(): Promise<Settings | null> {
   try {
-    return await window.electronAPI.getSettings();
+    return await window.electronAPI.db('getSettings');
   } catch (error) {
     console.error('Error getting settings:', error);
     return null;
@@ -11,7 +11,7 @@ export async function getSettings(): Promise<Settings | null> {
 
 export async function updateSettings(settings: Settings): Promise<Settings | null> {
   try {
-    return await window.electronAPI.updateSettings(settings);
+    return await window.electronAPI.db('updateSettings', settings);
   } catch (error) {
     console.error('Error updating settings:', error);
     return null;

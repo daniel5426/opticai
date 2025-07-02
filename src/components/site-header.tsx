@@ -13,6 +13,8 @@ interface SiteHeaderProps {
   backLink?: string
   parentTitle?: string
   parentLink?: string
+  grandparentTitle?: string
+  grandparentLink?: string
   clientName?: string
   client?: Client
   clientBackLink?: string
@@ -72,7 +74,7 @@ function ClientTooltip({ client }: { client: Client }) {
   )
 }
 
-export function SiteHeader({ title, backLink, parentTitle, parentLink, clientName, client, clientBackLink, examInfo, tabs }: SiteHeaderProps) {
+export function SiteHeader({ title, backLink, parentTitle, parentLink, grandparentTitle, grandparentLink, clientName, client, clientBackLink, examInfo, tabs }: SiteHeaderProps) {
   const displayName = client ? `${client.first_name} ${client.last_name}`.trim() : clientName
   const [isHovering, setIsHovering] = useState(false)
 
@@ -86,9 +88,21 @@ export function SiteHeader({ title, backLink, parentTitle, parentLink, clientNam
             orientation="vertical"
             className="mx-2 data-[orientation=vertical]:h-4"
           />
-          {backLink || parentTitle ? (
+          {backLink || parentTitle || grandparentTitle ? (
             <div className="flex items-center gap-2">
-              {parentTitle && parentLink ? (
+              {grandparentTitle && grandparentLink && parentTitle && parentLink ? (
+                <>
+                  <Link to={grandparentLink} className="flex items-center gap-1 text-muted-foreground hover:text-foreground">
+                    <span>{grandparentTitle}</span>
+                  </Link>
+                  <Separator orientation="vertical" className="mx-2 data-[orientation=vertical]:h-4" />
+                  <Link to={parentLink} className="flex items-center gap-1 text-muted-foreground hover:text-foreground">
+                    <span>{parentTitle}</span>
+                  </Link>
+                  <Separator orientation="vertical" className="mx-2 data-[orientation=vertical]:h-4" />
+                  <h1 className="text-base font-medium">{title}</h1>
+                </>
+              ) : parentTitle && parentLink ? (
                 <>
                   <Link to={parentLink} className="flex items-center gap-1 text-muted-foreground hover:text-foreground">
                     <span>{parentTitle}</span>

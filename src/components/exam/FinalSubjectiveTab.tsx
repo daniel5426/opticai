@@ -309,7 +309,6 @@ export function FinalSubjectiveTab({
             {columns.map(col => <div key={`r-${col.key}`}>{renderInput("R", col)}</div>)}
             
             {!hideEyeLabels && <div className="flex items-center justify-center h-8">
-              <span className="text-base font-medium">C</span>
             </div>}
             {columns.map(({ key, step }) => {
               if (key === 'pr_v') {

@@ -1,4 +1,8 @@
 import { httpClient } from './http-client';
+import { ElectronAPI } from '../../types/electron';
+import { dbService } from './index';
+
+type DBServiceType = typeof dbService;
 
 export type ConnectionMode = 'local' | 'remote';
 
@@ -88,83 +92,38 @@ class ConnectionManager {
     return true;
   }
 
-  private async executeLocal<T>(operation: () => Promise<T>): Promise<T> {
-    if (!window.electronAPI) {
-      throw new Error('Electron API not available');
-    }
-    return operation();
-  }
-
-  private async executeRemote<T>(operation: () => Promise<T>): Promise<T> {
-    if (!this.serverUrl) {
-      throw new Error('No server URL configured');
-    }
-    return operation();
-  }
-
-  async execute<T>(
-    localOperation: () => Promise<T>,
-    remoteOperation: () => Promise<T>
+  protected async execute<T>(
+    operationName: keyof ElectronAPI | keyof typeof httpClient,
+    ...args: any[]
   ): Promise<T> {
     await this.initialize();
     
     if (this.mode === 'local') {
-      return this.executeLocal(localOperation);
+      if (!window.electronAPI) {
+        throw new Error('Electron API not available');
+      }
+      return window.electronAPI.db(operationName as string, ...args);
     } else {
-      return this.executeRemote(remoteOperation);
+      if (!this.serverUrl) {
+        throw new Error('No server URL configured');
+      }
+      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+      // @ts-ignore
+      if (typeof httpClient[operationName] === 'function') {
+        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+        // @ts-ignore
+        return httpClient[operationName](...args);
+      }
+      throw new Error(`Remote operation ${String(operationName)} not found`);
     }
   }
 
   async authenticateUser(username: string, password?: string): Promise<any> {
-    return this.execute(
-      () => window.electronAPI.authenticateUser(username, password),
-      () => httpClient.authenticateUser(username, password)
-    );
+    if (this.isRemoteMode()) {
+      return httpClient.authenticateUser(username, password);
   }
-
-  async getAllUsers(): Promise<any[]> {
-    return this.execute(
-      () => window.electronAPI.getAllUsers(),
-      () => httpClient.getAllUsers()
-    );
-  }
-
-  async createClient(client: any): Promise<any> {
-    return this.execute(
-      () => window.electronAPI.createClient(client),
-      () => httpClient.createClient(client)
-    );
-  }
-
-  async getAllClients(): Promise<any[]> {
-    return this.execute(
-      () => window.electronAPI.getAllClients(),
-      () => httpClient.getAllClients()
-    );
-  }
-
-  async getClientById(id: number): Promise<any> {
-    return this.execute(
-      () => window.electronAPI.getClient(id),
-      () => httpClient.getClientById(id)
-    );
-  }
-
-  async updateClient(client: any): Promise<any> {
-    return this.execute(
-      () => window.electronAPI.updateClient(client),
-      () => httpClient.updateClient(client)
-    );
-  }
-
-  async deleteClient(id: number): Promise<boolean> {
-    return this.execute(
-      () => window.electronAPI.deleteClient(id),
-      async () => {
-        const result = await httpClient.deleteClient(id);
-        return result.success;
-      }
-    );
+    // For local mode, authentication is handled by a specific IPC call, not the generic DB one.
+    return window.electronAPI.db('authenticateUser', username, password);
   }
 
   getConnectionStatus(): {
@@ -180,5 +139,23 @@ class ConnectionManager {
   }
 }
 
-export const connectionManager = new ConnectionManager();
+class DynamicConnectionManager extends ConnectionManager {
+  constructor() {
+    super();
+    return new Proxy(this, {
+      get: (target, prop, receiver) => {
+        if (prop in target) {
+          return Reflect.get(target, prop, receiver);
+        }
+
+        // Dynamically create a method that calls through execute
+        return (...args: any[]) => {
+          return this.execute(prop as any, ...args);
+        };
+      }
+    });
+  }
+}
+
+export const connectionManager: DynamicConnectionManager & DBServiceType = new DynamicConnectionManager() as any;
 export default connectionManager; 

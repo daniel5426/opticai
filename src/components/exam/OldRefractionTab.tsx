@@ -357,7 +357,6 @@ export function OldRefractionTab({
             ))}
             
             {!hideEyeLabels && <div className="flex items-center justify-center h-8">
-              <span className="text-base font-medium">C</span>
             </div>}
             {columns.map(({ key, step }) => {
               if (key === 'cyl') {

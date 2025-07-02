@@ -13,7 +13,7 @@ export async function getAllUsers(): Promise<User[]> {
 
 export async function getUserById(userId: number): Promise<User | null> {
   try {
-    return await window.electronAPI.getUser(userId);
+    return await window.electronAPI.db('getUserById', userId);
   } catch (error) {
     console.error('Error getting user:', error);
     return null;
@@ -22,7 +22,7 @@ export async function getUserById(userId: number): Promise<User | null> {
 
 export async function getUserByUsername(username: string): Promise<User | null> {
   try {
-    return await window.electronAPI.getUserByUsername(username);
+    return await window.electronAPI.db('getUserByUsername', username);
   } catch (error) {
     console.error('Error getting user by username:', error);
     return null;
@@ -31,7 +31,7 @@ export async function getUserByUsername(username: string): Promise<User | null> 
 
 export async function createUser(userData: Omit<User, 'id' | 'created_at' | 'updated_at'>): Promise<User | null> {
   try {
-    return await window.electronAPI.createUser(userData);
+    return await window.electronAPI.db('createUser', userData);
   } catch (error) {
     console.error('Error creating user:', error);
     return null;
@@ -40,7 +40,7 @@ export async function createUser(userData: Omit<User, 'id' | 'created_at' | 'upd
 
 export async function updateUser(userData: User): Promise<User | null> {
   try {
-    return await window.electronAPI.updateUser(userData);
+    return await window.electronAPI.db('updateUser', userData);
   } catch (error) {
     console.error('Error updating user:', error);
     return null;
@@ -49,7 +49,7 @@ export async function updateUser(userData: User): Promise<User | null> {
 
 export async function deleteUser(userId: number): Promise<boolean> {
   try {
-    return await window.electronAPI.deleteUser(userId);
+    return await window.electronAPI.db('deleteUser', userId);
   } catch (error) {
     console.error('Error deleting user:', error);
     return false;
