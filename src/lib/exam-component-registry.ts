@@ -1,6 +1,7 @@
 import {
   OpticalExam,
   OldRefractionExam,
+  OldRefractionExtensionExam,
   ObjectiveExam,
   SubjectiveExam,
   AdditionExam,
@@ -9,9 +10,10 @@ import {
   RetinoscopDilationExam,
   UncorrectedVAExam,
   KeratometerExam,
+  CoverTestExam,
 } from "@/lib/db/schema"
 
-export type ExamComponentType = 'old-refraction' | 'objective' | 'subjective' | 'addition' | 'final-subjective' | 'retinoscop' | 'retinoscop-dilation' | 'uncorrected-va' | 'keratometer'
+export type ExamComponentType = 'old-refraction' | 'old-refraction-extension' | 'objective' | 'subjective' | 'addition' | 'final-subjective' | 'retinoscop' | 'retinoscop-dilation' | 'uncorrected-va' | 'keratometer' | 'cover-test'
 
 export interface ExamComponentConfig<T = any> {
   name: string
@@ -349,5 +351,59 @@ registry.register<KeratometerExam>('keratometer', {
   },
   hasData: (data) => !!data && Object.values(data).some(v => v !== null && v !== undefined && v !== '')
 });
+
+registry.register<CoverTestExam>('cover-test', {
+  name: 'בדיקת כיסוי',
+  getData: (layoutInstanceId: number) => window.electronAPI.db('getCoverTestExamByLayoutInstanceId', layoutInstanceId),
+  createData: (data: Omit<CoverTestExam, 'id'>) => window.electronAPI.db('createCoverTestExam', data),
+  updateData: (data: CoverTestExam) => window.electronAPI.db('updateCoverTestExam', data),
+  getNumericFields: () => ['fv_1', 'fv_2', 'nv_1', 'nv_2'],
+  getIntegerFields: () => [],
+  validateField: (field, value) => {
+    if (value === '' || value === null) return undefined;
+    const numericFields = ['fv_1', 'fv_2', 'nv_1', 'nv_2'];
+    if (numericFields.includes(field as string)) {
+      const num = parseFloat(value);
+      return isNaN(num) ? undefined : num;
+    }
+    return value;
+  },
+  hasData: (data) => !!data && Object.values(data).some(v => v !== null && v !== undefined && v !== '')
+});
+
+registry.register<OldRefractionExtensionExam>('old-refraction-extension', {
+  name: 'רפרקציה ישנה E',
+  getData: (layoutInstanceId: number) => window.electronAPI.db('getOldRefractionExtensionExamByLayoutInstanceId', layoutInstanceId),
+  createData: (data: Omit<OldRefractionExtensionExam, 'id'>) => window.electronAPI.db('createOldRefractionExtensionExam', data),
+  updateData: (data: OldRefractionExtensionExam) => window.electronAPI.db('updateOldRefractionExtensionExam', data),
+  getNumericFields: () => [
+    "r_sph", "r_cyl", "r_pr_h", "r_pr_v", "r_va", "r_ad", "r_pd_far", "r_pd_close",
+    "l_sph", "l_cyl", "l_pr_h", "l_pr_v", "l_va", "l_ad", "l_pd_far", "l_pd_close",
+    "comb_va", "comb_pd_far", "comb_pd_close"
+  ],
+  getIntegerFields: () => ["r_ax", "l_ax", "r_j", "l_j"],
+  validateField: (field, rawValue) => {
+    const numericFields = [
+      "r_sph", "r_cyl", "r_pr_h", "r_pr_v", "r_va", "r_ad", "r_pd_far", "r_pd_close",
+      "l_sph", "l_cyl", "l_pr_h", "l_pr_v", "l_va", "l_ad", "l_pd_far", "l_pd_close",
+      "comb_va", "comb_pd_far", "comb_pd_close"
+    ]
+    const integerFields = ["r_ax", "l_ax", "r_j", "l_j"]
+    
+    if (numericFields.includes(field as string)) {
+      const val = parseFloat(rawValue)
+      return rawValue === "" || isNaN(val) ? undefined : val
+    } else if (integerFields.includes(field as string)) {
+      const val = parseInt(rawValue, 10)
+      return rawValue === "" || isNaN(val) ? undefined : val
+    } else if (rawValue === "") {
+      return undefined
+    }
+    return rawValue
+  },
+  hasData: (data) => Object.values(data).some(value => 
+    value !== undefined && value !== null && value !== ''
+  )
+})
 
 export { registry as examComponentRegistry } 

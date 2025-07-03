@@ -1,0 +1,236 @@
+# Adding New Exam Cards - Complete Guide
+
+This guide documents the complete process for adding new exam cards to the optical clinic system. The system uses a registry-based architecture that automatically handles most of the integration once properly configured.
+
+## Overview
+
+The exam card system consists of:
+- **Database Layer**: Schema and CRUD operations
+- **Registry System**: Automatic component registration and field handling
+- **Field Mappings**: For data copying between components
+- **UI Components**: React components for the card interface
+- **Card Renderer**: Automatic rendering and integration
+
+## Step-by-Step Implementation
+
+### 1. Database Schema ([src/lib/db/schema.ts](mdc:src/lib/db/schema.ts))
+
+**Add the TypeScript interface:**
+```typescript
+export interface NewExamTypeExam {
+  id?: number;
+  layout_instance_id: number;
+  // Add your specific fields here
+  r_field1?: number;
+  l_field1?: number;
+  // ... other fields
+}
+```
+
+**Add table creation in `createTables` function:**
+```sql
+CREATE TABLE IF NOT EXISTS new_exam_type_exams (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  layout_instance_id INTEGER NOT NULL,
+  r_field1 REAL,
+  l_field1 REAL,
+  -- ... other fields
+  FOREIGN KEY (layout_instance_id) REFERENCES exam_layout_instances(id) ON DELETE CASCADE
+);
+```
+
+### 2. Database Service ([src/lib/db/index.ts](mdc:src/lib/db/index.ts))
+
+**Add import:**
+```typescript
+import { NewExamTypeExam } from './schema';
+```
+
+**Add CRUD methods to DatabaseService class:**
+```typescript
+createNewExamTypeExam(data: Omit<NewExamTypeExam, 'id'>): NewExamTypeExam | null {
+  // Implementation
+}
+
+getNewExamTypeExamByLayoutInstanceId(layoutInstanceId: number): NewExamTypeExam | null {
+  // Implementation
+}
+
+updateNewExamTypeExam(data: NewExamTypeExam): NewExamTypeExam | null {
+  // Implementation
+}
+```
+
+### 3. Component Registry ([src/lib/exam-component-registry.ts](mdc:src/lib/exam-component-registry.ts))
+
+**Add to ExamComponentType union:**
+```typescript
+export type ExamComponentType = 'old-refraction' | 'new-exam-type' | /* ... existing types */
+```
+
+**Add import:**
+```typescript
+import { NewExamTypeExam } from "@/lib/db/schema"
+```
+
+**Register the component:**
+```typescript
+registry.register<NewExamTypeExam>('new-exam-type', {
+  name: 'Hebrew Name Here',
+  getData: (layoutInstanceId: number) => window.electronAPI.db('getNewExamTypeExamByLayoutInstanceId', layoutInstanceId),
+  createData: (data: Omit<NewExamTypeExam, 'id'>) => window.electronAPI.db('createNewExamTypeExam', data),
+  updateData: (data: NewExamTypeExam) => window.electronAPI.db('updateNewExamTypeExam', data),
+  getNumericFields: () => [/* list numeric fields */],
+  getIntegerFields: () => [/* list integer fields */],
+  validateField: (field, rawValue) => {
+    // Field validation logic
+  },
+  hasData: (data) => Object.values(data).some(value => 
+    value !== undefined && value !== null && value !== ''
+  )
+})
+```
+
+### 4. Field Mappings ([src/lib/exam-field-mappings.ts](mdc:src/lib/exam-field-mappings.ts))
+
+**Add to type definitions:**
+```typescript
+export type ExamComponentType = 'old-refraction' | 'new-exam-type' | /* ... existing types */
+```
+
+**Add to defaultMaps:**
+```typescript
+'new-exam-type': {
+  'old-refraction': { /* field mappings */ },
+  'objective': { /* field mappings */ },
+  // ... other mappings
+}
+```
+
+**Add to getFieldNames function:**
+```typescript
+case 'new-exam-type':
+  return [
+    'r_field1', 'l_field1', // ... list all fields
+  ];
+```
+
+### 5. UI Component ([src/components/exam/NewExamTypeTab.tsx](mdc:src/components/exam/NewExamTypeTab.tsx))
+
+**Create the React component:**
+```typescript
+import React from "react"
+import { Card } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { NewExamTypeExam } from "@/lib/db/schema"
+
+interface NewExamTypeTabProps {
+  newExamTypeData: NewExamTypeExam;
+  onNewExamTypeChange: (field: keyof NewExamTypeExam, value: string) => void;
+  isEditing: boolean;
+  hideEyeLabels?: boolean;
+  needsMiddleSpacer?: boolean;
+}
+
+export const NewExamTypeTab: React.FC<NewExamTypeTabProps> = ({
+  newExamTypeData,
+  onNewExamTypeChange,
+  isEditing,
+  hideEyeLabels = false,
+  needsMiddleSpacer = false
+}) => {
+  // Component implementation
+}
+```
+
+### 6. Card Renderer Integration ([src/components/exam/ExamCardRenderer.tsx](mdc:src/components/exam/ExamCardRenderer.tsx))
+
+The new registry-based system automatically handles most integration! You only need to:
+
+**Add import:**
+```typescript
+import { NewExamTypeTab } from "@/components/exam/NewExamTypeTab"
+import { NewExamTypeExam } from "@/lib/db/schema"
+```
+
+**Add to CardItem type:**
+```typescript
+type: 'exam-details' | 'new-exam-type' | /* ... existing types */
+```
+
+**Add to appropriate component lists:**
+```typescript
+const componentsWithMiddleRow: CardItem['type'][] = ['old-refraction', 'new-exam-type', /* ... */];
+// OR
+const componentsDontHaveMiddleRow: CardItem['type'][] = ['objective', 'new-exam-type', /* ... */];
+```
+
+**Add to getColumnCount function:**
+```typescript
+case 'new-exam-type': return 8 // or whatever number of columns
+```
+
+**Add case in switch statement:**
+```typescript
+case 'new-exam-type':
+  return (
+    <div className="relative">
+      <NewExamTypeTab
+        newExamTypeData={mode === 'editor' ? emptyNewExamTypeData : detailProps!.examFormData['new-exam-type']}
+        onNewExamTypeChange={mode === 'editor' ? () => {} : getFieldHandler(detailProps!.fieldHandlers, 'new-exam-type')}
+        isEditing={mode === 'editor' ? false : detailProps!.isEditing}
+        hideEyeLabels={hideEyeLabels}
+        needsMiddleSpacer={needsMiddleSpacer}
+      />
+      {createToolboxForComponent('new-exam-type')}
+    </div>
+  )
+```
+
+## Key Benefits of This Architecture
+
+1. **Automatic Integration**: The registry system automatically handles form data, field handlers, and validation
+2. **Minimal File Changes**: Only need to update a few core files
+3. **Type Safety**: Full TypeScript support throughout
+4. **Automatic Layout Editor**: New components automatically appear in the layout editor
+5. **Toolbox Integration**: Copy/paste functionality works automatically
+6. **Field Mapping**: Data copying between components works seamlessly
+
+## Common Patterns
+
+### Field Types
+- **Numeric fields**: Use `getNumericFields()` for decimal values
+- **Integer fields**: Use `getIntegerFields()` for whole numbers  
+- **String fields**: Default handling for text values
+
+### Component Layout
+- **Components with middle row**: Add to `componentsWithMiddleRow` for combined fields
+- **Components without middle row**: Add to `componentsDontHaveMiddleRow` for simpler layouts
+
+### Special Features
+- **No V+H button**: Don't include vector+horizontal calculator
+- **Separate prism fields**: Use `PR.H`, `BASE.H`, `PR.V`, `BASE.V` instead of combined
+- **Combined fields**: Place in middle row between R and L columns
+
+## Testing Checklist
+
+- [ ] Database schema creates correctly
+- [ ] CRUD operations work
+- [ ] Component appears in layout editor
+- [ ] Form data saves and loads
+- [ ] Field validation works
+- [ ] Toolbox copy/paste functions
+- [ ] Component renders in both editor and detail modes
+- [ ] RTL layout displays correctly
+
+## Notes
+
+- Always follow Hebrew RTL layout patterns
+- Use `style={{scrollbarWidth: 'none'}}` to hide scrollbars
+- Components automatically get registered in the layout editor
+- The registry system handles most of the complexity automatically
+- Field mappings enable data copying between compatible components
+description:
+globs:
+alwaysApply: false
+---

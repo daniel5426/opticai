@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react"
+import React, { useState, useRef, useEffect, useCallback } from "react"
 import { useParams, useNavigate, Link } from "@tanstack/react-router"
 import { SiteHeader } from "@/components/site-header"
 import { getClientById } from "@/lib/db/clients-db"
@@ -11,10 +11,12 @@ import { ChevronDownIcon, PlusCircleIcon, X as XIcon } from "lucide-react"
 import { toast } from "sonner"
 import { useUser } from "@/contexts/UserContext"
 import { getAllUsers } from "@/lib/db/users-db"
-import { ExamCardRenderer, CardItem, DetailProps, calculateCardWidth, hasNoteCard } from "@/components/exam/ExamCardRenderer"
+import { ExamCardRenderer, CardItem, DetailProps, calculateCardWidth, hasNoteCard, createDetailProps } from "@/components/exam/ExamCardRenderer"
 import { createToolboxActions } from "@/components/exam/ExamToolbox"
 import { useClientData } from "@/contexts/ClientDataContext"
 import { examComponentRegistry, ExamComponentType } from "@/lib/exam-component-registry"
+import { copyToClipboard, pasteFromClipboard, getClipboardContentType } from "@/lib/exam-clipboard"
+import { ExamFieldMapper } from "@/lib/exam-field-mappings"
 
 interface ExamDetailPageProps {
   mode?: 'view' | 'edit' | 'new';
@@ -75,6 +77,7 @@ export default function ExamDetailPageRefactored({
   // Unified state management for all exam components
   const [examComponentData, setExamComponentData] = useState<Record<string, any>>({})
   const [examFormData, setExamFormData] = useState<Record<string, any>>({})
+  const [clipboardContentType, setClipboardContentType] = useState<ExamComponentType | null>(null)
   
   // Get the client data context to refresh exams after save
   let refreshExams: (() => Promise<void>) | undefined;
@@ -112,6 +115,63 @@ export default function ExamDetailPageRefactored({
   const [customWidths, setCustomWidths] = useState<Record<string, Record<string, number>>>({})
   const formRef = useRef<HTMLFormElement>(null)
   const navigate = useNavigate()
+
+  const handleCopy = (card: CardItem) => {
+    const cardType = card.type as ExamComponentType
+    const cardData = examFormData[cardType]
+    
+    if (!cardData) {
+      toast.error("אין נתונים להעתקה")
+      return
+    }
+
+    copyToClipboard(cardType, cardData)
+    setClipboardContentType(cardType)
+    toast.success("הבלוק הועתק", {
+      description: `סוג: ${cardType}`,
+      duration: 2000,
+    })
+  }
+
+  const handlePaste = (targetCard: CardItem) => {
+    const clipboardContent = pasteFromClipboard()
+    if (!clipboardContent) {
+      toast.error("אין מידע בלוח ההעתקה")
+      return
+    }
+
+    const { type: sourceType, data: sourceData } = clipboardContent
+    const targetType = targetCard.type as ExamComponentType
+    const targetData = examFormData[targetType]
+    const targetChangeHandler = fieldHandlers[targetType]
+
+    if (!targetData || !targetChangeHandler) {
+      toast.error("לא ניתן להדביק לבלוק זה")
+      return
+    }
+
+    const isCompatible = sourceType === targetType || ExamFieldMapper.getAvailableTargets(sourceType, [targetType]).includes(targetType)
+
+    if (!isCompatible) {
+      toast.error("העתקה לא נתמכת", {
+        description: `לא ניתן להעתיק מ'${sourceType}' ל'${targetType}'.`,
+      })
+      return
+    }
+
+    const copiedData = ExamFieldMapper.copyData(sourceData, targetData, sourceType, targetType)
+
+    Object.entries(copiedData).forEach(([key, value]) => {
+      if (key !== 'id' && key !== 'layout_instance_id' && value !== undefined) {
+        targetChangeHandler(key, String(value ?? ''))
+      }
+    })
+
+    toast.success("הנתונים הודבקו בהצלחה", {
+      description: `מ'${sourceType}' ל'${targetType}'.`,
+      duration: 2000,
+    })
+  }
 
   // Initialize form data for all registered components
   const initializeFormData = (layoutInstanceId: number) => {
@@ -159,6 +219,7 @@ export default function ExamDetailPageRefactored({
   }
 
   const fieldHandlers = createFieldHandlers()
+  const toolboxActions = createToolboxActions(examFormData, fieldHandlers)
 
   useEffect(() => {
     const loadData = async () => {
@@ -166,6 +227,8 @@ export default function ExamDetailPageRefactored({
 
       try {
         setLoading(true)
+
+        setClipboardContentType(getClipboardContentType())
 
         const layoutsData = await getAllExamLayouts()
         setAvailableLayouts(layoutsData)
@@ -612,57 +675,29 @@ export default function ExamDetailPageRefactored({
     }
   }
 
-  // Create toolbox actions with simplified approach
-  const toolboxActions = createToolboxActions(
-    examFormData['old-refraction'] || {},
-    examFormData['objective'] || {},
-    examFormData['subjective'] || {},
-    examFormData['final-subjective'] || {},
-    examFormData['addition'] || {},
-    fieldHandlers['old-refraction'],
-    fieldHandlers['objective'],
-    fieldHandlers['subjective'],
-    fieldHandlers['final-subjective'],
-    fieldHandlers['addition']
-  )
-
   // Build detail props dynamically
-  const detailProps: DetailProps = {
+  const detailProps: DetailProps = createDetailProps(
     isEditing,
     isNewMode,
     exam,
     formData,
-    oldRefractionFormData: examFormData['old-refraction'] || {},
-    objectiveFormData: examFormData['objective'] || {},
-    subjectiveFormData: examFormData['subjective'] || {},
-    finalSubjectiveFormData: examFormData['final-subjective'] || {},
-    additionFormData: examFormData['addition'] || {},
-    retinoscopFormData: examFormData['retinoscop'] || {},
-    retinoscopDilationFormData: examFormData['retinoscop-dilation'] || {},
-    uncorrectedVaFormData: examFormData['uncorrected-va'] || {},
-    keratometerFormData: examFormData['keratometer'] || {},
-    notesFormData: examFormData['notes'] || {},
+    examFormData,
+    fieldHandlers,
     handleInputChange,
     handleSelectChange,
     setFormData,
-    handleOldRefractionFieldChange: fieldHandlers['old-refraction'],
-    handleObjectiveFieldChange: fieldHandlers['objective'],
-    handleSubjectiveFieldChange: fieldHandlers['subjective'],
-    handleFinalSubjectiveChange: fieldHandlers['final-subjective'],
-    handleAdditionFieldChange: fieldHandlers['addition'],
-    handleRetinoscopFieldChange: fieldHandlers['retinoscop'],
-    handleRetinoscopDilationFieldChange: fieldHandlers['retinoscop-dilation'],
-    handleUncorrectedVaFieldChange: fieldHandlers['uncorrected-va'],
-    handleKeratometerFieldChange: fieldHandlers['keratometer'],
-    handleNotesChange: () => {},
-    handleMultifocalOldRefraction: () => {}, // TODO: Implement with registry
-    handleVHConfirmOldRefraction: () => {}, // TODO: Implement with registry
-    handleVHConfirm: () => {}, // TODO: Implement with registry
-    handleMultifocalSubjective: () => {}, // TODO: Implement with registry
-    handleFinalSubjectiveVHConfirm: () => {}, // TODO: Implement with registry
+    () => {}, // handleNotesChange
     toolboxActions,
-    allRows: cardRows.map(row => row.cards),
-  }
+    cardRows.map(row => row.cards),
+    {
+      handleMultifocalOldRefraction: () => {},
+      handleVHConfirmOldRefraction: () => {},
+      handleVHConfirm: () => {},
+      handleMultifocalSubjective: () => {},
+      handleFinalSubjectiveVHConfirm: () => {},
+      handleMultifocalOldRefractionExtension: () => {},
+    }
+  )
 
   if (loading) {
     return (
@@ -789,23 +824,51 @@ export default function ExamDetailPageRefactored({
               return (
                 <div key={row.id} className="w-full">
                     <div className="flex gap-4 flex-1" dir="ltr">
-                      {row.cards.map((card, cardIndex) => (
+                      {row.cards.map((item, cardIndex) => (
                         <div
-                          key={card.id}
+                          key={item.id}
                           style={{
-                            width: `${cardWidths[card.id]}%`,
+                            width: `${cardWidths[item.id]}%`,
                             minWidth: row.cards.length > 1 ? '200px' : 'auto'
                           }}
                         >
                           <ExamCardRenderer
-                            item={card}
+                            item={item}
                             rowCards={row.cards}
+                            isEditing={isEditing}
                             mode="detail"
                             detailProps={detailProps}
                             hideEyeLabels={cardIndex > 0}
                             matchHeight={hasNoteCard(row.cards) && row.cards.length > 1}
                             currentRowIndex={rowIndex}
                             currentCardIndex={cardIndex}
+                            clipboardSourceType={clipboardContentType}
+                            onCopy={() => handleCopy(item)}
+                            onPaste={() => handlePaste(item)}
+                            onClearData={() => toolboxActions.clearData(item.type as ExamComponentType)}
+                            onCopyLeft={() => {
+                              const currentRow = row.cards.slice(0, cardIndex).filter(c => c.type !== 'exam-details' && c.type !== 'notes')
+                              const availableTargets = ExamFieldMapper.getAvailableTargets(item.type as ExamComponentType, currentRow.map(c => c.type as ExamComponentType))
+                              if (availableTargets.length > 0) {
+                                toolboxActions.copyToLeft(item.type as ExamComponentType, availableTargets[0])
+                              }
+                            }}
+                            onCopyRight={() => {
+                              const currentRow = row.cards.slice(cardIndex + 1).filter(c => c.type !== 'exam-details' && c.type !== 'notes')
+                              const availableTargets = ExamFieldMapper.getAvailableTargets(item.type as ExamComponentType, currentRow.map(c => c.type as ExamComponentType))
+                              if (availableTargets.length > 0) {
+                                toolboxActions.copyToRight(item.type as ExamComponentType, availableTargets[0])
+                              }
+                            }}
+                            onCopyBelow={() => {
+                              if (rowIndex < cardRows.length - 1) {
+                                const belowRow = cardRows[rowIndex + 1].cards
+                                const availableTargets = ExamFieldMapper.getAvailableTargets(item.type as ExamComponentType, belowRow.map(c => c.type as ExamComponentType))
+                                if (availableTargets.length > 0) {
+                                  toolboxActions.copyToBelow(item.type as ExamComponentType, availableTargets[0])
+                                }
+                              }
+                            }}
                           />
                         </div>
                       ))}

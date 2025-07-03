@@ -7,6 +7,7 @@ import {
   Client,
   OpticalExam,
   OldRefractionExam,
+  OldRefractionExtensionExam,
   ObjectiveExam,
   SubjectiveExam,
   AdditionExam,
@@ -54,7 +55,8 @@ import {
   ExamLayout,
   ExamLayoutInstance,
   UncorrectedVAExam,
-  KeratometerExam
+  KeratometerExam,
+  CoverTestExam
 } from './schema';
 
 class DatabaseService {
@@ -615,6 +617,89 @@ class DatabaseService {
       return exam;
     } catch (error) {
       console.error('Error updating old refraction exam:', error);
+      return null;
+    }
+  }
+
+  // Old Refraction Extension Exam CRUD operations
+  createOldRefractionExtensionExam(exam: Omit<OldRefractionExtensionExam, 'id'>): OldRefractionExtensionExam | null {
+    if (!this.db) return null;
+
+    try {
+      const stmt = this.db.prepare(`
+        INSERT INTO old_refraction_extension_exams (
+          layout_instance_id, r_sph, l_sph, r_cyl, l_cyl, r_ax, l_ax, 
+          r_pr_h, l_pr_h, r_base_h, l_base_h, r_pr_v, l_pr_v, r_base_v, l_base_v,
+          r_va, l_va, r_ad, l_ad, r_j, l_j, r_pd_far, l_pd_far, r_pd_close, l_pd_close,
+          comb_va, comb_pd_far, comb_pd_close
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+
+      const result = stmt.run(
+        exam.layout_instance_id, exam.r_sph, exam.l_sph, exam.r_cyl, exam.l_cyl, exam.r_ax, exam.l_ax,
+        exam.r_pr_h, exam.l_pr_h, exam.r_base_h, exam.l_base_h, exam.r_pr_v, exam.l_pr_v, exam.r_base_v, exam.l_base_v,
+        exam.r_va, exam.l_va, exam.r_ad, exam.l_ad, exam.r_j, exam.l_j, exam.r_pd_far, exam.l_pd_far, exam.r_pd_close, exam.l_pd_close,
+        exam.comb_va, exam.comb_pd_far, exam.comb_pd_close
+      );
+
+      return { ...exam, id: result.lastInsertRowid as number };
+    } catch (error) {
+      console.error('Error creating old refraction extension exam:', error);
+      return null;
+    }
+  }
+
+  getOldRefractionExtensionExamByExamId(examId: number): OldRefractionExtensionExam | null {
+    if (!this.db) return null;
+
+    try {
+      const stmt = this.db.prepare(`
+        SELECT ore.* FROM old_refraction_extension_exams ore
+        JOIN exam_layout_instances eli ON ore.layout_instance_id = eli.id
+        WHERE eli.exam_id = ? AND eli.is_active = 1
+      `);
+      return stmt.get(examId) as OldRefractionExtensionExam | null;
+    } catch (error) {
+      console.error('Error getting old refraction extension exam:', error);
+      return null;
+    }
+  }
+
+  getOldRefractionExtensionExamByLayoutInstanceId(layoutInstanceId: number): OldRefractionExtensionExam | null {
+    if (!this.db) return null;
+
+    try {
+      const stmt = this.db.prepare('SELECT * FROM old_refraction_extension_exams WHERE layout_instance_id = ?');
+      return stmt.get(layoutInstanceId) as OldRefractionExtensionExam | null;
+    } catch (error) {
+      console.error('Error getting old refraction extension exam by layout instance ID:', error);
+      return null;
+    }
+  }
+
+  updateOldRefractionExtensionExam(exam: OldRefractionExtensionExam): OldRefractionExtensionExam | null {
+    if (!this.db || !exam.id) return null;
+
+    try {
+      const stmt = this.db.prepare(`
+        UPDATE old_refraction_extension_exams SET 
+        layout_instance_id = ?, r_sph = ?, l_sph = ?, r_cyl = ?, l_cyl = ?, r_ax = ?, l_ax = ?,
+        r_pr_h = ?, l_pr_h = ?, r_base_h = ?, l_base_h = ?, r_pr_v = ?, l_pr_v = ?, r_base_v = ?, l_base_v = ?,
+        r_va = ?, l_va = ?, r_ad = ?, l_ad = ?, r_j = ?, l_j = ?, r_pd_far = ?, l_pd_far = ?, r_pd_close = ?, l_pd_close = ?,
+        comb_va = ?, comb_pd_far = ?, comb_pd_close = ?
+        WHERE id = ?
+      `);
+
+      stmt.run(
+        exam.layout_instance_id, exam.r_sph, exam.l_sph, exam.r_cyl, exam.l_cyl, exam.r_ax, exam.l_ax,
+        exam.r_pr_h, exam.l_pr_h, exam.r_base_h, exam.l_base_h, exam.r_pr_v, exam.l_pr_v, exam.r_base_v, exam.l_base_v,
+        exam.r_va, exam.l_va, exam.r_ad, exam.l_ad, exam.r_j, exam.l_j, exam.r_pd_far, exam.l_pd_far, exam.r_pd_close, exam.l_pd_close,
+        exam.comb_va, exam.comb_pd_far, exam.comb_pd_close, exam.id
+      );
+
+      return exam;
+    } catch (error) {
+      console.error('Error updating old refraction extension exam:', error);
       return null;
     }
   }
@@ -4346,6 +4431,71 @@ class DatabaseService {
       return this.getKeratometerExamById(exam.id!);
     } catch (error) {
       console.error('Error updating keratometer exam:', error);
+      return null;
+    }
+  }
+
+  createCoverTestExam(exam: Omit<CoverTestExam, 'id'>): CoverTestExam | null {
+    if (!this.db) return null;
+    try {
+      const stmt = this.db.prepare(
+        'INSERT INTO cover_test_exams (layout_instance_id, deviation_type, deviation_direction, fv_1, fv_2, nv_1, nv_2) VALUES (@layout_instance_id, @deviation_type, @deviation_direction, @fv_1, @fv_2, @nv_1, @nv_2)'
+      );
+      const result = stmt.run({
+        ...exam,
+        deviation_type: this.sanitizeValue(exam.deviation_type),
+        deviation_direction: this.sanitizeValue(exam.deviation_direction),
+        fv_1: this.sanitizeValue(exam.fv_1),
+        fv_2: this.sanitizeValue(exam.fv_2),
+        nv_1: this.sanitizeValue(exam.nv_1),
+        nv_2: this.sanitizeValue(exam.nv_2),
+      });
+      return this.getCoverTestExamById(result.lastInsertRowid as number);
+    } catch (error) {
+      console.error('Error creating cover test exam:', error);
+      return null;
+    }
+  }
+
+  getCoverTestExamById(id: number): CoverTestExam | null {
+    if (!this.db) return null;
+    try {
+      return this.db.prepare('SELECT * FROM cover_test_exams WHERE id = ?').get(id) as CoverTestExam || null;
+    } catch (error) {
+      console.error('Error getting cover test exam by id:', error);
+      return null;
+    }
+  }
+
+  getCoverTestExamByLayoutInstanceId(layoutInstanceId: number): CoverTestExam | null {
+    if (!this.db) return null;
+    try {
+      const stmt = this.db.prepare('SELECT * FROM cover_test_exams WHERE layout_instance_id = ?');
+      return stmt.get(layoutInstanceId) as CoverTestExam || null;
+    } catch (error) {
+      console.error('Error getting cover test exam:', error);
+      return null;
+    }
+  }
+
+  updateCoverTestExam(exam: CoverTestExam): CoverTestExam | null {
+    if (!this.db) return null;
+    try {
+      const stmt = this.db.prepare(
+        'UPDATE cover_test_exams SET layout_instance_id = @layout_instance_id, deviation_type = @deviation_type, deviation_direction = @deviation_direction, fv_1 = @fv_1, fv_2 = @fv_2, nv_1 = @nv_1, nv_2 = @nv_2 WHERE id = @id'
+      );
+      stmt.run({
+        ...exam,
+        deviation_type: this.sanitizeValue(exam.deviation_type),
+        deviation_direction: this.sanitizeValue(exam.deviation_direction),
+        fv_1: this.sanitizeValue(exam.fv_1),
+        fv_2: this.sanitizeValue(exam.fv_2),
+        nv_1: this.sanitizeValue(exam.nv_1),
+        nv_2: this.sanitizeValue(exam.nv_2),
+      });
+      return this.getCoverTestExamById(exam.id!);
+    } catch (error) {
+      console.error('Error updating cover test exam:', error);
       return null;
     }
   }

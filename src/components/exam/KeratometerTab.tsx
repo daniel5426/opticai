@@ -71,7 +71,7 @@ export function KeratometerTab({
             <h3 className="font-medium text-muted-foreground">Keratometer</h3>
           </div>
 
-          <div className={`grid ${hideEyeLabels ? 'grid-cols-[repeat(5,1fr)]' : 'grid-cols-[20px_repeat(5,1fr)]'} gap-2 items-center`}>
+          <div className={`grid ${hideEyeLabels ? 'grid-cols-[2fr_1fr_2fr_1fr_2fr]' : 'grid-cols-[20px_2fr_1fr_2fr_1fr_2fr]'} gap-2 items-center`}>
             {!hideEyeLabels && <div></div>}
             {columns.map(({ label }) => (
               <React.Fragment key={label}>

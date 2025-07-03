@@ -29,8 +29,9 @@ import {
 } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
 import { GripVertical, Plus, Edit, Trash2 } from "lucide-react"
-import { ExamCardRenderer, CardItem, calculateCardWidth, hasNoteCard } from "@/components/exam/ExamCardRenderer"
+import { ExamCardRenderer, CardItem, calculateCardWidth, hasNoteCard, DetailProps } from "@/components/exam/ExamCardRenderer"
 import { getExamLayoutById, createExamLayout, updateExamLayout } from "@/lib/db/exam-layouts-db"
+import { examComponentRegistry } from "@/lib/exam-component-registry"
 
 interface CardRow {
   id: string
@@ -89,17 +90,21 @@ function AddComponentDrawer({ isEditing, onAddComponent }: AddComponentDrawerPro
 
   if (!isEditing) return null
 
+  // Generate component list from registry
+  const registeredComponents = examComponentRegistry.getAllTypes().map(type => {
+    const config = examComponentRegistry.getConfig(type);
+    return {
+      id: type,
+      label: type.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' '),
+      description: config?.name || type
+    };
+  });
+  
+  // Add notes component which isn't in the registry
   const eyeComponents = [
-    { id: 'old-refraction', label: 'Old Refraction', description: 'רפרקציה ישנה' },
-    { id: 'objective', label: 'Objective', description: 'אובייקטיבי' },
-    { id: 'subjective', label: 'Subjective', description: 'סובייקטיבי' },
-    { id: 'final-subjective', label: 'Final Subjective', description: 'סובייקטיבי סופי' },
-    { id: 'addition', label: 'Addition', description: 'תוספות' },
-    { id: 'retinoscop', label: 'Retinoscopy', description: 'רטינוסקופיה' },
-    { id: 'retinoscop-dilation', label: 'Retinoscopy with dilation', description: 'רטינוסקופיה עם הרחבה' },
-    { id: 'uncorrected-va', label: 'Uncorrected VA', description: 'ראייה לא מתוקנת' },
-    { id: 'keratometer', label: 'Keratometer', description: 'קראטומטר' },
+    ...registeredComponents,
     { id: 'notes', label: 'Notes', description: 'הערות' },
+    { id: 'exam-details', label: 'Exam Details', description: 'פרטי בדיקה' }
   ] as const
 
   const handleSelectComponent = (componentType: CardItem['type']) => {
@@ -612,6 +617,7 @@ export default function ExamLayoutEditorPage() {
                                 <ExamCardRenderer
                                   item={card}
                                   rowCards={row.cards}
+                                  isEditing={isEditing}
                                   mode="editor"
                                   hideEyeLabels={index > 0}
                                   matchHeight={hasNoteCard(row.cards) && row.cards.length > 1}
@@ -670,6 +676,7 @@ export default function ExamLayoutEditorPage() {
                             <ExamCardRenderer
                               item={card}
                               rowCards={row.cards}
+                              isEditing={isEditing}
                               mode="editor"
                               hideEyeLabels={index > 0}
                               matchHeight={false}

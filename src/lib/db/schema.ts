@@ -72,6 +72,38 @@ export interface OldRefractionExam {
   comb_va?: number;
 }
 
+export interface OldRefractionExtensionExam {
+  id?: number;
+  layout_instance_id: number;
+  r_sph?: number;
+  l_sph?: number;
+  r_cyl?: number;
+  l_cyl?: number;
+  r_ax?: number;
+  l_ax?: number;
+  r_pr_h?: number;
+  l_pr_h?: number;
+  r_base_h?: string;
+  l_base_h?: string;
+  r_pr_v?: number;
+  l_pr_v?: number;
+  r_base_v?: string;
+  l_base_v?: string;
+  r_va?: number;
+  l_va?: number;
+  r_ad?: number;
+  l_ad?: number;
+  r_j?: number;
+  l_j?: number;
+  r_pd_far?: number;
+  l_pd_far?: number;
+  r_pd_close?: number;
+  l_pd_close?: number;
+  comb_va?: number;
+  comb_pd_far?: number;
+  comb_pd_close?: number;
+}
+
 export interface ObjectiveExam {
   id?: number;
   layout_instance_id: number;
@@ -655,6 +687,17 @@ export interface KeratometerExam {
   l_axis?: number;
 }
 
+export interface CoverTestExam {
+  id?: number;
+  layout_instance_id: number;
+  deviation_type?: string;
+  deviation_direction?: string;
+  fv_1?: number;
+  fv_2?: number;
+  nv_1?: number;
+  nv_2?: number;
+}
+
 export const createTables = (db: Database): void => {
   // Create clients table
   db.exec(`
@@ -741,6 +784,42 @@ export const createTables = (db: Database): void => {
       r_ad REAL,
       l_ad REAL,
       comb_va REAL,
+      FOREIGN KEY(layout_instance_id) REFERENCES exam_layout_instances(id) ON DELETE CASCADE
+    );
+  `);
+
+  // Create old_refraction_extension_exams table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS old_refraction_extension_exams (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      layout_instance_id INTEGER NOT NULL,
+      r_sph REAL,
+      l_sph REAL,
+      r_cyl REAL,
+      l_cyl REAL,
+      r_ax INTEGER,
+      l_ax INTEGER,
+      r_pr_h REAL,
+      l_pr_h REAL,
+      r_base_h TEXT,
+      l_base_h TEXT,
+      r_pr_v REAL,
+      l_pr_v REAL,
+      r_base_v TEXT,
+      l_base_v TEXT,
+      r_va REAL,
+      l_va REAL,
+      r_ad REAL,
+      l_ad REAL,
+      r_j INTEGER,
+      l_j INTEGER,
+      r_pd_far REAL,
+      l_pd_far REAL,
+      r_pd_close REAL,
+      l_pd_close REAL,
+      comb_va REAL,
+      comb_pd_far REAL,
+      comb_pd_close REAL,
       FOREIGN KEY(layout_instance_id) REFERENCES exam_layout_instances(id) ON DELETE CASCADE
     );
   `);
@@ -1562,6 +1641,21 @@ export const createTables = (db: Database): void => {
       l_k1 REAL,
       l_k2 REAL,
       l_axis INTEGER,
+      FOREIGN KEY(layout_instance_id) REFERENCES exam_layout_instances(id) ON DELETE CASCADE
+    );
+  `);
+
+  // Create cover_test_exams table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS cover_test_exams (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      layout_instance_id INTEGER NOT NULL,
+      deviation_type TEXT,
+      deviation_direction TEXT,
+      fv_1 REAL,
+      fv_2 REAL,
+      nv_1 REAL,
+      nv_2 REAL,
       FOREIGN KEY(layout_instance_id) REFERENCES exam_layout_instances(id) ON DELETE CASCADE
     );
   `);

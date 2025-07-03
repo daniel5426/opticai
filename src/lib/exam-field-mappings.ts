@@ -1,5 +1,6 @@
 import { 
   OldRefractionExam, 
+  OldRefractionExtensionExam,
   ObjectiveExam, 
   SubjectiveExam, 
   FinalSubjectiveExam, 
@@ -7,12 +8,27 @@ import {
   RetinoscopExam,
   RetinoscopDilationExam,
   UncorrectedVAExam,
-  KeratometerExam
+  KeratometerExam,
+  CoverTestExam
 } from './db/schema'
 
-export type ExamComponentType = 'old-refraction' | 'objective' | 'subjective' | 'final-subjective' | 'addition' | 'retinoscop' | 'retinoscop-dilation' | 'uncorrected-va' | 'keratometer'
+export type ExamComponentType = 'old-refraction' | 'old-refraction-extension' | 'objective' | 'subjective' | 'final-subjective' | 'addition' | 'retinoscop' | 'retinoscop-dilation' | 'uncorrected-va' | 'keratometer' | 'cover-test'
 
-export type ExamDataType = OldRefractionExam | ObjectiveExam | SubjectiveExam | FinalSubjectiveExam | AdditionExam | RetinoscopExam | RetinoscopDilationExam | UncorrectedVAExam | KeratometerExam
+export const fullExamsList: ExamComponentType[] = [
+  'old-refraction',
+  'old-refraction-extension',
+  'objective',
+  'subjective',
+  'final-subjective',
+  'addition',
+  'retinoscop',
+  'retinoscop-dilation',
+  'uncorrected-va',
+  'keratometer',
+  'cover-test'
+
+]
+export type ExamDataType = OldRefractionExam | OldRefractionExtensionExam | ObjectiveExam | SubjectiveExam | FinalSubjectiveExam | AdditionExam | RetinoscopExam | RetinoscopDilationExam | UncorrectedVAExam | KeratometerExam | CoverTestExam
 
 export interface FieldMapping {
   [sourceField: string]: string | null
@@ -24,15 +40,17 @@ export interface ComponentFieldMappings {
 
 export class ExamFieldMapper {
   private static defaultMaps: Record<ExamComponentType, ExamComponentType[]> = {
-    'old-refraction': ['objective', 'subjective', 'final-subjective'],
-    'objective': ['old-refraction', 'subjective', 'final-subjective'],
-    'subjective': ['old-refraction', 'objective', 'final-subjective'],
-    'final-subjective': ['old-refraction', 'objective', 'subjective'],
-    'addition': ['final-subjective'],
-    'retinoscop': ['old-refraction', 'objective', 'subjective', 'final-subjective'],
-    'retinoscop-dilation': ['old-refraction', 'objective', 'subjective', 'final-subjective', 'retinoscop'],
-    'uncorrected-va': ['old-refraction', 'objective', 'subjective', 'final-subjective'],
-    'keratometer': ['objective', 'subjective']
+    'old-refraction': fullExamsList,
+    'old-refraction-extension': fullExamsList,
+    'objective': fullExamsList,
+    'subjective': fullExamsList,
+    'final-subjective': fullExamsList,
+    'addition': fullExamsList,
+    'retinoscop': fullExamsList,
+    'retinoscop-dilation': fullExamsList,
+    'uncorrected-va': [],
+    'keratometer': fullExamsList,
+    'cover-test': []
   }
 
   private static explicitMappings: Partial<Record<ExamComponentType, ComponentFieldMappings>> = {
@@ -60,6 +78,8 @@ export class ExamFieldMapper {
     switch (componentType) {
       case 'old-refraction':
         return ['r_sph', 'r_cyl', 'r_ax', 'r_pris', 'r_base', 'r_va', 'r_ad', 'l_sph', 'l_cyl', 'l_ax', 'l_pris', 'l_base', 'l_va', 'l_ad', 'comb_va']
+      case 'old-refraction-extension':
+        return ['r_sph', 'r_cyl', 'r_ax', 'r_pr_h', 'r_base_h', 'r_pr_v', 'r_base_v', 'r_va', 'r_ad', 'r_j', 'r_pd_far', 'r_pd_close', 'l_sph', 'l_cyl', 'l_ax', 'l_pr_h', 'l_base_h', 'l_pr_v', 'l_base_v', 'l_va', 'l_ad', 'l_j', 'l_pd_far', 'l_pd_close', 'comb_va', 'comb_pd_far', 'comb_pd_close']
       case 'objective':
         return ['r_sph', 'r_cyl', 'r_ax', 'r_se', 'l_sph', 'l_cyl', 'l_ax', 'l_se']
       case 'subjective':
@@ -76,6 +96,8 @@ export class ExamFieldMapper {
         return ['r_fv', 'r_iv', 'r_nv_j', 'l_fv', 'l_iv', 'l_nv_j']
       case 'keratometer':
         return ['r_k1', 'r_k2', 'r_axis', 'l_k1', 'l_k2', 'l_axis']
+      case 'cover-test':
+        return ['deviation_type', 'deviation_direction', 'fv_1', 'fv_2', 'nv_1', 'nv_2']
       default:
         return []
     }
@@ -123,9 +145,8 @@ export class ExamFieldMapper {
     Object.entries(mapping).forEach(([sourceField, targetField]) => {
       if (targetField && sourceField in sourceData && targetField in result) {
         const sourceValue = sourceData[sourceField as keyof T]
-        if (sourceValue !== undefined && sourceValue !== null && sourceValue !== '') {
-          (result as any)[targetField] = sourceValue
-        }
+        const valueToCopy = (sourceValue === null || sourceValue === undefined) ? '' : sourceValue;
+        (result as any)[targetField] = valueToCopy
       }
     })
 

@@ -1,6 +1,6 @@
 import React, { useState } from "react"
 import { Button } from "@/components/ui/button"
-import { Settings, X, ArrowRight, ArrowDown, ArrowLeft } from "lucide-react"
+import { Settings, X, ArrowRight, ArrowDown, ArrowLeft, Copy, ClipboardPaste } from "lucide-react"
 import { ExamFieldMapper, ExamComponentType, ExamDataType } from "@/lib/exam-field-mappings"
 import { CardItem } from "./ExamCardRenderer"
 
@@ -11,7 +11,10 @@ interface ExamToolboxProps {
   allRows: CardItem[][]
   currentRowIndex: number
   currentCardIndex: number
+  clipboardSourceType: ExamComponentType | null
   onClearData: () => void
+  onCopy: () => void
+  onPaste: () => void
   onCopyLeft: () => void
   onCopyRight: () => void
   onCopyBelow: () => void
@@ -24,7 +27,10 @@ export function ExamToolbox({
   allRows,
   currentRowIndex,
   currentCardIndex,
+  clipboardSourceType,
   onClearData,
+  onCopy,
+  onPaste,
   onCopyLeft,
   onCopyRight,
   onCopyBelow
@@ -78,7 +84,17 @@ export function ExamToolbox({
     return compatibleTargets.length > 0
   }
 
-  const hasAnyAction = canCopyLeft() || canCopyRight() || canCopyBelow()
+  const canPaste = () => {
+    if (!clipboardSourceType) return false
+    const currentCardType = currentCard.type as ExamComponentType
+    if (clipboardSourceType === currentCardType) {
+      return true
+    }
+    const compatibleTargets = ExamFieldMapper.getAvailableTargets(clipboardSourceType, [currentCardType])
+    return compatibleTargets.includes(currentCardType)
+  }
+
+  const hasAnyAction = canCopyLeft() || canCopyRight() || canCopyBelow() || canPaste()
 
   return (
     <div 
@@ -133,6 +149,30 @@ export function ExamToolbox({
               </Button>
             )}
             
+            {canPaste() && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={onPaste}
+                className="h-7 w-7 p-0 hover:bg-yellow-100 text-yellow-600 hover:text-yellow-800"
+                title="הדבק"
+              >
+                <ClipboardPaste className="h-3.5 w-3.w" />
+              </Button>
+            )}
+
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={onCopy}
+              className="h-7 w-7 p-0 hover:bg-cyan-100 text-cyan-600 hover:text-cyan-800"
+              title="העתק"
+            >
+              <Copy className="h-3.5 w-3.5" />
+            </Button>
+
             <Button
               type="button"
               variant="ghost"
@@ -175,38 +215,16 @@ export interface ToolboxActions {
 }
 
 export function createToolboxActions(
-  oldRefractionData: any,
-  objectiveData: any,
-  subjectiveData: any,
-  finalSubjectiveData: any,
-  additionData: any,
-  onOldRefractionChange: (field: string, value: string) => void,
-  onObjectiveChange: (field: string, value: string) => void,
-  onSubjectiveChange: (field: string, value: string) => void,
-  onFinalSubjectiveChange: (field: string, value: string) => void,
-  onAdditionChange: (field: string, value: string) => void
+  examFormData: Record<string, any>,
+  fieldHandlers: Record<string, (field: string, value: any) => void>
 ): ToolboxActions {
   
   const getDataByType = (componentType: ExamComponentType) => {
-    switch (componentType) {
-      case 'old-refraction': return oldRefractionData
-      case 'objective': return objectiveData
-      case 'subjective': return subjectiveData
-      case 'final-subjective': return finalSubjectiveData
-      case 'addition': return additionData
-      default: return null
-    }
+    return examFormData[componentType] || null
   }
 
   const getChangeHandlerByType = (componentType: ExamComponentType) => {
-    switch (componentType) {
-      case 'old-refraction': return onOldRefractionChange
-      case 'objective': return onObjectiveChange
-      case 'subjective': return onSubjectiveChange
-      case 'final-subjective': return onFinalSubjectiveChange
-      case 'addition': return onAdditionChange
-      default: return null
-    }
+    return fieldHandlers[componentType] || null
   }
 
   const clearData = (componentType: ExamComponentType) => {

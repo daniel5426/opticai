@@ -2,6 +2,7 @@ import React from "react"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { OldRefractionTab } from "@/components/exam/OldRefractionTab"
+import { OldRefractionExtensionTab } from "@/components/exam/OldRefractionExtensionTab"
 import { ObjectiveTab } from "@/components/exam/ObjectiveTab"
 import { SubjectiveTab } from "@/components/exam/SubjectiveTab"
 import { AdditionTab } from "@/components/exam/AdditionTab"
@@ -10,70 +11,116 @@ import { RetinoscopTab } from "@/components/exam/RetinoscopTab"
 import { RetinoscopDilationTab } from "@/components/exam/RetinoscopDilationTab"
 import { UncorrectedVATab } from "@/components/exam/UncorrectedVATab"
 import { KeratometerTab } from "@/components/exam/KeratometerTab"
-import { OpticalExam, OldRefractionExam, ObjectiveExam, SubjectiveExam, AdditionExam, FinalSubjectiveExam, RetinoscopExam, RetinoscopDilationExam, UncorrectedVAExam, KeratometerExam } from "@/lib/db/schema"
+import { CoverTestTab } from "@/components/exam/CoverTestTab"
+import { OpticalExam, OldRefractionExam, OldRefractionExtensionExam, ObjectiveExam, SubjectiveExam, AdditionExam, FinalSubjectiveExam, RetinoscopExam, RetinoscopDilationExam, UncorrectedVAExam, KeratometerExam, CoverTestExam } from "@/lib/db/schema"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { UserSelect } from "@/components/ui/user-select"
-import { ExamToolbox, ToolboxActions, createToolboxActions } from "@/components/exam/ExamToolbox"
-import { ExamComponentType, ExamFieldMapper } from "@/lib/exam-field-mappings"
+import { ExamToolbox, ToolboxActions } from "@/components/exam/ExamToolbox"
+import { ExamComponentType } from "@/lib/exam-field-mappings"
+import { examComponentRegistry } from "@/lib/exam-component-registry"
 import { toast } from "sonner"
 
 // Renaming for consistency within the component props
 type Exam = OpticalExam;
 
-const componentsWithMiddleRow: CardItem['type'][] = ['old-refraction', 'subjective', 'final-subjective'];
-const componentsDontHaveMiddleRow: CardItem['type'][] = ['objective', 'addition', 'retinoscop', 'retinoscop-dilation', 'uncorrected-va', 'keratometer'];
+const componentsWithMiddleRow: CardItem['type'][] = ['old-refraction', 'old-refraction-extension', 'subjective', 'final-subjective'];
+const componentsDontHaveMiddleRow: CardItem['type'][] = ['objective', 'addition', 'retinoscop', 'retinoscop-dilation', 'uncorrected-va', 'keratometer', 'cover-test'];
 
 export interface CardItem {
   id: string
-  type: 'exam-details' | 'old-refraction' | 'objective' | 'subjective' | 'final-subjective' | 'addition' | 'retinoscop' | 'retinoscop-dilation' | 'uncorrected-va' | 'keratometer' | 'notes'
+  type: 'exam-details' | 'old-refraction' | 'old-refraction-extension' | 'objective' | 'subjective' | 'final-subjective' | 'addition' | 'retinoscop' | 'retinoscop-dilation' | 'uncorrected-va' | 'keratometer' | 'cover-test' | 'notes'
 }
 
+// Simplified DetailProps interface that uses the registry
 export interface DetailProps {
   isEditing: boolean;
   isNewMode: boolean;
   exam: Exam | null | undefined;
   formData: Partial<Exam>;
-  oldRefractionFormData: OldRefractionExam;
-  objectiveFormData: ObjectiveExam;
-  subjectiveFormData: SubjectiveExam;
-  finalSubjectiveFormData: FinalSubjectiveExam;
-  additionFormData: AdditionExam;
-  retinoscopFormData: RetinoscopExam;
-  retinoscopDilationFormData: RetinoscopDilationExam;
-  uncorrectedVaFormData: UncorrectedVAExam;
-  keratometerFormData: KeratometerExam;
-  notesFormData: { notes: string };
+  examFormData: Record<string, any>; // All exam component form data
+  fieldHandlers: Record<string, (field: string, value: string) => void>; // All field change handlers
   handleInputChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => void;
   handleSelectChange: (value: string, name: string) => void;
   setFormData: React.Dispatch<React.SetStateAction<Partial<Exam>>>;
-  handleOldRefractionFieldChange: (field: keyof OldRefractionExam, value: string) => void;
-  handleObjectiveFieldChange: (field: keyof ObjectiveExam, value: string) => void;
-  handleSubjectiveFieldChange: (field: keyof SubjectiveExam, value: string) => void;
-  handleFinalSubjectiveChange: (field: keyof FinalSubjectiveExam, value: string) => void;
-  handleAdditionFieldChange: (field: keyof AdditionExam, value: string) => void;
-  handleRetinoscopFieldChange: (field: keyof RetinoscopExam, value: string) => void;
-  handleRetinoscopDilationFieldChange: (field: keyof RetinoscopDilationExam, value: string) => void;
-  handleUncorrectedVaFieldChange: (field: keyof UncorrectedVAExam, value: string) => void;
-  handleKeratometerFieldChange: (field: keyof KeratometerExam, value: string) => void;
-  handleMultifocalOldRefraction: () => void;
-  handleVHConfirmOldRefraction: (rightPris: number, rightBase: number, leftPris: number, leftBase: number) => void;
-  handleVHConfirm: (rightPris: number, rightBase: number, leftPris: number, leftBase: number) => void;
-  handleMultifocalSubjective: () => void;
-  handleFinalSubjectiveVHConfirm: (rightPrisH: number, rightBaseH: string, rightPrisV: number, rightBaseV: string, leftPrisH: number, leftBaseH: string, leftPrisV: number, leftBaseV: string) => void;
   handleNotesChange: (value: string) => void;
+  // Legacy handlers for components with special behaviors
+  handleMultifocalOldRefraction?: () => void;
+  handleVHConfirmOldRefraction?: (rightPris: number, rightBase: number, leftPris: number, leftBase: number) => void;
+  handleVHConfirm?: (rightPris: number, rightBase: number, leftPris: number, leftBase: number) => void;
+  handleMultifocalSubjective?: () => void;
+  handleFinalSubjectiveVHConfirm?: (rightPrisH: number, rightBaseH: string, rightPrisV: number, rightBaseV: string, leftPrisH: number, leftBaseH: string, leftPrisV: number, leftBaseV: string) => void;
+  handleMultifocalOldRefractionExtension?: () => void;
   toolboxActions?: ToolboxActions;
   allRows?: CardItem[][];
+}
+
+// Helper functions to get data and handlers from registry
+const getExamFormData = (examFormData: Record<string, any>, componentType: ExamComponentType) => {
+  return examFormData[componentType] || {}
+}
+
+const getFieldHandler = (fieldHandlers: Record<string, any>, componentType: ExamComponentType) => {
+  return fieldHandlers[componentType] || (() => {})
+}
+
+// Utility function to create DetailProps from registry data
+export const createDetailProps = (
+  isEditing: boolean,
+  isNewMode: boolean,
+  exam: Exam | null | undefined,
+  formData: Partial<Exam>,
+  examFormData: Record<string, any>,
+  fieldHandlers: Record<string, (field: string, value: string) => void>,
+  handleInputChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => void,
+  handleSelectChange: (value: string, name: string) => void,
+  setFormData: React.Dispatch<React.SetStateAction<Partial<Exam>>>,
+  handleNotesChange: (value: string) => void,
+  toolboxActions?: ToolboxActions,
+  allRows?: CardItem[][],
+  // Optional legacy handlers
+  legacyHandlers?: {
+    handleMultifocalOldRefraction?: () => void;
+    handleVHConfirmOldRefraction?: (rightPris: number, rightBase: number, leftPris: number, leftBase: number) => void;
+    handleVHConfirm?: (rightPris: number, rightBase: number, leftPris: number, leftBase: number) => void;
+    handleMultifocalSubjective?: () => void;
+    handleFinalSubjectiveVHConfirm?: (rightPrisH: number, rightBaseH: string, rightPrisV: number, rightBaseV: string, leftPrisH: number, leftBaseH: string, leftPrisV: number, leftBaseV: string) => void;
+    handleMultifocalOldRefractionExtension?: () => void;
+  }
+): DetailProps => {
+  return {
+    isEditing,
+    isNewMode,
+    exam,
+    formData,
+    examFormData,
+    fieldHandlers,
+    handleInputChange,
+    handleSelectChange,
+    setFormData,
+    handleNotesChange,
+    toolboxActions,
+    allRows,
+    ...legacyHandlers
+  }
 }
 
 interface RenderCardProps {
   item: CardItem;
   rowCards: CardItem[];
+  isEditing: boolean;
   mode: 'editor' | 'detail';
   hideEyeLabels?: boolean;
   matchHeight?: boolean;
   detailProps?: DetailProps;
   currentRowIndex?: number;
   currentCardIndex?: number;
+  clipboardSourceType?: ExamComponentType | null;
+  onCopy?: () => void;
+  onPaste?: () => void;
+  onClearData?: () => void;
+  onCopyLeft?: () => void;
+  onCopyRight?: () => void;
+  onCopyBelow?: () => void;
 }
 
 // In ExamDetailPage, `DateInput` was used, but it's not a standard component.
@@ -88,6 +135,7 @@ const getColumnCount = (type: CardItem['type']): number => {
   switch (type) {
     case 'exam-details': return 5
     case 'old-refraction': return 7
+    case 'old-refraction-extension': return 12
     case 'objective': return 4
     case 'subjective': return 10
     case 'final-subjective': return 11
@@ -96,7 +144,9 @@ const getColumnCount = (type: CardItem['type']): number => {
     case 'retinoscop-dilation': return 4
     case 'uncorrected-va': return 3
     case 'keratometer': return 3
+    case 'cover-test': return 5
     case 'notes': return 2
+    default: return 1
   }
 }
 
@@ -160,140 +210,44 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
   matchHeight = false, 
   detailProps,
   currentRowIndex = 0,
-  currentCardIndex = 0
+  currentCardIndex = 0,
+  clipboardSourceType,
+  onCopy,
+  onPaste,
+  onClearData,
+  onCopyLeft,
+  onCopyRight,
+  onCopyBelow
 }) => {
   if (mode === 'detail' && !detailProps) {
     console.error("detailProps are required for 'detail' mode.")
     return null
   }
 
-  const createToolboxForComponent = (componentType: ExamComponentType) => {
-    if (!detailProps?.toolboxActions || !detailProps?.allRows || mode === 'editor') {
-      return null
-    }
-
-    const handleClearData = () => {
-      detailProps.toolboxActions!.clearData(componentType)
-      toast.success("נתונים נוקו בהצלחה")
-    }
-
-    const handleCopyLeft = () => {
-      const currentRow = detailProps.allRows![currentRowIndex]
-      
-      // Get all available component types to the left of current card
-      const cardsToTheLeft = currentRow.slice(0, currentCardIndex)
-      const availableComponentsToTheLeft = cardsToTheLeft
-        .filter(card => card.type !== 'exam-details' && card.type !== 'notes')
-        .map(card => card.type as ExamComponentType)
-      
-      // Get all compatible target types for this source component
-      const compatibleTargets = ExamFieldMapper.getAvailableTargets(componentType, availableComponentsToTheLeft)
-      
-      if (compatibleTargets.length > 0) {
-        let copiedCount = 0
-        
-        // Copy to all compatible targets
-        compatibleTargets.forEach((targetType: ExamComponentType) => {
-          detailProps.toolboxActions!.copyToLeft(componentType, targetType)
-          copiedCount++
-        })
-        
-        if (copiedCount === 1) {
-          toast.success("נתונים הועתקו לשמאל בהצלחה")
-        } else {
-          toast.success(`נתונים הועתקו ל-${copiedCount} רכיבים לשמאל בהצלחה`)
-        }
-      } else {
-        toast.warning("אין רכיבים תואמים לשמאל")
-      }
-    }
-
-    const handleCopyRight = () => {
-      const currentRow = detailProps.allRows![currentRowIndex]
-      
-      // Get all available component types to the right of current card
-      const cardsToTheRight = currentRow.slice(currentCardIndex + 1)
-      const availableComponentsToTheRight = cardsToTheRight
-        .filter(card => card.type !== 'exam-details' && card.type !== 'notes')
-        .map(card => card.type as ExamComponentType)
-      
-      // Get all compatible target types for this source component
-      const compatibleTargets = ExamFieldMapper.getAvailableTargets(componentType, availableComponentsToTheRight)
-      
-      if (compatibleTargets.length > 0) {
-        let copiedCount = 0
-        
-        // Copy to all compatible targets
-        compatibleTargets.forEach((targetType: ExamComponentType) => {
-          detailProps.toolboxActions!.copyToRight(componentType, targetType)
-          copiedCount++
-        })
-        
-        if (copiedCount === 1) {
-          toast.success("נתונים הועתקו ימינה בהצלחה")
-        } else {
-          toast.success(`נתונים הועתקו ל-${copiedCount} רכיבים ימינה בהצלחה`)
-        }
-      } else {
-        toast.warning("אין רכיבים תואמים ימינה")
-      }
-    }
-
-    const handleCopyBelow = () => {
-      if (currentRowIndex < detailProps.allRows!.length - 1) {
-        const belowRow = detailProps.allRows![currentRowIndex + 1]
-        
-        // Get all available component types in the below row
-        const availableComponentsInBelowRow = belowRow
-          .filter(card => card.type !== 'exam-details' && card.type !== 'notes')
-          .map(card => card.type as ExamComponentType)
-        
-        // Get all compatible target types for this source component
-        const compatibleTargets = ExamFieldMapper.getAvailableTargets(componentType, availableComponentsInBelowRow)
-        
-        if (compatibleTargets.length > 0) {
-          let copiedCount = 0
-          
-          // Copy to all compatible targets
-          compatibleTargets.forEach((targetType: ExamComponentType) => {
-            detailProps.toolboxActions!.copyToBelow(componentType, targetType)
-            copiedCount++
-          })
-          
-          if (copiedCount === 1) {
-            toast.success("נתונים הועתקו למטה בהצלחה")
-          } else {
-            toast.success(`נתונים הועתקו ל-${copiedCount} רכיבים למטה בהצלחה`)
-          }
-        } else {
-          toast.warning("אין רכיבים תואמים בשורה למטה")
-        }
-      } else {
-        toast.warning("אין שורה מתחת")
-      }
-    }
-
-    return (
-      <ExamToolbox
-        isEditing={detailProps.isEditing}
-        mode={mode}
-        currentCard={item}
-        allRows={detailProps.allRows}
-        currentRowIndex={currentRowIndex}
-        currentCardIndex={currentCardIndex}
-        onClearData={handleClearData}
-        onCopyLeft={handleCopyLeft}
-        onCopyRight={handleCopyRight}
-        onCopyBelow={handleCopyBelow}
-      />
-    )
-  }
+  const toolbox = mode === 'detail' && detailProps?.isEditing ? (
+    <ExamToolbox
+      isEditing={detailProps.isEditing}
+      mode='detail'
+      currentCard={item}
+      allRows={detailProps.allRows || []}
+      currentRowIndex={currentRowIndex}
+      currentCardIndex={currentCardIndex}
+      clipboardSourceType={clipboardSourceType || null}
+      onClearData={onClearData || (() => {})}
+      onCopy={onCopy || (() => {})}
+      onPaste={onPaste || (() => {})}
+      onCopyLeft={onCopyLeft || (() => {})}
+      onCopyRight={onCopyRight || (() => {})}
+      onCopyBelow={onCopyBelow || (() => {})}
+    />
+  ) : null
 
   const hasSiblingWithMiddleRow = rowCards.some(c => componentsWithMiddleRow.includes(c.type));
   const isComponentWithoutMiddleRow = componentsDontHaveMiddleRow.includes(item.type);
   const needsMiddleSpacer = isComponentWithoutMiddleRow && hasSiblingWithMiddleRow && rowCards.length > 1;
 
   const emptyOldRefractionData: OldRefractionExam = { layout_instance_id: 0 }
+  const emptyOldRefractionExtensionData: OldRefractionExtensionExam = { layout_instance_id: 0 }
   const emptyObjectiveData: ObjectiveExam = { layout_instance_id: 0 }
   const emptySubjectiveData: SubjectiveExam = { layout_instance_id: 0 }
   const emptyAdditionData: AdditionExam = { layout_instance_id: 0 }
@@ -302,6 +256,44 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
   const emptyRetinoscopDilationData: RetinoscopDilationExam = { layout_instance_id: 0 }
   const emptyUncorrectedVaData: UncorrectedVAExam = { layout_instance_id: 0 }
   const emptyKeratometerData: KeratometerExam = { layout_instance_id: 0 }
+  const emptyCoverTestData: CoverTestExam = { layout_instance_id: 0 }
+
+  const legacyHandlers = mode === 'detail' ? {
+    handleMultifocalOldRefraction: detailProps!.handleMultifocalOldRefraction,
+    handleVHConfirmOldRefraction: detailProps!.handleVHConfirmOldRefraction,
+    handleVHConfirm: detailProps!.handleVHConfirm,
+    handleMultifocalSubjective: detailProps!.handleMultifocalSubjective,
+    handleFinalSubjectiveVHConfirm: detailProps!.handleFinalSubjectiveVHConfirm,
+    handleMultifocalOldRefractionExtension: detailProps!.handleMultifocalOldRefractionExtension
+  } : {}
+
+  const getExamData = (type: ExamComponentType) => {
+    if (mode === 'detail' && detailProps) {
+      return getExamFormData(detailProps.examFormData, type)
+    }
+    // Return empty/default data for editor mode
+    switch (type) {
+      case 'old-refraction': return emptyOldRefractionData
+      case 'old-refraction-extension': return emptyOldRefractionExtensionData
+      case 'objective': return emptyObjectiveData
+      case 'subjective': return emptySubjectiveData
+      case 'addition': return emptyAdditionData
+      case 'final-subjective': return emptyFinalSubjectiveData
+      case 'retinoscop': return emptyRetinoscopData
+      case 'retinoscop-dilation': return emptyRetinoscopDilationData
+      case 'uncorrected-va': return emptyUncorrectedVaData
+      case 'keratometer': return emptyKeratometerData
+      case 'cover-test': return emptyCoverTestData
+      default: return {}
+    }
+  }
+
+  const getChangeHandler = (type: ExamComponentType) => {
+    if (mode === 'detail' && detailProps) {
+      return getFieldHandler(detailProps.fieldHandlers, type)
+    }
+    return () => {}
+  }
 
   switch (item.type) {
     case 'exam-details':
@@ -386,158 +378,175 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
 
     case 'old-refraction':
       return (
-        <div className="relative">
+        <div className={`relative h-full ${matchHeight ? 'flex flex-col' : ''}`}>
+          {toolbox}
           <OldRefractionTab
-            oldRefractionData={mode === 'editor' ? emptyOldRefractionData : detailProps!.oldRefractionFormData}
-            onOldRefractionChange={mode === 'editor' ? () => {} : detailProps!.handleOldRefractionFieldChange}
-            isEditing={mode === 'editor' ? false : detailProps!.isEditing}
-            onMultifocalClick={mode === 'editor' ? () => {} : detailProps!.handleMultifocalOldRefraction}
-            onVHConfirm={mode === 'editor' ? () => {} : detailProps!.handleVHConfirmOldRefraction}
+            oldRefractionData={getExamData('old-refraction')}
+            onOldRefractionChange={getChangeHandler('old-refraction')}
+            isEditing={mode === 'detail' ? detailProps!.isEditing : false}
+            onMultifocalClick={legacyHandlers.handleMultifocalOldRefraction || (() => {})}
+            onVHConfirm={legacyHandlers.handleVHConfirmOldRefraction || (() => {})}
             hideEyeLabels={hideEyeLabels}
           />
-          {createToolboxForComponent('old-refraction')}
+        </div>
+      )
+
+    case 'old-refraction-extension':
+      return (
+        <div className={`relative h-full ${matchHeight ? 'flex flex-col' : ''}`}>
+          {toolbox}
+          <OldRefractionExtensionTab
+            oldRefractionExtensionData={getExamData('old-refraction-extension')}
+            onOldRefractionExtensionChange={getChangeHandler('old-refraction-extension')}
+            isEditing={mode === 'detail' ? detailProps!.isEditing : false}
+            onMultifocalClick={legacyHandlers.handleMultifocalOldRefractionExtension || (() => {})}
+            hideEyeLabels={hideEyeLabels}
+          />
         </div>
       )
 
     case 'objective':
       return (
-        <div className="relative">
+        <div className={`relative h-full ${matchHeight ? 'flex flex-col' : ''}`}>
+          {toolbox}
           <ObjectiveTab
-            objectiveData={mode === 'editor' ? emptyObjectiveData : detailProps!.objectiveFormData}
-            onObjectiveChange={mode === 'editor' ? () => {} : detailProps!.handleObjectiveFieldChange}
-            isEditing={mode === 'editor' ? false : detailProps!.isEditing}
+            objectiveData={getExamData('objective')}
+            onObjectiveChange={getChangeHandler('objective')}
+            isEditing={mode === 'detail' ? detailProps!.isEditing : false}
             hideEyeLabels={hideEyeLabels}
-            needsMiddleSpacer={needsMiddleSpacer}
+            needsMiddleSpacer={hasSiblingWithMiddleRow && componentsDontHaveMiddleRow.includes(item.type)}
           />
-          {createToolboxForComponent('objective')}
         </div>
       )
 
     case 'subjective':
       return (
-        <div className="relative">
+        <div className={`relative h-full ${matchHeight ? 'flex flex-col' : ''}`}>
+          {toolbox}
           <SubjectiveTab
-            subjectiveData={mode === 'editor' ? emptySubjectiveData : detailProps!.subjectiveFormData}
-            onSubjectiveChange={mode === 'editor' ? () => {} : detailProps!.handleSubjectiveFieldChange}
-            isEditing={mode === 'editor' ? false : detailProps!.isEditing}
-            onVHConfirm={mode === 'editor' ? () => {} : detailProps!.handleVHConfirm}
-            onMultifocalClick={mode === 'editor' ? () => {} : detailProps!.handleMultifocalSubjective}
+            subjectiveData={getExamData('subjective')}
+            onSubjectiveChange={getChangeHandler('subjective')}
+            isEditing={mode === 'detail' ? detailProps!.isEditing : false}
+            onVHConfirm={(legacyHandlers as any).handleVHConfirm || (() => {})}
+            onMultifocalClick={legacyHandlers.handleMultifocalSubjective || (() => {})}
             hideEyeLabels={hideEyeLabels}
           />
-          {createToolboxForComponent('subjective')}
         </div>
       )
 
     case 'final-subjective':
       return (
-        <div className="relative">
+        <div className={`relative h-full ${matchHeight ? 'flex flex-col' : ''}`}>
+          {toolbox}
           <FinalSubjectiveTab
-            finalSubjectiveData={mode === 'editor' ? emptyFinalSubjectiveData : detailProps!.finalSubjectiveFormData}
-            onFinalSubjectiveChange={mode === 'editor' ? () => {} : detailProps!.handleFinalSubjectiveChange}
-            isEditing={mode === 'editor' ? false : detailProps!.isEditing}
-            onVHConfirm={mode === 'editor' ? () => {} : detailProps!.handleFinalSubjectiveVHConfirm}
+            finalSubjectiveData={getExamData('final-subjective')}
+            onFinalSubjectiveChange={getChangeHandler('final-subjective')}
+            isEditing={mode === 'detail' ? detailProps!.isEditing : false}
+            onVHConfirm={legacyHandlers.handleFinalSubjectiveVHConfirm || (() => {})}
             hideEyeLabels={hideEyeLabels}
           />
-          {createToolboxForComponent('final-subjective')}
         </div>
       )
 
     case 'addition':
       return (
-        <div className="relative">
+        <div className={`relative h-full ${matchHeight ? 'flex flex-col' : ''}`}>
+          {toolbox}
           <AdditionTab
-            additionData={mode === 'editor' ? emptyAdditionData : detailProps!.additionFormData}
-            onAdditionChange={mode === 'editor' ? () => {} : detailProps!.handleAdditionFieldChange}
-            isEditing={mode === 'editor' ? false : detailProps!.isEditing}
+            additionData={getExamData('addition')}
+            onAdditionChange={getChangeHandler('addition')}
+            isEditing={mode === 'detail' ? detailProps!.isEditing : false}
             hideEyeLabels={hideEyeLabels}
-            needsMiddleSpacer={needsMiddleSpacer}
+            needsMiddleSpacer={hasSiblingWithMiddleRow && componentsDontHaveMiddleRow.includes(item.type)}
           />
-          {createToolboxForComponent('addition')}
         </div>
       )
 
     case 'retinoscop':
       return (
-        <div className="relative">
+        <div className={`relative h-full ${matchHeight ? 'flex flex-col' : ''}`}>
+          {toolbox}
           <RetinoscopTab
-            retinoscopData={mode === 'editor' ? emptyRetinoscopData : detailProps!.retinoscopFormData}
-            onRetinoscopChange={mode === 'editor' ? () => {} : detailProps!.handleRetinoscopFieldChange}
-            isEditing={mode === 'editor' ? false : detailProps!.isEditing}
+            retinoscopData={getExamData('retinoscop')}
+            onRetinoscopChange={getChangeHandler('retinoscop')}
+            isEditing={mode === 'detail' ? detailProps!.isEditing : false}
             hideEyeLabels={hideEyeLabels}
-            needsMiddleSpacer={needsMiddleSpacer}
+            needsMiddleSpacer={hasSiblingWithMiddleRow && componentsDontHaveMiddleRow.includes(item.type)}
           />
-          {createToolboxForComponent('retinoscop')}
         </div>
       )
 
     case 'retinoscop-dilation':
       return (
-        <div className="relative">
+        <div className={`relative h-full ${matchHeight ? 'flex flex-col' : ''}`}>
+          {toolbox}
           <RetinoscopDilationTab
-            retinoscopDilationData={mode === 'editor' ? emptyRetinoscopDilationData : detailProps!.retinoscopDilationFormData}
-            onRetinoscopDilationChange={mode === 'editor' ? () => {} : detailProps!.handleRetinoscopDilationFieldChange}
-            isEditing={mode === 'editor' ? false : detailProps!.isEditing}
+            retinoscopDilationData={getExamData('retinoscop-dilation')}
+            onRetinoscopDilationChange={getChangeHandler('retinoscop-dilation')}
+            isEditing={mode === 'detail' ? detailProps!.isEditing : false}
             hideEyeLabels={hideEyeLabels}
-            needsMiddleSpacer={needsMiddleSpacer}
+            needsMiddleSpacer={hasSiblingWithMiddleRow && componentsDontHaveMiddleRow.includes(item.type)}
           />
-          {createToolboxForComponent('retinoscop-dilation')}
         </div>
       )
 
     case 'uncorrected-va':
       return (
-        <div className="relative">
+        <div className={`relative h-full ${matchHeight ? 'flex flex-col' : ''}`}>
+          {toolbox}
           <UncorrectedVATab
-            uncorrectedVaData={mode === 'editor' ? emptyUncorrectedVaData : detailProps!.uncorrectedVaFormData}
-            onUncorrectedVaChange={mode === 'editor' ? () => {} : detailProps!.handleUncorrectedVaFieldChange}
-            isEditing={mode === 'editor' ? false : detailProps!.isEditing}
+            uncorrectedVaData={getExamData('uncorrected-va')}
+            onUncorrectedVaChange={getChangeHandler('uncorrected-va')}
+            isEditing={mode === 'detail' ? detailProps!.isEditing : false}
             hideEyeLabels={hideEyeLabels}
-            needsMiddleSpacer={needsMiddleSpacer}
+            needsMiddleSpacer={hasSiblingWithMiddleRow && componentsDontHaveMiddleRow.includes(item.type)}
           />
-          {createToolboxForComponent('uncorrected-va')}
         </div>
       )
 
     case 'keratometer':
       return (
-        <div className="relative">
+        <div className={`relative h-full ${matchHeight ? 'flex flex-col' : ''}`}>
+          {toolbox}
           <KeratometerTab
-            keratometerData={mode === 'editor' ? emptyKeratometerData : detailProps!.keratometerFormData}
-            onKeratometerChange={mode === 'editor' ? () => {} : detailProps!.handleKeratometerFieldChange}
-            isEditing={mode === 'editor' ? false : detailProps!.isEditing}
+            keratometerData={getExamData('keratometer')}
+            onKeratometerChange={getChangeHandler('keratometer')}
+            isEditing={mode === 'detail' ? detailProps!.isEditing : false}
             hideEyeLabels={hideEyeLabels}
-            needsMiddleSpacer={needsMiddleSpacer}
+            needsMiddleSpacer={hasSiblingWithMiddleRow && componentsDontHaveMiddleRow.includes(item.type)}
           />
-          {createToolboxForComponent('keratometer')}
+        </div>
+      )
+
+    case 'cover-test':
+      return (
+        <div className={`relative h-full ${matchHeight ? 'flex flex-col' : ''}`}>
+          {toolbox}
+          <CoverTestTab
+            coverTestData={getExamData('cover-test')}
+            onCoverTestChange={getChangeHandler('cover-test')}
+            isEditing={mode === 'detail' ? detailProps!.isEditing : false}
+            needsMiddleSpacer={hasSiblingWithMiddleRow && componentsDontHaveMiddleRow.includes(item.type)}
+          />
         </div>
       )
 
     case 'notes':
       if (mode === 'editor') {
-        return (
-          <Card className={`w-full p-5 shadow-md border-[1px] ${matchHeight ? 'h-full flex flex-col' : ''}`} dir="rtl">
-            <label className="block text-base font-semibold mb-[-10px]">הערות</label>
-            <div className={`text-sm w-full p-3 border rounded-xl bg-gray-50 text-gray-500 ${matchHeight ? 'flex-1' : 'min-h-[90px]'}`}>
-              תצוגה מקדימה של שדה הערות
-            </div>
-          </Card>
-        )
-      } else if (detailProps) {
-        return (
-          <Card className={`w-full p-5 shadow-md border-[1px] ${matchHeight ? 'h-full flex flex-col' : ''}`} dir="rtl">
-            <label className="block text-base font-semibold mb-[-10px]">הערות</label>
-            <textarea
-              name="notes"
-              disabled={!detailProps.isEditing}
-              value={detailProps.formData.notes || ''}
-              onChange={detailProps.handleInputChange}
-              className={`text-sm w-full p-3 border rounded-xl ${detailProps.isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default ${matchHeight ? 'flex-1' : 'min-h-[90px]'}`}
-              rows={matchHeight ? undefined : 4}
-            />
-          </Card>
-        )
+        return <Card className="h-full flex items-center justify-center p-4"><span className="text-sm font-semibold">הערות</span></Card>
       }
-      return null
+      return (
+        <Card className="relative h-full">
+          {toolbox}
+          <textarea
+            name="notes"
+            value={detailProps!.formData.notes || ''}
+            onChange={detailProps!.handleInputChange}
+            className="w-full h-full p-4 border-0"
+            disabled={!detailProps!.isEditing}
+          />
+        </Card>
+      )
 
     default:
       return null
