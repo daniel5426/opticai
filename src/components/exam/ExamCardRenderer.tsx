@@ -532,22 +532,19 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
       )
 
     case 'notes':
-      if (mode === 'editor') {
-        return <Card className="h-full flex items-center justify-center p-4"><span className="text-sm font-semibold">הערות</span></Card>
-      }
       return (
-        <Card className="relative h-full">
-          {toolbox}
+        <Card className={`w-full p-5 shadow-md border-[1px] ${matchHeight ? 'h-full flex flex-col' : ''}`} dir="rtl">
+          <label className="block text-base font-semibold mb-[-10px]">הערות</label>
           <textarea
             name="notes"
-            value={detailProps!.formData.notes || ''}
-            onChange={detailProps!.handleInputChange}
-            className="w-full h-full p-4 border-0"
-            disabled={!detailProps!.isEditing}
+            disabled={!detailProps?.isEditing}
+            value={detailProps?.formData.notes || ''}
+            onChange={detailProps?.handleInputChange}
+            className={`text-sm w-full p-3 border rounded-xl ${detailProps?.isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default ${matchHeight ? 'flex-1' : 'min-h-[90px]'}`}
+            rows={matchHeight ? undefined : 4}
           />
         </Card>
       )
-
     default:
       return null
   }

@@ -6,6 +6,10 @@ import {
   IconNotification,
   IconUserCircle,
   IconSettings,
+  IconClock,
+  IconPlayerPlay,
+  IconPlayerStop,
+  IconX,
 } from "@tabler/icons-react"
 import { Link } from "@tanstack/react-router"
 
@@ -31,8 +35,14 @@ import {
 } from "@/components/ui/sidebar"
 import { Badge } from "@/components/ui/badge"
 import { CustomModal } from "@/components/ui/custom-modal"
-import { User } from "@/lib/db/schema"
+import { User, WorkShift } from "@/lib/db/schema"
 import { useUser } from "@/contexts/UserContext"
+import { 
+  createWorkShift, 
+  getActiveWorkShiftByUserId, 
+  updateWorkShift 
+} from "@/lib/db/work-shifts-db"
+import { toast } from "sonner"
 
 export function NavUser({
   currentUser,
@@ -42,6 +52,31 @@ export function NavUser({
   const { isMobile } = useSidebar()
   const { logout } = useUser()
   const [showProfileModal, setShowProfileModal] = React.useState(false)
+  const [currentTime, setCurrentTime] = React.useState(new Date())
+  const [activeShift, setActiveShift] = React.useState<WorkShift | null>(null)
+  const [isStartingShift, setIsStartingShift] = React.useState(false)
+
+  React.useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(new Date())
+    }, 1000)
+
+    return () => clearInterval(timer)
+  }, [])
+
+  React.useEffect(() => {
+    const loadActiveShift = async () => {
+      if (!currentUser?.id) return
+      try {
+        const shift = await getActiveWorkShiftByUserId(currentUser.id)
+        setActiveShift(shift)
+      } catch (error) {
+        console.error('Error loading active shift:', error)
+      }
+    }
+
+    loadActiveShift()
+  }, [currentUser?.id])
 
   if (!currentUser) {
     return null
@@ -53,6 +88,91 @@ export function NavUser({
 
   const openProfileModal = () => {
     setShowProfileModal(true)
+  }
+
+  const handleStartShift = async () => {
+    if (!currentUser?.id) return
+    
+    setIsStartingShift(true)
+    try {
+      const now = new Date()
+      const timeString = now.toTimeString().slice(0, 8)
+      const dateString = now.toISOString().split('T')[0]
+      
+      const newShift = await createWorkShift({
+        user_id: currentUser.id,
+        start_time: timeString,
+        date: dateString,
+        status: 'active'
+      })
+      
+      if (newShift) {
+        setActiveShift(newShift)
+        toast.success('משמרת התחילה')
+      } else {
+        toast.error('שגיאה בתחילת המשמרת')
+      }
+    } catch (error) {
+      console.error('Error starting shift:', error)
+      toast.error('שגיאה בתחילת המשמרת')
+    } finally {
+      setIsStartingShift(false)
+    }
+  }
+
+  const handleEndShift = async () => {
+    if (!activeShift?.id) return
+    
+    try {
+      const now = new Date()
+      const endTime = now.toTimeString().slice(0, 8)
+      
+      const startTime = new Date(`2000-01-01 ${activeShift.start_time}`)
+      const endTimeDate = new Date(`2000-01-01 ${endTime}`)
+      let durationMinutes = (endTimeDate.getTime() - startTime.getTime()) / (1000 * 60)
+      
+      if (durationMinutes < 0) {
+        durationMinutes += 24 * 60
+      }
+      
+      const updatedShift = await updateWorkShift({
+        ...activeShift,
+        end_time: endTime,
+        duration_minutes: Math.round(durationMinutes),
+        status: 'completed'
+      })
+      
+      if (updatedShift) {
+        setActiveShift(null)
+        toast.success(`משמרת הסתיימה (${Math.round(durationMinutes)} דקות)`)
+      } else {
+        toast.error('שגיאה בסיום המשמרת')
+      }
+    } catch (error) {
+      console.error('Error ending shift:', error)
+      toast.error('שגיאה בסיום המשמרת')
+    }
+  }
+
+  const handleCancelShift = async () => {
+    if (!activeShift?.id) return
+    
+    try {
+      const cancelledShift = await updateWorkShift({
+        ...activeShift,
+        status: 'cancelled'
+      })
+      
+      if (cancelledShift) {
+        setActiveShift(null)
+        toast.success('המשמרת בוטלה')
+      } else {
+        toast.error('שגיאה בביטול המשמרת')
+      }
+    } catch (error) {
+      console.error('Error cancelling shift:', error)
+      toast.error('שגיאה בביטול המשמרת')
+    }
   }
 
   const userInitials = currentUser.username.charAt(0).toUpperCase()
@@ -69,7 +189,10 @@ export function NavUser({
                 size="lg"
                 className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
               >
-                <Avatar className="h-8 w-8 rounded-lg grayscale">
+                <Avatar className="h-8 w-8 rounded-lg ">
+                  {currentUser.profile_picture ? (
+                    <AvatarImage src={currentUser.profile_picture} alt={currentUser.username} />
+                  ) : null}
                   <AvatarFallback className="rounded-lg ">
                     {userInitials}
                   </AvatarFallback>
@@ -81,14 +204,17 @@ export function NavUser({
               </SidebarMenuButton>
             </DropdownMenuTrigger>
             <DropdownMenuContent
-              className="w-(--radix-dropdown-menu-trigger-width) min-w-56 rounded-lg"
+              className="w-(--radix-dropdown-menu-trigger-width) pb-2 min-w-56 rounded-lg mb-4"
               side={isMobile ? "bottom" : "left"}
               align="start"
               sideOffset={4}
             >
               <DropdownMenuLabel className="p-0 font-normal">
                 <div className="flex items-center gap-2 px-1 py-1.5 text-right text-sm" dir="rtl">
-                <Avatar className="h-8 w-8 rounded-lg grayscale">
+                <Avatar className="h-8 w-8 rounded-lg">
+                        {currentUser.profile_picture ? (
+                          <AvatarImage src={currentUser.profile_picture} alt={currentUser.username} />
+                        ) : null}
                         <AvatarFallback className="rounded-lg ">
                           {userInitials}
                         </AvatarFallback>
@@ -107,6 +233,70 @@ export function NavUser({
                 </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
+              
+              {/* Current Time and Shift Controls */}
+              <div className="px-1 py-2 space-y-2">
+                {activeShift ? (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-sm" dir="rtl">
+                      <div className="flex items-center">
+                        <span className="font-mono">{currentTime.toLocaleTimeString('he-IL')}</span>
+                        <div className="w-2"></div>
+                        <IconClock className="h-4 w-4" />
+                      </div>
+                    </div>
+                    <div className="text-xs text-green-600 text-right" dir="ltr">
+                      משמרת פעילה מ-{activeShift.start_time}
+                    </div>
+                    <div className="flex gap-1 justify-end" dir="ltr">
+                      <button
+                        onClick={handleCancelShift}
+                        className="flex items-center gap-1 px-2 py-1 text-xs rounded bg-gray-100 hover:bg-gray-200 text-gray-700"
+                        title="בטל משמרת"
+                      >
+                        <IconX className="h-3 w-3" />
+                        בטל
+                      </button>
+                      <button
+                        onClick={handleEndShift}
+                        className="flex items-center gap-1 px-2 py-1 text-xs rounded bg-red-100 hover:bg-red-200 text-red-700"
+                        title="סיים משמרת"
+                      >
+                        <IconPlayerStop className="h-3 w-3" />
+                        סיים
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-between text-sm" dir="rtl">
+                                        <div className="flex items-center">
+                      <span className="font-mono">{currentTime.toLocaleTimeString('he-IL')}</span>
+                      <div className="w-2"></div>
+                      <IconClock className="h-4 w-4" />
+                    </div>
+                    <button
+                      onClick={handleStartShift}
+                      disabled={isStartingShift}
+                      className="flex items-center gap-1 px-2 py-1 text-xs rounded bg-green-100 hover:bg-green-200 text-green-700 disabled:opacity-50"
+                      dir="ltr"
+                    >
+                      {isStartingShift ? (
+                        <>
+                          <div className="w-3 h-3 border border-current border-t-transparent rounded-full animate-spin" />
+                          מתחיל...
+                        </>
+                      ) : (
+                        <>
+                          <IconPlayerPlay className="h-3 w-3" />
+                          התחל משמרת
+                        </>
+                      )}
+                    </button>
+                  </div>
+                )}
+              </div>
+              <DropdownMenuSeparator />
+              
               <DropdownMenuGroup>
                 <DropdownMenuItem 
                   className="flex justify-between items-center" 
@@ -149,6 +339,9 @@ export function NavUser({
           <div className="space-y-4 pb-4" dir="rtl">
             <div className="flex items-center gap-4 rounded-lg">
               <Avatar className="h-16 w-16 rounded-lg">
+                {currentUser.profile_picture ? (
+                  <AvatarImage src={currentUser.profile_picture} alt={currentUser.username} />
+                ) : null}
                 <AvatarFallback className="rounded-lg text-lg font-semibold">
                   {userInitials}
                 </AvatarFallback>

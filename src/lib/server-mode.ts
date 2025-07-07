@@ -57,9 +57,9 @@ class ElectronServerMode {
     this.app.post('/api/auth/login', async (req, res) => {
       try {
         const { username, password } = req.body;
-        const user = await window.electronAPI.authenticateUser(username, password);
+        const user = await window.electronAPI.db('getUserByUsername', username);
         
-        if (user) {
+        if (user && user.password === password) {
           const { password: _, ...userWithoutPassword } = user;
           res.json({ success: true, user: userWithoutPassword });
         } else {
@@ -73,7 +73,7 @@ class ElectronServerMode {
 
     this.app.get('/api/users', async (req, res) => {
       try {
-        const users = await window.electronAPI.getAllUsers();
+        const users = await window.electronAPI.db('getAllUsers');
         const usersWithoutPasswords = users.map(({ password, ...user }: any) => user);
         res.json(usersWithoutPasswords);
       } catch (error) {
@@ -84,7 +84,7 @@ class ElectronServerMode {
 
     this.app.post('/api/clients', async (req, res) => {
       try {
-        const client = await window.electronAPI.createClient(req.body);
+        const client = await window.electronAPI.db('createClient', req.body);
         res.json(client);
       } catch (error) {
         console.error('Create client error:', error);
@@ -94,7 +94,7 @@ class ElectronServerMode {
 
     this.app.get('/api/clients', async (req, res) => {
       try {
-        const clients = await window.electronAPI.getAllClients();
+        const clients = await window.electronAPI.db('getAllClients');
         res.json(clients);
       } catch (error) {
         console.error('Get clients error:', error);
@@ -104,7 +104,7 @@ class ElectronServerMode {
 
     this.app.get('/api/clients/:id', async (req, res) => {
       try {
-        const client = await window.electronAPI.getClient(parseInt(req.params.id));
+        const client = await window.electronAPI.db('getClientById', parseInt(req.params.id));
         if (client) {
           res.json(client);
         } else {
@@ -119,7 +119,7 @@ class ElectronServerMode {
     this.app.put('/api/clients/:id', async (req, res) => {
       try {
         const clientData = { ...req.body, id: parseInt(req.params.id) };
-        const client = await window.electronAPI.updateClient(clientData);
+        const client = await window.electronAPI.db('updateClient', clientData);
         res.json(client);
       } catch (error) {
         console.error('Update client error:', error);
@@ -129,7 +129,7 @@ class ElectronServerMode {
 
     this.app.delete('/api/clients/:id', async (req, res) => {
       try {
-        const success = await window.electronAPI.deleteClient(parseInt(req.params.id));
+        const success = await window.electronAPI.db('deleteClient', parseInt(req.params.id));
         res.json({ success });
       } catch (error) {
         console.error('Delete client error:', error);

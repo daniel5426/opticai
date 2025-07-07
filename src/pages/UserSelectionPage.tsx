@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { User } from '@/lib/db/schema'
 import { getAllUsers } from '@/lib/db/users-db'
 import { useUser } from '@/contexts/UserContext'
@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+
 import { toast } from 'sonner'
 
 export default function UserSelectionPage() {
@@ -15,7 +16,63 @@ export default function UserSelectionPage() {
   const [selectedUser, setSelectedUser] = useState<User | null>(null)
   const [password, setPassword] = useState('')
   const [isLoggingIn, setIsLoggingIn] = useState(false)
+  const [loadedImages, setLoadedImages] = useState<Set<string>>(new Set())
   const { login } = useUser()
+
+  // Preload profile images for better performance
+  const preloadImages = useMemo(() => {
+    const imageUrls = users
+      .filter(user => user.profile_picture)
+      .map(user => user.profile_picture!)
+    
+    imageUrls.forEach(url => {
+      if (!loadedImages.has(url)) {
+        const img = new Image()
+        img.onload = () => {
+          setLoadedImages(prev => new Set([...prev, url]))
+        }
+        img.src = url
+      }
+    })
+  }, [users, loadedImages])
+
+  // Optimized Avatar Component
+  const OptimizedAvatar = React.memo(({ user, size = 'md' }: { user: User; size?: 'sm' | 'md' | 'lg' }) => {
+    const sizeClasses = {
+      sm: 'w-20 h-20',
+      md: 'w-28 h-28',
+      lg: 'w-32 h-32'
+    }
+    
+    const textSizes = {
+      sm: 'text-xl',
+      md: 'text-3xl',
+      lg: 'text-4xl'
+    }
+
+    return (
+      <div className={`${sizeClasses[size]} rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm group-hover:shadow-lg group-hover:shadow-slate-900/10 dark:group-hover:shadow-slate-100/10 transition-all duration-500 overflow-hidden`}>
+        {user.profile_picture && loadedImages.has(user.profile_picture) ? (
+          <img 
+            src={user.profile_picture} 
+            alt={user.username}
+            className="w-full h-full object-cover"
+            loading="lazy"
+            style={{ 
+              transform: 'translateZ(0)', // Force hardware acceleration
+              willChange: 'transform' // Optimize for animations
+            }}
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center">
+            <span className={`text-slate-700 dark:text-slate-300 ${textSizes[size]} font-medium group-hover:text-slate-900 dark:group-hover:text-slate-100 transition-colors duration-300`}>
+              {user.username.charAt(0).toUpperCase()}
+            </span>
+          </div>
+        )}
+      </div>
+    )
+  })
 
   useEffect(() => {
     const loadUsers = async () => {
@@ -113,15 +170,11 @@ export default function UserSelectionPage() {
                   className="flex flex-col items-center cursor-pointer group"
                   onClick={() => handleUserSelect(user)}
                   style={{
-                    animation: `fadeInUp 0.6s ease-out ${index * 0.1}s both`
+                    animation: `fadeInUp 0.6s ease-out ${index * 0.05}s both`
                   }}
                 >
                   <div className="relative mb-3 transform transition-all duration-500 ease-out group-hover:scale-110 group-hover:-translate-y-2">
-                    <div className="w-20 h-20 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center shadow-sm group-hover:shadow-lg group-hover:shadow-slate-900/10 dark:group-hover:shadow-slate-100/10 transition-all duration-500">
-                      <span className="text-slate-700 dark:text-slate-300 text-xl font-medium group-hover:text-slate-900 dark:group-hover:text-slate-100 transition-colors duration-300">
-                        {user.username.charAt(0).toUpperCase()}
-                      </span>
-                    </div>
+                    <OptimizedAvatar user={user} size="sm" />
                     
                     {user.password && user.password.trim() !== '' && (
                       <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-emerald-100 dark:bg-emerald-900 border-2 border-white dark:border-slate-950 rounded-full flex items-center justify-center transform transition-all duration-300 group-hover:scale-110">
@@ -161,15 +214,12 @@ export default function UserSelectionPage() {
             }}
           >
             <div className="mb-6">
-              <div 
-                className="w-28 h-28 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center shadow-lg mx-auto mb-4"
+              <div
                 style={{
                   animation: 'bounce 1s ease-out'
                 }}
               >
-                <span className="text-slate-700 dark:text-slate-300 text-3xl font-medium">
-                  {selectedUser.username.charAt(0).toUpperCase()}
-                </span>
+                <OptimizedAvatar user={selectedUser} size="md" />
               </div>
               
               <div className="text-center">
@@ -276,31 +326,42 @@ export default function UserSelectionPage() {
       </div>
 
       <style>{`
+        /* Performance optimizations */
+        .group {
+          will-change: transform;
+          transform: translateZ(0);
+        }
+        
+        .group:hover {
+          transform: translateZ(0) scale(1.05);
+        }
+        
+        /* Optimized animations with hardware acceleration */
         @keyframes fadeInUp {
           from {
             opacity: 0;
-            transform: translateY(20px);
+            transform: translate3d(0, 20px, 0);
           }
           to {
             opacity: 1;
-            transform: translateY(0);
+            transform: translate3d(0, 0, 0);
           }
         }
 
         @keyframes slideInFromRight {
           from {
             opacity: 0;
-            transform: translateX(30px);
+            transform: translate3d(30px, 0, 0);
           }
           to {
             opacity: 1;
-            transform: translateX(0);
+            transform: translate3d(0, 0, 0);
           }
         }
 
         @keyframes bounce {
           0%, 20%, 53%, 80%, 100% {
-            transform: translate3d(0,0,0);
+            transform: translate3d(0, 0, 0);
           }
           40%, 43% {
             transform: translate3d(0, -10px, 0);
@@ -311,6 +372,13 @@ export default function UserSelectionPage() {
           90% {
             transform: translate3d(0, -2px, 0);
           }
+        }
+        
+        /* Optimize image rendering */
+        img {
+          image-rendering: -webkit-optimize-contrast;
+          image-rendering: crisp-edges;
+          backface-visibility: hidden;
         }
       `}</style>
     </div>

@@ -19,6 +19,7 @@ import { Badge } from "@/components/ui/badge"
 import { IconPlus, IconEdit, IconTrash, IconLayoutGrid } from "@tabler/icons-react"
 import { useSettings } from "@/hooks/useSettings"
 import { useUser } from "@/contexts/UserContext"
+import { getUserById } from "@/lib/db/users-db"
 import { ServerConnectionSettings } from "@/components/ServerConnectionSettings"
 import { getEmailProviderConfig } from "@/lib/email/email-providers"
 import { LookupTableManager } from "@/components/LookupTableManager"
@@ -26,7 +27,7 @@ import { lookupTables } from "@/lib/db/lookup-db"
 
 export default function SettingsPage() {
   const { settings, updateSettings: updateBaseSettings } = useSettings()
-  const { currentUser } = useUser()
+  const { currentUser, setCurrentUser } = useUser()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [saveSuccess, setSaveSuccess] = useState(false)
@@ -93,8 +94,6 @@ export default function SettingsPage() {
     manager_name: '',
     license_number: '',
     clinic_logo_path: '',
-    primary_theme_color: '#3b82f6',
-    secondary_theme_color: '#8b5cf6',
     work_start_time: '08:00',
     work_end_time: '18:00',
     appointment_duration: 30,
@@ -106,6 +105,18 @@ export default function SettingsPage() {
     break_end_time: '',
     max_appointments_per_day: 20
   })
+
+  // Personal profile state
+  const [personalProfile, setPersonalProfile] = useState<Partial<User>>({
+    username: '',
+    email: '',
+    phone: '',
+    profile_picture: '',
+    primary_theme_color: '#3b82f6',
+    secondary_theme_color: '#8b5cf6',
+    theme_preference: 'system'
+  })
+  const [profileColorUpdateTimeout, setProfileColorUpdateTimeout] = useState<NodeJS.Timeout | null>(null)
 
   useEffect(() => {
     const loadSettings = async () => {
@@ -135,30 +146,56 @@ export default function SettingsPage() {
       }
     }
 
+    const loadPersonalProfile = () => {
+      if (currentUser) {
+        setPersonalProfile({
+          username: currentUser.username,
+          email: currentUser.email || '',
+          phone: currentUser.phone || '',
+          profile_picture: currentUser.profile_picture || '',
+          primary_theme_color: currentUser.primary_theme_color || '#3b82f6',
+          secondary_theme_color: currentUser.secondary_theme_color || '#8b5cf6',
+          theme_preference: currentUser.theme_preference || 'system'
+        })
+      }
+    }
+
     loadSettings()
     loadUsers()
+    loadPersonalProfile()
     
     return () => {
       if (colorUpdateTimeout) {
         clearTimeout(colorUpdateTimeout)
       }
+      if (profileColorUpdateTimeout) {
+        clearTimeout(profileColorUpdateTimeout)
+      }
     }
-  }, [settings])
+  }, [settings, currentUser])
 
   const handleInputChange = (field: keyof Settings, value: string | number | boolean) => {
     const newSettings = { ...localSettings, [field]: value }
     setLocalSettings(newSettings)
+  }
+
+  const handlePersonalProfileChange = (field: keyof User, value: string) => {
+    const newProfile = { ...personalProfile, [field]: value }
+    setPersonalProfile(newProfile)
     
     if (field === 'primary_theme_color' || field === 'secondary_theme_color') {
-      if (colorUpdateTimeout) {
-        clearTimeout(colorUpdateTimeout)
+      if (profileColorUpdateTimeout) {
+        clearTimeout(profileColorUpdateTimeout)
       }
       
       const timeout = setTimeout(() => {
-        applyThemeColorsFromSettings(newSettings)
+        applyThemeColorsFromSettings({
+          primary_theme_color: newProfile.primary_theme_color,
+          secondary_theme_color: newProfile.secondary_theme_color
+        } as Settings)
       }, 150)
       
-      setColorUpdateTimeout(timeout)
+      setProfileColorUpdateTimeout(timeout)
     }
   }
 
@@ -166,20 +203,53 @@ export default function SettingsPage() {
     try {
       setSaving(true)
       setSaveSuccess(false)
+      
+      // Save clinic settings
       const updatedSettings = await updateSettings(localSettings)
-      if (updatedSettings) {
-        setLocalSettings(updatedSettings)
-        updateBaseSettings(updatedSettings)
-        setSaveSuccess(true)
-        setTimeout(() => {
-          setSaveSuccess(false)
-        }, 2000)
-        toast.success('ההגדרות נשמרו בהצלחה')
-        
-        await applyThemeColorsFromSettings(updatedSettings)
-      } else {
-        toast.error('שגיאה בשמירת ההגדרות')
+      if (!updatedSettings) {
+        toast.error('שגיאה בשמירת הגדרות המרפאה')
+        return
       }
+      
+      // Save personal profile if current user exists
+      if (currentUser?.id) {
+        const updatedUser = await updateUser({
+          ...currentUser,
+          username: personalProfile.username || currentUser.username,
+          email: personalProfile.email,
+          phone: personalProfile.phone,
+          profile_picture: personalProfile.profile_picture,
+          primary_theme_color: personalProfile.primary_theme_color,
+          secondary_theme_color: personalProfile.secondary_theme_color,
+          theme_preference: personalProfile.theme_preference
+        })
+        
+        if (updatedUser) {
+          setPersonalProfile({
+            username: updatedUser.username,
+            email: updatedUser.email || '',
+            phone: updatedUser.phone || '',
+            profile_picture: updatedUser.profile_picture || '',
+            primary_theme_color: updatedUser.primary_theme_color || '#3b82f6',
+            secondary_theme_color: updatedUser.secondary_theme_color || '#8b5cf6',
+            theme_preference: updatedUser.theme_preference || 'system'
+          })
+          
+          // Update the current user in context (theme will be applied automatically)
+          await setCurrentUser(updatedUser)
+        } else {
+          toast.error('שגיאה בשמירת הפרופיל האישי')
+          return
+        }
+      }
+      
+      setLocalSettings(updatedSettings)
+      updateBaseSettings(updatedSettings)
+      setSaveSuccess(true)
+      setTimeout(() => {
+        setSaveSuccess(false)
+      }, 2000)
+      toast.success('כל ההגדרות נשמרו בהצלחה')
     } catch (error) {
       console.error('Error saving settings:', error)
       toast.error('שגיאה בשמירת ההגדרות')
@@ -188,6 +258,8 @@ export default function SettingsPage() {
     }
   }
 
+
+
   const handleLogoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (file) {
@@ -195,6 +267,18 @@ export default function SettingsPage() {
       reader.onload = (e) => {
         const result = e.target?.result as string
         handleInputChange('clinic_logo_path', result)
+      }
+      reader.readAsDataURL(file)
+    }
+  }
+
+  const handleProfilePictureUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (file) {
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        const result = e.target?.result as string
+        handlePersonalProfileChange('profile_picture', result)
       }
       reader.readAsDataURL(file)
     }
@@ -351,7 +435,7 @@ export default function SettingsPage() {
                   >
                     <div className="absolute inset-0 flex items-center justify-center">
                       <div className={`transition-opacity duration-150 ${saving ? 'opacity-0' : 'opacity-100'}`}>
-                        <span>שמור שינויים</span>
+                        <span>שמור הכל</span>
                       </div>
                       <div className={`absolute transition-opacity duration-150 ${saving ? 'opacity-100' : 'opacity-0'}`}>
                         <div className="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin"></div>
@@ -379,7 +463,7 @@ export default function SettingsPage() {
                 </div>
             </div>
 
-            <Tabs defaultValue="profile" className="w-full" orientation="vertical">
+            <Tabs defaultValue="personal-profile" className="w-full" orientation="vertical">
               <div className="flex gap-6">
                 {/* Vertical Tabs on the Right */}
                 <div className="flex-1">
@@ -562,89 +646,43 @@ export default function SettingsPage() {
                     {/* Branding & Appearance */}
                     <Card className="shadow-md border-none">
                       <CardHeader>
-                        <CardTitle className="text-right">מיתוג ועיצוב</CardTitle>
-                        <p className="text-sm text-muted-foreground text-right">לוגו וצבעי המערכת</p>
+                        <CardTitle className="text-right">מיתוג</CardTitle>
+                        <p className="text-sm text-muted-foreground text-right">לוגו המרפאה</p>
                       </CardHeader>
                       <CardContent>
-                        <div className="flex gap-8 items-start">
-                          {/* Logo Section - Left Side */}
-                          <div className="flex flex-col items-center space-y-3 min-w-[140px]">
-                            <div className="relative">
-                              {localSettings.clinic_logo_path ? (
-                                <img 
-                                  src={localSettings.clinic_logo_path} 
-                                  alt="לוגו המרפאה" 
-                                  className="w-24 h-24 rounded-lg object-cover shadow-lg"
-                                />
-                              ) : (
-                                <div className="w-24 h-24 rounded-lg bg-muted flex items-center justify-center shadow-lg">
-                                  <svg className="w-8 h-8 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                                  </svg>
-                                </div>
-                              )}
-                              <Input
-                                id="logo-upload"
-                                type="file"
-                                accept="image/*"
-                                onChange={handleLogoUpload}
-                                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                        <div className="flex flex-col items-center space-y-3">
+                          <div className="relative">
+                            {localSettings.clinic_logo_path ? (
+                              <img 
+                                src={localSettings.clinic_logo_path} 
+                                alt="לוגו המרפאה" 
+                                className="w-24 h-24 rounded-lg object-cover shadow-lg"
                               />
-                            </div>
-                            <div className="text-center">
-                              <Label className="text-sm font-medium">לוגו המרפאה</Label>
-                              <Button 
-                                variant="outline" 
-                                size="sm" 
-                                className="mt-2 text-xs shadow-sm"
-                                onClick={() => document.getElementById('logo-upload')?.click()}
-                              >
-                                שנה תמונה
-                              </Button>
-                            </div>
+                            ) : (
+                              <div className="w-24 h-24 rounded-lg bg-muted flex items-center justify-center shadow-lg">
+                                <svg className="w-8 h-8 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                </svg>
+                              </div>
+                            )}
+                            <Input
+                              id="logo-upload"
+                              type="file"
+                              accept="image/*"
+                              onChange={handleLogoUpload}
+                              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                            />
                           </div>
-                          
-                          {/* Colors Section - Right Side */}
-                          <div className="flex-1 space-y-4">
-                            <div className="space-y-4">
-                              {/* Primary Color */}
-                              <Label className="text-right block text-sm font-medium mb-2">צבע ראשי</Label>
-                              <div className="flex items-center gap-4">
-                                <Input
-                                  type="color"
-                                  value={localSettings.primary_theme_color || '#3b82f6'}
-                                  onChange={(e) => handleInputChange('primary_theme_color', e.target.value)}
-                                  className="w-16 h-12 p-1 rounded "
-                                />
-                                <div className="flex-1">
-                                  <Input
-                                    value={localSettings.primary_theme_color || '#3b82f6'}
-                                    onChange={(e) => handleInputChange('primary_theme_color', e.target.value)}
-                                    className="font-mono text-center  h-9"
-                                    dir="ltr"
-                                  />
-                                </div>
-                              </div>
-                              
-                              {/* Secondary Color */}
-                              <Label className="text-right block font- text-sm font-medium mb-2">צבע משני</Label>
-                              <div className="flex items-center gap-4">
-                                <Input
-                                  type="color"
-                                  value={localSettings.secondary_theme_color || '#8b5cf6'}
-                                  onChange={(e) => handleInputChange('secondary_theme_color', e.target.value)}
-                                  className="w-16 h-12 p-1 rounded shadow-sm"
-                                />
-                                <div className="flex-1">
-                                  <Input
-                                    value={localSettings.secondary_theme_color || '#8b5cf6'}
-                                    onChange={(e) => handleInputChange('secondary_theme_color', e.target.value)}
-                                    className="font-mono text-center shadow-sm h-9"
-                                    dir="ltr"
-                                  />
-                                </div>
-                              </div>
-                            </div>
+                          <div className="text-center">
+                            <Label className="text-sm font-medium">לוגו המרפאה</Label>
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              className="mt-2 text-xs shadow-sm"
+                              onClick={() => document.getElementById('logo-upload')?.click()}
+                            >
+                              שנה תמונה
+                            </Button>
                           </div>
                         </div>
                       </CardContent>
@@ -983,26 +1021,18 @@ export default function SettingsPage() {
                     <Card className="shadow-md border-none">
                       <CardHeader>
                         <div className="flex justify-between">
-                          {currentUser?.role === 'admin' && (
-                            <Button 
-                              onClick={openCreateUserModal} 
-                              size="icon"
-                              className="mr-4 bg-default text-default-foreground hover:bg-accent/90"
-                              title="הוסף משתמש חדש"
-                            >
-                              <IconPlus className="h-4 w-4" />
-                            </Button>
-                          )}
+                          <Button 
+                            onClick={openCreateUserModal} 
+                            size="icon"
+                            className="mr-4 bg-default text-default-foreground hover:bg-accent/90"
+                            title="הוסף משתמש חדש"
+                          >
+                            <IconPlus className="h-4 w-4" />
+                          </Button>
                           <div></div>
                           <div className="text-right ">
-                            <CardTitle className="text-right">
-                              {currentUser?.role === 'admin' ? 'ניהול משתמשים' : 'פרופיל משתמש'}
-                            </CardTitle>
-                            <p className="text-sm text-muted-foreground text-right">
-                              {currentUser?.role === 'admin' 
-                                ? 'הוסף, ערוך ומחק משתמשים במערכת' 
-                                : 'ערוך את הפרטים האישיים שלך'}
-                            </p>
+                            <CardTitle className="text-right">ניהול משתמשים</CardTitle>
+                            <p className="text-sm text-muted-foreground text-right">הוסף, ערוך ומחק משתמשים במערכת</p>
                           </div>
                         </div>
                       </CardHeader>
@@ -1018,14 +1048,12 @@ export default function SettingsPage() {
                                 אין משתמשים במערכת
                               </div>
                             ) : (
-                                                              users
-                                .filter(user => currentUser?.role === 'admin' || user.id === currentUser?.id)
-                                .map((user) => (
+                              users.map((user) => (
                                 <div key={user.id} className={`flex items-center justify-between p-4 border rounded-lg ${
                                   user.id === currentUser?.id ? 'border-primary/50 border-2' : ''
                                 }`}>
                                   <div className="flex items-center gap-2">
-                                    {currentUser?.role === 'admin' && user.id !== currentUser?.id && (
+                                    {user.id !== currentUser?.id && (
                                       <Button 
                                         variant="outline" 
                                         size="icon"
@@ -1035,16 +1063,14 @@ export default function SettingsPage() {
                                         <IconTrash className="h-4 w-4" />
                                       </Button>
                                     )}
-                                    {(currentUser?.role === 'admin' || user.id === currentUser?.id) && (
-                                      <Button 
-                                        variant="outline" 
-                                        size="icon"
-                                        onClick={() => openEditUserModal(user)}
-                                        className="h-8 w-8"
-                                      >
-                                        <IconEdit className="h-4 w-4" />
-                                      </Button>
-                                    )}
+                                    <Button 
+                                      variant="outline" 
+                                      size="icon"
+                                      onClick={() => openEditUserModal(user)}
+                                      className="h-8 w-8"
+                                    >
+                                      <IconEdit className="h-4 w-4" />
+                                    </Button>
                                   </div>
                                   <div className="text-right flex-1">
                                     <div className="flex items-center gap-2 justify-end">
@@ -1136,6 +1162,155 @@ export default function SettingsPage() {
                       </div>
                     </div>
                   </TabsContent>
+
+                  <TabsContent value="personal-profile" className="space-y-6 mt-0">
+                    {/* Personal Profile Header */}
+                    <div className="text-right space-y-2 mb-6">
+                      <h2 className="text-xl font-bold">פרופיל אישי</h2>
+                      <p className="text-muted-foreground">נהל את הפרטים האישיים שלך וההעדפות</p>
+                    </div>
+
+                    {/* Profile Picture & Basic Info */}
+                    <Card className="shadow-md border-none">
+                      <CardHeader>
+                        <CardTitle className="text-right">פרטים אישיים</CardTitle>
+                        <p className="text-sm text-muted-foreground text-right">תמונת פרופיל ופרטי יצירת קשר</p>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="flex gap-8 items-start">
+                          {/* Profile Picture - Left Side */}
+                          <div className="flex flex-col items-center space-y-3 min-w-[140px]">
+                            <div className="relative">
+                              {personalProfile.profile_picture ? (
+                                <img 
+                                  src={personalProfile.profile_picture} 
+                                  alt="תמונת פרופיל" 
+                                  className="w-24 h-24 rounded-full object-cover shadow-lg"
+                                />
+                              ) : (
+                                <div className="w-24 h-24 rounded-full bg-muted flex items-center justify-center shadow-lg">
+                                  <span className="text-2xl font-semibold text-muted-foreground">
+                                    {personalProfile.username?.charAt(0)?.toUpperCase() || 'U'}
+                                  </span>
+                                </div>
+                              )}
+                              <Input
+                                id="profile-picture-upload"
+                                type="file"
+                                accept="image/*"
+                                onChange={handleProfilePictureUpload}
+                                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                              />
+                            </div>
+                            <div className="text-center">
+                              <Label className="text-sm font-medium">תמונת פרופיל</Label>
+                              <Button 
+                                variant="outline" 
+                                size="sm" 
+                                className="mt-2 text-xs shadow-sm"
+                                onClick={() => document.getElementById('profile-picture-upload')?.click()}
+                              >
+                                שנה תמונה
+                              </Button>
+                            </div>
+                          </div>
+                          
+                          {/* Personal Info - Right Side */}
+                          <div className="flex-1 space-y-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div className="space-y-2">
+                                <Label htmlFor="personal_username" className="text-right block text-sm">שם משתמש</Label>
+                                <Input
+                                  id="personal_username"
+                                  value={personalProfile.username || ''}
+                                  onChange={(e) => handlePersonalProfileChange('username', e.target.value)}
+                                  placeholder="הזן שם משתמש"
+                                  className="text-right h-9"
+                                  dir="rtl"
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label htmlFor="personal_email" className="text-right block text-sm">אימייל</Label>
+                                <Input
+                                  id="personal_email"
+                                  type="email"
+                                  value={personalProfile.email || ''}
+                                  onChange={(e) => handlePersonalProfileChange('email', e.target.value)}
+                                  placeholder="example@email.com"
+                                  className="text-right h-9"
+                                  dir="rtl"
+                                />
+                              </div>
+                              <div className="space-y-2 md:col-span-2">
+                                <Label htmlFor="personal_phone" className="text-right block text-sm">טלפון</Label>
+                                <Input
+                                  id="personal_phone"
+                                  value={personalProfile.phone || ''}
+                                  onChange={(e) => handlePersonalProfileChange('phone', e.target.value)}
+                                  placeholder="050-1234567"
+                                  className="text-right h-9"
+                                  dir="rtl"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    {/* Personal Theme Colors */}
+                    <Card className="shadow-md border-none">
+                      <CardHeader>
+                        <CardTitle className="text-right">צבעי המערכת האישיים</CardTitle>
+                        <p className="text-sm text-muted-foreground text-right">התאם את צבעי המערכת לפי הטעם האישי שלך</p>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-6">
+                          {/* Primary Color */}
+                          <div className="space-y-2">
+                            <Label className="text-right block text-sm font-medium">צבע ראשי</Label>
+                            <div className="flex items-center gap-4">
+                              <Input
+                                type="color"
+                                value={personalProfile.primary_theme_color || '#3b82f6'}
+                                onChange={(e) => handlePersonalProfileChange('primary_theme_color', e.target.value)}
+                                className="w-16 h-12 p-1 rounded shadow-sm"
+                              />
+                              <div className="flex-1">
+                                <Input
+                                  value={personalProfile.primary_theme_color || '#3b82f6'}
+                                  onChange={(e) => handlePersonalProfileChange('primary_theme_color', e.target.value)}
+                                  className="font-mono text-center shadow-sm h-9"
+                                  dir="ltr"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                          
+                          {/* Secondary Color */}
+                          <div className="space-y-2">
+                            <Label className="text-right block text-sm font-medium">צבע משני</Label>
+                            <div className="flex items-center gap-4">
+                              <Input
+                                type="color"
+                                value={personalProfile.secondary_theme_color || '#8b5cf6'}
+                                onChange={(e) => handlePersonalProfileChange('secondary_theme_color', e.target.value)}
+                                className="w-16 h-12 p-1 rounded shadow-sm"
+                              />
+                              <div className="flex-1">
+                                <Input
+                                  value={personalProfile.secondary_theme_color || '#8b5cf6'}
+                                  onChange={(e) => handlePersonalProfileChange('secondary_theme_color', e.target.value)}
+                                  className="font-mono text-center shadow-sm h-9"
+                                  dir="ltr"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </TabsContent>
                 </div>
 
                 {/* Vertical TabsList on the Right */}
@@ -1146,9 +1321,10 @@ export default function SettingsPage() {
                   <TabsTrigger value="notifications" className="w-full justify-end text-right">התראות</TabsTrigger>
                   <TabsTrigger value="email" className="w-full justify-end text-right">הגדרות אימייל</TabsTrigger>
                   <TabsTrigger value="server" className="w-full justify-end text-right">חיבור לשרת</TabsTrigger>
-                  <TabsTrigger value="users" className="w-full justify-end text-right">
-                    {currentUser?.role === 'admin' ? 'ניהול משתמשים' : 'פרופיל אישי'}
-                  </TabsTrigger>
+                  <TabsTrigger value="personal-profile" className="w-full justify-end text-right">פרופיל אישי</TabsTrigger>
+                  {currentUser?.role === 'admin' && (
+                    <TabsTrigger value="users" className="w-full justify-end text-right">ניהול משתמשים</TabsTrigger>
+                  )}
                   <TabsTrigger value="field-data" className="w-full justify-end text-right">ניהול נתוני שדות</TabsTrigger>
                 </TabsList>
               </div>

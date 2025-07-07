@@ -496,6 +496,10 @@ export interface User {
   password?: string;
   role: 'admin' | 'worker' | 'viewer';
   is_active?: boolean;
+  profile_picture?: string;
+  primary_theme_color?: string;
+  secondary_theme_color?: string;
+  theme_preference?: 'light' | 'dark' | 'system';
   created_at?: string;
   updated_at?: string;
 }
@@ -696,6 +700,18 @@ export interface CoverTestExam {
   fv_2?: number;
   nv_1?: number;
   nv_2?: number;
+}
+
+export interface WorkShift {
+  id?: number;
+  user_id: number;
+  start_time: string;
+  end_time?: string;
+  duration_minutes?: number;
+  date: string;
+  status: 'active' | 'completed' | 'cancelled';
+  created_at?: string;
+  updated_at?: string;
 }
 
 export const createTables = (db: Database): void => {
@@ -1290,11 +1306,29 @@ export const createTables = (db: Database): void => {
   `);
 
   // Insert default settings if no settings exist
-  db.exec(`
-    INSERT OR IGNORE INTO settings (id, clinic_name) 
-    SELECT 1, 'מרפאת עיניים'
-    WHERE NOT EXISTS (SELECT 1 FROM settings WHERE id = 1);
+  const insertSettings = db.prepare(`
+    INSERT OR IGNORE INTO settings (
+      id, clinic_name, clinic_position, clinic_email, clinic_phone,
+      clinic_address, clinic_city, clinic_postal_code,
+      manager_name, license_number, clinic_website,
+      primary_theme_color, secondary_theme_color,
+      work_start_time, work_end_time, appointment_duration,
+      send_email_before_appointment, email_days_before, email_time,
+      working_days, max_appointments_per_day,
+      email_provider, email_smtp_secure
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
+  
+  insertSettings.run(
+    1, 'מרפאת העיניים שלנו', 'קומה 2, חדר 15', 'info@eyeclinic.co.il', '03-1234567',
+    'רחוב הרצל 123', 'תל אביב', '12345',
+    'ד"ר יוסי כהן', 'OPT-12345', 'https://www.eyeclinic.co.il',
+    '#1e40af', '#e0e7ff',
+    '08:00', '18:00', 30,
+    0, 1, '10:00',
+    '["sunday","monday","tuesday","wednesday","thursday"]', 20,
+    'gmail', 1
+  );
 
   // Create users table
   db.exec(`
@@ -1306,6 +1340,10 @@ export const createTables = (db: Database): void => {
       password TEXT,
       role TEXT CHECK(role IN ('admin','worker','viewer')) NOT NULL DEFAULT 'worker',
       is_active BOOLEAN DEFAULT 1,
+      profile_picture TEXT,
+      primary_theme_color TEXT,
+      secondary_theme_color TEXT,
+      theme_preference TEXT CHECK(theme_preference IN ('light','dark','system')) DEFAULT 'system',
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
@@ -1313,9 +1351,48 @@ export const createTables = (db: Database): void => {
 
   // Insert default admin user if no users exist
   db.exec(`
-    INSERT OR IGNORE INTO users (id, username, password, role) 
-    SELECT 1, 'admin', 'admin', 'admin'
+    INSERT OR IGNORE INTO users (
+      id, username, password, role, email, phone, 
+      primary_theme_color, secondary_theme_color, theme_preference
+    ) 
+    SELECT 
+      1, 'admin', 'admin', 'admin', 'admin@clinic.com', '',
+      '#1e40af', '#e0e7ff', 'system'
     WHERE NOT EXISTS (SELECT 1 FROM users WHERE id = 1);
+  `);
+
+  // Insert additional default users for demonstration
+  db.exec(`
+    INSERT OR IGNORE INTO users (
+      id, username, password, role, email, phone,
+      primary_theme_color, secondary_theme_color, theme_preference
+    ) 
+    SELECT 
+      2, 'worker1', '', 'worker', 'worker1@clinic.com', '050-1234567',
+      '#047857', '#d1fae5', 'light'
+    WHERE NOT EXISTS (SELECT 1 FROM users WHERE id = 2);
+  `);
+
+  db.exec(`
+    INSERT OR IGNORE INTO users (
+      id, username, password, role, email, phone,
+      primary_theme_color, secondary_theme_color, theme_preference
+    ) 
+    SELECT 
+      3, 'worker2', 'password123', 'worker', 'worker2@clinic.com', '050-7654321',
+      '#7c2d12', '#fed7aa', 'dark'
+    WHERE NOT EXISTS (SELECT 1 FROM users WHERE id = 3);
+  `);
+
+  db.exec(`
+    INSERT OR IGNORE INTO users (
+      id, username, password, role, email, phone,
+      primary_theme_color, secondary_theme_color, theme_preference
+    ) 
+    SELECT 
+      4, 'viewer1', '', 'viewer', 'viewer1@clinic.com', '',
+      '#6b21a8', '#f3e8ff', 'system'
+    WHERE NOT EXISTS (SELECT 1 FROM users WHERE id = 4);
   `);
 
   // Create chats table
@@ -1513,58 +1590,118 @@ export const createTables = (db: Database): void => {
   const defaultRinsingSolutions = ['מלוח', 'מיצלר', 'מים מזוקקים'];
 
   // Insert default colors
+  const insertColor = db.prepare(`INSERT OR IGNORE INTO lookup_color (name) VALUES (?)`);
   defaultColors.forEach(color => {
-    db.exec(`INSERT OR IGNORE INTO lookup_color (name) VALUES ('${color}');`);
+    insertColor.run(color);
   });
 
   // Insert default materials
+  const insertMaterial = db.prepare(`INSERT OR IGNORE INTO lookup_material (name) VALUES (?)`);
   defaultMaterials.forEach(material => {
-    db.exec(`INSERT OR IGNORE INTO lookup_material (name) VALUES ('${material}');`);
+    insertMaterial.run(material);
   });
 
   // Insert default coatings
+  const insertCoating = db.prepare(`INSERT OR IGNORE INTO lookup_coating (name) VALUES (?)`);
   defaultCoatings.forEach(coating => {
-    db.exec(`INSERT OR IGNORE INTO lookup_coating (name) VALUES ('${coating}');`);
+    insertCoating.run(coating);
   });
 
   // Insert default order types
+  const insertOrderType = db.prepare(`INSERT OR IGNORE INTO lookup_order_type (name) VALUES (?)`);
   defaultOrderTypes.forEach(type => {
-    db.exec(`INSERT OR IGNORE INTO lookup_order_type (name) VALUES ('${type}');`);
+    insertOrderType.run(type);
   });
 
   // Insert default referral types
+  const insertReferralType = db.prepare(`INSERT OR IGNORE INTO lookup_referral_type (name) VALUES (?)`);
   defaultReferralTypes.forEach(type => {
-    db.exec(`INSERT OR IGNORE INTO lookup_referral_type (name) VALUES ('${type}');`);
+    insertReferralType.run(type);
   });
 
   // Insert default contact lens types
+  const insertContactLensType = db.prepare(`INSERT OR IGNORE INTO lookup_contact_lens_type (name) VALUES (?)`);
   defaultContactLensTypes.forEach(type => {
-    db.exec(`INSERT OR IGNORE INTO lookup_contact_lens_type (name) VALUES ('${type}');`);
+    insertContactLensType.run(type);
   });
 
   // Insert default contact eye lens types
+  const insertContactEyeLensType = db.prepare(`INSERT OR IGNORE INTO lookup_contact_eye_lens_type (name) VALUES (?)`);
   defaultContactEyeLensTypes.forEach(type => {
-    db.exec(`INSERT OR IGNORE INTO lookup_contact_eye_lens_type (name) VALUES ('${type}');`);
+    insertContactEyeLensType.run(type);
   });
 
   // Insert default contact eye materials
+  const insertContactEyeMaterial = db.prepare(`INSERT OR IGNORE INTO lookup_contact_eye_material (name) VALUES (?)`);
   defaultContactEyeMaterials.forEach(material => {
-    db.exec(`INSERT OR IGNORE INTO lookup_contact_eye_material (name) VALUES ('${material}');`);
+    insertContactEyeMaterial.run(material);
   });
 
   // Insert default cleaning solutions
+  const insertCleaningSolution = db.prepare(`INSERT OR IGNORE INTO lookup_cleaning_solution (name) VALUES (?)`);
   defaultCleaningSolutions.forEach(solution => {
-    db.exec(`INSERT OR IGNORE INTO lookup_cleaning_solution (name) VALUES ('${solution}');`);
+    insertCleaningSolution.run(solution);
   });
 
   // Insert default disinfection solutions
+  const insertDisinfectionSolution = db.prepare(`INSERT OR IGNORE INTO lookup_disinfection_solution (name) VALUES (?)`);
   defaultDisinfectionSolutions.forEach(solution => {
-    db.exec(`INSERT OR IGNORE INTO lookup_disinfection_solution (name) VALUES ('${solution}');`);
+    insertDisinfectionSolution.run(solution);
   });
 
   // Insert default rinsing solutions
+  const insertRinsingSolution = db.prepare(`INSERT OR IGNORE INTO lookup_rinsing_solution (name) VALUES (?)`);
   defaultRinsingSolutions.forEach(solution => {
-    db.exec(`INSERT OR IGNORE INTO lookup_rinsing_solution (name) VALUES ('${solution}');`);
+    insertRinsingSolution.run(solution);
+  });
+
+  // Insert default suppliers
+  const defaultSuppliers = ['אופטיקנה', 'שמיר', 'זייס', 'אסילור', 'הויה', 'סיקו', 'קופר ויז\'ן', 'ג\'ונסון אנד ג\'ונסון', 'באוש אנד לומב', 'אלקון'];
+  const insertSupplier = db.prepare(`INSERT OR IGNORE INTO lookup_supplier (name) VALUES (?)`);
+  defaultSuppliers.forEach(supplier => {
+    insertSupplier.run(supplier);
+  });
+
+  // Insert default clinics
+  const defaultClinics = ['מרפאה ראשית', 'סניף צפון', 'סניף דרום', 'סניף מרכז', 'מרפאת חירום'];
+  const insertClinic = db.prepare(`INSERT OR IGNORE INTO lookup_clinic (name) VALUES (?)`);
+  defaultClinics.forEach(clinic => {
+    insertClinic.run(clinic);
+  });
+
+  // Insert default lens models
+  const defaultLensModels = ['סינגל ויז\'ן', 'פרוגרסיב', 'ביפוקל', 'אופיס', 'קומפיוטר', 'נהיגה', 'ספורט'];
+  const insertLensModel = db.prepare(`INSERT OR IGNORE INTO lookup_lens_model (name) VALUES (?)`);
+  defaultLensModels.forEach(model => {
+    insertLensModel.run(model);
+  });
+
+  // Insert default manufacturers
+  const defaultManufacturers = ['ריי בן', 'אוקלי', 'פרסול', 'גוצ\'י', 'פראדה', 'דולצ\'ה וגבאנה', 'ארמני', 'קלווין קליין', 'טום פורד', 'מאווי ג\'ים'];
+  const insertManufacturer = db.prepare(`INSERT OR IGNORE INTO lookup_manufacturer (name) VALUES (?)`);
+  defaultManufacturers.forEach(manufacturer => {
+    insertManufacturer.run(manufacturer);
+  });
+
+  // Insert default frame models
+  const defaultFrameModels = ['קלאסי', 'ספורטיבי', 'מודרני', 'וינטאג\'', 'מינימליסטי', 'עגול', 'מרובע', 'אובלי', 'חתולי', 'אוויאטור'];
+  const insertFrameModel = db.prepare(`INSERT OR IGNORE INTO lookup_frame_model (name) VALUES (?)`);
+  defaultFrameModels.forEach(model => {
+    insertFrameModel.run(model);
+  });
+
+  // Insert default manufacturing labs
+  const defaultLabs = ['מעבדה מרכזית', 'מעבדת צפון', 'מעבדת דרום', 'מעבדה חיצונית', 'מעבדת חירום'];
+  const insertLab = db.prepare(`INSERT OR IGNORE INTO lookup_manufacturing_lab (name) VALUES (?)`);
+  defaultLabs.forEach(lab => {
+    insertLab.run(lab);
+  });
+
+  // Insert default advisors
+  const defaultAdvisors = ['יוסי כהן', 'רחל לוי', 'דוד ישראלי', 'שרה אברהם', 'מיכל דוד', 'אבי משה'];
+  const insertAdvisor = db.prepare(`INSERT OR IGNORE INTO lookup_advisor (name) VALUES (?)`);
+  defaultAdvisors.forEach(advisor => {
+    insertAdvisor.run(advisor);
   });
 
   // Create exam_layouts table
@@ -1609,11 +1746,49 @@ export const createTables = (db: Database): void => {
     customWidths: {}
   });
 
-  db.exec(`
+  const insertExamLayout = db.prepare(`
     INSERT OR IGNORE INTO exam_layouts (id, name, layout_data, is_default) 
-    SELECT 1, 'ברירת מחדל', '${defaultLayoutData}', 1
-    WHERE NOT EXISTS (SELECT 1 FROM exam_layouts WHERE id = 1);
+    VALUES (?, ?, ?, ?)
   `);
+  insertExamLayout.run(1, 'ברירת מחדל', defaultLayoutData, 1);
+
+  // Insert sample clients for demonstration
+  const insertClient = db.prepare(`
+    INSERT OR IGNORE INTO clients (
+      id, first_name, last_name, gender, national_id, date_of_birth,
+      health_fund, address_city, address_street, address_number,
+      phone_mobile, email, file_creation_date, status
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, date('now'), ?)
+  `);
+
+  insertClient.run(
+    1, 'יוסי', 'כהן', 'זכר', '123456789', '1980-05-15',
+    'כללית', 'תל אביב', 'רחוב דיזנגוף', '123',
+    '050-1234567', 'yossi.cohen@email.com', 'פעיל'
+  );
+
+  insertClient.run(
+    2, 'שרה', 'לוי', 'נקבה', '987654321', '1992-08-22',
+    'מכבי', 'ירושלים', 'רחוב יפו', '456',
+    '052-9876543', 'sarah.levi@email.com', 'פעיל'
+  );
+
+  insertClient.run(
+    3, 'דוד', 'ישראלי', 'זכר', '456789123', '1975-12-03',
+    'לאומית', 'חיפה', 'רחוב הרצל', '789',
+    '054-5555555', 'david.israeli@email.com', 'פעיל'
+  );
+
+  // Insert sample appointments
+  const insertAppointment = db.prepare(`
+    INSERT OR IGNORE INTO appointments (
+      id, client_id, user_id, date, time, exam_name, note
+    ) VALUES (?, ?, ?, date('now', ?), ?, ?, ?)
+  `);
+
+  insertAppointment.run(1, 1, 1, '+1 day', '09:00', 'בדיקת ראייה שגרתית', 'בדיקה שנתית');
+  insertAppointment.run(2, 2, 2, '+2 days', '14:30', 'התאמת עדשות מגע', 'לקוח חדש');
+  insertAppointment.run(3, 3, 1, '+3 days', '11:15', 'בדיקת משקפיים חדשים', 'שינוי במרשם');
 
   // Create uncorrected_va_exams table
   db.exec(`
@@ -1658,6 +1833,33 @@ export const createTables = (db: Database): void => {
       nv_2 REAL,
       FOREIGN KEY(layout_instance_id) REFERENCES exam_layout_instances(id) ON DELETE CASCADE
     );
+  `);
+
+  // Create work_shifts table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS work_shifts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      start_time TEXT NOT NULL,
+      end_time TEXT,
+      duration_minutes INTEGER,
+      date TEXT NOT NULL,
+      status TEXT NOT NULL CHECK(status IN ('active', 'completed', 'cancelled')) DEFAULT 'active',
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+  `);
+
+  // Create index for efficient querying of work shifts by user and date
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_work_shifts_user_date 
+    ON work_shifts(user_id, date);
+  `);
+
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_work_shifts_date 
+    ON work_shifts(date);
   `);
 };
   

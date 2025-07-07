@@ -95,7 +95,12 @@ export function ThemeProvider({
       root.style.removeProperty('--primary')
       root.style.removeProperty('--secondary')
     } else {
-      applyThemeColorsFromSettings()
+      // Only apply global theme colors if no user is logged in
+      // User-specific colors are handled by UserContext
+      const currentUserId = localStorage.getItem('currentUserId')
+      if (!currentUserId) {
+        applyThemeColorsFromSettings()
+      }
     }
   }, [theme, isInitialized])
 

@@ -56,7 +56,8 @@ import {
   ExamLayoutInstance,
   UncorrectedVAExam,
   KeratometerExam,
-  CoverTestExam
+  CoverTestExam,
+  WorkShift
 } from './schema';
 
 class DatabaseService {
@@ -2432,8 +2433,8 @@ class DatabaseService {
 
     try {
       const stmt = this.db.prepare(`
-        INSERT INTO users (username, email, phone, password, role, is_active)
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO users (username, email, phone, password, role, is_active, profile_picture, primary_theme_color, secondary_theme_color, theme_preference)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
 
       const result = stmt.run(
@@ -2442,7 +2443,11 @@ class DatabaseService {
         this.sanitizeValue(user.phone),
         this.sanitizeValue(user.password),
         user.role,
-        this.sanitizeValue(user.is_active ?? true)
+        this.sanitizeValue(user.is_active ?? true),
+        this.sanitizeValue(user.profile_picture),
+        this.sanitizeValue(user.primary_theme_color),
+        this.sanitizeValue(user.secondary_theme_color),
+        this.sanitizeValue(user.theme_preference || 'system')
       );
 
       return { ...user, id: result.lastInsertRowid as number };
@@ -2494,7 +2499,7 @@ class DatabaseService {
     try {
       const stmt = this.db.prepare(`
         UPDATE users SET 
-        username = ?, email = ?, phone = ?, password = ?, role = ?, is_active = ?,
+        username = ?, email = ?, phone = ?, password = ?, role = ?, is_active = ?, profile_picture = ?, primary_theme_color = ?, secondary_theme_color = ?, theme_preference = ?,
         updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
       `);
@@ -2506,6 +2511,10 @@ class DatabaseService {
         this.sanitizeValue(user.password),
         user.role,
         this.sanitizeValue(user.is_active ?? true),
+        this.sanitizeValue(user.profile_picture),
+        this.sanitizeValue(user.primary_theme_color),
+        this.sanitizeValue(user.secondary_theme_color),
+        this.sanitizeValue(user.theme_preference || 'system'),
         user.id
       );
 
@@ -4497,6 +4506,180 @@ class DatabaseService {
     } catch (error) {
       console.error('Error updating cover test exam:', error);
       return null;
+    }
+  }
+  // Work Shift CRUD operations
+  createWorkShift(workShift: Omit<WorkShift, 'id' | 'created_at' | 'updated_at'>): WorkShift | null {
+    if (!this.db) return null;
+
+    try {
+      const stmt = this.db.prepare(`
+        INSERT INTO work_shifts (
+          user_id, start_time, end_time, duration_minutes, date, status
+        ) VALUES (?, ?, ?, ?, ?, ?)
+      `);
+
+      const result = stmt.run(
+        workShift.user_id,
+        workShift.start_time,
+        this.sanitizeValue(workShift.end_time),
+        this.sanitizeValue(workShift.duration_minutes),
+        workShift.date,
+        workShift.status
+      );
+
+      return this.getWorkShiftById(result.lastInsertRowid as number);
+    } catch (error) {
+      console.error('Error creating work shift:', error);
+      return null;
+    }
+  }
+
+  getWorkShiftById(id: number): WorkShift | null {
+    if (!this.db) return null;
+
+    try {
+      const stmt = this.db.prepare('SELECT * FROM work_shifts WHERE id = ?');
+      return stmt.get(id) as WorkShift | null;
+    } catch (error) {
+      console.error('Error getting work shift by ID:', error);
+      return null;
+    }
+  }
+
+  getActiveWorkShiftByUserId(userId: number): WorkShift | null {
+    if (!this.db) return null;
+
+    try {
+      const stmt = this.db.prepare(`
+        SELECT * FROM work_shifts 
+        WHERE user_id = ? AND status = 'active' 
+        ORDER BY created_at DESC LIMIT 1
+      `);
+      return stmt.get(userId) as WorkShift | null;
+    } catch (error) {
+      console.error('Error getting active work shift:', error);
+      return null;
+    }
+  }
+
+  getWorkShiftsByUserId(userId: number): WorkShift[] {
+    if (!this.db) return [];
+
+    try {
+      const stmt = this.db.prepare(`
+        SELECT * FROM work_shifts 
+        WHERE user_id = ? 
+        ORDER BY date DESC, start_time DESC
+      `);
+      return stmt.all(userId) as WorkShift[];
+    } catch (error) {
+      console.error('Error getting work shifts by user ID:', error);
+      return [];
+    }
+  }
+
+  getWorkShiftsByUserAndMonth(userId: number, year: number, month: number): WorkShift[] {
+    if (!this.db) return [];
+
+    try {
+      const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
+      const endDate = `${year}-${String(month + 1).padStart(2, '0')}-01`;
+      
+      const stmt = this.db.prepare(`
+        SELECT * FROM work_shifts 
+        WHERE user_id = ? AND date >= ? AND date < ? AND status = 'completed'
+        ORDER BY date DESC, start_time DESC
+      `);
+      return stmt.all(userId, startDate, endDate) as WorkShift[];
+    } catch (error) {
+      console.error('Error getting work shifts by user and month:', error);
+      return [];
+    }
+  }
+
+  getWorkShiftsByUserAndDate(userId: number, date: string): WorkShift[] {
+    if (!this.db) return [];
+
+    try {
+      const stmt = this.db.prepare(`
+        SELECT * FROM work_shifts 
+        WHERE user_id = ? AND date = ?
+        ORDER BY start_time ASC
+      `);
+      return stmt.all(userId, date) as WorkShift[];
+    } catch (error) {
+      console.error('Error getting work shifts by user and date:', error);
+      return [];
+    }
+  }
+
+  updateWorkShift(workShift: WorkShift): WorkShift | null {
+    if (!this.db || !workShift.id) return null;
+
+    try {
+      const stmt = this.db.prepare(`
+        UPDATE work_shifts SET 
+          end_time = ?, duration_minutes = ?, status = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+      `);
+
+      stmt.run(
+        this.sanitizeValue(workShift.end_time),
+        this.sanitizeValue(workShift.duration_minutes),
+        workShift.status,
+        workShift.id
+      );
+
+      return this.getWorkShiftById(workShift.id);
+    } catch (error) {
+      console.error('Error updating work shift:', error);
+      return null;
+    }
+  }
+
+  deleteWorkShift(id: number): boolean {
+    if (!this.db) return false;
+
+    try {
+      const stmt = this.db.prepare('DELETE FROM work_shifts WHERE id = ?');
+      const result = stmt.run(id);
+      return result.changes > 0;
+    } catch (error) {
+      console.error('Error deleting work shift:', error);
+      return false;
+    }
+  }
+
+  getWorkShiftStats(userId: number, year: number, month: number): {
+    totalShifts: number;
+    totalMinutes: number;
+    averageMinutes: number;
+  } {
+    if (!this.db) return { totalShifts: 0, totalMinutes: 0, averageMinutes: 0 };
+
+    try {
+      const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
+      const endDate = `${year}-${String(month + 1).padStart(2, '0')}-01`;
+      
+      const stmt = this.db.prepare(`
+        SELECT 
+          COUNT(*) as totalShifts,
+          COALESCE(SUM(duration_minutes), 0) as totalMinutes,
+          COALESCE(AVG(duration_minutes), 0) as averageMinutes
+        FROM work_shifts 
+        WHERE user_id = ? AND date >= ? AND date < ? AND status = 'completed'
+      `);
+      
+      const result = stmt.get(userId, startDate, endDate) as any;
+      return {
+        totalShifts: result.totalShifts || 0,
+        totalMinutes: result.totalMinutes || 0,
+        averageMinutes: Math.round(result.averageMinutes || 0)
+      };
+    } catch (error) {
+      console.error('Error getting work shift stats:', error);
+      return { totalShifts: 0, totalMinutes: 0, averageMinutes: 0 };
     }
   }
 }

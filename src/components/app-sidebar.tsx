@@ -23,6 +23,7 @@ import {
   IconRobot,
   IconFiles,
   IconLayoutGrid,
+  IconChartLine,
 } from "@tabler/icons-react"
 import { Link } from "@tanstack/react-router"
 
@@ -43,7 +44,7 @@ import {
 import { cn } from "@/utils/tailwind"
 import { User } from "@/lib/db/schema"
 
-const data = {
+const getNavData = (currentUser?: User) => ({
   navMain: [
     {
       title: "דשבורד",
@@ -59,7 +60,12 @@ const data = {
       title: "עוזר חכם",
       url: "/ai-assistant",
       icon: IconRobot,
-    }
+    },
+    ...(currentUser?.role === 'admin' ? [{
+      title: "סטטיסטיקות עובדים",
+      url: "/worker-stats",
+      icon: IconChartLine,
+    }] : [])
   ],
   navSecondary: [
     {
@@ -110,7 +116,7 @@ const data = {
       icon: IconFiles,
     },
   ],
-}
+})
 
 export function AppSidebar({ 
   clinicName, 
@@ -169,9 +175,9 @@ export function AppSidebar({
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>
-        <NavMain items={data.navMain} />
-        <NavDocuments items={data.documents} />
-        <NavSecondary items={data.navSecondary} className="mt-auto" />
+        <NavMain items={getNavData(currentUser).navMain} />
+        <NavDocuments items={getNavData(currentUser).documents} />
+        <NavSecondary items={getNavData(currentUser).navSecondary} className="mt-auto" />
       </SidebarContent>
       <SidebarFooter>
         <NavUser currentUser={currentUser} />

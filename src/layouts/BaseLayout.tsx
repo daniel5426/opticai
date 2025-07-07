@@ -31,14 +31,17 @@ export default function BaseLayout({
         const dbSettings = await getSettings();
         if (dbSettings) {
           setSettings(dbSettings);
-          applyThemeColorsFromSettings(dbSettings);
+          // Apply current user's theme colors, not clinic settings
+          if (currentUser?.id) {
+            applyThemeColorsFromSettings(undefined, currentUser.id);
+          }
         }
       } finally {
         setIsSettingsLoading(false);
       }
     };
     loadInitialSettings();
-  }, []);
+  }, [currentUser?.id]);
 
   useEffect(() => {
     if (settings?.clinic_logo_path) {

@@ -1,13 +1,14 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react'
 import { User } from '@/lib/db/schema'
 import { getUserById, authenticateUser } from '@/lib/db/users-db'
+import { applyThemeColorsFromSettings, applyUserThemePreference, applyUserThemeComplete } from '@/helpers/theme_helpers'
 
 interface UserContextType {
   currentUser: User | null
   isLoading: boolean
   login: (username: string, password?: string) => Promise<boolean>
   logout: () => void
-  setCurrentUser: (user: User | null) => void
+  setCurrentUser: (user: User | null) => Promise<void>
 }
 
 const UserContext = createContext<UserContextType | undefined>(undefined)
@@ -27,6 +28,8 @@ export function UserProvider({ children }: UserProviderProps) {
         if (savedUserId) {
           const user = await getUserById(parseInt(savedUserId))
           if (user && user.is_active) {
+            // Apply complete theme atomically before setting user state
+            await applyUserThemeComplete(user.id!)
             setCurrentUser(user)
           } else {
             localStorage.removeItem('currentUserId')
@@ -47,8 +50,11 @@ export function UserProvider({ children }: UserProviderProps) {
     try {
       const user = await authenticateUser(username, password)
       if (user && user.is_active) {
+        // Apply complete theme atomically before setting user state
+        await applyUserThemeComplete(user.id!)
         setCurrentUser(user)
         localStorage.setItem('currentUserId', user.id!.toString())
+        
         return true
       }
       return false
@@ -68,11 +74,14 @@ export function UserProvider({ children }: UserProviderProps) {
     isLoading,
     login,
     logout,
-    setCurrentUser: (user: User | null) => {
-      setCurrentUser(user)
+    setCurrentUser: async (user: User | null) => {
       if (user) {
+        // Apply complete theme atomically before setting user state
+        await applyUserThemeComplete(user.id!)
+        setCurrentUser(user)
         localStorage.setItem('currentUserId', user.id!.toString())
       } else {
+        setCurrentUser(null)
         localStorage.removeItem('currentUserId')
       }
     }

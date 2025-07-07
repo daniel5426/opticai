@@ -16,8 +16,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { CalendarDays, Users, Clock, UserPlus, Plus, ChevronDown, ChevronUp, GripVertical, Edit } from "lucide-react"
-import { getAllAppointments } from "@/lib/db/appointments-db"
-import { getAllClients } from "@/lib/db/clients-db"
+import { getAllAppointments, createAppointment, updateAppointment } from "@/lib/db/appointments-db"
+import { getAllClients, getClientById, createClient } from "@/lib/db/clients-db"
 import { getSettings } from "@/lib/db/settings-db"
 import { applyThemeColorsFromSettings } from "@/helpers/theme_helpers"
 import { Appointment, Client, Settings } from "@/lib/db/schema"
@@ -53,8 +53,8 @@ function ClientName({ clientId }: { clientId: number }) {
   React.useEffect(() => {
     const loadClient = async () => {
       try {
-        const clientData = await window.electronAPI.getClient(clientId)
-        setClient(clientData)
+        const clientData = await getClientById(clientId)
+        setClient(clientData || null)
       } catch (error) {
         console.error('Error loading client:', error)
       }
@@ -135,8 +135,9 @@ export default function HomePage() {
       setClients(clientsData)
       setSettings(settingsData)
       
-      if (settingsData) {
-        await applyThemeColorsFromSettings(settingsData)
+      // Apply current user's theme colors, not clinic settings
+      if (currentUser?.id) {
+        await applyThemeColorsFromSettings(undefined, currentUser.id)
       }
     } catch (error) {
       console.error('Error loading dashboard data:', error)
@@ -147,7 +148,7 @@ export default function HomePage() {
 
   useEffect(() => {
     loadData()
-  }, [])
+  }, [currentUser?.id])
 
   // This effect will safely open the appointment modal after a client is selected
   // and the selection modal has closed.
@@ -464,7 +465,7 @@ export default function HomePage() {
   const openEditDialog = async (appointment: Appointment) => {
     try {
       setEditingAppointment(appointment)
-      const client = await window.electronAPI.getClient(appointment.client_id)
+      const client = await getClientById(appointment.client_id)
       if (client) {
         setSelectedClient(client)
       }
@@ -484,7 +485,7 @@ export default function HomePage() {
 
   const handleClientSelect = async (selectedClientId: number) => {
     try {
-      const client = await window.electronAPI.getClient(selectedClientId)
+      const client = await getClientById(selectedClientId)
       if (client) {
         setSelectedClient(client)
         setFormData(prev => ({
@@ -509,7 +510,7 @@ export default function HomePage() {
   const handleSaveAppointment = async () => {
     try {
       if (editingAppointment) {
-        const result = await window.electronAPI.updateAppointment({ ...formData, id: editingAppointment.id })
+        const result = await updateAppointment({ ...formData, id: editingAppointment.id })
         if (result) {
           toast.success("התור עודכן בהצלחה")
           await loadData()
@@ -518,7 +519,7 @@ export default function HomePage() {
           toast.error("שגיאה בעדכון התור")
         }
       } else {
-        const result = await window.electronAPI.createAppointment(formData)
+        const result = await createAppointment(formData)
         if (result) {
           toast.success("התור נוצר בהצלחה")
           await loadData()
@@ -607,7 +608,7 @@ export default function HomePage() {
         if (!canProceed) return
       }
 
-      const newClient = await window.electronAPI.createClient({
+      const newClient = await createClient({
         first_name: newClientFormData.first_name,
         last_name: newClientFormData.last_name,
         phone_mobile: newClientFormData.phone_mobile,
@@ -627,7 +628,7 @@ export default function HomePage() {
           note: newClientFormData.note
         }
 
-        const result = await window.electronAPI.createAppointment(appointmentData)
+        const result = await createAppointment(appointmentData)
         if (result) {
           toast.success("לקוח חדש ותור נוצרו בהצלחה")
           await loadData()
@@ -655,7 +656,7 @@ export default function HomePage() {
         note: newClientFormData.note
       }
 
-      const result = await window.electronAPI.createAppointment(appointmentData)
+      const result = await createAppointment(appointmentData)
       if (result) {
         toast.success("תור נוצר עם לקוח קיים בהצלחה")
         await loadData()
@@ -722,8 +723,8 @@ export default function HomePage() {
         
         // Update both appointments
         const [result1, result2] = await Promise.all([
-          window.electronAPI.updateAppointment(updatedDragged),
-          window.electronAPI.updateAppointment(updatedTarget)
+          updateAppointment(updatedDragged),
+          updateAppointment(updatedTarget)
         ])
         
         if (result1 && result2) {
@@ -739,7 +740,7 @@ export default function HomePage() {
           time: targetSlot.startTime
         }
         
-        const result = await window.electronAPI.updateAppointment(updatedAppointment)
+        const result = await updateAppointment(updatedAppointment)
         if (result) {
           toast.success("התור הועבר בהצלחה")
           await loadData()
