@@ -17,6 +17,8 @@ export default function WorkerStatsPage() {
   const [users, setUsers] = useState<User[]>([])
   const [selectedUserId, setSelectedUserId] = useState<number | null>(null)
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0])
+  const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth() + 1)
+  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear())
   const [userStats, setUserStats] = useState<{
     totalShifts: number;
     totalMinutes: number;
@@ -49,11 +51,7 @@ export default function WorkerStatsPage() {
       if (!selectedUserId) return
 
       try {
-        const now = new Date()
-        const currentMonth = now.getMonth() + 1
-        const currentYear = now.getFullYear()
-        
-        const stats = await getWorkShiftStats(selectedUserId, currentYear, currentMonth)
+        const stats = await getWorkShiftStats(selectedUserId, selectedYear, selectedMonth)
         setUserStats(stats)
       } catch (error) {
         console.error('Error loading user stats:', error)
@@ -61,7 +59,7 @@ export default function WorkerStatsPage() {
     }
 
     loadUserStats()
-  }, [selectedUserId])
+  }, [selectedUserId, selectedMonth, selectedYear])
 
   useEffect(() => {
     const loadDayShifts = async () => {
@@ -146,7 +144,7 @@ export default function WorkerStatsPage() {
                               <div className="text-right">
                                 <CardTitle>{user.username}</CardTitle>
                                 <p className="text-sm text-muted-foreground">
-                                  סטטיסטיקות לחודש {new Date().toLocaleDateString('he-IL', { month: 'long', year: 'numeric' })}
+                                  סטטיסטיקות לחודש {new Date(selectedYear, selectedMonth - 1).toLocaleDateString('he-IL', { month: 'long', year: 'numeric' })}
                                 </p>
                               </div>
                               <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center overflow-hidden">
@@ -162,6 +160,32 @@ export default function WorkerStatsPage() {
                           </div>
                         </CardHeader>
                         <CardContent>
+                          {/* Month/Year Selector */}
+                          <div className="flex items-center gap-4 justify-end mb-6">
+                            <div className="flex items-center gap-2">
+                              <select
+                                value={selectedYear}
+                                onChange={(e) => setSelectedYear(Number(e.target.value))}
+                                className="px-3 py-1 text-sm border rounded-md bg-background"
+                              >
+                                {Array.from({ length: 10 }, (_, i) => new Date().getFullYear() - i).map(year => (
+                                  <option key={year} value={year}>{year}</option>
+                                ))}
+                              </select>
+                              <select
+                                value={selectedMonth}
+                                onChange={(e) => setSelectedMonth(Number(e.target.value))}
+                                className="px-3 py-1 text-sm border rounded-md bg-background"
+                              >
+                                {Array.from({ length: 12 }, (_, i) => i + 1).map(month => (
+                                  <option key={month} value={month}>
+                                    {new Date(2024, month - 1).toLocaleDateString('he-IL', { month: 'long' })}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          </div>
+                          
                           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                             <div className="text-center p-4 bg-blue-50 dark:bg-blue-950/20 rounded-lg">
                               <div className="flex items-center justify-center mb-2">
