@@ -761,13 +761,13 @@ export default function HomePage() {
     <>
 
       <SiteHeader title={settings?.clinic_name || "דשבורד"} />
-        <div className="flex flex-col flex-1 p-4 lg:p-6 gap-6 overflow-auto pb-16" dir="rtl" style={{scrollbarWidth: 'none'}}>
+        <div className="flex flex-col bg-muted/50 flex-1 p-4 lg:p-6 gap-6 pb-16" dir="rtl" style={{scrollbarWidth: 'none'}}>
           
           {/* Top Section: Calendar and Appointments Table */}
-          <div className="grid gap-6 md:grid-cols-3 pb-16">
+          <div className="grid gap-6 md:grid-cols-7 pb-12">
             
             {/* Calendar */}
-            <div className="md:col-span-1">
+            <div className="md:col-span-2">
               <h2 className="text-lg font-semibold mb-4">לוח שנה</h2>
               <div className="flex flex-col">
                 <Calendar
@@ -783,12 +783,12 @@ export default function HomePage() {
 
                 {/* Statistics Cards under Calendar - 2x2 Grid */}
                 <div className="grid gap-4 grid-cols-2 mt-6 w-full">
-                <Card className="dark:bg-card dark:border-border">
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <Card className="dark:bg-card dark:border-border shadow-none rounded-md aspect-square flex flex-col">
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0">
                     <CardTitle className="text-sm font-medium">תורים היום</CardTitle>
                     <CalendarDays className="h-4 w-4 text-primary" />
                   </CardHeader>
-                  <CardContent>
+                  <CardContent className="flex-1 flex flex-col justify-center">
                     <div className="text-2xl font-bold text-primary">{todayAppointments.length}</div>
                     <p className="text-xs text-muted-foreground">
                       מתוך {TOTAL_SLOTS} תורים אפשריים
@@ -796,12 +796,12 @@ export default function HomePage() {
                   </CardContent>
                 </Card>
 
-                <Card className="dark:bg-card dark:border-border">
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <Card className="dark:bg-card dark:border-border shadow-none rounded-md aspect-square flex flex-col">
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0">
                     <CardTitle className="text-sm font-medium">מקומות פנויים היום</CardTitle>
                     <Clock className="h-4 w-4 text-secondary-foreground" />
                   </CardHeader>
-                  <CardContent>
+                  <CardContent className="flex-1 flex flex-col justify-center">
                     <div className="text-2xl font-bold text-secondary-foreground">{todayFreeSlots}</div>
                     <p className="text-xs text-muted-foreground">
                       {todayFreeSlots * APPOINTMENT_DURATION} דקות פנויות
@@ -809,12 +809,12 @@ export default function HomePage() {
                   </CardContent>
                 </Card>
 
-                <Card className="dark:bg-card dark:border-border">
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">לקוחות חדשים החודש</CardTitle>
+                <Card className="dark:bg-card dark:border-border shadow-none rounded-md aspect-square flex flex-col">
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0">
+                    <CardTitle className="text-sm font-medium">לקוחות חדשים</CardTitle>
                     <UserPlus className="h-4 w-4 text-primary" />
                   </CardHeader>
-                  <CardContent>
+                  <CardContent className="flex-1 flex flex-col justify-center">
                     <div className="text-2xl font-bold text-primary">{thisMonthNewClients.length}</div>
                     <p className="text-xs text-muted-foreground">
                       {format(new Date(), 'MMMM yyyy', { locale: he })}
@@ -822,15 +822,15 @@ export default function HomePage() {
                   </CardContent>
                 </Card>
 
-                <Card className="dark:bg-card dark:border-border">
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <Card className="dark:bg-card dark:border-border shadow-none rounded-md aspect-square flex flex-col">
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0">
                     <CardTitle className="text-sm font-medium">סה"כ לקוחות</CardTitle>
                     <Users className="h-4 w-4 text-secondary-foreground" />
                   </CardHeader>
-                  <CardContent>
+                  <CardContent className="flex-1 flex flex-col justify-center">
                     <div className="text-2xl font-bold text-secondary-foreground">{clients.length}</div>
                     <p className="text-xs text-muted-foreground">
-                      לקוחות רשומים במערכת
+                      לקוחות במערכת
                     </p>
                   </CardContent>
                 </Card>
@@ -839,11 +839,11 @@ export default function HomePage() {
             </div>
 
             {/* Appointments Schedule */}
-            <div className="md:col-span-2">
+            <div className="md:col-span-5">
               <h2 className="text-lg font-semibold mb-4">
                 לוח זמנים - {format(selectedDate, 'dd/MM/yyyy', { locale: he })}
               </h2>
-                <div className="rounded-md border dark:border-border max-h-[1000px] overflow-auto">
+                <div className="rounded-md bg-card border dark:border-border max-h-[797px] overflow-auto">
                   <Table dir="rtl">
                     <TableHeader>
                       <TableRow>

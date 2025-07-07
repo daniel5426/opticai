@@ -8,18 +8,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { MoreHorizontal, Plus, Trash2 } from "lucide-react";
-import { OpticalExam, User } from "@/lib/db/schema";
+import { Plus, Trash2 } from "lucide-react";
+import { OpticalExam, User, Client } from "@/lib/db/schema";
 import { ClientSelectModal } from "@/components/ClientSelectModal";
 import { getAllUsers } from "@/lib/db/users-db";
+import { getAllClients } from "@/lib/db/clients-db";
 import { CustomModal } from "@/components/ui/custom-modal";
 import { deleteExam } from "@/lib/db/exams-db";
 import { toast } from "sonner";
@@ -36,27 +31,37 @@ interface ExamsTableProps {
 export function ExamsTable({ data, clientId, onExamDeleted, onExamDeleteFailed, loading }: ExamsTableProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [users, setUsers] = useState<User[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
   const navigate = useNavigate();
 
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [examToDelete, setExamToDelete] = useState<OpticalExam | null>(null);
 
   useEffect(() => {
-    const loadUsers = async () => {
+    const loadData = async () => {
       try {
-        const usersData = await getAllUsers();
+        const [usersData, clientsData] = await Promise.all([
+          getAllUsers(),
+          getAllClients()
+        ]);
         setUsers(usersData);
+        setClients(clientsData);
       } catch (error) {
-        console.error('Error loading users:', error);
+        console.error('Error loading data:', error);
       }
     };
-    loadUsers();
+    loadData();
   }, []);
 
   const getUserName = (userId?: number): string => {
     if (!userId) return '';
     const user = users.find(u => u.id === userId);
     return user?.username || '';
+  };
+
+  const getClientName = (clientId: number): string => {
+    const client = clients.find(c => c.id === clientId);
+    return client ? `${client.first_name} ${client.last_name}`.trim() : '';
   };
 
   // Filter data based on search query
@@ -106,7 +111,7 @@ export function ExamsTable({ data, clientId, onExamDeleted, onExamDeleteFailed, 
             placeholder="חיפוש בדיקות..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-[250px]"
+            className="w-[250px] bg-card dark:bg-card"
             dir="rtl"
           />
         </div>
@@ -133,13 +138,14 @@ export function ExamsTable({ data, clientId, onExamDeleted, onExamDeleteFailed, 
 
       </div>
 
-      <div className="rounded-md border">
+      <div className="rounded-md border bg-card">
         <Table dir="rtl">
           <TableHeader>
             <TableRow>
               <TableHead className="text-right">תאריך בדיקה</TableHead>
               <TableHead className="text-right">סוג בדיקה</TableHead>
-                              <TableHead className="text-right">סניף</TableHead>
+              {clientId === 0 && <TableHead className="text-right">לקוח</TableHead>}
+              <TableHead className="text-right">סניף</TableHead>
               <TableHead className="text-right">בודק</TableHead>
               <TableHead className="text-right">הערות</TableHead>
               <TableHead className="w-[50px] text-right"></TableHead>
@@ -172,6 +178,16 @@ export function ExamsTable({ data, clientId, onExamDeleted, onExamDeleteFailed, 
                         : ""}
                     </TableCell>
                     <TableCell>{exam.test_name}</TableCell>
+                    {clientId === 0 && (
+                      <TableCell className="cursor-pointer text-blue-600 hover:underline"
+                        onClick={e => {
+                          e.stopPropagation();
+                          if (exam.client_id) {
+                            navigate({ to: "/clients/$clientId", params: { clientId: String(exam.client_id) }, search: { tab: 'exams' } })
+                          }
+                        }}
+                      >{getClientName(exam.client_id)}</TableCell>
+                    )}
                     <TableCell>{exam.clinic}</TableCell>
                     <TableCell>{getUserName(exam.user_id)}</TableCell>
                     <TableCell>
@@ -184,15 +200,15 @@ export function ExamsTable({ data, clientId, onExamDeleted, onExamDeleteFailed, 
                         e.stopPropagation();
                         setExamToDelete(exam);
                         setIsDeleteModalOpen(true);
-                      }}>
-                        <Trash2 className="h-4 w-4" />
+                      }} title="מחיקה">
+                        <Trash2 className="h-4 w-4 text-red-600" />
                       </Button>
                     </TableCell>
                   </TableRow>
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={6} className="h-24 text-center">
+                  <TableCell colSpan={clientId === 0 ? 7 : 6} className="h-24 text-center">
                     לא נמצאו בדיקות לתצוגה
                   </TableCell>
                 </TableRow>

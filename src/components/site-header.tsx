@@ -1,4 +1,5 @@
-import React, { useState } from "react"
+import React, { useState, useEffect } from "react"
+import { createPortal } from "react-dom"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { SidebarTrigger } from "@/components/ui/sidebar"
@@ -77,10 +78,16 @@ function ClientTooltip({ client }: { client: Client }) {
 export function SiteHeader({ title, backLink, parentTitle, parentLink, grandparentTitle, grandparentLink, clientName, client, clientBackLink, examInfo, tabs }: SiteHeaderProps) {
   const displayName = client ? `${client.first_name} ${client.last_name}`.trim() : clientName
   const [isHovering, setIsHovering] = useState(false)
+  const [headerContainer, setHeaderContainer] = useState<HTMLElement | null>(null)
 
-  return (
-    <header className="flex h-(--header-height) shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-(--header-height)" dir="rtl">
-      <div className="flex w-full items-center justify-between px-4 lg:px-6 py-2">
+  useEffect(() => {
+    const container = document.getElementById('header-container')
+    setHeaderContainer(container)
+  }, [])
+
+  const headerContent = (
+    <header className=" border-b-[1px] flex h-(--header-height) shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-(--header-height)" dir="rtl">
+      <div className=" flex w-full items-center justify-between px-4 lg:px-6 py-2">
         {/* Right side - Navigation (in RTL, this appears on the right) */}
         <div className="flex items-center gap-1 lg:gap-2">
           <SidebarTrigger className="-mr-1" />
@@ -205,4 +212,10 @@ export function SiteHeader({ title, backLink, parentTitle, parentLink, grandpare
       </div>
     </header>
   )
+
+  if (headerContainer) {
+    return createPortal(headerContent, headerContainer)
+  }
+
+  return headerContent
 }

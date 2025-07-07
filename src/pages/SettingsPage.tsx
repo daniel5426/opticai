@@ -417,7 +417,7 @@ export default function SettingsPage() {
   return (
     <>
       <SiteHeader title="הגדרות" />
-        <div className="h-full overflow-auto bg-muted/30" style={{scrollbarWidth: 'none'}} dir="rtl">
+        <div className="" style={{scrollbarWidth: 'none'}} dir="rtl">
           <div className="max-w-4xl mx-auto p-6 pb-20 space-y-6">
             
             {/* Header */}
@@ -1165,11 +1165,6 @@ export default function SettingsPage() {
 
                   <TabsContent value="personal-profile" className="space-y-6 mt-0">
                     {/* Personal Profile Header */}
-                    <div className="text-right space-y-2 mb-6">
-                      <h2 className="text-xl font-bold">פרופיל אישי</h2>
-                      <p className="text-muted-foreground">נהל את הפרטים האישיים שלך וההעדפות</p>
-                    </div>
-
                     {/* Profile Picture & Basic Info */}
                     <Card className="shadow-md border-none">
                       <CardHeader>

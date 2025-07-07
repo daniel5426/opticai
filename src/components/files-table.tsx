@@ -298,7 +298,7 @@ export function FilesTable({ data, clientId, onFileDeleted, onFileDeleteFailed, 
             placeholder="חיפוש קבצים..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-[250px]" dir="rtl"
+            className="w-[250px] bg-card dark:bg-card" dir="rtl"
           />
         </div>
         <Button 
@@ -317,7 +317,7 @@ export function FilesTable({ data, clientId, onFileDeleted, onFileDeleteFailed, 
         />
       </div>
 
-      <div className="rounded-md border">
+      <div className="rounded-md border bg-card">
         <Table dir="rtl">
           <TableHeader>
             <TableRow>
@@ -339,7 +339,7 @@ export function FilesTable({ data, clientId, onFileDeleted, onFileDeleteFailed, 
               ))
             ) : filteredData.length > 0 ? (
               filteredData.map((file) => (
-                <TableRow key={file.id} className="cursor-pointer" onClick={() => handleDownload(file)}>
+                <TableRow key={file.id}>
                   <TableCell>{getFileIcon(file.file_type)}</TableCell>
                   <TableCell className="font-medium">{file.file_name}</TableCell>
                   <TableCell>{getSimpleFileType(file.file_type)}</TableCell>
@@ -361,31 +361,27 @@ export function FilesTable({ data, clientId, onFileDeleted, onFileDeleteFailed, 
                     </TableCell>
                   )}
                   <TableCell>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" className="h-8 w-8 p-0" onClick={(e) => e.stopPropagation()}>
-                          <span className="sr-only">Open menu</span>
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleDownload(file) }}>
-                          <Download className="ml-2 h-4 w-4" />
-                          <span>הורדה</span>
-                        </DropdownMenuItem>
-                        <DropdownMenuItem 
-                          onClick={(e) => { 
-                            e.stopPropagation()
-                            setFileToDelete(file)
-                            setIsDeleteModalOpen(true)
-                           }} 
-                          className="text-red-600 focus:text-red-600 focus:bg-red-50"
-                        >
-                          <Trash2 className="ml-2 h-4 w-4" />
-                          <span>מחיקה</span>
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        className="h-8 w-8 p-0"
+                        onClick={() => handleDownload(file)}
+                        title="הורדה"
+                      >
+                        <Download className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        className="h-8 w-8 p-0"
+                        onClick={() => {
+                          setFileToDelete(file)
+                          setIsDeleteModalOpen(true)
+                        }}
+                        title="מחיקה"
+                      >
+                        <Trash2 className="h-4 w-4 text-red-600" />
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))

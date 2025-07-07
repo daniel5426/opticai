@@ -32,7 +32,7 @@ export function CoverTestTab({
   const isPhoria = coverTestData.deviation_type === "Phoria";
 
   return (
-    <Card className="w-full shadow-md border-[1px] pb-4 pt-3">
+    <Card className="w-full shadow-md border-none pb-4 pt-3">
       <CardContent className="px-4" style={{scrollbarWidth: 'none'}}>
         <div className="space-y-3">
           <div className="text-center">

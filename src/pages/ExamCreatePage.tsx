@@ -1,7 +1,7 @@
 import React from "react"
 import { useParams, useNavigate } from "@tanstack/react-router"
 import { getClientById } from "@/lib/db/clients-db"
-import { OpticalExam, OpticalEyeExam } from "@/lib/db/schema"
+import { OpticalExam } from "@/lib/db/schema"
 import { toast } from "sonner"
 import ExamDetailPage from "./ExamDetailPage"
 
@@ -10,7 +10,7 @@ export default function ExamCreatePage() {
   const client = getClientById(Number(clientId))
   const navigate = useNavigate()
 
-  const handleSave = (exam: OpticalExam, rightEyeExam: OpticalEyeExam, leftEyeExam: OpticalEyeExam) => {
+  const handleSave = (exam: OpticalExam) => {
     navigate({ to: `/clients/${clientId}` })
   }
 

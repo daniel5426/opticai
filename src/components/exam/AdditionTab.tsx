@@ -56,7 +56,7 @@ export function AdditionTab({
 
 
   return (
-    <Card className="w-full shadow-md border-[1px] pb-4 pt-3">
+    <Card className="w-full shadow-md  pb-4 pt-3 border-none">
       <CardContent className="px-4 " style={{scrollbarWidth: 'none'}}>
         <div className="space-y-3">
           <div className="text-center">

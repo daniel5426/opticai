@@ -11,13 +11,13 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Plus, Trash2 } from "lucide-react";
-import { ContactLens, User } from "@/lib/db/schema";
+import { ContactLens, User, Client } from "@/lib/db/schema";
 import { deleteContactLens } from "@/lib/db/contact-lens-db";
 import { toast } from "sonner";
 import { ClientSelectModal } from "@/components/ClientSelectModal";
 import { getAllUsers } from "@/lib/db/users-db";
+import { getAllClients } from "@/lib/db/clients-db";
 import { CustomModal } from "@/components/ui/custom-modal";
-import { Skeleton } from "@/components/ui/skeleton";
 
 interface ContactLensTableProps {
   data: ContactLens[];
@@ -36,26 +36,36 @@ export function ContactLensTable({
 }: ContactLensTableProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [users, setUsers] = useState<User[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
   const navigate = useNavigate();
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [contactLensToDelete, setContactLensToDelete] = useState<ContactLens | null>(null);
 
   useEffect(() => {
-    const loadUsers = async () => {
+    const loadData = async () => {
       try {
-        const usersData = await getAllUsers();
+        const [usersData, clientsData] = await Promise.all([
+          getAllUsers(),
+          getAllClients()
+        ]);
         setUsers(usersData);
+        setClients(clientsData);
       } catch (error) {
-        console.error('Error loading users:', error);
+        console.error('Error loading data:', error);
       }
     };
-    loadUsers();
+    loadData();
   }, []);
 
   const getUserName = (userId?: number): string => {
     if (!userId) return '';
     const user = users.find(u => u.id === userId);
     return user?.username || '';
+  };
+
+  const getClientName = (clientId: number): string => {
+    const client = clients.find(c => c.id === clientId);
+    return client ? `${client.first_name} ${client.last_name}`.trim() : '';
   };
 
   const handleDeleteConfirm = async () => {
@@ -101,7 +111,7 @@ export function ContactLensTable({
             placeholder="חיפוש עדשות מגע..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-[250px]"
+            className="w-[250px] bg-card dark:bg-card"
             dir="rtl"
           />
         </div>
@@ -128,12 +138,13 @@ export function ContactLensTable({
 
       </div>
 
-      <div className="rounded-md border">
+      <div className="rounded-md border bg-card">
         <Table dir="rtl">
           <TableHeader>
             <TableRow>
               <TableHead className="text-right">תאריך בדיקה</TableHead>
               <TableHead className="text-right">סוג עדשה</TableHead>
+              {clientId === 0 && <TableHead className="text-right">לקוח</TableHead>}
               <TableHead className="text-right">בודק</TableHead>
               <TableHead className="text-right">VA</TableHead>
               <TableHead className="text-right">קוטר קרנית</TableHead>
@@ -170,6 +181,16 @@ export function ContactLensTable({
                         : ""}
                     </TableCell>
                     <TableCell>{contactLens.type}</TableCell>
+                    {clientId === 0 && (
+                      <TableCell className="cursor-pointer text-blue-600 hover:underline"
+                        onClick={e => {
+                          e.stopPropagation();
+                          if (contactLens.client_id) {
+                            navigate({ to: "/clients/$clientId", params: { clientId: String(contactLens.client_id) }, search: { tab: 'contact-lenses' } })
+                          }
+                        }}
+                      >{getClientName(contactLens.client_id)}</TableCell>
+                    )}
                     <TableCell>{getUserName(contactLens.user_id)}</TableCell>
                     <TableCell></TableCell>
                     <TableCell>{contactLens.corneal_diameter}</TableCell>
@@ -182,8 +203,9 @@ export function ContactLensTable({
                           setContactLensToDelete(contactLens);
                           setIsDeleteModalOpen(true);
                         }}
+                        title="מחיקה"
                       >
-                        <Trash2 className="h-4 w-4" />
+                        <Trash2 className="h-4 w-4 text-red-600" />
                       </Button>
                     </TableCell>
                   </TableRow>
@@ -191,7 +213,7 @@ export function ContactLensTable({
               })
             ) : (
               <TableRow>
-                <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
+                <TableCell colSpan={clientId === 0 ? 7 : 6} className="h-24 text-center text-muted-foreground">
                   לא נמצאו בדיקות עדשות מגע לתצוגה
                 </TableCell>
               </TableRow>

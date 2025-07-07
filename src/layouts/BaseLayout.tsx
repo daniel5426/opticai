@@ -80,9 +80,14 @@ export default function BaseLayout({
                     isLogoLoaded={isLogoLoaded}
                   />
                   <SidebarInset className="flex flex-col flex-1 overflow-hidden" style={{scrollbarWidth: 'none'}}>
-                    <main className="flex-1 overflow-auto" style={{scrollbarWidth: 'none'}}>
-                      {children}
-                    </main>
+                    <div className="flex flex-col h-full">
+                      <div className="sticky top-0 z-10 bg-background">
+                        <div id="header-container" />
+                      </div>
+                      <main className="flex-1 overflow-auto bg-muted/50" style={{scrollbarWidth: 'none'}}>
+                        {children}
+                      </main>
+                    </div>
                   </SidebarInset>
                 </SidebarProvider>
               </div>

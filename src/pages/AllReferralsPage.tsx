@@ -51,13 +51,13 @@ export default function AllReferralsPage() {
   return (
     <>
       <SiteHeader title="הפניות" />
-      <div className="flex flex-col flex-1 p-4 lg:p-6 overflow-auto" dir="rtl" style={{scrollbarWidth: 'none'}}>
+      <div className="flex flex-col flex-1 p-4 lg:p-6" dir="rtl" style={{scrollbarWidth: 'none'}}>
         <div className="flex items-center justify-between mb-4">
           <h1 className="text-2xl font-bold">כל ההפניות</h1>
         </div>
         <ReferralTable 
           referrals={referrals} 
-          onReferralDeleted={handleReferralDeleted}
+          onReferralDeleted={handleReferralDeleted} 
           onReferralDeleteFailed={handleReferralDeleteFailed}
           clientId={0}
           loading={loading}

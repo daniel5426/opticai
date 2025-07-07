@@ -1177,12 +1177,12 @@ class DatabaseService {
 
     try {
       const stmt = this.db.prepare(`
-        INSERT INTO orders (order_date, type, dominant_eye, user_id, lens_id, frame_id, comb_va, comb_high, comb_pd)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO orders (client_id, order_date, type, dominant_eye, user_id, lens_id, frame_id, comb_va, comb_high, comb_pd)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
 
       const result = stmt.run(
-        order.order_date, order.type, order.dominant_eye, this.sanitizeValue(order.user_id), order.lens_id, order.frame_id,
+        order.client_id, order.order_date, order.type, order.dominant_eye, this.sanitizeValue(order.user_id), order.lens_id, order.frame_id,
         order.comb_va, order.comb_high, order.comb_pd
       );
 
@@ -1211,9 +1211,10 @@ class DatabaseService {
     try {
       const stmt = this.db.prepare(`
         SELECT * FROM orders 
+        WHERE client_id = ?
         ORDER BY order_date DESC
       `);
-      return stmt.all() as Order[];
+      return stmt.all(clientId) as Order[];
     } catch (error) {
       console.error('Error getting orders by client:', error);
       return [];
@@ -1237,12 +1238,12 @@ class DatabaseService {
 
     try {
       const stmt = this.db.prepare(`
-        UPDATE orders SET order_date = ?, type = ?, dominant_eye = ?, user_id = ?, lens_id = ?, frame_id = ?, comb_va = ?, comb_high = ?, comb_pd = ?
+        UPDATE orders SET client_id = ?, order_date = ?, type = ?, dominant_eye = ?, user_id = ?, lens_id = ?, frame_id = ?, comb_va = ?, comb_high = ?, comb_pd = ?
         WHERE id = ?
       `);
 
       stmt.run(
-        order.order_date, order.type, order.dominant_eye, this.sanitizeValue(order.user_id), order.lens_id, order.frame_id,
+        order.client_id, order.order_date, order.type, order.dominant_eye, this.sanitizeValue(order.user_id), order.lens_id, order.frame_id,
         order.comb_va, order.comb_high, order.comb_pd, order.id
       );
 

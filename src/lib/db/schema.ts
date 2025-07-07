@@ -226,6 +226,7 @@ export interface FinalSubjectiveExam {
 
 export interface Order {
   id?: number;
+  client_id: number;
   order_date?: string;
   type?: string;
   dominant_eye?: string;
@@ -1100,6 +1101,7 @@ export const createTables = (db: Database): void => {
   db.exec(`
     CREATE TABLE IF NOT EXISTS orders (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
+      client_id INTEGER NOT NULL,
       order_date DATE,
       type TEXT,
       dominant_eye CHAR(1) CHECK(dominant_eye IN ('R','L')),
@@ -1109,6 +1111,7 @@ export const createTables = (db: Database): void => {
       comb_va REAL,
       comb_high REAL,
       comb_pd REAL,
+      FOREIGN KEY(client_id) REFERENCES clients(id) ON DELETE CASCADE,
       FOREIGN KEY(user_id) REFERENCES users(id)
     );
   `);

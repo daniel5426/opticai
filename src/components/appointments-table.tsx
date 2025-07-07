@@ -24,7 +24,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { MoreHorizontal, ChevronDown, UserPlus, Users, Plus, Trash2 } from "lucide-react"
+import { MoreHorizontal, ChevronDown, UserPlus, Users, Plus, Trash2, Edit } from "lucide-react"
 import { Appointment, Client, User } from "@/lib/db/schema"
 import { toast } from "sonner"
 import { ClientSelectModal } from "@/components/ClientSelectModal"
@@ -34,6 +34,10 @@ import { ClientWarningModal } from "@/components/ClientWarningModal"
 import { UserSelect } from "@/components/ui/user-select"
 import { useUser } from "@/contexts/UserContext"
 import { Skeleton } from "@/components/ui/skeleton"
+import { getClientById, getAllClients, createClient } from "@/lib/db/clients-db"
+import { getUserById } from "@/lib/db/users-db"
+import { createAppointment, updateAppointment, deleteAppointment } from "@/lib/db/appointments-db"
+import { useNavigate } from "@tanstack/react-router"
 
 interface AppointmentsTableProps {
   data: Appointment[]
@@ -49,17 +53,19 @@ interface AppointmentTableRowProps {
   onEdit: (appointment: Appointment) => void
   onDelete: (appointment: Appointment) => void
   onSendEmail: (id: number) => void
+  clientId: number
 }
 
-function AppointmentTableRow({ appointment, onEdit, onDelete, onSendEmail }: AppointmentTableRowProps) {
+function AppointmentTableRow({ appointment, onEdit, onDelete, onSendEmail, clientId }: AppointmentTableRowProps) {
   const [client, setClient] = React.useState<Client | null>(null)
   const [user, setUser] = React.useState<User | null>(null)
+  const navigate = useNavigate()
 
   React.useEffect(() => {
     const loadClient = async () => {
       try {
-        const clientData = await window.electronAPI.getClient(appointment.client_id)
-        setClient(clientData)
+        const clientData = await getClientById(appointment.client_id)
+        setClient(clientData || null)
       } catch (error) {
         console.error('Error loading client:', error)
       }
@@ -71,7 +77,7 @@ function AppointmentTableRow({ appointment, onEdit, onDelete, onSendEmail }: App
     const loadUser = async () => {
       if (appointment.user_id) {
         try {
-          const userData = await window.electronAPI.getUser(appointment.user_id)
+          const userData = await getUserById(appointment.user_id)
           setUser(userData)
         } catch (error) {
           console.error('Error loading user:', error)
@@ -93,10 +99,16 @@ function AppointmentTableRow({ appointment, onEdit, onDelete, onSendEmail }: App
         onClick={() => onEdit(appointment)}
         className="cursor-pointer"
       >{appointment.time}</TableCell>
-      <TableCell
-        onClick={() => onEdit(appointment)}
-        className="cursor-pointer"
-      >{client ? `${client.first_name || ''} ${client.last_name || ''}`.trim() : 'טוען...'}</TableCell>
+      {clientId === 0 && (
+        <TableCell className="cursor-pointer text-blue-600 hover:underline"
+          onClick={e => {
+            e.stopPropagation();
+            if (client) {
+              navigate({ to: "/clients/$clientId", params: { clientId: String(client.id) }, search: { tab: 'appointments' } })
+            }
+          }}
+        >{client ? `${client.first_name || ''} ${client.last_name || ''}`.trim() : 'טוען...'}</TableCell>
+      )}
       <TableCell
         onClick={() => onEdit(appointment)}
         className="cursor-pointer"
@@ -110,7 +122,7 @@ function AppointmentTableRow({ appointment, onEdit, onDelete, onSendEmail }: App
         className="cursor-pointer"
       >{appointment.note}</TableCell>
       <TableCell>
-        <div className="flex items-center">
+        <div className="flex items-center gap-1">
           <Button
             variant="ghost"
             className="h-8 w-8 p-0"
@@ -118,8 +130,9 @@ function AppointmentTableRow({ appointment, onEdit, onDelete, onSendEmail }: App
               e.stopPropagation()
               onEdit(appointment)
             }}
+            title="עריכה"
           >
-            <MoreHorizontal className="h-4 w-4" />
+            <Edit className="h-4 w-4" />
           </Button>
           <Button
             variant="ghost"
@@ -128,6 +141,7 @@ function AppointmentTableRow({ appointment, onEdit, onDelete, onSendEmail }: App
               e.stopPropagation()
               onDelete(appointment)
             }}
+            title="מחיקה"
           >
             <Trash2 className="h-4 w-4 text-red-600" />
           </Button>
@@ -277,7 +291,7 @@ export function AppointmentsTable({ data, clientId, onAppointmentChange, onAppoi
 
   const handleClientSelect = async (selectedClientId: number) => {
     try {
-      const client = await window.electronAPI.getClient(selectedClientId)
+      const client = await getClientById(selectedClientId)
       if (client) {
         setSelectedClient(client)
         setAppointmentFormData(prev => ({
@@ -296,14 +310,14 @@ export function AppointmentsTable({ data, clientId, onAppointmentChange, onAppoi
   const handleSaveAppointment = async () => {
     try {
       if (editingAppointment) {
-        const result = await window.electronAPI.updateAppointment({ ...appointmentFormData, id: editingAppointment.id })
+        const result = await updateAppointment({ ...appointmentFormData, id: editingAppointment.id })
         if (result) {
           toast.success("התור עודכן בהצלחה")
         } else {
           toast.error("שגיאה בעדכון התור")
         }
       } else {
-        const result = await window.electronAPI.createAppointment(appointmentFormData)
+        const result = await createAppointment(appointmentFormData)
         if (result) {
           toast.success("התור נוצר בהצלחה")
         } else {
@@ -325,7 +339,7 @@ export function AppointmentsTable({ data, clientId, onAppointmentChange, onAppoi
     }
 
     try {
-      const allClients = await window.electronAPI.getAllClients()
+      const allClients = await getAllClients()
       const existingClients: Client[] = []
       let warningType: 'name' | 'phone' | 'email' | 'multiple' = 'name'
 
@@ -393,7 +407,7 @@ export function AppointmentsTable({ data, clientId, onAppointmentChange, onAppoi
         if (!canProceed) return
       }
 
-      const newClient = await window.electronAPI.createClient({
+              const newClient = await createClient({
         first_name: newClientFormData.first_name,
         last_name: newClientFormData.last_name,
         phone_mobile: newClientFormData.phone_mobile,
@@ -410,7 +424,7 @@ export function AppointmentsTable({ data, clientId, onAppointmentChange, onAppoi
           note: newClientFormData.note
         }
 
-        const result = await window.electronAPI.createAppointment(appointmentData)
+        const result = await createAppointment(appointmentData)
         if (result) {
           toast.success("לקוח חדש ותור נוצרו בהצלחה")
           closeAllDialogs()
@@ -438,7 +452,7 @@ export function AppointmentsTable({ data, clientId, onAppointmentChange, onAppoi
         note: newClientFormData.note
       }
 
-      const result = await window.electronAPI.createAppointment(appointmentData)
+              const result = await createAppointment(appointmentData)
       if (result) {
         toast.success("תור נוצר עם לקוח קיים בהצלחה")
         closeAllDialogs()
@@ -464,14 +478,17 @@ export function AppointmentsTable({ data, clientId, onAppointmentChange, onAppoi
         onAppointmentDeleted(deletedAppointmentId);
         toast.success("התור נמחק בהצלחה");
 
-        const result = await window.electronAPI.deleteAppointment(deletedAppointmentId);
-        if (!result) {
-          toast.error("שגיאה במחיקת התור. מרענן נתונים...");
-          onAppointmentDeleteFailed();
+        const result = await deleteAppointment(deletedAppointmentId);
+        if (result) {
+          toast.success("התור נמחק בהצלחה")
+          onAppointmentDeleted(deletedAppointmentId)
+        } else {
+          toast.error("שגיאה במחיקת התור")
+          onAppointmentDeleteFailed()
         }
       } catch (error) {
-        toast.error("שגיאה במחיקת התור");
-        onAppointmentDeleteFailed();
+        toast.error("שגיאה במחיקת התור")
+        onAppointmentDeleteFailed()
       } finally {
         setAppointmentToDelete(null);
       }
@@ -502,7 +519,7 @@ export function AppointmentsTable({ data, clientId, onAppointmentChange, onAppoi
             placeholder="חיפוש תורים..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-[250px]" 
+            className="w-[250px] bg-card dark:bg-card" 
             dir="rtl"
           />
         </div>
@@ -753,13 +770,13 @@ export function AppointmentsTable({ data, clientId, onAppointmentChange, onAppoi
         cancelText="בטל"
       />
 
-      <div className="rounded-md border">
+      <div className="rounded-md border bg-card">
         <Table dir="rtl">
           <TableHeader>
             <TableRow>
               <TableHead className="text-right">תאריך</TableHead>
               <TableHead className="text-right">שעה</TableHead>
-              <TableHead className="text-right">לקוח</TableHead>
+              {clientId === 0 && <TableHead className="text-right">לקוח</TableHead>}
               <TableHead className="text-right">סוג בדיקה</TableHead>
               <TableHead className="text-right">בודק</TableHead>
               <TableHead className="text-right">הערות</TableHead>
@@ -780,6 +797,7 @@ export function AppointmentsTable({ data, clientId, onAppointmentChange, onAppoi
                   onEdit={openEditDialog}
                   onDelete={handleDelete}
                   onSendEmail={handleSendTestEmail}
+                  clientId={clientId}
                 />
               ))
             ) : (

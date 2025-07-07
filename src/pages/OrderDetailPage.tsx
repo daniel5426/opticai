@@ -254,6 +254,7 @@ export default function OrderDetailPage({
   const [formData, setFormData] = useState<Order>(() => {
     if (isNewMode) {
       return {
+        client_id: Number(clientId),
         order_date: new Date().toISOString().split('T')[0],
         type: '',
         dominant_eye: '',
@@ -472,6 +473,7 @@ export default function OrderDetailPage({
         console.log('Creating new order...')
         
         const newOrder = await createOrder({
+          client_id: Number(clientId),
           order_date: formData.order_date,
           type: formData.type,
           dominant_eye: formData.dominant_eye,

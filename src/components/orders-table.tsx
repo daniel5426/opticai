@@ -11,9 +11,10 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Plus, Trash2 } from "lucide-react"
-import { Order, User } from "@/lib/db/schema"
+import { Order, User, Client } from "@/lib/db/schema"
 import { ClientSelectModal } from "@/components/ClientSelectModal"
 import { getAllUsers } from "@/lib/db/users-db"
+import { getAllClients } from "@/lib/db/clients-db"
 import { CustomModal } from "@/components/ui/custom-modal"
 import { deleteOrder } from "@/lib/db/orders-db"
 import { toast } from "sonner"
@@ -30,26 +31,36 @@ interface OrdersTableProps {
 export function OrdersTable({ data, clientId, onOrderDeleted, onOrderDeleteFailed, loading }: OrdersTableProps) {
   const [searchQuery, setSearchQuery] = useState("")
   const [users, setUsers] = useState<User[]>([])
+  const [clients, setClients] = useState<Client[]>([])
   const navigate = useNavigate()
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
   const [orderToDelete, setOrderToDelete] = useState<Order | null>(null)
 
   useEffect(() => {
-    const loadUsers = async () => {
+    const loadData = async () => {
       try {
-        const usersData = await getAllUsers()
+        const [usersData, clientsData] = await Promise.all([
+          getAllUsers(),
+          getAllClients()
+        ])
         setUsers(usersData)
+        setClients(clientsData)
       } catch (error) {
-        console.error('Error loading users:', error)
+        console.error('Error loading data:', error)
       }
     }
-    loadUsers()
+    loadData()
   }, [])
 
   const getUserName = (userId?: number): string => {
     if (!userId) return ''
     const user = users.find(u => u.id === userId)
     return user?.username || ''
+  }
+
+  const getClientName = (clientId: number): string => {
+    const client = clients.find(c => c.id === clientId)
+    return client ? `${client.first_name} ${client.last_name}`.trim() : ''
   }
 
   const handleDeleteConfirm = async () => {
@@ -89,12 +100,12 @@ export function OrdersTable({ data, clientId, onOrderDeleted, onOrderDeleteFaile
   return (
     <div className="space-y-4" style={{scrollbarWidth: 'none'}}>
       <div className="flex justify-between items-center" dir="rtl">
-        <div className="flex gap-2">
+        <div className="flex gap-2 bg-card">
           <Input
             placeholder="חיפוש הזמנות..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-[250px]" dir="rtl"
+            className="w-[250px] bg-card dark:bg-card" dir="rtl"
           />
         </div>
         {clientId > 0 ? (
@@ -116,12 +127,13 @@ export function OrdersTable({ data, clientId, onOrderDeleted, onOrderDeleteFaile
         )}
       </div>
 
-      <div className="rounded-md border">
+      <div className="rounded-md border bg-card">
         <Table dir="rtl">
           <TableHeader>
             <TableRow>
               <TableHead className="text-right">תאריך הזמנה</TableHead>
               <TableHead className="text-right">סוג הזמנה</TableHead>
+              {clientId === 0 && <TableHead className="text-right">לקוח</TableHead>}
               <TableHead className="text-right">בודק</TableHead>
               <TableHead className="text-right">VA</TableHead>
               <TableHead className="text-right">PD</TableHead>
@@ -142,16 +154,14 @@ export function OrdersTable({ data, clientId, onOrderDeleted, onOrderDeleteFaile
                     className="cursor-pointer"
                     onClick={() => {
                       if (order.id !== undefined) {
-                        const orderClientId = (order as any).client_id ?? clientId;
-                        if (orderClientId) {
-                          navigate({
-                            to: "/clients/$clientId/orders/$orderId",
-                            params: { 
-                              clientId: String(orderClientId), 
-                              orderId: String(order.id) 
-                            }
-                          });
-                        }
+                        const orderClientId = clientId > 0 ? clientId : order.client_id;
+                        navigate({
+                          to: "/clients/$clientId/orders/$orderId",
+                          params: { 
+                            clientId: String(orderClientId), 
+                            orderId: String(order.id) 
+                          }
+                        });
                       }
                     }}
                   >
@@ -159,6 +169,14 @@ export function OrdersTable({ data, clientId, onOrderDeleted, onOrderDeleteFaile
                       {order.order_date ? new Date(order.order_date).toLocaleDateString('he-IL') : ''}
                     </TableCell>
                     <TableCell>{order.type}</TableCell>
+                    {clientId === 0 && (
+                      <TableCell className="cursor-pointer text-blue-600 hover:underline"
+                        onClick={e => {
+                          e.stopPropagation();
+                          navigate({ to: "/clients/$clientId", params: { clientId: String(order.client_id) }, search: { tab: 'orders' } })
+                        }}
+                      >{getClientName(order.client_id)}</TableCell>
+                    )}
                     <TableCell>{getUserName(order.user_id)}</TableCell>
                     <TableCell>{order.comb_va ? `6/${order.comb_va}` : ''}</TableCell>
                     <TableCell>{order.comb_pd}</TableCell>
@@ -167,8 +185,8 @@ export function OrdersTable({ data, clientId, onOrderDeleted, onOrderDeleteFaile
                         e.stopPropagation();
                         setOrderToDelete(order);
                         setIsDeleteModalOpen(true);
-                      }}>
-                        <Trash2 className="h-4 w-4" />
+                      }} title="מחיקה">
+                        <Trash2 className="h-4 w-4 text-red-600" />
                       </Button>
                     </TableCell>
                   </TableRow>
@@ -177,7 +195,7 @@ export function OrdersTable({ data, clientId, onOrderDeleted, onOrderDeleteFaile
             ) : (
               <TableRow>
                 <TableCell
-                  colSpan={6}
+                  colSpan={clientId === 0 ? 7 : 6}
                   className="h-24 text-center text-muted-foreground"
                 >
                   לא נמצאו הזמנות לתצוגה

@@ -298,7 +298,7 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
   switch (item.type) {
     case 'exam-details':
      return (
-          <Card className="w-full p-4  shadow-md border-[1px] ">
+          <Card className="w-full p-4  shadow-md border-none ">
             <div className="grid grid-cols-5 gap-x-3 gap-y-2 w-full" dir="rtl">
               <div className="col-span-1">
                 <label className="font-semibold text-base">תאריך בדיקה</label>
@@ -533,7 +533,7 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
 
     case 'notes':
       return (
-        <Card className={`w-full p-5 shadow-md border-[1px] ${matchHeight ? 'h-full flex flex-col' : ''}`} dir="rtl">
+        <Card className={`w-full p-5 shadow-md border-none ${matchHeight ? 'h-full flex flex-col' : ''}`} dir="rtl">
           <label className="block text-base font-semibold mb-[-10px]">הערות</label>
           <textarea
             name="notes"
