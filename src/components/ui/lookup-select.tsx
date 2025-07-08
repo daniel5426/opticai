@@ -4,6 +4,7 @@ import { Button } from './button'
 import { Card } from './card'
 import { IconChevronDown, IconPlus, IconCheck } from '@tabler/icons-react'
 import { toast } from 'sonner'
+import * as lookupDb from '@/lib/db/lookup-db'
 
 interface LookupItem {
   id?: number
@@ -42,76 +43,76 @@ export function LookupSelect({
   const getLookupFunctions = (type: string) => {
     const lookupMap: { [key: string]: any } = {
       supplier: {
-        getAll: window.electronAPI?.getAllLookupSuppliers,
-        create: window.electronAPI?.createLookupSupplier
+        getAll: lookupDb.getAllLookupSuppliers,
+        create: lookupDb.createLookupSupplier
       },
       clinic: {
-        getAll: window.electronAPI?.getAllLookupClinics,
-        create: window.electronAPI?.createLookupClinic
+        getAll: lookupDb.getAllLookupClinics,
+        create: lookupDb.createLookupClinic
       },
       orderType: {
-        getAll: window.electronAPI?.getAllLookupOrderTypes,
-        create: window.electronAPI?.createLookupOrderType
+        getAll: lookupDb.getAllLookupOrderTypes,
+        create: lookupDb.createLookupOrderType
       },
       referralType: {
-        getAll: window.electronAPI?.getAllLookupReferralTypes,
-        create: window.electronAPI?.createLookupReferralType
+        getAll: lookupDb.getAllLookupReferralTypes,
+        create: lookupDb.createLookupReferralType
       },
       lensModel: {
-        getAll: window.electronAPI?.getAllLookupLensModels,
-        create: window.electronAPI?.createLookupLensModel
+        getAll: lookupDb.getAllLookupLensModels,
+        create: lookupDb.createLookupLensModel
       },
       color: {
-        getAll: window.electronAPI?.getAllLookupColors,
-        create: window.electronAPI?.createLookupColor
+        getAll: lookupDb.getAllLookupColors,
+        create: lookupDb.createLookupColor
       },
       material: {
-        getAll: window.electronAPI?.getAllLookupMaterials,
-        create: window.electronAPI?.createLookupMaterial
+        getAll: lookupDb.getAllLookupMaterials,
+        create: lookupDb.createLookupMaterial
       },
       coating: {
-        getAll: window.electronAPI?.getAllLookupCoatings,
-        create: window.electronAPI?.createLookupCoating
+        getAll: lookupDb.getAllLookupCoatings,
+        create: lookupDb.createLookupCoating
       },
       manufacturer: {
-        getAll: window.electronAPI?.getAllLookupManufacturers,
-        create: window.electronAPI?.createLookupManufacturer
+        getAll: lookupDb.getAllLookupManufacturers,
+        create: lookupDb.createLookupManufacturer
       },
       frameModel: {
-        getAll: window.electronAPI?.getAllLookupFrameModels,
-        create: window.electronAPI?.createLookupFrameModel
+        getAll: lookupDb.getAllLookupFrameModels,
+        create: lookupDb.createLookupFrameModel
       },
       contactLensType: {
-        getAll: window.electronAPI?.getAllLookupContactLensTypes,
-        create: window.electronAPI?.createLookupContactLensType
+        getAll: lookupDb.getAllLookupContactLensTypes,
+        create: lookupDb.createLookupContactLensType
       },
       contactEyeLensType: {
-        getAll: window.electronAPI?.getAllLookupContactEyeLensTypes,
-        create: window.electronAPI?.createLookupContactEyeLensType
+        getAll: lookupDb.getAllLookupContactEyeLensTypes,
+        create: lookupDb.createLookupContactEyeLensType
       },
       contactEyeMaterial: {
-        getAll: window.electronAPI?.getAllLookupContactEyeMaterials,
-        create: window.electronAPI?.createLookupContactEyeMaterial
+        getAll: lookupDb.getAllLookupContactEyeMaterials,
+        create: lookupDb.createLookupContactEyeMaterial
       },
       cleaningSolution: {
-        getAll: window.electronAPI?.getAllLookupCleaningSolutions,
-        create: window.electronAPI?.createLookupCleaningSolution
+        getAll: lookupDb.getAllLookupCleaningSolutions,
+        create: lookupDb.createLookupCleaningSolution
       },
       disinfectionSolution: {
-        getAll: window.electronAPI?.getAllLookupDisinfectionSolutions,
-        create: window.electronAPI?.createLookupDisinfectionSolution
+        getAll: lookupDb.getAllLookupDisinfectionSolutions,
+        create: lookupDb.createLookupDisinfectionSolution
       },
       rinsingSolution: {
-        getAll: window.electronAPI?.getAllLookupRinsingSolutions,
-        create: window.electronAPI?.createLookupRinsingSolution
+        getAll: lookupDb.getAllLookupRinsingSolutions,
+        create: lookupDb.createLookupRinsingSolution
       },
       manufacturingLab: {
-        getAll: window.electronAPI?.getAllLookupManufacturingLabs,
-        create: window.electronAPI?.createLookupManufacturingLab
+        getAll: lookupDb.getAllLookupManufacturingLabs,
+        create: lookupDb.createLookupManufacturingLab
       },
       advisor: {
-        getAll: window.electronAPI?.getAllLookupAdvisors,
-        create: window.electronAPI?.createLookupAdvisor
+        getAll: lookupDb.getAllLookupAdvisors,
+        create: lookupDb.createLookupAdvisor
       }
     }
     return lookupMap[type] || null
@@ -221,7 +222,7 @@ export function LookupSelect({
           onFocus={() => setIsOpen(true)}
           placeholder={placeholder}
           disabled={disabled}
-          className={`text-right pl-10 ${dir === 'rtl' ? 'text-right' : 'text-left'}`}
+          className={`text-right pl-10 ${!disabled ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default ${dir === 'rtl' ? 'text-right' : 'text-left'}`}
           dir={dir}
         />
         <Button

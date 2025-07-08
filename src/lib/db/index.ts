@@ -12,6 +12,7 @@ import {
   SubjectiveExam,
   AdditionExam,
   FinalSubjectiveExam,
+  FinalPrescriptionExam,
   RetinoscopExam,
   RetinoscopDilationExam,
   Order,
@@ -57,7 +58,8 @@ import {
   UncorrectedVAExam,
   KeratometerExam,
   CoverTestExam,
-  WorkShift
+  WorkShift,
+  CompactPrescriptionExam
 } from './schema';
 
 class DatabaseService {
@@ -1095,15 +1097,15 @@ class DatabaseService {
     try {
       const stmt = this.db.prepare(`
         INSERT INTO final_subjective_exams (
-          layout_instance_id, r_sph, l_sph, r_cyl, l_cyl, r_ax, l_ax,
+          layout_instance_id, order_id, r_sph, l_sph, r_cyl, l_cyl, r_ax, l_ax,
           r_pr_h, l_pr_h, r_base_h, l_base_h, r_pr_v, l_pr_v, r_base_v, l_base_v,
           r_va, l_va, r_j, l_j, r_pd_far, l_pd_far, r_pd_close, l_pd_close,
           comb_pd_far, comb_pd_close, comb_va
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
 
       const result = stmt.run(
-        exam.layout_instance_id, exam.r_sph, exam.l_sph, exam.r_cyl, exam.l_cyl, exam.r_ax, exam.l_ax,
+        exam.layout_instance_id, this.sanitizeValue(exam.order_id), exam.r_sph, exam.l_sph, exam.r_cyl, exam.l_cyl, exam.r_ax, exam.l_ax,
         exam.r_pr_h, exam.l_pr_h, exam.r_base_h, exam.l_base_h, exam.r_pr_v, exam.l_pr_v, exam.r_base_v, exam.l_base_v,
         exam.r_va, exam.l_va, exam.r_j, exam.l_j, exam.r_pd_far, exam.l_pd_far, exam.r_pd_close, exam.l_pd_close,
         exam.comb_pd_far, exam.comb_pd_close, exam.comb_va
@@ -1150,7 +1152,7 @@ class DatabaseService {
     try {
       const stmt = this.db.prepare(`
         UPDATE final_subjective_exams SET
-        layout_instance_id = ?, r_sph = ?, l_sph = ?, r_cyl = ?, l_cyl = ?, r_ax = ?, l_ax = ?,
+        layout_instance_id = ?, order_id = ?, r_sph = ?, l_sph = ?, r_cyl = ?, l_cyl = ?, r_ax = ?, l_ax = ?,
         r_pr_h = ?, l_pr_h = ?, r_base_h = ?, l_base_h = ?, r_pr_v = ?, l_pr_v = ?, r_base_v = ?, l_base_v = ?,
         r_va = ?, l_va = ?, r_j = ?, l_j = ?, r_pd_far = ?, l_pd_far = ?, r_pd_close = ?, l_pd_close = ?,
         comb_pd_far = ?, comb_pd_close = ?, comb_va = ?
@@ -1158,7 +1160,7 @@ class DatabaseService {
       `);
 
       stmt.run(
-        exam.layout_instance_id, exam.r_sph, exam.l_sph, exam.r_cyl, exam.l_cyl, exam.r_ax, exam.l_ax,
+        exam.layout_instance_id, this.sanitizeValue(exam.order_id), exam.r_sph, exam.l_sph, exam.r_cyl, exam.l_cyl, exam.r_ax, exam.l_ax,
         exam.r_pr_h, exam.l_pr_h, exam.r_base_h, exam.l_base_h, exam.r_pr_v, exam.l_pr_v, exam.r_base_v, exam.l_base_v,
         exam.r_va, exam.l_va, exam.r_j, exam.l_j, exam.r_pd_far, exam.l_pd_far, exam.r_pd_close, exam.l_pd_close,
         exam.comb_pd_far, exam.comb_pd_close, exam.comb_va, exam.id
@@ -1168,6 +1170,217 @@ class DatabaseService {
     } catch (error) {
       console.error('Error updating final subjective exam:', error);
       return null;
+    }
+  }
+
+  // Final Prescription Exam CRUD operations
+  createFinalPrescriptionExam(exam: Omit<FinalPrescriptionExam, 'id'>): FinalPrescriptionExam | null {
+    if (!this.db) return null;
+
+    try {
+      const stmt = this.db.prepare(`
+        INSERT INTO final_prescription_exams (
+          layout_instance_id, order_id, r_sph, l_sph, r_cyl, l_cyl, r_ax, l_ax,
+          r_pris, l_pris, r_base, l_base, r_va, l_va, r_ad, l_ad, r_pd, l_pd,
+          r_high, l_high, r_diam, l_diam, comb_va, comb_pd, comb_high
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+
+      const result = stmt.run(
+        exam.layout_instance_id, this.sanitizeValue(exam.order_id), 
+        this.sanitizeValue(exam.r_sph), this.sanitizeValue(exam.l_sph), 
+        this.sanitizeValue(exam.r_cyl), this.sanitizeValue(exam.l_cyl), 
+        this.sanitizeValue(exam.r_ax), this.sanitizeValue(exam.l_ax),
+        this.sanitizeValue(exam.r_pris), this.sanitizeValue(exam.l_pris), 
+        this.sanitizeValue(exam.r_base), this.sanitizeValue(exam.l_base), 
+        this.sanitizeValue(exam.r_va), this.sanitizeValue(exam.l_va), 
+        this.sanitizeValue(exam.r_ad), this.sanitizeValue(exam.l_ad), 
+        this.sanitizeValue(exam.r_pd), this.sanitizeValue(exam.l_pd),
+        this.sanitizeValue(exam.r_high), this.sanitizeValue(exam.l_high), 
+        this.sanitizeValue(exam.r_diam), this.sanitizeValue(exam.l_diam), 
+        this.sanitizeValue(exam.comb_va), this.sanitizeValue(exam.comb_pd), this.sanitizeValue(exam.comb_high)
+      );
+
+      return this.getFinalPrescriptionExamById(result.lastInsertRowid as number);
+    } catch (error) {
+      console.error('Error creating final prescription exam:', error);
+      return null;
+    }
+  }
+
+  getFinalPrescriptionExamById(id: number): FinalPrescriptionExam | null {
+    if (!this.db) return null;
+
+    try {
+      const stmt = this.db.prepare('SELECT * FROM final_prescription_exams WHERE id = ?');
+      return stmt.get(id) as FinalPrescriptionExam | null;
+    } catch (error) {
+      console.error('Error getting final prescription exam by ID:', error);
+      return null;
+    }
+  }
+
+  getFinalPrescriptionExamByOrderId(orderId: number): FinalPrescriptionExam | null {
+    if (!this.db) return null;
+
+    try {
+      const stmt = this.db.prepare('SELECT * FROM final_prescription_exams WHERE order_id = ?');
+      return stmt.get(orderId) as FinalPrescriptionExam | null;
+    } catch (error) {
+      console.error('Error getting final prescription exam by order ID:', error);
+      return null;
+    }
+  }
+
+  getFinalPrescriptionExamByLayoutInstanceId(layoutInstanceId: number): FinalPrescriptionExam | null {
+    if (!this.db) return null;
+
+    try {
+      const stmt = this.db.prepare('SELECT * FROM final_prescription_exams WHERE layout_instance_id = ?');
+      return stmt.get(layoutInstanceId) as FinalPrescriptionExam | null;
+    } catch (error) {
+      console.error('Error getting final prescription exam by layout instance ID:', error);
+      return null;
+    }
+  }
+
+  updateFinalPrescriptionExam(exam: FinalPrescriptionExam): FinalPrescriptionExam | null {
+    if (!this.db || !exam.id) return null;
+
+    try {
+      const stmt = this.db.prepare(`
+        UPDATE final_prescription_exams SET
+        layout_instance_id = ?, order_id = ?, r_sph = ?, l_sph = ?, r_cyl = ?, l_cyl = ?, r_ax = ?, l_ax = ?,
+        r_pris = ?, l_pris = ?, r_base = ?, l_base = ?, r_va = ?, l_va = ?, r_ad = ?, l_ad = ?, r_pd = ?, l_pd = ?,
+        r_high = ?, l_high = ?, r_diam = ?, l_diam = ?, comb_va = ?, comb_pd = ?, comb_high = ?
+        WHERE id = ?
+      `);
+
+      stmt.run(
+        exam.layout_instance_id, this.sanitizeValue(exam.order_id), 
+        this.sanitizeValue(exam.r_sph), this.sanitizeValue(exam.l_sph), 
+        this.sanitizeValue(exam.r_cyl), this.sanitizeValue(exam.l_cyl), 
+        this.sanitizeValue(exam.r_ax), this.sanitizeValue(exam.l_ax),
+        this.sanitizeValue(exam.r_pris), this.sanitizeValue(exam.l_pris), 
+        this.sanitizeValue(exam.r_base), this.sanitizeValue(exam.l_base), 
+        this.sanitizeValue(exam.r_va), this.sanitizeValue(exam.l_va), 
+        this.sanitizeValue(exam.r_ad), this.sanitizeValue(exam.l_ad), 
+        this.sanitizeValue(exam.r_pd), this.sanitizeValue(exam.l_pd),
+        this.sanitizeValue(exam.r_high), this.sanitizeValue(exam.l_high), 
+        this.sanitizeValue(exam.r_diam), this.sanitizeValue(exam.l_diam), 
+        this.sanitizeValue(exam.comb_va), this.sanitizeValue(exam.comb_pd), this.sanitizeValue(exam.comb_high),
+        exam.id
+      );
+
+      return exam;
+    } catch (error) {
+      console.error('Error updating final prescription exam:', error);
+      return null;
+    }
+  }
+
+  deleteFinalPrescriptionExam(id: number): boolean {
+    if (!this.db) return false;
+    
+    try {
+      const stmt = this.db.prepare('DELETE FROM final_prescription_exams WHERE id = ?');
+      const result = stmt.run(id);
+      return result.changes > 0;
+    } catch (error) {
+      console.error('Error deleting final prescription exam:', error);
+      return false;
+    }
+  }
+
+  createCompactPrescriptionExam(data: Omit<CompactPrescriptionExam, 'id'>): CompactPrescriptionExam | null {
+    if (!this.db) return null;
+    try {
+      const stmt = this.db.prepare(`
+        INSERT INTO compact_prescription_exams (
+          layout_instance_id, referral_id, r_sph, l_sph, r_cyl, l_cyl, r_ax, l_ax,
+          r_pris, l_pris, r_base, l_base, r_va, l_va, r_ad, l_ad, r_pd, l_pd,
+          comb_va, comb_pd
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+      const result = stmt.run(
+        data.layout_instance_id, data.referral_id, data.r_sph, data.l_sph, data.r_cyl, data.l_cyl,
+        data.r_ax, data.l_ax, data.r_pris, data.l_pris, data.r_base, data.l_base,
+        data.r_va, data.l_va, data.r_ad, data.l_ad, data.r_pd, data.l_pd,
+        data.comb_va, data.comb_pd
+      );
+      return { id: Number(result.lastInsertRowid), ...data };
+    } catch (error) {
+      console.error('Error creating compact prescription exam:', error);
+      return null;
+    }
+  }
+
+  getCompactPrescriptionExamById(id: number): CompactPrescriptionExam | null {
+    if (!this.db) return null;
+    try {
+      const stmt = this.db.prepare('SELECT * FROM compact_prescription_exams WHERE id = ?');
+      return stmt.get(id) as CompactPrescriptionExam || null;
+    } catch (error) {
+      console.error('Error getting compact prescription exam:', error);
+      return null;
+    }
+  }
+
+  getCompactPrescriptionExamByReferralId(referralId: number): CompactPrescriptionExam | null {
+    if (!this.db) return null;
+    try {
+      const stmt = this.db.prepare('SELECT * FROM compact_prescription_exams WHERE referral_id = ?');
+      return stmt.get(referralId) as CompactPrescriptionExam || null;
+    } catch (error) {
+      console.error('Error getting compact prescription exam by referral ID:', error);
+      return null;
+    }
+  }
+
+  getCompactPrescriptionExamByLayoutInstanceId(layoutInstanceId: number): CompactPrescriptionExam | null {
+    if (!this.db) return null;
+    try {
+      const stmt = this.db.prepare('SELECT * FROM compact_prescription_exams WHERE layout_instance_id = ?');
+      return stmt.get(layoutInstanceId) as CompactPrescriptionExam || null;
+    } catch (error) {
+      console.error('Error getting compact prescription exam by layout instance ID:', error);
+      return null;
+    }
+  }
+
+  updateCompactPrescriptionExam(data: CompactPrescriptionExam): CompactPrescriptionExam | null {
+    if (!this.db) return null;
+    try {
+      const stmt = this.db.prepare(`
+        UPDATE compact_prescription_exams SET
+          layout_instance_id = ?, referral_id = ?, r_sph = ?, l_sph = ?, r_cyl = ?, l_cyl = ?,
+          r_ax = ?, l_ax = ?, r_pris = ?, l_pris = ?, r_base = ?, l_base = ?,
+          r_va = ?, l_va = ?, r_ad = ?, l_ad = ?, r_pd = ?, l_pd = ?,
+          comb_va = ?, comb_pd = ?
+        WHERE id = ?
+      `);
+      const result = stmt.run(
+        data.layout_instance_id, data.referral_id, data.r_sph, data.l_sph, data.r_cyl, data.l_cyl,
+        data.r_ax, data.l_ax, data.r_pris, data.l_pris, data.r_base, data.l_base,
+        data.r_va, data.l_va, data.r_ad, data.l_ad, data.r_pd, data.l_pd,
+        data.comb_va, data.comb_pd, data.id
+      );
+      return result.changes > 0 ? data : null;
+    } catch (error) {
+      console.error('Error updating compact prescription exam:', error);
+      return null;
+    }
+  }
+
+  deleteCompactPrescriptionExam(id: number): boolean {
+    if (!this.db) return false;
+    try {
+      const stmt = this.db.prepare('DELETE FROM compact_prescription_exams WHERE id = ?');
+      const result = stmt.run(id);
+      return result.changes > 0;
+    } catch (error) {
+      console.error('Error deleting compact prescription exam:', error);
+      return false;
     }
   }
 
@@ -2060,9 +2273,9 @@ class DatabaseService {
     try {
       const stmt = this.db.prepare(`
         INSERT INTO referrals (
-          client_id, user_id, referral_notes, prescription_notes, comb_va, comb_high, comb_pd,
+          client_id, user_id, referral_notes, prescription_notes,
           date, type, branch, recipient
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       `);
 
       const result = stmt.run(
@@ -2070,9 +2283,6 @@ class DatabaseService {
         this.sanitizeValue(referral.user_id),
         this.sanitizeValue(referral.referral_notes),
         this.sanitizeValue(referral.prescription_notes),
-        this.sanitizeValue(referral.comb_va),
-        this.sanitizeValue(referral.comb_high),
-        this.sanitizeValue(referral.comb_pd),
         this.sanitizeValue(referral.date),
         this.sanitizeValue(referral.type),
         this.sanitizeValue(referral.branch),
@@ -2123,13 +2333,13 @@ class DatabaseService {
   }
 
   updateReferral(referral: Referral): Referral | null {
-    if (!this.db || !referral.id) return null;
+    if (!this.db) return null;
 
     try {
       const stmt = this.db.prepare(`
-        UPDATE referrals SET 
-        client_id = ?, user_id = ?, referral_notes = ?, prescription_notes = ?, comb_va = ?, comb_high = ?, comb_pd = ?,
-        date = ?, type = ?, branch = ?, recipient = ?
+        UPDATE referrals SET
+          client_id = ?, user_id = ?, referral_notes = ?, prescription_notes = ?,
+          date = ?, type = ?, branch = ?, recipient = ?
         WHERE id = ?
       `);
 
@@ -2138,9 +2348,6 @@ class DatabaseService {
         this.sanitizeValue(referral.user_id),
         this.sanitizeValue(referral.referral_notes),
         this.sanitizeValue(referral.prescription_notes),
-        this.sanitizeValue(referral.comb_va),
-        this.sanitizeValue(referral.comb_high),
-        this.sanitizeValue(referral.comb_pd),
         this.sanitizeValue(referral.date),
         this.sanitizeValue(referral.type),
         this.sanitizeValue(referral.branch),

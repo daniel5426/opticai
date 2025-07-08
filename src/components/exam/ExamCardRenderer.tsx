@@ -7,28 +7,31 @@ import { ObjectiveTab } from "@/components/exam/ObjectiveTab"
 import { SubjectiveTab } from "@/components/exam/SubjectiveTab"
 import { AdditionTab } from "@/components/exam/AdditionTab"
 import { FinalSubjectiveTab } from "@/components/exam/FinalSubjectiveTab"
+import { FinalPrescriptionTab } from "@/components/exam/FinalPrescriptionTab"
+import { CompactPrescriptionTab } from "@/components/exam/CompactPrescriptionTab"
 import { RetinoscopTab } from "@/components/exam/RetinoscopTab"
 import { RetinoscopDilationTab } from "@/components/exam/RetinoscopDilationTab"
 import { UncorrectedVATab } from "@/components/exam/UncorrectedVATab"
 import { KeratometerTab } from "@/components/exam/KeratometerTab"
 import { CoverTestTab } from "@/components/exam/CoverTestTab"
-import { OpticalExam, OldRefractionExam, OldRefractionExtensionExam, ObjectiveExam, SubjectiveExam, AdditionExam, FinalSubjectiveExam, RetinoscopExam, RetinoscopDilationExam, UncorrectedVAExam, KeratometerExam, CoverTestExam } from "@/lib/db/schema"
+import { OpticalExam, OldRefractionExam, OldRefractionExtensionExam, ObjectiveExam, SubjectiveExam, AdditionExam, FinalSubjectiveExam, FinalPrescriptionExam, CompactPrescriptionExam, RetinoscopExam, RetinoscopDilationExam, UncorrectedVAExam, KeratometerExam, CoverTestExam } from "@/lib/db/schema"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { UserSelect } from "@/components/ui/user-select"
 import { ExamToolbox, ToolboxActions } from "@/components/exam/ExamToolbox"
 import { ExamComponentType } from "@/lib/exam-field-mappings"
 import { examComponentRegistry } from "@/lib/exam-component-registry"
 import { toast } from "sonner"
+import { DateInput } from "@/components/ui/date"
 
 // Renaming for consistency within the component props
 type Exam = OpticalExam;
 
-const componentsWithMiddleRow: CardItem['type'][] = ['old-refraction', 'old-refraction-extension', 'subjective', 'final-subjective'];
+const componentsWithMiddleRow: CardItem['type'][] = ['old-refraction', 'old-refraction-extension', 'subjective', 'final-subjective', 'final-prescription', 'compact-prescription'];
 const componentsDontHaveMiddleRow: CardItem['type'][] = ['objective', 'addition', 'retinoscop', 'retinoscop-dilation', 'uncorrected-va', 'keratometer', 'cover-test'];
 
 export interface CardItem {
   id: string
-  type: 'exam-details' | 'old-refraction' | 'old-refraction-extension' | 'objective' | 'subjective' | 'final-subjective' | 'addition' | 'retinoscop' | 'retinoscop-dilation' | 'uncorrected-va' | 'keratometer' | 'cover-test' | 'notes'
+  type: 'exam-details' | 'old-refraction' | 'old-refraction-extension' | 'objective' | 'subjective' | 'final-subjective' | 'final-prescription' | 'compact-prescription' | 'addition' | 'retinoscop' | 'retinoscop-dilation' | 'uncorrected-va' | 'keratometer' | 'cover-test' | 'notes'
 }
 
 // Simplified DetailProps interface that uses the registry
@@ -125,11 +128,6 @@ interface RenderCardProps {
 
 // In ExamDetailPage, `DateInput` was used, but it's not a standard component.
 // It was probably a regular input with type="date". Let's handle it here.
-const DateInput = (props: React.ComponentProps<typeof Input> & {value: any}) => {
-    const { value, ...rest } = props;
-    const dateValue = value ? new Date(value).toISOString().split('T')[0] : '';
-    return <Input type="date" value={dateValue} {...rest} />;
-};
 
 const getColumnCount = (type: CardItem['type']): number => {
   switch (type) {
@@ -139,6 +137,8 @@ const getColumnCount = (type: CardItem['type']): number => {
     case 'objective': return 4
     case 'subjective': return 10
     case 'final-subjective': return 11
+    case 'final-prescription': return 11
+    case 'compact-prescription': return 8
     case 'addition': return 7
     case 'retinoscop': return 4
     case 'retinoscop-dilation': return 4
@@ -252,6 +252,8 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
   const emptySubjectiveData: SubjectiveExam = { layout_instance_id: 0 }
   const emptyAdditionData: AdditionExam = { layout_instance_id: 0 }
   const emptyFinalSubjectiveData: FinalSubjectiveExam = { layout_instance_id: 0 }
+  const emptyFinalPrescriptionData: FinalPrescriptionExam = { layout_instance_id: 0 }
+  const emptyCompactPrescriptionData: CompactPrescriptionExam = { layout_instance_id: 0 }
   const emptyRetinoscopData: RetinoscopExam = { layout_instance_id: 0 }
   const emptyRetinoscopDilationData: RetinoscopDilationExam = { layout_instance_id: 0 }
   const emptyUncorrectedVaData: UncorrectedVAExam = { layout_instance_id: 0 }
@@ -279,6 +281,8 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
       case 'subjective': return emptySubjectiveData
       case 'addition': return emptyAdditionData
       case 'final-subjective': return emptyFinalSubjectiveData
+      case 'final-prescription': return emptyFinalPrescriptionData
+      case 'compact-prescription': return emptyCompactPrescriptionData
       case 'retinoscop': return emptyRetinoscopData
       case 'retinoscop-dilation': return emptyRetinoscopDilationData
       case 'uncorrected-va': return emptyUncorrectedVaData
@@ -305,11 +309,10 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
                 <div className="h-1"></div>
                 <DateInput
                   name="exam_date"
-                  dir="rtl"
-                  className={`px-14 h-9 ${mode === 'editor' ? 'bg-accent/50' : detailProps?.isNewMode ? 'bg-white' : detailProps?.isEditing ? 'bg-white' : 'bg-accent/50'}`}
+                  className={`pl-20 h-9`}
                   value={mode === 'editor' ? new Date().toISOString().split('T')[0] : detailProps?.formData.exam_date}
-                  onChange={mode === 'editor' ? () => {} : detailProps?.handleInputChange}
                   disabled={mode === 'editor' ? true : !detailProps?.isEditing}
+                  onChange={detailProps?.handleInputChange || (() => {})}
                 />
               </div>
               <div className="col-span-1">
@@ -444,6 +447,32 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
             isEditing={mode === 'detail' ? detailProps!.isEditing : false}
             onVHConfirm={legacyHandlers.handleFinalSubjectiveVHConfirm || (() => {})}
             hideEyeLabels={hideEyeLabels}
+          />
+        </div>
+      )
+
+    case 'final-prescription':
+      return (
+        <div className={`relative h-full ${matchHeight ? 'flex flex-col' : ''}`}>
+          {toolbox}
+          <FinalPrescriptionTab
+            finalPrescriptionData={getExamData('final-prescription')}
+            onFinalPrescriptionChange={getChangeHandler('final-prescription')}
+            isEditing={mode === 'detail' ? detailProps!.isEditing : false}
+            hideEyeLabels={hideEyeLabels}
+          />
+        </div>
+      )
+
+    case 'compact-prescription':
+      return (
+        <div className={`relative h-full ${matchHeight ? 'flex flex-col' : ''}`}>
+          {toolbox}
+          <CompactPrescriptionTab
+            data={getExamData('compact-prescription')}
+            isEditing={mode === 'detail' ? detailProps!.isEditing : false}
+            hideEyeLabels={hideEyeLabels}
+            onChange={(field, value) => getChangeHandler('compact-prescription')(field as string, value)}
           />
         </div>
       )

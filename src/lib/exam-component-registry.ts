@@ -6,6 +6,8 @@ import {
   SubjectiveExam,
   AdditionExam,
   FinalSubjectiveExam,
+  FinalPrescriptionExam,
+  CompactPrescriptionExam,
   RetinoscopExam,
   RetinoscopDilationExam,
   UncorrectedVAExam,
@@ -13,7 +15,7 @@ import {
   CoverTestExam,
 } from "@/lib/db/schema"
 
-export type ExamComponentType = 'old-refraction' | 'old-refraction-extension' | 'objective' | 'subjective' | 'addition' | 'final-subjective' | 'retinoscop' | 'retinoscop-dilation' | 'uncorrected-va' | 'keratometer' | 'cover-test'
+export type ExamComponentType = 'old-refraction' | 'old-refraction-extension' | 'objective' | 'subjective' | 'addition' | 'final-subjective' | 'final-prescription' | 'compact-prescription' | 'retinoscop' | 'retinoscop-dilation' | 'uncorrected-va' | 'keratometer' | 'cover-test'
 
 export interface ExamComponentConfig<T = any> {
   name: string
@@ -254,6 +256,76 @@ registry.register<FinalSubjectiveExam>('final-subjective', {
       "r_pd_close", "l_pd_close", "comb_pd_far", "comb_pd_close", "comb_va"
     ]
     const integerFields = ["r_ax", "l_ax", "r_j", "l_j"]
+    
+    if (numericFields.includes(field as string)) {
+      const val = parseFloat(rawValue)
+      return rawValue === "" || isNaN(val) ? undefined : val
+    } else if (integerFields.includes(field as string)) {
+      const val = parseInt(rawValue, 10)
+      return rawValue === "" || isNaN(val) ? undefined : val
+    } else if (rawValue === "") {
+      return undefined
+    }
+    return rawValue
+  },
+  hasData: (data) => Object.values(data).some(value => 
+    value !== undefined && value !== null && value !== ''
+  )
+})
+
+registry.register<FinalPrescriptionExam>('final-prescription', {
+  name: 'מרשם סופי',
+  getData: (layoutInstanceId: number) => window.electronAPI.db('getFinalPrescriptionExamByLayoutInstanceId', layoutInstanceId),
+  createData: (data: Omit<FinalPrescriptionExam, 'id'>) => window.electronAPI.db('createFinalPrescriptionExam', data),
+  updateData: (data: FinalPrescriptionExam) => window.electronAPI.db('updateFinalPrescriptionExam', data),
+  getNumericFields: () => [
+    "r_sph", "l_sph", "r_cyl", "l_cyl", "r_ax", "l_ax", "r_pris", "l_pris",
+    "r_va", "l_va", "r_ad", "l_ad", "r_pd", "l_pd", "r_high", "l_high",
+    "r_diam", "l_diam", "comb_va", "comb_pd", "comb_high"
+  ],
+  getIntegerFields: () => ["r_ax", "l_ax"],
+  validateField: (field, rawValue) => {
+    const numericFields = [
+      "r_sph", "l_sph", "r_cyl", "l_cyl", "r_ax", "l_ax", "r_pris", "l_pris",
+      "r_va", "l_va", "r_ad", "l_ad", "r_pd", "l_pd", "r_high", "l_high",
+      "r_diam", "l_diam", "comb_va", "comb_pd", "comb_high"
+    ]
+    const integerFields = ["r_ax", "l_ax"]
+    
+    if (numericFields.includes(field as string)) {
+      const val = parseFloat(rawValue)
+      return rawValue === "" || isNaN(val) ? undefined : val
+    } else if (integerFields.includes(field as string)) {
+      const val = parseInt(rawValue, 10)
+      return rawValue === "" || isNaN(val) ? undefined : val
+    } else if (rawValue === "") {
+      return undefined
+    }
+    return rawValue
+  },
+  hasData: (data) => Object.values(data).some(value => 
+    value !== undefined && value !== null && value !== ''
+  )
+})
+
+registry.register<CompactPrescriptionExam>('compact-prescription', {
+  name: 'מרשם קומפקטי',
+  getData: (layoutInstanceId: number) => window.electronAPI.db('getCompactPrescriptionExamByLayoutInstanceId', layoutInstanceId),
+  createData: (data: Omit<CompactPrescriptionExam, 'id'>) => window.electronAPI.db('createCompactPrescriptionExam', data),
+  updateData: (data: CompactPrescriptionExam) => window.electronAPI.db('updateCompactPrescriptionExam', data),
+  getNumericFields: () => [
+    "r_sph", "l_sph", "r_cyl", "l_cyl", "r_ax", "l_ax", "r_pris", "l_pris",
+    "r_base", "l_base", "r_va", "l_va", "r_ad", "l_ad", "r_pd", "l_pd",
+    "comb_va", "comb_pd"
+  ],
+  getIntegerFields: () => ["r_ax", "l_ax"],
+  validateField: (field, rawValue) => {
+    const numericFields = [
+      "r_sph", "l_sph", "r_cyl", "l_cyl", "r_ax", "l_ax", "r_pris", "l_pris",
+      "r_base", "l_base", "r_va", "l_va", "r_ad", "l_ad", "r_pd", "l_pd",
+      "comb_va", "comb_pd"
+    ]
+    const integerFields = ["r_ax", "l_ax"]
     
     if (numericFields.includes(field as string)) {
       const val = parseFloat(rawValue)

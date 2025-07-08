@@ -17,6 +17,13 @@ import {
 } from "@/lib/db/referral-db"
 import { getClientById } from "@/lib/db/clients-db"
 import { toast } from "sonner"
+import { CompactPrescriptionTab } from "@/components/exam/CompactPrescriptionTab"
+import { CompactPrescriptionExam } from "@/lib/db/schema"
+import { 
+  createCompactPrescriptionExam,
+  updateCompactPrescriptionExam,
+  getCompactPrescriptionExamByReferralId
+} from "@/lib/db/compact-prescription-db"
 
 export default function ReferralDetailPage() {
   const location = useLocation()
@@ -27,6 +34,7 @@ export default function ReferralDetailPage() {
   
   // Check if we're on the create route
   const isNewReferral = location.pathname === '/referrals/create'
+  const [isEditing, setIsEditing] = useState(isNewReferral)
   
   // Get referralId for detail route, or search params for create route
   let referralId: string | undefined
@@ -50,13 +58,15 @@ export default function ReferralDetailPage() {
     client_id: 0,
     referral_notes: '',
     prescription_notes: '',
-    comb_va: 0,
-    comb_high: 0,
-    comb_pd: 0,
     date: '',
     type: '',
     branch: '',
     recipient: ''
+  })
+
+  const [compactPrescription, setCompactPrescription] = useState<CompactPrescriptionExam | null>(null)
+  const [compactPrescriptionFormData, setCompactPrescriptionFormData] = useState<CompactPrescriptionExam>({
+    referral_id: 0
   })
 
   const [rightEyeData, setRightEyeData] = useState<ReferralEye>({
@@ -126,6 +136,15 @@ export default function ReferralDetailPage() {
             setClient(clientData || null)
           }
           
+          // Load compact prescription
+          const compactPrescriptionData = await getCompactPrescriptionExamByReferralId(Number(referralId))
+          if (compactPrescriptionData) {
+            setCompactPrescription(compactPrescriptionData)
+            setCompactPrescriptionFormData(compactPrescriptionData)
+          } else {
+            setCompactPrescriptionFormData(prev => ({ ...prev, referral_id: Number(referralId) }))
+          }
+          
           const eyeData = await getReferralEyesByReferralId(Number(referralId))
           const rightEye = eyeData.find(eye => eye.eye === 'R')
           const leftEye = eyeData.find(eye => eye.eye === 'L')
@@ -158,6 +177,10 @@ export default function ReferralDetailPage() {
     setFormData(prev => ({ ...prev, [name]: value }))
   }
 
+  const handleCompactPrescriptionChange = (field: keyof CompactPrescriptionExam, value: any) => {
+    setCompactPrescriptionFormData(prev => ({ ...prev, [field]: value }))
+  }
+
   const handleTabChange = (value: string) => {
     const clientId = isNewReferral ? clientIdFromSearch : formData.client_id?.toString()
     if (clientId && value !== 'referrals') {
@@ -184,14 +207,16 @@ export default function ReferralDetailPage() {
 
         const rightEyeToSave = { ...rightEyeData, referral_id: referralIdToUse }
         const leftEyeToSave = { ...leftEyeData, referral_id: referralIdToUse }
+        const compactPrescriptionToSave = { ...compactPrescriptionFormData, referral_id: referralIdToUse }
 
-        // Always save eye data (create or update)
-        const [savedRightEye, savedLeftEye] = await Promise.all([
+        // Always save eye data and compact prescription (create or update)
+        const [savedRightEye, savedLeftEye, savedCompactPrescription] = await Promise.all([
           rightEyeData.id ? updateReferralEye(rightEyeToSave) : createReferralEye(rightEyeToSave),
-          leftEyeData.id ? updateReferralEye(leftEyeToSave) : createReferralEye(leftEyeToSave)
+          leftEyeData.id ? updateReferralEye(leftEyeToSave) : createReferralEye(leftEyeToSave),
+          compactPrescription?.id ? updateCompactPrescriptionExam(compactPrescriptionToSave) : createCompactPrescriptionExam(compactPrescriptionToSave)
         ])
 
-        if (savedRightEye && savedLeftEye) {
+        if (savedRightEye && savedLeftEye && savedCompactPrescription) {
           toast.success("ההפניה נשמרה בהצלחה")
           
           if (isNewReferral) {
@@ -202,13 +227,13 @@ export default function ReferralDetailPage() {
               navigate({ to: `/referrals/${savedReferral.id}` })
             }
           } else {
-            // Navigate back to client's referrals tab after editing
-            if (formData.client_id) {
-              navigate({ to: `/clients/${formData.client_id}`, search: { tab: 'referrals' } })
-            }
+            // For edit mode, stay on the page but switch to view mode
+            setIsEditing(false)
+            // Update the form data with the saved data
+            setFormData(savedReferral)
           }
         } else {
-          toast.error("שגיאה בשמירת נתוני העיניים")
+          toast.error("שגיאה בשמירת נתוני העיניים או המרשם")
         }
       } else {
         toast.error("שגיאה בשמירת ההפניה")
@@ -216,6 +241,14 @@ export default function ReferralDetailPage() {
     } catch (error) {
       console.error('Error saving referral:', error)
       toast.error("שגיאה בשמירת ההפניה")
+    }
+  }
+
+  const handleEditButtonClick = () => {
+    if (isEditing) {
+      handleSave();
+    } else {
+      setIsEditing(true);
     }
   }
 
@@ -272,309 +305,78 @@ export default function ReferralDetailPage() {
                 {isNewReferral ? 'הפניה חדשה' : 'פרטי הפניה'}
               </h1>
               <div className="flex gap-2">
-                <Button variant="outline" onClick={handleCancel}>
-                  ביטול
+                {isNewReferral && (
+                  <Button variant="outline" onClick={handleCancel}>
+                    ביטול
+                  </Button>
+                )}
+                <Button
+                  variant={isEditing ? "outline" : "default"}
+                  onClick={handleEditButtonClick}
+                >
+                  {isNewReferral ? "שמור הפניה" : (isEditing ? "שמור שינויים" : "ערוך הפניה")}
                 </Button>
-                <Button onClick={handleSave}>
-                  שמור
-                </Button>
               </div>
             </div>
 
-            <div className="grid grid-cols-4 gap-4 p-4 rounded-lg">
-              <div>
-                <Label className="font-semibold text-base">תאריך</Label>
-                <div className="h-1"></div>
-                <Input
-                  type="date"
-                  name="date"
-                  value={formData.date || ''}
-                  onChange={handleInputChange}
-                />
-              </div>
-              <div>
-                <Label className="font-semibold text-base">סוג הפניה</Label>
-                <div className="h-1"></div>
-                <Input
-                  name="type"
-                  value={formData.type || ''}
-                  onChange={handleInputChange}
-                  placeholder="סוג ההפניה"
-                />
-              </div>
-              <div>
-                <Label className="font-semibold text-base">סניף</Label>
-                <div className="h-1"></div>
-                <Input
-                  name="branch"
-                  value={formData.branch || ''}
-                  onChange={handleInputChange}
-                  placeholder="סניף"
-                />
-              </div>
-              <div>
-                <Label className="font-semibold text-base">נמען</Label>
-                <div className="h-1"></div>
-                <Input
-                  name="recipient"
-                  value={formData.recipient || ''}
-                  onChange={handleInputChange}
-                  placeholder="נמען ההפניה"
-                />
-              </div>
-            </div>
-
-            {/* Eye Data Section - Same layout as ExamDetailPage */}
-            <div className="border rounded-lg p-4">              
-              {/* Header Row */}
-              <div className="flex items-center gap-1 h-6 mb-3" dir="rtl">
-                <div className="grid grid-cols-16 gap-4 flex-1 pb-2" dir="ltr">
-                  <div className="col-span-2">
-                    <Label className="text-[12px] block text-center">SPH</Label>
-                  </div>
-                  <div className="col-span-2">
-                    <Label className="text-[12px] block text-center">CYL</Label>
-                  </div>
-                  <div className="col-span-2">
-                    <Label className="text-[12px] block text-center">AXIS</Label>
-                  </div>
-                  <div className="col-span-2">
-                    <Label className="text-[12px] block text-center">PRIS</Label>
-                  </div>
-                  <div className="col-span-2">
-                    <Label className="text-[12px] block text-center">BASE</Label>
-                  </div>
-                  <div className="col-span-2">
-                    <Label className="text-[12px] block text-center">VA</Label>
-                  </div>
-                  <div className="col-span-2">
-                    <Label className="text-[12px] block text-center">ADD</Label>
-                  </div>
-                  <div className="col-span-2">
-                    <Label className="text-[12px] block text-center">PD</Label>
-                  </div>
+            <Card className="w-full p-4 shadow-md border-none">
+              <div className="grid grid-cols-4 gap-x-3 gap-y-2 w-full" dir="rtl">
+                <div className="col-span-1">
+                  <label className="font-semibold text-base">תאריך</label>
+                  <div className="h-1"></div>
+                  <Input
+                    type="date"
+                    name="date"
+                    value={formData.date || ''}
+                    onChange={handleInputChange}
+                    disabled={!isEditing}
+                    className={`h-9 text-sm ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
+                  />
                 </div>
-                <span className="text-md font-medium pr-2 flex items-center justify-center w-6"></span>
-              </div>
-
-              {/* Right Eye Row */}
-              <div className="flex items-center gap-1 h-6 mb-3" dir="rtl">
-                <div className="grid grid-cols-16 gap-4 flex-1 pb-2" dir="ltr">
-                  <div className="col-span-2">
-                    <Input 
-                      type="number" 
-                      step="0.25" 
-                      value={rightEyeData.sph?.toString() || ""} 
-                      onChange={(e) => setRightEyeData(prev => ({ ...prev, sph: parseFloat(e.target.value) || 0 }))}
-                      className="h-8 text-xs px-1" 
-                      placeholder="0.00" 
-                    />
-                  </div>
-                  <div className="col-span-2">
-                    <Input 
-                      type="number" 
-                      step="0.25" 
-                      value={rightEyeData.cyl?.toString() || ""} 
-                      onChange={(e) => setRightEyeData(prev => ({ ...prev, cyl: parseFloat(e.target.value) || 0 }))}
-                      className="h-8 text-xs px-1" 
-                      placeholder="0.00" 
-                    />
-                  </div>
-                  <div className="col-span-2">
-                    <Input 
-                      type="number" 
-                      min="0" 
-                      max="180" 
-                      value={rightEyeData.ax?.toString() || ""} 
-                      onChange={(e) => setRightEyeData(prev => ({ ...prev, ax: parseInt(e.target.value) || 0 }))}
-                      className="h-8 text-xs px-1" 
-                      placeholder="0" 
-                    />
-                  </div>
-                  <div className="col-span-2">
-                    <Input 
-                      type="number" 
-                      step="0.5" 
-                      value={rightEyeData.pris?.toString() || ""} 
-                      onChange={(e) => setRightEyeData(prev => ({ ...prev, pris: parseFloat(e.target.value) || 0 }))}
-                      className="h-8 text-xs px-1" 
-                      placeholder="0.0" 
-                    />
-                  </div>
-                  <div className="col-span-2">
-                    <Input 
-                      type="number" 
-                      step="0.1" 
-                      value={rightEyeData.base?.toString() || ""} 
-                      onChange={(e) => setRightEyeData(prev => ({ ...prev, base: parseFloat(e.target.value) || 0 }))}
-                      className="h-8 text-xs px-1" 
-                      placeholder="0.0" 
-                    />
-                  </div>
-                  <div className="col-span-2">
-                    <Input 
-                      type="number" 
-                      step="0.1" 
-                      value={rightEyeData.va?.toString() || ""} 
-                      onChange={(e) => setRightEyeData(prev => ({ ...prev, va: parseFloat(e.target.value) || 0 }))}
-                      className="h-8 text-xs px-1" 
-                      placeholder="0.0" 
-                    />
-                  </div>
-                  <div className="col-span-2">
-                    <Input 
-                      type="number" 
-                      step="0.25" 
-                      value={rightEyeData.add?.toString() || ""} 
-                      onChange={(e) => setRightEyeData(prev => ({ ...prev, add: parseFloat(e.target.value) || 0 }))}
-                      className="h-8 text-xs px-1" 
-                      placeholder="0.00" 
-                    />
-                  </div>
-                  <div className="col-span-2">
-                    <Input 
-                      type="number" 
-                      step="0.1" 
-                      value={rightEyeData.pd?.toString() || ""} 
-                      onChange={(e) => setRightEyeData(prev => ({ ...prev, pd: parseFloat(e.target.value) || 0 }))}
-                      className="h-8 text-xs px-1" 
-                      placeholder="0.0" 
-                    />
-                  </div>
+                <div className="col-span-1">
+                  <label className="font-semibold text-base">סוג הפניה</label>
+                  <div className="h-1"></div>
+                  <Input
+                    name="type"
+                    value={formData.type || ''}
+                    onChange={handleInputChange}
+                    placeholder="סוג ההפניה"
+                    disabled={!isEditing}
+                    className={`h-9 text-sm ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
+                  />
                 </div>
-                <span className="text-md font-medium pr-2 flex items-center justify-center w-6 pt-2">R</span>
-              </div>
-
-              {/* Combined Fields Row */}
-              <div className="flex items-center gap-1 h-10 mb-3" dir="rtl">
-                <div className="grid grid-cols-16 gap-4 flex-1" dir="ltr">
-                  <div className="col-span-2"></div>
-                  <div className="col-span-2"></div>
-                  <div className="col-span-2"></div>
-                  <div className="col-span-2"></div>
-                  <div className="col-span-2"></div>
-                  <div className="col-span-2">
-                    <Input 
-                      type="number" 
-                      step="0.1" 
-                      value={formData.comb_va?.toString() || ""} 
-                      onChange={(e) => setFormData(prev => ({ ...prev, comb_va: parseFloat(e.target.value) || 0 }))}
-                      className="h-8 text-xs px-1" 
-                      placeholder="Comb VA" 
-                    />
-                  </div>
-                  <div className="col-span-2">
-                    <Input 
-                      type="number" 
-                      step="0.1" 
-                      value={formData.comb_high?.toString() || ""} 
-                      onChange={(e) => setFormData(prev => ({ ...prev, comb_high: parseFloat(e.target.value) || 0 }))}
-                      className="h-8 text-xs px-1" 
-                      placeholder="High" 
-                    />
-                  </div>
-                  <div className="col-span-2">
-                    <Input 
-                      type="number" 
-                      step="0.1" 
-                      value={formData.comb_pd?.toString() || ""} 
-                      onChange={(e) => setFormData(prev => ({ ...prev, comb_pd: parseFloat(e.target.value) || 0 }))}
-                      className="h-8 text-xs px-1" 
-                      placeholder="PD" 
-                    />
-                  </div>
+                <div className="col-span-1">
+                  <label className="font-semibold text-base">סניף</label>
+                  <div className="h-1"></div>
+                  <Input
+                    name="branch"
+                    value={formData.branch || ''}
+                    onChange={handleInputChange}
+                    placeholder="סניף"
+                    disabled={!isEditing}
+                    className={`h-9 text-sm ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
+                  />
                 </div>
-                <span className="text-md font-medium pr-2 flex items-center justify-center w-6">C</span>
-              </div>
-
-              {/* Left Eye Row */}
-              <div className="flex items-center gap-1 h-6 mb-3" dir="rtl">
-                <div className="grid grid-cols-16 gap-4 flex-1 pb-2" dir="ltr">
-                  <div className="col-span-2">
-                    <Input 
-                      type="number" 
-                      step="0.25" 
-                      value={leftEyeData.sph?.toString() || ""} 
-                      onChange={(e) => setLeftEyeData(prev => ({ ...prev, sph: parseFloat(e.target.value) || 0 }))}
-                      className="h-8 text-xs px-1" 
-                      placeholder="0.00" 
-                    />
-                  </div>
-                  <div className="col-span-2">
-                    <Input 
-                      type="number" 
-                      step="0.25" 
-                      value={leftEyeData.cyl?.toString() || ""} 
-                      onChange={(e) => setLeftEyeData(prev => ({ ...prev, cyl: parseFloat(e.target.value) || 0 }))}
-                      className="h-8 text-xs px-1" 
-                      placeholder="0.00" 
-                    />
-                  </div>
-                  <div className="col-span-2">
-                    <Input 
-                      type="number" 
-                      min="0" 
-                      max="180" 
-                      value={leftEyeData.ax?.toString() || ""} 
-                      onChange={(e) => setLeftEyeData(prev => ({ ...prev, ax: parseInt(e.target.value) || 0 }))}
-                      className="h-8 text-xs px-1" 
-                      placeholder="0" 
-                    />
-                  </div>
-                  <div className="col-span-2">
-                    <Input 
-                      type="number" 
-                      step="0.5" 
-                      value={leftEyeData.pris?.toString() || ""} 
-                      onChange={(e) => setLeftEyeData(prev => ({ ...prev, pris: parseFloat(e.target.value) || 0 }))}
-                      className="h-8 text-xs px-1" 
-                      placeholder="0.0" 
-                    />
-                  </div>
-                  <div className="col-span-2">
-                    <Input 
-                      type="number" 
-                      step="0.1" 
-                      value={leftEyeData.base?.toString() || ""} 
-                      onChange={(e) => setLeftEyeData(prev => ({ ...prev, base: parseFloat(e.target.value) || 0 }))}
-                      className="h-8 text-xs px-1" 
-                      placeholder="0.0" 
-                    />
-                  </div>
-                  <div className="col-span-2">
-                    <Input 
-                      type="number" 
-                      step="0.1" 
-                      value={leftEyeData.va?.toString() || ""} 
-                      onChange={(e) => setLeftEyeData(prev => ({ ...prev, va: parseFloat(e.target.value) || 0 }))}
-                      className="h-8 text-xs px-1" 
-                      placeholder="0.0" 
-                    />
-                  </div>
-                  <div className="col-span-2">
-                    <Input 
-                      type="number" 
-                      step="0.25" 
-                      value={leftEyeData.add?.toString() || ""} 
-                      onChange={(e) => setLeftEyeData(prev => ({ ...prev, add: parseFloat(e.target.value) || 0 }))}
-                      className="h-8 text-xs px-1" 
-                      placeholder="0.00" 
-                    />
-                  </div>
-                  <div className="col-span-2">
-                    <Input 
-                      type="number" 
-                      step="0.1" 
-                      value={leftEyeData.pd?.toString() || ""} 
-                      onChange={(e) => setLeftEyeData(prev => ({ ...prev, pd: parseFloat(e.target.value) || 0 }))}
-                      className="h-8 text-xs px-1" 
-                      placeholder="0.0" 
-                    />
-                  </div>
+                <div className="col-span-1">
+                  <label className="font-semibold text-base">נמען</label>
+                  <div className="h-1"></div>
+                  <Input
+                    name="recipient"
+                    value={formData.recipient || ''}
+                    onChange={handleInputChange}
+                    placeholder="נמען ההפניה"
+                    disabled={!isEditing}
+                    className={`h-9 text-sm ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
+                  />
                 </div>
-                <span className="text-md font-medium pr-2 flex items-center justify-center w-6 pb-2">L</span>
               </div>
-            </div>
+            </Card>
+
+            <CompactPrescriptionTab 
+              data={compactPrescriptionFormData}
+              onChange={handleCompactPrescriptionChange}
+              isEditing={isEditing}
+            />
 
             <div className="grid grid-cols-2 gap-4">
               <div>
@@ -586,6 +388,8 @@ export default function ReferralDetailPage() {
                   onChange={handleInputChange}
                   rows={4}
                   placeholder="הערות להפניה..."
+                  disabled={!isEditing}
+                  className={`${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
                 />
               </div>
               <div>
@@ -597,6 +401,8 @@ export default function ReferralDetailPage() {
                   onChange={handleInputChange}
                   rows={4}
                   placeholder="הערות למרשם..."
+                  disabled={!isEditing}
+                  className={`${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
                 />
               </div>
             </div>

@@ -134,8 +134,7 @@ export function ReferralTable({
               {clientId === 0 && <TableHead className="text-right">לקוח</TableHead>}
               <TableHead className="text-right">סניף</TableHead>
               <TableHead className="text-right">נמען</TableHead>
-              <TableHead className="text-right">VA משולב</TableHead>
-              <TableHead className="text-right">פעולות</TableHead>
+              <TableHead className="w-[50px] text-right"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -175,10 +174,7 @@ export function ReferralTable({
                   <TableCell className="text-right">
                     {referral.recipient || "-"}
                   </TableCell>
-                  <TableCell className="text-right">
-                    {referral.comb_va || "-"}
-                  </TableCell>
-                  <TableCell className="text-right">
+                  <TableCell>
                     <Button
                       variant="ghost"
                       className="h-8 w-8 p-0"
@@ -197,7 +193,7 @@ export function ReferralTable({
             ) : (
               <TableRow>
                 <TableCell
-                  colSpan={clientId === 0 ? 7 : 6}
+                  colSpan={clientId === 0 ? 6 : 5}
                   className="text-muted-foreground py-8 text-center"
                 >
                   לא נמצאו הפניות

@@ -197,6 +197,7 @@ export interface RetinoscopDilationExam {
 export interface FinalSubjectiveExam {
   id?: number;
   layout_instance_id: number;
+  order_id?: number;
   r_sph?: number;
   l_sph?: number;
   r_cyl?: number;
@@ -222,6 +223,59 @@ export interface FinalSubjectiveExam {
   comb_pd_far?: number;
   comb_pd_close?: number;
   comb_va?: number;
+}
+
+export interface FinalPrescriptionExam {
+  id?: number;
+  layout_instance_id?: number;
+  order_id?: number;
+  r_sph?: number;
+  l_sph?: number;
+  r_cyl?: number;
+  l_cyl?: number;
+  r_ax?: number;
+  l_ax?: number;
+  r_pris?: number;
+  l_pris?: number;
+  r_base?: string;
+  l_base?: string;
+  r_va?: number;
+  l_va?: number;
+  r_ad?: number;
+  l_ad?: number;
+  r_pd?: number;
+  l_pd?: number;
+  r_high?: number;
+  l_high?: number;
+  r_diam?: number;
+  l_diam?: number;
+  comb_va?: number;
+  comb_pd?: number;
+  comb_high?: number;
+}
+
+export interface CompactPrescriptionExam {
+  id?: number;
+  layout_instance_id?: number;
+  referral_id?: number;
+  r_sph?: number;
+  l_sph?: number;
+  r_cyl?: number;
+  l_cyl?: number;
+  r_ax?: number;
+  l_ax?: number;
+  r_pris?: number;
+  l_pris?: number;
+  r_base?: number;
+  l_base?: number;
+  r_va?: number;
+  l_va?: number;
+  r_ad?: number;
+  l_ad?: number;
+  r_pd?: number;
+  l_pd?: number;
+  comb_va?: number;
+  comb_pd?: number;
 }
 
 export interface Order {
@@ -262,11 +316,6 @@ export interface Referral {
   user_id?: number;
   referral_notes: string;
   prescription_notes?: string;
-  comb_va?: number;
-  comb_high?: number;
-  comb_pd?: number;
-
-  // referral details
   date?: string;
   type?: string;
   branch?: string;
@@ -956,6 +1005,7 @@ export const createTables = (db: Database): void => {
     CREATE TABLE IF NOT EXISTS final_subjective_exams (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       layout_instance_id INTEGER NOT NULL,
+      order_id INTEGER,
       r_sph REAL,
       l_sph REAL,
       r_cyl REAL,
@@ -981,7 +1031,71 @@ export const createTables = (db: Database): void => {
       comb_pd_far REAL,
       comb_pd_close REAL,
       comb_va REAL,
-      FOREIGN KEY(layout_instance_id) REFERENCES exam_layout_instances(id) ON DELETE CASCADE
+      FOREIGN KEY(layout_instance_id) REFERENCES exam_layout_instances(id) ON DELETE CASCADE,
+      FOREIGN KEY(order_id) REFERENCES orders(id) ON DELETE CASCADE
+    );
+  `);
+
+  // Create final_prescription_exams table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS final_prescription_exams (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      layout_instance_id INTEGER,
+      order_id INTEGER,
+      r_sph REAL,
+      l_sph REAL,
+      r_cyl REAL,
+      l_cyl REAL,
+      r_ax INTEGER,
+      l_ax INTEGER,
+      r_pris REAL,
+      l_pris REAL,
+      r_base TEXT,
+      l_base TEXT,
+      r_va REAL,
+      l_va REAL,
+      r_ad REAL,
+      l_ad REAL,
+      r_pd REAL,
+      l_pd REAL,
+      r_high REAL,
+      l_high REAL,
+      r_diam INTEGER,
+      l_diam INTEGER,
+      comb_va REAL,
+      comb_pd REAL,
+      comb_high REAL,
+      FOREIGN KEY(layout_instance_id) REFERENCES exam_layout_instances(id) ON DELETE CASCADE,
+      FOREIGN KEY(order_id) REFERENCES orders(id) ON DELETE CASCADE
+    );
+  `);
+
+  // Create compact_prescription_exams table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS compact_prescription_exams (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      layout_instance_id INTEGER,
+      referral_id INTEGER,
+      r_sph REAL,
+      l_sph REAL,
+      r_cyl REAL,
+      l_cyl REAL,
+      r_ax INTEGER,
+      l_ax INTEGER,
+      r_pris REAL,
+      l_pris REAL,
+      r_base REAL,
+      l_base REAL,
+      r_va REAL,
+      l_va REAL,
+      r_ad REAL,
+      l_ad REAL,
+      r_pd REAL,
+      l_pd REAL,
+      comb_va REAL,
+      comb_pd REAL,
+      FOREIGN KEY(layout_instance_id) REFERENCES exam_layout_instances(id) ON DELETE CASCADE,
+      FOREIGN KEY(referral_id) REFERENCES referrals(id) ON DELETE CASCADE
     );
   `);
 
@@ -1203,9 +1317,6 @@ export const createTables = (db: Database): void => {
       user_id INTEGER,
       referral_notes TEXT,
       prescription_notes TEXT,
-      comb_va REAL,
-      comb_high REAL,
-      comb_pd REAL,
       date DATE,
       type TEXT,
       branch TEXT,
