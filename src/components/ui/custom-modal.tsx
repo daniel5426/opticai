@@ -86,13 +86,13 @@ export function CustomModal({ isOpen, onClose, title, subtitle, description, chi
     >
       <div
         ref={modalRef}
-        className={`bg-white dark:bg-gray-800 rounded-lg shadow-lg ${width} max-h-[90vh] overflow-auto ${className}`}
+        className={`bg-card rounded-lg shadow-lg ${width} max-h-[90vh] overflow-auto ${className}`}
         onClick={(e) => e.stopPropagation()}
         tabIndex={-1}
         style={{ scrollbarWidth: 'none' }}
       >
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-gray-200 dark:border-gray-700">
+        <div className="flex items-center justify-between p-4 ">
           <div className=" flex-1" dir="rtl">
             <h2 className="text-lg font-semibold">
               {title}
@@ -125,7 +125,7 @@ export function CustomModal({ isOpen, onClose, title, subtitle, description, chi
         </div>
 
         {onConfirm && (
-          <div className="flex justify-center p-4 border-t border-gray-200 dark:border-gray-700" dir="rtl">
+          <div className="flex justify-center p-4 " dir="rtl">
             <Button variant="outline" onClick={onClose} className="ml-2">
               {cancelText}
             </Button>

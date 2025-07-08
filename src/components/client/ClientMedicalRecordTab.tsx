@@ -269,7 +269,7 @@ export const ClientMedicalRecordTab = () => {
             {records.map((record, index) => (
               <div key={record.id ?? `new-${index}`} className="relative">
                 {index < records.length - 1 && (
-                  <div className="absolute top-6 h-[calc(100%+2rem-6px)] right-3 w-0.5 bg-muted" />
+                  <div className="absolute top-6 h-[calc(100%+2rem-6px)] right-3 w-0.5 bg-primary/30" />
                 )}
 
                 <div className="relative h-6">
@@ -333,7 +333,7 @@ export const ClientMedicalRecordTab = () => {
                   </div>
                 </div>
 
-                <Card className="mr-14 border-none shadow-none">
+                <Card className="mr-14 border-none shadow-none bg-transparent">
                   <CardContent className=" border-none">
                     {record.isEditing ? (
                       <Textarea
