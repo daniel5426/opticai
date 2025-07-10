@@ -82,6 +82,39 @@ export interface ElectronAPI {
   emailSendTestReminder: (appointmentId: number) => Promise<boolean>;
   emailSchedulerStatus: () => Promise<{ isRunning: boolean; nextRun: string | null }>;
   emailSchedulerRestart: () => Promise<boolean>;
+
+  // Google OAuth and Calendar operations
+  googleOAuthAuthenticate: () => Promise<{
+    success?: boolean;
+    error?: string;
+    tokens?: {
+      access_token: string;
+      refresh_token: string;
+      scope: string;
+      token_type: string;
+      expiry_date: number;
+    };
+    userInfo?: {
+      email: string;
+      name?: string;
+      picture?: string;
+    };
+  }>;
+  googleOAuthRefreshToken: (refreshToken: string) => Promise<{
+    success?: boolean;
+    error?: string;
+    access_token?: string;
+    refresh_token?: string;
+    scope?: string;
+    token_type?: string;
+    expiry_date?: number;
+  }>;
+  googleOAuthValidateTokens: (tokens: any) => Promise<boolean>;
+  googleCalendarCreateEvent: (tokens: any, appointment: any, client?: any) => Promise<string | null>;
+  googleCalendarUpdateEvent: (tokens: any, eventId: string, appointment: any, client?: any) => Promise<boolean>;
+  googleCalendarDeleteEvent: (tokens: any, eventId: string) => Promise<boolean>;
+  googleCalendarSyncAppointments: (tokens: any, appointments: any[]) => Promise<{ success: number; failed: number }>;
+  googleCalendarGetEvents: (tokens: any, startDate: string, endDate: string) => Promise<any[]>;
 }
 
 declare global {

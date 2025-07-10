@@ -54,6 +54,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
   emailSchedulerStatus: () => ipcRenderer.invoke('email-scheduler-status'),
   emailSchedulerRestart: () => ipcRenderer.invoke('email-scheduler-restart'),
 
+  // Google OAuth and Calendar operations
+  googleOAuthAuthenticate: () => ipcRenderer.invoke('google-oauth-authenticate'),
+  googleOAuthRefreshToken: (refreshToken: string) => ipcRenderer.invoke('google-oauth-refresh-token', refreshToken),
+  googleOAuthValidateTokens: (tokens: any) => ipcRenderer.invoke('google-oauth-validate-tokens', tokens),
+  googleCalendarCreateEvent: (tokens: any, appointment: any, client?: any) => ipcRenderer.invoke('google-calendar-create-event', tokens, appointment, client),
+  googleCalendarUpdateEvent: (tokens: any, eventId: string, appointment: any, client?: any) => ipcRenderer.invoke('google-calendar-update-event', tokens, eventId, appointment, client),
+  googleCalendarDeleteEvent: (tokens: any, eventId: string) => ipcRenderer.invoke('google-calendar-delete-event', tokens, eventId),
+  googleCalendarSyncAppointments: (tokens: any, appointments: any[]) => ipcRenderer.invoke('google-calendar-sync-appointments', tokens, appointments),
+  googleCalendarGetEvents: (tokens: any, startDate: string, endDate: string) => ipcRenderer.invoke('google-calendar-get-events', tokens, startDate, endDate),
+
   // Client operations
   getClients: () => ipcRenderer.invoke('db-get-clients'),
 });

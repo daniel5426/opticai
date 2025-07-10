@@ -1,50 +1,76 @@
-import React, { useState, useEffect } from "react"
+import React, { useState, useEffect, useRef } from "react"
 import { SiteHeader } from "@/components/site-header"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Calendar } from "@/components/ui/calendar"
 import { Badge } from "@/components/ui/badge"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { CalendarDays, Users, Clock, UserPlus, Plus, ChevronDown, ChevronUp, GripVertical, Edit } from "lucide-react"
-import { getAllAppointments, createAppointment, updateAppointment } from "@/lib/db/appointments-db"
+import {
+  CalendarDays,
+  Users,
+  Clock,
+  UserPlus,
+  ChevronLeft,
+  ChevronRight,
+  Plus,
+  Edit2,
+  Trash2
+} from "lucide-react"
+import { getAllAppointments, createAppointment, updateAppointment, deleteAppointment } from "@/lib/db/appointments-db"
 import { getAllClients, getClientById, createClient } from "@/lib/db/clients-db"
 import { getSettings } from "@/lib/db/settings-db"
+import { getAllUsers } from "@/lib/db/users-db"
 import { applyThemeColorsFromSettings } from "@/helpers/theme_helpers"
 import { Appointment, Client, Settings } from "@/lib/db/schema"
-import { format, isToday, startOfMonth, endOfMonth, isWithinInterval, parseISO, addMinutes, isBefore, isAfter } from "date-fns"
+import {
+  format,
+  isToday,
+  startOfMonth,
+  endOfMonth,
+  isWithinInterval,
+  parseISO,
+  addMinutes,
+  startOfWeek,
+  endOfWeek,
+  addDays,
+  subDays,
+  addWeeks,
+  subWeeks,
+  addMonths,
+  subMonths,
+  isSameDay,
+  startOfDay,
+  endOfDay,
+  getHours,
+  getMinutes,
+  differenceInMinutes
+} from "date-fns"
 import { he } from "date-fns/locale"
 import { ClientSelectModal } from "@/components/ClientSelectModal"
 import { toast } from "sonner"
-import { cleanupModalArtifacts } from "@/lib/utils"
 import { CustomModal } from "@/components/ui/custom-modal"
 import { ClientWarningModal } from "@/components/ClientWarningModal"
 import { UserSelect } from "@/components/ui/user-select"
 import { useUser } from "@/contexts/UserContext"
 
-interface TimeSlot {
-  type: 'appointment' | 'free' | 'free-slot' | 'collapse'
-  startTime: string
-  endTime: string
-  appointment?: Appointment
-  duration?: number
-  expanded?: boolean
-  freeSlots?: TimeSlot[]
+
+type CalendarView = 'day' | 'week' | 'month'
+
+interface AppointmentBlock extends Appointment {
+  client?: Client
+  top: number
+  height: number
+  left: number
+  width: number
+  zIndex: number
 }
 
 interface DragData {
   appointment: Appointment
-  originalIndex: number
-  sourceSlot: TimeSlot
+  offset: { x: number; y: number }
+  originalElement: HTMLElement
 }
 
 function ClientName({ clientId }: { clientId: number }) {
@@ -67,7 +93,8 @@ function ClientName({ clientId }: { clientId: number }) {
 }
 
 export default function HomePage() {
-  const [selectedDate, setSelectedDate] = useState<Date>(new Date())
+  const [currentDate, setCurrentDate] = useState<Date>(new Date())
+  const [view, setView] = useState<CalendarView>('week')
   const [appointments, setAppointments] = useState<Appointment[]>([])
   const [clients, setClients] = useState<Client[]>([])
   const [settings, setSettings] = useState<Settings | null>(null)
@@ -75,13 +102,23 @@ export default function HomePage() {
   const { currentUser } = useUser()
 
   const [draggedData, setDraggedData] = useState<DragData | null>(null)
+  const [draggedBlockId, setDraggedBlockId] = useState<number | null>(null)
+  const [dragPosition, setDragPosition] = useState<{ x: number; y: number; date: Date; time: string } | null>(null)
+  const [resizeData, setResizeData] = useState<{
+    appointmentId: number;
+    type: 'top' | 'bottom';
+    originalStart: string;
+    originalEnd: string;
+  } | null>(null)
+  const [users, setUsers] = useState<any[]>([])
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
-  const [selectedTimeSlot, setSelectedTimeSlot] = useState<string>('')
+  const [selectedTimeSlot, setSelectedTimeSlot] = useState<{ date: Date; time: string }>({ date: new Date(), time: '' })
   const [formData, setFormData] = useState<Omit<Appointment, 'id'>>({
     client_id: 0,
     user_id: currentUser?.id,
     date: '',
     time: '',
+    duration: 30,
     exam_name: '',
     note: ''
   })
@@ -90,7 +127,7 @@ export default function HomePage() {
   const [isClientSelectOpen, setIsClientSelectOpen] = useState(false)
   const [selectedClient, setSelectedClient] = useState<Client | null>(null)
   const [editingAppointment, setEditingAppointment] = useState<Appointment | null>(null)
-  
+
   const [newClientFormData, setNewClientFormData] = useState<{
     first_name: string
     last_name: string
@@ -99,6 +136,7 @@ export default function HomePage() {
     user_id?: number
     date: string
     time: string
+    duration: number
     exam_name: string
     note: string
   }>({
@@ -109,6 +147,7 @@ export default function HomePage() {
     user_id: currentUser?.id,
     date: '',
     time: '',
+    duration: 30,
     exam_name: '',
     note: ''
   })
@@ -123,19 +162,22 @@ export default function HomePage() {
     type: 'name'
   })
 
+  const calendarRef = useRef<HTMLDivElement>(null)
+
   const loadData = async () => {
     try {
       setLoading(true)
-      const [appointmentsData, clientsData, settingsData] = await Promise.all([
+      const [appointmentsData, clientsData, settingsData, usersData] = await Promise.all([
         getAllAppointments(),
         getAllClients(),
-        getSettings()
+        getSettings(),
+        getAllUsers()
       ])
       setAppointments(appointmentsData)
       setClients(clientsData)
       setSettings(settingsData)
-      
-      // Apply current user's theme colors, not clinic settings
+      setUsers(usersData)
+
       if (currentUser?.id) {
         await applyThemeColorsFromSettings(undefined, currentUser.id)
       }
@@ -150,21 +192,16 @@ export default function HomePage() {
     loadData()
   }, [currentUser?.id])
 
-  // This effect will safely open the appointment modal after a client is selected
-  // and the selection modal has closed.
   useEffect(() => {
     if (!isClientSelectOpen && selectedClient) {
       setIsCreateModalOpen(true)
     }
   }, [isClientSelectOpen, selectedClient])
 
-  // Add focus restoration when all modals are closed
   useEffect(() => {
     if (!isCreateModalOpen && !isNewClientDialogOpen && !isClientSelectOpen) {
-      // Force focus back to the document body
       setTimeout(() => {
         document.body.focus()
-        // Remove any lingering backdrop elements
         const backdrops = document.querySelectorAll('[data-radix-portal]')
         backdrops.forEach(backdrop => {
           if (backdrop.innerHTML === '') {
@@ -175,235 +212,645 @@ export default function HomePage() {
     }
   }, [isCreateModalOpen, isNewClientDialogOpen, isClientSelectOpen])
 
-  // Refresh data when component mounts or when returning to page
-  useEffect(() => {
-    const handleFocus = () => {
-      loadData()
-    }
-    
-    window.addEventListener('focus', handleFocus)
-    return () => window.removeEventListener('focus', handleFocus)
-  }, [])
-
-  // Filter appointments for selected date
-  const selectedDateAppointments = appointments.filter(appointment => {
-    if (!appointment.date) return false
-    try {
-      const appointmentDate = new Date(appointment.date)
-      return appointmentDate.toDateString() === selectedDate.toDateString()
-    } catch {
-      return false
-    }
-  })
-
-  // Filter appointments for today
-  const todayAppointments = appointments.filter(appointment => {
-    if (!appointment.date) return false
-    try {
-      const appointmentDate = new Date(appointment.date)
-      return isToday(appointmentDate)
-    } catch {
-      return false
-    }
-  })
-
-  // Filter new clients this month
-  const thisMonthNewClients = clients.filter(client => {
-    if (!client.file_creation_date) return false
-    try {
-      const creationDate = new Date(client.file_creation_date)
-      const now = new Date()
-      return isWithinInterval(creationDate, {
-        start: startOfMonth(now),
-        end: endOfMonth(now)
-      })
-    } catch {
-      return false
-    }
-  })
-
-  // Get settings values or use defaults
   const WORK_START = settings?.work_start_time || "08:00"
   const WORK_END = settings?.work_end_time || "18:00"
   const APPOINTMENT_DURATION = settings?.appointment_duration || 30
   const BREAK_START = settings?.break_start_time || ""
   const BREAK_END = settings?.break_end_time || ""
-  
-  // Calculate work day stats
-  const workStartTime = parseISO(`2000-01-01T${WORK_START}`)
-  const workEndTime = parseISO(`2000-01-01T${WORK_END}`)
-  const WORK_DAY_MINUTES = (workEndTime.getTime() - workStartTime.getTime()) / (1000 * 60)
-  const TOTAL_SLOTS = Math.floor(WORK_DAY_MINUTES / APPOINTMENT_DURATION)
-  const todayFreeSlots = TOTAL_SLOTS - todayAppointments.length
 
-  // Generate appointment slots from free time (always expanded)
-  const generateFreeSlots = (startTime: string, endTime: string): TimeSlot[] => {
-    const slots: TimeSlot[] = []
-    const start = parseISO(`2000-01-01T${startTime}`)
-    const end = parseISO(`2000-01-01T${endTime}`)
-    let current = start
+  const workStartHour = parseInt(WORK_START.split(':')[0])
+  const workEndHour = parseInt(WORK_END.split(':')[0])
+  const totalWorkHours = workEndHour - workStartHour
 
-    while (current < end) {
-      const slotEnd = addMinutes(current, APPOINTMENT_DURATION)
-      if (slotEnd <= end) {
-        slots.push({
-          type: 'free-slot',
-          startTime: format(current, 'HH:mm'),
-          endTime: format(slotEnd, 'HH:mm'),
-          duration: APPOINTMENT_DURATION
-        })
-      }
-      current = slotEnd
+  // Helper function to get user color with conflict resolution
+  const getUserColor = (userId?: number) => {
+    if (!userId) return '#3b82f6' // default blue
+
+    const user = users.find(u => u.id === userId)
+    if (!user || !user.primary_theme_color) return '#3b82f6'
+
+    // Check for color conflicts
+    const colorCount = users.filter(u => u.primary_theme_color === user.primary_theme_color).length
+    const userIndex = users.filter(u => u.primary_theme_color === user.primary_theme_color)
+      .findIndex(u => u.id === userId)
+
+    if (colorCount > 1 && userIndex > 0) {
+      // Generate a variant color by adjusting HSL
+      const hex = user.primary_theme_color
+      const hsl = hexToHsl(hex)
+      const adjustedHue = (hsl[0] + (userIndex * 60)) % 360 // Shift hue
+      return hslToHex(adjustedHue, hsl[1], hsl[2])
     }
 
-    return slots
+    return user.primary_theme_color
   }
 
-  // Helper function to check if time is within break
-  const isBreakTime = (time: string): boolean => {
-    if (!BREAK_START || !BREAK_END) return false
-    return time >= BREAK_START && time < BREAK_END
-  }
+  // Helper functions for color conversion
+  const hexToHsl = (hex: string): [number, number, number] => {
+    const r = parseInt(hex.slice(1, 3), 16) / 255
+    const g = parseInt(hex.slice(3, 5), 16) / 255
+    const b = parseInt(hex.slice(5, 7), 16) / 255
 
-  // Helper function to add break slot if needed
-  const addBreakSlotIfNeeded = (currentTime: string, nextTime: string, slots: TimeSlot[]) => {
-    if (!BREAK_START || !BREAK_END) return currentTime
+    const max = Math.max(r, g, b)
+    const min = Math.min(r, g, b)
+    let h = 0, s = 0, l = (max + min) / 2
 
-    const breakStart = parseISO(`2000-01-01T${BREAK_START}`)
-    const breakEnd = parseISO(`2000-01-01T${BREAK_END}`)
-    const current = parseISO(`2000-01-01T${currentTime}`)
-    const next = parseISO(`2000-01-01T${nextTime}`)
-
-    // Check if break time falls between current and next time
-    if (current <= breakStart && breakEnd <= next) {
-      // Add free time before break if any
-      if (currentTime < BREAK_START) {
-        const freeStartTime = parseISO(`2000-01-01T${currentTime}`)
-        const freeEndTime = breakStart
-        const freeDuration = (freeEndTime.getTime() - freeStartTime.getTime()) / (1000 * 60)
-        
-        if (freeDuration > 0) {
-          slots.push(...generateFreeSlots(currentTime, BREAK_START))
-        }
+    if (max !== min) {
+      const d = max - min
+      s = l > 0.5 ? d / (2 - max - min) : d / (max + min)
+      switch (max) {
+        case r: h = (g - b) / d + (g < b ? 6 : 0); break
+        case g: h = (b - r) / d + 2; break
+        case b: h = (r - g) / d + 4; break
       }
-
-      // Add break slot
-              slots.push({
-          type: 'appointment',
-          startTime: BREAK_START,
-          endTime: BREAK_END,
-          appointment: {
-            id: -1,
-            client_id: -1,
-            date: format(selectedDate, 'yyyy-MM-dd'),
-            time: BREAK_START,
-            exam_name: 'זמן הפסקה',
-            note: 'הפסקה'
-          },
-          duration: (breakEnd.getTime() - breakStart.getTime()) / (1000 * 60)
-        })
-
-      return BREAK_END
+      h /= 6
     }
 
-    return currentTime
+    return [h * 360, s * 100, l * 100]
   }
 
-  // Generate time slots with free time between appointments
-  const generateTimeSlots = (): TimeSlot[] => {
-    const slots: TimeSlot[] = []
+  const hslToHex = (h: number, s: number, l: number): string => {
+    h /= 360; s /= 100; l /= 100
+    const a = s * Math.min(l, 1 - l)
+    const f = (n: number) => {
+      const k = (n + h * 12) % 12
+      const color = l - a * Math.max(Math.min(k - 3, 9 - k, 1), -1)
+      return Math.round(255 * color).toString(16).padStart(2, '0')
+    }
+    return `#${f(0)}${f(8)}${f(4)}`
+  }
 
-    // Sort appointments by time
-    const sortedAppointments = selectedDateAppointments
-      .filter(apt => apt.time)
-      .sort((a, b) => a.time!.localeCompare(b.time!))
+  // Helper function to format appointment time range
+  const getAppointmentTimeRange = (startTime: string, duration: number = APPOINTMENT_DURATION) => {
+    const [hours, minutes] = startTime.split(':').map(Number)
+    const startMinutes = hours * 60 + minutes
+    const endMinutes = startMinutes + duration
+    const endHours = Math.floor(endMinutes / 60)
+    const endMins = endMinutes % 60
 
-    if (sortedAppointments.length === 0) {
-      // No appointments - show full day as free with break if configured
-      let currentTime = WORK_START
-      
-      // Add break time if configured
-      currentTime = addBreakSlotIfNeeded(WORK_START, WORK_END, slots)
-      
-      // Add remaining free time after break (if any)
-      if (currentTime < WORK_END) {
-        const freeStartTime = parseISO(`2000-01-01T${currentTime}`)
-        const freeEndTime = parseISO(`2000-01-01T${WORK_END}`)
-        const freeDuration = (freeEndTime.getTime() - freeStartTime.getTime()) / (1000 * 60)
-        
-        if (freeDuration > 0) {
-          slots.push(...generateFreeSlots(currentTime, WORK_END))
+    return `${startTime} - ${endHours.toString().padStart(2, '0')}:${endMins.toString().padStart(2, '0')}`
+  }
+
+  // Get appointment duration (from database or default)
+  const getAppointmentDuration = (appointment: Appointment) => {
+    return appointment.duration || APPOINTMENT_DURATION
+  }
+
+  // Get dynamic appointment time range for resizing
+  const getDynamicTimeRange = (appointment: Appointment) => {
+    if (resizeData && resizeData.appointmentId === appointment.id) {
+      // Show current resize state
+      const currentAppointment = appointments.find(a => a.id === appointment.id)
+      if (currentAppointment) {
+        // Calculate time range based on resize type and current duration
+        if (resizeData.type === 'top') {
+          // Top resize: start time changed, end time stays the same
+          return `${currentAppointment.time} - ${resizeData.originalEnd}`
+        } else {
+          // Bottom resize: start time stays the same, calculate end time from duration
+          const startTime = resizeData.originalStart
+          const duration = currentAppointment.duration || getAppointmentDuration(currentAppointment)
+          const endTime = getAppointmentEndTime(startTime, duration)
+          return `${startTime} - ${endTime}`
         }
       }
-      
-      // If no break time and no slots added, add full day
-      if (slots.length === 0) {
-        slots.push(...generateFreeSlots(WORK_START, WORK_END))
-      }
-      
-      return slots
     }
 
-    let currentTime = WORK_START
+    // Normal display using appointment's actual duration
+    const duration = getAppointmentDuration(appointment)
+    return getAppointmentTimeRange(appointment.time || '', duration)
+  }
 
-    sortedAppointments.forEach((appointment, index) => {
-      const appointmentTime = appointment.time!
-      const appointmentEndTime = format(addMinutes(parseISO(`2000-01-01T${appointmentTime}`), APPOINTMENT_DURATION), 'HH:mm')
+  // Navigation functions
+  const navigateCalendar = (direction: 'prev' | 'next') => {
+    if (view === 'day') {
+      setCurrentDate(direction === 'next' ? addDays(currentDate, 1) : subDays(currentDate, 1))
+    } else if (view === 'week') {
+      setCurrentDate(direction === 'next' ? addWeeks(currentDate, 1) : subWeeks(currentDate, 1))
+    } else if (view === 'month') {
+      setCurrentDate(direction === 'next' ? addMonths(currentDate, 1) : subMonths(currentDate, 1))
+    }
+  }
 
-      // Check for break time before this appointment
-      const nextAppointmentTime = index < sortedAppointments.length - 1 ? sortedAppointments[index + 1].time! : WORK_END
-      currentTime = addBreakSlotIfNeeded(currentTime, appointmentTime, slots)
+  const goToToday = () => {
+    setCurrentDate(new Date())
+  }
 
-      // Add free time before this appointment
-      if (appointmentTime > currentTime) {
-        const freeStartTime = parseISO(`2000-01-01T${currentTime}`)
-        const freeEndTime = parseISO(`2000-01-01T${appointmentTime}`)
-        const freeDuration = (freeEndTime.getTime() - freeStartTime.getTime()) / (1000 * 60)
-        
-        if (freeDuration > 0) {
-          slots.push(...generateFreeSlots(currentTime, appointmentTime))
+  // Get visible dates based on view
+  const getVisibleDates = () => {
+    if (view === 'day') {
+      return [currentDate]
+    } else if (view === 'week') {
+      const start = startOfWeek(currentDate, { weekStartsOn: 0 })
+      return Array.from({ length: 7 }, (_, i) => addDays(start, i))
+    } else {
+      const start = startOfMonth(currentDate)
+      const end = endOfMonth(currentDate)
+      const startWeek = startOfWeek(start, { weekStartsOn: 0 })
+      const endWeek = endOfWeek(end, { weekStartsOn: 0 })
+      const days = []
+      let current = startWeek
+      while (current <= endWeek) {
+        days.push(current)
+        current = addDays(current, 1)
+      }
+      return days
+    }
+  }
+
+  const visibleDates = getVisibleDates()
+
+  // Filter appointments for visible dates
+  const getAppointmentsForDate = (date: Date) => {
+    return appointments.filter(appointment => {
+      if (!appointment.date) return false
+      try {
+        const appointmentDate = new Date(appointment.date)
+        return isSameDay(appointmentDate, date)
+      } catch {
+        return false
+      }
+    })
+  }
+
+  // Convert appointments to positioned blocks
+  const getAppointmentBlocks = (date: Date): AppointmentBlock[] => {
+    const dayAppointments = getAppointmentsForDate(date)
+    const HOUR_HEIGHT = 95
+    const blocks: AppointmentBlock[] = []
+
+    dayAppointments.forEach(appointment => {
+      if (!appointment.time) return
+
+      let startTime = appointment.time
+
+      // During resize, determine the actual start time
+      if (resizeData && resizeData.appointmentId === appointment.id) {
+        if (resizeData.type === 'bottom') {
+          // Bottom resize: use original start time for positioning
+          startTime = resizeData.originalStart
         }
+        // For top resize, we use the current appointment.time as it represents the new start time
       }
 
-      // Add the appointment (skip if it's during break time)
-      if (!isBreakTime(appointmentTime)) {
-        slots.push({
-          type: 'appointment',
-          startTime: appointmentTime,
-          endTime: appointmentEndTime,
-          appointment,
-          duration: APPOINTMENT_DURATION
-        })
+      const [hours, minutes] = startTime.split(':').map(Number)
+      const startMinutes = (hours - workStartHour) * 60 + minutes
+      const top = (startMinutes / 60) * HOUR_HEIGHT
+
+      // Calculate height based on appointment duration and resize state
+      const appointmentDuration = getAppointmentDuration(appointment)
+      let height = (appointmentDuration / 60) * HOUR_HEIGHT
+
+      if (resizeData && resizeData.appointmentId === appointment.id) {
+        // During resize, use the appointment's current duration (which is updated in real-time)
+        const currentDuration = appointment.duration || appointmentDuration
+        height = Math.max((currentDuration / 60) * HOUR_HEIGHT, 15) // Minimum height of 15px
       }
 
-      currentTime = appointmentEndTime
+      const client = clients.find(c => c.id === appointment.client_id)
+
+      blocks.push({
+        ...appointment,
+        client,
+        top,
+        height,
+        left: 0,
+        width: 100,
+        zIndex: 1
+      })
     })
 
-    // Check for break time after last appointment
-    currentTime = addBreakSlotIfNeeded(currentTime, WORK_END, slots)
+    // Handle overlapping appointments
+    blocks.sort((a, b) => {
+      if (a.top !== b.top) return a.top - b.top
+      // If same start time, sort by appointment ID for consistent positioning
+      return (a.id || 0) - (b.id || 0)
+    })
 
-    // Add free time after last appointment until end of work day
-    if (currentTime < WORK_END) {
-      const freeStartTime = parseISO(`2000-01-01T${currentTime}`)
-      const freeEndTime = parseISO(`2000-01-01T${WORK_END}`)
-      const freeDuration = (freeEndTime.getTime() - freeStartTime.getTime()) / (1000 * 60)
+    // Helper function to check if two appointments should split width
+    const shouldSplitWidth = (block1: AppointmentBlock, block2: AppointmentBlock) => {
+      // Find the overlap period
+      const overlapStart = Math.max(block1.top, block2.top)
+      const overlapEnd = Math.min(block1.top + block1.height, block2.top + block2.height)
       
-      if (freeDuration > 0) {
-        slots.push(...generateFreeSlots(currentTime, WORK_END))
+      // If no overlap, don't split
+      if (overlapStart >= overlapEnd) return false
+      
+      // Calculate non-overlapping gaps
+      const block1Start = block1.top
+      const block1End = block1.top + block1.height
+      const block2Start = block2.top
+      const block2End = block2.top + block2.height
+      
+      // Find continuous non-overlapping periods
+      const gaps = []
+      
+      // Gap before overlap (if any)
+      const earliestStart = Math.min(block1Start, block2Start)
+      if (overlapStart > earliestStart) {
+        gaps.push(overlapStart - earliestStart)
+      }
+      
+      // Gap after overlap (if any)
+      const latestEnd = Math.max(block1End, block2End)
+      if (overlapEnd < latestEnd) {
+        gaps.push(latestEnd - overlapEnd)
+      }
+      
+      // Check if any continuous gap is 20 minutes or more (20 minutes = 20px at 1px per minute)
+      const TWENTY_MINUTES_HEIGHT = 20
+      return !gaps.some(gap => gap >= TWENTY_MINUTES_HEIGHT)
+    }
+
+    for (let i = 0; i < blocks.length; i++) {
+      const current = blocks[i]
+      // Find overlapping appointments that should split width
+      const overlappingToSplit = blocks.filter(block =>
+        block !== current &&
+        shouldSplitWidth(current, block)
+      )
+
+      if (overlappingToSplit.length > 0) {
+        const totalOverlapping = overlappingToSplit.length + 1
+        const width = 100 / totalOverlapping
+
+        current.width = width
+        
+        // Find all overlapping appointments (including current) and sort them consistently
+        const allOverlapping = [current, ...overlappingToSplit].sort((a, b) => {
+          if (a.top !== b.top) return a.top - b.top
+          // If same start time, sort by appointment ID for consistent positioning
+          return (a.id || 0) - (b.id || 0)
+        })
+        
+        // Find the index of current appointment in the sorted overlapping group
+        const currentIndex = allOverlapping.findIndex(block => block.id === current.id)
+        current.left = currentIndex * width
+        current.zIndex = 2
       }
     }
 
-    return slots
+    // Set z-index based on duration - smaller appointments always on top
+    blocks.forEach(block => {
+      // Calculate how many other appointments this one overlaps with
+      const overlappingBlocks = blocks.filter(other => 
+        other !== block &&
+        other.top < block.top + block.height &&
+        other.top + other.height > block.top
+      )
+      
+      if (overlappingBlocks.length > 0) {
+        // Base z-index on inverse of duration (smaller duration = higher z-index)
+        const appointmentDuration = getAppointmentDuration(block)
+        // Use a smaller scale to stay below modal z-index (50)
+        // Scale down to keep all values under 40: 15min = ~27, 30min = ~13, 60min = ~7
+        let baseZIndex = Math.floor(400 / appointmentDuration)
+        
+        // Add tie-breaker: if durations are very close, prioritize by start time (later start = higher z-index)
+        const startTimeMinutes = timeToMinutes(block.time || '00:00')
+        const tieBreaker = Math.floor(startTimeMinutes / 1000) // Very small adjustment based on start time
+        
+        block.zIndex = baseZIndex + tieBreaker + 10
+      } else {
+        // Non-overlapping appointments use default z-index
+        block.zIndex = block.width < 100 ? 2 : 1
+      }
+    })
+
+    return blocks
   }
 
-  const timeSlots = generateTimeSlots()
+  // Time slots for the grid
+  const timeSlots = Array.from({ length: totalWorkHours }, (_, i) => {
+    const hour = workStartHour + i
+    return {
+      time: `${hour.toString().padStart(2, '0')}:00`,
+      hour: hour
+    }
+  })
 
+  // Handle time slot click for creating appointments
+  const handleTimeSlotClick = (date: Date, time: string) => {
+    setSelectedTimeSlot({ date, time })
+    resetAllForms()
+    setFormData({
+      client_id: 0,
+      user_id: currentUser?.id,
+      date: format(date, 'yyyy-MM-dd'),
+      time: time,
+      duration: APPOINTMENT_DURATION,
+      exam_name: '',
+      note: ''
+    })
+    setIsClientSelectOpen(true)
+  }
+
+  // Resize functionality
+  const handleResizeStart = (e: React.MouseEvent, appointment: Appointment, type: 'top' | 'bottom') => {
+    e.preventDefault()
+    e.stopPropagation()
+
+    const appointmentDuration = getAppointmentDuration(appointment)
+    const endTime = getAppointmentEndTime(appointment.time || '', appointmentDuration)
+    setResizeData({
+      appointmentId: appointment.id!,
+      type,
+      originalStart: appointment.time || '',
+      originalEnd: endTime
+    })
+
+    // Prevent dragging when resizing
+    document.body.style.userSelect = 'none'
+  }
+
+  const getAppointmentEndTime = (startTime: string, duration: number): string => {
+    const [hours, minutes] = startTime.split(':').map(Number)
+    const startMinutes = hours * 60 + minutes
+    const endMinutes = startMinutes + duration
+    const endHours = Math.floor(endMinutes / 60)
+    const endMins = endMinutes % 60
+    return `${endHours.toString().padStart(2, '0')}:${endMins.toString().padStart(2, '0')}`
+  }
+
+  const calculateResizePosition = (e: MouseEvent) => {
+    if (!calendarRef.current || !resizeData) return null
+
+    const calendarRect = calendarRef.current.getBoundingClientRect()
+    const timeColumnWidth = 64 // w-16 = 64px
+    const gridRect = {
+      top: calendarRect.top + 40,
+      height: calendarRect.height - 40,
+      left: calendarRect.left + timeColumnWidth
+    }
+
+    const y = e.clientY - gridRect.top
+    const HOUR_HEIGHT = 95
+    const totalMinutesFromTop = Math.max(0, (y / HOUR_HEIGHT) * 60)
+    const snappedMinutes = Math.round(totalMinutesFromTop / 5) * 5 // 5-minute precision
+
+    const targetHour = Math.floor(snappedMinutes / 60) + workStartHour
+    const targetMinute = snappedMinutes % 60
+
+    // Ensure within work hours
+    const clampedHour = Math.max(workStartHour, Math.min(workEndHour - 1, targetHour))
+    const clampedMinute = clampedHour === workEndHour - 1 ? Math.min(targetMinute, 45) : targetMinute
+
+    const newTime = `${clampedHour.toString().padStart(2, '0')}:${clampedMinute.toString().padStart(2, '0')}`
+
+    if (resizeData.type === 'top') {
+      // Resizing from top - change start time, keep end time fixed
+      const originalEndMinutes = timeToMinutes(resizeData.originalEnd)
+      const newStartMinutes = timeToMinutes(newTime)
+      if (newStartMinutes < originalEndMinutes && newStartMinutes >= workStartHour * 60) {
+        return { startTime: newTime, endTime: resizeData.originalEnd }
+      }
+    } else {
+      // Resizing from bottom - change end time, keep start time fixed
+      const originalStartMinutes = timeToMinutes(resizeData.originalStart)
+      const newEndMinutes = timeToMinutes(newTime)
+      if (newEndMinutes > originalStartMinutes && newEndMinutes <= workEndHour * 60) {
+        return { startTime: resizeData.originalStart, endTime: newTime }
+      }
+    }
+
+    return null
+  }
+
+  const timeToMinutes = (time: string): number => {
+    const [hours, minutes] = time.split(':').map(Number)
+    return hours * 60 + minutes
+  }
+
+  const minutesToTime = (minutes: number): string => {
+    const hours = Math.floor(minutes / 60)
+    const mins = minutes % 60
+    return `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`
+  }
+
+  // Drag and drop functionality
+  const handleMouseDown = (e: React.MouseEvent, appointment: Appointment) => {
+    // Don't start dragging if we're already resizing
+    if (resizeData) return
+
+    e.preventDefault()
+    e.stopPropagation()
+
+    const rect = e.currentTarget.getBoundingClientRect()
+    const offset = {
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top
+    }
+
+    setDraggedData({
+      appointment,
+      offset,
+      originalElement: e.currentTarget as HTMLElement
+    })
+    setDraggedBlockId(appointment.id!)
+  }
+
+  const calculateDragPosition = (e: MouseEvent) => {
+    if (!calendarRef.current || !draggedData) return null
+
+    const calendarRect = calendarRef.current.getBoundingClientRect()
+    const timeColumnWidth = 64 // w-16 = 64px
+    const gridRect = {
+      left: 30,
+      top: calendarRect.top + 40, // header height
+      width: calendarRect.width - timeColumnWidth,
+      height: calendarRect.height - 40
+    }
+
+    // Use the offset to maintain the relative position where the user clicked
+    const x = e.clientX - gridRect.left
+    const y = e.clientY - gridRect.top - draggedData.offset.y
+
+    // Calculate which day column (accounting for RTL layout)
+    const dayWidth = gridRect.width / visibleDates.length
+    const rawDayIndex = Math.floor(x / dayWidth)
+    // In RTL, reverse the column index since columns are visually flipped
+    const dayIndex = Math.max(0, Math.min(visibleDates.length - 1, visibleDates.length - 1 - rawDayIndex))
+    const targetDate = visibleDates[dayIndex]
+
+    // Calculate time with 15-minute precision, accounting for the click offset
+    const HOUR_HEIGHT = 95
+    const SLOT_HEIGHT = 15 // 15 minutes = 1/4 hour
+    const totalMinutesFromTop = Math.max(0, (y / HOUR_HEIGHT) * 60)
+    const snappedMinutes = Math.round(totalMinutesFromTop / 15) * 15
+
+    const targetHour = Math.floor(snappedMinutes / 60) + workStartHour
+    const targetMinute = snappedMinutes % 60
+
+    // Ensure within work hours
+    const clampedHour = Math.max(workStartHour, Math.min(workEndHour - 1, targetHour))
+    const clampedMinute = clampedHour === workEndHour - 1 ? Math.min(targetMinute, 45) : targetMinute
+
+    const newTime = `${clampedHour.toString().padStart(2, '0')}:${clampedMinute.toString().padStart(2, '0')}`
+
+    return {
+      x: dayIndex * dayWidth,
+      y: ((clampedHour - workStartHour) * 60 + clampedMinute) / 60 * HOUR_HEIGHT,
+      date: targetDate,
+      time: newTime
+    }
+  }
+
+  const handleMouseMove = (e: MouseEvent) => {
+    if (draggedData && calendarRef.current && !resizeData) {
+      const position = calculateDragPosition(e)
+      if (position) {
+        setDragPosition(position)
+      }
+    }
+
+    if (resizeData && calendarRef.current) {
+      // Handle resize mode - prevent other interactions
+      e.preventDefault()
+      const resizePosition = calculateResizePosition(e)
+      if (resizePosition) {
+        // Update the appointment temporarily for visual feedback
+        if (resizeData.type === 'top') {
+          // Dragging top handle - update start time and calculate new duration
+          const originalEndMinutes = timeToMinutes(resizeData.originalEnd)
+          const newStartMinutes = timeToMinutes(resizePosition.startTime)
+          const newDuration = originalEndMinutes - newStartMinutes
+
+          setAppointments(prev => prev.map(apt =>
+            apt.id === resizeData.appointmentId
+              ? { ...apt, time: resizePosition.startTime, duration: newDuration }
+              : apt
+          ))
+        } else {
+          // Dragging bottom handle - keep start time, update duration
+          const startMinutes = timeToMinutes(resizeData.originalStart)
+          const newEndMinutes = timeToMinutes(resizePosition.endTime)
+          const newDuration = newEndMinutes - startMinutes
+
+          setAppointments(prev => prev.map(apt =>
+            apt.id === resizeData.appointmentId
+              ? { ...apt, time: resizeData.originalStart, duration: newDuration }
+              : apt
+          ))
+        }
+      }
+    }
+  }
+
+  const handleMouseUp = async (e: MouseEvent) => {
+    // Reset body style
+    document.body.style.userSelect = ''
+
+    if (draggedData && dragPosition && !resizeData) {
+      try {
+        const updatedAppointment = {
+          ...draggedData.appointment,
+          date: format(dragPosition.date, 'yyyy-MM-dd'),
+          time: dragPosition.time
+        }
+
+        const result = await updateAppointment(updatedAppointment)
+        if (result) {
+          toast.success("התור הועבר בהצלחה")
+          // Update local state instead of reloading all data
+          setAppointments(prev => prev.map(apt =>
+            apt.id === updatedAppointment.id ? updatedAppointment : apt
+          ))
+        } else {
+          toast.error("שגיאה בהעברת התור")
+          // Restore original state on error
+          await loadData()
+        }
+      } catch (error) {
+        console.error('Error moving appointment:', error)
+        toast.error("שגיאה בהעברת התור")
+        // Restore original state on error
+        await loadData()
+      }
+    }
+
+    if (resizeData) {
+      const resizePosition = calculateResizePosition(e)
+      if (resizePosition) {
+        try {
+          const originalAppointment = appointments.find(a => a.id === resizeData.appointmentId)
+          if (originalAppointment) {
+            let updatedAppointment
+
+            if (resizeData.type === 'top') {
+              // Top resize: change start time, calculate new duration
+              const originalEndMinutes = timeToMinutes(resizeData.originalEnd)
+              const newStartMinutes = timeToMinutes(resizePosition.startTime)
+              const newDuration = originalEndMinutes - newStartMinutes
+
+              updatedAppointment = {
+                ...originalAppointment,
+                time: resizePosition.startTime,
+                duration: newDuration
+              }
+            } else {
+              // Bottom resize: keep start time, change duration
+              const startMinutes = timeToMinutes(resizeData.originalStart)
+              const newEndMinutes = timeToMinutes(resizePosition.endTime)
+              const newDuration = newEndMinutes - startMinutes
+
+              updatedAppointment = {
+                ...originalAppointment,
+                time: resizeData.originalStart,
+                duration: newDuration
+              }
+            }
+
+            const result = await updateAppointment(updatedAppointment)
+            if (result) {
+              toast.success("התור עודכן בהצלחה")
+              // Update local state instead of reloading all data
+              setAppointments(prev => prev.map(apt =>
+                apt.id === updatedAppointment.id ? updatedAppointment : apt
+              ))
+            } else {
+              toast.error("שגיאה בעדכון התור")
+              // Restore original state on error
+              await loadData()
+            }
+          }
+        } catch (error) {
+          console.error('Error resizing appointment:', error)
+          toast.error("שגיאה בעדכון התור")
+          // Restore original state on error
+          await loadData()
+        }
+      } else {
+        // Invalid resize position, restore original state
+        await loadData()
+      }
+    }
+
+    // Reset all states
+    setDraggedData(null)
+    setDraggedBlockId(null)
+    setDragPosition(null)
+    setResizeData(null)
+  }
+
+  useEffect(() => {
+    if (draggedData || resizeData) {
+      document.addEventListener('mousemove', handleMouseMove)
+      document.addEventListener('mouseup', handleMouseUp)
+      return () => {
+        document.removeEventListener('mousemove', handleMouseMove)
+        document.removeEventListener('mouseup', handleMouseUp)
+      }
+    }
+  }, [draggedData, dragPosition, resizeData])
+
+  // Form and modal handlers (keeping existing functionality)
   const resetAllForms = () => {
     setFormData({
       client_id: 0,
       user_id: currentUser?.id,
       date: '',
       time: '',
+      duration: APPOINTMENT_DURATION,
       exam_name: '',
       note: ''
     })
@@ -415,6 +862,7 @@ export default function HomePage() {
       user_id: currentUser?.id,
       date: '',
       time: '',
+      duration: APPOINTMENT_DURATION,
       exam_name: '',
       note: ''
     })
@@ -430,38 +878,6 @@ export default function HomePage() {
     resetAllForms()
   }
 
-  const openDirectAppointmentModal = (timeSlot: string) => {
-    setSelectedTimeSlot(timeSlot)
-    resetAllForms()
-    setFormData({
-      client_id: 0,
-      user_id: currentUser?.id,
-      date: format(selectedDate, 'yyyy-MM-dd'),
-      time: timeSlot,
-      exam_name: '',
-      note: ''
-    })
-    setIsCreateModalOpen(true)
-  }
-
-  const openNewClientModal = (timeSlot: string) => {
-    setSelectedTimeSlot(timeSlot)
-    resetAllForms()
-    setNewClientFormData(prev => ({
-      ...prev,
-      user_id: currentUser?.id,
-      date: format(selectedDate, 'yyyy-MM-dd'),
-      time: timeSlot
-    }))
-    setIsNewClientDialogOpen(true)
-  }
-
-  const openOldClientFlow = (timeSlot: string) => {
-    setSelectedTimeSlot(timeSlot)
-    resetAllForms()
-    setIsClientSelectOpen(true)
-  }
-
   const openEditDialog = async (appointment: Appointment) => {
     try {
       setEditingAppointment(appointment)
@@ -474,6 +890,7 @@ export default function HomePage() {
         user_id: appointment.user_id || currentUser?.id,
         date: appointment.date || '',
         time: appointment.time || '',
+        duration: appointment.duration || APPOINTMENT_DURATION,
         exam_name: appointment.exam_name || '',
         note: appointment.note || ''
       })
@@ -492,12 +909,12 @@ export default function HomePage() {
           ...prev,
           client_id: selectedClientId,
           user_id: currentUser?.id,
-          date: format(selectedDate, 'yyyy-MM-dd'),
-          time: selectedTimeSlot,
+          date: format(selectedTimeSlot.date, 'yyyy-MM-dd'),
+          time: selectedTimeSlot.time,
+          duration: APPOINTMENT_DURATION,
           exam_name: '',
           note: ''
         }))
-        // Just close the current modal. The useEffect will handle opening the next one.
         setIsClientSelectOpen(false)
       }
     } catch (error) {
@@ -506,14 +923,17 @@ export default function HomePage() {
     }
   }
 
-  // Handle saving new appointment
   const handleSaveAppointment = async () => {
     try {
       if (editingAppointment) {
-        const result = await updateAppointment({ ...formData, id: editingAppointment.id })
+        const updatedAppointment = { ...formData, id: editingAppointment.id }
+        const result = await updateAppointment(updatedAppointment)
         if (result) {
           toast.success("התור עודכן בהצלחה")
-          await loadData()
+          // Update local state instead of reloading all data
+          setAppointments(prev => prev.map(apt =>
+            apt.id === updatedAppointment.id ? updatedAppointment : apt
+          ))
           closeAllDialogs()
         } else {
           toast.error("שגיאה בעדכון התור")
@@ -522,7 +942,8 @@ export default function HomePage() {
         const result = await createAppointment(formData)
         if (result) {
           toast.success("התור נוצר בהצלחה")
-          await loadData()
+          // Add new appointment to local state instead of reloading all data
+          setAppointments(prev => [...prev, result])
           closeAllDialogs()
         } else {
           toast.error("שגיאה ביצירת התור")
@@ -534,606 +955,583 @@ export default function HomePage() {
     }
   }
 
-  const checkForExistingClients = async () => {
-    if (!newClientFormData.first_name.trim() || !newClientFormData.last_name.trim()) {
-      toast.error("שם פרטי ושם משפחה הם שדות חובה")
-      return false
-    }
+  const handleDeleteAppointment = async (appointmentId: number) => {
+    if (!confirm('האם אתה בטוח שברצונך למחוק את התור?')) return
 
     try {
-      const existingClients: Client[] = []
-      let warningType: 'name' | 'phone' | 'email' | 'multiple' = 'name'
-
-      const nameMatches = clients.filter(client => 
-        client.first_name?.toLowerCase().trim() === newClientFormData.first_name.toLowerCase().trim() &&
-        client.last_name?.toLowerCase().trim() === newClientFormData.last_name.toLowerCase().trim()
-      )
-
-      const phoneMatches = newClientFormData.phone_mobile.trim() 
-        ? clients.filter(client => 
-            client.phone_mobile?.trim() === newClientFormData.phone_mobile.trim()
-          )
-        : []
-
-      const emailMatches = newClientFormData.email.trim() 
-        ? clients.filter(client => 
-            client.email?.toLowerCase().trim() === newClientFormData.email.toLowerCase().trim()
-          )
-        : []
-
-      const matchTypes = []
-      if (nameMatches.length > 0) {
-        existingClients.push(...nameMatches)
-        matchTypes.push('name')
-      }
-      if (phoneMatches.length > 0) {
-        existingClients.push(...phoneMatches)
-        matchTypes.push('phone')
-      }
-      if (emailMatches.length > 0) {
-        existingClients.push(...emailMatches)
-        matchTypes.push('email')
-      }
-
-      if (matchTypes.length > 1) {
-        warningType = 'multiple'
-      } else if (matchTypes.length === 1) {
-        warningType = matchTypes[0] as 'name' | 'phone' | 'email'
-      }
-
-      if (existingClients.length > 0) {
-        const uniqueClients = existingClients.filter((client, index, self) => 
-          index === self.findIndex(c => c.id === client.id)
-        )
-        setExistingClientWarning({
-          show: true,
-          clients: uniqueClients,
-          type: warningType
-        })
-        return false
-      }
-
-      return true
-    } catch (error) {
-      console.error('Error checking for existing clients:', error)
-      toast.error("שגיאה בבדיקת לקוחות קיימים")
-      return false
-    }
-  }
-
-  const handleSaveNewClientAndAppointment = async (forceCreate = false) => {
-    try {
-      if (!forceCreate) {
-        const canProceed = await checkForExistingClients()
-        if (!canProceed) return
-      }
-
-      const newClient = await createClient({
-        first_name: newClientFormData.first_name,
-        last_name: newClientFormData.last_name,
-        phone_mobile: newClientFormData.phone_mobile,
-        email: newClientFormData.email
-      })
-
-      if (newClient && newClient.id) {
-        const appointmentData = {
-          client_id: newClient.id,
-          user_id: newClientFormData.user_id,
-          date: newClientFormData.date,
-          time: newClientFormData.time,
-          first_name: newClientFormData.first_name,
-          last_name: newClientFormData.last_name,
-          phone_mobile: newClientFormData.phone_mobile,
-          exam_name: newClientFormData.exam_name,
-          note: newClientFormData.note
-        }
-
-        const result = await createAppointment(appointmentData)
-        if (result) {
-          toast.success("לקוח חדש ותור נוצרו בהצלחה")
-          await loadData()
-          closeAllDialogs()
-        } else {
-          toast.error("שגיאה ביצירת התור")
-        }
-      } else {
-        toast.error("שגיאה ביצירת הלקוח")
-      }
-    } catch (error) {
-      console.error('Error creating client and appointment:', error)
-      toast.error("שגיאה ביצירת לקוח ותור")
-    }
-  }
-
-  const handleUseExistingClient = async (existingClient: Client) => {
-    try {
-      const appointmentData = {
-        client_id: existingClient.id!,
-        user_id: newClientFormData.user_id,
-        date: newClientFormData.date,
-        time: newClientFormData.time,
-        exam_name: newClientFormData.exam_name,
-        note: newClientFormData.note
-      }
-
-      const result = await createAppointment(appointmentData)
+      const result = await deleteAppointment(appointmentId)
       if (result) {
-        toast.success("תור נוצר עם לקוח קיים בהצלחה")
-        await loadData()
-        closeAllDialogs()
+        toast.success("התור נמחק בהצלחה")
+        // Remove from local state instead of reloading all data
+        setAppointments(prev => prev.filter(apt => apt.id !== appointmentId))
       } else {
-        toast.error("שגיאה ביצירת התור")
+        toast.error("שגיאה במחיקת התור")
       }
     } catch (error) {
-      console.error('Error creating appointment with existing client:', error)
-      toast.error("שגיאה ביצירת תור עם לקוח קיים")
+      console.error('Error deleting appointment:', error)
+      toast.error("שגיאה במחיקת התור")
     }
   }
 
-  // Handle form input changes
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
     setFormData(prev => ({ ...prev, [name]: value }))
   }
 
-  const handleNewClientInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target
-    setNewClientFormData(prev => ({ ...prev, [name]: value }))
-  }
-
-  // Handle drag start
-  const handleDragStart = (e: React.DragEvent, appointment: Appointment, slot: TimeSlot, index: number) => {
-    const dragData: DragData = {
-      appointment,
-      originalIndex: index,
-      sourceSlot: slot
+  // Get display title for current view
+  const getDisplayTitle = () => {
+    if (view === 'day') {
+      return format(currentDate, 'dd/MM/yyyy - EEEE', { locale: he })
+    } else if (view === 'week') {
+      const weekStart = startOfWeek(currentDate, { weekStartsOn: 0 })
+      const weekEnd = endOfWeek(currentDate, { weekStartsOn: 0 })
+      return `${format(weekStart, 'dd/MM', { locale: he })} - ${format(weekEnd, 'dd/MM/yyyy', { locale: he })}`
+    } else {
+      return format(currentDate, 'MMMM yyyy', { locale: he })
     }
-    setDraggedData(dragData)
-    e.dataTransfer.effectAllowed = 'move'
   }
 
-  // Handle drag over
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault()
-    e.dataTransfer.dropEffect = 'move'
-  }
-
-  // Handle drop
-  const handleDrop = async (e: React.DragEvent, targetSlot: TimeSlot) => {
-    e.preventDefault()
-    
-    if (!draggedData) return
-
+  // Calculate statistics
+  const todayAppointments = appointments.filter(appointment => {
+    if (!appointment.date) return false
     try {
-      if (targetSlot.type === 'appointment' && targetSlot.appointment) {
-        // Swapping two appointments
-        const draggedAppointment = draggedData.appointment
-        const targetAppointment = targetSlot.appointment
-        
-        // Swap the times
-        const updatedDragged = {
-          ...draggedAppointment,
-          time: targetAppointment.time
-        }
-        
-        const updatedTarget = {
-          ...targetAppointment,
-          time: draggedAppointment.time
-        }
-        
-        // Update both appointments
-        const [result1, result2] = await Promise.all([
-          updateAppointment(updatedDragged),
-          updateAppointment(updatedTarget)
-        ])
-        
-        if (result1 && result2) {
-          toast.success("התורים הוחלפו בהצלחה")
-          await loadData()
-        } else {
-          toast.error("שגיאה בהחלפת התורים")
-        }
-      } else if (targetSlot.type === 'free-slot') {
-        // Moving appointment to free slot
-        const updatedAppointment = {
-          ...draggedData.appointment,
-          time: targetSlot.startTime
-        }
-        
-        const result = await updateAppointment(updatedAppointment)
-        if (result) {
-          toast.success("התור הועבר בהצלחה")
-          await loadData()
-        } else {
-          toast.error("שגיאה בהעברת התור")
-        }
-      }
-    } catch (error) {
-      console.error('Error moving appointment:', error)
-      toast.error("שגיאה בהעברת התור")
-    } finally {
-      setDraggedData(null)
+      const appointmentDate = new Date(appointment.date)
+      return isToday(appointmentDate)
+    } catch {
+      return false
     }
-  }
+  })
 
+  const thisMonthNewClients = clients.filter(client => {
+    if (!client.file_creation_date) return false
+    try {
+      const creationDate = new Date(client.file_creation_date)
+      const now = new Date()
+      return isWithinInterval(creationDate, {
+        start: startOfMonth(now),
+        end: endOfMonth(now)
+      })
+    } catch {
+      return false
+    }
+  })
+
+  const workStartTime = parseISO(`2000-01-01T${WORK_START}`)
+  const workEndTime = parseISO(`2000-01-01T${WORK_END}`)
+  const WORK_DAY_MINUTES = (workEndTime.getTime() - workStartTime.getTime()) / (1000 * 60)
+  const TOTAL_SLOTS = Math.floor(WORK_DAY_MINUTES / APPOINTMENT_DURATION)
+  const todayFreeSlots = TOTAL_SLOTS - todayAppointments.length
+
+  if (loading) {
+    return (
+      <div className="flex flex-col bg-muted/50 flex-1 p-4 lg:p-6 gap-6 pb-16" dir="rtl">
+        <SiteHeader title="טוען..." />
+        <div className="flex items-center justify-center h-64">
+          <div className="text-muted-foreground">טוען נתונים...</div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <>
+      <SiteHeader title={settings?.clinic_name || "לוח זמנים"} />
+      <div className="flex flex-col bg-muted/50 flex-1 gap-6 pb-16" dir="rtl" style={{ scrollbarWidth: 'none' }}>
 
-      <SiteHeader title={settings?.clinic_name || "דשבורד"} />
-        <div className="flex flex-col bg-muted/50 flex-1 p-4 lg:p-6 gap-6 pb-16" dir="rtl" style={{scrollbarWidth: 'none'}}>
-          
-          {/* Top Section: Calendar and Appointments Table */}
-          <div className="grid gap-6 md:grid-cols-7 pb-12">
-            
-            {/* Calendar */}
-            <div className="md:col-span-2">
-              <h2 className="text-lg font-semibold mb-4">לוח שנה</h2>
-              <div className="flex flex-col">
-                <Calendar
-                  mode="single"
-                  selected={selectedDate}
-                  onSelect={(date) => date && setSelectedDate(date)}
-                  className="rounded-md border dark:border-border w-full"
-                  locale={he}
-                />
-                <div className="mt-4 text-sm text-muted-foreground">
-                  תאריך נבחר: {format(selectedDate, 'dd/MM/yyyy', { locale: he })}
-                </div>
-
-                {/* Statistics Cards under Calendar - 2x2 Grid */}
-                <div className="grid gap-4 grid-cols-2 mt-6 w-full">
-                <Card className="dark:bg-card dark:border-border shadow-none rounded-md aspect-square flex flex-col">
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0">
-                    <CardTitle className="text-sm font-medium">תורים היום</CardTitle>
-                    <CalendarDays className="h-4 w-4 text-primary" />
-                  </CardHeader>
-                  <CardContent className="flex-1 flex flex-col justify-center">
-                    <div className="text-2xl font-bold text-primary">{todayAppointments.length}</div>
-                    <p className="text-xs text-muted-foreground">
-                      מתוך {TOTAL_SLOTS} תורים אפשריים
-                    </p>
-                  </CardContent>
-                </Card>
-
-                <Card className="dark:bg-card dark:border-border shadow-none rounded-md aspect-square flex flex-col">
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0">
-                    <CardTitle className="text-sm font-medium">מקומות פנויים היום</CardTitle>
-                    <Clock className="h-4 w-4 text-secondary-foreground" />
-                  </CardHeader>
-                  <CardContent className="flex-1 flex flex-col justify-center">
-                    <div className="text-2xl font-bold text-secondary-foreground">{todayFreeSlots}</div>
-                    <p className="text-xs text-muted-foreground">
-                      {todayFreeSlots * APPOINTMENT_DURATION} דקות פנויות
-                    </p>
-                  </CardContent>
-                </Card>
-
-                <Card className="dark:bg-card dark:border-border shadow-none rounded-md aspect-square flex flex-col">
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0">
-                    <CardTitle className="text-sm font-medium">לקוחות חדשים</CardTitle>
-                    <UserPlus className="h-4 w-4 text-primary" />
-                  </CardHeader>
-                  <CardContent className="flex-1 flex flex-col justify-center">
-                    <div className="text-2xl font-bold text-primary">{thisMonthNewClients.length}</div>
-                    <p className="text-xs text-muted-foreground">
-                      {format(new Date(), 'MMMM yyyy', { locale: he })}
-                    </p>
-                  </CardContent>
-                </Card>
-
-                <Card className="dark:bg-card dark:border-border shadow-none rounded-md aspect-square flex flex-col">
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0">
-                    <CardTitle className="text-sm font-medium">סה"כ לקוחות</CardTitle>
-                    <Users className="h-4 w-4 text-secondary-foreground" />
-                  </CardHeader>
-                  <CardContent className="flex-1 flex flex-col justify-center">
-                    <div className="text-2xl font-bold text-secondary-foreground">{clients.length}</div>
-                    <p className="text-xs text-muted-foreground">
-                      לקוחות במערכת
-                    </p>
-                  </CardContent>
-                </Card>
-              </div>
-              </div>
+        {/* Calendar Header */}
+        <div className="flex items-center justify-between p-4 lg:p-6 pb-0">
+          <div className="flex items-center gap-4">
+            <Button variant="outline" onClick={goToToday} className="bg-card shadow-md border-none dark:bg-card">
+              היום
+            </Button>
+            <div className="flex items-center gap-2">
+              <Button className="bg-card shadow-md border-none dark:bg-card" variant="outline" size="icon" onClick={() => navigateCalendar('prev')}>
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+              <Button className="bg-card shadow-md border-none dark:bg-card" variant="outline" size="icon" onClick={() => navigateCalendar('next')}>
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
             </div>
-
-            {/* Appointments Schedule */}
-            <div className="md:col-span-5">
-              <h2 className="text-lg font-semibold mb-4">
-                לוח זמנים - {format(selectedDate, 'dd/MM/yyyy', { locale: he })}
-              </h2>
-                <div className="rounded-md bg-card border dark:border-border max-h-[797px] overflow-auto">
-                  <Table dir="rtl">
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="text-right">זמן</TableHead>
-                        <TableHead className="text-right">סטטוס</TableHead>
-                        <TableHead className="text-right">לקוח</TableHead>
-                        <TableHead className="text-right">סוג בדיקה</TableHead>
-                        <TableHead className="text-right">הערות</TableHead>
-                        <TableHead className="text-right">פעולות</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {timeSlots.length === 0 ? (
-                        <TableRow>
-                          <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
-                            אין תורים לתאריך זה
-                          </TableCell>
-                        </TableRow>
-                      ) : (
-                        timeSlots.map((slot, index) => (
-                          <TableRow 
-                            key={`${slot.startTime}-${slot.endTime}-${index}`}
-                            className={
-                              slot.type === 'free-slot' ? 'hover:bg-gray-50 dark:hover:bg-gray-800' :
-                                            slot.appointment?.exam_name === 'זמן הפסקה' ? 'bg-orange-50 hover:bg-orange-100 dark:bg-orange-900/20 dark:hover:bg-orange-900/30' :
-              'hover:bg-gray-50 dark:hover:bg-gray-800'
-            }
-            onDragOver={(slot.type === 'free-slot' || (slot.type === 'appointment' && slot.appointment?.exam_name !== 'זמן הפסקה')) ? handleDragOver : undefined}
-            onDrop={(slot.type === 'free-slot' || (slot.type === 'appointment' && slot.appointment?.exam_name !== 'זמן הפסקה')) ? (e) => handleDrop(e, slot) : undefined}
-                          >
-                                                          <TableCell className="font-medium">
-                               {slot.type === 'appointment' && (
-                                                    <div 
-                    className="flex items-center gap-2"
-                    draggable={slot.appointment?.exam_name !== 'זמן הפסקה'}
-                    onDragStart={(e) => slot.appointment && slot.appointment.exam_name !== 'זמן הפסקה' && handleDragStart(e, slot.appointment, slot, index)}
-                  >
-                    {slot.appointment?.exam_name !== 'זמן הפסקה' && (
-                      <GripVertical className="h-4 w-4 cursor-grab text-gray-400 dark:text-gray-500" />
-                    )}
-                    {slot.appointment?.exam_name === 'זמן הפסקה' && (
-                      <div className="w-4 h-4 flex items-center justify-center">
-                        <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
-                      </div>
-                    )}
-                                    {slot.startTime}
-                                  </div>
-                               )}
-                               {slot.type === 'free-slot' && (
-                                 <div 
-                                   className="flex items-center gap-2"
-                                   draggable
-                                   onDragStart={(e) => handleDragStart(e, { id: -1, client_id: -1, date: format(selectedDate, 'yyyy-MM-dd'), time: slot.startTime, exam_name: '', note: '' }, slot, index)}
-                                 >
-                                   <GripVertical className="h-4 w-4 cursor-grab text-gray-400 dark:text-gray-500" />
-                                   {slot.startTime}
-                                 </div>
-                               )}
-                            </TableCell>
-                                        <TableCell>
-              {slot.type === 'appointment' ? (
-                slot.appointment?.exam_name === 'זמן הפסקה' ? (
-                  <Badge variant="outline" className="text-orange-600 border-orange-600 dark:text-orange-400 dark:border-orange-400">
-                    הפסקה
-                  </Badge>
-                ) : (
-                  <Badge variant="default">תור קבוע</Badge>
-                )
-              ) : (
-                ''
-              )}
-            </TableCell>
-            <TableCell>
-              {slot.type === 'appointment' && slot.appointment ? (
-                slot.appointment.exam_name === 'זמן הפסקה' ? 'הפסקה' : <ClientName clientId={slot.appointment.client_id} />
-              ) : ''}
-            </TableCell>
-                            <TableCell>
-                              {slot.type === 'appointment' ? slot.appointment?.exam_name : ''}
-                            </TableCell>
-                            <TableCell>
-                              {slot.type === 'appointment' ? slot.appointment?.note : ''}
-                            </TableCell>
-                            <TableCell>
-                              {slot.type === 'appointment' && slot.appointment?.exam_name !== 'זמן הפסקה' && (
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => {
-                                    if (slot.appointment) {
-                                      openEditDialog(slot.appointment)
-                                    }
-                                  }}
-                                >
-                                  <Edit className="h-4 w-4" />
-                                </Button>
-                              )}
-                                            {slot.type === 'free-slot' && (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <Plus className="h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => openNewClientModal(slot.startTime)}>
-                      <UserPlus className="h-4 w-4 ml-2" />
-                      לקוח חדש
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => openOldClientFlow(slot.startTime)}>
-                      <Users className="h-4 w-4 ml-2" />
-                      לקוח קיים
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              )}
-                            </TableCell>
-                          </TableRow>
-                        ))
-                      )}
-                    </TableBody>
-                  </Table>
-                </div>
-              </div>
-            </div>
+            <h1 className="text-xl font-semibold">{getDisplayTitle()}</h1>
           </div>
 
-          {/* Client Select Modal */}
-          <ClientSelectModal
-            isOpen={isClientSelectOpen}
-            onClientSelect={handleClientSelect}
-            onClose={() => setIsClientSelectOpen(false)}
-          />
+          <div className="flex items-center gap-2 bg-card shadow-md rounded-md" >
+            <div className="flex rounded-md ">
+              <Button
+                variant={view === 'day' ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => setView('day')}
+                className=" rounded-l-none"
+              >
+                יום
+              </Button>
+              <Button
+                variant={view === 'week' ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => setView('week')}
+                className="rounded-none"
+              >
+                שבוע
+              </Button>
+              <Button
+                variant={view === 'month' ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => setView('month')}
+                className=" rounded-r-none"
+              >
+                חודש
+              </Button>
+            </div>
+          </div>
+        </div>
 
-          {/* New Client Modal */}
-          <CustomModal
-            isOpen={isNewClientDialogOpen}
-            onClose={closeAllDialogs}
-            title={`לקוח חדש ותור - ${selectedTimeSlot}`}
-            className="sm:max-w-[500px]"
-          >
-            <div className="grid gap-4 max-h-[60vh] overflow-auto p-1" style={{scrollbarWidth: 'none'}}>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="new-first-name" className="text-right block">שם פרטי *</Label>
-                  <Input
-                    id="new-first-name"
-                    name="first_name"
-                    value={newClientFormData.first_name}
-                    onChange={handleNewClientInputChange}
-                    dir="rtl"
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="new-last-name" className="text-right block">שם משפחה *</Label>
-                  <Input
-                    id="new-last-name"
-                    name="last_name"
-                    value={newClientFormData.last_name}
-                    onChange={handleNewClientInputChange}
-                    dir="rtl"
-                    required
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="new-email" className="text-right block">אימייל</Label>
-                  <Input
-                    id="new-email"
-                    name="email"
-                    type="email"
-                    value={newClientFormData.email}
-                    onChange={handleNewClientInputChange}
-                    dir="rtl"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="new-phone" className="text-right block">טלפון נייד</Label>
-                  <Input
-                    id="new-phone"
-                    name="phone_mobile"
-                    value={newClientFormData.phone_mobile}
-                    onChange={handleNewClientInputChange}
-                    dir="rtl"
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="new-exam-name" className="text-right block">סוג בדיקה</Label>
-                  <Input
-                    id="new-exam-name"
-                    name="exam_name"
-                    value={newClientFormData.exam_name}
-                    onChange={handleNewClientInputChange}
-                    dir="rtl"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="new-examiner" className="text-right block">בודק</Label>
-                  <UserSelect
-                    value={newClientFormData.user_id}
-                    onValueChange={(userId) => setNewClientFormData(prev => ({ ...prev, user_id: userId }))}
-                  />
-                </div>
-              </div>
-              <div className="space-y-2 pb-2">
-                <Label htmlFor="new-note" className="text-right block">הערות</Label>
-                <Textarea
-                  id="new-note"
-                  name="note"
-                  value={newClientFormData.note}
-                  onChange={handleNewClientInputChange}
-                  dir="rtl"
+        <div className="flex gap-6 px-4 lg:px-6">
+          {/* Statistics Sidebar */}
+          <div className="w-72 space-y-4">
+            {/* Mini Calendar */}
+            <Card className="bg-card shadow-md border-none p-2 justify-center">
+              <CardContent className="p-0 justify-center">
+                <Calendar
+                  mode="single"
+                  selected={currentDate}
+                  onSelect={(date) => date && setCurrentDate(date)}
+                  className="w-full justify-center"
+                  locale={he}
                 />
-              </div>
+              </CardContent>
+            </Card>
 
-              
-            </div>
-            <div className="flex justify-start gap-2 mt-4">
-              <Button onClick={() => handleSaveNewClientAndAppointment(false)}>שמור</Button>
-              <Button variant="outline" onClick={closeAllDialogs}>ביטול</Button>
-            </div>
-          </CustomModal>
+            <div className="grid gap-4 grid-cols-2">
+              <Card className="bg-card border-none shadow-md py-4">
+                <CardHeader className="flex flex-row items-center mb-[-10px] justify-between space-y-0 ">
+                  <CardTitle className="text-sm font-medium">תורים היום</CardTitle>
+                  <CalendarDays className="h-4 w-4 text-primary" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-primary">{todayAppointments.length}</div>
+                  <p className="text-xs text-muted-foreground">
+                    מתוך {TOTAL_SLOTS} תורים אפשריים
+                  </p>
+                </CardContent>
+              </Card>
 
-          {/* Create Appointment Modal */}
-          <CustomModal
-            isOpen={isCreateModalOpen}
-            onClose={closeAllDialogs}
-            title={editingAppointment ? 'עריכת תור' : selectedClient ? `תור חדש - ${selectedClient.first_name} ${selectedClient.last_name} - ${selectedTimeSlot}` : `תור חדש - ${selectedTimeSlot}`}
-            className="sm:max-w-[425px]"
-          >
-            <div className="grid gap-4">
-              {selectedClient && (
-                <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded-md">
-                  <div className="text-sm font-medium">פרטי לקוח:</div>
-                  <div className="text-sm text-muted-foreground">
-                    {selectedClient.first_name} {selectedClient.last_name} • {selectedClient.phone_mobile}
+              <Card className="bg-card border-none shadow-md ">
+                <CardHeader className="flex flex-row items-center mb-[-10px] justify-between space-y-0">
+                  <CardTitle className="text-sm font-medium">מקומות פנויים</CardTitle>
+                  <Clock className="h-4 w-4 text-secondary-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-secondary-foreground">{todayFreeSlots}</div>
+                  <p className="text-xs text-muted-foreground">
+                    {todayFreeSlots * APPOINTMENT_DURATION} דקות פנויות
+                  </p>
+                </CardContent>
+              </Card>
+
+            </div>
+
+          </div>
+
+          {/* Main Calendar View */}
+          <div className="flex-1">
+            <Card className="bg-card shadow-md border-none p-0">
+              <CardContent className="p-0 pt-0">
+                {view === 'month' ? (
+                  // Month View
+                  <div className="grid grid-cols-7 gap-0">
+                    {/* Day headers */}
+                    {['א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ש'].map((day) => (
+                      <div key={day} className="p-2 text-center text-sm font-medium border-b">
+                        {day}
+                      </div>
+                    ))}
+
+                    {/* Month grid */}
+                    {visibleDates.map((date, index) => {
+                      const dayAppointments = getAppointmentsForDate(date)
+                      const isCurrentMonth = date.getMonth() === currentDate.getMonth()
+                      const isCurrentDay = isToday(date)
+
+                      return (
+                        <div
+                          key={index}
+                          className={`min-h-[120px] p-1 border-b border-r relative ${!isCurrentMonth ? 'bg-muted/30 text-muted-foreground' : ''
+                            } ${isCurrentDay ? 'bg-primary/5' : ''} hover:bg-muted/50 cursor-pointer`}
+                          onClick={() => {
+                            setCurrentDate(date)
+                            setView('day')
+                          }}
+                        >
+                          <div className={`text-sm ${isCurrentDay ? 'font-bold text-primary' : ''}`}>
+                            {format(date, 'd')}
+                          </div>
+                          <div className="mt-1 space-y-1">
+                            {dayAppointments.slice(0, 3).map((appointment) => (
+                              <div
+                                key={appointment.id}
+                                className="text-xs p-1 bg-primary/20 text-primary rounded truncate"
+                                title={`${appointment.time} - ${appointment.exam_name}`}
+                              >
+                                {appointment.time} {appointment.exam_name}
+                              </div>
+                            ))}
+                            {dayAppointments.length > 3 && (
+                              <div className="text-xs text-muted-foreground">
+                                +{dayAppointments.length - 3} נוספים
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )
+                    })}
                   </div>
-                </div>
-              )}
-              <div className="space-y-2">
-                <Label htmlFor="exam_name" className="text-right block">סוג בדיקה</Label>
-                <Input
-                  id="exam_name"
-                  name="exam_name"
-                  value={formData.exam_name}
-                  onChange={handleInputChange}
-                  dir="rtl"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="examiner" className="text-right block">בודק</Label>
-                <UserSelect
-                  value={formData.user_id}
-                  onValueChange={(userId) => setFormData(prev => ({ ...prev, user_id: userId }))}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="note" className="text-right block">הערות</Label>
-                <Textarea
-                  id="note"
-                  name="note"
-                  value={formData.note}
-                  onChange={handleInputChange}
-                  dir="rtl"
-                />
-              </div>
-            </div>
-            <div className="flex justify-start gap-2 mt-4">
-              <Button onClick={handleSaveAppointment}>שמור</Button>
-              <Button variant="outline" onClick={closeAllDialogs}>ביטול</Button>
-            </div>
-          </CustomModal>
+                ) : (
+                  // Day/Week View
+                  <div className="flex" style={{ height: '990px' }} ref={calendarRef}>
+                    {/* Time column */}
+                    <div className="w-16">
+                      <div className="h-10 border-b border-l"></div>
+                      {timeSlots.map((slot, index) => (
+                        <div key={slot.time} className={`h-[95px] border-l flex items-start justify-center pt-1 ${index === timeSlots.length - 1 ? '' : 'border-b'
+                          }`}>
+                          <span className="text-xs text-muted-foreground">{slot.time}</span>
+                        </div>
+                      ))}
+                    </div>
 
-          {/* Client Warning Modal */}
-          <ClientWarningModal
-            isOpen={existingClientWarning.show}
-            onClose={() => setExistingClientWarning({ show: false, clients: [], type: 'name' })}
-            clients={existingClientWarning.clients}
-            warningType={existingClientWarning.type}
-            onUseExistingClient={handleUseExistingClient}
-            onCreateNewAnyway={() => handleSaveNewClientAndAppointment(true)}
-          />
-      </>
-    )
+                    {/* Day columns */}
+                    <div className="flex-1 grid" style={{ gridTemplateColumns: `repeat(${visibleDates.length}, 1fr)` }}>
+                      {visibleDates.map((date, dateIndex) => (
+                        <div key={dateIndex} className="relative">
+                          {/* Day header */}
+                          <div className={`h-10 border-b flex items-center justify-center text-sm font-medium ${isToday(date) && view === 'week' ? 'bg-primary/10 text-primary' : ''
+                            } ${dateIndex < visibleDates.length - 1 ? "border-l" : ""}`}>
+                            {view === 'week' ? format(date, 'EEE d/M', { locale: he }) : format(date, 'EEE d/M', { locale: he })}
+                          </div>
+
+                          {/* Time slots */}
+                          <div className="relative">
+                            {timeSlots.map((slot, slotIndex) => (
+                              <div
+                                key={`${dateIndex}-${slotIndex}`}
+                                className={`h-[95px] hover:bg-muted/30 cursor-pointer relative ${dateIndex < visibleDates.length - 1 ? "border-l" : ""
+                                  } ${slotIndex === timeSlots.length - 1 ? '' : 'border-b'}`}
+                                onClick={() => handleTimeSlotClick(date, slot.time)}
+                              >
+                                {/* Current time indicator */}
+                                {isToday(date) && (
+                                  (() => {
+                                    const now = new Date()
+                                    const currentHour = getHours(now)
+                                    const currentMinute = getMinutes(now)
+
+                                    if (currentHour === slot.hour) {
+                                      const topOffset = (currentMinute / 60) * 95
+                                      return (
+                                        <div
+                                          className="absolute left-0 right-0 h-0.5 bg-red-500 z-10"
+                                          style={{ top: `${topOffset}px` }}
+                                        >
+                                          <div className="absolute -left-1 -top-1 w-2 h-2 bg-red-500 rounded-full"></div>
+                                        </div>
+                                      )
+                                    }
+                                    return null
+                                  })()
+                                )}
+                              </div>
+                            ))}
+
+                            {/* Appointment blocks */}
+                            {getAppointmentBlocks(date).map((block) => {
+                              const isDragging = draggedBlockId === block.id
+                              const isResizing = resizeData?.appointmentId === block.id
+                              const isInCurrentColumn = dragPosition && isSameDay(dragPosition.date, date)
+
+                              const userColor = getUserColor(block.user_id)
+                              const timeRange = getAppointmentTimeRange(block.time || '')
+
+                              // Determine which specific corners touch neighbors
+                              const dayBlocks = getAppointmentBlocks(date)
+                              
+                              // Check each corner individually
+                              const blockTop = block.top
+                              const blockBottom = block.top + block.height
+                              const blockLeft = block.left
+                              const blockRight = block.left + block.width
+                              
+                              let topLeftRounded = true
+                              let topRightRounded = true
+                              let bottomLeftRounded = true
+                              let bottomRightRounded = true
+                              
+                              dayBlocks.forEach(otherBlock => {
+                                if (otherBlock.id === block.id) return
+                                
+                                const otherTop = otherBlock.top
+                                const otherBottom = otherBlock.top + otherBlock.height
+                                const otherLeft = otherBlock.left
+                                const otherRight = otherBlock.left + otherBlock.width
+                                
+                                // Check if blocks are adjacent horizontally
+                                const adjacentLeft = Math.abs(otherRight - blockLeft) < 1
+                                const adjacentRight = Math.abs(otherLeft - blockRight) < 1
+                                
+                                if (adjacentLeft) {
+                                  // Neighbor on the left - check which corners touch
+                                  if (otherTop <= blockTop && otherBottom > blockTop) {
+                                    topLeftRounded = false // Top-left corner touches
+                                  }
+                                  if (otherTop < blockBottom && otherBottom >= blockBottom) {
+                                    bottomLeftRounded = false // Bottom-left corner touches
+                                  }
+                                }
+                                
+                                if (adjacentRight) {
+                                  // Neighbor on the right - check which corners touch
+                                  if (otherTop <= blockTop && otherBottom > blockTop) {
+                                    topRightRounded = false // Top-right corner touches
+                                  }
+                                  if (otherTop < blockBottom && otherBottom >= blockBottom) {
+                                    bottomRightRounded = false // Bottom-right corner touches
+                                  }
+                                }
+                              })
+
+                              // If this block is being dragged and is in current column, use drag position
+                              let blockStyle = {
+                                top: `${block.top}px`,
+                                height: `${block.height}px`,
+                                left: `${block.left}%`,
+                                width: `${block.width}%`,
+                                zIndex: isDragging || isResizing ? 45 : block.zIndex,
+                                backgroundColor: userColor,
+                                borderColor: userColor
+                              }
+
+                              if (isDragging && isInCurrentColumn && dragPosition && draggedData) {
+                                // Maintain the offset where the user clicked
+                                blockStyle.top = `${dragPosition.y}px`
+                              }
+
+                              // Hide the original block if it's being dragged and moved to another column
+                              if (isDragging && dragPosition && !isSameDay(dragPosition.date, date)) {
+                                return null
+                              }
+
+                              // Create border radius class based on which corners touch neighbors
+                              let borderRadiusClass = ''
+                              if (topLeftRounded) borderRadiusClass += 'rounded-tl-md '
+                              if (topRightRounded) borderRadiusClass += 'rounded-tr-md '
+                              if (bottomLeftRounded) borderRadiusClass += 'rounded-bl-md '
+                              if (bottomRightRounded) borderRadiusClass += 'rounded-br-md '
+                              borderRadiusClass = borderRadiusClass.trim() || 'rounded-none'
+
+                              return (
+                                <div
+                                  key={block.id}
+                                  className={`absolute text-white ${borderRadiusClass} text-xs transition-all duration-150 border group overflow-hidden ${isDragging || isResizing ? 'shadow-lg' : 'hover:shadow-md'
+                                    }`}
+                                  style={{
+                                    ...blockStyle,
+                                    borderWidth: '1px',
+                                    borderColor: 'rgba(255, 255, 255, 0.3)'
+                                  }}
+                                  title={getDynamicTimeRange(block)}
+                                >
+                                  {/* Top resize handle - extends 2px outside */}
+                                  <div
+                                    className="absolute top-[-5px] left-0 right-0 z-20"
+                                    style={{
+                                      height: '10px',
+                                      cursor: 'ns-resize'
+                                    }}
+                                    onMouseDown={(e) => {
+                                      e.preventDefault()
+                                      e.stopPropagation()
+                                      handleResizeStart(e, block, 'top')
+                                    }}
+                                  />
+
+                                  {/* Main content - draggable area */}
+                                  <div
+                                    className="py-[0.5px] px-1 h-full flex flex-col justify-start relative z-0"
+                                    style={{
+                                      cursor: resizeData ? 'default' : 'move',
+                                      marginTop: '1px',
+                                      marginBottom: '1px'
+                                    }}
+                                    onMouseDown={(e) => {
+                                      if (!resizeData) {
+                                        handleMouseDown(e, block)
+                                      }
+                                    }}
+                                    onClick={(e) => {
+                                      // Only open edit dialog if not dragging
+                                      if (!draggedData && !resizeData) {
+                                        e.preventDefault()
+                                        e.stopPropagation()
+                                        openEditDialog(block)
+                                      }
+                                    }}
+                                  >
+                                    <div className="font-medium text-right truncate text-[10px] pointer-events-none">
+                                      {draggedBlockId === block.id && dragPosition ?
+                                        getAppointmentTimeRange(dragPosition.time, getAppointmentDuration(block)) :
+                                        (resizeData && resizeData.appointmentId === block.id ?
+                                          getDynamicTimeRange(block) :
+                                          getAppointmentTimeRange(block.time || '', getAppointmentDuration(block))
+                                        )
+                                      }
+                                      {/* Client name on same line */}
+                                      {block.client && (
+                                        <span className="text-white/90 mr-1">
+                                          • {`${block.client.first_name || ''} ${block.client.last_name || ''}`.trim()}
+                                        </span>
+                                      )}
+                                    </div>
+                                    {/* Exam name */}
+                                    {block.exam_name && (
+                                      <div className="text-right truncate text-[10px] text-white/80 pointer-events-none">
+                                        {block.exam_name}
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  {/* Bottom resize handle - extends 2px outside */}
+                                  <div
+                                    className="absolute bottom-[-5px] left-0 right-0 z-20"
+                                    style={{
+                                      height: '10px',
+                                      cursor: 'ns-resize'
+                                    }}
+                                    onMouseDown={(e) => {
+                                      e.preventDefault()
+                                      e.stopPropagation()
+                                      handleResizeStart(e, block, 'bottom')
+                                    }}
+                                  />
+
+
+                                </div>
+                              )
+                            })}
+
+                            {/* Show dragged block in new position if moved to this column */}
+                            {dragPosition && draggedData && isSameDay(dragPosition.date, date) && !getAppointmentBlocks(date).some(block => block.id === draggedBlockId) && (
+                              <div
+                                className="absolute text-white rounded-md text-xs shadow-lg border"
+                                style={{
+                                  top: `${dragPosition.y}px`,
+                                  height: `${(getAppointmentDuration(draggedData.appointment) / 60) * 95}px`,
+                                  left: '0%',
+                                  width: '100%',
+                                  zIndex: 45,
+                                  backgroundColor: getUserColor(draggedData.appointment.user_id),
+                                  borderWidth: '1px',
+                                  borderColor: 'rgba(255, 255, 255, 0.3)'
+                                }}
+                              >
+                                <div className="py-[0.5px] px-1 h-full flex flex-col justify-start" style={{ marginTop: '5px', marginBottom: '5px' }}>
+                                  <div className="font-medium text-right truncate text-[10px]">
+                                    {getAppointmentTimeRange(dragPosition.time, getAppointmentDuration(draggedData.appointment))}
+                                    {/* Client name on same line during drag */}
+                                    {(() => {
+                                      const client = clients.find(c => c.id === draggedData.appointment.client_id);
+                                      return client && (
+                                        <span className="text-white/90 mr-2">
+                                          • {`${client.first_name || ''} ${client.last_name || ''}`.trim()}
+                                        </span>
+                                      );
+                                    })()}
+                                  </div>
+                                  {/* Exam name during drag */}
+                                  {draggedData.appointment.exam_name && (
+                                    <div className="text-right truncate text-[10px] text-white/80">
+                                      {draggedData.appointment.exam_name}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+
+        {/* Existing Modals */}
+        <ClientSelectModal
+          isOpen={isClientSelectOpen}
+          onClientSelect={handleClientSelect}
+          onClose={() => setIsClientSelectOpen(false)}
+        />
+
+        <CustomModal
+          isOpen={isCreateModalOpen}
+          onClose={closeAllDialogs}
+          title={editingAppointment ? 'עריכת תור' : selectedClient ? `תור חדש - ${selectedClient.first_name} ${selectedClient.last_name}` : 'תור חדש'}
+          className="sm:max-w-[425px] "
+        >
+          <div className="grid gap-4">
+            {selectedClient && (
+              <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded-md">
+                <div className="text-sm font-medium">פרטי לקוח:</div>
+                <div className="text-sm text-muted-foreground">
+                  {selectedClient.first_name} {selectedClient.last_name} • {selectedClient.phone_mobile}
+                </div>
+              </div>
+            )}
+            <div className="space-y-2">
+              <Label htmlFor="exam_name" className="text-right block">סוג בדיקה</Label>
+              <Input
+                id="exam_name"
+                name="exam_name"
+                value={formData.exam_name}
+                onChange={handleInputChange}
+                dir="rtl"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="examiner" className="text-right block">בודק</Label>
+              <UserSelect
+                value={formData.user_id}
+                onValueChange={(userId) => setFormData(prev => ({ ...prev, user_id: userId }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="note" className="text-right block">הערות</Label>
+              <Textarea
+                id="note"
+                name="note"
+                value={formData.note}
+                onChange={handleInputChange}
+                dir="rtl"
+              />
+            </div>
+          </div>
+          <div className="flex justify-start gap-2 mt-4">
+            <Button onClick={handleSaveAppointment}>שמור</Button>
+            <Button 
+              variant="destructive" 
+              onClick={() => {
+                if (editingAppointment) {
+                  handleDeleteAppointment(editingAppointment.id!)
+                }
+                closeAllDialogs()
+              }}
+            >
+              מחיקה
+            </Button>
+          </div>
+        </CustomModal>
+      </div>
+    </>
+  )
 }
+

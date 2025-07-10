@@ -2,6 +2,7 @@ import Database from 'better-sqlite3';
 import { app } from 'electron';
 import path from 'path';
 import fs from 'fs';
+import { googleCalendarSync } from '../google/google-calendar-sync';
 import {
   createTables,
   Client,
@@ -113,8 +114,24 @@ class DatabaseService {
         console.log('Added lens_order_notes column to order_details table');
       }
 
-      // Check if appointments table has redundant client fields that should be removed
+      // Check if appointments table has duration column
       const appointmentsInfo = this.db.prepare("PRAGMA table_info(appointments)").all() as any[];
+      const hasDurationColumn = appointmentsInfo.some(col => col.name === 'duration');
+      const hasGoogleCalendarEventIdColumn = appointmentsInfo.some(col => col.name === 'google_calendar_event_id');
+      
+      // Add duration column if it doesn't exist
+      if (!hasDurationColumn) {
+        this.db.exec('ALTER TABLE appointments ADD COLUMN duration INTEGER DEFAULT 30');
+        console.log('Added duration column to appointments table');
+      }
+
+      // Add google_calendar_event_id column if it doesn't exist
+      if (!hasGoogleCalendarEventIdColumn) {
+        this.db.exec('ALTER TABLE appointments ADD COLUMN google_calendar_event_id TEXT');
+        console.log('Added google_calendar_event_id column to appointments table');
+      }
+
+      // Check if appointments table has redundant client fields that should be removed
       const hasFirstNameColumn = appointmentsInfo.some(col => col.name === 'first_name');
       const hasLastNameColumn = appointmentsInfo.some(col => col.name === 'last_name');
       const hasPhoneMobileColumn = appointmentsInfo.some(col => col.name === 'phone_mobile');
@@ -2462,8 +2479,8 @@ class DatabaseService {
 
     try {
       const stmt = this.db.prepare(`
-        INSERT INTO appointments (client_id, user_id, date, time, exam_name, note)
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO appointments (client_id, user_id, date, time, duration, exam_name, note, google_calendar_event_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       `);
 
       const result = stmt.run(
@@ -2471,11 +2488,22 @@ class DatabaseService {
         this.sanitizeValue(appointment.user_id),
         this.sanitizeValue(appointment.date),
         this.sanitizeValue(appointment.time),
+        this.sanitizeValue(appointment.duration || 30),
         this.sanitizeValue(appointment.exam_name),
-        this.sanitizeValue(appointment.note)
+        this.sanitizeValue(appointment.note),
+        this.sanitizeValue(appointment.google_calendar_event_id)
       );
 
-      return { ...appointment, id: result.lastInsertRowid as number };
+      const createdAppointment = { ...appointment, id: result.lastInsertRowid as number };
+
+      // Sync to Google Calendar if user has Google account connected
+      if (appointment.user_id) {
+        // Note: Google Calendar sync happens asynchronously to avoid blocking the UI
+        // The google_calendar_event_id will be updated separately once sync completes
+        this.syncAppointmentToGoogleCalendar(createdAppointment, 'create').catch(console.error);
+      }
+
+      return createdAppointment;
     } catch (error) {
       console.error('Error creating appointment:', error);
       return null;
@@ -2522,23 +2550,43 @@ class DatabaseService {
     if (!this.db || !appointment.id) return null;
 
     try {
+      // Get the current appointment to preserve the Google Calendar event ID
+      const currentAppointment = this.getAppointmentById(appointment.id);
+      if (!currentAppointment) {
+        console.error('Appointment not found for update');
+        return null;
+      }
+
+      // Preserve the Google Calendar event ID from the current appointment
+      const updatedAppointment = {
+        ...appointment,
+        google_calendar_event_id: appointment.google_calendar_event_id || currentAppointment.google_calendar_event_id
+      };
+
       const stmt = this.db.prepare(`
         UPDATE appointments SET
-          client_id = ?, user_id = ?, date = ?, time = ?, exam_name = ?, note = ?
+          client_id = ?, user_id = ?, date = ?, time = ?, duration = ?, exam_name = ?, note = ?, google_calendar_event_id = ?
         WHERE id = ?
       `);
 
       stmt.run(
-        appointment.client_id,
-        this.sanitizeValue(appointment.user_id),
-        this.sanitizeValue(appointment.date),
-        this.sanitizeValue(appointment.time),
-        this.sanitizeValue(appointment.exam_name),
-        this.sanitizeValue(appointment.note),
-        appointment.id
+        updatedAppointment.client_id,
+        this.sanitizeValue(updatedAppointment.user_id),
+        this.sanitizeValue(updatedAppointment.date),
+        this.sanitizeValue(updatedAppointment.time),
+        this.sanitizeValue(updatedAppointment.duration || 30),
+        this.sanitizeValue(updatedAppointment.exam_name),
+        this.sanitizeValue(updatedAppointment.note),
+        this.sanitizeValue(updatedAppointment.google_calendar_event_id),
+        updatedAppointment.id
       );
 
-      return appointment;
+      // Sync to Google Calendar if user has Google account connected
+      if (updatedAppointment.user_id) {
+        this.syncAppointmentToGoogleCalendar(updatedAppointment, 'update').catch(console.error);
+      }
+
+      return updatedAppointment;
     } catch (error) {
       console.error('Error updating appointment:', error);
       return null;
@@ -2549,12 +2597,84 @@ class DatabaseService {
     if (!this.db) return false;
 
     try {
+      // Get appointment before deleting for Google Calendar sync
+      const appointment = this.getAppointmentById(id);
+      
       const stmt = this.db.prepare('DELETE FROM appointments WHERE id = ?');
       const result = stmt.run(id);
+      
+      // Sync deletion to Google Calendar if user has Google account connected
+      if (result.changes > 0 && appointment?.user_id) {
+        this.syncAppointmentToGoogleCalendar(appointment, 'delete').catch(console.error);
+      }
+      
       return result.changes > 0;
     } catch (error) {
       console.error('Error deleting appointment:', error);
       return false;
+    }
+  }
+
+  updateAppointmentGoogleEventId(appointmentId: number, googleEventId: string | null): boolean {
+    if (!this.db) return false;
+
+    try {
+      console.log(`📝 Updating appointment ${appointmentId} with Google event ID: ${googleEventId}`);
+      const stmt = this.db.prepare('UPDATE appointments SET google_calendar_event_id = ? WHERE id = ?');
+      const result = stmt.run(this.sanitizeValue(googleEventId), appointmentId);
+      console.log(`📊 Update result: ${result.changes} rows affected`);
+      return result.changes > 0;
+    } catch (error) {
+      console.error('Error updating appointment Google event ID:', error);
+      return false;
+    }
+  }
+
+  private async syncAppointmentToGoogleCalendar(appointment: Appointment, action: 'create' | 'update' | 'delete'): Promise<void> {
+    try {
+      if (!appointment.user_id) {
+        console.log('No user assigned to appointment, skipping Google Calendar sync');
+        return;
+      }
+
+      const user = this.getUserById(appointment.user_id);
+      if (!user) {
+        console.log('Assigned user not found, skipping Google Calendar sync');
+        return;
+      }
+
+      if (!user.google_account_connected) {
+        console.log(`User ${user.username} (ID: ${user.id}) is not connected to Google Calendar, skipping sync`);
+        return;
+      }
+
+      const client = this.getClientById(appointment.client_id);
+
+      switch (action) {
+        case 'create':
+          const eventId = await googleCalendarSync.syncAppointmentCreated(appointment, client, user);
+          if (eventId && appointment.id) {
+            console.log(`🔄 Storing Google Calendar event ID ${eventId} for appointment ${appointment.id}`);
+            const success = this.updateAppointmentGoogleEventId(appointment.id, eventId);
+            if (success) {
+              console.log(`✅ Successfully stored Google Calendar event ID for appointment ${appointment.id}`);
+            } else {
+              console.log(`❌ Failed to store Google Calendar event ID for appointment ${appointment.id}`);
+            }
+          } else {
+            console.log(`❌ No event ID returned or appointment ID missing. EventId: ${eventId}, AppointmentId: ${appointment.id}`);
+          }
+          break;
+        case 'update':
+          console.log(`🔄 Syncing appointment update. Appointment ID: ${appointment.id}, Google event ID: ${appointment.google_calendar_event_id}`);
+          await googleCalendarSync.syncAppointmentUpdated(appointment, client, user, appointment.google_calendar_event_id);
+          break;
+        case 'delete':
+          await googleCalendarSync.syncAppointmentDeleted(user, appointment.google_calendar_event_id);
+          break;
+      }
+    } catch (error) {
+      console.error('Error syncing appointment to Google Calendar:', error);
     }
   }
 
@@ -2708,6 +2828,7 @@ class DatabaseService {
       const stmt = this.db.prepare(`
         UPDATE users SET 
         username = ?, email = ?, phone = ?, password = ?, role = ?, is_active = ?, profile_picture = ?, primary_theme_color = ?, secondary_theme_color = ?, theme_preference = ?,
+        google_account_connected = ?, google_account_email = ?, google_access_token = ?, google_refresh_token = ?,
         updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
       `);
@@ -2723,6 +2844,10 @@ class DatabaseService {
         this.sanitizeValue(user.primary_theme_color),
         this.sanitizeValue(user.secondary_theme_color),
         this.sanitizeValue(user.theme_preference || 'system'),
+        this.sanitizeValue(user.google_account_connected || false),
+        this.sanitizeValue(user.google_account_email),
+        this.sanitizeValue(user.google_access_token),
+        this.sanitizeValue(user.google_refresh_token),
         user.id
       );
 
@@ -2765,6 +2890,63 @@ class DatabaseService {
     } catch (error) {
       console.error('Error authenticating user:', error);
       return null;
+    }
+  }
+
+  // Google Calendar integration methods
+  connectGoogleAccount(userId: number, googleEmail: string, accessToken: string, refreshToken: string): boolean {
+    if (!this.db) return false;
+
+    try {
+      const stmt = this.db.prepare(`
+        UPDATE users SET 
+        google_account_connected = 1,
+        google_account_email = ?,
+        google_access_token = ?,
+        google_refresh_token = ?,
+        updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+      `);
+
+      const result = stmt.run(googleEmail, accessToken, refreshToken, userId);
+      return result.changes > 0;
+    } catch (error) {
+      console.error('Error connecting Google account:', error);
+      return false;
+    }
+  }
+
+  disconnectGoogleAccount(userId: number): boolean {
+    if (!this.db) return false;
+
+    try {
+      const stmt = this.db.prepare(`
+        UPDATE users SET 
+        google_account_connected = 0,
+        google_account_email = NULL,
+        google_access_token = NULL,
+        google_refresh_token = NULL,
+        updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+      `);
+
+      const result = stmt.run(userId);
+      return result.changes > 0;
+    } catch (error) {
+      console.error('Error disconnecting Google account:', error);
+      return false;
+    }
+  }
+
+  getAppointmentsByUserId(userId: number): Appointment[] {
+    if (!this.db) return [];
+
+    try {
+      const stmt = this.db.prepare('SELECT * FROM appointments WHERE user_id = ? ORDER BY date DESC, time DESC');
+      return stmt.all(userId) as Appointment[];
+    } catch (error) {
+      console.error('Error getting appointments by user ID:', error);
+      return [];
     }
   }
 

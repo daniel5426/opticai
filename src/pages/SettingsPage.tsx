@@ -16,7 +16,7 @@ import { getAllUsers, createUser, updateUser, deleteUser } from "@/lib/db/users-
 import { applyThemeColorsFromSettings } from "@/helpers/theme_helpers"
 import { CustomModal } from "@/components/ui/custom-modal"
 import { Badge } from "@/components/ui/badge"
-import { IconPlus, IconEdit, IconTrash, IconLayoutGrid } from "@tabler/icons-react"
+import { IconPlus, IconEdit, IconTrash, IconLayoutGrid, IconBrandGoogle, IconCalendar } from "@tabler/icons-react"
 import { useSettings } from "@/hooks/useSettings"
 import { useUser } from "@/contexts/UserContext"
 import { getUserById } from "@/lib/db/users-db"
@@ -117,6 +117,10 @@ export default function SettingsPage() {
     theme_preference: 'system'
   })
   const [profileColorUpdateTimeout, setProfileColorUpdateTimeout] = useState<NodeJS.Timeout | null>(null)
+
+  // Google Calendar state
+  const [googleCalendarLoading, setGoogleCalendarLoading] = useState(false)
+  const [googleCalendarSyncing, setGoogleCalendarSyncing] = useState(false)
 
   useEffect(() => {
     const loadSettings = async () => {
@@ -400,6 +404,134 @@ export default function SettingsPage() {
     } catch (error) {
       console.error('Error testing email connection:', error)
       toast.error('שגיאה בבדיקת חיבור האימייל')
+    }
+  }
+
+  // Google Calendar handlers
+  const handleConnectGoogleAccount = async () => {
+    if (!currentUser?.id) return
+
+    try {
+      setGoogleCalendarLoading(true)
+      toast.info('מתחבר לחשבון Google...')
+      
+      // Use real Google OAuth flow
+      const result = await window.electronAPI.googleOAuthAuthenticate()
+      
+      if (result.success === false) {
+        toast.error(`שגיאה בחיבור לחשבון Google: ${result.error}`)
+        return
+      }
+      
+      if (result.tokens && result.userInfo) {
+        // Update user with Google account info
+        const updatedUser = await updateUser({
+          ...currentUser,
+          google_account_connected: true,
+          google_account_email: result.userInfo.email,
+          google_access_token: result.tokens.access_token,
+          google_refresh_token: result.tokens.refresh_token
+        })
+        
+        if (updatedUser) {
+          await setCurrentUser(updatedUser)
+          setPersonalProfile(prev => ({
+            ...prev,
+            google_account_connected: true,
+            google_account_email: result.userInfo?.email
+          }))
+          toast.success('חשבון Google חובר בהצלחה!')
+        } else {
+          toast.error('שגיאה בשמירת פרטי חשבון Google')
+        }
+      } else {
+        toast.error('לא התקבלו נתוני הרשאה מ-Google')
+      }
+    } catch (error) {
+      console.error('Error connecting Google account:', error)
+      toast.error('שגיאה בחיבור חשבון Google')
+    } finally {
+      setGoogleCalendarLoading(false)
+    }
+  }
+
+  const handleDisconnectGoogleAccount = async () => {
+    if (!currentUser?.id) return
+
+    try {
+      setGoogleCalendarLoading(true)
+      
+      // Update user to remove Google account info
+      const updatedUser = await updateUser({
+        ...currentUser,
+        google_account_connected: false,
+        google_account_email: undefined,
+        google_access_token: undefined,
+        google_refresh_token: undefined
+      })
+      
+      if (updatedUser) {
+        await setCurrentUser(updatedUser)
+        setPersonalProfile(prev => ({
+          ...prev,
+          google_account_connected: false,
+          google_account_email: undefined
+        }))
+        toast.success('חשבון Google נותק בהצלחה!')
+      } else {
+        toast.error('שגיאה בניתוק חשבון Google')
+      }
+    } catch (error) {
+      console.error('Error disconnecting Google account:', error)
+      toast.error('שגיאה בניתוק חשבון Google')
+    } finally {
+      setGoogleCalendarLoading(false)
+    }
+  }
+
+  const handleSyncGoogleCalendar = async () => {
+    if (!currentUser?.id || !currentUser.google_account_connected) return
+
+    try {
+      setGoogleCalendarSyncing(true)
+      toast.info('מסנכרן תורים עם Google Calendar...')
+      
+      // Prepare Google tokens
+      const tokens = {
+        access_token: currentUser.google_access_token,
+        refresh_token: currentUser.google_refresh_token,
+        scope: 'https://www.googleapis.com/auth/calendar',
+        token_type: 'Bearer',
+        expiry_date: Date.now() + 3600000 // 1 hour from now
+      }
+      
+      // Get user's appointments from database
+      const appointments = await window.electronAPI.db('getAppointmentsByUserId', currentUser.id)
+      
+      // Prepare appointments with client data for sync
+      const appointmentsWithClients = await Promise.all(
+        appointments.map(async (appointment: any) => {
+          const client = await window.electronAPI.db('getClientById', appointment.client_id)
+          return { appointment, client }
+        })
+      )
+      
+      // Sync appointments to Google Calendar
+      const syncResult = await window.electronAPI.googleCalendarSyncAppointments(tokens, appointmentsWithClients)
+      
+      if (syncResult.success > 0) {
+        toast.success(`${syncResult.success} תורים סונכרנו בהצלחה עם Google Calendar!`)
+        if (syncResult.failed > 0) {
+          toast.warning(`${syncResult.failed} תורים לא הצליחו להיסנכרן`)
+        }
+      } else {
+        toast.error('לא הצליח לסנכרן תורים עם Google Calendar')
+      }
+    } catch (error) {
+      console.error('Error syncing Google Calendar:', error)
+      toast.error('שגיאה בסנכרון עם Google Calendar')
+    } finally {
+      setGoogleCalendarSyncing(false)
     }
   }
 
@@ -1303,6 +1435,110 @@ export default function SettingsPage() {
                             </div>
                           </div>
                         </div>
+                      </CardContent>
+                    </Card>
+
+                    {/* Google Calendar Integration */}
+                    <Card className="shadow-md border-none">
+                      <CardHeader>
+                        <CardTitle className="text-right flex items-center gap-2 justify-end">
+                          <IconCalendar className="h-5 w-5" />
+                          חיבור ל-Google Calendar
+                        </CardTitle>
+                        <p className="text-sm text-muted-foreground text-right">סנכרן את התורים שלך עם Google Calendar</p>
+                      </CardHeader>
+                      <CardContent>
+                        {currentUser?.google_account_connected ? (
+                          <div className="space-y-4">
+                            {/* Connected State */}
+                            <div className="flex items-center justify-between p-4 bg-green-50 dark:bg-green-950/20 rounded-lg border border-green-200 dark:border-green-800">
+                              <div className="flex items-center gap-3">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={handleDisconnectGoogleAccount}
+                                  disabled={googleCalendarLoading}
+                                  className="text-red-600 hover:text-red-700 border-red-200 hover:border-red-300"
+                                >
+                                  {googleCalendarLoading ? (
+                                    <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin ml-2" />
+                                  ) : null}
+                                  נתק חשבון
+                                </Button>
+                                <Button
+                                  onClick={handleSyncGoogleCalendar}
+                                  disabled={googleCalendarSyncing || googleCalendarLoading}
+                                  className="flex items-center gap-2"
+                                >
+                                  {googleCalendarSyncing ? (
+                                    <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                                  ) : (
+                                    <IconCalendar className="h-4 w-4" />
+                                  )}
+                                  {googleCalendarSyncing ? 'מסנכרן...' : 'סנכרן עכשיו'}
+                                </Button>
+                              </div>
+                              
+                              <div className="text-right">
+                                <div className="flex items-center gap-2 text-green-700 dark:text-green-300">
+                                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                  </svg>
+                                  <span className="font-medium">מחובר ל-Google Calendar</span>
+                                </div>
+                                <div className="text-sm text-green-600 dark:text-green-400 mt-1">
+                                  {currentUser.google_account_email}
+                                </div>
+                              </div>
+                            </div>
+                            
+                            {/* Sync Information */}
+                            <div className="p-4 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                              <h4 className="text-sm font-medium text-blue-800 dark:text-blue-200 mb-2 text-right">מידע על הסנכרון</h4>
+                              <ul className="text-xs text-blue-700 dark:text-blue-300 text-right space-y-1" dir="rtl">
+                                <li>• התורים מהעמוד הראשי יסונכרנו עם Google Calendar שלך</li>
+                                <li>• שינויים בתורים יתעדכנו באופן אוטומטי ב-Google Calendar</li>
+                                <li>• ניתן לסנכרן באופן ידני או לקבוע סנכרון אוטומטי</li>
+                              </ul>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="space-y-4">
+                            {/* Disconnected State */}
+                            <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border">
+                              <Button
+                                onClick={handleConnectGoogleAccount}
+                                disabled={googleCalendarLoading}
+                                className="flex items-center gap-2"
+                              >
+                                {googleCalendarLoading ? (
+                                  <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                                ) : (
+                                  <IconBrandGoogle className="h-4 w-4" />
+                                )}
+                                {googleCalendarLoading ? 'מתחבר...' : 'חבר חשבון Google'}
+                              </Button>
+                              
+                              <div className="text-right">
+                                <div className="font-medium text-gray-700 dark:text-gray-300">לא מחובר ל-Google Calendar</div>
+                                <div className="text-sm text-muted-foreground mt-1">
+                                  חבר את חשבון Google שלך כדי לסנכרן תורים
+                                </div>
+                              </div>
+                            </div>
+                            
+                            {/* Benefits Information */}
+                            <div className="p-4 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                              <h4 className="text-sm font-medium text-blue-800 dark:text-blue-200 mb-2 text-right">יתרונות החיבור ל-Google Calendar</h4>
+                              <ul className="text-xs text-blue-700 dark:text-blue-300 text-right space-y-1" dir="rtl">
+                                <li>• סנכרון אוטומטי של כל התורים שלך</li>
+                                <li>• גישה לתורים מכל מכשיר דרך Google Calendar</li>
+                                <li>• התראות ותזכורות מ-Google על תורים קרובים</li>
+                                <li>• אפשרות לשתף את לוח הזמנים עם חברי צוות</li>
+                              </ul>
+                            </div>
+                          </div>
+                        )}
                       </CardContent>
                     </Card>
                   </TabsContent>

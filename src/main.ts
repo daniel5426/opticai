@@ -1,4 +1,8 @@
 /// <reference types="@electron-forge/plugin-vite/forge-vite-env" />
+// Load environment variables from .env file
+import dotenv from 'dotenv';
+dotenv.config();
+
 import { app, BrowserWindow, ipcMain } from "electron";
 import registerListeners from "./helpers/ipc/listeners-register";
 // "electron-squirrel-startup" seems broken when packaging with vite
@@ -486,6 +490,95 @@ function setupIpcHandlers() {
     } catch (error) {
       console.error('Error restarting scheduler:', error);
       return false;
+    }
+  });
+
+  // Google OAuth and Calendar operations
+  ipcMain.handle('google-oauth-authenticate', async () => {
+    try {
+      const { GoogleOAuthService } = await import('./lib/google/google-oauth');
+      const oauthService = new GoogleOAuthService();
+      return await oauthService.authenticate();
+    } catch (error) {
+      console.error('Error authenticating with Google:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle('google-oauth-refresh-token', async (event, refreshToken: string) => {
+    try {
+      const { GoogleOAuthService } = await import('./lib/google/google-oauth');
+      const oauthService = new GoogleOAuthService();
+      return await oauthService.refreshToken(refreshToken);
+    } catch (error) {
+      console.error('Error refreshing Google token:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle('google-oauth-validate-tokens', async (event, tokens: any) => {
+    try {
+      const { GoogleOAuthService } = await import('./lib/google/google-oauth');
+      const oauthService = new GoogleOAuthService();
+      return await oauthService.validateTokens(tokens);
+    } catch (error) {
+      console.error('Error validating Google tokens:', error);
+      return false;
+    }
+  });
+
+  ipcMain.handle('google-calendar-create-event', async (event, tokens: any, appointment: any, client?: any) => {
+    try {
+      const { GoogleCalendarService } = await import('./lib/google/google-calendar');
+      const calendarService = new GoogleCalendarService();
+      return await calendarService.createEvent(tokens, appointment, client);
+    } catch (error) {
+      console.error('Error creating Google Calendar event:', error);
+      return null;
+    }
+  });
+
+  ipcMain.handle('google-calendar-update-event', async (event, tokens: any, eventId: string, appointment: any, client?: any) => {
+    try {
+      const { GoogleCalendarService } = await import('./lib/google/google-calendar');
+      const calendarService = new GoogleCalendarService();
+      return await calendarService.updateEvent(tokens, eventId, appointment, client);
+    } catch (error) {
+      console.error('Error updating Google Calendar event:', error);
+      return false;
+    }
+  });
+
+  ipcMain.handle('google-calendar-delete-event', async (event, tokens: any, eventId: string) => {
+    try {
+      const { GoogleCalendarService } = await import('./lib/google/google-calendar');
+      const calendarService = new GoogleCalendarService();
+      return await calendarService.deleteEvent(tokens, eventId);
+    } catch (error) {
+      console.error('Error deleting Google Calendar event:', error);
+      return false;
+    }
+  });
+
+  ipcMain.handle('google-calendar-sync-appointments', async (event, tokens: any, appointments: any[]) => {
+    try {
+      const { GoogleCalendarService } = await import('./lib/google/google-calendar');
+      const calendarService = new GoogleCalendarService();
+      return await calendarService.syncAppointments(tokens, appointments);
+    } catch (error) {
+      console.error('Error syncing appointments to Google Calendar:', error);
+      return { success: 0, failed: appointments.length };
+    }
+  });
+
+  ipcMain.handle('google-calendar-get-events', async (event, tokens: any, startDate: string, endDate: string) => {
+    try {
+      const { GoogleCalendarService } = await import('./lib/google/google-calendar');
+      const calendarService = new GoogleCalendarService();
+      return await calendarService.getEvents(tokens, startDate, endDate);
+    } catch (error) {
+      console.error('Error getting Google Calendar events:', error);
+      return [];
     }
   });
 }

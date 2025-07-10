@@ -167,6 +167,7 @@ export function AppointmentsTable({ data, clientId, onAppointmentChange, onAppoi
     user_id: currentUser?.id,
     date: '',
     time: '',
+    duration: 30,
     exam_name: '',
     note: ''
   })
@@ -179,6 +180,7 @@ export function AppointmentsTable({ data, clientId, onAppointmentChange, onAppoi
     user_id?: number
     date: string
     time: string
+    duration: number
     exam_name: string
     note: string
   }>({
@@ -189,6 +191,7 @@ export function AppointmentsTable({ data, clientId, onAppointmentChange, onAppoi
     user_id: currentUser?.id,
     date: '',
     time: '',
+    duration: 30,
     exam_name: '',
     note: ''
   })
@@ -222,6 +225,7 @@ export function AppointmentsTable({ data, clientId, onAppointmentChange, onAppoi
       user_id: currentUser?.id,
       date: '',
       time: '',
+      duration: 30,
       exam_name: '',
       note: ''
     })
@@ -233,6 +237,7 @@ export function AppointmentsTable({ data, clientId, onAppointmentChange, onAppoi
       user_id: currentUser?.id,
       date: '',
       time: '',
+      duration: 30,
       exam_name: '',
       note: ''
     })
@@ -283,6 +288,7 @@ export function AppointmentsTable({ data, clientId, onAppointmentChange, onAppoi
       user_id: appointment.user_id || currentUser?.id,
       date: appointment.date || '',
       time: appointment.time || '',
+      duration: appointment.duration || 30,
       exam_name: appointment.exam_name || '',
       note: appointment.note || ''
     })
@@ -296,7 +302,8 @@ export function AppointmentsTable({ data, clientId, onAppointmentChange, onAppoi
         setSelectedClient(client)
         setAppointmentFormData(prev => ({
           ...prev,
-          client_id: selectedClientId
+          client_id: selectedClientId,
+          duration: 30
         }))
         setIsClientSelectOpen(false)
         setIsAppointmentDialogOpen(true)
@@ -420,6 +427,7 @@ export function AppointmentsTable({ data, clientId, onAppointmentChange, onAppoi
           user_id: newClientFormData.user_id,
           date: newClientFormData.date,
           time: newClientFormData.time,
+          duration: newClientFormData.duration,
           exam_name: newClientFormData.exam_name,
           note: newClientFormData.note
         }
@@ -448,6 +456,7 @@ export function AppointmentsTable({ data, clientId, onAppointmentChange, onAppoi
         user_id: newClientFormData.user_id,
         date: newClientFormData.date,
         time: newClientFormData.time,
+        duration: newClientFormData.duration,
         exam_name: newClientFormData.exam_name,
         note: newClientFormData.note
       }

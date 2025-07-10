@@ -345,8 +345,10 @@ export interface Appointment {
   user_id?: number;
   date?: string;
   time?: string;
+  duration?: number;
   exam_name?: string;
   note?: string;
+  google_calendar_event_id?: string;
 }
 
 export interface OrderLens {
@@ -550,6 +552,10 @@ export interface User {
   primary_theme_color?: string;
   secondary_theme_color?: string;
   theme_preference?: 'light' | 'dark' | 'system';
+  google_account_connected?: boolean;
+  google_account_email?: string;
+  google_access_token?: string;
+  google_refresh_token?: string;
   created_at?: string;
   updated_at?: string;
 }
@@ -1355,8 +1361,10 @@ export const createTables = (db: Database): void => {
       user_id INTEGER,
       date DATE,
       time TEXT,
+      duration INTEGER DEFAULT 30,
       exam_name TEXT,
       note TEXT,
+      google_calendar_event_id TEXT,
       FOREIGN KEY(client_id) REFERENCES clients(id) ON DELETE CASCADE,
       FOREIGN KEY(user_id) REFERENCES users(id)
     );
@@ -1458,6 +1466,10 @@ export const createTables = (db: Database): void => {
       primary_theme_color TEXT,
       secondary_theme_color TEXT,
       theme_preference TEXT CHECK(theme_preference IN ('light','dark','system')) DEFAULT 'system',
+      google_account_connected BOOLEAN DEFAULT 0,
+      google_account_email TEXT,
+      google_access_token TEXT,
+      google_refresh_token TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );

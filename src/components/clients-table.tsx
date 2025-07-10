@@ -1,16 +1,4 @@
 import * as React from "react"
-import {
-  ColumnDef,
-  ColumnFiltersState,
-  SortingState,
-  VisibilityState,
-  flexRender,
-  getCoreRowModel,
-  getFilteredRowModel,
-  getPaginationRowModel,
-  getSortedRowModel,
-  useReactTable,
-} from "@tanstack/react-table"
 import { useNavigate } from "@tanstack/react-router"
 import { Client } from "@/lib/db/schema"
 import { Button } from "@/components/ui/button"
@@ -23,38 +11,60 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { PlusIcon } from "lucide-react"
+import { PlusIcon, Trash2 } from "lucide-react"
+import { CustomModal } from "@/components/ui/custom-modal"
+import { deleteClient } from "@/lib/db/clients-db"
+import { toast } from "sonner"
 
 interface ClientsTableProps {
   data: Client[]
+  onClientDeleted?: (clientId: number) => void
+  onClientDeleteFailed?: () => void
 }
 
-export function ClientsTable({ data }: ClientsTableProps) {
-  const [filtering, setFiltering] = React.useState("")
-  const [currentPage, setCurrentPage] = React.useState(0)
-  const pageSize = 10
+export function ClientsTable({ data, onClientDeleted, onClientDeleteFailed }: ClientsTableProps) {
+  const [searchQuery, setSearchQuery] = React.useState("")
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = React.useState(false)
+  const [clientToDelete, setClientToDelete] = React.useState<Client | null>(null)
   const navigate = useNavigate()
 
   const filteredData = React.useMemo(() => {
-    return data.filter((client) => 
-      client.last_name?.toLowerCase().includes(filtering.toLowerCase()) ||
-      client.first_name?.toLowerCase().includes(filtering.toLowerCase())
-    )
-  }, [data, filtering])
+    return data.filter((client) => {
+      const searchableFields = [
+        client.first_name,
+        client.last_name,
+        client.national_id,
+        client.phone_mobile,
+        client.email,
+      ]
 
-  const pageCount = Math.ceil(filteredData.length / pageSize)
-  const pageData = React.useMemo(() => {
-    const start = currentPage * pageSize
-    const end = start + pageSize
-    return filteredData.slice(start, end)
-  }, [filteredData, currentPage, pageSize])
+      return searchableFields.some(
+        (field) =>
+          field && field.toLowerCase().includes(searchQuery.toLowerCase()),
+      )
+    })
+  }, [data, searchQuery])
 
-  const handlePreviousPage = () => {
-    setCurrentPage((prev) => Math.max(0, prev - 1))
-  }
+  const handleDeleteConfirm = async () => {
+    if (clientToDelete && clientToDelete.id !== undefined) {
+      try {
+        const deletedClientId = clientToDelete.id
+        onClientDeleted?.(deletedClientId)
+        toast.success("לקוח נמחק בהצלחה")
 
-  const handleNextPage = () => {
-    setCurrentPage((prev) => Math.min(pageCount - 1, prev + 1))
+        const success = await deleteClient(deletedClientId)
+        if (!success) {
+          toast.error("אירעה שגיאה בעת מחיקת הלקוח. מרענן נתונים...")
+          onClientDeleteFailed?.()
+        }
+      } catch (error) {
+        toast.error("אירעה שגיאה בעת מחיקת הלקוח")
+        onClientDeleteFailed?.()
+      } finally {
+        setClientToDelete(null)
+      }
+    }
+    setIsDeleteModalOpen(false)
   }
 
   const handleRowClick = (clientId: number | undefined) => {
@@ -64,87 +74,90 @@ export function ClientsTable({ data }: ClientsTableProps) {
   }
 
   return (
-    <div className="w-full">
-      <div className="flex items-center justify-between py-4" dir="rtl">
-        <Input
-          placeholder="חיפוש לקוח..."
-          value={filtering}
-          onChange={(event) => {
-            setFiltering(event.target.value)
-            setCurrentPage(0) // Reset to first page when filtering
-          }}
-          className="max-w-sm"
-        />
+    <div className="space-y-4" dir="rtl">
+      <div className="flex items-center justify-between">
+        <div className="flex gap-2">
+          <Input
+            placeholder="חיפוש לקוחות..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-[250px] bg-card dark:bg-card"
+            dir="rtl"
+          />
+        </div>
         <Button onClick={() => navigate({ to: "/clients/new" })} dir="rtl">
           לקוח חדש
           <PlusIcon className="mr-2 h-4 w-4" />
         </Button>
       </div>
-      <div className="rounded-md border">
-        <div className="overflow-x-auto">
-          <Table className="w-full" dir="rtl">
-            <TableHeader className="bg-muted">
-              <TableRow>
-                <TableHead className="w-[80px] text-right font-bold">מס' לקוח</TableHead>
-                <TableHead className="w-[140px] text-right font-bold">שם פרטי</TableHead>
-                <TableHead className="w-[140px] text-right font-bold">שם משפחה</TableHead>
-                <TableHead className="w-[80px] text-right font-bold">מגדר</TableHead>
-                <TableHead className="w-[120px] text-right font-bold">ת.ז.</TableHead>
-                <TableHead className="w-[120px] text-right font-bold">נייד</TableHead>
-                <TableHead className="text-right font-bold">אימייל</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {pageData.length ? (
-                pageData.map((client) => (
-                  <TableRow
-                    key={client.id}
-                    className="cursor-pointer"
-                    onClick={() => handleRowClick(client.id)}
-                  >
-                    <TableCell className="text-right font-medium">{client.id}</TableCell>
-                    <TableCell className="text-right">{client.first_name || ""}</TableCell>
-                    <TableCell className="text-right">{client.last_name || ""}</TableCell>
-                    <TableCell className="text-right">{client.gender || ""}</TableCell>
-                    <TableCell className="text-right">{client.national_id || ""}</TableCell>
-                    <TableCell className="text-right">{client.phone_mobile || ""}</TableCell>
-                    <TableCell className="text-right">{client.email || ""}</TableCell>
-                  </TableRow>
-                ))
-              ) : (
-                <TableRow>
-                  <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
-                    לא נמצאו לקוחות.
+
+      <div className="rounded-md border bg-card">
+        <Table dir="rtl">
+          <TableHeader>
+            <TableRow>
+              <TableHead className="text-right">מס' לקוח</TableHead>
+              <TableHead className="text-right">שם פרטי</TableHead>
+              <TableHead className="text-right">שם משפחה</TableHead>
+              <TableHead className="text-right">מגדר</TableHead>
+              <TableHead className="text-right">ת.ז.</TableHead>
+              <TableHead className="text-right">נייד</TableHead>
+              <TableHead className="text-right">אימייל</TableHead>
+              <TableHead className="w-[50px] text-right"></TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {filteredData.length > 0 ? (
+              filteredData.map((client) => (
+                <TableRow
+                  key={client.id}
+                  className="cursor-pointer"
+                  onClick={() => handleRowClick(client.id)}
+                >
+                  <TableCell className="font-medium">{client.id}</TableCell>
+                  <TableCell>{client.first_name || ""}</TableCell>
+                  <TableCell>{client.last_name || ""}</TableCell>
+                  <TableCell>{client.gender || ""}</TableCell>
+                  <TableCell>{client.national_id || ""}</TableCell>
+                  <TableCell>{client.phone_mobile || ""}</TableCell>
+                  <TableCell>{client.email || ""}</TableCell>
+                  <TableCell>
+                    <Button 
+                      variant="ghost" 
+                      className="h-8 w-8 p-0" 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setClientToDelete(client);
+                        setIsDeleteModalOpen(true);
+                      }} 
+                      title="מחיקה"
+                    >
+                      <Trash2 className="h-4 w-4 text-red-600" />
+                    </Button>
                   </TableCell>
                 </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </div>
+              ))
+            ) : (
+              <TableRow>
+                <TableCell colSpan={8} className="h-24 text-center">
+                  לא נמצאו לקוחות לתצוגה
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
       </div>
-      <div className="flex items-center justify-end space-x-2 py-4">
-        <div className="flex-1 text-sm text-muted-foreground">
-          {filteredData.length} לקוחות סה"כ
-        </div>
-        <div className="space-x-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handlePreviousPage}
-            disabled={currentPage === 0}
-          >
-            הקודם
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleNextPage}
-            disabled={currentPage >= pageCount - 1}
-          >
-            הבא
-          </Button>
-        </div>
-      </div>
+
+      <CustomModal
+        isOpen={isDeleteModalOpen}
+        onClose={() => setIsDeleteModalOpen(false)}
+        title="מחיקת לקוח"
+        description={clientToDelete ? `האם אתה בטוח שברצונך למחוק את הלקוח ${clientToDelete.first_name} ${clientToDelete.last_name}? פעולה זו אינה הפיכה.` : "האם אתה בטוח שברצונך למחוק לקוח זה? פעולה זו אינה הפיכה."}
+        onConfirm={handleDeleteConfirm}
+        confirmText="מחק"
+        className="text-center"
+        cancelText="בטל"
+        showCloseButton={false}
+      />
     </div>
-  );
+  )
 }

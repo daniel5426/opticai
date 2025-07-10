@@ -10,21 +10,29 @@ export default function ClientsPage() {
   const [clients, setClients] = useState<Client[]>([])
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    const loadClients = async () => {
-      try {
-        setLoading(true)
-        const clientsData = await getAllClients()
-        setClients(clientsData)
-      } catch (error) {
-        console.error('Error loading clients:', error)
-      } finally {
-        setLoading(false)
-      }
+  const loadClients = async () => {
+    try {
+      setLoading(true)
+      const clientsData = await getAllClients()
+      setClients(clientsData)
+    } catch (error) {
+      console.error('Error loading clients:', error)
+    } finally {
+      setLoading(false)
     }
+  }
 
+  useEffect(() => {
     loadClients()
   }, [])
+
+  const handleClientDeleted = (clientId: number) => {
+    setClients(prevClients => prevClients.filter(client => client.id !== clientId))
+  }
+
+  const handleClientDeleteFailed = () => {
+    loadClients()
+  }
 
   if (loading) {
     return (
@@ -44,7 +52,11 @@ export default function ClientsPage() {
         <div className="@container/main flex flex-col gap-2">
           <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
             <div>
-              <ClientsTable data={clients} />
+              <ClientsTable 
+                data={clients} 
+                onClientDeleted={handleClientDeleted}
+                onClientDeleteFailed={handleClientDeleteFailed}
+              />
             </div>
             <div className="h-12"></div>
           </div>
