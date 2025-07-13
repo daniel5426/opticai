@@ -48,7 +48,12 @@ export async function getContactLensOrderByContactLensId(contactLensId: number):
 
 export async function createContactLens(contactLens: Omit<ContactLens, 'id'>): Promise<ContactLens | null> {
   try {
-    return await window.electronAPI.db('createContactLens', contactLens);
+    const result = await window.electronAPI.db('createContactLens', contactLens);
+    if (result && contactLens.client_id) {
+      await window.electronAPI.db('updateClientUpdatedDate', contactLens.client_id);
+      await window.electronAPI.db('updateClientPartUpdatedDate', contactLens.client_id, 'contact_lens');
+    }
+    return result;
   } catch (error) {
     console.error('Error creating contact lens:', error);
     return null;
@@ -75,7 +80,12 @@ export async function createContactLensOrder(contactLensOrder: Omit<ContactLensO
 
 export async function updateContactLens(contactLens: ContactLens): Promise<ContactLens | undefined> {
   try {
-    return await window.electronAPI.db('updateContactLens', contactLens);
+    const result = await window.electronAPI.db('updateContactLens', contactLens);
+    if (result && contactLens.client_id) {
+      await window.electronAPI.db('updateClientUpdatedDate', contactLens.client_id);
+      await window.electronAPI.db('updateClientPartUpdatedDate', contactLens.client_id, 'contact_lens');
+    }
+    return result;
   } catch (error) {
     console.error('Error updating contact lens:', error);
     return undefined;
@@ -102,7 +112,13 @@ export async function updateContactLensOrder(contactLensOrder: ContactLensOrder)
 
 export async function deleteContactLens(contactLensId: number): Promise<boolean> {
   try {
-    return await window.electronAPI.db('deleteContactLens', contactLensId);
+    const contactLens = await window.electronAPI.db('getContactLensById', contactLensId);
+    const result = await window.electronAPI.db('deleteContactLens', contactLensId);
+    if (result && contactLens?.client_id) {
+      await window.electronAPI.db('updateClientUpdatedDate', contactLens.client_id);
+      await window.electronAPI.db('updateClientPartUpdatedDate', contactLens.client_id, 'contact_lens');
+    }
+    return result;
   } catch (error) {
     console.error('Error deleting contact lens:', error);
     return false;

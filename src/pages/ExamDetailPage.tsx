@@ -223,7 +223,12 @@ export default function ExamDetailPageRefactored({
   const fieldHandlers = createFieldHandlers()
   const toolboxActions = createToolboxActions(examFormData, fieldHandlers)
 
-  const { currentClient } = useClientSidebar()
+  const { currentClient, setActiveTab: setSidebarActiveTab } = useClientSidebar()
+
+  // Set the active tab to 'exams' when this page loads
+  useEffect(() => {
+    setSidebarActiveTab('exams')
+  }, [setSidebarActiveTab])
 
   useEffect(() => {
     const loadData = async () => {

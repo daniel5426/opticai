@@ -31,6 +31,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   aiChat: (message: string, conversationHistory: any[]) => ipcRenderer.invoke('ai-chat', message, conversationHistory),
   aiChatStream: (message: string, conversationHistory: any[]) => ipcRenderer.invoke('ai-chat-stream', message, conversationHistory),
   aiExecuteAction: (action: string, data: any) => ipcRenderer.invoke('ai-execute-action', action, data),
+  aiGenerateMainState: (clientId: number) => ipcRenderer.invoke('ai-generate-main-state', clientId),
+  aiGeneratePartState: (clientId: number, part: string) => ipcRenderer.invoke('ai-generate-part-state', clientId, part),
   
   // AI Stream listeners
   onAiStreamChunk: (callback: (data: { chunk: string; fullMessage: string }) => void) => {

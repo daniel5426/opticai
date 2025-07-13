@@ -30,7 +30,12 @@ export async function getReferralById(referralId: number): Promise<Referral | nu
 
 export async function createReferral(referralData: Omit<Referral, 'id'>): Promise<Referral | null> {
   try {
-    return await window.electronAPI.db('createReferral', referralData);
+    const result = await window.electronAPI.db('createReferral', referralData);
+    if (result && referralData.client_id) {
+      await window.electronAPI.db('updateClientUpdatedDate', referralData.client_id);
+      await window.electronAPI.db('updateClientPartUpdatedDate', referralData.client_id, 'referral');
+    }
+    return result;
   } catch (error) {
     console.error('Error creating referral:', error);
     return null;
@@ -39,7 +44,12 @@ export async function createReferral(referralData: Omit<Referral, 'id'>): Promis
 
 export async function updateReferral(referralData: Referral): Promise<Referral | null> {
   try {
-    return await window.electronAPI.db('updateReferral', referralData);
+    const result = await window.electronAPI.db('updateReferral', referralData);
+    if (result && referralData.client_id) {
+      await window.electronAPI.db('updateClientUpdatedDate', referralData.client_id);
+      await window.electronAPI.db('updateClientPartUpdatedDate', referralData.client_id, 'referral');
+    }
+    return result;
   } catch (error) {
     console.error('Error updating referral:', error);
     return null;
@@ -48,7 +58,13 @@ export async function updateReferral(referralData: Referral): Promise<Referral |
 
 export async function deleteReferral(referralId: number): Promise<boolean> {
   try {
-    return await window.electronAPI.db('deleteReferral', referralId);
+    const referral = await window.electronAPI.db('getReferralById', referralId);
+    const result = await window.electronAPI.db('deleteReferral', referralId);
+    if (result && referral?.client_id) {
+      await window.electronAPI.db('updateClientUpdatedDate', referral.client_id);
+      await window.electronAPI.db('updateClientPartUpdatedDate', referral.client_id, 'referral');
+    }
+    return result;
   } catch (error) {
     console.error('Error deleting referral:', error);
     return false;

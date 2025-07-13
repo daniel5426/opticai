@@ -34,6 +34,27 @@ export interface Client {
   profile_picture?: string;
   family_id?: number;
   family_role?: string;
+  
+  // AI-related fields
+  ai_main_state?: string;
+  ai_updated_date?: string;
+  client_updated_date?: string;
+  ai_exam_state?: string;
+  ai_order_state?: string;
+  ai_referral_state?: string;
+  ai_contact_lens_state?: string;
+  ai_appointment_state?: string;
+  ai_file_state?: string;
+  ai_medical_state?: string;
+  
+  // Part-specific updated dates
+  exam_updated_date?: string;
+  order_updated_date?: string;
+  referral_updated_date?: string;
+  contact_lens_updated_date?: string;
+  appointment_updated_date?: string;
+  file_updated_date?: string;
+  medical_updated_date?: string;
 }
 
 export interface Family {
@@ -842,8 +863,101 @@ export const createTables = (db: Database): void => {
       profile_picture TEXT,
       family_id INTEGER,
       family_role TEXT,
+      ai_main_state TEXT,
+      ai_updated_date DATETIME,
+      client_updated_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+      ai_exam_state TEXT,
+      ai_order_state TEXT,
+      ai_referral_state TEXT,
+      ai_contact_lens_state TEXT,
+      ai_appointment_state TEXT,
+      ai_file_state TEXT,
+      ai_medical_state TEXT,
+      exam_updated_date DATETIME,
+      order_updated_date DATETIME,
+      referral_updated_date DATETIME,
+      contact_lens_updated_date DATETIME,
+      appointment_updated_date DATETIME,
+      file_updated_date DATETIME,
+      medical_updated_date DATETIME,
       FOREIGN KEY(family_id) REFERENCES families(id)
     );
+  `);
+
+  // Add AI fields to existing clients if they don't exist
+  try {
+    db.exec(`ALTER TABLE clients ADD COLUMN ai_main_state TEXT`);
+  } catch (e) { /* Column already exists */ }
+  
+  try {
+    db.exec(`ALTER TABLE clients ADD COLUMN ai_updated_date DATETIME`);
+  } catch (e) { /* Column already exists */ }
+  
+  try {
+    db.exec(`ALTER TABLE clients ADD COLUMN client_updated_date DATETIME DEFAULT CURRENT_TIMESTAMP`);
+  } catch (e) { /* Column already exists */ }
+  
+  try {
+    db.exec(`ALTER TABLE clients ADD COLUMN ai_exam_state TEXT`);
+  } catch (e) { /* Column already exists */ }
+  
+  try {
+    db.exec(`ALTER TABLE clients ADD COLUMN ai_order_state TEXT`);
+  } catch (e) { /* Column already exists */ }
+  
+  try {
+    db.exec(`ALTER TABLE clients ADD COLUMN ai_referral_state TEXT`);
+  } catch (e) { /* Column already exists */ }
+  
+  try {
+    db.exec(`ALTER TABLE clients ADD COLUMN ai_contact_lens_state TEXT`);
+  } catch (e) { /* Column already exists */ }
+  
+  try {
+    db.exec(`ALTER TABLE clients ADD COLUMN ai_appointment_state TEXT`);
+  } catch (e) { /* Column already exists */ }
+  
+  try {
+    db.exec(`ALTER TABLE clients ADD COLUMN ai_file_state TEXT`);
+  } catch (e) { /* Column already exists */ }
+  
+  try {
+    db.exec(`ALTER TABLE clients ADD COLUMN ai_medical_state TEXT`);
+  } catch (e) { /* Column already exists */ }
+  
+  try {
+    db.exec(`ALTER TABLE clients ADD COLUMN exam_updated_date DATETIME`);
+  } catch (e) { /* Column already exists */ }
+  
+  try {
+    db.exec(`ALTER TABLE clients ADD COLUMN order_updated_date DATETIME`);
+  } catch (e) { /* Column already exists */ }
+  
+  try {
+    db.exec(`ALTER TABLE clients ADD COLUMN referral_updated_date DATETIME`);
+  } catch (e) { /* Column already exists */ }
+  
+  try {
+    db.exec(`ALTER TABLE clients ADD COLUMN contact_lens_updated_date DATETIME`);
+  } catch (e) { /* Column already exists */ }
+  
+  try {
+    db.exec(`ALTER TABLE clients ADD COLUMN appointment_updated_date DATETIME`);
+  } catch (e) { /* Column already exists */ }
+  
+  try {
+    db.exec(`ALTER TABLE clients ADD COLUMN file_updated_date DATETIME`);
+  } catch (e) { /* Column already exists */ }
+  
+  try {
+    db.exec(`ALTER TABLE clients ADD COLUMN medical_updated_date DATETIME`);
+  } catch (e) { /* Column already exists */ }
+
+  // Update existing clients to have current timestamp for client_updated_date if it's null
+  db.exec(`
+    UPDATE clients 
+    SET client_updated_date = CURRENT_TIMESTAMP 
+    WHERE client_updated_date IS NULL
   `);
 
   // Create medical_logs table

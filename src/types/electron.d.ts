@@ -70,6 +70,8 @@ export interface ElectronAPI {
   aiChat: (message: string, conversationHistory: any[]) => Promise<{ success: boolean; message: string; data?: any; error?: string }>;
   aiChatStream: (message: string, conversationHistory: any[]) => Promise<{ success: boolean; message: string; data?: any; error?: string }>;
   aiExecuteAction: (action: string, data: any) => Promise<{ success: boolean; message: string; data?: any; error?: string }>;
+  aiGenerateMainState: (clientId: number) => Promise<string>;
+  aiGeneratePartState: (clientId: number, part: string) => Promise<string>;
   
   // AI Stream listeners
   onAiStreamChunk: (callback: (data: { chunk: string; fullMessage: string }) => void) => void;

@@ -50,7 +50,7 @@ export default function ClientDetailPage() {
     }
   }
   
-  const { currentClient, updateCurrentClient } = useClientSidebar()
+  const { currentClient, updateCurrentClient, setActiveTab: setSidebarActiveTab } = useClientSidebar()
   const [isEditing, setIsEditing] = useState(false)
   const [formData, setFormData] = useState<Client>({} as Client)
   const [activeTab, setActiveTab] = useState(initialTab)
@@ -73,7 +73,10 @@ export default function ClientDetailPage() {
     if (clientId && activeTab) {
       localStorage.setItem(`client-${clientId}-last-tab`, activeTab)
     }
-  }, [activeTab, clientId])
+    
+    // Update the sidebar context with the active tab
+    setSidebarActiveTab(activeTab)
+  }, [activeTab, clientId, setSidebarActiveTab])
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target

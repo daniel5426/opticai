@@ -612,6 +612,171 @@ class DatabaseService {
     }
   }
 
+  updateClientUpdatedDate(clientId: number): boolean {
+    if (!this.db) return false;
+
+    try {
+      const stmt = this.db.prepare('UPDATE clients SET client_updated_date = CURRENT_TIMESTAMP WHERE id = ?');
+      const result = stmt.run(clientId);
+      return result.changes > 0;
+    } catch (error) {
+      console.error('Error updating client updated date:', error);
+      return false;
+    }
+  }
+
+  updateClientPartUpdatedDate(clientId: number, part: string): boolean {
+    if (!this.db) return false;
+
+    try {
+      const validParts = ['exam', 'order', 'referral', 'contact_lens', 'appointment', 'file', 'medical'];
+      if (!validParts.includes(part)) {
+        console.error('Invalid part name:', part);
+        return false;
+      }
+
+      const stmt = this.db.prepare(`UPDATE clients SET ${part}_updated_date = CURRENT_TIMESTAMP WHERE id = ?`);
+      const result = stmt.run(clientId);
+      return result.changes > 0;
+    } catch (error) {
+      console.error('Error updating client part updated date:', error);
+      return false;
+    }
+  }
+
+  updateClientAiMainState(clientId: number, aiMainState: string): boolean {
+    if (!this.db) return false;
+
+    try {
+      const stmt = this.db.prepare('UPDATE clients SET ai_main_state = ?, ai_updated_date = CURRENT_TIMESTAMP WHERE id = ?');
+      const result = stmt.run(aiMainState, clientId);
+      return result.changes > 0;
+    } catch (error) {
+      console.error('Error updating client AI main state:', error);
+      return false;
+    }
+  }
+
+  updateClientAiPartState(clientId: number, part: string, aiPartState: string): boolean {
+    if (!this.db) return false;
+
+    try {
+      const validParts = ['exam', 'order', 'referral', 'contact_lens', 'appointment', 'file', 'medical'];
+      if (!validParts.includes(part)) {
+        console.error('Invalid part name:', part);
+        return false;
+      }
+
+      const stmt = this.db.prepare(`UPDATE clients SET ai_${part}_state = ? WHERE id = ?`);
+      const result = stmt.run(aiPartState, clientId);
+      return result.changes > 0;
+    } catch (error) {
+      console.error('Error updating client AI part state:', error);
+      return false;
+    }
+  }
+
+  getAllClientDataForAi(clientId: number): any {
+    if (!this.db) return null;
+
+    try {
+      const client = this.getClientById(clientId);
+      if (!client) return null;
+
+      const exams = this.getExamsByClientId(clientId);
+      const orders = this.getOrdersByClientId(clientId);
+      const referrals = this.getReferralsByClientId(clientId);
+      const contactLenses = this.getContactLensesByClientId(clientId);
+      const appointments = this.getAppointmentsByClientId(clientId);
+      const files = this.getFilesByClientId(clientId);
+      const medicalLogs = this.getMedicalLogsByClientId(clientId);
+      const billings = this.getBillingsByClientId(clientId);
+
+      const examDetails = exams.map(exam => {
+        const layoutInstances = this.getExamLayoutInstancesByExamId(exam.id!);
+        const examData = { ...exam, layoutInstances: [] as any[] };
+        
+        layoutInstances.forEach(instance => {
+          const instanceData = {
+            ...instance,
+            oldRefraction: this.getOldRefractionExamByLayoutInstanceId(instance.id!),
+            oldRefractionExtension: this.getOldRefractionExtensionExamByLayoutInstanceId(instance.id!),
+            objective: this.getObjectiveExamByLayoutInstanceId(instance.id!),
+            subjective: this.getSubjectiveExamByLayoutInstanceId(instance.id!),
+            addition: this.getAdditionExamByLayoutInstanceId(instance.id!),
+            retinoscop: this.getRetinoscopExamByLayoutInstanceId(instance.id!),
+            retinoscopDilation: this.getRetinoscopDilationExamByLayoutInstanceId(instance.id!),
+            finalSubjective: this.getFinalSubjectiveExamByLayoutInstanceId(instance.id!),
+            finalPrescription: this.getFinalPrescriptionExamByLayoutInstanceId(instance.id!),
+            compactPrescription: this.getCompactPrescriptionExamByLayoutInstanceId(instance.id!),
+            uncorrectedVA: this.getUncorrectedVAExamByLayoutInstanceId(instance.id!),
+            keratometer: this.getKeratometerExamByLayoutInstanceId(instance.id!),
+            coverTest: this.getCoverTestExamByLayoutInstanceId(instance.id!)
+          };
+          examData.layoutInstances.push(instanceData);
+        });
+        
+        return examData;
+      });
+
+      const orderDetails = orders.map(order => ({
+        ...order,
+        eyes: this.getOrderEyesByOrderId(order.id!),
+        lens: this.getOrderLensByOrderId(order.id!),
+        frame: this.getFrameByOrderId(order.id!),
+        details: this.getOrderDetailsByOrderId(order.id!)
+      }));
+
+      const referralDetails = referrals.map(referral => ({
+        ...referral,
+        eyes: this.getReferralEyesByReferralId(referral.id!)
+      }));
+
+      const contactLensDetails = contactLenses.map(contactLens => ({
+        ...contactLens,
+        eyes: this.getContactEyesByContactLensId(contactLens.id!),
+        order: this.getContactLensOrderByContactLensId(contactLens.id!)
+      }));
+
+      const billingDetails = billings.map(billing => ({
+        ...billing,
+        lineItems: this.getOrderLineItemsByBillingId(billing.id!)
+      }));
+
+      return {
+        client,
+        exams: examDetails,
+        orders: orderDetails,
+        referrals: referralDetails,
+        contactLenses: contactLensDetails,
+        appointments,
+        files,
+        medicalLogs,
+        billings: billingDetails
+      };
+    } catch (error) {
+      console.error('Error getting all client data for AI:', error);
+      return null;
+    }
+  }
+
+  getBillingsByClientId(clientId: number): Billing[] {
+    if (!this.db) return [];
+
+    try {
+      const stmt = this.db.prepare(`
+        SELECT b.* FROM billings b
+        LEFT JOIN orders o ON b.order_id = o.id
+        LEFT JOIN contact_lens cl ON b.contact_lens_id = cl.id
+        WHERE o.client_id = ? OR cl.client_id = ?
+      `);
+      return stmt.all(clientId, clientId) as Billing[];
+    } catch (error) {
+      console.error('Error getting billings by client ID:', error);
+      return [];
+    }
+  }
+
   // Optical Exam CRUD operations
   createExam(exam: Omit<OpticalExam, 'id'>): OpticalExam | null {
     if (!this.db) return null;

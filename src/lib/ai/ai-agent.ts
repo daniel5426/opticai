@@ -3,7 +3,7 @@ import { tool } from '@langchain/core/tools';
 import { z } from 'zod';
 import { createReactAgent } from '@langchain/langgraph/prebuilt';
 import { BaseMessage, HumanMessage, AIMessage } from '@langchain/core/messages';
-import DatabaseService from '../db/index';
+import { dbService, DBServiceType } from '../db/index';
 
 interface AIAgentConfig {
   proxyServerUrl: string;
@@ -19,10 +19,10 @@ interface AIResponse {
 export class AIAgent {
   private llm: ChatOpenAI;
   private agent: any = null;
-  private dbService: typeof DatabaseService;
+  private dbService: DBServiceType;
   private tools: any[];
 
-  constructor(config: AIAgentConfig, dbService: typeof DatabaseService) {
+  constructor(config: AIAgentConfig, dbService: DBServiceType) {
     this.dbService = dbService;
     
     this.llm = new ChatOpenAI({
@@ -309,6 +309,101 @@ export class AIAgent {
         message: 'שגיאה בביצוע הפעולה',
         error: error instanceof Error ? error.message : String(error)
       };
+    }
+  }
+
+  async generateClientAiMainState(clientId: number): Promise<string> {
+    try {
+      const allClientData = this.dbService.getAllClientDataForAi(clientId);
+      if (!allClientData) {
+        return 'לא נמצא מידע על הלקוח';
+      }
+
+      const prompt = `
+        אתה עוזר רפואי מומחה לעיניים. קיבלת מידע מקיף על לקוח במרפאה. נתח את כל המידע והכן סיכום מקיף ומפורט על הלקוח.
+        
+        המידע כולל:
+        - פרטים אישיים
+        - בדיקות עיניים
+        - הזמנות משקפיים/עדשות
+        - הפניות רפואיות
+        - עדשות מגע
+        - תורים
+        - קבצים
+        - רשומות רפואיות
+        - חיובים
+
+        חשוב: השב בעברית בלבד!
+        
+        המידע על הלקוח:
+        ${JSON.stringify(allClientData, null, 2)}
+        
+        אנא הכן סיכום מקיף הכולל:
+        1. פרטים אישיים עיקריים
+        2. היסטוריית בדיקות עיניים - מגמות, שינויים, בעיות חוזרות
+        3. הזמנות משקפיים/עדשות - סוגים, תדירות, העדפות
+        4. הפניות רפואיות - סיבות, תדירות, מעקב
+        5. עדשות מגע - סוגים, בעיות, התאמות
+        6. תורים - תדירות, סוגי בדיקות, דפוסים
+        7. מצב רפואי כללי ובעיות עיניים מיוחדות
+        8. חיובים ותשלומים - דפוסים, בעיות
+        9. נקודות חשובות לתשומת לב
+        
+        הסיכום צריך להיות מדויק, מקצועי ומועיל לצוות הרפואי.
+      `;
+
+      const response = await this.llm.invoke([new HumanMessage(prompt)]);
+      return response.content as string;
+    } catch (error) {
+      console.error('Error generating AI main state:', error);
+      return 'שגיאה ביצירת סיכום AI';
+    }
+  }
+
+  async generateClientAiPartState(clientId: number, part: string, aiMainState: string): Promise<string> {
+    try {
+      const partDescriptions = {
+        exam: 'דף בדיקות עיניים - מציג את כל בדיקות הראייה, המרשמים, התוצאות והמלצות',
+        order: 'דף הזמנות - מציג הזמנות משקפיים, עדשות, מסגרות וכל הפרטים הטכניים',
+        referral: 'דף הפניות - מציג הפניות לרופאי עיניים, מומחים ובתי חולים',
+        contact_lens: 'דף עדשות מגע - מציג התאמות עדשות מגע, בדיקות, הזמנות וטיפול',
+        appointment: 'דף תורים - מציג תורים קודמים ועתידיים, סוגי בדיקות ומעקב',
+        file: 'דף קבצים - מציג קבצים, תמונות, מסמכים ותוצאות בדיקות שצורפו',
+        medical: 'דף רפואי - מציג היסטוריה רפואית, תרופות, אלרגיות ובעיות רפואיות'
+      };
+
+      const partDescription = partDescriptions[part as keyof typeof partDescriptions] || 'דף לא מוכר';
+
+      const prompt = `
+        אתה עוזר רפואי מומחה לעיניים. יש לך סיכום מקיף על לקוח, וכעת אתה צריך לספק מידע רלוונטי ספציפי ל${partDescription}.
+        
+        חשוב: השב בעברית בלבד!
+        
+        הסיכום המקיף על הלקוח:
+        ${aiMainState}
+        
+        בהתבסס על הסיכום, אנא הכן רשימה קצרה של 3-5 נקודות מידע חשובות ורלוונטיות עבור ${partDescription}.
+        
+        הנקודות צריכות להיות:
+        - קצרות וברורות (1-2 שורות לכל נקודה)
+        - ספציפיות לתחום הזה
+        - מועילות לצוות הרפואי
+        - מסודרות לפי חשיבות
+        
+        פורמט התשובה:
+        • נקודה ראשונה
+        • נקודה שנייה
+        • נקודה שלישית
+        וכו'
+        
+        אם אין מידע רלוונטי לתחום הזה, אל תציג נקודות לא רלוונטיות. במקום זאת, ציין בדיוק: "לא נמצאו נתונים רלוונטיים לתחום זה".
+      `;
+
+      const response = await this.llm.invoke([new HumanMessage(prompt)]);
+      return response.content as string;
+    } catch (error) {
+      console.error('Error generating AI part state:', error);
+      return 'שגיאה ביצירת מידע AI לתחום זה';
     }
   }
 } 

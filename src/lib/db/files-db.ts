@@ -2,7 +2,12 @@ import { File } from './schema';
 
 export async function createFile(data: Omit<File, 'id'>): Promise<File | null> {
   try {
-    return await window.electronAPI.db('createFile', data);
+    const result = await window.electronAPI.db('createFile', data);
+    if (result && data.client_id) {
+      await window.electronAPI.db('updateClientUpdatedDate', data.client_id);
+      await window.electronAPI.db('updateClientPartUpdatedDate', data.client_id, 'file');
+    }
+    return result;
   } catch (error) {
     console.error('Error creating file:', error);
     return null;
@@ -38,7 +43,12 @@ export async function getAllFiles(): Promise<File[]> {
 
 export async function updateFile(data: File): Promise<File | null> {
   try {
-    return await window.electronAPI.db('updateFile', data);
+    const result = await window.electronAPI.db('updateFile', data);
+    if (result && data.client_id) {
+      await window.electronAPI.db('updateClientUpdatedDate', data.client_id);
+      await window.electronAPI.db('updateClientPartUpdatedDate', data.client_id, 'file');
+    }
+    return result;
   } catch (error) {
     console.error('Error updating file:', error);
     return null;
@@ -47,7 +57,13 @@ export async function updateFile(data: File): Promise<File | null> {
 
 export async function deleteFile(id: number): Promise<boolean> {
   try {
-    return await window.electronAPI.db('deleteFile', id);
+    const file = await window.electronAPI.db('getFileById', id);
+    const result = await window.electronAPI.db('deleteFile', id);
+    if (result && file?.client_id) {
+      await window.electronAPI.db('updateClientUpdatedDate', file.client_id);
+      await window.electronAPI.db('updateClientPartUpdatedDate', file.client_id, 'file');
+    }
+    return result;
   } catch (error) {
     console.error('Error deleting file:', error);
     return false;

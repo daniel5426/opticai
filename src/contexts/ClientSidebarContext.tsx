@@ -13,6 +13,8 @@ interface ClientSidebarContextType {
   updateCurrentClient: (client: Client) => void
   isClientSpacePage: boolean
   setIsClientSpacePage: (isClientSpace: boolean) => void
+  activeTab: string | null
+  setActiveTab: (tab: string | null) => void
 }
 
 const ClientSidebarContext = createContext<ClientSidebarContextType | undefined>(undefined)
@@ -26,6 +28,7 @@ export function ClientSidebarProvider({ children }: ClientSidebarProviderProps) 
   const [currentClient, setCurrentClient] = useState<Client | null>(null)
   const [isClientSpacePage, setIsClientSpacePage] = useState(false)
   const [hasInitialized, setHasInitialized] = useState(false)
+  const [activeTab, setActiveTab] = useState<string | null>(null)
 
   useEffect(() => {
     const savedState = localStorage.getItem('client-sidebar-last-state')
@@ -105,7 +108,9 @@ export function ClientSidebarProvider({ children }: ClientSidebarProviderProps) 
     setCurrentClient: handleSetCurrentClient,
     updateCurrentClient,
     isClientSpacePage,
-    setIsClientSpacePage: handleSetIsClientSpacePage
+    setIsClientSpacePage: handleSetIsClientSpacePage,
+    activeTab,
+    setActiveTab
   }
 
   return (

@@ -439,6 +439,43 @@ function setupIpcHandlers() {
     }
   });
 
+  ipcMain.handle('ai-generate-main-state', async (event, clientId: number) => {
+    try {
+      if (!aiAgent) {
+        throw new Error('AI agent not initialized');
+      }
+      
+      const aiMainState = await aiAgent.generateClientAiMainState(clientId);
+      await dbService.updateClientAiMainState(clientId, aiMainState);
+      
+      return aiMainState;
+    } catch (error) {
+      console.error('Error generating AI main state:', error);
+      return 'שגיאה ביצירת סיכום AI';
+    }
+  });
+
+  ipcMain.handle('ai-generate-part-state', async (event, clientId: number, part: string) => {
+    try {
+      if (!aiAgent) {
+        throw new Error('AI agent not initialized');
+      }
+      
+      const client = await dbService.getClientById(clientId);
+      if (!client?.ai_main_state) {
+        throw new Error('Client AI main state not found');
+      }
+      
+      const aiPartState = await aiAgent.generateClientAiPartState(clientId, part, client.ai_main_state);
+      await dbService.updateClientAiPartState(clientId, part, aiPartState);
+      
+      return aiPartState;
+    } catch (error) {
+      console.error('Error generating AI part state:', error);
+      return 'שגיאה ביצירת מידע AI לתחום זה';
+    }
+  });
+
   // Email operations
   ipcMain.handle('email-test-connection', async () => {
     try {

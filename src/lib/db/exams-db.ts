@@ -31,7 +31,12 @@ export async function getExamById(examId: number): Promise<OpticalExam | undefin
 
 export async function createExam(exam: Omit<OpticalExam, 'id'>): Promise<OpticalExam | null> {
   try {
-    return await window.electronAPI.db('createExam', exam);
+    const result = await window.electronAPI.db('createExam', exam);
+    if (result && exam.client_id) {
+      await window.electronAPI.db('updateClientUpdatedDate', exam.client_id);
+      await window.electronAPI.db('updateClientPartUpdatedDate', exam.client_id, 'exam');
+    }
+    return result;
   } catch (error) {
     console.error('Error creating exam:', error);
     return null;
@@ -40,7 +45,12 @@ export async function createExam(exam: Omit<OpticalExam, 'id'>): Promise<Optical
 
 export async function updateExam(exam: OpticalExam): Promise<OpticalExam | undefined> {
   try {
-    return await window.electronAPI.db('updateExam', exam);
+    const result = await window.electronAPI.db('updateExam', exam);
+    if (result && exam.client_id) {
+      await window.electronAPI.db('updateClientUpdatedDate', exam.client_id);
+      await window.electronAPI.db('updateClientPartUpdatedDate', exam.client_id, 'exam');
+    }
+    return result;
   } catch (error) {
     console.error('Error updating exam:', error);
     return undefined;
@@ -49,7 +59,13 @@ export async function updateExam(exam: OpticalExam): Promise<OpticalExam | undef
 
 export async function deleteExam(examId: number): Promise<boolean> {
   try {
-    return await window.electronAPI.db('deleteExam', examId);
+    const exam = await window.electronAPI.db('getExamById', examId);
+    const result = await window.electronAPI.db('deleteExam', examId);
+    if (result && exam?.client_id) {
+      await window.electronAPI.db('updateClientUpdatedDate', exam.client_id);
+      await window.electronAPI.db('updateClientPartUpdatedDate', exam.client_id, 'exam');
+    }
+    return result;
   } catch (error) {
     console.error('Error deleting exam:', error);
     return false;

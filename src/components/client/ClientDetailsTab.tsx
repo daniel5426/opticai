@@ -220,7 +220,7 @@ export function ClientDetailsTab({
   }
 
   return (
-    <form ref={formRef} className="px-1 max-w-7xl self-center justify-center mx-auto">
+    <form ref={formRef} className="px-1 max-w-7xl self-center justify-center mx-auto" style={{containerType: 'inline-size'}}>
       {mode === 'view' && setIsEditing && handleSave && (
         <div className="flex justify-between items-center mb-4">
           <Button 
@@ -245,7 +245,7 @@ export function ClientDetailsTab({
               </div>
               <h3 className="text-lg font-semibold">פרטי התקשרות</h3>
             </div>
-            <div className="grid grid-cols-2 gap-4" dir="rtl">
+            <div className="grid grid-cols-1 @[900px]:grid-cols-2 gap-4" dir="rtl">
               <div className="space-y-2">
                 <ModernLabel>עיר</ModernLabel>
                 <Input 
@@ -358,7 +358,7 @@ export function ClientDetailsTab({
               </div>
               <h3 className="text-lg font-semibold">פרטי חברות ושירות</h3>
             </div>
-            <div className="grid grid-cols-2 gap-4" dir="rtl">
+            <div className="grid grid-cols-1 @[900px]:grid-cols-2 gap-4" dir="rtl">
               <div className="space-y-2">
                 <ModernLabel>תאריך פתיחת תיק</ModernLabel>
                 <DateInput
@@ -435,7 +435,7 @@ export function ClientDetailsTab({
                 />
               </div>
               <div className="space-y-2">
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 @[400px]:grid-cols-2 gap-3">
                   <div>
                     <ModernLabel>צ'קים חסומים</ModernLabel>
                     <Select 
@@ -483,7 +483,7 @@ export function ClientDetailsTab({
               </div>
               <h3 className="text-lg font-semibold">פרטים אישיים</h3>
             </div>
-            <div className="grid grid-cols-2 gap-4" dir="rtl">
+            <div className="grid grid-cols-1 @[900px]:grid-cols-2 gap-4" dir="rtl">
               <div className="space-y-2">
                 <ModernLabel>
                   שם פרטי
@@ -628,8 +628,8 @@ export function ClientDetailsTab({
 
             </div>
             <div className="space-y-4">
-              <div className="grid grid-cols-3 gap-3">
-                <div className="col-span-2 space-y-2">
+              <div className="grid grid-cols-1 @[500px]:grid-cols-3 gap-3">
+                <div className="col-span-1 @[500px]:col-span-2 space-y-2">
                   <ModernLabel>משפחה</ModernLabel>
                   <div className="flex gap-2">
                     <Popover open={isFamilySelectOpen} onOpenChange={setIsFamilySelectOpen}>
@@ -714,8 +714,8 @@ export function ClientDetailsTab({
 
               {isCreatingFamily && (
                 <div className="space-y-3 p-3 border rounded-lg bg-muted/50">
-                  <div className="grid grid-cols-6 gap-3 items-end">
-                    <div className="col-span-3 space-y-2">
+                  <div className="grid grid-cols-1 @[600px]:grid-cols-6 gap-3 items-end">
+                    <div className="col-span-1 @[600px]:col-span-3 space-y-2">
                       <ModernLabel>שם משפחה חדשה</ModernLabel>
                       <Input 
                         value={newFamilyName}
@@ -724,7 +724,7 @@ export function ClientDetailsTab({
                         className="text-sm"
                       />
                     </div>
-                    <div className="col-span-2 space-y-2">
+                    <div className="col-span-1 @[600px]:col-span-2 space-y-2">
                       <ModernLabel>תפקיד במשפחה</ModernLabel>
                       <Select 
                         value={newFamilyRole} 

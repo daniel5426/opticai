@@ -33,6 +33,9 @@ export async function createClient(client: Omit<Client, 'id'>): Promise<Client |
 export async function updateClient(client: Client): Promise<Client | undefined> {
   try {
     const updated = await connectionManager.updateClient(client);
+    if (updated && client.id) {
+      await connectionManager.updateClientUpdatedDate(client.id);
+    }
     return updated || undefined;
   } catch (error) {
     console.error('Error updating client:', error);

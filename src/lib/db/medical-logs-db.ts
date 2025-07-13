@@ -21,7 +21,12 @@ export async function getAllMedicalLogs(): Promise<MedicalLog[]> {
 
 export async function createMedicalLog(log: Omit<MedicalLog, 'id'>): Promise<MedicalLog | null> {
   try {
-    return await window.electronAPI.db('createMedicalLog', log);
+    const result = await window.electronAPI.db('createMedicalLog', log);
+    if (result && log.client_id) {
+      await window.electronAPI.db('updateClientUpdatedDate', log.client_id);
+      await window.electronAPI.db('updateClientPartUpdatedDate', log.client_id, 'medical');
+    }
+    return result;
   } catch (error) {
     console.error('Error creating medical log:', error);
     return null;
@@ -30,7 +35,12 @@ export async function createMedicalLog(log: Omit<MedicalLog, 'id'>): Promise<Med
 
 export async function updateMedicalLog(log: MedicalLog): Promise<MedicalLog | null> {
   try {
-    return await window.electronAPI.db('updateMedicalLog', log);
+    const result = await window.electronAPI.db('updateMedicalLog', log);
+    if (result && log.client_id) {
+      await window.electronAPI.db('updateClientUpdatedDate', log.client_id);
+      await window.electronAPI.db('updateClientPartUpdatedDate', log.client_id, 'medical');
+    }
+    return result;
   } catch (error) {
     console.error('Error updating medical log:', error);
     return null;
@@ -39,7 +49,13 @@ export async function updateMedicalLog(log: MedicalLog): Promise<MedicalLog | nu
 
 export async function deleteMedicalLog(id: number): Promise<boolean> {
   try {
-    return await window.electronAPI.db('deleteMedicalLog', id);
+    const log = await window.electronAPI.db('getMedicalLogById', id);
+    const result = await window.electronAPI.db('deleteMedicalLog', id);
+    if (result && log?.client_id) {
+      await window.electronAPI.db('updateClientUpdatedDate', log.client_id);
+      await window.electronAPI.db('updateClientPartUpdatedDate', log.client_id, 'medical');
+    }
+    return result;
   } catch (error) {
     console.error('Error deleting medical log:', error);
     return false;
