@@ -367,12 +367,11 @@ export default function WorkerStatsPage() {
                       onClick={() => setSelectedUserId(user.id!)}
                     >
                       <div className="text-right w-full">
-                        <div className="flex items-center justify-end gap-1">
-                          <span className="font-medium">{user.username}</span>
-                          <span className="text-muted-foreground px-[2px]">|</span>
-                          <span className="text-muted-foreground text-sm">
-                            {user.role === 'admin' ? 'מנהל' : 'עובד'}
+                        <div className="flex items-center justify-end gap-2">
+                        <span className="text-muted-foreground text-sm">
+                            {user.role === 'admin' ? '(מנהל)' : '(עובד)'}
                           </span>
+                          <span className="font-medium">{user.username}</span>
                         </div>
                       </div>
                     </TabsTrigger>

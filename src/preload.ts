@@ -60,6 +60,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
   emailSchedulerStatus: () => ipcRenderer.invoke('email-scheduler-status'),
   emailSchedulerRestart: () => ipcRenderer.invoke('email-scheduler-restart'),
 
+  // Campaign operations
+  campaignSchedulerStatus: () => ipcRenderer.invoke('campaign-scheduler-status'),
+  campaignSchedulerRestart: () => ipcRenderer.invoke('campaign-scheduler-restart'),
+  campaignExecuteTest: (campaignId: number) => ipcRenderer.invoke('campaign-execute-test', campaignId),
+  campaignExecuteFull: (campaignId: number) => ipcRenderer.invoke('campaign-execute-full', campaignId),
+  campaignGetTargetClients: (campaignId: number) => ipcRenderer.invoke('campaign-get-target-clients', campaignId),
+  campaignValidate: (campaignId: number) => ipcRenderer.invoke('campaign-validate', campaignId),
+
   // Google OAuth and Calendar operations
   googleOAuthAuthenticate: () => ipcRenderer.invoke('google-oauth-authenticate'),
   googleOAuthRefreshToken: (refreshToken: string) => ipcRenderer.invoke('google-oauth-refresh-token', refreshToken),

@@ -1207,7 +1207,7 @@ export default function HomePage() {
                     maxHeight: `${50 + (totalWorkHours * 95)}px` // 50px for header + actual calendar content
                   }} ref={calendarRef}>
                                           {/* Fixed header */}
-                      <div className="flex bg-card rounded-t-xl border-b sticky top-0 z-30">
+                      <div className="flex bg-card rounded-t-xl border-b sticky top-0">
                         {/* Time column header */}
                         <div className="w-16 h-10 border-l bg-transparent"></div>
                         {/* Day headers */}

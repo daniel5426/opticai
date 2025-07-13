@@ -19,6 +19,7 @@ import { Server } from "http";
 import os from "os";
 import { emailScheduler } from "./lib/email/email-scheduler";
 import { emailService } from "./lib/email/email-service";
+import { campaignScheduler } from "./lib/campaign-scheduler";
 // Import will be done dynamically to allow hot reload
 
 const inDevelopment = process.env.NODE_ENV === "development";
@@ -490,6 +491,78 @@ function setupIpcHandlers() {
     } catch (error) {
       console.error('Error restarting scheduler:', error);
       return false;
+    }
+  });
+
+  // Campaign operations
+  ipcMain.handle('campaign-scheduler-status', async () => {
+    try {
+      return campaignScheduler.getStatus();
+    } catch (error) {
+      console.error('Error getting campaign scheduler status:', error);
+      return { isRunning: false, nextRun: null };
+    }
+  });
+
+  ipcMain.handle('campaign-scheduler-restart', async () => {
+    try {
+      campaignScheduler.restart();
+      return true;
+    } catch (error) {
+      console.error('Error restarting campaign scheduler:', error);
+      return false;
+    }
+  });
+
+  ipcMain.handle('campaign-execute-test', async (event, campaignId: number) => {
+    try {
+      return await campaignScheduler.executeTestCampaign(campaignId);
+    } catch (error) {
+      console.error('Error executing test campaign:', error);
+      return { 
+        success: false, 
+        message: 'Error executing test campaign', 
+        details: error instanceof Error ? error.message : String(error) 
+      };
+    }
+  });
+
+  ipcMain.handle('campaign-execute-full', async (event, campaignId: number) => {
+    try {
+      return await campaignScheduler.executeFullCampaign(campaignId);
+    } catch (error) {
+      console.error('Error executing full campaign:', error);
+      return { 
+        success: false, 
+        message: 'Error executing full campaign', 
+        details: error instanceof Error ? error.message : String(error) 
+      };
+    }
+  });
+
+  ipcMain.handle('campaign-get-target-clients', async (event, campaignId: number) => {
+    try {
+      const { campaignService } = await import('./lib/campaign-service');
+      const targetClients = await campaignService.getTargetClientsForCampaign(campaignId);
+      return { success: true, clients: targetClients };
+    } catch (error) {
+      console.error('Error getting target clients:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle('campaign-validate', async (event, campaignId: number) => {
+    try {
+      const { campaignService } = await import('./lib/campaign-service');
+      const campaign = dbService.getCampaignById(campaignId);
+      if (!campaign) {
+        return { success: false, error: 'Campaign not found' };
+      }
+      const validation = await campaignService.validateCampaignForExecution(campaign);
+      return { success: true, validation };
+    } catch (error) {
+      console.error('Error validating campaign:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
     }
   });
 

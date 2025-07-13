@@ -143,33 +143,30 @@ export class ExamFieldMapper {
     return {}
   }
 
-  static copyData<T extends ExamDataType, U extends ExamDataType>(
-    sourceData: T,
-    targetData: U,
+  static copyData(
+    sourceData: Record<string, any>,
+    targetData: Record<string, any>,
     sourceType: ExamComponentType,
     targetType: ExamComponentType
-  ): Partial<U> {
+  ): Record<string, any> {
     const mapping = this.getFieldMapping(sourceType, targetType)
-    const result: Partial<U> = { ...targetData }
+    const result: Record<string, any> = { ...targetData }
 
     Object.entries(mapping).forEach(([sourceField, targetField]) => {
-      if (targetField && sourceField in sourceData && targetField in result) {
-        const sourceValue = sourceData[sourceField as keyof T]
-        const valueToCopy = (sourceValue === null || sourceValue === undefined) ? '' : sourceValue;
-        (result as any)[targetField] = valueToCopy
+      if (targetField) {
+        const sourceValue = (sourceData as any)[sourceField] ?? ''
+        ;(result as any)[targetField] = sourceValue
       }
     })
 
     return result
   }
 
-  static clearData<T extends ExamDataType>(data: T): Partial<T> {
-    const clearedData: Partial<T> = { ...data }
-    
-    Object.keys(clearedData).forEach(key => {
-      if (key !== 'id' && key !== 'layout_instance_id') {
-        (clearedData as any)[key] = ''
-      }
+  static clearData(data: Record<string, any>, componentType: ExamComponentType): Record<string, any> {
+    const clearedData: Record<string, any> = { ...data }
+
+    this.getFieldNames(componentType).forEach(key => {
+      clearedData[key as keyof Record<string, any>] = '' as any
     })
 
     return clearedData

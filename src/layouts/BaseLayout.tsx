@@ -84,7 +84,7 @@ export default function BaseLayout({
                     />
                     <SidebarInset className="flex flex-col flex-1 overflow-hidden" style={{scrollbarWidth: 'none'}}>
                       <div className="flex flex-col h-full">
-                        <div className="sticky top-0 z-10 bg-background">
+                        <div className="sticky top-0 bg-background">
                           <div id="header-container" />
                         </div>
                         <main className="flex-1 overflow-auto bg-muted/50 flex" style={{scrollbarWidth: 'none'}}>

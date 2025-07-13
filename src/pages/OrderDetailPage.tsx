@@ -47,6 +47,9 @@ import { Separator } from "@/components/ui/separator"
 import { Badge } from "@/components/ui/badge"
 import { LookupSelect } from "@/components/ui/lookup-select"
 import { FinalPrescriptionTab } from "@/components/exam/FinalPrescriptionTab"
+import { ExamToolbox, createToolboxActions } from "@/components/exam/ExamToolbox"
+import { ExamFieldMapper, ExamComponentType } from "@/lib/exam-field-mappings"
+import { copyToClipboard, pasteFromClipboard, getClipboardContentType } from "@/lib/exam-clipboard"
 import { getFinalPrescriptionExamByOrderId, createFinalPrescriptionExam, updateFinalPrescriptionExam } from "@/lib/db/final-prescription-db"
 import { DateInput } from "@/components/ui/date"
 import { ClientSpaceLayout } from "@/layouts/ClientSpaceLayout"
@@ -134,6 +137,51 @@ export default function OrderDetailPage({
   const [orderDetailsFormData, setOrderDetailsFormData] = useState<OrderDetails>(isNewMode ? { order_id: 0 } as OrderDetails : {} as OrderDetails)
   const [billingFormData, setBillingFormData] = useState<Billing>(isNewMode ? {} as Billing : {} as Billing)
   const [finalPrescriptionFormData, setFinalPrescriptionFormData] = useState<FinalPrescriptionExam>(isNewMode ? { order_id: 0 } as FinalPrescriptionExam : {} as FinalPrescriptionExam)
+  
+  const type: ExamComponentType = 'final-prescription'
+  const examFormData = { [type]: finalPrescriptionFormData }
+  const fieldHandlers = { [type]: (field: string, value: string) => handleFinalPrescriptionChange(field as keyof FinalPrescriptionExam, value) }
+  const toolboxActions = createToolboxActions(examFormData, fieldHandlers)
+  const [clipboardSourceType, setClipboardSourceType] = useState<ExamComponentType | null>(null)
+
+  useEffect(() => {
+    setClipboardSourceType(getClipboardContentType())
+  }, [])
+
+  const currentCard = { id: 'final-prescription', type }
+  const allRows = [[currentCard]]
+
+  const handleCopy = () => {
+    copyToClipboard(type, finalPrescriptionFormData)
+    setClipboardSourceType(type)
+    toast.success("נתוני המרשם הועתקו")
+  }
+
+  const handlePaste = () => {
+    const clipboardContent = pasteFromClipboard()
+    if (!clipboardContent) {
+      toast.error("אין נתונים בלוח ההעתקה")
+      return
+    }
+
+    const { type: sourceType, data: sourceData } = clipboardContent
+    const isCompatible = sourceType === type || ExamFieldMapper.getAvailableTargets(sourceType, [type]).includes(type)
+
+    if (!isCompatible) {
+      toast.error("נתונים לא תואמים")
+      return
+    }
+
+    const copiedData = ExamFieldMapper.copyData(sourceData, finalPrescriptionFormData, sourceType, type)
+
+    Object.entries(copiedData).forEach(([key, value]) => {
+      if (key !== 'id' && value !== undefined) {
+        handleFinalPrescriptionChange(key as keyof FinalPrescriptionExam, String(value))
+      }
+    })
+
+    toast.success("נתונים הודבקו בהצלחה")
+  }
   
   const formRef = useRef<HTMLFormElement>(null)
   const navigate = useNavigate()
@@ -735,13 +783,31 @@ export default function OrderDetailPage({
                   </div>
                 </Card>
                 
-                <FinalPrescriptionTab
-                  finalPrescriptionData={finalPrescriptionFormData}
-                  onFinalPrescriptionChange={handleFinalPrescriptionChange}
-                  isEditing={isEditing}
-                  hideEyeLabels={false}
-                />
-
+                <div className="relative h-full">
+  {isEditing && (
+    <ExamToolbox
+      isEditing={isEditing}
+      mode='detail'
+      currentCard={currentCard}
+      allRows={allRows}
+      currentRowIndex={0}
+      currentCardIndex={0}
+      clipboardSourceType={clipboardSourceType}
+      onClearData={() => toolboxActions.clearData(type)}
+      onCopy={handleCopy}
+      onPaste={handlePaste}
+      onCopyLeft={() => {}}
+      onCopyRight={() => {}}
+      onCopyBelow={() => {}}
+    />
+  )}
+  <FinalPrescriptionTab
+    finalPrescriptionData={finalPrescriptionFormData}
+    onFinalPrescriptionChange={handleFinalPrescriptionChange}
+    isEditing={isEditing}
+    hideEyeLabels={false}
+  />
+</div>
 
 
                 <div className="flex gap-6">

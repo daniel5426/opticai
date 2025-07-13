@@ -18,6 +18,9 @@ import {
 import { getClientById } from "@/lib/db/clients-db"
 import { toast } from "sonner"
 import { CompactPrescriptionTab } from "@/components/exam/CompactPrescriptionTab"
+import { ExamToolbox, createToolboxActions } from "@/components/exam/ExamToolbox"
+import { ExamFieldMapper, ExamComponentType } from "@/lib/exam-field-mappings"
+import { copyToClipboard, pasteFromClipboard, getClipboardContentType } from "@/lib/exam-clipboard"
 import { CompactPrescriptionExam } from "@/lib/db/schema"
 import {
   createCompactPrescriptionExam,
@@ -70,6 +73,51 @@ export default function ReferralDetailPage() {
   const [compactPrescriptionFormData, setCompactPrescriptionFormData] = useState<CompactPrescriptionExam>({
     referral_id: 0
   })
+
+  const type: ExamComponentType = 'compact-prescription'
+  const examFormData = { [type]: compactPrescriptionFormData }
+  const fieldHandlers = { [type]: (field: string, value: string) => handleCompactPrescriptionChange(field as keyof CompactPrescriptionExam, value) }
+  const toolboxActions = createToolboxActions(examFormData, fieldHandlers)
+  const [clipboardSourceType, setClipboardSourceType] = useState<ExamComponentType | null>(null)
+
+  useEffect(() => {
+    setClipboardSourceType(getClipboardContentType())
+  }, [])
+
+  const currentCard = { id: 'compact-prescription', type }
+  const allRows = [[currentCard]]
+
+  const handleCopy = () => {
+    copyToClipboard(type, compactPrescriptionFormData)
+    setClipboardSourceType(type)
+    toast.success("נתוני המרשם הועתקו")
+  }
+
+  const handlePaste = () => {
+    const clipboardContent = pasteFromClipboard()
+    if (!clipboardContent) {
+      toast.error("אין נתונים בלוח ההעתקה")
+      return
+    }
+
+    const { type: sourceType, data: sourceData } = clipboardContent
+    const isCompatible = sourceType === type || ExamFieldMapper.getAvailableTargets(sourceType, [type]).includes(type)
+
+    if (!isCompatible) {
+      toast.error("נתונים לא תואמים")
+      return
+    }
+
+    const copiedData = ExamFieldMapper.copyData(sourceData, compactPrescriptionFormData, sourceType, type)
+
+    Object.entries(copiedData).forEach(([key, value]) => {
+      if (key !== 'id' && value !== undefined) {
+        handleCompactPrescriptionChange(key as keyof CompactPrescriptionExam, String(value))
+      }
+    })
+
+    toast.success("נתונים הודבקו בהצלחה")
+  }
 
   const [rightEyeData, setRightEyeData] = useState<ReferralEye>({
     referral_id: 0,
@@ -377,11 +425,31 @@ export default function ReferralDetailPage() {
               </div>
             </Card>
 
-            <CompactPrescriptionTab
-              data={compactPrescriptionFormData}
-              onChange={handleCompactPrescriptionChange}
-              isEditing={isEditing}
-            />
+            <div className="relative h-full">
+              {isEditing && (
+                <ExamToolbox
+                  isEditing={isEditing}
+                  mode='detail'
+                  currentCard={currentCard}
+                  allRows={allRows}
+                  currentRowIndex={0}
+                  currentCardIndex={0}
+                  clipboardSourceType={clipboardSourceType}
+                  onClearData={() => toolboxActions.clearData(type)}
+                  onCopy={handleCopy}
+                  onPaste={handlePaste}
+                  onCopyLeft={() => {}}
+                  onCopyRight={() => {}}
+                  onCopyBelow={() => {}}
+                  showClear={true}
+                />
+              )}
+              <CompactPrescriptionTab
+                data={compactPrescriptionFormData}
+                onChange={handleCompactPrescriptionChange}
+                isEditing={isEditing}
+              />
+            </div>
 
             <div className="grid grid-cols-2 gap-4 items-start">
               <Card className="px-4 pt-3 pb-4 shadow-md border-none gap-2" dir="rtl">

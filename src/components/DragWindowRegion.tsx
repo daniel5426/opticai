@@ -5,6 +5,7 @@ import {
 } from "@/helpers/window_helpers";
 import React, { type ReactNode } from "react";
 import { ModeToggle } from "@/components/mode-toggle";
+import { GlobalSearch } from "@/components/GlobalSearch";
 import { RotateCcw } from "lucide-react";
 interface DragWindowRegionProps {
   title?: ReactNode;
@@ -13,7 +14,7 @@ interface DragWindowRegionProps {
 export default function DragWindowRegion({ title }: DragWindowRegionProps) {
   return (
     <div className="bg-secondary border-sidebar-border">
-      <div className="draglayer bg-secondary flex w-screen items-center h-8">
+      <div className="bg-secondary flex w-screen items-center h-8 relative">
         <div className="draglayer flex-1 bg-secondary pt-1.5 px-1 flex items-center gap-2">
           <img 
             src="/src/assets/images/prysm-logo.png" 
@@ -29,7 +30,10 @@ export default function DragWindowRegion({ title }: DragWindowRegionProps) {
             </div>
           )}
         </div>
-        <div className="flex items-center">
+        <div className="absolute left-1/2 transform -translate-x-1/2 pointer-events-auto z-10" style={{ pointerEvents: 'auto', WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+          <GlobalSearch />
+        </div>
+        <div className="draglayer flex items-center bg-transparent">
           <ModeToggle />
           <RefreshButton />
           <WindowButtons />

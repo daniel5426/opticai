@@ -18,6 +18,7 @@ interface ExamToolboxProps {
   onCopyLeft: () => void
   onCopyRight: () => void
   onCopyBelow: () => void
+  showClear?: boolean
 }
 
 export function ExamToolbox({
@@ -33,7 +34,8 @@ export function ExamToolbox({
   onPaste,
   onCopyLeft,
   onCopyRight,
-  onCopyBelow
+  onCopyBelow,
+  showClear
 }: ExamToolboxProps) {
   const [isExpanded, setIsExpanded] = useState(false)
 
@@ -98,7 +100,7 @@ export function ExamToolbox({
 
   return (
     <div 
-      className="absolute top-2 right-2 z-30"
+      className="absolute top-2 right-2 z-30" dir="ltr"
       onMouseLeave={() => setIsExpanded(false)}
     >
       <div className={`flex items-center gap-1 transition-all duration-300 ease-out ${
@@ -173,16 +175,18 @@ export function ExamToolbox({
               <Copy className="h-3.5 w-3.5" />
             </Button>
 
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={onClearData}
-              className="h-7 w-7 p-0 hover:bg-red-100 text-red-600 hover:text-red-800"
-              title="נקה נתונים"
-            >
-              <X className="h-3.5 w-3.5" />
-            </Button>
+            {showClear !== false && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={onClearData}
+                className="h-7 w-7 p-0 hover:bg-red-100 text-red-600 hover:text-red-800"
+                title="נקה נתונים"
+              >
+                <X className="h-3.5 w-3.5" />
+              </Button>
+            )}
           </div>
         </div>
         
@@ -233,7 +237,7 @@ export function createToolboxActions(
     
     if (!data || !changeHandler) return
 
-    const clearedData = ExamFieldMapper.clearData(data)
+    const clearedData = ExamFieldMapper.clearData(data, componentType)
     
     Object.keys(clearedData).forEach(key => {
       if (key !== 'id' && key !== 'layout_instance_id') {

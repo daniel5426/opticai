@@ -217,15 +217,55 @@ export function SiteHeader({ title, backLink, parentTitle, parentLink, grandpare
               value={tabs.activeTab}
               onValueChange={tabs.onTabChange}
             >
-              <TabsList>
-                <TabsTrigger value="details">פרטים אישיים</TabsTrigger>
-                <TabsTrigger value="exams">בדיקות</TabsTrigger>
-                <TabsTrigger value="medical">גליון רפואי</TabsTrigger>
-                <TabsTrigger value="orders">הזמנות</TabsTrigger>
-                <TabsTrigger value="contact-lenses">עדשות מגע</TabsTrigger>
-                <TabsTrigger value="referrals">הפניות</TabsTrigger>
-                <TabsTrigger value="appointments">תורים</TabsTrigger>
-                <TabsTrigger value="files">קבצים</TabsTrigger>
+              <TabsList className="bg-transparent">
+                <TabsTrigger 
+                  className="data-[state=active]:text-foreground data-[state=active]:bg-accent data-[state=inactive]:text-muted-foreground data-[state=inactive]:bg-transparent" 
+                  value="details"
+                >
+                  פרטים אישיים
+                </TabsTrigger>
+                <TabsTrigger 
+                  className="data-[state=active]:text-foreground data-[state=active]:bg-accent data-[state=inactive]:text-muted-foreground data-[state=inactive]:bg-transparent" 
+                  value="exams"
+                >
+                  בדיקות
+                </TabsTrigger>
+                <TabsTrigger 
+                  className="data-[state=active]:text-foreground data-[state=active]:bg-accent data-[state=inactive]:text-muted-foreground data-[state=inactive]:bg-transparent" 
+                  value="medical"
+                >
+                  גליון רפואי
+                </TabsTrigger>
+                <TabsTrigger 
+                  className="data-[state=active]:text-foreground data-[state=active]:bg-accent data-[state=inactive]:text-muted-foreground data-[state=inactive]:bg-transparent" 
+                  value="orders"
+                >
+                  הזמנות
+                </TabsTrigger>
+                <TabsTrigger 
+                  className="data-[state=active]:text-foreground data-[state=active]:bg-accent data-[state=inactive]:text-muted-foreground data-[state=inactive]:bg-transparent" 
+                  value="contact-lenses"
+                >
+                  עדשות מגע
+                </TabsTrigger>
+                <TabsTrigger 
+                  className="data-[state=active]:text-foreground data-[state=active]:bg-accent data-[state=inactive]:text-muted-foreground data-[state=inactive]:bg-transparent" 
+                  value="referrals"
+                >
+                  הפניות
+                </TabsTrigger>
+                <TabsTrigger 
+                  className="data-[state=active]:text-foreground data-[state=active]:bg-accent data-[state=inactive]:text-muted-foreground data-[state=inactive]:bg-transparent" 
+                  value="appointments"
+                >
+                  תורים
+                </TabsTrigger>
+                <TabsTrigger 
+                  className="data-[state=active]:text-foreground data-[state=active]:bg-accent data-[state=inactive]:text-muted-foreground data-[state=inactive]:bg-transparent" 
+                  value="files"
+                >
+                  קבצים
+                </TabsTrigger>
               </TabsList>
             </Tabs>
           )}

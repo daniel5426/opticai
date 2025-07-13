@@ -1838,6 +1838,18 @@ class DatabaseService {
     }
   }
 
+  getAllMedicalLogs(): MedicalLog[] {
+    if (!this.db) return [];
+
+    try {
+      const stmt = this.db.prepare('SELECT * FROM medical_logs ORDER BY log_date DESC');
+      return stmt.all() as MedicalLog[];
+    } catch (error) {
+      console.error('Error getting all medical logs:', error);
+      return [];
+    }
+  }
+
   deleteMedicalLog(id: number): boolean {
     if (!this.db) return false;
 

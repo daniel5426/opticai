@@ -89,6 +89,14 @@ export interface ElectronAPI {
   emailSchedulerStatus: () => Promise<{ isRunning: boolean; nextRun: string | null }>;
   emailSchedulerRestart: () => Promise<boolean>;
 
+  // Campaign operations
+  campaignSchedulerStatus: () => Promise<{ isRunning: boolean; nextRun: string | null }>;
+  campaignSchedulerRestart: () => Promise<boolean>;
+  campaignExecuteTest: (campaignId: number) => Promise<{ success: boolean; message: string; details?: any }>;
+  campaignExecuteFull: (campaignId: number) => Promise<{ success: boolean; message: string; details?: any }>;
+  campaignGetTargetClients: (campaignId: number) => Promise<{ success: boolean; clients?: any[]; error?: string }>;
+  campaignValidate: (campaignId: number) => Promise<{ success: boolean; validation?: any; error?: string }>;
+
   // Google OAuth and Calendar operations
   googleOAuthAuthenticate: () => Promise<{
     success?: boolean;

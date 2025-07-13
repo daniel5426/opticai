@@ -13,7 +13,7 @@ import { Switch } from "@/components/ui/switch";
 import { getAllCampaigns, createCampaign, updateCampaign, deleteCampaign } from "@/lib/db/campaigns-db";
 import { Campaign } from "@/lib/db/schema";
 import { toast } from "sonner";
-import { Trash2, Edit3, Plus, Filter, Mail, MessageSquare, Users, Calendar, X, ChevronDown } from "lucide-react";
+import { Trash2, Edit3, Plus, Filter, Mail, MessageSquare, Users, Calendar, X, ChevronDown, Play } from "lucide-react";
 
 interface FilterCondition {
   id: string;
@@ -423,6 +423,7 @@ export default function CampaignsPage() {
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCampaign, setEditingCampaign] = useState<Campaign | undefined>(undefined);
+  const [runningCampaignId, setRunningCampaignId] = useState<number | null>(null);
 
   const loadCampaigns = async () => {
     try {
@@ -453,6 +454,22 @@ export default function CampaignsPage() {
   useEffect(() => {
     loadCampaigns();
   }, []);
+
+  useEffect(() => {
+    const handleOpenCampaignModal = (event: CustomEvent) => {
+      const { campaignId } = event.detail;
+      const campaign = campaigns.find(c => c.id === campaignId);
+      if (campaign) {
+        openModal(campaign);
+      }
+    };
+
+    window.addEventListener('openCampaignModal', handleOpenCampaignModal as EventListener);
+    
+    return () => {
+      window.removeEventListener('openCampaignModal', handleOpenCampaignModal as EventListener);
+    };
+  }, [campaigns]);
 
   const handleToggleActive = async (campaign: Campaign) => {
     // Optimistic update - update UI immediately
@@ -542,6 +559,63 @@ export default function CampaignsPage() {
     }
   };
 
+  const handleRunCampaign = async (campaign: Campaign) => {
+    if (!campaign.id || runningCampaignId) return;
+    
+    const confirmed = confirm(`האם אתה בטוח שברצונך להריץ את הקמפיין "${campaign.name}" עכשיו? זה ישלח הודעות לכל הלקוחות המסוננים.`);
+    if (!confirmed) return;
+    
+    setRunningCampaignId(campaign.id);
+    const loadingToast = toast.loading("מריץ קמפיין...");
+    
+    try {
+      const result = await window.electronAPI.campaignExecuteFull(campaign.id);
+      
+      if (result.success) {
+        toast.success(`קמפיין הורץ בהצלחה: ${result.message}`, {
+          id: loadingToast,
+        });
+        
+        // Update the campaign status
+        const updatedCampaign = {
+          ...campaign,
+          mail_sent: campaign.email_enabled && result.details?.emailsSent > 0,
+          sms_sent: campaign.sms_enabled && result.details?.smsSent > 0,
+        };
+        
+        setCampaigns(campaigns.map(c => 
+          c.id === campaign.id ? updatedCampaign : c
+        ));
+      } else {
+        let errorMessage = result.message;
+        if (result.details && Array.isArray(result.details)) {
+          errorMessage += `: ${result.details.join(', ')}`;
+        }
+        const onlyNoClients = result.details && Array.isArray(result.details) && result.details.length === 1 && (
+          result.details[0].includes('No target clients have phone numbers') ||
+          result.details[0].includes('No target clients have email addresses') ||
+          result.details[0].includes('No target clients found matching the filters')
+        );
+        if (onlyNoClients) {
+          toast.info('אין לקוחות מתאימים לשליחת הודעות בקמפיין זה.', {
+            id: loadingToast,
+          });
+        } else {
+          toast.error(`שגיאה בהרצת הקמפיין: ${errorMessage}`, {
+            id: loadingToast,
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Error running campaign:', error);
+      toast.error("שגיאה בהרצת הקמפיין", {
+        id: loadingToast,
+      });
+    } finally {
+      setRunningCampaignId(null);
+    }
+  };
+
   const openModal = (campaign?: Campaign) => {
     setEditingCampaign(campaign);
     setIsModalOpen(true);
@@ -600,7 +674,7 @@ export default function CampaignsPage() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
               {campaigns.map(campaign => (
-                <Card key={campaign.id} className="group hover:shadow-lg transition-all duration-300 border-0 shadow-sm bg-gradient-to-br from-white to-gray-50/50">
+                <Card key={campaign.id} data-campaign-id={campaign.id} className="group hover:shadow-lg transition-all duration-300 border-0 shadow-sm bg-gradient-to-br from-white to-gray-50/50">
                   <CardContent className="px-4">
                     {/* Header with Title and Actions */}
                     <div className="flex items-start justify-between mb-3">
@@ -616,6 +690,16 @@ export default function CampaignsPage() {
                       
                       <div className="flex items-center gap-2">
                         <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleRunCampaign(campaign)}
+                            className="h-6 w-6 p-0 hover:bg-green-50 hover:text-green-600"
+                            disabled={!campaign.active || (!campaign.email_enabled && !campaign.sms_enabled) || runningCampaignId !== null}
+                            title={runningCampaignId === campaign.id ? "קמפיין רץ..." : "הרץ קמפיין עכשיו"}
+                          >
+                            <Play className={`h-3 w-3 ${runningCampaignId === campaign.id ? 'animate-spin' : ''}`} />
+                          </Button>
                           <Button
                             variant="ghost"
                             size="sm"

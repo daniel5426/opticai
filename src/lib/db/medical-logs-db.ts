@@ -10,6 +10,15 @@ export async function getMedicalLogsByClientId(clientId: number): Promise<Medica
   }
 }
 
+export async function getAllMedicalLogs(): Promise<MedicalLog[]> {
+  try {
+    return await window.electronAPI.db('getAllMedicalLogs');
+  } catch (error) {
+    console.error('Error getting all medical logs:', error);
+    return [];
+  }
+}
+
 export async function createMedicalLog(log: Omit<MedicalLog, 'id'>): Promise<MedicalLog | null> {
   try {
     return await window.electronAPI.db('createMedicalLog', log);

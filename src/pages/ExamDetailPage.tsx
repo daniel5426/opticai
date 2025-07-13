@@ -878,25 +878,42 @@ export default function ExamDetailPageRefactored({
                               onPaste={() => handlePaste(item)}
                               onClearData={() => toolboxActions.clearData(item.type as ExamComponentType)}
                               onCopyLeft={() => {
-                                const currentRow = row.cards.slice(0, cardIndex).filter(c => c.type !== 'exam-details' && c.type !== 'notes')
-                                const availableTargets = ExamFieldMapper.getAvailableTargets(item.type as ExamComponentType, currentRow.map(c => c.type as ExamComponentType))
-                                if (availableTargets.length > 0) {
-                                  toolboxActions.copyToLeft(item.type as ExamComponentType, availableTargets[0])
+                                const cardsToTheLeft = row.cards.slice(0, cardIndex).reverse()
+                                for (const card of cardsToTheLeft) {
+                                  if (card.type !== 'exam-details' && card.type !== 'notes') {
+                                    const type = card.type as ExamComponentType
+                                    const available = ExamFieldMapper.getAvailableTargets(item.type as ExamComponentType, [type])
+                                    if (available.length > 0) {
+                                      toolboxActions.copyToLeft(item.type as ExamComponentType, type)
+                                      return
+                                    }
+                                  }
                                 }
                               }}
                               onCopyRight={() => {
-                                const currentRow = row.cards.slice(cardIndex + 1).filter(c => c.type !== 'exam-details' && c.type !== 'notes')
-                                const availableTargets = ExamFieldMapper.getAvailableTargets(item.type as ExamComponentType, currentRow.map(c => c.type as ExamComponentType))
-                                if (availableTargets.length > 0) {
-                                  toolboxActions.copyToRight(item.type as ExamComponentType, availableTargets[0])
+                                const cardsToTheRight = row.cards.slice(cardIndex + 1)
+                                for (const card of cardsToTheRight) {
+                                  if (card.type !== 'exam-details' && card.type !== 'notes') {
+                                    const type = card.type as ExamComponentType
+                                    const available = ExamFieldMapper.getAvailableTargets(item.type as ExamComponentType, [type])
+                                    if (available.length > 0) {
+                                      toolboxActions.copyToRight(item.type as ExamComponentType, type)
+                                      return
+                                    }
+                                  }
                                 }
                               }}
                               onCopyBelow={() => {
-                                if (rowIndex < cardRows.length - 1) {
-                                  const belowRow = cardRows[rowIndex + 1].cards
-                                  const availableTargets = ExamFieldMapper.getAvailableTargets(item.type as ExamComponentType, belowRow.map(c => c.type as ExamComponentType))
-                                  if (availableTargets.length > 0) {
-                                    toolboxActions.copyToBelow(item.type as ExamComponentType, availableTargets[0])
+                                if (rowIndex >= cardRows.length - 1) return
+                                const belowRow = cardRows[rowIndex + 1].cards
+                                for (const card of belowRow) {
+                                  if (card.type !== 'exam-details' && card.type !== 'notes') {
+                                    const type = card.type as ExamComponentType
+                                    const available = ExamFieldMapper.getAvailableTargets(item.type as ExamComponentType, [type])
+                                    if (available.length > 0) {
+                                      toolboxActions.copyToBelow(item.type as ExamComponentType, type)
+                                      return
+                                    }
                                   }
                                 }
                               }}
