@@ -62,9 +62,13 @@ const getNavData = (currentUser?: User) => ({
       icon: IconRobot,
     },
     ...(currentUser?.role === 'admin' ? [{
-      title: "סטטיסטיקות עובדים",
+      title: "יומן נוכחות",
       url: "/worker-stats",
       icon: IconChartLine,
+    }, {
+      title: "קמפיינים",
+      url: "/campaigns",
+      icon: IconChartBar,
     }] : [])
   ],
   navSecondary: [

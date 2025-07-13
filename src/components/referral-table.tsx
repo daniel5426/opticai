@@ -194,7 +194,7 @@ export function ReferralTable({
               <TableRow>
                 <TableCell
                   colSpan={clientId === 0 ? 6 : 5}
-                  className="text-muted-foreground py-8 text-center"
+                  className="h-24 text-center text-muted-foreground"
                 >
                   לא נמצאו הפניות
                 </TableCell>

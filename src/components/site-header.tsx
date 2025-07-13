@@ -5,9 +5,10 @@ import { Separator } from "@/components/ui/separator"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Link } from "@tanstack/react-router"
+import { Link, useLocation, useNavigate } from "@tanstack/react-router"
 import { ChevronLeft, User, Phone, IdCard, Calendar } from "lucide-react"
 import { Client } from "@/lib/db/schema"
+import { useClientSidebar } from "@/contexts/ClientSidebarContext"
 
 interface SiteHeaderProps {
   title: string
@@ -16,8 +17,6 @@ interface SiteHeaderProps {
   parentLink?: string
   grandparentTitle?: string
   grandparentLink?: string
-  clientName?: string
-  client?: Client
   clientBackLink?: string
   examInfo?: string
   tabs?: {
@@ -75,10 +74,29 @@ function ClientTooltip({ client }: { client: Client }) {
   )
 }
 
-export function SiteHeader({ title, backLink, parentTitle, parentLink, grandparentTitle, grandparentLink, clientName, client, clientBackLink, examInfo, tabs }: SiteHeaderProps) {
-  const displayName = client ? `${client.first_name} ${client.last_name}`.trim() : clientName
+export function SiteHeader({ title, backLink, parentTitle, parentLink, grandparentTitle, grandparentLink, clientBackLink, examInfo, tabs }: SiteHeaderProps) {
+  const { currentClient, toggleSidebar } = useClientSidebar()
+  const displayName = currentClient ? `${currentClient.first_name} ${currentClient.last_name}`.trim() : ''
   const [isHovering, setIsHovering] = useState(false)
   const [headerContainer, setHeaderContainer] = useState<HTMLElement | null>(null)
+  const location = useLocation()
+  const navigate = useNavigate()
+
+  // Check if we're on the main ClientDetailPage or a sub-route
+  const isOnClientDetailPage = currentClient && location.pathname === `/clients/${currentClient.id}`
+  const isOnClientSubRoute = currentClient && location.pathname.startsWith(`/clients/${currentClient.id}/`) && !isOnClientDetailPage
+
+  const handleClientNameClick = () => {
+    if (currentClient && isOnClientSubRoute) {
+      // Get the last tab from localStorage
+      const lastTab = localStorage.getItem(`client-${currentClient.id}-last-tab`) || 'details'
+      navigate({
+        to: "/clients/$clientId",
+        params: { clientId: String(currentClient.id) },
+        search: { tab: lastTab }
+      })
+    }
+  }
 
   useEffect(() => {
     const container = document.getElementById('header-container')
@@ -125,7 +143,7 @@ export function SiteHeader({ title, backLink, parentTitle, parentLink, grandpare
               {displayName && (
                 <>
                   <Separator orientation="vertical" className="mx-2 data-[orientation=vertical]:h-4" />
-                  {client ? (
+                  {currentClient ? (
                     <div className="flex items-center gap-1">
                       <Popover open={isHovering} onOpenChange={setIsHovering}>
                         <PopoverTrigger asChild>
@@ -133,6 +151,11 @@ export function SiteHeader({ title, backLink, parentTitle, parentLink, grandpare
                             className="p-1 hover:bg-muted/50 rounded-md cursor-pointer transition-all duration-200"
                             onMouseEnter={() => setIsHovering(true)}
                             onMouseLeave={() => setIsHovering(false)}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setIsHovering(false)
+                              toggleSidebar()
+                            }}
                           >
                             <User className="h-4 w-4 text-muted-foreground hover:text-foreground" />
                           </div>
@@ -149,22 +172,20 @@ export function SiteHeader({ title, backLink, parentTitle, parentLink, grandpare
                             <div className="font-semibold text-base border-b pb-2 mb-3" dir="rtl">
                               {displayName}
                             </div>
-                            <ClientTooltip client={client} />
+                            <ClientTooltip client={currentClient} />
                           </div>
                         </PopoverContent>
                       </Popover>
-                      {clientBackLink ? (
-                        <Link 
-                          to={clientBackLink} 
-                          className="text-muted-foreground hover:text-foreground transition-all duration-200 hover:bg-muted/50 px-2 py-1 rounded-md"
-                        >
-                          {displayName}
-                        </Link>
-                      ) : (
-                        <div className="text-base font-medium px-2 py-1">
-                          {displayName}
-                        </div>
-                      )}
+                      <div 
+                        className={`text-base font-medium px-2 py-1 rounded-md transition-all duration-200 ${
+                          isOnClientSubRoute 
+                            ? 'text-muted-foreground hover:text-foreground cursor-pointer hover:bg-muted/50' 
+                            : ''
+                        }`}
+                        onClick={isOnClientSubRoute ? handleClientNameClick : undefined}
+                      >
+                        {displayName}
+                      </div>
                     </div>
                   ) : (
                     clientBackLink ? (

@@ -17,6 +17,8 @@ import {
   ClientFilesTab
 } from "@/components/client"
 import { ClientDataProvider } from "@/contexts/ClientDataContext"
+import { ClientSpaceLayout } from "@/layouts/ClientSpaceLayout"
+import { useClientSidebar } from "@/contexts/ClientSidebarContext"
 
 export default function ClientDetailPage() {
   const { clientId } = useParams({ from: "/clients/$clientId" })
@@ -48,8 +50,7 @@ export default function ClientDetailPage() {
     }
   }
   
-  const [client, setClient] = useState<Client | undefined>(undefined)
-  const [loading, setLoading] = useState(true)
+  const { currentClient, updateCurrentClient } = useClientSidebar()
   const [isEditing, setIsEditing] = useState(false)
   const [formData, setFormData] = useState<Client>({} as Client)
   const [activeTab, setActiveTab] = useState(initialTab)
@@ -57,23 +58,10 @@ export default function ClientDetailPage() {
   const formRef = useRef<HTMLFormElement>(null)
   
   useEffect(() => {
-    const loadClient = async () => {
-      try {
-        setLoading(true)
-        const clientData = await getClientById(Number(clientId))
-        setClient(clientData)
-        if (clientData) {
-          setFormData({ ...clientData })
-        }
-      } catch (error) {
-        console.error('Error loading client:', error)
-      } finally {
-        setLoading(false)
-      }
+    if (currentClient && (!formData.id || formData.id !== currentClient.id)) {
+      setFormData({ ...currentClient })
     }
-
-    loadClient()
-  }, [clientId])
+  }, [currentClient, formData.id])
 
   useEffect(() => {
     // Refresh orders data when switching to orders tab
@@ -93,17 +81,24 @@ export default function ClientDetailPage() {
   }
 
   const handleSelectChange = (value: string | boolean, name: string) => {
-    setFormData(prev => ({ ...prev, [name]: value }))
+    let processedValue: any = value
+    
+    // Convert family_id to number if it's a string
+    if (name === 'family_id' && typeof value === 'string') {
+      processedValue = value === '' ? null : parseInt(value, 10)
+    }
+    
+    setFormData(prev => ({ ...prev, [name]: processedValue }))
   }
   
   const handleSave = async () => {
     if (formRef.current) {
       try {
-        // Update client data in the database
         const updatedClient = await updateClient(formData)
         
         if (updatedClient) {
-          setClient(updatedClient)
+          updateCurrentClient(updatedClient)
+          setFormData({ ...updatedClient })
           setIsEditing(false)
           toast.success("פרטי הלקוח עודכנו בהצלחה")
         } else {
@@ -123,61 +118,63 @@ export default function ClientDetailPage() {
       <SiteHeader 
         title="לקוחות" 
         backLink="/clients"
-        client={client}
         tabs={{
           activeTab,
           onTabChange: setActiveTab
         }}
       />
-      <div className="flex flex-col flex-1 p-4 lg:p-6 mb-30" dir="rtl" style={{scrollbarWidth: 'none', msOverflowStyle: 'none'}}>
-        <Tabs 
-          value={activeTab}
-          className="w-full"
-          onValueChange={(value) => setActiveTab(value)}
-        >
-          <TabsContent value="details">
-            <ClientDetailsTab 
-              client={client || {} as Client}
-              formData={formData}
-              isEditing={isEditing}
-              handleInputChange={handleInputChange}
-              handleSelectChange={handleSelectChange}
-              formRef={formRef as React.RefObject<HTMLFormElement>}
-              setIsEditing={setIsEditing}
-              handleSave={handleSave}
-            />
-          </TabsContent>
-          
-          <TabsContent value="exams">
-            <ClientExamsTab />
-          </TabsContent>
-          
-          <TabsContent value="medical">
-            <ClientMedicalRecordTab />
-          </TabsContent>
-          
-          <TabsContent value="orders">
-            <ClientOrdersTab key={refreshKey} />
-          </TabsContent>
-          
-          <TabsContent value="contact-lenses">
-            <ClientContactLensTab />
-          </TabsContent>
-          
-          <TabsContent value="referrals">
-            <ClientReferralTab />
-          </TabsContent>
-          
-          <TabsContent value="appointments">
-            <ClientAppointmentsTab />
-          </TabsContent>
-          
-          <TabsContent value="files">
-            <ClientFilesTab />
-          </TabsContent>
-          
-        </Tabs>
-      </div>
+      <ClientSpaceLayout>
+        <div className="flex flex-col flex-1 p-4 lg:p-6 mb-30" dir="rtl" style={{scrollbarWidth: 'none', msOverflowStyle: 'none'}}>
+          <Tabs 
+            value={activeTab}
+            className="w-full"
+            onValueChange={(value) => setActiveTab(value)}
+          >
+            <TabsContent value="details">
+              <ClientDetailsTab 
+                client={currentClient || {} as Client}
+                formData={formData}
+                isEditing={isEditing}
+                handleInputChange={handleInputChange}
+                handleSelectChange={handleSelectChange}
+                formRef={formRef as React.RefObject<HTMLFormElement>}
+                setIsEditing={setIsEditing}
+                handleSave={handleSave}
+                onClientUpdate={updateCurrentClient}
+              />
+            </TabsContent>
+            
+            <TabsContent value="exams">
+              <ClientExamsTab />
+            </TabsContent>
+            
+            <TabsContent value="medical">
+              <ClientMedicalRecordTab />
+            </TabsContent>
+            
+            <TabsContent value="orders">
+              <ClientOrdersTab key={refreshKey} />
+            </TabsContent>
+            
+            <TabsContent value="contact-lenses">
+              <ClientContactLensTab />
+            </TabsContent>
+            
+            <TabsContent value="referrals">
+              <ClientReferralTab />
+            </TabsContent>
+            
+            <TabsContent value="appointments">
+              <ClientAppointmentsTab />
+            </TabsContent>
+            
+            <TabsContent value="files">
+              <ClientFilesTab />
+            </TabsContent>
+            
+          </Tabs>
+        </div>
+      </ClientSpaceLayout>
     </ClientDataProvider>
   )
 } 

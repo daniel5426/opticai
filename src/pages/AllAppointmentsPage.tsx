@@ -71,7 +71,7 @@ export default function AllAppointmentsPage() {
       <SiteHeader title="תורים" />
       <div className="flex flex-col flex-1 p-4 lg:p-6" dir="rtl" style={{scrollbarWidth: 'none'}}>
         <div className="flex items-center justify-between mb-4">
-          <h1 className="text-2xl font-bold">כל התורים</h1>
+          <h1 className="text-xl font-bold">כל התורים</h1>
         </div>
         <AppointmentsTable 
           data={appointments} 

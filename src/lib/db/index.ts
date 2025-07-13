@@ -6,6 +6,7 @@ import { googleCalendarSync } from '../google/google-calendar-sync';
 import {
   createTables,
   Client,
+  Family,
   OpticalExam,
   OldRefractionExam,
   OldRefractionExtensionExam,
@@ -60,7 +61,8 @@ import {
   KeratometerExam,
   CoverTestExam,
   WorkShift,
-  CompactPrescriptionExam
+  CompactPrescriptionExam,
+  Campaign
 } from './schema';
 
 class DatabaseService {
@@ -129,6 +131,23 @@ class DatabaseService {
       if (!hasGoogleCalendarEventIdColumn) {
         this.db.exec('ALTER TABLE appointments ADD COLUMN google_calendar_event_id TEXT');
         console.log('Added google_calendar_event_id column to appointments table');
+      }
+
+      // Check if clients table has family columns
+      const clientsInfo = this.db.prepare("PRAGMA table_info(clients)").all() as any[];
+      const hasFamilyIdColumn = clientsInfo.some(col => col.name === 'family_id');
+      const hasFamilyRoleColumn = clientsInfo.some(col => col.name === 'family_role');
+
+      // Add family_id column if it doesn't exist
+      if (!hasFamilyIdColumn) {
+        this.db.exec('ALTER TABLE clients ADD COLUMN family_id INTEGER');
+        console.log('Added family_id column to clients table');
+      }
+
+      // Add family_role column if it doesn't exist
+      if (!hasFamilyRoleColumn) {
+        this.db.exec('ALTER TABLE clients ADD COLUMN family_role TEXT');
+        console.log('Added family_role column to clients table');
       }
 
       // Check if appointments table has redundant client fields that should be removed
@@ -436,7 +455,8 @@ class DatabaseService {
         phone_home = ?, phone_work = ?, phone_mobile = ?, fax = ?, email = ?,
         service_center = ?, file_creation_date = ?, membership_end = ?, service_end = ?,
         price_list = ?, discount_percent = ?, blocked_checks = ?, blocked_credit = ?,
-        sorting_group = ?, referring_party = ?, file_location = ?, occupation = ?, status = ?, notes = ?
+        sorting_group = ?, referring_party = ?, file_location = ?, occupation = ?, status = ?, notes = ?,
+        profile_picture = ?, family_id = ?, family_role = ?
         WHERE id = ?
       `);
 
@@ -447,6 +467,7 @@ class DatabaseService {
         this.sanitizeValue(client.service_center), this.sanitizeValue(client.file_creation_date), this.sanitizeValue(client.membership_end), this.sanitizeValue(client.service_end),
         this.sanitizeValue(client.price_list), this.sanitizeValue(client.discount_percent), this.sanitizeValue(client.blocked_checks), this.sanitizeValue(client.blocked_credit),
         this.sanitizeValue(client.sorting_group), this.sanitizeValue(client.referring_party), this.sanitizeValue(client.file_location), this.sanitizeValue(client.occupation), this.sanitizeValue(client.status), this.sanitizeValue(client.notes),
+        this.sanitizeValue(client.profile_picture), this.sanitizeValue(client.family_id), this.sanitizeValue(client.family_role),
         client.id
       );
 
@@ -466,6 +487,127 @@ class DatabaseService {
       return result.changes > 0;
     } catch (error) {
       console.error('Error deleting client:', error);
+      return false;
+    }
+  }
+
+  // Family CRUD operations
+  createFamily(family: Omit<Family, 'id'>): Family | null {
+    if (!this.db) return null;
+
+    try {
+      const stmt = this.db.prepare(`
+        INSERT INTO families (name, created_date, notes)
+        VALUES (?, ?, ?)
+      `);
+
+      const result = stmt.run(
+        family.name,
+        family.created_date || new Date().toISOString().split('T')[0],
+        family.notes
+      );
+
+      return { ...family, id: result.lastInsertRowid as number };
+    } catch (error) {
+      console.error('Error creating family:', error);
+      return null;
+    }
+  }
+
+  getFamilyById(id: number): Family | null {
+    if (!this.db) return null;
+
+    try {
+      const stmt = this.db.prepare('SELECT * FROM families WHERE id = ?');
+      return stmt.get(id) as Family | null;
+    } catch (error) {
+      console.error('Error getting family:', error);
+      return null;
+    }
+  }
+
+  getAllFamilies(): Family[] {
+    if (!this.db) return [];
+
+    try {
+      const stmt = this.db.prepare('SELECT * FROM families ORDER BY name');
+      return stmt.all() as Family[];
+    } catch (error) {
+      console.error('Error getting all families:', error);
+      return [];
+    }
+  }
+
+  updateFamily(family: Family): Family | null {
+    if (!this.db || !family.id) return null;
+
+    try {
+      const stmt = this.db.prepare(`
+        UPDATE families SET 
+        name = ?, notes = ?
+        WHERE id = ?
+      `);
+
+      stmt.run(family.name, family.notes, family.id);
+      return family;
+    } catch (error) {
+      console.error('Error updating family:', error);
+      return null;
+    }
+  }
+
+  deleteFamily(id: number): boolean {
+    if (!this.db) return false;
+
+    try {
+      // First remove all clients from this family
+      const removeClientsStmt = this.db.prepare('UPDATE clients SET family_id = NULL, family_role = NULL WHERE family_id = ?');
+      removeClientsStmt.run(id);
+
+      // Then delete the family
+      const stmt = this.db.prepare('DELETE FROM families WHERE id = ?');
+      const result = stmt.run(id);
+      return result.changes > 0;
+    } catch (error) {
+      console.error('Error deleting family:', error);
+      return false;
+    }
+  }
+
+  getFamilyMembers(familyId: number): Client[] {
+    if (!this.db) return [];
+
+    try {
+      const stmt = this.db.prepare('SELECT * FROM clients WHERE family_id = ? ORDER BY first_name');
+      return stmt.all(familyId) as Client[];
+    } catch (error) {
+      console.error('Error getting family members:', error);
+      return [];
+    }
+  }
+
+  addClientToFamily(clientId: number, familyId: number, role: string): boolean {
+    if (!this.db) return false;
+
+    try {
+      const stmt = this.db.prepare('UPDATE clients SET family_id = ?, family_role = ? WHERE id = ?');
+      const result = stmt.run(familyId, role, clientId);
+      return result.changes > 0;
+    } catch (error) {
+      console.error('Error adding client to family:', error);
+      return false;
+    }
+  }
+
+  removeClientFromFamily(clientId: number): boolean {
+    if (!this.db) return false;
+
+    try {
+      const stmt = this.db.prepare('UPDATE clients SET family_id = NULL, family_role = NULL WHERE id = ?');
+      const result = stmt.run(clientId);
+      return result.changes > 0;
+    } catch (error) {
+      console.error('Error removing client from family:', error);
       return false;
     }
   }
@@ -5070,6 +5212,95 @@ class DatabaseService {
     } catch (error) {
       console.error('Error getting work shift stats:', error);
       return { totalShifts: 0, totalMinutes: 0, averageMinutes: 0 };
+    }
+  }
+
+  // Campaign CRUD operations
+  createCampaign(campaign: Omit<Campaign, 'id'>): Campaign | null {
+    if (!this.db) return null;
+    try {
+      const stmt = this.db.prepare(`
+        INSERT INTO campaigns (name, filters, email_enabled, email_content, sms_enabled, sms_content, active, active_since, mail_sent, sms_sent)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+      const result = stmt.run(
+        campaign.name,
+        campaign.filters,
+        this.sanitizeValue(campaign.email_enabled),
+        campaign.email_content,
+        this.sanitizeValue(campaign.sms_enabled),
+        campaign.sms_content,
+        this.sanitizeValue(campaign.active),
+        this.sanitizeValue(campaign.active_since),
+        this.sanitizeValue(campaign.mail_sent),
+        this.sanitizeValue(campaign.sms_sent)
+      );
+      return { ...campaign, id: result.lastInsertRowid as number };
+    } catch (error) {
+      console.error('Error creating campaign:', error);
+      return null;
+    }
+  }
+
+  getCampaignById(id: number): Campaign | null {
+    if (!this.db) return null;
+    try {
+      const stmt = this.db.prepare('SELECT * FROM campaigns WHERE id = ?');
+      return stmt.get(id) as Campaign | null;
+    } catch (error) {
+      console.error('Error getting campaign:', error);
+      return null;
+    }
+  }
+
+  getAllCampaigns(): Campaign[] {
+    if (!this.db) return [];
+    try {
+      const stmt = this.db.prepare('SELECT * FROM campaigns ORDER BY created_at DESC');
+      return stmt.all() as Campaign[];
+    } catch (error) {
+      console.error('Error getting all campaigns:', error);
+      return [];
+    }
+  }
+
+  updateCampaign(campaign: Campaign): Campaign | null {
+    if (!this.db || !campaign.id) return null;
+    try {
+      const stmt = this.db.prepare(`
+        UPDATE campaigns SET 
+        name = ?, filters = ?, email_enabled = ?, email_content = ?, sms_enabled = ?, sms_content = ?, active = ?, active_since = ?, mail_sent = ?, sms_sent = ?
+        WHERE id = ?
+      `);
+      stmt.run(
+        campaign.name,
+        campaign.filters,
+        this.sanitizeValue(campaign.email_enabled),
+        campaign.email_content,
+        this.sanitizeValue(campaign.sms_enabled),
+        campaign.sms_content,
+        this.sanitizeValue(campaign.active),
+        this.sanitizeValue(campaign.active_since),
+        this.sanitizeValue(campaign.mail_sent),
+        this.sanitizeValue(campaign.sms_sent),
+        campaign.id
+      );
+      return campaign;
+    } catch (error) {
+      console.error('Error updating campaign:', error);
+      return null;
+    }
+  }
+
+  deleteCampaign(id: number): boolean {
+    if (!this.db) return false;
+    try {
+      const stmt = this.db.prepare('DELETE FROM campaigns WHERE id = ?');
+      const result = stmt.run(id);
+      return result.changes > 0;
+    } catch (error) {
+      console.error('Error deleting campaign:', error);
+      return false;
     }
   }
 }

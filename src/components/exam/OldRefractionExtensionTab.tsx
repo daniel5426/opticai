@@ -85,7 +85,7 @@ export function OldRefractionExtensionTab({
           onValueChange={(newValue) => handleChange(eye, key, newValue)}
           disabled={!isEditing}
         >
-          <SelectTrigger size="xs" className={`h-8 text-xs w-full min-w-[60px] ${isEditing ? 'bg-white' : 'bg-accent/50'}`}>
+          <SelectTrigger size="xs" className={`h-8 text-xs w-full min-w-[60px]`} disabled={!isEditing}>
             <SelectValue placeholder="" />
           </SelectTrigger>
           <SelectContent>
@@ -106,7 +106,7 @@ export function OldRefractionExtensionTab({
             value={value}
             onChange={(e) => handleChange(eye, key, e.target.value)}
             disabled={!isEditing}
-            className={`h-8 pr-1 text-xs pl-6 ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
+            className={`h-8 pr-1 text-xs pl-6 disabled:opacity-100 disabled:cursor-default`}
           />
           <span className="absolute left-2 top-[53%] transform -translate-y-1/2 text-[14px] text-gray-500 pointer-events-none">6/</span>
         </div>
@@ -122,7 +122,7 @@ export function OldRefractionExtensionTab({
         value={value}
         onChange={(e) => handleChange(eye, key, e.target.value)}
         disabled={!isEditing}
-        className={`h-8 pr-1 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
+        className={`h-8 pr-1 text-xs disabled:opacity-100 disabled:cursor-default`}
       />
     );
   };
@@ -173,7 +173,7 @@ export function OldRefractionExtensionTab({
                       type="button"
                       variant="outline" 
                       size="sm" 
-                      className={`h-8 text-xs px-2 ${!isEditing ? 'bg-accent/50' : 'bg-white'}`}
+                      className={`h-8 text-xs px-2`}
                       disabled={!isEditing}
                       onClick={onMultifocalClick}
                     >

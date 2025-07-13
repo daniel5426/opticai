@@ -19,7 +19,7 @@ export function DateInput({ name, value, onChange, className, disabled }: DateIn
     };
 
     return (
-        <div className={`relative ${!disabled ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}>
+        <div className={`relative ${!disabled ? 'bg-card' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}>
             <div
                 className={`text-sm text-right pr-10 h-8 rounded-md border px-3 py-2 border-input bg-transparent flex items-center ${disabled ? 'cursor-not-allowed bg-gray-100' : 'cursor-pointer'} ${className || ''}`}
                 dir="rtl"

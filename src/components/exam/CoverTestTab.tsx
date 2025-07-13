@@ -57,7 +57,7 @@ export function CoverTestTab({
               onValueChange={(value) => onCoverTestChange("deviation_direction", value)}
               disabled={!isEditing}
             >
-              <SelectTrigger size="xs" className={`h-8 w-full text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}>
+              <SelectTrigger size="xs" className={`h-8 w-full text-xs  disabled:opacity-100 disabled:cursor-default`} disabled={!isEditing}>
                 <SelectValue placeholder="Direction" />
               </SelectTrigger>
               <SelectContent>

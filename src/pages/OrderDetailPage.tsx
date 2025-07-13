@@ -49,6 +49,8 @@ import { LookupSelect } from "@/components/ui/lookup-select"
 import { FinalPrescriptionTab } from "@/components/exam/FinalPrescriptionTab"
 import { getFinalPrescriptionExamByOrderId, createFinalPrescriptionExam, updateFinalPrescriptionExam } from "@/lib/db/final-prescription-db"
 import { DateInput } from "@/components/ui/date"
+import { ClientSpaceLayout } from "@/layouts/ClientSpaceLayout"
+import { useClientSidebar } from "@/contexts/ClientSidebarContext"
 
 interface OrderDetailPageProps {
   mode?: 'view' | 'edit' | 'new';
@@ -105,6 +107,7 @@ export default function OrderDetailPage({
   const [users, setUsers] = useState<User[]>([])
   const [finalPrescription, setFinalPrescription] = useState<FinalPrescriptionExam | null>(null)
   const { currentUser } = useUser()
+  const { currentClient } = useClientSidebar()
   
   const isNewMode = mode === 'new'
   const [isEditing, setIsEditing] = useState(isNewMode)
@@ -153,11 +156,6 @@ export default function OrderDetailPage({
         // Load users for display purposes
         const usersData = await getAllUsers()
         setUsers(usersData)
-        
-        if (clientId) {
-          const clientData = await getClientById(Number(clientId))
-          setClient(clientData || null)
-        }
         
         if (orderId) {
           const orderData = await getOrderById(Number(orderId))
@@ -585,9 +583,9 @@ export default function OrderDetailPage({
     }
   }
   
-  if (loading) {
+  if (loading || !currentClient) {
     return (
-      <>
+        <>
         <SiteHeader 
           title="לקוחות" 
           backLink="/clients" 
@@ -603,7 +601,7 @@ export default function OrderDetailPage({
     )
   }
   
-  if (!client || (!isNewMode && (!order || !rightEyeOrder || !leftEyeOrder))) {
+  if (!isNewMode && !order) {
     return (
       <>
         <SiteHeader 
@@ -621,14 +619,13 @@ export default function OrderDetailPage({
     )
   }
 
-  const fullName = `${client.first_name} ${client.last_name}`.trim()
+  const fullName = `${currentClient?.first_name} ${currentClient?.last_name}`.trim()
   
   return (
-    <>
+      <>
         <SiteHeader 
           title="לקוחות" 
           backLink="/clients"
-          client={client}
           clientBackLink={`/clients/${clientId}`}
           examInfo={isNewMode ? "הזמנה חדשה" : `הזמנה מס' ${orderId}`}
           tabs={{
@@ -636,258 +633,181 @@ export default function OrderDetailPage({
             onTabChange: handleTabChange
           }}
         />
-        <div className="flex flex-col flex-1 p-4 lg:p-6 mb-10" dir="rtl" style={{scrollbarWidth: 'none', msOverflowStyle: 'none'}}>
-          <Tabs defaultValue="order" className="w-full" dir="rtl">
-            <div className="flex justify-between items-center mb-4">
-              <TabsList className="grid grid-cols-2 w-auto">
-                <TabsTrigger value="order">הזמנה</TabsTrigger>
-                <TabsTrigger value="billing">חיובים</TabsTrigger>
-              </TabsList>
-              <div className="flex gap-2">
-                {isNewMode && onCancel && (
-                  <Button variant="outline" onClick={onCancel}>
-                    ביטול
+        <ClientSpaceLayout>
+          <div className="flex flex-col flex-1 p-4 lg:p-6 mb-10" dir="rtl" style={{scrollbarWidth: 'none', msOverflowStyle: 'none'}}>
+            <Tabs defaultValue="order" className="w-full" dir="rtl">
+              <div className="flex justify-between items-center mb-4">
+                <TabsList className="grid grid-cols-2 w-auto">
+                  <TabsTrigger value="order">הזמנה</TabsTrigger>
+                  <TabsTrigger value="billing">חיובים</TabsTrigger>
+                </TabsList>
+                <div className="flex gap-2">
+                  {isNewMode && onCancel && (
+                    <Button variant="outline" onClick={onCancel}>
+                      ביטול
+                    </Button>
+                  )}
+                  <Button 
+                    variant={isEditing ? "outline" : "default"} 
+                    onClick={() => {
+                      if (isNewMode || isEditing) {
+                        handleSave();
+                      } else {
+                        setIsEditing(true);
+                      }
+                    }}
+                  >
+                    {isNewMode ? "שמור הזמנה" : (isEditing ? "שמור שינויים" : "ערוך הזמנה")}
                   </Button>
-                )}
-                <Button 
-                  variant={isEditing ? "outline" : "default"} 
-                  onClick={() => {
-                    if (isNewMode || isEditing) {
-                      handleSave();
-                    } else {
-                      setIsEditing(true);
-                    }
-                  }}
-                >
-                  {isNewMode ? "שמור הזמנה" : (isEditing ? "שמור שינויים" : "ערוך הזמנה")}
-                </Button>
-              </div>
-            </div>
-            
-            <TabsContent value="order" className="space-y-4">
-              <form ref={formRef} className="pt-4 pb-10" style={{scrollbarWidth: 'none', msOverflowStyle: 'none'}}>
-                <div className="grid grid-cols-1 gap-4">
-              <Card className="w-full p-4 shadow-md border-none">
-                <div className="grid grid-cols-4 gap-x-3 gap-y-2 w-full" dir="rtl">
-                  <div className="col-span-1">
-                    <label className="font-semibold text-base">תאריך הזמנה</label>
-                    <div className="h-1"></div>
-                    <DateInput
-                      name="order_date"
-                      className={`px-14 h-9 ${isEditing ? 'bg-white' : 'bg-accent/50'}`}
-                      value={formData.order_date}
-                      onChange={handleInputChange}
-                      disabled={!isEditing}
-                    />
-                  </div>
-                  
-                  <div className="col-span-1">
-                    <label className="font-semibold text-base">סוג הזמנה</label>
-                    <div className="h-1"></div>
-                    {isEditing ? (
-                      <LookupSelect
-                        value={formData.type || ''}
-                        onChange={(value) => setFormData(prev => ({ ...prev, type: value }))}
-                        lookupType="orderType"
-                        placeholder="בחר או הקלד סוג הזמנה..."
-                        className="h-9 bg-white"
-                      />
-                    ) : (
-                      <div className="border h-9 px-3 rounded-md text-sm flex items-center bg-accent/50">
-                        {formData.type || 'לא נבחר'}
-                      </div>
-                    )}
-                  </div>
-                  
-                  <div className="col-span-1">
-                    <label className="font-semibold text-base">עין דומיננטית</label>
-                    <div className="h-1"></div>
-                    <Select dir="rtl"
-                      disabled={!isEditing}
-                      value={formData.dominant_eye || ''} 
-                      onValueChange={(value) => handleSelectChange(value, 'dominant_eye')}
-                    >
-                      <SelectTrigger className={`h-9 text-sm w-full ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}>
-                        <SelectValue placeholder="בחר עין" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="R" className="text-sm">ימין</SelectItem>
-                        <SelectItem value="L" className="text-sm">שמאל</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  
-                  <div className="col-span-1">
-                    <label className="font-semibold text-base">בודק</label>
-                    <div className="h-1"></div>
-                    {isEditing ? (
-                      <UserSelect
-                        value={formData.user_id}
-                        onValueChange={(userId) => setFormData(prev => ({ ...prev, user_id: userId }))}
-                      />
-                    ) : (
-                      <div className="border h-9 px-3 rounded-md text-sm flex items-center bg-accent/50">
-                        {formData.user_id ? (
-                          users.find(u => u.id === formData.user_id)?.username || 'משתמש לא נמצא'
-                        ) : 'לא נבחר בודק'}
-                      </div>
-                    )}
-                  </div>
                 </div>
-              </Card>
+              </div>
               
-              <FinalPrescriptionTab
-                finalPrescriptionData={finalPrescriptionFormData}
-                onFinalPrescriptionChange={handleFinalPrescriptionChange}
-                isEditing={isEditing}
-                hideEyeLabels={false}
-              />
+              <TabsContent value="order" className="space-y-4">
+
+                <form ref={formRef} className="pt-4 pb-10" style={{scrollbarWidth: 'none', msOverflowStyle: 'none'}}>
+                  <div className="grid grid-cols-1 gap-4">
+                <Card className="w-full p-4 shadow-md border-none">
+                  <div className="grid grid-cols-4 gap-x-3 gap-y-2 w-full" dir="rtl">
+                    <div className="col-span-1">
+                      <label className="font-semibold text-base">תאריך הזמנה</label>
+                      <div className="h-1"></div>
+                      <DateInput
+                        name="order_date"
+                        className={`px-14 h-9 ${isEditing ? 'bg-white' : 'bg-accent/50'}`}
+                        value={formData.order_date}
+                        onChange={handleInputChange}
+                        disabled={!isEditing}
+                      />
+                    </div>
+                    
+                    <div className="col-span-1">
+                      <label className="font-semibold text-base">סוג הזמנה</label>
+                      <div className="h-1"></div>
+                      {isEditing ? (
+                        <LookupSelect
+                          value={formData.type || ''}
+                          onChange={(value) => setFormData(prev => ({ ...prev, type: value }))}
+                          lookupType="orderType"
+                          placeholder="בחר או הקלד סוג הזמנה..."
+                          className="h-9 bg-white"
+                        />
+                      ) : (
+                        <div className="border h-9 px-3 rounded-md text-sm flex items-center bg-accent/50">
+                          {formData.type || 'לא נבחר'}
+                        </div>
+                      )}
+                    </div>
+                    
+                    <div className="col-span-1">
+                      <label className="font-semibold text-base">עין דומיננטית</label>
+                      <div className="h-1"></div>
+                      <Select dir="rtl"
+                        disabled={!isEditing}
+                        value={formData.dominant_eye || ''} 
+                        onValueChange={(value) => handleSelectChange(value, 'dominant_eye')}
+                      >
+                        <SelectTrigger className={`h-9 text-sm w-full ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}>
+                          <SelectValue placeholder="בחר עין" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="R" className="text-sm">ימין</SelectItem>
+                          <SelectItem value="L" className="text-sm">שמאל</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    
+                    <div className="col-span-1">
+                      <label className="font-semibold text-base">בודק</label>
+                      <div className="h-1"></div>
+                      {isEditing ? (
+                        <UserSelect
+                          value={formData.user_id}
+                          onValueChange={(userId) => setFormData(prev => ({ ...prev, user_id: userId }))}
+                        />
+                      ) : (
+                        <div className="border h-9 px-3 rounded-md text-sm flex items-center bg-accent/50">
+                          {formData.user_id ? (
+                            users.find(u => u.id === formData.user_id)?.username || 'משתמש לא נמצא'
+                          ) : 'לא נבחר בודק'}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </Card>
+                
+                <FinalPrescriptionTab
+                  finalPrescriptionData={finalPrescriptionFormData}
+                  onFinalPrescriptionChange={handleFinalPrescriptionChange}
+                  isEditing={isEditing}
+                  hideEyeLabels={false}
+                />
 
 
 
-              <div className="flex gap-6">
-                <div className="flex-1">
-                  <Tabs defaultValue="prescription" className="w-full" dir="rtl" orientation="vertical">
-                    <div className="flex gap-6">
-                      <TabsList className="flex flex-col h-fit w-28 p-1 bg-cyan-800/10 dark:bg-card/50">
-                        <TabsTrigger value="prescription" className="w-full justify-end text-right">
-                          <div className="text-right w-full">
-                            <div className="flex items-center justify-start gap-1">
-                              <span className="font-medium">מרשם</span>
+                <div className="flex gap-6">
+                  <div className="flex-1">
+                    <Tabs defaultValue="prescription" className="w-full" dir="rtl" orientation="vertical">
+                      <div className="flex gap-6">
+                        <TabsList className="flex flex-col h-fit w-28 p-1 bg-cyan-800/10 dark:bg-card/50">
+                          <TabsTrigger value="prescription" className="w-full justify-end text-right">
+                            <div className="text-right w-full">
+                              <div className="flex items-center justify-start gap-1">
+                                <span className="font-medium">מרשם</span>
+                              </div>
                             </div>
-                          </div>
-                        </TabsTrigger>
-                        <TabsTrigger value="order" className="w-full justify-end text-right">
-                          <div className="text-right w-full">
-                            <div className="flex items-center justify-start gap-1">
-                              <span className="font-medium">הזמנה</span>
+                          </TabsTrigger>
+                          <TabsTrigger value="order" className="w-full justify-end text-right">
+                            <div className="text-right w-full">
+                              <div className="flex items-center justify-start gap-1">
+                                <span className="font-medium">הזמנה</span>
+                              </div>
                             </div>
-                          </div>
-                        </TabsTrigger>
-                        <TabsTrigger value="notes" className="w-full justify-end text-right">
-                          <div className="text-right w-full">
-                            <div className="flex items-center justify-start gap-1">
-                              <span className="font-medium">הערות</span>
+                          </TabsTrigger>
+                          <TabsTrigger value="notes" className="w-full justify-end text-right">
+                            <div className="text-right w-full">
+                              <div className="flex items-center justify-start gap-1">
+                                <span className="font-medium">הערות</span>
+                              </div>
                             </div>
-                          </div>
-                        </TabsTrigger>
-                      </TabsList>
-                      
-                      <div className="flex-1">
-                        <TabsContent value="prescription" className="space-y-4 mt-0">
-                          <div className="grid grid-cols-2 gap-6">
-                            <Card className="shadow-md border-none">
-                              <CardHeader >
-                                <CardTitle className="text-base">פרטי עדשות</CardTitle>
-                                <p className="text-sm text-muted-foreground">מידע על סוג העדשות, צבע, ציפוי וחומר</p>
-                              </CardHeader>
-                              <CardContent className="grid grid-cols-2 gap-3">
-                                <div>
-                                  <Label className="text-sm">דגם עדשה ימין</Label>
-                                  <LookupSelect
-                                    value={lensFormData.right_model || ''}
-                                    onChange={(value) => setLensFormData(prev => ({ ...prev, right_model: value }))}
-                                    lookupType="lensModel"
-                                    placeholder="בחר או הקלד דגם עדשה..."
-                                    disabled={!isEditing}
-                                    className="mt-1.5"
-                                  />
-                                </div>
-                                <div>
-                                  <Label className="text-sm">דגם עדשה שמאל</Label>
-                                  <LookupSelect
-                                    value={lensFormData.left_model || ''}
-                                    onChange={(value) => setLensFormData(prev => ({ ...prev, left_model: value }))}
-                                    lookupType="lensModel"
-                                    placeholder="בחר או הקלד דגם עדשה..."
-                                    disabled={!isEditing}
-                                    className="mt-1.5"
-                                  />
-                                </div>
-                                <div>
-                                  <Label className="text-sm">צבע</Label>
-                                  <LookupSelect
-                                    value={lensFormData.color || ''}
-                                    onChange={(value) => setLensFormData(prev => ({ ...prev, color: value }))}
-                                    lookupType="color"
-                                    placeholder="בחר או הקלד צבע..."
-                                    disabled={!isEditing}
-                                    className="mt-1.5"
-                                  />
-                                </div>
-                                <div>
-                                  <Label className="text-sm">ציפוי</Label>
-                                  <LookupSelect
-                                    value={lensFormData.coating || ''}
-                                    onChange={(value) => setLensFormData(prev => ({ ...prev, coating: value }))}
-                                    lookupType="coating"
-                                    placeholder="בחר או הקלד ציפוי..."
-                                    disabled={!isEditing}
-                                    className="mt-1.5"
-                                  />
-                                </div>
-                                <div>
-                                  <Label className="text-sm">חומר</Label>
-                                  <LookupSelect
-                                    value={lensFormData.material || ''}
-                                    onChange={(value) => setLensFormData(prev => ({ ...prev, material: value }))}
-                                    lookupType="material"
-                                    placeholder="בחר או הקלד חומר..."
-                                    disabled={!isEditing}
-                                    className="mt-1.5"
-                                  />
-                                </div>
-                                <div>
-                                  <Label className="text-sm">ספק</Label>
-                                  <LookupSelect
-                                    value={lensFormData.supplier || ''}
-                                    onChange={(value) => setLensFormData(prev => ({ ...prev, supplier: value }))}
-                                    lookupType="supplier"
-                                    placeholder="בחר או הקלד ספק..."
-                                    disabled={!isEditing}
-                                    className="mt-1.5"
-                                  />
-                                </div>
-                              </CardContent>
-                            </Card>
-
-                            <Card className="shadow-md border-none">
-                              <CardHeader >
-                                <CardTitle className="text-base">פרטי מסגרת</CardTitle>
-                                <p className="text-sm text-muted-foreground">מידע על יצרן, דגם, מידות וספק המסגרת</p>
-                              </CardHeader>
-                              <CardContent className="space-y-3">
-                                <div className="grid grid-cols-2 gap-3">
+                          </TabsTrigger>
+                        </TabsList>
+                        
+                        <div className="flex-1">
+                          <TabsContent value="prescription" className="space-y-4 mt-0">
+                            <div className="grid grid-cols-2 gap-6">
+                              <Card className="shadow-md border-none">
+                                <CardHeader >
+                                  <CardTitle className="text-base">פרטי עדשות</CardTitle>
+                                  <p className="text-sm text-muted-foreground">מידע על סוג העדשות, צבע, ציפוי וחומר</p>
+                                </CardHeader>
+                                <CardContent className="grid grid-cols-2 gap-3">
                                   <div>
-                                    <Label className="text-sm">יצרן</Label>
+                                    <Label className="text-sm">דגם עדשה ימין</Label>
                                     <LookupSelect
-                                      value={frameFormData.manufacturer || ''}
-                                      onChange={(value) => setFrameFormData(prev => ({ ...prev, manufacturer: value }))}
-                                      lookupType="manufacturer"
-                                      placeholder="בחר או הקלד יצרן..."
+                                      value={lensFormData.right_model || ''}
+                                      onChange={(value) => setLensFormData(prev => ({ ...prev, right_model: value }))}
+                                      lookupType="lensModel"
+                                      placeholder="בחר או הקלד דגם עדשה..."
                                       disabled={!isEditing}
                                       className="mt-1.5"
                                     />
                                   </div>
                                   <div>
-                                    <Label className="text-sm">דגם</Label>
+                                    <Label className="text-sm">דגם עדשה שמאל</Label>
                                     <LookupSelect
-                                      value={frameFormData.model || ''}
-                                      onChange={(value) => setFrameFormData(prev => ({ ...prev, model: value }))}
-                                      lookupType="frameModel"
-                                      placeholder="בחר או הקלד דגם מסגרת..."
+                                      value={lensFormData.left_model || ''}
+                                      onChange={(value) => setLensFormData(prev => ({ ...prev, left_model: value }))}
+                                      lookupType="lensModel"
+                                      placeholder="בחר או הקלד דגם עדשה..."
                                       disabled={!isEditing}
                                       className="mt-1.5"
                                     />
                                   </div>
-                                </div>
-                                
-                                <div className="grid grid-cols-2 gap-3">
                                   <div>
                                     <Label className="text-sm">צבע</Label>
                                     <LookupSelect
-                                      value={frameFormData.color || ''}
-                                      onChange={(value) => setFrameFormData(prev => ({ ...prev, color: value }))}
+                                      value={lensFormData.color || ''}
+                                      onChange={(value) => setLensFormData(prev => ({ ...prev, color: value }))}
                                       lookupType="color"
                                       placeholder="בחר או הקלד צבע..."
                                       disabled={!isEditing}
@@ -895,310 +815,392 @@ export default function OrderDetailPage({
                                     />
                                   </div>
                                   <div>
+                                    <Label className="text-sm">ציפוי</Label>
+                                    <LookupSelect
+                                      value={lensFormData.coating || ''}
+                                      onChange={(value) => setLensFormData(prev => ({ ...prev, coating: value }))}
+                                      lookupType="coating"
+                                      placeholder="בחר או הקלד ציפוי..."
+                                      disabled={!isEditing}
+                                      className="mt-1.5"
+                                    />
+                                  </div>
+                                  <div>
+                                    <Label className="text-sm">חומר</Label>
+                                    <LookupSelect
+                                      value={lensFormData.material || ''}
+                                      onChange={(value) => setLensFormData(prev => ({ ...prev, material: value }))}
+                                      lookupType="material"
+                                      placeholder="בחר או הקלד חומר..."
+                                      disabled={!isEditing}
+                                      className="mt-1.5"
+                                    />
+                                  </div>
+                                  <div>
                                     <Label className="text-sm">ספק</Label>
                                     <LookupSelect
-                                      value={frameFormData.supplier || ''}
-                                      onChange={(value) => setFrameFormData(prev => ({ ...prev, supplier: value }))}
+                                      value={lensFormData.supplier || ''}
+                                      onChange={(value) => setLensFormData(prev => ({ ...prev, supplier: value }))}
                                       lookupType="supplier"
                                       placeholder="בחר או הקלד ספק..."
                                       disabled={!isEditing}
                                       className="mt-1.5"
                                     />
                                   </div>
+                                </CardContent>
+                              </Card>
+
+                              <Card className="shadow-md border-none">
+                                <CardHeader >
+                                  <CardTitle className="text-base">פרטי מסגרת</CardTitle>
+                                  <p className="text-sm text-muted-foreground">מידע על יצרן, דגם, מידות וספק המסגרת</p>
+                                </CardHeader>
+                                <CardContent className="space-y-3">
+                                  <div className="grid grid-cols-2 gap-3">
+                                    <div>
+                                      <Label className="text-sm">יצרן</Label>
+                                      <LookupSelect
+                                        value={frameFormData.manufacturer || ''}
+                                        onChange={(value) => setFrameFormData(prev => ({ ...prev, manufacturer: value }))}
+                                        lookupType="manufacturer"
+                                        placeholder="בחר או הקלד יצרן..."
+                                        disabled={!isEditing}
+                                        className="mt-1.5"
+                                      />
+                                    </div>
+                                    <div>
+                                      <Label className="text-sm">דגם</Label>
+                                      <LookupSelect
+                                        value={frameFormData.model || ''}
+                                        onChange={(value) => setFrameFormData(prev => ({ ...prev, model: value }))}
+                                        lookupType="frameModel"
+                                        placeholder="בחר או הקלד דגם מסגרת..."
+                                        disabled={!isEditing}
+                                        className="mt-1.5"
+                                      />
+                                    </div>
+                                  </div>
+                                  
+                                  <div className="grid grid-cols-2 gap-3">
+                                    <div>
+                                      <Label className="text-sm">צבע</Label>
+                                      <LookupSelect
+                                        value={frameFormData.color || ''}
+                                        onChange={(value) => setFrameFormData(prev => ({ ...prev, color: value }))}
+                                        lookupType="color"
+                                        placeholder="בחר או הקלד צבע..."
+                                        disabled={!isEditing}
+                                        className="mt-1.5"
+                                      />
+                                    </div>
+                                    <div>
+                                      <Label className="text-sm">ספק</Label>
+                                      <LookupSelect
+                                        value={frameFormData.supplier || ''}
+                                        onChange={(value) => setFrameFormData(prev => ({ ...prev, supplier: value }))}
+                                        lookupType="supplier"
+                                        placeholder="בחר או הקלד ספק..."
+                                        disabled={!isEditing}
+                                        className="mt-1.5"
+                                      />
+                                    </div>
+                                  </div>
+                                  
+                                  <div className="grid grid-cols-5 gap-3">
+                                    <div>
+                                      <Label className="text-sm">סופק על ידי</Label>
+                                      <Select dir="rtl"
+                                          disabled={!isEditing}
+                                        value={frameFormData.supplied_by || ''} 
+                                        onValueChange={(value) => handleFrameSelectChange(value, 'supplied_by')}
+                                      >
+                                        <SelectTrigger className={`mt-1.5 ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}>
+                                          <SelectValue placeholder="בחר" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          <SelectItem value="חנות" className="text-sm">חנות</SelectItem>
+                                          <SelectItem value="לקוח" className="text-sm">לקוח</SelectItem>
+                                        </SelectContent>
+                                      </Select>
+                                    </div>
+                                    <div>
+                                      <Label className="text-sm">גשר</Label>
+                                      <Input
+                                        name="bridge"
+                                        type="number"
+                                        value={frameFormData.bridge || ''}
+                                        onChange={handleFrameInputChange}
+                                        disabled={!isEditing}
+                                        className={`mt-1.5 ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
+                                      />
+                                    </div>
+                                    <div>
+                                      <Label className="text-sm">רוחב</Label>
+                                      <Input
+                                        name="width"
+                                        type="number"
+                                        value={frameFormData.width || ''}
+                                        onChange={handleFrameInputChange}
+                                        disabled={!isEditing}
+                                        className={`mt-1.5 ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
+                                      />
+                                    </div>
+                                    <div>
+                                      <Label className="text-sm">גובה</Label>
+                                      <Input
+                                        name="height"
+                                        type="number"
+                                        value={frameFormData.height || ''}
+                                        onChange={handleFrameInputChange}
+                                        disabled={!isEditing}
+                                        className={`mt-1.5 ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
+                                      />
+                                    </div>
+                                    <div>
+                                      <Label className="text-sm">אורך זרוע</Label>
+                                      <Input
+                                        name="length"
+                                        type="number"
+                                        value={frameFormData.length || ''}
+                                        onChange={handleFrameInputChange}
+                                        disabled={!isEditing}
+                                        className={`mt-1.5 ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
+                                      />
+                                    </div>
+                                  </div>
+                                </CardContent>
+                              </Card>
+                            </div>
+                          </TabsContent>
+                          
+                          <TabsContent value="order" className="space-y-4 mt-0">
+                            <Card className="shadow-md border-none">
+                              <CardContent className="space-y-3">
+                                <div className="grid grid-cols-5 gap-3">
+                                  <div>
+                                    <Label className="text-sm">סניף</Label>
+                                    <LookupSelect
+                                      value={orderDetailsFormData.branch || ''}
+                                      onChange={(value) => setOrderDetailsFormData(prev => ({ ...prev, branch: value }))}
+                                      lookupType="clinic"
+                                      placeholder="בחר או הקלד סניף..."
+                                      disabled={!isEditing}
+                                      className="mt-1.5"
+                                    />
+                                  </div>
+                                  <div>
+                                    <Label className="text-sm">סטטוס ספק</Label>
+                                    <Input
+                                      name="supplier_status"
+                                      value={orderDetailsFormData.supplier_status || ''}
+                                      onChange={(e) => setOrderDetailsFormData(prev => ({ ...prev, supplier_status: e.target.value }))}
+                                      disabled={!isEditing}
+                                      className={`mt-1.5 ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
+                                    />
+                                  </div>
+                                  <div>
+                                    <Label className="text-sm">מספר שקית</Label>
+                                    <Input
+                                      name="bag_number"
+                                      value={orderDetailsFormData.bag_number || ''}
+                                      onChange={(e) => setOrderDetailsFormData(prev => ({ ...prev, bag_number: e.target.value }))}
+                                      disabled={!isEditing}
+                                      className={`mt-1.5 ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
+                                    />
+                                  </div>
+                                  <div>
+                                    <Label className="text-sm">יועץ</Label>
+                                    <LookupSelect
+                                      value={orderDetailsFormData.advisor || ''}
+                                      onChange={(value) => setOrderDetailsFormData(prev => ({ ...prev, advisor: value }))}
+                                      lookupType="advisor"
+                                      placeholder="בחר או הקלד יועץ..."
+                                      disabled={!isEditing}
+                                      className={`mt-1.5 ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
+                                    />
+                                  </div>
+                                  <div>
+                                    <Label className="text-sm">מוסר</Label>
+                                    <Input
+                                      name="delivered_by"
+                                      value={orderDetailsFormData.delivered_by || ''}
+                                      onChange={(e) => setOrderDetailsFormData(prev => ({ ...prev, delivered_by: e.target.value }))}
+                                      disabled={!isEditing}
+                                      className={`mt-1.5 ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
+                                    />
+                                  </div>
                                 </div>
                                 
                                 <div className="grid grid-cols-5 gap-3">
                                   <div>
-                                    <Label className="text-sm">סופק על ידי</Label>
+                                    <Label className="text-sm">טכני</Label>
+                                    <Input
+                                      name="technician"
+                                      value={orderDetailsFormData.technician || ''}
+                                      onChange={(e) => setOrderDetailsFormData(prev => ({ ...prev, technician: e.target.value }))}
+                                      disabled={!isEditing}
+                                      className={`mt-1.5 ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
+                                    />
+                                  </div>
+                                  <div>
+                                    <Label className="text-sm">אספקה בסניף</Label>
+                                    <Input
+                                      name="delivery_location"
+                                      value={orderDetailsFormData.delivery_location || ''}
+                                      onChange={(e) => setOrderDetailsFormData(prev => ({ ...prev, delivery_location: e.target.value }))}
+                                      disabled={!isEditing}
+                                      className={`mt-1.5 ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
+                                    />
+                                  </div>
+                                  <div>
+                                    <Label className="text-sm">מעבדה מייצרת</Label>
+                                    <LookupSelect
+                                      value={orderDetailsFormData.manufacturing_lab || ''}
+                                      onChange={(value) => setOrderDetailsFormData(prev => ({ ...prev, manufacturing_lab: value }))}
+                                      lookupType="manufacturingLab"
+                                      placeholder="בחר או הקלד מעבדה..."
+                                      disabled={!isEditing}
+                                      className="mt-1.5"
+                                    />
+                                  </div>
+                                  <div>
+                                    <Label className="text-sm">סטטוס הזמנה</Label>
                                     <Select dir="rtl"
-                                        disabled={!isEditing}
-                                      value={frameFormData.supplied_by || ''} 
-                                      onValueChange={(value) => handleFrameSelectChange(value, 'supplied_by')}
+                                      disabled={!isEditing}
+                                      value={orderDetailsFormData.order_status || ''} 
+                                      onValueChange={(value) => setOrderDetailsFormData(prev => ({ ...prev, order_status: value }))}
                                     >
-                                      <SelectTrigger className={`mt-1.5 ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}>
-                                        <SelectValue placeholder="בחר" />
+                                      <SelectTrigger className={`mt-1.5 h-9 w-full ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}>
+                                        <SelectValue placeholder="בחר סטטוס" />
                                       </SelectTrigger>
                                       <SelectContent>
-                                        <SelectItem value="חנות" className="text-sm">חנות</SelectItem>
-                                        <SelectItem value="לקוח" className="text-sm">לקוח</SelectItem>
+                                        <SelectItem value="חדש" className="text-sm">חדש</SelectItem>
+                                        <SelectItem value="בייצור" className="text-sm">בייצור</SelectItem>
+                                        <SelectItem value="מוכן" className="text-sm">מוכן</SelectItem>
+                                        <SelectItem value="נמסר" className="text-sm">נמסר</SelectItem>
                                       </SelectContent>
                                     </Select>
                                   </div>
                                   <div>
-                                    <Label className="text-sm">גשר</Label>
-                                    <Input
-                                      name="bridge"
-                                      type="number"
-                                      value={frameFormData.bridge || ''}
-                                      onChange={handleFrameInputChange}
+                                    <Label className="text-sm">עדיפות</Label>
+                                    <Select dir="rtl"
+                                      disabled={!isEditing}
+                                      value={orderDetailsFormData.priority || ''} 
+                                      onValueChange={(value) => setOrderDetailsFormData(prev => ({ ...prev, priority: value }))}
+                                    >
+                                      <SelectTrigger className={`mt-1.5 h-9 w-full ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}>
+                                        <SelectValue placeholder="בחר עדיפות" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="רגיל" className="text-sm">רגיל</SelectItem>
+                                        <SelectItem value="דחוף" className="text-sm">דחוף</SelectItem>
+                                        <SelectItem value="מיידי" className="text-sm">מיידי</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                </div>
+                                
+                                <div className="grid grid-cols-5 gap-3">
+                                  <div>
+                                    <Label className="text-sm">נמסר בתאריך</Label>
+                                    <DateInput
+                                      name="delivered_at"
+                                      value={orderDetailsFormData.delivered_at}
+                                      onChange={(e) => setOrderDetailsFormData(prev => ({ ...prev, delivered_at: e.target.value }))}
                                       disabled={!isEditing}
                                       className={`mt-1.5 ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
                                     />
                                   </div>
                                   <div>
-                                    <Label className="text-sm">רוחב</Label>
-                                    <Input
-                                      name="width"
-                                      type="number"
-                                      value={frameFormData.width || ''}
-                                      onChange={handleFrameInputChange}
+                                    <Label className="text-sm">תאריך תום אחריות</Label>
+                                    <DateInput
+                                      name="warranty_expiration"
+                                      value={orderDetailsFormData.warranty_expiration}
+                                      onChange={(e) => setOrderDetailsFormData(prev => ({ ...prev, warranty_expiration: e.target.value }))}
                                       disabled={!isEditing}
                                       className={`mt-1.5 ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
                                     />
                                   </div>
                                   <div>
-                                    <Label className="text-sm">גובה</Label>
-                                    <Input
-                                      name="height"
-                                      type="number"
-                                      value={frameFormData.height || ''}
-                                      onChange={handleFrameInputChange}
+                                    <Label className="text-sm">הובטח לתאריך</Label>
+                                    <DateInput
+                                      name="promised_date"
+                                      value={orderDetailsFormData.promised_date}
+                                      onChange={(e) => setOrderDetailsFormData(prev => ({ ...prev, promised_date: e.target.value }))}
                                       disabled={!isEditing}
                                       className={`mt-1.5 ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
                                     />
                                   </div>
                                   <div>
-                                    <Label className="text-sm">אורך זרוע</Label>
-                                    <Input
-                                      name="length"
-                                      type="number"
-                                      value={frameFormData.length || ''}
-                                      onChange={handleFrameInputChange}
+                                    <Label className="text-sm">תאריך אישור</Label>
+                                    <DateInput
+                                      name="approval_date"
+                                      value={orderDetailsFormData.approval_date}
+                                      onChange={(e) => setOrderDetailsFormData(prev => ({ ...prev, approval_date: e.target.value }))}
                                       disabled={!isEditing}
                                       className={`mt-1.5 ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
+                                    />
+                                  </div>
+                                  <div></div>
+                                </div>
+                              </CardContent>
+                            </Card>
+                          </TabsContent>
+                          
+                          <TabsContent value="notes" className="space-y-4 mt-0">
+                            <Card className="shadow-md border-none">
+                              <CardContent className="">
+                                <div className="grid grid-cols-2 gap-4">
+                                  <div>
+                                    <Label className="text-sm">הערות</Label>
+                                    <Textarea
+                                      name="notes"
+                                      value={orderDetailsFormData.notes || ''}
+                                      onChange={(e) => setOrderDetailsFormData(prev => ({ ...prev, notes: e.target.value }))}
+                                      disabled={!isEditing}
+                                      className={`mt-1.5 min-h-[100px] ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
+                                      placeholder="הכנס הערות כלליות..."
+                                    />
+                                  </div>
+                                  <div>
+                                    <Label className="text-sm">הערות להזמנת עדשות</Label>
+                                    <Textarea
+                                      name="lens_order_notes"
+                                      value={orderDetailsFormData.lens_order_notes || ''}
+                                      onChange={(e) => setOrderDetailsFormData(prev => ({ ...prev, lens_order_notes: e.target.value }))}
+                                      disabled={!isEditing}
+                                      className={`mt-1.5 min-h-[100px] ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
+                                      placeholder="הכנס הערות להזמנת עדשות..."
                                     />
                                   </div>
                                 </div>
                               </CardContent>
                             </Card>
-                          </div>
-                        </TabsContent>
-                        
-                        <TabsContent value="order" className="space-y-4 mt-0">
-                          <Card className="shadow-md border-none">
-                            <CardContent className="space-y-3">
-                              <div className="grid grid-cols-5 gap-3">
-                                <div>
-                                  <Label className="text-sm">סניף</Label>
-                                  <LookupSelect
-                                    value={orderDetailsFormData.branch || ''}
-                                    onChange={(value) => setOrderDetailsFormData(prev => ({ ...prev, branch: value }))}
-                                    lookupType="clinic"
-                                    placeholder="בחר או הקלד סניף..."
-                                    disabled={!isEditing}
-                                    className="mt-1.5"
-                                  />
-                                </div>
-                                <div>
-                                  <Label className="text-sm">סטטוס ספק</Label>
-                                  <Input
-                                    name="supplier_status"
-                                    value={orderDetailsFormData.supplier_status || ''}
-                                    onChange={(e) => setOrderDetailsFormData(prev => ({ ...prev, supplier_status: e.target.value }))}
-                                    disabled={!isEditing}
-                                    className={`mt-1.5 ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
-                                  />
-                                </div>
-                                <div>
-                                  <Label className="text-sm">מספר שקית</Label>
-                                  <Input
-                                    name="bag_number"
-                                    value={orderDetailsFormData.bag_number || ''}
-                                    onChange={(e) => setOrderDetailsFormData(prev => ({ ...prev, bag_number: e.target.value }))}
-                                    disabled={!isEditing}
-                                    className={`mt-1.5 ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
-                                  />
-                                </div>
-                                <div>
-                                  <Label className="text-sm">יועץ</Label>
-                                  <LookupSelect
-                                    value={orderDetailsFormData.advisor || ''}
-                                    onChange={(value) => setOrderDetailsFormData(prev => ({ ...prev, advisor: value }))}
-                                    lookupType="advisor"
-                                    placeholder="בחר או הקלד יועץ..."
-                                    disabled={!isEditing}
-                                    className={`mt-1.5 ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
-                                  />
-                                </div>
-                                <div>
-                                  <Label className="text-sm">מוסר</Label>
-                                  <Input
-                                    name="delivered_by"
-                                    value={orderDetailsFormData.delivered_by || ''}
-                                    onChange={(e) => setOrderDetailsFormData(prev => ({ ...prev, delivered_by: e.target.value }))}
-                                    disabled={!isEditing}
-                                    className={`mt-1.5 ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
-                                  />
-                                </div>
-                              </div>
-                              
-                              <div className="grid grid-cols-5 gap-3">
-                                <div>
-                                  <Label className="text-sm">טכני</Label>
-                                  <Input
-                                    name="technician"
-                                    value={orderDetailsFormData.technician || ''}
-                                    onChange={(e) => setOrderDetailsFormData(prev => ({ ...prev, technician: e.target.value }))}
-                                    disabled={!isEditing}
-                                    className={`mt-1.5 ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
-                                  />
-                                </div>
-                                <div>
-                                  <Label className="text-sm">אספקה בסניף</Label>
-                                  <Input
-                                    name="delivery_location"
-                                    value={orderDetailsFormData.delivery_location || ''}
-                                    onChange={(e) => setOrderDetailsFormData(prev => ({ ...prev, delivery_location: e.target.value }))}
-                                    disabled={!isEditing}
-                                    className={`mt-1.5 ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
-                                  />
-                                </div>
-                                <div>
-                                  <Label className="text-sm">מעבדה מייצרת</Label>
-                                  <LookupSelect
-                                    value={orderDetailsFormData.manufacturing_lab || ''}
-                                    onChange={(value) => setOrderDetailsFormData(prev => ({ ...prev, manufacturing_lab: value }))}
-                                    lookupType="manufacturingLab"
-                                    placeholder="בחר או הקלד מעבדה..."
-                                    disabled={!isEditing}
-                                    className="mt-1.5"
-                                  />
-                                </div>
-                                <div>
-                                  <Label className="text-sm">סטטוס הזמנה</Label>
-                                  <Select dir="rtl"
-                                    disabled={!isEditing}
-                                    value={orderDetailsFormData.order_status || ''} 
-                                    onValueChange={(value) => setOrderDetailsFormData(prev => ({ ...prev, order_status: value }))}
-                                  >
-                                    <SelectTrigger className={`mt-1.5 h-9 w-full ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}>
-                                      <SelectValue placeholder="בחר סטטוס" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      <SelectItem value="חדש" className="text-sm">חדש</SelectItem>
-                                      <SelectItem value="בייצור" className="text-sm">בייצור</SelectItem>
-                                      <SelectItem value="מוכן" className="text-sm">מוכן</SelectItem>
-                                      <SelectItem value="נמסר" className="text-sm">נמסר</SelectItem>
-                                    </SelectContent>
-                                  </Select>
-                                </div>
-                                <div>
-                                  <Label className="text-sm">עדיפות</Label>
-                                  <Select dir="rtl"
-                                    disabled={!isEditing}
-                                    value={orderDetailsFormData.priority || ''} 
-                                    onValueChange={(value) => setOrderDetailsFormData(prev => ({ ...prev, priority: value }))}
-                                  >
-                                    <SelectTrigger className={`mt-1.5 h-9 w-full ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}>
-                                      <SelectValue placeholder="בחר עדיפות" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      <SelectItem value="רגיל" className="text-sm">רגיל</SelectItem>
-                                      <SelectItem value="דחוף" className="text-sm">דחוף</SelectItem>
-                                      <SelectItem value="מיידי" className="text-sm">מיידי</SelectItem>
-                                    </SelectContent>
-                                  </Select>
-                                </div>
-                              </div>
-                              
-                              <div className="grid grid-cols-5 gap-3">
-                                <div>
-                                  <Label className="text-sm">נמסר בתאריך</Label>
-                                  <DateInput
-                                    name="delivered_at"
-                                    value={orderDetailsFormData.delivered_at}
-                                    onChange={(e) => setOrderDetailsFormData(prev => ({ ...prev, delivered_at: e.target.value }))}
-                                    disabled={!isEditing}
-                                    className={`mt-1.5 ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
-                                  />
-                                </div>
-                                <div>
-                                  <Label className="text-sm">תאריך תום אחריות</Label>
-                                  <DateInput
-                                    name="warranty_expiration"
-                                    value={orderDetailsFormData.warranty_expiration}
-                                    onChange={(e) => setOrderDetailsFormData(prev => ({ ...prev, warranty_expiration: e.target.value }))}
-                                    disabled={!isEditing}
-                                    className={`mt-1.5 ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
-                                  />
-                                </div>
-                                <div>
-                                  <Label className="text-sm">הובטח לתאריך</Label>
-                                  <DateInput
-                                    name="promised_date"
-                                    value={orderDetailsFormData.promised_date}
-                                    onChange={(e) => setOrderDetailsFormData(prev => ({ ...prev, promised_date: e.target.value }))}
-                                    disabled={!isEditing}
-                                    className={`mt-1.5 ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
-                                  />
-                                </div>
-                                <div>
-                                  <Label className="text-sm">תאריך אישור</Label>
-                                  <DateInput
-                                    name="approval_date"
-                                    value={orderDetailsFormData.approval_date}
-                                    onChange={(e) => setOrderDetailsFormData(prev => ({ ...prev, approval_date: e.target.value }))}
-                                    disabled={!isEditing}
-                                    className={`mt-1.5 ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
-                                  />
-                                </div>
-                                <div></div>
-                              </div>
-                            </CardContent>
-                          </Card>
-                        </TabsContent>
-                        
-                        <TabsContent value="notes" className="space-y-4 mt-0">
-                          <Card className="shadow-md border-none">
-                            <CardContent className="">
-                              <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                  <Label className="text-sm">הערות</Label>
-                                  <Textarea
-                                    name="notes"
-                                    value={orderDetailsFormData.notes || ''}
-                                    onChange={(e) => setOrderDetailsFormData(prev => ({ ...prev, notes: e.target.value }))}
-                                    disabled={!isEditing}
-                                    className={`mt-1.5 min-h-[100px] ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
-                                    placeholder="הכנס הערות כלליות..."
-                                  />
-                                </div>
-                                <div>
-                                  <Label className="text-sm">הערות להזמנת עדשות</Label>
-                                  <Textarea
-                                    name="lens_order_notes"
-                                    value={orderDetailsFormData.lens_order_notes || ''}
-                                    onChange={(e) => setOrderDetailsFormData(prev => ({ ...prev, lens_order_notes: e.target.value }))}
-                                    disabled={!isEditing}
-                                    className={`mt-1.5 min-h-[100px] ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
-                                    placeholder="הכנס הערות להזמנת עדשות..."
-                                  />
-                                </div>
-                              </div>
-                            </CardContent>
-                          </Card>
-                        </TabsContent>
+                          </TabsContent>
+                        </div>
                       </div>
-                    </div>
-                  </Tabs>
+                    </Tabs>
+                  </div>
                 </div>
-              </div>
-            </div>
-          </form>
-        </TabsContent>
-        
-        <TabsContent value="billing" className="space-y-4">
-          <BillingTab
-            billingFormData={billingFormData}
-            setBillingFormData={setBillingFormData}
-            orderLineItems={orderLineItems}
-            setOrderLineItems={setOrderLineItems}
-            isEditing={isEditing}
-            handleDeleteOrderLineItem={handleDeleteOrderLineItem}
-          />
-        </TabsContent>
-      </Tabs>
-        </div>
+                </div>
+              </form>
+              </TabsContent>
+              
+              <TabsContent value="billing" className="space-y-4">
+                <BillingTab
+                  billingFormData={billingFormData}
+                  setBillingFormData={setBillingFormData}
+                  orderLineItems={orderLineItems}
+                  setOrderLineItems={setOrderLineItems}
+                  isEditing={isEditing}
+                  handleDeleteOrderLineItem={handleDeleteOrderLineItem}
+                />
+              </TabsContent>
+            
+            </Tabs>
+          
+          </div>
+        </ClientSpaceLayout>
       </>
     )
 } 

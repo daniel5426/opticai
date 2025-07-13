@@ -2,29 +2,22 @@ import React from "react"
 import { ExamsTable } from "@/components/exams-table"
 import { useParams } from "@tanstack/react-router"
 import { useClientData } from "@/contexts/ClientDataContext"
-import { OpticalExam } from "@/lib/db/schema";
 
 export function ClientExamsTab() {
   const { clientId } = useParams({ from: "/clients/$clientId" })
-  const { exams, loading, refreshExams } = useClientData()
-  const [currentExams, setCurrentExams] = React.useState<OpticalExam[]>(exams);
-
-  React.useEffect(() => {
-    setCurrentExams(exams);
-  }, [exams]);
+  const { exams, loading, removeExam, refreshExams } = useClientData()
 
   const handleExamDeleted = (deletedExamId: number) => {
-    setCurrentExams(prevExams => prevExams.filter(exam => exam.id !== deletedExamId));
-  };
+    removeExam(deletedExamId)
+  }
 
   const handleExamDeleteFailed = () => {
-    refreshExams(); // Trigger a full refresh only on failure
-  };
-
+    refreshExams()
+  }
 
   return (
     <ExamsTable 
-      data={currentExams} 
+      data={exams} 
       clientId={Number(clientId)} 
       onExamDeleted={handleExamDeleted} 
       onExamDeleteFailed={handleExamDeleteFailed}

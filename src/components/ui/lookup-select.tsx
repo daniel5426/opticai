@@ -213,7 +213,7 @@ export function LookupSelect({
   const showCreateOption = inputValue.trim() && !exactMatch && !loading
 
   return (
-    <div ref={containerRef} className={`relative ${className}`}>
+    <div ref={containerRef} className={`relative ${className} dark:bg-card`}>
       <div className="relative">
         <Input
           ref={inputRef}
@@ -222,7 +222,7 @@ export function LookupSelect({
           onFocus={() => setIsOpen(true)}
           placeholder={placeholder}
           disabled={disabled}
-          className={`text-right pl-10 ${!disabled ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default ${dir === 'rtl' ? 'text-right' : 'text-left'}`}
+          className={`text-right pl-10 ${!disabled ? 'bg-card' : 'bg-accent/50 dark:bg-accent/50'} disabled:opacity-100 disabled:cursor-default ${dir === 'rtl' ? 'text-right' : 'text-left'}`}
           dir={dir}
         />
         <Button

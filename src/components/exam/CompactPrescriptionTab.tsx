@@ -1,7 +1,6 @@
 import React, { useState } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { CompactPrescriptionExam } from "@/lib/db/schema"
 import { ChevronUp, ChevronDown } from "lucide-react"
 

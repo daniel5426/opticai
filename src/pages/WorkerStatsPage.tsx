@@ -87,7 +87,7 @@ export default function WorkerStatsPage() {
   if (currentUser?.role !== 'admin') {
     return (
       <>
-        <SiteHeader title="סטטיסטיקות עובדים" />
+        <SiteHeader title="יומן נוכחות" />
         <div className="flex flex-col items-center justify-center h-full" dir="rtl">
           <div className="text-lg text-red-600">אין לך הרשאה לצפות בעמוד זה</div>
         </div>
@@ -98,7 +98,7 @@ export default function WorkerStatsPage() {
   if (loading) {
     return (
       <>
-        <SiteHeader title="סטטיסטיקות עובדים" />
+        <SiteHeader title="יומן נוכחות" />
         <div className="flex flex-col items-center justify-center h-full" dir="rtl">
           <div className="text-lg">טוען נתונים...</div>
         </div>
@@ -154,13 +154,13 @@ export default function WorkerStatsPage() {
 
   return (
     <>
-      <SiteHeader title="סטטיסטיקות עובדים" />
+      <SiteHeader title="יומן נוכחות" />
       <div className="h-full overflow-auto bg-muted/30" style={{scrollbarWidth: 'none'}} dir="rtl">
         <div className="max-w-6xl mx-auto p-6 pb-20 space-y-6">
           
           {/* Header */}
           <div className="text-right space-y-2 mb-8">
-            <h1 className="text-2xl font-bold">סטטיסטיקות עובדים</h1>
+              <h1 className="text-xl font-bold">יומן נוכחות</h1>
             <p className="text-muted-foreground">צפה בנתוני נוכחות ומשמרות של העובדים</p>
           </div>
 
@@ -212,7 +212,7 @@ export default function WorkerStatsPage() {
                               <div className="text-right">
                                 <CardTitle>{user.username}</CardTitle>
                                 <p className="text-sm text-muted-foreground">
-                                  סטטיסטיקות לחודש {new Date(selectedYear, selectedMonth - 1).toLocaleDateString('he-IL', { month: 'long', year: 'numeric' })}
+                                  נתוני נוכחות לחודש {new Date(selectedYear, selectedMonth - 1).toLocaleDateString('he-IL', { month: 'long', year: 'numeric' })}
                                 </p>
                               </div>
                               <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center overflow-hidden">

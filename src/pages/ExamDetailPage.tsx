@@ -17,6 +17,8 @@ import { useClientData } from "@/contexts/ClientDataContext"
 import { examComponentRegistry, ExamComponentType } from "@/lib/exam-component-registry"
 import { copyToClipboard, pasteFromClipboard, getClipboardContentType } from "@/lib/exam-clipboard"
 import { ExamFieldMapper } from "@/lib/exam-field-mappings"
+import { ClientSpaceLayout } from "@/layouts/ClientSpaceLayout"
+import { useClientSidebar } from "@/contexts/ClientSidebarContext"
 
 interface ExamDetailPageProps {
   mode?: 'view' | 'edit' | 'new';
@@ -221,6 +223,8 @@ export default function ExamDetailPageRefactored({
   const fieldHandlers = createFieldHandlers()
   const toolboxActions = createToolboxActions(examFormData, fieldHandlers)
 
+  const { currentClient } = useClientSidebar()
+
   useEffect(() => {
     const loadData = async () => {
       if (!clientId) return
@@ -232,9 +236,6 @@ export default function ExamDetailPageRefactored({
 
         const layoutsData = await getAllExamLayouts()
         setAvailableLayouts(layoutsData)
-
-        const clientData = await getClientById(Number(clientId))
-        setClient(clientData || null)
 
         if (examId && !isNewMode) {
           const examData = await getExamById(Number(examId))
@@ -691,15 +692,43 @@ export default function ExamDetailPageRefactored({
     cardRows.map(row => row.cards),
     {
       handleMultifocalOldRefraction: () => {},
-      handleVHConfirmOldRefraction: () => {},
-      handleVHConfirm: () => {},
+      handleVHConfirmOldRefraction: (rightPris: number, rightBase: number, leftPris: number, leftBase: number) => {
+        const oldRefractionHandler = fieldHandlers['old-refraction'];
+        if (oldRefractionHandler) {
+          oldRefractionHandler('r_pris', rightPris.toString());
+          oldRefractionHandler('r_base', rightBase.toString());
+          oldRefractionHandler('l_pris', leftPris.toString());
+          oldRefractionHandler('l_base', leftBase.toString());
+        }
+      },
+      handleVHConfirm: (rightPris: number, rightBase: number, leftPris: number, leftBase: number) => {
+        const subjectiveHandler = fieldHandlers['subjective'];
+        if (subjectiveHandler) {
+          subjectiveHandler('r_pris', rightPris.toString());
+          subjectiveHandler('r_base', rightBase.toString());
+          subjectiveHandler('l_pris', leftPris.toString());
+          subjectiveHandler('l_base', leftBase.toString());
+        }
+      },
       handleMultifocalSubjective: () => {},
-      handleFinalSubjectiveVHConfirm: () => {},
+      handleFinalSubjectiveVHConfirm: (rightPrisH: number, rightBaseH: string, rightPrisV: number, rightBaseV: string, leftPrisH: number, leftBaseH: string, leftPrisV: number, leftBaseV: string) => {
+        const finalSubjectiveHandler = fieldHandlers['final-subjective'];
+        if (finalSubjectiveHandler) {
+          finalSubjectiveHandler('r_pr_h', rightPrisH.toString());
+          finalSubjectiveHandler('r_base_h', rightBaseH);
+          finalSubjectiveHandler('r_pr_v', rightPrisV.toString());
+          finalSubjectiveHandler('r_base_v', rightBaseV);
+          finalSubjectiveHandler('l_pr_h', leftPrisH.toString());
+          finalSubjectiveHandler('l_base_h', leftBaseH);
+          finalSubjectiveHandler('l_pr_v', leftPrisV.toString());
+          finalSubjectiveHandler('l_base_v', leftBaseV);
+        }
+      },
       handleMultifocalOldRefractionExtension: () => {},
     }
   )
 
-  if (loading) {
+  if (loading || !currentClient) {
     return (
       <>
         <SiteHeader
@@ -711,7 +740,7 @@ export default function ExamDetailPageRefactored({
     )
   }
 
-  if (!client || (!isNewMode && !exam)) {
+  if (!isNewMode && !exam) {
     return (
       <>
         <SiteHeader
@@ -719,9 +748,12 @@ export default function ExamDetailPageRefactored({
           backLink="/clients"
           tabs={{ activeTab, onTabChange: handleTabChange }}
         />
+              <ClientSpaceLayout>
+
         <div className="flex flex-col items-center justify-center h-full">
           <h1 className="text-2xl">{isNewMode ? "לקוח לא נמצא" : "בדיקה לא נמצאה"}</h1>
         </div>
+        </ClientSpaceLayout>
       </>
     )
   }
@@ -731,154 +763,154 @@ export default function ExamDetailPageRefactored({
       <SiteHeader
         title="לקוחות"
         backLink="/clients"
-        client={client}
-        clientBackLink={`/clients/${clientId}`}
         examInfo={isNewMode ? "בדיקה חדשה" : `בדיקה מס' ${examId}`}
         tabs={{ activeTab, onTabChange: handleTabChange }}
       />
-      <div className="flex flex-col flex-1 p-4 lg:p-6 mb-10" dir="rtl">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-semibold">{isNewMode ? "בדיקה חדשה" : "פרטי בדיקה"}</h2>
-          <div className="flex gap-2">
-            {!isNewMode && !isEditing && exam?.id && (
-              <Link to="/clients/$clientId/orders/new" params={{ clientId: String(clientId) }} search={{ examId: String(exam.id) }}>
-                <Button variant="outline">יצירת הזמנה</Button>
-              </Link>
-            )}
+      <ClientSpaceLayout>
+        <div className="flex flex-col flex-1 p-4 lg:p-6 mb-10" dir="rtl">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-xl font-semibold">{isNewMode ? "בדיקה חדשה" : "פרטי בדיקה"}</h2>
+            <div className="flex gap-2">
+              {!isNewMode && !isEditing && exam?.id && (
+                <Link to="/clients/$clientId/orders/new" params={{ clientId: String(clientId) }} search={{ examId: String(exam.id) }}>
+                  <Button variant="outline">יצירת הזמנה</Button>
+                </Link>
+              )}
 
-            <DropdownMenu dir="rtl">
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="flex items-center gap-1">
-                  <span>פריסות</span>
-                  <ChevronDownIcon className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48">
-                <DropdownMenuItem className="text-sm font-bold" disabled>הוספת פריסה</DropdownMenuItem>
-                {availableLayouts.map((layout) => (
-                  <DropdownMenuItem 
-                    key={layout.id} 
-                    onClick={() => handleAddLayoutTab(layout.id || 0)}
-                    className="text-sm"
-                  >
-                    <PlusCircleIcon className="h-4 w-4 mr-2" />
-                    {layout.name}
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-
-            {isNewMode && onCancel && (
-              <Button variant="outline" onClick={onCancel}>ביטול</Button>
-            )}
-            <Button
-              variant={isEditing ? "outline" : "default"}
-              onClick={handleEditButtonClick}
-            >
-              {isNewMode ? "שמור בדיקה" : (isEditing ? "שמור שינויים" : "ערוך בדיקה")}
-            </Button>
-          </div>
-        </div>
-
-        {/* Layout Tabs */}
-        {layoutTabs.length > 0 && (
-          <div className="">
-            <div className="flex flex-wrap items-center gap-2">
-              {layoutTabs.map((tab) => (
-                <div 
-                  key={tab.id}
-                  className={`
-                    group relative rounded-t-xl transition-all duration-200 cursor-pointer overflow-hidden
-                    ${tab.isActive 
-                      ? 'bg-primary text-primary-foreground shadow-md' 
-                      : 'hover:bg-muted text-foreground'}
-                  `}
-                  onClick={() => handleLayoutTabChange(tab.id)}
-                >
-                  {layoutTabs.length > 1 && isEditing && (
-                    <button 
-                      type="button"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        handleRemoveLayoutTab(tab.id);
-                      }}
-                      className="absolute top-1 right-1 rounded-full w-[14px] h-[14px] opacity-0 group-hover:opacity-100 transition-all duration-200 flex items-center justify-center hover:bg-red-500 hover:text-white z-10"
-                      aria-label="הסר לשונית"
+              <DropdownMenu dir="rtl">
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" className="flex items-center gap-1">
+                    <span>פריסות</span>
+                    <ChevronDownIcon className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48">
+                  <DropdownMenuItem className="text-sm font-bold" disabled>הוספת פריסה</DropdownMenuItem>
+                  {availableLayouts.map((layout) => (
+                    <DropdownMenuItem 
+                      key={layout.id} 
+                      onClick={() => handleAddLayoutTab(layout.id || 0)}
+                      className="text-sm"
                     >
-                      <XIcon className="h-2.5 w-2.5" />
-                    </button>
-                  )}
-                  <span className="text-sm py-2 px-5 font-medium whitespace-nowrap block">{tab.name}</span>
-                </div>
-              ))}
+                      <PlusCircleIcon className="h-4 w-4 mr-2" />
+                      {layout.name}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              {isNewMode && onCancel && (
+                <Button variant="outline" onClick={onCancel}>ביטול</Button>
+              )}
+              <Button
+                variant={isEditing ? "outline" : "default"}
+                onClick={handleEditButtonClick}
+              >
+                {isNewMode ? "שמור בדיקה" : (isEditing ? "שמור שינויים" : "ערוך בדיקה")}
+              </Button>
             </div>
           </div>
-        )}
 
-        <form ref={formRef} className="pt-4">
-          <div className="space-y-4" style={{ scrollbarWidth: 'none' }}>
-            {cardRows.map((row, rowIndex) => {
-              const cardWidths = calculateCardWidth(row.cards, row.id, customWidths)
+          {/* Layout Tabs */}
+          {layoutTabs.length > 0 && (
+            <div className="">
+              <div className="flex flex-wrap items-center gap-2">
+                {layoutTabs.map((tab) => (
+                  <div 
+                    key={tab.id}
+                    className={`
+                      group relative rounded-t-xl transition-all duration-200 cursor-pointer overflow-hidden
+                      ${tab.isActive 
+                        ? 'bg-primary text-primary-foreground shadow-md' 
+                        : 'hover:bg-muted text-foreground'}
+                    `}
+                    onClick={() => handleLayoutTabChange(tab.id)}
+                  >
+                    {layoutTabs.length > 1 && isEditing && (
+                      <button 
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          handleRemoveLayoutTab(tab.id);
+                        }}
+                        className="absolute top-1 right-1 rounded-full w-[14px] h-[14px] opacity-0 group-hover:opacity-100 transition-all duration-200 flex items-center justify-center hover:bg-red-500 hover:text-white z-10"
+                        aria-label="הסר לשונית"
+                      >
+                        <XIcon className="h-2.5 w-2.5" />
+                      </button>
+                    )}
+                    <span className="text-sm py-2 px-5 font-medium whitespace-nowrap block">{tab.name}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
-              return (
-                <div key={row.id} className="w-full">
-                    <div className="flex gap-4 flex-1" dir="ltr">
-                      {row.cards.map((item, cardIndex) => (
-                        <div
-                          key={item.id}
-                          style={{
-                            width: `${cardWidths[item.id]}%`,
-                            minWidth: row.cards.length > 1 ? '200px' : 'auto'
-                          }}
-                        >
-                          <ExamCardRenderer
-                            item={item}
-                            rowCards={row.cards}
-                            isEditing={isEditing}
-                            mode="detail"
-                            detailProps={detailProps}
-                            hideEyeLabels={cardIndex > 0}
-                            matchHeight={hasNoteCard(row.cards) && row.cards.length > 1}
-                            currentRowIndex={rowIndex}
-                            currentCardIndex={cardIndex}
-                            clipboardSourceType={clipboardContentType}
-                            onCopy={() => handleCopy(item)}
-                            onPaste={() => handlePaste(item)}
-                            onClearData={() => toolboxActions.clearData(item.type as ExamComponentType)}
-                            onCopyLeft={() => {
-                              const currentRow = row.cards.slice(0, cardIndex).filter(c => c.type !== 'exam-details' && c.type !== 'notes')
-                              const availableTargets = ExamFieldMapper.getAvailableTargets(item.type as ExamComponentType, currentRow.map(c => c.type as ExamComponentType))
-                              if (availableTargets.length > 0) {
-                                toolboxActions.copyToLeft(item.type as ExamComponentType, availableTargets[0])
-                              }
+          <form ref={formRef} className="pt-4">
+            <div className="space-y-4" style={{ scrollbarWidth: 'none' }}>
+              {cardRows.map((row, rowIndex) => {
+                const cardWidths = calculateCardWidth(row.cards, row.id, customWidths)
+
+                return (
+                  <div key={row.id} className="w-full">
+                      <div className="flex gap-4 flex-1" dir="ltr">
+                        {row.cards.map((item, cardIndex) => (
+                          <div
+                            key={item.id}
+                            style={{
+                              width: `${cardWidths[item.id]}%`,
+                              minWidth: row.cards.length > 1 ? '200px' : 'auto'
                             }}
-                            onCopyRight={() => {
-                              const currentRow = row.cards.slice(cardIndex + 1).filter(c => c.type !== 'exam-details' && c.type !== 'notes')
-                              const availableTargets = ExamFieldMapper.getAvailableTargets(item.type as ExamComponentType, currentRow.map(c => c.type as ExamComponentType))
-                              if (availableTargets.length > 0) {
-                                toolboxActions.copyToRight(item.type as ExamComponentType, availableTargets[0])
-                              }
-                            }}
-                            onCopyBelow={() => {
-                              if (rowIndex < cardRows.length - 1) {
-                                const belowRow = cardRows[rowIndex + 1].cards
-                                const availableTargets = ExamFieldMapper.getAvailableTargets(item.type as ExamComponentType, belowRow.map(c => c.type as ExamComponentType))
+                          >
+                            <ExamCardRenderer
+                              item={item}
+                              rowCards={row.cards}
+                              isEditing={isEditing}
+                              mode="detail"
+                              detailProps={detailProps}
+                              hideEyeLabels={cardIndex > 0}
+                              matchHeight={hasNoteCard(row.cards) && row.cards.length > 1}
+                              currentRowIndex={rowIndex}
+                              currentCardIndex={cardIndex}
+                              clipboardSourceType={clipboardContentType}
+                              onCopy={() => handleCopy(item)}
+                              onPaste={() => handlePaste(item)}
+                              onClearData={() => toolboxActions.clearData(item.type as ExamComponentType)}
+                              onCopyLeft={() => {
+                                const currentRow = row.cards.slice(0, cardIndex).filter(c => c.type !== 'exam-details' && c.type !== 'notes')
+                                const availableTargets = ExamFieldMapper.getAvailableTargets(item.type as ExamComponentType, currentRow.map(c => c.type as ExamComponentType))
                                 if (availableTargets.length > 0) {
-                                  toolboxActions.copyToBelow(item.type as ExamComponentType, availableTargets[0])
+                                  toolboxActions.copyToLeft(item.type as ExamComponentType, availableTargets[0])
                                 }
-                              }
-                            }}
-                          />
-                        </div>
-                      ))}
-                    </div>
-                </div>
-              )
-            })}
-          </div>
-        </form>
-      </div>
+                              }}
+                              onCopyRight={() => {
+                                const currentRow = row.cards.slice(cardIndex + 1).filter(c => c.type !== 'exam-details' && c.type !== 'notes')
+                                const availableTargets = ExamFieldMapper.getAvailableTargets(item.type as ExamComponentType, currentRow.map(c => c.type as ExamComponentType))
+                                if (availableTargets.length > 0) {
+                                  toolboxActions.copyToRight(item.type as ExamComponentType, availableTargets[0])
+                                }
+                              }}
+                              onCopyBelow={() => {
+                                if (rowIndex < cardRows.length - 1) {
+                                  const belowRow = cardRows[rowIndex + 1].cards
+                                  const availableTargets = ExamFieldMapper.getAvailableTargets(item.type as ExamComponentType, belowRow.map(c => c.type as ExamComponentType))
+                                  if (availableTargets.length > 0) {
+                                    toolboxActions.copyToBelow(item.type as ExamComponentType, availableTargets[0])
+                                  }
+                                }
+                              }}
+                            />
+                          </div>
+                        ))}
+                      </div>
+                  </div>
+                )
+              })}
+            </div>
+          </form>
+        </div>
+      </ClientSpaceLayout>
     </>
   )
 } 

@@ -811,8 +811,8 @@ export function AppointmentsTable({ data, clientId, onAppointmentChange, onAppoi
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={7} className="text-center">
-                  לא נמצאו תורים.
+                <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
+                  לא נמצאו תורים
                 </TableCell>
               </TableRow>
             )}

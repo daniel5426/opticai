@@ -73,24 +73,6 @@ interface DragData {
   originalElement: HTMLElement
 }
 
-function ClientName({ clientId }: { clientId: number }) {
-  const [client, setClient] = React.useState<Client | null>(null)
-
-  React.useEffect(() => {
-    const loadClient = async () => {
-      try {
-        const clientData = await getClientById(clientId)
-        setClient(clientData || null)
-      } catch (error) {
-        console.error('Error loading client:', error)
-      }
-    }
-    loadClient()
-  }, [clientId])
-
-  if (!client) return <span>טוען...</span>
-  return <span>{`${client.first_name || ''} ${client.last_name || ''}`.trim()}</span>
-}
 
 export default function HomePage() {
   const [currentDate, setCurrentDate] = useState<Date>(new Date())
@@ -576,14 +558,19 @@ export default function HomePage() {
     if (!calendarRef.current || !resizeData) return null
 
     const calendarRect = calendarRef.current.getBoundingClientRect()
+    const scrollableContainer = calendarRef.current.querySelector('.overflow-y-auto')
+    const scrollTop = scrollableContainer ? scrollableContainer.scrollTop : 0
     const timeColumnWidth = 64 // w-16 = 64px
+    const headerHeight = 40 // Fixed header height
+    
     const gridRect = {
-      top: calendarRect.top + 40,
-      height: calendarRect.height - 40,
+      top: calendarRect.top + headerHeight,
+      height: calendarRect.height - headerHeight,
       left: calendarRect.left + timeColumnWidth
     }
 
-    const y = e.clientY - gridRect.top
+    // Add scroll offset to account for scrolled position
+    const y = e.clientY - gridRect.top + scrollTop
     const HOUR_HEIGHT = 95
     const totalMinutesFromTop = Math.max(0, (y / HOUR_HEIGHT) * 60)
     const snappedMinutes = Math.round(totalMinutesFromTop / 5) * 5 // 5-minute precision
@@ -592,10 +579,10 @@ export default function HomePage() {
     const targetMinute = snappedMinutes % 60
 
     // Ensure within work hours
-    const clampedHour = Math.max(workStartHour, Math.min(workEndHour - 1, targetHour))
-    const clampedMinute = clampedHour === workEndHour - 1 ? Math.min(targetMinute, 45) : targetMinute
+    const clampedHour = Math.max(workStartHour, Math.min(workEndHour, targetHour))
+    const clampedMinute = clampedHour === workEndHour ? 0 : targetMinute
 
-    const newTime = `${clampedHour.toString().padStart(2, '0')}:${clampedMinute.toString().padStart(2, '0')}`
+    const newTime = `${Math.floor(clampedHour).toString().padStart(2, '0')}:${Math.floor(clampedMinute).toString().padStart(2, '0')}`
 
     if (resizeData.type === 'top') {
       // Resizing from top - change start time, keep end time fixed
@@ -608,8 +595,13 @@ export default function HomePage() {
       // Resizing from bottom - change end time, keep start time fixed
       const originalStartMinutes = timeToMinutes(resizeData.originalStart)
       const newEndMinutes = timeToMinutes(newTime)
-      if (newEndMinutes > originalStartMinutes && newEndMinutes <= workEndHour * 60) {
-        return { startTime: resizeData.originalStart, endTime: newTime }
+      // Clamp end time to not exceed work hours
+      const maxEndMinutes = workEndHour * 60
+      const clampedEndMinutes = Math.min(newEndMinutes, maxEndMinutes)
+      const clampedEndTime = minutesToTime(clampedEndMinutes)
+      
+      if (clampedEndMinutes > originalStartMinutes) {
+        return { startTime: resizeData.originalStart, endTime: clampedEndTime }
       }
     }
 
@@ -653,17 +645,22 @@ export default function HomePage() {
     if (!calendarRef.current || !draggedData) return null
 
     const calendarRect = calendarRef.current.getBoundingClientRect()
+    const scrollableContainer = calendarRef.current.querySelector('.overflow-y-auto')
+    const scrollTop = scrollableContainer ? scrollableContainer.scrollTop : 0
     const timeColumnWidth = 64 // w-16 = 64px
+    const headerHeight = 40 // Fixed header height
+    
     const gridRect = {
       left: 30,
-      top: calendarRect.top + 40, // header height
+      top: calendarRect.top + headerHeight,
       width: calendarRect.width - timeColumnWidth,
-      height: calendarRect.height - 40
+      height: calendarRect.height - headerHeight
     }
 
     // Use the offset to maintain the relative position where the user clicked
     const x = e.clientX - gridRect.left
-    const y = e.clientY - gridRect.top - draggedData.offset.y
+    // Add scroll offset to account for scrolled position
+    const y = e.clientY - gridRect.top - draggedData.offset.y + scrollTop
 
     // Calculate which day column (accounting for RTL layout)
     const dayWidth = gridRect.width / visibleDates.length
@@ -681,15 +678,33 @@ export default function HomePage() {
     const targetHour = Math.floor(snappedMinutes / 60) + workStartHour
     const targetMinute = snappedMinutes % 60
 
-    // Ensure within work hours
-    const clampedHour = Math.max(workStartHour, Math.min(workEndHour - 1, targetHour))
-    const clampedMinute = clampedHour === workEndHour - 1 ? Math.min(targetMinute, 45) : targetMinute
+    // Get appointment duration to ensure it doesn't go beyond work hours
+    const appointmentDuration = draggedData ? getAppointmentDuration(draggedData.appointment) : 30
+    const appointmentDurationMinutes = appointmentDuration
 
-    const newTime = `${clampedHour.toString().padStart(2, '0')}:${clampedMinute.toString().padStart(2, '0')}`
+    // Calculate the maximum allowed start time in minutes from work start
+    const workStartMinutes = workStartHour * 60
+    const workEndMinutes = workEndHour * 60
+    const maxAllowedStartMinutes = workEndMinutes - appointmentDurationMinutes
+    
+    // Convert target time to minutes from work start
+    const targetMinutesFromWorkStart = (targetHour - workStartHour) * 60 + targetMinute
+    
+    // Clamp to valid range
+    const clampedMinutesFromWorkStart = Math.max(0, Math.min(maxAllowedStartMinutes - workStartMinutes, targetMinutesFromWorkStart))
+    
+    // Convert back to hour and minute
+    const clampedHour = Math.floor(clampedMinutesFromWorkStart / 60) + workStartHour
+    const clampedMinute = clampedMinutesFromWorkStart % 60
+
+    const newTime = `${Math.floor(clampedHour).toString().padStart(2, '0')}:${Math.floor(clampedMinute).toString().padStart(2, '0')}`
+
+    // Calculate the visual position based on the clamped time
+    const visualY = (clampedMinutesFromWorkStart / 60) * HOUR_HEIGHT
 
     return {
       x: dayIndex * dayWidth,
-      y: ((clampedHour - workStartHour) * 60 + clampedMinute) / 60 * HOUR_HEIGHT,
+      y: visualY,
       date: targetDate,
       time: newTime
     }
@@ -1024,19 +1039,19 @@ export default function HomePage() {
 
   if (loading) {
     return (
-      <div className="flex flex-col bg-muted/50 flex-1 p-4 lg:p-6 gap-6 pb-16" dir="rtl">
-        <SiteHeader title="טוען..." />
+      <>
+        <SiteHeader title={ "לוח זמנים"} />
         <div className="flex items-center justify-center h-64">
           <div className="text-muted-foreground">טוען נתונים...</div>
         </div>
-      </div>
+      </>
     )
   }
 
   return (
     <>
-      <SiteHeader title={settings?.clinic_name || "לוח זמנים"} />
-      <div className="flex flex-col bg-muted/50 flex-1 gap-6 pb-16" dir="rtl" style={{ scrollbarWidth: 'none' }}>
+      <SiteHeader title={ "לוח זמנים"} />
+      <div className="flex flex-col bg-muted/50 flex-1 gap-6" dir="rtl" style={{ scrollbarWidth: 'none' }}>
 
         {/* Calendar Header */}
         <div className="flex items-center justify-between p-4 lg:p-6 pb-0">
@@ -1085,7 +1100,7 @@ export default function HomePage() {
           </div>
         </div>
 
-        <div className="flex gap-6 px-4 lg:px-6">
+        <div className="flex gap-6 px-4 lg:px-6 flex-1">
           {/* Statistics Sidebar */}
           <div className="w-72 space-y-4">
             {/* Mini Calendar */}
@@ -1133,12 +1148,12 @@ export default function HomePage() {
           </div>
 
           {/* Main Calendar View */}
-          <div className="flex-1">
-            <Card className="bg-card shadow-md border-none p-0">
-              <CardContent className="p-0 pt-0">
+          <div className="flex-1 flex flex-col justify-end rounded-xl">
+            <Card className="bg-card rounded-t-xl shadow-md border-none p-0">
+              <CardContent className="p-0 pt-0 rounded-xl">
                 {view === 'month' ? (
                   // Month View
-                  <div className="grid grid-cols-7 gap-0">
+                  <div className="grid grid-cols-7 gap-0 ">
                     {/* Day headers */}
                     {['א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ש'].map((day) => (
                       <div key={day} className="p-2 text-center text-sm font-medium border-b">
@@ -1187,27 +1202,42 @@ export default function HomePage() {
                   </div>
                 ) : (
                   // Day/Week View
-                  <div className="flex" style={{ height: '990px' }} ref={calendarRef}>
-                    {/* Time column */}
-                    <div className="w-16">
-                      <div className="h-10 border-b border-l"></div>
-                      {timeSlots.map((slot, index) => (
-                        <div key={slot.time} className={`h-[95px] border-l flex items-start justify-center pt-1 ${index === timeSlots.length - 1 ? '' : 'border-b'
-                          }`}>
-                          <span className="text-xs text-muted-foreground">{slot.time}</span>
+                  <div className="flex flex-col rounded-t-xl" style={{ 
+                    height: 'calc(100vh - 200px)',
+                    maxHeight: `${50 + (totalWorkHours * 95)}px` // 50px for header + actual calendar content
+                  }} ref={calendarRef}>
+                                          {/* Fixed header */}
+                      <div className="flex bg-card rounded-t-xl border-b sticky top-0 z-30">
+                        {/* Time column header */}
+                        <div className="w-16 h-10 border-l bg-transparent"></div>
+                        {/* Day headers */}
+                        <div className="flex-1 grid" style={{ gridTemplateColumns: `repeat(${visibleDates.length}, 1fr)` }}>
+                          {visibleDates.map((date, dateIndex) => (
+                            <div key={dateIndex} className={`h-10 flex items-center justify-center text-sm font-medium bg-transparent ${isToday(date) && view === 'week' ? 'bg-primary/10 text-primary' : ''
+                              } ${dateIndex < visibleDates.length - 1 ? "border-l" : ""} ${dateIndex === visibleDates.length - 1 ? "rounded-tr-md" : ""}`}>
+                              {view === 'week' ? format(date, 'EEE d/M', { locale: he }) : format(date, 'EEE d/M', { locale: he })}
+                            </div>
+                          ))}
                         </div>
-                      ))}
-                    </div>
+                      </div>
 
-                    {/* Day columns */}
-                    <div className="flex-1 grid" style={{ gridTemplateColumns: `repeat(${visibleDates.length}, 1fr)` }}>
+                    {/* Scrollable content */}
+                    <div className="flex-1 overflow-y-auto" style={{ scrollbarWidth: 'none' }}>
+                      <div className="flex" style={{ height: `${totalWorkHours * 95}px` }}>
+                        {/* Time column */}
+                        <div className="w-16">
+                          {timeSlots.map((slot, index) => (
+                            <div key={slot.time} className={`h-[95px] border-l flex items-start justify-center pt-1 ${index === timeSlots.length - 1 ? '' : 'border-b'
+                              }`}>
+                              <span className="text-xs text-muted-foreground">{slot.time}</span>
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Day columns */}
+                        <div className="flex-1 grid" style={{ gridTemplateColumns: `repeat(${visibleDates.length}, 1fr)` }}>
                       {visibleDates.map((date, dateIndex) => (
                         <div key={dateIndex} className="relative">
-                          {/* Day header */}
-                          <div className={`h-10 border-b flex items-center justify-center text-sm font-medium ${isToday(date) && view === 'week' ? 'bg-primary/10 text-primary' : ''
-                            } ${dateIndex < visibleDates.length - 1 ? "border-l" : ""}`}>
-                            {view === 'week' ? format(date, 'EEE d/M', { locale: he }) : format(date, 'EEE d/M', { locale: he })}
-                          </div>
 
                           {/* Time slots */}
                           <div className="relative">
@@ -1310,7 +1340,7 @@ export default function HomePage() {
                               }
 
                               if (isDragging && isInCurrentColumn && dragPosition && draggedData) {
-                                // Maintain the offset where the user clicked
+                                // Use the clamped position from dragPosition
                                 blockStyle.top = `${dragPosition.y}px`
                               }
 
@@ -1457,6 +1487,8 @@ export default function HomePage() {
                           </div>
                         </div>
                       ))}
+                        </div>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -1476,7 +1508,7 @@ export default function HomePage() {
           isOpen={isCreateModalOpen}
           onClose={closeAllDialogs}
           title={editingAppointment ? 'עריכת תור' : selectedClient ? `תור חדש - ${selectedClient.first_name} ${selectedClient.last_name}` : 'תור חדש'}
-          className="sm:max-w-[425px] "
+          className="sm:max-w-[600px] border-none"
         >
           <div className="grid gap-4">
             {selectedClient && (
@@ -1487,23 +1519,56 @@ export default function HomePage() {
                 </div>
               </div>
             )}
-            <div className="space-y-2">
-              <Label htmlFor="exam_name" className="text-right block">סוג בדיקה</Label>
-              <Input
-                id="exam_name"
-                name="exam_name"
-                value={formData.exam_name}
-                onChange={handleInputChange}
-                dir="rtl"
-              />
+            
+            {/* First row - two columns */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="exam_name" className="text-right block">סוג בדיקה</Label>
+                <Input
+                  id="exam_name"
+                  name="exam_name"
+                  value={formData.exam_name}
+                  onChange={handleInputChange}
+                  dir="rtl"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="examiner" className="text-right block">בודק</Label>
+                <UserSelect
+                  value={formData.user_id}
+                  onValueChange={(userId) => setFormData(prev => ({ ...prev, user_id: userId }))}
+                />
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="examiner" className="text-right block">בודק</Label>
-              <UserSelect
-                value={formData.user_id}
-                onValueChange={(userId) => setFormData(prev => ({ ...prev, user_id: userId }))}
-              />
+
+            {/* Second row - two columns */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="time" className="text-right block">שעה</Label>
+                <Input
+                  id="time"
+                  name="time"
+                  type="time"
+                  value={formData.time}
+                  onChange={handleInputChange}
+                  dir="rtl"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="date" className="text-right block">תאריך</Label>
+                <Input
+                  id="date"
+                  name="date"
+                  type="date"
+                  value={formData.date}
+                  onChange={handleInputChange}
+                  className="justify-end"
+                  dir="rtl"
+                />
+              </div>
             </div>
+
+            {/* Third row - full width */}
             <div className="space-y-2">
               <Label htmlFor="note" className="text-right block">הערות</Label>
               <Textarea
@@ -1515,10 +1580,11 @@ export default function HomePage() {
               />
             </div>
           </div>
-          <div className="flex justify-start gap-2 mt-4">
+          <div className="flex justify-center gap-2 mt-4">
             <Button onClick={handleSaveAppointment}>שמור</Button>
             <Button 
               variant="destructive" 
+              size="icon"
               onClick={() => {
                 if (editingAppointment) {
                   handleDeleteAppointment(editingAppointment.id!)
@@ -1526,7 +1592,7 @@ export default function HomePage() {
                 closeAllDialogs()
               }}
             >
-              מחיקה
+              <Trash2 className="h-4 w-4" />
             </Button>
           </div>
         </CustomModal>

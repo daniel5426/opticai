@@ -80,7 +80,7 @@ export function FinalPrescriptionTab({
       case "select":
         return (
           <Select value={getFieldValue(eye, key)} onValueChange={(value) => handleChange(eye, key, value)} disabled={!isEditing}>
-            <SelectTrigger size="xs" className={`h-8 text-xs w-full ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100`}>
+            <SelectTrigger size="xs" className={`h-8 text-xs w-full `} disabled={!isEditing}>
               <SelectValue placeholder="" />
             </SelectTrigger>
             <SelectContent>

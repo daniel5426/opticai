@@ -57,7 +57,7 @@ export function UserSelect({ value, onValueChange, placeholder = "בחר משת�
       disabled={disabled}
       dir="rtl"
     >
-      <SelectTrigger className={`w-full ${disabled ? 'bg-accent/50' : 'bg-white'} disabled:opacity-100 disabled:cursor-default`}>
+      <SelectTrigger disabled={disabled}>
         <SelectValue placeholder={placeholder} />
       </SelectTrigger>
       <SelectContent>

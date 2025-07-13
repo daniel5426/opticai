@@ -86,7 +86,7 @@ export function CustomModal({ isOpen, onClose, title, subtitle, description, chi
     >
       <div
         ref={modalRef}
-        className={`bg-card rounded-lg shadow-lg ${width} max-h-[90vh] overflow-auto ${className}`}
+        className={`bg-card rounded-lg shadow-lg w-1/2 ${width} max-h-[90vh] overflow-auto ${className}`}
         onClick={(e) => e.stopPropagation()}
         tabIndex={-1}
         style={{ scrollbarWidth: 'none' }}

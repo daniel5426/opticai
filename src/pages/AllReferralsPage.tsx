@@ -53,7 +53,7 @@ export default function AllReferralsPage() {
       <SiteHeader title="הפניות" />
       <div className="flex flex-col flex-1 p-4 lg:p-6" dir="rtl" style={{scrollbarWidth: 'none'}}>
         <div className="flex items-center justify-between mb-4">
-          <h1 className="text-2xl font-bold">כל ההפניות</h1>
+          <h1 className="text-xl font-bold">כל ההפניות</h1>
         </div>
         <ReferralTable 
           referrals={referrals} 

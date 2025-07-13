@@ -549,56 +549,59 @@ export default function SettingsPage() {
   return (
     <>
       <SiteHeader title="הגדרות" />
-        <div className="" style={{scrollbarWidth: 'none'}} dir="rtl">
-          <div className="max-w-4xl mx-auto p-6 pb-20 space-y-6">
-            
-            {/* Header */}
-            <div className="flex justify-between items-start mb-8">
-              <div className="text-right space-y-2">
-                <h1 className="text-2xl font-bold">הגדרות המרפאה</h1>
-                <p className="text-muted-foreground">נהל את פרטי המרפאה והגדרות המערכת</p>
-              </div>
-                              <div className="flex items-center gap-3">
-                  <Button 
-                    onClick={handleSave} 
-                    disabled={saving}
-                    size="lg"
-                    className="px-8 shadow-md w-[140px] h-10 relative"
-                  >
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <div className={`transition-opacity duration-150 ${saving ? 'opacity-0' : 'opacity-100'}`}>
-                        <span>שמור הכל</span>
-                      </div>
-                      <div className={`absolute transition-opacity duration-150 ${saving ? 'opacity-100' : 'opacity-0'}`}>
-                        <div className="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin"></div>
-                      </div>
-                    </div>
-                  </Button>
-                  
-                  {saveSuccess && (
-                    <div className="flex items-center text-green-600 animate-fade-in">
-                      <svg 
-                        className="w-5 h-5" 
-                        fill="none" 
-                        stroke="currentColor" 
-                        viewBox="0 0 24 24"
-                      >
-                        <path 
-                          strokeLinecap="round" 
-                          strokeLinejoin="round" 
-                          strokeWidth={2} 
-                          d="M5 13l4 4L19 7" 
-                        />
-                      </svg>
-                    </div>
-                  )}
-                </div>
+      <div className="h-[calc(100vh-4rem)] flex flex-col" dir="rtl">
+        {/* Fixed Header */}
+        <div className="flex-shrink-0 bg-transparent pt-5 pb-2">
+          <div className="max-w-4xl mx-auto flex justify-between items-start">
+            <div className="text-right space-y-2">
+              <h1 className="text-2xl font-bold">הגדרות המרפאה</h1>
+              <p className="text-muted-foreground">נהל את פרטי המרפאה והגדרות המערכת</p>
             </div>
+            <div className="flex items-center gap-3 pt-6 pl-1">
+              <Button 
+                onClick={handleSave} 
+                disabled={saving}
+                size="lg"
+                className="px-8 shadow-md w-[140px] h-10 relative"
+              >
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className={`transition-opacity duration-150 ${saving ? 'opacity-0' : 'opacity-100'}`}>
+                    <span>שמור הכל</span>
+                  </div>
+                  <div className={`absolute transition-opacity duration-150 ${saving ? 'opacity-100' : 'opacity-0'}`}>
+                    <div className="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin"></div>
+                  </div>
+                </div>
+              </Button>
+              
+              {saveSuccess && (
+                <div className="flex items-center text-green-600 animate-fade-in">
+                  <svg 
+                    className="w-5 h-5" 
+                    fill="none" 
+                    stroke="currentColor" 
+                    viewBox="0 0 24 24"
+                  >
+                    <path 
+                      strokeLinecap="round" 
+                      strokeLinejoin="round" 
+                      strokeWidth={2} 
+                      d="M5 13l4 4L19 7" 
+                    />
+                  </svg>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
 
-            <Tabs defaultValue="personal-profile" className="w-full" orientation="vertical">
-              <div className="flex gap-6">
-                {/* Vertical Tabs on the Right */}
-                <div className="flex-1">
+        {/* Main Content with Tabs */}
+        <div className="flex-1 overflow-hidden">
+          <div className="max-w-[950px] mx-auto h-full">
+            <Tabs defaultValue="personal-profile" className="h-full flex" orientation="vertical">
+              <div className="flex h-full gap-6 p-6">
+                {/* Scrollable Content Area */}
+                <div className="flex-1 overflow-y-auto pr-2 pb-8" style={{scrollbarWidth: 'none'}}>
                   <TabsContent value="profile" className="space-y-6 mt-0">
                     {/* Profile Header with Basic Info */}
                     <Card className="shadow-md border-none">
@@ -1544,28 +1547,29 @@ export default function SettingsPage() {
                   </TabsContent>
                 </div>
 
-                {/* Vertical TabsList on the Right */}
-                <TabsList className="flex flex-col h-fit w-48 p-1">
-                  <TabsTrigger value="profile" className="w-full justify-end text-right">פרופיל המרפאה</TabsTrigger>
-                  <TabsTrigger value="customization" className="w-full justify-end text-right">התאמה אישית</TabsTrigger>
-                  <TabsTrigger value="preferences" className="w-full justify-end text-right">ניהול זמן</TabsTrigger>
-                  <TabsTrigger value="notifications" className="w-full justify-end text-right">התראות</TabsTrigger>
-                  <TabsTrigger value="email" className="w-full justify-end text-right">הגדרות אימייל</TabsTrigger>
-                  <TabsTrigger value="server" className="w-full justify-end text-right">חיבור לשרת</TabsTrigger>
-                  <TabsTrigger value="personal-profile" className="w-full justify-end text-right">פרופיל אישי</TabsTrigger>
-                  {currentUser?.role === 'admin' && (
-                    <TabsTrigger value="users" className="w-full justify-end text-right">ניהול משתמשים</TabsTrigger>
-                  )}
-                  <TabsTrigger value="field-data" className="w-full justify-end text-right">ניהול נתוני שדות</TabsTrigger>
-                </TabsList>
+                {/* Fixed Vertical TabsList on the Right */}
+                <div className="flex-shrink-0">
+                  <TabsList className="flex flex-col h-fit w-48 p-1">
+                    <TabsTrigger value="profile" className="w-full justify-end text-right">פרופיל המרפאה</TabsTrigger>
+                    <TabsTrigger value="customization" className="w-full justify-end text-right">התאמה אישית</TabsTrigger>
+                    <TabsTrigger value="preferences" className="w-full justify-end text-right">ניהול זמן</TabsTrigger>
+                    <TabsTrigger value="notifications" className="w-full justify-end text-right">התראות</TabsTrigger>
+                    <TabsTrigger value="email" className="w-full justify-end text-right">הגדרות אימייל</TabsTrigger>
+                    <TabsTrigger value="server" className="w-full justify-end text-right">חיבור לשרת</TabsTrigger>
+                    <TabsTrigger value="personal-profile" className="w-full justify-end text-right">פרופיל אישי</TabsTrigger>
+                    {currentUser?.role === 'admin' && (
+                      <TabsTrigger value="users" className="w-full justify-end text-right">ניהול משתמשים</TabsTrigger>
+                    )}
+                    <TabsTrigger value="field-data" className="w-full justify-end text-right">ניהול נתוני שדות</TabsTrigger>
+                  </TabsList>
+                </div>
               </div>
             </Tabs>
-
-
           </div>
         </div>
+      </div>
 
-        {/* User Modal */}
+      {/* User Modal */}
         <CustomModal
           isOpen={showUserModal}
           onClose={() => setShowUserModal(false)}

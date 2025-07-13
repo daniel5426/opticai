@@ -22,6 +22,7 @@ import { ExamComponentType } from "@/lib/exam-field-mappings"
 import { examComponentRegistry } from "@/lib/exam-component-registry"
 import { toast } from "sonner"
 import { DateInput } from "@/components/ui/date"
+import { Textarea } from "@/components/ui/textarea"
 
 // Renaming for consistency within the component props
 type Exam = OpticalExam;
@@ -302,7 +303,7 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
   switch (item.type) {
     case 'exam-details':
      return (
-          <Card className="w-full p-4  shadow-md border-none ">
+          <Card className="w-full p-4 pt-3  shadow-md border-none ">
             <div className="grid grid-cols-5 gap-x-3 gap-y-2 w-full" dir="rtl">
               <div className="col-span-1">
                 <label className="font-semibold text-base">תאריך בדיקה</label>
@@ -366,7 +367,7 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
                   value={ mode === 'editor' ? 'R' : detailProps?.formData.dominant_eye || ''}
                   onValueChange={(value) => mode === 'editor' ? () => {} : detailProps?.handleSelectChange(value, 'dominant_eye')}
                 >
-                  <SelectTrigger className={`h-6 text-sm w-full ${mode === 'editor' ? 'bg-white' : detailProps?.isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}>
+                  <SelectTrigger disabled={mode === 'editor' ? false : !detailProps?.isEditing}>
                     <SelectValue placeholder="בחר עין" />
                   </SelectTrigger>
                   <SelectContent>
@@ -562,14 +563,25 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
 
     case 'notes':
       return (
-        <Card className={`w-full p-5 shadow-md border-none ${matchHeight ? 'h-full flex flex-col' : ''}`} dir="rtl">
-          <label className="block text-base font-semibold mb-[-10px]">הערות</label>
-          <textarea
+          <Card className={`w-full px-4 pt-3 pb-4 shadow-md border-none gap-2 ${matchHeight ? 'h-full flex flex-col' : ''}`} dir="rtl">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-muted rounded-lg">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-foreground">
+                    <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path>
+                    <polyline points="14,2 14,8 20,8"></polyline>
+                    <line x1="16" y1="13" x2="8" y2="13"></line>
+                    <line x1="16" y1="17" x2="8" y2="17"></line>
+                    <polyline points="10,9 9,9 8,9"></polyline>
+                  </svg>
+                </div>
+                <h3 className="text-base font-medium text-muted-foreground">הערות</h3>
+              </div>
+          <Textarea
             name="notes"
             disabled={!detailProps?.isEditing}
             value={detailProps?.formData.notes || ''}
             onChange={detailProps?.handleInputChange}
-            className={`text-sm w-full p-3 border rounded-xl ${detailProps?.isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default ${matchHeight ? 'flex-1' : 'min-h-[90px]'}`}
+            className={`text-sm w-full p-3 border rounded-lg disabled:opacity-100 disabled:cursor-default ${matchHeight ? 'flex-1' : 'min-h-[90px]'}`}
             rows={matchHeight ? undefined : 4}
           />
         </Card>

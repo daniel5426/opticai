@@ -48,6 +48,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.removeAllListeners('ai-chat-stream-error');
   },
 
+  // Chat operations
+  createChat: (title: string) => ipcRenderer.invoke('db-operation', 'createChat', title),
+  getChatById: (id: number) => ipcRenderer.invoke('db-operation', 'getChatById', id),
+  getChatMessages: (chatId: number) => ipcRenderer.invoke('db-operation', 'getChatMessagesByChatId', chatId),
+  createChatMessage: (messageData: any) => ipcRenderer.invoke('db-operation', 'createChatMessage', messageData),
+
   // Email operations
   emailTestConnection: () => ipcRenderer.invoke('email-test-connection'),
   emailSendTestReminder: (appointmentId: number) => ipcRenderer.invoke('email-send-test-reminder', appointmentId),

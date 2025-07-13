@@ -10,6 +10,8 @@ import { Settings } from "@/lib/db/schema";
 import { useUser } from "@/contexts/UserContext";
 import { SettingsContext } from "@/contexts/SettingsContext";
 import UserSelectionPage from "@/pages/UserSelectionPage";
+import { ClientSidebarProvider } from "@/contexts/ClientSidebarContext";
+import { ClientSidebar } from "@/components/ClientSidebar";
 
 export default function BaseLayout({
   children,
@@ -60,39 +62,44 @@ export default function BaseLayout({
     <>
       <ThemeProvider defaultTheme="light" storageKey="vite-ui-theme">
         <SettingsContext.Provider value={{ settings, updateSettings }}>
-          {isLoading ? (
-            <div className="min-h-screen bg-background flex items-center justify-center">
-              <div className="text-foreground text-xl">טוען...</div>
-            </div>
-          ) : !currentUser ? (
-            <UserSelectionPage />
-          ) : (
-            <div className="flex flex-col h-screen">
-              <DragWindowRegion title="" />
-              <div className="flex-1 flex overflow-hidden">
-                <SidebarProvider dir="rtl">
-                  <AppSidebar 
-                    variant="inset" 
-                    side="right" 
-                    clinicName={settings?.clinic_name} 
-                    currentUser={currentUser} 
-                    logoPath={settings?.clinic_logo_path}
-                    isLogoLoaded={isLogoLoaded}
-                  />
-                  <SidebarInset className="flex flex-col flex-1 overflow-hidden" style={{scrollbarWidth: 'none'}}>
-                    <div className="flex flex-col h-full">
-                      <div className="sticky top-0 z-10 bg-background">
-                        <div id="header-container" />
-                      </div>
-                      <main className="flex-1 overflow-auto bg-muted/50" style={{scrollbarWidth: 'none'}}>
-                        {children}
-                      </main>
-                    </div>
-                  </SidebarInset>
-                </SidebarProvider>
+          <ClientSidebarProvider>
+            {isLoading ? (
+              <div className="min-h-screen bg-background flex items-center justify-center">
+                <div className="text-foreground text-xl">טוען...</div>
               </div>
-            </div>
-          )}
+            ) : !currentUser ? (
+              <UserSelectionPage />
+            ) : (
+              <div className="flex flex-col h-screen">
+                <DragWindowRegion title="" />
+                <div className="flex-1 flex overflow-hidden">
+                  <SidebarProvider dir="rtl">
+                    <AppSidebar 
+                      variant="inset" 
+                      side="right" 
+                      clinicName={settings?.clinic_name} 
+                      currentUser={currentUser} 
+                      logoPath={settings?.clinic_logo_path}
+                      isLogoLoaded={isLogoLoaded}
+                    />
+                    <SidebarInset className="flex flex-col flex-1 overflow-hidden" style={{scrollbarWidth: 'none'}}>
+                      <div className="flex flex-col h-full">
+                        <div className="sticky top-0 z-10 bg-background">
+                          <div id="header-container" />
+                        </div>
+                        <main className="flex-1 overflow-auto bg-muted/50 flex" style={{scrollbarWidth: 'none'}}>
+                          <div className="flex-1 overflow-auto">
+                            {children}
+                          </div>
+                          <ClientSidebar />
+                        </main>
+                      </div>
+                    </SidebarInset>
+                  </SidebarProvider>
+                </div>
+              </div>
+            )}
+          </ClientSidebarProvider>
         </SettingsContext.Provider>
         <Toaster />
       </ThemeProvider>

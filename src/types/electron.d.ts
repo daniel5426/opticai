@@ -77,6 +77,12 @@ export interface ElectronAPI {
   onAiStreamError: (callback: (data: { error: string }) => void) => void;
   removeAiStreamListeners: () => void;
 
+  // Chat operations
+  createChat: (title: string) => Promise<Chat | null>;
+  getChatById: (id: number) => Promise<Chat | null>;
+  getChatMessages: (chatId: number) => Promise<ChatMessage[]>;
+  createChatMessage: (messageData: Omit<ChatMessage, 'id' | 'timestamp'>) => Promise<ChatMessage | null>;
+
   // Email operations
   emailTestConnection: () => Promise<boolean>;
   emailSendTestReminder: (appointmentId: number) => Promise<boolean>;

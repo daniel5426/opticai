@@ -875,7 +875,6 @@ export default function ContactLensDetailPage({
         <SiteHeader 
           title="לקוחות" 
           backLink="/clients"
-          client={client}
           clientBackLink={`/clients/${clientId}`}
           examInfo={isNewMode ? "עדשות מגע חדש" : `עדשות מגע מס' ${contactLensId}`}
           tabs={{

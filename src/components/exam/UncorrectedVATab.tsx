@@ -84,7 +84,7 @@ export function UncorrectedVATab({
                     value={getFieldValue("R", key)}
                     onChange={(e) => handleChange("R", key, e.target.value)}
                     disabled={!isEditing}
-                    className={`h-8 pr-1 text-xs pl-6 ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
+                    className={`h-8 pr-1 text-xs pl-6 disabled:opacity-100 disabled:cursor-default`}
                   />
                   <span className="absolute left-2 top-[53%] transform -translate-y-1/2 text-[14px] text-gray-500 pointer-events-none">6/</span>
                 </div>

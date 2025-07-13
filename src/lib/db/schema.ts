@@ -31,6 +31,16 @@ export interface Client {
   occupation?: string;
   status?: string;
   notes?: string;
+  profile_picture?: string;
+  family_id?: number;
+  family_role?: string;
+}
+
+export interface Family {
+  id?: number;
+  name: string;
+  created_date?: string;
+  notes?: string;
 }
 
 export interface MedicalLog {
@@ -770,7 +780,32 @@ export interface WorkShift {
   updated_at?: string;
 }
 
+export interface Campaign {
+  id?: number;
+  name: string;
+  filters: string; // JSON string of filter conditions
+  email_enabled: boolean;
+  email_content: string;
+  sms_enabled: boolean;
+  sms_content: string;
+  active: boolean;
+  active_since?: string;
+  mail_sent?: boolean;
+  sms_sent?: boolean;
+  created_at?: string;
+}
+
 export const createTables = (db: Database): void => {
+  // Create families table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS families (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      created_date DATE DEFAULT CURRENT_DATE,
+      notes TEXT
+    );
+  `);
+
   // Create clients table
   db.exec(`
     CREATE TABLE IF NOT EXISTS clients (
@@ -803,7 +838,11 @@ export const createTables = (db: Database): void => {
       file_location TEXT,
       occupation TEXT,
       status TEXT,
-      notes TEXT
+      notes TEXT,
+      profile_picture TEXT,
+      family_id INTEGER,
+      family_role TEXT,
+      FOREIGN KEY(family_id) REFERENCES families(id)
     );
   `);
 
@@ -1958,6 +1997,24 @@ export const createTables = (db: Database): void => {
       nv_1 REAL,
       nv_2 REAL,
       FOREIGN KEY(layout_instance_id) REFERENCES exam_layout_instances(id) ON DELETE CASCADE
+    );
+  `);
+
+  // Create campaigns table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS campaigns (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      filters TEXT,
+      email_enabled BOOLEAN DEFAULT 0,
+      email_content TEXT,
+      sms_enabled BOOLEAN DEFAULT 0,
+      sms_content TEXT,
+      active BOOLEAN DEFAULT 0,
+      active_since DATETIME,
+      mail_sent BOOLEAN DEFAULT 0,
+      sms_sent BOOLEAN DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
   `);
 

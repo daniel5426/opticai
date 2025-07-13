@@ -20,30 +20,72 @@ interface ClientsTableProps {
   data: Client[]
   onClientDeleted?: (clientId: number) => void
   onClientDeleteFailed?: () => void
+  selectedFamilyId?: number | null
+  showFamilyColumn?: boolean
+  searchQuery?: string
+  onSearchChange?: (query: string) => void
+  hideSearch?: boolean
+  hideNewButton?: boolean
+  compactMode?: boolean
 }
 
-export function ClientsTable({ data, onClientDeleted, onClientDeleteFailed }: ClientsTableProps) {
-  const [searchQuery, setSearchQuery] = React.useState("")
+export function ClientsTable({ 
+  data, 
+  onClientDeleted, 
+  onClientDeleteFailed,
+  selectedFamilyId,
+  showFamilyColumn = false,
+  searchQuery: externalSearchQuery,
+  onSearchChange,
+  hideSearch = false,
+  hideNewButton = false,
+  compactMode = false
+}: ClientsTableProps) {
+  const [internalSearchQuery, setInternalSearchQuery] = React.useState("")
   const [isDeleteModalOpen, setIsDeleteModalOpen] = React.useState(false)
   const [clientToDelete, setClientToDelete] = React.useState<Client | null>(null)
   const navigate = useNavigate()
 
-  const filteredData = React.useMemo(() => {
-    return data.filter((client) => {
-      const searchableFields = [
-        client.first_name,
-        client.last_name,
-        client.national_id,
-        client.phone_mobile,
-        client.email,
-      ]
+  const searchQuery = externalSearchQuery !== undefined ? externalSearchQuery : internalSearchQuery
 
-      return searchableFields.some(
-        (field) =>
-          field && field.toLowerCase().includes(searchQuery.toLowerCase()),
-      )
-    })
-  }, [data, searchQuery])
+  const handleSearchChange = (value: string) => {
+    if (onSearchChange) {
+      onSearchChange(value)
+    } else {
+      setInternalSearchQuery(value)
+    }
+  }
+
+  const filteredData = React.useMemo(() => {
+    let filtered = data
+
+    if (showFamilyColumn) {
+      if (selectedFamilyId) {
+        filtered = filtered.filter((client) => client.family_id === selectedFamilyId)
+      } else {
+        filtered = []
+      }
+    }
+
+    if (searchQuery && filtered.length > 0) {
+      filtered = filtered.filter((client) => {
+        const searchableFields = [
+          client.first_name,
+          client.last_name,
+          client.national_id,
+          client.phone_mobile,
+          client.email,
+        ]
+
+        return searchableFields.some(
+          (field) =>
+            field && field.toLowerCase().includes(searchQuery.toLowerCase()),
+        )
+      })
+    }
+
+    return filtered
+  }, [data, searchQuery, selectedFamilyId, showFamilyColumn])
 
   const handleDeleteConfirm = async () => {
     if (clientToDelete && clientToDelete.id !== undefined) {
@@ -75,21 +117,25 @@ export function ClientsTable({ data, onClientDeleted, onClientDeleteFailed }: Cl
 
   return (
     <div className="space-y-4" dir="rtl">
-      <div className="flex items-center justify-between">
-        <div className="flex gap-2">
-          <Input
-            placeholder="חיפוש לקוחות..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-[250px] bg-card dark:bg-card"
-            dir="rtl"
-          />
+      {!hideSearch && (
+        <div className="flex items-center justify-between">
+          <div className="flex gap-2">
+            <Input
+              placeholder="חיפוש לקוחות..."
+              value={searchQuery}
+              onChange={(e) => handleSearchChange(e.target.value)}
+              className="w-[250px] bg-card dark:bg-card"
+              dir="rtl"
+            />
+          </div>
+          {!hideNewButton && (
+            <Button onClick={() => navigate({ to: "/clients/new" })} dir="rtl">
+              לקוח חדש
+              <PlusIcon className="mr-2 h-4 w-4" />
+            </Button>
+          )}
         </div>
-        <Button onClick={() => navigate({ to: "/clients/new" })} dir="rtl">
-          לקוח חדש
-          <PlusIcon className="mr-2 h-4 w-4" />
-        </Button>
-      </div>
+      )}
 
       <div className="rounded-md border bg-card">
         <Table dir="rtl">
@@ -98,10 +144,11 @@ export function ClientsTable({ data, onClientDeleted, onClientDeleteFailed }: Cl
               <TableHead className="text-right">מס' לקוח</TableHead>
               <TableHead className="text-right">שם פרטי</TableHead>
               <TableHead className="text-right">שם משפחה</TableHead>
-              <TableHead className="text-right">מגדר</TableHead>
+              {!compactMode && <TableHead className="text-right">מגדר</TableHead>}
               <TableHead className="text-right">ת.ז.</TableHead>
-              <TableHead className="text-right">נייד</TableHead>
-              <TableHead className="text-right">אימייל</TableHead>
+              {!compactMode && <TableHead className="text-right">נייד</TableHead>}
+              {!compactMode && <TableHead className="text-right">אימייל</TableHead>}
+              {showFamilyColumn && <TableHead className="text-right">תפקיד במשפחה</TableHead>}
               <TableHead className="w-[50px] text-right"></TableHead>
             </TableRow>
           </TableHeader>
@@ -116,10 +163,11 @@ export function ClientsTable({ data, onClientDeleted, onClientDeleteFailed }: Cl
                   <TableCell className="font-medium">{client.id}</TableCell>
                   <TableCell>{client.first_name || ""}</TableCell>
                   <TableCell>{client.last_name || ""}</TableCell>
-                  <TableCell>{client.gender || ""}</TableCell>
+                  {!compactMode && <TableCell>{client.gender || ""}</TableCell>}
                   <TableCell>{client.national_id || ""}</TableCell>
-                  <TableCell>{client.phone_mobile || ""}</TableCell>
-                  <TableCell>{client.email || ""}</TableCell>
+                  {!compactMode && <TableCell>{client.phone_mobile || ""}</TableCell>}
+                  {!compactMode && <TableCell>{client.email || ""}</TableCell>}
+                  {showFamilyColumn && <TableCell>{client.family_role || ""}</TableCell>}
                   <TableCell>
                     <Button 
                       variant="ghost" 
@@ -138,8 +186,9 @@ export function ClientsTable({ data, onClientDeleted, onClientDeleteFailed }: Cl
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={8} className="h-24 text-center">
-                  לא נמצאו לקוחות לתצוגה
+                <TableCell colSpan={compactMode ? (showFamilyColumn ? 6 : 5) : (showFamilyColumn ? 9 : 8)} className="h-24 text-center text-muted-foreground">
+                  {showFamilyColumn && !selectedFamilyId ? 'בחר משפחה כדי לראות את חבריה' : 
+                   selectedFamilyId ? 'לא נמצאו לקוחות במשפחה זו' : 'לא נמצאו לקוחות לתצוגה'}
                 </TableCell>
               </TableRow>
             )}

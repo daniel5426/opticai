@@ -24,6 +24,7 @@ import { AIAssistantPage } from "@/pages/AIAssistantPage";
 import ExamLayoutsPage from "@/pages/ExamLayoutsPage";
 import ExamLayoutEditorPage from "@/pages/ExamLayoutEditorPage";
 import WorkerStatsPage from "@/pages/WorkerStatsPage";
+import CampaignsPage from "@/pages/CampaignsPage";
 
 // TODO: Steps to add a new route:
 // 1. Create a new page component in the '../pages/' directory (e.g., NewPage.tsx)
@@ -205,6 +206,12 @@ export const WorkerStatsRoute = createRoute({
   component: WorkerStatsPage,
 });
 
+export const CampaignsRoute = createRoute({
+  getParentRoute: () => RootRoute,
+  path: "/campaigns",
+  component: CampaignsPage,
+});
+
 export const rootTree = RootRoute.addChildren([
   HomeRoute,
   SecondPageRoute,
@@ -231,4 +238,5 @@ export const rootTree = RootRoute.addChildren([
   ExamLayoutEditorRoute,
   ExamLayoutEditorDetailRoute,
   WorkerStatsRoute,
+  CampaignsRoute,
 ]);

@@ -2,182 +2,10 @@ import React, { useState } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { VHCalculatorModal } from "@/components/ui/vh-calculator-modal"
 import { FinalSubjectiveExam } from "@/lib/db/schema"
 import { ChevronUp, ChevronDown } from "lucide-react"
-
-interface VHCalculatorProps {
-  onConfirm: (rightPrisH: number, rightBaseH: string, rightPrisV: number, rightBaseV: string, leftPrisH: number, leftBaseH: string, leftPrisV: number, leftBaseV: string) => void;
-  disabled?: boolean;
-}
-
-function VHCalculatorModal({ onConfirm, disabled = false }: VHCalculatorProps) {
-  const [isOpen, setIsOpen] = useState(false);
-  const [rightPrisH, setRightPrisH] = useState<number>(0);
-  const [rightBaseH, setRightBaseH] = useState<string>("");
-  const [rightPrisV, setRightPrisV] = useState<number>(0);
-  const [rightBaseV, setRightBaseV] = useState<string>("");
-  const [leftPrisH, setLeftPrisH] = useState<number>(0);
-  const [leftBaseH, setLeftBaseH] = useState<string>("");
-  const [leftPrisV, setLeftPrisV] = useState<number>(0);
-  const [leftBaseV, setLeftBaseV] = useState<string>("");
-
-  const baseHOptions = ["IN", "OUT"];
-  const baseVOptions = ["UP", "DOWN"];
-
-  const handleConfirm = () => {
-    onConfirm(rightPrisH, rightBaseH, rightPrisV, rightBaseV, leftPrisH, leftBaseH, leftPrisV, leftBaseV);
-    setIsOpen(false);
-  };
-
-  return (
-    <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      <DialogTrigger asChild>
-        <Button variant="outline" size="sm" className={`h-8 text-xs px-2 ${disabled ? 'bg-accent/50' : 'bg-white'}`} type="button" disabled={disabled}>
-          V + H
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="!w-[880px] !max-w-[1200px]" dir="rtl" showCloseButton={false}>
-        <DialogHeader dir="rtl" className="text-center pb-4">
-          <DialogTitle className="text-center text-2xl">חישוב פריזמה סופי</DialogTitle>
-        </DialogHeader>
-        <div className="space-y-6 w-full" dir="rtl">
-          <div className="flex items-center gap-4 w-full min-w-fit" dir="ltr">
-            <span className="text-lg font-medium w-8 text-center flex-shrink-0"></span>
-            <div className="flex items-center gap-4 flex-shrink-0">
-              <div className="w-24 flex-shrink-0">
-                <Label className="text-xs block text-center mb-1">PRIS.H</Label>
-              </div>
-              <div className="w-24 flex-shrink-0">
-                <Label className="text-xs block text-center mb-1">BASE.H</Label>
-              </div>
-              <div className="w-10 flex justify-center flex-shrink-0">
-              </div>
-              <div className="w-24 flex-shrink-0">
-                <Label className="text-xs block text-center mb-1">PRIS.V</Label>
-              </div>
-              <div className="w-24 flex-shrink-0">
-                <Label className="text-xs block text-center mb-1">BASE.V</Label>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-4 w-full min-w-fit" dir="ltr">
-            <span className="text-lg font-medium w-8 text-center flex-shrink-0">R</span>
-            <div className="flex items-center gap-4 flex-shrink-0">
-              <div className="w-24 flex-shrink-0">
-                <Input 
-                  type="number" 
-                  step="0.5" 
-                  value={rightPrisH || ""} 
-                  onChange={(e) => setRightPrisH(Number(e.target.value))} 
-                  className="h-9 pr-1 text-sm px-2 text-right bg-white" 
-                  dir="rtl"
-                />
-              </div>
-              <div className="w-24 flex-shrink-0">
-                <Select value={rightBaseH} onValueChange={setRightBaseH}>
-                  <SelectTrigger className="h-9 text-sm w-full min-w-[60px] bg-white">
-                    <SelectValue placeholder="בחר" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {baseHOptions.map(option => (
-                      <SelectItem key={option} value={option}>{option}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="w-10 flex justify-center flex-shrink-0">
-                <span className="text-2xl font-bold">+</span>
-              </div>
-              <div className="w-24 flex-shrink-0">
-                <Input 
-                  type="number" 
-                  step="0.5" 
-                  value={rightPrisV || ""} 
-                  onChange={(e) => setRightPrisV(Number(e.target.value))} 
-                  className="h-9 pr-1 text-sm px-2 text-right bg-white" 
-                  dir="rtl"
-                />
-              </div>
-              <div className="w-24 flex-shrink-0">
-                <Select value={rightBaseV} onValueChange={setRightBaseV}>
-                  <SelectTrigger className="h-9 text-sm w-full min-w-[60px] bg-white">
-                    <SelectValue placeholder="בחר" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {baseVOptions.map(option => (
-                      <SelectItem key={option} value={option}>{option}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-4 w-full min-w-fit" dir="ltr">
-            <span className="text-lg font-medium w-8 text-center flex-shrink-0">L</span>
-            <div className="flex items-center gap-4 flex-shrink-0">
-              <div className="w-24 flex-shrink-0">
-                <Input 
-                  type="number" 
-                  step="0.5" 
-                  value={leftPrisH || ""} 
-                  onChange={(e) => setLeftPrisH(Number(e.target.value))} 
-                  className="h-9 pr-1 text-sm px-2 text-right bg-white" 
-                  dir="rtl"
-                />
-              </div>
-              <div className="w-24 flex-shrink-0">
-                <Select value={leftBaseH} onValueChange={setLeftBaseH}>
-                  <SelectTrigger className="h-9 text-sm w-full min-w-[60px] bg-white">
-                    <SelectValue placeholder="בחר" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {baseHOptions.map(option => (
-                      <SelectItem key={option} value={option}>{option}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="w-10 flex justify-center flex-shrink-0">
-                <span className="text-2xl font-bold">+</span>
-              </div>
-              <div className="w-24 flex-shrink-0">
-                <Input 
-                  type="number" 
-                  step="0.5" 
-                  value={leftPrisV || ""} 
-                  onChange={(e) => setLeftPrisV(Number(e.target.value))} 
-                  className="h-9 pr-1 text-sm px-2 text-right bg-white" 
-                  dir="rtl"
-                />
-              </div>
-              <div className="w-24 flex-shrink-0">
-                <Select value={leftBaseV} onValueChange={setLeftBaseV}>
-                  <SelectTrigger className="h-9 text-sm w-full min-w-[60px] bg-white">
-                    <SelectValue placeholder="בחר" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {baseVOptions.map(option => (
-                      <SelectItem key={option} value={option}>{option}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex justify-center pt-6">
-            <Button onClick={handleConfirm} type="button" className="px-8">אישור</Button>
-          </div>
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-}
 
 interface FinalSubjectiveTabProps {
   finalSubjectiveData: FinalSubjectiveExam;
@@ -248,7 +76,7 @@ export function FinalSubjectiveTab({
               type="number" step={step} value={getFieldValue(eye, key)}
               onChange={(e) => handleChange(eye, key, e.target.value)}
               disabled={!isEditing}
-              className={`h-8 pr-1 text-xs pl-6 ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
+              className={`h-8 pr-1 text-xs pl-6 disabled:opacity-100 disabled:cursor-default`}
             />
             <span className="absolute left-2 top-[53%] transform -translate-y-1/2 text-[14px] text-gray-500 pointer-events-none">6/</span>
           </div>
@@ -256,7 +84,7 @@ export function FinalSubjectiveTab({
       case "select":
         return (
           <Select value={getFieldValue(eye, key)} onValueChange={(value) => handleChange(eye, key, value)} disabled={!isEditing}>
-            <SelectTrigger size="xs" className={`h-8 text-xs w-full ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100`}>
+            <SelectTrigger size="xs" className={`h-8 text-xs w-full disabled:opacity-100`} disabled={!isEditing}>
               <SelectValue placeholder="" />
             </SelectTrigger>
             <SelectContent>
@@ -271,7 +99,7 @@ export function FinalSubjectiveTab({
             value={getFieldValue(eye, key)}
             onChange={(e) => handleChange(eye, key, e.target.value)}
             disabled={!isEditing}
-            className={`h-8 pr-1 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
+            className={`h-8 pr-1 text-xs disabled:opacity-100 disabled:cursor-default`}
           />
         );
     }
@@ -314,7 +142,7 @@ export function FinalSubjectiveTab({
               if (key === 'pr_v') {
                 return (
                   <div key="c-vh-calculator" className="flex justify-center">
-                    <VHCalculatorModal onConfirm={onVHConfirm} disabled={!isEditing} />
+                    <VHCalculatorModal onConfirm={() => {}} onRawConfirm={onVHConfirm} disabled={!isEditing} />
                   </div>
                 );
               }
@@ -325,7 +153,7 @@ export function FinalSubjectiveTab({
                       type="number" step={step} value={getFieldValue("C", "va")}
                       onChange={(e) => handleChange("C", "va", e.target.value)}
                       disabled={!isEditing}
-                      className={`h-8 text-xs pl-6 ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
+                      className={`h-8 text-xs pl-6 disabled:opacity-100 disabled:cursor-default`}
                     />
                     <span className="absolute left-2 top-[53%] transform -translate-y-1/2 text-[14px] text-gray-500 pointer-events-none">6/</span>
                   </div>

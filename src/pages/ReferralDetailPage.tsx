@@ -7,9 +7,9 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent } from "@/components/ui/card"
 import { Referral, ReferralEye, Client } from "@/lib/db/schema"
-import { 
-  getReferralById, 
-  updateReferral, 
+import {
+  getReferralById,
+  updateReferral,
   createReferral,
   getReferralEyesByReferralId,
   createReferralEye,
@@ -19,11 +19,13 @@ import { getClientById } from "@/lib/db/clients-db"
 import { toast } from "sonner"
 import { CompactPrescriptionTab } from "@/components/exam/CompactPrescriptionTab"
 import { CompactPrescriptionExam } from "@/lib/db/schema"
-import { 
+import {
   createCompactPrescriptionExam,
   updateCompactPrescriptionExam,
   getCompactPrescriptionExamByReferralId
 } from "@/lib/db/compact-prescription-db"
+import { ClientSpaceLayout } from "@/layouts/ClientSpaceLayout"
+import { useClientSidebar } from "@/contexts/ClientSidebarContext"
 
 export default function ReferralDetailPage() {
   const location = useLocation()
@@ -31,15 +33,15 @@ export default function ReferralDetailPage() {
   const [loading, setLoading] = useState(true)
   const [client, setClient] = useState<Client | null>(null)
   const [activeTab, setActiveTab] = useState('referrals')
-  
+
   // Check if we're on the create route
   const isNewReferral = location.pathname === '/referrals/create'
   const [isEditing, setIsEditing] = useState(isNewReferral)
-  
+
   // Get referralId for detail route, or search params for create route
   let referralId: string | undefined
   let clientIdFromSearch: string | undefined
-  
+
   if (isNewReferral) {
     try {
       const searchParams = useSearch({ from: "/referrals/create" })
@@ -53,7 +55,7 @@ export default function ReferralDetailPage() {
     const params = useParams({ from: "/referrals/$referralId" })
     referralId = params.referralId
   }
-  
+
   const [formData, setFormData] = useState<Referral>({
     client_id: 0,
     referral_notes: '',
@@ -101,18 +103,22 @@ export default function ReferralDetailPage() {
     pd: undefined
   })
 
+  const { currentClient } = useClientSidebar()
+
   useEffect(() => {
     const loadReferralData = async () => {
       try {
         setLoading(true)
-        
+
         // Load client data first
         const clientId = isNewReferral ? clientIdFromSearch : formData.client_id?.toString()
         if (clientId) {
           const clientData = await getClientById(Number(clientId))
           setClient(clientData || null)
+        } else if (currentClient) {
+          setClient(currentClient)
         }
-        
+
         if (isNewReferral) {
           if (clientIdFromSearch) {
             setFormData(prev => ({ ...prev, client_id: Number(clientIdFromSearch) }))
@@ -129,13 +135,13 @@ export default function ReferralDetailPage() {
         const referral = await getReferralById(Number(referralId))
         if (referral) {
           setFormData(referral)
-          
+
           // Load client if not already loaded
           if (!client && referral.client_id) {
             const clientData = await getClientById(referral.client_id)
             setClient(clientData || null)
           }
-          
+
           // Load compact prescription
           const compactPrescriptionData = await getCompactPrescriptionExamByReferralId(Number(referralId))
           if (compactPrescriptionData) {
@@ -144,17 +150,17 @@ export default function ReferralDetailPage() {
           } else {
             setCompactPrescriptionFormData(prev => ({ ...prev, referral_id: Number(referralId) }))
           }
-          
+
           const eyeData = await getReferralEyesByReferralId(Number(referralId))
           const rightEye = eyeData.find(eye => eye.eye === 'R')
           const leftEye = eyeData.find(eye => eye.eye === 'L')
-          
+
           if (rightEye) {
             setRightEyeData(rightEye)
           } else {
             setRightEyeData(prev => ({ ...prev, referral_id: Number(referralId) }))
           }
-          
+
           if (leftEye) {
             setLeftEyeData(leftEye)
           } else {
@@ -170,7 +176,7 @@ export default function ReferralDetailPage() {
     }
 
     loadReferralData()
-  }, [referralId, isNewReferral, clientIdFromSearch])
+  }, [referralId, isNewReferral, clientIdFromSearch, currentClient])
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
@@ -184,10 +190,10 @@ export default function ReferralDetailPage() {
   const handleTabChange = (value: string) => {
     const clientId = isNewReferral ? clientIdFromSearch : formData.client_id?.toString()
     if (clientId && value !== 'referrals') {
-      navigate({ 
-        to: "/clients/$clientId", 
+      navigate({
+        to: "/clients/$clientId",
         params: { clientId: String(clientId) },
-        search: { tab: value } 
+        search: { tab: value }
       })
     }
   }
@@ -218,7 +224,7 @@ export default function ReferralDetailPage() {
 
         if (savedRightEye && savedLeftEye && savedCompactPrescription) {
           toast.success("ההפניה נשמרה בהצלחה")
-          
+
           if (isNewReferral) {
             // Navigate back to client's referrals tab after creating
             if (clientIdFromSearch) {
@@ -265,11 +271,10 @@ export default function ReferralDetailPage() {
   if (loading) {
     return (
       <>
-        <SiteHeader 
-          title="לקוחות" 
+        <SiteHeader
+          title="לקוחות"
           backLink="/clients"
-          client={client || undefined}
-          clientBackLink={clientIdFromSearch ? `/clients/${clientIdFromSearch}` : "/clients"}
+          clientBackLink={clientIdFromSearch || formData.client_id ? `/clients/${clientIdFromSearch || formData.client_id}` : "/clients"}
           examInfo="הפניה"
           tabs={{
             activeTab,
@@ -284,21 +289,21 @@ export default function ReferralDetailPage() {
   }
 
   const fullName = client ? `${client.first_name} ${client.last_name}`.trim() : ''
-  
+
   return (
     <>
-        <SiteHeader 
-          title="לקוחות" 
-          backLink="/clients"
-          client={client || undefined}
-          clientBackLink={clientIdFromSearch || formData.client_id ? `/clients/${clientIdFromSearch || formData.client_id}` : "/clients"}
-          examInfo={isNewReferral ? "הפניה חדשה" : `הפניה מס' ${referralId}`}
-          tabs={{
-            activeTab,
-            onTabChange: handleTabChange
-          }}
-        />
-        <div className="flex flex-col flex-1 p-4 lg:p-6" dir="rtl" style={{scrollbarWidth: 'none'}}>
+      <SiteHeader
+        title="לקוחות"
+        backLink="/clients"
+        clientBackLink={clientIdFromSearch || formData.client_id ? `/clients/${clientIdFromSearch || formData.client_id}` : "/clients"}
+        examInfo={isNewReferral ? "הפניה חדשה" : `הפניה מס' ${referralId}`}
+        tabs={{
+          activeTab,
+          onTabChange: handleTabChange
+        }}
+      />
+      <ClientSpaceLayout>
+        <div className="flex flex-col flex-1 p-4 lg:p-6" dir="rtl" style={{ scrollbarWidth: 'none' }}>
           <div className="space-y-6">
             <div className="flex justify-between items-center">
               <h1 className="text-2xl font-bold">
@@ -319,7 +324,7 @@ export default function ReferralDetailPage() {
               </div>
             </div>
 
-            <Card className="w-full p-4 shadow-md border-none">
+            <Card className="w-full p-4 pt-3 shadow-md border-none">
               <div className="grid grid-cols-4 gap-x-3 gap-y-2 w-full" dir="rtl">
                 <div className="col-span-1">
                   <label className="font-semibold text-base">תאריך</label>
@@ -372,42 +377,63 @@ export default function ReferralDetailPage() {
               </div>
             </Card>
 
-            <CompactPrescriptionTab 
+            <CompactPrescriptionTab
               data={compactPrescriptionFormData}
               onChange={handleCompactPrescriptionChange}
               isEditing={isEditing}
             />
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label className="font-semibold text-base">הערות הפניה</Label>
-                <div className="h-1"></div>
-                <Textarea
+            <div className="grid grid-cols-2 gap-4 items-start">
+              <Card className="px-4 pt-3 pb-4 shadow-md border-none gap-2" dir="rtl">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-muted rounded-lg">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-foreground">
+                      <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path>
+                      <polyline points="14,2 14,8 20,8"></polyline>
+                      <line x1="16" y1="13" x2="8" y2="13"></line>
+                      <line x1="16" y1="17" x2="8" y2="17"></line>
+                      <polyline points="10,9 9,9 8,9"></polyline>
+                    </svg>
+                  </div>
+                  <h3 className="text-base font-medium text-muted-foreground">הערות</h3>
+                </div>
+                <textarea
                   name="referral_notes"
+                  disabled={!isEditing}
                   value={formData.referral_notes || ''}
                   onChange={handleInputChange}
+                  className={`text-sm w-full p-3 border rounded-lg ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default min-h-[90px]`}
                   rows={4}
                   placeholder="הערות להפניה..."
-                  disabled={!isEditing}
-                  className={`${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
                 />
-              </div>
-              <div>
-                <Label className="font-semibold text-base">הערות מרשם</Label>
-                <div className="h-1"></div>
-                <Textarea
+              </Card>
+              <Card className="px-4 pt-3 pb-4 shadow-md border-none gap-2" dir="rtl">
+              <div className="flex items-center gap-3">
+                  <div className="p-2 bg-muted rounded-lg">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-foreground">
+                      <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path>
+                      <polyline points="14,2 14,8 20,8"></polyline>
+                      <line x1="16" y1="13" x2="8" y2="13"></line>
+                      <line x1="16" y1="17" x2="8" y2="17"></line>
+                      <polyline points="10,9 9,9 8,9"></polyline>
+                    </svg>
+                  </div>
+                  <h3 className="text-base font-medium text-muted-foreground">הערות מרשם</h3>
+                </div>
+                <textarea
                   name="prescription_notes"
+                  disabled={!isEditing}
                   value={formData.prescription_notes || ''}
                   onChange={handleInputChange}
+                  className={`text-sm w-full p-3 border rounded-lg ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default min-h-[90px]`}
                   rows={4}
                   placeholder="הערות למרשם..."
-                  disabled={!isEditing}
-                  className={`${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
                 />
-              </div>
+              </Card>
             </div>
           </div>
         </div>
-      </>
-    )
+      </ClientSpaceLayout>
+    </>
+  )
 } 

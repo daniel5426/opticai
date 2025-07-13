@@ -43,7 +43,7 @@ export default function AllFilesPage() {
         style={{scrollbarWidth: 'none'}}
       >
         <div className="flex items-center justify-between mb-4">
-          <h1 className="text-2xl font-bold">כל הקבצים</h1>
+          <h1 className="text-xl font-bold">כל הקבצים</h1>
         </div>
         <FilesTable 
           data={files} 
