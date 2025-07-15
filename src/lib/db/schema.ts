@@ -80,7 +80,14 @@ export interface OpticalExam {
   exam_date?: string;
   test_name?: string;
   dominant_eye?: string | null;
-  notes?: string;
+}
+
+export interface NotesExam {
+  id?: number;
+  layout_instance_id: number;
+  card_instance_id?: string;
+  title?: string;
+  note?: string;
 }
 
 export interface OldRefractionExam {
@@ -778,6 +785,47 @@ export interface KeratometerExam {
   l_axis?: number;
 }
 
+export interface KeratometerFullExam {
+  id?: number;
+  layout_instance_id: number;
+  r_dpt_k1?: number;
+  r_dpt_k2?: number;
+  l_dpt_k1?: number;
+  l_dpt_k2?: number;
+  r_mm_k1?: number;
+  r_mm_k2?: number;
+  l_mm_k1?: number;
+  l_mm_k2?: number;
+  r_mer_k1?: number;
+  r_mer_k2?: number;
+  l_mer_k1?: number;
+  l_mer_k2?: number;
+  r_astig?: boolean;
+  l_astig?: boolean;
+}
+
+export interface CornealTopographyExam {
+  id?: number;
+  layout_instance_id: number;
+  l_note?: string;
+  r_note?: string;
+  title?: string;
+}
+
+export interface AnamnesisExam {
+  id?: number;
+  layout_instance_id: number;
+  medications?: string;
+  allergies?: string;
+  family_history?: string;
+  previous_treatments?: string;
+  lazy_eye?: string;
+  contact_lens_wear?: boolean;
+  started_wearing_since?: string;
+  stopped_wearing_since?: string;
+  additional_notes?: string;
+}
+
 export interface CoverTestExam {
   id?: number;
   layout_instance_id: number;
@@ -787,6 +835,23 @@ export interface CoverTestExam {
   fv_2?: number;
   nv_1?: number;
   nv_2?: number;
+}
+
+export interface SchirmerTestExam {
+  id?: number;
+  layout_instance_id: number;
+  r_mm?: number;
+  l_mm?: number;
+  r_but?: number;
+  l_but?: number;
+}
+
+export interface OldRefExam {
+  id?: number;
+  layout_instance_id: number;
+  role?: string;
+  source?: string;
+  contacts?: string;
 }
 
 export interface WorkShift {
@@ -983,9 +1048,20 @@ export const createTables = (db: Database): void => {
       exam_date DATE,
       test_name TEXT,
       dominant_eye CHAR(1) CHECK(dominant_eye IN ('R','L')),
-      notes TEXT,
       FOREIGN KEY(client_id) REFERENCES clients(id) ON DELETE CASCADE,
       FOREIGN KEY(user_id) REFERENCES users(id)
+    );
+  `);
+
+  // Create notes_exams table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS notes_exams (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      layout_instance_id INTEGER NOT NULL,
+      card_instance_id TEXT,
+      title TEXT DEFAULT 'הערות',
+      note TEXT,
+      FOREIGN KEY(layout_instance_id) REFERENCES exam_layout_instances(id) ON DELETE CASCADE
     );
   `);
 
@@ -2099,6 +2175,59 @@ export const createTables = (db: Database): void => {
     );
   `);
 
+  // Create keratometer_full_exams table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS keratometer_full_exams (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      layout_instance_id INTEGER NOT NULL,
+      r_dpt_k1 REAL,
+      r_dpt_k2 REAL,
+      l_dpt_k1 REAL,
+      l_dpt_k2 REAL,
+      r_mm_k1 REAL,
+      r_mm_k2 REAL,
+      l_mm_k1 REAL,
+      l_mm_k2 REAL,
+      r_mer_k1 REAL,
+      r_mer_k2 REAL,
+      l_mer_k1 REAL,
+      l_mer_k2 REAL,
+      r_astig BOOLEAN,
+      l_astig BOOLEAN,
+      FOREIGN KEY(layout_instance_id) REFERENCES exam_layout_instances(id) ON DELETE CASCADE
+    );
+  `);
+
+  // Create corneal_topography_exams table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS corneal_topography_exams (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      layout_instance_id INTEGER NOT NULL,
+      l_note TEXT,
+      r_note TEXT,
+      title TEXT,
+      FOREIGN KEY(layout_instance_id) REFERENCES exam_layout_instances(id) ON DELETE CASCADE
+    );
+  `);
+
+  // Create anamnesis_exams table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS anamnesis_exams (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      layout_instance_id INTEGER NOT NULL,
+      medications TEXT,
+      allergies TEXT,
+      family_history TEXT,
+      previous_treatments TEXT,
+      lazy_eye TEXT,
+      contact_lens_wear INTEGER DEFAULT 0,
+      started_wearing_since TEXT,
+      stopped_wearing_since TEXT,
+      additional_notes TEXT,
+      FOREIGN KEY (layout_instance_id) REFERENCES exam_layout_instances(id) ON DELETE CASCADE
+    );
+  `);
+
   // Create cover_test_exams table
   db.exec(`
     CREATE TABLE IF NOT EXISTS cover_test_exams (
@@ -2110,6 +2239,31 @@ export const createTables = (db: Database): void => {
       fv_2 REAL,
       nv_1 REAL,
       nv_2 REAL,
+      FOREIGN KEY(layout_instance_id) REFERENCES exam_layout_instances(id) ON DELETE CASCADE
+    );
+  `);
+
+  // Create schirmer_test_exams table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS schirmer_test_exams (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      layout_instance_id INTEGER NOT NULL,
+      r_mm REAL,
+      l_mm REAL,
+      r_but REAL,
+      l_but REAL,
+      FOREIGN KEY(layout_instance_id) REFERENCES exam_layout_instances(id) ON DELETE CASCADE
+    );
+  `);
+
+  // Create old_ref_exams table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS old_ref_exams (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      layout_instance_id INTEGER NOT NULL,
+      role TEXT,
+      source TEXT,
+      contacts TEXT,
       FOREIGN KEY(layout_instance_id) REFERENCES exam_layout_instances(id) ON DELETE CASCADE
     );
   `);
@@ -2157,6 +2311,17 @@ export const createTables = (db: Database): void => {
   db.exec(`
     CREATE INDEX IF NOT EXISTS idx_work_shifts_date 
     ON work_shifts(date);
+  `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS notes_exams (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      layout_instance_id INTEGER NOT NULL,
+      card_instance_id TEXT,
+      title TEXT DEFAULT 'הערות',
+      note TEXT,
+      FOREIGN KEY(layout_instance_id) REFERENCES exam_layout_instances(id) ON DELETE CASCADE
+    );
   `);
 };
   

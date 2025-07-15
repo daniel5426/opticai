@@ -1,4 +1,4 @@
-import React from "react"
+import React, { useState } from "react"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { OldRefractionTab } from "@/components/exam/OldRefractionTab"
@@ -13,8 +13,13 @@ import { RetinoscopTab } from "@/components/exam/RetinoscopTab"
 import { RetinoscopDilationTab } from "@/components/exam/RetinoscopDilationTab"
 import { UncorrectedVATab } from "@/components/exam/UncorrectedVATab"
 import { KeratometerTab } from "@/components/exam/KeratometerTab"
+import { KeratometerFullTab } from "@/components/exam/KeratometerFullTab"
+import { CornealTopographyTab } from "@/components/exam/CornealTopographyTab"
 import { CoverTestTab } from "@/components/exam/CoverTestTab"
-import { OpticalExam, OldRefractionExam, OldRefractionExtensionExam, ObjectiveExam, SubjectiveExam, AdditionExam, FinalSubjectiveExam, FinalPrescriptionExam, CompactPrescriptionExam, RetinoscopExam, RetinoscopDilationExam, UncorrectedVAExam, KeratometerExam, CoverTestExam } from "@/lib/db/schema"
+import { AnamnesisTab } from "@/components/exam/AnamnesisTab"
+import { SchirmerTestTab } from "@/components/exam/SchirmerTestTab"
+import { Edit3 } from "lucide-react"
+import { OpticalExam, OldRefractionExam, OldRefractionExtensionExam, ObjectiveExam, SubjectiveExam, AdditionExam, FinalSubjectiveExam, FinalPrescriptionExam, CompactPrescriptionExam, RetinoscopExam, RetinoscopDilationExam, UncorrectedVAExam, KeratometerExam, KeratometerFullExam, CornealTopographyExam, CoverTestExam, AnamnesisExam, NotesExam, SchirmerTestExam, OldRefExam } from "@/lib/db/schema"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { UserSelect } from "@/components/ui/user-select"
 import { ExamToolbox, ToolboxActions } from "@/components/exam/ExamToolbox"
@@ -27,12 +32,14 @@ import { Textarea } from "@/components/ui/textarea"
 // Renaming for consistency within the component props
 type Exam = OpticalExam;
 
-const componentsWithMiddleRow: CardItem['type'][] = ['old-refraction', 'old-refraction-extension', 'subjective', 'final-subjective', 'final-prescription', 'compact-prescription'];
-const componentsDontHaveMiddleRow: CardItem['type'][] = ['objective', 'addition', 'retinoscop', 'retinoscop-dilation', 'uncorrected-va', 'keratometer', 'cover-test'];
+const componentsWithMiddleRow: CardItem['type'][] = ['old-refraction', 'old-refraction-extension', 'subjective', 'final-subjective', 'final-prescription', 'compact-prescription', 'corneal-topography', 'anamnesis'];
+const componentsDontHaveMiddleRow: CardItem['type'][] = ['objective', 'addition', 'retinoscop', 'retinoscop-dilation', 'uncorrected-va', 'keratometer', 'keratometer-full', 'cover-test', 'schirmer-test'];
 
 export interface CardItem {
   id: string
-  type: 'exam-details' | 'old-refraction' | 'old-refraction-extension' | 'objective' | 'subjective' | 'final-subjective' | 'final-prescription' | 'compact-prescription' | 'addition' | 'retinoscop' | 'retinoscop-dilation' | 'uncorrected-va' | 'keratometer' | 'cover-test' | 'notes'
+  type: 'exam-details' | 'old-ref' | 'old-refraction' | 'old-refraction-extension' | 'objective' | 'subjective' | 'final-subjective' | 'final-prescription' | 'compact-prescription' | 'addition' | 'retinoscop' | 'retinoscop-dilation' | 'uncorrected-va' | 'keratometer' | 'keratometer-full' | 'corneal-topography' | 'cover-test' | 'notes' | 'anamnesis' | 'schirmer-test'
+  showEyeLabels?: boolean
+  title?: string
 }
 
 // Simplified DetailProps interface that uses the registry
@@ -125,6 +132,7 @@ interface RenderCardProps {
   onCopyLeft?: () => void;
   onCopyRight?: () => void;
   onCopyBelow?: () => void;
+  onTitleChange?: (title: string) => void;
 }
 
 // In ExamDetailPage, `DateInput` was used, but it's not a standard component.
@@ -133,6 +141,7 @@ interface RenderCardProps {
 const getColumnCount = (type: CardItem['type']): number => {
   switch (type) {
     case 'exam-details': return 5
+    case 'old-ref': return 3
     case 'old-refraction': return 7
     case 'old-refraction-extension': return 12
     case 'objective': return 4
@@ -145,8 +154,12 @@ const getColumnCount = (type: CardItem['type']): number => {
     case 'retinoscop-dilation': return 4
     case 'uncorrected-va': return 3
     case 'keratometer': return 3
+    case 'keratometer-full': return 9
+    case 'corneal-topography': return 1
     case 'cover-test': return 5
     case 'notes': return 2
+    case 'anamnesis': return 11
+    case 'schirmer-test': return 2
     default: return 1
   }
 }
@@ -218,12 +231,16 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
   onClearData,
   onCopyLeft,
   onCopyRight,
-  onCopyBelow
+  onCopyBelow,
+  onTitleChange
 }) => {
   if (mode === 'detail' && !detailProps) {
     console.error("detailProps are required for 'detail' mode.")
     return null
   }
+
+  // Determine the final hideEyeLabels value based on item.showEyeLabels
+  const finalHideEyeLabels = item.showEyeLabels ? false : hideEyeLabels;
 
   const toolbox = mode === 'detail' && detailProps?.isEditing ? (
     <ExamToolbox
@@ -259,7 +276,13 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
   const emptyRetinoscopDilationData: RetinoscopDilationExam = { layout_instance_id: 0 }
   const emptyUncorrectedVaData: UncorrectedVAExam = { layout_instance_id: 0 }
   const emptyKeratometerData: KeratometerExam = { layout_instance_id: 0 }
+  const emptyKeratometerFullData: KeratometerFullExam = { layout_instance_id: 0 }
+  const emptyCornealTopographyData: CornealTopographyExam = { layout_instance_id: 0 }
   const emptyCoverTestData: CoverTestExam = { layout_instance_id: 0 }
+  const emptyAnamnesisData: AnamnesisExam = { layout_instance_id: 0 }
+  const emptyNotesData: NotesExam = { layout_instance_id: 0 }
+  const emptySchirmerTestData: SchirmerTestExam = { layout_instance_id: 0 }
+  const emptyOldRefData: OldRefExam = { layout_instance_id: 0 }
 
   const legacyHandlers = mode === 'detail' ? {
     handleMultifocalOldRefraction: detailProps!.handleMultifocalOldRefraction,
@@ -270,8 +293,12 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
     handleMultifocalOldRefractionExtension: detailProps!.handleMultifocalOldRefractionExtension
   } : {}
 
-  const getExamData = (type: ExamComponentType) => {
+  const getExamData = (type: ExamComponentType, cardInstanceId?: string) => {
     if (mode === 'detail' && detailProps) {
+      if (type === 'notes' && cardInstanceId) {
+        const key = `${type}-${cardInstanceId}` as keyof typeof detailProps.examFormData
+        return detailProps.examFormData[key] || {}
+      }
       return getExamFormData(detailProps.examFormData, type)
     }
     // Return empty/default data for editor mode
@@ -288,13 +315,23 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
       case 'retinoscop-dilation': return emptyRetinoscopDilationData
       case 'uncorrected-va': return emptyUncorrectedVaData
       case 'keratometer': return emptyKeratometerData
+      case 'keratometer-full': return emptyKeratometerFullData
+      case 'corneal-topography': return emptyCornealTopographyData
       case 'cover-test': return emptyCoverTestData
+      case 'anamnesis': return emptyAnamnesisData
+      case 'notes': return emptyNotesData
+      case 'schirmer-test': return emptySchirmerTestData
+      case 'old-ref': return emptyOldRefData
       default: return {}
     }
   }
 
-  const getChangeHandler = (type: ExamComponentType) => {
+  const getChangeHandler = (type: ExamComponentType, cardInstanceId?: string) => {
     if (mode === 'detail' && detailProps) {
+      if (type === 'notes' && cardInstanceId) {
+        const key = `${type}-${cardInstanceId}` as keyof typeof detailProps.fieldHandlers
+        return detailProps.fieldHandlers[key] || (() => {})
+      }
       return getFieldHandler(detailProps.fieldHandlers, type)
     }
     return () => {}
@@ -380,6 +417,65 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
           </Card>
         )
 
+    case 'old-ref':
+      return (
+        <Card className="w-full p-4 pt-3 shadow-md border-none">
+          <div className="grid grid-cols-3 gap-x-3 gap-y-2 w-full" dir="rtl">
+            <div className="col-span-1">
+              <label className="font-semibold text-base">תפקיד</label>
+              <div className="h-1"></div>
+              {mode === 'editor' ? (
+                <div className="border h-9 px-3 rounded-md text-sm flex items-center bg-accent/50">דוגמה</div>
+              ) : detailProps?.isEditing ? (
+                <Input
+                  type="text"
+                  name="role"
+                  value={getExamData('old-ref').role || ''}
+                  onChange={(e) => getChangeHandler('old-ref')('role', e.target.value)}
+                  className="text-sm pt-1 bg-white"
+                />
+              ) : (
+                <div className="border h-9 px-3 rounded-md text-sm flex items-center bg-accent/50">{getExamData('old-ref').role || ''}</div>
+              )}
+            </div>
+            <div className="col-span-1">
+              <label className="font-semibold text-base">מקור</label>
+              <div className="h-1"></div>
+              {mode === 'editor' ? (
+                <div className="border h-9 px-3 rounded-md text-sm flex items-center bg-accent/50">דוגמה</div>
+              ) : detailProps?.isEditing ? (
+                <Input
+                  type="text"
+                  name="source"
+                  value={getExamData('old-ref').source || ''}
+                  onChange={(e) => getChangeHandler('old-ref')('source', e.target.value)}
+                  className="text-sm bg-white"
+                />
+              ) : (
+                <div className="border h-9 px-3 rounded-md text-sm flex items-center bg-accent/50">{getExamData('old-ref').source || ''}</div>
+              )}
+            </div>
+            <div className="col-span-1">
+              <label className="font-semibold text-base">עדשות</label>
+              <div className="h-1"></div>
+              {mode === 'editor' ? (
+                <div className="border h-9 px-3 rounded-md text-sm flex items-center bg-accent/50">דוגמה</div>
+              ) : detailProps?.isEditing ? (
+                <Input
+                  type="text"
+                  name="contacts"
+                  value={getExamData('old-ref').contacts || ''}
+                  onChange={(e) => getChangeHandler('old-ref')('contacts', e.target.value)}
+                  className="text-sm bg-white"
+                />
+              ) : (
+                <div className="border h-9 px-3 rounded-md text-sm flex items-center bg-accent/50">{getExamData('old-ref').contacts || ''}</div>
+              )}
+            </div>
+          </div>
+        </Card>
+      )
+
     case 'old-refraction':
       return (
         <div className={`relative h-full ${matchHeight ? 'flex flex-col' : ''}`}>
@@ -390,7 +486,7 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
             isEditing={mode === 'detail' ? detailProps!.isEditing : false}
             onMultifocalClick={legacyHandlers.handleMultifocalOldRefraction || (() => {})}
             onVHConfirm={legacyHandlers.handleVHConfirmOldRefraction || (() => {})}
-            hideEyeLabels={hideEyeLabels}
+            hideEyeLabels={finalHideEyeLabels}
           />
         </div>
       )
@@ -404,7 +500,7 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
             onOldRefractionExtensionChange={getChangeHandler('old-refraction-extension')}
             isEditing={mode === 'detail' ? detailProps!.isEditing : false}
             onMultifocalClick={legacyHandlers.handleMultifocalOldRefractionExtension || (() => {})}
-            hideEyeLabels={hideEyeLabels}
+            hideEyeLabels={finalHideEyeLabels}
           />
         </div>
       )
@@ -417,7 +513,7 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
             objectiveData={getExamData('objective')}
             onObjectiveChange={getChangeHandler('objective')}
             isEditing={mode === 'detail' ? detailProps!.isEditing : false}
-            hideEyeLabels={hideEyeLabels}
+            hideEyeLabels={finalHideEyeLabels}
             needsMiddleSpacer={hasSiblingWithMiddleRow && componentsDontHaveMiddleRow.includes(item.type)}
           />
         </div>
@@ -433,7 +529,7 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
             isEditing={mode === 'detail' ? detailProps!.isEditing : false}
             onVHConfirm={(legacyHandlers as any).handleVHConfirm || (() => {})}
             onMultifocalClick={legacyHandlers.handleMultifocalSubjective || (() => {})}
-            hideEyeLabels={hideEyeLabels}
+            hideEyeLabels={finalHideEyeLabels}
           />
         </div>
       )
@@ -447,7 +543,7 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
             onFinalSubjectiveChange={getChangeHandler('final-subjective')}
             isEditing={mode === 'detail' ? detailProps!.isEditing : false}
             onVHConfirm={legacyHandlers.handleFinalSubjectiveVHConfirm || (() => {})}
-            hideEyeLabels={hideEyeLabels}
+            hideEyeLabels={finalHideEyeLabels}
           />
         </div>
       )
@@ -460,7 +556,7 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
             finalPrescriptionData={getExamData('final-prescription')}
             onFinalPrescriptionChange={getChangeHandler('final-prescription')}
             isEditing={mode === 'detail' ? detailProps!.isEditing : false}
-            hideEyeLabels={hideEyeLabels}
+            hideEyeLabels={finalHideEyeLabels}
           />
         </div>
       )
@@ -472,7 +568,7 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
           <CompactPrescriptionTab
             data={getExamData('compact-prescription')}
             isEditing={mode === 'detail' ? detailProps!.isEditing : false}
-            hideEyeLabels={hideEyeLabels}
+            hideEyeLabels={finalHideEyeLabels}
             onChange={(field, value) => getChangeHandler('compact-prescription')(field as string, value)}
           />
         </div>
@@ -486,7 +582,7 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
             additionData={getExamData('addition')}
             onAdditionChange={getChangeHandler('addition')}
             isEditing={mode === 'detail' ? detailProps!.isEditing : false}
-            hideEyeLabels={hideEyeLabels}
+            hideEyeLabels={finalHideEyeLabels}
             needsMiddleSpacer={hasSiblingWithMiddleRow && componentsDontHaveMiddleRow.includes(item.type)}
           />
         </div>
@@ -500,7 +596,7 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
             retinoscopData={getExamData('retinoscop')}
             onRetinoscopChange={getChangeHandler('retinoscop')}
             isEditing={mode === 'detail' ? detailProps!.isEditing : false}
-            hideEyeLabels={hideEyeLabels}
+            hideEyeLabels={finalHideEyeLabels}
             needsMiddleSpacer={hasSiblingWithMiddleRow && componentsDontHaveMiddleRow.includes(item.type)}
           />
         </div>
@@ -514,7 +610,7 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
             retinoscopDilationData={getExamData('retinoscop-dilation')}
             onRetinoscopDilationChange={getChangeHandler('retinoscop-dilation')}
             isEditing={mode === 'detail' ? detailProps!.isEditing : false}
-            hideEyeLabels={hideEyeLabels}
+            hideEyeLabels={finalHideEyeLabels}
             needsMiddleSpacer={hasSiblingWithMiddleRow && componentsDontHaveMiddleRow.includes(item.type)}
           />
         </div>
@@ -528,7 +624,7 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
             uncorrectedVaData={getExamData('uncorrected-va')}
             onUncorrectedVaChange={getChangeHandler('uncorrected-va')}
             isEditing={mode === 'detail' ? detailProps!.isEditing : false}
-            hideEyeLabels={hideEyeLabels}
+            hideEyeLabels={finalHideEyeLabels}
             needsMiddleSpacer={hasSiblingWithMiddleRow && componentsDontHaveMiddleRow.includes(item.type)}
           />
         </div>
@@ -542,8 +638,41 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
             keratometerData={getExamData('keratometer')}
             onKeratometerChange={getChangeHandler('keratometer')}
             isEditing={mode === 'detail' ? detailProps!.isEditing : false}
-            hideEyeLabels={hideEyeLabels}
+            hideEyeLabels={finalHideEyeLabels}
             needsMiddleSpacer={hasSiblingWithMiddleRow && componentsDontHaveMiddleRow.includes(item.type)}
+          />
+        </div>
+      )
+
+    case 'keratometer-full':
+      return (
+        <div className={`relative h-full ${matchHeight ? 'flex flex-col' : ''}`}>
+          {toolbox}
+          <KeratometerFullTab
+            keratometerFullData={getExamData('keratometer-full')}
+            onKeratometerFullChange={getChangeHandler('keratometer-full')}
+            isEditing={mode === 'detail' ? detailProps!.isEditing : false}
+            hideEyeLabels={finalHideEyeLabels}
+            needsMiddleSpacer={hasSiblingWithMiddleRow && componentsDontHaveMiddleRow.includes(item.type)}
+          />
+        </div>
+      )
+
+    case 'corneal-topography':
+      return (
+        <div className={`relative h-full ${matchHeight ? 'flex flex-col' : ''}`}>
+          {toolbox}
+          <CornealTopographyTab
+            cornealTopographyData={{
+              ...getExamData('corneal-topography'),
+              title: mode === 'editor' ? item.title : getExamData('corneal-topography').title
+            }}
+            onCornealTopographyChange={getChangeHandler('corneal-topography')}
+            isEditing={mode === 'detail' ? detailProps!.isEditing : false}
+            hideEyeLabels={finalHideEyeLabels}
+            needsMiddleSpacer={hasSiblingWithMiddleRow && componentsDontHaveMiddleRow.includes(item.type)}
+            isEditorMode={mode === 'editor'}
+            onTitleChange={onTitleChange}
           />
         </div>
       )
@@ -561,7 +690,55 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
         </div>
       )
 
+    case 'anamnesis':
+      return (
+        <div className={`relative h-full ${matchHeight ? 'flex flex-col' : ''}`}> 
+          {toolbox}
+          <AnamnesisTab
+            anamnesisData={getExamData('anamnesis')}
+            onAnamnesisChange={getChangeHandler('anamnesis')}
+            isEditing={mode === 'detail' ? detailProps!.isEditing : false}
+          />
+        </div>
+      )
+
+    case 'schirmer-test':
+      return (
+        <div className={`relative h-full ${matchHeight ? 'flex flex-col' : ''}`}>
+          {toolbox}
+          <SchirmerTestTab
+            schirmerTestData={getExamData('schirmer-test')}
+            onSchirmerTestChange={getChangeHandler('schirmer-test')}
+            isEditing={mode === 'detail' ? detailProps!.isEditing : false}
+            hideEyeLabels={finalHideEyeLabels}
+            needsMiddleSpacer={hasSiblingWithMiddleRow && componentsDontHaveMiddleRow.includes(item.type)}
+          />
+        </div>
+      )
+
     case 'notes':
+      // For notes, use the card ID as the instance identifier
+      const notesData = getExamData('notes', item.id) as NotesExam
+      const onNotesChange = getChangeHandler('notes', item.id)
+      const [isEditingNotesTitle, setIsEditingNotesTitle] = useState(false)
+      const [isHoveringNotesTitle, setIsHoveringNotesTitle] = useState(false)
+
+      const handleNotesTitleChange = (value: string) => {
+        if (mode === 'editor' && onTitleChange) {
+          onTitleChange(value)
+        } else {
+          onNotesChange('title', value)
+        }
+      }
+
+      const handleNotesKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter' || e.key === 'Escape') {
+          setIsEditingNotesTitle(false)
+        }
+      }
+
+      const notesTitle = mode === 'editor' ? (item.title || notesData.title || "הערות") : (notesData.title || "הערות")
+
       return (
           <Card className={`w-full px-4 pt-3 pb-4 shadow-md border-none gap-2 ${matchHeight ? 'h-full flex flex-col' : ''}`} dir="rtl">
               <div className="flex items-center gap-3">
@@ -574,15 +751,40 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
                     <polyline points="10,9 9,9 8,9"></polyline>
                   </svg>
                 </div>
-                <h3 className="text-base font-medium text-muted-foreground">הערות</h3>
+                {isEditingNotesTitle && mode === 'editor' ? (
+                  <Input
+                    value={notesTitle}
+                    onChange={(e) => handleNotesTitleChange(e.target.value)}
+                    onBlur={() => setIsEditingNotesTitle(false)}
+                    onKeyDown={handleNotesKeyDown}
+                    className="text-base font-medium text-muted-foreground border-none bg-transparent px-1 w-fit"
+                    autoFocus
+                  />
+                ) : (
+                  <h3 
+                    className="text-base font-medium text-muted-foreground cursor-pointer flex items-center gap-2"
+                    onMouseEnter={() => setIsHoveringNotesTitle(true)}
+                    onMouseLeave={() => setIsHoveringNotesTitle(false)}
+                    onClick={() => mode === 'editor' && setIsEditingNotesTitle(true)}
+                  >
+                    {notesTitle}
+                    {isHoveringNotesTitle && mode === 'editor' && (
+                      <Edit3 
+                        size={14} 
+                        className="text-muted-foreground cursor-pointer hover:text-foreground transition-colors"
+                      />
+                    )}
+                  </h3>
+                )}
               </div>
           <Textarea
             name="notes"
             disabled={!detailProps?.isEditing}
-            value={detailProps?.formData.notes || ''}
-            onChange={detailProps?.handleInputChange}
+            value={notesData.note || ''}
+            onChange={(e) => onNotesChange('note', e.target.value)}
             className={`text-sm w-full p-3 border rounded-lg disabled:opacity-100 disabled:cursor-default ${matchHeight ? 'flex-1' : 'min-h-[90px]'}`}
             rows={matchHeight ? undefined : 4}
+            placeholder={detailProps?.isEditing ? "הערות..." : ""}
           />
         </Card>
       )

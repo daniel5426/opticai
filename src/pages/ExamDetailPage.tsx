@@ -3,7 +3,7 @@ import { useParams, useNavigate, Link } from "@tanstack/react-router"
 import { SiteHeader } from "@/components/site-header"
 import { getClientById } from "@/lib/db/clients-db"
 import { getExamById, updateExam, createExam } from "@/lib/db/exams-db"
-import { OpticalExam, Client, User, ExamLayout, ExamLayoutInstance } from "@/lib/db/schema"
+import { OpticalExam, Client, User, ExamLayout, ExamLayoutInstance, NotesExam } from "@/lib/db/schema"
 import { getAllExamLayouts, getDefaultExamLayout, getExamLayoutInstancesByExamId, getActiveExamLayoutInstanceByExamId, setActiveExamLayoutInstance, addLayoutToExam, getExamLayoutById, deleteExamLayoutInstance } from "@/lib/db/exam-layouts-db"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu"
@@ -100,7 +100,6 @@ export default function ExamDetailPageRefactored({
     test_name: '',
     clinic: '',
     user_id: currentUser?.id,
-    notes: '',
     dominant_eye: null
   } : {})
 
@@ -152,6 +151,7 @@ export default function ExamDetailPageRefactored({
       return
     }
 
+    const fieldMapper = new ExamFieldMapper()
     const isCompatible = sourceType === targetType || ExamFieldMapper.getAvailableTargets(sourceType, [targetType]).includes(targetType)
 
     if (!isCompatible) {
@@ -176,24 +176,121 @@ export default function ExamDetailPageRefactored({
   }
 
   // Initialize form data for all registered components
-  const initializeFormData = (layoutInstanceId: number) => {
+  const initializeFormData = (layoutInstanceId: number, layoutData?: string) => {
     const initialData: Record<string, any> = {}
+    
+    // Parse layout data to get titles and card instances
+    let layoutTitles: Record<string, string> = {}
+    let cardInstances: Record<string, string[]> = {}
+    if (layoutData) {
+      try {
+        const parsedLayout = JSON.parse(layoutData)
+        const rows = Array.isArray(parsedLayout) ? parsedLayout : parsedLayout.rows || []
+        
+        rows.forEach((row: any) => {
+          row.cards?.forEach((card: any) => {
+            if (card.title) {
+              layoutTitles[card.id] = card.title
+            }
+            // Collect card instances for each type
+            if (!cardInstances[card.type]) {
+              cardInstances[card.type] = []
+            }
+            cardInstances[card.type].push(card.id)
+          })
+        })
+      } catch (error) {
+        console.error('Error parsing layout data:', error)
+      }
+    }
+    
     examComponentRegistry.getAllTypes().forEach(type => {
-      initialData[type] = { layout_instance_id: layoutInstanceId }
+      const baseData: any = { layout_instance_id: layoutInstanceId }
+      
+      // For notes, create separate data for each card instance
+      if (type === 'notes' && cardInstances[type]) {
+        cardInstances[type].forEach(cardId => {
+          const instanceData = { ...baseData, card_instance_id: cardId }
+          // Add title from layout if available for this specific card
+          if (layoutTitles[cardId]) {
+            instanceData.title = layoutTitles[cardId]
+          }
+          initialData[`${type}-${cardId}`] = instanceData
+        })
+      } else {
+        // For other components, add title from layout if available
+        if (type === 'corneal-topography' && cardInstances[type] && cardInstances[type].length > 0) {
+          const cardId = cardInstances[type][0]
+          if (layoutTitles[cardId]) {
+            baseData.title = layoutTitles[cardId]
+          }
+        }
+        initialData[type] = baseData
+      }
     })
+    
     setExamFormData(initialData)
   }
 
   // Load all exam component data for a layout instance
-  const loadExamComponentData = async (layoutInstanceId: number) => {
+  const loadExamComponentData = async (layoutInstanceId: number, layoutData?: string) => {
     try {
       const data = await examComponentRegistry.loadAllData(layoutInstanceId)
       setExamComponentData(data)
       
+      // Parse layout data to get titles and card instances
+      let layoutTitles: Record<string, string> = {}
+      let cardInstances: Record<string, string[]> = {}
+      if (layoutData) {
+        try {
+          const parsedLayout = JSON.parse(layoutData)
+          const rows = Array.isArray(parsedLayout) ? parsedLayout : parsedLayout.rows || []
+          
+          rows.forEach((row: any) => {
+            row.cards?.forEach((card: any) => {
+              if (card.title) {
+                layoutTitles[card.id] = card.title
+              }
+              // Collect card instances for each type
+              if (!cardInstances[card.type]) {
+                cardInstances[card.type] = []
+              }
+              cardInstances[card.type].push(card.id)
+            })
+          })
+        } catch (error) {
+          console.error('Error parsing layout data:', error)
+        }
+      }
+      
       // Update form data with loaded data or empty data with layout_instance_id
       const formData: Record<string, any> = {}
       examComponentRegistry.getAllTypes().forEach(type => {
-        formData[type] = data[type] || { layout_instance_id: layoutInstanceId }
+        if (type === 'notes' && cardInstances[type]) {
+          // For notes, handle each card instance separately
+          cardInstances[type].forEach(cardId => {
+            const existingData = data[`${type}-${cardId}`] || { layout_instance_id: layoutInstanceId, card_instance_id: cardId }
+            
+            // Add title from layout if not already present in data
+            if (layoutTitles[cardId] && !existingData.title) {
+              existingData.title = layoutTitles[cardId]
+            }
+            
+            formData[`${type}-${cardId}`] = existingData
+          })
+        } else {
+          const existingData = data[type] || { layout_instance_id: layoutInstanceId }
+          
+          // Add title from layout if not already present in data
+          if (type === 'corneal-topography' && cardInstances[type] && cardInstances[type].length > 0) {
+            const cardId = cardInstances[type][0]
+            if (layoutTitles[cardId] && !existingData.title) {
+              existingData.title = layoutTitles[cardId]
+            }
+          }
+          
+          formData[type] = existingData
+        }
       })
       setExamFormData(formData)
     } catch (error) {
@@ -216,6 +313,26 @@ export default function ExamDetailPageRefactored({
         }
       )
     })
+
+    // Create field handlers for notes card instances
+    if (cardRows) {
+      cardRows.forEach(row => {
+        row.cards.forEach(card => {
+          if (card.type === 'notes') {
+            const key = `notes-${card.id}`
+            handlers[key] = (field: string, value: string) => {
+              setExamFormData(prev => ({
+                ...prev,
+                [key]: {
+                  ...prev[key],
+                  [field]: value
+                }
+              }))
+            }
+          }
+        })
+      })
+    }
     
     return handlers
   }
@@ -280,7 +397,7 @@ export default function ExamDetailPageRefactored({
                     setCustomWidths(parsedLayout.customWidths || {})
                   }
                 
-                  await loadExamComponentData(activeInstance.id)
+                  await loadExamComponentData(activeInstance.id, activeLayout.layout_data)
                 }
               }
             } else {
@@ -312,7 +429,7 @@ export default function ExamDetailPageRefactored({
                   }
                   
                   if (newLayoutInstance.id) {
-                    await loadExamComponentData(newLayoutInstance.id)
+                    await loadExamComponentData(newLayoutInstance.id, defaultLayout.layout_data)
                   }
                 }
               }
@@ -343,7 +460,7 @@ export default function ExamDetailPageRefactored({
               isActive: true
             }])
             
-            initializeFormData(defaultLayout.id || 0)
+            initializeFormData(defaultLayout.id || 0, defaultLayout.layout_data)
           }
         }
 
@@ -400,7 +517,6 @@ export default function ExamDetailPageRefactored({
           test_name: formData.test_name || '',
           clinic: formData.clinic || '',
           user_id: formData.user_id || currentUser?.id,
-          notes: formData.notes || '',
           dominant_eye: formData.dominant_eye || null
         }
         
@@ -494,7 +610,7 @@ export default function ExamDetailPageRefactored({
     try {
       // Load data first if not in new mode
       if (!isNewMode) {
-        await loadExamComponentData(selectedTab.id)
+        await loadExamComponentData(selectedTab.id, selectedTab.layout_data)
       }
 
       const updatedTabs = layoutTabs.map(tab => ({
@@ -563,7 +679,7 @@ export default function ExamDetailPageRefactored({
         
         // Load data for the new layout instance
         if (newLayoutInstance && newLayoutInstance.id) {
-          await loadExamComponentData(newLayoutInstance.id);
+          await loadExamComponentData(newLayoutInstance.id, layoutToAdd.layout_data);
         }
 
         toast.success(`פריסה "${layoutToAdd.name}" הוספה והוחלה`)
@@ -692,7 +808,10 @@ export default function ExamDetailPageRefactored({
     handleInputChange,
     handleSelectChange,
     setFormData,
-    () => {}, // handleNotesChange
+    (value: string) => {
+      // This is now handled by the generic fieldHandlers for 'notes' type
+      // So, this specific handleNotesChange can be removed or left as no-op
+    },
     toolboxActions,
     cardRows.map(row => row.cards),
     {
@@ -753,11 +872,10 @@ export default function ExamDetailPageRefactored({
           backLink="/clients"
           tabs={{ activeTab, onTabChange: handleTabChange }}
         />
-              <ClientSpaceLayout>
-
-        <div className="flex flex-col items-center justify-center h-full">
-          <h1 className="text-2xl">{isNewMode ? "לקוח לא נמצא" : "בדיקה לא נמצאה"}</h1>
-        </div>
+        <ClientSpaceLayout>
+          <div className="flex flex-col items-center justify-center h-full">
+            <h1 className="text-2xl">{isNewMode ? "לקוח לא נמצא" : "בדיקה לא נמצאה"}</h1>
+          </div>
         </ClientSpaceLayout>
       </>
     )

@@ -1,4 +1,6 @@
 import { 
+  OpticalExam,
+  OldRefExam,
   OldRefractionExam, 
   OldRefractionExtensionExam,
   ObjectiveExam, 
@@ -11,28 +13,81 @@ import {
   RetinoscopDilationExam,
   UncorrectedVAExam,
   KeratometerExam,
-  CoverTestExam
+  KeratometerFullExam,
+  CornealTopographyExam,
+  CoverTestExam,
+  SchirmerTestExam
 } from './db/schema'
 
-export type ExamComponentType = 'old-refraction' | 'old-refraction-extension' | 'objective' | 'subjective' | 'final-subjective' | 'final-prescription' | 'compact-prescription' | 'addition' | 'retinoscop' | 'retinoscop-dilation' | 'uncorrected-va' | 'keratometer' | 'cover-test'
+export type ExamComponentType =
+  | 'exam-details'
+  | 'old-ref'
+  | 'old-refraction'
+  | 'old-refraction-extension'
+  | 'objective'
+  | 'subjective'
+  | 'addition'
+  | 'final-subjective'
+  | 'final-prescription'
+  | 'compact-prescription'
+  | 'retinoscop'
+  | 'retinoscop-dilation'
+  | 'uncorrected-va'
+  | 'keratometer'
+  | 'keratometer-full'
+  | 'corneal-topography'
+  | 'cover-test'
+  | 'schirmer-test'
+  | 'anamnesis'
+  | 'notes';
 
 export const fullExamsList: ExamComponentType[] = [
+  'exam-details',
+  'old-ref',
   'old-refraction',
   'old-refraction-extension',
   'objective',
   'subjective',
+  'addition',
   'final-subjective',
   'final-prescription',
   'compact-prescription',
-  'addition',
   'retinoscop',
   'retinoscop-dilation',
   'uncorrected-va',
   'keratometer',
-  'cover-test'
+  'keratometer-full',
+  'corneal-topography',
+  'cover-test',
+  'schirmer-test',
+  'anamnesis',
+  'notes',
+];
 
-]
-export type ExamDataType = OldRefractionExam | OldRefractionExtensionExam | ObjectiveExam | SubjectiveExam | FinalSubjectiveExam | FinalPrescriptionExam | CompactPrescriptionExam | AdditionExam | RetinoscopExam | RetinoscopDilationExam | UncorrectedVAExam | KeratometerExam | CoverTestExam
+export const examComponentTypeToExamFields: Record<ExamComponentType, ExamComponentType[]> = {
+  'exam-details': [],
+  'old-ref': [],
+  'old-refraction': [],
+  'old-refraction-extension': [],
+  'objective': [],
+  'subjective': [],
+  'addition': [],
+  'final-subjective': [],
+  'final-prescription': [],
+  'compact-prescription': [],
+  'retinoscop': [],
+  'retinoscop-dilation': [],
+  'uncorrected-va': [],
+  'keratometer': [],
+  'keratometer-full': [],
+  'corneal-topography': [],
+  'cover-test': [],
+  'schirmer-test': [],
+  'anamnesis': [],
+  'notes': [],
+};
+
+export type ExamDataType = OpticalExam | OldRefExam | OldRefractionExam | OldRefractionExtensionExam | ObjectiveExam | SubjectiveExam | FinalSubjectiveExam | FinalPrescriptionExam | CompactPrescriptionExam | AdditionExam | RetinoscopExam | RetinoscopDilationExam | UncorrectedVAExam | KeratometerExam | KeratometerFullExam | CornealTopographyExam | CoverTestExam | SchirmerTestExam
 
 export interface FieldMapping {
   [sourceField: string]: string | null
@@ -44,6 +99,8 @@ export interface ComponentFieldMappings {
 
 export class ExamFieldMapper {
   private static defaultMaps: Record<ExamComponentType, ExamComponentType[]> = {
+    'exam-details': [],
+    'old-ref': [],
     'old-refraction': fullExamsList,
     'old-refraction-extension': fullExamsList,
     'objective': fullExamsList,
@@ -56,7 +113,12 @@ export class ExamFieldMapper {
     'retinoscop-dilation': fullExamsList,
     'uncorrected-va': [],
     'keratometer': fullExamsList,
-    'cover-test': []
+    'keratometer-full': fullExamsList,
+    'corneal-topography': fullExamsList,
+    'cover-test': [],
+    'schirmer-test': [],
+    'anamnesis': [],
+    'notes': []
   }
 
   private static explicitMappings: Partial<Record<ExamComponentType, ComponentFieldMappings>> = {
@@ -82,6 +144,10 @@ export class ExamFieldMapper {
 
   private static getFieldNames(componentType: ExamComponentType): string[] {
     switch (componentType) {
+      case 'exam-details':
+        return ['exam_date', 'test_name', 'clinic', 'user_id', 'dominant_eye']
+      case 'old-ref':
+        return ['role', 'source', 'contacts']
       case 'old-refraction':
         return ['r_sph', 'r_cyl', 'r_ax', 'r_pris', 'r_base', 'r_va', 'r_ad', 'l_sph', 'l_cyl', 'l_ax', 'l_pris', 'l_base', 'l_va', 'l_ad', 'comb_va']
       case 'old-refraction-extension':
@@ -106,8 +172,21 @@ export class ExamFieldMapper {
         return ['r_fv', 'r_iv', 'r_nv_j', 'l_fv', 'l_iv', 'l_nv_j']
       case 'keratometer':
         return ['r_k1', 'r_k2', 'r_axis', 'l_k1', 'l_k2', 'l_axis']
+      case 'keratometer-full':
+        return [
+          'r_dpt_k1', 'r_dpt_k2', 'l_dpt_k1', 'l_dpt_k2',
+          'r_mm_k1', 'r_mm_k2', 'l_mm_k1', 'l_mm_k2',
+          'r_mer_k1', 'r_mer_k2', 'l_mer_k1', 'l_mer_k2',
+          'r_astig', 'l_astig'
+        ]
+      case 'corneal-topography':
+        return ['l_note', 'r_note', 'title']
       case 'cover-test':
         return ['deviation_type', 'deviation_direction', 'fv_1', 'fv_2', 'nv_1', 'nv_2']
+      case 'schirmer-test':
+        return ['r_mm', 'l_mm', 'r_but', 'l_but']
+      case 'notes':
+        return ['title', 'note']
       default:
         return []
     }

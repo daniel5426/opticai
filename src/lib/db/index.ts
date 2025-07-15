@@ -59,11 +59,21 @@ import {
   ExamLayoutInstance,
   UncorrectedVAExam,
   KeratometerExam,
+  KeratometerFullExam,
+  CornealTopographyExam,
   CoverTestExam,
+  SchirmerTestExam,
   WorkShift,
   CompactPrescriptionExam,
-  Campaign
+  Campaign,
+  AnamnesisExam,
+  NotesExam,
+  OldRefExam
 } from './schema';
+import * as usersDb from './users-db'
+import * as workShiftsDb from './work-shifts-db'
+import * as anamnesisDb from './anamnesis-db'
+import * as notesDb from './notes-db'
 
 class DatabaseService {
   private db: Database.Database | null = null;
@@ -254,7 +264,6 @@ class DatabaseService {
               exam_date: "2024-01-15",
               test_name: "בדיקת ראייה מקיפה",
               dominant_eye: "R",
-              notes: "בדיקה ראשונית"
             });
 
             if (exam) {
@@ -711,7 +720,8 @@ class DatabaseService {
             compactPrescription: this.getCompactPrescriptionExamByLayoutInstanceId(instance.id!),
             uncorrectedVA: this.getUncorrectedVAExamByLayoutInstanceId(instance.id!),
             keratometer: this.getKeratometerExamByLayoutInstanceId(instance.id!),
-            coverTest: this.getCoverTestExamByLayoutInstanceId(instance.id!)
+            coverTest: this.getCoverTestExamByLayoutInstanceId(instance.id!),
+            notes: this.getNotesExamByLayoutInstanceId(instance.id!)
           };
           examData.layoutInstances.push(instanceData);
         });
@@ -784,13 +794,13 @@ class DatabaseService {
     try {
       const stmt = this.db.prepare(`
         INSERT INTO optical_exams (
-          client_id, clinic, user_id, exam_date, test_name, dominant_eye, notes
-        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+          client_id, clinic, user_id, exam_date, test_name, dominant_eye
+        ) VALUES (?, ?, ?, ?, ?, ?)
       `);
 
       const result = stmt.run(
         exam.client_id, exam.clinic, this.sanitizeValue(exam.user_id), exam.exam_date, exam.test_name,
-        exam.dominant_eye, exam.notes
+        exam.dominant_eye
       );
 
       return { ...exam, id: result.lastInsertRowid as number };
@@ -843,13 +853,13 @@ class DatabaseService {
       const stmt = this.db.prepare(`
         UPDATE optical_exams SET 
         client_id = ?, clinic = ?, user_id = ?, exam_date = ?, test_name = ?, 
-        dominant_eye = ?, notes = ?
+        dominant_eye = ?
         WHERE id = ?
       `);
 
       stmt.run(
         exam.client_id, exam.clinic, this.sanitizeValue(exam.user_id), exam.exam_date, exam.test_name,
-        exam.dominant_eye, exam.notes, exam.id
+        exam.dominant_eye, exam.id
       );
 
       return exam;
@@ -944,6 +954,78 @@ class DatabaseService {
       return exam;
     } catch (error) {
       console.error('Error updating old refraction exam:', error);
+      return null;
+    }
+  }
+
+  createOldRefExam(exam: Omit<OldRefExam, 'id'>): OldRefExam | null {
+    if (!this.db) return null;
+
+    try {
+      const stmt = this.db.prepare(`
+        INSERT INTO old_ref_exams (layout_instance_id, role, source, contacts)
+        VALUES (?, ?, ?, ?)
+      `);
+
+      const result = stmt.run(
+        exam.layout_instance_id,
+        exam.role,
+        exam.source,
+        exam.contacts
+      );
+
+      return { ...exam, id: result.lastInsertRowid as number };
+    } catch (error) {
+      console.error('Error creating old ref exam:', error);
+      return null;
+    }
+  }
+
+  getOldRefExamById(id: number): OldRefExam | null {
+    if (!this.db) return null;
+
+    try {
+      const stmt = this.db.prepare('SELECT * FROM old_ref_exams WHERE id = ?');
+      return stmt.get(id) as OldRefExam | null;
+    } catch (error) {
+      console.error('Error getting old ref exam by id:', error);
+      return null;
+    }
+  }
+
+  getOldRefExamByLayoutInstanceId(layoutInstanceId: number): OldRefExam | null {
+    if (!this.db) return null;
+
+    try {
+      const stmt = this.db.prepare('SELECT * FROM old_ref_exams WHERE layout_instance_id = ?');
+      return stmt.get(layoutInstanceId) as OldRefExam | null;
+    } catch (error) {
+      console.error('Error getting old ref exam by layout instance id:', error);
+      return null;
+    }
+  }
+
+  updateOldRefExam(exam: OldRefExam): OldRefExam | null {
+    if (!this.db || !exam.id) return null;
+
+    try {
+      const stmt = this.db.prepare(`
+        UPDATE old_ref_exams SET 
+        layout_instance_id = ?, role = ?, source = ?, contacts = ?
+        WHERE id = ?
+      `);
+
+      stmt.run(
+        exam.layout_instance_id,
+        exam.role,
+        exam.source,
+        exam.contacts,
+        exam.id
+      );
+
+      return exam;
+    } catch (error) {
+      console.error('Error updating old ref exam:', error);
       return null;
     }
   }
@@ -5153,6 +5235,146 @@ class DatabaseService {
     }
   }
 
+  createKeratometerFullExam(exam: Omit<KeratometerFullExam, 'id'>): KeratometerFullExam | null {
+    if (!this.db) return null;
+    try {
+      const stmt = this.db.prepare(
+        'INSERT INTO keratometer_full_exams (layout_instance_id, r_dpt_k1, r_dpt_k2, l_dpt_k1, l_dpt_k2, r_mm_k1, r_mm_k2, l_mm_k1, l_mm_k2, r_mer_k1, r_mer_k2, l_mer_k1, l_mer_k2, r_astig, l_astig) VALUES (@layout_instance_id, @r_dpt_k1, @r_dpt_k2, @l_dpt_k1, @l_dpt_k2, @r_mm_k1, @r_mm_k2, @l_mm_k1, @l_mm_k2, @r_mer_k1, @r_mer_k2, @l_mer_k1, @l_mer_k2, @r_astig, @l_astig)'
+      );
+      const result = stmt.run({
+        ...exam,
+        r_dpt_k1: this.sanitizeValue(exam.r_dpt_k1),
+        r_dpt_k2: this.sanitizeValue(exam.r_dpt_k2),
+        l_dpt_k1: this.sanitizeValue(exam.l_dpt_k1),
+        l_dpt_k2: this.sanitizeValue(exam.l_dpt_k2),
+        r_mm_k1: this.sanitizeValue(exam.r_mm_k1),
+        r_mm_k2: this.sanitizeValue(exam.r_mm_k2),
+        l_mm_k1: this.sanitizeValue(exam.l_mm_k1),
+        l_mm_k2: this.sanitizeValue(exam.l_mm_k2),
+        r_mer_k1: this.sanitizeValue(exam.r_mer_k1),
+        r_mer_k2: this.sanitizeValue(exam.r_mer_k2),
+        l_mer_k1: this.sanitizeValue(exam.l_mer_k1),
+        l_mer_k2: this.sanitizeValue(exam.l_mer_k2),
+        r_astig: exam.r_astig,
+        l_astig: exam.l_astig,
+      });
+      return this.getKeratometerFullExamById(result.lastInsertRowid as number);
+    } catch (error) {
+      console.error('Error creating keratometer full exam:', error);
+      return null;
+    }
+  }
+
+  getKeratometerFullExamById(id: number): KeratometerFullExam | null {
+    if (!this.db) return null;
+    try {
+      return this.db.prepare('SELECT * FROM keratometer_full_exams WHERE id = ?').get(id) as KeratometerFullExam || null;
+    } catch (error) {
+      console.error('Error getting keratometer full exam by id:', error);
+      return null;
+    }
+  }
+
+  getKeratometerFullExamByLayoutInstanceId(layoutInstanceId: number): KeratometerFullExam | null {
+    if (!this.db) return null;
+    try {
+      const stmt = this.db.prepare('SELECT * FROM keratometer_full_exams WHERE layout_instance_id = ?');
+      return stmt.get(layoutInstanceId) as KeratometerFullExam || null;
+    } catch (error) {
+      console.error('Error getting keratometer full exam:', error);
+      return null;
+    }
+  }
+
+  updateKeratometerFullExam(exam: KeratometerFullExam): KeratometerFullExam | null {
+    if (!this.db) return null;
+    try {
+      const stmt = this.db.prepare(
+        'UPDATE keratometer_full_exams SET layout_instance_id = @layout_instance_id, r_dpt_k1 = @r_dpt_k1, r_dpt_k2 = @r_dpt_k2, l_dpt_k1 = @l_dpt_k1, l_dpt_k2 = @l_dpt_k2, r_mm_k1 = @r_mm_k1, r_mm_k2 = @r_mm_k2, l_mm_k1 = @l_mm_k1, l_mm_k2 = @l_mm_k2, r_mer_k1 = @r_mer_k1, r_mer_k2 = @r_mer_k2, l_mer_k1 = @l_mer_k1, l_mer_k2 = @l_mer_k2, r_astig = @r_astig, l_astig = @l_astig WHERE id = @id'
+      );
+      stmt.run({
+        ...exam,
+        r_dpt_k1: this.sanitizeValue(exam.r_dpt_k1),
+        r_dpt_k2: this.sanitizeValue(exam.r_dpt_k2),
+        l_dpt_k1: this.sanitizeValue(exam.l_dpt_k1),
+        l_dpt_k2: this.sanitizeValue(exam.l_dpt_k2),
+        r_mm_k1: this.sanitizeValue(exam.r_mm_k1),
+        r_mm_k2: this.sanitizeValue(exam.r_mm_k2),
+        l_mm_k1: this.sanitizeValue(exam.l_mm_k1),
+        l_mm_k2: this.sanitizeValue(exam.l_mm_k2),
+        r_mer_k1: this.sanitizeValue(exam.r_mer_k1),
+        r_mer_k2: this.sanitizeValue(exam.r_mer_k2),
+        l_mer_k1: this.sanitizeValue(exam.l_mer_k1),
+        l_mer_k2: this.sanitizeValue(exam.l_mer_k2),
+        r_astig: exam.r_astig,
+        l_astig: exam.l_astig,
+      });
+      return this.getKeratometerFullExamById(exam.id!);
+    } catch (error) {
+      console.error('Error updating keratometer full exam:', error);
+      return null;
+    }
+  }
+
+  createCornealTopographyExam(exam: Omit<CornealTopographyExam, 'id'>): CornealTopographyExam | null {
+    if (!this.db) return null;
+    try {
+      const stmt = this.db.prepare(
+        'INSERT INTO corneal_topography_exams (layout_instance_id, l_note, r_note, title) VALUES (@layout_instance_id, @l_note, @r_note, @title)'
+      );
+      const result = stmt.run({
+        ...exam,
+        l_note: exam.l_note || null,
+        r_note: exam.r_note || null,
+        title: exam.title || null,
+      });
+      return this.getCornealTopographyExamById(result.lastInsertRowid as number);
+    } catch (error) {
+      console.error('Error creating corneal topography exam:', error);
+      return null;
+    }
+  }
+
+  getCornealTopographyExamById(id: number): CornealTopographyExam | null {
+    if (!this.db) return null;
+    try {
+      return this.db.prepare('SELECT * FROM corneal_topography_exams WHERE id = ?').get(id) as CornealTopographyExam || null;
+    } catch (error) {
+      console.error('Error getting corneal topography exam by id:', error);
+      return null;
+    }
+  }
+
+  getCornealTopographyExamByLayoutInstanceId(layoutInstanceId: number): CornealTopographyExam | null {
+    if (!this.db) return null;
+    try {
+      const stmt = this.db.prepare('SELECT * FROM corneal_topography_exams WHERE layout_instance_id = ?');
+      return stmt.get(layoutInstanceId) as CornealTopographyExam || null;
+    } catch (error) {
+      console.error('Error getting corneal topography exam:', error);
+      return null;
+    }
+  }
+
+  updateCornealTopographyExam(exam: CornealTopographyExam): CornealTopographyExam | null {
+    if (!this.db) return null;
+    try {
+      const stmt = this.db.prepare(
+        'UPDATE corneal_topography_exams SET layout_instance_id = @layout_instance_id, l_note = @l_note, r_note = @r_note, title = @title WHERE id = @id'
+      );
+      stmt.run({
+        ...exam,
+        l_note: exam.l_note || null,
+        r_note: exam.r_note || null,
+        title: exam.title || null,
+      });
+      return this.getCornealTopographyExamById(exam.id!);
+    } catch (error) {
+      console.error('Error updating corneal topography exam:', error);
+      return null;
+    }
+  }
+
   createCoverTestExam(exam: Omit<CoverTestExam, 'id'>): CoverTestExam | null {
     if (!this.db) return null;
     try {
@@ -5477,6 +5699,249 @@ class DatabaseService {
       return result.changes > 0;
     } catch (error) {
       console.error('Error deleting campaign:', error);
+      return false;
+    }
+  }
+
+  deleteCoverTestExam(id: number) {
+    if (!this.db) return false;
+
+    this.db.prepare('DELETE FROM cover_test_exams WHERE id = ?').run(id);
+    return true;
+  }
+
+  createSchirmerTestExam(exam: Omit<SchirmerTestExam, 'id'>): SchirmerTestExam | null {
+    if (!this.db) return null;
+    try {
+      const stmt = this.db.prepare(`
+        INSERT INTO schirmer_test_exams (layout_instance_id, r_mm, l_mm, r_but, l_but)
+        VALUES (?, ?, ?, ?, ?)
+      `);
+      const result = stmt.run(
+        exam.layout_instance_id,
+        exam.r_mm,
+        exam.l_mm,
+        exam.r_but,
+        exam.l_but
+      );
+      
+      if (result.changes > 0) {
+        return {
+          id: result.lastInsertRowid as number,
+          ...exam
+        };
+      }
+      return null;
+    } catch (error) {
+      console.error('Error creating schirmer test exam:', error);
+      return null;
+    }
+  }
+
+  getSchirmerTestExamById(id: number): SchirmerTestExam | null {
+    if (!this.db) return null;
+    try {
+      const stmt = this.db.prepare('SELECT * FROM schirmer_test_exams WHERE id = ?');
+      return stmt.get(id) as SchirmerTestExam | null;
+    } catch (error) {
+      console.error('Error getting schirmer test exam by id:', error);
+      return null;
+    }
+  }
+
+  getSchirmerTestExamByLayoutInstanceId(layoutInstanceId: number): SchirmerTestExam | null {
+    if (!this.db) return null;
+    try {
+      const stmt = this.db.prepare('SELECT * FROM schirmer_test_exams WHERE layout_instance_id = ?');
+      return stmt.get(layoutInstanceId) as SchirmerTestExam | null;
+    } catch (error) {
+      console.error('Error getting schirmer test exam by layout instance id:', error);
+      return null;
+    }
+  }
+
+  updateSchirmerTestExam(exam: SchirmerTestExam): SchirmerTestExam | null {
+    if (!this.db) return null;
+    try {
+      const stmt = this.db.prepare(`
+        UPDATE schirmer_test_exams 
+        SET layout_instance_id = ?, r_mm = ?, l_mm = ?, r_but = ?, l_but = ?
+        WHERE id = ?
+      `);
+      const result = stmt.run(
+        exam.layout_instance_id,
+        exam.r_mm,
+        exam.l_mm,
+        exam.r_but,
+        exam.l_but,
+        exam.id
+      );
+      
+      if (result.changes > 0) {
+        return exam;
+      }
+      return null;
+    } catch (error) {
+      console.error('Error updating schirmer test exam:', error);
+      return null;
+    }
+  }
+
+  // Anamnesis Exam methods
+  createAnamnesisExam(data: Omit<AnamnesisExam, 'id'>): AnamnesisExam | null {
+    if (!this.db) return null;
+
+    const stmt = this.db.prepare(`
+      INSERT INTO anamnesis_exams (
+        layout_instance_id, medications, allergies, family_history, previous_treatments,
+        lazy_eye, contact_lens_wear, started_wearing_since, stopped_wearing_since, additional_notes
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    const info = stmt.run(
+      data.layout_instance_id,
+      data.medications,
+      data.allergies,
+      data.family_history,
+      data.previous_treatments,
+      data.lazy_eye ? 1 : 0,
+      data.contact_lens_wear ? 1 : 0,
+      data.started_wearing_since,
+      data.stopped_wearing_since,
+      data.additional_notes
+    );
+    return this.getAnamnesisExamById(info.lastInsertRowid as number);
+  }
+
+  getAnamnesisExamById(id: number): AnamnesisExam | null {
+    if (!this.db) return null;
+
+    return this.db.prepare('SELECT * FROM anamnesis_exams WHERE id = ?').get(id) as AnamnesisExam | null;
+  }
+
+  getAnamnesisExamByLayoutInstanceId(layout_instance_id: number): AnamnesisExam | null {
+    if (!this.db) return null;
+
+    const exam = this.db.prepare('SELECT * FROM anamnesis_exams WHERE layout_instance_id = ?').get(layout_instance_id) as AnamnesisExam | null;
+    if (exam) {
+      exam.contact_lens_wear = Boolean(exam.contact_lens_wear);
+    }
+    return exam;
+  }
+
+  updateAnamnesisExam(data: AnamnesisExam): AnamnesisExam | null {
+    if (!this.db) return null;
+
+    const stmt = this.db.prepare(`
+      UPDATE anamnesis_exams SET
+        medications = ?, allergies = ?, family_history = ?, previous_treatments = ?,
+        lazy_eye = ?, contact_lens_wear = ?, started_wearing_since = ?, stopped_wearing_since = ?, additional_notes = ?
+      WHERE id = ?
+    `);
+    stmt.run(
+      data.medications,
+      data.allergies,
+      data.family_history,
+      data.previous_treatments,
+      data.lazy_eye ? 1 : 0,
+      data.contact_lens_wear ? 1 : 0,
+      data.started_wearing_since,
+      data.stopped_wearing_since,
+      data.additional_notes,
+      data.id
+    );
+    return this.getAnamnesisExamById(data.id!);
+  }
+
+  deleteAnamnesisExam(id: number) {
+    if (!this.db) return false;
+    try {
+      const stmt = this.db.prepare('DELETE FROM anamnesis_exams WHERE id = ?');
+      const result = stmt.run(id);
+      return result.changes > 0;
+    } catch (error) {
+      console.error(`Error deleting AnamnesisExam with ID ${id}:`, error);
+      return false;
+    }
+  }
+
+  createNotesExam(data: Omit<NotesExam, 'id'>): NotesExam | null {
+    if (!this.db) return null;
+    const { layout_instance_id, card_instance_id, title, note } = data;
+    try {
+      const stmt = this.db.prepare(`
+        INSERT INTO notes_exams (layout_instance_id, card_instance_id, title, note)
+        VALUES (?, ?, ?, ?)
+      `);
+      const result = stmt.run(layout_instance_id, card_instance_id, title, note);
+      if (result.changes > 0) {
+        return { id: result.lastInsertRowid as number, ...data };
+      }
+      return null;
+    } catch (error) {
+      console.error('Error creating NotesExam:', error);
+      return null;
+    }
+  }
+
+  getNotesExamById(id: number): NotesExam | null {
+    if (!this.db) return null;
+    try {
+      const stmt = this.db.prepare('SELECT * FROM notes_exams WHERE id = ?');
+      return stmt.get(id) as NotesExam | null;
+    } catch (error) {
+      console.error(`Error getting NotesExam by ID ${id}:`, error);
+      return null;
+    }
+  }
+
+  getNotesExamByLayoutInstanceId(layout_instance_id: number, card_instance_id?: string): NotesExam | null {
+    if (!this.db) return null;
+    try {
+      if (card_instance_id) {
+        const stmt = this.db.prepare('SELECT * FROM notes_exams WHERE layout_instance_id = ? AND card_instance_id = ?');
+        return stmt.get(layout_instance_id, card_instance_id) as NotesExam | null;
+      } else {
+        const stmt = this.db.prepare('SELECT * FROM notes_exams WHERE layout_instance_id = ? AND card_instance_id IS NULL');
+        return stmt.get(layout_instance_id) as NotesExam | null;
+      }
+    } catch (error) {
+      console.error(`Error getting NotesExam by layout_instance_id ${layout_instance_id}:`, error);
+      return null;
+    }
+  }
+
+  updateNotesExam(data: NotesExam): NotesExam | null {
+    if (!this.db) return null;
+    const { id, layout_instance_id, card_instance_id, title, note } = data;
+    if (!id) {
+      console.error('NotesExam ID is required for update.');
+      return null;
+    }
+    try {
+      const stmt = this.db.prepare(`
+        UPDATE notes_exams
+        SET layout_instance_id = ?, card_instance_id = ?, title = ?, note = ?
+        WHERE id = ?
+      `);
+      const result = stmt.run(layout_instance_id, card_instance_id, title, note, id);
+      if (result.changes > 0) {
+        return data;
+      }
+      return null;
+    } catch (error) {
+      console.error(`Error updating NotesExam with ID ${id}:`, error);
+      return null;
+    }
+  }
+
+  deleteNotesExam(id: number): boolean {
+    if (!this.db) return false;
+    try {
+      const stmt = this.db.prepare('DELETE FROM notes_exams WHERE id = ?');
+      const result = stmt.run(id);
+      return result.changes > 0;
+    } catch (error) {
+      console.error(`Error deleting NotesExam with ID ${id}:`, error);
       return false;
     }
   }

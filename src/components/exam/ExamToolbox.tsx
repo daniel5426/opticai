@@ -49,7 +49,7 @@ export function ExamToolbox({
     // Get all available component types to the left of current card
     const cardsToTheLeft = currentRow.slice(0, currentCardIndex)
     const availableComponentsToTheLeft = cardsToTheLeft
-      .filter(card => card.type !== 'exam-details' && card.type !== 'notes')
+      .filter(card => card.type !== 'notes')
       .map(card => card.type as ExamComponentType)
     
     // Check if there are any compatible targets
@@ -63,7 +63,7 @@ export function ExamToolbox({
     // Get all available component types to the right of current card
     const cardsToTheRight = currentRow.slice(currentCardIndex + 1)
     const availableComponentsToTheRight = cardsToTheRight
-      .filter(card => card.type !== 'exam-details' && card.type !== 'notes')
+      .filter(card => card.type !== 'notes')
       .map(card => card.type as ExamComponentType)
     
     // Check if there are any compatible targets
@@ -78,7 +78,7 @@ export function ExamToolbox({
     
     // Get all available component types in the below row
     const availableComponentsInBelowRow = belowRow
-      .filter(card => card.type !== 'exam-details' && card.type !== 'notes')
+      .filter(card => card.type !== 'notes')
       .map(card => card.type as ExamComponentType)
     
     // Check if there are any compatible targets

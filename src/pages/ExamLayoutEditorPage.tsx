@@ -32,6 +32,7 @@ import { GripVertical, Plus, Edit, Trash2 } from "lucide-react"
 import { ExamCardRenderer, CardItem, calculateCardWidth, hasNoteCard, DetailProps } from "@/components/exam/ExamCardRenderer"
 import { getExamLayoutById, createExamLayout, updateExamLayout } from "@/lib/db/exam-layouts-db"
 import { examComponentRegistry } from "@/lib/exam-component-registry"
+import { Eye, EyeOff } from "lucide-react"
 
 interface CardRow {
   id: string
@@ -100,11 +101,12 @@ function AddComponentDrawer({ isEditing, onAddComponent }: AddComponentDrawerPro
     };
   });
   
-  // Add notes component which isn't in the registry
+  // Add notes and anamnesis component which isn't in the registry
   const eyeComponents = [
     ...registeredComponents,
     { id: 'notes', label: 'Notes', description: 'הערות' },
-    { id: 'exam-details', label: 'Exam Details', description: 'פרטי בדיקה' }
+    { id: 'exam-details', label: 'Exam Details', description: 'פרטי בדיקה' },
+    { id: 'anamnesis', label: 'Anamnesis', description: 'אנמנזה' }, // New anamnesis component
   ] as const
 
   const handleSelectComponent = (componentType: CardItem['type']) => {
@@ -126,15 +128,15 @@ function AddComponentDrawer({ isEditing, onAddComponent }: AddComponentDrawerPro
         <DrawerHeader>
           <DrawerTitle className="text-center">הוסף רכיב לשורה</DrawerTitle>
         </DrawerHeader>
-        <div className="p-4 space-y-2">
+        <div className="p-4 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 overflow-y-auto" style={{ scrollbarWidth: 'none' }}>
           {eyeComponents.map((component) => (
             <Button
               key={component.id}
               variant="outline"
-              className="w-full justify-between"
+              className="h-auto flex-col items-center justify-center p-4 text-center"
               onClick={() => handleSelectComponent(component.id as CardItem['type'])}
             >
-              <span>{component.description}</span>
+              <span className="font-semibold text-lg mb-1">{component.description}</span>
               <span className="text-sm text-muted-foreground">{component.label}</span>
             </Button>
           ))}
@@ -283,6 +285,38 @@ export default function ExamLayoutEditorPage() {
   // Store custom widths for cards that have been manually resized
   const [customWidths, setCustomWidths] = useState<Record<string, Record<string, number>>>({})
 
+  const handleToggleEyeLabels = (rowIndex: number, cardId: string) => {
+    setCardRows(prevRows =>
+      prevRows.map((row, rIdx) => {
+        if (rIdx === rowIndex) {
+          return {
+            ...row,
+            cards: row.cards.map(card =>
+              card.id === cardId ? { ...card, showEyeLabels: !card.showEyeLabels } : card
+            )
+          }
+        }
+        return row
+      })
+    )
+  }
+
+  const handleCardTitleChange = (rowIndex: number, cardId: string, title: string) => {
+    setCardRows(prevRows =>
+      prevRows.map((row, rIdx) => {
+        if (rIdx === rowIndex) {
+          return {
+            ...row,
+            cards: row.cards.map(card =>
+              card.id === cardId ? { ...card, title } : card
+            )
+          }
+        }
+        return row
+      })
+    )
+  }
+
   useEffect(() => {
     const loadLayout = async () => {
       if (isNewMode || !params.layoutId) return
@@ -356,8 +390,14 @@ export default function ExamLayoutEditorPage() {
   }
 
   const canAddToRow = (rowCards: CardItem[], newType: CardItem['type']): boolean => {
-    if (newType === 'exam-details') return false
-    if (rowCards.some(card => card.type === 'exam-details')) return false
+    // Anamnesis cards cannot be added if other cards exist
+    if (newType === 'anamnesis') {
+      if (rowCards.length > 0) return false;
+    }
+    // If there's already an anamnesis card, no other cards can be added
+    if (rowCards.some(card => card.type === 'anamnesis')) return false;
+
+    // Regular rules for other cards
     if (rowCards.some(card => card.type === newType)) return false
     
     return rowCards.length < 3
@@ -614,6 +654,15 @@ export default function ExamLayoutEditorPage() {
                                     <Trash2 className="h-3 w-3" />
                                   </button>
                                 )}
+                                {index > 0 && ( // Only show for cards not first in row
+                                  <button
+                                    onClick={() => handleToggleEyeLabels(rowIndex, card.id)}
+                                    className="absolute top-2 left-2 z-10 p-1 rounded-md bg-background/80 hover:bg-accent text-muted-foreground opacity-0 group-hover/card:opacity-100 transition-opacity duration-200"
+                                    title={card.showEyeLabels ? "הסתר תוויות עין" : "הצג תוויות עין"}
+                                  >
+                                    {card.showEyeLabels ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
+                                  </button>
+                                )}
                                 <ExamCardRenderer
                                   item={card}
                                   rowCards={row.cards}
@@ -621,6 +670,7 @@ export default function ExamLayoutEditorPage() {
                                   mode="editor"
                                   hideEyeLabels={index > 0}
                                   matchHeight={hasNoteCard(row.cards) && row.cards.length > 1}
+                                  onTitleChange={(title) => handleCardTitleChange(rowIndex, card.id, title)}
                                 />
                               </div>
                               

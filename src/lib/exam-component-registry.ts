@@ -12,15 +12,41 @@ import {
   RetinoscopDilationExam,
   UncorrectedVAExam,
   KeratometerExam,
+  KeratometerFullExam,
+  CornealTopographyExam,
   CoverTestExam,
+  AnamnesisExam,
+  NotesExam,
+  SchirmerTestExam,
+  OldRefExam,
 } from "@/lib/db/schema"
 
-export type ExamComponentType = 'old-refraction' | 'old-refraction-extension' | 'objective' | 'subjective' | 'addition' | 'final-subjective' | 'final-prescription' | 'compact-prescription' | 'retinoscop' | 'retinoscop-dilation' | 'uncorrected-va' | 'keratometer' | 'cover-test'
+export type ExamComponentType =
+  | 'exam-details'
+  | 'old-ref'
+  | 'old-refraction'
+  | 'old-refraction-extension'
+  | 'objective'
+  | 'subjective'
+  | 'addition'
+  | 'retinoscop'
+  | 'retinoscop-dilation'
+  | 'final-subjective'
+  | 'final-prescription'
+  | 'compact-prescription'
+  | 'uncorrected-va'
+  | 'keratometer'
+  | 'keratometer-full'
+  | 'corneal-topography'
+  | 'anamnesis'
+  | 'cover-test'
+  | 'schirmer-test'
+  | 'notes'
 
 export interface ExamComponentConfig<T = any> {
   name: string
-  getData: (layoutInstanceId: number) => Promise<T | null>
-  createData: (data: Omit<T, 'id'>) => Promise<T | null>
+  getData: (layoutInstanceId: number, cardInstanceId?: string) => Promise<T | null>
+  createData: (data: Omit<T, 'id'>, cardInstanceId?: string) => Promise<T | null>
   updateData: (data: T) => Promise<T | null>
   validateField: (field: keyof T, value: string) => string | number | undefined
   getNumericFields: () => (keyof T)[]
@@ -63,30 +89,62 @@ class ExamComponentRegistry {
     const savedData: Record<string, any> = {}
     
     for (const [type, config] of this.components) {
-      const componentFormData = formData[type]
-      if (!componentFormData) continue
+      if (type === 'notes') {
+        // Handle notes card instances separately
+        const notesKeys = Object.keys(formData).filter(key => key.startsWith('notes-'))
+        for (const key of notesKeys) {
+          const componentFormData = formData[key]
+          if (!componentFormData) continue
 
-      try {
-        const hasData = config.hasData(componentFormData)
-        if (!hasData) continue
+          try {
+            const hasData = config.hasData(componentFormData)
+            if (!hasData) continue
 
-        let result
-        if (componentFormData.id) {
-          result = await config.updateData({
-            ...componentFormData,
-            layout_instance_id: layoutInstanceId
-          })
-        } else {
-          result = await config.createData({
-            ...componentFormData,
-            layout_instance_id: layoutInstanceId
-          })
+            let result
+            if (componentFormData.id) {
+              result = await config.updateData({
+                ...componentFormData,
+                layout_instance_id: layoutInstanceId
+              })
+            } else {
+              result = await config.createData({
+                ...componentFormData,
+                layout_instance_id: layoutInstanceId
+              }, componentFormData.card_instance_id)
+            }
+            
+            savedData[key] = result
+          } catch (error) {
+            console.error(`Failed to save ${key} data:`, error)
+            savedData[key] = null
+          }
         }
-        
-        savedData[type] = result
-      } catch (error) {
-        console.error(`Failed to save ${type} data:`, error)
-        savedData[type] = null
+      } else {
+        const componentFormData = formData[type]
+        if (!componentFormData) continue
+
+        try {
+          const hasData = config.hasData(componentFormData)
+          if (!hasData) continue
+
+          let result
+          if (componentFormData.id) {
+            result = await config.updateData({
+              ...componentFormData,
+              layout_instance_id: layoutInstanceId
+            })
+          } else {
+            result = await config.createData({
+              ...componentFormData,
+              layout_instance_id: layoutInstanceId
+            })
+          }
+          
+          savedData[type] = result
+        } catch (error) {
+          console.error(`Failed to save ${type} data:`, error)
+          savedData[type] = null
+        }
       }
     }
     
@@ -113,10 +171,50 @@ class ExamComponentRegistry {
 
 const registry = new ExamComponentRegistry()
 
+registry.register<OldRefExam>('old-ref', {
+  name: 'רפרנס ישן',
+  getData: (layoutInstanceId: number, cardInstanceId?: string) => window.electronAPI.db('getOldRefExamByLayoutInstanceId', layoutInstanceId),
+  createData: (data: Omit<OldRefExam, 'id'>, cardInstanceId?: string) => window.electronAPI.db('createOldRefExam', data),
+  updateData: (data: OldRefExam) => window.electronAPI.db('updateOldRefExam', data),
+  getNumericFields: () => [],
+  getIntegerFields: () => [],
+  validateField: (field, rawValue) => {
+    if (rawValue === "") {
+      return undefined
+    }
+    return rawValue
+  },
+  hasData: (data) => Object.values(data).some(value => 
+    value !== undefined && value !== null && value !== ''
+  )
+})
+
+registry.register<OpticalExam>('exam-details', {
+  name: 'פרטי בדיקה',
+  getData: (layoutInstanceId: number, cardInstanceId?: string) => window.electronAPI.db('getOpticalExamByLayoutInstanceId', layoutInstanceId),
+  createData: (data: Omit<OpticalExam, 'id'>, cardInstanceId?: string) => window.electronAPI.db('createOpticalExam', data),
+  updateData: (data: OpticalExam) => window.electronAPI.db('updateOpticalExam', data),
+  getNumericFields: () => [],
+  getIntegerFields: () => ['user_id'],
+  validateField: (field, rawValue) => {
+    if (rawValue === "") {
+      return undefined
+    }
+    if (field === 'user_id') {
+      const val = parseInt(rawValue, 10)
+      return isNaN(val) ? undefined : val
+    }
+    return rawValue
+  },
+  hasData: (data) => Object.values(data).some(value => 
+    value !== undefined && value !== null && value !== ''
+  )
+})
+
 registry.register<OldRefractionExam>('old-refraction', {
   name: 'רפרקציה ישנה',
-  getData: (layoutInstanceId: number) => window.electronAPI.db('getOldRefractionExamByLayoutInstanceId', layoutInstanceId),
-  createData: (data: Omit<OldRefractionExam, 'id'>) => window.electronAPI.db('createOldRefractionExam', data),
+  getData: (layoutInstanceId: number, cardInstanceId?: string) => window.electronAPI.db('getOldRefractionExamByLayoutInstanceId', layoutInstanceId),
+  createData: (data: Omit<OldRefractionExam, 'id'>, cardInstanceId?: string) => window.electronAPI.db('createOldRefractionExam', data),
   updateData: (data: OldRefractionExam) => window.electronAPI.db('updateOldRefractionExam', data),
   getNumericFields: () => [
     "r_sph", "r_cyl", "r_pris", "r_base", "r_va", "r_ad",
@@ -145,8 +243,8 @@ registry.register<OldRefractionExam>('old-refraction', {
 
 registry.register<ObjectiveExam>('objective', {
   name: 'אובייקטיבי',
-  getData: (layoutInstanceId: number) => window.electronAPI.db('getObjectiveExamByLayoutInstanceId', layoutInstanceId),
-  createData: (data: Omit<ObjectiveExam, 'id'>) => window.electronAPI.db('createObjectiveExam', data),
+  getData: (layoutInstanceId: number, cardInstanceId?: string) => window.electronAPI.db('getObjectiveExamByLayoutInstanceId', layoutInstanceId),
+  createData: (data: Omit<ObjectiveExam, 'id'>, cardInstanceId?: string) => window.electronAPI.db('createObjectiveExam', data),
   updateData: (data: ObjectiveExam) => window.electronAPI.db('updateObjectiveExam', data),
   getNumericFields: () => ["r_sph", "r_cyl", "r_se", "l_sph", "l_cyl", "l_se"],
   getIntegerFields: () => ["r_ax", "l_ax"],
@@ -172,8 +270,8 @@ registry.register<ObjectiveExam>('objective', {
 
 registry.register<SubjectiveExam>('subjective', {
   name: 'סובייקטיבי',
-  getData: (layoutInstanceId: number) => window.electronAPI.db('getSubjectiveExamByLayoutInstanceId', layoutInstanceId),
-  createData: (data: Omit<SubjectiveExam, 'id'>) => window.electronAPI.db('createSubjectiveExam', data),
+  getData: (layoutInstanceId: number, cardInstanceId?: string) => window.electronAPI.db('getSubjectiveExamByLayoutInstanceId', layoutInstanceId),
+  createData: (data: Omit<SubjectiveExam, 'id'>, cardInstanceId?: string) => window.electronAPI.db('createSubjectiveExam', data),
   updateData: (data: SubjectiveExam) => window.electronAPI.db('updateSubjectiveExam', data),
   getNumericFields: () => [
     "r_fa", "r_fa_tuning", "r_sph", "r_cyl", "r_pris", "r_base", "r_va", "r_pd_close", "r_pd_far",
@@ -207,8 +305,8 @@ registry.register<SubjectiveExam>('subjective', {
 
 registry.register<AdditionExam>('addition', {
   name: 'תוספות',
-  getData: (layoutInstanceId: number) => window.electronAPI.db('getAdditionExamByLayoutInstanceId', layoutInstanceId),
-  createData: (data: Omit<AdditionExam, 'id'>) => window.electronAPI.db('createAdditionExam', data),
+  getData: (layoutInstanceId: number, cardInstanceId?: string) => window.electronAPI.db('getAdditionExamByLayoutInstanceId', layoutInstanceId),
+  createData: (data: Omit<AdditionExam, 'id'>, cardInstanceId?: string) => window.electronAPI.db('createAdditionExam', data),
   updateData: (data: AdditionExam) => window.electronAPI.db('updateAdditionExam', data),
   getNumericFields: () => [
     "r_fcc", "r_read", "r_int", "r_bif", "r_mul", "r_iop",
@@ -240,8 +338,8 @@ registry.register<AdditionExam>('addition', {
 
 registry.register<FinalSubjectiveExam>('final-subjective', {
   name: 'סובייקטיבי סופי',
-  getData: (layoutInstanceId: number) => window.electronAPI.db('getFinalSubjectiveExamByLayoutInstanceId', layoutInstanceId),
-  createData: (data: Omit<FinalSubjectiveExam, 'id'>) => window.electronAPI.db('createFinalSubjectiveExam', data),
+  getData: (layoutInstanceId: number, cardInstanceId?: string) => window.electronAPI.db('getFinalSubjectiveExamByLayoutInstanceId', layoutInstanceId),
+  createData: (data: Omit<FinalSubjectiveExam, 'id'>, cardInstanceId?: string) => window.electronAPI.db('createFinalSubjectiveExam', data),
   updateData: (data: FinalSubjectiveExam) => window.electronAPI.db('updateFinalSubjectiveExam', data),
   getNumericFields: () => [
     "r_sph", "l_sph", "r_cyl", "l_cyl", "r_ax", "l_ax", "r_pr_h", "l_pr_h",
@@ -275,8 +373,8 @@ registry.register<FinalSubjectiveExam>('final-subjective', {
 
 registry.register<FinalPrescriptionExam>('final-prescription', {
   name: 'מרשם סופי',
-  getData: (layoutInstanceId: number) => window.electronAPI.db('getFinalPrescriptionExamByLayoutInstanceId', layoutInstanceId),
-  createData: (data: Omit<FinalPrescriptionExam, 'id'>) => window.electronAPI.db('createFinalPrescriptionExam', data),
+  getData: (layoutInstanceId: number, cardInstanceId?: string) => window.electronAPI.db('getFinalPrescriptionExamByLayoutInstanceId', layoutInstanceId),
+  createData: (data: Omit<FinalPrescriptionExam, 'id'>, cardInstanceId?: string) => window.electronAPI.db('createFinalPrescriptionExam', data),
   updateData: (data: FinalPrescriptionExam) => window.electronAPI.db('updateFinalPrescriptionExam', data),
   getNumericFields: () => [
     "r_sph", "l_sph", "r_cyl", "l_cyl", "r_ax", "l_ax", "r_pris", "l_pris",
@@ -310,8 +408,8 @@ registry.register<FinalPrescriptionExam>('final-prescription', {
 
 registry.register<CompactPrescriptionExam>('compact-prescription', {
   name: 'מרשם קומפקטי',
-  getData: (layoutInstanceId: number) => window.electronAPI.db('getCompactPrescriptionExamByLayoutInstanceId', layoutInstanceId),
-  createData: (data: Omit<CompactPrescriptionExam, 'id'>) => window.electronAPI.db('createCompactPrescriptionExam', data),
+  getData: (layoutInstanceId: number, cardInstanceId?: string) => window.electronAPI.db('getCompactPrescriptionExamByLayoutInstanceId', layoutInstanceId),
+  createData: (data: Omit<CompactPrescriptionExam, 'id'>, cardInstanceId?: string) => window.electronAPI.db('createCompactPrescriptionExam', data),
   updateData: (data: CompactPrescriptionExam) => window.electronAPI.db('updateCompactPrescriptionExam', data),
   getNumericFields: () => [
     "r_sph", "l_sph", "r_cyl", "l_cyl", "r_ax", "l_ax", "r_pris", "l_pris",
@@ -345,8 +443,8 @@ registry.register<CompactPrescriptionExam>('compact-prescription', {
 
 registry.register<RetinoscopExam>('retinoscop', {
   name: 'רטינוסקופיה',
-  getData: (layoutInstanceId: number) => window.electronAPI.db('getRetinoscopExamByLayoutInstanceId', layoutInstanceId),
-  createData: (data: Omit<RetinoscopExam, 'id'>) => window.electronAPI.db('createRetinoscopExam', data),
+  getData: (layoutInstanceId: number, cardInstanceId?: string) => window.electronAPI.db('getRetinoscopExamByLayoutInstanceId', layoutInstanceId),
+  createData: (data: Omit<RetinoscopExam, 'id'>, cardInstanceId?: string) => window.electronAPI.db('createRetinoscopExam', data),
   updateData: (data: RetinoscopExam) => window.electronAPI.db('updateRetinoscopExam', data),
   getNumericFields: () => ["r_sph", "r_cyl", "r_ax", "l_sph", "l_cyl", "l_ax"],
   getIntegerFields: () => [],
@@ -424,6 +522,51 @@ registry.register<KeratometerExam>('keratometer', {
   hasData: (data) => !!data && Object.values(data).some(v => v !== null && v !== undefined && v !== '')
 });
 
+registry.register<KeratometerFullExam>('keratometer-full', {
+  name: 'Keratometer Full',
+  getData: (layoutInstanceId: number) => window.electronAPI.db('getKeratometerFullExamByLayoutInstanceId', layoutInstanceId),
+  createData: (data: Omit<KeratometerFullExam, 'id'>) => window.electronAPI.db('createKeratometerFullExam', data),
+  updateData: (data: KeratometerFullExam) => window.electronAPI.db('updateKeratometerFullExam', data),
+  getNumericFields: () => [
+    'r_dpt_k1', 'r_dpt_k2', 'l_dpt_k1', 'l_dpt_k2',
+    'r_mm_k1', 'r_mm_k2', 'l_mm_k1', 'l_mm_k2',
+    'r_mer_k1', 'r_mer_k2', 'l_mer_k1', 'l_mer_k2'
+  ],
+  getIntegerFields: () => [],
+  validateField: (field, value) => {
+    if (value === '' || value === null) return undefined;
+    const numericFields = [
+      'r_dpt_k1', 'r_dpt_k2', 'l_dpt_k1', 'l_dpt_k2',
+      'r_mm_k1', 'r_mm_k2', 'l_mm_k1', 'l_mm_k2',
+      'r_mer_k1', 'r_mer_k2', 'l_mer_k1', 'l_mer_k2'
+    ];
+    const booleanFields = ['r_astig', 'l_astig'];
+    if (numericFields.includes(field as string)) {
+      const num = parseFloat(value as string);
+      return isNaN(num) ? undefined : num;
+    }
+    if (booleanFields.includes(field as string)) {
+      return value === 'true' || (typeof value === 'boolean' && value) ? 1 : 0;
+    }
+    return value;
+  },
+  hasData: (data) => !!data && Object.values(data).some(v => v !== null && v !== undefined && v !== '')
+});
+
+registry.register<CornealTopographyExam>('corneal-topography', {
+  name: 'Corneal Topography',
+  getData: (layoutInstanceId: number) => window.electronAPI.db('getCornealTopographyExamByLayoutInstanceId', layoutInstanceId),
+  createData: (data: Omit<CornealTopographyExam, 'id'>) => window.electronAPI.db('createCornealTopographyExam', data),
+  updateData: (data: CornealTopographyExam) => window.electronAPI.db('updateCornealTopographyExam', data),
+  getNumericFields: () => [],
+  getIntegerFields: () => [],
+  validateField: (field, value) => {
+    if (value === '' || value === null) return undefined;
+    return value;
+  },
+  hasData: (data) => !!data && (!!data.l_note || !!data.r_note || !!data.title)
+});
+
 registry.register<CoverTestExam>('cover-test', {
   name: 'בדיקת כיסוי',
   getData: (layoutInstanceId: number) => window.electronAPI.db('getCoverTestExamByLayoutInstanceId', layoutInstanceId),
@@ -434,6 +577,25 @@ registry.register<CoverTestExam>('cover-test', {
   validateField: (field, value) => {
     if (value === '' || value === null) return undefined;
     const numericFields = ['fv_1', 'fv_2', 'nv_1', 'nv_2'];
+    if (numericFields.includes(field as string)) {
+      const num = parseFloat(value);
+      return isNaN(num) ? undefined : num;
+    }
+    return value;
+  },
+  hasData: (data) => !!data && Object.values(data).some(v => v !== null && v !== undefined && v !== '')
+});
+
+registry.register<SchirmerTestExam>('schirmer-test', {
+  name: 'בדיקת שירמר',
+  getData: (layoutInstanceId: number) => window.electronAPI.db('getSchirmerTestExamByLayoutInstanceId', layoutInstanceId),
+  createData: (data: Omit<SchirmerTestExam, 'id'>) => window.electronAPI.db('createSchirmerTestExam', data),
+  updateData: (data: SchirmerTestExam) => window.electronAPI.db('updateSchirmerTestExam', data),
+  getNumericFields: () => ['r_mm', 'l_mm', 'r_but', 'l_but'],
+  getIntegerFields: () => [],
+  validateField: (field, value) => {
+    if (value === '' || value === null) return undefined;
+    const numericFields = ['r_mm', 'l_mm', 'r_but', 'l_but'];
     if (numericFields.includes(field as string)) {
       const num = parseFloat(value);
       return isNaN(num) ? undefined : num;
@@ -477,5 +639,52 @@ registry.register<OldRefractionExtensionExam>('old-refraction-extension', {
     value !== undefined && value !== null && value !== ''
   )
 })
+
+registry.register<AnamnesisExam>('anamnesis', {
+  name: 'אנמנזה',
+  getData: (layoutInstanceId: number) => window.electronAPI.db('getAnamnesisExamByLayoutInstanceId', layoutInstanceId),
+  createData: (data: Omit<AnamnesisExam, 'id'>) => window.electronAPI.db('createAnamnesisExam', data),
+  updateData: (data: AnamnesisExam) => window.electronAPI.db('updateAnamnesisExam', data),
+  getNumericFields: () => [],
+  getIntegerFields: () => ["contact_lens_wear"],
+  validateField: (field, rawValue) => {
+    if (["contact_lens_wear"].includes(field as string)) {
+      if (typeof rawValue === 'boolean') {
+        return rawValue ? 1 : 0;
+      }
+      return rawValue === 'true' ? 1 : 0;
+    }
+    return rawValue === "" ? undefined : rawValue;
+  },
+  hasData: (data) => Object.values(data).some(value =>
+    value !== undefined && value !== null && value !== ''
+  )
+});
+
+registry.register<NotesExam>('notes', {
+  name: 'הערות',
+  getData: (layoutInstanceId: number, cardInstanceId?: string) => {
+    if (cardInstanceId) {
+      return window.electronAPI.db('getNotesExamByLayoutInstanceId', layoutInstanceId, cardInstanceId)
+    } else {
+      return window.electronAPI.db('getNotesExamByLayoutInstanceId', layoutInstanceId)
+    }
+  },
+  createData: (data: Omit<NotesExam, 'id'>, cardInstanceId?: string) => {
+    const dataWithInstance = cardInstanceId ? { ...data, card_instance_id: cardInstanceId } : data
+    return window.electronAPI.db('createNotesExam', dataWithInstance)
+  },
+  updateData: (data: NotesExam) => window.electronAPI.db('updateNotesExam', data),
+  getNumericFields: () => [],
+  getIntegerFields: () => [],
+  validateField: (field, rawValue) => {
+    if (rawValue === '') {
+      return undefined;
+    }
+    return rawValue;
+  },
+  hasData: (data) => !!data && (!!data.note || !!data.title)
+});
+
 
 export { registry as examComponentRegistry } 
