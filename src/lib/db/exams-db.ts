@@ -2,9 +2,9 @@
 import { OpticalExam } from "./schema";
 
 // Optical Exam functions
-export async function getExamsByClientId(clientId: number): Promise<OpticalExam[]> {
+export async function getExamsByClientId(clientId: number, type?: string): Promise<OpticalExam[]> {
   try {
-    return await window.electronAPI.db('getExamsByClientId', clientId);
+    return await window.electronAPI.db('getExamsByClientId', clientId, type);
   } catch (error) {
     console.error('Error getting exams by client:', error);
     return [];

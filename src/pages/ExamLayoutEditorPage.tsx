@@ -250,7 +250,7 @@ export default function ExamLayoutEditorPage() {
   
   // Handle both route cases safely
   let params: { layoutId?: string } = {}
-  let search: { name?: string } = {}
+  let search: { name?: string, type?: string } = {}
   
   try {
     // Try to get layoutId parameter if we're on the detail route
@@ -265,7 +265,7 @@ export default function ExamLayoutEditorPage() {
   try {
     // Try to get search parameters if we're on the new route
     const routeSearch = useSearch({ strict: false })
-    search = routeSearch as { name?: string }
+    search = routeSearch as { name?: string, type?: string }
   } catch {
     // If we can't get search, continue with empty search
   }
@@ -273,6 +273,13 @@ export default function ExamLayoutEditorPage() {
   const isNewMode = !params.layoutId || params.layoutId === "new"
   const [loading, setLoading] = useState(!isNewMode)
   const [layoutName, setLayoutName] = useState(isNewMode ? (search.name || "פריסה חדשה") : "")
+  const [layoutType, setLayoutType] = useState<'opticlens' | 'exam'>(() => {
+    const type = search.type;
+    if (type === 'opticlens' || type === 'exam') {
+      return type;
+    }
+    return 'exam';
+  })
   const [isEditingName, setIsEditingName] = useState(false)
   const [isEditing, setIsEditing] = useState(true)
   const [activeId, setActiveId] = useState<UniqueIdentifier | null>(null)
@@ -326,6 +333,7 @@ export default function ExamLayoutEditorPage() {
         const layout = await getExamLayoutById(Number(params.layoutId))
         if (layout) {
           setLayoutName(layout.name)
+          setLayoutType(layout.type || 'exam')
           if (layout.layout_data) {
             const parsedLayout = JSON.parse(layout.layout_data)
             if (Array.isArray(parsedLayout)) {
@@ -508,6 +516,7 @@ export default function ExamLayoutEditorPage() {
     try {
       const layoutData = {
         name: layoutName,
+        type: layoutType,
         layout_data: JSON.stringify({
           rows: cardRows,
           customWidths: customWidths
@@ -560,35 +569,48 @@ export default function ExamLayoutEditorPage() {
         grandparentTitle="הגדרות"
         grandparentLink="/settings"
       />
-      <div className="flex flex-col flex-1 p-4 lg:p-6 mb-10" dir="rtl">
+      <div className="flex flex-col flex-1 p-4 lg:pt-4 lg:p-6 mb-10" dir="rtl">
         <div className="flex justify-between items-center mb-6">
-          <div className="flex items-center gap-2">
-            {isEditingName ? (
-              <Input
-                value={layoutName}
-                onChange={(e) => setLayoutName(e.target.value)}
-                onBlur={() => setIsEditingName(false)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    setIsEditingName(false)
-                  }
-                }}
-                className="text-xl font-semibold border-none p-0 h-auto focus-visible:ring-0"
-                autoFocus
-              />
-            ) : (
-              <>
-                <h2 className="text-xl font-semibold">{layoutName}</h2>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setIsEditingName(true)}
-                  className="h-6 w-6 p-0"
-                >
-                  <Edit className="h-3 w-3" />
-                </Button>
-              </>
-            )}
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              {isEditingName ? (
+                <Input
+                  value={layoutName}
+                  onChange={(e) => setLayoutName(e.target.value)}
+                  onBlur={() => setIsEditingName(false)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      setIsEditingName(false)
+                    }
+                  }}
+                  className="text-xl font-semibold border-none p-0 h-auto focus-visible:ring-0"
+                  autoFocus
+                />
+              ) : (
+                <>
+                  <h2 className="text-xl font-semibold">{layoutName}</h2>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setIsEditingName(true)}
+                    className="h-6 w-6 p-0"
+                  >
+                    <Edit className="h-3 w-3" />
+                  </Button>
+                </>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <label className="text-sm font-medium">סוג:</label>
+              <select
+                value={layoutType}
+                onChange={(e) => setLayoutType(e.target.value as 'opticlens' | 'exam')}
+                className="px-3 py-1 border rounded-md text-sm"
+              >
+                <option value="exam">בדיקה</option>
+                <option value="opticlens">עדשות מגע</option>
+              </select>
+            </div>
           </div>
           <div className="flex gap-2">
             <Button variant="outline" onClick={() => navigate({ to: "/exam-layouts" })}>

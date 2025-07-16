@@ -771,6 +771,11 @@ export function ClientDetailsTab({
                   <p>נוצר בתאריך: {selectedFamily.created_date ? new Date(selectedFamily.created_date).toLocaleDateString('he-IL') : 'לא זמין'}</p>
                 </div>
               )}
+              {!selectedFamily && !isCreatingFamily && (
+                <div className="text-sm h-[1.2586rem] text-muted-foreground">
+                </div>
+              )}
+
 
             </div>
           </div>

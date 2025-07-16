@@ -80,14 +80,14 @@ export function ClientDataProvider({ children, clientId }: { children: React.Rea
   // Refresh methods (existing)
   const refreshContactLenses = async () => {
     setLoading(prev => ({ ...prev, contactLenses: true }))
-    const data = await getContactLensesByClientId(clientId)
+    const data = await getExamsByClientId(clientId, 'opticlens')
     setContactLenses(data)
     setLoading(prev => ({ ...prev, contactLenses: false }))
   }
 
   const refreshExams = async () => {
     setLoading(prev => ({ ...prev, exams: true }))
-    const data = await getExamsByClientId(clientId)
+    const data = await getExamsByClientId(clientId, 'exam')
     setExams(data)
     setLoading(prev => ({ ...prev, exams: false }))
   }

@@ -191,6 +191,7 @@ export const ExamLayoutEditorRoute = createRoute({
   component: ExamLayoutEditorPage,
   validateSearch: (search: Record<string, unknown>) => ({
     name: search.name as string,
+    type: search.type as string,
   }),
 });
 

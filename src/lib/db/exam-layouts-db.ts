@@ -9,6 +9,15 @@ export async function getAllExamLayouts(): Promise<ExamLayout[]> {
   }
 }
 
+export async function getExamLayoutsByType(type: 'opticlens' | 'exam'): Promise<ExamLayout[]> {
+  try {
+    return await window.electronAPI.db('getExamLayoutsByType', type)
+  } catch (error) {
+    console.error('Error getting exam layouts by type:', error)
+    return []
+  }
+}
+
 export async function getExamLayoutById(id: number): Promise<ExamLayout | null> {
   try {
     return await window.electronAPI.db('getExamLayoutById', id)
@@ -51,6 +60,15 @@ export async function getDefaultExamLayout(): Promise<ExamLayout | null> {
   } catch (error) {
     console.error('Error getting default exam layout:', error)
     return null
+  }
+}
+
+export async function getDefaultExamLayouts(): Promise<ExamLayout[]> {
+  try {
+    return await window.electronAPI.db('getDefaultExamLayouts')
+  } catch (error) {
+    console.error('Error getting default exam layouts:', error)
+    return []
   }
 }
 

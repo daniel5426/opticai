@@ -4,7 +4,7 @@ import { SiteHeader } from "@/components/site-header"
 import { getClientById } from "@/lib/db/clients-db"
 import { getExamById, updateExam, createExam } from "@/lib/db/exams-db"
 import { OpticalExam, Client, User, ExamLayout, ExamLayoutInstance, NotesExam } from "@/lib/db/schema"
-import { getAllExamLayouts, getDefaultExamLayout, getExamLayoutInstancesByExamId, getActiveExamLayoutInstanceByExamId, setActiveExamLayoutInstance, addLayoutToExam, getExamLayoutById, deleteExamLayoutInstance } from "@/lib/db/exam-layouts-db"
+import { getAllExamLayouts, getDefaultExamLayout, getDefaultExamLayouts, getExamLayoutInstancesByExamId, getActiveExamLayoutInstanceByExamId, setActiveExamLayoutInstance, addLayoutToExam, getExamLayoutById, deleteExamLayoutInstance } from "@/lib/db/exam-layouts-db"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu"
 import { ChevronDownIcon, PlusCircleIcon, X as XIcon } from "lucide-react"
@@ -100,7 +100,8 @@ export default function ExamDetailPageRefactored({
     test_name: '',
     clinic: '',
     user_id: currentUser?.id,
-    dominant_eye: null
+    dominant_eye: null,
+    type: 'exam'
   } : {})
 
   const [cardRows, setCardRows] = useState<CardRow[]>([
@@ -357,13 +358,16 @@ export default function ExamDetailPageRefactored({
         setClipboardContentType(getClipboardContentType())
 
         const layoutsData = await getAllExamLayouts()
-        setAvailableLayouts(layoutsData)
+        setAvailableLayouts(layoutsData.filter(layout => layout.type === 'exam'))
 
         if (examId && !isNewMode) {
           const examData = await getExamById(Number(examId))
           setExam(examData || null)
 
           if (examData) {
+            const examType = examData.type || 'exam'
+            const filteredLayouts = layoutsData.filter(layout => layout.type === examType)
+            setAvailableLayouts(filteredLayouts)
             const layoutInstances = await getExamLayoutInstancesByExamId(Number(examId))
             
             if (layoutInstances.length > 0) {
@@ -401,66 +405,88 @@ export default function ExamDetailPageRefactored({
                 }
               }
             } else {
-              let defaultLayout = await getDefaultExamLayout()
-              if (!defaultLayout && layoutsData.length > 0) {
-                defaultLayout = layoutsData[0]
+              let defaultLayouts = await getDefaultExamLayouts()
+              if (defaultLayouts.length === 0 && layoutsData.length > 0) {
+                defaultLayouts = [layoutsData[0]]
               }
 
-              if (defaultLayout) {
-                const newLayoutInstance = await addLayoutToExam(Number(examId), defaultLayout.id || 1, true)
-                
-                if (newLayoutInstance) {
-                  setActiveLayoutId(defaultLayout.id || 0)
-                  setLayoutTabs([{
-                    id: newLayoutInstance.id || 0,
-                    layout_id: defaultLayout.id || 0,
-                    name: defaultLayout.name || '',
-                    layout_data: defaultLayout.layout_data || '',
-                    isActive: true
-                  }])
+              if (defaultLayouts.length > 0) {
+                const layoutTabsData: LayoutTab[] = []
+                let firstLayoutInstance: any = null
+
+                for (let i = 0; i < defaultLayouts.length; i++) {
+                  const defaultLayout = defaultLayouts[i]
+                  const newLayoutInstance = await addLayoutToExam(Number(examId), defaultLayout.id || 1, i === 0)
                   
-                  const parsedLayout = JSON.parse(defaultLayout.layout_data)
-                  if (Array.isArray(parsedLayout)) {
-                    setCardRows(parsedLayout)
-                    setCustomWidths({})
-                  } else {
-                    setCardRows(parsedLayout.rows || [])
-                    setCustomWidths(parsedLayout.customWidths || {})
-                  }
-                  
-                  if (newLayoutInstance.id) {
-                    await loadExamComponentData(newLayoutInstance.id, defaultLayout.layout_data)
+                  if (newLayoutInstance) {
+                    if (i === 0) {
+                      firstLayoutInstance = newLayoutInstance
+                      setActiveLayoutId(defaultLayout.id || 0)
+                      
+                      const parsedLayout = JSON.parse(defaultLayout.layout_data)
+                      if (Array.isArray(parsedLayout)) {
+                        setCardRows(parsedLayout)
+                        setCustomWidths({})
+                      } else {
+                        setCardRows(parsedLayout.rows || [])
+                        setCustomWidths(parsedLayout.customWidths || {})
+                      }
+                      
+                      if (newLayoutInstance.id) {
+                        await loadExamComponentData(newLayoutInstance.id, defaultLayout.layout_data)
+                      }
+                    }
+
+                    layoutTabsData.push({
+                      id: newLayoutInstance.id || 0,
+                      layout_id: defaultLayout.id || 0,
+                      name: defaultLayout.name || '',
+                      layout_data: defaultLayout.layout_data || '',
+                      isActive: i === 0
+                    })
                   }
                 }
+
+                setLayoutTabs(layoutTabsData)
               }
             }
           }
         } else {
-          let defaultLayout = await getDefaultExamLayout()
-          if (!defaultLayout && layoutsData.length > 0) {
-            defaultLayout = layoutsData[0]
+          let defaultLayouts = await getDefaultExamLayouts()
+          if (defaultLayouts.length === 0 && layoutsData.length > 0) {
+            defaultLayouts = [layoutsData[0]]
           }
 
-          if (defaultLayout) {
-            setActiveLayoutId(defaultLayout.id || 0)
-            const parsedLayout = JSON.parse(defaultLayout.layout_data)
-            if (Array.isArray(parsedLayout)) {
-              setCardRows(parsedLayout)
-              setCustomWidths({})
-            } else {
-              setCardRows(parsedLayout.rows || [])
-              setCustomWidths(parsedLayout.customWidths || {})
+          if (defaultLayouts.length > 0) {
+            const layoutTabsData: LayoutTab[] = []
+
+            for (let i = 0; i < defaultLayouts.length; i++) {
+              const defaultLayout = defaultLayouts[i]
+              
+              if (i === 0) {
+                setActiveLayoutId(defaultLayout.id || 0)
+                const parsedLayout = JSON.parse(defaultLayout.layout_data)
+                if (Array.isArray(parsedLayout)) {
+                  setCardRows(parsedLayout)
+                  setCustomWidths({})
+                } else {
+                  setCardRows(parsedLayout.rows || [])
+                  setCustomWidths(parsedLayout.customWidths || {})
+                }
+                
+                initializeFormData(defaultLayout.id || 0, defaultLayout.layout_data)
+              }
+
+              layoutTabsData.push({
+                id: -Date.now() - i,
+                layout_id: defaultLayout.id || 0,
+                name: defaultLayout.name || '',
+                layout_data: defaultLayout.layout_data || '',
+                isActive: i === 0
+              })
             }
-            
-            setLayoutTabs([{
-              id: 0,
-              layout_id: defaultLayout.id || 0,
-              name: defaultLayout.name || '',
-              layout_data: defaultLayout.layout_data || '',
-              isActive: true
-            }])
-            
-            initializeFormData(defaultLayout.id || 0, defaultLayout.layout_data)
+
+            setLayoutTabs(layoutTabsData)
           }
         }
 
@@ -517,7 +543,8 @@ export default function ExamDetailPageRefactored({
           test_name: formData.test_name || '',
           clinic: formData.clinic || '',
           user_id: formData.user_id || currentUser?.id,
-          dominant_eye: formData.dominant_eye || null
+          dominant_eye: formData.dominant_eye || null,
+          type: formData.type || 'exam'
         }
         
         const newExam = await createExam(examData)
@@ -890,7 +917,7 @@ export default function ExamDetailPageRefactored({
         tabs={{ activeTab, onTabChange: handleTabChange }}
       />
       <ClientSpaceLayout>
-        <div className="flex flex-col flex-1 p-4 lg:p-6 mb-10" dir="rtl">
+        <div className="flex flex-col flex-1 p-4 lg:pt-4 lg:p-6 mb-10" dir="rtl">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-xl font-semibold">{isNewMode ? "בדיקה חדשה" : "פרטי בדיקה"}</h2>
             <div className="flex gap-2">

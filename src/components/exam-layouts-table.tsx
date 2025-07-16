@@ -35,11 +35,11 @@ export function ExamLayoutsTable({ data, onRefresh }: ExamLayoutsTableProps) {
     return layout.name && layout.name.toLowerCase().includes(searchQuery.toLowerCase());
   });
 
-  const handleCreateNew = () => {
+  const handleCreateNew = (type: 'exam' | 'opticlens') => {
     const layoutCount = localData.length + 1;
     navigate({
       to: "/exam-layouts/new",
-      search: { name: `פריסה ${layoutCount}` }
+      search: { name: `פריסה ${layoutCount}`, type: type }
     });
   };
 
@@ -51,32 +51,26 @@ export function ExamLayoutsTable({ data, onRefresh }: ExamLayoutsTableProps) {
     setIsProcessing(prev => ({ ...prev, [layoutId]: true }));
 
     try {
+      const layoutToUpdate = data.find(layout => layout.id === layoutId);
+      if (!layoutToUpdate) return;
+
+      const newDefaultStatus = !layoutToUpdate.is_default;
+
       // Optimistically update UI first
       const updatedLayouts = localData.map(layout => ({
         ...layout,
-        is_default: layout.id === layoutId
+        is_default: layout.id === layoutId ? newDefaultStatus : layout.is_default
       }));
       setLocalData(updatedLayouts);
 
       // Then update in database
-      for (const layout of data) {
-        if (layout.id !== layoutId && layout.is_default) {
-          await updateExamLayout({
-            ...layout,
-            is_default: false
-          });
-        }
-      }
+      await updateExamLayout({
+        ...layoutToUpdate,
+        is_default: newDefaultStatus
+      });
 
-      const layoutToUpdate = data.find(layout => layout.id === layoutId);
-      if (layoutToUpdate) {
-        await updateExamLayout({
-          ...layoutToUpdate,
-          is_default: true
-        });
-      }
-
-      toast.success("הפריסה הוגדרה כברירת מחדל");
+      const message = newDefaultStatus ? "הפריסה הוגדרה כברירת מחדל" : "הפריסה הוסרה מברירת מחדל";
+      toast.success(message);
       
       // Trigger refresh in parent component without causing a flicker
       onRefresh();
@@ -101,14 +95,6 @@ export function ExamLayoutsTable({ data, onRefresh }: ExamLayoutsTableProps) {
     // Prevent multiple clicks
     if (isProcessing[layoutId]) return;
     setIsProcessing(prev => ({ ...prev, [layoutId]: true }));
-
-    // Check if this is the default layout
-    const isDefault = localData.find(layout => layout.id === layoutId)?.is_default;
-    if (isDefault) {
-      toast.error("לא ניתן למחוק פריסת ברירת מחדל");
-      setIsProcessing(prev => ({ ...prev, [layoutId]: false }));
-      return;
-    }
 
     try {
       // Optimistically update UI first
@@ -142,26 +128,21 @@ export function ExamLayoutsTable({ data, onRefresh }: ExamLayoutsTableProps) {
     }
   };
 
-  return (
-    <div className="space-y-4" dir="rtl">
-      <div className="flex items-center justify-between">
-        <div className="flex gap-2">
-          <Input
-            placeholder="חיפוש פריסות..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-[250px]"
-            dir="rtl"
-          />
-        </div>
-        <Button onClick={handleCreateNew}>
-          פריסה חדשה
-          <Plus className="h-4 w-4 mr-2" />
-        </Button>
-      </div>
+  const examLayouts = filteredData.filter(layout => layout.type === 'exam' || !layout.type)
+  const contactLensLayouts = filteredData.filter(layout => layout.type === 'opticlens')
 
-      <div className="rounded-md border">
-        <Table dir="rtl">
+  const renderTable = (layouts: ExamLayout[], title: string, type: 'exam' | 'opticlens') => (
+    <div className="space-y-2 bg-transparent" dir="rtl">
+      <div className="flex items-center justify-between px-1">
+      <h3 className="text-lg  text-muted-foreground">{title}</h3>
+
+      <Button onClick={() => handleCreateNew(type)} className="bg-card shadow-none text-card-foreground hover:bg-accent size-8 border">
+          <Plus className="h-4 w-4" />
+        </Button>
+
+      </div>
+      <div className="rounded-md border bg-card">
+        <Table dir="rtl" className="">
           <TableHeader>
             <TableRow>
               <TableHead className="text-right">שם הפריסה</TableHead>
@@ -172,14 +153,14 @@ export function ExamLayoutsTable({ data, onRefresh }: ExamLayoutsTableProps) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredData.length === 0 ? (
+            {layouts.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={5} className="h-24 text-center">
                   לא נמצאו פריסות לתצוגה
                 </TableCell>
               </TableRow>
             ) : (
-              filteredData.map((layout) => (
+              layouts.map((layout) => (
                 <TableRow
                   key={layout.id}
                   className="cursor-pointer"
@@ -212,8 +193,8 @@ export function ExamLayoutsTable({ data, onRefresh }: ExamLayoutsTableProps) {
                           e.stopPropagation();
                           handleSetDefault(layout.id);
                         }}
-                        title={layout.is_default ? "פריסת ברירת מחדל" : "הגדר כברירת מחדל"}
-                        disabled={isProcessing[layout.id || 0] || layout.is_default}
+                        title={layout.is_default ? "הסר מברירת מחדל" : "הגדר כברירת מחדל"}
+                        disabled={isProcessing[layout.id || 0]}
                       >
                         <Star 
                           className={`h-5 w-5 transition-colors ${layout.is_default ? 'fill-yellow-400 text-yellow-400' : 'text-gray-400'}`} 
@@ -225,7 +206,7 @@ export function ExamLayoutsTable({ data, onRefresh }: ExamLayoutsTableProps) {
                         className="h-8 w-8 p-1 text-red-500 hover:text-red-700 hover:bg-red-50"
                         onClick={(e) => handleDeleteLayout(layout.id, e)}
                         title="מחק פריסה"
-                        disabled={isProcessing[layout.id || 0] || layout.is_default}
+                        disabled={isProcessing[layout.id || 0]}
                       >
                         <Trash2 className="h-5 w-5" />
                       </Button>
@@ -236,6 +217,16 @@ export function ExamLayoutsTable({ data, onRefresh }: ExamLayoutsTableProps) {
             )}
           </TableBody>
         </Table>
+      </div>
+    </div>
+  )
+
+  return (
+    <div className="space-y-6" dir="rtl">
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {renderTable(examLayouts, "פריסות בדיקה", 'exam')}
+        {renderTable(contactLensLayouts, "פריסות עדשות מגע", 'opticlens')}
       </div>
     </div>
   );

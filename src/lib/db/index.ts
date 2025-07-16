@@ -794,13 +794,13 @@ class DatabaseService {
     try {
       const stmt = this.db.prepare(`
         INSERT INTO optical_exams (
-          client_id, clinic, user_id, exam_date, test_name, dominant_eye
-        ) VALUES (?, ?, ?, ?, ?, ?)
+          client_id, clinic, user_id, exam_date, test_name, dominant_eye, type
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
       `);
 
       const result = stmt.run(
         exam.client_id, exam.clinic, this.sanitizeValue(exam.user_id), exam.exam_date, exam.test_name,
-        exam.dominant_eye
+        exam.dominant_eye, exam.type || 'exam'
       );
 
       return { ...exam, id: result.lastInsertRowid as number };
@@ -822,12 +822,12 @@ class DatabaseService {
     }
   }
 
-  getExamsByClientId(clientId: number): OpticalExam[] {
+  getExamsByClientId(clientId: number, type?: string): OpticalExam[] {
     if (!this.db) return [];
 
     try {
-      const stmt = this.db.prepare('SELECT * FROM optical_exams WHERE client_id = ? ORDER BY exam_date DESC');
-      return stmt.all(clientId) as OpticalExam[];
+      const stmt = this.db.prepare('SELECT * FROM optical_exams WHERE client_id = ? AND type = ? ORDER BY exam_date DESC');
+      return stmt.all(clientId, type) as OpticalExam[];
     } catch (error) {
       console.error('Error getting exams by client:', error);
       return [];
@@ -853,13 +853,13 @@ class DatabaseService {
       const stmt = this.db.prepare(`
         UPDATE optical_exams SET 
         client_id = ?, clinic = ?, user_id = ?, exam_date = ?, test_name = ?, 
-        dominant_eye = ?
+        dominant_eye = ?, type = ?
         WHERE id = ?
       `);
 
       stmt.run(
         exam.client_id, exam.clinic, this.sanitizeValue(exam.user_id), exam.exam_date, exam.test_name,
-        exam.dominant_eye, exam.id
+        exam.dominant_eye, exam.type || 'exam', exam.id
       );
 
       return exam;
@@ -4799,13 +4799,14 @@ class DatabaseService {
 
     try {
       const stmt = this.db.prepare(`
-        INSERT INTO exam_layouts (name, layout_data, is_default)
-        VALUES (?, ?, ?)
+        INSERT INTO exam_layouts (name, layout_data, type, is_default)
+        VALUES (?, ?, ?, ?)
       `);
 
       const result = stmt.run(
         layout.name,
         layout.layout_data,
+        layout.type || 'exam',
         this.sanitizeValue(layout.is_default)
       );
 
@@ -4840,19 +4841,32 @@ class DatabaseService {
     }
   }
 
+  getExamLayoutsByType(type: 'opticlens' | 'exam'): ExamLayout[] {
+    if (!this.db) return [];
+
+    try {
+      const stmt = this.db.prepare('SELECT * FROM exam_layouts WHERE type = ? AND is_active = 1 ORDER BY created_at DESC');
+      return stmt.all(type) as ExamLayout[];
+    } catch (error) {
+      console.error('Error getting exam layouts by type:', error);
+      return [];
+    }
+  }
+
   updateExamLayout(layout: ExamLayout): ExamLayout | null {
     if (!this.db || !layout.id) return null;
 
     try {
       const stmt = this.db.prepare(`
         UPDATE exam_layouts 
-        SET name = ?, layout_data = ?, is_default = ?, updated_at = CURRENT_TIMESTAMP
+        SET name = ?, layout_data = ?, type = ?, is_default = ?, updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
       `);
 
       stmt.run(
         layout.name,
         layout.layout_data,
+        layout.type || 'exam',
         this.sanitizeValue(layout.is_default),
         layout.id
       );
@@ -4886,6 +4900,18 @@ class DatabaseService {
     } catch (error) {
       console.error('Error getting default exam layout:', error);
       return null;
+    }
+  }
+
+  getDefaultExamLayouts(): ExamLayout[] {
+    if (!this.db) return [];
+
+    try {
+      const stmt = this.db.prepare('SELECT * FROM exam_layouts WHERE is_default = 1 ORDER BY created_at ASC');
+      return stmt.all() as ExamLayout[];
+    } catch (error) {
+      console.error('Error getting default exam layouts:', error);
+      return [];
     }
   }
 

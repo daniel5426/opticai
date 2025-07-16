@@ -58,7 +58,7 @@ export default function ExamLayoutsPage() {
         parentTitle="הגדרות"
         parentLink="/settings"
       />
-      <div className="flex flex-col flex-1 p-4 lg:p-6 mb-10" dir="rtl">
+      <div className="flex flex-col flex-1 p-4 lg:pt-4 lg:p-6 mb-10" dir="rtl">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-xl font-semibold">ניהול פריסות בדיקה</h2>
         </div>

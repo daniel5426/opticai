@@ -80,6 +80,7 @@ export interface OpticalExam {
   exam_date?: string;
   test_name?: string;
   dominant_eye?: string | null;
+  type?: 'opticlens' | 'exam';
 }
 
 export interface NotesExam {
@@ -747,6 +748,7 @@ export interface ExamLayout {
   id?: number;
   name: string;
   layout_data: string; // JSON string of layout configuration with custom widths
+  type?: 'opticlens' | 'exam';
   is_default?: boolean;
   is_active?: boolean;
   created_at?: string;
@@ -1048,9 +1050,22 @@ export const createTables = (db: Database): void => {
       exam_date DATE,
       test_name TEXT,
       dominant_eye CHAR(1) CHECK(dominant_eye IN ('R','L')),
+      type TEXT CHECK(type IN ('opticlens','exam')) DEFAULT 'exam',
       FOREIGN KEY(client_id) REFERENCES clients(id) ON DELETE CASCADE,
       FOREIGN KEY(user_id) REFERENCES users(id)
     );
+  `);
+
+  // Add type column to existing optical_exams table if it doesn't exist
+  try {
+    db.exec(`ALTER TABLE optical_exams ADD COLUMN type TEXT CHECK(type IN ('opticlens','exam')) DEFAULT 'exam'`);
+  } catch (e) { /* Column already exists */ }
+
+  // Update existing records to have default type value
+  db.exec(`
+    UPDATE optical_exams 
+    SET type = 'exam' 
+    WHERE type IS NULL
   `);
 
   // Create notes_exams table
@@ -2065,6 +2080,7 @@ export const createTables = (db: Database): void => {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
       layout_data TEXT NOT NULL,
+      type TEXT CHECK(type IN ('opticlens','exam')) DEFAULT 'exam',
       is_default BOOLEAN DEFAULT 0,
       is_active BOOLEAN DEFAULT 1,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -2101,11 +2117,23 @@ export const createTables = (db: Database): void => {
     customWidths: {}
   });
 
-  const insertExamLayout = db.prepare(`
-    INSERT OR IGNORE INTO exam_layouts (id, name, layout_data, is_default) 
-    VALUES (?, ?, ?, ?)
+  // Add type column to existing exam_layouts table if it doesn't exist
+  try {
+    db.exec(`ALTER TABLE exam_layouts ADD COLUMN type TEXT CHECK(type IN ('opticlens','exam')) DEFAULT 'exam'`);
+  } catch (e) { /* Column already exists */ }
+
+  // Update existing records to have default type value
+  db.exec(`
+    UPDATE exam_layouts 
+    SET type = 'exam' 
+    WHERE type IS NULL
   `);
-  insertExamLayout.run(1, 'ברירת מחדל', defaultLayoutData, 1);
+
+  const insertExamLayout = db.prepare(`
+    INSERT OR IGNORE INTO exam_layouts (id, name, layout_data, type, is_default) 
+    VALUES (?, ?, ?, ?, ?)
+  `);
+  insertExamLayout.run(1, 'ברירת מחדל', defaultLayoutData, 'exam', 1);
 
   // Insert sample clients for demonstration
   const insertClient = db.prepare(`

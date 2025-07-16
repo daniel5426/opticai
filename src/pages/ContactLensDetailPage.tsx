@@ -1,1523 +1,1061 @@
-import React, { useState, useRef, useEffect } from "react"
-import { useParams, useNavigate } from "@tanstack/react-router"
+import React, { useState, useRef, useEffect, useCallback } from "react"
+import { useParams, useNavigate, Link } from "@tanstack/react-router"
 import { SiteHeader } from "@/components/site-header"
 import { getClientById } from "@/lib/db/clients-db"
-import { 
-  getContactLensById, 
-  getContactEyesByContactLensId, 
-  getContactLensOrderByContactLensId,
-  updateContactLens,
-  updateContactEye,
-  updateContactLensOrder,
-  createContactLens,
-  createContactEye,
-  createContactLensOrder
-} from "@/lib/db/contact-lens-db"
-import { 
-  getBillingByOrderId, 
-  getOrderLineItemsByBillingId, 
-  createBilling, 
-  updateBilling, 
-  createOrderLineItem, 
-  updateOrderLineItem, 
-  deleteOrderLineItem 
-} from "@/lib/db/billing-db"
-import { getBillingByContactLensId } from "@/lib/db/contact-lens-db"
-import { ContactLens, ContactEye, ContactLensOrder, Client, Billing, OrderLineItem, User } from "@/lib/db/schema"
+import { getExamById, updateExam, createExam } from "@/lib/db/exams-db"
+import { OpticalExam, Client, User, ExamLayout, ExamLayoutInstance, NotesExam } from "@/lib/db/schema"
+import { getAllExamLayouts, getDefaultExamLayout, getExamLayoutInstancesByExamId, getActiveExamLayoutInstanceByExamId, setActiveExamLayoutInstance, addLayoutToExam, getExamLayoutById, deleteExamLayoutInstance } from "@/lib/db/exam-layouts-db"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu"
+import { ChevronDownIcon, PlusCircleIcon, X as XIcon } from "lucide-react"
 import { toast } from "sonner"
-import { Textarea } from "@/components/ui/textarea"
-import { BillingTab } from "@/components/BillingTab"
-import { UserSelect } from "@/components/ui/user-select"
 import { useUser } from "@/contexts/UserContext"
 import { getAllUsers } from "@/lib/db/users-db"
-import { LookupSelect } from "@/components/ui/lookup-select"
+import { ExamCardRenderer, CardItem, DetailProps, calculateCardWidth, hasNoteCard, createDetailProps } from "@/components/exam/ExamCardRenderer"
+import { createToolboxActions } from "@/components/exam/ExamToolbox"
+import { useClientData } from "@/contexts/ClientDataContext"
+import { examComponentRegistry, ExamComponentType } from "@/lib/exam-component-registry"
+import { copyToClipboard, pasteFromClipboard, getClipboardContentType } from "@/lib/exam-clipboard"
+import { ExamFieldMapper } from "@/lib/exam-field-mappings"
+import { ClientSpaceLayout } from "@/layouts/ClientSpaceLayout"
+import { useClientSidebar } from "@/contexts/ClientSidebarContext"
 
-interface DateInputProps {
-  name: string;
-  value: string | undefined;
-  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
-  className?: string;
-  disabled?: boolean;
-}
-
-function DateInput({ name, value, onChange, className, disabled }: DateInputProps) {
-  const dateInputRef = useRef<HTMLInputElement>(null);
-  
-  const openDatePicker = () => {
-    if (dateInputRef.current && !disabled) {
-      dateInputRef.current.showPicker();
-    }
-  };
-
-  return (
-    <div className="relative mt-1">
-      <div 
-        className={`text-sm text-right pr-10 h-8 rounded-md border px-3 py-2 border-input bg-transparent flex items-center ${disabled ? 'cursor-not-allowed bg-gray-100' : 'cursor-pointer'} ${className || ''}`}
-        dir="rtl"
-        onClick={openDatePicker}
-      >
-        {value ? new Date(value).toLocaleDateString('he-IL') : 'לחץ לבחירת תאריך'}
-      </div>
-      
-      <input
-        ref={dateInputRef}
-        type="date"
-        name={name}
-        value={value || ''}
-        onChange={onChange}
-        disabled={disabled}
-        className="absolute opacity-0 h-0 w-0 overflow-hidden"
-      />
-      
-      <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
-        <svg 
-          className="h-5 w-5 text-gray-400" 
-          fill="none" 
-          viewBox="0 0 24 24" 
-          stroke="currentColor"
-        >
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 002 2z" />
-        </svg>
-      </div>
-    </div>
-  );
-}
-
-interface ContactEyeSectionProps {
-  eye: "R" | "L";
-  data: ContactEye;
-  onChange: (eye: "R" | "L", field: keyof ContactEye, value: string) => void;
-  isEditing: boolean;
-}
-
-function SchirmerKSection({ eye, data, onChange, isEditing }: ContactEyeSectionProps) {
-  const eyeLabel = eye === "R" ? "R" : "L";
-
-  return (
-    <div className="flex items-center gap-1 h-6" dir="rtl">
-      <div className="grid grid-cols-24 gap-4 flex-1 pb-2" dir="ltr">
-        <div className="col-span-3">
-          {eye === "R" && <Label className="text-[12px] block text-center">TEST</Label>}
-          <Input 
-            type="number" 
-            step="0.1" 
-            value={data.schirmer_test?.toString() || ""} 
-            onChange={(e) => onChange(eye, "schirmer_test", e.target.value)} 
-            disabled={!isEditing} 
-            className="h-8 text-xs px-1" 
-          />
-        </div>
-        <div className="col-span-3">
-          {eye === "R" && <Label className="text-[12px] block text-center">BUT</Label>}
-          <Input 
-            type="number" 
-            step="0.1" 
-            value={data.schirmer_but?.toString() || ""} 
-            onChange={(e) => onChange(eye, "schirmer_but", e.target.value)} 
-            disabled={!isEditing} 
-            className="h-8 text-xs px-1" 
-          />
-        </div>
-        <div className="col-span-3">
-          {eye === "R" && <Label className="text-[12px] block text-center">RH</Label>}
-        <Input 
-          type="number" 
-          step="0.01" 
-          value={data.k_h?.toString() || ""} 
-          onChange={(e) => onChange(eye, "k_h", e.target.value)} 
-          disabled={!isEditing} 
-            className="h-8 text-xs px-1" 
-        />
-      </div>
-        <div className="col-span-3">
-          {eye === "R" && <Label className="text-[12px] block text-center">RV</Label>}
-        <Input 
-          type="number" 
-          step="0.01" 
-          value={data.k_v?.toString() || ""} 
-          onChange={(e) => onChange(eye, "k_v", e.target.value)} 
-          disabled={!isEditing} 
-            className="h-8 text-xs px-1" 
-        />
-      </div>
-        <div className="col-span-3">
-          {eye === "R" && <Label className="text-[12px] block text-center">AVG</Label>}
-          <Input 
-            type="number" 
-            step="0.01" 
-            value={data.k_avg?.toString() || ""} 
-            onChange={(e) => onChange(eye, "k_avg", e.target.value)} 
-            disabled={!isEditing} 
-            className="h-8 text-xs px-1" 
-          />
-        </div>
-        <div className="col-span-3">
-          {eye === "R" && <Label className="text-[12px] block text-center">CYL</Label>}
-          <Input 
-            type="number" 
-            step="0.01" 
-            value={data.k_cyl?.toString() || ""} 
-            onChange={(e) => onChange(eye, "k_cyl", e.target.value)} 
-            disabled={!isEditing} 
-            className="h-8 text-xs px-1" 
-          />
-        </div>
-        <div className="col-span-3">
-          {eye === "R" && <Label className="text-[12px] block text-center">AX</Label>}
-          <Input 
-            type="number" 
-            min="0" 
-            max="180" 
-            value={data.k_ax?.toString() || ""} 
-            onChange={(e) => onChange(eye, "k_ax", e.target.value)} 
-            disabled={!isEditing} 
-            className="h-8 text-xs px-1" 
-          />
-        </div>
-        <div className="col-span-3">
-          {eye === "R" && <Label className="text-[12px] block text-center">ECC</Label>}
-          <Input 
-            type="number" 
-            step="0.01" 
-            value={data.k_ecc?.toString() || ""} 
-            onChange={(e) => onChange(eye, "k_ecc", e.target.value)} 
-            disabled={!isEditing} 
-            className="h-8 text-xs px-1" 
-          />
-        </div>
-      </div>
-      <span className={`text-md font-medium pr-2 flex items-center justify-center w-6 ${eyeLabel === "L" ? "pb-2" : "pt-2"}`}>{eyeLabel}</span>
-    </div>
-  );
-}
-
-function ExamSection({ eye, data, onChange, isEditing }: ContactEyeSectionProps) {
-  const eyeLabel = eye === "R" ? "R" : "L";
-
-  return (
-    <div className="flex items-center gap-1 h-6 mb-3" dir="rtl">
-      <div className="grid grid-cols-21 gap-4 flex-1 pb-2" dir="ltr">
-        <div className="col-span-2">
-        {eye === "R" && <Label className="text-[12px] block text-center">BC</Label>}
-        <Input 
-          type="number" 
-          step="0.01" 
-          value={data.bc?.toString() || ""} 
-          onChange={(e) => onChange(eye, "bc", e.target.value)} 
-          disabled={!isEditing} 
-            className="h-8 text-xs px-1" 
-        />
-      </div>
-        <div className="col-span-2">
-          {eye === "R" && <Label className="text-[12px] block text-center">BC-2</Label>}
-          <Input 
-            type="number" 
-            step="0.01" 
-            value={data.bc_2?.toString() || ""} 
-            onChange={(e) => onChange(eye, "bc_2", e.target.value)} 
-            disabled={!isEditing} 
-            className="h-8 text-xs px-1" 
-          />
-        </div>
-        <div className="col-span-2">
-          {eye === "R" && <Label className="text-[12px] block text-center">OZ</Label>}
-          <Input 
-            type="number" 
-            step="0.1" 
-            value={data.oz?.toString() || ""} 
-            onChange={(e) => onChange(eye, "oz", e.target.value)} 
-            disabled={!isEditing} 
-            className="h-8 text-xs px-1" 
-          />
-        </div>
-        <div className="col-span-2">
-          {eye === "R" && <Label className="text-[12px] block text-center">DIAM</Label>}
-          <Input 
-            type="number" 
-            step="0.1" 
-            value={data.diam?.toString() || ""} 
-            onChange={(e) => onChange(eye, "diam", e.target.value)} 
-            disabled={!isEditing} 
-            className="h-8 text-xs px-1" 
-          />
-        </div>
-        <div className="col-span-2">
-        {eye === "R" && <Label className="text-[12px] block text-center">SPH</Label>}
-        <Input 
-          type="number" 
-          step="0.25" 
-          value={data.sph?.toString() || ""} 
-          onChange={(e) => onChange(eye, "sph", e.target.value)} 
-          disabled={!isEditing} 
-            className="h-8 text-xs px-1" 
-        />
-      </div>
-        <div className="col-span-2">
-        {eye === "R" && <Label className="text-[12px] block text-center">CYL</Label>}
-        <Input 
-          type="number" 
-          step="0.25" 
-          value={data.cyl?.toString() || ""} 
-          onChange={(e) => onChange(eye, "cyl", e.target.value)} 
-          disabled={!isEditing} 
-            className="h-8 text-xs px-1" 
-        />
-      </div>
-        <div className="col-span-2">
-          {eye === "R" && <Label className="text-[12px] block text-center">AXIS</Label>}
-          <Input 
-            type="number" 
-            min="0" 
-            max="180" 
-            value={data.ax?.toString() || ""} 
-            onChange={(e) => onChange(eye, "ax", e.target.value)} 
-            disabled={!isEditing} 
-            className="h-8 text-xs px-1" 
-          />
-        </div>
-        <div className="col-span-2">
-          {eye === "R" && <Label className="text-[12px] block text-center">ADD</Label>}
-          <Input 
-            type="number" 
-            step="0.25" 
-            value={data.read_ad?.toString() || ""} 
-            onChange={(e) => onChange(eye, "read_ad", e.target.value)} 
-            disabled={!isEditing} 
-            className="h-8 text-xs px-1" 
-          />
-        </div>
-        <div className="col-span-3">
-        {eye === "R" && <Label className="text-[12px] block text-center">VA</Label>}
-          <div className="relative" dir="ltr">
-        <Input 
-              type="number" 
-              step="0.1"
-              value={data.va?.toString() || ""} 
-          onChange={(e) => onChange(eye, "va", e.target.value)} 
-          disabled={!isEditing} 
-              className="h-8 text-xs px-1 pl-6" 
-        />
-            <span className="absolute left-2 top-[53%] transform -translate-y-1/2 text-[14px] text-gray-500 pointer-events-none">6/</span>
-      </div>
-        </div>
-        <div className="col-span-2">
-          {eye === "R" && <Label className="text-[12px] block text-center">J</Label>}
-          <Input 
-            type="number" 
-            step="0.1"
-            value={data.j?.toString() || ""} 
-            onChange={(e) => onChange(eye, "j", e.target.value)} 
-            disabled={!isEditing} 
-            className="h-8 text-xs px-1" 
-          />
-        </div>
-      </div>
-      <span className={`text-md font-medium pr-2 flex items-center justify-center w-6 ${eyeLabel === "L" ? "pb-2" : "pt-2"}`}>{eyeLabel}</span>
-    </div>
-  );
-}
-
-function CombinedVaContactLensSection({ contactLens, onChange, isEditing }: { 
-  contactLens: ContactLens, 
-  onChange: (field: keyof ContactLens, value: string) => void, 
-  isEditing: boolean
-}) {
-  return (
-    <div className="flex items-center gap-1 h-10 mb-3" dir="rtl">
-      <div className="grid grid-cols-21 gap-4 flex-1" dir="ltr">
-        <div className="col-span-2"></div>
-        <div className="col-span-2"></div>
-        <div className="col-span-2"></div>
-        <div className="col-span-2"></div>
-        <div className="col-span-2"></div>
-        <div className="col-span-2"></div>
-        <div className="col-span-2"></div>
-        <div className="col-span-2"></div>
-        <div className="col-span-3">
-          <div className="relative" dir="ltr">
-            <Input 
-              type="number" 
-              step="0.1" 
-              value={contactLens.comb_va?.toString() || ""} 
-              onChange={(e) => onChange("comb_va", e.target.value)} 
-              disabled={!isEditing} 
-              className="h-8 text-xs px-1 pl-6" 
-              placeholder="0.0"
-            />
-            <span className="absolute left-2 top-[53%] transform -translate-y-1/2 text-[14px] text-gray-500 pointer-events-none">6/</span>
-          </div>
-        </div>
-        <div className="col-span-2"></div>
-      </div>
-      <span className="text-md font-medium pr-2 flex items-center justify-center w-6">C</span>
-    </div>
-  );
-}
-
-function ContactDetailsSection({ eye, data, onChange, isEditing }: ContactEyeSectionProps) {
-  const eyeLabel = eye === "R" ? "R" : "L";
-
-  return (
-    <div className="flex items-center gap-1 h-6 mb-3" dir="rtl">
-      <div className="grid grid-cols-8 gap-4 flex-1 pb-2" dir="ltr">
-        <div className="col-span-1">
-          {eye === "R" && <Label className="text-[12px] block text-center">Type</Label>}
-          <Input 
-            type="text" 
-            value={data.lens_type || ""} 
-            onChange={(e) => onChange(eye, "lens_type", e.target.value)} 
-            disabled={!isEditing} 
-            className="h-8 text-xs px-1" 
-          />
-        </div>
-        <div className="col-span-1">
-          {eye === "R" && <Label className="text-[12px] block text-center">Model</Label>}
-        <Input 
-          type="text" 
-          value={data.model || ""} 
-          onChange={(e) => onChange(eye, "model", e.target.value)} 
-          disabled={!isEditing} 
-            className="h-8 text-xs px-1" 
-        />
-      </div>
-        <div className="col-span-1">
-          {eye === "R" && <Label className="text-[12px] block text-center">Supplier</Label>}
-          <LookupSelect
-            value={data.supplier || ""}
-            onChange={(value) => onChange(eye, "supplier", value)}
-            lookupType="supplier"
-            placeholder="בחר ספק..."
-            disabled={!isEditing}
-            className="h-8 text-xs"
-          />
-        </div>
-        <div className="col-span-1">
-          {eye === "R" && <Label className="text-[12px] block text-center">Material</Label>}
-          <LookupSelect
-            value={data.material || ""}
-            onChange={(value) => onChange(eye, "material", value)}
-            lookupType="contactEyeMaterial"
-            placeholder="בחר חומר..."
-            disabled={!isEditing}
-            className="h-8 text-xs"
-          />
-        </div>
-        <div className="col-span-1">
-          {eye === "R" && <Label className="text-[12px] block text-center">Color</Label>}
-          <LookupSelect
-            value={data.color || ""}
-            onChange={(value) => onChange(eye, "color", value)}
-            lookupType="color"
-            placeholder="בחר צבע..."
-            disabled={!isEditing}
-            className="h-8 text-xs"
-          />
-        </div>
-        <div className="col-span-1">
-          {eye === "R" && <Label className="text-[12px] block text-center">Qty</Label>}
-          <Input 
-            type="number" 
-            value={data.quantity?.toString() || ""} 
-            onChange={(e) => onChange(eye, "quantity", e.target.value)} 
-            disabled={!isEditing} 
-            className="h-8 text-xs px-1" 
-          />
-        </div>
-        <div className="col-span-1">
-          {eye === "R" && <Label className="text-[12px] block text-center">Order Qty</Label>}
-          <Input 
-            type="number" 
-            value={data.order_quantity?.toString() || ""} 
-            onChange={(e) => onChange(eye, "order_quantity", e.target.value)} 
-            disabled={!isEditing} 
-            className="h-8 text-xs px-1" 
-          />
-        </div>
-        <div className="col-span-1">
-          {eye === "R" && <Label className="text-[12px] block text-center">DX</Label>}
-          <div className="flex items-center justify-center h-8">
-            <input 
-              type="checkbox" 
-              checked={data.dx || false} 
-              onChange={(e) => onChange(eye, "dx", e.target.checked.toString())} 
-              disabled={!isEditing} 
-              className="h-4 w-4" 
-            />
-          </div>
-        </div>
-      </div>
-      <span className={`text-md font-medium pr-2 flex items-center justify-center w-6 ${eyeLabel === "L" ? "pb-2" : "pt-2"}`}>{eyeLabel}</span>
-    </div>
-  );
-}
-
-interface ContactLensDetailPageProps {
+interface ExamDetailPageProps {
   mode?: 'view' | 'edit' | 'new';
   clientId?: string;
-  contactLensId?: string;
-  onSave?: (contactLens: ContactLens, rightEye: ContactEye, leftEye: ContactEye, contactLensOrder: ContactLensOrder) => void;
+  examId?: string;
+  onSave?: (exam: OpticalExam, ...examData: any[]) => void;
   onCancel?: () => void;
 }
 
-export default function ContactLensDetailPage({ 
-  mode = 'view', 
-  clientId: propClientId, 
-  contactLensId: propContactLensId,
+interface CardRow {
+  id: string
+  cards: CardItem[]
+}
+
+interface LayoutTab {
+  id: number
+  layout_id: number
+  name: string
+  layout_data: string
+  isActive: boolean
+}
+
+export default function ContactLensDetailPage({
+  mode = 'view',
+  clientId: propClientId,
+  examId: propExamId,
   onSave,
-  onCancel 
-}: ContactLensDetailPageProps = {}) {
-  let routeClientId: string | undefined, routeContactLensId: string | undefined;
-  
+  onCancel
+}: ExamDetailPageProps = {}) {
+  let routeClientId: string | undefined, routeExamId: string | undefined;
+
   try {
     const params = useParams({ from: "/clients/$clientId/contact-lenses/$contactLensId" });
     routeClientId = params.clientId;
-    routeContactLensId = params.contactLensId;
+    routeExamId = params.contactLensId;
   } catch {
     try {
       const params = useParams({ from: "/clients/$clientId/contact-lenses/new" });
       routeClientId = params.clientId;
     } catch {
       routeClientId = undefined;
-      routeContactLensId = undefined;
-    }
-  }
-  
-  const clientId = propClientId || routeClientId
-  const contactLensId = propContactLensId || routeContactLensId
-  
-  const [loading, setLoading] = useState(true)
-  const [client, setClient] = useState<Client | null>(null)
-  const [contactLens, setContactLens] = useState<ContactLens | null>(null)
-  const [rightEye, setRightEye] = useState<ContactEye | null>(null)
-  const [leftEye, setLeftEye] = useState<ContactEye | null>(null)
-  const [contactLensOrder, setContactLensOrder] = useState<ContactLensOrder | null>(null)
-  const [billing, setBilling] = useState<Billing | null>(null)
-  const [orderLineItems, setOrderLineItems] = useState<OrderLineItem[]>([])
-  const [deletedOrderLineItemIds, setDeletedOrderLineItemIds] = useState<number[]>([])
-  const [users, setUsers] = useState<User[]>([])
-  const { currentUser } = useUser()
-  
-  const isNewMode = mode === 'new'
-  const [isEditing, setIsEditing] = useState(isNewMode)
-  const [activeTab, setActiveTab] = useState('contact-lenses')
-  const [formData, setFormData] = useState<ContactLens>(isNewMode ? {
-    client_id: Number(clientId),
-    exam_date: new Date().toISOString().split('T')[0],
-    type: '',
-    user_id: currentUser?.id,
-    pupil_diameter: undefined,
-    corneal_diameter: undefined,
-    eyelid_aperture: undefined,
-    comb_va: undefined
-  } as ContactLens : {} as ContactLens)
-  const [rightEyeFormData, setRightEyeFormData] = useState<ContactEye>(isNewMode ? { eye: 'R' } as ContactEye : {} as ContactEye)
-  const [leftEyeFormData, setLeftEyeFormData] = useState<ContactEye>(isNewMode ? { eye: 'L' } as ContactEye : {} as ContactEye)
-  const [contactLensOrderFormData, setContactLensOrderFormData] = useState<ContactLensOrder>(isNewMode ? {} as ContactLensOrder : {} as ContactLensOrder)
-  const [billingFormData, setBillingFormData] = useState<Billing>(isNewMode ? {} as Billing : {} as Billing)
-  
-  const formRef = useRef<HTMLFormElement>(null)
-  const navigate = useNavigate()
-  
-  const handleTabChange = (value: string) => {
-    if (clientId && value !== 'contact-lenses') {
-      navigate({ 
-        to: "/clients/$clientId", 
-        params: { clientId: String(clientId) },
-        search: { tab: value } 
-      })
+      routeExamId = undefined;
     }
   }
 
-  useEffect(() => {
-    const loadData = async () => {
+  const clientId = propClientId || routeClientId
+  const examId = propExamId || routeExamId
+
+  const [loading, setLoading] = useState(true)
+  const [client, setClient] = useState<Client | null>(null)
+  const [exam, setExam] = useState<OpticalExam | null>(null)
+  const [users, setUsers] = useState<User[]>([])
+  const [availableLayouts, setAvailableLayouts] = useState<ExamLayout[]>([])
+  const [activeLayoutId, setActiveLayoutId] = useState<number | null>(null)
+  const [layoutTabs, setLayoutTabs] = useState<LayoutTab[]>([])
+  const { currentUser } = useUser()
+  
+  // Unified state management for all exam components
+  const [examComponentData, setExamComponentData] = useState<Record<string, any>>({})
+  const [examFormData, setExamFormData] = useState<Record<string, any>>({})
+  const [clipboardContentType, setClipboardContentType] = useState<ExamComponentType | null>(null)
+  
+  // Get the client data context to refresh exams after save
+  let refreshExams: (() => Promise<void>) | undefined;
+  try {
+    const clientDataContext = useClientData();
+    refreshExams = clientDataContext.refreshExams;
+  } catch {
+    refreshExams = undefined;
+  }
+
+  const isNewMode = mode === 'new'
+  const [isEditing, setIsEditing] = useState(isNewMode)
+  const [activeTab, setActiveTab] = useState('contact-lenses')
+
+  const [formData, setFormData] = useState<Partial<OpticalExam>>(isNewMode ? {
+    client_id: Number(clientId),
+    exam_date: new Date().toISOString().split('T')[0],
+    test_name: '',
+    clinic: '',
+    user_id: currentUser?.id,
+    dominant_eye: null,
+    type: 'opticlens'
+  } : {})
+
+  const [cardRows, setCardRows] = useState<CardRow[]>([
+    { id: 'row-1', cards: [{ id: 'exam-details', type: 'exam-details' }] },
+    { id: 'row-2', cards: [{ id: 'old-refraction', type: 'old-refraction' }] },
+    { id: 'row-3', cards: [{ id: 'objective', type: 'objective' }] },
+    { id: 'row-4', cards: [{ id: 'subjective', type: 'subjective' }] },
+    { id: 'row-5', cards: [{ id: 'final-subjective', type: 'final-subjective' }] },
+    { id: 'row-6', cards: [{ id: 'addition', type: 'addition' }] },
+    { id: 'row-7', cards: [{ id: 'notes', type: 'notes' }] }
+  ])
+
+  const [customWidths, setCustomWidths] = useState<Record<string, Record<string, number>>>({})
+  const formRef = useRef<HTMLFormElement>(null)
+  const navigate = useNavigate()
+
+  const handleCopy = (card: CardItem) => {
+    const cardType = card.type as ExamComponentType
+    const cardData = examFormData[cardType]
+    
+    if (!cardData) {
+      toast.error("אין נתונים להעתקה")
+      return
+    }
+
+    copyToClipboard(cardType, cardData)
+    setClipboardContentType(cardType)
+    toast.success("הבלוק הועתק", {
+      description: `סוג: ${cardType}`,
+      duration: 2000,
+    })
+  }
+
+  const handlePaste = (targetCard: CardItem) => {
+    const clipboardContent = pasteFromClipboard()
+    if (!clipboardContent) {
+      toast.error("אין מידע בלוח ההעתקה")
+      return
+    }
+
+    const { type: sourceType, data: sourceData } = clipboardContent
+    const targetType = targetCard.type as ExamComponentType
+    const targetData = examFormData[targetType]
+    const targetChangeHandler = fieldHandlers[targetType]
+
+    if (!targetData || !targetChangeHandler) {
+      toast.error("לא ניתן להדביק לבלוק זה")
+      return
+    }
+
+    const fieldMapper = new ExamFieldMapper()
+    const isCompatible = sourceType === targetType || ExamFieldMapper.getAvailableTargets(sourceType, [targetType]).includes(targetType)
+
+    if (!isCompatible) {
+      toast.error("העתקה לא נתמכת", {
+        description: `לא ניתן להעתיק מ'${sourceType}' ל'${targetType}'.`,
+      })
+      return
+    }
+
+    const copiedData = ExamFieldMapper.copyData(sourceData, targetData, sourceType, targetType)
+
+    Object.entries(copiedData).forEach(([key, value]) => {
+      if (key !== 'id' && key !== 'layout_instance_id' && value !== undefined) {
+        targetChangeHandler(key, String(value ?? ''))
+      }
+    })
+
+    toast.success("הנתונים הודבקו בהצלחה", {
+      description: `מ'${sourceType}' ל'${targetType}'.`,
+      duration: 2000,
+    })
+  }
+
+  // Initialize form data for all registered components
+  const initializeFormData = (layoutInstanceId: number, layoutData?: string) => {
+    const initialData: Record<string, any> = {}
+    
+    // Parse layout data to get titles and card instances
+    let layoutTitles: Record<string, string> = {}
+    let cardInstances: Record<string, string[]> = {}
+    if (layoutData) {
       try {
-        setLoading(true)
+        const parsedLayout = JSON.parse(layoutData)
+        const rows = Array.isArray(parsedLayout) ? parsedLayout : parsedLayout.rows || []
         
-        // Load users for display purposes
-        const usersData = await getAllUsers()
-        setUsers(usersData)
-        
-        if (clientId) {
-          const clientData = await getClientById(Number(clientId))
-          setClient(clientData || null)
-        }
-        
-        if (contactLensId) {
-          const contactLensData = await getContactLensById(Number(contactLensId))
-          setContactLens(contactLensData || null)
-          
-          if (contactLensData) {
-            const [contactEyesData, contactLensOrderData, billingData] = await Promise.all([
-              getContactEyesByContactLensId(Number(contactLensId)),
-              getContactLensOrderByContactLensId(Number(contactLensId)),
-              getBillingByContactLensId(Number(contactLensId))
-            ])
-            
-            const rightEyeData = contactEyesData.find(e => e.eye === "R")
-            const leftEyeData = contactEyesData.find(e => e.eye === "L")
-            
-            setRightEye(rightEyeData || null)
-            setLeftEye(leftEyeData || null)
-            setContactLensOrder(contactLensOrderData || null)
-            setBilling(billingData || null)
-            
-            if (billingData && billingData.id) {
-              const orderLineItemsData = await getOrderLineItemsByBillingId(billingData.id)
-              setOrderLineItems(orderLineItemsData || [])
+        rows.forEach((row: any) => {
+          row.cards?.forEach((card: any) => {
+            if (card.title) {
+              layoutTitles[card.id] = card.title
             }
+            // Collect card instances for each type
+            if (!cardInstances[card.type]) {
+              cardInstances[card.type] = []
+            }
+            cardInstances[card.type].push(card.id)
+          })
+        })
+      } catch (error) {
+        console.error('Error parsing layout data:', error)
+      }
+    }
+    
+    examComponentRegistry.getAllTypes().forEach(type => {
+      const baseData: any = { layout_instance_id: layoutInstanceId }
+      
+      // For notes, create separate data for each card instance
+      if (type === 'notes' && cardInstances[type]) {
+        cardInstances[type].forEach(cardId => {
+          const instanceData = { ...baseData, card_instance_id: cardId }
+          // Add title from layout if available for this specific card
+          if (layoutTitles[cardId]) {
+            instanceData.title = layoutTitles[cardId]
+          }
+          initialData[`${type}-${cardId}`] = instanceData
+        })
+      } else {
+        // For other components, add title from layout if available
+        if (type === 'corneal-topography' && cardInstances[type] && cardInstances[type].length > 0) {
+          const cardId = cardInstances[type][0]
+          if (layoutTitles[cardId]) {
+            baseData.title = layoutTitles[cardId]
           }
         }
+        initialData[type] = baseData
+      }
+    })
+    
+    setExamFormData(initialData)
+  }
+
+  // Load all exam component data for a layout instance
+  const loadExamComponentData = async (layoutInstanceId: number, layoutData?: string) => {
+    try {
+      const data = await examComponentRegistry.loadAllData(layoutInstanceId)
+      setExamComponentData(data)
+      
+      // Parse layout data to get titles and card instances
+      let layoutTitles: Record<string, string> = {}
+      let cardInstances: Record<string, string[]> = {}
+      if (layoutData) {
+        try {
+          const parsedLayout = JSON.parse(layoutData)
+          const rows = Array.isArray(parsedLayout) ? parsedLayout : parsedLayout.rows || []
+          
+          rows.forEach((row: any) => {
+            row.cards?.forEach((card: any) => {
+              if (card.title) {
+                layoutTitles[card.id] = card.title
+              }
+              // Collect card instances for each type
+              if (!cardInstances[card.type]) {
+                cardInstances[card.type] = []
+              }
+              cardInstances[card.type].push(card.id)
+            })
+          })
+        } catch (error) {
+          console.error('Error parsing layout data:', error)
+        }
+      }
+      
+      // Update form data with loaded data or empty data with layout_instance_id
+      const formData: Record<string, any> = {}
+      examComponentRegistry.getAllTypes().forEach(type => {
+        if (type === 'notes' && cardInstances[type]) {
+          // For notes, handle each card instance separately
+          cardInstances[type].forEach(cardId => {
+            const existingData = data[`${type}-${cardId}`] || { layout_instance_id: layoutInstanceId, card_instance_id: cardId }
+            
+            // Add title from layout if not already present in data
+            if (layoutTitles[cardId] && !existingData.title) {
+              existingData.title = layoutTitles[cardId]
+            }
+            
+            formData[`${type}-${cardId}`] = existingData
+          })
+        } else {
+          const existingData = data[type] || { layout_instance_id: layoutInstanceId }
+          
+          // Add title from layout if not already present in data
+          if (type === 'corneal-topography' && cardInstances[type] && cardInstances[type].length > 0) {
+            const cardId = cardInstances[type][0]
+            if (layoutTitles[cardId] && !existingData.title) {
+              existingData.title = layoutTitles[cardId]
+            }
+          }
+          
+          formData[type] = existingData
+        }
+      })
+      setExamFormData(formData)
+    } catch (error) {
+      console.error('Error loading exam component data:', error)
+    }
+  }
+
+  // Create field change handlers for all components
+  const createFieldHandlers = () => {
+    const handlers: Record<string, (field: string, value: string) => void> = {}
+    
+    examComponentRegistry.getAllTypes().forEach(type => {
+      handlers[type] = examComponentRegistry.createFieldChangeHandler(
+        type,
+        (updater: (prev: any) => any) => {
+          setExamFormData(prev => ({
+            ...prev,
+            [type]: updater(prev[type] || {})
+          }))
+        }
+      )
+    })
+
+    // Create field handlers for notes card instances
+    if (cardRows) {
+      cardRows.forEach(row => {
+        row.cards.forEach(card => {
+          if (card.type === 'notes') {
+            const key = `notes-${card.id}`
+            handlers[key] = (field: string, value: string) => {
+              setExamFormData(prev => ({
+                ...prev,
+                [key]: {
+                  ...prev[key],
+                  [field]: value
+                }
+              }))
+            }
+          }
+        })
+      })
+    }
+    
+    return handlers
+  }
+
+  const fieldHandlers = createFieldHandlers()
+  const toolboxActions = createToolboxActions(examFormData, fieldHandlers)
+
+  const { currentClient, setActiveTab: setSidebarActiveTab } = useClientSidebar()
+
+  // Set the active tab to 'exams' when this page loads
+  useEffect(() => {
+    setSidebarActiveTab('contact-lenses')
+  }, [setSidebarActiveTab])
+
+  useEffect(() => {
+    const loadData = async () => {
+      if (!clientId) return
+
+      try {
+        setLoading(true)
+
+        setClipboardContentType(getClipboardContentType())
+
+        const layoutsData = await getAllExamLayouts()
+        setAvailableLayouts(layoutsData.filter(layout => layout.type === 'opticlens'))
+
+        if (examId && !isNewMode) {
+          const examData = await getExamById(Number(examId))
+          setExam(examData || null)
+
+          if (examData) {
+            const examType = examData.type || 'opticlens'
+            const filteredLayouts = layoutsData.filter(layout => layout.type === examType)
+            setAvailableLayouts(filteredLayouts)
+            const layoutInstances = await getExamLayoutInstancesByExamId(Number(examId))
+            
+            if (layoutInstances.length > 0) {
+              const activeInstance = await getActiveExamLayoutInstanceByExamId(Number(examId))
+              
+              const tabs = await Promise.all(layoutInstances.map(async (instance) => {
+                const layout = await getExamLayoutById(instance.layout_id)
+                return {
+                  id: instance.id || 0,
+                  layout_id: instance.layout_id,
+                  name: layout?.name || '',
+                  layout_data: layout?.layout_data || '',
+                  isActive: instance.is_active || false
+                };
+              }));
+              
+              setLayoutTabs(tabs)
+              
+              if (activeInstance) {
+                setActiveLayoutId(activeInstance.layout_id || 0)
+                
+                const activeLayout = await getExamLayoutById(activeInstance.layout_id)
+                
+                if (activeLayout && activeLayout.layout_data && activeInstance.id) {
+                  const parsedLayout = JSON.parse(activeLayout.layout_data)
+                  if (Array.isArray(parsedLayout)) {
+                    setCardRows(parsedLayout)
+                    setCustomWidths({})
+                  } else {
+                    setCardRows(parsedLayout.rows || [])
+                    setCustomWidths(parsedLayout.customWidths || {})
+                  }
+                
+                  await loadExamComponentData(activeInstance.id, activeLayout.layout_data)
+                }
+              }
+            } else {
+              let defaultLayout = await getDefaultExamLayout()
+              if (!defaultLayout && layoutsData.length > 0) {
+                defaultLayout = layoutsData[0]
+              }
+
+              if (defaultLayout) {
+                const newLayoutInstance = await addLayoutToExam(Number(examId), defaultLayout.id || 1, true)
+                
+                if (newLayoutInstance) {
+                  setActiveLayoutId(defaultLayout.id || 0)
+                  setLayoutTabs([{
+                    id: newLayoutInstance.id || 0,
+                    layout_id: defaultLayout.id || 0,
+                    name: defaultLayout.name || '',
+                    layout_data: defaultLayout.layout_data || '',
+                    isActive: true
+                  }])
+                  
+                  const parsedLayout = JSON.parse(defaultLayout.layout_data)
+                  if (Array.isArray(parsedLayout)) {
+                    setCardRows(parsedLayout)
+                    setCustomWidths({})
+                  } else {
+                    setCardRows(parsedLayout.rows || [])
+                    setCustomWidths(parsedLayout.customWidths || {})
+                  }
+                  
+                  if (newLayoutInstance.id) {
+                    await loadExamComponentData(newLayoutInstance.id, defaultLayout.layout_data)
+                  }
+                }
+              }
+            }
+          }
+        } else {
+          let defaultLayout = await getDefaultExamLayout()
+          if (!defaultLayout && layoutsData.length > 0) {
+            defaultLayout = layoutsData[0]
+          }
+
+          if (defaultLayout) {
+            setActiveLayoutId(defaultLayout.id || 0)
+            const parsedLayout = JSON.parse(defaultLayout.layout_data)
+            if (Array.isArray(parsedLayout)) {
+              setCardRows(parsedLayout)
+              setCustomWidths({})
+            } else {
+              setCardRows(parsedLayout.rows || [])
+              setCustomWidths(parsedLayout.customWidths || {})
+            }
+            
+            setLayoutTabs([{
+              id: 0,
+              layout_id: defaultLayout.id || 0,
+              name: defaultLayout.name || '',
+              layout_data: defaultLayout.layout_data || '',
+              isActive: true
+            }])
+            
+            initializeFormData(defaultLayout.id || 0, defaultLayout.layout_data)
+          }
+        }
+
+        const usersData = await getAllUsers()
+        setUsers(usersData)
       } catch (error) {
-        console.error('Error loading data:', error)
+        console.error('Error loading exam data:', error)
+        toast.error('שגיאה בטעינת נתוני הבדיקה')
       } finally {
         setLoading(false)
       }
     }
 
     loadData()
-  }, [clientId, contactLensId])
-  
+  }, [clientId, examId, isNewMode])
+
   useEffect(() => {
-    if (contactLens) {
-      setFormData({ ...contactLens })
+    if (exam) {
+      setFormData({ ...exam })
     }
-    if (rightEye) {
-      setRightEyeFormData({ ...rightEye })
-    }
-    if (leftEye) {
-      setLeftEyeFormData({ ...leftEye })
-    }
-    if (contactLensOrder) {
-      setContactLensOrderFormData({ ...contactLensOrder })
-    }
-    if (billing) {
-      setBillingFormData({ ...billing })
-    }
-  }, [contactLens, rightEye, leftEye, contactLensOrder, billing])
+    
+    // Update form data when exam component data changes
+    examComponentRegistry.getAllTypes().forEach(type => {
+      const data = examComponentData[type]
+      if (data) {
+        setExamFormData(prev => ({ ...prev, [type]: { ...data } }))
+    } else if (!isNewMode) {
+      const activeLayout = layoutTabs.find(tab => tab.isActive);
+      if (activeLayout) {
+          setExamFormData(prev => ({ 
+            ...prev, 
+            [type]: { layout_instance_id: activeLayout.id } 
+          }))
+        }
+      }
+    })
+  }, [exam, examComponentData, layoutTabs, isNewMode])
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
-      setFormData(prev => ({ ...prev, [name]: value }))
-    }
-
-  const handleContactLensFieldChange = (field: keyof ContactLens, rawValue: string) => {
-    let processedValue: string | number | undefined = rawValue;
-    
-    const numericFields: (keyof ContactLens)[] = [
-      "comb_va", "pupil_diameter", "corneal_diameter", "eyelid_aperture"
-    ];
-    
-    if (numericFields.includes(field)) {
-      const val = parseFloat(rawValue);
-      processedValue = rawValue === "" || isNaN(val) ? undefined : val;
-    }
-    
-    setFormData(prev => ({ ...prev, [field]: processedValue }));
-  };
+    setFormData(prev => ({ ...prev, [name]: value }))
+  }
 
   const handleSelectChange = (value: string, name: string) => {
     setFormData(prev => ({ ...prev, [name]: value }))
   }
 
-  const handleContactEyeFieldChange = (
-    eye: 'R' | 'L',
-    field: keyof ContactEye,
-    rawValue: string
-  ) => {
-    let processedValue: string | number | boolean | undefined = rawValue;
-  
-    const numericFields: (keyof ContactEye)[] = [
-      "k_h", "k_v", "k_avg", "k_cyl", "k_ax", "k_ecc", "bc", "bc_2", "oz", "diam", "sph", "cyl", "ax", "read_ad", "schirmer_test", "schirmer_but", "quantity", "order_quantity", "va", "j"
-    ];
-    const integerFields: (keyof ContactEye)[] = ["ax", "k_ax", "diam", "quantity", "order_quantity"];
-    const booleanFields: (keyof ContactEye)[] = ["dx"];
-  
-    if (booleanFields.includes(field)) {
-      processedValue = rawValue === "true";
-    } else if (numericFields.includes(field)) {
-      const val = parseFloat(rawValue);
-      processedValue = rawValue === "" || isNaN(val) ? undefined : val;
-    } else if (integerFields.includes(field)) {
-      const val = parseInt(rawValue, 10);
-      processedValue = rawValue === "" || isNaN(val) ? undefined : val;
-    } else if (rawValue === "") {
-      processedValue = undefined;
-    }
-  
-    if (eye === 'R') {
-      setRightEyeFormData(prev => ({ ...prev, [field]: processedValue }));
-    } else {
-      setLeftEyeFormData(prev => ({ ...prev, [field]: processedValue }));
-    }
-  };
-
-  const handleDeleteOrderLineItem = (id: number) => {
-    if (id > 0) {
-      setDeletedOrderLineItemIds(prev => [...prev, id])
-    }
-    setOrderLineItems(prev => prev.filter(item => item.id !== id))
-  }
-
   const handleSave = async () => {
-    console.log('Starting save process...')
-    
-    if (!formData.type) {
-      toast.error("אנא בחר סוג עדשה")
-      return
-    }
-    
-    try {
+    if (formRef.current) {
       if (isNewMode) {
-        console.log('Creating new contact lens...')
-        
-        const newContactLens = await createContactLens({
+        const examData = {
           client_id: Number(clientId),
-          exam_date: formData.exam_date,
-          type: formData.type,
-          user_id: formData.user_id,
-          comb_va: formData.comb_va,
-          pupil_diameter: formData.pupil_diameter,
-          corneal_diameter: formData.corneal_diameter,
-          eyelid_aperture: formData.eyelid_aperture,
-          notes: formData.notes,
-          notes_for_supplier: formData.notes_for_supplier
-        })
+          exam_date: formData.exam_date || new Date().toISOString().split('T')[0],
+          test_name: formData.test_name || '',
+          clinic: formData.clinic || '',
+          user_id: formData.user_id || currentUser?.id,
+          dominant_eye: formData.dominant_eye || null,
+          type: formData.type || 'opticlens'
+        }
         
-        if (newContactLens && newContactLens.id) {
-          const [newRightEye, newLeftEye, newContactLensOrder] = await Promise.all([
-            createContactEye({
-              ...rightEyeFormData,
-              contact_lens_id: newContactLens.id,
-              eye: 'R',
-            }),
-            createContactEye({
-              ...leftEyeFormData,
-              contact_lens_id: newContactLens.id,
-              eye: 'L',
-            }),
-            createContactLensOrder({
-              ...contactLensOrderFormData,
-              contact_lens_id: newContactLens.id,
-            })
-          ])
+        const newExam = await createExam(examData)
+
+        if (newExam && newExam.id) {
+          const activeLayout = layoutTabs.find(tab => tab.isActive) || layoutTabs[0];
           
-          let newBilling: Billing | null = null
-          let savedOrderLineItems: OrderLineItem[] = []
+          if (!activeLayout) {
+            toast.error("לא נמצאה פריסה פעילה לבדיקה");
+            return;
+          }
           
-          const hasBillingData = Object.values(billingFormData).some(value => 
-            value !== undefined && value !== null && value !== ''
+          const layoutInstance = await addLayoutToExam(
+            newExam.id, 
+            activeLayout.layout_id, 
+            true
           );
           
-          if (hasBillingData || orderLineItems.length > 0) {
-            console.log('Creating billing for new contact lens...')
-            newBilling = await createBilling({
-              ...billingFormData,
-              contact_lens_id: newContactLens.id,
-            })
-            
-            if (newBilling && newBilling.id && orderLineItems.length > 0) {
-              console.log('Creating line items for new contact lens...')
-              savedOrderLineItems = await Promise.all(
-                orderLineItems.map(item => {
-                  const { id, ...itemWithoutId } = item;
-                  return createOrderLineItem({
-                    ...itemWithoutId,
-                    billings_id: newBilling!.id!
-                  })
-                })
-              ).then(results => results.filter(Boolean) as OrderLineItem[])
-            }
+          if (!layoutInstance || !layoutInstance.id) {
+            toast.error("שגיאה ביצירת פריסת בדיקה");
+            return;
           }
           
-          if (newRightEye && newLeftEye && newContactLensOrder) {
+          const savedData = await examComponentRegistry.saveAllData(layoutInstance.id, examFormData)
+          
+          if (Object.values(savedData).some(data => data !== null)) {
             toast.success("עדשות מגע חדשות נוצרו בהצלחה")
+            
+            if (refreshExams) {
+              await refreshExams();
+            }
+            
+            await new Promise(resolve => setTimeout(resolve, 100));
+            
             if (onSave) {
-              onSave(newContactLens, newRightEye, newLeftEye, newContactLensOrder)
+              onSave(newExam, ...Object.values(savedData))
             }
           } else {
-            toast.error("לא הצלחנו ליצור את נתוני עדשות המגע")
+            toast.error("לא הצלחנו ליצור את נתוני העדשות מגע")
           }
         } else {
-          toast.error("לא הצלחנו ליצור את עדשות המגע")
+          toast.error("לא הצלחנו ליצור את העדשות מגע")
         }
       } else {
-        const [updatedContactLens, updatedRightEye, updatedLeftEye, updatedContactLensOrder] = await Promise.all([
-          updateContactLens(formData),
-          updateContactEye(rightEyeFormData),
-          updateContactEye(leftEyeFormData),
-          contactLensOrderFormData.id ? updateContactLensOrder(contactLensOrderFormData) : createContactLensOrder({
-            ...contactLensOrderFormData,
-            contact_lens_id: formData.id!
-          })
-        ])
+        const updatedExam = await updateExam(formData as OpticalExam)
         
-        let updatedBilling: Billing | null = null
+        const activeLayout = layoutTabs.find(tab => tab.isActive);
         
-        const hasBillingData = Object.values(billingFormData).some(value => 
-          value !== undefined && value !== null && value !== ''
-        );
-        
-        if (billingFormData.id) {
-          console.log('Updating existing billing...')
-          const billingResult = await updateBilling(billingFormData)
-          updatedBilling = billingResult || null
-        } else if (hasBillingData || orderLineItems.length > 0) {
-          console.log('Creating new billing...')
-          const billingResult = await createBilling({
-            ...billingFormData,
-            contact_lens_id: formData.id!
-          })
-          updatedBilling = billingResult || null
+        if (!activeLayout) {
+          toast.error("לא נמצאה פריסה פעילה לבדיקה");
+          return;
         }
         
-        if (updatedBilling && updatedBilling.id) {
-          if (deletedOrderLineItemIds.length > 0) {
-            await Promise.all(
-              deletedOrderLineItemIds.map(id => deleteOrderLineItem(id))
-            )
-            setDeletedOrderLineItemIds([])
+        const setActiveResult = await setActiveExamLayoutInstance(Number(examId), activeLayout.id);
+        if (!setActiveResult) {
+          toast.error("שגיאה בעדכון פריסה פעילה");
+          return;
+        }
+        
+        const savedData = await examComponentRegistry.saveAllData(activeLayout.id, examFormData)
+
+        if (updatedExam && Object.values(savedData).some(data => data !== null)) {
+          setIsEditing(false)
+          setExam(updatedExam)
+          setExamComponentData(savedData)
+          setFormData({ ...updatedExam })
+          
+            toast.success("פרטי העדשות מגע עודכנו בהצלחה")
+          
+          if (refreshExams) {
+            await refreshExams();
           }
           
-          const lineItemResults = await Promise.all(
-            orderLineItems.map(async (item) => {
-              if (item.id && item.id > 0) {
-                return updateOrderLineItem({
-                  ...item,
-                  billings_id: updatedBilling.id!
-                })
-              } else {
-                const { id, ...itemWithoutId } = item;
-                return createOrderLineItem({
-                  ...itemWithoutId,
-                  billings_id: updatedBilling.id!
-                })
-              }
-            })
-          )
-        }
-        
-        if (updatedContactLens && updatedRightEye && updatedLeftEye && updatedContactLensOrder) {
-          setIsEditing(false)
-          setContactLens(updatedContactLens)
-          setRightEye(updatedRightEye)
-          setLeftEye(updatedLeftEye)
-          setContactLensOrder(updatedContactLensOrder)
-          if (updatedBilling) {
-            setBilling(updatedBilling)
-          }
-          setFormData({ ...updatedContactLens })
-          setRightEyeFormData({ ...updatedRightEye })
-          setLeftEyeFormData({ ...updatedLeftEye })
-          setContactLensOrderFormData({ ...updatedContactLensOrder })
-          if (updatedBilling) {
-            setBillingFormData({ ...updatedBilling })
-          }
-          toast.success("פרטי עדשות המגע עודכנו בהצלחה")
+          await new Promise(resolve => setTimeout(resolve, 100));
+          
           if (onSave) {
-            onSave(updatedContactLens, updatedRightEye, updatedLeftEye, updatedContactLensOrder)
+            onSave(updatedExam, ...Object.values(savedData))
           }
         } else {
           toast.error("לא הצלחנו לשמור את השינויים")
         }
       }
-    } catch (error) {
-      console.error('Error saving contact lens:', error)
-      toast.error("שגיאה בשמירת עדשות המגע")
     }
   }
-  
-  if (loading) {
-    return (
-      <>
-        <SiteHeader 
-          title="לקוחות" 
-          backLink="/clients" 
-          tabs={{
-            activeTab,
-            onTabChange: handleTabChange
-          }}
-        />
-        <div className="flex flex-col items-center justify-center h-full">
-          <h1 className="text-2xl">טוען...</h1>
-        </div>
-      </>
-    )
+
+  const handleLayoutTabChange = async (tabId: number) => {
+    const selectedTab = layoutTabs.find(tab => tab.id === tabId)
+    if (!selectedTab) return
+    
+    try {
+      // Load data first if not in new mode
+      if (!isNewMode) {
+        await loadExamComponentData(selectedTab.id, selectedTab.layout_data)
+      }
+
+      const updatedTabs = layoutTabs.map(tab => ({
+        ...tab,
+        isActive: tab.id === tabId
+      }))
+      
+      setLayoutTabs(updatedTabs)
+      setActiveLayoutId(selectedTab.layout_id)
+      
+      const parsedLayout = JSON.parse(selectedTab.layout_data)
+      if (Array.isArray(parsedLayout)) {
+        setCardRows(parsedLayout)
+        setCustomWidths({})
+      } else {
+        setCardRows(parsedLayout.rows || [])
+        setCustomWidths(parsedLayout.customWidths || {})
+      }
+      
+      if (exam && exam.id && !isNewMode) {
+        setActiveExamLayoutInstance(exam.id, tabId).catch(error => {
+          console.error('Error updating active layout in database:', error)
+        })
+      }
+    } catch (error) {
+      console.error('Error changing layout tab:', error)
+      toast.error('שגיאה בהחלפת לשונית פריסה')
+    }
   }
-  
-  if (!client || (!isNewMode && (!contactLens || !rightEye || !leftEye))) {
+
+  const handleAddLayoutTab = async (layoutId: number) => {
+    const layoutToAdd = availableLayouts.find(layout => layout.id === layoutId)
+    if (!layoutToAdd) return
+    
+    if (layoutTabs.some(tab => tab.layout_id === layoutId)) {
+      toast.info(`הפריסה "${layoutToAdd.name}" כבר קיימת בלשוניות`)
+      handleLayoutTabChange(layoutTabs.find(tab => tab.layout_id === layoutId)?.id || 0)
+      return
+    }
+    
+    if (exam && exam.id && !isNewMode) {
+      const newLayoutInstance = await addLayoutToExam(exam.id, layoutId, true)
+      
+      if (newLayoutInstance) {
+        const updatedTabs = layoutTabs.map(tab => ({ ...tab, isActive: false }))
+        
+        const newTab = {
+          id: newLayoutInstance.id || 0,
+          layout_id: layoutId,
+          name: layoutToAdd.name || '',
+          layout_data: layoutToAdd.layout_data || '',
+          isActive: true
+        }
+        
+        setLayoutTabs([...updatedTabs, newTab])
+        setActiveLayoutId(layoutId)
+        
+        const parsedLayout = JSON.parse(layoutToAdd.layout_data)
+        if (Array.isArray(parsedLayout)) {
+          setCardRows(parsedLayout)
+          setCustomWidths({})
+        } else {
+          setCardRows(parsedLayout.rows || [])
+          setCustomWidths(parsedLayout.customWidths || {})
+        }
+        
+        // Load data for the new layout instance
+        if (newLayoutInstance && newLayoutInstance.id) {
+          await loadExamComponentData(newLayoutInstance.id, layoutToAdd.layout_data);
+        }
+
+        toast.success(`פריסה "${layoutToAdd.name}" הוספה והוחלה`)
+      } else {
+        toast.error('שגיאה בהוספת לשונית פריסה')
+      }
+    } else {
+      const updatedTabs = layoutTabs.map(tab => ({ ...tab, isActive: false }))
+      
+      const newTab = {
+        id: -Date.now(),
+        layout_id: layoutId,
+        name: layoutToAdd.name || '',
+        layout_data: layoutToAdd.layout_data || '',
+        isActive: true
+      }
+      
+      setLayoutTabs([...updatedTabs, newTab])
+      setActiveLayoutId(layoutId)
+      
+      const parsedLayout = JSON.parse(layoutToAdd.layout_data)
+      if (Array.isArray(parsedLayout)) {
+        setCardRows(parsedLayout)
+        setCustomWidths({})
+      } else {
+        setCardRows(parsedLayout.rows || [])
+        setCustomWidths(parsedLayout.customWidths || {})
+      }
+      toast.success(`פריסה "${layoutToAdd.name}" הוספה והוחלה`)
+    }
+  }
+
+  const handleRemoveLayoutTab = async (tabId: number) => {
+    if (layoutTabs.length <= 1) {
+      toast.error('לא ניתן להסיר את הלשונית האחרונה');
+      return;
+    }
+    
+    const tabIndex = layoutTabs.findIndex(tab => tab.id === tabId);
+    if (tabIndex === -1) return;
+    
+    const tabToRemove = layoutTabs[tabIndex];
+    const isActive = tabToRemove.isActive;
+    
+    try {
+      if (exam && exam.id && !isNewMode && tabId > 0) {
+          const success = await deleteExamLayoutInstance(tabId);
+          if (!success) {
+            toast.error('שגיאה במחיקת פריסה');
+            return;
+          }
+      }
+      
+      const updatedTabs = [...layoutTabs];
+      updatedTabs.splice(tabIndex, 1);
+      
+      if (isActive && updatedTabs.length > 0) {
+        const newActiveIndex = Math.min(tabIndex, updatedTabs.length - 1);
+        updatedTabs[newActiveIndex].isActive = true;
+        
+        if (exam && exam.id && !isNewMode) {
+          await setActiveExamLayoutInstance(exam.id, updatedTabs[newActiveIndex].id);
+        }
+        
+        setActiveLayoutId(updatedTabs[newActiveIndex].layout_id);
+        
+        try {
+          const newActiveTab = updatedTabs[newActiveIndex];
+          const parsedLayout = JSON.parse(newActiveTab.layout_data);
+          if (Array.isArray(parsedLayout)) {
+            setCardRows(parsedLayout);
+            setCustomWidths({});
+          } else {
+            setCardRows(parsedLayout.rows || []);
+            setCustomWidths(parsedLayout.customWidths || {});
+          }
+        } catch (error) {
+          console.error('Error applying layout after tab removal:', error);
+        }
+      }
+      
+      setLayoutTabs(updatedTabs);
+      toast.success('לשונית הפריסה הוסרה');
+    } catch (error) {
+      console.error('Error removing layout tab:', error);
+      toast.error('שגיאה במחיקת לשונית פריסה');
+    }
+  }
+
+  const handleEditButtonClick = () => {
+    if (isEditing) {
+      handleSave();
+    } else {
+      if (exam) setFormData({ ...exam });
+      
+      // Copy current component data to form data for editing
+      examComponentRegistry.getAllTypes().forEach(type => {
+        const data = examComponentData[type]
+        if (data) {
+          setExamFormData(prev => ({ ...prev, [type]: { ...data } }))
+        }
+      })
+      
+      setIsEditing(true);
+    }
+  }
+
+  const handleTabChange = (value: string) => {
+    if (clientId && value !== 'exams') {
+      navigate({
+        to: "/clients/$clientId",
+        params: { clientId: String(clientId) },
+        search: { tab: value }
+      })
+    }
+  }
+
+  // Build detail props dynamically
+  const detailProps: DetailProps = createDetailProps(
+    isEditing,
+    isNewMode,
+    exam,
+    formData,
+    examFormData,
+    fieldHandlers,
+    handleInputChange,
+    handleSelectChange,
+    setFormData,
+    (value: string) => {
+      // This is now handled by the generic fieldHandlers for 'notes' type
+      // So, this specific handleNotesChange can be removed or left as no-op
+    },
+    toolboxActions,
+    cardRows.map(row => row.cards),
+    {
+      handleMultifocalOldRefraction: () => {},
+      handleVHConfirmOldRefraction: (rightPris: number, rightBase: number, leftPris: number, leftBase: number) => {
+        const oldRefractionHandler = fieldHandlers['old-refraction'];
+        if (oldRefractionHandler) {
+          oldRefractionHandler('r_pris', rightPris.toString());
+          oldRefractionHandler('r_base', rightBase.toString());
+          oldRefractionHandler('l_pris', leftPris.toString());
+          oldRefractionHandler('l_base', leftBase.toString());
+        }
+      },
+      handleVHConfirm: (rightPris: number, rightBase: number, leftPris: number, leftBase: number) => {
+        const subjectiveHandler = fieldHandlers['subjective'];
+        if (subjectiveHandler) {
+          subjectiveHandler('r_pris', rightPris.toString());
+          subjectiveHandler('r_base', rightBase.toString());
+          subjectiveHandler('l_pris', leftPris.toString());
+          subjectiveHandler('l_base', leftBase.toString());
+        }
+      },
+      handleMultifocalSubjective: () => {},
+      handleFinalSubjectiveVHConfirm: (rightPrisH: number, rightBaseH: string, rightPrisV: number, rightBaseV: string, leftPrisH: number, leftBaseH: string, leftPrisV: number, leftBaseV: string) => {
+        const finalSubjectiveHandler = fieldHandlers['final-subjective'];
+        if (finalSubjectiveHandler) {
+          finalSubjectiveHandler('r_pr_h', rightPrisH.toString());
+          finalSubjectiveHandler('r_base_h', rightBaseH);
+          finalSubjectiveHandler('r_pr_v', rightPrisV.toString());
+          finalSubjectiveHandler('r_base_v', rightBaseV);
+          finalSubjectiveHandler('l_pr_h', leftPrisH.toString());
+          finalSubjectiveHandler('l_base_h', leftBaseH);
+          finalSubjectiveHandler('l_pr_v', leftPrisV.toString());
+          finalSubjectiveHandler('l_base_v', leftBaseV);
+        }
+      },
+      handleMultifocalOldRefractionExtension: () => {},
+    }
+  )
+
+  if (loading || !currentClient) {
     return (
       <>
-        <SiteHeader 
-          title="לקוחות" 
-          backLink="/clients" 
-          tabs={{
-            activeTab,
-            onTabChange: handleTabChange
-          }}
+        <SiteHeader
+          title="לקוחות"
+          backLink="/clients"
+          tabs={{ activeTab, onTabChange: handleTabChange }}
         />
-        <div className="flex flex-col items-center justify-center h-full">
-          <h1 className="text-2xl">{isNewMode ? "לקוח לא נמצא" : "עדשות מגע לא נמצאו"}</h1>
-        </div>
       </>
     )
   }
 
-  const fullName = client ? `${client.first_name} ${client.last_name}`.trim() : ''
-  
+  if (!isNewMode && !exam) {
+    return (
+      <>
+        <SiteHeader
+          title="לקוחות"
+          backLink="/clients"
+          tabs={{ activeTab, onTabChange: handleTabChange }}
+        />
+        <ClientSpaceLayout>
+          <div className="flex flex-col items-center justify-center h-full">
+            <h1 className="text-2xl">{isNewMode ? "לקוח לא נמצא" : "בדיקה לא נמצאה"}</h1>
+          </div>
+        </ClientSpaceLayout>
+      </>
+    )
+  }
+
   return (
     <>
-        <SiteHeader 
-          title="לקוחות" 
-          backLink="/clients"
-          clientBackLink={`/clients/${clientId}`}
-          examInfo={isNewMode ? "עדשות מגע חדש" : `עדשות מגע מס' ${contactLensId}`}
-          tabs={{
-            activeTab,
-            onTabChange: handleTabChange
-          }}
-        />
-        <div className="flex flex-col flex-1 p-4 lg:p-6 mb-10" dir="rtl" style={{scrollbarWidth: 'none', msOverflowStyle: 'none'}}>
-          <Tabs defaultValue="exam" className="w-full" dir="rtl">
-            <div className="flex justify-between items-center mb-4">
-              <TabsList className="grid grid-cols-2 w-auto">
-                <TabsTrigger value="exam">עדשות מגע</TabsTrigger>
-                <TabsTrigger value="billing">חיובים</TabsTrigger>
-              </TabsList>
-              <div className="flex gap-2">
-                {isNewMode && onCancel && (
-                  <Button variant="outline" onClick={onCancel}>
-                    ביטול
+      <SiteHeader
+        title="לקוחות"
+        backLink="/clients"
+        examInfo={isNewMode ? "עדשות מגע חדשות" : `עדשות מגע מס' ${examId}`}
+        tabs={{ activeTab, onTabChange: handleTabChange }}
+      />
+      <ClientSpaceLayout>
+        <div className="flex flex-col flex-1 p-4 lg:p-6 lg:pt-4 mb-10" dir="rtl">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-xl font-semibold">{isNewMode ? "עדשות מגע חדשות" : "פרטי עדשות מגע"}</h2>
+            <div className="flex gap-2">
+              {!isNewMode && !isEditing && exam?.id && (
+                <Link to="/clients/$clientId/orders/new" params={{ clientId: String(clientId) }} search={{ examId: String(exam.id) }}>
+                  <Button variant="outline">יצירת הזמנה</Button>
+                </Link>
+              )}
+
+              <DropdownMenu dir="rtl">
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" className="flex items-center gap-1">
+                    <span>פריסות</span>
+                    <ChevronDownIcon className="h-4 w-4" />
                   </Button>
-                )}
-                <Button 
-                  variant={isEditing ? "outline" : "default"} 
-                  onClick={() => {
-                    if (isNewMode || isEditing) {
-                      handleSave();
-                    } else {
-                      setIsEditing(true);
-                    }
-                  }}
-                >
-                  {isNewMode ? "שמור עדשות מגע" : (isEditing ? "שמור שינויים" : "ערוך עדשות מגע")}
-                </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48">
+                  <DropdownMenuItem className="text-sm font-bold" disabled>הוספת פריסה</DropdownMenuItem>
+                  {availableLayouts.map((layout) => (
+                    <DropdownMenuItem 
+                      key={layout.id} 
+                      onClick={() => handleAddLayoutTab(layout.id || 0)}
+                      className="text-sm"
+                    >
+                      <PlusCircleIcon className="h-4 w-4 mr-2" />
+                      {layout.name}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              {isNewMode && onCancel && (
+                <Button variant="outline" onClick={onCancel}>ביטול</Button>
+              )}
+              <Button
+                variant={isEditing ? "outline" : "default"}
+                onClick={handleEditButtonClick}
+              >
+                {isNewMode ? "שמור בדיקה" : (isEditing ? "שמור שינויים" : "ערוך בדיקה")}
+              </Button>
+            </div>
+          </div>
+
+          {/* Layout Tabs */}
+          {layoutTabs.length > 0 && (
+            <div className="">
+              <div className="flex flex-wrap items-center gap-2">
+                {layoutTabs.map((tab) => (
+                  <div 
+                    key={tab.id}
+                    className={`
+                      group relative rounded-t-xl transition-all duration-200 cursor-pointer overflow-hidden
+                      ${tab.isActive 
+                        ? 'bg-primary text-primary-foreground shadow-md' 
+                        : 'hover:bg-muted text-foreground'}
+                    `}
+                    onClick={() => handleLayoutTabChange(tab.id)}
+                  >
+                    {layoutTabs.length > 1 && isEditing && (
+                      <button 
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          handleRemoveLayoutTab(tab.id);
+                        }}
+                        className="absolute top-1 right-1 rounded-full w-[14px] h-[14px] opacity-0 group-hover:opacity-100 transition-all duration-200 flex items-center justify-center hover:bg-red-500 hover:text-white z-10"
+                        aria-label="הסר לשונית"
+                      >
+                        <XIcon className="h-2.5 w-2.5" />
+                      </button>
+                    )}
+                    <span className="text-sm py-2 px-5 font-medium whitespace-nowrap block">{tab.name}</span>
+                  </div>
+                ))}
               </div>
             </div>
-            
-            <TabsContent value="exam" className="space-y-4">
-              <form ref={formRef} className="pt-4 pb-10" style={{scrollbarWidth: 'none', msOverflowStyle: 'none'}}>
-                <div className="grid grid-cols-1 gap-4">
-                  <div className="rounded-md">
-                    <div className="grid grid-cols-5 gap-x-3 gap-y-2">
-                      <div className="col-span-1">
-                        <label className="font-semibold text-base">תאריך בדיקה</label>
-                        <DateInput
-                          name="exam_date"
-                          className="h-9"
-                          value={formData.exam_date}
-                          onChange={handleInputChange}
-                          disabled={!isEditing}
-                        />
-                      </div>
-                      
-                      <div className="col-span-1">
-                        <label className="font-semibold text-base">סוג עדשה</label>
-                        <div className="h-1"></div>
-                        <Select dir="rtl"
-                          disabled={!isEditing}
-                          value={formData.type || ''} 
-                          onValueChange={(value) => handleSelectChange(value, 'type')}
-                        >
-                          <SelectTrigger className="h-9 text-sm w-full">
-                            <SelectValue placeholder="בחר סוג" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="יומיות" className="text-sm">יומיות</SelectItem>
-                            <SelectItem value="חודשיות" className="text-sm">חודשיות</SelectItem>
-                            <SelectItem value="שנתיות" className="text-sm">שנתיות</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      
-                      <div className="col-span-1">
-                        <label className="font-semibold text-base">בודק</label>
-                        <div className="h-1"></div>
-                        {isEditing ? (
-                          <UserSelect
-                            value={formData.user_id}
-                            onValueChange={(userId) => setFormData(prev => ({ ...prev, user_id: userId }))}
-                          />
-                        ) : (
-                          <div className="border h-9 px-3 rounded-md text-sm flex items-center">
-                            {formData.user_id ? (
-                              users.find(u => u.id === formData.user_id)?.username || 'משתמש לא נמצא'
-                            ) : 'לא נבחר בודק'}
+          )}
+
+          <form ref={formRef} className="pt-4">
+            <div className="space-y-4" style={{ scrollbarWidth: 'none' }}>
+              {cardRows.map((row, rowIndex) => {
+                const cardWidths = calculateCardWidth(row.cards, row.id, customWidths)
+
+                return (
+                  <div key={row.id} className="w-full">
+                      <div className="flex gap-4 flex-1" dir="ltr">
+                        {row.cards.map((item, cardIndex) => (
+                          <div
+                            key={item.id}
+                            style={{
+                              width: `${cardWidths[item.id]}%`,
+                              minWidth: row.cards.length > 1 ? '200px' : 'auto'
+                            }}
+                          >
+                            <ExamCardRenderer
+                              item={item}
+                              rowCards={row.cards}
+                              isEditing={isEditing}
+                              mode="detail"
+                              detailProps={detailProps}
+                              hideEyeLabels={cardIndex > 0}
+                              matchHeight={hasNoteCard(row.cards) && row.cards.length > 1}
+                              currentRowIndex={rowIndex}
+                              currentCardIndex={cardIndex}
+                              clipboardSourceType={clipboardContentType}
+                              onCopy={() => handleCopy(item)}
+                              onPaste={() => handlePaste(item)}
+                              onClearData={() => toolboxActions.clearData(item.type as ExamComponentType)}
+                              onCopyLeft={() => {
+                                const cardsToTheLeft = row.cards.slice(0, cardIndex).reverse()
+                                for (const card of cardsToTheLeft) {
+                                  if (card.type !== 'exam-details' && card.type !== 'notes') {
+                                    const type = card.type as ExamComponentType
+                                    const available = ExamFieldMapper.getAvailableTargets(item.type as ExamComponentType, [type])
+                                    if (available.length > 0) {
+                                      toolboxActions.copyToLeft(item.type as ExamComponentType, type)
+                                      return
+                                    }
+                                  }
+                                }
+                              }}
+                              onCopyRight={() => {
+                                const cardsToTheRight = row.cards.slice(cardIndex + 1)
+                                for (const card of cardsToTheRight) {
+                                  if (card.type !== 'exam-details' && card.type !== 'notes') {
+                                    const type = card.type as ExamComponentType
+                                    const available = ExamFieldMapper.getAvailableTargets(item.type as ExamComponentType, [type])
+                                    if (available.length > 0) {
+                                      toolboxActions.copyToRight(item.type as ExamComponentType, type)
+                                      return
+                                    }
+                                  }
+                                }
+                              }}
+                              onCopyBelow={() => {
+                                if (rowIndex >= cardRows.length - 1) return
+                                const belowRow = cardRows[rowIndex + 1].cards
+                                for (const card of belowRow) {
+                                  if (card.type !== 'exam-details' && card.type !== 'notes') {
+                                    const type = card.type as ExamComponentType
+                                    const available = ExamFieldMapper.getAvailableTargets(item.type as ExamComponentType, [type])
+                                    if (available.length > 0) {
+                                      toolboxActions.copyToBelow(item.type as ExamComponentType, type)
+                                      return
+                                    }
+                                  }
+                                }
+                              }}
+                            />
                           </div>
-                        )}
+                        ))}
                       </div>
-                      
-                      <div className="col-span-1">
-                        <label className="font-semibold text-base">קוטר אישון</label>
-                        <div className="h-1"></div>
-                        <Input 
-                          type="number"
-                          step="0.1"
-                          name="pupil_diameter"
-                          value={formData.pupil_diameter || ''}
-                          onChange={handleInputChange}
-                          disabled={!isEditing}
-                          className="text-sm h-9"
-                        />
-                      </div>
-                      
-                      <div className="col-span-1">
-                        <label className="font-semibold text-base">קוטר קרנית</label>
-                        <div className="h-1"></div>
-                        <Input 
-                          type="number"
-                          step="0.1"
-                          name="corneal_diameter"
-                          value={formData.corneal_diameter || ''}
-                          onChange={handleInputChange}
-                          disabled={!isEditing}
-                          className="text-sm h-9"
-                        />
-                      </div>
-                    </div>
                   </div>
-                  
-                  <Tabs defaultValue="exam-details" className="w-full pt-2">
-                    <div className="flex flex-row-reverse gap-4">
-                      <TabsList className="flex flex-col py-4 h-fit min-w-[140px] bg-secondary/50 gap-2">
-                        <TabsTrigger value="exam-details" className="justify-start">פרטי בדיקה</TabsTrigger>
-                        <TabsTrigger value="contact-details" className="justify-start">פרטי עדשות</TabsTrigger>
-                      </TabsList>
-
-                      <div className="flex-1">
-                        <TabsContent value="exam-details">
-                  <Card>
-                            <CardContent className="px-4 pt-4 space-y-1">
-                      <div className="relative mb-4 pt-2">
-                        <div className="absolute top-[-27px] right-1/2 transform translate-x-1/2 bg-background px-2 font-medium text-muted-foreground">
-                                  נתוני בדיקה - עדשות מגע
-                        </div>
-                      </div>
-                              <ExamSection eye="R" data={rightEyeFormData} onChange={handleContactEyeFieldChange} isEditing={isEditing} />
-                              <CombinedVaContactLensSection contactLens={formData} onChange={handleContactLensFieldChange} isEditing={isEditing} />
-                              <ExamSection eye="L" data={leftEyeFormData} onChange={handleContactEyeFieldChange} isEditing={isEditing} />
-                    </CardContent>
-                  </Card>
-                        </TabsContent>
-
-                        <TabsContent value="contact-details">
-                          <Card>
-                            <CardContent className="px-4 pt-4 space-y-1">
-                              <div className="relative mb-4 pt-2">
-                                <div className="absolute top-[-27px] right-1/2 transform translate-x-1/2 bg-background px-2 font-medium text-muted-foreground">
-                                  פרטי עדשות מגע
-                                </div>
-                              </div>
-                              <ContactDetailsSection eye="R" data={rightEyeFormData} onChange={handleContactEyeFieldChange} isEditing={isEditing} />
-                              <div className="h-2"></div>
-                              <ContactDetailsSection eye="L" data={leftEyeFormData} onChange={handleContactEyeFieldChange} isEditing={isEditing} />
-                            </CardContent>
-                          </Card>
-                        </TabsContent>
-                      </div>
-                    </div>
-                  </Tabs>
-
-                  <Tabs defaultValue="prescription" className="w-full" dir="rtl">
-                    <TabsList className="grid w-full grid-cols-3">
-                      <TabsTrigger value="prescription">מרשם</TabsTrigger>
-                      <TabsTrigger value="order">הזמנה</TabsTrigger>
-                      <TabsTrigger value="notes">הערות</TabsTrigger>
-                    </TabsList>
-                    
-                    <TabsContent value="prescription" className="space-y-4">
-                      <Card>
-                        <CardContent className="px-4 pt-4">
-                          <div className="flex gap-6" dir="rtl">
-                            <div className="w-48">
-                              <div className="relative pt-2">
-                                <div className="absolute top-[-27px] right-1/2 transform translate-x-1/2 bg-background px-2 font-medium text-muted-foreground">
-                                  מדידות
-                                </div>
-                              </div>
-                              <div className="space-y-2">
-                                <div className="grid grid-cols-2 gap-2">
-                          <div>
-                                    <Label className="text-[12px] block text-center">קוטר אישון</Label>
-                            <Input
-                                      type="number"
-                                      step="0.1"
-                                      value={formData.pupil_diameter?.toString() || ''}
-                                      onChange={(e) => handleContactLensFieldChange('pupil_diameter', e.target.value)}
-                              disabled={!isEditing}
-                                      className="h-8 text-xs px-1"
-                            />
-                          </div>
-                          <div>
-                                    <Label className="text-[12px] block text-center">קוטר קרנית</Label>
-                            <Input
-                                      type="number"
-                                      step="0.1"
-                                      value={formData.corneal_diameter?.toString() || ''}
-                                      onChange={(e) => handleContactLensFieldChange('corneal_diameter', e.target.value)}
-                              disabled={!isEditing}
-                                      className="h-8 text-xs px-1"
-                                    />
-                                  </div>
-                                </div>
-                                <div className="grid grid-cols-2 gap-2">
-                                  <div>
-                                    <Label className="text-[12px] block text-center">פתח עפעף</Label>
-                                    <Input
-                                      type="number"
-                                      step="0.1"
-                                      value={formData.eyelid_aperture?.toString() || ''}
-                                      onChange={(e) => handleContactLensFieldChange('eyelid_aperture', e.target.value)}
-                                      disabled={!isEditing}
-                                      className="h-8 text-xs px-1"
-                                    />
-                                  </div>
-                                  <div></div>
-                                </div>
-                              </div>
-                            </div>
-                            
-                            <div className="w-px bg-border"></div>
-                            
-                            <div className="flex-1 flex gap-6">
-                              <div className="w-54">
-                                <div className="relative mb-4 pt-2">
-                                  <div className="absolute top-[-27px] right-1/2 transform translate-x-1/2 bg-background font-medium text-muted-foreground">
-                                    Schirmer Test
-                                  </div>
-                                </div>
-                                <div className="space-y-1">
-                                  <div className="flex items-center gap-1 h-6 mb-3" dir="rtl">
-                                    <div className="grid grid-cols-6 gap-4 flex-1 pb-2" dir="ltr">
-                                      <div className="col-span-3">
-                                        <Label className="text-[12px] block text-center">TEST</Label>
-                                        <Input 
-                                          type="number" 
-                                          step="0.1" 
-                                          value={rightEyeFormData.schirmer_test?.toString() || ""} 
-                                          onChange={(e) => handleContactEyeFieldChange("R", "schirmer_test", e.target.value)} 
-                                          disabled={!isEditing} 
-                                          className="h-8 text-xs px-1" 
-                                        />
-                                      </div>
-                                      <div className="col-span-3">
-                                        <Label className="text-[12px] block text-center">BUT</Label>
-                                        <Input 
-                                          type="number" 
-                                          step="0.1" 
-                                          value={rightEyeFormData.schirmer_but?.toString() || ""} 
-                                          onChange={(e) => handleContactEyeFieldChange("R", "schirmer_but", e.target.value)} 
-                                          disabled={!isEditing} 
-                                          className="h-8 text-xs px-1" 
-                                        />
-                                      </div>
-                                    </div>
-                                  </div>
-                                  <div className="h-6"></div>
-                                  <div className="flex items-center gap-1 h-6 mb-3" dir="rtl">
-                                    <div className="grid grid-cols-6 gap-4 flex-1 pb-2" dir="ltr">
-                                      <div className="col-span-3">
-                                        <Input 
-                                          type="number" 
-                                          step="0.1" 
-                                          value={leftEyeFormData.schirmer_test?.toString() || ""} 
-                                          onChange={(e) => handleContactEyeFieldChange("L", "schirmer_test", e.target.value)} 
-                                          disabled={!isEditing} 
-                                          className="h-8 text-xs px-1" 
-                                        />
-                                      </div>
-                                      <div className="col-span-3">
-                                        <Input 
-                                          type="number" 
-                                          step="0.1" 
-                                          value={leftEyeFormData.schirmer_but?.toString() || ""} 
-                                          onChange={(e) => handleContactEyeFieldChange("L", "schirmer_but", e.target.value)} 
-                                          disabled={!isEditing} 
-                                          className="h-8 text-xs px-1" 
-                                        />
-                                      </div>
-                                    </div>
-                                  </div>
-                                </div>
-                              </div>
-                              
-                              <div className="w-px bg-border"></div>
-                              
-                              <div className="flex-1">
-                                <div className="relative mb-4 pt-2">
-                                  <div className="absolute top-[-27px] right-1/2 transform translate-x-1/2 bg-background px-2 font-medium text-muted-foreground">
-                                    קרטומטר
-                                  </div>
-                                </div>
-                                <div className="space-y-1">
-                                                                    <div className="flex items-center gap-1 h-6 mb-3" dir="rtl">
-                                    <div className="grid grid-cols-18 gap-4 flex-1 pb-2" dir="ltr">
-                                      <div className="col-span-3">
-                                        <Label className="text-[12px] block text-center">RH</Label>
-                                        <Input 
-                                          type="number" 
-                                          step="0.01" 
-                                          value={rightEyeFormData.k_h?.toString() || ""} 
-                                          onChange={(e) => handleContactEyeFieldChange("R", "k_h", e.target.value)} 
-                                          disabled={!isEditing} 
-                                          className="h-8 text-xs px-1" 
-                                        />
-                                      </div>
-                                      <div className="col-span-3">
-                                        <Label className="text-[12px] block text-center">RV</Label>
-                                        <Input 
-                                          type="number" 
-                                          step="0.01" 
-                                          value={rightEyeFormData.k_v?.toString() || ""} 
-                                          onChange={(e) => handleContactEyeFieldChange("R", "k_v", e.target.value)} 
-                                          disabled={!isEditing} 
-                                          className="h-8 text-xs px-1" 
-                                        />
-                                      </div>
-                                      <div className="col-span-3">
-                                        <Label className="text-[12px] block text-center">AVG</Label>
-                                        <Input 
-                                          type="number" 
-                                          step="0.01" 
-                                          value={rightEyeFormData.k_avg?.toString() || ""} 
-                                          onChange={(e) => handleContactEyeFieldChange("R", "k_avg", e.target.value)} 
-                                          disabled={!isEditing} 
-                                          className="h-8 text-xs px-1" 
-                                        />
-                                      </div>
-                                      <div className="col-span-3">
-                                        <Label className="text-[12px] block text-center">CYL</Label>
-                                        <Input 
-                                          type="number" 
-                                          step="0.01" 
-                                          value={rightEyeFormData.k_cyl?.toString() || ""} 
-                                          onChange={(e) => handleContactEyeFieldChange("R", "k_cyl", e.target.value)} 
-                                          disabled={!isEditing} 
-                                          className="h-8 text-xs px-1" 
-                                        />
-                                      </div>
-                                      <div className="col-span-3">
-                                        <Label className="text-[12px] block text-center">AX</Label>
-                                        <Input 
-                                          type="number" 
-                                          min="0" 
-                                          max="180" 
-                                          value={rightEyeFormData.k_ax?.toString() || ""} 
-                                          onChange={(e) => handleContactEyeFieldChange("R", "k_ax", e.target.value)} 
-                                          disabled={!isEditing} 
-                                          className="h-8 text-xs px-1" 
-                                        />
-                                      </div>
-                                      <div className="col-span-3">
-                                        <Label className="text-[12px] block text-center">ECC</Label>
-                                        <Input 
-                                          type="number" 
-                                          step="0.01" 
-                                          value={rightEyeFormData.k_ecc?.toString() || ""} 
-                                          onChange={(e) => handleContactEyeFieldChange("R", "k_ecc", e.target.value)} 
-                                          disabled={!isEditing} 
-                                          className="h-8 text-xs px-1" 
-                                        />
-                                      </div>
-                                    </div>
-                                    <span className="text-md font-medium pr-2 flex items-center justify-center w-6 pt-2">R</span>
-                                  </div>
-                                  <div className="h-6"></div>
-                                                                    <div className="flex items-center gap-1 h-6 mb-3" dir="rtl">
-                                    <div className="grid grid-cols-18 gap-4 flex-1 pb-2" dir="ltr">
-                                      <div className="col-span-3">
-                                        <Input 
-                                          type="number" 
-                                          step="0.01" 
-                                          value={leftEyeFormData.k_h?.toString() || ""} 
-                                          onChange={(e) => handleContactEyeFieldChange("L", "k_h", e.target.value)} 
-                                          disabled={!isEditing} 
-                                          className="h-8 text-xs px-1" 
-                                        />
-                                      </div>
-                                      <div className="col-span-3">
-                                        <Input 
-                                          type="number" 
-                                          step="0.01" 
-                                          value={leftEyeFormData.k_v?.toString() || ""} 
-                                          onChange={(e) => handleContactEyeFieldChange("L", "k_v", e.target.value)} 
-                                          disabled={!isEditing} 
-                                          className="h-8 text-xs px-1" 
-                                        />
-                                      </div>
-                                      <div className="col-span-3">
-                                        <Input 
-                                          type="number" 
-                                          step="0.01" 
-                                          value={leftEyeFormData.k_avg?.toString() || ""} 
-                                          onChange={(e) => handleContactEyeFieldChange("L", "k_avg", e.target.value)} 
-                                          disabled={!isEditing} 
-                                          className="h-8 text-xs px-1" 
-                                        />
-                                      </div>
-                                      <div className="col-span-3">
-                                        <Input 
-                                          type="number" 
-                                          step="0.01" 
-                                          value={leftEyeFormData.k_cyl?.toString() || ""} 
-                                          onChange={(e) => handleContactEyeFieldChange("L", "k_cyl", e.target.value)} 
-                                          disabled={!isEditing} 
-                                          className="h-8 text-xs px-1" 
-                                        />
-                                      </div>
-                                      <div className="col-span-3">
-                                        <Input 
-                                          type="number" 
-                                          min="0" 
-                                          max="180" 
-                                          value={leftEyeFormData.k_ax?.toString() || ""} 
-                                          onChange={(e) => handleContactEyeFieldChange("L", "k_ax", e.target.value)} 
-                                          disabled={!isEditing} 
-                                          className="h-8 text-xs px-1" 
-                                        />
-                                      </div>
-                                      <div className="col-span-3">
-                                        <Input 
-                                          type="number" 
-                                          step="0.01" 
-                                          value={leftEyeFormData.k_ecc?.toString() || ""} 
-                                          onChange={(e) => handleContactEyeFieldChange("L", "k_ecc", e.target.value)} 
-                                          disabled={!isEditing} 
-                                          className="h-8 text-xs px-1" 
-                                        />
-                                      </div>
-                                    </div>
-                                    <span className="text-md font-medium pr-2 flex items-center justify-center w-6 pb-2">L</span>
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    </TabsContent>
-                    
-                    <TabsContent value="order" className="space-y-4">
-                      <Card>
-                        <CardContent className="space-y-4 pt-4">
-                          <div className="grid grid-cols-5 gap-3">
-                            <div>
-                              <Label className="text-sm">סניף</Label>
-                              <LookupSelect
-                                value={contactLensOrderFormData.branch || ''}
-                                onChange={(value) => setContactLensOrderFormData(prev => ({ ...prev, branch: value }))}
-                                lookupType="clinic"
-                                placeholder="בחר או הקלד סניף..."
-                                disabled={!isEditing}
-                                className="mt-1.5"
-                              />
-                            </div>
-                            <div>
-                              <Label className="text-sm">אספקה בסניף</Label>
-                              <LookupSelect
-                                value={contactLensOrderFormData.supply_in_branch || ''}
-                                onChange={(value) => setContactLensOrderFormData(prev => ({ ...prev, supply_in_branch: value }))}
-                                lookupType="clinic"
-                                placeholder="בחר או הקלד סניף..."
-                                disabled={!isEditing}
-                                className="mt-1.5"
-                              />
-                            </div>
-                            <div>
-                              <Label className="text-sm">סטטוס הזמנה</Label>
-                              <Select dir="rtl"
-                                disabled={!isEditing}
-                                value={contactLensOrderFormData.order_status || ''} 
-                                onValueChange={(value) => setContactLensOrderFormData(prev => ({ ...prev, order_status: value }))}
-                              >
-                                <SelectTrigger className="mt-1.5 h-10 w-full">
-                                  <SelectValue placeholder="בחר סטטוס" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="חדש" className="text-sm">חדש</SelectItem>
-                                  <SelectItem value="בייצור" className="text-sm">בייצור</SelectItem>
-                                  <SelectItem value="מוכן" className="text-sm">מוכן</SelectItem>
-                                  <SelectItem value="נמסר" className="text-sm">נמסר</SelectItem>
-                                </SelectContent>
-                              </Select>
-                            </div>
-                            <div>
-                              <Label className="text-sm">יועץ</Label>
-                              <LookupSelect
-                                value={contactLensOrderFormData.advisor || ''}
-                                onChange={(value) => setContactLensOrderFormData(prev => ({ ...prev, advisor: value }))}
-                                lookupType="advisor"
-                                placeholder="בחר או הקלד יועץ..."
-                                disabled={!isEditing}
-                                className="mt-1.5"
-                              />
-                            </div>
-                            <div>
-                              <Label className="text-sm">משלוח</Label>
-                              <Input
-                                name="deliverer"
-                                value={contactLensOrderFormData.deliverer || ''}
-                                onChange={(e) => setContactLensOrderFormData(prev => ({ ...prev, deliverer: e.target.value }))}
-                                disabled={!isEditing}
-                                className="mt-1.5"
-                              />
-                            </div>
-                          </div>
-                          
-                          <div className="grid grid-cols-5 gap-3">
-                            <div>
-                              <Label className="text-sm">תאריך משלוח</Label>
-                              <DateInput
-                                name="delivery_date"
-                                value={contactLensOrderFormData.delivery_date}
-                                onChange={(e) => setContactLensOrderFormData(prev => ({ ...prev, delivery_date: e.target.value }))}
-                                disabled={!isEditing}
-                                className="mt-1.5"
-                              />
-                            </div>
-                            <div>
-                              <Label className="text-sm">עדיפות</Label>
-                              <Select dir="rtl"
-                                disabled={!isEditing}
-                                value={contactLensOrderFormData.priority || ''} 
-                                onValueChange={(value) => setContactLensOrderFormData(prev => ({ ...prev, priority: value }))}
-                              >
-                                <SelectTrigger className="mt-1.5 h-10 w-full">
-                                  <SelectValue placeholder="בחר עדיפות" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="רגיל" className="text-sm">רגיל</SelectItem>
-                                  <SelectItem value="דחוף" className="text-sm">דחוף</SelectItem>
-                                  <SelectItem value="גבוה" className="text-sm">גבוה</SelectItem>
-                                </SelectContent>
-                              </Select>
-                            </div>
-                            <div>
-                              <Label className="text-sm">תאריך מובטח</Label>
-                              <DateInput
-                                name="guaranteed_date"
-                                value={contactLensOrderFormData.guaranteed_date}
-                                onChange={(e) => setContactLensOrderFormData(prev => ({ ...prev, guaranteed_date: e.target.value }))}
-                                disabled={!isEditing}
-                                className="mt-1.5"
-                              />
-                            </div>
-                            <div>
-                              <Label className="text-sm">תאריך אישור</Label>
-                              <DateInput
-                                name="approval_date"
-                                value={contactLensOrderFormData.approval_date}
-                                onChange={(e) => setContactLensOrderFormData(prev => ({ ...prev, approval_date: e.target.value }))}
-                                disabled={!isEditing}
-                                className="mt-1.5"
-                              />
-                            </div>
-                            <div>
-                              <Label className="text-sm">תמיסת ניקוי</Label>
-                              <LookupSelect
-                                value={contactLensOrderFormData.cleaning_solution || ''}
-                                onChange={(value) => setContactLensOrderFormData(prev => ({ ...prev, cleaning_solution: value }))}
-                                lookupType="cleaningSolution"
-                                placeholder="בחר או הקלד תמיסת ניקוי..."
-                                disabled={!isEditing}
-                                className="mt-1.5"
-                              />
-                            </div>
-                          </div>
-                          
-                          <div className="grid grid-cols-5 gap-3">
-                            <div>
-                              <Label className="text-sm">תמיסת חיטוי</Label>
-                              <LookupSelect
-                                value={contactLensOrderFormData.disinfection_solution || ''}
-                                onChange={(value) => setContactLensOrderFormData(prev => ({ ...prev, disinfection_solution: value }))}
-                                lookupType="disinfectionSolution"
-                                placeholder="בחר או הקלד תמיסת חיטוי..."
-                                disabled={!isEditing}
-                                className="mt-1.5"
-                              />
-                            </div>
-                            <div>
-                              <Label className="text-sm">תמיסת שטיפה</Label>
-                              <LookupSelect
-                                value={contactLensOrderFormData.rinsing_solution || ''}
-                                onChange={(value) => setContactLensOrderFormData(prev => ({ ...prev, rinsing_solution: value }))}
-                                lookupType="rinsingSolution"
-                                placeholder="בחר או הקלד תמיסת שטיפה..."
-                                disabled={!isEditing}
-                                className="mt-1.5"
-                              />
-                            </div>
-                            <div></div>
-                            <div></div>
-                            <div></div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    </TabsContent>
-                    
-                    <TabsContent value="notes" className="space-y-4">
-                      <Card>
-                        <CardContent className="pt-4">
-                          <div className="grid grid-cols-2 gap-4">
-                            <div>
-                              <Label className="text-sm">הערות</Label>
-                                                          <Textarea
-                              name="notes"
-                              value={formData.notes || ''}
-                              onChange={handleInputChange}
-                              disabled={!isEditing}
-                              className="mt-1.5 min-h-[100px]"
-                              placeholder="הכנס הערות כלליות..."
-                            />
-                            </div>
-                            <div>
-                              <Label className="text-sm">הערות לספק</Label>
-                                                          <Textarea
-                              name="notes_for_supplier"
-                              value={formData.notes_for_supplier || ''}
-                              onChange={handleInputChange}
-                              disabled={!isEditing}
-                              className="mt-1.5 min-h-[100px]"
-                              placeholder="הכנס הערות לספק..."
-                            />
-                            </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    </TabsContent>
-                  </Tabs>
-                </div>
-              </form>
-            </TabsContent>
-            
-            <TabsContent value="billing" className="space-y-4">
-              <BillingTab
-                billingFormData={billingFormData}
-                setBillingFormData={setBillingFormData}
-                orderLineItems={orderLineItems}
-                setOrderLineItems={setOrderLineItems}
-                isEditing={isEditing}
-                handleDeleteOrderLineItem={handleDeleteOrderLineItem}
-              />
-            </TabsContent>
-          </Tabs>
+                )
+              })}
+            </div>
+          </form>
         </div>
-      </>
-    )
-}
+      </ClientSpaceLayout>
+    </>
+  )
+} 

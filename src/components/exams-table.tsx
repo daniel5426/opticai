@@ -147,7 +147,6 @@ export function ExamsTable({ data, clientId, onExamDeleted, onExamDeleteFailed, 
               {clientId === 0 && <TableHead className="text-right">לקוח</TableHead>}
               <TableHead className="text-right">סניף</TableHead>
               <TableHead className="text-right">בודק</TableHead>
-              <TableHead className="text-right">הערות</TableHead>
               <TableHead className="w-[50px] text-right"></TableHead>
             </TableRow>
           </TableHeader>
@@ -191,11 +190,6 @@ export function ExamsTable({ data, clientId, onExamDeleted, onExamDeleteFailed, 
                     <TableCell>{exam.clinic}</TableCell>
                     <TableCell>{getUserName(exam.user_id)}</TableCell>
                     <TableCell>
-                      {exam.notes && exam.notes.length > 30
-                        ? `${exam.notes.substring(0, 30)}...`
-                        : exam.notes}
-                    </TableCell>
-                    <TableCell>
                       <Button variant="ghost" className="h-8 w-8 p-0" onClick={(e) => {
                         e.stopPropagation();
                         setExamToDelete(exam);
@@ -208,7 +202,7 @@ export function ExamsTable({ data, clientId, onExamDeleted, onExamDeleteFailed, 
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={clientId === 0 ? 7 : 6} className="h-24 text-center">
+                  <TableCell colSpan={clientId === 0 ? 6 : 5} className="h-24 text-center">
                     לא נמצאו בדיקות לתצוגה
                   </TableCell>
                 </TableRow>
