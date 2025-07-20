@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { SiteHeader } from "@/components/site-header";
+import { useNavigate } from "@tanstack/react-router";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -275,11 +276,11 @@ function FilterBuilder({ filters, onChange }: { filters: FilterCondition[], onCh
   );
 }
 
-function CampaignModal({ isOpen, onClose, campaign, onSave }: { 
-  isOpen: boolean; 
-  onClose: () => void; 
-  campaign?: Campaign; 
-  onSave: (data: Campaign) => void 
+function CampaignModal({ isOpen, onClose, campaign, onSave }: {
+  isOpen: boolean;
+  onClose: () => void;
+  campaign?: Campaign;
+  onSave: (data: Campaign) => void
 }) {
   const [name, setName] = useState(campaign?.name || '');
   const [filters, setFilters] = useState<FilterCondition[]>(
@@ -289,6 +290,8 @@ function CampaignModal({ isOpen, onClose, campaign, onSave }: {
   const [emailContent, setEmailContent] = useState(campaign?.email_content || '');
   const [smsEnabled, setSmsEnabled] = useState(campaign?.sms_enabled || false);
   const [smsContent, setSmsContent] = useState(campaign?.sms_content || '');
+  const [cycleType, setCycleType] = useState<'daily' | 'monthly' | 'yearly' | 'custom'>(campaign?.cycle_type || 'daily');
+  const [customDays, setCustomDays] = useState(campaign?.cycle_custom_days || 1);
 
   const handleConfirm = () => {
     const data = {
@@ -303,6 +306,11 @@ function CampaignModal({ isOpen, onClose, campaign, onSave }: {
       active_since: campaign?.active_since,
       mail_sent: campaign?.mail_sent || false,
       sms_sent: campaign?.sms_sent || false,
+      emails_sent_count: campaign?.emails_sent_count || 0,
+      sms_sent_count: campaign?.sms_sent_count || 0,
+      cycle_type: cycleType,
+      cycle_custom_days: cycleType === 'custom' ? customDays : undefined,
+      last_executed: campaign?.last_executed,
     };
     onSave(data as Campaign);
   };
@@ -314,6 +322,8 @@ function CampaignModal({ isOpen, onClose, campaign, onSave }: {
     setEmailContent(campaign?.email_content || '');
     setSmsEnabled(campaign?.sms_enabled || false);
     setSmsContent(campaign?.sms_content || '');
+    setCycleType(campaign?.cycle_type || 'daily');
+    setCustomDays(campaign?.cycle_custom_days || 1);
   };
 
   useEffect(() => {
@@ -331,16 +341,63 @@ function CampaignModal({ isOpen, onClose, campaign, onSave }: {
       width="max-w-4xl"
     >
       <div className="space-y-6" dir="rtl">
-        <div className="space-y-2">
-          <Label htmlFor="name" className="text-sm font-medium">שם הקמפיין</Label>
-          <Input 
-            id="name" 
-            value={name} 
-            onChange={(e) => setName(e.target.value)}
-            placeholder="הכנס שם לקמפיין"
-            className="w-full"
-          />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="name" className="text-sm font-medium">שם הקמפיין</Label>
+            <Input
+              id="name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="הכנס שם לקמפיין"
+              className="w-full"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label className="text-sm font-medium flex items-center">
+              <Calendar className="h-4 w-4 ml-2" />
+              תדירות ביצוע
+            </Label>
+            <div className="space-y-2">
+              <Select value={cycleType} onValueChange={(value: 'daily' | 'monthly' | 'yearly' | 'custom') => setCycleType(value)}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="בחר תדירות ביצוע" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="daily">כל יום</SelectItem>
+                  <SelectItem value="monthly">כל חודש</SelectItem>
+                  <SelectItem value="yearly">כל שנה</SelectItem>
+                  <SelectItem value="custom">מספר ימים מותאם אישית</SelectItem>
+                </SelectContent>
+              </Select>
+              
+              {cycleType === 'custom' && (
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="number"
+                    min="1"
+                    max="365"
+                    value={customDays}
+                    onChange={(e) => setCustomDays(parseInt(e.target.value) || 1)}
+                    placeholder="מספר ימים"
+                    className="w-24"
+                  />
+                  <span className="text-sm text-muted-foreground">ימים</span>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
+
+        {cycleType && (
+          <div className="text-xs text-muted-foreground bg-blue-50 p-3 rounded-md">
+            <strong>הסבר:</strong> הקמפיין יבוצע אוטומטית לפי התדירות שנבחרה.
+            {cycleType === 'daily' && ' הקמפיין יבוצע כל יום בשעה 10:00.'}
+            {cycleType === 'monthly' && ' הקמפיין יבוצע פעם בחודש באותו תאריך.'}
+            {cycleType === 'yearly' && ' הקמפיין יבוצע פעם בשנה באותו תאריך.'}
+            {cycleType === 'custom' && ` הקמפיין יבוצע כל ${customDays} ימים.`}
+          </div>
+        )}
 
         <div className="space-y-3">
           <Label className="text-sm font-medium flex items-center">
@@ -419,11 +476,13 @@ function CampaignModal({ isOpen, onClose, campaign, onSave }: {
 }
 
 export default function CampaignsPage() {
+  const navigate = useNavigate();
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCampaign, setEditingCampaign] = useState<Campaign | undefined>(undefined);
   const [runningCampaignId, setRunningCampaignId] = useState<number | null>(null);
+  const [emailSettingsConfigured, setEmailSettingsConfigured] = useState<boolean>(true);
 
   const loadCampaigns = async () => {
     try {
@@ -443,6 +502,10 @@ export default function CampaignsPage() {
       }
       
       setCampaigns(data);
+      
+      // Check email settings configuration
+      const emailConfigured = await checkEmailSettingsConfigured();
+      setEmailSettingsConfigured(emailConfigured);
     } catch (error) {
       console.error('Error loading campaigns:', error);
       toast.error("שגיאה בטעינת הקמפיינים");
@@ -571,16 +634,20 @@ export default function CampaignsPage() {
     try {
       const result = await window.electronAPI.campaignExecuteFull(campaign.id);
       
+      console.log('Campaign execution result:', result);
+      
       if (result.success) {
         toast.success(`קמפיין הורץ בהצלחה: ${result.message}`, {
           id: loadingToast,
         });
         
-        // Update the campaign status
+        // Update the campaign status with new counts
         const updatedCampaign = {
           ...campaign,
           mail_sent: campaign.email_enabled && result.details?.emailsSent > 0,
           sms_sent: campaign.sms_enabled && result.details?.smsSent > 0,
+          emails_sent_count: (campaign.emails_sent_count || 0) + (result.details?.emailsSent || 0),
+          sms_sent_count: (campaign.sms_sent_count || 0) + (result.details?.smsSent || 0),
         };
         
         setCampaigns(campaigns.map(c => 
@@ -596,7 +663,37 @@ export default function CampaignsPage() {
           result.details[0].includes('No target clients have email addresses') ||
           result.details[0].includes('No target clients found matching the filters')
         );
-        if (onlyNoClients) {
+        
+        const emailSettingsNotConfigured = 
+          (result.details && Array.isArray(result.details) && 
+            result.details.some(detail => detail.includes('Email settings not configured'))) ||
+          (result.message && result.message.includes('Email settings not configured')) ||
+          (result.details && Array.isArray(result.details) && 
+            result.details.some(detail => detail.includes('Email settings not found'))) ||
+          (result.message && result.message.includes('Email settings not found'));
+        
+        if (emailSettingsNotConfigured) {
+          toast.error('הגדרות האימייל לא מוגדרות. יש להגדיר הגדרות אימייל בעמוד ההגדרות.', {
+            id: loadingToast,
+            action: {
+              label: 'פתח הגדרות',
+              onClick: () => {
+                navigate({ to: '/settings' });
+              }
+            }
+          });
+        } else if (campaign.email_enabled && result.details?.emailsSent === 0 && result.details?.targetClients > 0) {
+          // Campaign was supposed to send emails but none were sent, likely due to email settings
+          toast.error('הגדרות האימייל לא מוגדרות או שגויות. יש להגדיר הגדרות אימייל בעמוד ההגדרות.', {
+            id: loadingToast,
+            action: {
+              label: 'פתח הגדרות',
+              onClick: () => {
+                navigate({ to: '/settings' });
+              }
+            }
+          });
+        } else if (onlyNoClients) {
           toast.info('אין לקוחות מתאימים לשליחת הודעות בקמפיין זה.', {
             id: loadingToast,
           });
@@ -630,6 +727,15 @@ export default function CampaignsPage() {
     }
   };
 
+  const checkEmailSettingsConfigured = async () => {
+    try {
+      const settings = await window.electronAPI.db('getSettings');
+      return settings && settings.email_username && settings.email_password;
+    } catch {
+      return false;
+    }
+  };
+
   if (loading) {
     return (
       <>
@@ -646,6 +752,34 @@ export default function CampaignsPage() {
       <SiteHeader title="קמפיינים" />
       <div className="h-full overflow-auto bg-muted/30" style={{scrollbarWidth: 'none'}} dir="rtl">
         <div className="max-w-7xl mx-auto p-6 pb-20 space-y-6">
+          {!emailSettingsConfigured && campaigns.some(c => c.email_enabled) && (
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="text-amber-600">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                    </svg>
+                  </div>
+                  <div className="text-right">
+                    <h3 className="text-sm font-medium text-amber-800">הגדרות אימייל לא מוגדרות</h3>
+                    <p className="text-xs text-amber-700 mt-1">
+                      יש קמפיינים עם אימייל מופעל אך הגדרות האימייל לא מוגדרות. יש להגדיר הגדרות אימייל בעמוד ההגדרות.
+                    </p>
+                  </div>
+                </div>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => navigate({ to: '/settings' })}
+                  className="text-amber-700 border-amber-300 hover:bg-amber-100"
+                >
+                  פתח הגדרות
+                </Button>
+              </div>
+            </div>
+          )}
+
           <div className="flex justify-between items-center">
             <div>
               <h1 className="text-2xl font-bold">קמפיינים</h1>
@@ -749,21 +883,45 @@ export default function CampaignsPage() {
                         <div className="text-xs text-blue-500">מסננים</div>
                       </div>
                       
-                      <div className="text-center p-2 rounded-md bg-green-50/50">
+                      <div 
+                        className={`text-center p-2 rounded-md ${
+                          campaign.email_enabled 
+                            ? (emailSettingsConfigured ? 'bg-green-50/50' : 'bg-amber-50/50') 
+                            : 'bg-gray-50/50'
+                        }`}
+                        title={campaign.email_enabled && !emailSettingsConfigured 
+                          ? 'הגדרות האימייל לא מוגדרות. יש להגדיר הגדרות אימייל בעמוד ההגדרות.' 
+                          : undefined
+                        }
+                      >
                         <div className="flex items-center justify-center gap-1">
-                          <Mail className={`h-3 w-3 ${campaign.email_enabled ? 'text-green-600' : 'text-gray-400'}`} />
-                          <span className={`text-xs font-semibold ${campaign.email_enabled ? 'text-green-600' : 'text-gray-400'}`}>
-                            {campaign.mail_sent ? '✓' : '○'}
+                          <Mail className={`h-3 w-3 ${
+                            campaign.email_enabled 
+                              ? (emailSettingsConfigured ? 'text-green-600' : 'text-amber-600') 
+                              : 'text-gray-400'
+                          }`} />
+                          <span className={`text-xs font-semibold ${
+                            campaign.email_enabled 
+                              ? (emailSettingsConfigured ? 'text-green-600' : 'text-amber-600') 
+                              : 'text-gray-400'
+                          }`}>
+                            {campaign.emails_sent_count || 0}
                           </span>
                         </div>
-                        <div className="text-xs text-green-500">אימייל</div>
+                        <div className={`text-xs ${
+                          campaign.email_enabled 
+                            ? (emailSettingsConfigured ? 'text-green-500' : 'text-amber-500') 
+                            : 'text-gray-400'
+                        }`}>
+                          {campaign.email_enabled && !emailSettingsConfigured ? 'אימייל ⚠️' : 'אימייל'}
+                        </div>
                       </div>
                       
                       <div className="text-center p-2 rounded-md bg-purple-50/50">
                         <div className="flex items-center justify-center gap-1">
                           <MessageSquare className={`h-3 w-3 ${campaign.sms_enabled ? 'text-purple-600' : 'text-gray-400'}`} />
                           <span className={`text-xs font-semibold ${campaign.sms_enabled ? 'text-purple-600' : 'text-gray-400'}`}>
-                            {campaign.sms_sent ? '✓' : '○'}
+                            {campaign.sms_sent_count || 0}
                           </span>
                         </div>
                         <div className="text-xs text-purple-500">SMS</div>

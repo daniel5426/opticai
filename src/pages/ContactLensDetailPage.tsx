@@ -4,7 +4,7 @@ import { SiteHeader } from "@/components/site-header"
 import { getClientById } from "@/lib/db/clients-db"
 import { getExamById, updateExam, createExam } from "@/lib/db/exams-db"
 import { OpticalExam, Client, User, ExamLayout, ExamLayoutInstance, NotesExam } from "@/lib/db/schema"
-import { getAllExamLayouts, getDefaultExamLayout, getExamLayoutInstancesByExamId, getActiveExamLayoutInstanceByExamId, setActiveExamLayoutInstance, addLayoutToExam, getExamLayoutById, deleteExamLayoutInstance } from "@/lib/db/exam-layouts-db"
+import { getAllExamLayouts, getDefaultExamLayout, getDefaultExamLayoutsByType, getExamLayoutInstancesByExamId, getActiveExamLayoutInstanceByExamId, setActiveExamLayoutInstance, addLayoutToExam, getExamLayoutById, deleteExamLayoutInstance } from "@/lib/db/exam-layouts-db"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu"
 import { ChevronDownIcon, PlusCircleIcon, X as XIcon } from "lucide-react"
@@ -405,66 +405,96 @@ export default function ContactLensDetailPage({
                 }
               }
             } else {
-              let defaultLayout = await getDefaultExamLayout()
-              if (!defaultLayout && layoutsData.length > 0) {
-                defaultLayout = layoutsData[0]
+              let defaultLayouts = await getDefaultExamLayoutsByType('opticlens')
+              if (defaultLayouts.length === 0) {
+                // Fallback to any opticlens type layouts if no defaults found
+                const opticlensTypeLayouts = layoutsData.filter(layout => layout.type === 'opticlens')
+                if (opticlensTypeLayouts.length > 0) {
+                  defaultLayouts = [opticlensTypeLayouts[0]]
+                }
               }
 
-              if (defaultLayout) {
-                const newLayoutInstance = await addLayoutToExam(Number(examId), defaultLayout.id || 1, true)
-                
-                if (newLayoutInstance) {
-                  setActiveLayoutId(defaultLayout.id || 0)
-                  setLayoutTabs([{
-                    id: newLayoutInstance.id || 0,
-                    layout_id: defaultLayout.id || 0,
-                    name: defaultLayout.name || '',
-                    layout_data: defaultLayout.layout_data || '',
-                    isActive: true
-                  }])
+              if (defaultLayouts.length > 0) {
+                const layoutTabsData: LayoutTab[] = []
+                let firstLayoutInstance: any = null
+
+                for (let i = 0; i < defaultLayouts.length; i++) {
+                  const defaultLayout = defaultLayouts[i]
+                  const newLayoutInstance = await addLayoutToExam(Number(examId), defaultLayout.id || 1, i === 0)
                   
-                  const parsedLayout = JSON.parse(defaultLayout.layout_data)
-                  if (Array.isArray(parsedLayout)) {
-                    setCardRows(parsedLayout)
-                    setCustomWidths({})
-                  } else {
-                    setCardRows(parsedLayout.rows || [])
-                    setCustomWidths(parsedLayout.customWidths || {})
-                  }
-                  
-                  if (newLayoutInstance.id) {
-                    await loadExamComponentData(newLayoutInstance.id, defaultLayout.layout_data)
+                  if (newLayoutInstance) {
+                    if (i === 0) {
+                      firstLayoutInstance = newLayoutInstance
+                      setActiveLayoutId(defaultLayout.id || 0)
+                      
+                      const parsedLayout = JSON.parse(defaultLayout.layout_data)
+                      if (Array.isArray(parsedLayout)) {
+                        setCardRows(parsedLayout)
+                        setCustomWidths({})
+                      } else {
+                        setCardRows(parsedLayout.rows || [])
+                        setCustomWidths(parsedLayout.customWidths || {})
+                      }
+                      
+                      if (newLayoutInstance.id) {
+                        await loadExamComponentData(newLayoutInstance.id, defaultLayout.layout_data)
+                      }
+                    }
+
+                    layoutTabsData.push({
+                      id: newLayoutInstance.id || 0,
+                      layout_id: defaultLayout.id || 0,
+                      name: defaultLayout.name || '',
+                      layout_data: defaultLayout.layout_data || '',
+                      isActive: i === 0
+                    })
                   }
                 }
+
+                setLayoutTabs(layoutTabsData)
               }
             }
           }
         } else {
-          let defaultLayout = await getDefaultExamLayout()
-          if (!defaultLayout && layoutsData.length > 0) {
-            defaultLayout = layoutsData[0]
+          let defaultLayouts = await getDefaultExamLayoutsByType('opticlens')
+          if (defaultLayouts.length === 0) {
+            // Fallback to any opticlens type layouts if no defaults found
+            const opticlensTypeLayouts = layoutsData.filter(layout => layout.type === 'opticlens')
+            if (opticlensTypeLayouts.length > 0) {
+              defaultLayouts = [opticlensTypeLayouts[0]]
+            }
           }
 
-          if (defaultLayout) {
-            setActiveLayoutId(defaultLayout.id || 0)
-            const parsedLayout = JSON.parse(defaultLayout.layout_data)
-            if (Array.isArray(parsedLayout)) {
-              setCardRows(parsedLayout)
-              setCustomWidths({})
-            } else {
-              setCardRows(parsedLayout.rows || [])
-              setCustomWidths(parsedLayout.customWidths || {})
+          if (defaultLayouts.length > 0) {
+            const layoutTabsData: LayoutTab[] = []
+
+            for (let i = 0; i < defaultLayouts.length; i++) {
+              const defaultLayout = defaultLayouts[i]
+              
+              if (i === 0) {
+                setActiveLayoutId(defaultLayout.id || 0)
+                const parsedLayout = JSON.parse(defaultLayout.layout_data)
+                if (Array.isArray(parsedLayout)) {
+                  setCardRows(parsedLayout)
+                  setCustomWidths({})
+                } else {
+                  setCardRows(parsedLayout.rows || [])
+                  setCustomWidths(parsedLayout.customWidths || {})
+                }
+                
+                initializeFormData(defaultLayout.id || 0, defaultLayout.layout_data)
+              }
+
+              layoutTabsData.push({
+                id: -Date.now() - i,
+                layout_id: defaultLayout.id || 0,
+                name: defaultLayout.name || '',
+                layout_data: defaultLayout.layout_data || '',
+                isActive: i === 0
+              })
             }
-            
-            setLayoutTabs([{
-              id: 0,
-              layout_id: defaultLayout.id || 0,
-              name: defaultLayout.name || '',
-              layout_data: defaultLayout.layout_data || '',
-              isActive: true
-            }])
-            
-            initializeFormData(defaultLayout.id || 0, defaultLayout.layout_data)
+
+            setLayoutTabs(layoutTabsData)
           }
         }
 

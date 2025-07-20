@@ -445,10 +445,12 @@ function setupIpcHandlers() {
         throw new Error('AI agent not initialized');
       }
       
-      const aiMainState = await aiAgent.generateClientAiMainState(clientId);
-      await dbService.updateClientAiMainState(clientId, aiMainState);
+      // This method is deprecated but kept for backward compatibility
+      // Generate all states using the new comprehensive method
+      const allStates = await aiAgent.generateAllClientAiStates(clientId);
+      await dbService.updateClientAiStates(clientId, allStates);
       
-      return aiMainState;
+      return 'AI states generated successfully';
     } catch (error) {
       console.error('Error generating AI main state:', error);
       return 'שגיאה ביצירת סיכום AI';
@@ -461,18 +463,29 @@ function setupIpcHandlers() {
         throw new Error('AI agent not initialized');
       }
       
-      const client = await dbService.getClientById(clientId);
-      if (!client?.ai_main_state) {
-        throw new Error('Client AI main state not found');
-      }
-      
-      const aiPartState = await aiAgent.generateClientAiPartState(clientId, part, client.ai_main_state);
+      const aiPartState = await aiAgent.generateClientAiPartState(clientId, part);
       await dbService.updateClientAiPartState(clientId, part, aiPartState);
       
       return aiPartState;
     } catch (error) {
       console.error('Error generating AI part state:', error);
       return 'שגיאה ביצירת מידע AI לתחום זה';
+    }
+  });
+
+  ipcMain.handle('ai-generate-all-states', async (event, clientId: number) => {
+    try {
+      if (!aiAgent) {
+        throw new Error('AI agent not initialized');
+      }
+      
+      const allStates = await aiAgent.generateAllClientAiStates(clientId);
+      await dbService.updateClientAiStates(clientId, allStates);
+      
+      return;
+    } catch (error) {
+      console.error('Error generating all AI states:', error);
+      throw error;
     }
   });
 

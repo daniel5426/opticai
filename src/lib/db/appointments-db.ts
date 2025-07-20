@@ -32,7 +32,7 @@ export async function createAppointment(appointment: Omit<Appointment, 'id'>): P
     const result = await window.electronAPI.db('createAppointment', appointment);
     if (result && appointment.client_id) {
       await window.electronAPI.db('updateClientUpdatedDate', appointment.client_id);
-      await window.electronAPI.db('updateClientPartUpdatedDate', appointment.client_id, 'appointment');
+      
     }
     return result;
   } catch (error) {
@@ -46,7 +46,7 @@ export async function updateAppointment(appointment: Appointment): Promise<Appoi
     const result = await window.electronAPI.db('updateAppointment', appointment);
     if (result && appointment.client_id) {
       await window.electronAPI.db('updateClientUpdatedDate', appointment.client_id);
-      await window.electronAPI.db('updateClientPartUpdatedDate', appointment.client_id, 'appointment');
+      
     }
     return result;
   } catch (error) {
@@ -61,7 +61,7 @@ export async function deleteAppointment(id: number): Promise<boolean> {
     const result = await window.electronAPI.db('deleteAppointment', id);
     if (result && appointment?.client_id) {
       await window.electronAPI.db('updateClientUpdatedDate', appointment.client_id);
-      await window.electronAPI.db('updateClientPartUpdatedDate', appointment.client_id, 'appointment');
+      
     }
     return result;
   } catch (error) {

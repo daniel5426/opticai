@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { CustomModal } from "@/components/ui/custom-modal"
-import { IconClock, IconCalendar, IconChartBar, IconPlus, IconTrash, IconChevronRight, IconChevronLeft } from "@tabler/icons-react"
+import { IconClock, IconCalendar, IconChartBar, IconPlus, IconTrash } from "@tabler/icons-react"
 import { getAllUsers } from "@/lib/db/users-db"
 import { getWorkShiftStats, getWorkShiftsByUserAndDate, createWorkShift, deleteWorkShift } from "@/lib/db/work-shifts-db"
 import { User, WorkShift } from "@/lib/db/schema"
@@ -84,16 +84,6 @@ export default function WorkerStatsPage() {
     loadUserStats()
   }, [selectedUserId, selectedMonth, selectedYear])
 
-  if (currentUser?.role !== 'admin') {
-    return (
-      <>
-        <SiteHeader title="יומן נוכחות" />
-        <div className="flex flex-col items-center justify-center h-full" dir="rtl">
-          <div className="text-lg text-red-600">אין לך הרשאה לצפות בעמוד זה</div>
-        </div>
-      </>
-    )
-  }
 
   if (loading) {
     return (
@@ -265,15 +255,19 @@ export default function WorkerStatsPage() {
                       <Card className="shadow-md border-none">
                         <CardHeader>
                           <div className="flex items-center justify-between">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => setIsCreateModalOpen(true)}
-                              className="flex items-center gap-2"
-                            >
-                              <IconPlus className="h-4 w-4" />
-                              הוספת משמרת
-                            </Button>
+                            <div className="flex items-center">
+                              {currentUser?.role === 'admin' && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => setIsCreateModalOpen(true)}
+                                  className="flex items-center gap-2"
+                                >
+                                  <IconPlus className="h-4 w-4" />
+                                  הוספת משמרת
+                                </Button>
+                              )}
+                            </div>
                             <div className="text-right">
                               <CardTitle>צפייה לפי יום</CardTitle>
                               <p className="text-sm text-muted-foreground">בחר תאריך לצפייה בשעות הגעה ויציאה</p>
@@ -312,14 +306,16 @@ export default function WorkerStatsPage() {
                                          shift.status === 'active' ? 'פעילה' :
                                          'בוטלה'}
                                       </Badge>
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={() => handleDeleteShift(shift.id!)}
-                                        className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
-                                      >
-                                        <IconTrash className="h-4 w-4" />
-                                      </Button>
+                                      {currentUser?.role === 'admin' && (
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          onClick={() => handleDeleteShift(shift.id!)}
+                                          className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
+                                        >
+                                          <IconTrash className="h-4 w-4" />
+                                        </Button>
+                                      )}
                                     </div>
                                     <div className="text-sm text-muted-foreground">
                                       משמרת {index + 1}

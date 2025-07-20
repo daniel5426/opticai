@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Card, CardContent } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
-import { X, User, Phone, Mail, IdCard, Calendar, MapPin, Building2, PanelLeftIcon, FileText, Brain, Loader2, Sparkles } from 'lucide-react'
+import { X, User, Phone, Mail, IdCard, Calendar, MapPin, Building2, PanelLeftIcon, FileText, Brain, Loader2, Sparkles, ChevronDown, ChevronRight } from 'lucide-react'
 import { useLocation, useSearch } from '@tanstack/react-router'
 
 function calculateAge(dateOfBirth: string | undefined): number | null {
@@ -99,18 +99,18 @@ function detectCurrentPart(pathname: string, searchParams?: any, contextActiveTa
   return null
 }
 
-function AIInformationSection({ 
-  clientId, 
-  currentPart, 
-  aiInfo, 
+function AIInformationSection({
+  currentPart,
+  aiInfo,
   isGenerating,
-  onGenerate 
-}: { 
-  clientId: number
+  isAiBlockOpen,
+  onToggleAiBlock
+}: {
   currentPart: string | null
   aiInfo: string | null
   isGenerating: boolean
-  onGenerate: (forceRegenerate?: boolean) => void
+  isAiBlockOpen: boolean
+  onToggleAiBlock: () => void
 }) {
   if (!currentPart) return null
   
@@ -130,12 +130,21 @@ function AIInformationSection({
     <>
       <Separator />
       <div className="space-y-3">
-        <div className="flex items-center gap-2">
+        <div
+          className="flex items-center gap-2 cursor-pointer hover:bg-muted/50 p-2 rounded-md transition-colors"
+          onClick={onToggleAiBlock}
+        >
           <Brain className="h-4 w-4 text-primary" />
-          <h4 className="font-medium text-sm text-muted-foreground">מידע AI - {partName}</h4>
+          <h4 className="font-medium text-sm text-muted-foreground flex-1">מידע AI - {partName}</h4>
+          {isAiBlockOpen ? (
+            <ChevronDown className="h-4 w-4 text-muted-foreground" />
+          ) : (
+            <ChevronRight className="h-4 w-4 text-muted-foreground" />
+          )}
         </div>
         
-        <div className="p-3 rounded-lg bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 border border-blue-200 dark:border-blue-800">
+        {isAiBlockOpen && (
+          <div className="p-3 rounded-lg bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 border border-blue-200 dark:border-blue-800">
           {isGenerating ? (
             <div className="flex items-center justify-center gap-2 py-4">
               <Loader2 className="h-5 w-5 animate-spin text-primary" />
@@ -150,31 +159,16 @@ function AIInformationSection({
               <div className="text-sm whitespace-pre-line leading-relaxed">
                 {aiInfo}
               </div>
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                onClick={() => onGenerate(true)}
-                className="w-full mt-2 h-8 text-xs"
-              >
-                רענן מידע
-              </Button>
             </div>
           ) : (
-            <div className="text-center py-4">
-              <p className="text-sm text-muted-foreground mb-3">
+            <div className="text-center py-2">
+              <p className="text-sm text-muted-foreground">
                 אין מידע AI זמין עבור {partName}
               </p>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={() => onGenerate(false)}
-                className="h-8 text-xs"
-              >
-                צור מידע AI
-              </Button>
             </div>
           )}
-        </div>
+          </div>
+        )}
       </div>
     </>
   )
@@ -186,6 +180,12 @@ export function ClientSidebar() {
   const [aiInfo, setAiInfo] = useState<string | null>(null)
   const [isGenerating, setIsGenerating] = useState(false)
   const [currentPart, setCurrentPart] = useState<string | null>(null)
+  const [lastClientUpdateDate, setLastClientUpdateDate] = useState<string | null>(null)
+  const [isAiBlockOpen, setIsAiBlockOpen] = useState<boolean>(() => {
+    // Load initial state from localStorage, default to true (open)
+    const saved = localStorage.getItem('client-sidebar-ai-block-open')
+    return saved !== null ? JSON.parse(saved) : true
+  })
   
   // Get search params, but handle potential errors
   let searchParams = null
@@ -202,94 +202,15 @@ export function ClientSidebar() {
     setCurrentPart(part)
   }, [location.pathname, searchParams, contextActiveTab])
 
-  const loadAiInfo = useCallback(async () => {
-    if (!currentClient?.id || !currentPart) return
-    
-    try {
-      // Get fresh client data to check current state
-      const client = await window.electronAPI.db('getClientById', currentClient.id)
-      if (!client) return
-      
-      const aiPartState = client[`ai_${currentPart}_state` as keyof typeof client] as string
-      const aiMainUpdatedDate = client.ai_updated_date
-      const partUpdatedDate = client[`${currentPart}_updated_date` as keyof typeof client] as string
-      
-      // If we have a part state, check if it's still valid
-      if (aiPartState) {
-        // Part state is valid if:
-        // 1. Main AI state exists and was updated
-        // 2. Part hasn't been updated since the main AI state was updated
-        if (aiMainUpdatedDate && (!partUpdatedDate || new Date(aiMainUpdatedDate) >= new Date(partUpdatedDate))) {
-          setAiInfo(aiPartState)
-          return
-        }
-      }
-      
-      // No valid part state available
-      setAiInfo(null)
-    } catch (error) {
-      console.error('Error loading AI info:', error)
-      setAiInfo(null)
-    }
-  }, [currentClient?.id, currentPart])
+  // Handle AI block toggle
+  const handleToggleAiBlock = useCallback(() => {
+    const newState = !isAiBlockOpen
+    setIsAiBlockOpen(newState)
+    // Save state to localStorage
+    localStorage.setItem('client-sidebar-ai-block-open', JSON.stringify(newState))
+  }, [isAiBlockOpen])
 
-  // Separate effect for loading AI info - only when part or client changes
-  useEffect(() => {
-    if (currentPart && currentClient?.id) {
-      loadAiInfo()
-    } else {
-      setAiInfo(null)
-    }
-  }, [currentPart, currentClient?.id, loadAiInfo])
-
-  const generateAiInfo = async (forceRegenerate: boolean = false) => {
-    if (!currentClient?.id || !currentPart) return
-    
-    setIsGenerating(true)
-    try {
-      // Get fresh client data to check current state
-      const client = await window.electronAPI.db('getClientById', currentClient.id)
-      if (!client) return
-      
-      if (!forceRegenerate) {
-        // Check if we already have valid part state
-        const aiPartState = client[`ai_${currentPart}_state` as keyof typeof client] as string
-        const aiMainUpdatedDate = client.ai_updated_date
-        const partUpdatedDate = client[`${currentPart}_updated_date` as keyof typeof client] as string
-        
-        if (aiPartState && aiMainUpdatedDate && (!partUpdatedDate || new Date(aiMainUpdatedDate) >= new Date(partUpdatedDate))) {
-          setAiInfo(aiPartState)
-          return
-        }
-      }
-      
-      // Initialize AI agent if not already initialized
-      const initResult = await window.electronAPI.aiInitialize()
-      if (!initResult.success) {
-        console.error('Failed to initialize AI agent:', initResult.error)
-        return
-      }
-      
-      // Check if main state needs update (only if client data was updated)
-      const needsMainStateUpdate = await checkIfMainStateNeedsUpdate(currentClient.id)
-      
-      if (needsMainStateUpdate) {
-        await window.electronAPI.aiGenerateMainState(currentClient.id)
-      }
-      
-      // Generate part state
-      const partState = await window.electronAPI.aiGeneratePartState(currentClient.id, currentPart)
-      if (partState) {
-        setAiInfo(partState)
-      }
-    } catch (error) {
-      console.error('Error generating AI info:', error)
-    } finally {
-      setIsGenerating(false)
-    }
-  }
-  
-  const checkIfMainStateNeedsUpdate = async (clientId: number): Promise<boolean> => {
+  const checkIfAiStatesNeedUpdate = useCallback(async (clientId: number): Promise<boolean> => {
     try {
       const client = await window.electronAPI.db('getClientById', clientId)
       if (!client) return true
@@ -301,10 +222,116 @@ export function ClientSidebar() {
       
       return new Date(clientUpdatedDate) > new Date(aiUpdatedDate)
     } catch (error) {
-      console.error('Error checking main state update:', error)
+      console.error('Error checking AI states update:', error)
       return true
     }
-  }
+  }, [])
+
+  const loadAiInfo = useCallback(async (forceRegenerate = false) => {
+    if (!currentClient?.id || !currentPart || !isOpen || !isAiBlockOpen) return
+    
+    try {
+      // Get fresh client data to check current state
+      const client = await window.electronAPI.db('getClientById', currentClient.id)
+      if (!client) return
+      
+      const aiPartState = client[`ai_${currentPart}_state` as keyof typeof client] as string
+      const aiUpdatedDate = client.ai_updated_date
+      const clientUpdatedDate = client.client_updated_date
+      
+      // If we have a part state and not forcing regeneration, check if it's still valid
+      if (aiPartState && !forceRegenerate) {
+        // Part state is valid if AI was updated after the client data was last updated
+        if (aiUpdatedDate && clientUpdatedDate && new Date(aiUpdatedDate) >= new Date(clientUpdatedDate)) {
+          setAiInfo(aiPartState)
+          return
+        }
+      }
+      
+      // No valid part state available, outdated, or forced regeneration - automatically generate
+      // Clear old content immediately to prevent flickering
+      setAiInfo(null)
+      setIsGenerating(true)
+      
+      // Initialize AI agent if not already initialized
+      const initResult = await window.electronAPI.aiInitialize()
+      if (!initResult.success) {
+        console.error('Failed to initialize AI agent:', initResult.error)
+        setAiInfo(null)
+        setIsGenerating(false)
+        return
+      }
+      
+      // Check if AI states need update (only if client data was updated or forced)
+      const needsAiUpdate = forceRegenerate || await checkIfAiStatesNeedUpdate(currentClient.id)
+      
+      if (needsAiUpdate) {
+        // Generate all AI states at once using the new comprehensive method
+        await window.electronAPI.aiGenerateAllStates(currentClient.id)
+      }
+      
+      // Get the updated part state
+      const updatedClient = await window.electronAPI.db('getClientById', currentClient.id)
+      if (updatedClient) {
+        const partState = updatedClient[`ai_${currentPart}_state` as keyof typeof updatedClient] as string
+        if (partState) {
+          setAiInfo(partState)
+        } else {
+          setAiInfo(null)
+        }
+      }
+      
+      setIsGenerating(false)
+    } catch (error) {
+      console.error('Error loading AI info:', error)
+      setAiInfo(null)
+      setIsGenerating(false)
+    }
+  }, [currentClient?.id, currentPart, isOpen, isAiBlockOpen, checkIfAiStatesNeedUpdate])
+
+  // Separate effect for loading AI info - only when sidebar is open, AI block is open, and part or client changes
+  useEffect(() => {
+    if (currentPart && currentClient?.id && isOpen && isAiBlockOpen) {
+      loadAiInfo()
+    } else {
+      setAiInfo(null)
+    }
+  }, [currentPart, currentClient?.id, isOpen, isAiBlockOpen, loadAiInfo])
+
+  // Polling effect to detect data changes and trigger immediate loading
+  useEffect(() => {
+    if (!currentClient?.id || !isOpen || !isAiBlockOpen) return
+
+    const pollForDataChanges = async () => {
+      try {
+        const client = await window.electronAPI.db('getClientById', currentClient.id)
+        if (!client) return
+
+        const currentUpdateDate = client.client_updated_date
+        
+        // If this is the first time or the update date has changed
+        if (currentUpdateDate && currentUpdateDate !== lastClientUpdateDate) {
+          setLastClientUpdateDate(currentUpdateDate)
+          
+          // If we had a previous update date and it changed, trigger AI regeneration
+          if (lastClientUpdateDate && currentPart) {
+            console.log('Data change detected, triggering AI regeneration')
+            loadAiInfo(true) // Force regeneration
+          }
+        }
+      } catch (error) {
+        console.error('Error polling for data changes:', error)
+      }
+    }
+
+    // Initial check
+    pollForDataChanges()
+
+    // Set up polling every 2 seconds when sidebar is open
+    const interval = setInterval(pollForDataChanges, 2000)
+
+    return () => clearInterval(interval)
+  }, [currentClient?.id, isOpen, isAiBlockOpen, lastClientUpdateDate, currentPart, loadAiInfo])
 
   if (!currentClient || !isClientSpacePage) {
     return <div className="w-0 overflow-hidden" />
@@ -348,11 +375,11 @@ export function ClientSidebar() {
           </div>
 
           <AIInformationSection
-            clientId={currentClient.id!}
             currentPart={currentPart}
             aiInfo={aiInfo}
             isGenerating={isGenerating}
-            onGenerate={generateAiInfo}
+            isAiBlockOpen={isAiBlockOpen}
+            onToggleAiBlock={handleToggleAiBlock}
           />
 
           <Separator />

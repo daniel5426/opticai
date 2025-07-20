@@ -4,7 +4,7 @@ import { SiteHeader } from "@/components/site-header"
 import { getClientById } from "@/lib/db/clients-db"
 import { getExamById, updateExam, createExam } from "@/lib/db/exams-db"
 import { OpticalExam, Client, User, ExamLayout, ExamLayoutInstance, NotesExam } from "@/lib/db/schema"
-import { getAllExamLayouts, getDefaultExamLayout, getDefaultExamLayouts, getExamLayoutInstancesByExamId, getActiveExamLayoutInstanceByExamId, setActiveExamLayoutInstance, addLayoutToExam, getExamLayoutById, deleteExamLayoutInstance } from "@/lib/db/exam-layouts-db"
+import { getAllExamLayouts, getDefaultExamLayout, getDefaultExamLayouts, getDefaultExamLayoutsByType, getExamLayoutInstancesByExamId, getActiveExamLayoutInstanceByExamId, setActiveExamLayoutInstance, addLayoutToExam, getExamLayoutById, deleteExamLayoutInstance } from "@/lib/db/exam-layouts-db"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu"
 import { ChevronDownIcon, PlusCircleIcon, X as XIcon } from "lucide-react"
@@ -405,9 +405,13 @@ export default function ExamDetailPageRefactored({
                 }
               }
             } else {
-              let defaultLayouts = await getDefaultExamLayouts()
-              if (defaultLayouts.length === 0 && layoutsData.length > 0) {
-                defaultLayouts = [layoutsData[0]]
+              let defaultLayouts = await getDefaultExamLayoutsByType('exam')
+              if (defaultLayouts.length === 0) {
+                // Fallback to any exam type layouts if no defaults found
+                const examTypeLayouts = layoutsData.filter(layout => layout.type === 'exam')
+                if (examTypeLayouts.length > 0) {
+                  defaultLayouts = [examTypeLayouts[0]]
+                }
               }
 
               if (defaultLayouts.length > 0) {
@@ -452,9 +456,13 @@ export default function ExamDetailPageRefactored({
             }
           }
         } else {
-          let defaultLayouts = await getDefaultExamLayouts()
-          if (defaultLayouts.length === 0 && layoutsData.length > 0) {
-            defaultLayouts = [layoutsData[0]]
+          let defaultLayouts = await getDefaultExamLayoutsByType('exam')
+          if (defaultLayouts.length === 0) {
+            // Fallback to any exam type layouts if no defaults found
+            const examTypeLayouts = layoutsData.filter(layout => layout.type === 'exam')
+            if (examTypeLayouts.length > 0) {
+              defaultLayouts = [examTypeLayouts[0]]
+            }
           }
 
           if (defaultLayouts.length > 0) {

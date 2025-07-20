@@ -24,7 +24,6 @@ export async function createMedicalLog(log: Omit<MedicalLog, 'id'>): Promise<Med
     const result = await window.electronAPI.db('createMedicalLog', log);
     if (result && log.client_id) {
       await window.electronAPI.db('updateClientUpdatedDate', log.client_id);
-      await window.electronAPI.db('updateClientPartUpdatedDate', log.client_id, 'medical');
     }
     return result;
   } catch (error) {
@@ -38,7 +37,6 @@ export async function updateMedicalLog(log: MedicalLog): Promise<MedicalLog | nu
     const result = await window.electronAPI.db('updateMedicalLog', log);
     if (result && log.client_id) {
       await window.electronAPI.db('updateClientUpdatedDate', log.client_id);
-      await window.electronAPI.db('updateClientPartUpdatedDate', log.client_id, 'medical');
     }
     return result;
   } catch (error) {
@@ -53,7 +51,6 @@ export async function deleteMedicalLog(id: number): Promise<boolean> {
     const result = await window.electronAPI.db('deleteMedicalLog', id);
     if (result && log?.client_id) {
       await window.electronAPI.db('updateClientUpdatedDate', log.client_id);
-      await window.electronAPI.db('updateClientPartUpdatedDate', log.client_id, 'medical');
     }
     return result;
   } catch (error) {

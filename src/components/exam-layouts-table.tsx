@@ -56,6 +56,21 @@ export function ExamLayoutsTable({ data, onRefresh }: ExamLayoutsTableProps) {
 
       const newDefaultStatus = !layoutToUpdate.is_default;
 
+      // Check if trying to remove the last default layout
+      if (!newDefaultStatus) {
+        const layoutType = layoutToUpdate.type || 'exam';
+        const layoutsOfSameType = data.filter(layout => 
+          (layout.type || 'exam') === layoutType
+        );
+        const defaultLayoutsOfSameType = layoutsOfSameType.filter(layout => layout.is_default);
+        
+        if (defaultLayoutsOfSameType.length <= 1) {
+          toast.error("חייב להיות לפחות פריסת ברירת מחדל אחת");
+          setIsProcessing(prev => ({ ...prev, [layoutId]: false }));
+          return;
+        }
+      }
+
       // Optimistically update UI first
       const updatedLayouts = localData.map(layout => ({
         ...layout,

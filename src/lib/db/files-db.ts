@@ -5,7 +5,7 @@ export async function createFile(data: Omit<File, 'id'>): Promise<File | null> {
     const result = await window.electronAPI.db('createFile', data);
     if (result && data.client_id) {
       await window.electronAPI.db('updateClientUpdatedDate', data.client_id);
-      await window.electronAPI.db('updateClientPartUpdatedDate', data.client_id, 'file');
+      
     }
     return result;
   } catch (error) {
@@ -46,7 +46,7 @@ export async function updateFile(data: File): Promise<File | null> {
     const result = await window.electronAPI.db('updateFile', data);
     if (result && data.client_id) {
       await window.electronAPI.db('updateClientUpdatedDate', data.client_id);
-      await window.electronAPI.db('updateClientPartUpdatedDate', data.client_id, 'file');
+      
     }
     return result;
   } catch (error) {
@@ -61,7 +61,7 @@ export async function deleteFile(id: number): Promise<boolean> {
     const result = await window.electronAPI.db('deleteFile', id);
     if (result && file?.client_id) {
       await window.electronAPI.db('updateClientUpdatedDate', file.client_id);
-      await window.electronAPI.db('updateClientPartUpdatedDate', file.client_id, 'file');
+      
     }
     return result;
   } catch (error) {

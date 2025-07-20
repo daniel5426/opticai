@@ -44,7 +44,7 @@ export class CampaignScheduler {
       console.log('Checking for active campaigns to execute...');
       
       const allCampaigns = dbService.getAllCampaigns();
-      const activeCampaigns = allCampaigns.filter(campaign => 
+      const activeCampaigns = allCampaigns.filter(campaign =>
         campaign.active && (campaign.email_enabled || campaign.sms_enabled)
       );
 
@@ -52,13 +52,58 @@ export class CampaignScheduler {
 
       for (const campaign of activeCampaigns) {
         try {
-          await this.executeCampaign(campaign);
+          if (this.shouldExecuteCampaign(campaign)) {
+            console.log(`Campaign ${campaign.id} (${campaign.name}) is due for execution`);
+            await this.executeCampaign(campaign);
+          } else {
+            console.log(`Campaign ${campaign.id} (${campaign.name}) is not due for execution yet`);
+          }
         } catch (error) {
           console.error(`Error executing campaign ${campaign.id}:`, error);
         }
       }
     } catch (error) {
       console.error('Error in executeActiveCampaigns:', error);
+    }
+  }
+
+  private shouldExecuteCampaign(campaign: Campaign): boolean {
+    const now = new Date();
+    const cycleType = campaign.cycle_type || 'daily';
+    const lastExecuted = campaign.last_executed ? new Date(campaign.last_executed) : null;
+
+    // If never executed, execute now
+    if (!lastExecuted) {
+      return true;
+    }
+
+    switch (cycleType) {
+      case 'daily':
+        // Execute if last execution was on a different day
+        const lastExecutedDate = new Date(lastExecuted.getFullYear(), lastExecuted.getMonth(), lastExecuted.getDate());
+        const todayDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        return todayDate.getTime() > lastExecutedDate.getTime();
+
+      case 'monthly':
+        // Execute if it's been at least a month since last execution
+        const monthsDiff = (now.getFullYear() - lastExecuted.getFullYear()) * 12 +
+                          (now.getMonth() - lastExecuted.getMonth());
+        return monthsDiff >= 1;
+
+      case 'yearly':
+        // Execute if it's been at least a year since last execution
+        const yearsDiff = now.getFullYear() - lastExecuted.getFullYear();
+        return yearsDiff >= 1;
+
+      case 'custom':
+        // Execute if it's been at least the custom number of days since last execution
+        const customDays = campaign.cycle_custom_days || 1;
+        const daysDiff = Math.floor((now.getTime() - lastExecuted.getTime()) / (1000 * 60 * 60 * 24));
+        return daysDiff >= customDays;
+
+      default:
+        // Default to daily if cycle type is unknown
+        return true;
     }
   }
 
@@ -127,6 +172,9 @@ export class CampaignScheduler {
         ...campaign,
         mail_sent: campaign.email_enabled && emailsSent > 0,
         sms_sent: campaign.sms_enabled && smsSent > 0,
+        emails_sent_count: (campaign.emails_sent_count || 0) + emailsSent,
+        sms_sent_count: (campaign.sms_sent_count || 0) + smsSent,
+        last_executed: new Date().toISOString(),
       };
 
       dbService.updateCampaign(updatedCampaign);
@@ -258,17 +306,25 @@ export class CampaignScheduler {
     details?: any;
   }> {
     try {
+      console.log(`Executing full campaign ${campaignId}...`);
+      
       const campaign = dbService.getCampaignById(campaignId);
       if (!campaign) {
+        console.log('Campaign not found');
         return { success: false, message: 'Campaign not found' };
       }
 
       if (!campaign.active) {
+        console.log('Campaign is not active');
         return { success: false, message: 'Campaign is not active' };
       }
 
+      console.log('Validating campaign...');
       const validation = await campaignService.validateCampaignForExecution(campaign);
+      console.log('Validation result:', validation);
+      
       if (!validation.valid) {
+        console.log('Campaign validation failed:', validation.errors);
         return { 
           success: false, 
           message: 'Campaign validation failed', 
@@ -330,6 +386,9 @@ export class CampaignScheduler {
         ...campaign,
         mail_sent: campaign.email_enabled && emailsSent > 0,
         sms_sent: campaign.sms_enabled && smsSent > 0,
+        emails_sent_count: (campaign.emails_sent_count || 0) + emailsSent,
+        sms_sent_count: (campaign.sms_sent_count || 0) + smsSent,
+        last_executed: new Date().toISOString(),
       };
 
       dbService.updateCampaign(updatedCampaign);

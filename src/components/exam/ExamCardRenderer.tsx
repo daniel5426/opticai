@@ -18,8 +18,12 @@ import { CornealTopographyTab } from "@/components/exam/CornealTopographyTab"
 import { CoverTestTab } from "@/components/exam/CoverTestTab"
 import { AnamnesisTab } from "@/components/exam/AnamnesisTab"
 import { SchirmerTestTab } from "@/components/exam/SchirmerTestTab"
+import { ContactLensDiametersTab } from "@/components/exam/ContactLensDiametersTab"
+import { ContactLensDetailsTab } from "@/components/exam/ContactLensDetailsTab"
+import { KeratometerContactLensTab } from "@/components/exam/KeratometerContactLensTab"
+import { ContactLensExamTab } from "@/components/exam/ContactLensExamTab"
 import { Edit3 } from "lucide-react"
-import { OpticalExam, OldRefractionExam, OldRefractionExtensionExam, ObjectiveExam, SubjectiveExam, AdditionExam, FinalSubjectiveExam, FinalPrescriptionExam, CompactPrescriptionExam, RetinoscopExam, RetinoscopDilationExam, UncorrectedVAExam, KeratometerExam, KeratometerFullExam, CornealTopographyExam, CoverTestExam, AnamnesisExam, NotesExam, SchirmerTestExam, OldRefExam } from "@/lib/db/schema"
+import { OpticalExam, OldRefractionExam, OldRefractionExtensionExam, ObjectiveExam, SubjectiveExam, AdditionExam, FinalSubjectiveExam, FinalPrescriptionExam, CompactPrescriptionExam, RetinoscopExam, RetinoscopDilationExam, UncorrectedVAExam, KeratometerExam, KeratometerFullExam, CornealTopographyExam, CoverTestExam, AnamnesisExam, NotesExam, SchirmerTestExam, OldRefExam, ContactLensDiameters, ContactLensDetails, KeratometerContactLens, ContactLensExam } from "@/lib/db/schema"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { UserSelect } from "@/components/ui/user-select"
 import { ExamToolbox, ToolboxActions } from "@/components/exam/ExamToolbox"
@@ -32,12 +36,12 @@ import { Textarea } from "@/components/ui/textarea"
 // Renaming for consistency within the component props
 type Exam = OpticalExam;
 
-const componentsWithMiddleRow: CardItem['type'][] = ['old-refraction', 'old-refraction-extension', 'subjective', 'final-subjective', 'final-prescription', 'compact-prescription', 'corneal-topography', 'anamnesis'];
-const componentsDontHaveMiddleRow: CardItem['type'][] = ['objective', 'addition', 'retinoscop', 'retinoscop-dilation', 'uncorrected-va', 'keratometer', 'keratometer-full', 'cover-test', 'schirmer-test'];
+const componentsWithMiddleRow: CardItem['type'][] = ['old-refraction', 'old-refraction-extension', 'subjective', 'final-subjective', 'final-prescription', 'compact-prescription', 'corneal-topography', 'anamnesis', 'contact-lens-exam', 'contact-lens-diameters'];
+const componentsDontHaveMiddleRow: CardItem['type'][] = ['objective', 'addition', 'retinoscop', 'retinoscop-dilation', 'uncorrected-va', 'keratometer', 'keratometer-full', 'cover-test', 'schirmer-test', 'contact-lens-diameters', 'contact-lens-details', 'keratometer-contact-lens'];
 
 export interface CardItem {
   id: string
-  type: 'exam-details' | 'old-ref' | 'old-refraction' | 'old-refraction-extension' | 'objective' | 'subjective' | 'final-subjective' | 'final-prescription' | 'compact-prescription' | 'addition' | 'retinoscop' | 'retinoscop-dilation' | 'uncorrected-va' | 'keratometer' | 'keratometer-full' | 'corneal-topography' | 'cover-test' | 'notes' | 'anamnesis' | 'schirmer-test'
+  type: 'exam-details' | 'old-ref' | 'old-refraction' | 'old-refraction-extension' | 'objective' | 'subjective' | 'final-subjective' | 'final-prescription' | 'compact-prescription' | 'addition' | 'retinoscop' | 'retinoscop-dilation' | 'uncorrected-va' | 'keratometer' | 'keratometer-full' | 'corneal-topography' | 'cover-test' | 'notes' | 'anamnesis' | 'schirmer-test' | 'contact-lens-diameters' | 'contact-lens-details' | 'keratometer-contact-lens' | 'contact-lens-exam'
   showEyeLabels?: boolean
   title?: string
 }
@@ -160,6 +164,10 @@ const getColumnCount = (type: CardItem['type']): number => {
     case 'notes': return 2
     case 'anamnesis': return 11
     case 'schirmer-test': return 2
+    case 'contact-lens-diameters': return 2
+    case 'contact-lens-details': return 8
+    case 'keratometer-contact-lens': return 6
+    case 'contact-lens-exam': return 9
     default: return 1
   }
 }
@@ -283,6 +291,10 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
   const emptyNotesData: NotesExam = { layout_instance_id: 0 }
   const emptySchirmerTestData: SchirmerTestExam = { layout_instance_id: 0 }
   const emptyOldRefData: OldRefExam = { layout_instance_id: 0 }
+  const emptyContactLensDiametersData: ContactLensDiameters = { layout_instance_id: 0 }
+  const emptyContactLensDetailsData: ContactLensDetails = { layout_instance_id: 0 }
+  const emptyKeratometerContactLensData: KeratometerContactLens = { layout_instance_id: 0 }
+  const emptyContactLensExamData: ContactLensExam = { layout_instance_id: 0 }
 
   const legacyHandlers = mode === 'detail' ? {
     handleMultifocalOldRefraction: detailProps!.handleMultifocalOldRefraction,
@@ -322,6 +334,10 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
       case 'notes': return emptyNotesData
       case 'schirmer-test': return emptySchirmerTestData
       case 'old-ref': return emptyOldRefData
+      case 'contact-lens-diameters': return emptyContactLensDiametersData
+      case 'contact-lens-details': return emptyContactLensDetailsData
+      case 'keratometer-contact-lens': return emptyKeratometerContactLensData
+      case 'contact-lens-exam': return emptyContactLensExamData
       default: return {}
     }
   }
@@ -737,7 +753,7 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
         }
       }
 
-      const notesTitle = mode === 'editor' ? (item.title || notesData.title || "הערות") : (notesData.title || "הערות")
+      const notesTitle = mode === 'editor' ? (item.title || notesData.title || "הערות") : (notesData.title || item.title || "הערות")
 
       return (
           <Card className={`w-full px-4 pt-3 pb-4 shadow-md border-none gap-2 ${matchHeight ? 'h-full flex flex-col' : ''}`} dir="rtl">
@@ -788,7 +804,61 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
           />
         </Card>
       )
+
+    case 'contact-lens-diameters':
+      return (
+        <div className={`relative h-full ${matchHeight ? 'flex flex-col' : ''}`}>
+          {toolbox}
+          <ContactLensDiametersTab
+            contactLensDiametersData={getExamData('contact-lens-diameters')}
+            onContactLensDiametersChange={getChangeHandler('contact-lens-diameters')}
+            isEditing={mode === 'detail' ? detailProps!.isEditing : false}
+          />
+        </div>
+      )
+
+    case 'contact-lens-details':
+      return (
+        <div className={`relative h-full ${matchHeight ? 'flex flex-col' : ''}`}>
+          {toolbox}
+          <ContactLensDetailsTab
+            contactLensDetailsData={getExamData('contact-lens-details')}
+            onContactLensDetailsChange={getChangeHandler('contact-lens-details')}
+            isEditing={mode === 'detail' ? detailProps!.isEditing : false}
+            hideEyeLabels={finalHideEyeLabels}
+            needsMiddleSpacer={hasSiblingWithMiddleRow && componentsDontHaveMiddleRow.includes(item.type)}
+          />
+        </div>
+      )
+
+    case 'keratometer-contact-lens':
+      return (
+        <div className={`relative h-full ${matchHeight ? 'flex flex-col' : ''}`}>
+          {toolbox}
+          <KeratometerContactLensTab
+            keratometerContactLensData={getExamData('keratometer-contact-lens')}
+            onKeratometerContactLensChange={getChangeHandler('keratometer-contact-lens')}
+            isEditing={mode === 'detail' ? detailProps!.isEditing : false}
+            hideEyeLabels={finalHideEyeLabels}
+            needsMiddleSpacer={hasSiblingWithMiddleRow && componentsDontHaveMiddleRow.includes(item.type)}
+          />
+        </div>
+      )
+
+    case 'contact-lens-exam':
+      return (
+        <div className={`relative h-full ${matchHeight ? 'flex flex-col' : ''}`}>
+          {toolbox}
+          <ContactLensExamTab
+            contactLensExamData={getExamData('contact-lens-exam')}
+            onContactLensExamChange={getChangeHandler('contact-lens-exam')}
+            isEditing={mode === 'detail' ? detailProps!.isEditing : false}
+            hideEyeLabels={finalHideEyeLabels}
+          />
+        </div>
+      )
+
     default:
       return null
   }
-} 
+}

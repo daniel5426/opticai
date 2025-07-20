@@ -9,6 +9,10 @@ export function updateNotesExam(data: NotesExam): NotesExam | null {
   return connectionManager.updateNotesExam(data);
 }
 
+export function getAllNotesExamsByLayoutInstanceId(layoutInstanceId: number): NotesExam[] {
+  return connectionManager.getAllNotesExamsByLayoutInstanceId(layoutInstanceId);
+}
+
 export function getNotesExamById(id: number): NotesExam | null {
   return connectionManager.getNotesExamById(id);
 }

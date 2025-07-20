@@ -34,10 +34,10 @@ export interface Client {
   profile_picture?: string;
   family_id?: number;
   family_role?: string;
-  
+
   // AI-related fields
-  ai_main_state?: string;
   ai_updated_date?: string;
+  ai_data_updated_date?: string; // Only updated when AI-relevant data changes
   client_updated_date?: string;
   ai_exam_state?: string;
   ai_order_state?: string;
@@ -46,15 +46,6 @@ export interface Client {
   ai_appointment_state?: string;
   ai_file_state?: string;
   ai_medical_state?: string;
-  
-  // Part-specific updated dates
-  exam_updated_date?: string;
-  order_updated_date?: string;
-  referral_updated_date?: string;
-  contact_lens_updated_date?: string;
-  appointment_updated_date?: string;
-  file_updated_date?: string;
-  medical_updated_date?: string;
 }
 
 export interface Family {
@@ -415,59 +406,87 @@ export interface Frame {
   length?: number;
 }
 
-export interface ContactLens {
+
+export interface ContactLensDiameters {
   id?: number;
-  client_id: number;
-  exam_date?: string;
-  type?: string;
-  user_id?: number;
-  comb_va?: number;
+  layout_instance_id: number;
   pupil_diameter?: number;
   corneal_diameter?: number;
   eyelid_aperture?: number;
-  notes?: string;
-  notes_for_supplier?: string;
+
 }
 
-export interface ContactEye {
+export interface ContactLensDetails {
   id?: number;
-  contact_lens_id: number;
-  eye: string;
-
-  // schirmer test
-  schirmer_test?: number;
-  schirmer_but?: number;
-
-  // k values
-  k_h?: number;
-  k_v?: number;
-  k_avg?: number;
-  k_cyl?: number;
-  k_ax?: number;
-  k_ecc?: number;
-
+  layout_instance_id: number;
   // contact details
-  lens_type?: string;
-  model?: string;
-  supplier?: string;
-  material?: string;
-  color?: string;
-  quantity?: number;
-  order_quantity?: number;
-  dx?: boolean;
+  l_lens_type?: string;
+  l_model?: string;
+  l_supplier?: string;
+  l_material?: string;
+  l_color?: string;
+  l_quantity?: number;
+  l_order_quantity?: number;
+  l_dx?: boolean;
 
-  // exam
-  bc?: number;
-  bc_2?: number;
-  oz?: number;
-  diam?: number;
-  sph?: number;
-  cyl?: number;
-  ax?: number;
-  read_ad?: number;
-  va?: number;
-  j?: number;
+  r_lens_type?: string;
+  r_model?: string;
+  r_supplier?: string;
+  r_material?: string;
+  r_color?: string;
+  r_quantity?: number;
+  r_order_quantity?: number;
+  r_dx?: boolean;
+
 }
+
+export interface KeratometerContactLens {
+  id?: number;
+  layout_instance_id: number;
+  // k values
+  l_rh?: number;
+  l_rv?: number;
+  l_avg?: number;
+  l_cyl?: number;
+  l_ax?: number;
+  l_ecc?: number;
+
+  r_rh?: number;
+  r_rv?: number;
+  r_avg?: number;
+  r_cyl?: number;
+  r_ax?: number;
+  r_ecc?: number;
+}
+
+export interface ContactLensExam {
+  id?: number;
+  layout_instance_id: number;
+  comb_va?: number;
+  // exam
+  l_bc?: number;
+  l_bc_2?: number;
+  l_oz?: number;
+  l_diam?: number;
+  l_sph?: number;
+  l_cyl?: number;
+  l_ax?: number;
+  l_read_ad?: number;
+  l_va?: number;
+  l_j?: number;
+
+  r_bc?: number;
+  r_bc_2?: number;
+  r_oz?: number;
+  r_diam?: number;
+  r_sph?: number;
+  r_cyl?: number;
+  r_ax?: number;
+  r_read_ad?: number;
+  r_va?: number;
+  r_j?: number;
+}
+
 
 export interface ContactLensOrder {
   id?: number;
@@ -548,12 +567,12 @@ export interface Settings {
   clinic_website?: string;
   manager_name?: string;
   license_number?: string;
-  
+
   // Customization
   clinic_logo_path?: string;
   primary_theme_color?: string;
   secondary_theme_color?: string;
-  
+
   // Work Configuration
   work_start_time?: string;
   work_end_time?: string;
@@ -565,7 +584,7 @@ export interface Settings {
   break_start_time?: string;
   break_end_time?: string;
   max_appointments_per_day?: number;
-  
+
   // Email Configuration
   email_provider?: string; // 'gmail', 'outlook', 'yahoo', 'custom'
   email_smtp_host?: string;
@@ -574,7 +593,7 @@ export interface Settings {
   email_username?: string;
   email_password?: string; // Will be encrypted
   email_from_name?: string;
-  
+
   created_at?: string;
   updated_at?: string;
 }
@@ -880,7 +899,13 @@ export interface Campaign {
   active_since?: string;
   mail_sent?: boolean;
   sms_sent?: boolean;
+  emails_sent_count?: number; // Total number of emails sent by this campaign
+  sms_sent_count?: number; // Total number of SMS sent by this campaign
   created_at?: string;
+  // Cycle time fields
+  cycle_type?: 'daily' | 'monthly' | 'yearly' | 'custom';
+  cycle_custom_days?: number; // For custom cycle type
+  last_executed?: string; // ISO date string of last execution
 }
 
 export const createTables = (db: Database): void => {
@@ -930,7 +955,6 @@ export const createTables = (db: Database): void => {
       profile_picture TEXT,
       family_id INTEGER,
       family_role TEXT,
-      ai_main_state TEXT,
       ai_updated_date DATETIME,
       client_updated_date DATETIME DEFAULT CURRENT_TIMESTAMP,
       ai_exam_state TEXT,
@@ -940,84 +964,45 @@ export const createTables = (db: Database): void => {
       ai_appointment_state TEXT,
       ai_file_state TEXT,
       ai_medical_state TEXT,
-      exam_updated_date DATETIME,
-      order_updated_date DATETIME,
-      referral_updated_date DATETIME,
-      contact_lens_updated_date DATETIME,
-      appointment_updated_date DATETIME,
-      file_updated_date DATETIME,
-      medical_updated_date DATETIME,
       FOREIGN KEY(family_id) REFERENCES families(id)
     );
   `);
 
   // Add AI fields to existing clients if they don't exist
   try {
-    db.exec(`ALTER TABLE clients ADD COLUMN ai_main_state TEXT`);
-  } catch (e) { /* Column already exists */ }
-  
-  try {
     db.exec(`ALTER TABLE clients ADD COLUMN ai_updated_date DATETIME`);
   } catch (e) { /* Column already exists */ }
-  
+
   try {
     db.exec(`ALTER TABLE clients ADD COLUMN client_updated_date DATETIME DEFAULT CURRENT_TIMESTAMP`);
   } catch (e) { /* Column already exists */ }
-  
+
   try {
     db.exec(`ALTER TABLE clients ADD COLUMN ai_exam_state TEXT`);
   } catch (e) { /* Column already exists */ }
-  
+
   try {
     db.exec(`ALTER TABLE clients ADD COLUMN ai_order_state TEXT`);
   } catch (e) { /* Column already exists */ }
-  
+
   try {
     db.exec(`ALTER TABLE clients ADD COLUMN ai_referral_state TEXT`);
   } catch (e) { /* Column already exists */ }
-  
+
   try {
     db.exec(`ALTER TABLE clients ADD COLUMN ai_contact_lens_state TEXT`);
   } catch (e) { /* Column already exists */ }
-  
+
   try {
     db.exec(`ALTER TABLE clients ADD COLUMN ai_appointment_state TEXT`);
   } catch (e) { /* Column already exists */ }
-  
+
   try {
     db.exec(`ALTER TABLE clients ADD COLUMN ai_file_state TEXT`);
   } catch (e) { /* Column already exists */ }
-  
+
   try {
     db.exec(`ALTER TABLE clients ADD COLUMN ai_medical_state TEXT`);
-  } catch (e) { /* Column already exists */ }
-  
-  try {
-    db.exec(`ALTER TABLE clients ADD COLUMN exam_updated_date DATETIME`);
-  } catch (e) { /* Column already exists */ }
-  
-  try {
-    db.exec(`ALTER TABLE clients ADD COLUMN order_updated_date DATETIME`);
-  } catch (e) { /* Column already exists */ }
-  
-  try {
-    db.exec(`ALTER TABLE clients ADD COLUMN referral_updated_date DATETIME`);
-  } catch (e) { /* Column already exists */ }
-  
-  try {
-    db.exec(`ALTER TABLE clients ADD COLUMN contact_lens_updated_date DATETIME`);
-  } catch (e) { /* Column already exists */ }
-  
-  try {
-    db.exec(`ALTER TABLE clients ADD COLUMN appointment_updated_date DATETIME`);
-  } catch (e) { /* Column already exists */ }
-  
-  try {
-    db.exec(`ALTER TABLE clients ADD COLUMN file_updated_date DATETIME`);
-  } catch (e) { /* Column already exists */ }
-  
-  try {
-    db.exec(`ALTER TABLE clients ADD COLUMN medical_updated_date DATETIME`);
   } catch (e) { /* Column already exists */ }
 
   // Update existing clients to have current timestamp for client_updated_date if it's null
@@ -1684,7 +1669,7 @@ export const createTables = (db: Database): void => {
       email_provider, email_smtp_secure
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
-  
+
   insertSettings.run(
     1, 'מרפאת העיניים שלנו', 'קומה 2, חדר 15', 'info@eyeclinic.co.il', '03-1234567',
     'רחוב הרצל 123', 'תל אביב', '12345',
@@ -2310,8 +2295,42 @@ export const createTables = (db: Database): void => {
       active_since DATETIME,
       mail_sent BOOLEAN DEFAULT 0,
       sms_sent BOOLEAN DEFAULT 0,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      emails_sent_count INTEGER DEFAULT 0,
+      sms_sent_count INTEGER DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      cycle_type TEXT CHECK(cycle_type IN ('daily','monthly','yearly','custom')) DEFAULT 'daily',
+      cycle_custom_days INTEGER,
+      last_executed DATETIME
     );
+  `);
+
+  // Add new cycle time columns to existing campaigns table if they don't exist
+  try {
+    db.exec(`ALTER TABLE campaigns ADD COLUMN cycle_type TEXT CHECK(cycle_type IN ('daily','monthly','yearly','custom')) DEFAULT 'daily'`);
+  } catch (e) { /* Column already exists */ }
+
+  try {
+    db.exec(`ALTER TABLE campaigns ADD COLUMN cycle_custom_days INTEGER`);
+  } catch (e) { /* Column already exists */ }
+
+  try {
+    db.exec(`ALTER TABLE campaigns ADD COLUMN last_executed DATETIME`);
+  } catch (e) { /* Column already exists */ }
+
+  // Add new count columns to existing campaigns table if they don't exist
+  try {
+    db.exec(`ALTER TABLE campaigns ADD COLUMN emails_sent_count INTEGER DEFAULT 0`);
+  } catch (e) { /* Column already exists */ }
+
+  try {
+    db.exec(`ALTER TABLE campaigns ADD COLUMN sms_sent_count INTEGER DEFAULT 0`);
+  } catch (e) { /* Column already exists */ }
+
+  // Update existing campaigns to have default cycle_type value
+  db.exec(`
+    UPDATE campaigns
+    SET cycle_type = 'daily'
+    WHERE cycle_type IS NULL
   `);
 
   // Create work_shifts table
@@ -2351,5 +2370,92 @@ export const createTables = (db: Database): void => {
       FOREIGN KEY(layout_instance_id) REFERENCES exam_layout_instances(id) ON DELETE CASCADE
     );
   `);
+
+  // Create contact_lens_diameters table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS contact_lens_diameters (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      layout_instance_id INTEGER NOT NULL,
+      pupil_diameter REAL,
+      corneal_diameter REAL,
+      eyelid_aperture REAL,
+      FOREIGN KEY(layout_instance_id) REFERENCES exam_layout_instances(id) ON DELETE CASCADE
+    );
+  `);
+
+  // Create contact_lens_details table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS contact_lens_details (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      layout_instance_id INTEGER NOT NULL,
+      l_lens_type TEXT,
+      l_model TEXT,
+      l_supplier TEXT,
+      l_material TEXT,
+      l_color TEXT,
+      l_quantity INTEGER,
+      l_order_quantity INTEGER,
+      l_dx BOOLEAN,
+      r_lens_type TEXT,
+      r_model TEXT,
+      r_supplier TEXT,
+      r_material TEXT,
+      r_color TEXT,
+      r_quantity INTEGER,
+      r_order_quantity INTEGER,
+      r_dx BOOLEAN,
+      FOREIGN KEY(layout_instance_id) REFERENCES exam_layout_instances(id) ON DELETE CASCADE
+    );
+  `);
+
+  // Create keratometer_contact_lens table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS keratometer_contact_lens (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      layout_instance_id INTEGER NOT NULL,
+      l_rh REAL,
+      l_rv REAL,
+      l_avg REAL,
+      l_cyl REAL,
+      l_ax INTEGER,
+      l_ecc REAL,
+      r_rh REAL,
+      r_rv REAL,
+      r_avg REAL,
+      r_cyl REAL,
+      r_ax INTEGER,
+      r_ecc REAL,
+      FOREIGN KEY(layout_instance_id) REFERENCES exam_layout_instances(id) ON DELETE CASCADE
+    );
+  `);
+
+  // Create contact_lens_exam table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS contact_lens_exam (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      layout_instance_id INTEGER NOT NULL,
+      comb_va REAL,
+      l_bc REAL,
+      l_bc_2 REAL,
+      l_oz REAL,
+      l_diam REAL,
+      l_sph REAL,
+      l_cyl REAL,
+      l_ax INTEGER,
+      l_read_ad REAL,
+      l_va REAL,
+      l_j REAL,
+      r_bc REAL,
+      r_bc_2 REAL,
+      r_oz REAL,
+      r_diam REAL,
+      r_sph REAL,
+      r_cyl REAL,
+      r_ax INTEGER,
+      r_read_ad REAL,
+      r_va REAL,
+      r_j REAL,
+      FOREIGN KEY(layout_instance_id) REFERENCES exam_layout_instances(id) ON DELETE CASCADE
+    );
+  `);
 };
-  

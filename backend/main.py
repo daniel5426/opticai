@@ -21,7 +21,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-OPENAI_API_KEY = 'sk-C7mt0tlelbd_L1IsG5hSZXMliE3AgClPz94jOLE1FqT3BlbkFJum9ZLASMnBuftE1yxoPiZYqQuOgFJvhcoTx2vkBjoA'
+OPENAI_API_KEY = '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'
 OPENAI_BASE_URL = "https://api.openai.com/v1"
 
 if not OPENAI_API_KEY:

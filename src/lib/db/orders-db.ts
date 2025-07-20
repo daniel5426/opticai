@@ -60,7 +60,7 @@ export async function createOrder(order: Omit<Order, 'id'>): Promise<Order | nul
     const result = await window.electronAPI.db('createOrder', order);
     if (result && order.client_id) {
       await window.electronAPI.db('updateClientUpdatedDate', order.client_id);
-      await window.electronAPI.db('updateClientPartUpdatedDate', order.client_id, 'order');
+      
     }
     return result;
   } catch (error) {
@@ -101,7 +101,7 @@ export async function updateOrder(order: Order): Promise<Order | undefined> {
     const result = await window.electronAPI.db('updateOrder', order);
     if (result && order.client_id) {
       await window.electronAPI.db('updateClientUpdatedDate', order.client_id);
-      await window.electronAPI.db('updateClientPartUpdatedDate', order.client_id, 'order');
+      
     }
     return result;
   } catch (error) {
@@ -143,7 +143,7 @@ export async function deleteOrder(orderId: number): Promise<boolean> {
     const result = await window.electronAPI.db('deleteOrder', orderId);
     if (result && order?.client_id) {
       await window.electronAPI.db('updateClientUpdatedDate', order.client_id);
-      await window.electronAPI.db('updateClientPartUpdatedDate', order.client_id, 'order');
+      
     }
     return result;
   } catch (error) {

@@ -33,7 +33,7 @@ export async function createReferral(referralData: Omit<Referral, 'id'>): Promis
     const result = await window.electronAPI.db('createReferral', referralData);
     if (result && referralData.client_id) {
       await window.electronAPI.db('updateClientUpdatedDate', referralData.client_id);
-      await window.electronAPI.db('updateClientPartUpdatedDate', referralData.client_id, 'referral');
+      
     }
     return result;
   } catch (error) {
@@ -47,7 +47,7 @@ export async function updateReferral(referralData: Referral): Promise<Referral |
     const result = await window.electronAPI.db('updateReferral', referralData);
     if (result && referralData.client_id) {
       await window.electronAPI.db('updateClientUpdatedDate', referralData.client_id);
-      await window.electronAPI.db('updateClientPartUpdatedDate', referralData.client_id, 'referral');
+      
     }
     return result;
   } catch (error) {
@@ -62,7 +62,7 @@ export async function deleteReferral(referralId: number): Promise<boolean> {
     const result = await window.electronAPI.db('deleteReferral', referralId);
     if (result && referral?.client_id) {
       await window.electronAPI.db('updateClientUpdatedDate', referral.client_id);
-      await window.electronAPI.db('updateClientPartUpdatedDate', referral.client_id, 'referral');
+      
     }
     return result;
   } catch (error) {

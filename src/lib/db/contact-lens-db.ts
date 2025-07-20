@@ -51,7 +51,7 @@ export async function createContactLens(contactLens: Omit<ContactLens, 'id'>): P
     const result = await window.electronAPI.db('createContactLens', contactLens);
     if (result && contactLens.client_id) {
       await window.electronAPI.db('updateClientUpdatedDate', contactLens.client_id);
-      await window.electronAPI.db('updateClientPartUpdatedDate', contactLens.client_id, 'contact_lens');
+      
     }
     return result;
   } catch (error) {
@@ -83,7 +83,7 @@ export async function updateContactLens(contactLens: ContactLens): Promise<Conta
     const result = await window.electronAPI.db('updateContactLens', contactLens);
     if (result && contactLens.client_id) {
       await window.electronAPI.db('updateClientUpdatedDate', contactLens.client_id);
-      await window.electronAPI.db('updateClientPartUpdatedDate', contactLens.client_id, 'contact_lens');
+      
     }
     return result;
   } catch (error) {
@@ -116,7 +116,7 @@ export async function deleteContactLens(contactLensId: number): Promise<boolean>
     const result = await window.electronAPI.db('deleteContactLens', contactLensId);
     if (result && contactLens?.client_id) {
       await window.electronAPI.db('updateClientUpdatedDate', contactLens.client_id);
-      await window.electronAPI.db('updateClientPartUpdatedDate', contactLens.client_id, 'contact_lens');
+      
     }
     return result;
   } catch (error) {

@@ -302,6 +302,16 @@ export class CampaignService {
       errors.push('SMS content is empty');
     }
     
+    // Check email settings if email is enabled
+    if (campaign.email_enabled) {
+      const settings = dbService.getSettings();
+      if (!settings) {
+        errors.push('Email settings not found');
+      } else if (!settings.email_username || !settings.email_password) {
+        errors.push('Email settings not configured. Please configure email settings in the Settings page.');
+      }
+    }
+    
     const targetClients = await this.getFilteredClients(campaign);
     
     if (targetClients.length === 0) {

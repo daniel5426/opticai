@@ -19,6 +19,10 @@ import {
   NotesExam,
   SchirmerTestExam,
   OldRefExam,
+  ContactLensDiameters,
+  ContactLensDetails,
+  KeratometerContactLens,
+  ContactLensExam,
 } from "@/lib/db/schema"
 
 export type ExamComponentType =
@@ -42,6 +46,10 @@ export type ExamComponentType =
   | 'cover-test'
   | 'schirmer-test'
   | 'notes'
+  | 'contact-lens-diameters'
+  | 'contact-lens-details'
+  | 'keratometer-contact-lens'
+  | 'contact-lens-exam'
 
 export interface ExamComponentConfig<T = any> {
   name: string
@@ -73,12 +81,31 @@ class ExamComponentRegistry {
     const data: Record<string, any> = {}
     
     for (const [type, config] of this.components) {
-      try {
-        const componentData = await config.getData(layoutInstanceId)
-        data[type] = componentData
-      } catch (error) {
-        console.warn(`Failed to load ${type} data:`, error)
-        data[type] = null
+      if (type === 'notes') {
+        // Handle notes card instances separately - load all notes for this layout instance
+        try {
+          const allNotes = await window.electronAPI.db('getAllNotesExamsByLayoutInstanceId', layoutInstanceId)
+          if (allNotes && Array.isArray(allNotes)) {
+            allNotes.forEach(notesData => {
+              if (notesData.card_instance_id) {
+                data[`notes-${notesData.card_instance_id}`] = notesData
+              } else {
+                // Fallback to just 'notes' if no card_instance_id
+                data[type] = notesData
+              }
+            })
+          }
+        } catch (error) {
+          console.warn(`Failed to load ${type} data:`, error)
+        }
+      } else {
+        try {
+          const componentData = await config.getData(layoutInstanceId)
+          data[type] = componentData
+        } catch (error) {
+          console.warn(`Failed to load ${type} data:`, error)
+          data[type] = null
+        }
       }
     }
     
@@ -191,9 +218,18 @@ registry.register<OldRefExam>('old-ref', {
 
 registry.register<OpticalExam>('exam-details', {
   name: 'פרטי בדיקה',
-  getData: (layoutInstanceId: number, cardInstanceId?: string) => window.electronAPI.db('getOpticalExamByLayoutInstanceId', layoutInstanceId),
-  createData: (data: Omit<OpticalExam, 'id'>, cardInstanceId?: string) => window.electronAPI.db('createOpticalExam', data),
-  updateData: (data: OpticalExam) => window.electronAPI.db('updateOpticalExam', data),
+  getData: (layoutInstanceId: number, cardInstanceId?: string) => {
+    console.log('getData', layoutInstanceId)
+    return Promise.resolve(null)
+  },
+  createData: (data: Omit<OpticalExam, 'id'>, cardInstanceId?: string) => {
+    console.log('createData', data)
+    return Promise.resolve(null)
+  },
+  updateData: (data: OpticalExam) => {
+    console.log('updateData', data)
+    return Promise.resolve(null)
+  },
   getNumericFields: () => [],
   getIntegerFields: () => ['user_id'],
   validateField: (field, rawValue) => {
@@ -686,5 +722,117 @@ registry.register<NotesExam>('notes', {
   hasData: (data) => !!data && (!!data.note || !!data.title)
 });
 
+registry.register<ContactLensDiameters>('contact-lens-diameters', {
+  name: 'קוטרי עדשות מגע',
+  getData: (layoutInstanceId: number, cardInstanceId?: string) => window.electronAPI.db('getContactLensDiametersByLayoutInstanceId', layoutInstanceId),
+  createData: (data: Omit<ContactLensDiameters, 'id'>, cardInstanceId?: string) => window.electronAPI.db('createContactLensDiameters', data),
+  updateData: (data: ContactLensDiameters) => window.electronAPI.db('updateContactLensDiameters', data),
+  getNumericFields: () => ['pupil_diameter', 'corneal_diameter', 'eyelid_aperture'],
+  getIntegerFields: () => [],
+  validateField: (field, rawValue) => {
+    const numericFields = ['pupil_diameter', 'corneal_diameter', 'eyelid_aperture'];
+    
+    if (numericFields.includes(field as string)) {
+      const val = parseFloat(rawValue);
+      return rawValue === "" || isNaN(val) ? undefined : val;
+    } else if (rawValue === "") {
+      return undefined;
+    }
+    return rawValue;
+  },
+  hasData: (data) => Object.values(data).some(value =>
+    value !== undefined && value !== null && value !== ''
+  )
+});
 
-export { registry as examComponentRegistry } 
+registry.register<ContactLensDetails>('contact-lens-details', {
+  name: 'פרטי עדשות מגע',
+  getData: (layoutInstanceId: number, cardInstanceId?: string) => window.electronAPI.db('getContactLensDetailsByLayoutInstanceId', layoutInstanceId),
+  createData: (data: Omit<ContactLensDetails, 'id'>, cardInstanceId?: string) => window.electronAPI.db('createContactLensDetails', data),
+  updateData: (data: ContactLensDetails) => window.electronAPI.db('updateContactLensDetails', data),
+  getNumericFields: () => ['l_quantity', 'r_quantity', 'l_order_quantity', 'r_order_quantity'],
+  getIntegerFields: () => ['l_quantity', 'r_quantity', 'l_order_quantity', 'r_order_quantity'],
+  validateField: (field, rawValue) => {
+    const integerFields = ['l_quantity', 'r_quantity', 'l_order_quantity', 'r_order_quantity'];
+    const booleanFields = ['l_dx', 'r_dx'];
+    
+    if (integerFields.includes(field as string)) {
+      const val = parseInt(rawValue, 10);
+      return rawValue === "" || isNaN(val) ? undefined : val;
+    } else if (booleanFields.includes(field as string)) {
+      if (typeof rawValue === 'boolean') {
+        return rawValue ? 1 : 0;
+      }
+      return rawValue === 'true' ? 1 : 0;
+    } else if (rawValue === "") {
+      return undefined;
+    }
+    return rawValue;
+  },
+  hasData: (data) => Object.values(data).some(value =>
+    value !== undefined && value !== null && value !== ''
+  )
+});
+
+registry.register<KeratometerContactLens>('keratometer-contact-lens', {
+  name: 'קרטומטר עדשות מגע',
+  getData: (layoutInstanceId: number, cardInstanceId?: string) => window.electronAPI.db('getKeratometerContactLensByLayoutInstanceId', layoutInstanceId),
+  createData: (data: Omit<KeratometerContactLens, 'id'>, cardInstanceId?: string) => window.electronAPI.db('createKeratometerContactLens', data),
+  updateData: (data: KeratometerContactLens) => window.electronAPI.db('updateKeratometerContactLens', data),
+  getNumericFields: () => ['l_rh', 'l_rv', 'l_avg', 'l_cyl', 'l_ecc', 'r_rh', 'r_rv', 'r_avg', 'r_cyl', 'r_ecc'],
+  getIntegerFields: () => ['l_ax', 'r_ax'],
+  validateField: (field, rawValue) => {
+    const numericFields = ['l_rh', 'l_rv', 'l_avg', 'l_cyl', 'l_ecc', 'r_rh', 'r_rv', 'r_avg', 'r_cyl', 'r_ecc'];
+    const integerFields = ['l_ax', 'r_ax'];
+    
+    if (numericFields.includes(field as string)) {
+      const val = parseFloat(rawValue);
+      return rawValue === "" || isNaN(val) ? undefined : val;
+    } else if (integerFields.includes(field as string)) {
+      const val = parseInt(rawValue, 10);
+      return rawValue === "" || isNaN(val) ? undefined : val;
+    } else if (rawValue === "") {
+      return undefined;
+    }
+    return rawValue;
+  },
+  hasData: (data) => Object.values(data).some(value =>
+    value !== undefined && value !== null && value !== ''
+  )
+});
+
+registry.register<ContactLensExam>('contact-lens-exam', {
+  name: 'בדיקת עדשות מגע',
+  getData: (layoutInstanceId: number, cardInstanceId?: string) => window.electronAPI.db('getContactLensExamByLayoutInstanceId', layoutInstanceId),
+  createData: (data: Omit<ContactLensExam, 'id'>, cardInstanceId?: string) => window.electronAPI.db('createContactLensExam', data),
+  updateData: (data: ContactLensExam) => window.electronAPI.db('updateContactLensExam', data),
+  getNumericFields: () => [
+    'comb_va', 'l_bc', 'l_bc_2', 'l_oz', 'l_diam', 'l_sph', 'l_cyl', 'l_read_ad', 'l_va', 'l_j',
+    'r_bc', 'r_bc_2', 'r_oz', 'r_diam', 'r_sph', 'r_cyl', 'r_read_ad', 'r_va', 'r_j'
+  ],
+  getIntegerFields: () => ['l_ax', 'r_ax'],
+  validateField: (field, rawValue) => {
+    const numericFields = [
+      'comb_va', 'l_bc', 'l_bc_2', 'l_oz', 'l_diam', 'l_sph', 'l_cyl', 'l_read_ad', 'l_va', 'l_j',
+      'r_bc', 'r_bc_2', 'r_oz', 'r_diam', 'r_sph', 'r_cyl', 'r_read_ad', 'r_va', 'r_j'
+    ];
+    const integerFields = ['l_ax', 'r_ax'];
+    
+    if (numericFields.includes(field as string)) {
+      const val = parseFloat(rawValue);
+      return rawValue === "" || isNaN(val) ? undefined : val;
+    } else if (integerFields.includes(field as string)) {
+      const val = parseInt(rawValue, 10);
+      return rawValue === "" || isNaN(val) ? undefined : val;
+    } else if (rawValue === "") {
+      return undefined;
+    }
+    return rawValue;
+  },
+  hasData: (data) => Object.values(data).some(value =>
+    value !== undefined && value !== null && value !== ''
+  )
+});
+
+
+export { registry as examComponentRegistry }

@@ -220,7 +220,7 @@ export function ClientDetailsTab({
   }
 
   return (
-    <form ref={formRef} className="px-1 max-w-7xl self-center justify-center mx-auto" style={{containerType: 'inline-size'}}>
+    <form ref={formRef} className="" style={{containerType: 'inline-size'}}>
       {mode === 'view' && setIsEditing && handleSave && (
         <div className="flex justify-between items-center mb-4">
           <Button 

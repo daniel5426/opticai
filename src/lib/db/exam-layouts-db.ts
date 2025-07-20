@@ -72,6 +72,16 @@ export async function getDefaultExamLayouts(): Promise<ExamLayout[]> {
   }
 }
 
+export async function getDefaultExamLayoutsByType(type: 'opticlens' | 'exam'): Promise<ExamLayout[]> {
+  try {
+    const allDefaultLayouts = await window.electronAPI.db('getDefaultExamLayouts')
+    return allDefaultLayouts.filter((layout: ExamLayout) => layout.type === type)
+  } catch (error) {
+    console.error('Error getting default exam layouts by type:', error)
+    return []
+  }
+}
+
 // Get layouts for a specific exam
 export async function getLayoutsByExamId(examId: number): Promise<ExamLayout[]> {
   try {

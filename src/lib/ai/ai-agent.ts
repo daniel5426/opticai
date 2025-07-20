@@ -312,56 +312,174 @@ export class AIAgent {
     }
   }
 
-  async generateClientAiMainState(clientId: number): Promise<string> {
+  async generateAllClientAiStates(clientId: number): Promise<{
+    exam: string;
+    order: string;
+    referral: string;
+    contact_lens: string;
+    appointment: string;
+    file: string;
+    medical: string;
+  }> {
     try {
+      const allClientData = this.dbService.getAllClientDataForAi(clientId);
+      if (!allClientData) {
+        return {
+          exam: 'לא נמצא מידע על הלקוח',
+          order: 'לא נמצא מידע על הלקוח',
+          referral: 'לא נמצא מידע על הלקוח',
+          contact_lens: 'לא נמצא מידע על הלקוח',
+          appointment: 'לא נמצא מידע על הלקוח',
+          file: 'לא נמצא מידע על הלקוח',
+          medical: 'לא נמצא מידע על הלקוח'
+        };
+      }
+
+      const prompt = `
+# Medical Eye Care Expert AI Agent Prompt
+
+You are a medical assistant specializing in ophthalmology. Analyze client information and prepare relevant data points for each system area.
+
+## Key Principles:
+
+### 1. **Cross-Domain Distribution**: 
+Information must appear in ALL relevant domains, regardless of source:
+- Medical allergies → MEDICAL + EXAM (relevant for procedures)
+- Diabetes → MEDICAL + EXAM + REFERRAL (affects vision, needs monitoring)
+- Eye surgery history → FILE + EXAM + MEDICAL
+
+### 2. **Domain Functions**:
+- **EXAM**: Eye examinations, prescriptions, medical conditions affecting vision
+- **ORDER**: Glasses/lens orders, prescriptions, technical details
+- **REFERRAL**: Specialist referrals, urgent symptoms, follow-up needs
+- **CONTACT_LENS**: Lens fitting, allergies to solutions, complications
+- **APPOINTMENT**: Past/future appointments, required monitoring
+- **FILE**: Documents, images, test results, reports
+- **MEDICAL**: Medical history, medications, allergies, conditions
+
+### 3. **Smart Diagnostics**: 
+Add diagnostic suggestions when patterns emerge:
+🔍 חשד: Brief explanation based on symptom combinations
+
+## Client Information:
+${JSON.stringify(allClientData, null, 2)}
+
+## Instructions:
+- Provide 3-7 factual data points per relevant domain
+- Include information in ALL domains where it's relevant
+- Write ONLY factual information, NOT recommendations
+- Always answer in Hebrew
+- Skip domains with no relevant information
+
+## Required Response Format:
+
+[EXAM]
+• First point
+• Second point
+• Third point
+
+🔍 חשד: Diagnostic suggestion (if relevant)
+[/EXAM]
+
+[ORDER]
+• First point
+• Second point
+• Third point
+[/ORDER]
+
+[REFERRAL]
+• First point
+• Second point
+• Third point
+
+🔍 חשד: Referral suggestion (if relevant)
+[/REFERRAL]
+
+[CONTACT_LENS]
+• First point
+• Second point
+• Third point
+[/CONTACT_LENS]
+
+[APPOINTMENT]
+• First point
+• Second point
+• Third point
+
+🔍 חשד: Future examination recommendation (if relevant)
+[/APPOINTMENT]
+
+[FILE]
+• First point
+• Second point
+• Third point
+[/FILE]
+
+[MEDICAL]
+• First point
+• Second point
+• Third point
+
+🔍 חשד: Pattern-based diagnostic suggestion (if relevant)
+[/MEDICAL]
+
+**Important**: Use exactly this format with the precise tags! If there's no relevant information for a domain, do not include its tags.
+
+`
+      const response = await this.llm.invoke([new HumanMessage(prompt)]);
+      const content = response.content as string;
+
+      // Parse the response to extract each section
+      const sections = {
+        exam: this.extractSection(content, 'EXAM'),
+        order: this.extractSection(content, 'ORDER'),
+        referral: this.extractSection(content, 'REFERRAL'),
+        contact_lens: this.extractSection(content, 'CONTACT_LENS'),
+        appointment: this.extractSection(content, 'APPOINTMENT'),
+        file: this.extractSection(content, 'FILE'),
+        medical: this.extractSection(content, 'MEDICAL')
+      };
+
+      return sections;
+    } catch (error) {
+      console.error('Error generating all AI states:', error);
+      const errorMessage = 'שגיאה ביצירת מידע AI';
+      return {
+        exam: errorMessage,
+        order: errorMessage,
+        referral: errorMessage,
+        contact_lens: errorMessage,
+        appointment: errorMessage,
+        file: errorMessage,
+        medical: errorMessage
+      };
+    }
+  }
+
+  private extractSection(content: string, sectionName: string): string {
+    const startTag = `[${sectionName}]`;
+    const endTag = `[/${sectionName}]`;
+    
+    const startIndex = content.indexOf(startTag);
+    const endIndex = content.indexOf(endTag);
+    
+    if (startIndex === -1 || endIndex === -1) {
+      return 'לא נמצאו נתונים רלוונטיים לתחום זה';
+    }
+    
+    const sectionContent = content.substring(startIndex + startTag.length, endIndex).trim();
+    return sectionContent || 'לא נמצאו נתונים רלוונטיים לתחום זה';
+  }
+
+  async generateClientAiPartState(clientId: number, part: string, aiMainState?: string): Promise<string> {
+    try {
+      // If this method is called individually ),
+      // get the client data directly
       const allClientData = this.dbService.getAllClientDataForAi(clientId);
       if (!allClientData) {
         return 'לא נמצא מידע על הלקוח';
       }
 
-      const prompt = `
-        אתה עוזר רפואי מומחה לעיניים. קיבלת מידע מקיף על לקוח במרפאה. נתח את כל המידע והכן סיכום מקיף ומפורט על הלקוח.
-        
-        המידע כולל:
-        - פרטים אישיים
-        - בדיקות עיניים
-        - הזמנות משקפיים/עדשות
-        - הפניות רפואיות
-        - עדשות מגע
-        - תורים
-        - קבצים
-        - רשומות רפואיות
-        - חיובים
-
-        חשוב: השב בעברית בלבד!
-        
-        המידע על הלקוח:
-        ${JSON.stringify(allClientData, null, 2)}
-        
-        אנא הכן סיכום מקיף הכולל:
-        1. פרטים אישיים עיקריים
-        2. היסטוריית בדיקות עיניים - מגמות, שינויים, בעיות חוזרות
-        3. הזמנות משקפיים/עדשות - סוגים, תדירות, העדפות
-        4. הפניות רפואיות - סיבות, תדירות, מעקב
-        5. עדשות מגע - סוגים, בעיות, התאמות
-        6. תורים - תדירות, סוגי בדיקות, דפוסים
-        7. מצב רפואי כללי ובעיות עיניים מיוחדות
-        8. חיובים ותשלומים - דפוסים, בעיות
-        9. נקודות חשובות לתשומת לב
-        
-        הסיכום צריך להיות מדויק, מקצועי ומועיל לצוות הרפואי.
-      `;
-
-      const response = await this.llm.invoke([new HumanMessage(prompt)]);
-      return response.content as string;
-    } catch (error) {
-      console.error('Error generating AI main state:', error);
-      return 'שגיאה ביצירת סיכום AI';
-    }
-  }
-
-  async generateClientAiPartState(clientId: number, part: string, aiMainState: string): Promise<string> {
-    try {
       const partDescriptions = {
         exam: 'דף בדיקות עיניים - מציג את כל בדיקות הראייה, המרשמים, התוצאות והמלצות',
         order: 'דף הזמנות - מציג הזמנות משקפיים, עדשות, מסגרות וכל הפרטים הטכניים',
@@ -375,14 +493,14 @@ export class AIAgent {
       const partDescription = partDescriptions[part as keyof typeof partDescriptions] || 'דף לא מוכר';
 
       const prompt = `
-        אתה עוזר רפואי מומחה לעיניים. יש לך סיכום מקיף על לקוח, וכעת אתה צריך לספק מידע רלוונטי ספציפי ל${partDescription}.
+        אתה עוזר רפואי מומחה לעיניים. קיבלת מידע מקיף על לקוח במרפאה, וכעת אתה צריך לספק מידע רלוונטי ספציפי ל${partDescription}.
         
         חשוב: השב בעברית בלבד!
         
-        הסיכום המקיף על הלקוח:
-        ${aiMainState}
+        המידע על הלקוח:
+        ${JSON.stringify(allClientData, null, 2)}
         
-        בהתבסס על הסיכום, אנא הכן רשימה קצרה של 3-5 נקודות מידע חשובות ורלוונטיות עבור ${partDescription}.
+        בהתבסס על המידע, אנא הכן רשימה קצרה של 3-5 נקודות מידע חשובות ורלוונטיות עבור ${partDescription}.
         
         הנקודות צריכות להיות:
         - קצרות וברורות (1-2 שורות לכל נקודה)

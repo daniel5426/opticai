@@ -18,4 +18,9 @@ export default defineConfig({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  server: {
+    watch: {
+      ignored: ["**/qdrant_storage/**"],
+    },
+  },
 });

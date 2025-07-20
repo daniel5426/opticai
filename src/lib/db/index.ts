@@ -23,8 +23,6 @@ import {
   Frame,
   OrderDetails,
   MedicalLog,
-  ContactLens,
-  ContactEye,
   ContactLensOrder,
   Billing,
   OrderLineItem,
@@ -68,7 +66,11 @@ import {
   Campaign,
   AnamnesisExam,
   NotesExam,
-  OldRefExam
+  OldRefExam,
+  ContactLensDiameters,
+  ContactLensDetails,
+  KeratometerContactLens,
+  ContactLensExam
 } from './schema';
 import * as usersDb from './users-db'
 import * as workShiftsDb from './work-shifts-db'
@@ -634,34 +636,36 @@ class DatabaseService {
     }
   }
 
-  updateClientPartUpdatedDate(clientId: number, part: string): boolean {
+  updateClientAiStates(clientId: number, aiStates: { [key: string]: string }): boolean {
     if (!this.db) return false;
 
     try {
       const validParts = ['exam', 'order', 'referral', 'contact_lens', 'appointment', 'file', 'medical'];
-      if (!validParts.includes(part)) {
-        console.error('Invalid part name:', part);
+      const setParts: string[] = [];
+      const values: any[] = [];
+
+      // Build the SET clause dynamically based on provided states
+      for (const [part, state] of Object.entries(aiStates)) {
+        if (validParts.includes(part)) {
+          setParts.push(`ai_${part}_state = ?`);
+          values.push(state);
+        }
+      }
+
+      if (setParts.length === 0) {
+        console.error('No valid AI states provided');
         return false;
       }
 
-      const stmt = this.db.prepare(`UPDATE clients SET ${part}_updated_date = CURRENT_TIMESTAMP WHERE id = ?`);
-      const result = stmt.run(clientId);
+      // Add the ai_updated_date update and clientId
+      setParts.push('ai_updated_date = CURRENT_TIMESTAMP');
+      values.push(clientId);
+
+      const stmt = this.db.prepare(`UPDATE clients SET ${setParts.join(', ')} WHERE id = ?`);
+      const result = stmt.run(...values);
       return result.changes > 0;
     } catch (error) {
-      console.error('Error updating client part updated date:', error);
-      return false;
-    }
-  }
-
-  updateClientAiMainState(clientId: number, aiMainState: string): boolean {
-    if (!this.db) return false;
-
-    try {
-      const stmt = this.db.prepare('UPDATE clients SET ai_main_state = ?, ai_updated_date = CURRENT_TIMESTAMP WHERE id = ?');
-      const result = stmt.run(aiMainState, clientId);
-      return result.changes > 0;
-    } catch (error) {
-      console.error('Error updating client AI main state:', error);
+      console.error('Error updating client AI states:', error);
       return false;
     }
   }
@@ -676,7 +680,7 @@ class DatabaseService {
         return false;
       }
 
-      const stmt = this.db.prepare(`UPDATE clients SET ai_${part}_state = ? WHERE id = ?`);
+      const stmt = this.db.prepare(`UPDATE clients SET ai_${part}_state = ?, ai_updated_date = CURRENT_TIMESTAMP WHERE id = ?`);
       const result = stmt.run(aiPartState, clientId);
       return result.changes > 0;
     } catch (error) {
@@ -695,7 +699,6 @@ class DatabaseService {
       const exams = this.getExamsByClientId(clientId);
       const orders = this.getOrdersByClientId(clientId);
       const referrals = this.getReferralsByClientId(clientId);
-      const contactLenses = this.getContactLensesByClientId(clientId);
       const appointments = this.getAppointmentsByClientId(clientId);
       const files = this.getFilesByClientId(clientId);
       const medicalLogs = this.getMedicalLogsByClientId(clientId);
@@ -742,23 +745,53 @@ class DatabaseService {
         eyes: this.getReferralEyesByReferralId(referral.id!)
       }));
 
-      const contactLensDetails = contactLenses.map(contactLens => ({
-        ...contactLens,
-        eyes: this.getContactEyesByContactLensId(contactLens.id!),
-        order: this.getContactLensOrderByContactLensId(contactLens.id!)
-      }));
 
       const billingDetails = billings.map(billing => ({
         ...billing,
         lineItems: this.getOrderLineItemsByBillingId(billing.id!)
       }));
 
+      const filteredClient = {
+        id: client.id,
+        first_name: client.first_name,
+        last_name: client.last_name,
+        gender: client.gender,
+        national_id: client.national_id,
+        date_of_birth: client.date_of_birth,
+        health_fund: client.health_fund,
+        address_city: client.address_city,
+        address_street: client.address_street,
+        address_number: client.address_number,
+        postal_code: client.postal_code,
+        phone_home: client.phone_home,
+        phone_work: client.phone_work,
+        phone_mobile: client.phone_mobile,
+        fax: client.fax,
+        email: client.email,
+        service_center: client.service_center,
+        file_creation_date: client.file_creation_date,
+        membership_end: client.membership_end,
+        service_end: client.service_end,
+        price_list: client.price_list,
+        discount_percent: client.discount_percent,
+        blocked_checks: client.blocked_checks,
+        blocked_credit: client.blocked_credit,
+        sorting_group: client.sorting_group,
+        referring_party: client.referring_party,
+        file_location: client.file_location,
+        occupation: client.occupation,
+        status: client.status,
+        notes: client.notes,
+        profile_picture: client.profile_picture,
+        family_id: client.family_id,
+        family_role: client.family_role
+      };
+
       return {
-        client,
+        client: filteredClient,
         exams: examDetails,
         orders: orderDetails,
         referrals: referralDetails,
-        contactLenses: contactLensDetails,
         appointments,
         files,
         medicalLogs,
@@ -2097,6 +2130,18 @@ class DatabaseService {
     }
   }
 
+  getMedicalLogById(id: number): MedicalLog | null {
+    if (!this.db) return null;
+
+    try {
+      const stmt = this.db.prepare('SELECT * FROM medical_logs WHERE id = ?');
+      return stmt.get(id) as MedicalLog | null;
+    } catch (error) {
+      console.error('Error getting medical log by id:', error);
+      return null;
+    }
+  }
+
   deleteMedicalLog(id: number): boolean {
     if (!this.db) return false;
 
@@ -2374,229 +2419,384 @@ class DatabaseService {
     }
   }
 
-  // Contact Lens CRUD operations
-  createContactLens(contactLens: Omit<ContactLens, 'id'>): ContactLens | null {
+  // ContactLensDiameters CRUD operations
+  createContactLensDiameters(data: Omit<ContactLensDiameters, 'id'>): ContactLensDiameters | null {
     if (!this.db) return null;
 
     try {
       const stmt = this.db.prepare(`
-        INSERT INTO contact_lens (
-          client_id, exam_date, type, user_id, comb_va, pupil_diameter, corneal_diameter, eyelid_aperture, notes, notes_for_supplier
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO contact_lens_diameters (
+          layout_instance_id, pupil_diameter, corneal_diameter, eyelid_aperture
+        ) VALUES (?, ?, ?, ?)
       `);
 
       const result = stmt.run(
-        contactLens.client_id,
-        this.sanitizeValue(contactLens.exam_date),
-        this.sanitizeValue(contactLens.type),
-        this.sanitizeValue(contactLens.user_id),
-        this.sanitizeValue(contactLens.comb_va),
-        this.sanitizeValue(contactLens.pupil_diameter),
-        this.sanitizeValue(contactLens.corneal_diameter),
-        this.sanitizeValue(contactLens.eyelid_aperture),
-        this.sanitizeValue(contactLens.notes),
-        this.sanitizeValue(contactLens.notes_for_supplier)
+        data.layout_instance_id,
+        this.sanitizeValue(data.pupil_diameter),
+        this.sanitizeValue(data.corneal_diameter),
+        this.sanitizeValue(data.eyelid_aperture)
       );
 
-      return { ...contactLens, id: result.lastInsertRowid as number };
+      return { ...data, id: result.lastInsertRowid as number };
     } catch (error) {
-      console.error('Error creating contact lens:', error);
+      console.error('Error creating contact lens diameters:', error);
       return null;
     }
   }
 
-  getContactLensById(id: number): ContactLens | null {
+  getContactLensDiametersById(id: number): ContactLensDiameters | null {
     if (!this.db) return null;
 
     try {
-      const stmt = this.db.prepare('SELECT * FROM contact_lens WHERE id = ?');
-      return stmt.get(id) as ContactLens | null;
+      const stmt = this.db.prepare('SELECT * FROM contact_lens_diameters WHERE id = ?');
+      return stmt.get(id) as ContactLensDiameters | null;
     } catch (error) {
-      console.error('Error getting contact lens by ID:', error);
+      console.error('Error getting contact lens diameters by ID:', error);
       return null;
     }
   }
 
-  getContactLensesByClientId(clientId: number): ContactLens[] {
-    if (!this.db) return [];
+  getContactLensDiametersByLayoutInstanceId(layoutInstanceId: number): ContactLensDiameters | null {
+    if (!this.db) return null;
 
     try {
-      const stmt = this.db.prepare('SELECT * FROM contact_lens WHERE client_id = ? ORDER BY exam_date DESC');
-      return stmt.all(clientId) as ContactLens[];
+      const stmt = this.db.prepare('SELECT * FROM contact_lens_diameters WHERE layout_instance_id = ?');
+      return stmt.get(layoutInstanceId) as ContactLensDiameters | null;
     } catch (error) {
-      console.error('Error getting contact lenses by client:', error);
-      return [];
+      console.error('Error getting contact lens diameters by layout instance ID:', error);
+      return null;
     }
   }
 
-  getAllContactLenses(): ContactLens[] {
-    if (!this.db) return [];
-
-    try {
-      const stmt = this.db.prepare('SELECT * FROM contact_lens ORDER BY exam_date DESC');
-      return stmt.all() as ContactLens[];
-    } catch (error) {
-      console.error('Error getting all contact lenses:', error);
-      return [];
-    }
-  }
-
-  updateContactLens(contactLens: ContactLens): ContactLens | null {
-    if (!this.db || !contactLens.id) return null;
+  updateContactLensDiameters(data: ContactLensDiameters): ContactLensDiameters | null {
+    if (!this.db || !data.id) return null;
 
     try {
       const stmt = this.db.prepare(`
-        UPDATE contact_lens SET 
-        client_id = ?, exam_date = ?, type = ?, user_id = ?, comb_va = ?, pupil_diameter = ?, corneal_diameter = ?,
-        eyelid_aperture = ?, notes = ?, notes_for_supplier = ?
+        UPDATE contact_lens_diameters SET
+        layout_instance_id = ?, pupil_diameter = ?, corneal_diameter = ?, eyelid_aperture = ?
         WHERE id = ?
       `);
 
       stmt.run(
-        contactLens.client_id,
-        this.sanitizeValue(contactLens.exam_date),
-        this.sanitizeValue(contactLens.type),
-        this.sanitizeValue(contactLens.user_id),
-        this.sanitizeValue(contactLens.comb_va),
-        this.sanitizeValue(contactLens.pupil_diameter),
-        this.sanitizeValue(contactLens.corneal_diameter),
-        this.sanitizeValue(contactLens.eyelid_aperture),
-        this.sanitizeValue(contactLens.notes),
-        this.sanitizeValue(contactLens.notes_for_supplier),
-        contactLens.id
+        data.layout_instance_id,
+        this.sanitizeValue(data.pupil_diameter),
+        this.sanitizeValue(data.corneal_diameter),
+        this.sanitizeValue(data.eyelid_aperture),
+        data.id
       );
 
-      return contactLens;
+      return data;
     } catch (error) {
-      console.error('Error updating contact lens:', error);
+      console.error('Error updating contact lens diameters:', error);
       return null;
     }
   }
 
-  deleteContactLens(id: number): boolean {
-    if (!this.db) return false;
-
-    try {
-      const stmt = this.db.prepare('DELETE FROM contact_lens WHERE id = ?');
-      const result = stmt.run(id);
-      return result.changes > 0;
-    } catch (error) {
-      console.error('Error deleting contact lens:', error);
-      return false;
-    }
-  }
-
-  // Contact Eye CRUD operations
-  createContactEye(contactEye: Omit<ContactEye, 'id'>): ContactEye | null {
+  // ContactLensDetails CRUD operations
+  createContactLensDetails(data: Omit<ContactLensDetails, 'id'>): ContactLensDetails | null {
     if (!this.db) return null;
 
     try {
       const stmt = this.db.prepare(`
-        INSERT INTO contact_eye (
-          contact_lens_id, eye, schirmer_test, schirmer_but, k_h, k_v, k_avg, k_cyl, k_ax, k_ecc,
-          lens_type, model, supplier, material, color, quantity, order_quantity, dx, bc, bc_2, oz, diam,
-          sph, cyl, ax, read_ad, va, j
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO contact_lens_details (
+          layout_instance_id, r_lens_type, l_lens_type, r_model, l_model, r_supplier, l_supplier,
+          r_material, l_material, r_color, l_color, r_quantity, l_quantity,
+          r_order_quantity, l_order_quantity, r_dx, l_dx
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
 
       const result = stmt.run(
-        contactEye.contact_lens_id,
-        this.sanitizeValue(contactEye.eye),
-        this.sanitizeValue(contactEye.schirmer_test),
-        this.sanitizeValue(contactEye.schirmer_but),
-        this.sanitizeValue(contactEye.k_h),
-        this.sanitizeValue(contactEye.k_v),
-        this.sanitizeValue(contactEye.k_avg),
-        this.sanitizeValue(contactEye.k_cyl),
-        this.sanitizeValue(contactEye.k_ax),
-        this.sanitizeValue(contactEye.k_ecc),
-        this.sanitizeValue(contactEye.lens_type),
-        this.sanitizeValue(contactEye.model),
-        this.sanitizeValue(contactEye.supplier),
-        this.sanitizeValue(contactEye.material),
-        this.sanitizeValue(contactEye.color),
-        this.sanitizeValue(contactEye.quantity),
-        this.sanitizeValue(contactEye.order_quantity),
-        this.sanitizeValue(contactEye.dx),
-        this.sanitizeValue(contactEye.bc),
-        this.sanitizeValue(contactEye.bc_2),
-        this.sanitizeValue(contactEye.oz),
-        this.sanitizeValue(contactEye.diam),
-        this.sanitizeValue(contactEye.sph),
-        this.sanitizeValue(contactEye.cyl),
-        this.sanitizeValue(contactEye.ax),
-        this.sanitizeValue(contactEye.read_ad),
-        this.sanitizeValue(contactEye.va),
-        this.sanitizeValue(contactEye.j)
+        data.layout_instance_id,
+        this.sanitizeValue(data.r_lens_type),
+        this.sanitizeValue(data.l_lens_type),
+        this.sanitizeValue(data.r_model),
+        this.sanitizeValue(data.l_model),
+        this.sanitizeValue(data.r_supplier),
+        this.sanitizeValue(data.l_supplier),
+        this.sanitizeValue(data.r_material),
+        this.sanitizeValue(data.l_material),
+        this.sanitizeValue(data.r_color),
+        this.sanitizeValue(data.l_color),
+        this.sanitizeValue(data.r_quantity),
+        this.sanitizeValue(data.l_quantity),
+        this.sanitizeValue(data.r_order_quantity),
+        this.sanitizeValue(data.l_order_quantity),
+        this.sanitizeValue(data.r_dx),
+        this.sanitizeValue(data.l_dx)
       );
 
-      return { ...contactEye, id: result.lastInsertRowid as number };
+      return { ...data, id: result.lastInsertRowid as number };
     } catch (error) {
-      console.error('Error creating contact eye:', error);
+      console.error('Error creating contact lens details:', error);
       return null;
     }
   }
 
-  getContactEyesByContactLensId(contactLensId: number): ContactEye[] {
-    if (!this.db) return [];
+  getContactLensDetailsById(id: number): ContactLensDetails | null {
+    if (!this.db) return null;
 
     try {
-      const stmt = this.db.prepare('SELECT * FROM contact_eye WHERE contact_lens_id = ?');
-      return stmt.all(contactLensId) as ContactEye[];
+      const stmt = this.db.prepare('SELECT * FROM contact_lens_details WHERE id = ?');
+      return stmt.get(id) as ContactLensDetails | null;
     } catch (error) {
-      console.error('Error getting contact eyes by contact lens ID:', error);
-      return [];
+      console.error('Error getting contact lens details by ID:', error);
+      return null;
     }
   }
 
-  updateContactEye(contactEye: ContactEye): ContactEye | null {
-    if (!this.db || !contactEye.id) return null;
+  getContactLensDetailsByLayoutInstanceId(layoutInstanceId: number): ContactLensDetails | null {
+    if (!this.db) return null;
+
+    try {
+      const stmt = this.db.prepare('SELECT * FROM contact_lens_details WHERE layout_instance_id = ?');
+      return stmt.get(layoutInstanceId) as ContactLensDetails | null;
+    } catch (error) {
+      console.error('Error getting contact lens details by layout instance ID:', error);
+      return null;
+    }
+  }
+
+  updateContactLensDetails(data: ContactLensDetails): ContactLensDetails | null {
+    if (!this.db || !data.id) return null;
 
     try {
       const stmt = this.db.prepare(`
-        UPDATE contact_eye SET 
-          contact_lens_id = ?, eye = ?, schirmer_test = ?, schirmer_but = ?, k_h = ?, k_v = ?, k_avg = ?,
-          k_cyl = ?, k_ax = ?, k_ecc = ?, lens_type = ?, model = ?, supplier = ?, material = ?, color = ?,
-          quantity = ?, order_quantity = ?, dx = ?, bc = ?, bc_2 = ?, oz = ?, diam = ?, sph = ?, cyl = ?, ax = ?,
-          read_ad = ?, va = ?, j = ?
+        UPDATE contact_lens_details SET
+        layout_instance_id = ?, r_lens_type = ?, l_lens_type = ?, r_model = ?, l_model = ?, r_supplier = ?, l_supplier = ?,
+        r_material = ?, l_material = ?, r_color = ?, l_color = ?, r_quantity = ?, l_quantity = ?,
+        r_order_quantity = ?, l_order_quantity = ?, r_dx = ?, l_dx = ?
         WHERE id = ?
       `);
 
       stmt.run(
-        contactEye.contact_lens_id,
-        this.sanitizeValue(contactEye.eye),
-        this.sanitizeValue(contactEye.schirmer_test),
-        this.sanitizeValue(contactEye.schirmer_but),
-        this.sanitizeValue(contactEye.k_h),
-        this.sanitizeValue(contactEye.k_v),
-        this.sanitizeValue(contactEye.k_avg),
-        this.sanitizeValue(contactEye.k_cyl),
-        this.sanitizeValue(contactEye.k_ax),
-        this.sanitizeValue(contactEye.k_ecc),
-        this.sanitizeValue(contactEye.lens_type),
-        this.sanitizeValue(contactEye.model),
-        this.sanitizeValue(contactEye.supplier),
-        this.sanitizeValue(contactEye.material),
-        this.sanitizeValue(contactEye.color),
-        this.sanitizeValue(contactEye.quantity),
-        this.sanitizeValue(contactEye.order_quantity),
-        this.sanitizeValue(contactEye.dx),
-        this.sanitizeValue(contactEye.bc),
-        this.sanitizeValue(contactEye.bc_2),
-        this.sanitizeValue(contactEye.oz),
-        this.sanitizeValue(contactEye.diam),
-        this.sanitizeValue(contactEye.sph),
-        this.sanitizeValue(contactEye.cyl),
-        this.sanitizeValue(contactEye.ax),
-        this.sanitizeValue(contactEye.read_ad),
-        this.sanitizeValue(contactEye.va),
-        this.sanitizeValue(contactEye.j),
-        contactEye.id
+        data.layout_instance_id,
+        this.sanitizeValue(data.r_lens_type),
+        this.sanitizeValue(data.l_lens_type),
+        this.sanitizeValue(data.r_model),
+        this.sanitizeValue(data.l_model),
+        this.sanitizeValue(data.r_supplier),
+        this.sanitizeValue(data.l_supplier),
+        this.sanitizeValue(data.r_material),
+        this.sanitizeValue(data.l_material),
+        this.sanitizeValue(data.r_color),
+        this.sanitizeValue(data.l_color),
+        this.sanitizeValue(data.r_quantity),
+        this.sanitizeValue(data.l_quantity),
+        this.sanitizeValue(data.r_order_quantity),
+        this.sanitizeValue(data.l_order_quantity),
+        this.sanitizeValue(data.r_dx),
+        this.sanitizeValue(data.l_dx),
+        data.id
       );
 
-      return contactEye;
+      return data;
     } catch (error) {
-      console.error('Error updating contact eye:', error);
+      console.error('Error updating contact lens details:', error);
+      return null;
+    }
+  }
+
+  // KeratometerContactLens CRUD operations
+  createKeratometerContactLens(data: Omit<KeratometerContactLens, 'id'>): KeratometerContactLens | null {
+    if (!this.db) return null;
+
+    try {
+      const stmt = this.db.prepare(`
+        INSERT INTO keratometer_contact_lens (
+          layout_instance_id, r_rh, l_rh, r_rv, l_rv, r_avg, l_avg,
+          r_cyl, l_cyl, r_ax, l_ax, r_ecc, l_ecc
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+
+      const result = stmt.run(
+        data.layout_instance_id,
+        this.sanitizeValue(data.r_rh),
+        this.sanitizeValue(data.l_rh),
+        this.sanitizeValue(data.r_rv),
+        this.sanitizeValue(data.l_rv),
+        this.sanitizeValue(data.r_avg),
+        this.sanitizeValue(data.l_avg),
+        this.sanitizeValue(data.r_cyl),
+        this.sanitizeValue(data.l_cyl),
+        this.sanitizeValue(data.r_ax),
+        this.sanitizeValue(data.l_ax),
+        this.sanitizeValue(data.r_ecc),
+        this.sanitizeValue(data.l_ecc)
+      );
+
+      return { ...data, id: result.lastInsertRowid as number };
+    } catch (error) {
+      console.error('Error creating keratometer contact lens:', error);
+      return null;
+    }
+  }
+
+  getKeratometerContactLensById(id: number): KeratometerContactLens | null {
+    if (!this.db) return null;
+
+    try {
+      const stmt = this.db.prepare('SELECT * FROM keratometer_contact_lens WHERE id = ?');
+      return stmt.get(id) as KeratometerContactLens | null;
+    } catch (error) {
+      console.error('Error getting keratometer contact lens by ID:', error);
+      return null;
+    }
+  }
+
+  getKeratometerContactLensByLayoutInstanceId(layoutInstanceId: number): KeratometerContactLens | null {
+    if (!this.db) return null;
+
+    try {
+      const stmt = this.db.prepare('SELECT * FROM keratometer_contact_lens WHERE layout_instance_id = ?');
+      return stmt.get(layoutInstanceId) as KeratometerContactLens | null;
+    } catch (error) {
+      console.error('Error getting keratometer contact lens by layout instance ID:', error);
+      return null;
+    }
+  }
+
+  updateKeratometerContactLens(data: KeratometerContactLens): KeratometerContactLens | null {
+    if (!this.db || !data.id) return null;
+
+    try {
+      const stmt = this.db.prepare(`
+        UPDATE keratometer_contact_lens SET
+        layout_instance_id = ?, r_rh = ?, l_rh = ?, r_rv = ?, l_rv = ?, r_avg = ?, l_avg = ?,
+        r_cyl = ?, l_cyl = ?, r_ax = ?, l_ax = ?, r_ecc = ?, l_ecc = ?
+        WHERE id = ?
+      `);
+
+      stmt.run(
+        data.layout_instance_id,
+        this.sanitizeValue(data.r_rh),
+        this.sanitizeValue(data.l_rh),
+        this.sanitizeValue(data.r_rv),
+        this.sanitizeValue(data.l_rv),
+        this.sanitizeValue(data.r_avg),
+        this.sanitizeValue(data.l_avg),
+        this.sanitizeValue(data.r_cyl),
+        this.sanitizeValue(data.l_cyl),
+        this.sanitizeValue(data.r_ax),
+        this.sanitizeValue(data.l_ax),
+        this.sanitizeValue(data.r_ecc),
+        this.sanitizeValue(data.l_ecc),
+        data.id
+      );
+
+      return data;
+    } catch (error) {
+      console.error('Error updating keratometer contact lens:', error);
+      return null;
+    }
+  }
+
+  // ContactLensExam CRUD operations
+  createContactLensExam(data: Omit<ContactLensExam, 'id'>): ContactLensExam | null {
+    if (!this.db) return null;
+
+    try {
+      const stmt = this.db.prepare(`
+        INSERT INTO contact_lens_exam (
+          layout_instance_id, r_bc, l_bc, r_oz, l_oz, r_diam, l_diam,
+          r_sph, l_sph, r_cyl, l_cyl, r_ax, l_ax, r_read_ad, l_read_ad,
+          r_va, l_va, r_j, l_j, comb_va
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+
+      const result = stmt.run(
+        data.layout_instance_id,
+        this.sanitizeValue(data.r_bc),
+        this.sanitizeValue(data.l_bc),
+        this.sanitizeValue(data.r_oz),
+        this.sanitizeValue(data.l_oz),
+        this.sanitizeValue(data.r_diam),
+        this.sanitizeValue(data.l_diam),
+        this.sanitizeValue(data.r_sph),
+        this.sanitizeValue(data.l_sph),
+        this.sanitizeValue(data.r_cyl),
+        this.sanitizeValue(data.l_cyl),
+        this.sanitizeValue(data.r_ax),
+        this.sanitizeValue(data.l_ax),
+        this.sanitizeValue(data.r_read_ad),
+        this.sanitizeValue(data.l_read_ad),
+        this.sanitizeValue(data.r_va),
+        this.sanitizeValue(data.l_va),
+        this.sanitizeValue(data.r_j),
+        this.sanitizeValue(data.l_j),
+        this.sanitizeValue(data.comb_va)
+      );
+
+      return { ...data, id: result.lastInsertRowid as number };
+    } catch (error) {
+      console.error('Error creating contact lens exam:', error);
+      return null;
+    }
+  }
+
+  getContactLensExamById(id: number): ContactLensExam | null {
+    if (!this.db) return null;
+
+    try {
+      const stmt = this.db.prepare('SELECT * FROM contact_lens_exam WHERE id = ?');
+      return stmt.get(id) as ContactLensExam | null;
+    } catch (error) {
+      console.error('Error getting contact lens exam by ID:', error);
+      return null;
+    }
+  }
+
+  getContactLensExamByLayoutInstanceId(layoutInstanceId: number): ContactLensExam | null {
+    if (!this.db) return null;
+
+    try {
+      const stmt = this.db.prepare('SELECT * FROM contact_lens_exam WHERE layout_instance_id = ?');
+      return stmt.get(layoutInstanceId) as ContactLensExam | null;
+    } catch (error) {
+      console.error('Error getting contact lens exam by layout instance ID:', error);
+      return null;
+    }
+  }
+
+  updateContactLensExam(data: ContactLensExam): ContactLensExam | null {
+    if (!this.db || !data.id) return null;
+
+    try {
+      const stmt = this.db.prepare(`
+        UPDATE contact_lens_exam SET
+        layout_instance_id = ?, r_bc = ?, l_bc = ?, r_oz = ?, l_oz = ?, r_diam = ?, l_diam = ?,
+        r_sph = ?, l_sph = ?, r_cyl = ?, l_cyl = ?, r_ax = ?, l_ax = ?, r_read_ad = ?, l_read_ad = ?,
+        r_va = ?, l_va = ?, r_j = ?, l_j = ?, comb_va = ?
+        WHERE id = ?
+      `);
+
+      stmt.run(
+        data.layout_instance_id,
+        this.sanitizeValue(data.r_bc),
+        this.sanitizeValue(data.l_bc),
+        this.sanitizeValue(data.r_oz),
+        this.sanitizeValue(data.l_oz),
+        this.sanitizeValue(data.r_diam),
+        this.sanitizeValue(data.l_diam),
+        this.sanitizeValue(data.r_sph),
+        this.sanitizeValue(data.l_sph),
+        this.sanitizeValue(data.r_cyl),
+        this.sanitizeValue(data.l_cyl),
+        this.sanitizeValue(data.r_ax),
+        this.sanitizeValue(data.l_ax),
+        this.sanitizeValue(data.r_read_ad),
+        this.sanitizeValue(data.l_read_ad),
+        this.sanitizeValue(data.r_va),
+        this.sanitizeValue(data.l_va),
+        this.sanitizeValue(data.r_j),
+        this.sanitizeValue(data.l_j),
+        this.sanitizeValue(data.comb_va),
+        data.id
+      );
+
+      return data;
+    } catch (error) {
+      console.error('Error updating contact lens exam:', error);
       return null;
     }
   }
@@ -5933,6 +6133,17 @@ class DatabaseService {
     } catch (error) {
       console.error(`Error getting NotesExam by layout_instance_id ${layout_instance_id}:`, error);
       return null;
+    }
+  }
+
+  getAllNotesExamsByLayoutInstanceId(layout_instance_id: number): NotesExam[] {
+    if (!this.db) return [];
+    try {
+      const stmt = this.db.prepare('SELECT * FROM notes_exams WHERE layout_instance_id = ?');
+      return stmt.all(layout_instance_id) as NotesExam[];
+    } catch (error) {
+      console.error(`Error getting all NotesExams by layout_instance_id ${layout_instance_id}:`, error);
+      return [];
     }
   }
 
