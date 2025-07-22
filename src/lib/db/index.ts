@@ -70,7 +70,9 @@ import {
   ContactLensDiameters,
   ContactLensDetails,
   KeratometerContactLens,
-  ContactLensExam
+  ContactLensExam,
+  OldContactLenses,
+  OverRefraction
 } from './schema';
 import * as usersDb from './users-db'
 import * as workShiftsDb from './work-shifts-db'
@@ -867,17 +869,18 @@ class DatabaseService {
     }
   }
 
-  getAllExams(): OpticalExam[] {
+  getAllExams(type?: string): OpticalExam[] {
     if (!this.db) return [];
 
     try {
-      const stmt = this.db.prepare('SELECT * FROM optical_exams ORDER BY exam_date DESC');
-      return stmt.all() as OpticalExam[];
+      const stmt = this.db.prepare('SELECT * FROM optical_exams WHERE type = ? ORDER BY exam_date DESC');
+      return stmt.all(type) as OpticalExam[];
     } catch (error) {
       console.error('Error getting all exams:', error);
       return [];
     }
   }
+
 
   updateExam(exam: OpticalExam): OpticalExam | null {
     if (!this.db || !exam.id) return null;
@@ -5845,8 +5848,8 @@ class DatabaseService {
     if (!this.db) return null;
     try {
       const stmt = this.db.prepare(`
-        INSERT INTO campaigns (name, filters, email_enabled, email_content, sms_enabled, sms_content, active, active_since, mail_sent, sms_sent)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO campaigns (name, filters, email_enabled, email_content, sms_enabled, sms_content, active, active_since, mail_sent, sms_sent, execute_once_per_client)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
       const result = stmt.run(
         campaign.name,
@@ -5858,7 +5861,8 @@ class DatabaseService {
         this.sanitizeValue(campaign.active),
         this.sanitizeValue(campaign.active_since),
         this.sanitizeValue(campaign.mail_sent),
-        this.sanitizeValue(campaign.sms_sent)
+        this.sanitizeValue(campaign.sms_sent),
+        this.sanitizeValue(campaign.execute_once_per_client)
       );
       return { ...campaign, id: result.lastInsertRowid as number };
     } catch (error) {
@@ -5894,7 +5898,7 @@ class DatabaseService {
     try {
       const stmt = this.db.prepare(`
         UPDATE campaigns SET 
-        name = ?, filters = ?, email_enabled = ?, email_content = ?, sms_enabled = ?, sms_content = ?, active = ?, active_since = ?, mail_sent = ?, sms_sent = ?
+        name = ?, filters = ?, email_enabled = ?, email_content = ?, sms_enabled = ?, sms_content = ?, active = ?, active_since = ?, mail_sent = ?, sms_sent = ?, execute_once_per_client = ?
         WHERE id = ?
       `);
       stmt.run(
@@ -5908,6 +5912,7 @@ class DatabaseService {
         this.sanitizeValue(campaign.active_since),
         this.sanitizeValue(campaign.mail_sent),
         this.sanitizeValue(campaign.sms_sent),
+        this.sanitizeValue(campaign.execute_once_per_client),
         campaign.id
       );
       return campaign;
@@ -5920,6 +5925,7 @@ class DatabaseService {
   deleteCampaign(id: number): boolean {
     if (!this.db) return false;
     try {
+      this.deleteCampaignClientExecutionsForCampaign(id);
       const stmt = this.db.prepare('DELETE FROM campaigns WHERE id = ?');
       const result = stmt.run(id);
       return result.changes > 0;
@@ -6179,6 +6185,236 @@ class DatabaseService {
       return result.changes > 0;
     } catch (error) {
       console.error(`Error deleting NotesExam with ID ${id}:`, error);
+      return false;
+    }
+  }
+
+  getCampaignClientExecution(campaignId: number, clientId: number): boolean {
+    if (!this.db) return false;
+    const stmt = this.db.prepare('SELECT 1 FROM campaign_client_executions WHERE campaign_id = ? AND client_id = ?');
+    const row = stmt.get(campaignId, clientId);
+    return !!row;
+  }
+
+  addCampaignClientExecution(campaignId: number, clientId: number): void {
+    if (!this.db) return;
+    const stmt = this.db.prepare('INSERT OR IGNORE INTO campaign_client_executions (campaign_id, client_id) VALUES (?, ?)');
+    stmt.run(campaignId, clientId);
+  }
+
+  deleteCampaignClientExecutionsForCampaign(campaignId: number): void {
+    if (!this.db) return;
+    const stmt = this.db.prepare('DELETE FROM campaign_client_executions WHERE campaign_id = ?');
+    stmt.run(campaignId);
+  }
+
+  // OldContactLenses CRUD
+  createOldContactLenses(data: Omit<OldContactLenses, 'id'>): OldContactLenses | null {
+    if (!this.db) return null;
+    try {
+      const stmt = this.db.prepare(`
+        INSERT INTO old_contact_lenses (
+          layout_instance_id, r_lens_type, l_lens_type, r_model, l_model, r_supplier, l_supplier,
+          l_bc, l_diam, l_sph, l_cyl, l_ax, l_va, l_j,
+          r_bc, r_diam, r_sph, r_cyl, r_ax, r_va, r_j,
+          comb_va, comb_j
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+      const result = stmt.run(
+        data.layout_instance_id, data.r_lens_type, data.l_lens_type, data.r_model, data.l_model, data.r_supplier, data.l_supplier,
+        data.l_bc, data.l_diam, data.l_sph, data.l_cyl, data.l_ax, data.l_va, data.l_j,
+        data.r_bc, data.r_diam, data.r_sph, data.r_cyl, data.r_ax, data.r_va, data.r_j,
+        data.comb_va, data.comb_j
+      );
+      return { ...data, id: result.lastInsertRowid as number };
+    } catch (error) {
+      console.error('Error creating OldContactLenses:', error);
+      return null;
+    }
+  }
+
+  getOldContactLensesById(id: number): OldContactLenses | null {
+    if (!this.db) return null;
+    try {
+      const stmt = this.db.prepare('SELECT * FROM old_contact_lenses WHERE id = ?');
+      return stmt.get(id) as OldContactLenses | null;
+    } catch (error) {
+      console.error('Error getting OldContactLenses by id:', error);
+      return null;
+    }
+  }
+
+  getOldContactLensesByLayoutInstanceId(layoutInstanceId: number): OldContactLenses | null {
+    if (!this.db) return null;
+    try {
+      const stmt = this.db.prepare('SELECT * FROM old_contact_lenses WHERE layout_instance_id = ?');
+      return stmt.get(layoutInstanceId) as OldContactLenses | null;
+    } catch (error) {
+      console.error('Error getting OldContactLenses by layout instance id:', error);
+      return null;
+    }
+  }
+
+  updateOldContactLenses(data: OldContactLenses): OldContactLenses | null {
+    if (!this.db || !data.id) return null;
+    try {
+      const stmt = this.db.prepare(`
+        UPDATE old_contact_lenses SET
+          layout_instance_id = ?, r_lens_type = ?, l_lens_type = ?, r_model = ?, l_model = ?, r_supplier = ?, l_supplier = ?,
+          l_bc = ?, l_diam = ?, l_sph = ?, l_cyl = ?, l_ax = ?, l_va = ?, l_j = ?,
+          r_bc = ?, r_diam = ?, r_sph = ?, r_cyl = ?, r_ax = ?, r_va = ?, r_j = ?,
+          comb_va = ?, comb_j = ?
+        WHERE id = ?
+      `);
+      stmt.run(
+        data.layout_instance_id, data.r_lens_type, data.l_lens_type, data.r_model, data.l_model, data.r_supplier, data.l_supplier,
+        data.l_bc, data.l_diam, data.l_sph, data.l_cyl, data.l_ax, data.l_va, data.l_j,
+        data.r_bc, data.r_diam, data.r_sph, data.r_cyl, data.r_ax, data.r_va, data.r_j,
+        data.comb_va, data.comb_j, data.id
+      );
+      return data;
+    } catch (error) {
+      console.error('Error updating OldContactLenses:', error);
+      return null;
+    }
+  }
+
+  // OverRefraction CRUD
+  createOverRefraction(data: Omit<OverRefraction, 'id'>): OverRefraction | null {
+    if (!this.db) return null;
+
+    try {
+      const stmt = this.db.prepare(`
+        INSERT INTO over_refraction (
+          layout_instance_id, r_sph, l_sph, r_cyl, l_cyl, r_ax, l_ax,
+          r_va, l_va, r_j, l_j, comb_va, comb_j, l_add, r_add,
+          l_florescent, r_florescent, l_bio_m, r_bio_m
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+
+      const result = stmt.run(
+        data.layout_instance_id,
+        this.sanitizeValue(data.r_sph),
+        this.sanitizeValue(data.l_sph),
+        this.sanitizeValue(data.r_cyl),
+        this.sanitizeValue(data.l_cyl),
+        this.sanitizeValue(data.r_ax),
+        this.sanitizeValue(data.l_ax),
+        this.sanitizeValue(data.r_va),
+        this.sanitizeValue(data.l_va),
+        this.sanitizeValue(data.r_j),
+        this.sanitizeValue(data.l_j),
+        this.sanitizeValue(data.comb_va),
+        this.sanitizeValue(data.comb_j),
+        this.sanitizeValue(data.l_add),
+        this.sanitizeValue(data.r_add),
+        this.sanitizeValue(data.l_florescent),
+        this.sanitizeValue(data.r_florescent),
+        this.sanitizeValue(data.l_bio_m),
+        this.sanitizeValue(data.r_bio_m)
+      );
+
+      return { ...data, id: result.lastInsertRowid as number };
+    } catch (error) {
+      console.error('Error creating over refraction:', error);
+      return null;
+    }
+  }
+
+  getOverRefraction(id: number): OverRefraction | null {
+    if (!this.db) return null;
+    try {
+      const stmt = this.db.prepare(
+        'SELECT * FROM over_refraction WHERE id = ?'
+      );
+      return stmt.get(id) as OverRefraction;
+    } catch (error) {
+      console.error('Error getting over refraction:', error);
+      return null;
+    }
+  }
+
+  getOverRefractionByLayoutInstanceId(layout_instance_id: number): OverRefraction | null {
+    if (!this.db) return null;
+
+    try {
+      const stmt = this.db.prepare(
+        'SELECT * FROM over_refraction WHERE layout_instance_id = ?'
+      );
+      return stmt.get(layout_instance_id) as OverRefraction;
+    } catch (error) {
+      console.error('Error getting over refraction by layout instance id:', error);
+      return null;
+    }
+  }
+
+  updateOverRefraction(data: OverRefraction): OverRefraction | null {
+    if (!this.db || !data.id) return null;
+
+    try {
+      const stmt = this.db.prepare(`
+        UPDATE over_refraction SET
+          layout_instance_id = ?,
+          r_sph = ?,
+          l_sph = ?,
+          r_cyl = ?,
+          l_cyl = ?,
+          r_ax = ?,
+          l_ax = ?,
+          r_va = ?,
+          l_va = ?,
+          r_j = ?,
+          l_j = ?,
+          comb_va = ?,
+          comb_j = ?,
+          l_add = ?,
+          r_add = ?,
+          l_florescent = ?,
+          r_florescent = ?,
+          l_bio_m = ?,
+          r_bio_m = ?
+        WHERE id = ?
+      `);
+
+      stmt.run(
+        data.layout_instance_id,
+        this.sanitizeValue(data.r_sph),
+        this.sanitizeValue(data.l_sph),
+        this.sanitizeValue(data.r_cyl),
+        this.sanitizeValue(data.l_cyl),
+        this.sanitizeValue(data.r_ax),
+        this.sanitizeValue(data.l_ax),
+        this.sanitizeValue(data.r_va),
+        this.sanitizeValue(data.l_va),
+        this.sanitizeValue(data.r_j),
+        this.sanitizeValue(data.l_j),
+        this.sanitizeValue(data.comb_va),
+        this.sanitizeValue(data.comb_j),
+        this.sanitizeValue(data.l_add),
+        this.sanitizeValue(data.r_add),
+        this.sanitizeValue(data.l_florescent),
+        this.sanitizeValue(data.r_florescent),
+        this.sanitizeValue(data.l_bio_m),
+        this.sanitizeValue(data.r_bio_m),
+        data.id
+      );
+
+      return data;
+    } catch (error) {
+      console.error('Error updating over refraction:', error);
+      return null;
+    }
+  }
+
+  deleteOverRefraction(id: number): boolean {
+    if (!this.db) return false;
+
+    try {
+      const stmt = this.db.prepare('DELETE FROM over_refraction WHERE id = ?');
+      stmt.run(id);
+      return true;
+    } catch (error) {
+      console.error('Error deleting over refraction:', error);
       return false;
     }
   }

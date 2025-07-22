@@ -20,7 +20,8 @@ import {
   ContactLensDiameters,
   ContactLensDetails,
   KeratometerContactLens,
-  ContactLensExam
+  ContactLensExam,
+  ContactLensOrder
 } from './db/schema'
 
 export type ExamComponentType =
@@ -47,7 +48,8 @@ export type ExamComponentType =
   | 'contact-lens-diameters'
   | 'contact-lens-details'
   | 'keratometer-contact-lens'
-  | 'contact-lens-exam';
+  | 'contact-lens-exam'
+  | 'contact-lens-order';
 
 export const fullExamsList: ExamComponentType[] = [
   'exam-details',
@@ -74,6 +76,7 @@ export const fullExamsList: ExamComponentType[] = [
   'contact-lens-details',
   'keratometer-contact-lens',
   'contact-lens-exam',
+  'contact-lens-order',
 ];
 
 export const examComponentTypeToExamFields: Record<ExamComponentType, ExamComponentType[]> = {
@@ -101,9 +104,10 @@ export const examComponentTypeToExamFields: Record<ExamComponentType, ExamCompon
   'contact-lens-details': [],
   'keratometer-contact-lens': [],
   'contact-lens-exam': [],
+  'contact-lens-order': [],
 };
 
-export type ExamDataType = OpticalExam | OldRefExam | OldRefractionExam | OldRefractionExtensionExam | ObjectiveExam | SubjectiveExam | FinalSubjectiveExam | FinalPrescriptionExam | CompactPrescriptionExam | AdditionExam | RetinoscopExam | RetinoscopDilationExam | UncorrectedVAExam | KeratometerExam | KeratometerFullExam | CornealTopographyExam | CoverTestExam | SchirmerTestExam | ContactLensDiameters | ContactLensDetails | KeratometerContactLens | ContactLensExam
+export type ExamDataType = OpticalExam | OldRefExam | OldRefractionExam | OldRefractionExtensionExam | ObjectiveExam | SubjectiveExam | FinalSubjectiveExam | FinalPrescriptionExam | CompactPrescriptionExam | AdditionExam | RetinoscopExam | RetinoscopDilationExam | UncorrectedVAExam | KeratometerExam | KeratometerFullExam | CornealTopographyExam | CoverTestExam | SchirmerTestExam | ContactLensDiameters | ContactLensDetails | KeratometerContactLens | ContactLensExam | ContactLensOrder
 
 export interface FieldMapping {
   [sourceField: string]: string | null
@@ -138,7 +142,8 @@ export class ExamFieldMapper {
     'contact-lens-diameters': fullExamsList,
     'contact-lens-details': fullExamsList,
     'keratometer-contact-lens': fullExamsList,
-    'contact-lens-exam': fullExamsList
+    'contact-lens-exam': fullExamsList,
+    'contact-lens-order': []
   }
 
   private static explicitMappings: Partial<Record<ExamComponentType, ComponentFieldMappings>> = {
@@ -215,6 +220,8 @@ export class ExamFieldMapper {
         return ['r_rh', 'r_rv', 'r_avg', 'r_cyl', 'r_ax', 'r_ecc', 'l_rh', 'l_rv', 'l_avg', 'l_cyl', 'l_ax', 'l_ecc']
       case 'contact-lens-exam':
         return ['r_bc', 'r_oz', 'r_diam', 'r_sph', 'r_cyl', 'r_ax', 'r_read_ad', 'r_va', 'r_j', 'l_bc', 'l_oz', 'l_diam', 'l_sph', 'l_cyl', 'l_ax', 'l_read_ad', 'l_va', 'l_j', 'comb_va']
+      case 'contact-lens-order':
+        return ['contact_lens_id', 'branch', 'supply_in_branch', 'order_status', 'advisor', 'deliverer', 'delivery_date', 'priority', 'guaranteed_date', 'approval_date', 'cleaning_solution', 'disinfection_solution', 'rinsing_solution']
       default:
         return []
     }

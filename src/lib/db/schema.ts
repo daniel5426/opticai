@@ -416,6 +416,62 @@ export interface ContactLensDiameters {
 
 }
 
+export interface OldContactLenses {
+  id?: number;
+  layout_instance_id: number;
+  r_lens_type?: string;
+  l_lens_type?: string;
+  r_model?: string;
+  l_model?: string;
+  r_supplier?: string;
+  l_supplier?: string;
+
+  l_bc?: number;
+  l_diam?: number;
+  l_sph?: number;
+  l_cyl?: number;
+  l_ax?: number;
+  l_va?: number;
+  l_j?: number;
+
+  r_bc?: number;
+  r_diam?: number;
+  r_sph?: number;
+  r_cyl?: number;
+  r_ax?: number;
+  r_va?: number;
+  r_j?: number;
+
+  comb_va?: number;
+  comb_j?: number;
+}
+
+export interface OverRefraction {
+  id?: number;
+  layout_instance_id: number;
+  r_sph?: number;
+  l_sph?: number;
+  r_cyl?: number;
+  l_cyl?: number;
+  r_ax?: number;
+  l_ax?: number;
+  r_va?: number;
+  l_va?: number;
+  r_j?: number;
+  l_j?: number;
+  
+  comb_va?: number;
+  comb_j?: number;
+
+  l_add?: number;
+  r_add?: number;
+  l_florescent?: string;
+  r_florescent?: string;
+  l_bio_m?: string;
+  r_bio_m?: string;
+}
+
+
 export interface ContactLensDetails {
   id?: number;
   layout_instance_id: number;
@@ -906,6 +962,14 @@ export interface Campaign {
   cycle_type?: 'daily' | 'monthly' | 'yearly' | 'custom';
   cycle_custom_days?: number; // For custom cycle type
   last_executed?: string; // ISO date string of last execution
+  execute_once_per_client?: boolean;
+}
+
+export interface CampaignClientExecution {
+  id?: number;
+  campaign_id: number;
+  client_id: number;
+  executed_at?: string;
 }
 
 export const createTables = (db: Database): void => {
@@ -2300,7 +2364,8 @@ export const createTables = (db: Database): void => {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       cycle_type TEXT CHECK(cycle_type IN ('daily','monthly','yearly','custom')) DEFAULT 'daily',
       cycle_custom_days INTEGER,
-      last_executed DATETIME
+      last_executed DATETIME,
+      execute_once_per_client BOOLEAN DEFAULT 0
     );
   `);
 
@@ -2317,6 +2382,10 @@ export const createTables = (db: Database): void => {
     db.exec(`ALTER TABLE campaigns ADD COLUMN last_executed DATETIME`);
   } catch (e) { /* Column already exists */ }
 
+  try {
+    db.exec(`ALTER TABLE campaigns ADD COLUMN execute_once_per_client BOOLEAN DEFAULT 0`);
+  } catch (e) { /* Column already exists */ }
+
   // Add new count columns to existing campaigns table if they don't exist
   try {
     db.exec(`ALTER TABLE campaigns ADD COLUMN emails_sent_count INTEGER DEFAULT 0`);
@@ -2331,6 +2400,19 @@ export const createTables = (db: Database): void => {
     UPDATE campaigns
     SET cycle_type = 'daily'
     WHERE cycle_type IS NULL
+  `);
+
+  // Create campaign_client_executions table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS campaign_client_executions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      campaign_id INTEGER NOT NULL,
+      client_id INTEGER NOT NULL,
+      executed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY(campaign_id) REFERENCES campaigns(id) ON DELETE CASCADE,
+      FOREIGN KEY(client_id) REFERENCES clients(id) ON DELETE CASCADE,
+      UNIQUE(campaign_id, client_id)
+    );
   `);
 
   // Create work_shifts table
@@ -2455,6 +2537,61 @@ export const createTables = (db: Database): void => {
       r_read_ad REAL,
       r_va REAL,
       r_j REAL,
+      FOREIGN KEY(layout_instance_id) REFERENCES exam_layout_instances(id) ON DELETE CASCADE
+    );
+  `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS old_contact_lenses (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      layout_instance_id INTEGER NOT NULL,
+      r_lens_type TEXT,
+      l_lens_type TEXT,
+      r_model TEXT,
+      l_model TEXT,
+      r_supplier TEXT,
+      l_supplier TEXT,
+      l_bc REAL,
+      l_diam REAL,
+      l_sph REAL,
+      l_cyl REAL,
+      l_ax REAL,
+      l_va REAL,
+      l_j REAL,
+      r_bc REAL,
+      r_diam REAL,
+      r_sph REAL,
+      r_cyl REAL,
+      r_ax REAL,
+      r_va REAL,
+      r_j REAL,
+      comb_va REAL,
+      comb_j REAL,
+      FOREIGN KEY(layout_instance_id) REFERENCES exam_layout_instances(id) ON DELETE CASCADE
+    );
+  `);
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS over_refraction (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      layout_instance_id INTEGER NOT NULL,
+      r_sph REAL,
+      l_sph REAL,
+      r_cyl REAL,
+      l_cyl REAL,
+      r_ax REAL,
+      l_ax REAL,
+      r_va REAL,
+      l_va REAL,
+      r_j REAL,
+      l_j REAL,
+      comb_va REAL,
+      comb_j REAL,
+      l_add REAL,
+      r_add REAL,
+      l_florescent TEXT,
+      r_florescent TEXT,
+      l_bio_m TEXT,
+      r_bio_m TEXT,
       FOREIGN KEY(layout_instance_id) REFERENCES exam_layout_instances(id) ON DELETE CASCADE
     );
   `);

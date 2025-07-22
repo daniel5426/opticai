@@ -34,6 +34,70 @@ const SERVER_PORT = 3000;
 let aiAgent: any = null;
 const AI_PROXY_SERVER_URL = 'http://localhost:8001';
 
+// LLM instance for campaign creation (no agent needed)
+import { ChatOpenAI } from '@langchain/openai';
+import { z } from 'zod';
+import { FILTER_FIELDS, OPERATORS } from './lib/campaign-filter-options';
+
+const campaignLLM = new ChatOpenAI({
+  model: 'gpt-4o',
+  temperature: 0.7,
+  configuration: {
+    baseURL: AI_PROXY_SERVER_URL,
+    apiKey: 'proxy-key',
+  },
+});
+
+async function createCampaignFromPromptLLM(prompt) {
+  const campaignSchema = z.object({
+    name: z.string().describe('The name of the campaign'),
+    filters: z.array(z.object({
+      field: z.string(),
+      operator: z.string(),
+      value: z.string(),
+      logic: z.enum(['AND', 'OR']).optional().describe('The logic of the filter'),
+    })).describe('An array of filter conditions'),
+    email_enabled: z.boolean().describe('Whether to send an email'),
+    email_content: z.string().describe('The content of the email'),
+    sms_enabled: z.boolean().describe('Whether to send an SMS'),
+    sms_content: z.string().describe('The content of the SMS'),
+    cycle_type: z.enum(['daily', 'monthly', 'yearly', 'custom']).describe('The frequency of the campaign'),
+    cycle_custom_days: z.number().optional().describe('The number of days for a custom cycle'),
+    execute_once_per_client: z.boolean().describe('Whether to execute the campaign only once per client'),
+  });
+
+  const modelWithStructure = campaignLLM.withStructuredOutput(campaignSchema, {
+    name: 'campaign_creator',
+  });
+
+  const structuredPrompt = `
+You are an intelligent assistant for an eye clinic. The user will describe a marketing campaign or customer reminder. Create a campaign object based on their request.
+
+Available Filters:
+${JSON.stringify(FILTER_FIELDS, null, 2)}
+
+Available Operators:
+${JSON.stringify(OPERATORS, null, 2)}
+
+The user will describe the campaign in Hebrew. Adapt all fields as required by the description.
+
+Campaign Description:
+${prompt}
+`;
+
+  const campaignObj = await modelWithStructure.invoke(structuredPrompt);
+  const campaignData = {
+    ...campaignObj,
+    filters: JSON.stringify(campaignObj.filters),
+    active: true,
+  };
+  return {
+    success: true,
+    message: 'Campaign ready to be created.',
+    data: campaignData,
+  };
+}
+
 function setupExpressRoutes(app: express.Application) {
   app.use(cors());
   app.use(express.json());
@@ -486,6 +550,19 @@ function setupIpcHandlers() {
     } catch (error) {
       console.error('Error generating all AI states:', error);
       throw error;
+    }
+  });
+
+  ipcMain.handle('ai-create-campaign-from-prompt', async (event, prompt) => {
+    try {
+      return await createCampaignFromPromptLLM(prompt);
+    } catch (error) {
+      console.error('Error creating campaign from prompt:', error);
+      return {
+        success: false,
+        message: 'Failed to create campaign from prompt',
+        error: error instanceof Error ? error.message : String(error)
+      };
     }
   });
 

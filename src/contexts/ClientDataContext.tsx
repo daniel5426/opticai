@@ -1,16 +1,22 @@
 import React, { createContext, useContext, useState, useEffect } from 'react'
-import { Client, ContactLens, MedicalLog, Referral, File, Appointment, OpticalExam, Order } from '@/lib/db/schema'
-import { getContactLensesByClientId } from '@/lib/db/contact-lens-db'
+import { Client, MedicalLog, Referral, File, Appointment, OpticalExam, Order } from '@/lib/db/schema'
 import { getExamsByClientId } from '@/lib/db/exams-db'
 import { getOrdersByClientId } from '@/lib/db/orders-db'
 import { getMedicalLogsByClientId } from '@/lib/db/medical-logs-db'
 import { getReferralsByClientId } from '@/lib/db/referral-db'
 import { getAppointmentsByClient } from '@/lib/db/appointments-db'
 import { getFilesByClientId } from '@/lib/db/files-db'
+import { getUserById } from '@/lib/db/users-db'
+import { getClientById } from '@/lib/db/clients-db'
+
+interface ExamWithNames extends OpticalExam {
+  username?: string;
+  clientName?: string;
+}
 
 interface ClientDataContextType {
-  contactLenses: ContactLens[]
-  exams: OpticalExam[]
+  contactLenses: OpticalExam[]
+  exams: ExamWithNames[]
   orders: Order[]
   medicalLogs: MedicalLog[]
   referrals: Referral[]
@@ -40,14 +46,14 @@ interface ClientDataContextType {
   removeReferral: (id: number) => void
   removeAppointment: (id: number) => void
   removeFile: (id: number) => void
-  addContactLens: (contactLens: ContactLens) => void
+  addContactLens: (contactLens: OpticalExam) => void
   addExam: (exam: OpticalExam) => void
   addOrder: (order: Order) => void
   addMedicalLog: (medicalLog: MedicalLog) => void
   addReferral: (referral: Referral) => void
   addAppointment: (appointment: Appointment) => void
   addFile: (file: File) => void
-  updateContactLens: (contactLens: ContactLens) => void
+  updateContactLens: (contactLens: OpticalExam) => void
   updateExam: (exam: OpticalExam) => void
   updateOrder: (order: Order) => void
   updateMedicalLog: (medicalLog: MedicalLog) => void
@@ -59,8 +65,8 @@ interface ClientDataContextType {
 const ClientDataContext = createContext<ClientDataContextType | undefined>(undefined)
 
 export function ClientDataProvider({ children, clientId }: { children: React.ReactNode, clientId: number }) {
-  const [contactLenses, setContactLenses] = useState<ContactLens[]>([])
-  const [exams, setExams] = useState<OpticalExam[]>([])
+  const [contactLenses, setContactLenses] = useState<OpticalExam[]>([])
+  const [exams, setExams] = useState<ExamWithNames[]>([])
   const [orders, setOrders] = useState<Order[]>([])
   const [medicalLogs, setMedicalLogs] = useState<MedicalLog[]>([])
   const [referrals, setReferrals] = useState<Referral[]>([])
@@ -88,7 +94,22 @@ export function ClientDataProvider({ children, clientId }: { children: React.Rea
   const refreshExams = async () => {
     setLoading(prev => ({ ...prev, exams: true }))
     const data = await getExamsByClientId(clientId, 'exam')
-    setExams(data)
+    let clientName = ''
+    if (clientId) {
+      const client = await getClientById(clientId)
+      clientName = client ? `${client.first_name || ''} ${client.last_name || ''}`.trim() : ''
+    }
+    const enriched = await Promise.all(
+      data.map(async (exam) => {
+        let username = ''
+        if (exam.user_id) {
+          const user = await getUserById(exam.user_id)
+          username = user?.username || ''
+        }
+        return { ...exam, username, clientName }
+      })
+    )
+    setExams(enriched)
     setLoading(prev => ({ ...prev, exams: false }))
   }
 
@@ -156,7 +177,7 @@ export function ClientDataProvider({ children, clientId }: { children: React.Rea
     setFiles(prev => prev.filter(item => item.id !== id))
   }
 
-  const addContactLens = (contactLens: ContactLens) => {
+  const addContactLens = (contactLens: OpticalExam) => {
     setContactLenses(prev => [...prev, contactLens])
   }
 
@@ -184,7 +205,7 @@ export function ClientDataProvider({ children, clientId }: { children: React.Rea
     setFiles(prev => [...prev, file])
   }
 
-  const updateContactLens = (contactLens: ContactLens) => {
+  const updateContactLens = (contactLens: OpticalExam) => {
     setContactLenses(prev => prev.map(item => item.id === contactLens.id ? contactLens : item))
   }
 

@@ -4,6 +4,7 @@ import { emailService } from './email/email-service';
 import { smsService } from './sms/sms-service';
 import { dbService } from './db/index';
 import { Campaign, Client } from './db/schema';
+import { addCampaignClientExecution } from './db/campaigns-db';
 
 export class CampaignScheduler {
   private scheduledJob: cron.ScheduledTask | null = null;
@@ -185,6 +186,12 @@ export class CampaignScheduler {
       console.log(`  - Total target clients: ${targetClients.length}`);
 
       this.logCampaignExecution(campaign.id!, targetClients.length, emailsSent, smsSent, emailErrors, smsErrors);
+
+      for (const client of targetClients) {
+        if (campaign.execute_once_per_client) {
+          addCampaignClientExecution(campaign.id!, client.id!);
+        }
+      }
 
     } catch (error) {
       console.error(`Error executing campaign ${campaign.id}:`, error);
@@ -394,6 +401,12 @@ export class CampaignScheduler {
       dbService.updateCampaign(updatedCampaign);
       
       this.logCampaignExecution(campaign.id!, targetClients.length, emailsSent, smsSent, emailErrors, smsErrors);
+
+      for (const client of targetClients) {
+        if (campaign.execute_once_per_client) {
+          addCampaignClientExecution(campaign.id!, client.id!);
+        }
+      }
 
       return {
         success: true,

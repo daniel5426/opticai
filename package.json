@@ -8,7 +8,7 @@
   "scripts": {
     "dev": "electron-forge start",
     "dev:forge": "electron-forge start",
-    "reset": "rm '/Users/danielbenassayag/Library/Application Support/electron-shadcn Template/database.sqlite' && npm run dev",
+    "reset": "rm '/Users/danielbenassaya/Library/Application Support/electron-shadcn Template/database.sqlite' && npm run dev",
     "start": "electron-forge start",
     "package": "electron-forge package",
     "make": "electron-forge make",
@@ -129,7 +129,6 @@
     "react-dom": "^19.1.0",
     "react-i18next": "^15.5.1",
     "react-markdown": "^10.1.0",
-    "react-quill": "^2.0.0",
     "recharts": "^2.15.3",
     "remark-gfm": "^4.0.1",
     "sonner": "^2.0.3",

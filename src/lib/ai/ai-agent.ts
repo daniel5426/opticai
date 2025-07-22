@@ -4,6 +4,10 @@ import { z } from 'zod';
 import { createReactAgent } from '@langchain/langgraph/prebuilt';
 import { BaseMessage, HumanMessage, AIMessage } from '@langchain/core/messages';
 import { dbService, DBServiceType } from '../db/index';
+import { Campaign } from '../db/schema';
+import { FILTER_FIELDS, OPERATORS } from '../campaign-filter-options';
+import { z } from 'zod';
+
 
 interface AIAgentConfig {
   proxyServerUrl: string;
@@ -524,4 +528,4 @@ ${JSON.stringify(allClientData, null, 2)}
       return 'שגיאה ביצירת מידע AI לתחום זה';
     }
   }
-} 
+}

@@ -20,8 +20,13 @@ import { deleteExam } from "@/lib/db/exams-db";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
 
+interface ExamWithNames extends OpticalExam {
+  username?: string;
+  clientName?: string;
+}
+
 interface ExamsTableProps {
-  data: OpticalExam[];
+  data: ExamWithNames[];
   clientId: number;
   onExamDeleted: (examId: number) => void;
   onExamDeleteFailed: () => void;
@@ -30,49 +35,18 @@ interface ExamsTableProps {
 
 export function ExamsTable({ data, clientId, onExamDeleted, onExamDeleteFailed, loading }: ExamsTableProps) {
   const [searchQuery, setSearchQuery] = useState("");
-  const [users, setUsers] = useState<User[]>([]);
-  const [clients, setClients] = useState<Client[]>([]);
   const navigate = useNavigate();
-
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-  const [examToDelete, setExamToDelete] = useState<OpticalExam | null>(null);
-
-  useEffect(() => {
-    const loadData = async () => {
-      try {
-        const [usersData, clientsData] = await Promise.all([
-          getAllUsers(),
-          getAllClients()
-        ]);
-        setUsers(usersData);
-        setClients(clientsData);
-      } catch (error) {
-        console.error('Error loading data:', error);
-      }
-    };
-    loadData();
-  }, []);
-
-  const getUserName = (userId?: number): string => {
-    if (!userId) return '';
-    const user = users.find(u => u.id === userId);
-    return user?.username || '';
-  };
-
-  const getClientName = (clientId: number): string => {
-    const client = clients.find(c => c.id === clientId);
-    return client ? `${client.first_name} ${client.last_name}`.trim() : '';
-  };
+  const [examToDelete, setExamToDelete] = useState<ExamWithNames | null>(null);
 
   // Filter data based on search query
   const filteredData = data.filter((exam) => {
     const searchableFields = [
-      getUserName(exam.user_id),
+      exam.username,
       exam.clinic,
       exam.test_name,
       exam.exam_date,
     ];
-
     return searchableFields.some(
       (field) =>
         field && field.toLowerCase().includes(searchQuery.toLowerCase()),
@@ -185,10 +159,10 @@ export function ExamsTable({ data, clientId, onExamDeleted, onExamDeleteFailed, 
                             navigate({ to: "/clients/$clientId", params: { clientId: String(exam.client_id) }, search: { tab: 'exams' } })
                           }
                         }}
-                      >{getClientName(exam.client_id)}</TableCell>
+                      >{exam.clientName}</TableCell>
                     )}
                     <TableCell>{exam.clinic}</TableCell>
-                    <TableCell>{getUserName(exam.user_id)}</TableCell>
+                    <TableCell>{exam.username}</TableCell>
                     <TableCell>
                       <Button variant="ghost" className="h-8 w-8 p-0" onClick={(e) => {
                         e.stopPropagation();

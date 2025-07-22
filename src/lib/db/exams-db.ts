@@ -11,9 +11,9 @@ export async function getExamsByClientId(clientId: number, type?: string): Promi
   }
 }
 
-export async function getAllExams(): Promise<OpticalExam[]> {
+export async function getAllExams(type?: string): Promise<OpticalExam[]> {
   try {
-    return await window.electronAPI.db('getAllExams');
+    return await window.electronAPI.db('getAllExams', type);
   } catch (error) {
     console.error('Error getting all exams:', error);
     return [];

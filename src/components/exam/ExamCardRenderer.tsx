@@ -22,8 +22,9 @@ import { ContactLensDiametersTab } from "@/components/exam/ContactLensDiametersT
 import { ContactLensDetailsTab } from "@/components/exam/ContactLensDetailsTab"
 import { KeratometerContactLensTab } from "@/components/exam/KeratometerContactLensTab"
 import { ContactLensExamTab } from "@/components/exam/ContactLensExamTab"
+import { ContactLensOrderTab } from "@/components/exam/ContactLensOrderTab"
 import { Edit3 } from "lucide-react"
-import { OpticalExam, OldRefractionExam, OldRefractionExtensionExam, ObjectiveExam, SubjectiveExam, AdditionExam, FinalSubjectiveExam, FinalPrescriptionExam, CompactPrescriptionExam, RetinoscopExam, RetinoscopDilationExam, UncorrectedVAExam, KeratometerExam, KeratometerFullExam, CornealTopographyExam, CoverTestExam, AnamnesisExam, NotesExam, SchirmerTestExam, OldRefExam, ContactLensDiameters, ContactLensDetails, KeratometerContactLens, ContactLensExam } from "@/lib/db/schema"
+import { OpticalExam, OldRefractionExam, OldRefractionExtensionExam, ObjectiveExam, SubjectiveExam, AdditionExam, FinalSubjectiveExam, FinalPrescriptionExam, CompactPrescriptionExam, RetinoscopExam, RetinoscopDilationExam, UncorrectedVAExam, KeratometerExam, KeratometerFullExam, CornealTopographyExam, CoverTestExam, AnamnesisExam, NotesExam, SchirmerTestExam, OldRefExam, ContactLensDiameters, ContactLensDetails, KeratometerContactLens, ContactLensExam, ContactLensOrder } from "@/lib/db/schema"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { UserSelect } from "@/components/ui/user-select"
 import { ExamToolbox, ToolboxActions } from "@/components/exam/ExamToolbox"
@@ -32,16 +33,18 @@ import { examComponentRegistry } from "@/lib/exam-component-registry"
 import { toast } from "sonner"
 import { DateInput } from "@/components/ui/date"
 import { Textarea } from "@/components/ui/textarea"
+import { OldContactLensesTab } from "@/components/exam/OldContactLensesTab";
+import { OverRefractionTab } from "@/components/exam/OverRefractionTab";
 
 // Renaming for consistency within the component props
 type Exam = OpticalExam;
 
-const componentsWithMiddleRow: CardItem['type'][] = ['old-refraction', 'old-refraction-extension', 'subjective', 'final-subjective', 'final-prescription', 'compact-prescription', 'corneal-topography', 'anamnesis', 'contact-lens-exam', 'contact-lens-diameters'];
+const componentsWithMiddleRow: CardItem['type'][] = ['old-refraction', 'old-refraction-extension', 'subjective', 'final-subjective', 'final-prescription', 'compact-prescription', 'corneal-topography', 'anamnesis', 'contact-lens-exam', 'contact-lens-diameters', 'over-refraction', 'old-contact-lenses'];
 const componentsDontHaveMiddleRow: CardItem['type'][] = ['objective', 'addition', 'retinoscop', 'retinoscop-dilation', 'uncorrected-va', 'keratometer', 'keratometer-full', 'cover-test', 'schirmer-test', 'contact-lens-diameters', 'contact-lens-details', 'keratometer-contact-lens'];
 
 export interface CardItem {
   id: string
-  type: 'exam-details' | 'old-ref' | 'old-refraction' | 'old-refraction-extension' | 'objective' | 'subjective' | 'final-subjective' | 'final-prescription' | 'compact-prescription' | 'addition' | 'retinoscop' | 'retinoscop-dilation' | 'uncorrected-va' | 'keratometer' | 'keratometer-full' | 'corneal-topography' | 'cover-test' | 'notes' | 'anamnesis' | 'schirmer-test' | 'contact-lens-diameters' | 'contact-lens-details' | 'keratometer-contact-lens' | 'contact-lens-exam'
+  type: 'exam-details' | 'old-ref' | 'old-refraction' | 'old-refraction-extension' | 'objective' | 'subjective' | 'final-subjective' | 'final-prescription' | 'compact-prescription' | 'addition' | 'retinoscop' | 'retinoscop-dilation' | 'uncorrected-va' | 'keratometer' | 'keratometer-full' | 'corneal-topography' | 'cover-test' | 'notes' | 'anamnesis' | 'schirmer-test' | 'contact-lens-diameters' | 'contact-lens-details' | 'keratometer-contact-lens' | 'contact-lens-exam' | 'contact-lens-order'
   showEyeLabels?: boolean
   title?: string
 }
@@ -168,6 +171,9 @@ const getColumnCount = (type: CardItem['type']): number => {
     case 'contact-lens-details': return 8
     case 'keratometer-contact-lens': return 6
     case 'contact-lens-exam': return 9
+    case 'contact-lens-order': return 6
+    case 'old-contact-lenses': return 10
+    case 'over-refraction': return 8
     default: return 1
   }
 }
@@ -295,6 +301,7 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
   const emptyContactLensDetailsData: ContactLensDetails = { layout_instance_id: 0 }
   const emptyKeratometerContactLensData: KeratometerContactLens = { layout_instance_id: 0 }
   const emptyContactLensExamData: ContactLensExam = { layout_instance_id: 0 }
+  const emptyContactLensOrderData: ContactLensOrder = { contact_lens_id: 0 }
 
   const legacyHandlers = mode === 'detail' ? {
     handleMultifocalOldRefraction: detailProps!.handleMultifocalOldRefraction,
@@ -338,6 +345,7 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
       case 'contact-lens-details': return emptyContactLensDetailsData
       case 'keratometer-contact-lens': return emptyKeratometerContactLensData
       case 'contact-lens-exam': return emptyContactLensExamData
+      case 'contact-lens-order': return emptyContactLensOrderData
       default: return {}
     }
   }
@@ -857,6 +865,43 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
           />
         </div>
       )
+
+    case 'contact-lens-order':
+      return (
+        <div className={`relative h-full ${matchHeight ? 'flex flex-col' : ''}`}>
+          {toolbox}
+          <ContactLensOrderTab
+            data={getExamData('contact-lens-order')}
+            onChange={getChangeHandler('contact-lens-order')}
+            layoutInstanceId={mode === 'detail' ? detailProps!.exam?.id || 0 : 0}
+          />
+        </div>
+      )
+
+    case 'old-contact-lenses':
+      return (
+        <div className={`relative h-full ${matchHeight ? 'flex flex-col' : ''}`}> 
+          {toolbox}
+          <OldContactLensesTab
+            data={getExamData('old-contact-lenses')}
+            onChange={getChangeHandler('old-contact-lenses')}
+            isEditing={mode === 'detail' ? detailProps!.isEditing : false}
+            hideEyeLabels={finalHideEyeLabels}
+          />
+        </div>
+      );
+    case 'over-refraction':
+      return (
+        <div className={`relative h-full ${matchHeight ? 'flex flex-col' : ''}`}> 
+          {toolbox}
+          <OverRefractionTab
+            data={getExamData('over-refraction')}
+            onChange={getChangeHandler('over-refraction')}
+            isEditing={mode === 'detail' ? detailProps!.isEditing : false}
+            hideEyeLabels={finalHideEyeLabels}
+          />
+        </div>
+      );
 
     default:
       return null

@@ -23,7 +23,12 @@ import {
   ContactLensDetails,
   KeratometerContactLens,
   ContactLensExam,
+  ContactLensOrder,
+  OldContactLenses,
+  OverRefraction,
 } from "@/lib/db/schema"
+import { createOldContactLenses, getOldContactLensesByLayoutInstanceId, updateOldContactLenses } from "./db/old-contact-lenses-db";
+import { createOverRefraction, getOverRefractionByLayoutInstanceId, updateOverRefraction } from "./db/over-refraction-db";
 
 export type ExamComponentType =
   | 'exam-details'
@@ -50,6 +55,9 @@ export type ExamComponentType =
   | 'contact-lens-details'
   | 'keratometer-contact-lens'
   | 'contact-lens-exam'
+  | 'contact-lens-order'
+  | 'old-contact-lenses'
+  | 'over-refraction'
 
 export interface ExamComponentConfig<T = any> {
   name: string
@@ -832,6 +840,88 @@ registry.register<ContactLensExam>('contact-lens-exam', {
   hasData: (data) => Object.values(data).some(value =>
     value !== undefined && value !== null && value !== ''
   )
+});
+
+registry.register<ContactLensOrder>('contact-lens-order', {
+  name: 'הזמנת עדשות מגע',
+  getData: (layoutInstanceId: number, cardInstanceId?: string) => window.electronAPI.db('getContactLensOrderByLayoutInstanceId', layoutInstanceId),
+  createData: (data: Omit<ContactLensOrder, 'id'>, cardInstanceId?: string) => window.electronAPI.db('createContactLensOrder', data),
+  updateData: (data: ContactLensOrder) => window.electronAPI.db('updateContactLensOrder', data),
+  getNumericFields: () => ['contact_lens_id'],
+  getIntegerFields: () => ['contact_lens_id'],
+  validateField: (field, rawValue) => {
+    const integerFields = ['contact_lens_id'];
+    
+    if (integerFields.includes(field as string)) {
+      const val = parseInt(rawValue, 10);
+      return rawValue === "" || isNaN(val) ? undefined : val;
+    } else if (rawValue === "") {
+      return undefined;
+    }
+    return rawValue;
+  },
+  hasData: (data) => Object.values(data).some(value =>
+    value !== undefined && value !== null && value !== ''
+  )
+});
+
+registry.register<OldContactLenses>('old-contact-lenses', {
+  name: 'עדשות מגע ישנות',
+  getData: (layoutInstanceId: number) => getOldContactLensesByLayoutInstanceId(layoutInstanceId),
+  createData: (data: Omit<OldContactLenses, 'id'>) => createOldContactLenses(data),
+  updateData: (data: OldContactLenses) => updateOldContactLenses(data),
+  getNumericFields: () => [
+    'l_bc', 'l_diam', 'l_sph', 'l_cyl', 'l_ax', 'l_va', 'l_j',
+    'r_bc', 'r_diam', 'r_sph', 'r_cyl', 'r_ax', 'r_va', 'r_j',
+    'comb_va', 'comb_j'
+  ],
+  getIntegerFields: () => ['l_ax', 'r_ax'],
+  validateField: (field, rawValue) => {
+    const numericFields = [
+      'l_bc', 'l_diam', 'l_sph', 'l_cyl', 'l_ax', 'l_va', 'l_j',
+      'r_bc', 'r_diam', 'r_sph', 'r_cyl', 'r_ax', 'r_va', 'r_j',
+      'comb_va', 'comb_j'
+    ];
+    const integerFields = ['l_ax', 'r_ax'];
+    if (numericFields.includes(field as string)) {
+      const val = parseFloat(rawValue);
+      return rawValue === '' || isNaN(val) ? undefined : val;
+    } else if (integerFields.includes(field as string)) {
+      const val = parseInt(rawValue, 10);
+      return rawValue === '' || isNaN(val) ? undefined : val;
+    } else if (rawValue === '') {
+      return undefined;
+    }
+    return rawValue;
+  },
+  hasData: (data) => Object.values(data).some(value => value !== undefined && value !== null && value !== '')
+});
+registry.register<OverRefraction>('over-refraction', {
+  name: 'אובר רפרקציה',
+  getData: (layoutInstanceId: number) => getOverRefractionByLayoutInstanceId(layoutInstanceId),
+  createData: (data: Omit<OverRefraction, 'id'>) => createOverRefraction(data),
+  updateData: (data: OverRefraction) => updateOverRefraction(data),
+  getNumericFields: () => [
+    'r_sph', 'l_sph', 'r_cyl', 'l_cyl', 'r_ax', 'l_ax', 'r_va', 'l_va', 'r_j', 'l_j', 'comb_va', 'comb_j', 'l_add', 'r_add'
+  ],
+  getIntegerFields: () => ['r_ax', 'l_ax'],
+  validateField: (field, rawValue) => {
+    const numericFields = [
+      'r_sph', 'l_sph', 'r_cyl', 'l_cyl', 'r_ax', 'l_ax', 'r_va', 'l_va', 'r_j', 'l_j', 'comb_va', 'comb_j', 'l_add', 'r_add'
+    ];
+    const integerFields = ['r_ax', 'l_ax'];
+    if (numericFields.includes(field as string)) {
+      const val = parseFloat(rawValue);
+      return rawValue === '' || isNaN(val) ? undefined : val;
+    } else if (integerFields.includes(field as string)) {
+      const val = parseInt(rawValue, 10);
+      return rawValue === '' || isNaN(val) ? undefined : val;
+    } else if (rawValue === '') {
+      return undefined;
+    }
+    return rawValue;
+  },
+  hasData: (data) => Object.values(data).some(value => value !== undefined && value !== null && value !== '')
 });
 
 

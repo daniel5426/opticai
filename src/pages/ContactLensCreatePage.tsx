@@ -1,7 +1,7 @@
 import React from "react"
 import { useParams, useNavigate } from "@tanstack/react-router"
 import { getClientById } from "@/lib/db/clients-db"
-import { ContactLens, ContactEye, ContactLensOrder } from "@/lib/db/schema"
+import { OpticalExam } from "@/lib/db/schema"
 import { toast } from "sonner"
 import ContactLensDetailPage from "./ContactLensDetailPage"
 
@@ -10,8 +10,8 @@ export default function ContactLensCreatePage() {
   const client = getClientById(Number(clientId))
   const navigate = useNavigate()
 
-  const handleSave = (contactLens: ContactLens, rightEye: ContactEye, leftEye: ContactEye, contactLensOrder: ContactLensOrder) => {
-    navigate({ to: `/clients/${clientId}`, search: { tab: 'contact-lenses' } })
+  const handleSave = (exam: OpticalExam) => {
+    navigate({ to: `/clients/${clientId}` })
   }
 
   const handleCancel = () => {

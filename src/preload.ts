@@ -34,6 +34,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   aiGenerateMainState: (clientId: number) => ipcRenderer.invoke('ai-generate-main-state', clientId),
   aiGeneratePartState: (clientId: number, part: string) => ipcRenderer.invoke('ai-generate-part-state', clientId, part),
   aiGenerateAllStates: (clientId: number) => ipcRenderer.invoke('ai-generate-all-states', clientId),
+  createCampaignFromPrompt: (prompt: string) => ipcRenderer.invoke('ai-create-campaign-from-prompt', prompt),
   
   // AI Stream listeners
   onAiStreamChunk: (callback: (data: { chunk: string; fullMessage: string }) => void) => {

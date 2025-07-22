@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { SiteHeader } from "@/components/site-header";
 import { useNavigate } from "@tanstack/react-router";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,7 +14,8 @@ import { Switch } from "@/components/ui/switch";
 import { getAllCampaigns, createCampaign, updateCampaign, deleteCampaign } from "@/lib/db/campaigns-db";
 import { Campaign } from "@/lib/db/schema";
 import { toast } from "sonner";
-import { Trash2, Edit3, Plus, Filter, Mail, MessageSquare, Users, Calendar, X, ChevronDown, Play } from "lucide-react";
+import { Trash2, Edit3, Plus, Filter, Mail, MessageSquare, Users, Calendar, X, ChevronDown, Play, StarsIcon, Loader2, ArrowUp } from "lucide-react";
+import { FILTER_FIELDS, OPERATORS } from "@/lib/campaign-filter-options";
 
 interface FilterCondition {
   id: string;
@@ -23,89 +24,6 @@ interface FilterCondition {
   value: string;
   logic?: 'AND' | 'OR';
 }
-
-// Comprehensive field definitions with types and operators
-const FILTER_FIELDS = {
-  // Personal Info
-  'first_name': { label: 'שם פרטי', type: 'text', category: 'מידע אישי' },
-  'last_name': { label: 'שם משפחה', type: 'text', category: 'מידע אישי' },
-  'gender': { label: 'מין', type: 'select', options: ['זכר', 'נקבה'], category: 'מידע אישי' },
-  'age': { label: 'גיל', type: 'number', category: 'מידע אישי' },
-  'date_of_birth': { label: 'תאריך לידה', type: 'date', category: 'מידע אישי' },
-  'national_id': { label: 'תעודת זהות', type: 'text', category: 'מידע אישי' },
-  'health_fund': { label: 'קופת חולים', type: 'select', options: ['כללית', 'מכבי', 'לאומית', 'מאוחדת'], category: 'מידע אישי' },
-  
-  // Contact Info
-  'phone_mobile': { label: 'טלפון נייד', type: 'text', category: 'פרטי התקשרות' },
-  'email': { label: 'דואר אלקטרוני', type: 'text', category: 'פרטי התקשרות' },
-  'address_city': { label: 'עיר', type: 'text', category: 'פרטי התקשרות' },
-  
-  // Family
-  'has_family': { label: 'יש משפחה', type: 'boolean', category: 'משפחה' },
-  'family_role': { label: 'תפקיד במשפחה', type: 'select', options: ['אב', 'אם', 'בן', 'בת', 'אח', 'אחות'], category: 'משפחה' },
-  
-  // Status & Financial
-  'status': { label: 'סטטוס', type: 'select', options: ['פעיל', 'לא פעיל', 'חסום'], category: 'סטטוס' },
-  'blocked_checks': { label: 'חסום לצ\'קים', type: 'boolean', category: 'סטטוס' },
-  'blocked_credit': { label: 'חסום לאשראי', type: 'boolean', category: 'סטטוס' },
-  'discount_percent': { label: 'אחוז הנחה', type: 'number', category: 'סטטוס' },
-  
-  // Dates
-  'file_creation_date': { label: 'תאריך יצירת תיק', type: 'date', category: 'תאריכים' },
-  'membership_end': { label: 'תאריך סיום חברות', type: 'date', category: 'תאריכים' },
-  'service_end': { label: 'תאריך סיום שירות', type: 'date', category: 'תאריכים' },
-  
-  // Activity
-  'last_exam_days': { label: 'ימים מאז בדיקה אחרונה', type: 'number', category: 'פעילות' },
-  'last_order_days': { label: 'ימים מאז הזמנה אחרונה', type: 'number', category: 'פעילות' },
-  'last_appointment_days': { label: 'ימים מאז תור אחרון', type: 'number', category: 'פעילות' },
-  'has_appointments': { label: 'יש תורים', type: 'boolean', category: 'פעילות' },
-  'has_exams': { label: 'יש בדיקות', type: 'boolean', category: 'פעילות' },
-  'has_orders': { label: 'יש הזמנות', type: 'boolean', category: 'פעילות' },
-  'total_orders': { label: 'סך הזמנות', type: 'number', category: 'פעילות' },
-  'total_exams': { label: 'סך בדיקות', type: 'number', category: 'פעילות' },
-} as const;
-
-const OPERATORS = {
-  text: [
-    { value: 'contains', label: 'מכיל' },
-    { value: 'not_contains', label: 'לא מכיל' },
-    { value: 'equals', label: 'שווה ל' },
-    { value: 'not_equals', label: 'לא שווה ל' },
-    { value: 'starts_with', label: 'מתחיל ב' },
-    { value: 'ends_with', label: 'מסתיים ב' },
-    { value: 'is_empty', label: 'ריק' },
-    { value: 'is_not_empty', label: 'לא ריק' },
-  ],
-  number: [
-    { value: 'equals', label: 'שווה ל' },
-    { value: 'not_equals', label: 'לא שווה ל' },
-    { value: 'greater_than', label: 'גדול מ' },
-    { value: 'less_than', label: 'קטן מ' },
-    { value: 'greater_equal', label: 'גדול או שווה ל' },
-    { value: 'less_equal', label: 'קטן או שווה ל' },
-    { value: 'is_empty', label: 'ריק' },
-    { value: 'is_not_empty', label: 'לא ריק' },
-  ],
-  date: [
-    { value: 'equals', label: 'שווה ל' },
-    { value: 'not_equals', label: 'לא שווה ל' },
-    { value: 'after', label: 'אחרי' },
-    { value: 'before', label: 'לפני' },
-    { value: 'last_days', label: 'ב X ימים האחרונים' },
-    { value: 'next_days', label: 'ב X ימים הבאים' },
-    { value: 'is_empty', label: 'ריק' },
-    { value: 'is_not_empty', label: 'לא ריק' },
-  ],
-  boolean: [
-    { value: 'equals', label: 'שווה ל' },
-    { value: 'not_equals', label: 'לא שווה ל' },
-  ],
-  select: [
-    { value: 'equals', label: 'שווה ל' },
-    { value: 'not_equals', label: 'לא שווה ל' },
-  ],
-};
 
 function FilterBuilder({ filters, onChange }: { filters: FilterCondition[], onChange: (filters: FilterCondition[]) => void }) {
   const addFilter = () => {
@@ -292,6 +210,7 @@ function CampaignModal({ isOpen, onClose, campaign, onSave }: {
   const [smsContent, setSmsContent] = useState(campaign?.sms_content || '');
   const [cycleType, setCycleType] = useState<'daily' | 'monthly' | 'yearly' | 'custom'>(campaign?.cycle_type || 'daily');
   const [customDays, setCustomDays] = useState(campaign?.cycle_custom_days || 1);
+  const [executeOncePerClient, setExecuteOncePerClient] = useState(campaign?.execute_once_per_client || false);
 
   const handleConfirm = () => {
     const data = {
@@ -311,6 +230,7 @@ function CampaignModal({ isOpen, onClose, campaign, onSave }: {
       cycle_type: cycleType,
       cycle_custom_days: cycleType === 'custom' ? customDays : undefined,
       last_executed: campaign?.last_executed,
+      execute_once_per_client: executeOncePerClient,
     };
     onSave(data as Campaign);
   };
@@ -324,6 +244,7 @@ function CampaignModal({ isOpen, onClose, campaign, onSave }: {
     setSmsContent(campaign?.sms_content || '');
     setCycleType(campaign?.cycle_type || 'daily');
     setCustomDays(campaign?.cycle_custom_days || 1);
+    setExecuteOncePerClient(campaign?.execute_once_per_client || false);
   };
 
   useEffect(() => {
@@ -341,7 +262,7 @@ function CampaignModal({ isOpen, onClose, campaign, onSave }: {
       width="max-w-4xl"
     >
       <div className="space-y-6" dir="rtl">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="space-y-2">
             <Label htmlFor="name" className="text-sm font-medium">שם הקמפיין</Label>
             <Input
@@ -352,15 +273,14 @@ function CampaignModal({ isOpen, onClose, campaign, onSave }: {
               className="w-full"
             />
           </div>
-
           <div className="space-y-2">
             <Label className="text-sm font-medium flex items-center">
               <Calendar className="h-4 w-4 ml-2" />
               תדירות ביצוע
             </Label>
-            <div className="space-y-2">
+            <div className="flex items-center gap-2 w-full">
               <Select value={cycleType} onValueChange={(value: 'daily' | 'monthly' | 'yearly' | 'custom') => setCycleType(value)}>
-                <SelectTrigger className="w-full">
+                <SelectTrigger className={cycleType === 'custom' ? 'w-1/2' : 'w-full'}>
                   <SelectValue placeholder="בחר תדירות ביצוע" />
                 </SelectTrigger>
                 <SelectContent>
@@ -370,9 +290,8 @@ function CampaignModal({ isOpen, onClose, campaign, onSave }: {
                   <SelectItem value="custom">מספר ימים מותאם אישית</SelectItem>
                 </SelectContent>
               </Select>
-              
               {cycleType === 'custom' && (
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 w-1/2">
                   <Input
                     type="number"
                     min="1"
@@ -380,11 +299,25 @@ function CampaignModal({ isOpen, onClose, campaign, onSave }: {
                     value={customDays}
                     onChange={(e) => setCustomDays(parseInt(e.target.value) || 1)}
                     placeholder="מספר ימים"
-                    className="w-24"
+                    className="w-full"
                   />
                   <span className="text-sm text-muted-foreground">ימים</span>
                 </div>
               )}
+            </div>
+          </div>
+          <div className="space-y-2 flex flex-col justify-end">
+            <div className="flex items-center space-x-2 bg-muted/50 p-2 rounded-lg border">
+              <Checkbox
+                id="execute-once"
+                checked={executeOncePerClient}
+                onCheckedChange={(checked) => {
+                  if (checked !== 'indeterminate') setExecuteOncePerClient(checked);
+                }}
+              />
+              <Label htmlFor="execute-once" className="text-sm font-medium">
+                פעם אחת ללקוח
+              </Label>
             </div>
           </div>
         </div>
@@ -483,6 +416,12 @@ export default function CampaignsPage() {
   const [editingCampaign, setEditingCampaign] = useState<Campaign | undefined>(undefined);
   const [runningCampaignId, setRunningCampaignId] = useState<number | null>(null);
   const [emailSettingsConfigured, setEmailSettingsConfigured] = useState<boolean>(true);
+  const [aiModalOpen, setAiModalOpen] = useState(false);
+  const [aiInput, setAiInput] = useState("");
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [aiSuccess, setAiSuccess] = useState<string | null>(null);
+  const aiTextareaRef = useRef<HTMLTextAreaElement>(null);
 
   const loadCampaigns = async () => {
     try {
@@ -584,9 +523,10 @@ export default function CampaignsPage() {
           throw new Error('Failed to update campaign');
         }
       } else {
-        const result = await createCampaign(data);
+        // Set created_at to now for immediate UI display
+        const now = new Date().toISOString();
+        const result = await createCampaign({ ...data, created_at: now });
         if (result) {
-          // Optimistic update for create
           setCampaigns([result, ...campaigns]);
           toast.success("קמפיין נוצר בהצלחה");
         } else {
@@ -736,6 +676,46 @@ export default function CampaignsPage() {
     }
   };
 
+  // AI Campaign Creation Handler
+  const handleAICreateCampaign = async () => {
+    setAiError(null);
+    setAiSuccess(null);
+    if (!aiInput.trim()) return;
+    setAiLoading(true);
+    try {
+      const result = await window.electronAPI.createCampaignFromPrompt(aiInput.trim());
+      if (!result.success) {
+        throw new Error(result.error || result.message);
+      }
+      const campaignObj = result.data as Campaign;
+      
+      // Set defaults for missing fields that are not returned by the AI
+      const finalCampaign = {
+          ...campaignObj,
+          active: true,
+          mail_sent: false,
+          sms_sent: false,
+          emails_sent_count: 0,
+          sms_sent_count: 0,
+          created_at: new Date().toISOString(),
+      };
+
+      const created = await createCampaign(finalCampaign);
+      if (created) {
+        setAiSuccess("הקמפיין נוצר בהצלחה!");
+        setAiInput("");
+        setAiModalOpen(false);
+        loadCampaigns();
+      } else {
+        throw new Error("שגיאה ביצירת הקמפיין");
+      }
+    } catch (e: any) {
+      setAiError(e.message || "שגיאה לא ידועה");
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
   if (loading) {
     return (
       <>
@@ -785,10 +765,15 @@ export default function CampaignsPage() {
               <h1 className="text-2xl font-bold">קמפיינים</h1>
               <p className="text-muted-foreground">נהל קמפיינים שיווקיים ושליחת הודעות ללקוחות</p>
             </div>
-            <Button onClick={() => openModal()} size="lg" className="gap-2">
-              <Plus className="h-5 w-5" />
-              קמפיין חדש
-            </Button>
+            <div className="flex gap-2">
+              <Button onClick={() => setAiModalOpen(true)} size="lg" variant="outline" className="gap-2" title="צור קמפיין עם AI">
+                <StarsIcon className="h-5 w-5" />
+              </Button>
+              <Button onClick={() => openModal()} size="lg" className="gap-2">
+                <Plus className="h-5 w-5" />
+                קמפיין חדש
+              </Button>
+            </div>
           </div>
 
           {campaigns.length === 0 ? (
@@ -818,7 +803,12 @@ export default function CampaignsPage() {
                         </h3>
                         <div className="flex items-center gap-2 text-xs text-gray-500">
                           <Calendar className="h-3 w-3" />
-                          {new Date(campaign.created_at || '').toLocaleDateString('he-IL')}
+                          {(() => {
+                            const createdAt = campaign.created_at ? new Date(campaign.created_at) : null;
+                            return createdAt && !isNaN(createdAt.getTime())
+                              ? createdAt.toLocaleDateString('he-IL')
+                              : '';
+                          })()}
                         </div>
                       </div>
                       
@@ -861,11 +851,14 @@ export default function CampaignsPage() {
                         <span className="text-xs font-medium text-gray-600">
                           {campaign.active ? 'פעיל' : 'לא פעיל'}
                         </span>
-                        {campaign.active && campaign.active_since && (
-                          <span className="text-xs text-gray-400">
-                            מאז {new Date(campaign.active_since).toLocaleDateString('he-IL')}
-                          </span>
-                        )}
+                        {campaign.active && campaign.active_since && (() => {
+                          const activeSinceDate = new Date(campaign.active_since);
+                          return !isNaN(activeSinceDate.getTime()) ? (
+                            <span className="text-xs text-gray-400">
+                              מאז {activeSinceDate.toLocaleDateString('he-IL')}
+                            </span>
+                          ) : null;
+                        })()}
                       </div>
                       <Switch dir="ltr"
                         checked={campaign.active}
@@ -965,6 +958,67 @@ export default function CampaignsPage() {
         campaign={editingCampaign} 
         onSave={handleSave} 
       />
+      {/* AI Campaign Modal */}
+      {aiModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={() => !aiLoading && setAiModalOpen(false)}>
+          <div
+            className="bg-background rounded-3xl shadow-2xl p-8 max-w-lg w-full relative flex flex-col gap-4"
+            style={{ direction: 'rtl', scrollbarWidth: 'none' }}
+            onClick={e => e.stopPropagation()}
+          >
+            <button
+              className="absolute top-3 left-3 text-muted-foreground hover:text-foreground"
+              onClick={() => !aiLoading && setAiModalOpen(false)}
+              tabIndex={-1}
+            >
+              <X className="h-6 w-6" />
+            </button>
+            <div className="flex items-center gap-2 mb-2">
+              <StarsIcon className="h-6 w-6" />
+              <span className="font-bold text-lg">צור קמפיין עם AI</span>
+            </div>
+            <div className="relative">
+              <textarea
+                ref={aiTextareaRef}
+                className="min-h-[68px] h-24 focus-visible:ring-0 shadow-sm max-h-[320px] overflow-hidden resize-none rounded-3xl text-base bg-muted border-1 pb-12 pr-4 pl-12 w-full"
+                style={{ direction: 'rtl', scrollbarWidth: 'none' }}
+                placeholder="תאר בקצרה את הקמפיין שתרצה ליצור..."
+                value={aiInput}
+                onChange={e => setAiInput(e.target.value)}
+                disabled={aiLoading}
+                rows={1}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    if (!aiLoading) handleAICreateCampaign();
+                  }
+                }}
+              />
+              <div className="absolute bottom-2 left-2 flex items-center">
+                {aiLoading ? (
+                  <Button className="rounded-full w-8 h-8 p-0" size="sm" variant="ghost" disabled>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  </Button>
+                ) : (
+                  <Button
+                    className="rounded-full w-8 h-8 p-0"
+                    size="sm"
+                    onClick={handleAICreateCampaign}
+                    disabled={!aiInput.trim() || aiLoading}
+                  >
+                    <ArrowUp className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
+            </div>
+            {aiError && <div className="text-red-600 text-sm text-center mt-2">{aiError}</div>}
+            {aiSuccess && <div className="text-green-600 text-sm text-center mt-2">{aiSuccess}</div>}
+            <p className="text-xs text-muted-foreground mt-3 text-center" dir="rtl">
+              תאר בעברית מה תרצה שהקמפיין יעשה. לדוג׳: "כל שנה לשלוח מייל למי שעשה בדיקה, עם קופון 10% הנחה".
+            </p>
+          </div>
+        </div>
+      )}
     </>
   );
 } 

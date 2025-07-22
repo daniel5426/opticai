@@ -1,5 +1,6 @@
 import { Campaign, Client, Appointment, OpticalExam, Order } from './db/schema';
 import { dbService } from './db/index';
+import { getCampaignClientExecution, addCampaignClientExecution } from './db/campaigns-db';
 
 export interface FilterCondition {
   id: string;
@@ -22,9 +23,17 @@ export class CampaignService {
       const allExams = dbService.getAllExams();
       const allOrders = dbService.getAllOrders();
 
-      const filteredClients = allClients.filter(client => {
+      let filteredClients = allClients.filter(client => {
         return this.evaluateClientFilters(client, filters, allAppointments, allExams, allOrders);
       });
+
+      if (campaign.execute_once_per_client) {
+        const filteredClientsWithNulls = await Promise.all(filteredClients.map(async client => {
+          const alreadyExecuted = await getCampaignClientExecution(campaign.id!, client.id! );
+          return alreadyExecuted ? null : client;
+        }));
+        filteredClients = filteredClientsWithNulls.filter(Boolean) as Client[];
+      }
 
       return filteredClients;
     } catch (error) {

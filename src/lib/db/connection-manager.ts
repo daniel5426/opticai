@@ -14,8 +14,12 @@ class ConnectionManager {
   async initialize(): Promise<void> {
     if (this.isInitialized) return;
 
-    const savedMode = localStorage.getItem('opticai-connection-mode') as ConnectionMode;
-    const savedServerUrl = localStorage.getItem('opticai-server-url');
+    let savedMode: ConnectionMode = 'local';
+    let savedServerUrl: string | null = null;
+    if (typeof localStorage !== 'undefined') {
+      savedMode = localStorage.getItem('opticai-connection-mode') as ConnectionMode;
+      savedServerUrl = localStorage.getItem('opticai-server-url');
+    }
 
     if (savedMode === 'remote' && savedServerUrl) {
       this.serverUrl = savedServerUrl;
@@ -41,8 +45,10 @@ class ConnectionManager {
     if (isConnected) {
       this.mode = 'remote';
       this.serverUrl = serverUrl;
-      localStorage.setItem('opticai-connection-mode', 'remote');
-      localStorage.setItem('opticai-server-url', serverUrl);
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem('opticai-connection-mode', 'remote');
+        localStorage.setItem('opticai-server-url', serverUrl);
+      }
       console.log('✅ Switched to remote mode:', serverUrl);
       return true;
     } else {
@@ -54,8 +60,10 @@ class ConnectionManager {
   setLocalMode(): void {
     this.mode = 'local';
     this.serverUrl = null;
-    localStorage.setItem('opticai-connection-mode', 'local');
-    localStorage.removeItem('opticai-server-url');
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem('opticai-connection-mode', 'local');
+      localStorage.removeItem('opticai-server-url');
+    }
     console.log('✅ Switched to local mode');
   }
 

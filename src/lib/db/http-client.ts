@@ -6,16 +6,20 @@ class HttpClient {
   }
 
   private discoverServer(): string | null {
-    const savedServer = localStorage.getItem('opticai-server-url');
-    if (savedServer) {
-      return savedServer;
+    if (typeof localStorage !== 'undefined') {
+      const savedServer = localStorage.getItem('opticai-server-url');
+      if (savedServer) {
+        return savedServer;
+      }
     }
     return null;
   }
 
   setServerUrl(url: string) {
     this.baseUrl = url;
-    localStorage.setItem('opticai-server-url', url);
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem('opticai-server-url', url);
+    }
   }
 
   private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {

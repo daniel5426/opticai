@@ -19,4 +19,14 @@ export function updateCampaign(campaign: Campaign) {
 
 export function deleteCampaign(id: number) {
   return connectionManager.deleteCampaign(id);
+}
+
+export function getCampaignClientExecution(campaignId: number, clientId: number) {
+  return connectionManager.getCampaignClientExecution(campaignId, clientId);
+}
+export function addCampaignClientExecution(campaignId: number, clientId: number) {
+  return connectionManager.addCampaignClientExecution(campaignId, clientId);
+}
+export function deleteCampaignClientExecutionsForCampaign(campaignId: number) {
+  return connectionManager.deleteCampaignClientExecutionsForCampaign(campaignId);
 } 

@@ -925,7 +925,7 @@ export default function ExamDetailPageRefactored({
         tabs={{ activeTab, onTabChange: handleTabChange }}
       />
       <ClientSpaceLayout>
-        <div className="flex flex-col flex-1 p-4 lg:pt-4 lg:p-6 mb-10" dir="rtl">
+        <div className="flex flex-col flex-1 p-4  lg:p-5 mb-10" dir="rtl">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-xl font-semibold">{isNewMode ? "בדיקה חדשה" : "פרטי בדיקה"}</h2>
             <div className="flex gap-2">

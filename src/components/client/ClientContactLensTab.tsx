@@ -7,11 +7,11 @@ export function ClientContactLensTab() {
   const { clientId } = useParams({ from: "/clients/$clientId" })
   const { contactLenses, loading, removeContactLens, refreshContactLenses } = useClientData()
 
-  const handleContactLensDeleted = (deletedContactLensId: number) => {
+  const handleExamDeleted = (deletedContactLensId: number) => {
     removeContactLens(deletedContactLensId)
   }
 
-  const handleContactLensDeleteFailed = () => {
+  const handleExamDeleteFailed = () => {
     refreshContactLenses()
   }
 
@@ -19,8 +19,8 @@ export function ClientContactLensTab() {
     <ContactLensTable 
       data={contactLenses} 
       clientId={Number(clientId)} 
-      onContactLensDeleted={handleContactLensDeleted}
-      onContactLensDeleteFailed={handleContactLensDeleteFailed}
+      onExamDeleted={handleExamDeleted}
+      onExamDeleteFailed={handleExamDeleteFailed}
       loading={loading.contactLenses}
     />
   )

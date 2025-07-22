@@ -127,7 +127,7 @@ export default function ClientDetailPage() {
         }}
       />
       <ClientSpaceLayout>
-        <div className="flex flex-col flex-1 p-4 lg:p-6 mb-30" dir="rtl" style={{scrollbarWidth: 'none', msOverflowStyle: 'none'}}>
+        <div className="flex flex-col flex-1 p-2 lg:p-5 mb-30" dir="rtl" style={{scrollbarWidth: 'none', msOverflowStyle: 'none'}}>
           <Tabs 
             value={activeTab}
             className="w-full"
