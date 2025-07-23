@@ -9,11 +9,7 @@ import ExamDetailPage from "@/pages/ExamDetailPage";
 import ExamCreatePage from "@/pages/ExamCreatePage";
 import OrderDetailPage from "@/pages/OrderDetailPage";
 import OrderCreatePage from "@/pages/OrderCreatePage";
-import ContactLensDetailPage from "@/pages/ContactLensDetailPage";
 import ContactLensCreatePage from "@/pages/ContactLensCreatePage";
-import ReferralDetailPage from "@/pages/ReferralDetailPage";
-import AllExamsPage from "@/pages/AllExamsPage";
-import AllOrdersPage from "@/pages/AllOrdersPage";
 import AllContactLensesPage from "@/pages/AllContactLensesPage";
 import AllReferralsPage from "@/pages/AllReferralsPage";
 import AllAppointmentsPage from "@/pages/AllAppointmentsPage";
@@ -25,6 +21,10 @@ import ExamLayoutsPage from "@/pages/ExamLayoutsPage";
 import ExamLayoutEditorPage from "@/pages/ExamLayoutEditorPage";
 import WorkerStatsPage from "@/pages/WorkerStatsPage";
 import CampaignsPage from "@/pages/CampaignsPage";
+import ReferralDetailPage from "../pages/ReferralDetailPage";
+import AllExamsPage from "@/pages/AllExamsPage";
+import AllOrdersPage from "@/pages/AllOrdersPage";
+
 
 // TODO: Steps to add a new route:
 // 1. Create a new page component in the '../pages/' directory (e.g., NewPage.tsx)
@@ -105,7 +105,7 @@ export const OrderCreateRoute = createRoute({
 export const ContactLensDetailRoute = createRoute({
   getParentRoute: () => RootRoute,
   path: "/clients/$clientId/contact-lenses/$contactLensId",
-  component: ContactLensDetailPage,
+  component: ExamDetailPage,
 });
 
 export const ContactLensCreateRoute = createRoute({

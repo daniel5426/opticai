@@ -45,7 +45,7 @@ interface DraggableCardProps {
   isEditing: boolean
 }
 
-function DraggableCard({ id, children, isEditing }: DraggableCardProps) {
+export function DraggableCard({ id, children, isEditing }: DraggableCardProps) {
   const {
     attributes,
     listeners,
@@ -658,7 +658,7 @@ export default function ExamLayoutEditorPage() {
             <SortableContext items={cardRows.map(row => row.id)} strategy={verticalListSortingStrategy}>
               {cardRows.map((row, rowIndex) => {
                 const pxPerCol = rowWidths[row.id] || 1680
-                const cardWidths = calculateCardWidth(row.cards, row.id, customWidths, pxPerCol)
+                const cardWidths = calculateCardWidth(row.cards, row.id, customWidths, pxPerCol, 'editor')
                 
                 return (
                   <DraggableCard

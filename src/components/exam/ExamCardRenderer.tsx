@@ -148,10 +148,10 @@ interface RenderCardProps {
 // It was probably a regular input with type="date". Let's handle it here.
 
 // Update getColumnCount to support fixedPx for diopter-adjustment-panel
-export const getColumnCount = (type: CardItem['type']): number | { fixedPx: number } => {
+export const getColumnCount = (type: CardItem['type'], mode: 'editor' | 'detail'): number | { fixedPx: number } => {
   switch (type) {
     case 'diopter-adjustment-panel':
-      return { fixedPx: 389 }
+      return { fixedPx: mode === 'editor' ? 389 : 369 }
     case 'exam-details': return 5
     case 'old-ref': return 3
     case 'old-refraction': return 7
@@ -193,7 +193,8 @@ export const calculateCardWidth = (
   cards: CardItem[],
   rowId: string,
   customWidths: Record<string, Record<string, number>>,
-  pxPerCol: number = 1680
+  pxPerCol: number = 1680,
+  mode: 'editor' | 'detail' = 'detail'
 ): Record<string, number> => {
   if (cards.length === 1) {
     return { [cards[0].id]: 100 }
@@ -202,7 +203,7 @@ export const calculateCardWidth = (
   // Identify fixedPx and flexible cards
   let totalFixedPx = 0
   const fixedPxCards = cards.filter(card => {
-    const col = getColumnCount(card.type)
+    const col = getColumnCount(card.type, mode)
     if (typeof col === 'object' && 'fixedPx' in col) {
       totalFixedPx += col.fixedPx
       return true
@@ -210,7 +211,7 @@ export const calculateCardWidth = (
     return false
   })
   const flexibleCards = cards.filter(card => {
-    const col = getColumnCount(card.type)
+    const col = getColumnCount(card.type, mode)
     return typeof col === 'number'
   })
 
@@ -224,7 +225,7 @@ export const calculateCardWidth = (
   const widths: Record<string, number> = {}
   let usedPercent = 0
   fixedPxCards.forEach(card => {
-    const col = getColumnCount(card.type)
+    const col = getColumnCount(card.type, mode)
     if (typeof col === 'object' && 'fixedPx' in col) {
       const percent = (col.fixedPx / pxPerCol) * 100
       widths[card.id] = percent
@@ -251,12 +252,12 @@ export const calculateCardWidth = (
   } else {
     // Distribute by column count
     const totalCols = flexibleCards.reduce((sum, card) => {
-      const col = getColumnCount(card.type)
+      const col = getColumnCount(card.type, mode)
       return sum + (typeof col === 'number' ? col : 1)
     }, 0)
     const remainingPercent = 100 - usedPercent
     flexibleCards.forEach(card => {
-      const col = getColumnCount(card.type)
+      const col = getColumnCount(card.type, mode)
       const percent = (typeof col === 'number' ? col : 1) / (totalCols || 1) * remainingPercent
       widths[card.id] = percent
     })

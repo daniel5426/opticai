@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback, useLayoutEffect } from "react"
-import { useParams, useNavigate, Link } from "@tanstack/react-router"
+import { useParams, useNavigate, Link, useLocation } from "@tanstack/react-router"
 import { SiteHeader } from "@/components/site-header"
 import { getClientById } from "@/lib/db/clients-db"
 import { getExamById, updateExam, createExam } from "@/lib/db/exams-db"
@@ -11,7 +11,7 @@ import { ChevronDownIcon, PlusCircleIcon, X as XIcon } from "lucide-react"
 import { toast } from "sonner"
 import { useUser } from "@/contexts/UserContext"
 import { getAllUsers } from "@/lib/db/users-db"
-import { ExamCardRenderer, CardItem, DetailProps, calculateCardWidth, hasNoteCard, createDetailProps, getColumnCount } from "@/components/exam/ExamCardRenderer"
+import { ExamCardRenderer, CardItem, DetailProps, calculateCardWidth, hasNoteCard, createDetailProps } from "@/components/exam/ExamCardRenderer"
 import { createToolboxActions } from "@/components/exam/ExamToolbox"
 import { useClientData } from "@/contexts/ClientDataContext"
 import { examComponentRegistry, ExamComponentType } from "@/lib/exam-component-registry"
@@ -26,6 +26,7 @@ interface ExamDetailPageProps {
   examId?: string;
   onSave?: (exam: OpticalExam, ...examData: any[]) => void;
   onCancel?: () => void;
+  pageType?: 'exam' | 'contact-lens';
 }
 
 interface CardRow {
@@ -41,26 +42,74 @@ interface LayoutTab {
   isActive: boolean
 }
 
-export default function ExamDetailPageRefactored({
+const pageConfig = {
+  exam: {
+    dbType: 'exam' as 'exam' | 'opticlens',
+    sidebarTab: 'exams',
+    paramName: 'examId',
+    newTitle: "בדיקה חדשה",
+    detailTitle: "פרטי בדיקה",
+    headerInfo: (id: string) => `בדיקה מס' ${id}`,
+    saveSuccessNew: "בדיקה חדשה נוצרה בהצלחה",
+    saveSuccessUpdate: "פרטי הבדיקה עודכנו בהצלחה",
+    saveErrorNew: "לא הצלחנו ליצור את הבדיקה",
+    saveErrorNewData: "לא הצלחנו ליצור את נתוני הבדיקה",
+  },
+  'contact-lens': {
+    dbType: 'opticlens' as 'exam' | 'opticlens',
+    sidebarTab: 'contact-lenses',
+    paramName: 'contactLensId',
+    newTitle: "עדשות מגע חדשות",
+    detailTitle: "פרטי עדשות מגע",
+    headerInfo: (id: string) => `עדשות מגע מס' ${id}`,
+    saveSuccessNew: "עדשות מגע חדשות נוצרו בהצלחה",
+    saveSuccessUpdate: "פרטי העדשות מגע עודכנו בהצלחה",
+    saveErrorNew: "לא הצלחנו ליצור את העדשות מגע",
+    saveErrorNewData: "לא הצלחנו ליצור את נתוני העדשות מגע",
+  }
+};
+
+export default function ExamDetailPage({
   mode = 'view',
   clientId: propClientId,
   examId: propExamId,
+  pageType: propPageType,
   onSave,
   onCancel
 }: ExamDetailPageProps = {}) {
+  const location = useLocation();
+  const pageType = propPageType || (location.pathname.includes('/contact-lenses') ? 'contact-lens' : 'exam');
+  const config = pageConfig[pageType];
+
   let routeClientId: string | undefined, routeExamId: string | undefined;
 
-  try {
-    const params = useParams({ from: "/clients/$clientId/exams/$examId" });
-    routeClientId = params.clientId;
-    routeExamId = params.examId;
-  } catch {
+  if (pageType === 'exam') {
     try {
-      const params = useParams({ from: "/clients/$clientId/exams/new" });
+      const params = useParams({ from: "/clients/$clientId/exams/$examId" });
       routeClientId = params.clientId;
+      routeExamId = params.examId;
     } catch {
-      routeClientId = undefined;
-      routeExamId = undefined;
+      try {
+        const params = useParams({ from: "/clients/$clientId/exams/new" });
+        routeClientId = params.clientId;
+      } catch {
+        routeClientId = undefined;
+        routeExamId = undefined;
+      }
+    }
+  } else {
+    try {
+      const params = useParams({ from: "/clients/$clientId/contact-lenses/$contactLensId" });
+      routeClientId = params.clientId;
+      routeExamId = params.contactLensId;
+    } catch {
+      try {
+        const params = useParams({ from: "/clients/$clientId/contact-lenses/new" });
+        routeClientId = params.clientId;
+      } catch {
+        routeClientId = undefined;
+        routeExamId = undefined;
+      }
     }
   }
 
@@ -92,7 +141,7 @@ export default function ExamDetailPageRefactored({
 
   const isNewMode = mode === 'new'
   const [isEditing, setIsEditing] = useState(isNewMode)
-  const [activeTab, setActiveTab] = useState('exams')
+  const [activeTab, setActiveTab] = useState(config.sidebarTab)
 
   const [formData, setFormData] = useState<Partial<OpticalExam>>(isNewMode ? {
     client_id: Number(clientId),
@@ -101,7 +150,7 @@ export default function ExamDetailPageRefactored({
     clinic: '',
     user_id: currentUser?.id,
     dominant_eye: null,
-    type: 'exam'
+    type: config.dbType
   } : {})
 
   const [cardRows, setCardRows] = useState<CardRow[]>([
@@ -120,47 +169,35 @@ export default function ExamDetailPageRefactored({
   const rowRefs = useRef<Record<string, HTMLDivElement | null>>({})
 
   useLayoutEffect(() => {
-    const mainContent = document.getElementById('main-content');
-    if (!mainContent) return;
-
-    const observer = new ResizeObserver(entries => {
-      for (const entry of entries) {
-        const newWidth = entry.contentRect.width;
-        // When the container resizes, we need to update all row widths
-        // to trigger a recalculation in the rendering logic.
-        setRowWidths(prev => {
-          const updatedWidths: Record<string, number> = {};
-          Object.keys(prev).forEach(rowId => {
-            updatedWidths[rowId] = newWidth;
-          });
-          // Also handle newly added rows that might not be in 'prev' yet
-          cardRows.forEach(row => {
-            if (!updatedWidths[row.id]) {
-              updatedWidths[row.id] = newWidth;
-            }
-          });
-          return updatedWidths;
-        });
+    const observers: ResizeObserver[] = []
+    Object.entries(rowRefs.current).forEach(([rowId, el]) => {
+      if (el) {
+        const observer = new ResizeObserver(entries => {
+          for (const entry of entries) {
+            setRowWidths(prev => ({ ...prev, [rowId]: entry.contentRect.width }))
+          }
+        })
+        observer.observe(el)
+        observers.push(observer)
       }
-    });
-
-    observer.observe(mainContent);
-
-    // Initial measurement
-    const initialWidth = mainContent.getBoundingClientRect().width;
-    setRowWidths(prev => {
-      const updatedWidths: Record<string, number> = {};
-      cardRows.forEach(row => {
-        updatedWidths[row.id] = initialWidth;
-      });
-      return updatedWidths;
-    });
-
+    })
+    setTimeout(() => {
+      Object.entries(rowRefs.current).forEach(([rowId, el]) => {
+        if (el) {
+          const observer = new ResizeObserver(entries => {
+            for (const entry of entries) {
+              setRowWidths(prev => ({ ...prev, [rowId]: entry.contentRect.width }))
+            }
+          })
+          observer.observe(el)
+          observers.push(observer)
+        }
+      })
+      }, 100)
     return () => {
-      observer.disconnect();
-    };
-  }, [cardRows.map(r => r.id).join(',')]); // Depend on row IDs to re-run when rows are added/removed
-
+      observers.forEach(o => o.disconnect())
+    }
+  }, [cardRows, activeLayoutId, layoutTabs])
   const formRef = useRef<HTMLFormElement>(null)
   const navigate = useNavigate()
 
@@ -391,8 +428,8 @@ export default function ExamDetailPageRefactored({
 
   // Set the active tab to 'exams' when this page loads
   useEffect(() => {
-    setSidebarActiveTab('exams')
-  }, [setSidebarActiveTab])
+    setSidebarActiveTab(config.sidebarTab)
+  }, [setSidebarActiveTab, config.sidebarTab])
 
   useEffect(() => {
     const loadData = async () => {
@@ -404,14 +441,14 @@ export default function ExamDetailPageRefactored({
         setClipboardContentType(getClipboardContentType())
 
         const layoutsData = await getAllExamLayouts()
-        setAvailableLayouts(layoutsData.filter(layout => layout.type === 'exam'))
+        setAvailableLayouts(layoutsData.filter(layout => layout.type === config.dbType))
 
         if (examId && !isNewMode) {
           const examData = await getExamById(Number(examId))
           setExam(examData || null)
 
           if (examData) {
-            const examType = examData.type || 'exam'
+            const examType = examData.type || config.dbType
             const filteredLayouts = layoutsData.filter(layout => layout.type === examType)
             setAvailableLayouts(filteredLayouts)
             const layoutInstances = await getExamLayoutInstancesByExamId(Number(examId))
@@ -451,10 +488,10 @@ export default function ExamDetailPageRefactored({
                 }
               }
             } else {
-              let defaultLayouts = await getDefaultExamLayoutsByType('exam')
+              let defaultLayouts = await getDefaultExamLayoutsByType(config.dbType)
               if (defaultLayouts.length === 0) {
                 // Fallback to any exam type layouts if no defaults found
-                const examTypeLayouts = layoutsData.filter(layout => layout.type === 'exam')
+                const examTypeLayouts = layoutsData.filter(layout => layout.type === config.dbType)
                 if (examTypeLayouts.length > 0) {
                   defaultLayouts = [examTypeLayouts[0]]
                 }
@@ -502,10 +539,10 @@ export default function ExamDetailPageRefactored({
             }
           }
         } else {
-          let defaultLayouts = await getDefaultExamLayoutsByType('exam')
+          let defaultLayouts = await getDefaultExamLayoutsByType(config.dbType)
           if (defaultLayouts.length === 0) {
             // Fallback to any exam type layouts if no defaults found
-            const examTypeLayouts = layoutsData.filter(layout => layout.type === 'exam')
+            const examTypeLayouts = layoutsData.filter(layout => layout.type === config.dbType)
             if (examTypeLayouts.length > 0) {
               defaultLayouts = [examTypeLayouts[0]]
             }
@@ -555,7 +592,7 @@ export default function ExamDetailPageRefactored({
     }
 
     loadData()
-  }, [clientId, examId, isNewMode])
+  }, [clientId, examId, isNewMode, config.dbType])
 
   useEffect(() => {
     if (exam) {
@@ -598,7 +635,7 @@ export default function ExamDetailPageRefactored({
           clinic: formData.clinic || '',
           user_id: formData.user_id || currentUser?.id,
           dominant_eye: formData.dominant_eye || null,
-          type: formData.type || 'exam'
+          type: formData.type || config.dbType
         }
         
         const newExam = await createExam(examData)
@@ -625,7 +662,7 @@ export default function ExamDetailPageRefactored({
           const savedData = await examComponentRegistry.saveAllData(layoutInstance.id, examFormData)
           
           if (Object.values(savedData).some(data => data !== null)) {
-            toast.success("בדיקה חדשה נוצרה בהצלחה")
+            toast.success(config.saveSuccessNew)
             
             if (refreshExams) {
               await refreshExams();
@@ -637,10 +674,10 @@ export default function ExamDetailPageRefactored({
               onSave(newExam, ...Object.values(savedData))
             }
           } else {
-            toast.error("לא הצלחנו ליצור את נתוני הבדיקה")
+            toast.error(config.saveErrorNewData)
           }
         } else {
-          toast.error("לא הצלחנו ליצור את הבדיקה")
+          toast.error(config.saveErrorNew)
         }
       } else {
         const updatedExam = await updateExam(formData as OpticalExam)
@@ -666,7 +703,7 @@ export default function ExamDetailPageRefactored({
           setExamComponentData(savedData)
           setFormData({ ...updatedExam })
           
-          toast.success("פרטי הבדיקה עודכנו בהצלחה")
+          toast.success(config.saveSuccessUpdate)
           
           if (refreshExams) {
             await refreshExams();
@@ -869,7 +906,7 @@ export default function ExamDetailPageRefactored({
   }
 
   const handleTabChange = (value: string) => {
-    if (clientId && value !== 'exams') {
+    if (clientId && value !== config.sidebarTab) {
       navigate({
         to: "/clients/$clientId",
         params: { clientId: String(clientId) },
@@ -967,13 +1004,13 @@ export default function ExamDetailPageRefactored({
       <SiteHeader
         title="לקוחות"
         backLink="/clients"
-        examInfo={isNewMode ? "בדיקה חדשה" : `בדיקה מס' ${examId}`}
+        examInfo={isNewMode ? config.newTitle : config.headerInfo(examId || '')}
         tabs={{ activeTab, onTabChange: handleTabChange }}
       />
       <ClientSpaceLayout>
         <div className="flex flex-col flex-1 p-4  lg:p-5 mb-10" dir="rtl">
           <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-semibold">{isNewMode ? "בדיקה חדשה" : "פרטי בדיקה"}</h2>
+            <h2 className="text-xl font-semibold">{isNewMode ? config.newTitle : config.detailTitle}</h2>
             <div className="flex gap-2">
               {!isNewMode && !isEditing && exam?.id && (
                 <Link to="/clients/$clientId/orders/new" params={{ clientId: String(clientId) }} search={{ examId: String(exam.id) }}>
@@ -1054,93 +1091,81 @@ export default function ExamDetailPageRefactored({
           <form ref={formRef} className="pt-4">
             <div className="space-y-4" style={{ scrollbarWidth: 'none' }}>
               {cardRows.map((row, rowIndex) => {
-                const pxPerCol = rowWidths[row.id] || 1680
-                const cardWidths = calculateCardWidth(row.cards, row.id, customWidths, pxPerCol)
+                const pxPerCol = rowWidths[row.id] || 1380
+                const cardWidths = calculateCardWidth(row.cards, row.id, customWidths, pxPerCol, 'detail')
                 return (
-                  <div
-                    key={row.id}
-                    className="flex gap-4 w-full items-start"
-                    ref={el => { rowRefs.current[row.id] = el }}
-                  >
-                    <div className="flex-shrink-0" />
-                    <div className="flex gap-4 flex-1" dir="ltr">
-                      {row.cards.length === 0 ? (
-                        <div className="flex-1 border-2 border-dashed border-gray-300 rounded-lg p-8 text-center text-gray-500">
-                          שורה ריקה
-                        </div>
-                      ) : (
-                        row.cards.map((item, cardIndex) => {
-                          return (
-                            <React.Fragment key={item.id}>
-                              <div
-                                style={{
-                                  width: `${cardWidths[item.id]}%`,
-                                  minWidth: row.cards.length > 1 ? '200px' : 'auto'
-                                }}
-                                className="relative group/card"
-                              >
-                                <ExamCardRenderer
-                                  item={item}
-                                  rowCards={row.cards}
-                                  isEditing={isEditing}
-                                  mode="detail"
-                                  detailProps={detailProps}
-                                  hideEyeLabels={cardIndex > 0}
-                                  matchHeight={hasNoteCard(row.cards) && row.cards.length > 1}
-                                  currentRowIndex={rowIndex}
-                                  currentCardIndex={cardIndex}
-                                  clipboardSourceType={clipboardContentType}
-                                  onCopy={() => handleCopy(item)}
-                                  onPaste={() => handlePaste(item)}
-                                  onClearData={() => toolboxActions.clearData(item.type as ExamComponentType)}
-                                  onCopyLeft={() => {
-                                    const cardsToTheLeft = row.cards.slice(0, cardIndex).reverse()
-                                    for (const card of cardsToTheLeft) {
-                                      if (card.type !== 'exam-details' && card.type !== 'notes') {
-                                        const type = card.type as ExamComponentType
-                                        const available = ExamFieldMapper.getAvailableTargets(item.type as ExamComponentType, [type])
-                                        if (available.length > 0) {
-                                          toolboxActions.copyToLeft(item.type as ExamComponentType, type)
-                                          return
-                                        }
-                                      }
+                  <div key={row.id} className="w-full">
+                      <div
+                        className="flex gap-4 flex-1"
+                        dir="ltr"
+                        ref={el => { rowRefs.current[row.id] = el }}
+                      >
+                        {row.cards.map((item, cardIndex) => (
+                          <div
+                            key={item.id}
+                            style={{
+                              width: `${cardWidths[item.id]}%`,
+                              minWidth: row.cards.length > 1 ? '200px' : 'auto'
+                            }}
+                          >
+                            <ExamCardRenderer
+                              item={item}
+                              rowCards={row.cards}
+                              isEditing={isEditing}
+                              mode="detail"
+                              detailProps={detailProps}
+                              hideEyeLabels={cardIndex > 0}
+                              matchHeight={hasNoteCard(row.cards) && row.cards.length > 1}
+                              currentRowIndex={rowIndex}
+                              currentCardIndex={cardIndex}
+                              clipboardSourceType={clipboardContentType}
+                              onCopy={() => handleCopy(item)}
+                              onPaste={() => handlePaste(item)}
+                              onClearData={() => toolboxActions.clearData(item.type as ExamComponentType)}
+                              onCopyLeft={() => {
+                                const cardsToTheLeft = row.cards.slice(0, cardIndex).reverse()
+                                for (const card of cardsToTheLeft) {
+                                  if (card.type !== 'exam-details' && card.type !== 'notes') {
+                                    const type = card.type as ExamComponentType
+                                    const available = ExamFieldMapper.getAvailableTargets(item.type as ExamComponentType, [type])
+                                    if (available.length > 0) {
+                                      toolboxActions.copyToLeft(item.type as ExamComponentType, type)
+                                      return
                                     }
-                                  }}
-                                  onCopyRight={() => {
-                                    const cardsToTheRight = row.cards.slice(cardIndex + 1)
-                                    for (const card of cardsToTheRight) {
-                                      if (card.type !== 'exam-details' && card.type !== 'notes') {
-                                        const type = card.type as ExamComponentType
-                                        const available = ExamFieldMapper.getAvailableTargets(item.type as ExamComponentType, [type])
-                                        if (available.length > 0) {
-                                          toolboxActions.copyToRight(item.type as ExamComponentType, type)
-                                          return
-                                        }
-                                      }
+                                  }
+                                }
+                              }}
+                              onCopyRight={() => {
+                                const cardsToTheRight = row.cards.slice(cardIndex + 1)
+                                for (const card of cardsToTheRight) {
+                                  if (card.type !== 'exam-details' && card.type !== 'notes') {
+                                    const type = card.type as ExamComponentType
+                                    const available = ExamFieldMapper.getAvailableTargets(item.type as ExamComponentType, [type])
+                                    if (available.length > 0) {
+                                      toolboxActions.copyToRight(item.type as ExamComponentType, type)
+                                      return
                                     }
-                                  }}
-                                  onCopyBelow={() => {
-                                    if (rowIndex >= cardRows.length - 1) return
-                                    const belowRow = cardRows[rowIndex + 1].cards
-                                    for (const card of belowRow) {
-                                      if (card.type !== 'exam-details' && card.type !== 'notes') {
-                                        const type = card.type as ExamComponentType
-                                        const available = ExamFieldMapper.getAvailableTargets(item.type as ExamComponentType, [type])
-                                        if (available.length > 0) {
-                                          toolboxActions.copyToBelow(item.type as ExamComponentType, type)
-                                          return
-                                        }
-                                      }
+                                  }
+                                }
+                              }}
+                              onCopyBelow={() => {
+                                if (rowIndex >= cardRows.length - 1) return
+                                const belowRow = cardRows[rowIndex + 1].cards
+                                for (const card of belowRow) {
+                                  if (card.type !== 'exam-details' && card.type !== 'notes') {
+                                    const type = card.type as ExamComponentType
+                                    const available = ExamFieldMapper.getAvailableTargets(item.type as ExamComponentType, [type])
+                                    if (available.length > 0) {
+                                      toolboxActions.copyToBelow(item.type as ExamComponentType, type)
+                                      return
                                     }
-                                  }}
-                                />
-                              </div>
-                              
-                            </React.Fragment>
-                          )
-                        })
-                      )}
-                    </div>
+                                  }
+                                }
+                              }}
+                            />
+                          </div>
+                        ))}
+                      </div>
                   </div>
                 )
               })}

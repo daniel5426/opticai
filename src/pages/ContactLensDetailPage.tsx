@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from "react"
+import React, { useState, useRef, useEffect, useCallback, useLayoutEffect } from "react"
 import { useParams, useNavigate, Link } from "@tanstack/react-router"
 import { SiteHeader } from "@/components/site-header"
 import { getClientById } from "@/lib/db/clients-db"
@@ -115,8 +115,29 @@ export default function ContactLensDetailPage({
   ])
 
   const [customWidths, setCustomWidths] = useState<Record<string, Record<string, number>>>({})
+  // Track row widths for responsive fixedPx calculation
+  const [rowWidths, setRowWidths] = useState<Record<string, number>>({})
+  const rowRefs = useRef<Record<string, HTMLDivElement | null>>({})
   const formRef = useRef<HTMLFormElement>(null)
   const navigate = useNavigate()
+
+  useLayoutEffect(() => {
+    const observers: ResizeObserver[] = []
+    Object.entries(rowRefs.current).forEach(([rowId, el]) => {
+      if (el) {
+        const observer = new ResizeObserver(entries => {
+          for (const entry of entries) {
+            setRowWidths(prev => ({ ...prev, [rowId]: entry.contentRect.width }))
+          }
+        })
+        observer.observe(el)
+        observers.push(observer)
+      }
+    })
+    return () => {
+      observers.forEach(o => o.disconnect())
+    }
+  }, [cardRows])
 
   const handleCopy = (card: CardItem) => {
     const cardType = card.type as ExamComponentType
@@ -181,8 +202,8 @@ export default function ContactLensDetailPage({
     const initialData: Record<string, any> = {}
     
     // Parse layout data to get titles and card instances
-    let layoutTitles: Record<string, string> = {}
-    let cardInstances: Record<string, string[]> = {}
+    const layoutTitles: Record<string, string> = {}
+    const cardInstances: Record<string, string[]> = {}
     if (layoutData) {
       try {
         const parsedLayout = JSON.parse(layoutData)
@@ -240,8 +261,8 @@ export default function ContactLensDetailPage({
       setExamComponentData(data)
       
       // Parse layout data to get titles and card instances
-      let layoutTitles: Record<string, string> = {}
-      let cardInstances: Record<string, string[]> = {}
+      const layoutTitles: Record<string, string> = {}
+      const cardInstances: Record<string, string[]> = {}
       if (layoutData) {
         try {
           const parsedLayout = JSON.parse(layoutData)
@@ -1008,11 +1029,16 @@ export default function ContactLensDetailPage({
           <form ref={formRef} className="pt-4">
             <div className="space-y-4" style={{ scrollbarWidth: 'none' }}>
               {cardRows.map((row, rowIndex) => {
-                const cardWidths = calculateCardWidth(row.cards, row.id, customWidths)
+                const pxPerCol = rowWidths[row.id] || 1680
+                const cardWidths = calculateCardWidth(row.cards, row.id, customWidths, pxPerCol)
 
                 return (
                   <div key={row.id} className="w-full">
-                      <div className="flex gap-4 flex-1" dir="ltr">
+                      <div
+                        className="flex gap-4 flex-1"
+                        dir="ltr"
+                        ref={el => { rowRefs.current[row.id] = el }}
+                      >
                         {row.cards.map((item, cardIndex) => (
                           <div
                             key={item.id}
