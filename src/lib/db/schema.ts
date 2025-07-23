@@ -546,7 +546,7 @@ export interface ContactLensExam {
 
 export interface ContactLensOrder {
   id?: number;
-  contact_lens_id: number;
+  layout_instance_id: number;
   branch?: string;
   supply_in_branch?: string;
   order_status?: string;
@@ -914,6 +914,13 @@ export interface CoverTestExam {
   nv_2?: number;
 }
 
+export interface DiopterAdjustmentPanel {
+  id?: number;
+  layout_instance_id: number;
+  right_diopter?: number;
+  left_diopter?: number;
+}
+
 export interface SchirmerTestExam {
   id?: number;
   layout_instance_id: number;
@@ -970,6 +977,21 @@ export interface CampaignClientExecution {
   campaign_id: number;
   client_id: number;
   executed_at?: string;
+}
+
+export interface SensationVisionStabilityExam {
+  id?: number;
+  layout_instance_id: number;
+  r_sensation?: string;
+  l_sensation?: string;
+  r_vision?: string;
+  l_vision?: string;
+  r_stability?: string;
+  l_stability?: string;
+  r_movement?: string;
+  l_movement?: string;
+  r_recommendations?: string;
+  l_recommendations?: string;
 }
 
 export const createTables = (db: Database): void => {
@@ -1417,47 +1439,12 @@ export const createTables = (db: Database): void => {
     );
   `);
 
-  // Create contact_eye table
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS contact_eye (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      contact_lens_id INTEGER NOT NULL,
-      eye TEXT CHECK(eye IN ('R','L')),
-      schirmer_test REAL,
-      schirmer_but REAL,
-      k_h REAL,
-      k_v REAL,
-      k_avg REAL,
-      k_cyl REAL,
-      k_ax INTEGER,
-      k_ecc REAL,
-      lens_type TEXT,
-      model TEXT,
-      supplier TEXT,
-      material TEXT,
-      color TEXT,
-      quantity INTEGER,
-      order_quantity INTEGER,
-      dx BOOLEAN,
-      bc REAL,
-      bc_2 REAL,
-      oz REAL,
-      diam REAL,
-      sph REAL,
-      cyl REAL,
-      ax INTEGER,
-      read_ad REAL,
-      va REAL,
-      j REAL,
-      FOREIGN KEY(contact_lens_id) REFERENCES contact_lens(id) ON DELETE CASCADE
-    );
-  `);
 
   // Create contact_lens_order table
   db.exec(`
     CREATE TABLE IF NOT EXISTS contact_lens_order (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      contact_lens_id INTEGER NOT NULL,
+      layout_instance_id INTEGER NOT NULL,
       branch TEXT,
       supply_in_branch TEXT,
       order_status TEXT,
@@ -1470,7 +1457,7 @@ export const createTables = (db: Database): void => {
       cleaning_solution TEXT,
       disinfection_solution TEXT,
       rinsing_solution TEXT,
-      FOREIGN KEY(contact_lens_id) REFERENCES contact_lens(id) ON DELETE CASCADE
+      FOREIGN KEY(layout_instance_id) REFERENCES exam_layout_instances(id) ON DELETE CASCADE
     );
   `);
 
@@ -2592,6 +2579,36 @@ export const createTables = (db: Database): void => {
       r_florescent TEXT,
       l_bio_m TEXT,
       r_bio_m TEXT,
+      FOREIGN KEY(layout_instance_id) REFERENCES exam_layout_instances(id) ON DELETE CASCADE
+    );
+  `);
+
+  // Add this in createTables after other exam tables
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS sensation_vision_stability_exams (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      layout_instance_id INTEGER NOT NULL,
+      r_sensation TEXT,
+      l_sensation TEXT,
+      r_vision TEXT,
+      l_vision TEXT,
+      r_stability TEXT,
+      l_stability TEXT,
+      r_movement TEXT,
+      l_movement TEXT,
+      r_recommendations TEXT,
+      l_recommendations TEXT,
+      FOREIGN KEY(layout_instance_id) REFERENCES exam_layout_instances(id) ON DELETE CASCADE
+    );
+  `);
+
+  // Create diopter_adjustment_panel table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS diopter_adjustment_panel (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      layout_instance_id INTEGER NOT NULL,
+      right_diopter REAL,
+      left_diopter REAL,
       FOREIGN KEY(layout_instance_id) REFERENCES exam_layout_instances(id) ON DELETE CASCADE
     );
   `);

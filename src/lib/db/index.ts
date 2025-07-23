@@ -72,7 +72,9 @@ import {
   KeratometerContactLens,
   ContactLensExam,
   OldContactLenses,
-  OverRefraction
+  OverRefraction,
+  SensationVisionStabilityExam,
+  DiopterAdjustmentPanel
 } from './schema';
 import * as usersDb from './users-db'
 import * as workShiftsDb from './work-shifts-db'
@@ -114,7 +116,7 @@ class DatabaseService {
 
     try {
       // Check if notes columns exist in order_details table
-      const orderDetailsInfo = this.db.prepare("PRAGMA table_info(order_details)").all() as any[];
+      const orderDetailsInfo = this.db.prepare("PRAGMA table_info(order_details)").all() as unknown[];
       const hasNotesColumn = orderDetailsInfo.some(col => col.name === 'notes');
       const hasLensOrderNotesColumn = orderDetailsInfo.some(col => col.name === 'lens_order_notes');
 
@@ -131,7 +133,7 @@ class DatabaseService {
       }
 
       // Check if appointments table has duration column
-      const appointmentsInfo = this.db.prepare("PRAGMA table_info(appointments)").all() as any[];
+      const appointmentsInfo = this.db.prepare("PRAGMA table_info(appointments)").all() as unknown[];
       const hasDurationColumn = appointmentsInfo.some(col => col.name === 'duration');
       const hasGoogleCalendarEventIdColumn = appointmentsInfo.some(col => col.name === 'google_calendar_event_id');
       
@@ -148,7 +150,7 @@ class DatabaseService {
       }
 
       // Check if clients table has family columns
-      const clientsInfo = this.db.prepare("PRAGMA table_info(clients)").all() as any[];
+      const clientsInfo = this.db.prepare("PRAGMA table_info(clients)").all() as unknown[];
       const hasFamilyIdColumn = clientsInfo.some(col => col.name === 'family_id');
       const hasFamilyRoleColumn = clientsInfo.some(col => col.name === 'family_role');
 
@@ -175,7 +177,7 @@ class DatabaseService {
         console.log('Migrating appointments table to remove redundant client fields...');
 
         // Create backup of existing data
-        const existingAppointments = this.db.prepare('SELECT * FROM appointments').all() as any[];
+        const existingAppointments = this.db.prepare('SELECT * FROM appointments').all() as unknown[];
 
         // Drop and recreate table with new structure (without redundant client fields)
         this.db.exec('DROP TABLE appointments');
@@ -369,7 +371,7 @@ class DatabaseService {
     }
   }
 
-  private sanitizeValue(value: any): any {
+  private sanitizeValue(value: unknown): unknown {
     if (typeof value === 'boolean') {
       return value ? 1 : 0;
     }
@@ -644,7 +646,7 @@ class DatabaseService {
     try {
       const validParts = ['exam', 'order', 'referral', 'contact_lens', 'appointment', 'file', 'medical'];
       const setParts: string[] = [];
-      const values: any[] = [];
+      const values: unknown[] = [];
 
       // Build the SET clause dynamically based on provided states
       for (const [part, state] of Object.entries(aiStates)) {
@@ -691,7 +693,7 @@ class DatabaseService {
     }
   }
 
-  getAllClientDataForAi(clientId: number): any {
+  getAllClientDataForAi(clientId: number): unknown {
     if (!this.db) return null;
 
     try {
@@ -708,7 +710,7 @@ class DatabaseService {
 
       const examDetails = exams.map(exam => {
         const layoutInstances = this.getExamLayoutInstancesByExamId(exam.id!);
-        const examData = { ...exam, layoutInstances: [] as any[] };
+        const examData = { ...exam, layoutInstances: [] as unknown[] };
         
         layoutInstances.forEach(instance => {
           const instanceData = {
@@ -2811,13 +2813,13 @@ class DatabaseService {
     try {
       const stmt = this.db.prepare(`
         INSERT INTO contact_lens_order (
-          contact_lens_id, branch, supply_in_branch, order_status, advisor, deliverer, delivery_date,
+          layout_instance_id, branch, supply_in_branch, order_status, advisor, deliverer, delivery_date,
           priority, guaranteed_date, approval_date, cleaning_solution, disinfection_solution, rinsing_solution
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
 
       const result = stmt.run(
-        contactLensOrder.contact_lens_id,
+        contactLensOrder.layout_instance_id,
         this.sanitizeValue(contactLensOrder.branch),
         this.sanitizeValue(contactLensOrder.supply_in_branch),
         this.sanitizeValue(contactLensOrder.order_status),
@@ -2839,12 +2841,12 @@ class DatabaseService {
     }
   }
 
-  getContactLensOrderByContactLensId(contactLensId: number): ContactLensOrder | null {
+  getContactLensOrderByLayoutInstanceId(layoutInstanceId: number): ContactLensOrder | null {
     if (!this.db) return null;
 
     try {
-      const stmt = this.db.prepare('SELECT * FROM contact_lens_order WHERE contact_lens_id = ?');
-      return stmt.get(contactLensId) as ContactLensOrder | null;
+      const stmt = this.db.prepare('SELECT * FROM contact_lens_order WHERE layout_instance_id = ?');
+      return stmt.get(layoutInstanceId) as ContactLensOrder | null;
     } catch (error) {
       console.error('Error getting contact lens order by contact lens ID:', error);
       return null;
@@ -2857,14 +2859,14 @@ class DatabaseService {
     try {
       const stmt = this.db.prepare(`
         UPDATE contact_lens_order SET 
-          contact_lens_id = ?, branch = ?, supply_in_branch = ?, order_status = ?, advisor = ?,
+          layout_instance_id = ?, branch = ?, supply_in_branch = ?, order_status = ?, advisor = ?,
           deliverer = ?, delivery_date = ?, priority = ?, guaranteed_date = ?, approval_date = ?,
           cleaning_solution = ?, disinfection_solution = ?, rinsing_solution = ?
         WHERE id = ?
       `);
 
       stmt.run(
-        contactLensOrder.contact_lens_id,
+        contactLensOrder.layout_instance_id,
         this.sanitizeValue(contactLensOrder.branch),
         this.sanitizeValue(contactLensOrder.supply_in_branch),
         this.sanitizeValue(contactLensOrder.order_status),
@@ -3255,7 +3257,7 @@ class DatabaseService {
       const client = this.getClientById(appointment.client_id);
 
       switch (action) {
-        case 'create':
+        case 'create': {
           const eventId = await googleCalendarSync.syncAppointmentCreated(appointment, client, user);
           if (eventId && appointment.id) {
             console.log(`🔄 Storing Google Calendar event ID ${eventId} for appointment ${appointment.id}`);
@@ -3269,6 +3271,7 @@ class DatabaseService {
             console.log(`❌ No event ID returned or appointment ID missing. EventId: ${eventId}, AppointmentId: ${appointment.id}`);
           }
           break;
+        }
         case 'update':
           console.log(`🔄 Syncing appointment update. Appointment ID: ${appointment.id}, Google event ID: ${appointment.google_calendar_event_id}`);
           await googleCalendarSync.syncAppointmentUpdated(appointment, client, user, appointment.google_calendar_event_id);
@@ -5831,7 +5834,11 @@ class DatabaseService {
         WHERE user_id = ? AND date >= ? AND date < ? AND status = 'completed'
       `);
       
-      const result = stmt.get(userId, startDate, endDate) as any;
+      const result = stmt.get(userId, startDate, endDate) as {
+        totalShifts: number;
+        totalMinutes: number;
+        averageMinutes: number;
+      };
       return {
         totalShifts: result.totalShifts || 0,
         totalMinutes: result.totalMinutes || 0,
@@ -6416,6 +6423,134 @@ class DatabaseService {
     } catch (error) {
       console.error('Error deleting over refraction:', error);
       return false;
+    }
+  }
+
+  createSensationVisionStabilityExam(data: Omit<SensationVisionStabilityExam, 'id'>): SensationVisionStabilityExam | null {
+    if (!this.db) return null;
+    try {
+      const stmt = this.db.prepare(`
+        INSERT INTO sensation_vision_stability_exams (
+          layout_instance_id, r_sensation, l_sensation, r_vision, l_vision, r_stability, l_stability, r_movement, l_movement, r_recommendations, l_recommendations
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+      const result = stmt.run(
+        data.layout_instance_id,
+        data.r_sensation,
+        data.l_sensation,
+        data.r_vision,
+        data.l_vision,
+        data.r_stability,
+        data.l_stability,
+        data.r_movement,
+        data.l_movement,
+        data.r_recommendations,
+        data.l_recommendations
+      );
+      return { ...data, id: result.lastInsertRowid as number };
+    } catch (error) {
+      console.error('Error creating SensationVisionStabilityExam:', error);
+      return null;
+    }
+  }
+
+  getSensationVisionStabilityExamByLayoutInstanceId(layoutInstanceId: number): SensationVisionStabilityExam | null {
+    if (!this.db) return null;
+    try {
+      const stmt = this.db.prepare('SELECT * FROM sensation_vision_stability_exams WHERE layout_instance_id = ?');
+      return stmt.get(layoutInstanceId) as SensationVisionStabilityExam | null;
+    } catch (error) {
+      console.error('Error getting SensationVisionStabilityExam by layoutInstanceId:', error);
+      return null;
+    }
+  }
+
+  updateSensationVisionStabilityExam(data: SensationVisionStabilityExam): SensationVisionStabilityExam | null {
+    if (!this.db || !data.id) return null;
+    try {
+      const stmt = this.db.prepare(`
+        UPDATE sensation_vision_stability_exams SET
+          layout_instance_id = ?,
+          r_sensation = ?,
+          l_sensation = ?,
+          r_vision = ?,
+          l_vision = ?,
+          r_stability = ?,
+          l_stability = ?,
+          r_movement = ?,
+          l_movement = ?,
+          r_recommendations = ?,
+          l_recommendations = ?
+        WHERE id = ?
+      `);
+      stmt.run(
+        data.layout_instance_id,
+        data.r_sensation,
+        data.l_sensation,
+        data.r_vision,
+        data.l_vision,
+        data.r_stability,
+        data.l_stability,
+        data.r_movement,
+        data.l_movement,
+        data.r_recommendations,
+        data.l_recommendations,
+        data.id
+      );
+      return data;
+    } catch (error) {
+      console.error('Error updating SensationVisionStabilityExam:', error);
+      return null;
+    }
+  }
+
+  createDiopterAdjustmentPanel(data: Omit<DiopterAdjustmentPanel, 'id'>): DiopterAdjustmentPanel | null {
+    if (!this.db) return null;
+    try {
+      const stmt = this.db.prepare(`
+        INSERT INTO diopter_adjustment_panel (layout_instance_id, right_diopter, left_diopter)
+        VALUES (?, ?, ?)
+      `);
+      const result = stmt.run(
+        data.layout_instance_id,
+        data.right_diopter,
+        data.left_diopter
+      );
+      return { ...data, id: result.lastInsertRowid as number };
+    } catch (error) {
+      console.error('Error creating DiopterAdjustmentPanel:', error);
+      return null;
+    }
+  }
+
+  getDiopterAdjustmentPanelByLayoutInstanceId(layoutInstanceId: number): DiopterAdjustmentPanel | null {
+    if (!this.db) return null;
+    try {
+      const stmt = this.db.prepare(`
+        SELECT * FROM diopter_adjustment_panel WHERE layout_instance_id = ?
+      `);
+      return stmt.get(layoutInstanceId) as DiopterAdjustmentPanel | null;
+    } catch (error) {
+      console.error('Error getting DiopterAdjustmentPanel:', error);
+      return null;
+    }
+  }
+
+  updateDiopterAdjustmentPanel(data: DiopterAdjustmentPanel): DiopterAdjustmentPanel | null {
+    if (!this.db || !data.id) return null;
+    try {
+      const stmt = this.db.prepare(`
+        UPDATE diopter_adjustment_panel SET right_diopter = ?, left_diopter = ? WHERE id = ?
+      `);
+      stmt.run(
+        data.right_diopter,
+        data.left_diopter,
+        data.id
+      );
+      return data;
+    } catch (error) {
+      console.error('Error updating DiopterAdjustmentPanel:', error);
+      return null;
     }
   }
 }

@@ -105,13 +105,13 @@ export default function ContactLensDetailPage({
   } : {})
 
   const [cardRows, setCardRows] = useState<CardRow[]>([
-    { id: 'row-1', cards: [{ id: 'exam-details', type: 'exam-details' }] },
-    { id: 'row-2', cards: [{ id: 'old-refraction', type: 'old-refraction' }] },
-    { id: 'row-3', cards: [{ id: 'objective', type: 'objective' }] },
-    { id: 'row-4', cards: [{ id: 'subjective', type: 'subjective' }] },
-    { id: 'row-5', cards: [{ id: 'final-subjective', type: 'final-subjective' }] },
-    { id: 'row-6', cards: [{ id: 'addition', type: 'addition' }] },
-    { id: 'row-7', cards: [{ id: 'notes', type: 'notes' }] }
+    { id: 'row-1', cards: [{ id: 'exam-details-1', type: 'exam-details' }] },
+    { id: 'row-2', cards: [{ id: 'old-refraction-1', type: 'old-refraction' }] },
+    { id: 'row-3', cards: [{ id: 'objective-1', type: 'objective' }] },
+    { id: 'row-4', cards: [{ id: 'subjective-1', type: 'subjective' }] },
+    { id: 'row-5', cards: [{ id: 'final-subjective-1', type: 'final-subjective' }] },
+    { id: 'row-6', cards: [{ id: 'addition-1', type: 'addition' }] },
+    { id: 'row-7', cards: [{ id: 'notes-1', type: 'notes' }] }
   ])
 
   const [customWidths, setCustomWidths] = useState<Record<string, Record<string, number>>>({})

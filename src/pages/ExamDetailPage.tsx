@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from "react"
+import React, { useState, useRef, useEffect, useCallback, useLayoutEffect } from "react"
 import { useParams, useNavigate, Link } from "@tanstack/react-router"
 import { SiteHeader } from "@/components/site-header"
 import { getClientById } from "@/lib/db/clients-db"
@@ -11,7 +11,7 @@ import { ChevronDownIcon, PlusCircleIcon, X as XIcon } from "lucide-react"
 import { toast } from "sonner"
 import { useUser } from "@/contexts/UserContext"
 import { getAllUsers } from "@/lib/db/users-db"
-import { ExamCardRenderer, CardItem, DetailProps, calculateCardWidth, hasNoteCard, createDetailProps } from "@/components/exam/ExamCardRenderer"
+import { ExamCardRenderer, CardItem, DetailProps, calculateCardWidth, hasNoteCard, createDetailProps, getColumnCount } from "@/components/exam/ExamCardRenderer"
 import { createToolboxActions } from "@/components/exam/ExamToolbox"
 import { useClientData } from "@/contexts/ClientDataContext"
 import { examComponentRegistry, ExamComponentType } from "@/lib/exam-component-registry"
@@ -105,16 +105,62 @@ export default function ExamDetailPageRefactored({
   } : {})
 
   const [cardRows, setCardRows] = useState<CardRow[]>([
-    { id: 'row-1', cards: [{ id: 'exam-details', type: 'exam-details' }] },
-    { id: 'row-2', cards: [{ id: 'old-refraction', type: 'old-refraction' }] },
-    { id: 'row-3', cards: [{ id: 'objective', type: 'objective' }] },
-    { id: 'row-4', cards: [{ id: 'subjective', type: 'subjective' }] },
-    { id: 'row-5', cards: [{ id: 'final-subjective', type: 'final-subjective' }] },
-    { id: 'row-6', cards: [{ id: 'addition', type: 'addition' }] },
-    { id: 'row-7', cards: [{ id: 'notes', type: 'notes' }] }
+    { id: 'row-1', cards: [{ id: 'exam-details-1', type: 'exam-details' }] },
+    { id: 'row-2', cards: [{ id: 'old-refraction-1', type: 'old-refraction' }] },
+    { id: 'row-3', cards: [{ id: 'objective-1', type: 'objective' }] },
+    { id: 'row-4', cards: [{ id: 'subjective-1', type: 'subjective' }] },
+    { id: 'row-5', cards: [{ id: 'final-subjective-1', type: 'final-subjective' }] },
+    { id: 'row-6', cards: [{ id: 'addition-1', type: 'addition' }] },
+    { id: 'row-7', cards: [{ id: 'notes-1', type: 'notes' }] }
   ])
 
   const [customWidths, setCustomWidths] = useState<Record<string, Record<string, number>>>({})
+  // Track row widths for responsive fixedPx calculation
+  const [rowWidths, setRowWidths] = useState<Record<string, number>>({})
+  const rowRefs = useRef<Record<string, HTMLDivElement | null>>({})
+
+  useLayoutEffect(() => {
+    const mainContent = document.getElementById('main-content');
+    if (!mainContent) return;
+
+    const observer = new ResizeObserver(entries => {
+      for (const entry of entries) {
+        const newWidth = entry.contentRect.width;
+        // When the container resizes, we need to update all row widths
+        // to trigger a recalculation in the rendering logic.
+        setRowWidths(prev => {
+          const updatedWidths: Record<string, number> = {};
+          Object.keys(prev).forEach(rowId => {
+            updatedWidths[rowId] = newWidth;
+          });
+          // Also handle newly added rows that might not be in 'prev' yet
+          cardRows.forEach(row => {
+            if (!updatedWidths[row.id]) {
+              updatedWidths[row.id] = newWidth;
+            }
+          });
+          return updatedWidths;
+        });
+      }
+    });
+
+    observer.observe(mainContent);
+
+    // Initial measurement
+    const initialWidth = mainContent.getBoundingClientRect().width;
+    setRowWidths(prev => {
+      const updatedWidths: Record<string, number> = {};
+      cardRows.forEach(row => {
+        updatedWidths[row.id] = initialWidth;
+      });
+      return updatedWidths;
+    });
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [cardRows.map(r => r.id).join(',')]); // Depend on row IDs to re-run when rows are added/removed
+
   const formRef = useRef<HTMLFormElement>(null)
   const navigate = useNavigate()
 
@@ -181,8 +227,8 @@ export default function ExamDetailPageRefactored({
     const initialData: Record<string, any> = {}
     
     // Parse layout data to get titles and card instances
-    let layoutTitles: Record<string, string> = {}
-    let cardInstances: Record<string, string[]> = {}
+    const layoutTitles: Record<string, string> = {}
+    const cardInstances: Record<string, string[]> = {}
     if (layoutData) {
       try {
         const parsedLayout = JSON.parse(layoutData)
@@ -240,8 +286,8 @@ export default function ExamDetailPageRefactored({
       setExamComponentData(data)
       
       // Parse layout data to get titles and card instances
-      let layoutTitles: Record<string, string> = {}
-      let cardInstances: Record<string, string[]> = {}
+      const layoutTitles: Record<string, string> = {}
+      const cardInstances: Record<string, string[]> = {}
       if (layoutData) {
         try {
           const parsedLayout = JSON.parse(layoutData)
@@ -1008,77 +1054,93 @@ export default function ExamDetailPageRefactored({
           <form ref={formRef} className="pt-4">
             <div className="space-y-4" style={{ scrollbarWidth: 'none' }}>
               {cardRows.map((row, rowIndex) => {
-                const cardWidths = calculateCardWidth(row.cards, row.id, customWidths)
-
+                const pxPerCol = rowWidths[row.id] || 1680
+                const cardWidths = calculateCardWidth(row.cards, row.id, customWidths, pxPerCol)
                 return (
-                  <div key={row.id} className="w-full">
-                      <div className="flex gap-4 flex-1" dir="ltr">
-                        {row.cards.map((item, cardIndex) => (
-                          <div
-                            key={item.id}
-                            style={{
-                              width: `${cardWidths[item.id]}%`,
-                              minWidth: row.cards.length > 1 ? '200px' : 'auto'
-                            }}
-                          >
-                            <ExamCardRenderer
-                              item={item}
-                              rowCards={row.cards}
-                              isEditing={isEditing}
-                              mode="detail"
-                              detailProps={detailProps}
-                              hideEyeLabels={cardIndex > 0}
-                              matchHeight={hasNoteCard(row.cards) && row.cards.length > 1}
-                              currentRowIndex={rowIndex}
-                              currentCardIndex={cardIndex}
-                              clipboardSourceType={clipboardContentType}
-                              onCopy={() => handleCopy(item)}
-                              onPaste={() => handlePaste(item)}
-                              onClearData={() => toolboxActions.clearData(item.type as ExamComponentType)}
-                              onCopyLeft={() => {
-                                const cardsToTheLeft = row.cards.slice(0, cardIndex).reverse()
-                                for (const card of cardsToTheLeft) {
-                                  if (card.type !== 'exam-details' && card.type !== 'notes') {
-                                    const type = card.type as ExamComponentType
-                                    const available = ExamFieldMapper.getAvailableTargets(item.type as ExamComponentType, [type])
-                                    if (available.length > 0) {
-                                      toolboxActions.copyToLeft(item.type as ExamComponentType, type)
-                                      return
+                  <div
+                    key={row.id}
+                    className="flex gap-4 w-full items-start"
+                    ref={el => { rowRefs.current[row.id] = el }}
+                  >
+                    <div className="flex-shrink-0" />
+                    <div className="flex gap-4 flex-1" dir="ltr">
+                      {row.cards.length === 0 ? (
+                        <div className="flex-1 border-2 border-dashed border-gray-300 rounded-lg p-8 text-center text-gray-500">
+                          שורה ריקה
+                        </div>
+                      ) : (
+                        row.cards.map((item, cardIndex) => {
+                          return (
+                            <React.Fragment key={item.id}>
+                              <div
+                                style={{
+                                  width: `${cardWidths[item.id]}%`,
+                                  minWidth: row.cards.length > 1 ? '200px' : 'auto'
+                                }}
+                                className="relative group/card"
+                              >
+                                <ExamCardRenderer
+                                  item={item}
+                                  rowCards={row.cards}
+                                  isEditing={isEditing}
+                                  mode="detail"
+                                  detailProps={detailProps}
+                                  hideEyeLabels={cardIndex > 0}
+                                  matchHeight={hasNoteCard(row.cards) && row.cards.length > 1}
+                                  currentRowIndex={rowIndex}
+                                  currentCardIndex={cardIndex}
+                                  clipboardSourceType={clipboardContentType}
+                                  onCopy={() => handleCopy(item)}
+                                  onPaste={() => handlePaste(item)}
+                                  onClearData={() => toolboxActions.clearData(item.type as ExamComponentType)}
+                                  onCopyLeft={() => {
+                                    const cardsToTheLeft = row.cards.slice(0, cardIndex).reverse()
+                                    for (const card of cardsToTheLeft) {
+                                      if (card.type !== 'exam-details' && card.type !== 'notes') {
+                                        const type = card.type as ExamComponentType
+                                        const available = ExamFieldMapper.getAvailableTargets(item.type as ExamComponentType, [type])
+                                        if (available.length > 0) {
+                                          toolboxActions.copyToLeft(item.type as ExamComponentType, type)
+                                          return
+                                        }
+                                      }
                                     }
-                                  }
-                                }
-                              }}
-                              onCopyRight={() => {
-                                const cardsToTheRight = row.cards.slice(cardIndex + 1)
-                                for (const card of cardsToTheRight) {
-                                  if (card.type !== 'exam-details' && card.type !== 'notes') {
-                                    const type = card.type as ExamComponentType
-                                    const available = ExamFieldMapper.getAvailableTargets(item.type as ExamComponentType, [type])
-                                    if (available.length > 0) {
-                                      toolboxActions.copyToRight(item.type as ExamComponentType, type)
-                                      return
+                                  }}
+                                  onCopyRight={() => {
+                                    const cardsToTheRight = row.cards.slice(cardIndex + 1)
+                                    for (const card of cardsToTheRight) {
+                                      if (card.type !== 'exam-details' && card.type !== 'notes') {
+                                        const type = card.type as ExamComponentType
+                                        const available = ExamFieldMapper.getAvailableTargets(item.type as ExamComponentType, [type])
+                                        if (available.length > 0) {
+                                          toolboxActions.copyToRight(item.type as ExamComponentType, type)
+                                          return
+                                        }
+                                      }
                                     }
-                                  }
-                                }
-                              }}
-                              onCopyBelow={() => {
-                                if (rowIndex >= cardRows.length - 1) return
-                                const belowRow = cardRows[rowIndex + 1].cards
-                                for (const card of belowRow) {
-                                  if (card.type !== 'exam-details' && card.type !== 'notes') {
-                                    const type = card.type as ExamComponentType
-                                    const available = ExamFieldMapper.getAvailableTargets(item.type as ExamComponentType, [type])
-                                    if (available.length > 0) {
-                                      toolboxActions.copyToBelow(item.type as ExamComponentType, type)
-                                      return
+                                  }}
+                                  onCopyBelow={() => {
+                                    if (rowIndex >= cardRows.length - 1) return
+                                    const belowRow = cardRows[rowIndex + 1].cards
+                                    for (const card of belowRow) {
+                                      if (card.type !== 'exam-details' && card.type !== 'notes') {
+                                        const type = card.type as ExamComponentType
+                                        const available = ExamFieldMapper.getAvailableTargets(item.type as ExamComponentType, [type])
+                                        if (available.length > 0) {
+                                          toolboxActions.copyToBelow(item.type as ExamComponentType, type)
+                                          return
+                                        }
+                                      }
                                     }
-                                  }
-                                }
-                              }}
-                            />
-                          </div>
-                        ))}
-                      </div>
+                                  }}
+                                />
+                              </div>
+                              
+                            </React.Fragment>
+                          )
+                        })
+                      )}
+                    </div>
                   </div>
                 )
               })}

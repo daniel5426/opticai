@@ -15,6 +15,7 @@ const prettierIgnorePath = path.resolve(__dirname, ".prettierignore");
 /** @type {import('eslint').Linter.Config[]} */
 export default [
   includeIgnoreFile(prettierIgnorePath),
+
   {
     files: ["**/*.{js,mjs,cjs,ts,jsx,tsx}"],
     plugins: {
@@ -24,9 +25,20 @@ export default [
       "react-compiler/react-compiler": "error",
     },
   },
+
   { languageOptions: { globals: globals.browser } },
+
   pluginJs.configs.recommended,
   pluginReact.configs.flat.recommended,
   eslintPluginPrettierRecommended,
   ...tseslint.configs.recommended,
+
+  // ✅ THIS FINAL OVERRIDE MUST COME AFTER EVERYTHING
+  {
+    files: ["**/*.{ts,tsx,js,jsx}"],
+    rules: {
+      "@typescript-eslint/no-unused-vars": "warn", // ⬅️ override here
+      "@typescript-eslint/no-explicit-any": "off",
+    },
+  },
 ];

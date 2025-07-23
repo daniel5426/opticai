@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react"
+import React, { useState, useEffect, useRef, useLayoutEffect } from "react"
 import { useParams, useNavigate, useSearch } from "@tanstack/react-router"
 import { SiteHeader } from "@/components/site-header"
 import { Button } from "@/components/ui/button"
@@ -29,7 +29,7 @@ import {
 } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
 import { GripVertical, Plus, Edit, Trash2 } from "lucide-react"
-import { ExamCardRenderer, CardItem, calculateCardWidth, hasNoteCard, DetailProps } from "@/components/exam/ExamCardRenderer"
+import { ExamCardRenderer, CardItem, calculateCardWidth, hasNoteCard, DetailProps, getColumnCount } from "@/components/exam/ExamCardRenderer"
 import { getExamLayoutById, createExamLayout, updateExamLayout } from "@/lib/db/exam-layouts-db"
 import { examComponentRegistry } from "@/lib/exam-component-registry"
 import { Eye, EyeOff } from "lucide-react"
@@ -103,10 +103,7 @@ function AddComponentDrawer({ isEditing, onAddComponent }: AddComponentDrawerPro
   
   // Add notes and anamnesis component which isn't in the registry
   const eyeComponents = [
-    ...registeredComponents,
-    { id: 'notes', label: 'Notes', description: 'הערות' },
-    { id: 'exam-details', label: 'Exam Details', description: 'פרטי בדיקה' },
-    { id: 'anamnesis', label: 'Anamnesis', description: 'אנמנזה' }, // New anamnesis component
+    ...registeredComponents
   ] as const
 
   const handleSelectComponent = (componentType: CardItem['type']) => {
@@ -175,11 +172,15 @@ interface CardResizerProps {
   isEditing: boolean
   cardCount: number
   onResize: (rowId: string, leftCardId: string, rightCardId: string, leftWidth: number) => void
+  leftCardWidth: number
+  rightCardWidth: number
 }
 
-function CardResizer({ rowId, leftCardId, rightCardId, isEditing, cardCount, onResize }: CardResizerProps) {
+function CardResizer({ rowId, leftCardId, rightCardId, isEditing, cardCount, onResize, leftCardWidth, rightCardWidth }: CardResizerProps) {
   const [isDragging, setIsDragging] = useState(false)
   const [isHovering, setIsHovering] = useState(false)
+
+  const MIN_WIDTH = 15
 
   const handleMouseDown = (e: React.MouseEvent) => {
     if (!isEditing) return
@@ -197,21 +198,19 @@ function CardResizer({ rowId, leftCardId, rightCardId, isEditing, cardCount, onR
     const containerWidth = cardsContainer.getBoundingClientRect().width
     const startLeftWidth = leftCardElement.getBoundingClientRect().width
 
+    // Use logical widths from props
+    const originalCombinedPercent = leftCardWidth + rightCardWidth
+
     const handleMouseMove = (moveEvent: MouseEvent) => {
       const deltaX = moveEvent.clientX - startX
-      let newLeftPercent = 0
-      const newLeftWidth = startLeftWidth + deltaX
-      if (cardCount === 3) {
-        newLeftPercent = (newLeftWidth / containerWidth) * 103
-      } else {
-        newLeftPercent = (newLeftWidth / containerWidth) * 102
-      }
+      const deltaPercent = (deltaX / containerWidth) * 100;
+      const newLeftPercent = leftCardWidth + deltaPercent;
 
-      
-      // Apply constraints
-      newLeftPercent = Math.max(20, Math.min(80, newLeftPercent))
-      
-      onResize(rowId, leftCardId, rightCardId, newLeftPercent)
+      // Clamp so left and right never go below MIN_WIDTH and sum never exceeds originalCombinedPercent
+      const minLeft = MIN_WIDTH
+      const maxLeft = originalCombinedPercent - MIN_WIDTH
+      const clampedLeft = Math.max(minLeft, Math.min(newLeftPercent, maxLeft))
+      onResize(rowId, leftCardId, rightCardId, clampedLeft)
     }
 
     const handleMouseUp = () => {
@@ -222,7 +221,6 @@ function CardResizer({ rowId, leftCardId, rightCardId, isEditing, cardCount, onR
       document.body.style.userSelect = 'auto'
     }
 
-    // Prevent text selection and set cursor
     document.body.style.cursor = 'col-resize'
     document.body.style.userSelect = 'none'
     
@@ -285,12 +283,34 @@ export default function ExamLayoutEditorPage() {
   const [activeId, setActiveId] = useState<UniqueIdentifier | null>(null)
   
   const [cardRows, setCardRows] = useState<CardRow[]>([
-    { id: 'row-1', cards: [{ id: 'exam-details', type: 'exam-details' }] },
-    { id: 'row-2', cards: [{ id: 'notes', type: 'notes' }] }
+    { id: 'row-1', cards: [{ id: 'exam-details-1', type: 'exam-details' }] },
+    { id: 'row-2', cards: [{ id: 'notes-1', type: 'notes' }] }
   ])
 
   // Store custom widths for cards that have been manually resized
   const [customWidths, setCustomWidths] = useState<Record<string, Record<string, number>>>({})
+
+  // Track row widths for responsive fixedPx calculation
+  const [rowWidths, setRowWidths] = useState<Record<string, number>>({})
+  const rowRefs = useRef<Record<string, HTMLDivElement | null>>({})
+
+  useLayoutEffect(() => {
+    const observers: ResizeObserver[] = []
+    Object.entries(rowRefs.current).forEach(([rowId, el]) => {
+      if (el) {
+        const observer = new ResizeObserver(entries => {
+          for (const entry of entries) {
+            setRowWidths(prev => ({ ...prev, [rowId]: entry.contentRect.width }))
+          }
+        })
+        observer.observe(el)
+        observers.push(observer)
+      }
+    })
+    return () => {
+      observers.forEach(o => o.disconnect())
+    }
+  }, [cardRows])
 
   const handleToggleEyeLabels = (rowIndex: number, cardId: string) => {
     setCardRows(prevRows =>
@@ -637,7 +657,8 @@ export default function ExamLayoutEditorPage() {
           <div className="space-y-4" style={{scrollbarWidth: 'none'}}>
             <SortableContext items={cardRows.map(row => row.id)} strategy={verticalListSortingStrategy}>
               {cardRows.map((row, rowIndex) => {
-                const cardWidths = calculateCardWidth(row.cards, row.id, customWidths)
+                const pxPerCol = rowWidths[row.id] || 1680
+                const cardWidths = calculateCardWidth(row.cards, row.id, customWidths, pxPerCol)
                 
                 return (
                   <DraggableCard
@@ -645,7 +666,10 @@ export default function ExamLayoutEditorPage() {
                     id={row.id}
                     isEditing={isEditing}
                   >
-                    <div className="flex gap-4 w-full items-start">
+                    <div
+                      className="flex gap-4 w-full items-start"
+                      ref={el => { rowRefs.current[row.id] = el }}
+                    >
                       <div className="flex-shrink-0">
                         <AddComponentDrawer 
                           isEditing={isEditing}
@@ -696,16 +720,29 @@ export default function ExamLayoutEditorPage() {
                                 />
                               </div>
                               
-                              {index < row.cards.length - 1 && (
-                                <CardResizer
-                                  rowId={row.id}
-                                  leftCardId={card.id}
-                                  rightCardId={row.cards[index + 1].id}
-                                  isEditing={isEditing}
-                                  cardCount={row.cards.length}
-                                  onResize={handleCardResize}
-                                />
-                              )}
+                              {index < row.cards.length - 1 && (() => {
+                                const leftCard = row.cards[index];
+                                const rightCard = row.cards[index + 1];
+                                const leftCol = getColumnCount(leftCard.type);
+                                const rightCol = getColumnCount(rightCard.type);
+                                if (typeof leftCol === 'number' && typeof rightCol === 'number') {
+                                  const leftCardWidth = cardWidths[leftCard.id] || 0;
+                                  const rightCardWidth = cardWidths[rightCard.id] || 0;
+                                  return (
+                                    <CardResizer
+                                      rowId={row.id}
+                                      leftCardId={leftCard.id}
+                                      rightCardId={rightCard.id}
+                                      isEditing={isEditing}
+                                      cardCount={row.cards.length}
+                                      onResize={handleCardResize}
+                                      leftCardWidth={leftCardWidth}
+                                      rightCardWidth={rightCardWidth}
+                                    />
+                                  )
+                                }
+                                return null;
+                              })()}
                             </React.Fragment>
                           ))
                         )}
@@ -725,7 +762,8 @@ export default function ExamLayoutEditorPage() {
                 {(() => {
                   const row = cardRows.find(r => r.id === activeId)
                   if (!row) return null
-                  const cardWidths = calculateCardWidth(row.cards, row.id, customWidths)
+                  const pxPerCol = rowWidths[row.id] || 1680
+                  const cardWidths = calculateCardWidth(row.cards, row.id, customWidths, pxPerCol)
                   return (
                     <div className="flex gap-4 w-full">
                       <div className="flex-shrink-0">

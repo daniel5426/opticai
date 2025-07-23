@@ -24,7 +24,7 @@ import { KeratometerContactLensTab } from "@/components/exam/KeratometerContactL
 import { ContactLensExamTab } from "@/components/exam/ContactLensExamTab"
 import { ContactLensOrderTab } from "@/components/exam/ContactLensOrderTab"
 import { Edit3 } from "lucide-react"
-import { OpticalExam, OldRefractionExam, OldRefractionExtensionExam, ObjectiveExam, SubjectiveExam, AdditionExam, FinalSubjectiveExam, FinalPrescriptionExam, CompactPrescriptionExam, RetinoscopExam, RetinoscopDilationExam, UncorrectedVAExam, KeratometerExam, KeratometerFullExam, CornealTopographyExam, CoverTestExam, AnamnesisExam, NotesExam, SchirmerTestExam, OldRefExam, ContactLensDiameters, ContactLensDetails, KeratometerContactLens, ContactLensExam, ContactLensOrder } from "@/lib/db/schema"
+import { OpticalExam, OldRefractionExam, OldRefractionExtensionExam, ObjectiveExam, SubjectiveExam, AdditionExam, FinalSubjectiveExam, FinalPrescriptionExam, CompactPrescriptionExam, RetinoscopExam, RetinoscopDilationExam, UncorrectedVAExam, KeratometerExam, KeratometerFullExam, CornealTopographyExam, CoverTestExam, AnamnesisExam, NotesExam, SchirmerTestExam, OldRefExam, ContactLensDiameters, ContactLensDetails, KeratometerContactLens, ContactLensExam, ContactLensOrder, SensationVisionStabilityExam } from "@/lib/db/schema"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { UserSelect } from "@/components/ui/user-select"
 import { ExamToolbox, ToolboxActions } from "@/components/exam/ExamToolbox"
@@ -35,6 +35,8 @@ import { DateInput } from "@/components/ui/date"
 import { Textarea } from "@/components/ui/textarea"
 import { OldContactLensesTab } from "@/components/exam/OldContactLensesTab";
 import { OverRefractionTab } from "@/components/exam/OverRefractionTab";
+import { ObservationTab } from "@/components/exam/ObservationTab"
+import { DiopterAdjustmentPanelTab } from "@/components/exam/DiopterAdjustmentPanelTab";
 
 // Renaming for consistency within the component props
 type Exam = OpticalExam;
@@ -44,7 +46,7 @@ const componentsDontHaveMiddleRow: CardItem['type'][] = ['objective', 'addition'
 
 export interface CardItem {
   id: string
-  type: 'exam-details' | 'old-ref' | 'old-refraction' | 'old-refraction-extension' | 'objective' | 'subjective' | 'final-subjective' | 'final-prescription' | 'compact-prescription' | 'addition' | 'retinoscop' | 'retinoscop-dilation' | 'uncorrected-va' | 'keratometer' | 'keratometer-full' | 'corneal-topography' | 'cover-test' | 'notes' | 'anamnesis' | 'schirmer-test' | 'contact-lens-diameters' | 'contact-lens-details' | 'keratometer-contact-lens' | 'contact-lens-exam' | 'contact-lens-order'
+  type: 'exam-details' | 'old-ref' | 'old-refraction' | 'old-refraction-extension' | 'objective' | 'subjective' | 'final-subjective' | 'final-prescription' | 'compact-prescription' | 'addition' | 'retinoscop' | 'retinoscop-dilation' | 'uncorrected-va' | 'keratometer' | 'keratometer-full' | 'corneal-topography' | 'cover-test' | 'notes' | 'anamnesis' | 'schirmer-test' | 'contact-lens-diameters' | 'contact-lens-details' | 'keratometer-contact-lens' | 'contact-lens-exam' | 'contact-lens-order' | 'sensation-vision-stability' | 'diopter-adjustment-panel'
   showEyeLabels?: boolean
   title?: string
 }
@@ -55,7 +57,7 @@ export interface DetailProps {
   isNewMode: boolean;
   exam: Exam | null | undefined;
   formData: Partial<Exam>;
-  examFormData: Record<string, any>; // All exam component form data
+  examFormData: Record<string, unknown>; // All exam component form data
   fieldHandlers: Record<string, (field: string, value: string) => void>; // All field change handlers
   handleInputChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => void;
   handleSelectChange: (value: string, name: string) => void;
@@ -73,11 +75,11 @@ export interface DetailProps {
 }
 
 // Helper functions to get data and handlers from registry
-const getExamFormData = (examFormData: Record<string, any>, componentType: ExamComponentType) => {
+const getExamFormData = (examFormData: Record<string, unknown>, componentType: ExamComponentType) => {
   return examFormData[componentType] || {}
 }
 
-const getFieldHandler = (fieldHandlers: Record<string, any>, componentType: ExamComponentType) => {
+const getFieldHandler = (fieldHandlers: Record<string, unknown>, componentType: ExamComponentType) => {
   return fieldHandlers[componentType] || (() => {})
 }
 
@@ -87,7 +89,7 @@ export const createDetailProps = (
   isNewMode: boolean,
   exam: Exam | null | undefined,
   formData: Partial<Exam>,
-  examFormData: Record<string, any>,
+  examFormData: Record<string, unknown>,
   fieldHandlers: Record<string, (field: string, value: string) => void>,
   handleInputChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => void,
   handleSelectChange: (value: string, name: string) => void,
@@ -145,8 +147,11 @@ interface RenderCardProps {
 // In ExamDetailPage, `DateInput` was used, but it's not a standard component.
 // It was probably a regular input with type="date". Let's handle it here.
 
-const getColumnCount = (type: CardItem['type']): number => {
+// Update getColumnCount to support fixedPx for diopter-adjustment-panel
+export const getColumnCount = (type: CardItem['type']): number | { fixedPx: number } => {
   switch (type) {
+    case 'diopter-adjustment-panel':
+      return { fixedPx: 389 }
     case 'exam-details': return 5
     case 'old-ref': return 3
     case 'old-refraction': return 7
@@ -174,6 +179,7 @@ const getColumnCount = (type: CardItem['type']): number => {
     case 'contact-lens-order': return 6
     case 'old-contact-lenses': return 10
     case 'over-refraction': return 8
+    case 'sensation-vision-stability': return 5
     default: return 1
   }
 }
@@ -182,53 +188,81 @@ export const hasNoteCard = (cards: CardItem[]): boolean => {
   return cards.some(card => card.type === 'notes')
 }
 
-export const calculateCardWidth = (cards: CardItem[], rowId: string, customWidths: Record<string, Record<string, number>>): Record<string, number> => {
-    if (cards.length === 1) {
-      return { [cards[0].id]: 100 }
-    }
-  
-    const rowCustomWidths = customWidths[rowId]
-    
-    // Check if custom widths are valid for the current set of cards
-    if (rowCustomWidths) {
-      const customWidthKeys = Object.keys(rowCustomWidths);
-      const cardIds = cards.map(c => c.id);
-      
-      const areKeysIdentical = customWidthKeys.length === cardIds.length && customWidthKeys.every(key => cardIds.includes(key));
-      
-      if (areKeysIdentical) {
-        // Custom widths are valid, use them
-        const widths: Record<string, number> = {}
-        let totalCustomWidth = 0
-        
-        cards.forEach(card => {
-          widths[card.id] = rowCustomWidths[card.id]
-          totalCustomWidth += rowCustomWidths[card.id]
-        })
-
-        // Normalize widths to sum to 100% in case of minor floating point errors
-        if (Math.abs(100 - totalCustomWidth) > 0.1) {
-            const scale = 100 / totalCustomWidth;
-            Object.keys(widths).forEach(key => {
-                widths[key] *= scale;
-            });
-        }
-        
-        return widths
-      }
-    }
-  
-    // Default behavior: distribute based on column count
-    const totalColumns = cards.reduce((sum, card) => sum + getColumnCount(card.type), 0)
-    const widths: Record<string, number> = {}
-  
-    cards.forEach(card => {
-      const cardColumns = getColumnCount(card.type)
-      widths[card.id] = (cardColumns / totalColumns) * 100
-    })
-  
-    return widths
+// Update calculateCardWidth to support fixedPx widths
+export const calculateCardWidth = (
+  cards: CardItem[],
+  rowId: string,
+  customWidths: Record<string, Record<string, number>>,
+  pxPerCol: number = 1680
+): Record<string, number> => {
+  if (cards.length === 1) {
+    return { [cards[0].id]: 100 }
   }
+
+  // Identify fixedPx and flexible cards
+  let totalFixedPx = 0
+  const fixedPxCards = cards.filter(card => {
+    const col = getColumnCount(card.type)
+    if (typeof col === 'object' && 'fixedPx' in col) {
+      totalFixedPx += col.fixedPx
+      return true
+    }
+    return false
+  })
+  const flexibleCards = cards.filter(card => {
+    const col = getColumnCount(card.type)
+    return typeof col === 'number'
+  })
+
+  // If all are fixedPx, just divide equally
+  if (fixedPxCards.length === cards.length) {
+    const percent = 100 / cards.length
+    return Object.fromEntries(cards.map(card => [card.id, percent]))
+  }
+
+  // Assign fixedPx cards their percent based on current pxPerCol
+  const widths: Record<string, number> = {}
+  let usedPercent = 0
+  fixedPxCards.forEach(card => {
+    const col = getColumnCount(card.type)
+    if (typeof col === 'object' && 'fixedPx' in col) {
+      const percent = (col.fixedPx / pxPerCol) * 100
+      widths[card.id] = percent
+      usedPercent += percent
+    }
+  })
+
+  // For flexible cards, use customWidths if present, but scale to remaining percent
+  const rowCustomWidths = customWidths[rowId]
+  const flexiblePercents: Record<string, number> = {}
+  if (rowCustomWidths) {
+    // Only use custom widths for flexible cards
+    let totalCustom = 0
+    flexibleCards.forEach(card => {
+      const val = rowCustomWidths[card.id] ?? 0
+      flexiblePercents[card.id] = val
+      totalCustom += val
+    })
+    // Scale so sum = 100 - usedPercent
+    const scale = totalCustom > 0 ? (100 - usedPercent) / totalCustom : 1
+    flexibleCards.forEach(card => {
+      widths[card.id] = flexiblePercents[card.id] * scale
+    })
+  } else {
+    // Distribute by column count
+    const totalCols = flexibleCards.reduce((sum, card) => {
+      const col = getColumnCount(card.type)
+      return sum + (typeof col === 'number' ? col : 1)
+    }, 0)
+    const remainingPercent = 100 - usedPercent
+    flexibleCards.forEach(card => {
+      const col = getColumnCount(card.type)
+      const percent = (typeof col === 'number' ? col : 1) / (totalCols || 1) * remainingPercent
+      widths[card.id] = percent
+    })
+  }
+  return widths
+}
 
 export const ExamCardRenderer: React.FC<RenderCardProps> = ({ 
   item, 
@@ -248,6 +282,10 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
   onCopyBelow,
   onTitleChange
 }) => {
+  // Move hooks to the very top, before any logic or early returns
+  const [isEditingNotesTitle, setIsEditingNotesTitle] = useState(false)
+  const [isHoveringNotesTitle, setIsHoveringNotesTitle] = useState(false)
+
   if (mode === 'detail' && !detailProps) {
     console.error("detailProps are required for 'detail' mode.")
     return null
@@ -301,7 +339,19 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
   const emptyContactLensDetailsData: ContactLensDetails = { layout_instance_id: 0 }
   const emptyKeratometerContactLensData: KeratometerContactLens = { layout_instance_id: 0 }
   const emptyContactLensExamData: ContactLensExam = { layout_instance_id: 0 }
-  const emptyContactLensOrderData: ContactLensOrder = { contact_lens_id: 0 }
+  const emptyContactLensOrderData: ContactLensOrder = { layout_instance_id: 0 }
+  const emptySensationVisionStabilityExam: SensationVisionStabilityExam = {
+    r_sensation: '',
+    l_sensation: '',
+    r_vision: '',
+    l_vision: '',
+    r_stability: '',
+    l_stability: '',
+    r_movement: '',
+    l_movement: '',
+    r_recommendations: '',
+    l_recommendations: ''
+  }
 
   const legacyHandlers = mode === 'detail' ? {
     handleMultifocalOldRefraction: detailProps!.handleMultifocalOldRefraction,
@@ -346,6 +396,8 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
       case 'keratometer-contact-lens': return emptyKeratometerContactLensData
       case 'contact-lens-exam': return emptyContactLensExamData
       case 'contact-lens-order': return emptyContactLensOrderData
+      case 'sensation-vision-stability': return emptySensationVisionStabilityExam
+      case 'diopter-adjustment-panel': return {}
       default: return {}
     }
   }
@@ -360,6 +412,10 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
     }
     return () => {}
   }
+
+  // Move hooks to top level
+  // const [isEditingNotesTitle, setIsEditingNotesTitle] = useState(false)
+  // const [isHoveringNotesTitle, setIsHoveringNotesTitle] = useState(false)
 
   switch (item.type) {
     case 'exam-details':
@@ -551,7 +607,7 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
             subjectiveData={getExamData('subjective')}
             onSubjectiveChange={getChangeHandler('subjective')}
             isEditing={mode === 'detail' ? detailProps!.isEditing : false}
-            onVHConfirm={(legacyHandlers as any).handleVHConfirm || (() => {})}
+            onVHConfirm={(legacyHandlers as unknown as DetailProps).handleVHConfirm || (() => {})}
             onMultifocalClick={legacyHandlers.handleMultifocalSubjective || (() => {})}
             hideEyeLabels={finalHideEyeLabels}
           />
@@ -740,12 +796,9 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
         </div>
       )
 
-    case 'notes':
-      // For notes, use the card ID as the instance identifier
+    case 'notes': {
       const notesData = getExamData('notes', item.id) as NotesExam
       const onNotesChange = getChangeHandler('notes', item.id)
-      const [isEditingNotesTitle, setIsEditingNotesTitle] = useState(false)
-      const [isHoveringNotesTitle, setIsHoveringNotesTitle] = useState(false)
 
       const handleNotesTitleChange = (value: string) => {
         if (mode === 'editor' && onTitleChange) {
@@ -812,6 +865,7 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
           />
         </Card>
       )
+    }
 
     case 'contact-lens-diameters':
       return (
@@ -874,9 +928,31 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
             data={getExamData('contact-lens-order')}
             onChange={getChangeHandler('contact-lens-order')}
             layoutInstanceId={mode === 'detail' ? detailProps!.exam?.id || 0 : 0}
+            isEditing={mode === 'detail' ? detailProps!.isEditing : false}
           />
         </div>
       )
+
+    case 'sensation-vision-stability':
+      return (
+        <div className="relative">
+          {toolbox}
+          <ObservationTab 
+            data={mode === 'editor' ? emptySensationVisionStabilityExam : detailProps!.examFormData['sensation-vision-stability']}
+            onChange={mode === 'editor' ? () => {} : getFieldHandler(detailProps!.fieldHandlers, 'sensation-vision-stability')}
+            isEditing={mode === 'editor' ? false : detailProps!.isEditing}
+          />
+        </div>
+      )
+
+    case 'diopter-adjustment-panel':
+      return (
+        <DiopterAdjustmentPanelTab
+          diopterData={getExamData('diopter-adjustment-panel')}
+          onDiopterChange={getChangeHandler('diopter-adjustment-panel')}
+          isEditing={mode === 'detail' ? detailProps!.isEditing : false}
+        />
+      );
 
     case 'old-contact-lenses':
       return (

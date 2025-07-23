@@ -49,7 +49,11 @@ export type ExamComponentType =
   | 'contact-lens-details'
   | 'keratometer-contact-lens'
   | 'contact-lens-exam'
-  | 'contact-lens-order';
+  | 'contact-lens-order'
+  | 'over-refraction'
+  | 'old-contact-lenses'
+  | 'sensation-vision-stability'
+  | 'diopter-adjustment-panel';
 
 export const fullExamsList: ExamComponentType[] = [
   'exam-details',
@@ -77,6 +81,10 @@ export const fullExamsList: ExamComponentType[] = [
   'keratometer-contact-lens',
   'contact-lens-exam',
   'contact-lens-order',
+  'over-refraction',
+  'old-contact-lenses',
+  'sensation-vision-stability',
+  'diopter-adjustment-panel',
 ];
 
 export const examComponentTypeToExamFields: Record<ExamComponentType, ExamComponentType[]> = {
@@ -105,6 +113,9 @@ export const examComponentTypeToExamFields: Record<ExamComponentType, ExamCompon
   'keratometer-contact-lens': [],
   'contact-lens-exam': [],
   'contact-lens-order': [],
+  'over-refraction': [],
+  'old-contact-lenses': [],
+  'sensation-vision-stability': [],
 };
 
 export type ExamDataType = OpticalExam | OldRefExam | OldRefractionExam | OldRefractionExtensionExam | ObjectiveExam | SubjectiveExam | FinalSubjectiveExam | FinalPrescriptionExam | CompactPrescriptionExam | AdditionExam | RetinoscopExam | RetinoscopDilationExam | UncorrectedVAExam | KeratometerExam | KeratometerFullExam | CornealTopographyExam | CoverTestExam | SchirmerTestExam | ContactLensDiameters | ContactLensDetails | KeratometerContactLens | ContactLensExam | ContactLensOrder
@@ -143,7 +154,10 @@ export class ExamFieldMapper {
     'contact-lens-details': fullExamsList,
     'keratometer-contact-lens': fullExamsList,
     'contact-lens-exam': fullExamsList,
-    'contact-lens-order': []
+    'contact-lens-order': [],
+    'over-refraction': fullExamsList,
+    'old-contact-lenses': fullExamsList,
+    'sensation-vision-stability': fullExamsList,
   }
 
   private static explicitMappings: Partial<Record<ExamComponentType, ComponentFieldMappings>> = {
@@ -222,6 +236,26 @@ export class ExamFieldMapper {
         return ['r_bc', 'r_oz', 'r_diam', 'r_sph', 'r_cyl', 'r_ax', 'r_read_ad', 'r_va', 'r_j', 'l_bc', 'l_oz', 'l_diam', 'l_sph', 'l_cyl', 'l_ax', 'l_read_ad', 'l_va', 'l_j', 'comb_va']
       case 'contact-lens-order':
         return ['contact_lens_id', 'branch', 'supply_in_branch', 'order_status', 'advisor', 'deliverer', 'delivery_date', 'priority', 'guaranteed_date', 'approval_date', 'cleaning_solution', 'disinfection_solution', 'rinsing_solution']
+      case 'over-refraction':
+        return [
+          'r_sph', 'r_cyl', 'r_ax', 'r_va', 'r_j', 'r_add', 'r_florescent', 'r_bio_m',
+          'l_sph', 'l_cyl', 'l_ax', 'l_va', 'l_j', 'l_add', 'l_florescent', 'l_bio_m',
+          'comb_va', 'comb_j',
+        ];
+      case 'old-contact-lenses':
+        return [
+          'r_lens_type', 'r_model', 'r_supplier', 'r_bc', 'r_diam', 'r_sph', 'r_cyl', 'r_ax', 'r_va', 'r_j',
+          'l_lens_type', 'l_model', 'l_supplier', 'l_bc', 'l_diam', 'l_sph', 'l_cyl', 'l_ax', 'l_va', 'l_j',
+          'comb_va', 'comb_j',
+        ];
+      case 'sensation-vision-stability':
+        return [
+          'r_sensation', 'l_sensation',
+          'r_vision', 'l_vision',
+          'r_stability', 'l_stability',
+          'r_movement', 'l_movement',
+          'r_recommendations', 'l_recommendations'
+        ];
       default:
         return []
     }
@@ -258,29 +292,29 @@ export class ExamFieldMapper {
   }
 
   static copyData(
-    sourceData: Record<string, any>,
-    targetData: Record<string, any>,
+    sourceData: Record<string, unknown>,
+    targetData: Record<string, unknown>,
     sourceType: ExamComponentType,
     targetType: ExamComponentType
-  ): Record<string, any> {
+  ): Record<string, unknown> {
     const mapping = this.getFieldMapping(sourceType, targetType)
-    const result: Record<string, any> = { ...targetData }
+    const result: Record<string, unknown> = { ...targetData }
 
     Object.entries(mapping).forEach(([sourceField, targetField]) => {
       if (targetField) {
-        const sourceValue = (sourceData as any)[sourceField] ?? ''
-        ;(result as any)[targetField] = sourceValue
+        const sourceValue = (sourceData as unknown)[sourceField] ?? ''
+        ;(result as unknown)[targetField] = sourceValue
       }
     })
 
     return result
   }
 
-  static clearData(data: Record<string, any>, componentType: ExamComponentType): Record<string, any> {
-    const clearedData: Record<string, any> = { ...data }
+  static clearData(data: Record<string, unknown>, componentType: ExamComponentType): Record<string, unknown> {
+    const clearedData: Record<string, unknown> = { ...data }
 
     this.getFieldNames(componentType).forEach(key => {
-      clearedData[key as keyof Record<string, any>] = '' as any
+      clearedData[key as keyof Record<string, unknown>] = '' as unknown as string
     })
 
     return clearedData

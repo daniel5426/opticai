@@ -31,11 +31,21 @@ export function OverRefractionTab({
   ];
 
   const getFieldValue = (eye: "R" | "L" | "C", field: string) => {
+    if (eye === "C") {
+      if (field === "va") return data["comb_va"]?.toString() || "";
+      if (field === "j") return data["comb_j"]?.toString() || "";
+      return "";
+    }
     const eyeField = `${eye.toLowerCase()}_${field}` as keyof OverRefraction;
     return data[eyeField]?.toString() || "";
   };
 
   const handleChange = (eye: "R" | "L" | "C", field: string, value: string) => {
+    if (eye === "C") {
+      if (field === "va") onChange("comb_va", value);
+      if (field === "j") onChange("comb_j", value);
+      return;
+    }
     const eyeField = `${eye.toLowerCase()}_${field}` as keyof OverRefraction;
     onChange(eyeField, value);
   };
@@ -48,6 +58,9 @@ export function OverRefractionTab({
       const value = data[fromField]?.toString() || "";
       onChange(toField, value);
     });
+    // Also copy comb_va and comb_j
+    if (data.comb_va !== undefined) onChange("comb_va", data.comb_va.toString());
+    if (data.comb_j !== undefined) onChange("comb_j", data.comb_j.toString());
   };
 
   const gridCols = `${hideEyeLabels ? 'grid-cols-[repeat(10,1fr)]' : 'grid-cols-[20px_repeat(10,1fr)]'}`;

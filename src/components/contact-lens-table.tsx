@@ -134,7 +134,7 @@ export function ContactLensTable({ data, clientId, onExamDeleted, onExamDeleteFa
                     className="cursor-pointer"
                     onClick={() => {
                       navigate({
-                        to: "/clients/$clientId/exams/$examId",
+                        to: "/clients/$clientId/contact-lenses/$examId",
                         params: {
                           clientId: String(exam.client_id),
                           examId: String(exam.id),
@@ -153,7 +153,7 @@ export function ContactLensTable({ data, clientId, onExamDeleted, onExamDeleteFa
                         onClick={e => {
                           e.stopPropagation();
                           if (exam.client_id) {
-                            navigate({ to: "/clients/$clientId", params: { clientId: String(exam.client_id) }, search: { tab: 'contact-lens' } })
+                            navigate({ to: "/clients/$clientId", params: { clientId: String(exam.client_id) }, search: { tab: 'details' } })
                           }
                         }}
                       >{exam.clientName}</TableCell>

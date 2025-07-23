@@ -87,7 +87,22 @@ export function ClientDataProvider({ children, clientId }: { children: React.Rea
   const refreshContactLenses = async () => {
     setLoading(prev => ({ ...prev, contactLenses: true }))
     const data = await getExamsByClientId(clientId, 'opticlens')
-    setContactLenses(data)
+    let clientName = ''
+    if (clientId) {
+      const client = await getClientById(clientId)
+      clientName = client ? `${client.first_name || ''} ${client.last_name || ''}`.trim() : ''
+    }
+    const enriched = await Promise.all(
+      data.map(async (exam) => {
+        let username = ''
+        if (exam.user_id) {
+          const user = await getUserById(exam.user_id)
+          username = user?.username || ''
+        }
+        return { ...exam, username, clientName }
+      })
+    )
+    setContactLenses(enriched)
     setLoading(prev => ({ ...prev, contactLenses: false }))
   }
 

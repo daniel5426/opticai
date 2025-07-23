@@ -10,9 +10,10 @@ interface ContactLensOrderTabProps {
   data: ContactLensOrder
   onChange: (field: keyof ContactLensOrder, value: string) => void
   layoutInstanceId: number
+  isEditing: boolean
 }
 
-export function ContactLensOrderTab({ data, onChange, layoutInstanceId }: ContactLensOrderTabProps) {
+export function ContactLensOrderTab({ data, onChange, layoutInstanceId, isEditing }: ContactLensOrderTabProps) {
   const handleFieldChange = examComponentRegistry.createFieldChangeHandler<ContactLensOrder>(
     'contact-lens-order',
     (updater) => {
@@ -27,7 +28,7 @@ export function ContactLensOrderTab({ data, onChange, layoutInstanceId }: Contac
   )
 
   return (
-    <Card className="w-full">
+    <Card className="w-full dark:bg-card shadow-md">
       <CardHeader>
         <CardTitle className="text-right">הזמנת עדשות מגע</CardTitle>
         <CardDescription className="text-right">
@@ -38,14 +39,15 @@ export function ContactLensOrderTab({ data, onChange, layoutInstanceId }: Contac
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {/* Contact Lens ID */}
           <div className="space-y-2">
-            <Label htmlFor="contact_lens_id" className="text-right block text-muted-foreground  ">
+            <Label htmlFor="layout_instance_id" className="text-right block text-muted-foreground  ">
               מזהה עדשת מגע
             </Label>
             <Input
-              id="contact_lens_id"
+              id="layout_instance_id"
               type="number"
-              value={data.contact_lens_id || ''}
-              onChange={(e) => handleFieldChange('contact_lens_id', e.target.value)}
+              value={data.layout_instance_id || ''}
+              onChange={(e) => handleFieldChange('layout_instance_id', e.target.value)}
+              disabled={!isEditing}
               className="text-right"
               dir="rtl"
             />
@@ -61,6 +63,7 @@ export function ContactLensOrderTab({ data, onChange, layoutInstanceId }: Contac
               value={data.branch || ''}
               onChange={(e) => handleFieldChange('branch', e.target.value)}
               className="text-right"
+              disabled={!isEditing}
               dir="rtl"
             />
           </div>
@@ -75,6 +78,7 @@ export function ContactLensOrderTab({ data, onChange, layoutInstanceId }: Contac
               value={data.supply_in_branch || ''}
               onChange={(e) => handleFieldChange('supply_in_branch', e.target.value)}
               className="text-right"
+              disabled={!isEditing}
               dir="rtl"
             />
           </div>
@@ -90,6 +94,7 @@ export function ContactLensOrderTab({ data, onChange, layoutInstanceId }: Contac
               onChange={(e) => handleFieldChange('order_status', e.target.value)}
               className="text-right"
               dir="rtl"
+              disabled={!isEditing}
             />
           </div>
 
@@ -104,6 +109,7 @@ export function ContactLensOrderTab({ data, onChange, layoutInstanceId }: Contac
               onChange={(value) => handleFieldChange('advisor', value)}
               placeholder="בחר יועץ"
               className="text-right"
+              disabled={!isEditing}
             />
           </div>
 
@@ -118,6 +124,7 @@ export function ContactLensOrderTab({ data, onChange, layoutInstanceId }: Contac
               onChange={(e) => handleFieldChange('deliverer', e.target.value)}
               className="text-right"
               dir="rtl"
+              disabled={!isEditing}
             />
           </div>
 
@@ -135,6 +142,7 @@ export function ContactLensOrderTab({ data, onChange, layoutInstanceId }: Contac
                   onChange={(e) => handleFieldChange('delivery_date', e.target.value)}
                   className="text-right text-sm"
                   dir="rtl"
+                  disabled={!isEditing}
                 />
               </div>
               <div className="space-y-2" >
@@ -148,6 +156,7 @@ export function ContactLensOrderTab({ data, onChange, layoutInstanceId }: Contac
                   onChange={(e) => handleFieldChange('guaranteed_date', e.target.value)}
                   className="text-right text-sm"
                   dir="rtl"
+                  disabled={!isEditing}
                 />
               </div>
             </div>
@@ -164,6 +173,7 @@ export function ContactLensOrderTab({ data, onChange, layoutInstanceId }: Contac
               onChange={(e) => handleFieldChange('priority', e.target.value)}
               className="text-right"
               dir="rtl"
+              disabled={!isEditing}
             />
           </div>
 
@@ -179,6 +189,7 @@ export function ContactLensOrderTab({ data, onChange, layoutInstanceId }: Contac
               onChange={(e) => handleFieldChange('approval_date', e.target.value)}
               className="text-right"
               dir="rtl"
+              disabled={!isEditing}
             />
           </div>
 
@@ -193,6 +204,7 @@ export function ContactLensOrderTab({ data, onChange, layoutInstanceId }: Contac
               onChange={(value) => handleFieldChange('cleaning_solution', value)}
               placeholder="בחר תמיסת ניקוי"
               className="text-right"
+              disabled={!isEditing}
             />
           </div>
 
@@ -207,7 +219,8 @@ export function ContactLensOrderTab({ data, onChange, layoutInstanceId }: Contac
               onChange={(value) => handleFieldChange('disinfection_solution', value)}
               placeholder="בחר תמיסת חיטוי"
               className="text-right"
-            />
+              disabled={!isEditing}
+              />
           </div>
 
           {/* Rinsing Solution - Lookup */}
@@ -221,6 +234,7 @@ export function ContactLensOrderTab({ data, onChange, layoutInstanceId }: Contac
               onChange={(value) => handleFieldChange('rinsing_solution', value)}
               placeholder="בחר תמיסת שטיפה"
               className="text-right"
+              disabled={!isEditing}
             />
           </div>
         </div>

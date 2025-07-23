@@ -26,6 +26,8 @@ import {
   ContactLensOrder,
   OldContactLenses,
   OverRefraction,
+  SensationVisionStabilityExam,
+  DiopterAdjustmentPanel,
 } from "@/lib/db/schema"
 import { createOldContactLenses, getOldContactLensesByLayoutInstanceId, updateOldContactLenses } from "./db/old-contact-lenses-db";
 import { createOverRefraction, getOverRefractionByLayoutInstanceId, updateOverRefraction } from "./db/over-refraction-db";
@@ -58,8 +60,10 @@ export type ExamComponentType =
   | 'contact-lens-order'
   | 'old-contact-lenses'
   | 'over-refraction'
+  | 'sensation-vision-stability'
+  | 'diopter-adjustment-panel'
 
-export interface ExamComponentConfig<T = any> {
+export interface ExamComponentConfig<T = unknown> {
   name: string
   getData: (layoutInstanceId: number, cardInstanceId?: string) => Promise<T | null>
   createData: (data: Omit<T, 'id'>, cardInstanceId?: string) => Promise<T | null>
@@ -85,8 +89,8 @@ class ExamComponentRegistry {
     return Array.from(this.components.keys())
   }
 
-  async loadAllData(layoutInstanceId: number): Promise<Record<string, any>> {
-    const data: Record<string, any> = {}
+  async loadAllData(layoutInstanceId: number): Promise<Record<string, unknown>> {
+    const data: Record<string, unknown> = {}
     
     for (const [type, config] of this.components) {
       if (type === 'notes') {
@@ -120,8 +124,8 @@ class ExamComponentRegistry {
     return data
   }
 
-  async saveAllData(layoutInstanceId: number, formData: Record<string, any>): Promise<Record<string, any>> {
-    const savedData: Record<string, any> = {}
+  async saveAllData(layoutInstanceId: number, formData: Record<string, unknown>): Promise<Record<string, unknown>> {
+    const savedData: Record<string, unknown> = {}
     
     for (const [type, config] of this.components) {
       if (type === 'notes') {
@@ -922,6 +926,37 @@ registry.register<OverRefraction>('over-refraction', {
     return rawValue;
   },
   hasData: (data) => Object.values(data).some(value => value !== undefined && value !== null && value !== '')
+});
+
+registry.register<SensationVisionStabilityExam>('sensation-vision-stability', {
+  name: 'Observation',
+  getData: (layoutInstanceId: number) => window.electronAPI.db('getSensationVisionStabilityExamByLayoutInstanceId', layoutInstanceId),
+  createData: (data: Omit<SensationVisionStabilityExam, 'id'>) => window.electronAPI.db('createSensationVisionStabilityExam', data),
+  updateData: (data: SensationVisionStabilityExam) => window.electronAPI.db('updateSensationVisionStabilityExam', data),
+  getNumericFields: () => [],
+  getIntegerFields: () => [],
+  validateField: (_field, rawValue) => rawValue === '' ? undefined : rawValue,
+  hasData: (data) => Object.values(data).some(value => value !== undefined && value !== null && value !== '')
+})
+
+registry.register<DiopterAdjustmentPanel>('diopter-adjustment-panel', {
+  name: 'פאנל התאמת דיופטר',
+  getData: (layoutInstanceId: number) => window.electronAPI.db('getDiopterAdjustmentPanelByLayoutInstanceId', layoutInstanceId),
+  createData: (data: Omit<DiopterAdjustmentPanel, 'id'>) => window.electronAPI.db('createDiopterAdjustmentPanel', data),
+  updateData: (data: DiopterAdjustmentPanel) => window.electronAPI.db('updateDiopterAdjustmentPanel', data),
+  getNumericFields: () => ['right_diopter', 'left_diopter'],
+  getIntegerFields: () => [],
+  validateField: (field, rawValue) => {
+    if (field === 'right_diopter' || field === 'left_diopter') {
+      const val = parseFloat(rawValue);
+      return rawValue === '' || isNaN(val) ? undefined : val;
+    }
+    return rawValue === '' ? undefined : rawValue;
+  },
+  hasData: (data) => {
+    return (data.right_diopter !== undefined && data.right_diopter !== null) ||
+           (data.left_diopter !== undefined && data.left_diopter !== null);
+  }
 });
 
 

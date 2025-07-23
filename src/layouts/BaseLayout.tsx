@@ -87,8 +87,8 @@ export default function BaseLayout({
                         <div className="sticky top-0 bg-background">
                           <div id="header-container" />
                         </div>
-                        <main className="flex-1 overflow-auto bg-muted/50 flex" style={{scrollbarWidth: 'none'}}>
-                          <div className="flex-1 overflow-auto">
+                        <main id="main-content" className="flex-1 overflow-auto bg-muted/50 grid grid-cols-[1fr_auto]" style={{scrollbarWidth: 'none'}}>
+                          <div className="flex-1 overflow-auto min-w-0">
                             {children}
                           </div>
                           <ClientSidebar />
