@@ -906,6 +906,9 @@ export interface AnamnesisExam {
 export interface CoverTestExam {
   id?: number;
   layout_instance_id: number;
+  card_instance_id?: string;
+  card_id?: string;
+  tab_index?: number;
   deviation_type?: string;
   deviation_direction?: string;
   fv_1?: number;
@@ -992,6 +995,19 @@ export interface SensationVisionStabilityExam {
   l_movement?: string;
   r_recommendations?: string;
   l_recommendations?: string;
+}
+
+export interface FusionRangeExam {
+  id?: number;
+  layout_instance_id: number;
+  fv_base_in?: number;
+  fv_base_in_recovery?: number;
+  fv_base_out?: number;
+  fv_base_out_recovery?: number;
+  nv_base_in?: number;
+  nv_base_in_recovery?: number;
+  nv_base_out?: number;
+  nv_base_out_recovery?: number;
 }
 
 export const createTables = (db: Database): void => {
@@ -2297,6 +2313,9 @@ export const createTables = (db: Database): void => {
     CREATE TABLE IF NOT EXISTS cover_test_exams (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       layout_instance_id INTEGER NOT NULL,
+      card_instance_id TEXT,
+      card_id TEXT,
+      tab_index INTEGER,
       deviation_type TEXT,
       deviation_direction TEXT,
       fv_1 REAL,
@@ -2612,4 +2631,18 @@ export const createTables = (db: Database): void => {
       FOREIGN KEY(layout_instance_id) REFERENCES exam_layout_instances(id) ON DELETE CASCADE
     );
   `);
+
+  db.prepare(`CREATE TABLE IF NOT EXISTS fusion_range_exams (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    layout_instance_id INTEGER NOT NULL,
+    fv_base_in REAL,
+    fv_base_in_recovery REAL,
+    fv_base_out REAL,
+    fv_base_out_recovery REAL,
+    nv_base_in REAL,
+    nv_base_in_recovery REAL,
+    nv_base_out REAL,
+    nv_base_out_recovery REAL,
+    FOREIGN KEY (layout_instance_id) REFERENCES exam_layout_instances(id) ON DELETE CASCADE
+  )`).run();
 };

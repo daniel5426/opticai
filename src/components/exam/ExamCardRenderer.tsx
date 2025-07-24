@@ -24,7 +24,7 @@ import { KeratometerContactLensTab } from "@/components/exam/KeratometerContactL
 import { ContactLensExamTab } from "@/components/exam/ContactLensExamTab"
 import { ContactLensOrderTab } from "@/components/exam/ContactLensOrderTab"
 import { Edit3 } from "lucide-react"
-import { OpticalExam, OldRefractionExam, OldRefractionExtensionExam, ObjectiveExam, SubjectiveExam, AdditionExam, FinalSubjectiveExam, FinalPrescriptionExam, CompactPrescriptionExam, RetinoscopExam, RetinoscopDilationExam, UncorrectedVAExam, KeratometerExam, KeratometerFullExam, CornealTopographyExam, CoverTestExam, AnamnesisExam, NotesExam, SchirmerTestExam, OldRefExam, ContactLensDiameters, ContactLensDetails, KeratometerContactLens, ContactLensExam, ContactLensOrder, SensationVisionStabilityExam } from "@/lib/db/schema"
+import { OpticalExam, OldRefractionExam, OldRefractionExtensionExam, ObjectiveExam, SubjectiveExam, AdditionExam, FinalSubjectiveExam, FinalPrescriptionExam, CompactPrescriptionExam, RetinoscopExam, RetinoscopDilationExam, UncorrectedVAExam, KeratometerExam, KeratometerFullExam, CornealTopographyExam, CoverTestExam, AnamnesisExam, NotesExam, SchirmerTestExam, OldRefExam, ContactLensDiameters, ContactLensDetails, KeratometerContactLens, ContactLensExam, ContactLensOrder, SensationVisionStabilityExam, FusionRangeExam } from "@/lib/db/schema"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { UserSelect } from "@/components/ui/user-select"
 import { ExamToolbox, ToolboxActions } from "@/components/exam/ExamToolbox"
@@ -37,16 +37,20 @@ import { OldContactLensesTab } from "@/components/exam/OldContactLensesTab";
 import { OverRefractionTab } from "@/components/exam/OverRefractionTab";
 import { ObservationTab } from "@/components/exam/ObservationTab"
 import { DiopterAdjustmentPanelTab } from "@/components/exam/DiopterAdjustmentPanelTab";
+import { FusionRangeTab } from "@/components/exam/FusionRangeTab"
+import { v4 as uuidv4 } from 'uuid';
+import { deleteCoverTestExam } from '@/lib/db/cover-test-db';
+import { createCoverTestExam } from '@/lib/db/cover-test-db';
 
 // Renaming for consistency within the component props
 type Exam = OpticalExam;
 
 const componentsWithMiddleRow: CardItem['type'][] = ['old-refraction', 'old-refraction-extension', 'subjective', 'final-subjective', 'final-prescription', 'compact-prescription', 'corneal-topography', 'anamnesis', 'contact-lens-exam', 'contact-lens-diameters', 'over-refraction', 'old-contact-lenses'];
-const componentsDontHaveMiddleRow: CardItem['type'][] = ['objective', 'addition', 'retinoscop', 'retinoscop-dilation', 'uncorrected-va', 'keratometer', 'keratometer-full', 'cover-test', 'schirmer-test', 'contact-lens-diameters', 'contact-lens-details', 'keratometer-contact-lens'];
+const componentsDontHaveMiddleRow: CardItem['type'][] = ['objective', 'addition', 'retinoscop', 'retinoscop-dilation', 'uncorrected-va', 'keratometer', 'keratometer-full', 'cover-test', 'schirmer-test', 'contact-lens-diameters', 'contact-lens-details', 'keratometer-contact-lens', 'fusion-range'];
 
 export interface CardItem {
   id: string
-  type: 'exam-details' | 'old-ref' | 'old-refraction' | 'old-refraction-extension' | 'objective' | 'subjective' | 'final-subjective' | 'final-prescription' | 'compact-prescription' | 'addition' | 'retinoscop' | 'retinoscop-dilation' | 'uncorrected-va' | 'keratometer' | 'keratometer-full' | 'corneal-topography' | 'cover-test' | 'notes' | 'anamnesis' | 'schirmer-test' | 'contact-lens-diameters' | 'contact-lens-details' | 'keratometer-contact-lens' | 'contact-lens-exam' | 'contact-lens-order' | 'sensation-vision-stability' | 'diopter-adjustment-panel'
+  type: 'exam-details' | 'old-ref' | 'old-refraction' | 'old-refraction-extension' | 'objective' | 'subjective' | 'final-subjective' | 'final-prescription' | 'compact-prescription' | 'addition' | 'retinoscop' | 'retinoscop-dilation' | 'uncorrected-va' | 'keratometer' | 'keratometer-full' | 'corneal-topography' | 'cover-test' | 'notes' | 'anamnesis' | 'schirmer-test' | 'contact-lens-diameters' | 'contact-lens-details' | 'keratometer-contact-lens' | 'contact-lens-exam' | 'contact-lens-order' | 'sensation-vision-stability' | 'diopter-adjustment-panel' | 'fusion-range'
   showEyeLabels?: boolean
   title?: string
 }
@@ -72,6 +76,13 @@ export interface DetailProps {
   handleMultifocalOldRefractionExtension?: () => void;
   toolboxActions?: ToolboxActions;
   allRows?: CardItem[][];
+  coverTestTabs?: Record<string, string[]>; // New prop for cover test tabs
+  addCoverTestTab?: (cardId: string) => void; // New prop for adding cover test tabs
+  layoutInstanceId?: number; // New prop for layout instance ID
+  setExamFormData?: (data: Record<string, unknown>) => void; // New prop for setting exam form data
+  setCoverTestTabs?: (data: Record<string, string[]>) => void; // New prop for setting cover test tabs
+  activeCoverTestTabs?: Record<string, number>; // New prop for active cover test tabs
+  setActiveCoverTestTabs?: (data: Record<string, number>) => void; // New prop for setting active cover test tabs
 }
 
 // Helper functions to get data and handlers from registry
@@ -180,6 +191,7 @@ export const getColumnCount = (type: CardItem['type'], mode: 'editor' | 'detail'
     case 'old-contact-lenses': return 10
     case 'over-refraction': return 8
     case 'sensation-vision-stability': return 5
+    case 'fusion-range': return 5
     default: return 1
   }
 }
@@ -286,6 +298,7 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
   // Move hooks to the very top, before any logic or early returns
   const [isEditingNotesTitle, setIsEditingNotesTitle] = useState(false)
   const [isHoveringNotesTitle, setIsHoveringNotesTitle] = useState(false)
+  const [, forceUpdate] = React.useReducer(x => x + 1, 0)
 
   if (mode === 'detail' && !detailProps) {
     console.error("detailProps are required for 'detail' mode.")
@@ -353,6 +366,7 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
     r_recommendations: '',
     l_recommendations: ''
   }
+  const emptyFusionRangeData: FusionRangeExam = { layout_instance_id: 0 }
 
   const legacyHandlers = mode === 'detail' ? {
     handleMultifocalOldRefraction: detailProps!.handleMultifocalOldRefraction,
@@ -399,6 +413,7 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
       case 'contact-lens-order': return emptyContactLensOrderData
       case 'sensation-vision-stability': return emptySensationVisionStabilityExam
       case 'diopter-adjustment-panel': return {}
+      case 'fusion-range': return emptyFusionRangeData
       default: return {}
     }
   }
@@ -415,8 +430,7 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
   }
 
   // Move hooks to top level
-  // const [isEditingNotesTitle, setIsEditingNotesTitle] = useState(false)
-  // const [isHoveringNotesTitle, setIsHoveringNotesTitle] = useState(false)
+  const coverTestActiveTabsRef = React.useRef<Record<string, number>>({})
 
   switch (item.type) {
     case 'exam-details':
@@ -758,18 +772,113 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
         </div>
       )
 
-    case 'cover-test':
+    case 'cover-test': {
+      const coverTestTabs = detailProps?.coverTestTabs?.[item.id] || []
+      const activeTab = detailProps?.activeCoverTestTabs?.[item.id] ?? 0
+      const setActiveTab = (idx: number) => { detailProps?.setActiveCoverTestTabs?.({ ...detailProps.activeCoverTestTabs, [item.id]: idx }); forceUpdate(); }
+      const tabId = coverTestTabs[activeTab] || coverTestTabs[0]
+      const coverTestKey = `cover-test-${item.id}-${tabId}`
+      const coverTestData = (detailProps?.examFormData?.[coverTestKey] as CoverTestExam) || {}
+      const onCoverTestChange = (field: keyof CoverTestExam, value: string) => {
+        detailProps?.fieldHandlers?.[coverTestKey]?.(field, value)
+      }
+      const handleTabChange = (idx: number) => setActiveTab(idx)
+      const handleAddTab = () => detailProps?.addCoverTestTab?.(item.id)
+      const handleDeleteTab = async (idx: number) => {
+        if (coverTestTabs.length <= 1) return;
+        const newTabs = [...coverTestTabs]
+        const removedTabId = newTabs.splice(idx, 1)[0]
+        const key = `cover-test-${item.id}-${removedTabId}`
+        const tabData = detailProps?.examFormData?.[key]
+        if (tabData && tabData.id) {
+          await deleteCoverTestExam(tabData.id)
+        }
+        detailProps?.setExamFormData?.(prev => {
+          const newData = { ...prev }
+          delete newData[key]
+          return newData
+        })
+        if (detailProps?.setCoverTestTabs) {
+          detailProps.setCoverTestTabs((prev: Record<string, string[]>) => ({
+            ...prev,
+            [item.id]: newTabs
+          }))
+        }
+        if (activeTab >= newTabs.length) setActiveTab(newTabs.length - 1)
+      }
+      const handleDuplicateTab = async (idx: number) => {
+        if (coverTestTabs.length >= 5) return;
+        const newTabs = [...coverTestTabs]
+        const sourceTabId = newTabs[idx]
+        const sourceKey = `cover-test-${item.id}-${sourceTabId}`
+        const sourceData = detailProps?.examFormData?.[sourceKey]
+        if (!sourceData) return;
+        const newTabId = uuidv4()
+        newTabs.splice(idx + 1, 0, newTabId)
+        // Prefill the new tab's data, but do not set id, card_instance_id, tab_index
+        const {
+          deviation_type,
+          deviation_direction,
+          fv_1,
+          fv_2,
+          nv_1,
+          nv_2
+        } = sourceData
+        detailProps?.setExamFormData?.(prev => {
+          const newData = { ...prev }
+          newData[`cover-test-${item.id}-${newTabId}`] = {
+            deviation_type,
+            deviation_direction,
+            fv_1,
+            fv_2,
+            nv_1,
+            nv_2,
+            layout_instance_id: detailProps?.layoutInstanceId,
+            card_id: sourceData.card_id || item.id,
+            card_instance_id: newTabId,
+            tab_index: idx + 1
+          }
+          return newData
+        })
+        if (detailProps?.setCoverTestTabs) {
+          detailProps.setCoverTestTabs((prev: Record<string, string[]>) => ({
+            ...prev,
+            [item.id]: newTabs
+          }))
+        }
+        setActiveTab(idx + 1)
+      }
+      React.useEffect(() => {
+        if (mode === 'detail' && detailProps?.layoutInstanceId && tabId) {
+          examComponentRegistry.getConfig('cover-test')?.getData(detailProps.layoutInstanceId, tabId).then(data => {
+            if (data) {
+              detailProps?.setExamFormData?.(prev => ({
+                ...prev,
+                [coverTestKey]: data
+              }))
+            }
+          })
+        }
+      }, [detailProps?.layoutInstanceId, tabId])
       return (
         <div className={`relative h-full ${matchHeight ? 'flex flex-col' : ''}`}>
           {toolbox}
           <CoverTestTab
-            coverTestData={getExamData('cover-test')}
-            onCoverTestChange={getChangeHandler('cover-test')}
+            coverTestData={coverTestData}
+            onCoverTestChange={onCoverTestChange}
             isEditing={mode === 'detail' ? detailProps!.isEditing : false}
             needsMiddleSpacer={hasSiblingWithMiddleRow && componentsDontHaveMiddleRow.includes(item.type)}
+            instanceLabel={String(activeTab + 1)}
+            tabCount={coverTestTabs.length}
+            activeTab={activeTab}
+            onTabChange={handleTabChange}
+            onAddTab={handleAddTab}
+            onDeleteTab={handleDeleteTab}
+            onDuplicateTab={handleDuplicateTab}
           />
         </div>
       )
+    }
 
     case 'anamnesis':
       return (
@@ -953,6 +1062,19 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
           onDiopterChange={getChangeHandler('diopter-adjustment-panel')}
           isEditing={mode === 'detail' ? detailProps!.isEditing : false}
         />
+      );
+
+    case 'fusion-range':
+      return (
+        <div className="relative">
+          {toolbox}
+          <FusionRangeTab
+            fusionRangeData={mode === 'editor' ? {} : (detailProps!.examFormData['fusion-range'] as any)}
+            onFusionRangeChange={mode === 'editor' ? () => {} : detailProps!.fieldHandlers['fusion-range']}
+            isEditing={mode === 'editor' ? false : detailProps!.isEditing}
+            needsMiddleSpacer={mode === 'detail' ? true : false}
+          />
+        </div>
       );
 
     case 'old-contact-lenses':

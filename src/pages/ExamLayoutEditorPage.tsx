@@ -425,6 +425,11 @@ export default function ExamLayoutEditorPage() {
     // If there's already an anamnesis card, no other cards can be added
     if (rowCards.some(card => card.type === 'anamnesis')) return false;
 
+    // Allow multiple 'cover-test' and 'notes' cards in the same row
+    if (newType === 'cover-test' || newType === 'notes') {
+      return rowCards.length < 3;
+    }
+
     // Regular rules for other cards
     if (rowCards.some(card => card.type === newType)) return false
     

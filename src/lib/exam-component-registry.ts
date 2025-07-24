@@ -28,6 +28,7 @@ import {
   OverRefraction,
   SensationVisionStabilityExam,
   DiopterAdjustmentPanel,
+  FusionRangeExam,
 } from "@/lib/db/schema"
 import { createOldContactLenses, getOldContactLensesByLayoutInstanceId, updateOldContactLenses } from "./db/old-contact-lenses-db";
 import { createOverRefraction, getOverRefractionByLayoutInstanceId, updateOverRefraction } from "./db/over-refraction-db";
@@ -62,6 +63,7 @@ export type ExamComponentType =
   | 'over-refraction'
   | 'sensation-vision-stability'
   | 'diopter-adjustment-panel'
+  | 'fusion-range'
 
 export interface ExamComponentConfig<T = unknown> {
   name: string
@@ -110,6 +112,33 @@ class ExamComponentRegistry {
         } catch (error) {
           console.warn(`Failed to load ${type} data:`, error)
         }
+      } else if (type === 'cover-test') {
+        // Load all cover-test rows for this layout instance, reconstruct mapping by card_id and tab_index
+        try {
+          const allCoverTests = await window.electronAPI.db('getAllCoverTestExamsByLayoutInstanceId', layoutInstanceId);
+          if (allCoverTests && Array.isArray(allCoverTests)) {
+            // Group by card_id, sort by tab_index
+            const tabsByCard: Record<string, { tabId: string, tabIndex: number, data: any }[]> = {};
+            allCoverTests.forEach(row => {
+              if (row.card_id && row.card_instance_id != null) {
+                if (!tabsByCard[row.card_id]) tabsByCard[row.card_id] = [];
+                tabsByCard[row.card_id].push({
+                  tabId: row.card_instance_id,
+                  tabIndex: typeof row.tab_index === 'number' ? row.tab_index : 0,
+                  data: row
+                });
+              }
+            });
+            Object.entries(tabsByCard).forEach(([cardId, tabs]) => {
+              tabs.sort((a, b) => a.tabIndex - b.tabIndex);
+              tabs.forEach(tab => {
+                data[`cover-test-${cardId}-${tab.tabId}`] = tab.data;
+              });
+            });
+          }
+        } catch (error) {
+          console.warn('Failed to load cover-test data:', error);
+        }
       } else {
         try {
           const componentData = await config.getData(layoutInstanceId)
@@ -128,10 +157,11 @@ class ExamComponentRegistry {
     const savedData: Record<string, unknown> = {}
     
     for (const [type, config] of this.components) {
-      if (type === 'notes') {
-        // Handle notes card instances separately
-        const notesKeys = Object.keys(formData).filter(key => key.startsWith('notes-'))
-        for (const key of notesKeys) {
+      if (type === 'notes' || type === 'cover-test') {
+        // Handle notes and cover-test card instances separately
+        const prefix = type + '-'
+        const keys = Object.keys(formData).filter(key => key.startsWith(prefix))
+        for (const key of keys) {
           const componentFormData = formData[key]
           if (!componentFormData) continue
 
@@ -143,15 +173,56 @@ class ExamComponentRegistry {
             if (componentFormData.id) {
               result = await config.updateData({
                 ...componentFormData,
-                layout_instance_id: layoutInstanceId
+                layout_instance_id: layoutInstanceId,
+                card_id: componentFormData.card_id,
+                tab_index: componentFormData.tab_index
               })
             } else {
-              result = await config.createData({
+              let dataToSave = {
                 ...componentFormData,
-                layout_instance_id: layoutInstanceId
-              }, componentFormData.card_instance_id)
+                layout_instance_id: layoutInstanceId,
+                card_id: componentFormData.card_id,
+                tab_index: componentFormData.tab_index
+              }
+              if (type === 'cover-test') {
+                if (!componentFormData) {
+                  console.error('cover-test: componentFormData is null or undefined for key', key)
+                  continue
+                }
+                const coverTestDefaults = {
+                  deviation_type: null,
+                  deviation_direction: null,
+                  fv_1: null,
+                  fv_2: null,
+                  nv_1: null,
+                  nv_2: null,
+                  card_instance_id: componentFormData.card_instance_id,
+                  card_id: componentFormData.card_id,
+                  tab_index: componentFormData.tab_index,
+                  layout_instance_id: layoutInstanceId
+                }
+                let dataToSave = {
+                  ...coverTestDefaults,
+                  ...componentFormData,
+                  layout_instance_id: layoutInstanceId,
+                  card_id: componentFormData.card_id,
+                  tab_index: componentFormData.tab_index
+                }
+                if (typeof dataToSave === 'object' && dataToSave !== null) {
+                  ['fv_1', 'fv_2', 'nv_1', 'nv_2'].forEach(field => {
+                    if (dataToSave[field] !== null && dataToSave[field] !== undefined && dataToSave[field] !== '') {
+                      dataToSave[field] = Number(dataToSave[field])
+                    } else {
+                      dataToSave[field] = null
+                    }
+                  })
+                } else {
+                  console.error('cover-test: dataToSave is not an object', dataToSave)
+                  continue
+                }
+              }
+              result = await config.createData(dataToSave, componentFormData.card_instance_id, componentFormData.card_id, componentFormData.tab_index)
             }
-            
             savedData[key] = result
           } catch (error) {
             console.error(`Failed to save ${key} data:`, error)
@@ -231,15 +302,12 @@ registry.register<OldRefExam>('old-ref', {
 registry.register<OpticalExam>('exam-details', {
   name: 'פרטי בדיקה',
   getData: (layoutInstanceId: number, cardInstanceId?: string) => {
-    console.log('getData', layoutInstanceId)
     return Promise.resolve(null)
   },
   createData: (data: Omit<OpticalExam, 'id'>, cardInstanceId?: string) => {
-    console.log('createData', data)
     return Promise.resolve(null)
   },
   updateData: (data: OpticalExam) => {
-    console.log('updateData', data)
     return Promise.resolve(null)
   },
   getNumericFields: () => [],
@@ -617,8 +685,11 @@ registry.register<CornealTopographyExam>('corneal-topography', {
 
 registry.register<CoverTestExam>('cover-test', {
   name: 'בדיקת כיסוי',
-  getData: (layoutInstanceId: number) => window.electronAPI.db('getCoverTestExamByLayoutInstanceId', layoutInstanceId),
-  createData: (data: Omit<CoverTestExam, 'id'>) => window.electronAPI.db('createCoverTestExam', data),
+  getData: async (layoutInstanceId: number, cardInstanceId?: string) => {
+    const result = await window.electronAPI.db('getCoverTestExamByLayoutInstanceId', layoutInstanceId, cardInstanceId)
+    return result
+  },
+  createData: (data: Omit<CoverTestExam, 'id'>, cardInstanceId?: string) => window.electronAPI.db('createCoverTestExam', { ...data, card_instance_id: cardInstanceId }),
   updateData: (data: CoverTestExam) => window.electronAPI.db('updateCoverTestExam', data),
   getNumericFields: () => ['fv_1', 'fv_2', 'nv_1', 'nv_2'],
   getIntegerFields: () => [],
@@ -631,7 +702,18 @@ registry.register<CoverTestExam>('cover-test', {
     }
     return value;
   },
-  hasData: (data) => !!data && Object.values(data).some(v => v !== null && v !== undefined && v !== '')
+  hasData: (data) => {
+    if (!data) return false;
+    const fields = [
+      'deviation_type',
+      'deviation_direction',
+      'fv_1',
+      'fv_2',
+      'nv_1',
+      'nv_2'
+    ];
+    return fields.some(field => data[field] !== undefined && data[field] !== null && data[field] !== '');
+  }
 });
 
 registry.register<SchirmerTestExam>('schirmer-test', {
@@ -958,6 +1040,25 @@ registry.register<DiopterAdjustmentPanel>('diopter-adjustment-panel', {
            (data.left_diopter !== undefined && data.left_diopter !== null);
   }
 });
+
+registry.register<FusionRangeExam>('fusion-range', {
+  name: 'טווח פיוז׳ן',
+  getData: (layoutInstanceId: number) => window.electronAPI.db('getFusionRangeExamByLayoutInstanceId', layoutInstanceId),
+  createData: (data: Omit<FusionRangeExam, 'id'>) => window.electronAPI.db('createFusionRangeExam', data),
+  updateData: (data: FusionRangeExam) => window.electronAPI.db('updateFusionRangeExam', data),
+  getNumericFields: () => [
+    'fv_base_in', 'fv_base_in_recovery', 'fv_base_out', 'fv_base_out_recovery',
+    'nv_base_in', 'nv_base_in_recovery', 'nv_base_out', 'nv_base_out_recovery'
+  ],
+  getIntegerFields: () => [],
+  validateField: (field, rawValue) => {
+    if (rawValue === '' || rawValue === undefined || rawValue === null) return undefined;
+    const num = Number(rawValue);
+    if (isNaN(num)) return 'ערך לא חוקי';
+    return num;
+  },
+  hasData: (data) => Object.values(data).some(value => value !== undefined && value !== null && value !== '')
+})
 
 
 export { registry as examComponentRegistry }

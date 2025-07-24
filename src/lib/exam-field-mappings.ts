@@ -53,7 +53,8 @@ export type ExamComponentType =
   | 'over-refraction'
   | 'old-contact-lenses'
   | 'sensation-vision-stability'
-  | 'diopter-adjustment-panel';
+  | 'diopter-adjustment-panel'
+  | 'fusion-range';
 
 export const fullExamsList: ExamComponentType[] = [
   'exam-details',
@@ -85,6 +86,7 @@ export const fullExamsList: ExamComponentType[] = [
   'old-contact-lenses',
   'sensation-vision-stability',
   'diopter-adjustment-panel',
+  'fusion-range',
 ];
 
 export const examComponentTypeToExamFields: Record<ExamComponentType, ExamComponentType[]> = {
@@ -146,7 +148,7 @@ export class ExamFieldMapper {
     'keratometer': fullExamsList,
     'keratometer-full': fullExamsList,
     'corneal-topography': fullExamsList,
-    'cover-test': [],
+    'cover-test': ['cover-test'],
     'schirmer-test': [],
     'anamnesis': [],
     'notes': [],
@@ -255,6 +257,11 @@ export class ExamFieldMapper {
           'r_stability', 'l_stability',
           'r_movement', 'l_movement',
           'r_recommendations', 'l_recommendations'
+        ];
+      case 'fusion-range':
+        return [
+          'fv_base_in', 'fv_base_in_recovery', 'fv_base_out', 'fv_base_out_recovery',
+          'nv_base_in', 'nv_base_in_recovery', 'nv_base_out', 'nv_base_out_recovery'
         ];
       default:
         return []

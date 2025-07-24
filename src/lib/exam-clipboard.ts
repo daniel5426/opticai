@@ -9,11 +9,13 @@ interface ClipboardData {
 
 export function copyToClipboard(type: ExamComponentType, data: ExamDataType) {
   const clipboardData: ClipboardData = { type, data };
+  console.log('Copying to clipboard:', clipboardData);
   sessionStorage.setItem(CLIPBOARD_KEY, JSON.stringify(clipboardData));
 }
 
 export function pasteFromClipboard(): ClipboardData | null {
   const storedData = sessionStorage.getItem(CLIPBOARD_KEY);
+  console.log('Pasting from clipboard:', storedData);
   if (!storedData) return null;
   try {
     return JSON.parse(storedData) as ClipboardData;

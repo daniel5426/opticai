@@ -74,7 +74,8 @@ import {
   OldContactLenses,
   OverRefraction,
   SensationVisionStabilityExam,
-  DiopterAdjustmentPanel
+  DiopterAdjustmentPanel,
+  FusionRangeExam
 } from './schema';
 import * as usersDb from './users-db'
 import * as workShiftsDb from './work-shifts-db'
@@ -5610,8 +5611,8 @@ class DatabaseService {
   createCoverTestExam(exam: Omit<CoverTestExam, 'id'>): CoverTestExam | null {
     if (!this.db) return null;
     try {
-      const stmt = this.db.prepare(
-        'INSERT INTO cover_test_exams (layout_instance_id, deviation_type, deviation_direction, fv_1, fv_2, nv_1, nv_2) VALUES (@layout_instance_id, @deviation_type, @deviation_direction, @fv_1, @fv_2, @nv_1, @nv_2)'
+      const stmt = this.db.prepare(`
+        INSERT INTO cover_test_exams (layout_instance_id, card_instance_id, card_id, tab_index, deviation_type, deviation_direction, fv_1, fv_2, nv_1, nv_2) VALUES (@layout_instance_id, @card_instance_id, @card_id, @tab_index, @deviation_type, @deviation_direction, @fv_1, @fv_2, @nv_1, @nv_2)`
       );
       const result = stmt.run({
         ...exam,
@@ -5621,6 +5622,9 @@ class DatabaseService {
         fv_2: this.sanitizeValue(exam.fv_2),
         nv_1: this.sanitizeValue(exam.nv_1),
         nv_2: this.sanitizeValue(exam.nv_2),
+        card_instance_id: exam.card_instance_id,
+        card_id: exam.card_id,
+        tab_index: exam.tab_index,
       });
       return this.getCoverTestExamById(result.lastInsertRowid as number);
     } catch (error) {
@@ -5639,23 +5643,39 @@ class DatabaseService {
     }
   }
 
-  getCoverTestExamByLayoutInstanceId(layoutInstanceId: number): CoverTestExam | null {
+  getCoverTestExamByLayoutInstanceId(layoutInstanceId: number, cardInstanceId?: string): CoverTestExam | null {
     if (!this.db) return null;
     try {
-      const stmt = this.db.prepare('SELECT * FROM cover_test_exams WHERE layout_instance_id = ?');
-      return stmt.get(layoutInstanceId) as CoverTestExam || null;
+      if (cardInstanceId) {
+        const stmt = this.db.prepare('SELECT * FROM cover_test_exams WHERE layout_instance_id = ? AND card_instance_id = ?');
+        return stmt.get(layoutInstanceId, cardInstanceId) as CoverTestExam || null;
+      } else {
+        const stmt = this.db.prepare('SELECT * FROM cover_test_exams WHERE layout_instance_id = ?');
+        return stmt.get(layoutInstanceId) as CoverTestExam || null;
+      }
     } catch (error) {
       console.error('Error getting cover test exam:', error);
       return null;
     }
   }
 
+  getAllCoverTestExamsByLayoutInstanceId(layoutInstanceId: number): CoverTestExam[] {
+    if (!this.db) return [];
+    try {
+      const stmt = this.db.prepare('SELECT * FROM cover_test_exams WHERE layout_instance_id = ?');
+      return stmt.all(layoutInstanceId) as CoverTestExam[];
+    } catch (error) {
+      console.error('Error getting all cover test exams:', error);
+      return [];
+    }
+  }
+
   updateCoverTestExam(exam: CoverTestExam): CoverTestExam | null {
     if (!this.db) return null;
     try {
-      const stmt = this.db.prepare(
-        'UPDATE cover_test_exams SET layout_instance_id = @layout_instance_id, deviation_type = @deviation_type, deviation_direction = @deviation_direction, fv_1 = @fv_1, fv_2 = @fv_2, nv_1 = @nv_1, nv_2 = @nv_2 WHERE id = @id'
-      );
+      const stmt = this.db.prepare(`
+        UPDATE cover_test_exams SET layout_instance_id = @layout_instance_id, card_instance_id = @card_instance_id, card_id = @card_id, tab_index = @tab_index, deviation_type = @deviation_type, deviation_direction = @deviation_direction, fv_1 = @fv_1, fv_2 = @fv_2, nv_1 = @nv_1, nv_2 = @nv_2 WHERE id = @id
+      `);
       stmt.run({
         ...exam,
         deviation_type: this.sanitizeValue(exam.deviation_type),
@@ -6225,7 +6245,7 @@ class DatabaseService {
           l_bc, l_diam, l_sph, l_cyl, l_ax, l_va, l_j,
           r_bc, r_diam, r_sph, r_cyl, r_ax, r_va, r_j,
           comb_va, comb_j
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
       const result = stmt.run(
         data.layout_instance_id, data.r_lens_type, data.l_lens_type, data.r_model, data.l_model, data.r_supplier, data.l_supplier,
@@ -6552,6 +6572,45 @@ class DatabaseService {
       console.error('Error updating DiopterAdjustmentPanel:', error);
       return null;
     }
+  }
+
+  createFusionRangeExam(data: Omit<FusionRangeExam, 'id'>): FusionRangeExam | null {
+    if (!this.db) return null;
+    const stmt = this.db.prepare(`INSERT INTO fusion_range_exams (layout_instance_id, fv_base_in, fv_base_in_recovery, fv_base_out, fv_base_out_recovery, nv_base_in, nv_base_in_recovery, nv_base_out, nv_base_out_recovery) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+    const result = stmt.run(
+      data.layout_instance_id,
+      data.fv_base_in,
+      data.fv_base_in_recovery,
+      data.fv_base_out,
+      data.fv_base_out_recovery,
+      data.nv_base_in,
+      data.nv_base_in_recovery,
+      data.nv_base_out,
+      data.nv_base_out_recovery
+    );
+    return { id: result.lastInsertRowid as number, ...data };
+  }
+
+  getFusionRangeExamByLayoutInstanceId(layoutInstanceId: number): FusionRangeExam | null {
+    if (!this.db) return null;
+    const row = this.db.prepare(`SELECT * FROM fusion_range_exams WHERE layout_instance_id = ?`).get(layoutInstanceId);
+    return row || null;
+  }
+
+  updateFusionRangeExam(data: FusionRangeExam): FusionRangeExam | null {
+    if (!this.db || !data.id) return null;
+    this.db.prepare(`UPDATE fusion_range_exams SET fv_base_in = ?, fv_base_in_recovery = ?, fv_base_out = ?, fv_base_out_recovery = ?, nv_base_in = ?, nv_base_in_recovery = ?, nv_base_out = ?, nv_base_out_recovery = ? WHERE id = ?`).run(
+      data.fv_base_in,
+      data.fv_base_in_recovery,
+      data.fv_base_out,
+      data.fv_base_out_recovery,
+      data.nv_base_in,
+      data.nv_base_in_recovery,
+      data.nv_base_out,
+      data.nv_base_out_recovery,
+      data.id
+    );
+    return data;
   }
 }
 

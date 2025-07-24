@@ -212,10 +212,10 @@ export function ExamToolbox({
 }
 
 export interface ToolboxActions {
-  clearData: (componentType: ExamComponentType) => void
-  copyToLeft: (sourceType: ExamComponentType, targetType: ExamComponentType) => void
-  copyToRight: (sourceType: ExamComponentType, targetType: ExamComponentType) => void
-  copyToBelow: (sourceType: ExamComponentType, targetType: ExamComponentType) => void
+  clearData: (componentType: ExamComponentType, key?: string) => void
+  copyToLeft: (sourceType: ExamComponentType, targetType: ExamComponentType, sourceKey?: string, targetKey?: string) => void
+  copyToRight: (sourceType: ExamComponentType, targetType: ExamComponentType, sourceKey?: string, targetKey?: string) => void
+  copyToBelow: (sourceType: ExamComponentType, targetType: ExamComponentType, sourceKey?: string, targetKey?: string) => void
 }
 
 export function createToolboxActions(
@@ -223,38 +223,34 @@ export function createToolboxActions(
   fieldHandlers: Record<string, (field: string, value: any) => void>
 ): ToolboxActions {
   
-  const getDataByType = (componentType: ExamComponentType) => {
+  const getDataByType = (componentType: ExamComponentType, key?: string) => {
+    if (key) return examFormData[key] || null
     return examFormData[componentType] || null
   }
 
-  const getChangeHandlerByType = (componentType: ExamComponentType) => {
+  const getChangeHandlerByType = (componentType: ExamComponentType, key?: string) => {
+    if (key) return fieldHandlers[key] || null
     return fieldHandlers[componentType] || null
   }
 
-  const clearData = (componentType: ExamComponentType) => {
-    const data = getDataByType(componentType)
-    const changeHandler = getChangeHandlerByType(componentType)
-    
+  const clearData = (componentType: ExamComponentType, key?: string) => {
+    const data = getDataByType(componentType, key)
+    const changeHandler = getChangeHandlerByType(componentType, key)
     if (!data || !changeHandler) return
-
     const clearedData = ExamFieldMapper.clearData(data, componentType)
-    
-    Object.keys(clearedData).forEach(key => {
-      if (key !== 'id' && key !== 'layout_instance_id') {
-        changeHandler(key, '')
+    Object.keys(clearedData).forEach(field => {
+      if (field !== 'id' && field !== 'layout_instance_id') {
+        changeHandler(field, '')
       }
     })
   }
 
-  const copyToLeft = (sourceType: ExamComponentType, targetType: ExamComponentType) => {
-    const sourceData = getDataByType(sourceType)
-    const targetData = getDataByType(targetType)
-    const targetChangeHandler = getChangeHandlerByType(targetType)
-    
+  const copyToLeft = (sourceType: ExamComponentType, targetType: ExamComponentType, sourceKey?: string, targetKey?: string) => {
+    const sourceData = getDataByType(sourceType, sourceKey)
+    const targetData = getDataByType(targetType, targetKey)
+    const targetChangeHandler = getChangeHandlerByType(targetType, targetKey)
     if (!sourceData || !targetData || !targetChangeHandler) return
-
     const copiedData = ExamFieldMapper.copyData(sourceData, targetData, sourceType, targetType)
-    
     Object.entries(copiedData).forEach(([key, value]) => {
       if (key !== 'id' && key !== 'layout_instance_id' && value !== undefined) {
         targetChangeHandler(key, String(value))
@@ -262,15 +258,12 @@ export function createToolboxActions(
     })
   }
 
-  const copyToRight = (sourceType: ExamComponentType, targetType: ExamComponentType) => {
-    const sourceData = getDataByType(sourceType)
-    const targetData = getDataByType(targetType)
-    const targetChangeHandler = getChangeHandlerByType(targetType)
-    
+  const copyToRight = (sourceType: ExamComponentType, targetType: ExamComponentType, sourceKey?: string, targetKey?: string) => {
+    const sourceData = getDataByType(sourceType, sourceKey)
+    const targetData = getDataByType(targetType, targetKey)
+    const targetChangeHandler = getChangeHandlerByType(targetType, targetKey)
     if (!sourceData || !targetData || !targetChangeHandler) return
-
     const copiedData = ExamFieldMapper.copyData(sourceData, targetData, sourceType, targetType)
-    
     Object.entries(copiedData).forEach(([key, value]) => {
       if (key !== 'id' && key !== 'layout_instance_id' && value !== undefined) {
         targetChangeHandler(key, String(value))
@@ -278,8 +271,8 @@ export function createToolboxActions(
     })
   }
 
-  const copyToBelow = (sourceType: ExamComponentType, targetType: ExamComponentType) => {
-    copyToLeft(sourceType, targetType)
+  const copyToBelow = (sourceType: ExamComponentType, targetType: ExamComponentType, sourceKey?: string, targetKey?: string) => {
+    copyToLeft(sourceType, targetType, sourceKey, targetKey)
   }
 
   return {

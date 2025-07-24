@@ -198,7 +198,6 @@ export function ClientSidebar() {
   
   useEffect(() => {
     const part = detectCurrentPart(location.pathname, searchParams, contextActiveTab)
-    console.log('Detected part:', part, 'for pathname:', location.pathname, 'searchParams:', searchParams, 'contextActiveTab:', contextActiveTab)
     setCurrentPart(part)
   }, [location.pathname, searchParams, contextActiveTab])
 
