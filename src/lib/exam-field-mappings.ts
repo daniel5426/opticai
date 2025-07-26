@@ -21,7 +21,9 @@ import {
   ContactLensDetails,
   KeratometerContactLens,
   ContactLensExam,
-  ContactLensOrder
+  ContactLensOrder,
+  MaddoxRodExam,
+  StereoTestExam
 } from './db/schema'
 
 export type ExamComponentType =
@@ -54,7 +56,9 @@ export type ExamComponentType =
   | 'old-contact-lenses'
   | 'sensation-vision-stability'
   | 'diopter-adjustment-panel'
-  | 'fusion-range';
+  | 'fusion-range'
+  | 'maddox-rod'
+  | 'stereo-test';
 
 export const fullExamsList: ExamComponentType[] = [
   'exam-details',
@@ -87,6 +91,8 @@ export const fullExamsList: ExamComponentType[] = [
   'sensation-vision-stability',
   'diopter-adjustment-panel',
   'fusion-range',
+  'maddox-rod',
+  'stereo-test',
 ];
 
 export const examComponentTypeToExamFields: Record<ExamComponentType, ExamComponentType[]> = {
@@ -118,9 +124,13 @@ export const examComponentTypeToExamFields: Record<ExamComponentType, ExamCompon
   'over-refraction': [],
   'old-contact-lenses': [],
   'sensation-vision-stability': [],
+  'diopter-adjustment-panel': [],
+  'fusion-range': [],
+  'maddox-rod': [],
+  'stereo-test': [],
 };
 
-export type ExamDataType = OpticalExam | OldRefExam | OldRefractionExam | OldRefractionExtensionExam | ObjectiveExam | SubjectiveExam | FinalSubjectiveExam | FinalPrescriptionExam | CompactPrescriptionExam | AdditionExam | RetinoscopExam | RetinoscopDilationExam | UncorrectedVAExam | KeratometerExam | KeratometerFullExam | CornealTopographyExam | CoverTestExam | SchirmerTestExam | ContactLensDiameters | ContactLensDetails | KeratometerContactLens | ContactLensExam | ContactLensOrder
+export type ExamDataType = OpticalExam | OldRefExam | OldRefractionExam | OldRefractionExtensionExam | ObjectiveExam | SubjectiveExam | FinalSubjectiveExam | FinalPrescriptionExam | CompactPrescriptionExam | AdditionExam | RetinoscopExam | RetinoscopDilationExam | UncorrectedVAExam | KeratometerExam | KeratometerFullExam | CornealTopographyExam | CoverTestExam | SchirmerTestExam | ContactLensDiameters | ContactLensDetails | KeratometerContactLens | ContactLensExam | ContactLensOrder | StereoTestExam
 
 export interface FieldMapping {
   [sourceField: string]: string | null
@@ -148,7 +158,7 @@ export class ExamFieldMapper {
     'keratometer': fullExamsList,
     'keratometer-full': fullExamsList,
     'corneal-topography': fullExamsList,
-    'cover-test': ['cover-test'],
+    'cover-test': ['cover-test', 'uncorrected-va'],
     'schirmer-test': [],
     'anamnesis': [],
     'notes': [],
@@ -160,6 +170,10 @@ export class ExamFieldMapper {
     'over-refraction': fullExamsList,
     'old-contact-lenses': fullExamsList,
     'sensation-vision-stability': fullExamsList,
+    'diopter-adjustment-panel': fullExamsList,
+    'fusion-range': fullExamsList,
+    'maddox-rod': ['maddox-rod'],
+    'stereo-test': ['stereo-test'],
   }
 
   private static explicitMappings: Partial<Record<ExamComponentType, ComponentFieldMappings>> = {
@@ -262,6 +276,14 @@ export class ExamFieldMapper {
         return [
           'fv_base_in', 'fv_base_in_recovery', 'fv_base_out', 'fv_base_out_recovery',
           'nv_base_in', 'nv_base_in_recovery', 'nv_base_out', 'nv_base_out_recovery'
+        ];
+      case 'maddox-rod':
+        return [
+          'c_r_h', 'c_r_v', 'c_l_h', 'c_l_v', 'wc_r_h', 'wc_r_v', 'wc_l_h', 'wc_l_v'
+        ];
+      case 'stereo-test':
+        return [
+          'fly_result', 'circle_score', 'circle_max'
         ];
       default:
         return []

@@ -1010,6 +1010,27 @@ export interface FusionRangeExam {
   nv_base_out_recovery?: number;
 }
 
+export interface MaddoxRodExam {
+  id?: number;
+  layout_instance_id: number;
+  c_r_h?: number;
+  c_r_v?: number;
+  c_l_h?: number;
+  c_l_v?: number;
+  wc_r_h?: number;
+  wc_r_v?: number;
+  wc_l_h?: number;
+  wc_l_v?: number;
+}
+
+export interface StereoTestExam {
+  id?: number;
+  layout_instance_id: number;
+  fly_result?: boolean;
+  circle_score?: number;
+  circle_max?: number;
+}
+
 export const createTables = (db: Database): void => {
   // Create families table
   db.exec(`
@@ -2643,6 +2664,29 @@ export const createTables = (db: Database): void => {
     nv_base_in_recovery REAL,
     nv_base_out REAL,
     nv_base_out_recovery REAL,
+    FOREIGN KEY (layout_instance_id) REFERENCES exam_layout_instances(id) ON DELETE CASCADE
+  )`).run();
+
+  db.prepare(`CREATE TABLE IF NOT EXISTS maddox_rod_exams (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    layout_instance_id INTEGER NOT NULL,
+    c_r_h REAL,
+    c_r_v REAL,
+    c_l_h REAL,
+    c_l_v REAL,
+    wc_r_h REAL,
+    wc_r_v REAL,
+    wc_l_h REAL,
+    wc_l_v REAL,
+    FOREIGN KEY (layout_instance_id) REFERENCES exam_layout_instances(id) ON DELETE CASCADE
+  )`).run();
+
+  db.prepare(`CREATE TABLE IF NOT EXISTS stereo_test_exams (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    layout_instance_id INTEGER NOT NULL,
+    fly_result INTEGER,
+    circle_score INTEGER,
+    circle_max INTEGER,
     FOREIGN KEY (layout_instance_id) REFERENCES exam_layout_instances(id) ON DELETE CASCADE
   )`).run();
 };

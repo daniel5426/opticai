@@ -24,7 +24,7 @@ import { KeratometerContactLensTab } from "@/components/exam/KeratometerContactL
 import { ContactLensExamTab } from "@/components/exam/ContactLensExamTab"
 import { ContactLensOrderTab } from "@/components/exam/ContactLensOrderTab"
 import { Edit3 } from "lucide-react"
-import { OpticalExam, OldRefractionExam, OldRefractionExtensionExam, ObjectiveExam, SubjectiveExam, AdditionExam, FinalSubjectiveExam, FinalPrescriptionExam, CompactPrescriptionExam, RetinoscopExam, RetinoscopDilationExam, UncorrectedVAExam, KeratometerExam, KeratometerFullExam, CornealTopographyExam, CoverTestExam, AnamnesisExam, NotesExam, SchirmerTestExam, OldRefExam, ContactLensDiameters, ContactLensDetails, KeratometerContactLens, ContactLensExam, ContactLensOrder, SensationVisionStabilityExam, FusionRangeExam } from "@/lib/db/schema"
+import { OpticalExam, OldRefractionExam, OldRefractionExtensionExam, ObjectiveExam, SubjectiveExam, AdditionExam, FinalSubjectiveExam, FinalPrescriptionExam, CompactPrescriptionExam, RetinoscopExam, RetinoscopDilationExam, UncorrectedVAExam, KeratometerExam, KeratometerFullExam, CornealTopographyExam, CoverTestExam, AnamnesisExam, NotesExam, SchirmerTestExam, OldRefExam, ContactLensDiameters, ContactLensDetails, KeratometerContactLens, ContactLensExam, ContactLensOrder, SensationVisionStabilityExam, FusionRangeExam, MaddoxRodExam, StereoTestExam } from "@/lib/db/schema"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { UserSelect } from "@/components/ui/user-select"
 import { ExamToolbox, ToolboxActions } from "@/components/exam/ExamToolbox"
@@ -38,6 +38,8 @@ import { OverRefractionTab } from "@/components/exam/OverRefractionTab";
 import { ObservationTab } from "@/components/exam/ObservationTab"
 import { DiopterAdjustmentPanelTab } from "@/components/exam/DiopterAdjustmentPanelTab";
 import { FusionRangeTab } from "@/components/exam/FusionRangeTab"
+import { MaddoxRodTab } from "@/components/exam/MaddoxRodTab"
+import { StereoTestTab } from "@/components/exam/StereoTestTab"
 import { v4 as uuidv4 } from 'uuid';
 import { deleteCoverTestExam } from '@/lib/db/cover-test-db';
 import { createCoverTestExam } from '@/lib/db/cover-test-db';
@@ -46,11 +48,11 @@ import { createCoverTestExam } from '@/lib/db/cover-test-db';
 type Exam = OpticalExam;
 
 const componentsWithMiddleRow: CardItem['type'][] = ['old-refraction', 'old-refraction-extension', 'subjective', 'final-subjective', 'final-prescription', 'compact-prescription', 'corneal-topography', 'anamnesis', 'contact-lens-exam', 'contact-lens-diameters', 'over-refraction', 'old-contact-lenses'];
-const componentsDontHaveMiddleRow: CardItem['type'][] = ['objective', 'addition', 'retinoscop', 'retinoscop-dilation', 'uncorrected-va', 'keratometer', 'keratometer-full', 'cover-test', 'schirmer-test', 'contact-lens-diameters', 'contact-lens-details', 'keratometer-contact-lens', 'fusion-range'];
+const componentsDontHaveMiddleRow: CardItem['type'][] = ['objective', 'addition', 'retinoscop', 'retinoscop-dilation', 'uncorrected-va', 'keratometer', 'keratometer-full', 'cover-test', 'schirmer-test', 'contact-lens-diameters', 'contact-lens-details', 'keratometer-contact-lens', 'fusion-range', 'maddox-rod', 'stereo-test'];
 
 export interface CardItem {
   id: string
-  type: 'exam-details' | 'old-ref' | 'old-refraction' | 'old-refraction-extension' | 'objective' | 'subjective' | 'final-subjective' | 'final-prescription' | 'compact-prescription' | 'addition' | 'retinoscop' | 'retinoscop-dilation' | 'uncorrected-va' | 'keratometer' | 'keratometer-full' | 'corneal-topography' | 'cover-test' | 'notes' | 'anamnesis' | 'schirmer-test' | 'contact-lens-diameters' | 'contact-lens-details' | 'keratometer-contact-lens' | 'contact-lens-exam' | 'contact-lens-order' | 'sensation-vision-stability' | 'diopter-adjustment-panel' | 'fusion-range'
+  type: 'exam-details' | 'old-ref' | 'old-refraction' | 'old-refraction-extension' | 'objective' | 'subjective' | 'final-subjective' | 'final-prescription' | 'compact-prescription' | 'addition' | 'retinoscop' | 'retinoscop-dilation' | 'uncorrected-va' | 'keratometer' | 'keratometer-full' | 'corneal-topography' | 'cover-test' | 'notes' | 'anamnesis' | 'schirmer-test' | 'contact-lens-diameters' | 'contact-lens-details' | 'keratometer-contact-lens' | 'contact-lens-exam' | 'contact-lens-order' | 'sensation-vision-stability' | 'diopter-adjustment-panel' | 'fusion-range' | 'maddox-rod' | 'stereo-test'
   showEyeLabels?: boolean
   title?: string
 }
@@ -192,6 +194,8 @@ export const getColumnCount = (type: CardItem['type'], mode: 'editor' | 'detail'
     case 'over-refraction': return 8
     case 'sensation-vision-stability': return 5
     case 'fusion-range': return 5
+    case 'maddox-rod': return 5
+    case 'stereo-test': return 2
     default: return 1
   }
 }
@@ -414,6 +418,7 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
       case 'sensation-vision-stability': return emptySensationVisionStabilityExam
       case 'diopter-adjustment-panel': return {}
       case 'fusion-range': return emptyFusionRangeData
+      case 'maddox-rod': return {}
       default: return {}
     }
   }
@@ -1072,7 +1077,33 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
             fusionRangeData={mode === 'editor' ? {} : (detailProps!.examFormData['fusion-range'] as any)}
             onFusionRangeChange={mode === 'editor' ? () => {} : detailProps!.fieldHandlers['fusion-range']}
             isEditing={mode === 'editor' ? false : detailProps!.isEditing}
-            needsMiddleSpacer={mode === 'detail' ? true : false}
+            needsMiddleSpacer={hasSiblingWithMiddleRow && componentsDontHaveMiddleRow.includes(item.type)}
+          />
+        </div>
+      );
+
+    case 'maddox-rod':
+      return (
+        <div className="relative">
+          {toolbox}
+          <MaddoxRodTab
+            maddoxRodData={mode === 'editor' ? {} : (detailProps!.examFormData['maddox-rod'] as any)}
+            onMaddoxRodChange={mode === 'editor' ? () => {} : detailProps!.fieldHandlers['maddox-rod']}
+            isEditing={mode === 'editor' ? false : detailProps!.isEditing}
+            needsMiddleSpacer={hasSiblingWithMiddleRow && componentsDontHaveMiddleRow.includes(item.type)}
+          />
+        </div>
+      );
+
+    case 'stereo-test':
+      return (
+        <div className="relative">
+          {toolbox}
+          <StereoTestTab
+            stereoTestData={mode === 'editor' ? {} : (detailProps!.examFormData['stereo-test'] as any)}
+            onStereoTestChange={mode === 'editor' ? () => {} : detailProps!.fieldHandlers['stereo-test']}
+            isEditing={mode === 'editor' ? false : detailProps!.isEditing}
+            needsMiddleSpacer={hasSiblingWithMiddleRow && componentsDontHaveMiddleRow.includes(item.type)}
           />
         </div>
       );

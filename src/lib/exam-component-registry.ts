@@ -29,9 +29,13 @@ import {
   SensationVisionStabilityExam,
   DiopterAdjustmentPanel,
   FusionRangeExam,
+  MaddoxRodExam,
+  StereoTestExam,
 } from "@/lib/db/schema"
 import { createOldContactLenses, getOldContactLensesByLayoutInstanceId, updateOldContactLenses } from "./db/old-contact-lenses-db";
 import { createOverRefraction, getOverRefractionByLayoutInstanceId, updateOverRefraction } from "./db/over-refraction-db";
+import { createMaddoxRodExam, getMaddoxRodExamByLayoutInstanceId, updateMaddoxRodExam } from "./db/maddox-rod-db";
+import { createStereoTestExam, getStereoTestExamByLayoutInstanceId, updateStereoTestExam } from "./db/stereo-test-db";
 
 export type ExamComponentType =
   | 'exam-details'
@@ -64,6 +68,8 @@ export type ExamComponentType =
   | 'sensation-vision-stability'
   | 'diopter-adjustment-panel'
   | 'fusion-range'
+  | 'maddox-rod'
+  | 'stereo-test'
 
 export interface ExamComponentConfig<T = unknown> {
   name: string
@@ -1056,6 +1062,43 @@ registry.register<FusionRangeExam>('fusion-range', {
     const num = Number(rawValue);
     if (isNaN(num)) return 'ערך לא חוקי';
     return num;
+  },
+  hasData: (data) => Object.values(data).some(value => value !== undefined && value !== null && value !== '')
+})
+
+registry.register<MaddoxRodExam>('maddox-rod', {
+  name: 'מקלון מדוקס',
+  getData: (layoutInstanceId: number) => getMaddoxRodExamByLayoutInstanceId(layoutInstanceId),
+  createData: (data: Omit<MaddoxRodExam, 'id'>) => createMaddoxRodExam(data),
+  updateData: (data: MaddoxRodExam) => updateMaddoxRodExam(data),
+  getNumericFields: () => [
+    'c_r_h', 'c_r_v', 'c_l_h', 'c_l_v', 'wc_r_h', 'wc_r_v', 'wc_l_h', 'wc_l_v'
+  ],
+  getIntegerFields: () => [],
+  validateField: (field, rawValue) => {
+    if (rawValue === '' || rawValue === undefined || rawValue === null) return undefined;
+    const num = Number(rawValue);
+    if (isNaN(num)) return 'ערך לא חוקי';
+    return num;
+  },
+  hasData: (data) => Object.values(data).some(value => value !== undefined && value !== null && value !== '')
+})
+
+registry.register<StereoTestExam>('stereo-test', {
+  name: 'בדיקת סטריאו',
+  getData: (layoutInstanceId: number) => getStereoTestExamByLayoutInstanceId(layoutInstanceId),
+  createData: (data: Omit<StereoTestExam, 'id'>) => createStereoTestExam(data),
+  updateData: (data: StereoTestExam) => updateStereoTestExam(data),
+  getNumericFields: () => ['circle_score', 'circle_max'],
+  getIntegerFields: () => ['circle_score', 'circle_max'],
+  validateField: (field, rawValue) => {
+    if (field === 'fly_result') {
+      return rawValue === 'true' || rawValue === '1' || rawValue === true;
+    } else if (field === 'circle_score' || field === 'circle_max') {
+      const val = parseInt(rawValue, 10);
+      return rawValue === '' || isNaN(val) ? undefined : val;
+    }
+    return rawValue === '' ? undefined : rawValue;
   },
   hasData: (data) => Object.values(data).some(value => value !== undefined && value !== null && value !== '')
 })

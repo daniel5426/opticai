@@ -281,6 +281,7 @@ export default function ExamLayoutEditorPage() {
   const [isEditingName, setIsEditingName] = useState(false)
   const [isEditing, setIsEditing] = useState(true)
   const [activeId, setActiveId] = useState<UniqueIdentifier | null>(null)
+  const [isDefault, setIsDefault] = useState(false)
   
   const [cardRows, setCardRows] = useState<CardRow[]>([
     { id: 'row-1', cards: [{ id: 'exam-details-1', type: 'exam-details' }] },
@@ -354,6 +355,7 @@ export default function ExamLayoutEditorPage() {
         if (layout) {
           setLayoutName(layout.name)
           setLayoutType(layout.type || 'exam')
+          setIsDefault(layout.is_default ?? false)
           if (layout.layout_data) {
             const parsedLayout = JSON.parse(layout.layout_data)
             if (Array.isArray(parsedLayout)) {
@@ -546,7 +548,7 @@ export default function ExamLayoutEditorPage() {
           rows: cardRows,
           customWidths: customWidths
         }),
-        is_default: false
+        is_default: isDefault
       }
 
       let result

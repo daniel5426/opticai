@@ -75,7 +75,9 @@ import {
   OverRefraction,
   SensationVisionStabilityExam,
   DiopterAdjustmentPanel,
-  FusionRangeExam
+  FusionRangeExam,
+  MaddoxRodExam,
+  StereoTestExam
 } from './schema';
 import * as usersDb from './users-db'
 import * as workShiftsDb from './work-shifts-db'
@@ -6608,6 +6610,80 @@ class DatabaseService {
       data.nv_base_in_recovery,
       data.nv_base_out,
       data.nv_base_out_recovery,
+      data.id
+    );
+    return data;
+  }
+
+  createMaddoxRodExam(data: Omit<MaddoxRodExam, 'id'>): MaddoxRodExam | null {
+    if (!this.db) return null;
+    const stmt = this.db.prepare(`INSERT INTO maddox_rod_exams (layout_instance_id, c_r_h, c_r_v, c_l_h, c_l_v, wc_r_h, wc_r_v, wc_l_h, wc_l_v) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+    const result = stmt.run(
+      data.layout_instance_id,
+      data.c_r_h,
+      data.c_r_v,
+      data.c_l_h,
+      data.c_l_v,
+      data.wc_r_h,
+      data.wc_r_v,
+      data.wc_l_h,
+      data.wc_l_v
+    );
+    return { id: result.lastInsertRowid as number, ...data };
+  }
+
+  getMaddoxRodExamByLayoutInstanceId(layoutInstanceId: number): MaddoxRodExam | null {
+    if (!this.db) return null;
+    const row = this.db.prepare(`SELECT * FROM maddox_rod_exams WHERE layout_instance_id = ?`).get(layoutInstanceId);
+    return row || null;
+  }
+
+  updateMaddoxRodExam(data: MaddoxRodExam): MaddoxRodExam | null {
+    if (!this.db || !data.id) return null;
+    this.db.prepare(`UPDATE maddox_rod_exams SET c_r_h = ?, c_r_v = ?, c_l_h = ?, c_l_v = ?, wc_r_h = ?, wc_r_v = ?, wc_l_h = ?, wc_l_v = ? WHERE id = ?`).run(
+      data.c_r_h,
+      data.c_r_v,
+      data.c_l_h,
+      data.c_l_v,
+      data.wc_r_h,
+      data.wc_r_v,
+      data.wc_l_h,
+      data.wc_l_v,
+      data.id
+    );
+    return data;
+  }
+
+  createStereoTestExam(data: Omit<StereoTestExam, 'id'>): StereoTestExam | null {
+    if (!this.db) return null;
+    const stmt = this.db.prepare(`INSERT INTO stereo_test_exams (layout_instance_id, fly_result, circle_score, circle_max) VALUES (?, ?, ?, ?)`);
+    const result = stmt.run(
+      data.layout_instance_id,
+      data.fly_result ? 1 : 0,
+      data.circle_score,
+      data.circle_max
+    );
+    return { id: result.lastInsertRowid as number, ...data };
+  }
+
+  getStereoTestExamByLayoutInstanceId(layoutInstanceId: number): StereoTestExam | null {
+    if (!this.db) return null;
+    const row = this.db.prepare(`SELECT * FROM stereo_test_exams WHERE layout_instance_id = ?`).get(layoutInstanceId);
+    if (row) {
+      return {
+        ...row,
+        fly_result: row.fly_result === 1
+      };
+    }
+    return null;
+  }
+
+  updateStereoTestExam(data: StereoTestExam): StereoTestExam | null {
+    if (!this.db || !data.id) return null;
+    this.db.prepare(`UPDATE stereo_test_exams SET fly_result = ?, circle_score = ?, circle_max = ? WHERE id = ?`).run(
+      data.fly_result ? 1 : 0,
+      data.circle_score,
+      data.circle_max,
       data.id
     );
     return data;
