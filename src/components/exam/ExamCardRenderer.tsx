@@ -1105,6 +1105,19 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
         </div>
       );
 
+    case 'ocular-motor-assessment':
+      return (
+        <div className="relative">
+          {toolbox}
+          <OcularMotorAssessmentTab
+            ocularMotorAssessmentData={mode === 'editor' ? {} : (detailProps!.examFormData['ocular-motor-assessment'] as any)}
+            onOcularMotorAssessmentChange={mode === 'editor' ? () => {} : detailProps!.fieldHandlers['ocular-motor-assessment']}
+            isEditing={mode === 'editor' ? false : detailProps!.isEditing}
+            needsMiddleSpacer={hasSiblingWithMiddleRow && componentsDontHaveMiddleRow.includes(item.type)}
+          />
+        </div>
+      );
+
     default:
       return null
   }
