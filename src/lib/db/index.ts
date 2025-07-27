@@ -77,7 +77,9 @@ import {
   DiopterAdjustmentPanel,
   FusionRangeExam,
   MaddoxRodExam,
-  StereoTestExam
+  StereoTestExam,
+  RGExam,
+  OcularMotorAssessmentExam
 } from './schema';
 import * as usersDb from './users-db'
 import * as workShiftsDb from './work-shifts-db'
@@ -6684,6 +6686,66 @@ class DatabaseService {
       data.fly_result ? 1 : 0,
       data.circle_score,
       data.circle_max,
+      data.id
+    );
+    return data;
+  }
+
+  createRGExam(data: Omit<RGExam, 'id'>): RGExam | null {
+    if (!this.db) return null;
+    const stmt = this.db.prepare(`INSERT INTO rg_exams (layout_instance_id, rg_status, suppressed_eye) VALUES (?, ?, ?)`);
+    const result = stmt.run(
+      data.layout_instance_id,
+      data.rg_status,
+      data.suppressed_eye
+    );
+    return { id: result.lastInsertRowid as number, ...data };
+  }
+
+  getRGExamByLayoutInstanceId(layoutInstanceId: number): RGExam | null {
+    if (!this.db) return null;
+    const row = this.db.prepare(`SELECT * FROM rg_exams WHERE layout_instance_id = ?`).get(layoutInstanceId);
+    return row || null;
+  }
+
+  updateRGExam(data: RGExam): RGExam | null {
+    if (!this.db || !data.id) return null;
+    this.db.prepare(`UPDATE rg_exams SET rg_status = ?, suppressed_eye = ? WHERE id = ?`).run(
+      data.rg_status,
+      data.suppressed_eye,
+      data.id
+    );
+    return data;
+  }
+
+  createOcularMotorAssessmentExam(data: Omit<OcularMotorAssessmentExam, 'id'>): OcularMotorAssessmentExam | null {
+    if (!this.db) return null;
+    const stmt = this.db.prepare(`INSERT INTO ocular_motor_assessment_exams (layout_instance_id, ocular_motility, acc_od, acc_os, npc_break, npc_recovery) VALUES (?, ?, ?, ?, ?, ?)`);
+    const result = stmt.run(
+      data.layout_instance_id,
+      data.ocular_motility,
+      data.acc_od,
+      data.acc_os,
+      data.npc_break,
+      data.npc_recovery
+    );
+    return { id: result.lastInsertRowid as number, ...data };
+  }
+
+  getOcularMotorAssessmentExamByLayoutInstanceId(layoutInstanceId: number): OcularMotorAssessmentExam | null {
+    if (!this.db) return null;
+    const row = this.db.prepare(`SELECT * FROM ocular_motor_assessment_exams WHERE layout_instance_id = ?`).get(layoutInstanceId);
+    return row || null;
+  }
+
+  updateOcularMotorAssessmentExam(data: OcularMotorAssessmentExam): OcularMotorAssessmentExam | null {
+    if (!this.db || !data.id) return null;
+    this.db.prepare(`UPDATE ocular_motor_assessment_exams SET ocular_motility = ?, acc_od = ?, acc_os = ?, npc_break = ?, npc_recovery = ? WHERE id = ?`).run(
+      data.ocular_motility,
+      data.acc_od,
+      data.acc_os,
+      data.npc_break,
+      data.npc_recovery,
       data.id
     );
     return data;

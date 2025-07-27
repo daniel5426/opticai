@@ -43,6 +43,13 @@ export function StereoTestTab({ stereoTestData, onStereoTestChange, isEditing, n
               </SelectContent>
             </Select>
 
+            {needsMiddleSpacer && (
+              <>
+                <div className="h-8" />
+                <div className="h-8" />
+              </>
+            )}
+
             <div className="text-sm text-muted-foreground font-medium text-right">Circle</div>
             <div className="flex items-center gap-1">
               <Input

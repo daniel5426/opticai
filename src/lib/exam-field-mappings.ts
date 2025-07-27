@@ -23,7 +23,9 @@ import {
   ContactLensExam,
   ContactLensOrder,
   MaddoxRodExam,
-  StereoTestExam
+  StereoTestExam,
+  RGExam,
+  OcularMotorAssessmentExam
 } from './db/schema'
 
 export type ExamComponentType =
@@ -58,7 +60,9 @@ export type ExamComponentType =
   | 'diopter-adjustment-panel'
   | 'fusion-range'
   | 'maddox-rod'
-  | 'stereo-test';
+  | 'stereo-test'
+  | 'rg'
+  | 'ocular-motor-assessment';
 
 export const fullExamsList: ExamComponentType[] = [
   'exam-details',
@@ -93,6 +97,8 @@ export const fullExamsList: ExamComponentType[] = [
   'fusion-range',
   'maddox-rod',
   'stereo-test',
+  'rg',
+  'ocular-motor-assessment',
 ];
 
 export const examComponentTypeToExamFields: Record<ExamComponentType, ExamComponentType[]> = {
@@ -128,9 +134,10 @@ export const examComponentTypeToExamFields: Record<ExamComponentType, ExamCompon
   'fusion-range': [],
   'maddox-rod': [],
   'stereo-test': [],
+  'rg': [],
 };
 
-export type ExamDataType = OpticalExam | OldRefExam | OldRefractionExam | OldRefractionExtensionExam | ObjectiveExam | SubjectiveExam | FinalSubjectiveExam | FinalPrescriptionExam | CompactPrescriptionExam | AdditionExam | RetinoscopExam | RetinoscopDilationExam | UncorrectedVAExam | KeratometerExam | KeratometerFullExam | CornealTopographyExam | CoverTestExam | SchirmerTestExam | ContactLensDiameters | ContactLensDetails | KeratometerContactLens | ContactLensExam | ContactLensOrder | StereoTestExam
+export type ExamDataType = OpticalExam | OldRefExam | OldRefractionExam | OldRefractionExtensionExam | ObjectiveExam | SubjectiveExam | FinalSubjectiveExam | FinalPrescriptionExam | CompactPrescriptionExam | AdditionExam | RetinoscopExam | RetinoscopDilationExam | UncorrectedVAExam | KeratometerExam | KeratometerFullExam | CornealTopographyExam | CoverTestExam | SchirmerTestExam | ContactLensDiameters | ContactLensDetails | KeratometerContactLens | ContactLensExam | ContactLensOrder | StereoTestExam | RGExam
 
 export interface FieldMapping {
   [sourceField: string]: string | null
@@ -174,6 +181,7 @@ export class ExamFieldMapper {
     'fusion-range': fullExamsList,
     'maddox-rod': ['maddox-rod'],
     'stereo-test': ['stereo-test'],
+    'rg': ['rg'],
   }
 
   private static explicitMappings: Partial<Record<ExamComponentType, ComponentFieldMappings>> = {
@@ -284,6 +292,14 @@ export class ExamFieldMapper {
       case 'stereo-test':
         return [
           'fly_result', 'circle_score', 'circle_max'
+        ];
+      case 'rg':
+        return [
+          'rg_status', 'suppressed_eye'
+        ];
+      case 'ocular-motor-assessment':
+        return [
+          'ocular_motility', 'acc_od', 'acc_os', 'npc_break', 'npc_recovery'
         ];
       default:
         return []

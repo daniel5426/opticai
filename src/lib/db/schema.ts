@@ -1031,6 +1031,23 @@ export interface StereoTestExam {
   circle_max?: number;
 }
 
+export interface RGExam {
+  id?: number;
+  layout_instance_id: number;
+  rg_status?: "suppression" | "fusion" | "diplopia";
+  suppressed_eye?: "R" | "G" | null;
+}
+
+export interface OcularMotorAssessmentExam {
+  id?: number;
+  layout_instance_id: number;
+  ocular_motility?: string;
+  acc_od?: number;
+  acc_os?: number;
+  npc_break?: number;
+  npc_recovery?: number;
+}
+
 export const createTables = (db: Database): void => {
   // Create families table
   db.exec(`
@@ -2687,6 +2704,25 @@ export const createTables = (db: Database): void => {
     fly_result INTEGER,
     circle_score INTEGER,
     circle_max INTEGER,
+    FOREIGN KEY (layout_instance_id) REFERENCES exam_layout_instances(id) ON DELETE CASCADE
+  )`).run();
+
+  db.prepare(`CREATE TABLE IF NOT EXISTS ocular_motor_assessment_exams (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    layout_instance_id INTEGER NOT NULL,
+    ocular_motility TEXT,
+    acc_od REAL,
+    acc_os REAL,
+    npc_break REAL,
+    npc_recovery REAL,
+    FOREIGN KEY (layout_instance_id) REFERENCES exam_layout_instances(id) ON DELETE CASCADE
+  )`).run();
+
+  db.prepare(`CREATE TABLE IF NOT EXISTS rg_exams (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    layout_instance_id INTEGER NOT NULL,
+    rg_status TEXT CHECK(rg_status IN ('suppression', 'fusion', 'diplopia')),
+    suppressed_eye TEXT CHECK(suppressed_eye IN ('R', 'G')) DEFAULT NULL,
     FOREIGN KEY (layout_instance_id) REFERENCES exam_layout_instances(id) ON DELETE CASCADE
   )`).run();
 };

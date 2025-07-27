@@ -31,11 +31,15 @@ import {
   FusionRangeExam,
   MaddoxRodExam,
   StereoTestExam,
+  RGExam,
+  OcularMotorAssessmentExam,
 } from "@/lib/db/schema"
 import { createOldContactLenses, getOldContactLensesByLayoutInstanceId, updateOldContactLenses } from "./db/old-contact-lenses-db";
 import { createOverRefraction, getOverRefractionByLayoutInstanceId, updateOverRefraction } from "./db/over-refraction-db";
 import { createMaddoxRodExam, getMaddoxRodExamByLayoutInstanceId, updateMaddoxRodExam } from "./db/maddox-rod-db";
 import { createStereoTestExam, getStereoTestExamByLayoutInstanceId, updateStereoTestExam } from "./db/stereo-test-db";
+import { createRGExam, getRGExamByLayoutInstanceId, updateRGExam } from "./db/rg-db";
+import { createOcularMotorAssessmentExam, getOcularMotorAssessmentExamByLayoutInstanceId, updateOcularMotorAssessmentExam } from "./db/ocular-motor-assessment-db";
 
 export type ExamComponentType =
   | 'exam-details'
@@ -70,6 +74,8 @@ export type ExamComponentType =
   | 'fusion-range'
   | 'maddox-rod'
   | 'stereo-test'
+  | 'rg'
+  | 'ocular-motor-assessment'
 
 export interface ExamComponentConfig<T = unknown> {
   name: string
@@ -1096,6 +1102,43 @@ registry.register<StereoTestExam>('stereo-test', {
       return rawValue === 'true' || rawValue === '1' || rawValue === true;
     } else if (field === 'circle_score' || field === 'circle_max') {
       const val = parseInt(rawValue, 10);
+      return rawValue === '' || isNaN(val) ? undefined : val;
+    }
+    return rawValue === '' ? undefined : rawValue;
+  },
+  hasData: (data) => Object.values(data).some(value => value !== undefined && value !== null && value !== '')
+})
+
+registry.register<RGExam>('rg', {
+  name: 'R/G',
+  getData: (layoutInstanceId: number) => getRGExamByLayoutInstanceId(layoutInstanceId),
+  createData: (data: Omit<RGExam, 'id'>) => createRGExam(data),
+  updateData: (data: RGExam) => updateRGExam(data),
+  getNumericFields: () => [],
+  getIntegerFields: () => [],
+  validateField: (field, rawValue) => {
+    if (field === 'rg_status') {
+      return rawValue === '' ? undefined : rawValue;
+    } else if (field === 'suppressed_eye') {
+      return rawValue === '' ? undefined : rawValue;
+    }
+    return rawValue === '' ? undefined : rawValue;
+  },
+  hasData: (data) => Object.values(data).some(value => value !== undefined && value !== null && value !== '')
+})
+
+registry.register<OcularMotorAssessmentExam>('ocular-motor-assessment', {
+  name: 'בדיקת תנועות עיניים',
+  getData: (layoutInstanceId: number) => getOcularMotorAssessmentExamByLayoutInstanceId(layoutInstanceId),
+  createData: (data: Omit<OcularMotorAssessmentExam, 'id'>) => createOcularMotorAssessmentExam(data),
+  updateData: (data: OcularMotorAssessmentExam) => updateOcularMotorAssessmentExam(data),
+  getNumericFields: () => ['acc_od', 'acc_os', 'npc_break', 'npc_recovery'],
+  getIntegerFields: () => [],
+  validateField: (field, rawValue) => {
+    if (field === 'ocular_motility') {
+      return rawValue === '' ? undefined : rawValue;
+    } else if (['acc_od', 'acc_os', 'npc_break', 'npc_recovery'].includes(field as string)) {
+      const val = parseFloat(rawValue);
       return rawValue === '' || isNaN(val) ? undefined : val;
     }
     return rawValue === '' ? undefined : rawValue;

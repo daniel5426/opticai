@@ -1,6 +1,7 @@
 import React, { useState } from "react"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import { OldRefTab } from "@/components/exam/OldRefTab"
 import { OldRefractionTab } from "@/components/exam/OldRefractionTab"
 import { OldRefractionExtensionTab } from "@/components/exam/OldRefractionExtensionTab"
 import { ObjectiveTab } from "@/components/exam/ObjectiveTab"
@@ -24,7 +25,7 @@ import { KeratometerContactLensTab } from "@/components/exam/KeratometerContactL
 import { ContactLensExamTab } from "@/components/exam/ContactLensExamTab"
 import { ContactLensOrderTab } from "@/components/exam/ContactLensOrderTab"
 import { Edit3 } from "lucide-react"
-import { OpticalExam, OldRefractionExam, OldRefractionExtensionExam, ObjectiveExam, SubjectiveExam, AdditionExam, FinalSubjectiveExam, FinalPrescriptionExam, CompactPrescriptionExam, RetinoscopExam, RetinoscopDilationExam, UncorrectedVAExam, KeratometerExam, KeratometerFullExam, CornealTopographyExam, CoverTestExam, AnamnesisExam, NotesExam, SchirmerTestExam, OldRefExam, ContactLensDiameters, ContactLensDetails, KeratometerContactLens, ContactLensExam, ContactLensOrder, SensationVisionStabilityExam, FusionRangeExam, MaddoxRodExam, StereoTestExam } from "@/lib/db/schema"
+import { OpticalExam, OldRefractionExam, OldRefractionExtensionExam, ObjectiveExam, SubjectiveExam, AdditionExam, FinalSubjectiveExam, FinalPrescriptionExam, CompactPrescriptionExam, RetinoscopExam, RetinoscopDilationExam, UncorrectedVAExam, KeratometerExam, KeratometerFullExam, CornealTopographyExam, CoverTestExam, AnamnesisExam, NotesExam, SchirmerTestExam, OldRefExam, ContactLensDiameters, ContactLensDetails, KeratometerContactLens, ContactLensExam, ContactLensOrder, SensationVisionStabilityExam, FusionRangeExam, MaddoxRodExam, StereoTestExam, RGExam, OcularMotorAssessmentExam } from "@/lib/db/schema"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { UserSelect } from "@/components/ui/user-select"
 import { ExamToolbox, ToolboxActions } from "@/components/exam/ExamToolbox"
@@ -40,6 +41,8 @@ import { DiopterAdjustmentPanelTab } from "@/components/exam/DiopterAdjustmentPa
 import { FusionRangeTab } from "@/components/exam/FusionRangeTab"
 import { MaddoxRodTab } from "@/components/exam/MaddoxRodTab"
 import { StereoTestTab } from "@/components/exam/StereoTestTab"
+import { RGTab } from "@/components/exam/RGTab"
+import { OcularMotorAssessmentTab } from "@/components/exam/OcularMotorAssessmentTab"
 import { v4 as uuidv4 } from 'uuid';
 import { deleteCoverTestExam } from '@/lib/db/cover-test-db';
 import { createCoverTestExam } from '@/lib/db/cover-test-db';
@@ -48,11 +51,11 @@ import { createCoverTestExam } from '@/lib/db/cover-test-db';
 type Exam = OpticalExam;
 
 const componentsWithMiddleRow: CardItem['type'][] = ['old-refraction', 'old-refraction-extension', 'subjective', 'final-subjective', 'final-prescription', 'compact-prescription', 'corneal-topography', 'anamnesis', 'contact-lens-exam', 'contact-lens-diameters', 'over-refraction', 'old-contact-lenses'];
-const componentsDontHaveMiddleRow: CardItem['type'][] = ['objective', 'addition', 'retinoscop', 'retinoscop-dilation', 'uncorrected-va', 'keratometer', 'keratometer-full', 'cover-test', 'schirmer-test', 'contact-lens-diameters', 'contact-lens-details', 'keratometer-contact-lens', 'fusion-range', 'maddox-rod', 'stereo-test'];
+const componentsDontHaveMiddleRow: CardItem['type'][] = ['objective', 'addition', 'retinoscop', 'retinoscop-dilation', 'uncorrected-va', 'keratometer', 'keratometer-full', 'cover-test', 'schirmer-test', 'contact-lens-diameters', 'contact-lens-details', 'keratometer-contact-lens', 'fusion-range', 'maddox-rod', 'stereo-test', 'rg', 'ocular-motor-assessment'];
 
 export interface CardItem {
   id: string
-  type: 'exam-details' | 'old-ref' | 'old-refraction' | 'old-refraction-extension' | 'objective' | 'subjective' | 'final-subjective' | 'final-prescription' | 'compact-prescription' | 'addition' | 'retinoscop' | 'retinoscop-dilation' | 'uncorrected-va' | 'keratometer' | 'keratometer-full' | 'corneal-topography' | 'cover-test' | 'notes' | 'anamnesis' | 'schirmer-test' | 'contact-lens-diameters' | 'contact-lens-details' | 'keratometer-contact-lens' | 'contact-lens-exam' | 'contact-lens-order' | 'sensation-vision-stability' | 'diopter-adjustment-panel' | 'fusion-range' | 'maddox-rod' | 'stereo-test'
+  type: 'exam-details' | 'old-ref' | 'old-refraction' | 'old-refraction-extension' | 'objective' | 'subjective' | 'final-subjective' | 'final-prescription' | 'compact-prescription' | 'addition' | 'retinoscop' | 'retinoscop-dilation' | 'uncorrected-va' | 'keratometer' | 'keratometer-full' | 'corneal-topography' | 'cover-test' | 'notes' | 'anamnesis' | 'schirmer-test' | 'contact-lens-diameters' | 'contact-lens-details' | 'keratometer-contact-lens' | 'contact-lens-exam' | 'contact-lens-order' | 'sensation-vision-stability' | 'diopter-adjustment-panel' | 'fusion-range' | 'maddox-rod' | 'stereo-test' | 'rg' | 'ocular-motor-assessment'
   showEyeLabels?: boolean
   title?: string
 }
@@ -196,6 +199,8 @@ export const getColumnCount = (type: CardItem['type'], mode: 'editor' | 'detail'
     case 'fusion-range': return 5
     case 'maddox-rod': return 5
     case 'stereo-test': return 2
+    case 'rg': return 2
+    case 'ocular-motor-assessment': return 3
     default: return 1
   }
 }
@@ -419,6 +424,7 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
       case 'diopter-adjustment-panel': return {}
       case 'fusion-range': return emptyFusionRangeData
       case 'maddox-rod': return {}
+      case 'ocular-motor-assessment': return {}
       default: return {}
     }
   }
@@ -519,61 +525,14 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
 
     case 'old-ref':
       return (
-        <Card className="w-full p-4 pt-3 shadow-md border-none">
-          <div className="grid grid-cols-3 gap-x-3 gap-y-2 w-full" dir="rtl">
-            <div className="col-span-1">
-              <label className="font-semibold text-base">תפקיד</label>
-              <div className="h-1"></div>
-              {mode === 'editor' ? (
-                <div className="border h-9 px-3 rounded-md text-sm flex items-center bg-accent/50">דוגמה</div>
-              ) : detailProps?.isEditing ? (
-                <Input
-                  type="text"
-                  name="role"
-                  value={getExamData('old-ref').role || ''}
-                  onChange={(e) => getChangeHandler('old-ref')('role', e.target.value)}
-                  className="text-sm pt-1 bg-white"
-                />
-              ) : (
-                <div className="border h-9 px-3 rounded-md text-sm flex items-center bg-accent/50">{getExamData('old-ref').role || ''}</div>
-              )}
-            </div>
-            <div className="col-span-1">
-              <label className="font-semibold text-base">מקור</label>
-              <div className="h-1"></div>
-              {mode === 'editor' ? (
-                <div className="border h-9 px-3 rounded-md text-sm flex items-center bg-accent/50">דוגמה</div>
-              ) : detailProps?.isEditing ? (
-                <Input
-                  type="text"
-                  name="source"
-                  value={getExamData('old-ref').source || ''}
-                  onChange={(e) => getChangeHandler('old-ref')('source', e.target.value)}
-                  className="text-sm bg-white"
-                />
-              ) : (
-                <div className="border h-9 px-3 rounded-md text-sm flex items-center bg-accent/50">{getExamData('old-ref').source || ''}</div>
-              )}
-            </div>
-            <div className="col-span-1">
-              <label className="font-semibold text-base">עדשות</label>
-              <div className="h-1"></div>
-              {mode === 'editor' ? (
-                <div className="border h-9 px-3 rounded-md text-sm flex items-center bg-accent/50">דוגמה</div>
-              ) : detailProps?.isEditing ? (
-                <Input
-                  type="text"
-                  name="contacts"
-                  value={getExamData('old-ref').contacts || ''}
-                  onChange={(e) => getChangeHandler('old-ref')('contacts', e.target.value)}
-                  className="text-sm bg-white"
-                />
-              ) : (
-                <div className="border h-9 px-3 rounded-md text-sm flex items-center bg-accent/50">{getExamData('old-ref').contacts || ''}</div>
-              )}
-            </div>
-          </div>
-        </Card>
+        <div className={`relative h-full ${matchHeight ? 'flex flex-col' : ''}`}>
+          {toolbox}
+          <OldRefTab
+            oldRefData={getExamData('old-ref')}
+            onOldRefChange={getChangeHandler('old-ref')}
+            isEditing={mode === 'detail' ? detailProps!.isEditing : false}
+          />
+        </div>
       )
 
     case 'old-refraction':
@@ -1102,6 +1061,19 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
           <StereoTestTab
             stereoTestData={mode === 'editor' ? {} : (detailProps!.examFormData['stereo-test'] as any)}
             onStereoTestChange={mode === 'editor' ? () => {} : detailProps!.fieldHandlers['stereo-test']}
+            isEditing={mode === 'editor' ? false : detailProps!.isEditing}
+            needsMiddleSpacer={hasSiblingWithMiddleRow && componentsDontHaveMiddleRow.includes(item.type)}
+          />
+        </div>
+      );
+
+    case 'rg':
+      return (
+        <div className="relative">
+          {toolbox}
+          <RGTab
+            rgData={mode === 'editor' ? {} : (detailProps!.examFormData['rg'] as any)}
+            onRGChange={mode === 'editor' ? () => {} : detailProps!.fieldHandlers['rg']}
             isEditing={mode === 'editor' ? false : detailProps!.isEditing}
             needsMiddleSpacer={hasSiblingWithMiddleRow && componentsDontHaveMiddleRow.includes(item.type)}
           />
