@@ -9,9 +9,9 @@ export async function getAppointmentsByClient(clientId: number): Promise<Appoint
   }
 }
 
-export async function getAllAppointments(): Promise<Appointment[]> {
+export async function getAllAppointments(clinicId?: number): Promise<Appointment[]> {
   try {
-    return await window.electronAPI.db('getAllAppointments');
+    return await window.electronAPI.db('getAllAppointments', clinicId);
   } catch (error) {
     console.error('Error getting all appointments:', error);
     return [];

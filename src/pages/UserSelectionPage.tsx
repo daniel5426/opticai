@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { User } from '@/lib/db/schema'
-import { getAllUsers } from '@/lib/db/users-db'
 import { useUser } from '@/contexts/UserContext'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -17,7 +16,8 @@ export default function UserSelectionPage() {
   const [password, setPassword] = useState('')
   const [isLoggingIn, setIsLoggingIn] = useState(false)
   const [loadedImages, setLoadedImages] = useState<Set<string>>(new Set())
-  const { login } = useUser()
+  const [selectedClinic, setSelectedClinic] = useState<any>(null)
+  const { login, setCurrentClinic } = useUser()
 
   // Preload profile images for better performance
   const preloadImages = useMemo(() => {
@@ -77,7 +77,17 @@ export default function UserSelectionPage() {
   useEffect(() => {
     const loadUsers = async () => {
       try {
-        const usersData = await getAllUsers()
+        // Get the selected clinic from sessionStorage
+        const selectedClinicData = sessionStorage.getItem('selectedClinic')
+        if (!selectedClinicData) {
+          toast.error('לא נמצא מידע על המרפאה הנבחרת')
+          setLoading(false)
+          return
+        }
+
+        const clinic = JSON.parse(selectedClinicData)
+        setSelectedClinic(clinic)
+        const usersData = await window.electronAPI.db('getUsersByClinicId', clinic.id)
         setUsers(usersData)
       } catch (error) {
         console.error('Error loading users:', error)
@@ -102,9 +112,14 @@ export default function UserSelectionPage() {
     try {
       const hasPassword = selectedUser.password && selectedUser.password.trim() !== ''
       const success = await login(
-        selectedUser.username, 
+        selectedUser.username,
         hasPassword ? password : undefined
       )
+      
+      if (success && selectedClinic) {
+        // Set the clinic context after successful login
+        setCurrentClinic(selectedClinic)
+      }
       
       if (!success) {
         toast.error('שגיאה בהתחברות - בדוק את הסיסמה')
@@ -155,6 +170,16 @@ export default function UserSelectionPage() {
         {!selectedUser ? (
           <>
             <div className="text-center mb-8">
+              {selectedClinic && (
+                <div className="mb-4">
+                  <Badge variant="outline" className="text-sm px-3 py-1 mb-2">
+                    {selectedClinic.name}
+                  </Badge>
+                  <p className="text-xs text-slate-500 dark:text-slate-400" dir="rtl">
+                    מרפאה נבחרת
+                  </p>
+                </div>
+              )}
               <h1 className="text-3xl font-medium text-slate-900 dark:text-slate-100 mb-2" dir="rtl">
                 בחר משתמש
               </h1>

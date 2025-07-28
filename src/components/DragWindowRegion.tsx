@@ -7,21 +7,32 @@ import React, { type ReactNode } from "react";
 import { ModeToggle } from "@/components/mode-toggle";
 import { GlobalSearch } from "@/components/GlobalSearch";
 import { RotateCcw } from "lucide-react";
+import { useLocation } from "@tanstack/react-router";
+import { useUser } from "@/contexts/UserContext";
+
 interface DragWindowRegionProps {
   title?: ReactNode;
 }
 
 export default function DragWindowRegion({ title }: DragWindowRegionProps) {
+  const location = useLocation();
+  const { currentUser } = useUser();
+  
+  // Only show search bar when user is authenticated and in clinic routes
+  const clinicRoutes = ['/dashboard', '/clients', '/exams', '/orders', '/appointments', '/settings', '/campaigns'];
+  const shouldShowSearch = currentUser && clinicRoutes.some(route =>
+    location.pathname.startsWith(route)
+  );
   return (
-    <div className="bg-secondary border-sidebar-border">
-      <div className="bg-secondary flex w-screen items-center h-8 relative">
-        <div className="draglayer flex-1 bg-secondary pt-1.5 px-1 flex items-center gap-2">
+    <div className="bg-transparent border-sidebar-border">
+      <div className="bg-transparent flex w-screen items-center h-8 relative">
+        <div className="draglayer flex-1 bg-transparent  px-1 flex items-center gap-2">
           <img 
             src="/src/assets/images/prysm-logo.png" 
             alt="Prysm Logo" 
-            className="h-10 w-10 object-contain"
+            className="h-5 w-9 pl-1 object-contain"
           />
-          <span className="text-[16px] font-semibold ml-[-10px] pt-[2px] text-sidebar-foreground select-none">
+          <span className="text-[16px] font-semibold ml-[-10px] pt-[1px] text-sidebar-foreground select-none">
             Prysm
           </span>
           {title && (
@@ -30,9 +41,11 @@ export default function DragWindowRegion({ title }: DragWindowRegionProps) {
             </div>
           )}
         </div>
-        <div className="absolute left-1/2 transform -translate-x-1/2 pointer-events-auto z-10" style={{ pointerEvents: 'auto', WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
-          <GlobalSearch />
-        </div>
+        {shouldShowSearch && (
+          <div className="absolute left-1/2 transform -translate-x-1/2 pointer-events-auto z-10" style={{ pointerEvents: 'auto', WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+            <GlobalSearch />
+          </div>
+        )}
         <div className="draglayer flex items-center bg-transparent">
           <ModeToggle />
           <RefreshButton />

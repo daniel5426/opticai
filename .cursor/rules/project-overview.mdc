@@ -5,8 +5,37 @@ alwaysApply: true
 ---
 # Electron-Vite-React Project Overview
 
-This project is an Electron desktop application built with Vite, React, and TypeScript. The project includes SQLite database integration for data persistence and uses shadcn/ui for UI components.An all-in-one management system for optical clinics and stores, handling patient records, medical and optical exams, orders, billing, and inventory.
-Streamlines clinic operations from eye exams to lens and frame orders, ensuring efficient and accurate patient care.
+This project is an Electron desktop application built with Vite, React, and TypeScript. The project includes SQLite database integration for data persistence and uses shadcn/ui for UI components. An all-in-one **multi-clinic management system** for optical clinics and stores, handling patient records, medical and optical exams, orders, billing, and inventory across multiple clinic locations under a company structure.
+
+## Multi-Clinic Architecture
+
+The application now supports a **hierarchical multi-clinic structure**:
+- **Companies** → **Clinics** → **Users/Data**
+- Each company can manage multiple clinic locations
+- Data isolation between clinics while maintaining centralized company management
+- Flexible user access: global company users or clinic-specific users
+
+### Application Flow
+1. **Welcome Screen** (`/`) - Entry point with two main options
+2. **Control Center Flow** (`/control-center/*`) - Company management and setup
+3. **Clinic Entrance Flow** (`/clinic-entrance` → `/user-selection`) - Individual clinic access
+4. **Clinic Operations** (`/dashboard`, `/clients`, etc.) - Standard clinic functionality
+
+### New Pages & Components
+- **WelcomeScreen** (`src/pages/WelcomeScreen.tsx`) - Initial entry point
+- **ControlCenterPage** (`src/pages/ControlCenterPage.tsx`) - Company login/registration
+- **ControlCenterDashboardPage** (`src/pages/ControlCenterDashboardPage.tsx`) - Company overview
+- **ControlCenterUsersPage** (`src/pages/ControlCenterUsersPage.tsx`) - Global user management
+- **ControlCenterClinicsPage** (`src/pages/ControlCenterClinicsPage.tsx`) - Clinic management
+- **SetupWizardPage** (`src/pages/SetupWizardPage.tsx`) - Initial clinic setup
+- **ClinicEntrancePage** (`src/pages/ClinicEntrancePage.tsx`) - Clinic ID input
+- **UserSelectionPage** (`src/pages/UserSelectionPage.tsx`) - Enhanced with clinic context
+
+### Database Schema Extensions
+- **companies** table - Company information and ownership
+- **clinics** table - Individual clinic locations with unique IDs
+- **clinic_id** field added to existing tables for data isolation
+- Enhanced user management with company/clinic associations
 
 ## UI Components
 
@@ -40,27 +69,100 @@ The application uses [TanStack Router](mdc:https:/tanstack.com/router) for clien
 
 ## Database System
 
-The application uses SQLite with better-sqlite3 for local data persistence. A major refactoring has simplified database interactions by implementing a generic IPC channel (`db-operation`).
+The application uses SQLite with better-sqlite3 for local data persistence. The database system has been updated to support multi-clinic architecture with a simplified IPC communication pattern.
 
 ### Key Database Features
-- **Generic IPC Handler**: A single `'db-operation'` channel in [src/main.ts](mdc:src/main.ts) dynamically calls methods on the `DatabaseService`. This eliminates the need to register individual IPC handlers for each database operation.
-- **Dynamic Connection Manager**: The renderer process uses a `connectionManager` ([src/lib/db/connection-manager.ts](mdc:src/lib/db/connection-manager.ts)), which is a Proxy that forwards calls to the main process via the generic IPC channel, providing a clean and type-safe API.
-- **Type Safety**: End-to-end type safety is maintained. `DBServiceType` is generated from the `DatabaseService` class, ensuring that calls from the renderer process via `connectionManager` are fully typed.
-- **WAL Mode**: Write-Ahead Logging for better performance.
-- **Foreign Keys**: Enabled for referential integrity.
-- **Auto-initialization**: Tables created on first run with seed data.
-- **TypeScript Integration**: Fully typed interfaces for all entities.
+- **Simplified IPC Handler**: Uses `window.electronAPI.db(method, ...args)` pattern exposed via preload script
+- **Multi-Clinic Support**: Database schema supports company → clinic → data hierarchy
+- **Data Isolation**: Clinic-specific data filtering with `clinic_id` foreign keys
+- **Conditional Seeding**: Sample data only created when companies exist (multi-clinic mode)
+- **WAL Mode**: Write-Ahead Logging for better performance
+- **Foreign Keys**: Enabled for referential integrity
+- **Auto-initialization**: Tables created on first run with conditional seed data
+- **TypeScript Integration**: Fully typed interfaces for all entities
+
+### API Usage Pattern
+All database operations now use the consistent pattern:
+```typescript
+// Correct usage
+const result = await window.electronAPI.db('methodName', param1, param2);
+
+// Examples
+const companies = await window.electronAPI.db('getAllCompanies');
+const clinic = await window.electronAPI.db('getClinicByUniqueId', clinicId);
+const users = await window.electronAPI.db('getUsersByClinicId', clinicId);
+```
+
+### Multi-Clinic Database Schema
+
+The database now includes these core multi-clinic tables:
+
+#### Companies Table
+```sql
+CREATE TABLE IF NOT EXISTS companies (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL UNIQUE,
+  owner_name TEXT NOT NULL,
+  email TEXT,
+  phone TEXT,
+  address TEXT,
+  location TEXT,
+  logo_path TEXT,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+#### Clinics Table
+```sql
+CREATE TABLE IF NOT EXISTS clinics (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  company_id INTEGER NOT NULL,
+  name TEXT NOT NULL,
+  address TEXT,
+  phone TEXT,
+  email TEXT,
+  manager_name TEXT,
+  license_number TEXT,
+  unique_id TEXT NOT NULL UNIQUE,
+  is_active BOOLEAN DEFAULT 1,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (company_id) REFERENCES companies (id)
+);
+```
+
+#### Enhanced Users Table
+```sql
+CREATE TABLE IF NOT EXISTS users (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  username TEXT NOT NULL,
+  password TEXT NOT NULL,
+  role TEXT NOT NULL DEFAULT 'user',
+  company_id INTEGER,
+  clinic_id INTEGER,
+  full_name TEXT,
+  email TEXT,
+  phone TEXT,
+  is_active BOOLEAN DEFAULT 1,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (company_id) REFERENCES companies (id),
+  FOREIGN KEY (clinic_id) REFERENCES clinics (id)
+);
+```
 
 ### Making Database Schema Changes
 
-**⚠️ IMPORTANT**: When adding new database entities or modifying schemas, the process is now much simpler:
+**⚠️ IMPORTANT**: When adding new database entities or modifying schemas:
 
 #### 1. Schema Definition (`src/lib/db/schema.ts`)
-This step remains the same. Define the TypeScript interface and add the `CREATE TABLE` statement in the `createTables` function.
+Define the TypeScript interface and add the `CREATE TABLE` statement in the `createTables` function.
 ```typescript
 // Add/update interface
 export interface TableName {
   id?: number;
+  clinic_id?: number; // Add for multi-clinic support
   new_field?: string;
   // ... existing fields
 }
@@ -68,41 +170,36 @@ export interface TableName {
 // Add table creation in createTables function
 CREATE TABLE IF NOT EXISTS table_name (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
+  clinic_id INTEGER,
   new_field TEXT,
+  FOREIGN KEY (clinic_id) REFERENCES clinics (id),
   // ... existing fields
 );
 ```
 
 #### 2. Database Service Methods (`src/lib/db/index.ts`)
-This step also remains the same. Add the corresponding CRUD methods for the new entity to the `DatabaseService` class in [src/lib/db/index.ts](mdc:src/lib/db/index.ts). These methods are automatically exposed to the renderer process.
+Add the corresponding CRUD methods to the `DatabaseService` class. Include clinic filtering for multi-clinic support.
 ```typescript
-// Add CRUD operations for new entity
+// Add CRUD operations with clinic support
 createTableName(data: Omit<TableName, 'id'>): TableName | null {
-  // Implementation
+  // Implementation with clinic_id
 }
 
-getTableNameById(id: number): TableName | null {
-  // Implementation
+getTableNamesByClinicId(clinicId: number): TableName[] {
+  // Implementation for clinic-specific data
 }
 // ... other methods
 ```
 
-#### 3. API Layer (`src/lib/db/table-name-db.ts`)
-Create a new `src/lib/db/table-name-db.ts` file (or add to an existing one). The functions in this file should simply call the corresponding methods on the `connectionManager`.
+#### 3. Frontend Usage
+Use the simplified API pattern in components:
 ```typescript
-import { connectionManager } from './connection-manager';
-import { TableName } from './schema';
+// Get clinic-specific data
+const data = await window.electronAPI.db('getTableNamesByClinicId', clinicId);
 
-export function createTableName(data: Omit<TableName, 'id'>) {
-  return connectionManager.createTableName(data);
-}
-
-export function getTableNameById(id: number) {
-  return connectionManager.getTableNameById(id);
-}
-// ... other wrapper functions
+// Create with clinic context
+const result = await window.electronAPI.db('createTableName', { ...data, clinic_id: clinicId });
 ```
-With this new architecture, you no longer need to manually edit [src/main.ts](mdc:src/main.ts), [src/preload.ts](mdc:src/preload.ts), or [src/types/electron.d.ts](mdc:src/types/electron.d.ts) when adding new database operations.
 
 ### Database Reset (Development)
 - **Delete** the existing database file from user data directory

@@ -10,9 +10,9 @@ export async function getOrdersByClientId(clientId: number): Promise<Order[]> {
   }
 }
 
-export async function getAllOrders(): Promise<Order[]> {
+export async function getAllOrders(clinicId?: number): Promise<Order[]> {
   try {
-    return await window.electronAPI.db('getAllOrders');
+    return await window.electronAPI.db('getAllOrders', clinicId);
   } catch (error) {
     console.error('Error getting all orders:', error);
     return [];

@@ -12,6 +12,7 @@ import { SettingsContext } from "@/contexts/SettingsContext";
 import UserSelectionPage from "@/pages/UserSelectionPage";
 import { ClientSidebarProvider } from "@/contexts/ClientSidebarContext";
 import { ClientSidebar } from "@/components/ClientSidebar";
+import { useLocation } from "@tanstack/react-router";
 
 export default function BaseLayout({
   children,
@@ -21,28 +22,40 @@ export default function BaseLayout({
   const [settings, setSettings] = useState<Settings | null>(null);
   const [isSettingsLoading, setIsSettingsLoading] = useState(true);
   const [isLogoLoaded, setIsLogoLoaded] = useState(false);
+  const [hasCompanies, setHasCompanies] = useState<boolean | null>(null);
   const { currentUser, isLoading: isUserLoading } = useUser();
+  const location = useLocation();
   
   const updateSettings = (newSettings: Settings) => {
     setSettings(newSettings);
   };
   
   useEffect(() => {
-    const loadInitialSettings = async () => {
+    const loadInitialData = async () => {
       try {
-        const dbSettings = await getSettings();
-        if (dbSettings) {
-          setSettings(dbSettings);
-          // Apply current user's theme colors, not clinic settings
-          if (currentUser?.id) {
-            applyThemeColorsFromSettings(undefined, currentUser.id);
+        // Check if there are any companies in the system
+        const companies = await window.electronAPI.db('getAllCompanies');
+        setHasCompanies(companies.length > 0);
+
+        // Load settings only if we have companies
+        if (companies.length > 0) {
+          const dbSettings = await getSettings();
+          if (dbSettings) {
+            setSettings(dbSettings);
+            // Apply current user's theme colors, not clinic settings
+            if (currentUser?.id) {
+              applyThemeColorsFromSettings(undefined, currentUser.id);
+            }
           }
         }
+      } catch (error) {
+        console.error('Error loading initial data:', error);
+        setHasCompanies(false);
       } finally {
         setIsSettingsLoading(false);
       }
     };
-    loadInitialSettings();
+    loadInitialData();
   }, [currentUser?.id]);
 
   useEffect(() => {
@@ -56,7 +69,19 @@ export default function BaseLayout({
     }
   }, [settings]);
 
-  const isLoading = isUserLoading || isSettingsLoading;
+  const isLoading = isUserLoading || isSettingsLoading || hasCompanies === null;
+
+  // Routes that should not show sidebar (welcome screen, control center, setup wizard, clinic entrance, user selection)
+  const noSidebarRoutes = ['/', '/control-center', '/setup-wizard', '/clinic-entrance', '/user-selection'];
+  const shouldShowSidebar = !noSidebarRoutes.some(route =>
+    location.pathname === route || location.pathname.startsWith(route)
+  );
+
+  // Routes that require user authentication (clinic-specific routes)
+  const clinicRoutes = ['/dashboard', '/clients', '/exams', '/orders', '/appointments', '/settings', '/campaigns'];
+  const requiresUser = clinicRoutes.some(route =>
+    location.pathname.startsWith(route)
+  );
 
   return (
     <>
@@ -67,18 +92,26 @@ export default function BaseLayout({
               <div className="min-h-screen bg-background flex items-center justify-center">
                 <div className="text-foreground text-xl">טוען...</div>
               </div>
-            ) : !currentUser ? (
+            ) : hasCompanies === false && !['/', '/control-center', '/setup-wizard', '/clinic-entrance', '/user-selection'].includes(location.pathname) ? (
+              // If no companies exist and not on allowed routes, redirect to welcome
+              <div className="min-h-screen bg-background flex items-center justify-center">
+                <div className="text-foreground text-xl">מפנה למסך הבית...</div>
+                {setTimeout(() => window.location.href = '/', 100)}
+              </div>
+            ) : requiresUser && !currentUser ? (
+              // Show user selection only for clinic routes that require authentication
               <UserSelectionPage />
-            ) : (
+            ) : shouldShowSidebar && currentUser ? (
+              // Show sidebar layout for clinic routes with authenticated user
               <div className="flex flex-col h-screen">
                 <DragWindowRegion title="" />
                 <div className="flex-1 flex overflow-hidden">
                   <SidebarProvider dir="rtl">
-                    <AppSidebar 
-                      variant="inset" 
-                      side="right" 
-                      clinicName={settings?.clinic_name} 
-                      currentUser={currentUser} 
+                    <AppSidebar
+                      variant="inset"
+                      side="right"
+                      clinicName={settings?.clinic_name}
+                      currentUser={currentUser}
                       logoPath={settings?.clinic_logo_path}
                       isLogoLoaded={isLogoLoaded}
                     />
@@ -97,6 +130,14 @@ export default function BaseLayout({
                     </SidebarInset>
                   </SidebarProvider>
                 </div>
+              </div>
+            ) : (
+              // Show simple layout without sidebar for welcome screen, control center, setup wizard
+              <div className="flex flex-col h-screen">
+                <DragWindowRegion title="" />
+                <main className="flex-1 overflow-auto">
+                  {children}
+                </main>
               </div>
             )}
           </ClientSidebarProvider>

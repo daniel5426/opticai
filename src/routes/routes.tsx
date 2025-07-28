@@ -1,6 +1,13 @@
 import { createRoute } from "@tanstack/react-router";
 import { RootRoute } from "./__root";
+import WelcomeScreen from "../pages/WelcomeScreen";
 import HomePage from "../pages/HomePage";
+import ControlCenterPage from "../pages/ControlCenterPage";
+import ControlCenterDashboardPage from "../pages/ControlCenterDashboardPage";
+import ControlCenterUsersPage from "../pages/ControlCenterUsersPage";
+import ControlCenterClinicsPage from "../pages/ControlCenterClinicsPage";
+import SetupWizardPage from "../pages/SetupWizardPage";
+import ClinicEntrancePage from "../pages/ClinicEntrancePage";
 import SecondPage from "@/pages/SecondPage";
 import ClientsPage from "@/pages/ClientsPage";
 import ClientDetailPage from "@/pages/ClientDetailPage";
@@ -48,7 +55,60 @@ import AllOrdersPage from "@/pages/AllOrdersPage";
 export const HomeRoute = createRoute({
   getParentRoute: () => RootRoute,
   path: "/",
+  component: WelcomeScreen,
+});
+
+export const DashboardRoute = createRoute({
+  getParentRoute: () => RootRoute,
+  path: "/dashboard",
   component: HomePage,
+});
+
+export const ControlCenterRoute = createRoute({
+  getParentRoute: () => RootRoute,
+  path: "/control-center",
+  component: ControlCenterPage,
+});
+
+export const SetupWizardRoute = createRoute({
+  getParentRoute: () => RootRoute,
+  path: "/setup-wizard",
+  component: () => {
+    const searchParams = new URLSearchParams(window.location.search);
+    const companyId = parseInt(searchParams.get('companyId') || '0');
+    const companyName = searchParams.get('companyName') || '';
+    return <SetupWizardPage companyId={companyId} companyName={companyName} />;
+  },
+});
+
+export const ControlCenterDashboardRoute = createRoute({
+  getParentRoute: () => RootRoute,
+  path: "/control-center/dashboard",
+  component: ControlCenterDashboardPage,
+});
+
+export const ControlCenterUsersRoute = createRoute({
+  getParentRoute: () => RootRoute,
+  path: "/control-center/users",
+  component: ControlCenterUsersPage,
+});
+
+export const ControlCenterClinicsRoute = createRoute({
+  getParentRoute: () => RootRoute,
+  path: "/control-center/clinics",
+  component: ControlCenterClinicsPage,
+});
+
+export const ClinicEntranceRoute = createRoute({
+  getParentRoute: () => RootRoute,
+  path: "/clinic-entrance",
+  component: ClinicEntrancePage,
+});
+
+export const UserSelectionRoute = createRoute({
+  getParentRoute: () => RootRoute,
+  path: "/user-selection",
+  component: UserSelectionPage,
 });
 
 export const SecondPageRoute = createRoute({
@@ -215,6 +275,14 @@ export const CampaignsRoute = createRoute({
 
 export const rootTree = RootRoute.addChildren([
   HomeRoute,
+  DashboardRoute,
+  ControlCenterRoute,
+  SetupWizardRoute,
+  ControlCenterDashboardRoute,
+  ControlCenterUsersRoute,
+  ControlCenterClinicsRoute,
+  ClinicEntranceRoute,
+  UserSelectionRoute,
   SecondPageRoute,
   ClientsRoute,
   NewClientRoute,

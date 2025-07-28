@@ -1,7 +1,33 @@
 import { Database } from 'better-sqlite3';
 
+export interface Company {
+  id?: number;
+  name: string;
+  owner_full_name: string;
+  contact_email: string;
+  contact_phone: string;
+  logo_path?: string;
+  address: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface Clinic {
+  id?: number;
+  company_id: number;
+  name: string;
+  location: string;
+  phone_number?: string;
+  email?: string;
+  unique_id: string; // Auto-generated unique identifier for clinic entrance
+  is_active?: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
 export interface Client {
   id?: number;
+  clinic_id?: number; // Added for multi-clinic support
   first_name?: string;
   last_name?: string;
   gender?: string;
@@ -50,6 +76,7 @@ export interface Client {
 
 export interface Family {
   id?: number;
+  clinic_id?: number; // Added for multi-clinic support
   name: string;
   created_date?: string;
   notes?: string;
@@ -381,32 +408,6 @@ export interface Appointment {
   google_calendar_event_id?: string;
 }
 
-export interface OrderLens {
-  id?: number;
-  order_id: number;
-  right_model?: string;
-  left_model?: string;
-  color?: string;
-  coating?: string;
-  material?: string;
-  supplier?: string;
-}
-
-export interface Frame {
-  id?: number;
-  order_id: number;
-  color?: string;
-  supplier?: string;
-  model?: string;
-  manufacturer?: string;
-  supplied_by?: string;
-  bridge?: number;
-  width?: number;
-  height?: number;
-  length?: number;
-}
-
-
 export interface ContactLensDiameters {
   id?: number;
   layout_instance_id: number;
@@ -575,27 +576,6 @@ export interface Billing {
   notes?: string;
 }
 
-export interface OrderDetails {
-  id?: number;
-  order_id: number;
-  branch?: string;
-  supplier_status?: string;
-  bag_number?: string;
-  advisor?: string;
-  delivered_by?: string;
-  technician?: string;
-  delivered_at?: string;
-  warranty_expiration?: string;
-  delivery_location?: string;
-  manufacturing_lab?: string;
-  order_status?: string;
-  priority?: string;
-  promised_date?: string;
-  approval_date?: string;
-  notes?: string;
-  lens_order_notes?: string;
-}
-
 export interface OrderLineItem {
   id?: number;
   billings_id: number;
@@ -611,6 +591,7 @@ export interface OrderLineItem {
 
 export interface Settings {
   id?: number;
+  clinic_id?: number; // Added for multi-clinic support
   // General Info
   clinic_name?: string;
   clinic_position?: string;
@@ -656,6 +637,7 @@ export interface Settings {
 
 export interface User {
   id?: number;
+  clinic_id?: number; // Added for multi-clinic support (null for global users)
   username: string;
   email?: string;
   phone?: string;
@@ -821,6 +803,7 @@ export interface File {
 
 export interface ExamLayout {
   id?: number;
+  clinic_id?: number; // Added for multi-clinic support
   name: string;
   layout_data: string; // JSON string of layout configuration with custom widths
   type?: 'opticlens' | 'exam';
@@ -955,6 +938,7 @@ export interface WorkShift {
 
 export interface Campaign {
   id?: number;
+  clinic_id?: number; // Added for multi-clinic support
   name: string;
   filters: string; // JSON string of filter conditions
   email_enabled: boolean;
@@ -1049,13 +1033,47 @@ export interface OcularMotorAssessmentExam {
 }
 
 export const createTables = (db: Database): void => {
+  // Create companies table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS companies (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      owner_full_name TEXT NOT NULL,
+      contact_email TEXT ,
+      contact_phone TEXT ,
+      logo_path TEXT,
+      address TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+
+  // Create clinics table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS clinics (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      company_id INTEGER NOT NULL,
+      name TEXT NOT NULL,
+      location TEXT NOT NULL,
+      phone_number TEXT,
+      email TEXT,
+      unique_id TEXT UNIQUE NOT NULL,
+      is_active BOOLEAN DEFAULT 1,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY(company_id) REFERENCES companies(id) ON DELETE CASCADE
+    );
+  `);
+
   // Create families table
   db.exec(`
     CREATE TABLE IF NOT EXISTS families (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
+      clinic_id INTEGER,
       name TEXT NOT NULL,
       created_date DATE DEFAULT CURRENT_DATE,
-      notes TEXT
+      notes TEXT,
+      FOREIGN KEY(clinic_id) REFERENCES clinics(id) ON DELETE CASCADE
     );
   `);
 
@@ -1063,10 +1081,11 @@ export const createTables = (db: Database): void => {
   db.exec(`
     CREATE TABLE IF NOT EXISTS clients (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
+      clinic_id INTEGER,
       first_name TEXT,
       last_name TEXT,
       gender TEXT,
-      national_id TEXT UNIQUE,
+      national_id TEXT,
       date_of_birth DATE,
       health_fund TEXT,
       address_city TEXT,
@@ -1104,9 +1123,15 @@ export const createTables = (db: Database): void => {
       ai_appointment_state TEXT,
       ai_file_state TEXT,
       ai_medical_state TEXT,
+      FOREIGN KEY(clinic_id) REFERENCES clinics(id) ON DELETE CASCADE,
       FOREIGN KEY(family_id) REFERENCES families(id)
     );
   `);
+
+  // Add clinic_id to existing clients table if it doesn't exist
+  try {
+    db.exec(`ALTER TABLE clients ADD COLUMN clinic_id INTEGER REFERENCES clinics(id) ON DELETE CASCADE`);
+  } catch (e) { /* Column already exists */ }
 
   // Add AI fields to existing clients if they don't exist
   try {
@@ -1725,6 +1750,7 @@ export const createTables = (db: Database): void => {
   db.exec(`
     CREATE TABLE IF NOT EXISTS settings (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
+      clinic_id INTEGER,
       clinic_name TEXT,
       clinic_position TEXT,
       clinic_email TEXT,
@@ -1757,9 +1783,15 @@ export const createTables = (db: Database): void => {
       email_password TEXT,
       email_from_name TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY(clinic_id) REFERENCES clinics(id) ON DELETE CASCADE
     );
   `);
+
+  // Add clinic_id to existing settings table if it doesn't exist
+  try {
+    db.exec(`ALTER TABLE settings ADD COLUMN clinic_id INTEGER REFERENCES clinics(id) ON DELETE CASCADE`);
+  } catch (e) { /* Column already exists */ }
 
   // Insert default settings if no settings exist
   const insertSettings = db.prepare(`
@@ -1790,7 +1822,8 @@ export const createTables = (db: Database): void => {
   db.exec(`
     CREATE TABLE IF NOT EXISTS users (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      username TEXT UNIQUE NOT NULL,
+      clinic_id INTEGER,
+      username TEXT NOT NULL,
       email TEXT,
       phone TEXT,
       password TEXT,
@@ -1805,9 +1838,46 @@ export const createTables = (db: Database): void => {
       google_access_token TEXT,
       google_refresh_token TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY(clinic_id) REFERENCES clinics(id) ON DELETE CASCADE
     );
   `);
+
+  // Add clinic_id to existing users table if it doesn't exist
+  try {
+    db.exec(`ALTER TABLE users ADD COLUMN clinic_id INTEGER REFERENCES clinics(id) ON DELETE CASCADE`);
+  } catch (e) { /* Column already exists */ }
+
+  // Remove unique constraint from username to allow same username across different clinics
+  try {
+    db.exec(`
+      CREATE TABLE users_new (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        clinic_id INTEGER,
+        username TEXT NOT NULL,
+        email TEXT,
+        phone TEXT,
+        password TEXT,
+        role TEXT CHECK(role IN ('admin','worker','viewer')) NOT NULL DEFAULT 'worker',
+        is_active BOOLEAN DEFAULT 1,
+        profile_picture TEXT,
+        primary_theme_color TEXT,
+        secondary_theme_color TEXT,
+        theme_preference TEXT CHECK(theme_preference IN ('light','dark','system')) DEFAULT 'system',
+        google_account_connected BOOLEAN DEFAULT 0,
+        google_account_email TEXT,
+        google_access_token TEXT,
+        google_refresh_token TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY(clinic_id) REFERENCES clinics(id) ON DELETE CASCADE,
+        UNIQUE(clinic_id, username)
+      );
+      INSERT INTO users_new SELECT * FROM users;
+      DROP TABLE users;
+      ALTER TABLE users_new RENAME TO users;
+    `);
+  } catch (e) { /* Table structure already updated */ }
 
   // Insert default admin user if no users exist
   db.exec(`
@@ -2168,15 +2238,22 @@ export const createTables = (db: Database): void => {
   db.exec(`
     CREATE TABLE IF NOT EXISTS exam_layouts (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
+      clinic_id INTEGER,
       name TEXT NOT NULL,
       layout_data TEXT NOT NULL,
       type TEXT CHECK(type IN ('opticlens','exam')) DEFAULT 'exam',
       is_default BOOLEAN DEFAULT 0,
       is_active BOOLEAN DEFAULT 1,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY(clinic_id) REFERENCES clinics(id) ON DELETE CASCADE
     );
   `);
+
+  // Add clinic_id to existing exam_layouts table if it doesn't exist
+  try {
+    db.exec(`ALTER TABLE exam_layouts ADD COLUMN clinic_id INTEGER REFERENCES clinics(id) ON DELETE CASCADE`);
+  } catch (e) { /* Column already exists */ }
 
   // Create exam_layout_instances table
   db.exec(`
@@ -2225,43 +2302,52 @@ export const createTables = (db: Database): void => {
   `);
   insertExamLayout.run(1, 'ברירת מחדל', defaultLayoutData, 'exam', 1);
 
-  // Insert sample clients for demonstration
-  const insertClient = db.prepare(`
-    INSERT OR IGNORE INTO clients (
-      id, first_name, last_name, gender, national_id, date_of_birth,
-      health_fund, address_city, address_street, address_number,
-      phone_mobile, email, file_creation_date, status
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, date('now'), ?)
-  `);
+  // Only insert sample clients and appointments if companies exist (multi-clinic mode)
+  const companiesCount = db.prepare(`SELECT COUNT(*) as count FROM companies`).get() as { count: number };
+  
+  if (companiesCount.count > 0) {
+    // Insert sample clients for demonstration
+    const insertClient = db.prepare(`
+      INSERT OR IGNORE INTO clients (
+        id, clinic_id, first_name, last_name, gender, national_id, date_of_birth,
+        health_fund, address_city, address_street, address_number,
+        phone_mobile, email, file_creation_date, status
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, date('now'), ?)
+    `);
 
-  insertClient.run(
-    1, 'יוסי', 'כהן', 'זכר', '123456789', '1980-05-15',
-    'כללית', 'תל אביב', 'רחוב דיזנגוף', '123',
-    '050-1234567', 'yossi.cohen@email.com', 'פעיל'
-  );
+    // Get the first clinic ID for sample data
+    const firstClinic = db.prepare(`SELECT id FROM clinics ORDER BY id LIMIT 1`).get() as { id: number } | undefined;
+    const clinicId = firstClinic?.id || 1;
 
-  insertClient.run(
-    2, 'שרה', 'לוי', 'נקבה', '987654321', '1992-08-22',
-    'מכבי', 'ירושלים', 'רחוב יפו', '456',
-    '052-9876543', 'sarah.levi@email.com', 'פעיל'
-  );
+    insertClient.run(
+      1, clinicId, 'יוסי', 'כהן', 'זכר', '123456789', '1980-05-15',
+      'כללית', 'תל אביב', 'רחוב דיזנגוף', '123',
+      '050-1234567', 'yossi.cohen@email.com', 'פעיל'
+    );
 
-  insertClient.run(
-    3, 'דוד', 'ישראלי', 'זכר', '456789123', '1975-12-03',
-    'לאומית', 'חיפה', 'רחוב הרצל', '789',
-    '054-5555555', 'david.israeli@email.com', 'פעיל'
-  );
+    insertClient.run(
+      2, clinicId, 'שרה', 'לוי', 'נקבה', '987654321', '1992-08-22',
+      'מכבי', 'ירושלים', 'רחוב יפו', '456',
+      '052-9876543', 'sarah.levi@email.com', 'פעיל'
+    );
 
-  // Insert sample appointments
-  const insertAppointment = db.prepare(`
-    INSERT OR IGNORE INTO appointments (
-      id, client_id, user_id, date, time, exam_name, note
-    ) VALUES (?, ?, ?, date('now', ?), ?, ?, ?)
-  `);
+    insertClient.run(
+      3, clinicId, 'דוד', 'ישראלי', 'זכר', '456789123', '1975-12-03',
+      'לאומית', 'חיפה', 'רחוב הרצל', '789',
+      '054-5555555', 'david.israeli@email.com', 'פעיל'
+    );
 
-  insertAppointment.run(1, 1, 1, '+1 day', '09:00', 'בדיקת ראייה שגרתית', 'בדיקה שנתית');
-  insertAppointment.run(2, 2, 2, '+2 days', '14:30', 'התאמת עדשות מגע', 'לקוח חדש');
-  insertAppointment.run(3, 3, 1, '+3 days', '11:15', 'בדיקת משקפיים חדשים', 'שינוי במרשם');
+    // Insert sample appointments
+    const insertAppointment = db.prepare(`
+      INSERT OR IGNORE INTO appointments (
+        id, client_id, user_id, date, time, exam_name, note
+      ) VALUES (?, ?, ?, date('now', ?), ?, ?, ?)
+    `);
+
+    insertAppointment.run(1, 1, 1, '+1 day', '09:00', 'בדיקת ראייה שגרתית', 'בדיקה שנתית');
+    insertAppointment.run(2, 2, 2, '+2 days', '14:30', 'התאמת עדשות מגע', 'לקוח חדש');
+    insertAppointment.run(3, 3, 1, '+3 days', '11:15', 'בדיקת משקפיים חדשים', 'שינוי במרשם');
+  }
 
   // Create uncorrected_va_exams table
   db.exec(`
@@ -2393,6 +2479,7 @@ export const createTables = (db: Database): void => {
   db.exec(`
     CREATE TABLE IF NOT EXISTS campaigns (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
+      clinic_id INTEGER,
       name TEXT NOT NULL,
       filters TEXT,
       email_enabled BOOLEAN DEFAULT 0,
@@ -2409,9 +2496,15 @@ export const createTables = (db: Database): void => {
       cycle_type TEXT CHECK(cycle_type IN ('daily','monthly','yearly','custom')) DEFAULT 'daily',
       cycle_custom_days INTEGER,
       last_executed DATETIME,
-      execute_once_per_client BOOLEAN DEFAULT 0
+      execute_once_per_client BOOLEAN DEFAULT 0,
+      FOREIGN KEY(clinic_id) REFERENCES clinics(id) ON DELETE CASCADE
     );
   `);
+
+  // Add clinic_id to existing campaigns table if it doesn't exist
+  try {
+    db.exec(`ALTER TABLE campaigns ADD COLUMN clinic_id INTEGER REFERENCES clinics(id) ON DELETE CASCADE`);
+  } catch (e) { /* Column already exists */ }
 
   // Add new cycle time columns to existing campaigns table if they don't exist
   try {

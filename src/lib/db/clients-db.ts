@@ -2,9 +2,9 @@
 import { Client } from "./schema";
 import { connectionManager } from './connection-manager';
 
-export async function getAllClients(): Promise<Client[]> {
+export async function getAllClients(clinicId?: number): Promise<Client[]> {
   try {
-    return await connectionManager.getAllClients();
+    return await connectionManager.getAllClients(clinicId);
   } catch (error) {
     console.error('Error getting all clients:', error);
     return [];

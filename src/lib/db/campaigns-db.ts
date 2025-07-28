@@ -9,8 +9,8 @@ export function getCampaignById(id: number) {
   return connectionManager.getCampaignById(id);
 }
 
-export function getAllCampaigns() {
-  return connectionManager.getAllCampaigns();
+export function getAllCampaigns(clinicId?: number) {
+  return connectionManager.getAllCampaigns(clinicId);
 }
 
 export function updateCampaign(campaign: Campaign) {

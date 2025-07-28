@@ -79,7 +79,9 @@ import {
   MaddoxRodExam,
   StereoTestExam,
   RGExam,
-  OcularMotorAssessmentExam
+  OcularMotorAssessmentExam,
+  Company,
+  Clinic
 } from './schema';
 import * as usersDb from './users-db'
 import * as workShiftsDb from './work-shifts-db'
@@ -224,144 +226,152 @@ class DatabaseService {
     if (!this.db) return;
 
     try {
-      const clientCount = this.db.prepare('SELECT COUNT(*) as count FROM clients').get() as { count: number };
+      // Check if we're in multi-clinic mode (companies exist)
+      const companyCount = this.db.prepare('SELECT COUNT(*) as count FROM companies').get() as { count: number };
+      
+      // Only seed data if we're in multi-clinic mode and have companies but no clients
+      if (companyCount.count > 0) {
+        const clientCount = this.db.prepare('SELECT COUNT(*) as count FROM clients').get() as { count: number };
 
-      if (clientCount.count === 0) {
-        console.log('Seeding database with initial data...');
+        if (clientCount.count === 0) {
+          console.log('Seeding database with initial data for multi-clinic mode...');
 
-        const clients = [
-          {
-            first_name: "דוד",
-            last_name: "כהן",
-            gender: "זכר",
-            national_id: "123456789",
-            date_of_birth: "1985-05-15",
-            address_city: "תל אביב",
-            phone_mobile: "0501234567",
-            email: "david@example.com",
-            file_creation_date: new Date().toISOString().split('T')[0]
-          },
-          {
-            first_name: "שרה",
-            last_name: "לוי",
-            gender: "נקבה",
-            national_id: "987654321",
-            date_of_birth: "1990-10-20",
-            address_city: "ירושלים",
-            phone_mobile: "0507654321",
-            email: "sarah@example.com",
-            file_creation_date: new Date().toISOString().split('T')[0]
-          },
-          {
-            first_name: "יוסי",
-            last_name: "אברהם",
-            gender: "זכר",
-            national_id: "456789123",
-            date_of_birth: "1978-03-25",
-            address_city: "חיפה",
-            phone_mobile: "0509876543",
-            email: "yossi@example.com",
-            file_creation_date: new Date().toISOString().split('T')[0]
-          }
-        ];
-
-        clients.forEach(client => {
-          const createdClient = this.createClient(client);
-          if (createdClient) {
-            const exam = this.createExam({
-              client_id: createdClient.id!,
-              clinic: "מרפאת עיניים ראשית",
-              user_id: 1,
-              exam_date: "2024-01-15",
-              test_name: "בדיקת ראייה מקיפה",
-              dominant_eye: "R",
-            });
-
-            if (exam) {
-              // First create a default layout
-              const layout = this.createExamLayout({
-                name: "Default Layout",
-                layout_data: "[]",
-                is_default: true
-              });
-              
-              if (!layout) return;
-
-              // Create a layout instance for this exam
-              const layoutInstance = this.createExamLayoutInstance({
-                exam_id: exam.id!,
-                layout_id: layout.id!,
-                is_active: true,
-                order: 0
-              });
-
-              if (!layoutInstance) return;
-              
-              // Create old refraction exam data
-              this.createOldRefractionExam({
-                layout_instance_id: layoutInstance.id!,
-                r_sph: -1.25,
-                l_sph: -1.0,
-                r_cyl: -0.5,
-                l_cyl: -0.25,
-                r_ax: 180,
-                l_ax: 90,
-                r_va: 0.6,
-                l_va: 0.6,
-                comb_va: 0.8
-              });
-
-              // Create objective exam data
-              this.createObjectiveExam({
-                layout_instance_id: layoutInstance.id!,
-                r_sph: -1.5,
-                l_sph: -1.25,
-                r_cyl: -0.75,
-                l_cyl: -0.5,
-                r_ax: 175,
-                l_ax: 85,
-                r_se: -1.875,
-                l_se: -1.5
-              });
-
-              // Create subjective exam data
-              this.createSubjectiveExam({
-                layout_instance_id: layoutInstance.id!,
-                r_fa: 6,
-                l_fa: 6,
-                r_sph: -1.5,
-                l_sph: -1.25,
-                r_cyl: -0.75,
-                l_cyl: -0.5,
-                r_ax: 175,
-                l_ax: 85,
-                r_va: 1.0,
-                l_va: 1.0,
-                r_pd_close: 32,
-                l_pd_close: 31,
-                r_pd_far: 33,
-                l_pd_far: 32,
-                comb_va: 1.0,
-                comb_fa: 6,
-                comb_pd_close: 62,
-                comb_pd_far: 64
-              });
-
-              // Create addition exam data
-              this.createAdditionExam({
-                layout_instance_id: layoutInstance.id!,
-                r_fcc: 0.75,
-                l_fcc: 0.75,
-                r_read: 1.0,
-                l_read: 1.0,
-                r_j: 1,
-                l_j: 1
-              });
+          const clients = [
+            {
+              first_name: "דוד",
+              last_name: "כהן",
+              gender: "זכר",
+              national_id: "123456789",
+              date_of_birth: "1985-05-15",
+              address_city: "תל אביב",
+              phone_mobile: "0501234567",
+              email: "david@example.com",
+              file_creation_date: new Date().toISOString().split('T')[0]
+            },
+            {
+              first_name: "שרה",
+              last_name: "לוי",
+              gender: "נקבה",
+              national_id: "987654321",
+              date_of_birth: "1990-10-20",
+              address_city: "ירושלים",
+              phone_mobile: "0507654321",
+              email: "sarah@example.com",
+              file_creation_date: new Date().toISOString().split('T')[0]
+            },
+            {
+              first_name: "יוסי",
+              last_name: "אברהם",
+              gender: "זכר",
+              national_id: "456789123",
+              date_of_birth: "1978-03-25",
+              address_city: "חיפה",
+              phone_mobile: "0509876543",
+              email: "yossi@example.com",
+              file_creation_date: new Date().toISOString().split('T')[0]
             }
-          }
-        });
+          ];
 
-        console.log('Initial data seeded successfully');
+          clients.forEach(client => {
+            const createdClient = this.createClient(client);
+            if (createdClient) {
+              const exam = this.createExam({
+                client_id: createdClient.id!,
+                clinic: "מרפאת עיניים ראשית",
+                user_id: 1,
+                exam_date: "2024-01-15",
+                test_name: "בדיקת ראייה מקיפה",
+                dominant_eye: "R",
+              });
+
+              if (exam) {
+                // First create a default layout
+                const layout = this.createExamLayout({
+                  name: "Default Layout",
+                  layout_data: "[]",
+                  is_default: true
+                });
+                
+                if (!layout) return;
+
+                // Create a layout instance for this exam
+                const layoutInstance = this.createExamLayoutInstance({
+                  exam_id: exam.id!,
+                  layout_id: layout.id!,
+                  is_active: true,
+                  order: 0
+                });
+
+                if (!layoutInstance) return;
+                
+                // Create old refraction exam data
+                this.createOldRefractionExam({
+                  layout_instance_id: layoutInstance.id!,
+                  r_sph: -1.25,
+                  l_sph: -1.0,
+                  r_cyl: -0.5,
+                  l_cyl: -0.25,
+                  r_ax: 180,
+                  l_ax: 90,
+                  r_va: 0.6,
+                  l_va: 0.6,
+                  comb_va: 0.8
+                });
+
+                // Create objective exam data
+                this.createObjectiveExam({
+                  layout_instance_id: layoutInstance.id!,
+                  r_sph: -1.5,
+                  l_sph: -1.25,
+                  r_cyl: -0.75,
+                  l_cyl: -0.5,
+                  r_ax: 175,
+                  l_ax: 85,
+                  r_se: -1.875,
+                  l_se: -1.5
+                });
+
+                // Create subjective exam data
+                this.createSubjectiveExam({
+                  layout_instance_id: layoutInstance.id!,
+                  r_fa: 6,
+                  l_fa: 6,
+                  r_sph: -1.5,
+                  l_sph: -1.25,
+                  r_cyl: -0.75,
+                  l_cyl: -0.5,
+                  r_ax: 175,
+                  l_ax: 85,
+                  r_va: 1.0,
+                  l_va: 1.0,
+                  r_pd_close: 32,
+                  l_pd_close: 31,
+                  r_pd_far: 33,
+                  l_pd_far: 32,
+                  comb_va: 1.0,
+                  comb_fa: 6,
+                  comb_pd_close: 62,
+                  comb_pd_far: 64
+                });
+
+                // Create addition exam data
+                this.createAdditionExam({
+                  layout_instance_id: layoutInstance.id!,
+                  r_fcc: 0.75,
+                  l_fcc: 0.75,
+                  r_read: 1.0,
+                  l_read: 1.0,
+                  r_j: 1,
+                  l_j: 1
+                });
+              }
+            }
+          });
+
+          console.log('Initial data seeded successfully for multi-clinic mode');
+        }
+      } else {
+        console.log('No companies found - skipping data seeding to allow welcome screen flow');
       }
     } catch (error) {
       console.error('Error seeding initial data:', error);
@@ -393,16 +403,17 @@ class DatabaseService {
     try {
       const stmt = this.db.prepare(`
         INSERT INTO clients (
-          first_name, last_name, gender, national_id, date_of_birth,
+          clinic_id, first_name, last_name, gender, national_id, date_of_birth,
           address_city, address_street, address_number, postal_code,
           phone_home, phone_work, phone_mobile, fax, email,
           service_center, file_creation_date, membership_end, service_end,
           price_list, discount_percent, blocked_checks, blocked_credit,
           sorting_group, referring_party, file_location, occupation, status, notes
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
 
       const result = stmt.run(
+        this.sanitizeValue(client.clinic_id),
         this.sanitizeValue(client.first_name),
         this.sanitizeValue(client.last_name),
         this.sanitizeValue(client.gender),
@@ -452,12 +463,17 @@ class DatabaseService {
     }
   }
 
-  getAllClients(): Client[] {
+  getAllClients(clinicId?: number): Client[] {
     if (!this.db) return [];
 
     try {
-      const stmt = this.db.prepare('SELECT * FROM clients ORDER BY first_name, last_name');
-      return stmt.all() as Client[];
+      if (clinicId) {
+        const stmt = this.db.prepare('SELECT * FROM clients WHERE clinic_id = ? ORDER BY first_name, last_name');
+        return stmt.all(clinicId) as Client[];
+      } else {
+        const stmt = this.db.prepare('SELECT * FROM clients ORDER BY first_name, last_name');
+        return stmt.all() as Client[];
+      }
     } catch (error) {
       console.error('Error getting all clients:', error);
       return [];
@@ -508,6 +524,253 @@ class DatabaseService {
     } catch (error) {
       console.error('Error deleting client:', error);
       return false;
+    }
+  }
+
+  // Company CRUD operations
+  createCompany(company: Omit<Company, 'id'>): Company | null {
+    if (!this.db) return null;
+
+    try {
+      const stmt = this.db.prepare(`
+        INSERT INTO companies (name, owner_full_name, contact_email, contact_phone, address, logo_path)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `);
+
+      const result = stmt.run(
+        company.name,
+        company.owner_full_name,
+        this.sanitizeValue(company.contact_email),
+        this.sanitizeValue(company.contact_phone),
+        this.sanitizeValue(company.address),
+        this.sanitizeValue(company.logo_path)
+      );
+
+      return { ...company, id: result.lastInsertRowid as number };
+    } catch (error) {
+      console.error('Error creating company:', error);
+      return null;
+    }
+  }
+
+  getCompanyById(id: number): Company | null {
+    if (!this.db) return null;
+
+    try {
+      const stmt = this.db.prepare('SELECT * FROM companies WHERE id = ?');
+      return stmt.get(id) as Company | null;
+    } catch (error) {
+      console.error('Error getting company:', error);
+      return null;
+    }
+  }
+
+  getAllCompanies(): Company[] {
+    if (!this.db) return [];
+
+    try {
+      const stmt = this.db.prepare('SELECT * FROM companies ORDER BY name');
+      return stmt.all() as Company[];
+    } catch (error) {
+      console.error('Error getting all companies:', error);
+      return [];
+    }
+  }
+
+  updateCompany(company: Company): Company | null {
+    if (!this.db || !company.id) return null;
+
+    try {
+      const stmt = this.db.prepare(`
+        UPDATE companies SET
+        name = ?, owner_full_name = ?, contact_email = ?, contact_phone = ?,
+        address = ?, logo_path = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+      `);
+
+      stmt.run(
+        company.name,
+        company.owner_full_name,
+        this.sanitizeValue(company.contact_email),
+        this.sanitizeValue(company.contact_phone),
+        this.sanitizeValue(company.address),
+        this.sanitizeValue(company.logo_path),
+        company.id
+      );
+
+      return company;
+    } catch (error) {
+      console.error('Error updating company:', error);
+      return null;
+    }
+  }
+
+  deleteCompany(id: number): boolean {
+    if (!this.db) return false;
+
+    try {
+      const stmt = this.db.prepare('DELETE FROM companies WHERE id = ?');
+      const result = stmt.run(id);
+      return result.changes > 0;
+    } catch (error) {
+      console.error('Error deleting company:', error);
+      return false;
+    }
+  }
+
+  // Clinic CRUD operations
+  createClinic(clinic: Omit<Clinic, 'id'>): Clinic | null {
+    if (!this.db) return null;
+
+    try {
+      const stmt = this.db.prepare(`
+        INSERT INTO clinics (company_id, name, location, phone_number, email, unique_id, is_active)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `);
+
+      const result = stmt.run(
+        clinic.company_id,
+        clinic.name,
+        clinic.location,
+        this.sanitizeValue(clinic.phone_number),
+        this.sanitizeValue(clinic.email),
+        clinic.unique_id,
+        this.sanitizeValue(clinic.is_active ?? true)
+      );
+
+      return { ...clinic, id: result.lastInsertRowid as number };
+    } catch (error) {
+      console.error('Error creating clinic:', error);
+      return null;
+    }
+  }
+
+  getClinicById(id: number): Clinic | null {
+    if (!this.db) return null;
+
+    try {
+      const stmt = this.db.prepare('SELECT * FROM clinics WHERE id = ?');
+      return stmt.get(id) as Clinic | null;
+    } catch (error) {
+      console.error('Error getting clinic:', error);
+      return null;
+    }
+  }
+
+  getAllClinics(): Clinic[] {
+    if (!this.db) return [];
+
+    try {
+      const stmt = this.db.prepare('SELECT * FROM clinics ORDER BY name');
+      return stmt.all() as Clinic[];
+    } catch (error) {
+      console.error('Error getting all clinics:', error);
+      return [];
+    }
+  }
+
+  getClinicsByCompanyId(companyId: number): Clinic[] {
+    if (!this.db) return [];
+
+    try {
+      const stmt = this.db.prepare('SELECT * FROM clinics WHERE company_id = ? ORDER BY name');
+      return stmt.all(companyId) as Clinic[];
+    } catch (error) {
+      console.error('Error getting clinics by company:', error);
+      return [];
+    }
+  }
+
+  getActiveClinics(): Clinic[] {
+    if (!this.db) return [];
+
+    try {
+      const stmt = this.db.prepare('SELECT * FROM clinics WHERE is_active = 1 ORDER BY name');
+      return stmt.all() as Clinic[];
+    } catch (error) {
+      console.error('Error getting active clinics:', error);
+      return [];
+    }
+  }
+
+  getClinicByUniqueId(uniqueId: string): Clinic | null {
+    if (!this.db) return null;
+
+    try {
+      const stmt = this.db.prepare('SELECT * FROM clinics WHERE unique_id = ? AND is_active = 1');
+      return stmt.get(uniqueId) as Clinic | null;
+    } catch (error) {
+      console.error('Error getting clinic by unique ID:', error);
+      return null;
+    }
+  }
+
+  updateClinic(clinic: Clinic): Clinic | null {
+    if (!this.db || !clinic.id) return null;
+
+    try {
+      const stmt = this.db.prepare(`
+        UPDATE clinics SET
+        company_id = ?, name = ?, location = ?, phone_number = ?, email = ?,
+        unique_id = ?, is_active = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+      `);
+
+      stmt.run(
+        clinic.company_id,
+        clinic.name,
+        clinic.location,
+        this.sanitizeValue(clinic.phone_number),
+        this.sanitizeValue(clinic.email),
+        clinic.unique_id,
+        this.sanitizeValue(clinic.is_active ?? true),
+        clinic.id
+      );
+
+      return clinic;
+    } catch (error) {
+      console.error('Error updating clinic:', error);
+      return null;
+    }
+  }
+
+  deleteClinic(id: number): boolean {
+    if (!this.db) return false;
+
+    try {
+      const stmt = this.db.prepare('UPDATE clinics SET is_active = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?');
+      const result = stmt.run(id);
+      return result.changes > 0;
+    } catch (error) {
+      console.error('Error deactivating clinic:', error);
+      return false;
+    }
+  }
+
+  // Helper method to check if app is in multi-clinic mode
+  isMultiClinicMode(): boolean {
+    if (!this.db) return false;
+
+    try {
+      const stmt = this.db.prepare('SELECT COUNT(*) as count FROM companies');
+      const result = stmt.get() as { count: number };
+      return result.count > 0;
+    } catch (error) {
+      console.error('Error checking multi-clinic mode:', error);
+      return false;
+    }
+  }
+
+  // Helper method to get the first company (for single company setups)
+  getFirstCompany(): Company | null {
+    if (!this.db) return null;
+
+    try {
+      const stmt = this.db.prepare('SELECT * FROM companies ORDER BY created_at ASC LIMIT 1');
+      return stmt.get() as Company | null;
+    } catch (error) {
+      console.error('Error getting first company:', error);
+      return null;
     }
   }
 
@@ -744,7 +1007,6 @@ class DatabaseService {
       const orderDetails = orders.map(order => ({
         ...order,
         eyes: this.getOrderEyesByOrderId(order.id!),
-        lens: this.getOrderLensByOrderId(order.id!),
         frame: this.getFrameByOrderId(order.id!),
         details: this.getOrderDetailsByOrderId(order.id!)
       }));
@@ -876,12 +1138,22 @@ class DatabaseService {
     }
   }
 
-  getAllExams(type?: string): OpticalExam[] {
+  getAllExams(type?: string, clinicId?: number): OpticalExam[] {
     if (!this.db) return [];
 
     try {
-      const stmt = this.db.prepare('SELECT * FROM optical_exams WHERE type = ? ORDER BY exam_date DESC');
-      return stmt.all(type) as OpticalExam[];
+      if (clinicId) {
+        const stmt = this.db.prepare(`
+          SELECT e.* FROM optical_exams e
+          JOIN clients c ON e.client_id = c.id
+          WHERE e.type = ? AND c.clinic_id = ?
+          ORDER BY e.exam_date DESC
+        `);
+        return stmt.all(type, clinicId) as OpticalExam[];
+      } else {
+        const stmt = this.db.prepare('SELECT * FROM optical_exams WHERE type = ? ORDER BY exam_date DESC');
+        return stmt.all(type) as OpticalExam[];
+      }
     } catch (error) {
       console.error('Error getting all exams:', error);
       return [];
@@ -1883,12 +2155,22 @@ class DatabaseService {
     }
   }
 
-  getAllOrders(): Order[] {
+  getAllOrders(clinicId?: number): Order[] {
     if (!this.db) return [];
 
     try {
-      const stmt = this.db.prepare('SELECT * FROM orders ORDER BY order_date DESC');
-      return stmt.all() as Order[];
+      if (clinicId) {
+        const stmt = this.db.prepare(`
+          SELECT o.* FROM orders o
+          JOIN clients c ON o.client_id = c.id
+          WHERE c.clinic_id = ?
+          ORDER BY o.order_date DESC
+        `);
+        return stmt.all(clinicId) as Order[];
+      } else {
+        const stmt = this.db.prepare('SELECT * FROM orders ORDER BY order_date DESC');
+        return stmt.all() as Order[];
+      }
     } catch (error) {
       console.error('Error getting all orders:', error);
       return [];
@@ -1986,118 +2268,6 @@ class DatabaseService {
     }
   }
 
-  // Order Lens CRUD operations
-  createOrderLens(orderLens: Omit<OrderLens, 'id'>): OrderLens | null {
-    if (!this.db) return null;
-
-    try {
-      const stmt = this.db.prepare(`
-        INSERT INTO order_lens (order_id, right_model, left_model, color, coating, material, supplier)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-      `);
-
-      const result = stmt.run(
-        orderLens.order_id, orderLens.right_model, orderLens.left_model,
-        orderLens.color, orderLens.coating, orderLens.material, orderLens.supplier
-      );
-
-      return { ...orderLens, id: result.lastInsertRowid as number };
-    } catch (error) {
-      console.error('Error creating order lens:', error);
-      return null;
-    }
-  }
-
-  getOrderLensByOrderId(orderId: number): OrderLens | null {
-    if (!this.db) return null;
-
-    try {
-      const stmt = this.db.prepare('SELECT * FROM order_lens WHERE order_id = ?');
-      return stmt.get(orderId) as OrderLens | null;
-    } catch (error) {
-      console.error('Error getting order lens:', error);
-      return null;
-    }
-  }
-
-  updateOrderLens(orderLens: OrderLens): OrderLens | null {
-    if (!this.db || !orderLens.id) return null;
-
-    try {
-      const stmt = this.db.prepare(`
-        UPDATE order_lens SET order_id = ?, right_model = ?, left_model = ?, color = ?, coating = ?, material = ?, supplier = ?
-        WHERE id = ?
-      `);
-
-      stmt.run(
-        orderLens.order_id, orderLens.right_model, orderLens.left_model,
-        orderLens.color, orderLens.coating, orderLens.material, orderLens.supplier,
-        orderLens.id
-      );
-
-      return orderLens;
-    } catch (error) {
-      console.error('Error updating order lens:', error);
-      return null;
-    }
-  }
-
-  // Frame CRUD operations
-  createFrame(frame: Omit<Frame, 'id'>): Frame | null {
-    if (!this.db) return null;
-
-    try {
-      const stmt = this.db.prepare(`
-        INSERT INTO frames (order_id, color, supplier, model, manufacturer, supplied_by, bridge, width, height, length)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `);
-
-      const result = stmt.run(
-        frame.order_id, frame.color, frame.supplier, frame.model, frame.manufacturer,
-        frame.supplied_by, frame.bridge, frame.width, frame.height, frame.length
-      );
-
-      return { ...frame, id: result.lastInsertRowid as number };
-    } catch (error) {
-      console.error('Error creating frame:', error);
-      return null;
-    }
-  }
-
-  getFrameByOrderId(orderId: number): Frame | null {
-    if (!this.db) return null;
-
-    try {
-      const stmt = this.db.prepare('SELECT * FROM frames WHERE order_id = ?');
-      return stmt.get(orderId) as Frame | null;
-    } catch (error) {
-      console.error('Error getting frame:', error);
-      return null;
-    }
-  }
-
-  updateFrame(frame: Frame): Frame | null {
-    if (!this.db || !frame.id) return null;
-
-    try {
-      const stmt = this.db.prepare(`
-        UPDATE frames SET order_id = ?, color = ?, supplier = ?, model = ?, manufacturer = ?, supplied_by = ?, bridge = ?, width = ?, height = ?, length = ?
-        WHERE id = ?
-      `);
-
-      stmt.run(
-        frame.order_id, frame.color, frame.supplier, frame.model, frame.manufacturer,
-        frame.supplied_by, frame.bridge, frame.width, frame.height, frame.length,
-        frame.id
-      );
-
-      return frame;
-    } catch (error) {
-      console.error('Error updating frame:', error);
-      return null;
-    }
-  }
-
   // Medical Log operations
   createMedicalLog(log: Omit<MedicalLog, 'id'>): MedicalLog | null {
     if (!this.db) return null;
@@ -2128,12 +2298,22 @@ class DatabaseService {
     }
   }
 
-  getAllMedicalLogs(): MedicalLog[] {
+  getAllMedicalLogs(clinicId?: number): MedicalLog[] {
     if (!this.db) return [];
 
     try {
-      const stmt = this.db.prepare('SELECT * FROM medical_logs ORDER BY log_date DESC');
-      return stmt.all() as MedicalLog[];
+      if (clinicId) {
+        const stmt = this.db.prepare(`
+          SELECT m.* FROM medical_logs m
+          JOIN clients c ON m.client_id = c.id
+          WHERE c.clinic_id = ?
+          ORDER BY m.log_date DESC
+        `);
+        return stmt.all(clinicId) as MedicalLog[];
+      } else {
+        const stmt = this.db.prepare('SELECT * FROM medical_logs ORDER BY log_date DESC');
+        return stmt.all() as MedicalLog[];
+      }
     } catch (error) {
       console.error('Error getting all medical logs:', error);
       return [];
@@ -2948,12 +3128,22 @@ class DatabaseService {
     }
   }
 
-  getAllReferrals(): Referral[] {
+  getAllReferrals(clinicId?: number): Referral[] {
     if (!this.db) return [];
 
     try {
-      const stmt = this.db.prepare('SELECT * FROM referrals ORDER BY date DESC');
-      return stmt.all() as Referral[];
+      if (clinicId) {
+        const stmt = this.db.prepare(`
+          SELECT r.* FROM referrals r
+          JOIN clients c ON r.client_id = c.id
+          WHERE c.clinic_id = ?
+          ORDER BY r.date DESC
+        `);
+        return stmt.all(clinicId) as Referral[];
+      } else {
+        const stmt = this.db.prepare('SELECT * FROM referrals ORDER BY date DESC');
+        return stmt.all() as Referral[];
+      }
     } catch (error) {
       console.error('Error getting all referrals:', error);
       return [];
@@ -3145,12 +3335,22 @@ class DatabaseService {
     }
   }
 
-  getAllAppointments(): Appointment[] {
+  getAllAppointments(clinicId?: number): Appointment[] {
     if (!this.db) return [];
 
     try {
-      const stmt = this.db.prepare('SELECT * FROM appointments ORDER BY date DESC');
-      return stmt.all() as Appointment[];
+      if (clinicId) {
+        const stmt = this.db.prepare(`
+          SELECT a.* FROM appointments a
+          JOIN clients c ON a.client_id = c.id
+          WHERE c.clinic_id = ?
+          ORDER BY a.date DESC
+        `);
+        return stmt.all(clinicId) as Appointment[];
+      } else {
+        const stmt = this.db.prepare('SELECT * FROM appointments ORDER BY date DESC');
+        return stmt.all() as Appointment[];
+      }
     } catch (error) {
       console.error('Error getting all appointments:', error);
       return [];
@@ -3373,11 +3573,12 @@ class DatabaseService {
 
     try {
       const stmt = this.db.prepare(`
-        INSERT INTO users (username, email, phone, password, role, is_active, profile_picture, primary_theme_color, secondary_theme_color, theme_preference)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO users (clinic_id, username, email, phone, password, role, is_active, profile_picture, primary_theme_color, secondary_theme_color, theme_preference)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
 
       const result = stmt.run(
+        this.sanitizeValue(user.clinic_id),
         user.username,
         this.sanitizeValue(user.email),
         this.sanitizeValue(user.phone),
@@ -3409,12 +3610,22 @@ class DatabaseService {
     }
   }
 
-  getUserByUsername(username: string): User | null {
+  getUserByUsername(username: string, companyId?: number): User | null {
     if (!this.db) return null;
 
     try {
-      const stmt = this.db.prepare('SELECT * FROM users WHERE username = ?');
-      return stmt.get(username) as User | null;
+      if (companyId) {
+        // Get users that belong to clinics of the specified company OR are company admin users (clinic_id is null)
+        const stmt = this.db.prepare(`
+          SELECT u.* FROM users u 
+          LEFT JOIN clinics c ON u.clinic_id = c.id 
+          WHERE u.username = ? AND (c.company_id = ? OR u.clinic_id IS NULL)
+        `);
+        return stmt.get(username, companyId) as User | null;
+      } else {
+        const stmt = this.db.prepare('SELECT * FROM users WHERE username = ?');
+        return stmt.get(username) as User | null;
+      }
     } catch (error) {
       console.error('Error getting user by username:', error);
       return null;
@@ -3429,6 +3640,19 @@ class DatabaseService {
       return stmt.all() as User[];
     } catch (error) {
       console.error('Error getting all users:', error);
+      return [];
+    }
+  }
+
+  getUsersByClinicId(clinicId: number): User[] {
+    if (!this.db) return [];
+
+    try {
+      // Get users that belong to the specific clinic OR global users (clinic_id is null)
+      const stmt = this.db.prepare('SELECT * FROM users WHERE (clinic_id = ? OR clinic_id IS NULL) AND is_active = 1 ORDER BY username');
+      return stmt.all(clinicId) as User[];
+    } catch (error) {
+      console.error('Error getting users by clinic ID:', error);
       return [];
     }
   }
@@ -4950,12 +5174,22 @@ class DatabaseService {
     }
   }
 
-  getAllFiles(): File[] {
+  getAllFiles(clinicId?: number): File[] {
     if (!this.db) return [];
 
     try {
-      const stmt = this.db.prepare('SELECT * FROM files ORDER BY upload_date DESC');
-      return stmt.all() as File[];
+      if (clinicId) {
+        const stmt = this.db.prepare(`
+          SELECT f.* FROM files f
+          JOIN clients c ON f.client_id = c.id
+          WHERE c.clinic_id = ?
+          ORDER BY f.upload_date DESC
+        `);
+        return stmt.all(clinicId) as File[];
+      } else {
+        const stmt = this.db.prepare('SELECT * FROM files ORDER BY upload_date DESC');
+        return stmt.all() as File[];
+      }
     } catch (error) {
       console.error('Error getting all files:', error);
       return [];
@@ -5913,11 +6147,18 @@ class DatabaseService {
     }
   }
 
-  getAllCampaigns(): Campaign[] {
+  getAllCampaigns(clinicId?: number): Campaign[] {
     if (!this.db) return [];
     try {
-      const stmt = this.db.prepare('SELECT * FROM campaigns ORDER BY created_at DESC');
-      return stmt.all() as Campaign[];
+      if (clinicId) {
+        // For now, campaigns are global but we can add clinic_id filtering later if needed
+        // This maintains backward compatibility while allowing future clinic-specific campaigns
+        const stmt = this.db.prepare('SELECT * FROM campaigns ORDER BY created_at DESC');
+        return stmt.all() as Campaign[];
+      } else {
+        const stmt = this.db.prepare('SELECT * FROM campaigns ORDER BY created_at DESC');
+        return stmt.all() as Campaign[];
+      }
     } catch (error) {
       console.error('Error getting all campaigns:', error);
       return [];
@@ -6750,7 +6991,97 @@ class DatabaseService {
     );
     return data;
   }
+
+  // Settings CRUD operations for multi-clinic support
+  createSettings(settings: Omit<Settings, 'id'>): Settings | null {
+    if (!this.db) return null;
+
+    try {
+      const stmt = this.db.prepare(`
+        INSERT INTO settings (
+          clinic_id, clinic_name, clinic_position, clinic_email, clinic_phone,
+          clinic_address, clinic_city, clinic_postal_code, clinic_directions, clinic_website,
+          manager_name, license_number, clinic_logo_path,
+          primary_theme_color, secondary_theme_color,
+          work_start_time, work_end_time, appointment_duration,
+          send_email_before_appointment, email_days_before, email_time,
+          working_days, break_start_time, break_end_time, max_appointments_per_day,
+          email_provider, email_smtp_host, email_smtp_port, email_smtp_secure,
+          email_username, email_password, email_from_name
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+
+      const result = stmt.run(
+        this.sanitizeValue(settings.clinic_id),
+        this.sanitizeValue(settings.clinic_name),
+        this.sanitizeValue(settings.clinic_position),
+        this.sanitizeValue(settings.clinic_email),
+        this.sanitizeValue(settings.clinic_phone),
+        this.sanitizeValue(settings.clinic_address),
+        this.sanitizeValue(settings.clinic_city),
+        this.sanitizeValue(settings.clinic_postal_code),
+        this.sanitizeValue(settings.clinic_directions),
+        this.sanitizeValue(settings.clinic_website),
+        this.sanitizeValue(settings.manager_name),
+        this.sanitizeValue(settings.license_number),
+        this.sanitizeValue(settings.clinic_logo_path),
+        this.sanitizeValue(settings.primary_theme_color),
+        this.sanitizeValue(settings.secondary_theme_color),
+        this.sanitizeValue(settings.work_start_time),
+        this.sanitizeValue(settings.work_end_time),
+        this.sanitizeValue(settings.appointment_duration),
+        this.sanitizeValue(settings.send_email_before_appointment),
+        this.sanitizeValue(settings.email_days_before),
+        this.sanitizeValue(settings.email_time),
+        this.sanitizeValue(settings.working_days),
+        this.sanitizeValue(settings.break_start_time),
+        this.sanitizeValue(settings.break_end_time),
+        this.sanitizeValue(settings.max_appointments_per_day),
+        this.sanitizeValue(settings.email_provider),
+        this.sanitizeValue(settings.email_smtp_host),
+        this.sanitizeValue(settings.email_smtp_port),
+        this.sanitizeValue(settings.email_smtp_secure),
+        this.sanitizeValue(settings.email_username),
+        this.sanitizeValue(settings.email_password),
+        this.sanitizeValue(settings.email_from_name)
+      );
+
+      return { ...settings, id: result.lastInsertRowid as number };
+    } catch (error) {
+      console.error('Error creating settings:', error);
+      return null;
+    }
+  }
+
+  getSettingsByClinicId(clinicId: number): Settings | null {
+    if (!this.db) return null;
+
+    try {
+      const stmt = this.db.prepare('SELECT * FROM settings WHERE clinic_id = ?');
+      return stmt.get(clinicId) as Settings | null;
+    } catch (error) {
+      console.error('Error getting settings by clinic ID:', error);
+      return null;
+    }
+  }
+
+  getAllSettingsByCompanyId(companyId: number): Settings[] {
+    if (!this.db) return [];
+
+    try {
+      const stmt = this.db.prepare(`
+        SELECT s.* FROM settings s
+        JOIN clinics c ON s.clinic_id = c.id
+        WHERE c.company_id = ?
+        ORDER BY c.name
+      `);
+      return stmt.all(companyId) as Settings[];
+    } catch (error) {
+      console.error('Error getting all settings by company ID:', error);
+      return [];
+    }
+  }
 }
 
 export const dbService = new DatabaseService();
-export type DBServiceType = typeof dbService; 
+export type DBServiceType = typeof dbService;
