@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { SiteHeader } from "@/components/site-header"
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
 import { useRouter } from '@tanstack/react-router';
 import { 
   Building2, 
@@ -14,7 +14,9 @@ import {
   Eye,
   UserCheck,
   Clock,
-  MapPin
+  MapPin,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import type { Company, Clinic, User } from '@/lib/db/schema';
 
@@ -48,7 +50,6 @@ const ControlCenterDashboardPage: React.FC = () => {
     try {
       setLoading(true);
       
-      // Get company data from session storage
       const companyData = sessionStorage.getItem('controlCenterCompany');
       if (!companyData) {
         router.navigate({ to: '/control-center' });
@@ -58,15 +59,12 @@ const ControlCenterDashboardPage: React.FC = () => {
       const parsedCompany = JSON.parse(companyData) as Company;
       setCompany(parsedCompany);
 
-      // Load clinics for this company
       const clinicsResult = await window.electronAPI.db('getClinicsByCompanyId', parsedCompany.id);
       setClinics(clinicsResult || []);
 
-      // Load users for all clinics
       const allUsers = await window.electronAPI.db('getAllUsers');
       setUsers(allUsers || []);
 
-      // Calculate stats
       const activeClinics = clinicsResult?.filter((clinic: Clinic) => clinic.is_active) || [];
       const totalAppointments = await window.electronAPI.db('getAllAppointments');
       
@@ -75,7 +73,7 @@ const ControlCenterDashboardPage: React.FC = () => {
         activeClinics: activeClinics.length,
         totalUsers: allUsers?.length || 0,
         totalAppointments: totalAppointments?.length || 0,
-        monthlyRevenue: 0 // TODO: Calculate from billing data
+        monthlyRevenue: 0
       });
 
     } catch (error) {
@@ -103,171 +101,131 @@ const ControlCenterDashboardPage: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">טוען נתוני לוח הבקרה...</p>
+      <>
+        <SiteHeader title="לוח בקרה" />
+        <div className="flex items-center justify-center h-64">
+          <div className="text-muted-foreground">טוען נתונים...</div>
         </div>
-      </div>
+      </>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100" dir="rtl">
-      <div className="container mx-auto px-4 py-8">
-        {/* Header */}
-        <div className="mb-8">
-          <div className="flex items-center justify-between mb-4">
+    <>
+      <SiteHeader title="לוח בקרה" />
+      <div className="flex flex-col bg-muted/50 flex-1 gap-6 pb-40" dir="rtl" style={{ scrollbarWidth: 'none' }}>
+        
+        {/* Header Section */}
+        <div className="flex items-center justify-between p-4 lg:p-6 pb-0 lg:pb-1">
+          <div className="flex items-center gap-4">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900 mb-2">
-                לוח בקרה - {company?.name}
-              </h1>
-              <p className="text-gray-600">
-                ניהול כללי של כל המרפאות והמשתמשים במערכת
-              </p>
-            </div>
-            <div className="flex gap-3">
-              <Button onClick={handleAddClinic} className="bg-green-600 hover:bg-green-700">
-                <Plus className="w-4 h-4 ml-2" />
-                הוסף מרפאה
-              </Button>
-              <Button onClick={handleNavigateToSettings} variant="outline">
-                <Settings className="w-4 h-4 ml-2" />
-                הגדרות
-              </Button>
+              <h1 className="text-xl font-semibold">{company?.name}</h1>
+              <p className="text-sm text-muted-foreground">ניהול כללי של כל המרפאות והמשתמשים במערכת</p>
             </div>
           </div>
+          <div className="flex items-center gap-2">
+            <Button onClick={handleNavigateToSettings} variant="outline" className="bg-card shadow-md border-none dark:bg-card">
+              <Settings className="h-4 w-4 ml-2" />
+              הגדרות
+            </Button>
+          </div>
+        </div>
+
+        <div className="px-4 lg:px-6 space-y-6">
           
-          {company && (
-            <Card className="bg-white/80 backdrop-blur-sm">
-              <CardContent className="pt-6">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="flex items-center gap-3">
-                    <Building2 className="w-5 h-5 text-blue-600" />
-                    <div>
-                      <p className="text-sm text-gray-600">בעל החברה</p>
-                      <p className="font-semibold">{company.owner_full_name}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <MapPin className="w-5 h-5 text-green-600" />
-                    <div>
-                      <p className="text-sm text-gray-600">מיקום</p>
-                      <p className="font-semibold">{company.address || 'לא צוין'}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <Clock className="w-5 h-5 text-purple-600" />
-                    <div>
-                      <p className="text-sm text-gray-600">נוצר</p>
-                      <p className="font-semibold">
-                        {new Date(company.created_at).toLocaleDateString('he-IL')}
-                      </p>
-                    </div>
-                  </div>
-                </div>
+          {/* Stats Bar - First Row */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <Card className="bg-card border-none shadow-md">
+              <CardHeader className="flex flex-row items-center mb-[-10px] justify-between space-y-0">
+                <CardTitle className="text-sm font-medium">סה"כ מרפאות</CardTitle>
+                <Building2 className="h-4 w-4 text-primary" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-primary">{stats.totalClinics}</div>
+                <p className="text-xs text-muted-foreground">
+                  {stats.activeClinics} פעילות
+                </p>
               </CardContent>
             </Card>
-          )}
-        </div>
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <Card className="bg-white/80 backdrop-blur-sm hover:shadow-lg transition-shadow">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">סה"כ מרפאות</CardTitle>
-              <Building2 className="h-4 w-4 text-blue-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.totalClinics}</div>
-              <p className="text-xs text-muted-foreground">
-                {stats.activeClinics} פעילות
-              </p>
-            </CardContent>
-          </Card>
+            <Card className="bg-card border-none shadow-md">
+              <CardHeader className="flex flex-row items-center mb-[-10px] justify-between space-y-0">
+                <CardTitle className="text-sm font-medium">סה"כ משתמשים</CardTitle>
+                <Users className="h-4 w-4 text-secondary-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-secondary-foreground">{stats.totalUsers}</div>
+                <p className="text-xs text-muted-foreground">
+                  בכל המרפאות
+                </p>
+              </CardContent>
+            </Card>
 
-          <Card className="bg-white/80 backdrop-blur-sm hover:shadow-lg transition-shadow">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">סה"כ משתמשים</CardTitle>
-              <Users className="h-4 w-4 text-green-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.totalUsers}</div>
-              <p className="text-xs text-muted-foreground">
-                בכל המרפאות
-              </p>
-            </CardContent>
-          </Card>
+            <Card className="bg-card border-none shadow-md">
+              <CardHeader className="flex flex-row items-center mb-[-10px] justify-between space-y-0">
+                <CardTitle className="text-sm font-medium">תורים החודש</CardTitle>
+                <Calendar className="h-4 w-4 text-primary" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-primary">{stats.totalAppointments}</div>
+                <p className="text-xs text-muted-foreground">
+                  בכל המרפאות
+                </p>
+              </CardContent>
+            </Card>
 
-          <Card className="bg-white/80 backdrop-blur-sm hover:shadow-lg transition-shadow">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">תורים החודש</CardTitle>
-              <Calendar className="h-4 w-4 text-purple-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.totalAppointments}</div>
-              <p className="text-xs text-muted-foreground">
-                בכל המרפאות
-              </p>
-            </CardContent>
-          </Card>
+            <Card className="bg-card border-none shadow-md">
+              <CardHeader className="flex flex-row items-center mb-[-10px] justify-between space-y-0">
+                <CardTitle className="text-sm font-medium">הכנסות החודש</CardTitle>
+                <TrendingUp className="h-4 w-4 text-secondary-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-secondary-foreground">₪{stats.monthlyRevenue.toLocaleString()}</div>
+                <p className="text-xs text-muted-foreground">
+                  מכל המרפאות
+                </p>
+              </CardContent>
+            </Card>
+          </div>
 
-          <Card className="bg-white/80 backdrop-blur-sm hover:shadow-lg transition-shadow">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">הכנסות החודש</CardTitle>
-              <TrendingUp className="h-4 w-4 text-orange-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">₪{stats.monthlyRevenue.toLocaleString()}</div>
-              <p className="text-xs text-muted-foreground">
-                מכל המרפאות
-              </p>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Main Content */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Clinics Overview */}
-          <Card className="bg-white/80 backdrop-blur-sm">
+          {/* Clinics Overview Card */}
+          <Card className="bg-card border-none shadow-md">
             <CardHeader>
               <div className="flex items-center justify-between">
                 <div>
-                  <CardTitle className="flex items-center gap-2">
-                    <Building2 className="w-5 h-5 text-blue-600" />
+                  <CardTitle className="flex items-center gap-2 text-sm font-medium">
+                    <Building2 className="w-4 h-4 text-primary" />
                     מרפאות
                   </CardTitle>
-                  <CardDescription>
-                    רשימת כל המרפאות במערכת
-                  </CardDescription>
+                  <p className="text-xs text-muted-foreground">רשימת כל המרפאות במערכת</p>
                 </div>
-                <Button onClick={handleNavigateToClinics} variant="outline" size="sm">
+                <Button onClick={handleNavigateToClinics} variant="outline" size="sm" className="bg-card shadow-md border-none dark:bg-card">
                   <Eye className="w-4 h-4 ml-2" />
                   צפה בכל
                 </Button>
               </div>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
+              <div className="space-y-3">
                 {clinics.slice(0, 5).map((clinic) => (
-                  <div key={clinic.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <div key={clinic.id} className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
                     <div className="flex items-center gap-3">
-                      <div className={`w-3 h-3 rounded-full ${clinic.is_active ? 'bg-green-500' : 'bg-gray-400'}`} />
+                      <div className={`w-2 h-2 rounded-full ${clinic.is_active ? 'bg-green-500' : 'bg-gray-400'}`} />
                       <div>
-                        <p className="font-medium">{clinic.name}</p>
-                        <p className="text-sm text-gray-600">{clinic.address}</p>
+                        <p className="text-sm font-medium">{clinic.name}</p>
+                        <p className="text-xs text-muted-foreground">{clinic.address}</p>
                       </div>
                     </div>
-                    <Badge variant={clinic.is_active ? "default" : "secondary"}>
+                    <Badge variant={clinic.is_active ? "default" : "secondary"} className="text-xs">
                       {clinic.is_active ? 'פעיל' : 'לא פעיל'}
                     </Badge>
                   </div>
                 ))}
                 {clinics.length === 0 && (
-                  <div className="text-center py-8 text-gray-500">
-                    <Building2 className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-                    <p>אין מרפאות במערכת</p>
-                    <Button onClick={handleAddClinic} className="mt-4" size="sm">
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Building2 className="w-8 h-8 mx-auto mb-2 text-muted-foreground/50" />
+                    <p className="text-sm">אין מרפאות במערכת</p>
+                    <Button onClick={handleAddClinic} className="mt-2" size="sm">
                       הוסף מרפאה ראשונה
                     </Button>
                   </div>
@@ -276,94 +234,52 @@ const ControlCenterDashboardPage: React.FC = () => {
             </CardContent>
           </Card>
 
-          {/* Users Overview */}
-          <Card className="bg-white/80 backdrop-blur-sm">
+          {/* Users Overview Card */}
+          <Card className="bg-card border-none shadow-md">
             <CardHeader>
               <div className="flex items-center justify-between">
                 <div>
-                  <CardTitle className="flex items-center gap-2">
-                    <Users className="w-5 h-5 text-green-600" />
+                  <CardTitle className="flex items-center gap-2 text-sm font-medium">
+                    <Users className="w-4 h-4 text-secondary-foreground" />
                     משתמשים
                   </CardTitle>
-                  <CardDescription>
-                    רשימת המשתמשים האחרונים במערכת
-                  </CardDescription>
+                  <p className="text-xs text-muted-foreground">רשימת המשתמשים האחרונים במערכת</p>
                 </div>
-                <Button onClick={handleNavigateToUsers} variant="outline" size="sm">
+                <Button onClick={handleNavigateToUsers} variant="outline" size="sm" className="bg-card shadow-md border-none dark:bg-card">
                   <UserCheck className="w-4 h-4 ml-2" />
                   נהל משתמשים
                 </Button>
               </div>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
+              <div className="space-y-3">
                 {users.slice(0, 5).map((user) => (
-                  <div key={user.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <div key={user.id} className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
                     <div className="flex items-center gap-3">
-                      <div className={`w-3 h-3 rounded-full ${user.is_active ? 'bg-green-500' : 'bg-gray-400'}`} />
+                      <div className={`w-2 h-2 rounded-full ${user.is_active ? 'bg-green-500' : 'bg-gray-400'}`} />
                       <div>
-                        <p className="font-medium">{user.username}</p>
-                        <p className="text-sm text-gray-600">{user.email}</p>
+                        <p className="text-sm font-medium">{user.username}</p>
+                        <p className="text-xs text-muted-foreground">{user.email}</p>
                       </div>
                     </div>
-                    <Badge variant="outline">
+                    <Badge variant="outline" className="text-xs">
                       {user.role}
                     </Badge>
                   </div>
                 ))}
                 {users.length === 0 && (
-                  <div className="text-center py-8 text-gray-500">
-                    <Users className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-                    <p>אין משתמשים במערכת</p>
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Users className="w-8 h-8 mx-auto mb-2 text-muted-foreground/50" />
+                    <p className="text-sm">אין משתמשים במערכת</p>
                   </div>
                 )}
               </div>
             </CardContent>
           </Card>
-        </div>
 
-        {/* Quick Actions */}
-        <div className="mt-8">
-          <Card className="bg-white/80 backdrop-blur-sm">
-            <CardHeader>
-              <CardTitle>פעולות מהירות</CardTitle>
-              <CardDescription>
-                פעולות נפוצות לניהול המערכת
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Button 
-                  onClick={handleAddClinic}
-                  className="h-20 flex-col gap-2 bg-green-600 hover:bg-green-700"
-                >
-                  <Plus className="w-6 h-6" />
-                  הוסף מרפאה חדשה
-                </Button>
-                
-                <Button 
-                  onClick={handleNavigateToUsers}
-                  variant="outline"
-                  className="h-20 flex-col gap-2"
-                >
-                  <Users className="w-6 h-6" />
-                  נהל משתמשים
-                </Button>
-                
-                <Button 
-                  onClick={handleNavigateToSettings}
-                  variant="outline"
-                  className="h-20 flex-col gap-2"
-                >
-                  <Settings className="w-6 h-6" />
-                  הגדרות מערכת
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
         </div>
       </div>
-    </div>
+    </>
   );
 };
 

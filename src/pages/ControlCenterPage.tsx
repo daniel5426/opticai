@@ -151,8 +151,8 @@ export default function ControlCenterPage() {
       sessionStorage.setItem('controlCenterCompany', JSON.stringify(newCompany))
       sessionStorage.setItem('currentUser', JSON.stringify(adminUser))
 
-      // Force a page reload to update the BaseLayout's company state
-      window.location.href = `/setup-wizard?companyId=${newCompany.id}&companyName=${encodeURIComponent(newCompany.name)}`
+      // Navigate to control center dashboard
+      router.navigate({ to: '/control-center/dashboard' })
     } catch (error) {
       setError(error instanceof Error ? error.message : 'שגיאה ברישום')
     } finally {

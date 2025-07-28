@@ -29,8 +29,23 @@ export function UserProvider({ children }: UserProviderProps) {
       try {
         const savedUserId = localStorage.getItem('currentUserId')
         const savedClinicData = sessionStorage.getItem('selectedClinic')
+        const controlCenterUserData = sessionStorage.getItem('currentUser')
         
-        if (savedUserId) {
+        // Check for control center user first
+        if (controlCenterUserData) {
+          try {
+            const user = JSON.parse(controlCenterUserData)
+            if (user && user.is_active) {
+              setCurrentUser(user)
+            } else {
+              sessionStorage.removeItem('currentUser')
+            }
+          } catch (error) {
+            console.error('Error parsing control center user data:', error)
+            sessionStorage.removeItem('currentUser')
+          }
+        } else if (savedUserId) {
+          // Fall back to clinic user
           const user = await getUserById(parseInt(savedUserId))
           if (user && user.is_active) {
             // Apply complete theme atomically before setting user state
@@ -84,6 +99,8 @@ export function UserProvider({ children }: UserProviderProps) {
     setCurrentClinic(null)
     localStorage.removeItem('currentUserId')
     sessionStorage.removeItem('selectedClinic')
+    sessionStorage.removeItem('currentUser')
+    sessionStorage.removeItem('controlCenterCompany')
   }
 
   const setClinic = (clinic: Clinic | null) => {

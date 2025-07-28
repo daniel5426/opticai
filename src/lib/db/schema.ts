@@ -1054,7 +1054,7 @@ export const createTables = (db: Database): void => {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       company_id INTEGER NOT NULL,
       name TEXT NOT NULL,
-      location TEXT NOT NULL,
+      location TEXT,
       phone_number TEXT,
       email TEXT,
       unique_id TEXT UNIQUE NOT NULL,

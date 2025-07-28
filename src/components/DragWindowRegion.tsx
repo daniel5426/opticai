@@ -24,9 +24,9 @@ export default function DragWindowRegion({ title }: DragWindowRegionProps) {
     location.pathname.startsWith(route)
   );
   return (
-    <div className="bg-transparent border-sidebar-border">
-      <div className="bg-transparent flex w-screen items-center h-8 relative">
-        <div className="draglayer flex-1 bg-transparent  px-1 flex items-center gap-2">
+    <div className="bg-secondary border-sidebar-border">
+      <div className="bg-secondary flex w-screen items-center h-8 relative">
+        <div className="draglayer flex-1 bg-secondary px-1 flex items-center gap-2">
           <img 
             src="/src/assets/images/prysm-logo.png" 
             alt="Prysm Logo" 
