@@ -7,14 +7,16 @@ import { FamiliesTable } from "@/components/families-table"
 import { FamilyManagementModal } from "@/components/FamilyManagementModal"
 import { getAllClients } from "@/lib/db/clients-db"
 import { getAllFamilies } from "@/lib/db/family-db"
-import { Client, Family } from "@/lib/db/schema"
+import { Client, Family } from "@/lib/db/schema-interface"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Users, UserPlus, PlusIcon } from "lucide-react"
+import { useUser } from "@/contexts/UserContext"
 
 export default function ClientsPage() {
   const { t } = useTranslation()
   const navigate = useNavigate()
+  const { currentClinic } = useUser()
   const [clients, setClients] = useState<Client[]>([])
   const [families, setFamilies] = useState<Family[]>([])
   const [loading, setLoading] = useState(true)
@@ -27,7 +29,7 @@ export default function ClientsPage() {
   const loadClients = async () => {
     try {
       setLoading(true)
-      const clientsData = await getAllClients()
+      const clientsData = await getAllClients(currentClinic?.id)
       setClients(clientsData)
     } catch (error) {
       console.error('Error loading clients:', error)
@@ -38,7 +40,7 @@ export default function ClientsPage() {
 
   const loadFamilies = async () => {
     try {
-      const familiesData = await getAllFamilies()
+      const familiesData = await getAllFamilies(currentClinic?.id)
       setFamilies(familiesData)
     } catch (error) {
       console.error('Error loading families:', error)
@@ -50,8 +52,10 @@ export default function ClientsPage() {
   }
 
   useEffect(() => {
-    loadData()
-  }, [])
+    if (currentClinic) {
+      loadData()
+    }
+  }, [currentClinic])
 
   const handleClientDeleted = (clientId: number) => {
     setClients(prevClients => prevClients.filter(client => client.id !== clientId))

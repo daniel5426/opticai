@@ -1,7 +1,7 @@
 import React from 'react'
 import { Button } from '@/components/ui/button'
 import { CustomModal } from '@/components/ui/custom-modal'
-import { Client } from '@/lib/db/schema'
+import { Client } from '@/lib/db/schema-interface'
 
 interface ClientWarningModalProps {
   isOpen: boolean

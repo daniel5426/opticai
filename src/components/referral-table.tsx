@@ -11,13 +11,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Referral, Client } from "@/lib/db/schema";
+import { Referral, Client } from "@/lib/db/schema-interface";
 import { deleteReferral } from "@/lib/db/referral-db";
 import { getAllClients } from "@/lib/db/clients-db";
 import { toast } from "sonner";
 import { ClientSelectModal } from "@/components/ClientSelectModal";
 import { CustomModal } from "@/components/ui/custom-modal";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useUser } from "@/contexts/UserContext";
 
 interface ReferralTableProps {
   referrals: Referral[];
@@ -34,6 +35,7 @@ export function ReferralTable({
   clientId,
   loading,
 }: ReferralTableProps) {
+  const { currentClinic } = useUser()
   const [searchTerm, setSearchTerm] = useState("");
   const [clients, setClients] = useState<Client[]>([]);
   const navigate = useNavigate();
@@ -42,15 +44,17 @@ export function ReferralTable({
 
   useEffect(() => {
     const loadClients = async () => {
+      if (!currentClinic) return
+      
       try {
-        const clientsData = await getAllClients();
+        const clientsData = await getAllClients(currentClinic.id);
         setClients(clientsData);
       } catch (error) {
         console.error('Error loading clients:', error);
       }
     };
     loadClients();
-  }, []);
+  }, [currentClinic]);
 
   const getClientName = (clientId: number): string => {
     const client = clients.find(c => c.id === clientId);

@@ -8,7 +8,6 @@ import { ModeToggle } from "@/components/mode-toggle";
 import { GlobalSearch } from "@/components/GlobalSearch";
 import { RotateCcw } from "lucide-react";
 import { useLocation } from "@tanstack/react-router";
-import { useUser } from "@/contexts/UserContext";
 
 interface DragWindowRegionProps {
   title?: ReactNode;
@@ -16,13 +15,13 @@ interface DragWindowRegionProps {
 
 export default function DragWindowRegion({ title }: DragWindowRegionProps) {
   const location = useLocation();
-  const { currentUser } = useUser();
   
-  // Only show search bar when user is authenticated and in clinic routes
-  const clinicRoutes = ['/dashboard', '/clients', '/exams', '/orders', '/appointments', '/settings', '/campaigns'];
-  const shouldShowSearch = currentUser && clinicRoutes.some(route =>
+  // Only show search bar when in clinic routes (we'll handle user context in GlobalSearch)
+  const clinicRoutes = ['/dashboard', '/clients', '/exams', '/orders', '/appointments', '/settings', '/campaigns', '/files', '/referrals', '/contact-lenses', '/ai-assistant', '/exam-layouts', '/worker-stats', '/second-page'];
+  const shouldShowSearch = clinicRoutes.some(route =>
     location.pathname.startsWith(route)
   );
+  
   return (
     <div className="bg-secondary border-sidebar-border">
       <div className="bg-secondary flex w-screen items-center h-8 relative">

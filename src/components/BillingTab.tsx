@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Plus, Edit, Trash2, Save, X } from "lucide-react"
-import { Billing, OrderLineItem } from "@/lib/db/schema"
+import { Billing, OrderLineItem } from "@/lib/db/schema-interface"
 
 interface BillingTabProps {
   billingFormData: Billing;

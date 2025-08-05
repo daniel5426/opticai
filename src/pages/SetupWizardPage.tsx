@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { useRouter } from '@tanstack/react-router';
+import React, { useState, useEffect } from 'react';
+import { useRouter, useSearch } from '@tanstack/react-router';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,13 +8,13 @@ import { Textarea } from '@/components/ui/textarea';
 import { Progress } from '@/components/ui/progress';
 import { ArrowRight, ArrowLeft, Building2, MapPin, Phone, Mail, User, Check } from 'lucide-react';
 import { toast } from 'sonner';
+import { useUser } from '@/contexts/UserContext';
+import { apiClient } from '@/lib/api-client';
 
-interface SetupWizardProps {
-  companyId: number;
-  companyName: string;
-}
+interface SetupWizardProps {}
 
 interface ClinicData {
+  companyName: string;
   name: string;
   location: string;
   phone_number: string;
@@ -36,12 +36,145 @@ interface SettingsData {
   appointment_duration: number;
 }
 
-const SetupWizardPage: React.FC<SetupWizardProps> = ({ companyId, companyName }) => {
+const SetupWizardPage: React.FC<SetupWizardProps> = () => {
   const router = useRouter();
+  const search = useSearch({ from: '/setup-wizard' });
+  const { setCurrentUser } = useUser();
+  const companyId = parseInt(search.companyId || '0');
+  const companyName = search.companyName || '';
+  const username = search.username || '';
+  const password = search.password || '';
+  const email = search.email || '';
+  const phone = search.phone || '';
+  
+  console.log('SetupWizard - Loaded with companyId:', companyId);
+  console.log('SetupWizard - Loaded with companyName:', companyName);
+  console.log('SetupWizard - Loaded with username:', username);
+  console.log('SetupWizard - SessionStorage company:', sessionStorage.getItem('controlCenterCompany'));
+  console.log('SetupWizard - SessionStorage user:', sessionStorage.getItem('currentUser'));
+  
   const [currentStep, setCurrentStep] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
+  const [company, setCompany] = useState<any>(null);
+  const [ceoUser, setCeoUser] = useState<any>(null);
+
+  useEffect(() => {
+    if (companyId) {
+      // This is an existing user coming to setup wizard, check authentication
+      const companyData = sessionStorage.getItem('controlCenterCompany');
+      const userData = sessionStorage.getItem('currentUser');
+      
+      if (!companyData || !userData) {
+        console.log('SetupWizard - Authentication state lost, redirecting to control center');
+        router.navigate({ to: '/control-center' });
+      }
+    } else if (!username || !password) {
+      // No valid parameters, redirect to control center
+      console.log('SetupWizard - No valid parameters, redirecting to control center');
+      router.navigate({ to: '/control-center' });
+    }
+    // For new registrations (username && password && !companyId), we'll create company/CEO in handleFinish
+  }, [router, username, password, companyId]);
+
+  const createCompanyAndCEO = async (companyName: string): Promise<{ newCompany: any; newCeoUser: any }> => {
+    try {
+      setIsLoading(true);
+      console.log('SetupWizard - Creating company and CEO...');
+
+      let newCompany;
+      let newCeoUser;
+
+      // If we have username and password from registration form, this is a new registration
+      // Always use public endpoints for new registrations
+      if (username && password) {
+        console.log('SetupWizard - New registration, using public endpoints');
+        
+        // Use public endpoints for new registration
+        const newCompanyResponse = await apiClient.createCompanyPublic({
+          name: companyName,
+          owner_full_name: username,
+          contact_email: email,
+          contact_phone: phone,
+          address: ''
+        });
+        newCompany = newCompanyResponse.data;
+
+        const ceoUserResponse = await apiClient.createUserPublic({
+          username: username,
+          password: password,
+          role: 'company_ceo',
+          clinic_id: null,
+          email: email,
+          phone: phone
+        });
+        newCeoUser = ceoUserResponse.data;
+      } else {
+        // This is an existing user setting up additional clinic, authenticate first
+        console.log('SetupWizard - Existing user, authenticating first');
+        
+        // Authenticate with the provided credentials
+        const authResponse = await apiClient.authenticateUser(username, password);
+        const authUser = authResponse.data;
+        
+        if (!authUser) {
+          throw new Error('שם משתמש או סיסמה שגויים');
+        }
+
+        // Check if we got a token response or user response
+        if ('access_token' in authUser) {
+          // We got a token response, set it for authenticated requests
+          apiClient.setToken(authUser.access_token);
+        } else if ('role' in authUser) {
+          // We got a user response, check if it's a CEO
+          if (authUser.role !== 'company_ceo') {
+            throw new Error('אין לך הרשאות ליצירת חברות');
+          }
+        } else {
+          throw new Error('שם משתמש או סיסמה שגויים');
+        }
+
+        // Create the new company using authenticated endpoint
+        const newCompanyResponse = await apiClient.createCompany({
+          name: companyName,
+          owner_full_name: username,
+          contact_email: email,
+          contact_phone: phone,
+          address: ''
+        });
+        newCompany = newCompanyResponse.data;
+
+        // Create the CEO user using authenticated endpoint
+        const ceoUserResponse = await apiClient.createUser({
+          username: username,
+          password: password,
+          role: 'company_ceo',
+          clinic_id: null,
+          email: email,
+          phone: phone
+        });
+        newCeoUser = ceoUserResponse.data;
+      }
+
+      console.log('SetupWizard - Company and CEO created successfully');
+      console.log('SetupWizard - Company:', newCompany);
+      console.log('SetupWizard - CEO User:', newCeoUser);
+
+      // Store authentication state
+      sessionStorage.setItem('controlCenterCompany', JSON.stringify(newCompany));
+      sessionStorage.setItem('currentUser', JSON.stringify(newCeoUser));
+
+      return { newCompany, newCeoUser };
+
+    } catch (error) {
+      console.error('SetupWizard - Error creating company and CEO:', error);
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  };
   
   const [clinicData, setClinicData] = useState<ClinicData>({
+    companyName: '',
     name: '',
     location: '',
     phone_number: '',
@@ -89,7 +222,7 @@ const SetupWizardPage: React.FC<SetupWizardProps> = ({ companyId, companyName })
   const validateStep = (step: number): boolean => {
     switch (step) {
       case 1:
-        return clinicData.name.trim() !== '' && clinicData.location.trim() !== '';
+        return clinicData.companyName.trim() !== '' && clinicData.name.trim() !== '' && clinicData.location.trim() !== '';
       case 2:
         return settingsData.clinic_name.trim() !== '' && settingsData.manager_name.trim() !== '';
       case 3:
@@ -102,12 +235,55 @@ const SetupWizardPage: React.FC<SetupWizardProps> = ({ companyId, companyName })
   const handleFinish = async () => {
     setIsLoading(true);
     try {
+      let finalCompanyId = company?.id || companyId;
+      let finalCompany = company;
+
+      // For new registrations, create company and CEO user first
+      if (!finalCompanyId && username && password) {
+        console.log('SetupWizard - Creating company and CEO for new registration');
+        const result = await createCompanyAndCEO(clinicData.companyName);
+        finalCompanyId = result.newCompany.id;
+        finalCompany = result.newCompany;
+        
+        // Store authentication state
+        sessionStorage.setItem('controlCenterCompany', JSON.stringify(result.newCompany));
+        sessionStorage.setItem('currentUser', JSON.stringify(result.newCeoUser));
+        
+        // Authenticate the user for subsequent API calls
+        console.log('SetupWizard - Authenticating user for clinic creation');
+        const authResponse = await apiClient.authenticateUser(username, password);
+        const authUser = authResponse.data;
+        
+        if (!authUser) {
+          throw new Error('שם משתמש או סיסמה שגויים');
+        }
+
+        // Check if we got a token response or user response
+        if ('access_token' in authUser) {
+          // We got a token response, set it for authenticated requests
+          apiClient.setToken(authUser.access_token);
+          console.log('SetupWizard - Authentication token set');
+        } else if ('role' in authUser) {
+          // We got a user response, check if it's a CEO
+          if (authUser.role !== 'company_ceo') {
+            throw new Error('אין לך הרשאות ליצירת חברות');
+          }
+          console.log('SetupWizard - User authenticated successfully');
+        } else {
+          throw new Error('שם משתמש או סיסמה שגויים');
+        }
+      }
+      
+      if (!finalCompanyId) {
+        throw new Error('No company ID available');
+      }
+
       // Generate unique clinic ID
       const uniqueId = `clinic_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       
       // Create clinic
-      const clinic = await window.electronAPI.db('createClinic', {
-        company_id: companyId,
+      const clinicResponse = await apiClient.createClinic({
+        company_id: finalCompanyId,
         name: clinicData.name,
         location: clinicData.location,
         phone_number: clinicData.phone_number || null,
@@ -115,32 +291,78 @@ const SetupWizardPage: React.FC<SetupWizardProps> = ({ companyId, companyName })
         unique_id: uniqueId,
         is_active: true
       });
+      const clinic = clinicResponse.data;
 
       if (!clinic) {
         throw new Error('Failed to create clinic');
       }
 
       // Create clinic settings
-      await window.electronAPI.db('createSettings', {
-        clinic_id: clinic.id,
-        clinic_name: settingsData.clinic_name,
-        clinic_position: settingsData.clinic_position,
-        clinic_email: settingsData.clinic_email,
-        clinic_phone: settingsData.clinic_phone,
-        clinic_address: settingsData.clinic_address,
-        clinic_city: settingsData.clinic_city,
-        clinic_postal_code: settingsData.clinic_postal_code,
-        manager_name: settingsData.manager_name,
-        license_number: settingsData.license_number,
-        work_start_time: settingsData.work_start_time,
-        work_end_time: settingsData.work_end_time,
-        appointment_duration: settingsData.appointment_duration
-      });
+      console.log('SetupWizard - Creating settings for clinic:', clinic.id);
+      console.log('SetupWizard - Settings data:', settingsData);
+      try {
+        const settingsResponse = await apiClient.createSettings({
+          clinic_id: clinic.id,
+          clinic_name: settingsData.clinic_name,
+          clinic_position: settingsData.clinic_position,
+          clinic_email: settingsData.clinic_email,
+          clinic_phone: settingsData.clinic_phone,
+          clinic_address: settingsData.clinic_address,
+          clinic_city: settingsData.clinic_city,
+          clinic_postal_code: settingsData.clinic_postal_code,
+          manager_name: settingsData.manager_name,
+          license_number: settingsData.license_number,
+          work_start_time: settingsData.work_start_time,
+          work_end_time: settingsData.work_end_time,
+          appointment_duration: settingsData.appointment_duration
+        });
+        console.log('SetupWizard - Settings created successfully:', settingsResponse);
+        
+        // Add a small delay to ensure settings are committed
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        // Verify settings were created by trying to fetch them
+        try {
+          if (clinic.id) {
+            const verifySettings = await apiClient.getSettingsByClinic(clinic.id);
+            console.log('SetupWizard - Settings verification successful:', verifySettings);
+          }
+        } catch (verifyError) {
+          console.error('SetupWizard - Settings verification failed:', verifyError);
+        }
+      } catch (settingsError) {
+        console.error('SetupWizard - Error creating settings:', settingsError);
+        throw new Error(`Failed to create settings: ${settingsError}`);
+      }
 
       toast.success('הגדרת המערכת הושלמה בהצלחה!');
       
-      // Navigate to control center dashboard
-      router.navigate({ to: '/control-center/dashboard' });
+      // Clear any old sessionStorage data that might cause conflicts
+      sessionStorage.removeItem('selectedClinic');
+      sessionStorage.removeItem('selectedUser');
+      
+      // Ensure user is set in UserContext before navigation
+      const userData = sessionStorage.getItem('currentUser');
+      if (userData) {
+        try {
+          const user = JSON.parse(userData);
+          await setCurrentUser(user);
+          console.log('SetupWizard - User set in context:', user);
+        } catch (error) {
+          console.error('SetupWizard - Error setting user in context:', error);
+        }
+      }
+      
+      console.log('Setup wizard - Navigating to dashboard with auth data');
+      // Navigate to control center dashboard with authentication data
+      router.navigate({ 
+        to: '/control-center/dashboard',
+        search: {
+          companyId: finalCompanyId.toString(),
+          companyName: finalCompany?.name || companyName,
+          fromSetup: 'true'
+        }
+      });
     } catch (error) {
       console.error('Setup wizard error:', error);
       toast.error('שגיאה בהגדרת המערכת. אנא נסה שוב.');
@@ -161,6 +383,17 @@ const SetupWizardPage: React.FC<SetupWizardProps> = ({ companyId, companyName })
             </div>
 
             <div className="space-y-4">
+              <div>
+                <Label htmlFor="company-name">שם החברה *</Label>
+                <Input
+                  id="company-name"
+                  value={clinicData.companyName}
+                  onChange={(e) => handleClinicDataChange('companyName', e.target.value)}
+                  placeholder="לדוגמה: חברת אופטיקה בע״מ"
+                  className="mt-1"
+                />
+              </div>
+
               <div>
                 <Label htmlFor="clinic-name">שם המרפאה *</Label>
                 <Input
@@ -420,55 +653,68 @@ const SetupWizardPage: React.FC<SetupWizardProps> = ({ companyId, companyName })
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
-      <Card className="w-full max-w-4xl">
-        <CardHeader className="text-center">
-          <CardTitle className="text-3xl font-bold text-gray-900">
-            אשף הגדרת המערכת
-          </CardTitle>
-          <CardDescription className="text-lg">
-            שלב {currentStep} מתוך {totalSteps}
-          </CardDescription>
-          <div className="mt-4">
-            <Progress value={progress} className="w-full" />
-          </div>
-        </CardHeader>
+      {isLoading && !company ? (
+        <Card className="w-full max-w-md">
+          <CardHeader className="text-center">
+            <CardTitle className="text-2xl font-bold text-gray-900">
+              יוצר חברה ומשתמש...
+            </CardTitle>
+            <CardDescription className="text-lg">
+              אנא המתן בזמן יצירת החברה והמשתמש הראשונים
+            </CardDescription>
+          </CardHeader>
+        </Card>
+      ) : (
+        <Card className="w-full max-w-4xl">
+          <CardHeader className="text-center">
+            <CardTitle className="text-3xl font-bold text-gray-900">
+              אשף הגדרת המערכת
+            </CardTitle>
+            <CardDescription className="text-lg">
+              שלב {currentStep} מתוך {totalSteps}
+            </CardDescription>
+            <div className="mt-4">
+              <Progress value={progress} className="w-full" />
+            </div>
+          </CardHeader>
 
-        <CardContent className="p-8">
-          {renderStepContent()}
+          <CardContent className="p-8">
+            {renderStepContent()}
 
-          <div className="flex justify-between mt-8">
-            <Button
-              variant="outline"
-              onClick={handlePrevious}
-              disabled={currentStep === 1}
-              className="flex items-center gap-2"
-            >
-              <ArrowLeft className="h-4 w-4" />
-              הקודם
-            </Button>
-
-            {currentStep < totalSteps ? (
+            <div className="flex justify-between mt-8">
               <Button
-                onClick={handleNext}
-                disabled={!validateStep(currentStep)}
+                variant="outline"
+                onClick={handlePrevious}
+                disabled={currentStep === 1}
                 className="flex items-center gap-2"
               >
-                הבא
-                <ArrowRight className="h-4 w-4" />
+                <ArrowLeft className="h-4 w-4" />
+                הקודם
               </Button>
-            ) : (
-              <Button
-                onClick={handleFinish}
-                disabled={isLoading}
-                className="flex items-center gap-2"
-              >
-                {isLoading ? 'מגדיר...' : 'סיים הגדרה'}
-                <Check className="h-4 w-4" />
-              </Button>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+
+              {currentStep < totalSteps ? (
+                <Button
+                  onClick={handleNext}
+                  disabled={!validateStep(currentStep)}
+                  className="flex items-center gap-2"
+                >
+                  הבא
+                  <ArrowRight className="h-4 w-4" />
+                </Button>
+              ) : (
+                <Button
+                  onClick={handleFinish}
+                  disabled={isLoading}
+                  className="flex items-center gap-2"
+                >
+                  {isLoading ? 'מגדיר...' : 'סיים הגדרה'}
+                  <Check className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 };

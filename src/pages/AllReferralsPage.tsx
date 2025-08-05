@@ -2,12 +2,14 @@ import React, { useState, useEffect } from "react"
 import { SiteHeader } from "@/components/site-header"
 import { getAllReferrals } from "@/lib/db/referral-db"
 import { getAllClients } from "@/lib/db/clients-db"
-import { Referral, Client } from "@/lib/db/schema"
+import { Referral, Client } from "@/lib/db/schema-interface"
 import { ReferralTable } from "@/components/referral-table"
 import { ClientSelectModal } from "@/components/ClientSelectModal"
 import { useNavigate } from "@tanstack/react-router"
+import { useUser } from "@/contexts/UserContext"
 
 export default function AllReferralsPage() {
+  const { currentClinic } = useUser()
   const [referrals, setReferrals] = useState<Referral[]>([])
   const [clients, setClients] = useState<Client[]>([])
   const [loading, setLoading] = useState(true)
@@ -17,8 +19,8 @@ export default function AllReferralsPage() {
     try {
       setLoading(true)
       const [referralsData, clientsData] = await Promise.all([
-        getAllReferrals(),
-        getAllClients()
+        getAllReferrals(currentClinic?.id),
+        getAllClients(currentClinic?.id)
       ])
       setReferrals(referralsData)
       setClients(clientsData)
@@ -30,8 +32,10 @@ export default function AllReferralsPage() {
   }
 
   useEffect(() => {
-    loadData()
-  }, [])
+    if (currentClinic) {
+      loadData()
+    }
+  }, [currentClinic])
 
   const handleReferralDeleted = (deletedReferralId: number) => {
     setReferrals(prevReferrals => prevReferrals.filter(referral => referral.id !== deletedReferralId))

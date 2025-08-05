@@ -2,12 +2,12 @@ import React, { useState, useEffect } from "react"
 import { createPortal } from "react-dom"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
-import { SidebarTrigger } from "@/components/ui/sidebar"
+import { SidebarTrigger, useSidebar } from "@/components/ui/sidebar"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Link, useLocation, useNavigate } from "@tanstack/react-router"
 import { ChevronLeft, User, Phone, IdCard, Calendar } from "lucide-react"
-import { Client } from "@/lib/db/schema"
+import { Client } from "@/lib/db/schema-interface"
 import { useClientSidebar } from "@/contexts/ClientSidebarContext"
 
 interface SiteHeaderProps {
@@ -86,6 +86,15 @@ export function SiteHeader({ title, backLink, parentTitle, parentLink, grandpare
   const isOnClientDetailPage = currentClient && location.pathname === `/clients/${currentClient.id}`
   const isOnClientSubRoute = currentClient && location.pathname.startsWith(`/clients/${currentClient.id}/`) && !isOnClientDetailPage
 
+  // Check if we're in a sidebar context
+  let isInSidebarContext = false
+  try {
+    useSidebar()
+    isInSidebarContext = true
+  } catch (error) {
+    isInSidebarContext = false
+  }
+
   const handleClientNameClick = () => {
     if (currentClient && isOnClientSubRoute) {
       // Get the last tab from localStorage
@@ -108,11 +117,13 @@ export function SiteHeader({ title, backLink, parentTitle, parentLink, grandpare
       <div className=" flex w-full items-center justify-between px-4 lg:px-6 py-2">
         {/* Right side - Navigation (in RTL, this appears on the right) */}
         <div className="flex items-center gap-1 lg:gap-2">
-          <SidebarTrigger className="-mr-1" />
-          <Separator
-            orientation="vertical"
-            className="mx-2 data-[orientation=vertical]:h-4"
-          />
+          {isInSidebarContext && <SidebarTrigger className="-mr-1" />}
+          {isInSidebarContext && (
+            <Separator
+              orientation="vertical"
+              className="mx-2 data-[orientation=vertical]:h-4"
+            />
+          )}
           {backLink || parentTitle || grandparentTitle ? (
             <div className="flex items-center gap-2">
               {grandparentTitle && grandparentLink && parentTitle && parentLink ? (

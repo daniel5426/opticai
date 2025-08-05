@@ -12,7 +12,6 @@ import {
   installExtension,
   REACT_DEVELOPER_TOOLS,
 } from "electron-devtools-installer";
-import { dbService } from "./lib/db/index";
 import express from "express";
 import cors from "cors";
 import { Server } from "http";
@@ -20,6 +19,7 @@ import os from "os";
 import { emailScheduler } from "./lib/email/email-scheduler";
 import { emailService } from "./lib/email/email-service";
 import { campaignScheduler } from "./lib/campaign-scheduler";
+import { apiClient } from "./lib/api-client";
 // Import will be done dynamically to allow hot reload
 
 const inDevelopment = process.env.NODE_ENV === "development";
@@ -48,7 +48,7 @@ const campaignLLM = new ChatOpenAI({
   },
 });
 
-async function createCampaignFromPromptLLM(prompt) {
+async function createCampaignFromPromptLLM(prompt: string) {
   const campaignSchema = z.object({
     name: z.string().describe('The name of the campaign'),
     filters: z.array(z.object({
@@ -103,161 +103,231 @@ function setupExpressRoutes(app: express.Application) {
   app.use(express.json());
 
   // Client operations
-  app.get('/api/clients', (req, res) => {
+  app.get('/api/clients', async (req, res) => {
     try {
-      const clients = dbService.getAllClients();
-      res.json(clients);
+      const response = await apiClient.getClients();
+      if (response.error) {
+        res.status(500).json({ error: response.error });
+      } else {
+        res.json(response.data);
+      }
     } catch (error) {
       res.status(500).json({ error: 'Failed to get clients' });
     }
   });
 
-  app.get('/api/clients/:id', (req, res) => {
+  app.get('/api/clients/:id', async (req, res) => {
     try {
-      const client = dbService.getClientById(parseInt(req.params.id));
-      if (!client) {
+      const response = await apiClient.getClient(parseInt(req.params.id));
+      if (response.error) {
+        res.status(500).json({ error: response.error });
+      } else if (!response.data) {
         res.status(404).json({ error: 'Client not found' });
       } else {
-        res.json(client);
+        res.json(response.data);
       }
     } catch (error) {
       res.status(500).json({ error: 'Failed to get client' });
     }
   });
 
-  app.post('/api/clients', (req, res) => {
+  app.post('/api/clients', async (req, res) => {
     try {
-      const client = dbService.createClient(req.body);
-      res.json(client);
+      const response = await apiClient.createClient(req.body);
+      if (response.error) {
+        res.status(500).json({ error: response.error });
+      } else {
+        res.json(response.data);
+      }
     } catch (error) {
       res.status(500).json({ error: 'Failed to create client' });
     }
   });
 
-  app.put('/api/clients/:id', (req, res) => {
+  app.put('/api/clients/:id', async (req, res) => {
     try {
-      const client = dbService.updateClient({ ...req.body, id: parseInt(req.params.id) });
-      res.json(client);
+      const response = await apiClient.updateClient(parseInt(req.params.id), req.body);
+      if (response.error) {
+        res.status(500).json({ error: response.error });
+      } else {
+        res.json(response.data);
+      }
     } catch (error) {
       res.status(500).json({ error: 'Failed to update client' });
     }
   });
 
-  app.delete('/api/clients/:id', (req, res) => {
+  app.delete('/api/clients/:id', async (req, res) => {
     try {
-      const result = dbService.deleteClient(parseInt(req.params.id));
-      res.json({ success: result });
+      const response = await apiClient.deleteClient(parseInt(req.params.id));
+      if (response.error) {
+        res.status(500).json({ error: response.error });
+      } else {
+        res.json({ success: true });
+      }
     } catch (error) {
       res.status(500).json({ error: 'Failed to delete client' });
     }
   });
 
   // Exam operations
-  app.get('/api/exams', (req, res) => {
+  app.get('/api/exams', async (req, res) => {
     try {
-      const exams = dbService.getAllExams();
-      res.json(exams);
+      const response = await apiClient.getExams();
+      if (response.error) {
+        res.status(500).json({ error: response.error });
+      } else {
+        res.json(response.data);
+      }
     } catch (error) {
       res.status(500).json({ error: 'Failed to get exams' });
     }
   });
 
-  app.get('/api/exams/client/:clientId', (req, res) => {
+  app.get('/api/exams/client/:clientId', async (req, res) => {
     try {
-      const exams = dbService.getExamsByClientId(parseInt(req.params.clientId));
-      res.json(exams);
+      const response = await apiClient.getExamsByClient(parseInt(req.params.clientId));
+      if (response.error) {
+        res.status(500).json({ error: response.error });
+      } else {
+        res.json(response.data);
+      }
     } catch (error) {
       res.status(500).json({ error: 'Failed to get exams' });
     }
   });
 
-  app.get('/api/exams/:id', (req, res) => {
+  app.get('/api/exams/:id', async (req, res) => {
     try {
-      const exam = dbService.getExamById(parseInt(req.params.id));
-      res.json(exam);
+      const response = await apiClient.getExam(parseInt(req.params.id));
+      if (response.error) {
+        res.status(500).json({ error: response.error });
+      } else if (!response.data) {
+        res.status(404).json({ error: 'Exam not found' });
+      } else {
+        res.json(response.data);
+      }
     } catch (error) {
       res.status(500).json({ error: 'Failed to get exam' });
     }
   });
 
-  app.post('/api/exams', (req, res) => {
+  app.post('/api/exams', async (req, res) => {
     try {
-      const exam = dbService.createExam(req.body);
-      res.json(exam);
+      const response = await apiClient.createExam(req.body);
+      if (response.error) {
+        res.status(500).json({ error: response.error });
+      } else {
+        res.json(response.data);
+      }
     } catch (error) {
       res.status(500).json({ error: 'Failed to create exam' });
     }
   });
 
-  app.put('/api/exams/:id', (req, res) => {
+  app.put('/api/exams/:id', async (req, res) => {
     try {
-      const exam = dbService.updateExam({ ...req.body, id: parseInt(req.params.id) });
-      res.json(exam);
+      const response = await apiClient.updateExam(parseInt(req.params.id), req.body);
+      if (response.error) {
+        res.status(500).json({ error: response.error });
+      } else {
+        res.json(response.data);
+      }
     } catch (error) {
       res.status(500).json({ error: 'Failed to update exam' });
     }
   });
 
-  app.delete('/api/exams/:id', (req, res) => {
+  app.delete('/api/exams/:id', async (req, res) => {
     try {
-      const result = dbService.deleteExam(parseInt(req.params.id));
-      res.json({ success: result });
+      const response = await apiClient.deleteExam(parseInt(req.params.id));
+      if (response.error) {
+        res.status(500).json({ error: response.error });
+      } else {
+        res.json({ success: true });
+      }
     } catch (error) {
       res.status(500).json({ error: 'Failed to delete exam' });
     }
   });
 
   // Users operations
-  app.get('/api/users', (req, res) => {
+  app.get('/api/users', async (req, res) => {
     try {
-      const users = dbService.getAllUsers();
-      res.json(users);
+      const response = await apiClient.getUsers();
+      if (response.error) {
+        res.status(500).json({ error: response.error });
+      } else {
+        res.json(response.data);
+      }
     } catch (error) {
       res.status(500).json({ error: 'Failed to get users' });
     }
   });
 
-  app.get('/api/users/:id', (req, res) => {
+  app.get('/api/users/:id', async (req, res) => {
     try {
-      const user = dbService.getUserById(parseInt(req.params.id));
-      res.json(user);
+      const response = await apiClient.getUser(parseInt(req.params.id));
+      if (response.error) {
+        res.status(500).json({ error: response.error });
+      } else if (!response.data) {
+        res.status(404).json({ error: 'User not found' });
+      } else {
+        res.json(response.data);
+      }
     } catch (error) {
       res.status(500).json({ error: 'Failed to get user' });
     }
   });
 
-  app.post('/api/users', (req, res) => {
+  app.post('/api/users', async (req, res) => {
     try {
-      const user = dbService.createUser(req.body);
-      res.json(user);
+      const response = await apiClient.createUser(req.body);
+      if (response.error) {
+        res.status(500).json({ error: response.error });
+      } else {
+        res.json(response.data);
+      }
     } catch (error) {
       res.status(500).json({ error: 'Failed to create user' });
     }
   });
 
-  app.put('/api/users/:id', (req, res) => {
+  app.put('/api/users/:id', async (req, res) => {
     try {
-      const user = dbService.updateUser({ ...req.body, id: parseInt(req.params.id) });
-      res.json(user);
+      const response = await apiClient.updateUser(parseInt(req.params.id), req.body);
+      if (response.error) {
+        res.status(500).json({ error: response.error });
+      } else {
+        res.json(response.data);
+      }
     } catch (error) {
       res.status(500).json({ error: 'Failed to update user' });
     }
   });
 
-  app.delete('/api/users/:id', (req, res) => {
+  app.delete('/api/users/:id', async (req, res) => {
     try {
-      const result = dbService.deleteUser(parseInt(req.params.id));
-      res.json({ success: result });
+      const response = await apiClient.deleteUser(parseInt(req.params.id));
+      if (response.error) {
+        res.status(500).json({ error: response.error });
+      } else {
+        res.json({ success: true });
+      }
     } catch (error) {
       res.status(500).json({ error: 'Failed to delete user' });
     }
   });
 
-  app.post('/api/auth', (req, res) => {
+  app.post('/api/auth', async (req, res) => {
     try {
       const { username, password } = req.body;
-      const user = dbService.authenticateUser(username, password);
-      res.json({ user, success: !!user });
+      const response = await apiClient.authenticateUser(username, password);
+      if (response.error) {
+        res.status(401).json({ error: response.error });
+      } else {
+        res.json({ user: response.data, success: !!response.data });
+      }
     } catch (error) {
       res.status(500).json({ error: 'Authentication failed' });
     }
@@ -359,17 +429,10 @@ function createWindow() {
 }
 
 function setupIpcHandlers() {
-  // Generic DB Handler for all database operations
+  // Generic DB Handler for all database operations - DEPRECATED
+  // This has been replaced with direct API calls using apiClient
   ipcMain.handle('db-operation', async (_, methodName: string, ...args: any[]) => {
-    try {
-      if (dbService && typeof (dbService as any)[methodName] === 'function') {
-        return await (dbService as any)[methodName](...args);
-      }
-      throw new Error(`Invalid or non-function DB method: ${methodName}`);
-    } catch (error) {
-      console.error(`Error in db-operation for method ${methodName}:`, error);
-      throw error;
-    }
+    throw new Error(`DB operation ${methodName} is deprecated. Use direct API calls instead.`);
   });
 
   // Server Mode operations
@@ -425,8 +488,7 @@ function setupIpcHandlers() {
       
       // Always recreate the agent (helpful for development)
       aiAgent = new AIAgent(
-        { proxyServerUrl: AI_PROXY_SERVER_URL },
-        dbService
+        { proxyServerUrl: AI_PROXY_SERVER_URL }
       );
       return { success: true };
     } catch (error) {
@@ -512,7 +574,7 @@ function setupIpcHandlers() {
       // This method is deprecated but kept for backward compatibility
       // Generate all states using the new comprehensive method
       const allStates = await aiAgent.generateAllClientAiStates(clientId);
-      await dbService.updateClientAiStates(clientId, allStates);
+      await apiClient.updateClientAiStates(clientId, allStates);
       
       return 'AI states generated successfully';
     } catch (error) {
@@ -528,7 +590,7 @@ function setupIpcHandlers() {
       }
       
       const aiPartState = await aiAgent.generateClientAiPartState(clientId, part);
-      await dbService.updateClientAiPartState(clientId, part, aiPartState);
+      await apiClient.updateClientAiPartState(clientId, part, aiPartState);
       
       return aiPartState;
     } catch (error) {
@@ -544,7 +606,7 @@ function setupIpcHandlers() {
       }
       
       const allStates = await aiAgent.generateAllClientAiStates(clientId);
-      await dbService.updateClientAiStates(clientId, allStates);
+      await apiClient.updateClientAiStates(clientId, allStates);
       
       return;
     } catch (error) {
@@ -579,17 +641,20 @@ function setupIpcHandlers() {
 
   ipcMain.handle('email-send-test-reminder', async (event, appointmentId: number) => {
     try {
-      const appointment = await dbService.getAppointmentById(appointmentId);
+      const appointmentResponse = await apiClient.getAppointmentById(appointmentId);
+      const appointment = appointmentResponse.data;
       if (!appointment) {
         return false;
       }
       
-      const client = await dbService.getClientById(appointment.client_id);
+      const clientResponse = await apiClient.getClientById(appointment.client_id);
+      const client = clientResponse.data;
       if (!client || !client.email) {
         return false;
       }
 
-      const settings = await dbService.getSettings();
+      const settingsResponse = await apiClient.getSettings();
+      const settings = settingsResponse.data;
       if (!settings) {
         return false;
       }
@@ -681,7 +746,8 @@ function setupIpcHandlers() {
   ipcMain.handle('campaign-validate', async (event, campaignId: number) => {
     try {
       const { campaignService } = await import('./lib/campaign-service');
-      const campaign = dbService.getCampaignById(campaignId);
+      const campaignResponse = await apiClient.getCampaignById(campaignId);
+      const campaign = campaignResponse.data;
       if (!campaign) {
         return { success: false, error: 'Campaign not found' };
       }
@@ -781,6 +847,60 @@ function setupIpcHandlers() {
       return [];
     }
   });
+
+
+
+  // Client operations handler
+  ipcMain.handle('db-get-clients', async () => {
+    try {
+      const response = await apiClient.getAllClients();
+      return response.data || [];
+    } catch (error) {
+      console.error('Error getting clients:', error);
+      return [];
+    }
+  });
+
+  // Chat operations handlers
+  ipcMain.handle('chat-create', async (event, title: string) => {
+    try {
+      const response = await apiClient.createChat(title);
+      return response.data;
+    } catch (error) {
+      console.error('Error creating chat:', error);
+      return null;
+    }
+  });
+
+  ipcMain.handle('chat-get-by-id', async (event, id: number) => {
+    try {
+      const response = await apiClient.getChat(id);
+      return response.data;
+    } catch (error) {
+      console.error('Error getting chat by id:', error);
+      return null;
+    }
+  });
+
+  ipcMain.handle('chat-get-messages', async (event, chatId: number) => {
+    try {
+      const response = await apiClient.getChatMessages(chatId);
+      return response.data || [];
+    } catch (error) {
+      console.error('Error getting chat messages:', error);
+      return [];
+    }
+  });
+
+  ipcMain.handle('chat-create-message', async (event, messageData: any) => {
+    try {
+      const response = await apiClient.createChatMessage(messageData);
+      return response.data;
+    } catch (error) {
+      console.error('Error creating chat message:', error);
+      return null;
+    }
+  });
 }
 
 async function installExtensions() {
@@ -793,7 +913,6 @@ async function installExtensions() {
 }
 
 app.whenReady().then(() => {
-  dbService.initialize();
   setupIpcHandlers();
   createWindow();
 }).then(installExtensions);
@@ -801,7 +920,6 @@ app.whenReady().then(() => {
 //osX only
 app.on("window-all-closed", async () => {
   await stopExpressServer();
-  dbService.close();
   if (process.platform !== "darwin") {
     app.quit();
   }
@@ -816,5 +934,4 @@ app.on("activate", () => {
 
 app.on("before-quit", async () => {
   await stopExpressServer();
-  dbService.close();
 });

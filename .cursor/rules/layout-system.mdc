@@ -1,0 +1,99 @@
+---
+alwaysApply: false
+---
+# OpticAI Layout System
+
+## Layout Architecture
+The application uses conditional layouts based on route type and user authentication state.
+
+## Layout Types
+
+### BaseLayout (`src/layouts/BaseLayout.tsx`)
+**Main layout component that determines which layout to show:**
+
+```typescript
+const noSidebarRoutes = currentUser ? 
+  ['/setup-wizard', '/clinic-entrance', '/user-selection'] : 
+  ['/', '/setup-wizard', '/clinic-entrance', '/user-selection'];
+
+const shouldShowSidebar = !noSidebarRoutes.some(route =>
+  location.pathname === route || location.pathname.startsWith(route)
+);
+```
+
+### Layout Types
+1. **Loading Layout**: Shows loading spinner during initialization
+2. **Control Center Layout**: With ControlCenterSidebar for company management
+3. **Clinic Layout**: With AppSidebar and ClientSidebar for clinic operations
+4. **Simple Layout**: No sidebar for entrance pages
+
+## Sidebar Management
+
+### AppSidebar (`src/components/app-sidebar.tsx`)
+**Main clinic sidebar with navigation and user controls:**
+- Navigation menu for clinic operations
+- User profile and logout controls
+- Clinic information display
+
+### ControlCenterSidebar (`src/components/control-center-sidebar.tsx`)
+**Company management sidebar:**
+- Company overview and settings
+- User management
+- Clinic management
+
+### ClientSidebar (`src/components/ClientSidebar.tsx`)
+**Client-specific sidebar:**
+- Current client information
+- Client navigation tabs
+- Client-related actions
+
+## Sidebar Context
+
+### SidebarProvider
+**Provides sidebar state to components:**
+```typescript
+<SidebarProvider dir="rtl">
+  <AppSidebar variant="inset" side="right" />
+  <SidebarInset>
+    {/* Main content */}
+  </SidebarInset>
+</SidebarProvider>
+```
+
+### Conditional Sidebar Usage
+**Components must check for sidebar context before using sidebar hooks:**
+```typescript
+let isInSidebarContext = false;
+try {
+  useSidebar();
+  isInSidebarContext = true;
+} catch (error) {
+  isInSidebarContext = false;
+}
+```
+
+## Route Protection
+
+### Automatic Redirects
+- **No Authentication**: Clinic routes → `/user-selection`
+- **No Companies**: Any route → `/` (welcome)
+- **Control Center**: Without user → control center login
+
+### Layout Conditions
+```typescript
+const shouldShowSidebarLayout = currentUser && !isLoading && !isUserLoading && 
+                               (shouldShowSidebar || requiresUser);
+```
+
+## Key Files
+- [src/layouts/BaseLayout.tsx](mdc:src/layouts/BaseLayout.tsx) - Main layout logic
+- [src/components/app-sidebar.tsx](mdc:src/components/app-sidebar.tsx) - Clinic sidebar
+- [src/components/control-center-sidebar.tsx](mdc:src/components/control-center-sidebar.tsx) - Company sidebar
+- [src/components/ClientSidebar.tsx](mdc:src/components/ClientSidebar.tsx) - Client sidebar
+- [src/components/site-header.tsx](mdc:src/components/site-header.tsx) - Header with conditional sidebar trigger
+
+## Layout Patterns
+- Always check user authentication before rendering protected layouts
+- Use conditional rendering for sidebar components
+- Handle sidebar context errors gracefully
+- Maintain RTL layout support throughout

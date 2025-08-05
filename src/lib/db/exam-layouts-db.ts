@@ -1,184 +1,343 @@
-import { ExamLayout, ExamLayoutInstance } from './schema'
+import { ExamLayout, ExamLayoutInstance } from './schema-interface';
+import { apiClient } from '../api-client';
 
-export async function getAllExamLayouts(): Promise<ExamLayout[]> {
+export async function getAllExamLayouts(clinicId?: number): Promise<ExamLayout[]> {
   try {
-    return await window.electronAPI.db('getAllExamLayouts')
+    if (clinicId) {
+      const response = await apiClient.getExamLayouts();
+      if (response.error) {
+        console.error('Error getting exam layouts by clinic:', response.error);
+        return [];
+      }
+      return (response.data || []).filter(layout => layout.clinic_id === clinicId);
+    } else {
+      const response = await apiClient.getExamLayouts();
+      if (response.error) {
+        console.error('Error getting all exam layouts:', response.error);
+        return [];
+      }
+      return response.data || [];
+    }
   } catch (error) {
-    console.error('Error getting exam layouts:', error)
-    return []
+    console.error('Error getting exam layouts:', error);
+    return [];
   }
 }
 
-export async function getExamLayoutsByType(type: 'opticlens' | 'exam'): Promise<ExamLayout[]> {
+export async function getExamLayoutsByClinicId(clinicId?: number): Promise<ExamLayout[]> {
   try {
-    return await window.electronAPI.db('getExamLayoutsByType', type)
+    if (clinicId) {
+      const response = await apiClient.getExamLayouts();
+      if (response.error) {
+        console.error('Error getting exam layouts by clinic:', response.error);
+        return [];
+      }
+      return (response.data || []).filter(layout => layout.clinic_id === clinicId);
+    } else {
+      const response = await apiClient.getExamLayouts();
+      if (response.error) {
+        console.error('Error getting all exam layouts:', response.error);
+        return [];
+      }
+      return response.data || [];
+    }
   } catch (error) {
-    console.error('Error getting exam layouts by type:', error)
-    return []
+    console.error('Error getting exam layouts:', error);
+    return [];
+  }
+}
+
+export async function getExamLayoutsByType(type: string): Promise<ExamLayout[]> {
+  try {
+    const response = await apiClient.getExamLayouts();
+    if (response.error) {
+      console.error('Error getting exam layouts by type:', response.error);
+      return [];
+    }
+    return (response.data || []).filter(layout => layout.type === type);
+  } catch (error) {
+    console.error('Error getting exam layouts by type:', error);
+    return [];
   }
 }
 
 export async function getExamLayoutById(id: number): Promise<ExamLayout | null> {
   try {
-    return await window.electronAPI.db('getExamLayoutById', id)
+    const response = await apiClient.getExamLayout(id);
+    if (response.error) {
+      console.error('Error getting exam layout:', response.error);
+      return null;
+    }
+    return response.data || null;
   } catch (error) {
-    console.error('Error getting exam layout by id:', error)
-    return null
+    console.error('Error getting exam layout:', error);
+    return null;
   }
 }
 
 export async function createExamLayout(layout: Omit<ExamLayout, 'id'>): Promise<ExamLayout | null> {
   try {
-    return await window.electronAPI.db('createExamLayout', layout)
+    const response = await apiClient.createExamLayout(layout);
+    if (response.error) {
+      console.error('Error creating exam layout:', response.error);
+      return null;
+    }
+    return response.data || null;
   } catch (error) {
-    console.error('Error creating exam layout:', error)
-    return null
+    console.error('Error creating exam layout:', error);
+    return null;
   }
 }
 
 export async function updateExamLayout(layout: ExamLayout): Promise<ExamLayout | null> {
   try {
-    return await window.electronAPI.db('updateExamLayout', layout)
+    if (!layout.id) {
+      console.error('Error updating exam layout: No layout ID provided');
+      return null;
+    }
+    const response = await apiClient.updateExamLayout(layout.id, layout);
+    if (response.error) {
+      console.error('Error updating exam layout:', response.error);
+      return null;
+    }
+    return response.data || null;
   } catch (error) {
-    console.error('Error updating exam layout:', error)
-    return null
+    console.error('Error updating exam layout:', error);
+    return null;
   }
 }
 
 export async function deleteExamLayout(id: number): Promise<boolean> {
   try {
-    return await window.electronAPI.db('deleteExamLayout', id)
+    const response = await apiClient.deleteExamLayout(id);
+    if (response.error) {
+      console.error('Error deleting exam layout:', response.error);
+      return false;
+    }
+    return true;
   } catch (error) {
-    console.error('Error deleting exam layout:', error)
-    return false
+    console.error('Error deleting exam layout:', error);
+    return false;
   }
 }
 
 export async function getDefaultExamLayout(): Promise<ExamLayout | null> {
   try {
-    return await window.electronAPI.db('getDefaultExamLayout')
+    const response = await apiClient.getExamLayouts();
+    if (response.error) {
+      console.error('Error getting default exam layout:', response.error);
+      return null;
+    }
+    const defaultLayout = (response.data || []).find(layout => layout.is_default);
+    return defaultLayout || null;
   } catch (error) {
-    console.error('Error getting default exam layout:', error)
-    return null
+    console.error('Error getting default exam layout:', error);
+    return null;
   }
 }
 
 export async function getDefaultExamLayouts(): Promise<ExamLayout[]> {
   try {
-    return await window.electronAPI.db('getDefaultExamLayouts')
+    const response = await apiClient.getExamLayouts();
+    if (response.error) {
+      console.error('Error getting default exam layouts:', response.error);
+      return [];
+    }
+    return (response.data || []).filter(layout => layout.is_default);
   } catch (error) {
-    console.error('Error getting default exam layouts:', error)
-    return []
+    console.error('Error getting default exam layouts:', error);
+    return [];
   }
 }
 
 export async function getDefaultExamLayoutsByType(type: 'opticlens' | 'exam'): Promise<ExamLayout[]> {
   try {
-    const allDefaultLayouts = await window.electronAPI.db('getDefaultExamLayouts')
-    return allDefaultLayouts.filter((layout: ExamLayout) => layout.type === type)
+    const response = await apiClient.getExamLayouts();
+    if (response.error) {
+      console.error('Error getting default exam layouts by type:', response.error);
+      return [];
+    }
+    return (response.data || []).filter(layout => layout.is_default && layout.type === type);
   } catch (error) {
-    console.error('Error getting default exam layouts by type:', error)
-    return []
+    console.error('Error getting default exam layouts by type:', error);
+    return [];
   }
 }
 
-// Get layouts for a specific exam
-export async function getLayoutsByExamId(examId: number): Promise<ExamLayout[]> {
+export async function setDefaultExamLayout(layoutId: number): Promise<boolean> {
   try {
-    return await window.electronAPI.db('getLayoutsByExamId', examId)
+    const allDefaultLayouts = await apiClient.getExamLayouts();
+    if (allDefaultLayouts.error) {
+      console.error('Error getting exam layouts for setting default:', allDefaultLayouts.error);
+      return false;
+    }
+
+    // This would need a specific endpoint in the API to handle setting defaults
+    console.warn('setDefaultExamLayout: API endpoint not yet implemented');
+    return false;
   } catch (error) {
-    console.error('Error getting layouts for exam:', error)
-    return []
+    console.error('Error setting default exam layout:', error);
+    return false;
   }
 }
 
-// ExamLayoutInstance API
+export async function getLayoutsByExamId(examId: number): Promise<ExamLayoutInstance[]> {
+  try {
+    // This would need a specific endpoint in the API
+    console.warn('getLayoutsByExamId: API endpoint not yet implemented');
+    return [];
+  } catch (error) {
+    console.error('Error getting layouts by exam ID:', error);
+    return [];
+  }
+}
+
 export async function getExamLayoutInstanceById(id: number): Promise<ExamLayoutInstance | null> {
   try {
-    return await window.electronAPI.db('getExamLayoutInstanceById', id)
+    // This would need a specific endpoint in the API
+    console.warn('getExamLayoutInstanceById: API endpoint not yet implemented');
+    return null;
   } catch (error) {
-    console.error('Error getting exam layout instance by id:', error)
-    return null
+    console.error('Error getting exam layout instance:', error);
+    return null;
   }
 }
 
 export async function getExamLayoutInstancesByExamId(examId: number): Promise<ExamLayoutInstance[]> {
   try {
-    return await window.electronAPI.db('getExamLayoutInstancesByExamId', examId)
+    const response = await apiClient.getExamLayoutInstances(examId);
+    if (response.error) {
+      console.error('Error getting exam layout instances by exam ID:', response.error);
+      return [];
+    }
+    return response.data || [];
   } catch (error) {
-    console.error('Error getting exam layout instances for exam:', error)
-    return []
+    console.error('Error getting exam layout instances by exam ID:', error);
+    return [];
   }
 }
 
 export async function getActiveExamLayoutInstanceByExamId(examId: number): Promise<ExamLayoutInstance | null> {
   try {
-    return await window.electronAPI.db('getActiveExamLayoutInstanceByExamId', examId)
+    const response = await apiClient.getActiveExamLayoutInstance(examId);
+    if (response.error) {
+      console.error('Error getting active exam layout instance:', response.error);
+      return null;
+    }
+    return response.data || null;
   } catch (error) {
-    console.error('Error getting active exam layout instance:', error)
-    return null
+    console.error('Error getting active exam layout instance:', error);
+    return null;
   }
 }
 
 export async function createExamLayoutInstance(instance: Omit<ExamLayoutInstance, 'id'>): Promise<ExamLayoutInstance | null> {
   try {
-    return await window.electronAPI.db('createExamLayoutInstance', instance)
+    const response = await apiClient.createExamLayoutInstance(instance);
+    if (response.error) {
+      console.error('Error creating exam layout instance:', response.error);
+      return null;
+    }
+    return response.data || null;
   } catch (error) {
-    console.error('Error creating exam layout instance:', error)
-    return null
+    console.error('Error creating exam layout instance:', error);
+    return null;
   }
 }
 
 export async function updateExamLayoutInstance(instance: ExamLayoutInstance): Promise<ExamLayoutInstance | null> {
   try {
-    return await window.electronAPI.db('updateExamLayoutInstance', instance)
+    if (!instance.id) {
+      console.error('Error updating exam layout instance: No instance ID provided');
+      return null;
+    }
+    const response = await apiClient.updateExamLayoutInstance(instance.id, instance);
+    if (response.error) {
+      console.error('Error updating exam layout instance:', response.error);
+      return null;
+    }
+    return response.data || null;
   } catch (error) {
-    console.error('Error updating exam layout instance:', error)
-    return null
+    console.error('Error updating exam layout instance:', error);
+    return null;
   }
 }
 
 export async function deleteExamLayoutInstance(id: number): Promise<boolean> {
   try {
-    return await window.electronAPI.db('deleteExamLayoutInstance', id)
+    const response = await apiClient.deleteExamLayoutInstance(id);
+    if (response.error) {
+      console.error('Error deleting exam layout instance:', response.error);
+      return false;
+    }
+    return true;
   } catch (error) {
-    console.error('Error deleting exam layout instance:', error)
-    return false
+    console.error('Error deleting exam layout instance:', error);
+    return false;
   }
 }
 
 export async function setActiveExamLayoutInstance(examId: number, layoutInstanceId: number): Promise<boolean> {
   try {
-    return await window.electronAPI.db('setActiveExamLayoutInstance', examId, layoutInstanceId)
+    const response = await apiClient.setActiveExamLayoutInstance(examId, layoutInstanceId);
+    if (response.error) {
+      console.error('Error setting active exam layout instance:', response.error);
+      return false;
+    }
+    return true;
   } catch (error) {
-    console.error('Error setting active exam layout instance:', error)
-    return false
+    console.error('Error setting active exam layout instance:', error);
+    return false;
   }
 }
 
-// Ensure an exam has at least one layout instance
-export async function ensureExamHasLayout(examId: number): Promise<ExamLayoutInstance | null> {
+export async function ensureExamHasLayout(examId: number): Promise<boolean> {
   try {
-    return await window.electronAPI.db('ensureExamHasLayout', examId)
+    // Check if exam already has any layout instances
+    const instances = await getExamLayoutInstancesByExamId(examId);
+    if (instances.length > 0) {
+      return true; // Exam already has layouts
+    }
+    
+    // Get default layouts for exam type
+    const defaultLayouts = await getDefaultExamLayouts();
+    if (defaultLayouts.length === 0) {
+      console.error('No default layouts found');
+      return false;
+    }
+    
+    // Add the first default layout to the exam
+    const defaultLayout = defaultLayouts[0];
+    if (!defaultLayout.id) {
+      console.error('Default layout has no ID');
+      return false;
+    }
+    const newInstance = await addLayoutToExam(examId, defaultLayout.id, true, 0);
+    
+    return newInstance !== null;
   } catch (error) {
-    console.error('Error ensuring exam has layout instance:', error)
-    return null
+    console.error('Error ensuring exam has layout:', error);
+    return false;
   }
 }
 
-// Add a layout to an exam
 export async function addLayoutToExam(examId: number, layoutId: number, isActive: boolean = false, order: number = 0): Promise<ExamLayoutInstance | null> {
   try {
-    const instance: Omit<ExamLayoutInstance, 'id'> = {
+    const instanceData = {
       exam_id: examId,
       layout_id: layoutId,
       is_active: isActive,
       order: order
     };
     
-    return await createExamLayoutInstance(instance)
+    const response = await apiClient.createExamLayoutInstance(instanceData);
+    if (response.error) {
+      console.error('Error adding layout to exam:', response.error);
+      return null;
+    }
+    return response.data || null;
   } catch (error) {
-    console.error('Error adding layout to exam:', error)
-    return null
+    console.error('Error adding layout to exam:', error);
+    return null;
   }
 } 

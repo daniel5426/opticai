@@ -1,7 +1,7 @@
 import React, { useState } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { KeratometerContactLens } from "@/lib/db/schema"
+import { KeratometerContactLens } from "@/lib/db/schema-interface"
 import { ChevronUp, ChevronDown } from "lucide-react"
 
 interface KeratometerContactLensTabProps {

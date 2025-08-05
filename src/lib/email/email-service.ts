@@ -1,6 +1,7 @@
 import nodemailer from 'nodemailer';
-import { Settings, Appointment, Client } from '../db/schema';
+import { Settings, Appointment, Client } from '../db/schema-interface';
 import { getEmailProviderConfig } from './email-providers';
+import { apiClient } from '../api-client';
 //vpkm ywaf vveo juyk
 export interface EmailConfig {
   service?: string;
@@ -40,8 +41,8 @@ export class EmailService {
 
   async loadConfigFromSettings() {
     try {
-      const { dbService } = await import('../db/index');
-      const settings = await dbService.getSettings();
+      const settingsResponse = await apiClient.getSettings();
+      const settings = settingsResponse.data;
       
       if (!settings || !settings.email_username || !settings.email_password) {
         console.warn('Email settings not configured');

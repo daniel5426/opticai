@@ -1,6 +1,6 @@
 import * as React from "react"
 import { useNavigate } from "@tanstack/react-router"
-import { Client } from "@/lib/db/schema"
+import { Client } from "@/lib/db/schema-interface"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {

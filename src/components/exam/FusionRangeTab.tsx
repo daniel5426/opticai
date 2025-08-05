@@ -18,6 +18,7 @@ interface FusionRangeTabProps {
   onFusionRangeChange: (field: keyof FusionRangeData, value: string) => void
   isEditing: boolean,
   needsMiddleSpacer?: boolean
+  hideEyeLabels?: boolean
 }
 
 const columns = [
@@ -27,7 +28,7 @@ const columns = [
   { key: "nv_base_in_recovery", label: "R (NV)" },
 ]
 
-export function FusionRangeTab({ fusionRangeData, onFusionRangeChange, isEditing , needsMiddleSpacer = false}: FusionRangeTabProps) {
+export function FusionRangeTab({ fusionRangeData, onFusionRangeChange, isEditing , needsMiddleSpacer = false, hideEyeLabels = false}: FusionRangeTabProps) {
   return (
     <Card className="w-full shadow-md border-none pb-4 pt-3" >
       <CardContent className="px-4" style={{ scrollbarWidth: 'none', direction: 'ltr' }}>

@@ -1,0 +1,50 @@
+---
+description: describe the navigation flow of the app
+alwaysApply: false
+---
+# OpticAI Navigation Flow and Routing
+
+## Application Architecture
+The OpticAI application is a multi-clinic management system with hierarchical structure: **Companies** → **Clinics** → **Users/Data**.
+
+## Navigation Flow
+
+### Entry Points
+- **Welcome Screen** (`/`) - Main entry point with Control Center and Clinic Entrance options
+- **Control Center** (`/control-center/*`) - Company management and setup
+- **Clinic Entrance** (`/clinic-entrance`) - Individual clinic access
+
+### Route Structure
+- **Public Routes**: `/`, `/clinic-entrance`, `/user-selection`, `/setup-wizard`
+- **Control Center Routes**: `/control-center/*` (requires company_ceo role)
+- **Clinic Routes**: `/dashboard`, `/clients`, `/exams`, `/orders`, etc. (requires user authentication)
+
+### Role-Based Access Control
+- **Control Center Access**: Only users with `company_ceo` role can access control center routes
+- **Clinic Management**: Only `clinic_manager` and `company_ceo` can access user management and campaigns
+- **Settings Access**: Only `clinic_manager` and `company_ceo` can access clinic settings
+- **Standard Operations**: All authenticated users can access basic clinic operations
+
+### Authentication Flow
+1. User enters clinic ID at `/clinic-entrance`
+2. Clinic data stored in sessionStorage
+3. Redirect to `/user-selection` for user login
+4. After successful login → `/dashboard`
+
+### Logout Flow
+1. Clear user data but preserve clinic context in sessionStorage
+2. Redirect to `/clinic-entrance`
+3. Auto-redirect to `/user-selection` if clinic data exists
+
+## Key Files
+- [src/routes/routes.tsx](mdc:src/routes/routes.tsx) - Route definitions
+- [src/layouts/BaseLayout.tsx](mdc:src/layouts/BaseLayout.tsx) - Layout logic and route protection
+- [src/pages/ClinicEntrancePage.tsx](mdc:src/pages/ClinicEntrancePage.tsx) - Clinic entrance logic
+- [src/pages/UserSelectionPage.tsx](mdc:src/pages/UserSelectionPage.tsx) - User authentication
+- [src/contexts/UserContext.tsx](mdc:src/contexts/UserContext.tsx) - User state management
+
+## Navigation Patterns
+- Use `router.navigate({ to: '/path' })` for programmatic navigation
+- Use `useNavigate()` hook in components for navigation
+- Always check user authentication before accessing protected routes
+- Preserve clinic context during logout for seamless re-entry

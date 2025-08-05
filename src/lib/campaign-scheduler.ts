@@ -2,9 +2,9 @@ import * as cron from 'node-cron';
 import { campaignService } from './campaign-service';
 import { emailService } from './email/email-service';
 import { smsService } from './sms/sms-service';
-import { dbService } from './db/index';
-import { Campaign, Client } from './db/schema';
+import { Campaign, Client } from './db/schema-interface';
 import { addCampaignClientExecution } from './db/campaigns-db';
+import { apiClient } from './api-client';
 
 export class CampaignScheduler {
   private scheduledJob: cron.ScheduledTask | null = null;
@@ -44,7 +44,8 @@ export class CampaignScheduler {
     try {
       console.log('Checking for active campaigns to execute...');
       
-      const allCampaigns = dbService.getAllCampaigns();
+      const allCampaignsResponse = await apiClient.getAllCampaigns();
+      const allCampaigns = allCampaignsResponse.data || [];
       const activeCampaigns = allCampaigns.filter(campaign =>
         campaign.active && (campaign.email_enabled || campaign.sms_enabled)
       );
@@ -121,7 +122,8 @@ export class CampaignScheduler {
       const targetClients = await campaignService.getFilteredClients(campaign);
       console.log(`Found ${targetClients.length} target clients for campaign ${campaign.id}`);
 
-      const settings = dbService.getSettings();
+      const settingsResponse = await apiClient.getSettings();
+      const settings = settingsResponse.data;
       if (!settings) {
         console.error('Settings not found, cannot send emails');
         return;
@@ -178,7 +180,7 @@ export class CampaignScheduler {
         last_executed: new Date().toISOString(),
       };
 
-      dbService.updateCampaign(updatedCampaign);
+      apiClient.updateCampaign(updatedCampaign.id!, updatedCampaign);
 
       console.log(`Campaign ${campaign.id} execution completed:`);
       console.log(`  - Emails sent: ${emailsSent} (errors: ${emailErrors})`);
@@ -231,7 +233,8 @@ export class CampaignScheduler {
     details?: any;
   }> {
     try {
-      const campaign = dbService.getCampaignById(campaignId);
+      const campaignResponse = await apiClient.getCampaignById(campaignId);
+      const campaign = campaignResponse.data;
       if (!campaign) {
         return { success: false, message: 'Campaign not found' };
       }
@@ -253,7 +256,8 @@ export class CampaignScheduler {
       const targetClients = await campaignService.getFilteredClients(campaign);
       const limitedClients = targetClients.slice(0, 3);
 
-      const settings = dbService.getSettings();
+      const settingsResponse = await apiClient.getSettings();
+      const settings = settingsResponse.data;
       if (!settings) {
         return { success: false, message: 'Settings not found' };
       }
@@ -315,7 +319,8 @@ export class CampaignScheduler {
     try {
       console.log(`Executing full campaign ${campaignId}...`);
       
-      const campaign = dbService.getCampaignById(campaignId);
+      const campaignResponse = await apiClient.getCampaignById(campaignId);
+      const campaign = campaignResponse.data;
       if (!campaign) {
         console.log('Campaign not found');
         return { success: false, message: 'Campaign not found' };
@@ -340,7 +345,8 @@ export class CampaignScheduler {
       }
 
       const targetClients = await campaignService.getFilteredClients(campaign);
-      const settings = dbService.getSettings();
+      const settingsResponse = await apiClient.getSettings();
+      const settings = settingsResponse.data;
       if (!settings) {
         return { success: false, message: 'Settings not found' };
       }
@@ -398,7 +404,7 @@ export class CampaignScheduler {
         last_executed: new Date().toISOString(),
       };
 
-      dbService.updateCampaign(updatedCampaign);
+      apiClient.updateCampaign(updatedCampaign.id!, updatedCampaign);
       
       this.logCampaignExecution(campaign.id!, targetClients.length, emailsSent, smsSent, emailErrors, smsErrors);
 

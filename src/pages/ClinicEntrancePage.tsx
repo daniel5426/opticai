@@ -6,6 +6,8 @@ import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Building2, ArrowRight, ArrowLeft, Settings } from 'lucide-react';
 import { useRouter } from '@tanstack/react-router';
+import { useUser } from '@/contexts/UserContext';
+import { apiClient } from '@/lib/api-client';
 
 export default function ClinicEntrancePage() {
   const [clinicId, setClinicId] = useState('');
@@ -14,12 +16,51 @@ export default function ClinicEntrancePage() {
   const [hasCompanies, setHasCompanies] = useState<boolean | null>(null);
   const [checkingSystem, setCheckingSystem] = useState(true);
   const router = useRouter();
+  const { currentUser, isLoading } = useUser();
 
   useEffect(() => {
     const checkSystemSetup = async () => {
       try {
-        const companies = await window.electronAPI.db('getAllCompanies');
+        const companiesResponse = await apiClient.getCompaniesPublic();
+        const companies = companiesResponse.data || [];
         setHasCompanies(companies.length > 0);
+        
+        console.log('ClinicEntrancePage: currentUser:', currentUser);
+        console.log('ClinicEntrancePage: isLoading:', isLoading);
+        
+        // Only auto-redirect if there's no current user logged in AND not loading
+        if (!currentUser && !isLoading) {
+          console.log('ClinicEntrancePage: No current user and not loading, checking for clinic data');
+          // Check if there's already a selected clinic in sessionStorage
+          const selectedClinicData = sessionStorage.getItem('selectedClinic');
+          console.log('ClinicEntrancePage: selectedClinicData exists:', !!selectedClinicData);
+          
+          if (selectedClinicData) {
+            try {
+              const clinic = JSON.parse(selectedClinicData);
+              // Verify the clinic still exists and is active
+              const existingClinicResponse = await apiClient.getClinicByUniqueId(clinic.unique_id);
+              const existingClinic = existingClinicResponse.data;
+              console.log('ClinicEntrancePage: existingClinic:', existingClinic);
+              
+              if (existingClinic && existingClinic.is_active) {
+                // Automatically redirect to user selection
+                console.log('ClinicEntrancePage: Auto-redirecting to user-selection');
+                router.navigate({ to: '/user-selection' });
+                return;
+              } else {
+                // Clinic no longer exists or is inactive, remove from sessionStorage
+                console.log('ClinicEntrancePage: Clinic no longer exists or inactive, clearing data');
+                sessionStorage.removeItem('selectedClinic');
+              }
+            } catch (error) {
+              console.error('Error parsing selected clinic data:', error);
+              sessionStorage.removeItem('selectedClinic');
+            }
+          }
+        } else {
+          console.log('ClinicEntrancePage: User is logged in or still loading, not auto-redirecting');
+        }
       } catch (error) {
         console.error('Error checking system setup:', error);
         setHasCompanies(false);
@@ -29,7 +70,7 @@ export default function ClinicEntrancePage() {
     };
 
     checkSystemSetup();
-  }, []);
+  }, [router, currentUser, isLoading]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -42,7 +83,8 @@ export default function ClinicEntrancePage() {
       }
 
       // Find clinic by unique_id
-      const clinic = await window.electronAPI.db('getClinicByUniqueId', clinicId.trim());
+      const clinicResponse = await apiClient.getClinicByUniqueId(clinicId.trim());
+      const clinic = clinicResponse.data;
 
       if (!clinic) {
         throw new Error('מזהה מרפאה לא נמצא במערכת');

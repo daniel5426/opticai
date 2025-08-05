@@ -25,7 +25,7 @@ import { KeratometerContactLensTab } from "@/components/exam/KeratometerContactL
 import { ContactLensExamTab } from "@/components/exam/ContactLensExamTab"
 import { ContactLensOrderTab } from "@/components/exam/ContactLensOrderTab"
 import { Edit3 } from "lucide-react"
-import { OpticalExam, OldRefractionExam, OldRefractionExtensionExam, ObjectiveExam, SubjectiveExam, AdditionExam, FinalSubjectiveExam, FinalPrescriptionExam, CompactPrescriptionExam, RetinoscopExam, RetinoscopDilationExam, UncorrectedVAExam, KeratometerExam, KeratometerFullExam, CornealTopographyExam, CoverTestExam, AnamnesisExam, NotesExam, SchirmerTestExam, OldRefExam, ContactLensDiameters, ContactLensDetails, KeratometerContactLens, ContactLensExam, ContactLensOrder, SensationVisionStabilityExam, FusionRangeExam, MaddoxRodExam, StereoTestExam, RGExam, OcularMotorAssessmentExam } from "@/lib/db/schema"
+import { OpticalExam, OldRefractionExam, OldRefractionExtensionExam, ObjectiveExam, SubjectiveExam, AdditionExam, FinalSubjectiveExam, FinalPrescriptionExam, CompactPrescriptionExam, RetinoscopExam, RetinoscopDilationExam, UncorrectedVAExam, KeratometerExam, KeratometerFullExam, CornealTopographyExam, CoverTestExam, AnamnesisExam, NotesExam, SchirmerTestExam, OldRefExam, ContactLensDiameters, ContactLensDetails, KeratometerContactLens, ContactLensExam, ContactLensOrder, SensationVisionStabilityExam, FusionRangeExam, MaddoxRodExam, StereoTestExam, RGExam, OcularMotorAssessmentExam, DiopterAdjustmentPanel, OldContactLenses, OverRefraction } from "@/lib/db/schema-interface"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { UserSelect } from "@/components/ui/user-select"
 import { ExamToolbox, ToolboxActions } from "@/components/exam/ExamToolbox"
@@ -55,7 +55,7 @@ const componentsDontHaveMiddleRow: CardItem['type'][] = ['objective', 'addition'
 
 export interface CardItem {
   id: string
-  type: 'exam-details' | 'old-ref' | 'old-refraction' | 'old-refraction-extension' | 'objective' | 'subjective' | 'final-subjective' | 'final-prescription' | 'compact-prescription' | 'addition' | 'retinoscop' | 'retinoscop-dilation' | 'uncorrected-va' | 'keratometer' | 'keratometer-full' | 'corneal-topography' | 'cover-test' | 'notes' | 'anamnesis' | 'schirmer-test' | 'contact-lens-diameters' | 'contact-lens-details' | 'keratometer-contact-lens' | 'contact-lens-exam' | 'contact-lens-order' | 'sensation-vision-stability' | 'diopter-adjustment-panel' | 'fusion-range' | 'maddox-rod' | 'stereo-test' | 'rg' | 'ocular-motor-assessment'
+  type: 'exam-details' | 'old-ref' | 'old-refraction' | 'old-refraction-extension' | 'objective' | 'subjective' | 'final-subjective' | 'final-prescription' | 'compact-prescription' | 'addition' | 'retinoscop' | 'retinoscop-dilation' | 'uncorrected-va' | 'keratometer' | 'keratometer-full' | 'corneal-topography' | 'cover-test' | 'notes' | 'anamnesis' | 'schirmer-test' | 'contact-lens-diameters' | 'contact-lens-details' | 'keratometer-contact-lens' | 'contact-lens-exam' | 'contact-lens-order' | 'sensation-vision-stability' | 'diopter-adjustment-panel' | 'fusion-range' | 'maddox-rod' | 'stereo-test' | 'rg' | 'ocular-motor-assessment' | 'old-contact-lenses' | 'over-refraction'
   showEyeLabels?: boolean
   title?: string
 }
@@ -84,19 +84,62 @@ export interface DetailProps {
   coverTestTabs?: Record<string, string[]>; // New prop for cover test tabs
   addCoverTestTab?: (cardId: string) => void; // New prop for adding cover test tabs
   layoutInstanceId?: number; // New prop for layout instance ID
-  setExamFormData?: (data: Record<string, unknown>) => void; // New prop for setting exam form data
-  setCoverTestTabs?: (data: Record<string, string[]>) => void; // New prop for setting cover test tabs
+  setExamFormData?: React.Dispatch<React.SetStateAction<Record<string, unknown>>>; // New prop for setting exam form data
+  setCoverTestTabs?: React.Dispatch<React.SetStateAction<Record<string, string[]>>>; // New prop for setting cover test tabs
   activeCoverTestTabs?: Record<string, number>; // New prop for active cover test tabs
-  setActiveCoverTestTabs?: (data: Record<string, number>) => void; // New prop for setting active cover test tabs
+  setActiveCoverTestTabs?: React.Dispatch<React.SetStateAction<Record<string, number>>>; // New prop for setting active cover test tabs
 }
 
 // Helper functions to get data and handlers from registry
 const getExamFormData = (examFormData: Record<string, unknown>, componentType: ExamComponentType) => {
-  return examFormData[componentType] || {}
+  const data = examFormData[componentType]
+  if (data && typeof data === 'object' && data !== null && Object.keys(data).length > 0) {
+    return data
+  }
+  
+  // Return properly typed empty objects
+  switch (componentType) {
+    case 'old-ref': return { layout_instance_id: 0 } as OldRefExam
+    case 'old-refraction': return { layout_instance_id: 0 } as OldRefractionExam
+    case 'old-refraction-extension': return { layout_instance_id: 0 } as OldRefractionExtensionExam
+    case 'objective': return { layout_instance_id: 0 } as ObjectiveExam
+    case 'subjective': return { layout_instance_id: 0 } as SubjectiveExam
+    case 'addition': return { layout_instance_id: 0 } as AdditionExam
+    case 'final-subjective': return { layout_instance_id: 0 } as FinalSubjectiveExam
+    case 'final-prescription': return { layout_instance_id: 0 } as FinalPrescriptionExam
+    case 'compact-prescription': return { layout_instance_id: 0 } as CompactPrescriptionExam
+    case 'retinoscop': return { layout_instance_id: 0 } as RetinoscopExam
+    case 'retinoscop-dilation': return { layout_instance_id: 0 } as RetinoscopDilationExam
+    case 'uncorrected-va': return { layout_instance_id: 0 } as UncorrectedVAExam
+    case 'keratometer': return { layout_instance_id: 0 } as KeratometerExam
+    case 'keratometer-full': return { layout_instance_id: 0 } as KeratometerFullExam
+    case 'corneal-topography': return { layout_instance_id: 0 } as CornealTopographyExam
+    case 'cover-test': return { layout_instance_id: 0 } as CoverTestExam
+    case 'anamnesis': return { layout_instance_id: 0 } as AnamnesisExam
+    case 'notes': return { layout_instance_id: 0 } as NotesExam
+    case 'schirmer-test': return { layout_instance_id: 0 } as SchirmerTestExam
+    case 'contact-lens-diameters': return { layout_instance_id: 0 } as ContactLensDiameters
+    case 'contact-lens-details': return { layout_instance_id: 0 } as ContactLensDetails
+    case 'keratometer-contact-lens': return { layout_instance_id: 0 } as KeratometerContactLens
+    case 'contact-lens-exam': return { layout_instance_id: 0 } as ContactLensExam
+    case 'contact-lens-order': return { layout_instance_id: 0 } as ContactLensOrder
+    case 'sensation-vision-stability': return { layout_instance_id: 0 } as SensationVisionStabilityExam
+    case 'diopter-adjustment-panel': return { layout_instance_id: 0 } as DiopterAdjustmentPanel
+    case 'fusion-range': return { layout_instance_id: 0 } as FusionRangeExam
+    case 'maddox-rod': return { layout_instance_id: 0 } as MaddoxRodExam
+    case 'ocular-motor-assessment': return { layout_instance_id: 0 } as OcularMotorAssessmentExam
+    case 'old-contact-lenses': return { layout_instance_id: 0 } as OldContactLenses
+    case 'over-refraction': return { layout_instance_id: 0 } as OverRefraction
+    default: return { layout_instance_id: 0 }
+  }
 }
 
 const getFieldHandler = (fieldHandlers: Record<string, unknown>, componentType: ExamComponentType) => {
-  return fieldHandlers[componentType] || (() => {})
+  const handler = fieldHandlers[componentType]
+  if (typeof handler === 'function') {
+    return handler as (field: string, value: string | boolean | number | null) => void
+  }
+  return (() => {}) as (field: string, value: string | boolean | number | null) => void
 }
 
 // Utility function to create DetailProps from registry data
@@ -364,6 +407,7 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
   const emptyContactLensExamData: ContactLensExam = { layout_instance_id: 0 }
   const emptyContactLensOrderData: ContactLensOrder = { layout_instance_id: 0 }
   const emptySensationVisionStabilityExam: SensationVisionStabilityExam = {
+    layout_instance_id: 0,
     r_sensation: '',
     l_sensation: '',
     r_vision: '',
@@ -376,6 +420,11 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
     l_recommendations: ''
   }
   const emptyFusionRangeData: FusionRangeExam = { layout_instance_id: 0 }
+  const emptyMaddoxRodData: MaddoxRodExam = { layout_instance_id: 0 }
+  const emptyOcularMotorAssessmentData: OcularMotorAssessmentExam = { layout_instance_id: 0 }
+  const emptyDiopterAdjustmentPanelData: DiopterAdjustmentPanel = { layout_instance_id: 0 }
+  const emptyOldContactLensesData: OldContactLenses = { layout_instance_id: 0 }
+  const emptyOverRefractionData: OverRefraction = { layout_instance_id: 0 }
 
   const legacyHandlers = mode === 'detail' ? {
     handleMultifocalOldRefraction: detailProps!.handleMultifocalOldRefraction,
@@ -396,6 +445,7 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
     }
     // Return empty/default data for editor mode
     switch (type) {
+      case 'old-ref': return emptyOldRefData
       case 'old-refraction': return emptyOldRefractionData
       case 'old-refraction-extension': return emptyOldRefractionExtensionData
       case 'objective': return emptyObjectiveData
@@ -414,18 +464,19 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
       case 'anamnesis': return emptyAnamnesisData
       case 'notes': return emptyNotesData
       case 'schirmer-test': return emptySchirmerTestData
-      case 'old-ref': return emptyOldRefData
       case 'contact-lens-diameters': return emptyContactLensDiametersData
       case 'contact-lens-details': return emptyContactLensDetailsData
       case 'keratometer-contact-lens': return emptyKeratometerContactLensData
       case 'contact-lens-exam': return emptyContactLensExamData
       case 'contact-lens-order': return emptyContactLensOrderData
       case 'sensation-vision-stability': return emptySensationVisionStabilityExam
-      case 'diopter-adjustment-panel': return {}
+      case 'diopter-adjustment-panel': return emptyDiopterAdjustmentPanelData
       case 'fusion-range': return emptyFusionRangeData
-      case 'maddox-rod': return {}
-      case 'ocular-motor-assessment': return {}
-      default: return {}
+      case 'maddox-rod': return emptyMaddoxRodData
+      case 'ocular-motor-assessment': return emptyOcularMotorAssessmentData
+      case 'old-contact-lenses': return emptyOldContactLensesData
+      case 'over-refraction': return emptyOverRefractionData
+      default: return { layout_instance_id: 0 }
     }
   }
 
@@ -528,7 +579,7 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
         <div className={`relative h-full ${matchHeight ? 'flex flex-col' : ''}`}>
           {toolbox}
           <OldRefTab
-            oldRefData={getExamData('old-ref')}
+            oldRefData={getExamData('old-ref') as OldRefExam}
             onOldRefChange={getChangeHandler('old-ref')}
             isEditing={mode === 'detail' ? detailProps!.isEditing : false}
           />
@@ -540,7 +591,7 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
         <div className={`relative h-full ${matchHeight ? 'flex flex-col' : ''}`}>
           {toolbox}
           <OldRefractionTab
-            oldRefractionData={getExamData('old-refraction')}
+            oldRefractionData={getExamData('old-refraction') as OldRefractionExam}
             onOldRefractionChange={getChangeHandler('old-refraction')}
             isEditing={mode === 'detail' ? detailProps!.isEditing : false}
             onMultifocalClick={legacyHandlers.handleMultifocalOldRefraction || (() => {})}
@@ -555,7 +606,7 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
         <div className={`relative h-full ${matchHeight ? 'flex flex-col' : ''}`}>
           {toolbox}
           <OldRefractionExtensionTab
-            oldRefractionExtensionData={getExamData('old-refraction-extension')}
+            oldRefractionExtensionData={getExamData('old-refraction-extension') as OldRefractionExtensionExam}
             onOldRefractionExtensionChange={getChangeHandler('old-refraction-extension')}
             isEditing={mode === 'detail' ? detailProps!.isEditing : false}
             onMultifocalClick={legacyHandlers.handleMultifocalOldRefractionExtension || (() => {})}
@@ -569,7 +620,7 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
         <div className={`relative h-full ${matchHeight ? 'flex flex-col' : ''}`}>
           {toolbox}
           <ObjectiveTab
-            objectiveData={getExamData('objective')}
+            objectiveData={getExamData('objective') as ObjectiveExam}
             onObjectiveChange={getChangeHandler('objective')}
             isEditing={mode === 'detail' ? detailProps!.isEditing : false}
             hideEyeLabels={finalHideEyeLabels}
@@ -583,7 +634,7 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
         <div className={`relative h-full ${matchHeight ? 'flex flex-col' : ''}`}>
           {toolbox}
           <SubjectiveTab
-            subjectiveData={getExamData('subjective')}
+            subjectiveData={getExamData('subjective') as SubjectiveExam}
             onSubjectiveChange={getChangeHandler('subjective')}
             isEditing={mode === 'detail' ? detailProps!.isEditing : false}
             onVHConfirm={(legacyHandlers as unknown as DetailProps).handleVHConfirm || (() => {})}
@@ -598,7 +649,7 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
         <div className={`relative h-full ${matchHeight ? 'flex flex-col' : ''}`}>
           {toolbox}
           <FinalSubjectiveTab
-            finalSubjectiveData={getExamData('final-subjective')}
+            finalSubjectiveData={getExamData('final-subjective') as FinalSubjectiveExam}
             onFinalSubjectiveChange={getChangeHandler('final-subjective')}
             isEditing={mode === 'detail' ? detailProps!.isEditing : false}
             onVHConfirm={legacyHandlers.handleFinalSubjectiveVHConfirm || (() => {})}
@@ -612,7 +663,7 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
         <div className={`relative h-full ${matchHeight ? 'flex flex-col' : ''}`}>
           {toolbox}
           <FinalPrescriptionTab
-            finalPrescriptionData={getExamData('final-prescription')}
+            finalPrescriptionData={getExamData('final-prescription') as FinalPrescriptionExam}
             onFinalPrescriptionChange={getChangeHandler('final-prescription')}
             isEditing={mode === 'detail' ? detailProps!.isEditing : false}
             hideEyeLabels={finalHideEyeLabels}
@@ -625,7 +676,7 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
         <div className={`relative h-full ${matchHeight ? 'flex flex-col' : ''}`}>
           {toolbox}
           <CompactPrescriptionTab
-            data={getExamData('compact-prescription')}
+            data={getExamData('compact-prescription') as CompactPrescriptionExam}
             isEditing={mode === 'detail' ? detailProps!.isEditing : false}
             hideEyeLabels={finalHideEyeLabels}
             onChange={(field, value) => getChangeHandler('compact-prescription')(field as string, value)}
@@ -638,7 +689,7 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
         <div className={`relative h-full ${matchHeight ? 'flex flex-col' : ''}`}>
           {toolbox}
           <AdditionTab
-            additionData={getExamData('addition')}
+            additionData={getExamData('addition') as AdditionExam}
             onAdditionChange={getChangeHandler('addition')}
             isEditing={mode === 'detail' ? detailProps!.isEditing : false}
             hideEyeLabels={finalHideEyeLabels}
@@ -652,7 +703,7 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
         <div className={`relative h-full ${matchHeight ? 'flex flex-col' : ''}`}>
           {toolbox}
           <RetinoscopTab
-            retinoscopData={getExamData('retinoscop')}
+            retinoscopData={getExamData('retinoscop') as RetinoscopExam}
             onRetinoscopChange={getChangeHandler('retinoscop')}
             isEditing={mode === 'detail' ? detailProps!.isEditing : false}
             hideEyeLabels={finalHideEyeLabels}
@@ -666,7 +717,7 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
         <div className={`relative h-full ${matchHeight ? 'flex flex-col' : ''}`}>
           {toolbox}
           <RetinoscopDilationTab
-            retinoscopDilationData={getExamData('retinoscop-dilation')}
+            retinoscopDilationData={getExamData('retinoscop-dilation') as RetinoscopDilationExam  }
             onRetinoscopDilationChange={getChangeHandler('retinoscop-dilation')}
             isEditing={mode === 'detail' ? detailProps!.isEditing : false}
             hideEyeLabels={finalHideEyeLabels}
@@ -680,7 +731,7 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
         <div className={`relative h-full ${matchHeight ? 'flex flex-col' : ''}`}>
           {toolbox}
           <UncorrectedVATab
-            uncorrectedVaData={getExamData('uncorrected-va')}
+            uncorrectedVaData={getExamData('uncorrected-va') as UncorrectedVAExam}
             onUncorrectedVaChange={getChangeHandler('uncorrected-va')}
             isEditing={mode === 'detail' ? detailProps!.isEditing : false}
             hideEyeLabels={finalHideEyeLabels}
@@ -694,7 +745,7 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
         <div className={`relative h-full ${matchHeight ? 'flex flex-col' : ''}`}>
           {toolbox}
           <KeratometerTab
-            keratometerData={getExamData('keratometer')}
+            keratometerData={getExamData('keratometer') as KeratometerExam}
             onKeratometerChange={getChangeHandler('keratometer')}
             isEditing={mode === 'detail' ? detailProps!.isEditing : false}
             hideEyeLabels={finalHideEyeLabels}
@@ -708,8 +759,8 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
         <div className={`relative h-full ${matchHeight ? 'flex flex-col' : ''}`}>
           {toolbox}
           <KeratometerFullTab
-            keratometerFullData={getExamData('keratometer-full')}
-            onKeratometerFullChange={getChangeHandler('keratometer-full')}
+            keratometerFullData={getExamData('keratometer-full') as KeratometerFullExam}
+            onKeratometerFullChange={getChangeHandler('keratometer-full') as (field: keyof KeratometerFullExam, value: string | boolean) => void}
             isEditing={mode === 'detail' ? detailProps!.isEditing : false}
             hideEyeLabels={finalHideEyeLabels}
             needsMiddleSpacer={hasSiblingWithMiddleRow && componentsDontHaveMiddleRow.includes(item.type)}
@@ -723,8 +774,8 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
           {toolbox}
           <CornealTopographyTab
             cornealTopographyData={{
-              ...getExamData('corneal-topography'),
-              title: mode === 'editor' ? item.title : getExamData('corneal-topography').title
+              ...getExamData('corneal-topography') as CornealTopographyExam,
+              title: mode === 'editor' ? item.title : (getExamData('corneal-topography') as CornealTopographyExam).title
             }}
             onCornealTopographyChange={getChangeHandler('corneal-topography')}
             isEditing={mode === 'detail' ? detailProps!.isEditing : false}
@@ -753,11 +804,11 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
         const newTabs = [...coverTestTabs]
         const removedTabId = newTabs.splice(idx, 1)[0]
         const key = `cover-test-${item.id}-${removedTabId}`
-        const tabData = detailProps?.examFormData?.[key]
+        const tabData = detailProps?.examFormData?.[key] as CoverTestExam
         if (tabData && tabData.id) {
           await deleteCoverTestExam(tabData.id)
         }
-        detailProps?.setExamFormData?.(prev => {
+        detailProps?.setExamFormData?.(prev  => {
           const newData = { ...prev }
           delete newData[key]
           return newData
@@ -775,7 +826,7 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
         const newTabs = [...coverTestTabs]
         const sourceTabId = newTabs[idx]
         const sourceKey = `cover-test-${item.id}-${sourceTabId}`
-        const sourceData = detailProps?.examFormData?.[sourceKey]
+        const sourceData = detailProps?.examFormData?.[sourceKey] as CoverTestExam
         if (!sourceData) return;
         const newTabId = uuidv4()
         newTabs.splice(idx + 1, 0, newTabId)
@@ -812,18 +863,8 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
         }
         setActiveTab(idx + 1)
       }
-      React.useEffect(() => {
-        if (mode === 'detail' && detailProps?.layoutInstanceId && tabId) {
-          examComponentRegistry.getConfig('cover-test')?.getData(detailProps.layoutInstanceId, tabId).then(data => {
-            if (data) {
-              detailProps?.setExamFormData?.(prev => ({
-                ...prev,
-                [coverTestKey]: data
-              }))
-            }
-          })
-        }
-      }, [detailProps?.layoutInstanceId, tabId])
+      // Data is now loaded via the unified API in the parent component
+      // No need to load individual component data here
       return (
         <div className={`relative h-full ${matchHeight ? 'flex flex-col' : ''}`}>
           {toolbox}
@@ -849,8 +890,8 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
         <div className={`relative h-full ${matchHeight ? 'flex flex-col' : ''}`}> 
           {toolbox}
           <AnamnesisTab
-            anamnesisData={getExamData('anamnesis')}
-            onAnamnesisChange={getChangeHandler('anamnesis')}
+            anamnesisData={getExamData('anamnesis') as AnamnesisExam}
+            onAnamnesisChange={getChangeHandler('anamnesis') as (field: keyof AnamnesisExam, value: string | boolean) => void}
             isEditing={mode === 'detail' ? detailProps!.isEditing : false}
           />
         </div>
@@ -861,7 +902,7 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
         <div className={`relative h-full ${matchHeight ? 'flex flex-col' : ''}`}>
           {toolbox}
           <SchirmerTestTab
-            schirmerTestData={getExamData('schirmer-test')}
+            schirmerTestData={getExamData('schirmer-test') as SchirmerTestExam}
             onSchirmerTestChange={getChangeHandler('schirmer-test')}
             isEditing={mode === 'detail' ? detailProps!.isEditing : false}
             hideEyeLabels={finalHideEyeLabels}
@@ -946,7 +987,7 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
         <div className={`relative h-full ${matchHeight ? 'flex flex-col' : ''}`}>
           {toolbox}
           <ContactLensDiametersTab
-            contactLensDiametersData={getExamData('contact-lens-diameters')}
+            contactLensDiametersData={getExamData('contact-lens-diameters') as ContactLensDiameters}
             onContactLensDiametersChange={getChangeHandler('contact-lens-diameters')}
             isEditing={mode === 'detail' ? detailProps!.isEditing : false}
           />
@@ -958,7 +999,7 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
         <div className={`relative h-full ${matchHeight ? 'flex flex-col' : ''}`}>
           {toolbox}
           <ContactLensDetailsTab
-            contactLensDetailsData={getExamData('contact-lens-details')}
+            contactLensDetailsData={getExamData('contact-lens-details') as ContactLensDetails}
             onContactLensDetailsChange={getChangeHandler('contact-lens-details')}
             isEditing={mode === 'detail' ? detailProps!.isEditing : false}
             hideEyeLabels={finalHideEyeLabels}
@@ -972,7 +1013,7 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
         <div className={`relative h-full ${matchHeight ? 'flex flex-col' : ''}`}>
           {toolbox}
           <KeratometerContactLensTab
-            keratometerContactLensData={getExamData('keratometer-contact-lens')}
+            keratometerContactLensData={getExamData('keratometer-contact-lens') as KeratometerContactLens}
             onKeratometerContactLensChange={getChangeHandler('keratometer-contact-lens')}
             isEditing={mode === 'detail' ? detailProps!.isEditing : false}
             hideEyeLabels={finalHideEyeLabels}
@@ -986,7 +1027,7 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
         <div className={`relative h-full ${matchHeight ? 'flex flex-col' : ''}`}>
           {toolbox}
           <ContactLensExamTab
-            contactLensExamData={getExamData('contact-lens-exam')}
+            contactLensExamData={getExamData('contact-lens-exam') as ContactLensExam}
             onContactLensExamChange={getChangeHandler('contact-lens-exam')}
             isEditing={mode === 'detail' ? detailProps!.isEditing : false}
             hideEyeLabels={finalHideEyeLabels}
@@ -999,7 +1040,7 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
         <div className={`relative h-full ${matchHeight ? 'flex flex-col' : ''}`}>
           {toolbox}
           <ContactLensOrderTab
-            data={getExamData('contact-lens-order')}
+            data={getExamData('contact-lens-order') as ContactLensOrder}
             onChange={getChangeHandler('contact-lens-order')}
             layoutInstanceId={mode === 'detail' ? detailProps!.exam?.id || 0 : 0}
             isEditing={mode === 'detail' ? detailProps!.isEditing : false}
@@ -1012,7 +1053,7 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
         <div className="relative">
           {toolbox}
           <ObservationTab 
-            data={mode === 'editor' ? emptySensationVisionStabilityExam : detailProps!.examFormData['sensation-vision-stability']}
+            data={mode === 'editor' ? emptySensationVisionStabilityExam : detailProps!.examFormData['sensation-vision-stability'] as SensationVisionStabilityExam}
             onChange={mode === 'editor' ? () => {} : getFieldHandler(detailProps!.fieldHandlers, 'sensation-vision-stability')}
             isEditing={mode === 'editor' ? false : detailProps!.isEditing}
           />
@@ -1022,7 +1063,7 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
     case 'diopter-adjustment-panel':
       return (
         <DiopterAdjustmentPanelTab
-          diopterData={getExamData('diopter-adjustment-panel')}
+          diopterData={getExamData('diopter-adjustment-panel') as DiopterAdjustmentPanel}
           onDiopterChange={getChangeHandler('diopter-adjustment-panel')}
           isEditing={mode === 'detail' ? detailProps!.isEditing : false}
         />
@@ -1034,9 +1075,10 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
           {toolbox}
           <FusionRangeTab
             fusionRangeData={mode === 'editor' ? {} : (detailProps!.examFormData['fusion-range'] as any)}
-            onFusionRangeChange={mode === 'editor' ? () => {} : detailProps!.fieldHandlers['fusion-range']}
+            onFusionRangeChange={mode === 'editor' ? () => {} : (detailProps!.fieldHandlers['fusion-range'] as (field: keyof FusionRangeExam, value: string | boolean) => void)}
             isEditing={mode === 'editor' ? false : detailProps!.isEditing}
             needsMiddleSpacer={hasSiblingWithMiddleRow && componentsDontHaveMiddleRow.includes(item.type)}
+            hideEyeLabels={finalHideEyeLabels}
           />
         </div>
       );
@@ -1060,7 +1102,7 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
           {toolbox}
           <StereoTestTab
             stereoTestData={mode === 'editor' ? {} : (detailProps!.examFormData['stereo-test'] as any)}
-            onStereoTestChange={mode === 'editor' ? () => {} : detailProps!.fieldHandlers['stereo-test']}
+            onStereoTestChange={mode === 'editor' ? () => {} : (detailProps!.fieldHandlers['stereo-test'] as any)}
             isEditing={mode === 'editor' ? false : detailProps!.isEditing}
             needsMiddleSpacer={hasSiblingWithMiddleRow && componentsDontHaveMiddleRow.includes(item.type)}
           />
@@ -1073,7 +1115,7 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
           {toolbox}
           <RGTab
             rgData={mode === 'editor' ? {} : (detailProps!.examFormData['rg'] as any)}
-            onRGChange={mode === 'editor' ? () => {} : detailProps!.fieldHandlers['rg']}
+            onRGChange={mode === 'editor' ? () => {} : (detailProps!.fieldHandlers['rg'] as (field: keyof RGExam, value: string | null) => void)}
             isEditing={mode === 'editor' ? false : detailProps!.isEditing}
             needsMiddleSpacer={hasSiblingWithMiddleRow && componentsDontHaveMiddleRow.includes(item.type)}
           />
@@ -1085,7 +1127,7 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
         <div className={`relative h-full ${matchHeight ? 'flex flex-col' : ''}`}> 
           {toolbox}
           <OldContactLensesTab
-            data={getExamData('old-contact-lenses')}
+            data={getExamData('old-contact-lenses') as OldContactLenses}
             onChange={getChangeHandler('old-contact-lenses')}
             isEditing={mode === 'detail' ? detailProps!.isEditing : false}
             hideEyeLabels={finalHideEyeLabels}
@@ -1097,7 +1139,7 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
         <div className={`relative h-full ${matchHeight ? 'flex flex-col' : ''}`}> 
           {toolbox}
           <OverRefractionTab
-            data={getExamData('over-refraction')}
+            data={getExamData('over-refraction') as OverRefraction}
             onChange={getChangeHandler('over-refraction')}
             isEditing={mode === 'detail' ? detailProps!.isEditing : false}
             hideEyeLabels={finalHideEyeLabels}

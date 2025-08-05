@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { VHCalculatorModal } from "@/components/ui/vh-calculator-modal"
-import { FinalSubjectiveExam } from "@/lib/db/schema"
+import { FinalSubjectiveExam } from "@/lib/db/schema-interface"
 import { ChevronUp, ChevronDown } from "lucide-react"
 
 interface FinalSubjectiveTabProps {

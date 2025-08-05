@@ -1,7 +1,7 @@
 import React from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { MaddoxRodExam } from "@/lib/db/schema";
+import { MaddoxRodExam } from "@/lib/db/schema-interface";
 
 interface MaddoxRodTabProps {
   maddoxRodData: MaddoxRodExam;

@@ -2,7 +2,7 @@ import React from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { RGExam } from "@/lib/db/schema"
+import { RGExam } from "@/lib/db/schema-interface"
 
 interface RGTabProps {
   rgData: RGExam;

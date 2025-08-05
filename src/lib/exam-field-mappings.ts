@@ -26,7 +26,7 @@ import {
   StereoTestExam,
   RGExam,
   OcularMotorAssessmentExam
-} from './db/schema'
+} from './db/schema-interface'
 
 export type ExamComponentType =
   | 'exam-details'
@@ -135,6 +135,7 @@ export const examComponentTypeToExamFields: Record<ExamComponentType, ExamCompon
   'maddox-rod': [],
   'stereo-test': [],
   'rg': [],
+  'ocular-motor-assessment': [],
 };
 
 export type ExamDataType = OpticalExam | OldRefExam | OldRefractionExam | OldRefractionExtensionExam | ObjectiveExam | SubjectiveExam | FinalSubjectiveExam | FinalPrescriptionExam | CompactPrescriptionExam | AdditionExam | RetinoscopExam | RetinoscopDilationExam | UncorrectedVAExam | KeratometerExam | KeratometerFullExam | CornealTopographyExam | CoverTestExam | SchirmerTestExam | ContactLensDiameters | ContactLensDetails | KeratometerContactLens | ContactLensExam | ContactLensOrder | StereoTestExam | RGExam
@@ -182,6 +183,7 @@ export class ExamFieldMapper {
     'maddox-rod': ['maddox-rod'],
     'stereo-test': ['stereo-test'],
     'rg': ['rg'],
+    'ocular-motor-assessment': ['ocular-motor-assessment'],
   }
 
   private static explicitMappings: Partial<Record<ExamComponentType, ComponentFieldMappings>> = {
@@ -347,8 +349,8 @@ export class ExamFieldMapper {
 
     Object.entries(mapping).forEach(([sourceField, targetField]) => {
       if (targetField) {
-        const sourceValue = (sourceData as unknown)[sourceField] ?? ''
-        ;(result as unknown)[targetField] = sourceValue
+        const sourceValue = (sourceData as any)[sourceField] ?? ''
+        ;(result as any)[targetField] = sourceValue
       }
     })
 
@@ -373,7 +375,7 @@ export class ExamFieldMapper {
     if (!this.explicitMappings[sourceType]) {
       this.explicitMappings[sourceType] = {}
     }
-    this.explicitMappings[sourceType][targetType] = newMapping
+    this.explicitMappings[sourceType]![targetType] = newMapping
   }
 
   static addToDefaultMap(sourceType: ExamComponentType, targetType: ExamComponentType): void {

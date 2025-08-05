@@ -1,0 +1,196 @@
+---
+globs: *.tsx
+alwaysApply: false
+---
+# OpticAI UI Patterns
+
+## UI Framework
+The application uses [shadcn/ui](https://ui.shadcn.com) for UI components with Tailwind CSS for styling.
+
+## Core UI Guidelines
+
+### RTL Support
+- Application is in Hebrew and uses RTL layout
+- All components should support RTL direction
+- Use `dir="rtl"` attribute where needed
+
+### Scrollbar Styling
+**Always hide visible scrollbars while maintaining functionality:**
+```typescript
+style={{scrollbarWidth: 'none'}}
+```
+
+### Modal Usage
+**Always use the custom modal component:**
+```typescript
+import { CustomModal } from '@/components/ui/custom-modal';
+
+<CustomModal
+  isOpen={isOpen}
+  onClose={onClose}
+  title="Modal Title"
+  subtitle="Modal subtitle"
+>
+  {/* Modal content */}
+</CustomModal>
+```
+
+### Button Patterns
+**Use icons instead of text labels for common actions:**
+```typescript
+// Good - Icon button
+<Button size="icon" variant="ghost">
+  <Copy className="h-4 w-4" />
+</Button>
+
+// Only use text for unusual buttons
+<Button>Create New Client</Button>
+```
+
+## Component Patterns
+
+### Form Components
+**Use shadcn/ui form components consistently:**
+```typescript
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+
+<Card>
+  <CardHeader>
+    <CardTitle>Form Title</CardTitle>
+  </CardHeader>
+  <CardContent>
+    <div className="space-y-4">
+      <div className="space-y-2">
+        <Label htmlFor="field">Field Label</Label>
+        <Input id="field" />
+      </div>
+      <Button type="submit">Submit</Button>
+    </div>
+  </CardContent>
+</Card>
+```
+
+### Table Components
+**Use the data table component for consistent table styling:**
+```typescript
+import { DataTable } from '@/components/data-table';
+
+<DataTable
+  columns={columns}
+  data={data}
+  searchKey="name"
+/>
+```
+
+### Navigation Components
+**Use TanStack Router Link components:**
+```typescript
+import { Link } from '@tanstack/react-router';
+
+<Link to="/path">Link Text</Link>
+<Link to="/path" params={{ id: '123' }}>Link with params</Link>
+```
+
+## Layout Patterns
+
+### Page Structure
+**Standard page layout pattern:**
+```typescript
+export default function PageName() {
+  return (
+    <div className="flex flex-col bg-muted/50 flex-1 gap-6" dir="rtl" style={{scrollbarWidth: 'none'}}>
+      <SiteHeader title="Page Title" />
+      {/* Page content */}
+    </div>
+  );
+}
+```
+
+### Responsive Design
+**Use Tailwind responsive classes:**
+```typescript
+<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+  {/* Responsive grid */}
+</div>
+```
+
+## Theme and Styling
+
+### Color Usage
+**Use semantic color classes:**
+```typescript
+// Primary actions
+className="bg-primary text-primary-foreground"
+
+// Secondary actions
+className="bg-secondary text-secondary-foreground"
+
+// Muted backgrounds
+className="bg-muted text-muted-foreground"
+```
+
+### Dark Mode Support
+**All components should support dark mode:**
+```typescript
+className="bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
+```
+
+## Icon Usage
+
+### Lucide React Icons
+**Primary icon library:**
+```typescript
+import { Copy, Edit, Trash, User, Settings } from 'lucide-react';
+```
+
+### Tabler Icons
+**Secondary icon library for specific icons:**
+```typescript
+import { IconUser, IconSettings } from '@tabler/icons-react';
+```
+
+## Form Validation
+
+### Error Handling
+**Use toast notifications for user feedback:**
+```typescript
+import { toast } from 'sonner';
+
+try {
+  // Operation
+  toast.success('Operation successful');
+} catch (error) {
+  toast.error('Operation failed');
+}
+```
+
+### Loading States
+**Show loading states during async operations:**
+```typescript
+const [isLoading, setIsLoading] = useState(false);
+
+<Button disabled={isLoading}>
+  {isLoading ? (
+    <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+  ) : (
+    'Submit'
+  )}
+</Button>
+```
+
+## Key UI Files
+- [src/components/ui/](mdc:src/components/ui/) - shadcn/ui components
+- [src/components/site-header.tsx](mdc:src/components/site-header.tsx) - Page headers
+- [src/components/data-table.tsx](mdc:src/components/data-table.tsx) - Data tables
+- [src/components/ui/custom-modal.tsx](mdc:src/components/ui/custom-modal.tsx) - Custom modal component
+
+## Best Practices
+- Always use semantic HTML elements
+- Maintain consistent spacing with Tailwind classes
+- Support both light and dark themes
+- Ensure proper keyboard navigation
+- Use proper ARIA labels for accessibility
+- Keep components reusable and composable

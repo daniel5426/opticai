@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from "react"
 import { SiteHeader } from "@/components/site-header"
 import { ExamLayoutsTable } from "@/components/exam-layouts-table"
 import { getAllExamLayouts } from "@/lib/db/exam-layouts-db"
-import { ExamLayout } from "@/lib/db/schema"
+import { ExamLayout } from "@/lib/db/schema-interface"
 
 export default function ExamLayoutsPage() {
   const [layouts, setLayouts] = useState<ExamLayout[]>([])

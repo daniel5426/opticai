@@ -6,6 +6,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
 import { X, User, Phone, Mail, IdCard, Calendar, MapPin, Building2, PanelLeftIcon, FileText, Brain, Loader2, Sparkles, ChevronDown, ChevronRight } from 'lucide-react'
 import { useLocation, useSearch } from '@tanstack/react-router'
+import { apiClient } from '@/lib/api-client';
 
 function calculateAge(dateOfBirth: string | undefined): number | null {
   if (!dateOfBirth) return null
@@ -188,7 +189,7 @@ export function ClientSidebar() {
   })
   
   // Get search params, but handle potential errors
-  let searchParams = null
+  let searchParams: any = null
   try {
     searchParams = useSearch({ strict: false })
   } catch (error) {
@@ -211,7 +212,8 @@ export function ClientSidebar() {
 
   const checkIfAiStatesNeedUpdate = useCallback(async (clientId: number): Promise<boolean> => {
     try {
-      const client = await window.electronAPI.db('getClientById', clientId)
+      const clientResponse = await apiClient.getClientById(clientId);
+      const client = clientResponse.data;
       if (!client) return true
       
       const aiUpdatedDate = client.ai_updated_date
@@ -231,7 +233,8 @@ export function ClientSidebar() {
     
     try {
       // Get fresh client data to check current state
-      const client = await window.electronAPI.db('getClientById', currentClient.id)
+      const clientResponse = await apiClient.getClientById(currentClient.id);
+      const client = clientResponse.data;
       if (!client) return
       
       const aiPartState = client[`ai_${currentPart}_state` as keyof typeof client] as string
@@ -270,7 +273,8 @@ export function ClientSidebar() {
       }
       
       // Get the updated part state
-      const updatedClient = await window.electronAPI.db('getClientById', currentClient.id)
+      const updatedClientResponse = await apiClient.getClientById(currentClient.id);
+      const updatedClient = updatedClientResponse.data;
       if (updatedClient) {
         const partState = updatedClient[`ai_${currentPart}_state` as keyof typeof updatedClient] as string
         if (partState) {
@@ -303,7 +307,8 @@ export function ClientSidebar() {
 
     const pollForDataChanges = async () => {
       try {
-        const client = await window.electronAPI.db('getClientById', currentClient.id)
+        const clientResponse = await apiClient.getClientById(currentClient.id!);
+        const client = clientResponse.data;
         if (!client) return
 
         const currentUpdateDate = client.client_updated_date

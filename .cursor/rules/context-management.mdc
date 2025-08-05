@@ -1,0 +1,287 @@
+---
+description: to describe the context management of the app
+alwaysApply: false
+---
+# OpticAI Context Management
+
+## Context Architecture
+The application uses React Context for state management across different user states and application modes, now integrated with the PostgreSQL API backend.
+
+## Core Contexts
+
+### UserContext (`src/contexts/UserContext.tsx`)
+**Manages user authentication and clinic context:**
+
+```typescript
+interface UserContextType {
+  currentUser: User | null
+  currentClinic: Clinic | null
+  isLoading: boolean
+  login: (username: string, password?: string) => Promise<boolean>
+  logout: () => void
+  setCurrentUser: (user: User | null) => Promise<void>
+  setCurrentClinic: (clinic: Clinic | null) => void
+}
+```
+
+**Key Functions:**
+- `login()`: Authenticates user via API and sets current user
+- `logout()`: Clears user data and API token, preserves clinic context
+- `setCurrentClinic()`: Manages clinic context in sessionStorage
+
+### SettingsContext (`src/contexts/SettingsContext.tsx`)
+**Manages application settings and theme:**
+- Clinic settings (name, logo, colors)
+- Theme preferences
+- User-specific theme colors
+
+### ClientSidebarContext (`src/contexts/ClientSidebarContext.tsx`)
+**Manages client sidebar state:**
+- Current selected client
+- Sidebar open/close state
+- Client data for sidebar display
+
+## Data Persistence
+
+### SessionStorage
+- `selectedClinic`: Current clinic data for user selection
+- `currentUser`: User data (cleared on logout)
+- `controlCenterCompany`: Company data for control center
+
+### LocalStorage
+- `auth_token`: JWT token for API authentication
+- `currentUserId`: Persistent user ID for auto-login
+- Theme preferences and settings
+
+## Context Usage Patterns
+
+### Authentication State
+```typescript
+const { currentUser, isLoading, login, logout } = useUser();
+
+// Login with API
+const success = await login(username, password);
+if (success) {
+  // User authenticated, token stored automatically
+}
+```
+
+### Clinic Context
+```typescript
+const { currentClinic, setCurrentClinic } = useUser();
+
+// Set clinic context
+setCurrentClinic(clinicData);
+```
+
+### Settings Access
+```typescript
+const { settings, updateSettings } = useSettings();
+```
+
+### Role-Based Context
+```typescript
+// Check user permissions
+const canAccessControlCenter = currentUser?.role === 'company_ceo';
+const canManageUsers = currentUser?.role === 'company_ceo' || currentUser?.role === 'clinic_manager';
+const canAccessCampaigns = currentUser?.role === 'company_ceo' || currentUser?.role === 'clinic_manager';
+const canAccessSettings = currentUser?.role === 'company_ceo' || currentUser?.role === 'clinic_manager';
+```
+
+## Multi-Clinic Data Isolation
+
+### API Queries
+All clinic-specific data queries are handled by the API with automatic filtering:
+```typescript
+// API automatically filters by clinic_id based on user context
+const users = await apiClient.getUsers();
+const clients = await apiClient.getClients();
+```
+
+### Context Switching
+Users can switch between clinics by going through the clinic entrance flow again.
+
+## API Integration
+
+### Authentication Flow
+```typescript
+// Login process
+const response = await apiClient.login(username, password);
+if (response.data) {
+  // Token automatically stored in localStorage
+  const userResponse = await apiClient.getCurrentUser();
+  if (userResponse.data) {
+    setCurrentUser(userResponse.data);
+  }
+}
+```
+
+### Token Management
+```typescript
+// Token is automatically managed by apiClient
+apiClient.setToken(token); // Called automatically on login
+apiClient.clearToken(); // Called on logout
+```
+
+### Error Handling
+```typescript
+// Handle API errors in context
+try {
+  const success = await login(username, password);
+  if (!success) {
+    // Handle login failure
+  }
+} catch (error) {
+  // Handle network or API errors
+}
+```
+
+## Key Files
+- [src/contexts/UserContext.tsx](mdc:src/contexts/UserContext.tsx) - User authentication and clinic context
+- [src/contexts/SettingsContext.tsx](mdc:src/contexts/SettingsContext.tsx) - Application settings
+- [src/contexts/ClientSidebarContext.tsx](mdc:src/contexts/ClientSidebarContext.tsx) - Client sidebar state
+- [src/lib/api-client.ts](mdc:src/lib/api-client.ts) - API client for backend communication
+- [src/contexts/UserContext.tsx](mdc:src/contexts/UserContext.tsx) - User authentication and clinic context
+- [src/contexts/SettingsContext.tsx](mdc:src/contexts/SettingsContext.tsx) - Application settings
+- [src/contexts/ClientSidebarContext.tsx](mdc:src/contexts/ClientSidebarContext.tsx) - Client sidebar state# OpticAI Context Management
+
+## Context Architecture
+The application uses React Context for state management across different user states and application modes, now integrated with the PostgreSQL API backend.
+
+## Core Contexts
+
+### UserContext (`src/contexts/UserContext.tsx`)
+**Manages user authentication and clinic context:**
+
+```typescript
+interface UserContextType {
+  currentUser: User | null
+  currentClinic: Clinic | null
+  isLoading: boolean
+  login: (username: string, password?: string) => Promise<boolean>
+  logout: () => void
+  setCurrentUser: (user: User | null) => Promise<void>
+  setCurrentClinic: (clinic: Clinic | null) => void
+}
+```
+
+**Key Functions:**
+- `login()`: Authenticates user via API and sets current user
+- `logout()`: Clears user data and API token, preserves clinic context
+- `setCurrentClinic()`: Manages clinic context in sessionStorage
+
+### SettingsContext (`src/contexts/SettingsContext.tsx`)
+**Manages application settings and theme:**
+- Clinic settings (name, logo, colors)
+- Theme preferences
+- User-specific theme colors
+
+### ClientSidebarContext (`src/contexts/ClientSidebarContext.tsx`)
+**Manages client sidebar state:**
+- Current selected client
+- Sidebar open/close state
+- Client data for sidebar display
+
+## Data Persistence
+
+### SessionStorage
+- `selectedClinic`: Current clinic data for user selection
+- `currentUser`: User data (cleared on logout)
+- `controlCenterCompany`: Company data for control center
+
+### LocalStorage
+- `auth_token`: JWT token for API authentication
+- `currentUserId`: Persistent user ID for auto-login
+- Theme preferences and settings
+
+## Context Usage Patterns
+
+### Authentication State
+```typescript
+const { currentUser, isLoading, login, logout } = useUser();
+
+// Login with API
+const success = await login(username, password);
+if (success) {
+  // User authenticated, token stored automatically
+}
+```
+
+### Clinic Context
+```typescript
+const { currentClinic, setCurrentClinic } = useUser();
+
+// Set clinic context
+setCurrentClinic(clinicData);
+```
+
+### Settings Access
+```typescript
+const { settings, updateSettings } = useSettings();
+```
+
+### Role-Based Context
+```typescript
+// Check user permissions
+const canAccessControlCenter = currentUser?.role === 'company_ceo';
+const canManageUsers = currentUser?.role === 'company_ceo' || currentUser?.role === 'clinic_manager';
+const canAccessCampaigns = currentUser?.role === 'company_ceo' || currentUser?.role === 'clinic_manager';
+const canAccessSettings = currentUser?.role === 'company_ceo' || currentUser?.role === 'clinic_manager';
+```
+
+## Multi-Clinic Data Isolation
+
+### API Queries
+All clinic-specific data queries are handled by the API with automatic filtering:
+```typescript
+// API automatically filters by clinic_id based on user context
+const users = await apiClient.getUsers();
+const clients = await apiClient.getClients();
+```
+
+### Context Switching
+Users can switch between clinics by going through the clinic entrance flow again.
+
+## API Integration
+
+### Authentication Flow
+```typescript
+// Login process
+const response = await apiClient.login(username, password);
+if (response.data) {
+  // Token automatically stored in localStorage
+  const userResponse = await apiClient.getCurrentUser();
+  if (userResponse.data) {
+    setCurrentUser(userResponse.data);
+  }
+}
+```
+
+### Token Management
+```typescript
+// Token is automatically managed by apiClient
+apiClient.setToken(token); // Called automatically on login
+apiClient.clearToken(); // Called on logout
+```
+
+### Error Handling
+```typescript
+// Handle API errors in context
+try {
+  const success = await login(username, password);
+  if (!success) {
+    // Handle login failure
+  }
+} catch (error) {
+  // Handle network or API errors
+}
+```
+
+## Key Files
+- [src/contexts/UserContext.tsx](mdc:src/contexts/UserContext.tsx) - User authentication and clinic context
+- [src/contexts/SettingsContext.tsx](mdc:src/contexts/SettingsContext.tsx) - Application settings
+- [src/contexts/ClientSidebarContext.tsx](mdc:src/contexts/ClientSidebarContext.tsx) - Client sidebar state
+- [src/lib/api-client.ts](mdc:src/lib/api-client.ts) - API client for backend communication
+- [src/contexts/UserContext.tsx](mdc:src/contexts/UserContext.tsx) - User authentication and clinic context
+- [src/contexts/SettingsContext.tsx](mdc:src/contexts/SettingsContext.tsx) - Application settings
+- [src/contexts/ClientSidebarContext.tsx](mdc:src/contexts/ClientSidebarContext.tsx) - Client sidebar state

@@ -1,0 +1,437 @@
+---
+description: for understanding database patterns, to resolve errors or make change to the db
+alwaysApply: false
+---
+# OpticAI Database Patterns
+
+## Database Architecture
+The application now uses **PostgreSQL with FastAPI backend** for data persistence, supporting multi-clinic architecture with modern API-based communication.
+
+## Multi-Clinic Schema
+
+### Core Tables
+- **companies**: Company information and ownership
+- **clinics**: Individual clinic locations with unique IDs
+- **users**: Users with company/clinic associations
+- **All other tables**: Include `clinic_id` for data isolation
+
+### Data Isolation
+All clinic-specific data is filtered by `clinic_id` foreign keys to ensure proper data isolation between clinics.
+
+## API Communication Pattern
+
+### Frontend API Client
+All database operations use the `apiClient` pattern:
+```typescript
+import { apiClient } from '@/lib/api-client';
+
+// Example API calls
+const response = await apiClient.getUsers();
+const result = await apiClient.createUser(userData);
+```
+
+### Backend API Endpoints
+Located in `backend/EndPoints/`:
+```python
+# Example endpoint in backend/EndPoints/users.py
+@router.get("/", response_model=List[UserSchema])
+def get_users(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    if current_user.role == "company_ceo":
+        users = db.query(User).all()
+    else:
+        users = db.query(User).filter(User.clinic_id == current_user.clinic_id).all()
+    return users
+```
+
+## API Client Methods
+
+### Authentication
+```typescript
+// Login
+const response = await apiClient.login(username, password);
+
+// Get current user
+const user = await apiClient.getCurrentUser();
+
+// Set/clear token
+apiClient.setToken(token);
+apiClient.clearToken();
+```
+
+### Companies
+```typescript
+const companies = await apiClient.getCompanies();
+const company = await apiClient.getCompany(id);
+const result = await apiClient.createCompany(companyData);
+const updated = await apiClient.updateCompany(id, companyData);
+await apiClient.deleteCompany(id);
+```
+
+### Clinics
+```typescript
+const clinics = await apiClient.getClinics();
+const clinic = await apiClient.getClinic(id);
+const clinicByUniqueId = await apiClient.getClinicByUniqueId(uniqueId);
+const result = await apiClient.createClinic(clinicData);
+const updated = await apiClient.updateClinic(id, clinicData);
+await apiClient.deleteClinic(id);
+```
+
+### Users
+```typescript
+const users = await apiClient.getUsers();
+const user = await apiClient.getUser(id);
+const userByUsername = await apiClient.getUserByUsername(username);
+const result = await apiClient.createUser(userData);
+const updated = await apiClient.updateUser(id, userData);
+await apiClient.deleteUser(id);
+```
+
+## Schema Management
+
+### Backend Models
+Located in `backend/models.py`:
+```python
+class User(Base):
+    __tablename__ = "users"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    clinic_id = Column(Integer, ForeignKey("clinics.id"))
+    username = Column(String, nullable=False, unique=True)
+    # ... other fields
+```
+
+### Backend Schemas
+Located in `backend/schemas.py`:
+```python
+class UserBase(BaseModel):
+    username: str
+    email: Optional[str] = None
+    role: str
+    # ... other fields
+
+class UserCreate(UserBase):
+    password: str
+    clinic_id: Optional[int] = None
+
+class User(UserBase):
+    id: int
+    clinic_id: Optional[int] = None
+    created_at: datetime
+```
+
+## Connection Management
+
+### Database Connection
+Located in `backend/database.py`:
+```python
+engine = create_engine(settings.DATABASE_URL)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+```
+
+### Database Initialization
+```python
+# Tables created automatically by SQLAlchemy
+Base.metadata.create_all(bind=engine)
+
+# Sample data initialization
+python init_db.py
+```
+
+## Common API Operations
+
+### Authentication
+```typescript
+const response = await apiClient.login(username, password);
+if (response.data) {
+  // Login successful, token automatically set
+  const user = await apiClient.getCurrentUser();
+}
+```
+
+### Clinic Operations
+```typescript
+const clinic = await apiClient.getClinicByUniqueId(uniqueId);
+const users = await apiClient.getUsers(); // Filtered by clinic automatically
+```
+
+### Data Creation
+```typescript
+const result = await apiClient.createUser({
+  ...userData,
+  clinic_id: currentClinic.id
+});
+```
+
+### Role-Based Data Access
+```typescript
+// API automatically filters data based on user role and clinic
+const users = await apiClient.getUsers();
+const companies = await apiClient.getCompanies(); // Only for company_ceo
+```
+
+## Error Handling
+
+### API Response Pattern
+```typescript
+interface ApiResponse<T> {
+  data?: T;
+  error?: string;
+}
+
+const response = await apiClient.getUsers();
+if (response.error) {
+  console.error('API Error:', response.error);
+  // Handle error
+} else {
+  // Use response.data
+}
+```
+
+### Common Issues
+- **"API method not found"**: Ensure method exists in `apiClient`
+- **"Authentication failed"**: Check token validity and login status
+- **"Database connection"**: Check PostgreSQL connection and `.env` configuration
+
+### Best Practices
+- Always use TypeScript interfaces for type safety
+- Keep backend models and frontend schemas in sync
+- Use the `apiClient` pattern for all database calls
+- Test API endpoints after schema changes
+- Use proper error handling in API operations
+- Implement proper authentication and authorization
+- Handle API responses with error checking
+
+## Key Files
+- [src/lib/api-client.ts](mdc:src/lib/api-client.ts) - Frontend API client
+- [backend/models.py](mdc:backend/models.py) - SQLAlchemy models
+- [backend/schemas.py](mdc:backend/schemas.py) - Pydantic schemas
+- [backend/database.py](mdc:backend/database.py) - Database connection
+- [backend/EndPoints/](mdc:backend/EndPoints/) - API endpoints
+- [backend/config.py](mdc:backend/config.py) - Configuration settings
+- [src/lib/db/connection-manager.ts](mdc:src/lib/db/connection-manager.ts) - Connection management
+- [src/preload.ts](mdc:src/preload.ts) - IPC exposure
+- [src/main.ts](mdc:src/main.ts) - Database initialization# OpticAI Database Patterns
+
+## Database Architecture
+The application now uses **PostgreSQL with FastAPI backend** for data persistence, supporting multi-clinic architecture with modern API-based communication.
+
+## Multi-Clinic Schema
+
+### Core Tables
+- **companies**: Company information and ownership
+- **clinics**: Individual clinic locations with unique IDs
+- **users**: Users with company/clinic associations
+- **All other tables**: Include `clinic_id` for data isolation
+
+### Data Isolation
+All clinic-specific data is filtered by `clinic_id` foreign keys to ensure proper data isolation between clinics.
+
+## API Communication Pattern
+
+### Frontend API Client
+All database operations use the `apiClient` pattern:
+```typescript
+import { apiClient } from '@/lib/api-client';
+
+// Example API calls
+const response = await apiClient.getUsers();
+const result = await apiClient.createUser(userData);
+```
+
+### Backend API Endpoints
+Located in `backend/EndPoints/`:
+```python
+# Example endpoint in backend/EndPoints/users.py
+@router.get("/", response_model=List[UserSchema])
+def get_users(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    if current_user.role == "company_ceo":
+        users = db.query(User).all()
+    else:
+        users = db.query(User).filter(User.clinic_id == current_user.clinic_id).all()
+    return users
+```
+
+## API Client Methods
+
+### Authentication
+```typescript
+// Login
+const response = await apiClient.login(username, password);
+
+// Get current user
+const user = await apiClient.getCurrentUser();
+
+// Set/clear token
+apiClient.setToken(token);
+apiClient.clearToken();
+```
+
+### Companies
+```typescript
+const companies = await apiClient.getCompanies();
+const company = await apiClient.getCompany(id);
+const result = await apiClient.createCompany(companyData);
+const updated = await apiClient.updateCompany(id, companyData);
+await apiClient.deleteCompany(id);
+```
+
+### Clinics
+```typescript
+const clinics = await apiClient.getClinics();
+const clinic = await apiClient.getClinic(id);
+const clinicByUniqueId = await apiClient.getClinicByUniqueId(uniqueId);
+const result = await apiClient.createClinic(clinicData);
+const updated = await apiClient.updateClinic(id, clinicData);
+await apiClient.deleteClinic(id);
+```
+
+### Users
+```typescript
+const users = await apiClient.getUsers();
+const user = await apiClient.getUser(id);
+const userByUsername = await apiClient.getUserByUsername(username);
+const result = await apiClient.createUser(userData);
+const updated = await apiClient.updateUser(id, userData);
+await apiClient.deleteUser(id);
+```
+
+## Schema Management
+
+### Backend Models
+Located in `backend/models.py`:
+```python
+class User(Base):
+    __tablename__ = "users"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    clinic_id = Column(Integer, ForeignKey("clinics.id"))
+    username = Column(String, nullable=False, unique=True)
+    # ... other fields
+```
+
+### Backend Schemas
+Located in `backend/schemas.py`:
+```python
+class UserBase(BaseModel):
+    username: str
+    email: Optional[str] = None
+    role: str
+    # ... other fields
+
+class UserCreate(UserBase):
+    password: str
+    clinic_id: Optional[int] = None
+
+class User(UserBase):
+    id: int
+    clinic_id: Optional[int] = None
+    created_at: datetime
+```
+
+## Connection Management
+
+### Database Connection
+Located in `backend/database.py`:
+```python
+engine = create_engine(settings.DATABASE_URL)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+```
+
+### Database Initialization
+```python
+# Tables created automatically by SQLAlchemy
+Base.metadata.create_all(bind=engine)
+
+# Sample data initialization
+python init_db.py
+```
+
+## Common API Operations
+
+### Authentication
+```typescript
+const response = await apiClient.login(username, password);
+if (response.data) {
+  // Login successful, token automatically set
+  const user = await apiClient.getCurrentUser();
+}
+```
+
+### Clinic Operations
+```typescript
+const clinic = await apiClient.getClinicByUniqueId(uniqueId);
+const users = await apiClient.getUsers(); // Filtered by clinic automatically
+```
+
+### Data Creation
+```typescript
+const result = await apiClient.createUser({
+  ...userData,
+  clinic_id: currentClinic.id
+});
+```
+
+### Role-Based Data Access
+```typescript
+// API automatically filters data based on user role and clinic
+const users = await apiClient.getUsers();
+const companies = await apiClient.getCompanies(); // Only for company_ceo
+```
+
+## Error Handling
+
+### API Response Pattern
+```typescript
+interface ApiResponse<T> {
+  data?: T;
+  error?: string;
+}
+
+const response = await apiClient.getUsers();
+if (response.error) {
+  console.error('API Error:', response.error);
+  // Handle error
+} else {
+  // Use response.data
+}
+```
+
+### Common Issues
+- **"API method not found"**: Ensure method exists in `apiClient`
+- **"Authentication failed"**: Check token validity and login status
+- **"Database connection"**: Check PostgreSQL connection and `.env` configuration
+
+### Best Practices
+- Always use TypeScript interfaces for type safety
+- Keep backend models and frontend schemas in sync
+- Use the `apiClient` pattern for all database calls
+- Test API endpoints after schema changes
+- Use proper error handling in API operations
+- Implement proper authentication and authorization
+- Handle API responses with error checking
+
+## Key Files
+- [src/lib/api-client.ts](mdc:src/lib/api-client.ts) - Frontend API client
+- [backend/models.py](mdc:backend/models.py) - SQLAlchemy models
+- [backend/schemas.py](mdc:backend/schemas.py) - Pydantic schemas
+- [backend/database.py](mdc:backend/database.py) - Database connection
+- [backend/EndPoints/](mdc:backend/EndPoints/) - API endpoints
+- [backend/config.py](mdc:backend/config.py) - Configuration settings
+- [src/lib/db/connection-manager.ts](mdc:src/lib/db/connection-manager.ts) - Connection management
+- [src/preload.ts](mdc:src/preload.ts) - IPC exposure
+- [src/main.ts](mdc:src/main.ts) - Database initialization

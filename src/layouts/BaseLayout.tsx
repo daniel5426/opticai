@@ -7,13 +7,16 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { ControlCenterSidebar } from "@/components/control-center-sidebar";
 import { getSettings } from "@/lib/db/settings-db";
 import { applyThemeColorsFromSettings } from "@/helpers/theme_helpers";
-import { Settings } from "@/lib/db/schema";
+import { Settings } from "@/lib/db/schema-interface";
 import { useUser } from "@/contexts/UserContext";
 import { SettingsContext } from "@/contexts/SettingsContext";
-import UserSelectionPage from "@/pages/UserSelectionPage";
 import { ClientSidebarProvider } from "@/contexts/ClientSidebarContext";
 import { ClientSidebar } from "@/components/ClientSidebar";
-import { useLocation } from "@tanstack/react-router";
+import { useLocation, useNavigate } from "@tanstack/react-router";
+import { Button } from "@/components/ui/button";
+import { User, Clinic } from "@/lib/db/schema-interface";
+import { apiClient } from '@/lib/api-client';
+import { OctahedronLoader } from "@/components/ui/octahedron-loader";
 
 export default function BaseLayout({
   children,
@@ -25,8 +28,24 @@ export default function BaseLayout({
   const [isLogoLoaded, setIsLogoLoaded] = useState(false);
   const [hasCompanies, setHasCompanies] = useState<boolean | null>(null);
   const [company, setCompany] = useState<any>(null);
-  const { currentUser, isLoading: isUserLoading } = useUser();
+  const navigate = useNavigate();
   const location = useLocation();
+  
+  // Safely get user context with error handling
+  let currentUser: User | null = null
+  let currentClinic: Clinic | null = null
+  let isUserLoading = true
+  try {
+    const userContext = useUser()
+    currentUser = userContext.currentUser
+    currentClinic = userContext.currentClinic
+    isUserLoading = userContext.isLoading
+  } catch (error) {
+    // UserContext not ready yet, use default values
+    currentUser = null
+    currentClinic = null
+    isUserLoading = true
+  }
   
   const updateSettings = (newSettings: Settings) => {
     setSettings(newSettings);
@@ -35,22 +54,20 @@ export default function BaseLayout({
   useEffect(() => {
     const loadInitialData = async () => {
       try {
-        // Check if there are any companies in the system
-        const companies = await window.electronAPI.db('getAllCompanies');
-        setHasCompanies(companies.length > 0);
+        const companiesResponse = await apiClient.getCompaniesPublic();
+        const companies = companiesResponse.data || [];
+        const hasCompaniesResult = companies.length > 0;
+        setHasCompanies(hasCompaniesResult);
 
-        // Load company data for control center
         const companyData = sessionStorage.getItem('controlCenterCompany');
         if (companyData) {
           setCompany(JSON.parse(companyData));
         }
 
-        // Load settings only if we have companies
-        if (companies.length > 0) {
+        if (hasCompaniesResult) {
           const dbSettings = await getSettings();
           if (dbSettings) {
             setSettings(dbSettings);
-            // Apply current user's theme colors, not clinic settings
             if (currentUser?.id) {
               applyThemeColorsFromSettings(undefined, currentUser.id);
             }
@@ -71,31 +88,85 @@ export default function BaseLayout({
       const img = new Image();
       img.src = settings.clinic_logo_path;
       img.onload = () => setIsLogoLoaded(true);
-      img.onerror = () => setIsLogoLoaded(true); // Treat error as loaded to not block UI
+      img.onerror = () => setIsLogoLoaded(true);
     } else {
-      setIsLogoLoaded(true); // No logo to load
+      setIsLogoLoaded(true);
     }
   }, [settings]);
 
   const isLoading = isUserLoading || isSettingsLoading || hasCompanies === null;
 
-  // Routes that should not show sidebar (welcome screen, setup wizard, clinic entrance, user selection)
-  const noSidebarRoutes = ['/', '/setup-wizard', '/clinic-entrance', '/user-selection'];
+  const noSidebarRoutes = ['/', '/control-center', '/setup-wizard', '/clinic-entrance', '/user-selection'];
   const shouldShowSidebar = !noSidebarRoutes.some(route =>
     location.pathname === route || location.pathname.startsWith(route)
   );
 
-  // Control center routes
-  const controlCenterRoutes = ['/control-center/dashboard', '/control-center/users', '/control-center/clinics'];
+  const controlCenterRoutes = ['/control-center/dashboard', '/control-center/users', '/control-center/clinics', '/control-center/settings'];
   const isControlCenterRoute = controlCenterRoutes.some(route =>
     location.pathname.startsWith(route)
   );
 
-  // Routes that require user authentication (clinic-specific routes)
-  const clinicRoutes = ['/dashboard', '/clients', '/exams', '/orders', '/appointments', '/settings', '/campaigns'];
+  // Check if user has access to control center (only company_ceo can access)
+  const canAccessControlCenter = currentUser?.role === 'company_ceo';
+
+  const clinicRoutes = [
+    '/dashboard', 
+    '/clients', 
+    '/exams', 
+    '/orders', 
+    '/appointments', 
+    '/settings', 
+    '/campaigns',
+    '/files',
+    '/referrals',
+    '/contact-lenses',
+    '/ai-assistant',
+    '/exam-layouts',
+    '/worker-stats',
+    '/second-page'
+  ];
   const requiresUser = clinicRoutes.some(route =>
     location.pathname.startsWith(route)
   );
+
+  // Redirect to user selection if authentication is required
+  useEffect(() => {
+    if (!isLoading && !isUserLoading && requiresUser && !currentUser) {
+      navigate({ to: '/user-selection' });
+    }
+  }, [isLoading, isUserLoading, requiresUser, currentUser, navigate]);
+
+  // Redirect to control center if user is not authenticated for control center routes
+  useEffect(() => {
+    if (isControlCenterRoute && !currentUser && !isLoading) {
+      navigate({ to: '/control-center' });
+    }
+  }, [isControlCenterRoute, currentUser, isLoading, navigate]);
+
+  // Determine if we should show the sidebar layout
+  const shouldShowSidebarLayout = currentUser && !isLoading && !isUserLoading && 
+                                 (shouldShowSidebar || requiresUser);
+
+  // Debug logging
+  console.log('BaseLayout Debug:', {
+    location: location.pathname,
+    shouldShowSidebar,
+    currentUser: !!currentUser,
+    isLoading,
+    isUserLoading,
+    shouldShowSidebarLayout,
+    requiresUser,
+    isControlCenterRoute,
+    hasCompanies,
+    company,
+    settings: !!settings,
+    currentClinic: currentClinic?.name,
+    settingsClinicName: settings?.clinic_name,
+    sessionStorage: {
+      selectedClinic: sessionStorage.getItem('selectedClinic'),
+      controlCenterCompany: sessionStorage.getItem('controlCenterCompany')
+    }
+  });
 
   return (
     <>
@@ -103,35 +174,32 @@ export default function BaseLayout({
         <SettingsContext.Provider value={{ settings, updateSettings }}>
           <ClientSidebarProvider>
             {isLoading ? (
-              <div className="min-h-screen bg-background flex items-center justify-center">
-                <div className="text-foreground text-xl">טוען...</div>
+              <div className="flex items-center justify-center h-full">
+                <OctahedronLoader size="3xl" />
               </div>
-            ) : hasCompanies === false && !['/', '/control-center', '/setup-wizard', '/clinic-entrance', '/user-selection'].includes(location.pathname) ? (
-              // If no companies exist and not on allowed routes, redirect to welcome
-              <div className="min-h-screen bg-background flex items-center justify-center">
+            ) : hasCompanies === false && !currentUser && !['/', '/control-center', '/setup-wizard', '/clinic-entrance', '/user-selection'].includes(location.pathname) && !location.pathname.startsWith('/control-center/') ? (
+              <div className="min-h-screen bg-background flex-row flex items-center justify-center">
                 <div className="text-foreground text-xl">מפנה למסך הבית...</div>
-                {setTimeout(() => window.location.href = '/', 100)}
               </div>
             ) : isControlCenterRoute && !currentUser ? (
-              // For control center routes, redirect to control center login if no user
               <div className="min-h-screen bg-background flex items-center justify-center">
                 <div className="text-foreground text-xl">מפנה למרכז הבקרה...</div>
-                {setTimeout(() => window.location.href = '/control-center', 100)}
               </div>
-            ) : requiresUser && !currentUser ? (
-              // Show user selection only for clinic routes that require authentication
-              <UserSelectionPage />
-            ) : isControlCenterRoute && currentUser ? (
-              // Show control center sidebar layout
-              <div className="flex flex-col h-screen">
-                <DragWindowRegion title="" />
-                <div className="flex-1 flex overflow-hidden">
-                  <SidebarProvider dir="rtl">
+            ) : isControlCenterRoute && currentUser && !canAccessControlCenter ? (
+              <div className="min-h-screen bg-background flex items-center justify-center">
+                <div className="text-foreground text-xl">אין לך הרשאה לגשת למרכז הבקרה</div>
+              </div>
+            ) : isControlCenterRoute && currentUser && canAccessControlCenter ? (
+              <SidebarProvider dir="rtl">
+                <div className="flex flex-col h-screen">
+                  <DragWindowRegion title="" />
+                  <div className="flex-1 flex overflow-hidden">
                     <ControlCenterSidebar
                       variant="inset"
                       side="right"
                       company={company}
-                      currentUser={currentUser}
+                      currentUser={currentUser || undefined}
+                      currentClinic={currentClinic}
                     />
                     <SidebarInset className="flex flex-col flex-1 overflow-hidden" style={{scrollbarWidth: 'none'}}>
                       <div className="flex flex-col h-full">
@@ -145,22 +213,22 @@ export default function BaseLayout({
                         </main>
                       </div>
                     </SidebarInset>
-                  </SidebarProvider>
+                  </div>
                 </div>
-              </div>
-            ) : shouldShowSidebar && currentUser ? (
-              // Show clinic sidebar layout for clinic routes with authenticated user
-              <div className="flex flex-col h-screen">
-                <DragWindowRegion title="" />
-                <div className="flex-1 flex overflow-hidden">
-                  <SidebarProvider dir="rtl">
+              </SidebarProvider>
+            ) : shouldShowSidebarLayout ? (
+              <SidebarProvider dir="rtl">
+                <div className="flex flex-col h-screen">
+                  <DragWindowRegion title="" />
+                  <div className="flex-1 flex overflow-hidden">
                     <AppSidebar
                       variant="inset"
                       side="right"
-                      clinicName={settings?.clinic_name}
-                      currentUser={currentUser}
+                      clinicName={currentClinic?.name || settings?.clinic_name}
+                      currentUser={currentUser || undefined}
                       logoPath={settings?.clinic_logo_path}
                       isLogoLoaded={isLogoLoaded}
+                      currentClinic={currentClinic}
                     />
                     <SidebarInset className="flex flex-col flex-1 overflow-hidden" style={{scrollbarWidth: 'none'}}>
                       <div className="flex flex-col h-full">
@@ -175,11 +243,10 @@ export default function BaseLayout({
                         </main>
                       </div>
                     </SidebarInset>
-                  </SidebarProvider>
+                  </div>
                 </div>
-              </div>
+              </SidebarProvider>
             ) : (
-              // Show simple layout without sidebar for welcome screen, setup wizard
               <div className="flex flex-col h-screen">
                 <DragWindowRegion title="" />
                 <main className="flex-1 overflow-auto">

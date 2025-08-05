@@ -52,11 +52,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.removeAllListeners('ai-chat-stream-error');
   },
 
-  // Chat operations
-  createChat: (title: string) => ipcRenderer.invoke('db-operation', 'createChat', title),
-  getChatById: (id: number) => ipcRenderer.invoke('db-operation', 'getChatById', id),
-  getChatMessages: (chatId: number) => ipcRenderer.invoke('db-operation', 'getChatMessagesByChatId', chatId),
-  createChatMessage: (messageData: any) => ipcRenderer.invoke('db-operation', 'createChatMessage', messageData),
+  // Chat operations - These are now handled by the API backend
+  createChat: (title: string) => ipcRenderer.invoke('chat-create', title),
+  getChatById: (id: number) => ipcRenderer.invoke('chat-get-by-id', id),
+  getChatMessages: (chatId: number) => ipcRenderer.invoke('chat-get-messages', chatId),
+  createChatMessage: (messageData: any) => ipcRenderer.invoke('chat-create-message', messageData),
 
   // Email operations
   emailTestConnection: () => ipcRenderer.invoke('email-test-connection'),

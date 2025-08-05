@@ -6,7 +6,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { User } from '@/lib/db/schema'
+import { User } from '@/lib/db/schema-interface'
 import { getAllUsers } from '@/lib/db/users-db'
 import { useUser } from '@/contexts/UserContext'
 
@@ -28,7 +28,7 @@ export function UserSelect({ value, onValueChange, placeholder = "בחר משת�
         const usersData = await getAllUsers()
         setUsers(usersData)
         
-        if (!value && currentUser?.id) {
+        if ((!value || value === 0) && currentUser?.id) {
           onValueChange(currentUser.id)
         }
       } catch (error) {
@@ -52,7 +52,7 @@ export function UserSelect({ value, onValueChange, placeholder = "בחר משת�
 
   return (
     <Select
-      value={value?.toString()}
+      value={value && value > 0 ? value.toString() : ""}
       onValueChange={(stringValue) => onValueChange(parseInt(stringValue))}
       disabled={disabled}
       dir="rtl"
@@ -66,7 +66,9 @@ export function UserSelect({ value, onValueChange, placeholder = "בחר משת�
             <div className="flex items-center gap-2">
               <span>{user.username}</span>
               <span className="text-xs text-muted-foreground">
-                ({user.role === 'admin' ? 'מנהל' : user.role === 'worker' ? 'עובד' : 'צופה'})
+                ({user.role === 'company_ceo' ? 'מנכ"ל החברה' : 
+                  user.role === 'clinic_manager' ? 'מנהל מרפאה' : 
+                  user.role === 'clinic_worker' ? 'עובד מרפאה' : 'צופה מרפאה'})
               </span>
             </div>
           </SelectItem>

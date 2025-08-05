@@ -11,7 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Plus, Star, Trash2 } from "lucide-react";
-import { ExamLayout } from "@/lib/db/schema";
+import { ExamLayout } from "@/lib/db/schema-interface";
 import { toast } from "sonner";
 import { deleteExamLayout, updateExamLayout } from "@/lib/db/exam-layouts-db";
 

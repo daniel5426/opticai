@@ -1,7 +1,7 @@
 import React, { useRef, useState } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { DiopterAdjustmentPanel } from "@/lib/db/schema"
+import { DiopterAdjustmentPanel } from "@/lib/db/schema-interface"
 import { Plus, Minus } from "lucide-react"
 
 interface DiopterAdjustmentPanelTabProps {

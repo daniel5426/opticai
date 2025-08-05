@@ -23,7 +23,7 @@ import { getAllClients, getClientById, createClient } from "@/lib/db/clients-db"
 import { getSettings } from "@/lib/db/settings-db"
 import { getAllUsers } from "@/lib/db/users-db"
 import { applyThemeColorsFromSettings } from "@/helpers/theme_helpers"
-import { Appointment, Client, Settings } from "@/lib/db/schema"
+import { Appointment, Client, Settings } from "@/lib/db/schema-interface"
 import {
   format,
   isToday,
@@ -54,6 +54,7 @@ import { CustomModal } from "@/components/ui/custom-modal"
 import { ClientWarningModal } from "@/components/ClientWarningModal"
 import { UserSelect } from "@/components/ui/user-select"
 import { useUser } from "@/contexts/UserContext"
+import { OctahedronLoader } from "@/components/ui/octahedron-loader"
 
 
 type CalendarView = 'day' | 'week' | 'month'
@@ -81,7 +82,7 @@ export default function HomePage() {
   const [clients, setClients] = useState<Client[]>([])
   const [settings, setSettings] = useState<Settings | null>(null)
   const [loading, setLoading] = useState(true)
-  const { currentUser } = useUser()
+  const { currentUser, currentClinic } = useUser()
 
   const [draggedData, setDraggedData] = useState<DragData | null>(null)
   const [draggedBlockId, setDraggedBlockId] = useState<number | null>(null)
@@ -97,13 +98,19 @@ export default function HomePage() {
   const [selectedTimeSlot, setSelectedTimeSlot] = useState<{ date: Date; time: string }>({ date: new Date(), time: '' })
   const [formData, setFormData] = useState<Omit<Appointment, 'id'>>({
     client_id: 0,
-    user_id: currentUser?.id,
-    date: '',
-    time: '',
+    user_id: currentUser?.id || 0,
+    date: undefined,
+    time: undefined,
     duration: 30,
-    exam_name: '',
-    note: ''
+    exam_name: undefined,
+    note: undefined
   })
+
+  useEffect(() => {
+    if (currentUser?.id) {
+      setFormData(prev => ({ ...prev, user_id: currentUser.id }))
+    }
+  }, [currentUser?.id])
 
   const [isNewClientDialogOpen, setIsNewClientDialogOpen] = useState(false)
   const [isClientSelectOpen, setIsClientSelectOpen] = useState(false)
@@ -150,10 +157,10 @@ export default function HomePage() {
     try {
       setLoading(true)
       const [appointmentsData, clientsData, settingsData, usersData] = await Promise.all([
-        getAllAppointments(),
-        getAllClients(),
-        getSettings(),
-        getAllUsers()
+        getAllAppointments(currentClinic?.id),
+        getAllClients(currentClinic?.id),
+        getSettings(currentClinic?.id),
+        getAllUsers(currentClinic?.id)
       ])
       setAppointments(appointmentsData)
       setClients(clientsData)
@@ -171,8 +178,10 @@ export default function HomePage() {
   }
 
   useEffect(() => {
-    loadData()
-  }, [currentUser?.id])
+    if (currentClinic) {
+      loadData()
+    }
+  }, [currentUser?.id, currentClinic])
 
   useEffect(() => {
     if (!isClientSelectOpen && selectedClient) {
@@ -517,7 +526,7 @@ export default function HomePage() {
     resetAllForms()
     setFormData({
       client_id: 0,
-      user_id: currentUser?.id,
+      user_id: currentUser?.id || 0,
       date: format(date, 'yyyy-MM-dd'),
       time: time,
       duration: APPOINTMENT_DURATION,
@@ -756,91 +765,117 @@ export default function HomePage() {
     document.body.style.userSelect = ''
 
     if (draggedData && dragPosition && !resizeData) {
-      try {
-        const updatedAppointment = {
-          ...draggedData.appointment,
-          date: format(dragPosition.date, 'yyyy-MM-dd'),
-          time: dragPosition.time
-        }
+      // Optimistic update - immediately update UI
+      const updatedAppointment = {
+        ...draggedData.appointment,
+        date: format(dragPosition.date, 'yyyy-MM-dd'),
+        time: dragPosition.time
+      }
 
+      // Store original appointment for rollback
+      const originalAppointment = { ...draggedData.appointment }
+
+      // Clear drag state immediately to stop cursor following
+      setDraggedData(null)
+      setDraggedBlockId(null)
+      setDragPosition(null)
+
+      // Optimistically update the UI
+      setAppointments(prev => prev.map(apt =>
+        apt.id === updatedAppointment.id ? updatedAppointment : apt
+      ))
+
+      try {
         const result = await updateAppointment(updatedAppointment)
         if (result) {
           toast.success("התור הועבר בהצלחה")
-          // Update local state instead of reloading all data
-          setAppointments(prev => prev.map(apt =>
-            apt.id === updatedAppointment.id ? updatedAppointment : apt
-          ))
         } else {
           toast.error("שגיאה בהעברת התור")
-          // Restore original state on error
-          await loadData()
+          // Rollback on error
+          setAppointments(prev => prev.map(apt =>
+            apt.id === originalAppointment.id ? originalAppointment : apt
+          ))
         }
       } catch (error) {
         console.error('Error moving appointment:', error)
         toast.error("שגיאה בהעברת התור")
-        // Restore original state on error
-        await loadData()
+        // Rollback on error
+        setAppointments(prev => prev.map(apt =>
+          apt.id === originalAppointment.id ? originalAppointment : apt
+        ))
       }
     }
 
     if (resizeData) {
       const resizePosition = calculateResizePosition(e)
       if (resizePosition) {
-        try {
-          const originalAppointment = appointments.find(a => a.id === resizeData.appointmentId)
-          if (originalAppointment) {
-            let updatedAppointment
+        const originalAppointment = appointments.find(a => a.id === resizeData.appointmentId)
+        if (originalAppointment) {
+          let updatedAppointment: Appointment | null = null
 
-            if (resizeData.type === 'top') {
-              // Top resize: change start time, calculate new duration
-              const originalEndMinutes = timeToMinutes(resizeData.originalEnd)
-              const newStartMinutes = timeToMinutes(resizePosition.startTime)
-              const newDuration = originalEndMinutes - newStartMinutes
+          if (resizeData.type === 'top') {
+            // Top resize: change start time, calculate new duration
+            const originalEndMinutes = timeToMinutes(resizeData.originalEnd)
+            const newStartMinutes = timeToMinutes(resizePosition.startTime)
+            const newDuration = originalEndMinutes - newStartMinutes
 
-              updatedAppointment = {
-                ...originalAppointment,
-                time: resizePosition.startTime,
-                duration: newDuration
-              }
-            } else {
-              // Bottom resize: keep start time, change duration
-              const startMinutes = timeToMinutes(resizeData.originalStart)
-              const newEndMinutes = timeToMinutes(resizePosition.endTime)
-              const newDuration = newEndMinutes - startMinutes
-
-              updatedAppointment = {
-                ...originalAppointment,
-                time: resizeData.originalStart,
-                duration: newDuration
-              }
+            updatedAppointment = {
+              ...originalAppointment,
+              time: resizePosition.startTime,
+              duration: newDuration
             }
+          } else {
+            // Bottom resize: keep start time, change duration
+            const startMinutes = timeToMinutes(resizeData.originalStart)
+            const newEndMinutes = timeToMinutes(resizePosition.endTime)
+            const newDuration = newEndMinutes - startMinutes
 
+            updatedAppointment = {
+              ...originalAppointment,
+              time: resizeData.originalStart,
+              duration: newDuration
+            }
+          }
+
+          // Store original appointment for rollback
+          const originalAppointmentCopy = { ...originalAppointment }
+
+          // Clear resize state immediately to stop cursor following
+          setResizeData(null)
+
+          // Optimistically update the UI
+          setAppointments(prev => prev.map(apt =>
+            apt.id === updatedAppointment?.id ? updatedAppointment! : apt
+          ))
+
+          try {
             const result = await updateAppointment(updatedAppointment)
             if (result) {
               toast.success("התור עודכן בהצלחה")
-              // Update local state instead of reloading all data
-              setAppointments(prev => prev.map(apt =>
-                apt.id === updatedAppointment.id ? updatedAppointment : apt
-              ))
             } else {
               toast.error("שגיאה בעדכון התור")
-              // Restore original state on error
-              await loadData()
+              // Rollback on error
+              setAppointments(prev => prev.map(apt =>
+                apt.id === originalAppointmentCopy.id ? originalAppointmentCopy : apt
+              ))
             }
+          } catch (error) {
+            console.error('Error resizing appointment:', error)
+            toast.error("שגיאה בעדכון התור")
+            // Rollback on error
+            setAppointments(prev => prev.map(apt =>
+              apt.id === originalAppointmentCopy.id ? originalAppointmentCopy : apt
+            ))
           }
-        } catch (error) {
-          console.error('Error resizing appointment:', error)
-          toast.error("שגיאה בעדכון התור")
-          // Restore original state on error
-          await loadData()
         }
       } else {
         // Invalid resize position, restore original state
+        setResizeData(null)
         await loadData()
       }
     }
 
-    // Reset all states
+    // Reset remaining states
     setDraggedData(null)
     setDraggedBlockId(null)
     setDragPosition(null)
@@ -862,19 +897,19 @@ export default function HomePage() {
   const resetAllForms = () => {
     setFormData({
       client_id: 0,
-      user_id: currentUser?.id,
-      date: '',
-      time: '',
+      user_id: currentUser?.id || 0,
+      date: undefined,
+      time: undefined,
       duration: APPOINTMENT_DURATION,
-      exam_name: '',
-      note: ''
+      exam_name: undefined,
+      note: undefined
     })
     setNewClientFormData({
       first_name: '',
       last_name: '',
       phone_mobile: '',
       email: '',
-      user_id: currentUser?.id,
+      user_id: currentUser?.id || 0,
       date: '',
       time: '',
       duration: APPOINTMENT_DURATION,
@@ -902,12 +937,12 @@ export default function HomePage() {
       }
       setFormData({
         client_id: appointment.client_id,
-        user_id: appointment.user_id || currentUser?.id,
-        date: appointment.date || '',
-        time: appointment.time || '',
+        user_id: appointment.user_id || currentUser?.id || 0,
+        date: appointment.date || undefined,
+        time: appointment.time || undefined,
         duration: appointment.duration || APPOINTMENT_DURATION,
-        exam_name: appointment.exam_name || '',
-        note: appointment.note || ''
+        exam_name: appointment.exam_name || undefined,
+        note: appointment.note || undefined
       })
       setIsCreateModalOpen(true)
     } catch (error) {
@@ -923,7 +958,7 @@ export default function HomePage() {
         setFormData(prev => ({
           ...prev,
           client_id: selectedClientId,
-          user_id: currentUser?.id,
+          user_id: currentUser?.id || 0,
           date: format(selectedTimeSlot.date, 'yyyy-MM-dd'),
           time: selectedTimeSlot.time,
           duration: APPOINTMENT_DURATION,
@@ -940,12 +975,16 @@ export default function HomePage() {
 
   const handleSaveAppointment = async () => {
     try {
+      if (!formData.client_id || formData.client_id <= 0) {
+        toast.error("יש לבחור לקוח")
+        return
+      }
+
       if (editingAppointment) {
         const updatedAppointment = { ...formData, id: editingAppointment.id }
         const result = await updateAppointment(updatedAppointment)
         if (result) {
           toast.success("התור עודכן בהצלחה")
-          // Update local state instead of reloading all data
           setAppointments(prev => prev.map(apt =>
             apt.id === updatedAppointment.id ? updatedAppointment : apt
           ))
@@ -954,10 +993,23 @@ export default function HomePage() {
           toast.error("שגיאה בעדכון התור")
         }
       } else {
-        const result = await createAppointment(formData)
+        // Filter out undefined values before sending to backend
+        const appointmentData = {
+          client_id: formData.client_id,
+          clinic_id: currentClinic?.id,
+          user_id: formData.user_id,
+          date: formData.date,
+          time: formData.time,
+          duration: formData.duration,
+          exam_name: formData.exam_name,
+          note: formData.note
+        }
+        
+        console.log('Sending appointment data from HomePage:', appointmentData);
+        
+        const result = await createAppointment(appointmentData)
         if (result) {
           toast.success("התור נוצר בהצלחה")
-          // Add new appointment to local state instead of reloading all data
           setAppointments(prev => [...prev, result])
           closeAllDialogs()
         } else {
@@ -1041,8 +1093,8 @@ export default function HomePage() {
     return (
       <>
         <SiteHeader title={ "לוח זמנים"} />
-        <div className="flex items-center justify-center h-64">
-          <div className="text-muted-foreground">טוען נתונים...</div>
+        <div className="flex items-center justify-center h-full">
+          <OctahedronLoader size="3xl" />
         </div>
       </>
     )
@@ -1527,7 +1579,7 @@ export default function HomePage() {
                 <Input
                   id="exam_name"
                   name="exam_name"
-                  value={formData.exam_name}
+                  value={formData.exam_name || ''}
                   onChange={handleInputChange}
                   dir="rtl"
                 />
@@ -1549,7 +1601,7 @@ export default function HomePage() {
                   id="time"
                   name="time"
                   type="time"
-                  value={formData.time}
+                  value={formData.time || ''}
                   onChange={handleInputChange}
                   dir="rtl"
                 />
@@ -1560,7 +1612,7 @@ export default function HomePage() {
                   id="date"
                   name="date"
                   type="date"
-                  value={formData.date}
+                  value={formData.date || ''}
                   onChange={handleInputChange}
                   className="justify-end"
                   dir="rtl"
@@ -1574,7 +1626,7 @@ export default function HomePage() {
               <Textarea
                 id="note"
                 name="note"
-                value={formData.note}
+                value={formData.note || ''}
                 onChange={handleInputChange}
                 dir="rtl"
               />

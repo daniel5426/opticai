@@ -6,7 +6,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Switch } from "@/components/ui/switch"
 import { DateInput } from "@/components/ui/date"
-import { AnamnesisExam } from "@/lib/db/schema"
+import { AnamnesisExam } from "@/lib/db/schema-interface"
 
 interface AnamnesisTabProps {
   anamnesisData: AnamnesisExam;

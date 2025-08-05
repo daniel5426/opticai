@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch"
 import { Separator } from "@/components/ui/separator"
 import { toast } from "sonner"
-import { Settings, User } from "@/lib/db/schema"
+import { Settings, User } from "@/lib/db/schema-interface"
 import { getSettings, updateSettings } from "@/lib/db/settings-db"
 import { getAllUsers, createUser, updateUser, deleteUser } from "@/lib/db/users-db"
 import { applyThemeColorsFromSettings } from "@/helpers/theme_helpers"
@@ -24,6 +24,8 @@ import { ServerConnectionSettings } from "@/components/ServerConnectionSettings"
 import { getEmailProviderConfig } from "@/lib/email/email-providers"
 import { LookupTableManager } from "@/components/LookupTableManager"
 import { lookupTables } from "@/lib/db/lookup-db"
+import { UserModal } from "@/components/UserModal"
+import { apiClient } from "@/lib/api-client"
 
 export default function SettingsPage() {
   const { settings, updateSettings: updateBaseSettings } = useSettings()
@@ -38,14 +40,6 @@ export default function SettingsPage() {
   const [usersLoading, setUsersLoading] = useState(false)
   const [showUserModal, setShowUserModal] = useState(false)
   const [editingUser, setEditingUser] = useState<User | null>(null)
-  const [userForm, setUserForm] = useState({
-    username: '',
-    email: '',
-    phone: '',
-    hasPassword: false,
-    password: '',
-    role: 'worker' as 'admin' | 'worker' | 'viewer'
-  })
   
   // Field data management state
   const [currentLookupTable, setCurrentLookupTable] = useState<string | null>(null)
@@ -291,82 +285,21 @@ export default function SettingsPage() {
   // User management handlers
   const openCreateUserModal = () => {
     setEditingUser(null)
-    setUserForm({
-      username: '',
-      email: '',
-      phone: '',
-      hasPassword: false,
-      password: '',
-      role: 'worker'
-    })
     setShowUserModal(true)
   }
 
   const openEditUserModal = (user: User) => {
-    if (currentUser?.role !== 'admin' && user.id !== currentUser?.id) {
+    if (currentUser?.role !== 'company_ceo' && user.id !== currentUser?.id) {
       toast.error('אין לך הרשאה לערוך משתמש זה')
       return
     }
     
     setEditingUser(user)
-    setUserForm({
-      username: user.username,
-      email: user.email || '',
-      phone: user.phone || '',
-      hasPassword: !!user.password,
-      password: '',
-      role: user.role
-    })
     setShowUserModal(true)
   }
 
-  const handleUserFormChange = (field: string, value: any) => {
-    setUserForm(prev => ({ ...prev, [field]: value }))
-  }
-
-  const handleUserSave = async () => {
-    try {
-      if (!userForm.username.trim()) {
-        toast.error('שם המשתמש הוא שדה חובה')
-        return
-      }
-
-      const userData = {
-        username: userForm.username.trim(),
-        email: userForm.email.trim() || undefined,
-        phone: userForm.phone.trim() || undefined,
-        password: userForm.hasPassword ? userForm.password.trim() || undefined : undefined,
-        role: userForm.role,
-        is_active: true
-      }
-
-      if (editingUser) {
-        const updatedUser = await updateUser({ ...userData, id: editingUser.id })
-        if (updatedUser) {
-          setUsers(prev => prev.map(u => u.id === editingUser.id ? updatedUser : u))
-          toast.success('המשתמש עודכן בהצלחה')
-          setShowUserModal(false)
-        } else {
-          toast.error('שגיאה בעדכון המשתמש')
-        }
-      } else {
-        const newUser = await createUser(userData)
-        if (newUser) {
-          setUsers(prev => [...prev, newUser])
-          toast.success('המשתמש נוצר בהצלחה')
-          setShowUserModal(false)
-        } else {
-          toast.error('שגיאה ביצירת המשתמש')
-        }
-      }
-    } catch (error) {
-      console.error('Error saving user:', error)
-      toast.error('שגיאה בשמירת המשתמש')
-    }
-  }
-
   const handleUserDelete = async (userId: number) => {
-    if (currentUser?.role !== 'admin') {
+    if (currentUser?.role !== 'company_ceo') {
       toast.error('אין לך הרשאה למחוק משתמשים')
       return
     }
@@ -506,12 +439,14 @@ export default function SettingsPage() {
       }
       
       // Get user's appointments from database
-      const appointments = await window.electronAPI.db('getAppointmentsByUserId', currentUser.id)
+      const appointmentsResponse = await apiClient.getAppointmentsByUser(currentUser.id)
+      const appointments = appointmentsResponse.data || []
       
       // Prepare appointments with client data for sync
       const appointmentsWithClients = await Promise.all(
         appointments.map(async (appointment: any) => {
-          const client = await window.electronAPI.db('getClientById', appointment.client_id)
+          const clientResponse = await apiClient.getClientById(appointment.client_id)
+          const client = clientResponse.data
           return { appointment, client }
         })
       )
@@ -1210,13 +1145,15 @@ export default function SettingsPage() {
                                   <div className="text-right flex-1">
                                     <div className="flex items-center gap-2 justify-end">
                                       <Badge variant={
-                                        user.role === 'admin' ? 'default' : 
-                                        user.role === 'worker' ? 'secondary' : 
+                                        user.role === 'company_ceo' ? 'default' : 
+                                        user.role === 'clinic_manager' ? 'secondary' : 
+                                        user.role === 'clinic_worker' ? 'outline' :
                                         'outline'
                                       }>
-                                        {user.role === 'admin' ? 'מנהל' : 
-                                         user.role === 'worker' ? 'עובד' : 
-                                         'צופה'}
+                                        {user.role === 'company_ceo' ? 'מנכ"ל החברה' : 
+                                         user.role === 'clinic_manager' ? 'מנהל מרפאה' : 
+                                         user.role === 'clinic_worker' ? 'עובד מרפאה' : 
+                                         'צופה מרפאה'}
                                       </Badge>
                                       <h3 className="font-medium">{user.username}</h3>
                                     </div>
@@ -1557,7 +1494,7 @@ export default function SettingsPage() {
                     <TabsTrigger value="email" className="w-full justify-end text-right">הגדרות אימייל</TabsTrigger>
                     <TabsTrigger value="server" className="w-full justify-end text-right">חיבור לשרת</TabsTrigger>
                     <TabsTrigger value="personal-profile" className="w-full justify-end text-right">פרופיל אישי</TabsTrigger>
-                    {currentUser?.role === 'admin' && (
+                    {currentUser?.role === 'company_ceo' && (
                       <TabsTrigger value="users" className="w-full justify-end text-right">ניהול משתמשים</TabsTrigger>
                     )}
                     <TabsTrigger value="field-data" className="w-full justify-end text-right">ניהול נתוני שדות</TabsTrigger>
@@ -1569,121 +1506,18 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      {/* User Modal */}
-        <CustomModal
-          isOpen={showUserModal}
-          onClose={() => setShowUserModal(false)}
-          title={editingUser ? 'ערוך משתמש' : 'הוסף משתמש חדש'}
-          className="max-w-lg"
-        >
-          <div className="space-y-4" dir="rtl">
-            <div className="grid grid-cols-1 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="username" className="text-right block">שם משתמש *</Label>
-                <Input
-                  id="username"
-                  value={userForm.username}
-                  onChange={(e) => handleUserFormChange('username', e.target.value)}
-                  placeholder="הזן שם משתמש"
-                  className="text-right"
-                  dir="rtl"
-                />
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="email" className="text-right block">אימייל</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={userForm.email}
-                  onChange={(e) => handleUserFormChange('email', e.target.value)}
-                  placeholder="example@email.com"
-                  className="text-right"
-                  dir="rtl"
-                />
-              </div>
-              
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="role" className="text-right block">תפקיד *</Label>
-                  {currentUser?.role === 'admin' ? (
-                    <Select
-                      value={userForm.role}
-                      onValueChange={(value) => handleUserFormChange('role', value)}
-                      dir="rtl"
-                    >
-                      <SelectTrigger className="text-right" dir="rtl">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="admin">מנהל</SelectItem>
-                        <SelectItem value="worker">עובד</SelectItem>
-                        <SelectItem value="viewer">צופה</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <div className="px-3 py-2 bg-muted rounded-md text-right">
-                      {userForm.role === 'admin' ? 'מנהל' : 
-                       userForm.role === 'worker' ? 'עובד' : 'צופה'}
-                      <span className="text-xs text-muted-foreground mr-2">(לא ניתן לשינוי)</span>
-                    </div>
-                  )}
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="phone" className="text-right block">טלפון</Label>
-                  <Input
-                    id="phone"
-                    value={userForm.phone}
-                    onChange={(e) => handleUserFormChange('phone', e.target.value)}
-                    placeholder="050-1234567"
-                    className="text-right"
-                    dir="rtl"
-                  />
-                </div>
-              </div>
-              <div className="space-y-1">
-              <Label htmlFor="hasPassword" className="font-medium">הגדר סיסמה</Label>
-              <div className="flex items-center justify-between rounded-lg">
-                <div className="text-right">
-                  <p className="text-sm text-muted-foreground">אם לא תוגדר סיסמה, המשתמש יוכל להתחבר ללא סיסמה</p>
-                </div>
-                <Switch
-                  dir="ltr"
-                  className=""
-                  id="hasPassword"
-                  checked={userForm.hasPassword}
-                  onCheckedChange={(checked) => handleUserFormChange('hasPassword', checked)}
-                />
-              </div>
-              </div>
-              
-              {userForm.hasPassword && (
-                <div className="space-y-2">
-                  <Label htmlFor="password" className="text-right block">סיסמה</Label>
-                  <Input
-                    id="password"
-                    type="password"
-                    value={userForm.password}
-                    onChange={(e) => handleUserFormChange('password', e.target.value)}
-                    placeholder="הזן סיסמה"
-                    className="text-right"
-                    dir="rtl"
-                  />
-                </div>
-              )}
-            </div>
-            
-            <div className="flex justify-start gap-2 pt-4">
-              <Button onClick={handleUserSave}>
-                {editingUser ? 'עדכן משתמש' : 'צור משתמש'}
-              </Button>
-              <Button variant="outline" onClick={() => setShowUserModal(false)}>
-                ביטול
-              </Button>
-            </div>
-          </div>
-        </CustomModal>
+      <UserModal
+        isOpen={showUserModal}
+        onClose={() => setShowUserModal(false)}
+        editingUser={editingUser}
+        currentUser={currentUser}
+        onUserSaved={(newUser) => {
+          setUsers(prev => [...prev, newUser])
+        }}
+        onUserUpdated={(updatedUser) => {
+          setUsers(prev => prev.map(u => u.id === updatedUser.id ? updatedUser : u))
+        }}
+      />
       </>
     )
 } 

@@ -1,7 +1,7 @@
 import React from "react"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { OldRefExam } from "@/lib/db/schema"
+import { OldRefExam } from "@/lib/db/schema-interface"
 
 interface OldRefTabProps {
   oldRefData: OldRefExam;

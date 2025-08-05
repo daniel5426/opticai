@@ -1,11 +1,10 @@
 import React, { useState, useEffect } from "react"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { getAllClients } from "@/lib/db/clients-db"
-import { Client } from "@/lib/db/schema"
-import { useNavigate } from "@tanstack/react-router"
+import { Client } from "@/lib/db/schema-interface"
 import { CustomModal } from "@/components/ui/custom-modal"
+import { useUser } from "@/contexts/UserContext"
 
 interface ClientSelectModalProps {
   triggerText?: string
@@ -16,6 +15,7 @@ interface ClientSelectModalProps {
 }
 
 export function ClientSelectModal({ triggerText, onClientSelect, variant = "default", isOpen, onClose }: ClientSelectModalProps) {
+  const { currentClinic } = useUser()
   const [clients, setClients] = useState<Client[]>([])
   const [internalOpen, setInternalOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
@@ -26,10 +26,10 @@ export function ClientSelectModal({ triggerText, onClientSelect, variant = "defa
 
   useEffect(() => {
     const loadClients = async () => {
-      if (modalOpen && clients.length === 0) {
+      if (modalOpen && clients.length === 0 && currentClinic) {
         try {
           setLoading(true)
-          const clientsData = await getAllClients()
+          const clientsData = await getAllClients(currentClinic.id)
           setClients(clientsData)
         } catch (error) {
           console.error('Error loading clients:', error)
@@ -40,7 +40,7 @@ export function ClientSelectModal({ triggerText, onClientSelect, variant = "defa
     }
 
     loadClients()
-  }, [modalOpen, clients.length])
+  }, [modalOpen, clients.length, currentClinic])
 
   // Cleanup when component unmounts or modal closes
   useEffect(() => {

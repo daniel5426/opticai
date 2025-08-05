@@ -1,9 +1,15 @@
 /// <reference path="../../types/electron.d.ts" />
-import { Order, OrderEye, OrderLens, Frame, OrderDetails } from './schema'
+import { Order, OrderEye, OrderLens, Frame, OrderDetails } from './schema-interface';
+import { apiClient } from '../api-client';
 
 export async function getOrdersByClientId(clientId: number): Promise<Order[]> {
   try {
-    return await window.electronAPI.db('getOrdersByClientId', clientId);
+    const response = await apiClient.getOrdersByClient(clientId);
+    if (response.error) {
+      console.error('Error getting orders by client:', response.error);
+      return [];
+    }
+    return response.data || [];
   } catch (error) {
     console.error('Error getting orders by client:', error);
     return [];
@@ -12,57 +18,73 @@ export async function getOrdersByClientId(clientId: number): Promise<Order[]> {
 
 export async function getAllOrders(clinicId?: number): Promise<Order[]> {
   try {
-    return await window.electronAPI.db('getAllOrders', clinicId);
+    const response = await apiClient.getOrders(clinicId);
+    if (response.error) {
+      console.error('Error getting all orders:', response.error);
+      return [];
+    }
+    return response.data || [];
   } catch (error) {
     console.error('Error getting all orders:', error);
     return [];
   }
 }
 
-export async function getOrderById(orderId: number): Promise<Order | undefined> {
+export async function getOrderById(orderId: number): Promise<Order | null> {
   try {
-    return await window.electronAPI.db('getOrderById', orderId);
+    const response = await apiClient.getOrder(orderId);
+    if (response.error) {
+      console.error('Error getting order:', response.error);
+      return null;
+    }
+    return response.data || null;
   } catch (error) {
     console.error('Error getting order:', error);
-    return undefined;
+    return null;
   }
 }
 
 export async function getOrderEyesByOrderId(orderId: number): Promise<OrderEye[]> {
   try {
-    return await window.electronAPI.db('getOrderEyesByOrderId', orderId);
+    // This would need a specific endpoint in the API
+    console.warn('getOrderEyesByOrderId: API endpoint not yet implemented');
+    return [];
   } catch (error) {
     console.error('Error getting order eyes:', error);
     return [];
   }
 }
 
-export async function getOrderLensByOrderId(orderId: number): Promise<OrderLens | undefined> {
+export async function getOrderLensByOrderId(orderId: number): Promise<OrderLens | null> {
   try {
-    return await window.electronAPI.db('getOrderLensByOrderId', orderId);
+    // This would need a specific endpoint in the API
+    console.warn('getOrderLensByOrderId: API endpoint not yet implemented');
+    return null;
   } catch (error) {
     console.error('Error getting order lens:', error);
-    return undefined;
+    return null;
   }
 }
 
-export async function getFrameByOrderId(orderId: number): Promise<Frame | undefined> {
+export async function getFrameByOrderId(orderId: number): Promise<Frame | null> {
   try {
-    return await window.electronAPI.db('getFrameByOrderId', orderId);
+    // This would need a specific endpoint in the API
+    console.warn('getFrameByOrderId: API endpoint not yet implemented');
+    return null;
   } catch (error) {
     console.error('Error getting frame:', error);
-    return undefined;
+    return null;
   }
 }
 
 export async function createOrder(order: Omit<Order, 'id'>): Promise<Order | null> {
   try {
-    const result = await window.electronAPI.db('createOrder', order);
-    if (result && order.client_id) {
-      await window.electronAPI.db('updateClientUpdatedDate', order.client_id);
-      
+    const response = await apiClient.createOrder(order);
+    if (response.error) {
+      console.error('Error creating order:', response.error);
+      return null;
     }
-    return result;
+    return response.data || null;
   } catch (error) {
     console.error('Error creating order:', error);
     return null;
@@ -71,7 +93,9 @@ export async function createOrder(order: Omit<Order, 'id'>): Promise<Order | nul
 
 export async function createOrderEye(orderEye: Omit<OrderEye, 'id'>): Promise<OrderEye | null> {
   try {
-    return await window.electronAPI.db('createOrderEye', orderEye);
+    // This would need a specific endpoint in the API
+    console.warn('createOrderEye: API endpoint not yet implemented');
+    return null;
   } catch (error) {
     console.error('Error creating order eye:', error);
     return null;
@@ -80,7 +104,9 @@ export async function createOrderEye(orderEye: Omit<OrderEye, 'id'>): Promise<Or
 
 export async function createOrderLens(orderLens: Omit<OrderLens, 'id'>): Promise<OrderLens | null> {
   try {
-    return await window.electronAPI.db('createOrderLens', orderLens);
+    // This would need a specific endpoint in the API
+    console.warn('createOrderLens: API endpoint not yet implemented');
+    return null;
   } catch (error) {
     console.error('Error creating order lens:', error);
     return null;
@@ -89,92 +115,109 @@ export async function createOrderLens(orderLens: Omit<OrderLens, 'id'>): Promise
 
 export async function createFrame(frame: Omit<Frame, 'id'>): Promise<Frame | null> {
   try {
-    return await window.electronAPI.db('createFrame', frame);
+    // This would need a specific endpoint in the API
+    console.warn('createFrame: API endpoint not yet implemented');
+    return null;
   } catch (error) {
     console.error('Error creating frame:', error);
     return null;
   }
 }
 
-export async function updateOrder(order: Order): Promise<Order | undefined> {
+export async function updateOrder(order: Order): Promise<Order | null> {
   try {
-    const result = await window.electronAPI.db('updateOrder', order);
-    if (result && order.client_id) {
-      await window.electronAPI.db('updateClientUpdatedDate', order.client_id);
-      
+    if (!order.id) {
+      console.error('Error updating order: No order ID provided');
+      return null;
     }
-    return result;
+    const response = await apiClient.updateOrder(order.id, order);
+    if (response.error) {
+      console.error('Error updating order:', response.error);
+      return null;
+    }
+    return response.data || null;
   } catch (error) {
     console.error('Error updating order:', error);
-    return undefined;
+    return null;
   }
 }
 
-export async function updateOrderEye(orderEye: OrderEye): Promise<OrderEye | undefined> {
+export async function updateOrderEye(orderEye: OrderEye): Promise<OrderEye | null> {
   try {
-    return await window.electronAPI.db('updateOrderEye', orderEye);
+    // This would need a specific endpoint in the API
+    console.warn('updateOrderEye: API endpoint not yet implemented');
+    return null;
   } catch (error) {
     console.error('Error updating order eye:', error);
-    return undefined;
+    return null;
   }
 }
 
-export async function updateOrderLens(orderLens: OrderLens): Promise<OrderLens | undefined> {
+export async function updateOrderLens(orderLens: OrderLens): Promise<OrderLens | null> {
   try {
-    return await window.electronAPI.db('updateOrderLens', orderLens);
+    // This would need a specific endpoint in the API
+    console.warn('updateOrderLens: API endpoint not yet implemented');
+    return null;
   } catch (error) {
     console.error('Error updating order lens:', error);
-    return undefined;
+    return null;
   }
 }
 
-export async function updateFrame(frame: Frame): Promise<Frame | undefined> {
+export async function updateFrame(frame: Frame): Promise<Frame | null> {
   try {
-    return await window.electronAPI.db('updateFrame', frame);
+    // This would need a specific endpoint in the API
+    console.warn('updateFrame: API endpoint not yet implemented');
+    return null;
   } catch (error) {
     console.error('Error updating frame:', error);
-    return undefined;
+    return null;
   }
 }
 
 export async function deleteOrder(orderId: number): Promise<boolean> {
   try {
-    const order = await window.electronAPI.db('getOrderById', orderId);
-    const result = await window.electronAPI.db('deleteOrder', orderId);
-    if (result && order?.client_id) {
-      await window.electronAPI.db('updateClientUpdatedDate', order.client_id);
-      
+    const response = await apiClient.deleteOrder(orderId);
+    if (response.error) {
+      console.error('Error deleting order:', response.error);
+      return false;
     }
-    return result;
+    return true;
   } catch (error) {
     console.error('Error deleting order:', error);
     return false;
   }
 }
 
-export async function getOrderDetailsByOrderId(orderId: number): Promise<OrderDetails | undefined> {
+export async function getOrderDetailsByOrderId(orderId: number): Promise<OrderDetails | null> {
   try {
-    return await window.electronAPI.db('getOrderDetailsByOrderId', orderId);
+    // This would need a specific endpoint in the API
+    console.warn('getOrderDetailsByOrderId: API endpoint not yet implemented');
+    return null;
   } catch (error) {
     console.error('Error getting order details:', error);
-    return undefined;
+    return null;
   }
 }
 
 export async function createOrderDetails(orderDetails: Omit<OrderDetails, 'id'>): Promise<OrderDetails | null> {
   try {
-    return await window.electronAPI.db('createOrderDetails', orderDetails);
+    // This would need a specific endpoint in the API
+    console.warn('createOrderDetails: API endpoint not yet implemented');
+    return null;
   } catch (error) {
     console.error('Error creating order details:', error);
     return null;
   }
 }
 
-export async function updateOrderDetails(orderDetails: OrderDetails): Promise<OrderDetails | undefined> {
+export async function updateOrderDetails(orderDetails: OrderDetails): Promise<OrderDetails | null> {
   try {
-    return await window.electronAPI.db('updateOrderDetails', orderDetails);
+    // This would need a specific endpoint in the API
+    console.warn('updateOrderDetails: API endpoint not yet implemented');
+    return null;
   } catch (error) {
     console.error('Error updating order details:', error);
-    return undefined;
+    return null;
   }
 } 

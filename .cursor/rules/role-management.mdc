@@ -1,0 +1,152 @@
+# OpticAI Role Management System
+
+## Role Hierarchy
+
+The application implements a hierarchical role-based access control system with four distinct roles:
+
+### 1. company_ceo (Company Chief Executive Officer)
+**Highest level access - Company-wide control**
+- **Access**: Control center and all company clinics
+- **Permissions**:
+  - Full access to control center (`/control-center/*`)
+  - Manage all users across the company
+  - Create and manage clinics
+  - Access all clinic data
+  - Manage company settings
+  - Access campaigns across all clinics
+- **Database Context**: `clinic_id = null` (global company user)
+- **UI Elements**: Full control center sidebar, user management, clinic management
+
+### 2. clinic_manager (Clinic Manager)
+**Clinic-level management**
+- **Access**: Assigned clinic only
+- **Permissions**:
+  - Full access to assigned clinic
+  - Manage clinic users (create, edit, delete)
+  - Access campaigns for assigned clinic
+  - Access clinic settings
+  - Cannot access control center
+  - Cannot access other clinics
+- **Database Context**: `clinic_id = specific_clinic_id`
+- **UI Elements**: Clinic sidebar, user management (clinic only), campaigns, settings
+
+### 3. clinic_worker (Clinic Worker)
+**Standard clinic operations**
+- **Access**: Assigned clinic only
+- **Permissions**:
+  - Standard clinic operations (clients, exams, orders, appointments)
+  - Cannot manage users
+  - Cannot access campaigns
+  - Cannot access clinic settings
+  - Cannot access control center
+- **Database Context**: `clinic_id = specific_clinic_id`
+- **UI Elements**: Clinic sidebar, standard operations only
+
+### 4. clinic_viewer (Clinic Viewer)
+**Read-only access**
+- **Access**: Assigned clinic only (read-only)
+- **Permissions**:
+  - Read-only access to clinic data
+  - Cannot create, edit, or delete records
+  - Cannot access settings or user management
+  - Cannot access control center
+- **Database Context**: `clinic_id = specific_clinic_id`
+- **UI Elements**: Clinic sidebar, read-only operations
+
+## Implementation Patterns
+
+### Role Checking in Components
+```typescript
+// Check specific permissions
+const canAccessControlCenter = currentUser?.role === 'company_ceo';
+const canManageUsers = currentUser?.role === 'company_ceo' || currentUser?.role === 'clinic_manager';
+const canAccessCampaigns = currentUser?.role === 'company_ceo' || currentUser?.role === 'clinic_manager';
+const canAccessSettings = currentUser?.role === 'company_ceo' || currentUser?.role === 'clinic_manager';
+
+// Conditional rendering
+{canManageUsers && (
+  <Button onClick={openUserModal}>Add User</Button>
+)}
+```
+
+### Route Protection
+```typescript
+// In BaseLayout.tsx
+const canAccessControlCenter = currentUser?.role === 'company_ceo';
+
+// Redirect unauthorized users
+if (isControlCenterRoute && currentUser && !canAccessControlCenter) {
+  return <div>אין לך הרשאה לגשת למרכז הבקרה</div>;
+}
+```
+
+### Database Queries
+```typescript
+// Get users by clinic (respects role isolation)
+const users = await window.electronAPI.db('getUsersByClinicId', clinicId);
+
+// Authenticate with role validation
+const user = await window.electronAPI.db('authenticateUser', username, password);
+```
+
+## User Creation Patterns
+
+### Company Setup (CEO Creation)
+```typescript
+// When creating a company, automatically create CEO user
+const ceoUser = await window.electronAPI.db('createUser', {
+  username: registerForm.username,
+  password: registerForm.password,
+  role: 'company_ceo',
+  clinic_id: null, // Global company user
+  email: registerForm.email,
+  phone: registerForm.phone
+});
+```
+
+### Clinic User Creation
+```typescript
+// Create clinic-specific user
+const clinicUser = await window.electronAPI.db('createUser', {
+  username: userForm.username,
+  password: userForm.password,
+  role: userForm.role, // clinic_manager, clinic_worker, or clinic_viewer
+  clinic_id: clinicId, // Specific clinic assignment
+  email: userForm.email,
+  phone: userForm.phone
+});
+```
+
+## Access Control Implementation
+
+### UI Level
+- **Sidebar Navigation**: Different menu items based on role
+- **Button Visibility**: Conditional rendering of action buttons
+- **Modal Access**: Role-based access to user management modals
+- **Settings Access**: Role-based access to different settings tabs
+
+### Route Level
+- **Control Center Routes**: Protected by `company_ceo` role check
+- **Clinic Routes**: Protected by authentication and clinic assignment
+- **Settings Routes**: Protected by role-based permissions
+
+### Database Level
+- **Clinic Isolation**: All queries filtered by `clinic_id`
+- **User Queries**: Respect role-based access patterns
+- **Data Creation**: Automatically assign appropriate `clinic_id`
+
+## Key Files
+- [src/lib/db/schema-interface.ts](mdc:src/lib/db/schema-interface.ts) - Role definitions in User interface
+- [src/layouts/BaseLayout.tsx](mdc:src/layouts/BaseLayout.tsx) - Route protection logic
+- [src/components/UserModal.tsx](mdc:src/components/UserModal.tsx) - Role selection in user creation
+- [src/pages/ControlCenterPage.tsx](mdc:src/pages/ControlCenterPage.tsx) - CEO user creation
+- [src/components/app-sidebar.tsx](mdc:src/components/app-sidebar.tsx) - Role-based navigation
+- [src/components/control-center-sidebar.tsx](mdc:src/components/control-center-sidebar.tsx) - Control center navigation
+
+## Best Practices
+- Always check user role before rendering sensitive UI elements
+- Use role-based conditional rendering for better UX
+- Implement access control at multiple levels (UI, route, database)
+- Maintain clear separation between company and clinic operations
+- Use TypeScript for type safety in role checking
+- Document role permissions clearly in component comments

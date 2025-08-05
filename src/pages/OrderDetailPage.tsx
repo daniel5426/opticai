@@ -29,7 +29,7 @@ import {
   updateOrderLineItem, 
   deleteOrderLineItem 
 } from "@/lib/db/billing-db"
-import { Order, OrderEye, OrderLens, Frame, OrderDetails, Client, OpticalExam, Billing, OrderLineItem, User, FinalPrescriptionExam } from "@/lib/db/schema"
+import { Order, OrderEye, OrderLens, Frame, OrderDetails, Client, OpticalExam, Billing, OrderLineItem, User, FinalPrescriptionExam } from "@/lib/db/schema-interface"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -109,7 +109,7 @@ export default function OrderDetailPage({
   const [deletedOrderLineItemIds, setDeletedOrderLineItemIds] = useState<number[]>([])
   const [users, setUsers] = useState<User[]>([])
   const [finalPrescription, setFinalPrescription] = useState<FinalPrescriptionExam | null>(null)
-  const { currentUser } = useUser()
+  const { currentUser, currentClinic } = useUser()
   const { currentClient } = useClientSidebar()
   
   const isNewMode = mode === 'new'
@@ -172,7 +172,7 @@ export default function OrderDetailPage({
       return
     }
 
-    const copiedData = ExamFieldMapper.copyData(sourceData, finalPrescriptionFormData, sourceType, type)
+    const copiedData = ExamFieldMapper.copyData(sourceData as Record<string, unknown>, finalPrescriptionFormData as Record<string, unknown>, sourceType, type)
 
     Object.entries(copiedData).forEach(([key, value]) => {
       if (key !== 'id' && value !== undefined) {
@@ -407,6 +407,7 @@ export default function OrderDetailPage({
         
         const newOrder = await createOrder({
           client_id: Number(clientId),
+          clinic_id: currentClinic?.id,
           order_date: formData.order_date,
           type: formData.type,
           dominant_eye: formData.dominant_eye,
@@ -575,7 +576,7 @@ export default function OrderDetailPage({
                 console.log('Updating line item:', item.id)
                 return updateOrderLineItem({
                   ...item,
-                  billings_id: updatedBilling.id!
+                  billings_id: updatedBilling!.id!
                 })
               } else {
                 // New item (has negative temp ID or no ID) - create it
@@ -583,7 +584,7 @@ export default function OrderDetailPage({
                 const { id, ...itemWithoutId } = item;
                 return createOrderLineItem({
                   ...itemWithoutId,
-                  billings_id: updatedBilling.id!
+                  billings_id: updatedBilling!.id!
                 })
               }
             })
@@ -803,7 +804,7 @@ export default function OrderDetailPage({
   )}
   <FinalPrescriptionTab
     finalPrescriptionData={finalPrescriptionFormData}
-    onFinalPrescriptionChange={handleFinalPrescriptionChange}
+    onFinalPrescriptionChange={(field, value) => handleFinalPrescriptionChange(field as keyof FinalPrescriptionExam, value)}
     isEditing={isEditing}
     hideEyeLabels={false}
   />

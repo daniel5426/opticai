@@ -1,7 +1,7 @@
 import React from "react"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { OcularMotorAssessmentExam } from "@/lib/db/schema"
+import { OcularMotorAssessmentExam } from "@/lib/db/schema-interface"
 
 interface OcularMotorAssessmentTabProps {
   ocularMotorAssessmentData: OcularMotorAssessmentExam;

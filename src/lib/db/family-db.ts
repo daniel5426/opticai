@@ -1,10 +1,15 @@
 /// <reference path="../../types/electron.d.ts" />
-import { Family, Client } from "./schema";
-import { connectionManager } from './connection-manager';
+import { Family, Client } from "./schema-interface";
+import { apiClient } from '../api-client';
 
-export async function getAllFamilies(): Promise<Family[]> {
+export async function getAllFamilies(clinicId?: number): Promise<Family[]> {
   try {
-    return await connectionManager.getAllFamilies();
+    const response = await apiClient.getFamilies(clinicId);
+    if (response.error) {
+      console.error('Error getting all families:', response.error);
+      return [];
+    }
+    return response.data || [];
   } catch (error) {
     console.error('Error getting all families:', error);
     return [];
@@ -13,8 +18,12 @@ export async function getAllFamilies(): Promise<Family[]> {
 
 export async function getFamilyById(id: number): Promise<Family | undefined> {
   try {
-    const family = await connectionManager.getFamilyById(id);
-    return family || undefined;
+    const response = await apiClient.getFamily(id);
+    if (response.error) {
+      console.error('Error getting family:', response.error);
+      return undefined;
+    }
+    return response.data || undefined;
   } catch (error) {
     console.error('Error getting family:', error);
     return undefined;
@@ -23,7 +32,12 @@ export async function getFamilyById(id: number): Promise<Family | undefined> {
 
 export async function createFamily(family: Omit<Family, 'id'>): Promise<Family | null> {
   try {
-    return await connectionManager.createFamily(family);
+    const response = await apiClient.createFamily(family);
+    if (response.error) {
+      console.error('Error creating family:', response.error);
+      return null;
+    }
+    return response.data || null;
   } catch (error) {
     console.error('Error creating family:', error);
     return null;
@@ -32,8 +46,16 @@ export async function createFamily(family: Omit<Family, 'id'>): Promise<Family |
 
 export async function updateFamily(family: Family): Promise<Family | undefined> {
   try {
-    const updated = await connectionManager.updateFamily(family);
-    return updated || undefined;
+    if (!family.id) {
+      console.error('Error updating family: No family ID provided');
+      return undefined;
+    }
+    const response = await apiClient.updateFamily(family.id, family);
+    if (response.error) {
+      console.error('Error updating family:', response.error);
+      return undefined;
+    }
+    return response.data || undefined;
   } catch (error) {
     console.error('Error updating family:', error);
     return undefined;
@@ -42,7 +64,12 @@ export async function updateFamily(family: Family): Promise<Family | undefined> 
 
 export async function deleteFamily(id: number): Promise<boolean> {
   try {
-    return await connectionManager.deleteFamily(id);
+    const response = await apiClient.deleteFamily(id);
+    if (response.error) {
+      console.error('Error deleting family:', response.error);
+      return false;
+    }
+    return true;
   } catch (error) {
     console.error('Error deleting family:', error);
     return false;
@@ -51,7 +78,12 @@ export async function deleteFamily(id: number): Promise<boolean> {
 
 export async function getFamilyMembers(familyId: number): Promise<Client[]> {
   try {
-    return await connectionManager.getFamilyMembers(familyId);
+    const response = await apiClient.getFamilyMembers(familyId);
+    if (response.error) {
+      console.error('Error getting family members:', response.error);
+      return [];
+    }
+    return response.data || [];
   } catch (error) {
     console.error('Error getting family members:', error);
     return [];
@@ -60,7 +92,12 @@ export async function getFamilyMembers(familyId: number): Promise<Client[]> {
 
 export async function addClientToFamily(clientId: number, familyId: number, role: string): Promise<boolean> {
   try {
-    return await connectionManager.addClientToFamily(clientId, familyId, role);
+    const response = await apiClient.addClientToFamily(clientId, familyId, role);
+    if (response.error) {
+      console.error('Error adding client to family:', response.error);
+      return false;
+    }
+    return true;
   } catch (error) {
     console.error('Error adding client to family:', error);
     return false;
@@ -69,7 +106,12 @@ export async function addClientToFamily(clientId: number, familyId: number, role
 
 export async function removeClientFromFamily(clientId: number): Promise<boolean> {
   try {
-    return await connectionManager.removeClientFromFamily(clientId);
+    const response = await apiClient.removeClientFromFamily(clientId);
+    if (response.error) {
+      console.error('Error removing client from family:', response.error);
+      return false;
+    }
+    return true;
   } catch (error) {
     console.error('Error removing client from family:', error);
     return false;

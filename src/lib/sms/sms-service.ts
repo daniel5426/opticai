@@ -1,4 +1,4 @@
-import { Client, Settings } from '../db/schema';
+import { Client, Settings } from '../db/schema-interface';
 
 export class SmsService {
   async sendSms(phoneNumber: string, message: string): Promise<boolean> {

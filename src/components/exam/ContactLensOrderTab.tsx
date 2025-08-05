@@ -2,7 +2,7 @@ import React from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { ContactLensOrder } from "@/lib/db/schema"
+import { ContactLensOrder } from "@/lib/db/schema-interface"
 import { examComponentRegistry } from "@/lib/exam-component-registry"
 import { LookupSelect } from "@/components/ui/lookup-select"
 

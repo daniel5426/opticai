@@ -3,7 +3,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { VHCalculatorModal } from "@/components/ui/vh-calculator-modal"
-import { OpticalExam, SubjectiveExam } from "@/lib/db/schema"
+import { OpticalExam, SubjectiveExam } from "@/lib/db/schema-interface"
 import { ChevronUp, ChevronDown } from "lucide-react"
 import { toast } from "sonner"
 

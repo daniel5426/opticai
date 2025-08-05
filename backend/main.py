@@ -1,131 +1,119 @@
 # where the backend fastapi app that will be used as a proxy for openai llm call, and for handling the app backups
 
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-from typing import List, Dict, Any, Optional
+import config
+from database import engine
+from models import Base
+from EndPoints import auth, companies, clinics, users, clients, families, appointments, medical_logs, exam_data, orders, referrals, files, settings, work_shifts, lookups, campaigns, contact_lenses, billing, chats, email_logs, optical_exams, exam_layouts, exams, unified_exam_data
 import httpx
-import os
-from dotenv import load_dotenv
-import uvicorn
+import json
+from fastapi.responses import StreamingResponse
 
-load_dotenv()
-
-app = FastAPI(title="OpticAI Proxy Server", version="1.0.0")
+app = FastAPI(
+    title=config.settings.PROJECT_NAME,
+    version=config.settings.VERSION,
+    openapi_url=f"{config.settings.API_V1_STR}/openapi.json"
+)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=config.settings.BACKEND_CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-OPENAI_API_KEY = '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'
-OPENAI_BASE_URL = "https://api.openai.com/v1"
+Base.metadata.create_all(bind=engine)
 
-if not OPENAI_API_KEY:
-    raise ValueError("OPENAI_API_KEY environment variable is required")
+app.include_router(auth.router, prefix=config.settings.API_V1_STR)
+app.include_router(companies.router, prefix=config.settings.API_V1_STR)
+app.include_router(clinics.router, prefix=config.settings.API_V1_STR)
+app.include_router(users.router, prefix=config.settings.API_V1_STR)
+app.include_router(clients.router, prefix=config.settings.API_V1_STR)
+app.include_router(families.router, prefix=config.settings.API_V1_STR)
+app.include_router(appointments.router, prefix=config.settings.API_V1_STR)
+app.include_router(medical_logs.router, prefix=config.settings.API_V1_STR)
+app.include_router(exam_data.router, prefix=config.settings.API_V1_STR)
+app.include_router(orders.router, prefix=config.settings.API_V1_STR)
+app.include_router(referrals.router, prefix=config.settings.API_V1_STR)
+app.include_router(files.router, prefix=config.settings.API_V1_STR)
+app.include_router(settings.router, prefix=config.settings.API_V1_STR)
+app.include_router(work_shifts.router, prefix=config.settings.API_V1_STR)
+app.include_router(lookups.router, prefix=config.settings.API_V1_STR)
+app.include_router(campaigns.router, prefix=config.settings.API_V1_STR)
+app.include_router(contact_lenses.router, prefix=config.settings.API_V1_STR)
+app.include_router(billing.router, prefix=config.settings.API_V1_STR)
+app.include_router(chats.router, prefix=config.settings.API_V1_STR)
+app.include_router(email_logs.router, prefix=config.settings.API_V1_STR)
+app.include_router(optical_exams.router, prefix=config.settings.API_V1_STR)
+app.include_router(exam_layouts.router, prefix=config.settings.API_V1_STR)
+app.include_router(exams.router, prefix=config.settings.API_V1_STR)
+app.include_router(unified_exam_data.router, prefix=config.settings.API_V1_STR)
 
-class ChatMessage(BaseModel):
-    role: str
-    content: Optional[str] = None
-    tool_calls: Optional[List[Dict[str, Any]]] = None
-    tool_call_id: Optional[str] = None
-    name: Optional[str] = None
-
-class ChatRequest(BaseModel):
-    messages: List[ChatMessage]
-    model: str = "gpt-4o"
-    temperature: float = 0.7
-    max_tokens: Optional[int] = None
-    tools: Optional[List[Dict[str, Any]]] = None
-    tool_choice: Optional[Any] = None
-    functions: Optional[List[Dict[str, Any]]] = None
-    function_call: Optional[Any] = None
-    stream: bool = False
-
-class ChatResponse(BaseModel):
-    id: str
-    object: str
-    created: int
-    model: str
-    choices: List[Dict[str, Any]]
-    usage: Dict[str, Any]
+@app.get("/health")
+async def health_check():
+    return {"status": "healthy", "service": "OpticAI API"}
 
 @app.post("/chat/completions")
-async def chat_completions(request: ChatRequest):
-    from fastapi.responses import StreamingResponse
-    import json
-    
+async def chat_completions(request: dict):
     try:
-        print(f"Received request: {request.model_dump()}")  # Debug log
+        if not request.get("messages"):
+            return {"error": "Messages cannot be empty"}
         
-        # Validate that we have messages
-        if not request.messages:
-            raise HTTPException(status_code=422, detail="Messages cannot be empty")
-        
-        # Check if streaming is requested
-        stream = getattr(request, 'stream', False)
+        stream = request.get("stream", False)
         
         async with httpx.AsyncClient() as client:
             headers = {
-                "Authorization": f"Bearer {OPENAI_API_KEY}",
+                "Authorization": f"Bearer {config.settings.OPENAI_API_KEY}",
                 "Content-Type": "application/json"
             }
             
-            # Create the payload exactly as OpenAI expects it
-            # Build messages with all fields
             messages = []
-            for msg in request.messages:
-                message_dict = {"role": msg.role}
-                if msg.content is not None:
-                    message_dict["content"] = msg.content
-                if msg.tool_calls:
-                    message_dict["tool_calls"] = msg.tool_calls
-                if msg.tool_call_id:
-                    message_dict["tool_call_id"] = msg.tool_call_id
-                if msg.name:
-                    message_dict["name"] = msg.name
+            for msg in request["messages"]:
+                message_dict = {"role": msg["role"]}
+                if "content" in msg:
+                    message_dict["content"] = msg["content"]
+                if "tool_calls" in msg:
+                    message_dict["tool_calls"] = msg["tool_calls"]
+                if "tool_call_id" in msg:
+                    message_dict["tool_call_id"] = msg["tool_call_id"]
+                if "name" in msg:
+                    message_dict["name"] = msg["name"]
                 messages.append(message_dict)
             
             payload = {
-                "model": request.model,
+                "model": request.get("model", "gpt-4o"),
                 "messages": messages,
-                "temperature": request.temperature,
+                "temperature": request.get("temperature", 0.7),
                 "stream": stream,
             }
             
-            if request.max_tokens:
-                payload["max_tokens"] = request.max_tokens
+            if "max_tokens" in request:
+                payload["max_tokens"] = request["max_tokens"]
             
-            # Handle function calling properly (both new and legacy formats)
-            if request.tools:
-                payload["tools"] = request.tools
+            if "tools" in request:
+                payload["tools"] = request["tools"]
                 
-            if request.tool_choice:
-                payload["tool_choice"] = request.tool_choice
+            if "tool_choice" in request:
+                payload["tool_choice"] = request["tool_choice"]
                 
-            if request.functions:
-                payload["functions"] = request.functions
+            if "functions" in request:
+                payload["functions"] = request["functions"]
                 
-            if request.function_call:
-                payload["function_call"] = request.function_call
-            
-            print(f"Sending to OpenAI: {payload}")  # Debug log
+            if "function_call" in request:
+                payload["function_call"] = request["function_call"]
             
             if stream:
-                # Handle streaming response
                 async def generate_stream():
                     async with client.stream(
                         "POST",
-                        f"{OPENAI_BASE_URL}/chat/completions",
+                        f"{config.settings.OPENAI_BASE_URL}/chat/completions",
                         json=payload,
                         headers=headers,
                         timeout=60.0
                     ) as response:
                         if response.status_code != 200:
-                            print(f"OpenAI API error: {response.status_code}")
                             error_data = {
                                 "error": f"OpenAI API returned status {response.status_code}"
                             }
@@ -148,38 +136,22 @@ async def chat_completions(request: ChatRequest):
                     }
                 )
             else:
-                # Handle regular response
                 response = await client.post(
-                    f"{OPENAI_BASE_URL}/chat/completions",
+                    f"{config.settings.OPENAI_BASE_URL}/chat/completions",
                     json=payload,
                     headers=headers,
                     timeout=60.0
                 )
                 
                 if response.status_code != 200:
-                    print(f"OpenAI API error: {response.status_code} - {response.text}")
                     error_detail = response.text if response.text else f"OpenAI API returned status {response.status_code}"
-                    raise HTTPException(
-                        status_code=response.status_code,
-                        detail=error_detail
-                    )
+                    return {"error": error_detail}
                 
-                result = response.json()
-                print(f"OpenAI response: {result}")  # Debug log
-                return result
+                return response.json()
             
-    except httpx.TimeoutException:
-        raise HTTPException(status_code=408, detail="Request timeout")
     except Exception as e:
-        print(f"Proxy error: {str(e)}")
-        print(f"Error type: {type(e)}")
-        import traceback
-        print(f"Traceback: {traceback.format_exc()}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.get("/health")
-async def health_check():
-    return {"status": "healthy", "service": "OpticAI Proxy Server"}
+        return {"error": str(e)}
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8001)
+    import uvicorn
+    uvicorn.run(app, host=config.settings.HOST, port=config.settings.PORT)

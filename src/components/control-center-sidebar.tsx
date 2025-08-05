@@ -14,6 +14,7 @@ import { NavDocuments } from "@/components/nav-documents"
 import { NavMain } from "@/components/nav-main"
 import { NavSecondary } from "@/components/nav-secondary"
 import { NavUser } from "@/components/nav-user"
+import { ClinicDropdown } from "@/components/clinic-dropdown"
 import {
   Sidebar,
   SidebarContent,
@@ -25,7 +26,8 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar"
 import { cn } from "@/utils/tailwind"
-import { User, Company } from "@/lib/db/schema"
+import { User, Company, Clinic } from "@/lib/db/schema-interface"
+import { useUser } from "@/contexts/UserContext"
 
 const getControlCenterNavData = () => ({
   navMain: [
@@ -50,29 +52,28 @@ const getControlCenterNavData = () => ({
       title: "הגדרות",
       url: "/control-center/settings",
       icon: IconSettings,
-    },
-    {
-      title: "קבלת עזרה",
-      url: "#",
-      icon: IconHelp,
-    },
-    {
-      title: "חיפוש",
-      url: "#",
-      icon: IconSearch,
-    },
+    }
   ],
 })
 
 export function ControlCenterSidebar({ 
   company, 
   currentUser,
+  currentClinic,
   ...props 
 }: React.ComponentProps<typeof Sidebar> & { 
   company?: Company;
   currentUser?: User;
+  currentClinic?: Clinic | null;
 }) {
   const { state } = useSidebar()
+
+  const companyHeaderContent = (
+    <>
+      <IconInnerShadowTop className="!size-5" />
+      <span className="text-base font-semibold">{company?.name || "מרכז בקרה"}</span>
+    </>
+  )
 
   return (
     <Sidebar collapsible="offcanvas" {...props}>
@@ -80,13 +81,18 @@ export function ControlCenterSidebar({
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton
-              asChild
               className="data-[slot=sidebar-menu-button]:!p-1.5"
             >
-              <Link to="/control-center/dashboard">
-                <IconInnerShadowTop className="!size-5" />
-                <span className="text-base font-semibold">{company?.name || "מרכז בקרה"}</span>
-              </Link>
+              <ClinicDropdown
+                currentClinic={currentClinic}
+                clinicName={company?.name}
+                logoPath={company?.logo_path}
+                isLogoLoaded={true}
+              >
+                <div className="flex items-center gap-2">
+                  {companyHeaderContent}
+                </div>
+              </ClinicDropdown>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
@@ -96,7 +102,7 @@ export function ControlCenterSidebar({
         <NavSecondary items={getControlCenterNavData().navSecondary} className="mt-auto" />
       </SidebarContent>
       <SidebarFooter>
-        <NavUser currentUser={currentUser} />
+        <NavUser currentUser={currentUser} showShiftControls={false} />
       </SidebarFooter>
     </Sidebar>
   )

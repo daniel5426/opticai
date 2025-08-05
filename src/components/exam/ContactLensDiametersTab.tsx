@@ -1,7 +1,7 @@
 import React from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { ContactLensDiameters } from "@/lib/db/schema"
+import { ContactLensDiameters } from "@/lib/db/schema-interface"
 
 interface ContactLensDiametersTabProps {
   contactLensDiametersData: ContactLensDiameters;

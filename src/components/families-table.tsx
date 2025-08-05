@@ -1,5 +1,5 @@
 import * as React from "react"
-import { Family } from "@/lib/db/schema"
+import { Family } from "@/lib/db/schema-interface"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {

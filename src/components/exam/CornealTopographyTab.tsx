@@ -3,7 +3,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Textarea } from "@/components/ui/textarea"
 import { Input } from "@/components/ui/input"
 import { ChevronUp, ChevronDown, Edit3 } from "lucide-react"
-import { CornealTopographyExam } from "@/lib/db/schema"
+import { CornealTopographyExam } from "@/lib/db/schema-interface"
 
 interface CornealTopographyTabProps {
   cornealTopographyData: CornealTopographyExam

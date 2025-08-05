@@ -1,65 +1,35 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { ArrowRight, Building2, User, Lock, Mail, Phone, MapPin, ArrowLeft } from 'lucide-react'
+import { ArrowRight, Building2, User, Lock, Mail, Phone, ArrowLeft } from 'lucide-react'
 import { useRouter } from '@tanstack/react-router'
-
-interface Company {
-  id: number
-  name: string
-  owner_full_name: string
-  email: string
-  phone: string
-  address: string
-  logo_path?: string
-  created_at: string
-  updated_at: string
-}
+import { useUser } from '@/contexts/UserContext'
+import { apiClient } from '@/lib/api-client'
 
 export default function ControlCenterPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [companies, setCompanies] = useState<Company[]>([])
-  const [hasCompanies, setHasCompanies] = useState(false)
+  const [isRegisterMode, setIsRegisterMode] = useState(false)
   const router = useRouter()
+  const { setCurrentUser } = useUser()
 
   // Login form state
   const [loginForm, setLoginForm] = useState({
-    companyName: '',
     username: 'admin',
     password: 'admin'
   })
 
   // Registration form state
   const [registerForm, setRegisterForm] = useState({
-    companyName: 'admin',
-    ownerName: 'admin',
-    email: 'admin@admin.com',
-    phone: 'admin',
-    address: 'admin',
     username: 'admin',
     password: 'admin',
-    confirmPassword: 'admin'
+    confirmPassword: 'admin',
+    email: 'admin@admin.com',
+    phone: 'admin'
   })
-
-  useEffect(() => {
-    checkExistingCompanies()
-  }, [])
-
-  const checkExistingCompanies = async () => {
-    try {
-      const companiesData = await window.electronAPI.db('getAllCompanies')
-      setCompanies(companiesData)
-      setHasCompanies(companiesData.length > 0)
-    } catch (error) {
-      console.error('Error checking companies:', error)
-      setHasCompanies(false)
-    }
-  }
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -67,38 +37,51 @@ export default function ControlCenterPage() {
     setError('')
 
     try {
-      console.log('Login attempt:', { username: loginForm.username, companyName: loginForm.companyName })
+      console.log('Login attempt:', { username: loginForm.username })
       
-      // Find the company
-      const company = companies.find(c => c.name === loginForm.companyName)
-      if (!company) {
-        throw new Error('חברה לא נמצאה')
-      }
-      console.log('Company found:', company)
-
       // Authenticate user with username and password
-      const user = await window.electronAPI.db('authenticateUser', loginForm.username, loginForm.password)
+      const userResponse = await apiClient.authenticateUser(loginForm.username, loginForm.password);
+      const user = userResponse.data;
       console.log('Authentication result:', user)
 
-      if (!user) {
+      if (!user || !('role' in user)) {
         throw new Error('שם משתמש או סיסמה שגויים')
       }
 
-      // Verify user belongs to this company
-      const userInCompany = await window.electronAPI.db('getUserByUsername', loginForm.username, company.id)
-      console.log('User in company check:', userInCompany)
-      
-      if (!userInCompany) {
-        throw new Error('המשתמש אינו שייך לחברה זו')
+      // Verify user has CEO role
+      if (user.role !== 'company_ceo') {
+        throw new Error('אין לך הרשאות לגשת למרכז הבקרה')
       }
 
-      // Store authentication state (you might want to use a proper auth context)
-      sessionStorage.setItem('controlCenterCompany', JSON.stringify(company))
+      // Get companies to find the user's company
+      const companiesResponse = await apiClient.getCompaniesPublic();
+      const companies = companiesResponse.data || [];
+      
+      if (companies.length === 0) {
+        throw new Error('לא נמצאה חברה במערכת')
+      }
+
+      // For now, assume the first company is the user's company
+      const userCompany = companies[0];
+
+      // Store authentication state
+      sessionStorage.setItem('controlCenterCompany', JSON.stringify(userCompany))
       sessionStorage.setItem('currentUser', JSON.stringify(user))
       console.log('Authentication state stored, navigating to dashboard...')
 
+      // Ensure user is set in UserContext before navigation
+      await setCurrentUser(user)
+      console.log('User set in context, navigating to dashboard...')
+
       // Navigate to control center dashboard
-      router.navigate({ to: '/control-center/dashboard' })
+      router.navigate({ 
+        to: '/control-center/dashboard',
+        search: {
+          companyId: userCompany.id?.toString() || '',
+          companyName: userCompany.name,
+          fromSetup: 'false'
+        }
+      })
     } catch (error) {
       console.error('Login error:', error)
       setError(error instanceof Error ? error.message : 'שגיאה בהתחברות')
@@ -122,42 +105,29 @@ export default function ControlCenterPage() {
         throw new Error('הסיסמה חייבת להכיל לפחות 6 תווים')
       }
 
-      // Check if company name already exists
-      const existingCompany = companies.find(c => c.name === registerForm.companyName)
-      if (existingCompany) {
-        throw new Error('שם החברה כבר קיים במערכת')
-      }
-
-      // Create new company
-      const newCompany = await window.electronAPI.db('createCompany', {
-        name: registerForm.companyName,
-        owner_full_name: registerForm.ownerName,
-        email: registerForm.email,
-        phone: registerForm.phone,
-        address: registerForm.address
+      // Navigate to setup wizard for company creation
+      router.navigate({ 
+        to: '/setup-wizard',
+        search: {
+          companyId: '',
+          companyName: '',
+          username: registerForm.username,
+          password: registerForm.password,
+          email: registerForm.email,
+          phone: registerForm.phone
+        }
       })
-
-      // Create admin user for the company
-      const adminUser = await window.electronAPI.db('createUser', {
-        username: registerForm.username,
-        password: registerForm.password, // In production, this should be hashed
-        role: 'admin',
-        clinic_id: null, // Company admin doesn't belong to specific clinic
-        email: registerForm.email,
-        phone: registerForm.phone
-      })
-
-      // Store authentication state
-      sessionStorage.setItem('controlCenterCompany', JSON.stringify(newCompany))
-      sessionStorage.setItem('currentUser', JSON.stringify(adminUser))
-
-      // Navigate to control center dashboard
-      router.navigate({ to: '/control-center/dashboard' })
     } catch (error) {
-      setError(error instanceof Error ? error.message : 'שגיאה ברישום')
+      console.error('Registration error:', error)
+      setError(error instanceof Error ? error.message : 'שגיאה בהרשמה')
     } finally {
       setLoading(false)
     }
+  }
+
+  const toggleMode = () => {
+    setIsRegisterMode(!isRegisterMode)
+    setError('')
   }
 
   return (
@@ -172,7 +142,7 @@ export default function ControlCenterPage() {
             מרכז בקרה
           </h1>
           <p className="text-slate-600 dark:text-slate-400">
-            {hasCompanies ? 'התחברו למערכת הניהול' : 'צרו חברה חדשה במערכת'}
+            {isRegisterMode ? 'צור חשבון חדש' : 'התחבר למערכת'}
           </p>
         </div>
 
@@ -185,342 +155,51 @@ export default function ControlCenterPage() {
 
         <Card className="bg-white dark:bg-slate-800/80 backdrop-blur-sm border-0 shadow-xl" dir="rtl">
           <CardContent className="p-6" dir="rtl">
-            {hasCompanies ? (
-              // Show login/register tabs if companies exist
-              <Tabs defaultValue="login" className="w-full">
-                <TabsList className="grid w-full grid-cols-2 mb-6">
-                  <TabsTrigger value="login">התחברות</TabsTrigger>
-                  <TabsTrigger value="register">רישום</TabsTrigger>
-                </TabsList>
-
-                {/* Login Tab */}
-                <TabsContent value="login">
-                  <form onSubmit={handleLogin} className="space-y-4">
-                    <div className="space-y-2" dir="rtl">
-                      <Label htmlFor="companyName">שם החברה</Label>
-                      <select
-                        dir="rtl"
-                        id="companyName"
-                        value={loginForm.companyName}
-                        onChange={(e) => setLoginForm(prev => ({ ...prev, companyName: e.target.value }))}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                        required
-                      >
-                        <option value="">בחרו חברה</option>
-                        {companies.map(company => (
-                          <option key={company.id} value={company.name}>
-                            {company.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div className="space-y-2" dir="rtl">
-                      <Label htmlFor="username">שם משתמש</Label>
-                      <div className="relative">
-                        <User className="absolute right-3 top-3 h-4 w-4 text-gray-400" />
-                        <Input
-                          dir="rtl"
-                          id="username"
-                          type="text"
-                          value={loginForm.username}
-                          onChange={(e) => setLoginForm(prev => ({ ...prev, username: e.target.value }))}
-                          className="pr-10"
-                          required
-                        />
-                      </div>
-                    </div>
-
-                    <div className="space-y-2" dir="rtl">
-                      <Label htmlFor="password">סיסמה</Label>
-                      <div className="relative">
-                        <Lock className="absolute right-3 top-3 h-4 w-4 text-gray-400" />
-                        <Input
-                          dir="rtl"
-                          id="password"
-                          type="password"
-                          value={loginForm.password}
-                          onChange={(e) => setLoginForm(prev => ({ ...prev, password: e.target.value }))}
-                          className="pr-10"
-                          required
-                        />
-                      </div>
-                    </div>
-
-                    <Button type="submit" className="w-full bg-general-primary hover:bg-general-primary/80" disabled={loading}>
-                    <ArrowLeft className="mr-2 h-4 w-4" />
-                      {loading ? 'מתחבר...' : 'התחברות'}
-                    </Button>
-                  </form>
-                </TabsContent>
-
-                {/* Register Tab */}
-                <TabsContent value="register">
-                  <form onSubmit={handleRegister} className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4" dir="rtl">
-                      <div className="space-y-2" dir="rtl">
-                        <Label htmlFor="regCompanyName">שם החברה</Label>
-                        <div className="relative">
-                          <Building2 className="absolute right-3 top-3 h-4 w-4 text-gray-400" />
-                          <Input
-                            dir="rtl"
-                            id="regCompanyName"
-                            type="text"
-                            value={registerForm.companyName}
-                            onChange={(e) => setRegisterForm(prev => ({ ...prev, companyName: e.target.value }))}
-                            className="pr-10"
-                            required
-                          />
-                        </div>
-                      </div>
-
-                      <div className="space-y-2" dir="rtl">
-                        <Label htmlFor="ownerName">שם הבעלים</Label>
-                        <div className="relative">
-                          <User className="absolute right-3 top-3 h-4 w-4 text-gray-400" />
-                          <Input
-                            dir="rtl"
-                            id="ownerName"
-                            type="text"
-                            value={registerForm.ownerName}
-                            onChange={(e) => setRegisterForm(prev => ({ ...prev, ownerName: e.target.value }))}
-                            className="pr-10"
-                            required
-                          />
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4" dir="rtl">
-                      <div className="space-y-2">
-                        <Label htmlFor="email">אימייל</Label>
-                        <div className="relative">
-                          <Mail className="absolute right-3 top-3 h-4 w-4 text-gray-400" />
-                          <Input
-                            dir="rtl"
-                            id="email"
-                            type="email"
-                            value={registerForm.email}
-                            onChange={(e) => setRegisterForm(prev => ({ ...prev, email: e.target.value }))}
-                            className="pr-10"
-                            required
-                          />
-                        </div>
-                      </div>
-
-                      <div className="space-y-2" dir="rtl">
-                        <Label htmlFor="phone">טלפון</Label>
-                        <div className="relative">
-                          <Phone className="absolute right-3 top-3 h-4 w-4 text-gray-400" />
-                          <Input
-                            dir="rtl"
-                            id="phone"
-                            type="tel"
-                            value={registerForm.phone}
-                            onChange={(e) => setRegisterForm(prev => ({ ...prev, phone: e.target.value }))}
-                            className="pr-10"
-                            required
-                          />
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="space-y-2" dir="rtl">
-                      <Label htmlFor="address">כתובת</Label>
-                      <div className="relative">
-                        <MapPin className="absolute right-3 top-3 h-4 w-4 text-gray-400" />
-                        <Input
-                          dir="rtl"
-                          id="address"
-                          type="text"
-                          value={registerForm.address}
-                          onChange={(e) => setRegisterForm(prev => ({ ...prev, address: e.target.value }))}
-                          className="pr-10"
-                          required
-                        />
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4" dir="rtl">
-                      <div className="space-y-2">
-                        <Label htmlFor="regUsername">שם משתמש</Label>
-                        <div className="relative">
-                          <User className="absolute right-3 top-3 h-4 w-4 text-gray-400" />
-                          <Input
-                            dir="rtl"
-                            id="regUsername"
-                            type="text"
-                            value={registerForm.username}
-                            onChange={(e) => setRegisterForm(prev => ({ ...prev, username: e.target.value }))}
-                            className="pr-10"
-                            required
-                          />
-                        </div>
-                      </div>
-
-                      <div className="space-y-2" dir="rtl">
-                        <Label htmlFor="regPassword">סיסמה</Label>
-                        <div className="relative" dir="rtl">
-                          <Lock className="absolute right-3 top-3 h-4 w-4 text-gray-400" />
-                          <Input
-                            dir="rtl"
-                            id="regPassword"
-                            type="password"
-                            value={registerForm.password}
-                            onChange={(e) => setRegisterForm(prev => ({ ...prev, password: e.target.value }))}
-                            className="pr-10"
-                            required
-                          />
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="space-y-2" dir="rtl">
-                      <Label htmlFor="confirmPassword">אישור סיסמה</Label>
-                      <div className="relative" dir="rtl">
-                        <Lock className="absolute right-3 top-3 h-4 w-4 text-gray-400" />
-                        <Input
-                          dir="rtl"
-                          id="confirmPassword"
-                          type="password"
-                          value={registerForm.confirmPassword}
-                          onChange={(e) => setRegisterForm(prev => ({ ...prev, confirmPassword: e.target.value }))}
-                          className="pr-10"
-                          required
-                        />
-                      </div>
-                    </div>
-
-                    <Button type="submit" className="w-full bg-general-primary hover:bg-general-primary/80" disabled={loading}>
-                    <ArrowLeft className="mr-2 h-4 w-4" />
-                      {loading ? 'יוצר חברה...' : 'צור חברה'}
-                    </Button>
-                  </form>
-                </TabsContent>
-              </Tabs>
-            ) : (
-              // Show only registration form if no companies exist
+            {isRegisterMode ? (
+              // Registration Form
               <div>
                 <CardHeader className="px-0 pb-4">
-                  <CardTitle className="text-center text-xl">צור חברה ראשונה</CardTitle>
+                  <CardTitle className="text-center text-xl">צור חשבון חדש</CardTitle>
                 </CardHeader>
                 <form onSubmit={handleRegister} className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4" dir="rtl">
-                    <div className="space-y-2">
-                      <Label htmlFor="companyName">שם החברה</Label>
-                      <div className="relative">
-                        <Building2 className="absolute right-3 top-3 h-4 w-4 text-gray-400" />
-                        <Input
-                          id="companyName"
-                          type="text"
-                          value={registerForm.companyName}
-                          onChange={(e) => setRegisterForm(prev => ({ ...prev, companyName: e.target.value }))}
-                          className="pr-10"
-                          required
-                        />
-                      </div>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="ownerName">שם הבעלים</Label>
-                      <div className="relative">
-                        <User className="absolute right-3 top-3 h-4 w-4 text-gray-400" />
-                        <Input
-                          id="ownerName"
-                          type="text"
-                          value={registerForm.ownerName}
-                          onChange={(e) => setRegisterForm(prev => ({ ...prev, ownerName: e.target.value }))}
-                          className="pr-10"
-                          required
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4" dir="rtl">
-                    <div className="space-y-2">
-                      <Label htmlFor="email">אימייל</Label>
-                      <div className="relative">
-                        <Mail className="absolute right-3 top-3 h-4 w-4 text-gray-400" />
-                        <Input
-                          id="email"
-                          type="email"
-                          value={registerForm.email}
-                          onChange={(e) => setRegisterForm(prev => ({ ...prev, email: e.target.value }))}
-                          className="pr-10"
-                          required
-                        />
-                      </div>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="phone">טלפון</Label>
-                      <div className="relative">
-                        <Phone className="absolute right-3 top-3 h-4 w-4 text-gray-400" />
-                        <Input
-                          id="phone"
-                          type="tel"
-                          value={registerForm.phone}
-                          onChange={(e) => setRegisterForm(prev => ({ ...prev, phone: e.target.value }))}
-                          className="pr-10"
-                          required
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="address">כתובת</Label>
+                  <div className="space-y-2" dir="rtl">
+                    <Label htmlFor="regUsername">שם משתמש</Label>
                     <div className="relative">
-                      <MapPin className="absolute right-3 top-3 h-4 w-4 text-gray-400" />
+                      <User className="absolute right-3 top-3 h-4 w-4 text-gray-400" />
                       <Input
-                        id="address"
+                        dir="rtl"
+                        id="regUsername"
                         type="text"
-                        value={registerForm.address}
-                        onChange={(e) => setRegisterForm(prev => ({ ...prev, address: e.target.value }))}
+                        value={registerForm.username}
+                        onChange={(e) => setRegisterForm(prev => ({ ...prev, username: e.target.value }))}
                         className="pr-10"
                         required
                       />
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4" dir="rtl">
-                    <div className="space-y-2">
-                      <Label htmlFor="username">שם משתמש</Label>
-                      <div className="relative">
-                        <User className="absolute right-3 top-3 h-4 w-4 text-gray-400" />
-                        <Input
-                          id="username"
-                          type="text"
-                          value={registerForm.username}
-                          onChange={(e) => setRegisterForm(prev => ({ ...prev, username: e.target.value }))}
-                          className="pr-10"
-                          required
-                        />
-                      </div>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="password">סיסמה</Label>
-                      <div className="relative">
-                        <Lock className="absolute right-3 top-3 h-4 w-4 text-gray-400" />
-                        <Input
-                          id="password"
-                          type="password"
-                          value={registerForm.password}
-                          onChange={(e) => setRegisterForm(prev => ({ ...prev, password: e.target.value }))}
-                          className="pr-10"
-                          required
-                        />
-                      </div>
+                  <div className="space-y-2" dir="rtl">
+                    <Label htmlFor="regPassword">סיסמה</Label>
+                    <div className="relative">
+                      <Lock className="absolute right-3 top-3 h-4 w-4 text-gray-400" />
+                      <Input
+                        dir="rtl"
+                        id="regPassword"
+                        type="password"
+                        value={registerForm.password}
+                        onChange={(e) => setRegisterForm(prev => ({ ...prev, password: e.target.value }))}
+                        className="pr-10"
+                        required
+                      />
                     </div>
                   </div>
 
-                  <div className="space-y-2">
+                  <div className="space-y-2" dir="rtl">
                     <Label htmlFor="confirmPassword">אישור סיסמה</Label>
                     <div className="relative">
                       <Lock className="absolute right-3 top-3 h-4 w-4 text-gray-400" />
                       <Input
+                        dir="rtl"
                         id="confirmPassword"
                         type="password"
                         value={registerForm.confirmPassword}
@@ -531,11 +210,108 @@ export default function ControlCenterPage() {
                     </div>
                   </div>
 
+                  <div className="space-y-2" dir="rtl">
+                    <Label htmlFor="regEmail">אימייל</Label>
+                    <div className="relative">
+                      <Mail className="absolute right-3 top-3 h-4 w-4 text-gray-400" />
+                      <Input
+                        dir="rtl"
+                        id="regEmail"
+                        type="email"
+                        value={registerForm.email}
+                        onChange={(e) => setRegisterForm(prev => ({ ...prev, email: e.target.value }))}
+                        className="pr-10"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2" dir="rtl">
+                    <Label htmlFor="regPhone">טלפון</Label>
+                    <div className="relative">
+                      <Phone className="absolute right-3 top-3 h-4 w-4 text-gray-400" />
+                      <Input
+                        dir="rtl"
+                        id="regPhone"
+                        type="tel"
+                        value={registerForm.phone}
+                        onChange={(e) => setRegisterForm(prev => ({ ...prev, phone: e.target.value }))}
+                        className="pr-10"
+                        required
+                      />
+                    </div>
+                  </div>
+
                   <Button type="submit" className="w-full bg-general-primary hover:bg-general-primary/80" disabled={loading}>
-                    {loading ? 'יוצר חברה...' : 'צור חברה והתחל'}
+                    {loading ? 'ממשיך...' : 'המשך להגדרת החברה'}
                     <ArrowRight className="mr-2 h-4 w-4" />
                   </Button>
                 </form>
+
+                <div className="mt-4 text-center">
+                  <Button
+                    variant="ghost"
+                    onClick={toggleMode}
+                    className="text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100"
+                  >
+                    יש לך כבר חשבון? התחבר
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              // Login Form
+              <div>
+                <CardHeader className="px-0 pb-4">
+                  <CardTitle className="text-center text-xl">התחברות למערכת</CardTitle>
+                </CardHeader>
+                <form onSubmit={handleLogin} className="space-y-4">
+                  <div className="space-y-2" dir="rtl">
+                    <Label htmlFor="username">שם משתמש</Label>
+                    <div className="relative">
+                      <User className="absolute right-3 top-3 h-4 w-4 text-gray-400" />
+                      <Input
+                        dir="rtl"
+                        id="username"
+                        type="text"
+                        value={loginForm.username}
+                        onChange={(e) => setLoginForm(prev => ({ ...prev, username: e.target.value }))}
+                        className="pr-10"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2" dir="rtl">
+                    <Label htmlFor="password">סיסמה</Label>
+                    <div className="relative">
+                      <Lock className="absolute right-3 top-3 h-4 w-4 text-gray-400" />
+                      <Input
+                        dir="rtl"
+                        id="password"
+                        type="password"
+                        value={loginForm.password}
+                        onChange={(e) => setLoginForm(prev => ({ ...prev, password: e.target.value }))}
+                        className="pr-10"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <Button type="submit" className="w-full bg-general-primary hover:bg-general-primary/80" disabled={loading}>
+                    <ArrowLeft className="mr-2 h-4 w-4" />
+                    {loading ? 'מתחבר...' : 'התחברות'}
+                  </Button>
+                </form>
+
+                <div className="mt-4 text-center">
+                  <Button
+                    variant="ghost"
+                    onClick={toggleMode}
+                    className="text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100"
+                  >
+                    אין לך חשבון? צור חשבון חדש
+                  </Button>
+                </div>
               </div>
             )}
           </CardContent>

@@ -25,7 +25,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { MoreHorizontal, ChevronDown, UserPlus, Users, Plus, Trash2, Edit } from "lucide-react"
-import { Appointment, Client, User } from "@/lib/db/schema"
+import { Appointment, Client, User } from "@/lib/db/schema-interface"
 import { toast } from "sonner"
 import { ClientSelectModal } from "@/components/ClientSelectModal"
 import { cleanupModalArtifacts } from "@/lib/utils"
@@ -158,7 +158,7 @@ export function AppointmentsTable({ data, clientId, onAppointmentChange, onAppoi
   const [isClientSelectOpen, setIsClientSelectOpen] = useState(false)
   const [editingAppointment, setEditingAppointment] = useState<Appointment | null>(null)
   const [selectedClient, setSelectedClient] = useState<Client | null>(null)
-  const { currentUser } = useUser()
+  const { currentUser, currentClinic } = useUser()
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
   const [appointmentToDelete, setAppointmentToDelete] = useState<Appointment | null>(null)
   
@@ -317,14 +317,17 @@ export function AppointmentsTable({ data, clientId, onAppointmentChange, onAppoi
   const handleSaveAppointment = async () => {
     try {
       if (editingAppointment) {
-        const result = await updateAppointment({ ...appointmentFormData, id: editingAppointment.id })
+        const result = await updateAppointment({ ...appointmentFormData, id: editingAppointment.id, client_id: appointmentFormData.client_id })
         if (result) {
           toast.success("התור עודכן בהצלחה")
         } else {
           toast.error("שגיאה בעדכון התור")
         }
       } else {
-        const result = await createAppointment(appointmentFormData)
+        const result = await createAppointment({
+          ...appointmentFormData,
+          clinic_id: currentClinic?.id
+        })
         if (result) {
           toast.success("התור נוצר בהצלחה")
         } else {
@@ -346,7 +349,7 @@ export function AppointmentsTable({ data, clientId, onAppointmentChange, onAppoi
     }
 
     try {
-      const allClients = await getAllClients()
+      const allClients = await getAllClients(currentClinic?.id)
       const existingClients: Client[] = []
       let warningType: 'name' | 'phone' | 'email' | 'multiple' = 'name'
 
@@ -418,12 +421,14 @@ export function AppointmentsTable({ data, clientId, onAppointmentChange, onAppoi
         first_name: newClientFormData.first_name,
         last_name: newClientFormData.last_name,
         phone_mobile: newClientFormData.phone_mobile,
-        email: newClientFormData.email
+        email: newClientFormData.email,
+        clinic_id: currentClinic?.id
       })
 
       if (newClient && newClient.id) {
         const appointmentData = {
           client_id: newClient.id,
+          clinic_id: currentClinic?.id,
           user_id: newClientFormData.user_id,
           date: newClientFormData.date,
           time: newClientFormData.time,
@@ -453,6 +458,7 @@ export function AppointmentsTable({ data, clientId, onAppointmentChange, onAppoi
     try {
       const appointmentData = {
         client_id: existingClient.id!,
+        clinic_id: currentClinic?.id,
         user_id: newClientFormData.user_id,
         date: newClientFormData.date,
         time: newClientFormData.time,

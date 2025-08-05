@@ -1,6 +1,6 @@
-import { Campaign, Client, Appointment, OpticalExam, Order } from './db/schema';
-import { dbService } from './db/index';
+import { Campaign, Client, Appointment, OpticalExam, Order } from './db/schema-interface';
 import { getCampaignClientExecution, addCampaignClientExecution } from './db/campaigns-db';
+import { apiClient } from './api-client';
 
 export interface FilterCondition {
   id: string;
@@ -18,10 +18,14 @@ export class CampaignService {
         return [];
       }
 
-      const allClients = dbService.getAllClients();
-      const allAppointments = dbService.getAllAppointments();
-      const allExams = dbService.getAllExams();
-      const allOrders = dbService.getAllOrders();
+      const allClientsResponse = await apiClient.getAllClients();
+      const allClients = allClientsResponse.data || [];
+      const allAppointmentsResponse = await apiClient.getAllAppointments();
+      const allAppointments = allAppointmentsResponse.data || [];
+      const allExamsResponse = await apiClient.getAllExams();
+      const allExams = allExamsResponse.data || [];
+      const allOrdersResponse = await apiClient.getAllOrders();
+      const allOrders = allOrdersResponse.data || [];
 
       let filteredClients = allClients.filter(client => {
         return this.evaluateClientFilters(client, filters, allAppointments, allExams, allOrders);
@@ -276,7 +280,8 @@ export class CampaignService {
 
   async getTargetClientsForCampaign(campaignId: number): Promise<Client[]> {
     try {
-      const campaign = dbService.getCampaignById(campaignId);
+      const campaignResponse = await apiClient.getCampaignById(campaignId);
+      const campaign = campaignResponse.data;
       if (!campaign) {
         throw new Error('Campaign not found');
       }
@@ -313,7 +318,8 @@ export class CampaignService {
     
     // Check email settings if email is enabled
     if (campaign.email_enabled) {
-      const settings = dbService.getSettings();
+      const settingsResponse = await apiClient.getSettings();
+      const settings = settingsResponse.data;
       if (!settings) {
         errors.push('Email settings not found');
       } else if (!settings.email_username || !settings.email_password) {

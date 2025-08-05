@@ -1,7 +1,6 @@
 import * as cron from 'node-cron';
 import { emailService } from './email-service';
-import { dbService } from '../db/index';
-
+import { apiClient } from '../api-client';
 export class EmailScheduler {
   private scheduledJob: cron.ScheduledTask | null = null;
   private isSchedulerRunning = false;
@@ -38,7 +37,8 @@ export class EmailScheduler {
 
   private async checkAndSendReminders() {
     try {
-      const settings = dbService.getSettings();
+      const settingsResponse = await apiClient.getSettings();
+      const settings = settingsResponse.data;
       if (!settings || !settings.send_email_before_appointment) {
         return;
       }
@@ -60,17 +60,18 @@ export class EmailScheduler {
       targetDate.setDate(targetDate.getDate() + daysToCheck);
       const targetDateString = targetDate.toISOString().split('T')[0];
 
-      const allAppointments = dbService.getAllAppointments();
+      const allAppointmentsResponse = await apiClient.getAppointments();
+      const allAppointments = allAppointmentsResponse.data || [];
       const appointmentsNeedingReminders = allAppointments.filter(appointment => {
         if (appointment.date !== targetDateString) return false;
-        const client = dbService.getClientById(appointment.client_id);
-        return client && client.email && client.email.trim() !== '';
+        return appointment.client_id; // We'll check client details later
       });
 
       console.log(`Found ${appointmentsNeedingReminders.length} appointments needing reminders for ${targetDateString}`);
 
       for (const appointment of appointmentsNeedingReminders) {
-        const client = dbService.getClientById(appointment.client_id);
+        const clientResponse = await apiClient.getClientById(appointment.client_id);
+        const client = clientResponse.data;
         if (!client || !client.email) {
           console.log(`Client not found or no email for appointment ${appointment.id}`);
           continue;
@@ -99,7 +100,7 @@ export class EmailScheduler {
 
   private logEmailSent(appointmentId: number, email: string, success: boolean, errorMessage?: string) {
     try {
-      dbService.createEmailLog({
+      apiClient.createEmailLog({
         appointment_id: appointmentId,
         email_address: email,
         success: success,
@@ -114,13 +115,15 @@ export class EmailScheduler {
 
   public async sendTestReminder(appointmentId: number): Promise<boolean> {
     try {
-      const appointment = dbService.getAppointmentById(appointmentId);
+      const appointmentResponse = await apiClient.getAppointmentById(appointmentId);
+      const appointment = appointmentResponse.data;
       if (!appointment) {
         console.error('Appointment not found:', appointmentId);
         return false;
       }
 
-      const client = dbService.getClientById(appointment.client_id);
+      const clientResponse = await apiClient.getClientById(appointment.client_id);
+      const client = clientResponse.data;
       if (!client) {
         console.error('Client not found for appointment:', appointmentId);
         return false;
@@ -131,7 +134,8 @@ export class EmailScheduler {
         return false;
       }
 
-      const settings = dbService.getSettings();
+      const settingsResponse = await apiClient.getSettings();
+      const settings = settingsResponse.data;
       if (!settings) {
         console.error('Settings not found');
         return false;

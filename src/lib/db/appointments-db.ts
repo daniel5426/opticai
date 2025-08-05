@@ -1,8 +1,14 @@
-import { Appointment } from './schema';
+import { Appointment } from './schema-interface';
+import { apiClient } from '../api-client';
 
 export async function getAppointmentsByClient(clientId: number): Promise<Appointment[]> {
   try {
-    return await window.electronAPI.db('getAppointmentsByClientId', clientId);
+    const response = await apiClient.getAppointmentsByClient(clientId);
+    if (response.error) {
+      console.error('Error getting appointments by client:', response.error);
+      return [];
+    }
+    return response.data || [];
   } catch (error) {
     console.error('Error getting appointments by client:', error);
     return [];
@@ -11,7 +17,12 @@ export async function getAppointmentsByClient(clientId: number): Promise<Appoint
 
 export async function getAllAppointments(clinicId?: number): Promise<Appointment[]> {
   try {
-    return await window.electronAPI.db('getAllAppointments', clinicId);
+    const response = await apiClient.getAppointments(clinicId);
+    if (response.error) {
+      console.error('Error getting all appointments:', response.error);
+      return [];
+    }
+    return response.data || [];
   } catch (error) {
     console.error('Error getting all appointments:', error);
     return [];
@@ -20,7 +31,12 @@ export async function getAllAppointments(clinicId?: number): Promise<Appointment
 
 export async function getAppointmentById(id: number): Promise<Appointment | null> {
   try {
-    return await window.electronAPI.db('getAppointmentById', id);
+    const response = await apiClient.getAppointment(id);
+    if (response.error) {
+      console.error('Error getting appointment:', response.error);
+      return null;
+    }
+    return response.data || null;
   } catch (error) {
     console.error('Error getting appointment:', error);
     return null;
@@ -29,26 +45,80 @@ export async function getAppointmentById(id: number): Promise<Appointment | null
 
 export async function createAppointment(appointment: Omit<Appointment, 'id'>): Promise<Appointment | null> {
   try {
-    const result = await window.electronAPI.db('createAppointment', appointment);
-    if (result && appointment.client_id) {
-      await window.electronAPI.db('updateClientUpdatedDate', appointment.client_id);
-      
+    if (!appointment.client_id || appointment.client_id <= 0) {
+      console.error('Error creating appointment: Invalid client_id');
+      return null;
     }
-    return result;
+    
+    // Build appointment data, only including fields that have values
+    const appointmentData: any = {
+      client_id: appointment.client_id,
+    };
+    
+    if (appointment.clinic_id) {
+      appointmentData.clinic_id = appointment.clinic_id;
+    }
+    
+    if (appointment.user_id && appointment.user_id > 0) {
+      appointmentData.user_id = appointment.user_id;
+    }
+    
+    if (appointment.date && appointment.date !== '') {
+      appointmentData.date = new Date(appointment.date).toISOString().split('T')[0];
+    }
+    
+    if (appointment.time && appointment.time !== '') {
+      appointmentData.time = appointment.time;
+    }
+    
+    if (appointment.duration) {
+      appointmentData.duration = appointment.duration;
+    }
+    
+    if (appointment.exam_name && appointment.exam_name !== '') {
+      appointmentData.exam_name = appointment.exam_name;
+    }
+    
+    if (appointment.note && appointment.note !== '') {
+      appointmentData.note = appointment.note;
+    }
+    
+    if (appointment.google_calendar_event_id && appointment.google_calendar_event_id !== '') {
+      appointmentData.google_calendar_event_id = appointment.google_calendar_event_id;
+    }
+    
+    console.log('Creating appointment with data:', appointmentData);
+    console.log('Original appointment data:', appointment);
+    
+    const response = await apiClient.createAppointment(appointmentData);
+    if (response.error) {
+      console.error('Error creating appointment:', response.error);
+      console.error('Full error response:', response);
+      return null;
+    }
+    return response.data || null;
   } catch (error) {
     console.error('Error creating appointment:', error);
+    if (error instanceof Error) {
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
+    }
     return null;
   }
 }
 
 export async function updateAppointment(appointment: Appointment): Promise<Appointment | null> {
   try {
-    const result = await window.electronAPI.db('updateAppointment', appointment);
-    if (result && appointment.client_id) {
-      await window.electronAPI.db('updateClientUpdatedDate', appointment.client_id);
-      
+    if (!appointment.id) {
+      console.error('Error updating appointment: No appointment ID provided');
+      return null;
     }
-    return result;
+    const response = await apiClient.updateAppointment(appointment.id, appointment);
+    if (response.error) {
+      console.error('Error updating appointment:', response.error);
+      return null;
+    }
+    return response.data || null;
   } catch (error) {
     console.error('Error updating appointment:', error);
     return null;
@@ -57,13 +127,12 @@ export async function updateAppointment(appointment: Appointment): Promise<Appoi
 
 export async function deleteAppointment(id: number): Promise<boolean> {
   try {
-    const appointment = await window.electronAPI.db('getAppointmentById', id);
-    const result = await window.electronAPI.db('deleteAppointment', id);
-    if (result && appointment?.client_id) {
-      await window.electronAPI.db('updateClientUpdatedDate', appointment.client_id);
-      
+    const response = await apiClient.deleteAppointment(id);
+    if (response.error) {
+      console.error('Error deleting appointment:', response.error);
+      return false;
     }
-    return result;
+    return true;
   } catch (error) {
     console.error('Error deleting appointment:', error);
     return false;

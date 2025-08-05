@@ -3,11 +3,7 @@ import { tool } from '@langchain/core/tools';
 import { z } from 'zod';
 import { createReactAgent } from '@langchain/langgraph/prebuilt';
 import { BaseMessage, HumanMessage, AIMessage } from '@langchain/core/messages';
-import { dbService, DBServiceType } from '../db/index';
-import { Campaign } from '../db/schema';
-import { FILTER_FIELDS, OPERATORS } from '../campaign-filter-options';
-import { z } from 'zod';
-
+import { apiClient } from '../api-client';
 
 interface AIAgentConfig {
   proxyServerUrl: string;
@@ -23,11 +19,9 @@ interface AIResponse {
 export class AIAgent {
   private llm: ChatOpenAI;
   private agent: any = null;
-  private dbService: DBServiceType;
   private tools: any[];
 
-  constructor(config: AIAgentConfig, dbService: DBServiceType) {
-    this.dbService = dbService;
+  constructor(config: AIAgentConfig) {
     
     this.llm = new ChatOpenAI({
       model: 'gpt-4o',
@@ -44,9 +38,10 @@ export class AIAgent {
 
   private createTools() {
     const getClients = tool(
-      (input) => {
+      async (input) => {
         try {
-          const clients = this.dbService.getAllClients();
+          const response = await apiClient.getAllClients();
+          const clients = response.data || [];
           if (!input.search || input.search.trim() === '' || input.search.toLowerCase() === 'all') {
             return JSON.stringify(clients.slice(0, 20), null, 2); // Limit results for readability
           } else {
@@ -73,11 +68,12 @@ export class AIAgent {
     );
 
     const getAppointments = tool(
-      (input) => {
+      async (input) => {
         try {
-          const appointments = this.dbService.getAllAppointments();
+          const response = await apiClient.getAllAppointments();
+          const appointments = response.data || [];
           // Sort by date, most recent first
-          appointments.sort((a, b) => new Date(b.date || '').getTime() - new Date(a.date || '').getTime());
+          appointments.sort((a: any, b: any) => new Date(b.date || '').getTime() - new Date(a.date || '').getTime());
           return JSON.stringify(appointments.slice(0, 10), null, 2);
         } catch (error) {
           return `Error retrieving appointments: ${error}`;
@@ -93,10 +89,11 @@ export class AIAgent {
     );
 
     const getExams = tool(
-      (input) => {
+      async (input) => {
         try {
-          let exams = this.dbService.getAllExams();
-          exams = exams.sort((a, b) => new Date(b.exam_date || '').getTime() - new Date(a.exam_date || '').getTime());
+          const response = await apiClient.getAllExams();
+          let exams = response.data || [];
+          exams = exams.sort((a: any, b: any) => new Date(b.exam_date || '').getTime() - new Date(a.exam_date || '').getTime());
           return JSON.stringify(exams.slice(0, 10), null, 2);
         } catch (error) {
           return `Error retrieving exams: ${error}`;
@@ -112,10 +109,13 @@ export class AIAgent {
     );
 
     const createAppointment = tool(
-      (input) => {
+      async (input) => {
         try {
-          const appointment = this.dbService.createAppointment(input);
-          return `תור נוצר בהצלחה! פרטי התור: ${JSON.stringify(appointment, null, 2)}`;
+          const response = await apiClient.createAppointment(input);
+          if (response.error) {
+            return `שגיאה ביצירת התור: ${response.error}`;
+          }
+          return `תור נוצר בהצלחה! פרטי התור: ${JSON.stringify(response.data, null, 2)}`;
         } catch (error) {
           return `שגיאה ביצירת התור: ${error}`;
         }
@@ -137,10 +137,13 @@ export class AIAgent {
     );
 
     const createMedicalLog = tool(
-      (input) => {
+      async (input) => {
         try {
-          const medicalLog = this.dbService.createMedicalLog(input);
-          return `רשומה רפואית נוצרה בהצלחה! פרטי הרשומה: ${JSON.stringify(medicalLog, null, 2)}`;
+          const response = await apiClient.createMedicalLog(input);
+          if (response.error) {
+            return `שגיאה ביצירת הרשומה הרפואית: ${response.error}`;
+          }
+          return `רשומה רפואית נוצרה בהצלחה! פרטי הרשומה: ${JSON.stringify(response.data, null, 2)}`;
         } catch (error) {
           return `שגיאה ביצירת הרשומה הרפואית: ${error}`;
         }
@@ -285,19 +288,33 @@ export class AIAgent {
     try {
       switch (action) {
         case 'create_appointment':
-          const appointment = this.dbService.createAppointment(data);
+          const appointmentResponse = await apiClient.createAppointment(data);
+          if (appointmentResponse.error) {
+            return {
+              success: false,
+              message: 'שגיאה ביצירת התור',
+              error: appointmentResponse.error
+            };
+          }
           return {
             success: true,
             message: 'תור נוצר בהצלחה!',
-            data: appointment
+            data: appointmentResponse.data
           };
 
         case 'create_medical_log':
-          const medicalLog = this.dbService.createMedicalLog(data);
+          const medicalLogResponse = await apiClient.createMedicalLog(data);
+          if (medicalLogResponse.error) {
+            return {
+              success: false,
+              message: 'שגיאה ביצירת הרשומה הרפואית',
+              error: medicalLogResponse.error
+            };
+          }
           return {
             success: true,
             message: 'רשומה רפואית נוצרה בהצלחה!',
-            data: medicalLog
+            data: medicalLogResponse.data
           };
 
         default:
@@ -326,7 +343,8 @@ export class AIAgent {
     medical: string;
   }> {
     try {
-      const allClientData = this.dbService.getAllClientDataForAi(clientId);
+      const allClientDataResponse = await apiClient.getAllClientDataForAi(clientId);
+      const allClientData = allClientDataResponse.data;
       if (!allClientData) {
         return {
           exam: 'לא נמצא מידע על הלקוח',
@@ -479,7 +497,8 @@ ${JSON.stringify(allClientData, null, 2)}
     try {
       // If this method is called individually ),
       // get the client data directly
-      const allClientData = this.dbService.getAllClientDataForAi(clientId);
+      const allClientDataResponse = await apiClient.getAllClientDataForAi(clientId);
+      const allClientData = allClientDataResponse.data;
       if (!allClientData) {
         return 'לא נמצא מידע על הלקוח';
       }

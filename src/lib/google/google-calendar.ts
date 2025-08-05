@@ -1,6 +1,6 @@
 import { google } from 'googleapis'
 import { GoogleTokens, GoogleOAuthService } from './google-oauth'
-import { Appointment, Client } from '../db/schema'
+import { Appointment, Client } from '../db/schema-interface'
 
 export interface GoogleCalendarEvent {
   id?: string

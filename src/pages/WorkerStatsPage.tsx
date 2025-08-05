@@ -8,9 +8,8 @@ import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { CustomModal } from "@/components/ui/custom-modal"
 import { IconClock, IconCalendar, IconChartBar, IconPlus, IconTrash } from "@tabler/icons-react"
-import { getAllUsers } from "@/lib/db/users-db"
-import { getWorkShiftStats, getWorkShiftsByUserAndDate, createWorkShift, deleteWorkShift } from "@/lib/db/work-shifts-db"
-import { User, WorkShift } from "@/lib/db/schema"
+import { apiClient } from "@/lib/api-client"
+import { User, WorkShift } from "@/lib/db/schema-interface"
 import { useUser } from "@/contexts/UserContext"
 
 export default function WorkerStatsPage() {
@@ -36,11 +35,13 @@ export default function WorkerStatsPage() {
   useEffect(() => {
     const loadUsers = async () => {
       try {
-        const allUsers = await getAllUsers()
-        const workers = allUsers.filter(user => user.role !== 'viewer')
-        setUsers(workers)
-        if (workers.length > 0 && !selectedUserId) {
-          setSelectedUserId(workers[0].id!)
+        const response = await apiClient.getUsers()
+        if (response.data) {
+          const workers = response.data.filter(user => user.role !== 'clinic_viewer')
+          setUsers(workers)
+          if (workers.length > 0 && !selectedUserId) {
+            setSelectedUserId(workers[0].id!)
+          }
         }
       } catch (error) {
         console.error('Error loading users:', error)
@@ -52,16 +53,19 @@ export default function WorkerStatsPage() {
     loadUsers()
   }, [selectedUserId])
 
-
-
   const loadDayShifts = async () => {
     if (!selectedUserId || !selectedDate) return
 
     try {
-      const shifts = await getWorkShiftsByUserAndDate(selectedUserId, selectedDate)
-      setDayShifts(shifts)
+      const response = await apiClient.getWorkShiftsByUserAndDate(selectedUserId, selectedDate)
+      if (response.data) {
+        setDayShifts(response.data)
+      } else {
+        setDayShifts([])
+      }
     } catch (error) {
       console.error('Error loading day shifts:', error)
+      setDayShifts([])
     }
   }
 
@@ -69,10 +73,24 @@ export default function WorkerStatsPage() {
     if (!selectedUserId) return
 
     try {
-      const stats = await getWorkShiftStats(selectedUserId, selectedYear, selectedMonth)
-      setUserStats(stats)
+      const response = await apiClient.getWorkShiftStats(selectedUserId, selectedYear, selectedMonth)
+      if (response.data) {
+        const stats = response.data as {
+          total_shifts: number;
+          total_minutes: number;
+          average_minutes: number;
+        }
+        setUserStats({
+          totalShifts: stats.total_shifts || 0,
+          totalMinutes: stats.total_minutes || 0,
+          averageMinutes: stats.average_minutes || 0
+        })
+      } else {
+        setUserStats({ totalShifts: 0, totalMinutes: 0, averageMinutes: 0 })
+      }
     } catch (error) {
       console.error('Error loading user stats:', error)
+      setUserStats({ totalShifts: 0, totalMinutes: 0, averageMinutes: 0 })
     }
   }
 
@@ -83,7 +101,6 @@ export default function WorkerStatsPage() {
   useEffect(() => {
     loadUserStats()
   }, [selectedUserId, selectedMonth, selectedYear])
-
 
   if (loading) {
     return (
@@ -98,6 +115,7 @@ export default function WorkerStatsPage() {
 
   const selectedUser = users.find(u => u.id === selectedUserId)
   const formatDuration = (minutes: number) => {
+    if (!minutes || isNaN(minutes)) return '0:00'
     const hours = Math.floor(minutes / 60)
     const mins = minutes % 60
     return `${hours}:${mins.toString().padStart(2, '0')}`
@@ -120,11 +138,13 @@ export default function WorkerStatsPage() {
         status: 'completed' as const
       }
 
-      await createWorkShift(shiftData)
-      setIsCreateModalOpen(false)
-      setNewShiftData({ start_time: '', end_time: '' })
-      await loadDayShifts()
-      await loadUserStats()
+      const response = await apiClient.createWorkShift(shiftData)
+      if (response.data) {
+        setIsCreateModalOpen(false)
+        setNewShiftData({ start_time: '', end_time: '' })
+        await loadDayShifts()
+        await loadUserStats()
+      }
     } catch (error) {
       console.error('Error creating shift:', error)
     }
@@ -134,9 +154,11 @@ export default function WorkerStatsPage() {
     if (!shiftId) return
 
     try {
-      await deleteWorkShift(shiftId)
-      await loadDayShifts()
-      await loadUserStats()
+      const response = await apiClient.deleteWorkShift(shiftId)
+      if (!response.error) {
+        await loadDayShifts()
+        await loadUserStats()
+      }
     } catch (error) {
       console.error('Error deleting shift:', error)
     }
@@ -256,7 +278,7 @@ export default function WorkerStatsPage() {
                         <CardHeader>
                           <div className="flex items-center justify-between">
                             <div className="flex items-center">
-                              {currentUser?.role === 'admin' && (
+                              {currentUser?.role === 'company_ceo' && (
                                 <Button
                                   variant="outline"
                                   size="sm"
@@ -306,7 +328,7 @@ export default function WorkerStatsPage() {
                                          shift.status === 'active' ? 'פעילה' :
                                          'בוטלה'}
                                       </Badge>
-                                      {currentUser?.role === 'admin' && (
+                                      {currentUser?.role === 'company_ceo' && (
                                         <Button
                                           variant="ghost"
                                           size="sm"
@@ -365,7 +387,7 @@ export default function WorkerStatsPage() {
                       <div className="text-right w-full">
                         <div className="flex items-center justify-end gap-2">
                         <span className="text-muted-foreground text-sm">
-                            {user.role === 'admin' ? '(מנהל)' : '(עובד)'}
+                            {user.role === 'clinic_manager' || user.role === 'company_ceo' ? '(מנהל)' : '(עובד)'}
                           </span>
                           <span className="font-medium">{user.username}</span>
                         </div>

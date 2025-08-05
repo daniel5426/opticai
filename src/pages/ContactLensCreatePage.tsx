@@ -7,11 +7,11 @@ export default function ContactLensCreatePage() {
   const navigate = useNavigate()
 
   const handleSave = () => {
-    navigate({ to: "/clients/$clientId", params: { clientId } })
+    navigate({ to: "/clients/$clientId", params: { clientId }, search: { tab: 'contact-lenses' } })
   }
 
   const handleCancel = () => {
-    navigate({ to: "/clients/$clientId", params: { clientId } })
+    navigate({ to: "/clients/$clientId", params: { clientId }, search: { tab: 'contact-lenses' } })
   }
 
   return (

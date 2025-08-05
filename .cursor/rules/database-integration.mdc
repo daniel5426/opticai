@@ -1,36 +1,180 @@
 ---
-description: 
-globs: 
+description: for understanding database integration, to resolve errors or make change to the db
 alwaysApply: false
 ---
-# SQLite Database Integration
+# PostgreSQL API Integration
 
-This project uses better-sqlite3 for database integration in Electron. The database code is structured to follow Electron's security best practices by keeping all database operations in the main process.
+This project uses PostgreSQL with FastAPI backend for database integration. The database code is structured to follow modern API best practices with proper authentication and role-based access control.
 
 ## Database Structure
 
-- [src/lib/db/schema.ts](mdc:src/lib/db/schema.ts) - Database schema definitions and table creation
-- [src/lib/db/index.ts](mdc:src/lib/db/index.ts) - DatabaseService class for database operations
+- [backend/models.py](mdc:backend/models.py) - SQLAlchemy models for database tables
+- [backend/schemas.py](mdc:backend/schemas.py) - Pydantic schemas for API requests/responses
+- [backend/database.py](mdc:backend/database.py) - Database connection and session management
+- [backend/EndPoints/](mdc:backend/EndPoints/) - API endpoint modules
 
 ## Key Concepts
 
-1. **Main Process Database**: The database is initialized and accessed only in the Electron main process.
+1. **Backend Database**: The database is accessed through FastAPI endpoints with proper authentication.
 
-2. **IPC Communication**: The renderer process (React) communicates with the database through IPC (Inter-Process Communication).
+2. **API Communication**: The frontend communicates with the database through HTTP API calls using the `apiClient`.
 
-3. **React Hook**: [src/lib/db/useDatabase.ts](mdc:src/lib/db/useDatabase.ts) provides a React hook for accessing the database from components.
+3. **Authentication**: JWT-based authentication with role-based access control.
+
+4. **Data Isolation**: Multi-clinic architecture with automatic data filtering based on user context.
 
 ## Tables
 
 The database schema includes several related tables for a medical/optical management system:
-- users - Main user/patient information
-- medical_logs - Medical logs for users
+- companies - Company information and ownership
+- clinics - Individual clinic locations with unique IDs
+- users - User accounts with role-based access
+- clients - Patient/client information
+- medical_logs - Medical logs for patients
 - optical_exams - Eye examination records
 - optical_eye_exam - Detailed eye exam data
 - contact_lens - Contact lens prescriptions
 - frames - Eyeglass frames information
 - billings - Financial records
 - And others related to optical services
+
+## Usage Example
+
+The [src/contexts/UserContext.tsx](mdc:src/contexts/UserContext.tsx) component demonstrates authentication using the API:
+
+```typescript
+import { apiClient } from '@/lib/api-client';
+
+// Login
+const response = await apiClient.login(username, password);
+if (response.data) {
+  // Get current user
+  const userResponse = await apiClient.getCurrentUser();
+  if (userResponse.data) {
+    setCurrentUser(userResponse.data);
+  }
+}
+```
+
+## API Endpoints
+
+### Authentication
+- `POST /api/v1/auth/login` - Login with form data
+- `POST /api/v1/auth/login-json` - Login with JSON
+- `GET /api/v1/auth/me` - Get current user
+
+### Companies
+- `GET /api/v1/companies` - List companies
+- `POST /api/v1/companies` - Create company
+- `GET /api/v1/companies/{id}` - Get company
+- `PUT /api/v1/companies/{id}` - Update company
+- `DELETE /api/v1/companies/{id}` - Delete company
+
+### Clinics
+- `GET /api/v1/clinics` - List clinics
+- `POST /api/v1/clinics` - Create clinic
+- `GET /api/v1/clinics/{id}` - Get clinic
+- `GET /api/v1/clinics/unique/{unique_id}` - Get clinic by unique ID
+- `PUT /api/v1/clinics/{id}` - Update clinic
+- `DELETE /api/v1/clinics/{id}` - Delete clinic
+
+### Users
+- `GET /api/v1/users` - List users
+- `POST /api/v1/users` - Create user
+- `GET /api/v1/users/{id}` - Get user
+- `GET /api/v1/users/username/{username}` - Get user by username
+- `PUT /api/v1/users/{id}` - Update user
+- `DELETE /api/v1/users/{id}` - Delete user
+
+
+## Usage Example
+
+The [src/components/UserManager.tsx](mdc:src/components/UserManager.tsx) component demonstrates CRUD operations using the database.
+
+# PostgreSQL API Integration
+
+This project uses PostgreSQL with FastAPI backend for database integration. The database code is structured to follow modern API best practices with proper authentication and role-based access control.
+
+## Database Structure
+
+- [backend/models.py](mdc:backend/models.py) - SQLAlchemy models for database tables
+- [backend/schemas.py](mdc:backend/schemas.py) - Pydantic schemas for API requests/responses
+- [backend/database.py](mdc:backend/database.py) - Database connection and session management
+- [backend/EndPoints/](mdc:backend/EndPoints/) - API endpoint modules
+
+## Key Concepts
+
+1. **Backend Database**: The database is accessed through FastAPI endpoints with proper authentication.
+
+2. **API Communication**: The frontend communicates with the database through HTTP API calls using the `apiClient`.
+
+3. **Authentication**: JWT-based authentication with role-based access control.
+
+4. **Data Isolation**: Multi-clinic architecture with automatic data filtering based on user context.
+
+## Tables
+
+The database schema includes several related tables for a medical/optical management system:
+- companies - Company information and ownership
+- clinics - Individual clinic locations with unique IDs
+- users - User accounts with role-based access
+- clients - Patient/client information
+- medical_logs - Medical logs for patients
+- optical_exams - Eye examination records
+- optical_eye_exam - Detailed eye exam data
+- contact_lens - Contact lens prescriptions
+- frames - Eyeglass frames information
+- billings - Financial records
+- And others related to optical services
+
+## Usage Example
+
+The [src/contexts/UserContext.tsx](mdc:src/contexts/UserContext.tsx) component demonstrates authentication using the API:
+
+```typescript
+import { apiClient } from '@/lib/api-client';
+
+// Login
+const response = await apiClient.login(username, password);
+if (response.data) {
+  // Get current user
+  const userResponse = await apiClient.getCurrentUser();
+  if (userResponse.data) {
+    setCurrentUser(userResponse.data);
+  }
+}
+```
+
+## API Endpoints
+
+### Authentication
+- `POST /api/v1/auth/login` - Login with form data
+- `POST /api/v1/auth/login-json` - Login with JSON
+- `GET /api/v1/auth/me` - Get current user
+
+### Companies
+- `GET /api/v1/companies` - List companies
+- `POST /api/v1/companies` - Create company
+- `GET /api/v1/companies/{id}` - Get company
+- `PUT /api/v1/companies/{id}` - Update company
+- `DELETE /api/v1/companies/{id}` - Delete company
+
+### Clinics
+- `GET /api/v1/clinics` - List clinics
+- `POST /api/v1/clinics` - Create clinic
+- `GET /api/v1/clinics/{id}` - Get clinic
+- `GET /api/v1/clinics/unique/{unique_id}` - Get clinic by unique ID
+- `PUT /api/v1/clinics/{id}` - Update clinic
+- `DELETE /api/v1/clinics/{id}` - Delete clinic
+
+### Users
+- `GET /api/v1/users` - List users
+- `POST /api/v1/users` - Create user
+- `GET /api/v1/users/{id}` - Get user
+- `GET /api/v1/users/username/{username}` - Get user by username
+- `PUT /api/v1/users/{id}` - Update user
+- `DELETE /api/v1/users/{id}` - Delete user
+
 
 ## Usage Example
 

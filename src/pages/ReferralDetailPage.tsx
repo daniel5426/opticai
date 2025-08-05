@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent } from "@/components/ui/card"
-import { Referral, ReferralEye, Client } from "@/lib/db/schema"
+import { Referral, ReferralEye, Client } from "@/lib/db/schema-interface"
 import {
   getReferralById,
   updateReferral,
@@ -21,7 +21,7 @@ import { CompactPrescriptionTab } from "@/components/exam/CompactPrescriptionTab
 import { ExamToolbox, createToolboxActions } from "@/components/exam/ExamToolbox"
 import { ExamFieldMapper, ExamComponentType } from "@/lib/exam-field-mappings"
 import { copyToClipboard, pasteFromClipboard, getClipboardContentType } from "@/lib/exam-clipboard"
-import { CompactPrescriptionExam } from "@/lib/db/schema"
+import { CompactPrescriptionExam } from "@/lib/db/schema-interface"
 import {
   createCompactPrescriptionExam,
   updateCompactPrescriptionExam,
@@ -29,10 +29,12 @@ import {
 } from "@/lib/db/compact-prescription-db"
 import { ClientSpaceLayout } from "@/layouts/ClientSpaceLayout"
 import { useClientSidebar } from "@/contexts/ClientSidebarContext"
+import { useUser } from "@/contexts/UserContext"
 
 export default function ReferralDetailPage() {
   const location = useLocation()
   const navigate = useNavigate()
+  const { currentClinic } = useUser()
   const [loading, setLoading] = useState(true)
   const [client, setClient] = useState<Client | null>(null)
   const [activeTab, setActiveTab] = useState('referrals')
@@ -108,7 +110,7 @@ export default function ReferralDetailPage() {
       return
     }
 
-    const copiedData = ExamFieldMapper.copyData(sourceData, compactPrescriptionFormData, sourceType, type)
+    const copiedData = ExamFieldMapper.copyData(sourceData as any, compactPrescriptionFormData as any, sourceType, type)
 
     Object.entries(copiedData).forEach(([key, value]) => {
       if (key !== 'id' && value !== undefined) {
@@ -169,7 +171,7 @@ export default function ReferralDetailPage() {
 
         if (isNewReferral) {
           if (clientIdFromSearch) {
-            setFormData(prev => ({ ...prev, client_id: Number(clientIdFromSearch) }))
+            setFormData((prev: Referral) => ({ ...prev, client_id: Number(clientIdFromSearch) }))
           }
           setLoading(false)
           return
@@ -196,7 +198,7 @@ export default function ReferralDetailPage() {
             setCompactPrescription(compactPrescriptionData)
             setCompactPrescriptionFormData(compactPrescriptionData)
           } else {
-            setCompactPrescriptionFormData(prev => ({ ...prev, referral_id: Number(referralId) }))
+            setCompactPrescriptionFormData((prev: CompactPrescriptionExam) => ({ ...prev, referral_id: Number(referralId) }))
           }
 
           const eyeData = await getReferralEyesByReferralId(Number(referralId))
@@ -251,7 +253,10 @@ export default function ReferralDetailPage() {
       let savedReferral
 
       if (isNewReferral) {
-        savedReferral = await createReferral(formData)
+        savedReferral = await createReferral({
+          ...formData,
+          clinic_id: currentClinic?.id
+        })
       } else {
         savedReferral = await updateReferral(formData)
       }
@@ -446,7 +451,7 @@ export default function ReferralDetailPage() {
               )}
               <CompactPrescriptionTab
                 data={compactPrescriptionFormData}
-                onChange={handleCompactPrescriptionChange}
+                onChange={(field, value) => handleCompactPrescriptionChange(field as keyof CompactPrescriptionExam, value)}
                 isEditing={isEditing}
               />
             </div>

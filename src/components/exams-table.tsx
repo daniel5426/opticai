@@ -11,7 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Plus, Trash2 } from "lucide-react";
-import { OpticalExam, User, Client } from "@/lib/db/schema";
+import { OpticalExam, User, Client } from "@/lib/db/schema-interface";
 import { ClientSelectModal } from "@/components/ClientSelectModal";
 import { getAllUsers } from "@/lib/db/users-db";
 import { getAllClients } from "@/lib/db/clients-db";

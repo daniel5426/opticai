@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react'
-import { Client, MedicalLog, Referral, File, Appointment, OpticalExam, Order } from '@/lib/db/schema'
+import { Client, MedicalLog, Referral, File, Appointment, OpticalExam, Order } from '@/lib/db/schema-interface'
 import { getExamsByClientId } from '@/lib/db/exams-db'
 import { getOrdersByClientId } from '@/lib/db/orders-db'
 import { getMedicalLogsByClientId } from '@/lib/db/medical-logs-db'

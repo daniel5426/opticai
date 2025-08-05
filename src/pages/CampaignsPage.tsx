@@ -12,10 +12,12 @@ import { CustomModal } from "@/components/ui/custom-modal";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { getAllCampaigns, createCampaign, updateCampaign, deleteCampaign } from "@/lib/db/campaigns-db";
-import { Campaign } from "@/lib/db/schema";
+import { Campaign } from "@/lib/db/schema-interface";
 import { toast } from "sonner";
 import { Trash2, Edit3, Plus, Filter, Mail, MessageSquare, Users, Calendar, X, ChevronDown, Play, StarsIcon, Loader2, ArrowUp } from "lucide-react";
 import { FILTER_FIELDS, OPERATORS } from "@/lib/campaign-filter-options";
+import { useUser } from "@/contexts/UserContext";
+import { apiClient } from '@/lib/api-client';
 
 interface FilterCondition {
   id: string;
@@ -410,6 +412,7 @@ function CampaignModal({ isOpen, onClose, campaign, onSave }: {
 
 export default function CampaignsPage() {
   const navigate = useNavigate();
+  const { currentClinic } = useUser();
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -427,11 +430,11 @@ export default function CampaignsPage() {
     try {
       setLoading(true);
       console.log('Loading campaigns...');
-      const data = await getAllCampaigns();
+      const data = await getAllCampaigns(currentClinic?.id);
       console.log('Loaded campaigns:', data);
       
       // Check if campaigns have the new fields
-      if (data.length > 0) {
+      if (data && data.length > 0) {
         const firstCampaign = data[0];
         console.log('First campaign structure:', Object.keys(firstCampaign));
         if (firstCampaign.active === undefined) {
@@ -440,11 +443,11 @@ export default function CampaignsPage() {
         }
       }
       
-      setCampaigns(data);
+      setCampaigns(data || []);
       
       // Check email settings configuration
       const emailConfigured = await checkEmailSettingsConfigured();
-      setEmailSettingsConfigured(emailConfigured);
+      setEmailSettingsConfigured(emailConfigured || false);
     } catch (error) {
       console.error('Error loading campaigns:', error);
       toast.error("שגיאה בטעינת הקמפיינים");
@@ -454,8 +457,10 @@ export default function CampaignsPage() {
   };
 
   useEffect(() => {
-    loadCampaigns();
-  }, []);
+    if (currentClinic) {
+      loadCampaigns();
+    }
+  }, [currentClinic]);
 
   useEffect(() => {
     const handleOpenCampaignModal = (event: CustomEvent) => {
@@ -667,10 +672,11 @@ export default function CampaignsPage() {
     }
   };
 
-  const checkEmailSettingsConfigured = async () => {
+  const checkEmailSettingsConfigured = async (): Promise<boolean> => {
     try {
-      const settings = await window.electronAPI.db('getSettings');
-      return settings && settings.email_username && settings.email_password;
+      const settingsResponse = await apiClient.getSettings();
+      const settings = settingsResponse.data;
+      return !!(settings && settings.email_username && settings.email_password);
     } catch {
       return false;
     }
@@ -770,8 +776,8 @@ export default function CampaignsPage() {
                 <StarsIcon className="h-5 w-5" />
               </Button>
               <Button onClick={() => openModal()} size="lg" className="gap-2">
-                <Plus className="h-5 w-5" />
                 קמפיין חדש
+                <Plus className="h-5 w-5" />
               </Button>
             </div>
           </div>
@@ -784,10 +790,6 @@ export default function CampaignsPage() {
                 <p className="text-muted-foreground text-center mb-4">
                   צור קמפיין ראשון כדי להתחיל לשלוח הודעות ללקוחות
                 </p>
-                <Button onClick={() => openModal()}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  צור קמפיין ראשון
-                </Button>
               </CardContent>
             </Card>
           ) : (

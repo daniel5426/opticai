@@ -1,6 +1,6 @@
 import { GoogleCalendarService } from './google-calendar'
 import { GoogleTokens } from './google-oauth'
-import { Appointment, Client, User } from '../db/schema'
+import { Appointment, Client, User } from '../db/schema-interface'
 
 export class GoogleCalendarSyncService {
   private calendarService: GoogleCalendarService

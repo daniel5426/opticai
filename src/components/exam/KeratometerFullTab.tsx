@@ -3,7 +3,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ChevronUp, ChevronDown } from "lucide-react"
-import { KeratometerFullExam } from "@/lib/db/schema"
+import { KeratometerFullExam } from "@/lib/db/schema-interface"
 
 interface KeratometerFullTabProps {
   keratometerFullData: KeratometerFullExam

@@ -29,7 +29,7 @@ export function StereoTestTab({ stereoTestData, onStereoTestChange, isEditing, n
             <div className="text-center text-xs h-[16px] font-medium text-muted-foreground"></div>
             
             <div className="text-sm text-muted-foreground font-medium text-right">Fly</div>
-            <Select size="xs"
+            <Select
               value={stereoTestData.fly_result === true ? "pass" : stereoTestData.fly_result === false ? "fail" : ""}
               onValueChange={(value) => onStereoTestChange('fly_result', value === 'pass')}
               disabled={!isEditing}

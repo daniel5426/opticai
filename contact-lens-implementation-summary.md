@@ -49,7 +49,7 @@ I have implemented a complete contact lens management system based on the existi
   - Both routes follow the same pattern as order routes
 
 ## Database Schema Used
-The implementation utilizes the existing contact lens schema from `schema.ts`:
+The implementation utilizes the existing contact lens schema from `schema-interface.ts`:
 
 ### ContactLens Table
 - Basic exam information (date, type, examiner)
@@ -135,7 +135,7 @@ During implementation, we discovered the contact lens system was incomplete and 
 
 ### 3. Schema & Database Fixes Applied
 
-#### Schema Updates (`src/lib/db/schema.ts`)
+#### Schema Updates (`src/lib/db/schema-interface.ts`)
 - **Added missing client_id field** to ContactLens interface and database table
 - **Fixed foreign key constraints** with `ON DELETE CASCADE` for proper cascading deletes
 

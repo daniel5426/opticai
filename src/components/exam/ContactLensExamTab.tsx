@@ -1,7 +1,7 @@
 import React, { useState } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { ContactLensExam } from "@/lib/db/schema"
+import { ContactLensExam } from "@/lib/db/schema-interface"
 import { ChevronUp, ChevronDown } from "lucide-react"
 
 interface ContactLensExamTabProps {

@@ -11,7 +11,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Plus, Trash2 } from "lucide-react"
-import { Order, User, Client } from "@/lib/db/schema"
+import { Order, User, Client } from "@/lib/db/schema-interface"
 import { ClientSelectModal } from "@/components/ClientSelectModal"
 import { getAllUsers } from "@/lib/db/users-db"
 import { getAllClients } from "@/lib/db/clients-db"
@@ -19,6 +19,7 @@ import { CustomModal } from "@/components/ui/custom-modal"
 import { deleteOrder } from "@/lib/db/orders-db"
 import { toast } from "sonner"
 import { Skeleton } from "@/components/ui/skeleton"
+import { useUser } from "@/contexts/UserContext"
 
 interface OrdersTableProps {
   data: Order[]
@@ -29,6 +30,7 @@ interface OrdersTableProps {
 }
 
 export function OrdersTable({ data, clientId, onOrderDeleted, onOrderDeleteFailed, loading }: OrdersTableProps) {
+  const { currentClinic } = useUser()
   const [searchQuery, setSearchQuery] = useState("")
   const [users, setUsers] = useState<User[]>([])
   const [clients, setClients] = useState<Client[]>([])
@@ -38,10 +40,12 @@ export function OrdersTable({ data, clientId, onOrderDeleted, onOrderDeleteFaile
 
   useEffect(() => {
     const loadData = async () => {
+      if (!currentClinic) return
+      
       try {
         const [usersData, clientsData] = await Promise.all([
-          getAllUsers(),
-          getAllClients()
+          getAllUsers(currentClinic.id),
+          getAllClients(currentClinic.id)
         ])
         setUsers(usersData)
         setClients(clientsData)
@@ -50,7 +54,7 @@ export function OrdersTable({ data, clientId, onOrderDeleted, onOrderDeleteFaile
       }
     }
     loadData()
-  }, [])
+  }, [currentClinic])
 
   const getUserName = (userId?: number): string => {
     if (!userId) return ''

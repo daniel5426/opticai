@@ -6,8 +6,9 @@ import { toast } from "sonner"
 import { PencilIcon, Plus, SaveIcon, TrashIcon } from "lucide-react"
 import { useParams } from "@tanstack/react-router"
 import { createMedicalLog, updateMedicalLog, deleteMedicalLog } from "@/lib/db/medical-logs-db"
-import { MedicalLog } from "@/lib/db/schema"
+import { MedicalLog } from "@/lib/db/schema-interface"
 import { useClientData } from "@/contexts/ClientDataContext"
+import { useUser } from "@/contexts/UserContext"
 
 type MedicalRecord = MedicalLog & {
   isEditing?: boolean
@@ -18,6 +19,7 @@ type MedicalRecord = MedicalLog & {
 export const ClientMedicalRecordTab = () => {
   const { clientId } = useParams({ from: "/clients/$clientId" })
   const { medicalLogs, loading, refreshMedicalLogs } = useClientData()
+  const { currentClinic } = useUser()
   const [records, setRecords] = useState<MedicalRecord[]>([])
   const [tempIdCounter, setTempIdCounter] = useState(-1)
   const datePickerRefs = useRef<{ [key: number]: HTMLDivElement | null }>({})
@@ -122,6 +124,7 @@ export const ClientMedicalRecordTab = () => {
       if (id < 0) {
         const newLog = await createMedicalLog({
           client_id: Number(clientId),
+          clinic_id: currentClinic?.id,
           log_date: record.log_date || new Date().toISOString().split('T')[0],
           log: record.log || ""
         })

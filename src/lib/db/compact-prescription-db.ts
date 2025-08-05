@@ -1,26 +1,35 @@
-import { connectionManager } from './connection-manager';
-import { CompactPrescriptionExam } from './schema';
+import { apiClient } from '../api-client';
+import { CompactPrescriptionExam } from './schema-interface';
 
-export function createCompactPrescriptionExam(data: Omit<CompactPrescriptionExam, 'id'>) {
-  return connectionManager.createCompactPrescriptionExam(data);
+export async function createCompactPrescriptionExam(data: Omit<CompactPrescriptionExam, 'id'>): Promise<CompactPrescriptionExam | null> {
+  const response = await apiClient.createCompactPrescriptionExam(data, data.layout_instance_id!);
+  return response.data ?? null;
 }
 
-export function getCompactPrescriptionExamById(id: number) {
-  return connectionManager.getCompactPrescriptionExamById(id);
+export async function getCompactPrescriptionExamById(id: number) {
+  // Note: This would need a specific endpoint in the API
+  throw new Error('getCompactPrescriptionExamById not implemented in API yet');
 }
 
-export function getCompactPrescriptionExamByReferralId(referralId: number) {
-  return connectionManager.getCompactPrescriptionExamByReferralId(referralId);
+export async function getCompactPrescriptionExamByReferralId(referralId: number) {
+  // Note: This would need a specific endpoint in the API
+  throw new Error('getCompactPrescriptionExamByReferralId not implemented in API yet');
 }
 
-export function getCompactPrescriptionExamByLayoutInstanceId(layoutInstanceId: number) {
-  return connectionManager.getCompactPrescriptionExamByLayoutInstanceId(layoutInstanceId);
+export async function getCompactPrescriptionExamByLayoutInstanceId(layoutInstanceId: number): Promise<CompactPrescriptionExam | null> {
+  const response = await apiClient.getCompactPrescriptionExam(layoutInstanceId);
+  return response.data ?? null;
 }
 
-export function updateCompactPrescriptionExam(data: CompactPrescriptionExam) {
-  return connectionManager.updateCompactPrescriptionExam(data);
+export async function updateCompactPrescriptionExam(exam: CompactPrescriptionExam): Promise<CompactPrescriptionExam | null> {
+  if (!exam.id) {
+    throw new Error('CompactPrescriptionExam ID is required for update');
+  }
+  const response = await apiClient.updateCompactPrescriptionExam(exam.id, exam);
+  return response.data ?? null;
 }
 
-export function deleteCompactPrescriptionExam(id: number) {
-  return connectionManager.deleteCompactPrescriptionExam(id);
+export async function deleteCompactPrescriptionExam(id: number) {
+  const response = await apiClient.deleteExamData('compact-prescription', id);
+  return response.data;
 } 

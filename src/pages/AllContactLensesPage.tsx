@@ -1,14 +1,16 @@
 import React, { useState, useEffect, useCallback } from "react"
 import { SiteHeader } from "@/components/site-header"
 import { getAllExams } from "@/lib/db/exams-db"
-import { OpticalExam } from "@/lib/db/schema"
+import { OpticalExam } from "@/lib/db/schema-interface"
 import { ContactLensTable } from "@/components/contact-lens-table"
 import { ClientSelectModal } from "@/components/ClientSelectModal"
 import { useNavigate } from "@tanstack/react-router"
 import { getUserById } from "@/lib/db/users-db"
 import { getClientById } from "@/lib/db/clients-db"
+import { useUser } from "@/contexts/UserContext"
 
 export default function AllExamsPage() {
+  const { currentClinic } = useUser()
   const [exams, setExams] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const navigate = useNavigate()
@@ -16,7 +18,7 @@ export default function AllExamsPage() {
   const loadData = useCallback(async () => {
     try {
       setLoading(true)
-      const examsData = await getAllExams('opticlens')
+      const examsData = await getAllExams('opticlens', currentClinic?.id)
       const enriched = await Promise.all(
         examsData.map(async (exam) => {
           let username = ''
@@ -41,8 +43,10 @@ export default function AllExamsPage() {
   }, [])
 
   useEffect(() => {
-    loadData()
-  }, [loadData])
+    if (currentClinic) {
+      loadData()
+    }
+  }, [loadData, currentClinic])
 
   const handleExamDeleted = (deletedExamId: number) => {
     setExams(prevExams => prevExams.filter(exam => exam.id !== deletedExamId))

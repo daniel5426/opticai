@@ -3,12 +3,14 @@ import { useNavigate } from "@tanstack/react-router"
 import { SiteHeader } from "@/components/site-header"
 import { Button } from "@/components/ui/button"
 import { createClient } from "@/lib/db/clients-db"
-import { Client } from "@/lib/db/schema"
+import { Client } from "@/lib/db/schema-interface"
 import { toast } from "sonner"
 import { ClientDetailsTab } from "@/components/client"
+import { useUser } from "@/contexts/UserContext"
 
 export default function NewClientPage() {
   const navigate = useNavigate()
+  const { currentClinic } = useUser()
   const [formData, setFormData] = useState<Client>({
     gender: "זכר",
     blocked_checks: false,
@@ -19,11 +21,11 @@ export default function NewClientPage() {
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
-    setFormData((prev) => ({ ...prev, [name]: value }))
+    setFormData((prev: Client) => ({ ...prev, [name]: value }))
   }
 
   const handleSelectChange = (value: string | boolean, name: string) => {
-    setFormData((prev) => ({ ...prev, [name]: value }))
+    setFormData((prev: Client) => ({ ...prev, [name]: value }))
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -41,9 +43,10 @@ export default function NewClientPage() {
     }
     
     try {
-      // Add file creation date
+      // Add file creation date and clinic_id
       const clientData = {
         ...formData,
+        clinic_id: currentClinic?.id,
         file_creation_date: new Date().toISOString().split('T')[0]
       }
       const newClient = await createClient(clientData)

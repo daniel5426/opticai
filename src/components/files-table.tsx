@@ -18,7 +18,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { MoreHorizontal, File, FileText, FileImage, FileVideo, FileAudio, Upload, Download, Trash2 } from "lucide-react"
-import { File as FileType, User, Client } from "@/lib/db/schema"
+import { File as FileType, User, Client } from "@/lib/db/schema-interface"
 import { ClientSelectModal } from "@/components/ClientSelectModal"
 import { getAllUsers } from "@/lib/db/users-db"
 import { getAllClients } from "@/lib/db/clients-db"
@@ -26,6 +26,7 @@ import { deleteFile, createFile } from "@/lib/db/files-db"
 import { toast } from "sonner"
 import { CustomModal } from "@/components/ui/custom-modal"
 import { Skeleton } from "@/components/ui/skeleton"
+import { useUser } from "@/contexts/UserContext"
 
 interface FilesTableProps {
   data: FileType[]
@@ -38,6 +39,7 @@ interface FilesTableProps {
 }
 
 export function FilesTable({ data, clientId, onFileDeleted, onFileDeleteFailed, onFileUploaded, onClientSelectForUpload, loading }: FilesTableProps) {
+  const { currentClinic } = useUser()
   const [searchQuery, setSearchQuery] = useState("")
   const [users, setUsers] = useState<User[]>([])
   const [clients, setClients] = useState<Client[]>([])
@@ -52,10 +54,12 @@ export function FilesTable({ data, clientId, onFileDeleted, onFileDeleteFailed, 
 
   useEffect(() => {
     const loadData = async () => {
+      if (!currentClinic) return
+      
       try {
         const [usersData, clientsData] = await Promise.all([
-          getAllUsers(),
-          getAllClients()
+          getAllUsers(currentClinic.id),
+          getAllClients(currentClinic.id)
         ])
         setUsers(usersData)
         setClients(clientsData)
@@ -64,7 +68,7 @@ export function FilesTable({ data, clientId, onFileDeleted, onFileDeleteFailed, 
       }
     }
     loadData()
-  }, [])
+  }, [currentClinic])
 
   const getUserName = (userId?: number): string => {
     if (!userId) return ''
@@ -162,6 +166,7 @@ export function FilesTable({ data, clientId, onFileDeleted, onFileDeleteFailed, 
         
         const fileData = {
           client_id: targetClientId,
+          clinic_id: currentClinic?.id,
           file_name: file.name,
           file_path: fileUrl,
           file_size: file.size,

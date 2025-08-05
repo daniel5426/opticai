@@ -1,7 +1,7 @@
 import React from "react"
 import { useParams, useNavigate } from "@tanstack/react-router"
 import { getClientById } from "@/lib/db/clients-db"
-import { Order, OrderEye, OrderLens, Frame } from "@/lib/db/schema"
+import { Order, OrderEye, OrderLens, Frame } from "@/lib/db/schema-interface"
 import { toast } from "sonner"
 import OrderDetailPage from "./OrderDetailPage"
 

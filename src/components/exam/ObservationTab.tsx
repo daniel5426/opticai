@@ -2,7 +2,7 @@ import React from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { SensationVisionStabilityExam } from "@/lib/db/schema"
+import { SensationVisionStabilityExam } from "@/lib/db/schema-interface"
 
 interface ObservationTabProps {
   data: SensationVisionStabilityExam
@@ -38,14 +38,14 @@ export function ObservationTab({ data, onChange, isEditing }: ObservationTabProp
               <Label className="text-sm font-medium text-right ">{label}</Label>
               <Input
                 name={`r_${key}`}
-                value={data[`r_${key}`] || ''}
+                value={data[`r_${key}` as keyof SensationVisionStabilityExam] || ''}
                 onChange={e => handleInput(`r_${key}` as keyof SensationVisionStabilityExam, e.target.value)}
                 disabled={!isEditing}
                 className={`h-9 pr-2 text-sm flex-1 ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
               />
               <Input
                 name={`l_${key}`}
-                value={data[`l_${key}`] || ''}
+                value={data[`l_${key}` as keyof SensationVisionStabilityExam] || ''}
                 onChange={e => handleInput(`l_${key}` as keyof SensationVisionStabilityExam, e.target.value)}
                 disabled={!isEditing}
                 className={`h-9 pr-2 text-sm flex-1 ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}

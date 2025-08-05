@@ -1,5 +1,5 @@
 import React from "react"
-import { Client, Family } from "@/lib/db/schema"
+import { Client, Family } from "@/lib/db/schema-interface"
 
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"

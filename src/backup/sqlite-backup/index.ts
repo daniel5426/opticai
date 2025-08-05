@@ -4,7 +4,6 @@ import path from 'path';
 import fs from 'fs';
 import { googleCalendarSync } from '../google/google-calendar-sync';
 import {
-  createTables,
   Client,
   Family,
   OpticalExam,
@@ -19,9 +18,6 @@ import {
   RetinoscopDilationExam,
   Order,
   OrderEye,
-  OrderLens,
-  Frame,
-  OrderDetails,
   MedicalLog,
   ContactLensOrder,
   Billing,
@@ -81,8 +77,10 @@ import {
   RGExam,
   OcularMotorAssessmentExam,
   Company,
-  Clinic
-} from './schema';
+  Clinic,
+  OrderDetails
+} from './schema-interface';
+import { createTables } from './schema';
 import * as usersDb from './users-db'
 import * as workShiftsDb from './work-shifts-db'
 import * as anamnesisDb from './anamnesis-db'
@@ -108,7 +106,6 @@ class DatabaseService {
       this.db.pragma('foreign_keys = ON');
 
       createTables(this.db);
-      this.migrateDatabase();
 
       this.seedInitialData();
 
@@ -118,109 +115,6 @@ class DatabaseService {
     }
   }
 
-  private migrateDatabase(): void {
-    if (!this.db) return;
-
-    try {
-      // Check if notes columns exist in order_details table
-      const orderDetailsInfo = this.db.prepare("PRAGMA table_info(order_details)").all() as unknown[];
-      const hasNotesColumn = orderDetailsInfo.some(col => col.name === 'notes');
-      const hasLensOrderNotesColumn = orderDetailsInfo.some(col => col.name === 'lens_order_notes');
-
-      // Add notes column if it doesn't exist
-      if (!hasNotesColumn) {
-        this.db.exec('ALTER TABLE order_details ADD COLUMN notes TEXT');
-        console.log('Added notes column to order_details table');
-      }
-
-      // Add lens_order_notes column if it doesn't exist
-      if (!hasLensOrderNotesColumn) {
-        this.db.exec('ALTER TABLE order_details ADD COLUMN lens_order_notes TEXT');
-        console.log('Added lens_order_notes column to order_details table');
-      }
-
-      // Check if appointments table has duration column
-      const appointmentsInfo = this.db.prepare("PRAGMA table_info(appointments)").all() as unknown[];
-      const hasDurationColumn = appointmentsInfo.some(col => col.name === 'duration');
-      const hasGoogleCalendarEventIdColumn = appointmentsInfo.some(col => col.name === 'google_calendar_event_id');
-      
-      // Add duration column if it doesn't exist
-      if (!hasDurationColumn) {
-        this.db.exec('ALTER TABLE appointments ADD COLUMN duration INTEGER DEFAULT 30');
-        console.log('Added duration column to appointments table');
-      }
-
-      // Add google_calendar_event_id column if it doesn't exist
-      if (!hasGoogleCalendarEventIdColumn) {
-        this.db.exec('ALTER TABLE appointments ADD COLUMN google_calendar_event_id TEXT');
-        console.log('Added google_calendar_event_id column to appointments table');
-      }
-
-      // Check if clients table has family columns
-      const clientsInfo = this.db.prepare("PRAGMA table_info(clients)").all() as unknown[];
-      const hasFamilyIdColumn = clientsInfo.some(col => col.name === 'family_id');
-      const hasFamilyRoleColumn = clientsInfo.some(col => col.name === 'family_role');
-
-      // Add family_id column if it doesn't exist
-      if (!hasFamilyIdColumn) {
-        this.db.exec('ALTER TABLE clients ADD COLUMN family_id INTEGER');
-        console.log('Added family_id column to clients table');
-      }
-
-      // Add family_role column if it doesn't exist
-      if (!hasFamilyRoleColumn) {
-        this.db.exec('ALTER TABLE clients ADD COLUMN family_role TEXT');
-        console.log('Added family_role column to clients table');
-      }
-
-      // Check if appointments table has redundant client fields that should be removed
-      const hasFirstNameColumn = appointmentsInfo.some(col => col.name === 'first_name');
-      const hasLastNameColumn = appointmentsInfo.some(col => col.name === 'last_name');
-      const hasPhoneMobileColumn = appointmentsInfo.some(col => col.name === 'phone_mobile');
-      const hasEmailColumn = appointmentsInfo.some(col => col.name === 'email');
-
-      // If redundant client fields exist, migrate to new structure
-      if (hasFirstNameColumn || hasLastNameColumn || hasPhoneMobileColumn || hasEmailColumn) {
-        console.log('Migrating appointments table to remove redundant client fields...');
-
-        // Create backup of existing data
-        const existingAppointments = this.db.prepare('SELECT * FROM appointments').all() as unknown[];
-
-        // Drop and recreate table with new structure (without redundant client fields)
-        this.db.exec('DROP TABLE appointments');
-        this.db.exec(`
-          CREATE TABLE appointments (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            client_id INTEGER NOT NULL,
-            date DATE,
-            time TEXT,
-            exam_name TEXT,
-            note TEXT,
-            FOREIGN KEY(client_id) REFERENCES clients(id) ON DELETE CASCADE
-          )
-        `);
-
-        // Restore data without the redundant client fields
-        for (const appointment of existingAppointments) {
-          this.db.prepare(`
-            INSERT INTO appointments (id, client_id, date, time, exam_name, note)
-            VALUES (?, ?, ?, ?, ?, ?)
-          `).run(
-            appointment.id,
-            appointment.client_id,
-            appointment.date,
-            appointment.time,
-            appointment.exam_name,
-            appointment.note
-          );
-        }
-
-        console.log('Appointments table migration completed - redundant client fields removed');
-      }
-    } catch (error) {
-      console.error('Error during database migration:', error);
-    }
-  }
 
   private seedInitialData(): void {
     if (!this.db) return;
@@ -809,12 +703,17 @@ class DatabaseService {
     }
   }
 
-  getAllFamilies(): Family[] {
+  getAllFamilies(clinicId?: number): Family[] {
     if (!this.db) return [];
 
     try {
-      const stmt = this.db.prepare('SELECT * FROM families ORDER BY name');
-      return stmt.all() as Family[];
+      if (clinicId) {
+        const stmt = this.db.prepare('SELECT * FROM families WHERE clinic_id = ? ORDER BY name');
+        return stmt.all(clinicId) as Family[];
+      } else {
+        const stmt = this.db.prepare('SELECT * FROM families ORDER BY name');
+        return stmt.all() as Family[];
+      }
     } catch (error) {
       console.error('Error getting all families:', error);
       return [];
@@ -1098,12 +997,12 @@ class DatabaseService {
     try {
       const stmt = this.db.prepare(`
         INSERT INTO optical_exams (
-          client_id, clinic, user_id, exam_date, test_name, dominant_eye, type
+          client_id, clinic_id, user_id, exam_date, test_name, dominant_eye, type
         ) VALUES (?, ?, ?, ?, ?, ?, ?)
       `);
 
       const result = stmt.run(
-        exam.client_id, exam.clinic, this.sanitizeValue(exam.user_id), exam.exam_date, exam.test_name,
+        exam.client_id, this.sanitizeValue(exam.clinic_id), this.sanitizeValue(exam.user_id), exam.exam_date, exam.test_name,
         exam.dominant_eye, exam.type || 'exam'
       );
 
@@ -2111,12 +2010,12 @@ class DatabaseService {
 
     try {
       const stmt = this.db.prepare(`
-        INSERT INTO orders (client_id, order_date, type, dominant_eye, user_id, lens_id, frame_id, comb_va, comb_high, comb_pd)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO orders (client_id, clinic_id, order_date, type, dominant_eye, user_id, lens_id, frame_id, comb_va, comb_high, comb_pd)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
 
       const result = stmt.run(
-        order.client_id, order.order_date, order.type, order.dominant_eye, this.sanitizeValue(order.user_id), order.lens_id, order.frame_id,
+        order.client_id, this.sanitizeValue(order.clinic_id), order.order_date, order.type, order.dominant_eye, this.sanitizeValue(order.user_id), order.lens_id, order.frame_id,
         order.comb_va, order.comb_high, order.comb_pd
       );
 
@@ -2268,6 +2167,17 @@ class DatabaseService {
     }
   }
 
+  getFrameByOrderId(orderId: number): any {
+    if (!this.db) return null;
+    const stmt = this.db.prepare("SELECT * FROM frames WHERE order_id = ?");
+    return stmt.get(orderId);
+  }
+
+  getOrderLensByOrderId(orderId: number): any {
+    if (!this.db) return null;
+    const stmt = this.db.prepare("SELECT * FROM order_lens WHERE order_id = ?");
+    return stmt.get(orderId);
+  }
   // Medical Log operations
   createMedicalLog(log: Omit<MedicalLog, 'id'>): MedicalLog | null {
     if (!this.db) return null;
@@ -3081,13 +2991,14 @@ class DatabaseService {
     try {
       const stmt = this.db.prepare(`
         INSERT INTO referrals (
-          client_id, user_id, referral_notes, prescription_notes,
+          client_id, clinic_id, user_id, referral_notes, prescription_notes,
           date, type, branch, recipient
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
 
       const result = stmt.run(
         referral.client_id,
+        this.sanitizeValue(referral.clinic_id),
         this.sanitizeValue(referral.user_id),
         this.sanitizeValue(referral.referral_notes),
         this.sanitizeValue(referral.prescription_notes),
@@ -3280,12 +3191,13 @@ class DatabaseService {
 
     try {
       const stmt = this.db.prepare(`
-        INSERT INTO appointments (client_id, user_id, date, time, duration, exam_name, note, google_calendar_event_id)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO appointments (client_id, clinic_id, user_id, date, time, duration, exam_name, note, google_calendar_event_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
 
       const result = stmt.run(
         appointment.client_id,
+        this.sanitizeValue(appointment.clinic_id),
         this.sanitizeValue(appointment.user_id),
         this.sanitizeValue(appointment.date),
         this.sanitizeValue(appointment.time),
@@ -3615,7 +3527,7 @@ class DatabaseService {
 
     try {
       if (companyId) {
-        // Get users that belong to clinics of the specified company OR are company admin users (clinic_id is null)
+        // Get users that belong to clinics of the specified company OR are company CEO users (clinic_id is null)
         const stmt = this.db.prepare(`
           SELECT u.* FROM users u 
           LEFT JOIN clinics c ON u.clinic_id = c.id 
@@ -3653,6 +3565,25 @@ class DatabaseService {
       return stmt.all(clinicId) as User[];
     } catch (error) {
       console.error('Error getting users by clinic ID:', error);
+      return [];
+    }
+  }
+
+  getUsersByCompanyId(companyId: number): User[] {
+    if (!this.db) return [];
+
+    try {
+      // Get all users from clinics that belong to this company, plus global users
+      const stmt = this.db.prepare(`
+        SELECT DISTINCT u.* 
+        FROM users u 
+        LEFT JOIN clinics c ON u.clinic_id = c.id 
+        WHERE (c.company_id = ? OR u.clinic_id IS NULL) AND u.is_active = 1 
+        ORDER BY u.username
+      `);
+      return stmt.all(companyId) as User[];
+    } catch (error) {
+      console.error('Error getting users by company ID:', error);
       return [];
     }
   }
@@ -3835,16 +3766,16 @@ class DatabaseService {
   }
 
   // Chat CRUD operations
-  createChat(title: string): Chat | null {
+  createChat(title: string, clinicId?: number): Chat | null {
     if (!this.db) return null;
 
     try {
       const stmt = this.db.prepare(`
-        INSERT INTO chats (title) VALUES (?)
+        INSERT INTO chats (title, clinic_id) VALUES (?, ?)
       `);
 
-      const result = stmt.run(title);
-      return { id: result.lastInsertRowid as number, title };
+      const result = stmt.run(title, clinicId);
+      return { id: result.lastInsertRowid as number, title, clinic_id: clinicId };
     } catch (error) {
       console.error('Error creating chat:', error);
       return null;
@@ -3871,6 +3802,18 @@ class DatabaseService {
       return stmt.all() as Chat[];
     } catch (error) {
       console.error('Error getting all chats:', error);
+      return [];
+    }
+  }
+
+  getChatsByClinicId(clinicId: number): Chat[] {
+    if (!this.db) return [];
+
+    try {
+      const stmt = this.db.prepare('SELECT * FROM chats WHERE clinic_id = ? ORDER BY updated_at DESC');
+      return stmt.all(clinicId) as Chat[];
+    } catch (error) {
+      console.error('Error getting chats by clinic ID:', error);
       return [];
     }
   }
@@ -5282,6 +5225,18 @@ class DatabaseService {
       return stmt.all() as ExamLayout[];
     } catch (error) {
       console.error('Error getting all exam layouts:', error);
+      return [];
+    }
+  }
+
+  getExamLayoutsByClinicId(clinicId: number): ExamLayout[] {
+    if (!this.db) return [];
+
+    try {
+      const stmt = this.db.prepare('SELECT * FROM exam_layouts WHERE clinic_id = ? AND is_active = 1 ORDER BY created_at DESC');
+      return stmt.all(clinicId) as ExamLayout[];
+    } catch (error) {
+      console.error('Error getting exam layouts by clinic ID:', error);
       return [];
     }
   }
@@ -6838,7 +6793,7 @@ class DatabaseService {
 
   getFusionRangeExamByLayoutInstanceId(layoutInstanceId: number): FusionRangeExam | null {
     if (!this.db) return null;
-    const row = this.db.prepare(`SELECT * FROM fusion_range_exams WHERE layout_instance_id = ?`).get(layoutInstanceId);
+    const row = this.db.prepare(`SELECT * FROM fusion_range_exams WHERE layout_instance_id = ?`).get(layoutInstanceId) as FusionRangeExam | null;
     return row || null;
   }
 
@@ -6877,7 +6832,7 @@ class DatabaseService {
 
   getMaddoxRodExamByLayoutInstanceId(layoutInstanceId: number): MaddoxRodExam | null {
     if (!this.db) return null;
-    const row = this.db.prepare(`SELECT * FROM maddox_rod_exams WHERE layout_instance_id = ?`).get(layoutInstanceId);
+    const row = this.db.prepare(`SELECT * FROM maddox_rod_exams WHERE layout_instance_id = ?`).get(layoutInstanceId) as MaddoxRodExam | null;
     return row || null;
   }
 
@@ -6911,11 +6866,11 @@ class DatabaseService {
 
   getStereoTestExamByLayoutInstanceId(layoutInstanceId: number): StereoTestExam | null {
     if (!this.db) return null;
-    const row = this.db.prepare(`SELECT * FROM stereo_test_exams WHERE layout_instance_id = ?`).get(layoutInstanceId);
+    const row = this.db.prepare(`SELECT * FROM stereo_test_exams WHERE layout_instance_id = ?`).get(layoutInstanceId) as StereoTestExam | null;
     if (row) {
       return {
         ...row,
-        fly_result: row.fly_result === 1
+        fly_result: row.fly_result
       };
     }
     return null;
@@ -6945,7 +6900,7 @@ class DatabaseService {
 
   getRGExamByLayoutInstanceId(layoutInstanceId: number): RGExam | null {
     if (!this.db) return null;
-    const row = this.db.prepare(`SELECT * FROM rg_exams WHERE layout_instance_id = ?`).get(layoutInstanceId);
+    const row = this.db.prepare(`SELECT * FROM rg_exams WHERE layout_instance_id = ?`).get(layoutInstanceId) as RGExam | null;
     return row || null;
   }
 
@@ -6975,7 +6930,7 @@ class DatabaseService {
 
   getOcularMotorAssessmentExamByLayoutInstanceId(layoutInstanceId: number): OcularMotorAssessmentExam | null {
     if (!this.db) return null;
-    const row = this.db.prepare(`SELECT * FROM ocular_motor_assessment_exams WHERE layout_instance_id = ?`).get(layoutInstanceId);
+    const row = this.db.prepare(`SELECT * FROM ocular_motor_assessment_exams WHERE layout_instance_id = ?`).get(layoutInstanceId) as OcularMotorAssessmentExam | null;
     return row || null;
   }
 

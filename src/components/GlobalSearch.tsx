@@ -12,7 +12,8 @@ import { getAllFamilies } from '@/lib/db/family-db'
 import { getAllReferrals } from '@/lib/db/referral-db'
 import { getAllAppointments } from '@/lib/db/appointments-db'
 import { getAllCampaigns } from '@/lib/db/campaigns-db'
-import { Client, OpticalExam, MedicalLog, Family, Referral, Appointment, Campaign } from '@/lib/db/schema'
+import { Client, OpticalExam, MedicalLog, Family, Referral, Appointment, Campaign, Clinic } from '@/lib/db/schema-interface'
+import { useUser } from '@/contexts/UserContext'
 
 interface SearchResult {
   id: string
@@ -29,6 +30,16 @@ interface GlobalSearchProps {
 }
 
 export function GlobalSearch({ onClose }: GlobalSearchProps) {
+  // Safely get user context with error handling
+  let currentClinic: Clinic | null = null;
+  try {
+    const userContext = useUser();
+    currentClinic = userContext.currentClinic;
+  } catch (error) {
+    // UserContext not ready yet, return early
+    return null;
+  }
+  
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<SearchResult[]>([])
   const [loading, setLoading] = useState(false)
@@ -57,25 +68,27 @@ export function GlobalSearch({ onClose }: GlobalSearchProps) {
 
   useEffect(() => {
     const loadAllData = async () => {
+      if (!currentClinic) return
+      
       try {
         const [clients, exams, medicalLogs, families, referrals, appointments, campaigns] = await Promise.all([
-          getAllClients(),
-          getAllExams(),
-          getAllMedicalLogs(),
-          getAllFamilies(),
-          getAllReferrals(),
-          getAllAppointments(),
-          getAllCampaigns()
+          getAllClients(currentClinic.id),
+          getAllExams(undefined, currentClinic.id),
+          getAllMedicalLogs(currentClinic.id),
+          getAllFamilies(currentClinic.id),
+          getAllReferrals(currentClinic.id),
+          getAllAppointments(currentClinic.id),
+          getAllCampaigns(currentClinic.id)
         ])
         
         setAllData({
-          clients,
-          exams,
-          medicalLogs,
-          families,
-          referrals,
-          appointments,
-          campaigns
+          clients: clients || [],
+          exams: exams || [],
+          medicalLogs: medicalLogs || [],
+          families: families || [],
+          referrals: referrals || [],
+          appointments: appointments || [],
+          campaigns: campaigns || []
         })
       } catch (error) {
         console.error('Error loading search data:', error)
@@ -83,7 +96,7 @@ export function GlobalSearch({ onClose }: GlobalSearchProps) {
     }
 
     loadAllData()
-  }, [])
+  }, [currentClinic])
 
   const normalizeDate = (dateStr: string): string => {
     return dateStr.replace(/[.-]/g, '-')
@@ -234,7 +247,6 @@ export function GlobalSearch({ onClose }: GlobalSearchProps) {
           matchedFields.push('תאריך בדיקה')
         }
       }
-      if (exam.notes?.toLowerCase().includes(lowerQuery)) matchedFields.push('הערות')
       
       return matchedFields.length > 0
     }).map(exam => {
@@ -251,7 +263,6 @@ export function GlobalSearch({ onClose }: GlobalSearchProps) {
           matchedFields.push('תאריך בדיקה')
         }
       }
-      if (exam.notes?.toLowerCase().includes(lowerQuery)) matchedFields.push('הערות')
       
       return {
         id: `exam-${exam.id}`,

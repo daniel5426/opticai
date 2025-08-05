@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react"
 import { SiteHeader } from "@/components/site-header"
 import { getAllOrders } from "@/lib/db/orders-db"
-import { Order } from "@/lib/db/schema"
+import { Order } from "@/lib/db/schema-interface"
 import { OrdersTable } from "@/components/orders-table"
 import { ClientSelectModal } from "@/components/ClientSelectModal"
 import { useNavigate } from "@tanstack/react-router"

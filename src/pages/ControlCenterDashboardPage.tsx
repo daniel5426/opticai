@@ -3,7 +3,7 @@ import { SiteHeader } from "@/components/site-header"
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { useRouter } from '@tanstack/react-router';
+import { useRouter, useSearch } from '@tanstack/react-router';
 import { 
   Building2, 
   Users, 
@@ -18,7 +18,8 @@ import {
   ChevronLeft,
   ChevronRight
 } from 'lucide-react';
-import type { Company, Clinic, User } from '@/lib/db/schema';
+import type { Company, Clinic, User } from '@/lib/db/schema-interface';
+import { apiClient } from '@/lib/api-client';
 
 interface DashboardStats {
   totalClinics: number;
@@ -30,6 +31,7 @@ interface DashboardStats {
 
 const ControlCenterDashboardPage: React.FC = () => {
   const router = useRouter();
+  const search = useSearch({ from: '/control-center/dashboard' });
   const [company, setCompany] = useState<Company | null>(null);
   const [clinics, setClinics] = useState<Clinic[]>([]);
   const [users, setUsers] = useState<User[]>([]);
@@ -50,29 +52,68 @@ const ControlCenterDashboardPage: React.FC = () => {
     try {
       setLoading(true);
       
-      const companyData = sessionStorage.getItem('controlCenterCompany');
+      let companyData = sessionStorage.getItem('controlCenterCompany');
+      let userData = sessionStorage.getItem('currentUser');
+      
+      console.log('Dashboard - Company data from sessionStorage:', companyData);
+      console.log('Dashboard - User data from sessionStorage:', userData);
+      console.log('Dashboard - Search params:', search);
+      
+      // If coming from setup wizard, restore authentication state
+      if (search.fromSetup === 'true' && search.companyId && search.companyName) {
+        console.log('Dashboard - Coming from setup wizard, restoring auth state');
+        
+        if (!companyData || !userData) {
+          // Get company and user from database
+          const companyResponse = await apiClient.getCompany(parseInt(search.companyId));
+          const company = companyResponse.data;
+          if (company) {
+            const userResponse = await apiClient.getUserByUsername('admin');
+            const user = userResponse.data;
+            if (user) {
+              console.log('Dashboard - Restored auth state from database');
+              sessionStorage.setItem('controlCenterCompany', JSON.stringify(company));
+              sessionStorage.setItem('currentUser', JSON.stringify(user));
+              companyData = JSON.stringify(company);
+              userData = JSON.stringify(user);
+            }
+          }
+        }
+      }
+      
       if (!companyData) {
+        console.log('Dashboard - No company data found, redirecting to control center');
         router.navigate({ to: '/control-center' });
         return;
       }
       
       const parsedCompany = JSON.parse(companyData) as Company;
+      console.log('Dashboard - Parsed company:', parsedCompany);
       setCompany(parsedCompany);
 
-      const clinicsResult = await window.electronAPI.db('getClinicsByCompanyId', parsedCompany.id);
-      setClinics(clinicsResult || []);
+      if (!userData) {
+        console.log('Dashboard - No user data found, redirecting to control center');
+        router.navigate({ to: '/control-center' });
+        return;
+      }
 
-      const allUsers = await window.electronAPI.db('getAllUsers');
-      setUsers(allUsers || []);
+      const clinicsResult = await apiClient.getClinicsByCompany(parsedCompany.id!);
+      const clinicsData = clinicsResult.data || [];
+      setClinics(clinicsData);
 
-      const activeClinics = clinicsResult?.filter((clinic: Clinic) => clinic.is_active) || [];
-      const totalAppointments = await window.electronAPI.db('getAllAppointments');
+      const allUsersResponse = await apiClient.getUsers();
+      const allUsers = allUsersResponse.data || [];
+      setUsers(allUsers);
+
+      const activeClinics = clinicsData?.filter((clinic: Clinic) => clinic.is_active) || [];
+      const totalAppointmentsResponse = await apiClient.getAppointments();
+      const totalAppointments = totalAppointmentsResponse.data || [];
       
       setStats({
-        totalClinics: clinicsResult?.length || 0,
+        totalClinics: clinicsData?.length || 0,
         activeClinics: activeClinics.length,
-        totalUsers: allUsers?.length || 0,
-        totalAppointments: totalAppointments?.length || 0,
+        totalUsers: allUsers.length,
+        totalAppointments: totalAppointments.length,
         monthlyRevenue: 0
       });
 
@@ -91,13 +132,6 @@ const ControlCenterDashboardPage: React.FC = () => {
     router.navigate({ to: '/control-center/clinics' });
   };
 
-  const handleNavigateToSettings = () => {
-    router.navigate({ to: '/control-center/settings' });
-  };
-
-  const handleAddClinic = () => {
-    router.navigate({ to: '/control-center/clinics/new' });
-  };
 
   if (loading) {
     return (
@@ -113,7 +147,7 @@ const ControlCenterDashboardPage: React.FC = () => {
   return (
     <>
       <SiteHeader title="לוח בקרה" />
-      <div className="flex flex-col bg-muted/50 flex-1 gap-6 pb-40" dir="rtl" style={{ scrollbarWidth: 'none' }}>
+      <div className="flex flex-col bg-muted/50 h-full flex-1 gap-6 pb-40" dir="rtl" style={{ scrollbarWidth: 'none' }}>
         
         {/* Header Section */}
         <div className="flex items-center justify-between p-4 lg:p-6 pb-0 lg:pb-1">
@@ -124,7 +158,7 @@ const ControlCenterDashboardPage: React.FC = () => {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <Button onClick={handleNavigateToSettings} variant="outline" className="bg-card shadow-md border-none dark:bg-card">
+            <Button  variant="outline" className="bg-card shadow-md border-none dark:bg-card">
               <Settings className="h-4 w-4 ml-2" />
               הגדרות
             </Button>
@@ -188,94 +222,6 @@ const ControlCenterDashboardPage: React.FC = () => {
             </Card>
           </div>
 
-          {/* Clinics Overview Card */}
-          <Card className="bg-card border-none shadow-md">
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle className="flex items-center gap-2 text-sm font-medium">
-                    <Building2 className="w-4 h-4 text-primary" />
-                    מרפאות
-                  </CardTitle>
-                  <p className="text-xs text-muted-foreground">רשימת כל המרפאות במערכת</p>
-                </div>
-                <Button onClick={handleNavigateToClinics} variant="outline" size="sm" className="bg-card shadow-md border-none dark:bg-card">
-                  <Eye className="w-4 h-4 ml-2" />
-                  צפה בכל
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {clinics.slice(0, 5).map((clinic) => (
-                  <div key={clinic.id} className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
-                    <div className="flex items-center gap-3">
-                      <div className={`w-2 h-2 rounded-full ${clinic.is_active ? 'bg-green-500' : 'bg-gray-400'}`} />
-                      <div>
-                        <p className="text-sm font-medium">{clinic.name}</p>
-                        <p className="text-xs text-muted-foreground">{clinic.address}</p>
-                      </div>
-                    </div>
-                    <Badge variant={clinic.is_active ? "default" : "secondary"} className="text-xs">
-                      {clinic.is_active ? 'פעיל' : 'לא פעיל'}
-                    </Badge>
-                  </div>
-                ))}
-                {clinics.length === 0 && (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <Building2 className="w-8 h-8 mx-auto mb-2 text-muted-foreground/50" />
-                    <p className="text-sm">אין מרפאות במערכת</p>
-                    <Button onClick={handleAddClinic} className="mt-2" size="sm">
-                      הוסף מרפאה ראשונה
-                    </Button>
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Users Overview Card */}
-          <Card className="bg-card border-none shadow-md">
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle className="flex items-center gap-2 text-sm font-medium">
-                    <Users className="w-4 h-4 text-secondary-foreground" />
-                    משתמשים
-                  </CardTitle>
-                  <p className="text-xs text-muted-foreground">רשימת המשתמשים האחרונים במערכת</p>
-                </div>
-                <Button onClick={handleNavigateToUsers} variant="outline" size="sm" className="bg-card shadow-md border-none dark:bg-card">
-                  <UserCheck className="w-4 h-4 ml-2" />
-                  נהל משתמשים
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {users.slice(0, 5).map((user) => (
-                  <div key={user.id} className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
-                    <div className="flex items-center gap-3">
-                      <div className={`w-2 h-2 rounded-full ${user.is_active ? 'bg-green-500' : 'bg-gray-400'}`} />
-                      <div>
-                        <p className="text-sm font-medium">{user.username}</p>
-                        <p className="text-xs text-muted-foreground">{user.email}</p>
-                      </div>
-                    </div>
-                    <Badge variant="outline" className="text-xs">
-                      {user.role}
-                    </Badge>
-                  </div>
-                ))}
-                {users.length === 0 && (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <Users className="w-8 h-8 mx-auto mb-2 text-muted-foreground/50" />
-                    <p className="text-sm">אין משתמשים במערכת</p>
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
 
         </div>
       </div>

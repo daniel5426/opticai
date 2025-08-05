@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react'
-import { Client } from '@/lib/db/schema'
+import { Client } from '@/lib/db/schema-interface'
 import { useParams } from "@tanstack/react-router"
 import { getClientById } from "@/lib/db/clients-db"
 

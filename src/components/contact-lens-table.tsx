@@ -11,7 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Plus, Trash2 } from "lucide-react";
-import { OpticalExam, User, Client } from "@/lib/db/schema";
+import { OpticalExam, User, Client } from "@/lib/db/schema-interface";
 import { ClientSelectModal } from "@/components/ClientSelectModal";
 import { CustomModal } from "@/components/ui/custom-modal";
 import { deleteExam } from "@/lib/db/exams-db";
@@ -134,10 +134,10 @@ export function ContactLensTable({ data, clientId, onExamDeleted, onExamDeleteFa
                     className="cursor-pointer"
                     onClick={() => {
                       navigate({
-                        to: "/clients/$clientId/contact-lenses/$examId",
+                        to: "/clients/$clientId/contact-lenses/$contactLensId",
                         params: {
                           clientId: String(exam.client_id),
-                          examId: String(exam.id),
+                          contactLensId: String(exam.id),
                         },
                       });
                     }}

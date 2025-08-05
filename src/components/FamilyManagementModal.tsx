@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react"
-import { Family, Client } from "@/lib/db/schema"
+import { Family, Client } from "@/lib/db/schema-interface"
 import { CustomModal } from "@/components/ui/custom-modal"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -11,6 +11,7 @@ import { getAllClients } from "@/lib/db/clients-db"
 import { createFamily, updateFamily, addClientToFamily, removeClientFromFamily, getFamilyMembers } from "@/lib/db/family-db"
 import { toast } from "sonner"
 import { SearchIcon } from "lucide-react"
+import { useUser } from "@/contexts/UserContext"
 
 interface FamilyManagementModalProps {
   isOpen: boolean
@@ -25,6 +26,7 @@ interface ClientWithSelection extends Client {
 }
 
 export function FamilyManagementModal({ isOpen, onClose, family, onFamilyChange }: FamilyManagementModalProps) {
+  const { currentClinic } = useUser()
   const [familyName, setFamilyName] = useState('')
   const [familyNotes, setFamilyNotes] = useState('')
   const [allClients, setAllClients] = useState<Client[]>([])
@@ -51,8 +53,10 @@ export function FamilyManagementModal({ isOpen, onClose, family, onFamilyChange 
   }, [isOpen, family])
 
   const loadClients = async () => {
+    if (!currentClinic) return
+    
     try {
-      const clients = await getAllClients()
+      const clients = await getAllClients(currentClinic.id)
       setAllClients(clients)
     } catch (error) {
       console.error('Error loading clients:', error)

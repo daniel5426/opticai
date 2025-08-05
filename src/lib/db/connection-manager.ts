@@ -1,8 +1,6 @@
 import { httpClient } from './http-client';
 import { ElectronAPI } from '../../types/electron';
-import { dbService } from './index';
-
-type DBServiceType = typeof dbService;
+import { apiClient } from '../api-client';
 
 export type ConnectionMode = 'local' | 'remote';
 
@@ -156,14 +154,149 @@ class DynamicConnectionManager extends ConnectionManager {
           return Reflect.get(target, prop, receiver);
         }
 
-        // Dynamically create a method that calls through execute
-        return (...args: any[]) => {
-          return this.execute(prop as any, ...args);
+        // Dynamically create a method that calls through apiClient
+        return async (...args: any[]) => {
+          // Map old method names to apiClient methods
+          const methodMap: { [key: string]: string } = {
+            'getAllClients': 'getAllClients',
+            'getClientById': 'getClientById',
+            'createClient': 'createClient',
+            'updateClient': 'updateClient',
+            'deleteClient': 'deleteClient',
+            'getAllExams': 'getAllExams',
+            'getExamById': 'getExam',
+            'createExam': 'createExam',
+            'updateExam': 'updateExam',
+            'deleteExam': 'deleteExam',
+            'getAllUsers': 'getUsers',
+            'getUserById': 'getUser',
+            'createUser': 'createUser',
+            'updateUser': 'updateUser',
+            'deleteUser': 'deleteUser',
+            'authenticateUser': 'authenticateUser',
+            'getAllAppointments': 'getAllAppointments',
+            'getAppointmentById': 'getAppointmentById',
+            'createAppointment': 'createAppointment',
+            'updateAppointment': 'updateAppointment',
+            'deleteAppointment': 'deleteAppointment',
+            'getAllCampaigns': 'getAllCampaigns',
+            'getCampaignById': 'getCampaignById',
+            'createCampaign': 'createCampaign',
+            'updateCampaign': 'updateCampaign',
+            'deleteCampaign': 'deleteCampaign',
+            'getSettings': 'getSettings',
+            'updateSettings': 'updateSettings',
+            'getAllClientDataForAi': 'getAllClientDataForAi',
+            'updateClientAiStates': 'updateClientAiStates',
+            'updateClientAiPartState': 'updateClientAiPartState',
+            'getClinicsByCompanyId': 'getClinicsByCompany',
+            'getAppointmentsByUserId': 'getAppointmentsByUser',
+            'createMedicalLog': 'createMedicalLog',
+            'updateMedicalLog': 'updateMedicalLog',
+            'deleteMedicalLog': 'deleteMedicalLog',
+            'getMedicalLogsByClient': 'getMedicalLogsByClient',
+            'getAllMedicalLogs': 'getMedicalLogs',
+            'getMedicalLogById': 'getMedicalLog',
+            'createFile': 'createFile',
+            'updateFile': 'updateFile',
+            'deleteFile': 'deleteFile',
+            'getFilesByClient': 'getFilesByClient',
+            'getAllFiles': 'getFiles',
+            'getFileById': 'getFile',
+            'createOrder': 'createOrder',
+            'updateOrder': 'updateOrder',
+            'deleteOrder': 'deleteOrder',
+            'getOrdersByClient': 'getOrdersByClient',
+            'getAllOrders': 'getAllOrders',
+            'getOrderById': 'getOrder',
+            'createFamily': 'createFamily',
+            'updateFamily': 'updateFamily',
+            'deleteFamily': 'deleteFamily',
+            'getAllFamilies': 'getFamilies',
+            'getFamilyById': 'getFamily',
+            'getFamilyMembers': 'getFamilyMembers',
+            'addClientToFamily': 'addClientToFamily',
+            'removeClientFromFamily': 'removeClientFromFamily',
+            'createWorkShift': 'createWorkShift',
+            'updateWorkShift': 'updateWorkShift',
+            'deleteWorkShift': 'deleteWorkShift',
+            'getWorkShiftById': 'getWorkShift',
+            'getWorkShiftsByUserId': 'getWorkShifts',
+            'getActiveWorkShiftByUserId': 'getActiveWorkShift',
+            'getWorkShiftsByUserAndMonth': 'getWorkShiftsByUserAndMonth',
+            'getWorkShiftsByUserAndDate': 'getWorkShiftsByUserAndDate',
+            'getWorkShiftStats': 'getWorkShiftStats',
+            'createAnamnesisExam': 'createExamData',
+            'getAnamnesisExamById': 'getExamData',
+            'updateAnamnesisExam': 'updateExamData',
+            'deleteAnamnesisExam': 'deleteExamData',
+            'getAnamnesisExamByLayoutInstanceId': 'getExamData',
+            'createCoverTestExam': 'createExamData',
+            'getCoverTestExamById': 'getExamData',
+            'updateCoverTestExam': 'updateExamData',
+            'deleteCoverTestExam': 'deleteExamData',
+            'getCoverTestExamByLayoutInstanceId': 'getExamData',
+            'getAllCoverTestExamsByLayoutInstanceId': 'getExamData',
+            'createSchirmerTestExam': 'createExamData',
+            'getSchirmerTestExamById': 'getExamData',
+            'updateSchirmerTestExam': 'updateExamData',
+            'getSchirmerTestExamByLayoutInstanceId': 'getExamData',
+            'createRGExam': 'createExamData',
+            'getRGExamByLayoutInstanceId': 'getExamData',
+            'updateRGExam': 'updateExamData',
+            'createMaddoxRodExam': 'createExamData',
+            'getMaddoxRodExamByLayoutInstanceId': 'getExamData',
+            'updateMaddoxRodExam': 'updateExamData',
+            'createStereoTestExam': 'createExamData',
+            'getStereoTestExamByLayoutInstanceId': 'getExamData',
+            'updateStereoTestExam': 'updateExamData',
+            'createOcularMotorAssessmentExam': 'createExamData',
+            'getOcularMotorAssessmentExamByLayoutInstanceId': 'getExamData',
+            'updateOcularMotorAssessmentExam': 'updateExamData',
+            'createOverRefraction': 'createExamData',
+            'getOverRefraction': 'getExamData',
+            'updateOverRefraction': 'updateExamData',
+            'deleteOverRefraction': 'deleteExamData',
+            'getOverRefractionByLayoutInstanceId': 'getExamData',
+            'createOldRefExam': 'createExamData',
+            'getOldRefExamByLayoutInstanceId': 'getExamData',
+            'updateOldRefExam': 'updateExamData',
+            'createOldContactLenses': 'createExamData',
+            'getOldContactLensesById': 'getExamData',
+            'updateOldContactLenses': 'updateExamData',
+            'getOldContactLensesByLayoutInstanceId': 'getExamData',
+            'createCompactPrescriptionExam': 'createExamData',
+            'getCompactPrescriptionExamById': 'getExamData',
+            'updateCompactPrescriptionExam': 'updateExamData',
+            'deleteCompactPrescriptionExam': 'deleteExamData',
+            'getCompactPrescriptionExamByReferralId': 'getExamData',
+            'getCompactPrescriptionExamByLayoutInstanceId': 'getExamData',
+            'createNotesExam': 'createExamData',
+            'updateNotesExam': 'updateExamData',
+            'deleteNotesExam': 'deleteExamData',
+            'getNotesExamById': 'getExamData',
+            'getNotesExamByLayoutInstanceId': 'getExamData',
+            'getAllNotesExamsByLayoutInstanceId': 'getExamData',
+            'createDiopterAdjustmentPanel': 'createExamData',
+            'getDiopterAdjustmentPanelByLayoutInstanceId': 'getExamData',
+            'updateDiopterAdjustmentPanel': 'updateExamData',
+            'getCampaignClientExecution': 'getCampaignClientExecution',
+            'addCampaignClientExecution': 'addCampaignClientExecution'
+          };
+
+          const apiMethod = methodMap[prop as string];
+          if (apiMethod) {
+            // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+            // @ts-ignore
+            return await apiClient[apiMethod](...args);
+          }
+
+          throw new Error(`Method ${String(prop)} not found in apiClient`);
         };
       }
     });
   }
 }
 
-export const connectionManager: DynamicConnectionManager & DBServiceType = new DynamicConnectionManager() as any;
+export const connectionManager: DynamicConnectionManager = new DynamicConnectionManager();
 export default connectionManager; 

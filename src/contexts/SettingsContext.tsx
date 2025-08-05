@@ -1,5 +1,5 @@
 import { createContext } from 'react';
-import { Settings } from '@/lib/db/schema';
+import { Settings } from '@/lib/db/schema-interface';
 
 export interface SettingsContextType {
   settings: Settings | null;

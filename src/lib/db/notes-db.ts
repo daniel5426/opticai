@@ -1,26 +1,34 @@
-import { connectionManager } from './connection-manager';
-import { NotesExam } from './schema';
+import { apiClient } from '../api-client';
+import { NotesExam } from './schema-interface';
 
-export function createNotesExam(data: Omit<NotesExam, 'id'>): NotesExam | null {
-  return connectionManager.createNotesExam(data);
+export async function createNotesExam(data: Omit<NotesExam, 'id'>): Promise<NotesExam | null> {
+  const response = await apiClient.createNotesExam(data, data.layout_instance_id);
+  return response.data ?? null;
 }
 
-export function updateNotesExam(data: NotesExam): NotesExam | null {
-  return connectionManager.updateNotesExam(data);
+export async function updateNotesExam(data: NotesExam): Promise<NotesExam | null> {
+  if (!data.id) {
+    throw new Error('NotesExam ID is required for update');
+  }
+  const response = await apiClient.updateNotesExam(data.id, data);
+  return response.data ?? null;
 }
 
-export function getAllNotesExamsByLayoutInstanceId(layoutInstanceId: number): NotesExam[] {
-  return connectionManager.getAllNotesExamsByLayoutInstanceId(layoutInstanceId);
+export async function getAllNotesExamsByLayoutInstanceId(layoutInstanceId: number): Promise<NotesExam[]> {
+  const response = await apiClient.getNotesExam(layoutInstanceId);
+  return response.data ? [response.data] : [];
 }
 
-export function getNotesExamById(id: number): NotesExam | null {
-  return connectionManager.getNotesExamById(id);
+export async function getNotesExamById(id: number): Promise<NotesExam | null> {
+  throw new Error('getNotesExamById not implemented in API yet');
 }
 
-export function getNotesExamByLayoutInstanceId(layout_instance_id: number): NotesExam | null {
-  return connectionManager.getNotesExamByLayoutInstanceId(layout_instance_id);
+export async function getNotesExamByLayoutInstanceId(layout_instance_id: number): Promise<NotesExam | null> {
+  const response = await apiClient.getNotesExam(layout_instance_id);
+  return response.data || null;
 }
 
-export function deleteNotesExam(id: number): boolean {
-  return connectionManager.deleteNotesExam(id);
+export async function deleteNotesExam(id: number): Promise<boolean> {
+  const response = await apiClient.deleteExamData('notes', id);
+  return !response.error;
 } 

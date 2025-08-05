@@ -2,14 +2,16 @@ import React, { useState, useEffect } from "react"
 import { SiteHeader } from "@/components/site-header"
 import { getAllAppointments } from "@/lib/db/appointments-db"
 import { getAllClients } from "@/lib/db/clients-db"
-import { Appointment, Client } from "@/lib/db/schema"
+import { Appointment, Client } from "@/lib/db/schema-interface"
 import { AppointmentsTable } from "@/components/appointments-table"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { ClientSelectModal } from "@/components/ClientSelectModal"
+import { useUser } from "@/contexts/UserContext"
 
 export default function AllAppointmentsPage() {
+  const { currentClinic } = useUser()
   const [appointments, setAppointments] = useState<Appointment[]>([])
   const [clients, setClients] = useState<Client[]>([])
   const [loading, setLoading] = useState(true)
@@ -21,8 +23,8 @@ export default function AllAppointmentsPage() {
     try {
       setLoading(true)
       const [appointmentsData, clientsData] = await Promise.all([
-        getAllAppointments(),
-        getAllClients()
+        getAllAppointments(currentClinic?.id),
+        getAllClients(currentClinic?.id)
       ])
       setAppointments(appointmentsData)
       setClients(clientsData)
@@ -34,8 +36,10 @@ export default function AllAppointmentsPage() {
   }
 
   useEffect(() => {
-    loadData()
-  }, [])
+    if (currentClinic) {
+      loadData()
+    }
+  }, [currentClinic])
 
   const handleAppointmentDeleted = (deletedAppointmentId: number) => {
     setAppointments(prevAppointments => prevAppointments.filter(appointment => appointment.id !== deletedAppointmentId))

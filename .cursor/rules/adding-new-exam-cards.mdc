@@ -1,11 +1,11 @@
 # Adding New Exam Cards - Complete Guide
 
-This guide documents the complete process for adding new exam cards to the optical clinic system. The system uses a registry-based architecture that automatically handles most of the integration once properly configured.
+This guide documents the complete process for adding new exam cards to the optical clinic system. The system uses a registry-based architecture that automatically handles most of the integration once properly configured, now integrated with the PostgreSQL API backend.
 
 ## Overview
 
 The exam card system consists of:
-- **Database Layer**: Schema and CRUD operations
+- **Database Layer**: PostgreSQL schema and API endpoints
 - **Registry System**: Automatic component registration and field handling
 - **Field Mappings**: For data copying between components
 - **UI Components**: React components for the card interface
@@ -13,55 +13,112 @@ The exam card system consists of:
 
 ## Step-by-Step Implementation
 
-### 1. Database Schema ([src/lib/db/schema.ts](mdc:src/lib/db/schema.ts))
+### 1. Backend Database Schema
 
-**Add the TypeScript interface:**
+**Add the SQLAlchemy model in `backend/models.py`:**
+```python
+class NewExamTypeExam(Base):
+    __tablename__ = "new_exam_type_exams"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    layout_instance_id = Column(Integer, ForeignKey("exam_layout_instances.id"), nullable=False)
+    # Add your specific fields here
+    r_field1 = Column(Float)
+    l_field1 = Column(Float)
+    # ... other fields
+```
+
+**Add Pydantic schemas in `backend/schemas.py`:**
+```python
+class NewExamTypeExamBase(BaseModel):
+    r_field1: Optional[float] = None
+    l_field1: Optional[float] = None
+    # ... other fields
+
+class NewExamTypeExamCreate(NewExamTypeExamBase):
+    layout_instance_id: int
+
+class NewExamTypeExam(NewExamTypeExamBase):
+    id: int
+    layout_instance_id: int
+    
+    class Config:
+        from_attributes = True
+```
+
+### 2. Backend API Endpoints
+
+**Create `backend/EndPoints/new_exam_type.py`:**
+```python
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
+from database import get_db
+from models import NewExamTypeExam
+from schemas import NewExamTypeExamCreate, NewExamTypeExam as NewExamTypeExamSchema
+from auth import get_current_user
+
+router = APIRouter(prefix="/new-exam-type", tags=["new-exam-type"])
+
+@router.post("/", response_model=NewExamTypeExamSchema)
+def create_new_exam_type(data: NewExamTypeExamCreate, db: Session = Depends(get_db)):
+    db_exam = NewExamTypeExam(**data.dict())
+    db.add(db_exam)
+    db.commit()
+    db.refresh(db_exam)
+    return db_exam
+
+@router.get("/layout/{layout_instance_id}", response_model=NewExamTypeExamSchema)
+def get_new_exam_type_by_layout(layout_instance_id: int, db: Session = Depends(get_db)):
+    exam = db.query(NewExamTypeExam).filter(NewExamTypeExam.layout_instance_id == layout_instance_id).first()
+    if exam is None:
+        raise HTTPException(status_code=404, detail="Exam not found")
+    return exam
+
+@router.put("/{exam_id}", response_model=NewExamTypeExamSchema)
+def update_new_exam_type(exam_id: int, data: NewExamTypeExamCreate, db: Session = Depends(get_db)):
+    db_exam = db.query(NewExamTypeExam).filter(NewExamTypeExam.id == exam_id).first()
+    if db_exam is None:
+        raise HTTPException(status_code=404, detail="Exam not found")
+    
+    for field, value in data.dict(exclude_unset=True).items():
+        setattr(db_exam, field, value)
+    
+    db.commit()
+    db.refresh(db_exam)
+    return db_exam
+```
+
+**Add to `backend/main.py`:**
+```python
+from EndPoints import new_exam_type
+app.include_router(new_exam_type.router, prefix=settings.API_V1_STR)
+```
+
+### 3. Frontend API Client
+
+**Add methods to `src/lib/api-client.ts`:**
 ```typescript
-export interface NewExamTypeExam {
-  id?: number;
-  layout_instance_id: number;
-  // Add your specific fields here
-  r_field1?: number;
-  l_field1?: number;
-  // ... other fields
+// New exam type methods
+async createNewExamType(data: any) {
+  return this.request('/new-exam-type', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+async getNewExamTypeByLayout(layoutInstanceId: number) {
+  return this.request(`/new-exam-type/layout/${layoutInstanceId}`);
+}
+
+async updateNewExamType(examId: number, data: any) {
+  return this.request(`/new-exam-type/${examId}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
 }
 ```
 
-**Add table creation in `createTables` function:**
-```sql
-CREATE TABLE IF NOT EXISTS new_exam_type_exams (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  layout_instance_id INTEGER NOT NULL,
-  r_field1 REAL,
-  l_field1 REAL,
-  -- ... other fields
-  FOREIGN KEY (layout_instance_id) REFERENCES exam_layout_instances(id) ON DELETE CASCADE
-);
-```
-
-### 2. Database Service ([src/lib/db/index.ts](mdc:src/lib/db/index.ts))
-
-**Add import:**
-```typescript
-import { NewExamTypeExam } from './schema';
-```
-
-**Add CRUD methods to DatabaseService class:**
-```typescript
-createNewExamTypeExam(data: Omit<NewExamTypeExam, 'id'>): NewExamTypeExam | null {
-  // Implementation
-}
-
-getNewExamTypeExamByLayoutInstanceId(layoutInstanceId: number): NewExamTypeExam | null {
-  // Implementation
-}
-
-updateNewExamTypeExam(data: NewExamTypeExam): NewExamTypeExam | null {
-  // Implementation
-}
-```
-
-### 3. Component Registry ([src/lib/exam-component-registry.ts](mdc:src/lib/exam-component-registry.ts))
+### 4. Component Registry ([src/lib/exam-component-registry.ts](mdc:src/lib/exam-component-registry.ts))
 
 **Add to ExamComponentType union:**
 ```typescript
@@ -70,16 +127,16 @@ export type ExamComponentType = 'old-refraction' | 'new-exam-type' | /* ... exis
 
 **Add import:**
 ```typescript
-import { NewExamTypeExam } from "@/lib/db/schema"
+import { NewExamTypeExam } from "@/lib/db/schema-interface"
 ```
 
 **Register the component:**
 ```typescript
 registry.register<NewExamTypeExam>('new-exam-type', {
   name: 'Hebrew Name Here',
-  getData: (layoutInstanceId: number) => window.electronAPI.db('getNewExamTypeExamByLayoutInstanceId', layoutInstanceId),
-  createData: (data: Omit<NewExamTypeExam, 'id'>) => window.electronAPI.db('createNewExamTypeExam', data),
-  updateData: (data: NewExamTypeExam) => window.electronAPI.db('updateNewExamTypeExam', data),
+  getData: (layoutInstanceId: number) => apiClient.getNewExamTypeByLayout(layoutInstanceId),
+  createData: (data: Omit<NewExamTypeExam, 'id'>) => apiClient.createNewExamType(data),
+  updateData: (data: NewExamTypeExam) => apiClient.updateNewExamType(data.id!, data),
   getNumericFields: () => [/* list numeric fields */],
   getIntegerFields: () => [/* list integer fields */],
   validateField: (field, rawValue) => {
@@ -91,7 +148,7 @@ registry.register<NewExamTypeExam>('new-exam-type', {
 })
 ```
 
-### 4. Field Mappings ([src/lib/exam-field-mappings.ts](mdc:src/lib/exam-field-mappings.ts))
+### 5. Field Mappings ([src/lib/exam-field-mappings.ts](mdc:src/lib/exam-field-mappings.ts))
 
 **Add to type definitions:**
 ```typescript
@@ -115,14 +172,14 @@ case 'new-exam-type':
   ];
 ```
 
-### 5. UI Component ([src/components/exam/NewExamTypeTab.tsx](mdc:src/components/exam/NewExamTypeTab.tsx))
+### 6. UI Component ([src/components/exam/NewExamTypeTab.tsx](mdc:src/components/exam/NewExamTypeTab.tsx))
 
 **Create the React component:**
 ```typescript
 import React from "react"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { NewExamTypeExam } from "@/lib/db/schema"
+import { NewExamTypeExam } from "@/lib/db/schema-interface"
 
 interface NewExamTypeTabProps {
   newExamTypeData: NewExamTypeExam;
@@ -143,14 +200,14 @@ export const NewExamTypeTab: React.FC<NewExamTypeTabProps> = ({
 }
 ```
 
-### 6. Card Renderer Integration ([src/components/exam/ExamCardRenderer.tsx](mdc:src/components/exam/ExamCardRenderer.tsx))
+### 7. Card Renderer Integration ([src/components/exam/ExamCardRenderer.tsx](mdc:src/components/exam/ExamCardRenderer.tsx))
 
 The new registry-based system automatically handles most integration! You only need to:
 
 **Add import:**
 ```typescript
 import { NewExamTypeTab } from "@/components/exam/NewExamTypeTab"
-import { NewExamTypeExam } from "@/lib/db/schema"
+import { NewExamTypeExam } from "@/lib/db/schema-interface"
 ```
 
 **Add to CardItem type:**
@@ -195,6 +252,7 @@ case 'new-exam-type':
 4. **Automatic Layout Editor**: New components automatically appear in the layout editor
 5. **Toolbox Integration**: Copy/paste functionality works automatically
 6. **Field Mapping**: Data copying between components works seamlessly
+7. **API Integration**: Automatic backend communication through the API client
 
 ## Common Patterns
 
@@ -214,14 +272,16 @@ case 'new-exam-type':
 
 ## Testing Checklist
 
+- [ ] Backend API endpoints work correctly
 - [ ] Database schema creates correctly
-- [ ] CRUD operations work
+- [ ] CRUD operations work via API
 - [ ] Component appears in layout editor
 - [ ] Form data saves and loads
 - [ ] Field validation works
 - [ ] Toolbox copy/paste functions
 - [ ] Component renders in both editor and detail modes
 - [ ] RTL layout displays correctly
+- [ ] API authentication works properly
 
 ## Notes
 
@@ -230,7 +290,4 @@ case 'new-exam-type':
 - Components automatically get registered in the layout editor
 - The registry system handles most of the complexity automatically
 - Field mappings enable data copying between compatible components
-description:
-globs:
-alwaysApply: false
----
+- API client handles all backend communication automatically

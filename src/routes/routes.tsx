@@ -6,6 +6,7 @@ import ControlCenterPage from "../pages/ControlCenterPage";
 import ControlCenterDashboardPage from "../pages/ControlCenterDashboardPage";
 import ControlCenterUsersPage from "../pages/ControlCenterUsersPage";
 import ControlCenterClinicsPage from "../pages/ControlCenterClinicsPage";
+import ControlCenterSettingsPage from "../pages/ControlCenterSettingsPage";
 import SetupWizardPage from "../pages/SetupWizardPage";
 import ClinicEntrancePage from "../pages/ClinicEntrancePage";
 import SecondPage from "@/pages/SecondPage";
@@ -73,17 +74,25 @@ export const ControlCenterRoute = createRoute({
 export const SetupWizardRoute = createRoute({
   getParentRoute: () => RootRoute,
   path: "/setup-wizard",
-  component: () => {
-    const searchParams = new URLSearchParams(window.location.search);
-    const companyId = parseInt(searchParams.get('companyId') || '0');
-    const companyName = searchParams.get('companyName') || '';
-    return <SetupWizardPage companyId={companyId} companyName={companyName} />;
-  },
+  validateSearch: (search: Record<string, unknown>) => ({
+    companyId: search.companyId as string,
+    companyName: search.companyName as string,
+    username: search.username as string,
+    password: search.password as string,
+    email: search.email as string,
+    phone: search.phone as string,
+  }),
+  component: SetupWizardPage,
 });
 
 export const ControlCenterDashboardRoute = createRoute({
   getParentRoute: () => RootRoute,
   path: "/control-center/dashboard",
+  validateSearch: (search: Record<string, unknown>) => ({
+    companyId: search.companyId as string,
+    companyName: search.companyName as string,
+    fromSetup: search.fromSetup as string,
+  }),
   component: ControlCenterDashboardPage,
 });
 
@@ -97,6 +106,12 @@ export const ControlCenterClinicsRoute = createRoute({
   getParentRoute: () => RootRoute,
   path: "/control-center/clinics",
   component: ControlCenterClinicsPage,
+});
+
+export const ControlCenterSettingsRoute = createRoute({
+  getParentRoute: () => RootRoute,
+  path: "/control-center/settings",
+  component: ControlCenterSettingsPage,
 });
 
 export const ClinicEntranceRoute = createRoute({
@@ -281,6 +296,7 @@ export const rootTree = RootRoute.addChildren([
   ControlCenterDashboardRoute,
   ControlCenterUsersRoute,
   ControlCenterClinicsRoute,
+  ControlCenterSettingsRoute,
   ClinicEntranceRoute,
   UserSelectionRoute,
   SecondPageRoute,

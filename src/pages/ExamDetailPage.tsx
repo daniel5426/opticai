@@ -3,7 +3,7 @@ import { useParams, useNavigate, Link, useLocation } from "@tanstack/react-route
 import { SiteHeader } from "@/components/site-header"
 import { getClientById } from "@/lib/db/clients-db"
 import { getExamById, updateExam, createExam } from "@/lib/db/exams-db"
-import { OpticalExam, Client, User, ExamLayout, ExamLayoutInstance, NotesExam } from "@/lib/db/schema"
+import { OpticalExam, Client, User, ExamLayout, ExamLayoutInstance, NotesExam } from "@/lib/db/schema-interface"
 import { getAllExamLayouts, getDefaultExamLayout, getDefaultExamLayouts, getDefaultExamLayoutsByType, getExamLayoutInstancesByExamId, getActiveExamLayoutInstanceByExamId, setActiveExamLayoutInstance, addLayoutToExam, getExamLayoutById, deleteExamLayoutInstance } from "@/lib/db/exam-layouts-db"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu"
@@ -14,13 +14,15 @@ import { getAllUsers } from "@/lib/db/users-db"
 import { ExamCardRenderer, CardItem, DetailProps, calculateCardWidth, hasNoteCard, createDetailProps } from "@/components/exam/ExamCardRenderer"
 import { createToolboxActions } from "@/components/exam/ExamToolbox"
 import { useClientData } from "@/contexts/ClientDataContext"
-import { examComponentRegistry, ExamComponentType } from "@/lib/exam-component-registry"
+import { examComponentRegistry } from "@/lib/exam-component-registry"
+import { ExamComponentType } from "@/lib/exam-field-mappings"
 import { copyToClipboard, pasteFromClipboard, getClipboardContentType } from "@/lib/exam-clipboard"
 import { ExamFieldMapper } from "@/lib/exam-field-mappings"
 import { ClientSpaceLayout } from "@/layouts/ClientSpaceLayout"
 import { useClientSidebar } from "@/contexts/ClientSidebarContext"
 import { v4 as uuidv4 } from 'uuid';
-import { CoverTestExam } from "@/lib/db/schema"
+import { CoverTestExam } from "@/lib/db/schema-interface"
+import { apiClient } from '@/lib/api-client';
 
 interface ExamDetailPageProps {
   mode?: 'view' | 'edit' | 'new';
@@ -125,7 +127,7 @@ export default function ExamDetailPage({
   const [availableLayouts, setAvailableLayouts] = useState<ExamLayout[]>([])
   const [activeLayoutId, setActiveLayoutId] = useState<number | null>(null)
   const [layoutTabs, setLayoutTabs] = useState<LayoutTab[]>([])
-  const { currentUser } = useUser()
+  const { currentUser, currentClinic } = useUser()
   
   // Unified state management for all exam components
   const [examComponentData, setExamComponentData] = useState<Record<string, any>>({})
@@ -133,13 +135,8 @@ export default function ExamDetailPage({
   const [clipboardContentType, setClipboardContentType] = useState<ExamComponentType | null>(null)
   
   // Get the client data context to refresh exams after save
-  let refreshExams: (() => Promise<void>) | undefined;
-  try {
-    const clientDataContext = useClientData();
-    refreshExams = clientDataContext.refreshExams;
-  } catch {
-    refreshExams = undefined;
-  }
+  const clientDataContext = useClientData();
+  const refreshExams = clientDataContext?.refreshExams;
 
   const isNewMode = mode === 'new'
   const [isEditing, setIsEditing] = useState(isNewMode)
@@ -240,7 +237,7 @@ export default function ExamDetailPage({
 
     const { type: sourceType, data: sourceData } = clipboardContent
     const targetType = targetCard.type as ExamComponentType
-    let targetData, targetChangeHandler, key
+    let targetData: any, targetChangeHandler: ((field: string, value: string) => void) | undefined, key: string | undefined
     if (targetType === 'cover-test') {
       const cardId = targetCard.id
       const activeTabIndex = activeCoverTestTabs[cardId]
@@ -267,11 +264,11 @@ export default function ExamDetailPage({
       })
       return
     }
-    const copiedData = ExamFieldMapper.copyData(sourceData, targetData, sourceType, targetType)
+    const copiedData = ExamFieldMapper.copyData(sourceData as any, targetData as any, sourceType, targetType)
     console.log('Copied data:', copiedData)
     Object.entries(copiedData).forEach(([k, value]) => {
-      if (k !== 'id' && k !== 'layout_instance_id' && value !== undefined) {
-        targetChangeHandler(k, String(value ?? ''))
+      if (k !== 'id' && k !== 'layout_instance_id' && value !== undefined && targetChangeHandler) {
+        targetChangeHandler(k, String(value ?? '') )
       }
     })
     toast.success("הנתונים הודבקו בהצלחה", {
@@ -340,7 +337,7 @@ export default function ExamDetailPage({
   // Load all exam component data for a layout instance
   const loadExamComponentData = async (layoutInstanceId: number, layoutData?: string) => {
     try {
-      const data = await examComponentRegistry.loadAllData(layoutInstanceId, coverTestTabs)
+      const data = await examComponentRegistry.loadAllData(layoutInstanceId)
       setExamComponentData(data)
       
       // Parse layout data to get titles and card instances
@@ -408,7 +405,7 @@ export default function ExamDetailPage({
         if (type === 'notes' && cardInstances[type]) {
           // For notes, handle each card instance separately
           cardInstances[type].forEach(cardId => {
-            const existingData = data[`${type}-${cardId}`] || { layout_instance_id: layoutInstanceId, card_instance_id: cardId }
+            const existingData: any = data[`${type}-${cardId}`] || { layout_instance_id: layoutInstanceId, card_instance_id: cardId }
             
             // Add title from layout if not already present in data
             if (layoutTitles[cardId] && !existingData.title) {
@@ -432,7 +429,7 @@ export default function ExamDetailPage({
             })
           })
         } else {
-          const existingData = data[type] || { layout_instance_id: layoutInstanceId }
+          const existingData: any = data[type] || { layout_instance_id: layoutInstanceId }
           // Add title from layout if not already present in data
           if (type === 'corneal-topography' && cardInstances[type] && cardInstances[type].length > 0) {
             const cardId = cardInstances[type][0]
@@ -773,13 +770,17 @@ export default function ExamDetailPage({
 
   const handleSave = async () => {
     console.log('examFormData', examFormData)
+    console.log('activeLayoutId', activeLayoutId)
+    console.log('layoutTabs', layoutTabs)
+    console.log('activeLayout', layoutTabs.find(tab => tab.isActive))
+    
     if (formRef.current) {
       if (isNewMode) {
         const examData = {
           client_id: Number(clientId),
           exam_date: formData.exam_date || new Date().toISOString().split('T')[0],
           test_name: formData.test_name || '',
-          clinic: formData.clinic || '',
+          clinic_id: currentClinic?.id,
           user_id: formData.user_id || currentUser?.id,
           dominant_eye: formData.dominant_eye || null,
           type: formData.type || config.dbType
@@ -836,25 +837,23 @@ export default function ExamDetailPage({
           return;
         }
         
-        const setActiveResult = await setActiveExamLayoutInstance(Number(examId), activeLayout.id);
+        // Get the active layout instance from the database to ensure we have the correct ID
+        const activeInstance = await getActiveExamLayoutInstanceByExamId(Number(examId));
+        
+        if (!activeInstance || !activeInstance.id) {
+          toast.error("לא נמצאה פריסה פעילה במסד הנתונים");
+          return;
+        }
+        
+        const setActiveResult = await setActiveExamLayoutInstance(Number(examId), activeInstance.id);
         if (!setActiveResult) {
           toast.error("שגיאה בעדכון פריסה פעילה");
           return;
         }
         
-        // Custom save logic for cover-test tabs
-        for (const [key, data] of Object.entries(examFormData)) {
-          if (key.startsWith('cover-test-')) {
-            if (data && (data.__deleted || !examComponentRegistry.getConfig('cover-test')?.hasData(data))) {
-              if (data.id) {
-                await window.electronAPI.db('deleteCoverTestExam', data.id)
-              }
-              continue
-            }
-          }
-        }
-        // Now call the normal saveAllData for the rest
-        const savedData = await examComponentRegistry.saveAllData(activeLayout.id, examFormData)
+        // Save all exam data using unified API with the correct layout instance ID
+        console.log('Saving exam data with layout instance ID:', activeInstance.id)
+        const savedData = await examComponentRegistry.saveAllData(activeInstance.id, examFormData)
 
         if (updatedExam && Object.values(savedData).some(data => data !== null)) {
           setIsEditing(false)
@@ -1075,7 +1074,7 @@ export default function ExamDetailPage({
   }
 
   // Build detail props dynamically
-  const detailProps: DetailProps = createDetailProps(
+  const detailProps = createDetailProps(
     isEditing,
     isNewMode,
     exam,
@@ -1124,15 +1123,15 @@ export default function ExamDetailPage({
       },
       handleMultifocalOldRefractionExtension: () => {},
       // Add tab management for cover-test
-      coverTestTabs,
-      setCoverTestTabs,
-      activeCoverTestTabs,
-      setActiveCoverTestTabs,
-      addCoverTestTab,
-      removeCoverTestTab,
+      coverTestTabs: coverTestTabs as any,
+      setCoverTestTabs: setCoverTestTabs as any,
+      activeCoverTestTabs: activeCoverTestTabs as any,
+      setActiveCoverTestTabs: setActiveCoverTestTabs as any,
+      addCoverTestTab: addCoverTestTab as any,
+      removeCoverTestTab: removeCoverTestTab as any,
       layoutInstanceId: activeLayoutId,
       setExamFormData: setExamFormData,
-    }
+    } as any
   )
 
   if (loading || !currentClient) {

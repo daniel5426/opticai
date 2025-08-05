@@ -17,654 +17,374 @@ import {
   LookupRinsingSolution,
   LookupManufacturingLab,
   LookupAdvisor
-} from './schema'
+} from './schema-interface';
+import { apiClient } from '../api-client';
 
-export async function getAllLookupSuppliers(): Promise<LookupSupplier[]> {
+// Generic lookup functions
+async function getLookupItems<T>(tableName: string): Promise<T[]> {
   try {
-    return await window.electronAPI.db('getAllLookupSuppliers')
+    const response = await apiClient.getLookupTable(tableName);
+    if (response.error) {
+      console.error(`Error getting ${tableName}:`, response.error);
+      return [];
+    }
+    return (response.data as T[]) || [];
   } catch (error) {
-    console.error('Error getting suppliers:', error)
-    return []
+    console.error(`Error getting ${tableName}:`, error);
+    return [];
   }
+}
+
+async function createLookupItem<T>(tableName: string, data: any): Promise<T | null> {
+  try {
+    const response = await apiClient.createLookupItem(tableName, data);
+    if (response.error) {
+      console.error(`Error creating ${tableName}:`, response.error);
+      return null;
+    }
+    return (response.data as T) || null;
+  } catch (error) {
+    console.error(`Error creating ${tableName}:`, error);
+    return null;
+  }
+}
+
+async function updateLookupItem<T>(tableName: string, data: any): Promise<T | null> {
+  try {
+    if (!data.id) {
+      console.error(`Error updating ${tableName}: No ID provided`);
+      return null;
+    }
+    const response = await apiClient.updateLookupItem(tableName, data.id, data);
+    if (response.error) {
+      console.error(`Error updating ${tableName}:`, response.error);
+      return null;
+    }
+    return (response.data as T) || null;
+  } catch (error) {
+    console.error(`Error updating ${tableName}:`, error);
+    return null;
+  }
+}
+
+async function deleteLookupItem(tableName: string, id: number): Promise<boolean> {
+  try {
+    const response = await apiClient.deleteLookupItem(tableName, id);
+    if (response.error) {
+      console.error(`Error deleting ${tableName}:`, response.error);
+      return false;
+    }
+    return true;
+  } catch (error) {
+    console.error(`Error deleting ${tableName}:`, error);
+    return false;
+  }
+}
+
+// Supplier functions
+export async function getAllLookupSuppliers(): Promise<LookupSupplier[]> {
+  return getLookupItems<LookupSupplier>('suppliers');
 }
 
 export async function createLookupSupplier(data: Omit<LookupSupplier, 'id'>): Promise<LookupSupplier | null> {
-  try {
-    return await window.electronAPI.db('createLookupSupplier', data)
-  } catch (error) {
-    console.error('Error creating supplier:', error)
-    return null
-  }
+  return createLookupItem<LookupSupplier>('suppliers', data);
 }
 
 export async function updateLookupSupplier(data: LookupSupplier): Promise<LookupSupplier | null> {
-  try {
-    return await window.electronAPI.db('updateLookupSupplier', data)
-  } catch (error) {
-    console.error('Error updating supplier:', error)
-    return null
-  }
+  return updateLookupItem<LookupSupplier>('suppliers', data);
 }
 
 export async function deleteLookupSupplier(id: number): Promise<boolean> {
-  try {
-    return await window.electronAPI.db('deleteLookupSupplier', id)
-  } catch (error) {
-    console.error('Error deleting supplier:', error)
-    return false
-  }
+  return deleteLookupItem('suppliers', id);
 }
 
+// Clinic functions
 export async function getAllLookupClinics(): Promise<LookupClinic[]> {
-  try {
-    return await window.electronAPI.db('getAllLookupClinics')
-  } catch (error) {
-    console.error('Error getting clinics:', error)
-    return []
-  }
+  return getLookupItems<LookupClinic>('clinics');
 }
 
 export async function createLookupClinic(data: Omit<LookupClinic, 'id'>): Promise<LookupClinic | null> {
-  try {
-    return await window.electronAPI.db('createLookupClinic', data)
-  } catch (error) {
-    console.error('Error creating clinic:', error)
-    return null
-  }
+  return createLookupItem<LookupClinic>('clinics', data);
 }
 
 export async function updateLookupClinic(data: LookupClinic): Promise<LookupClinic | null> {
-  try {
-    return await window.electronAPI.db('updateLookupClinic', data)
-  } catch (error) {
-    console.error('Error updating clinic:', error)
-    return null
-  }
+  return updateLookupItem<LookupClinic>('clinics', data);
 }
 
 export async function deleteLookupClinic(id: number): Promise<boolean> {
-  try {
-    return await window.electronAPI.db('deleteLookupClinic', id)
-  } catch (error) {
-    console.error('Error deleting clinic:', error)
-    return false
-  }
+  return deleteLookupItem('clinics', id);
 }
 
+// Order Type functions
 export async function getAllLookupOrderTypes(): Promise<LookupOrderType[]> {
-  try {
-    return await window.electronAPI.db('getAllLookupOrderTypes')
-  } catch (error) {
-    console.error('Error getting order types:', error)
-    return []
-  }
+  return getLookupItems<LookupOrderType>('order-types');
 }
 
 export async function createLookupOrderType(data: Omit<LookupOrderType, 'id'>): Promise<LookupOrderType | null> {
-  try {
-    return await window.electronAPI.db('createLookupOrderType', data)
-  } catch (error) {
-    console.error('Error creating order type:', error)
-    return null
-  }
+  return createLookupItem<LookupOrderType>('order-types', data);
 }
 
 export async function updateLookupOrderType(data: LookupOrderType): Promise<LookupOrderType | null> {
-  try {
-    return await window.electronAPI.db('updateLookupOrderType', data)
-  } catch (error) {
-    console.error('Error updating order type:', error)
-    return null
-  }
+  return updateLookupItem<LookupOrderType>('order-types', data);
 }
 
 export async function deleteLookupOrderType(id: number): Promise<boolean> {
-  try {
-    return await window.electronAPI.db('deleteLookupOrderType', id)
-  } catch (error) {
-    console.error('Error deleting order type:', error)
-    return false
-  }
+  return deleteLookupItem('order-types', id);
 }
 
+// Referral Type functions
 export async function getAllLookupReferralTypes(): Promise<LookupReferralType[]> {
-  try {
-    return await window.electronAPI.db('getAllLookupReferralTypes')
-  } catch (error) {
-    console.error('Error getting referral types:', error)
-    return []
-  }
+  return getLookupItems<LookupReferralType>('referral-types');
 }
 
 export async function createLookupReferralType(data: Omit<LookupReferralType, 'id'>): Promise<LookupReferralType | null> {
-  try {
-    return await window.electronAPI.db('createLookupReferralType', data)
-  } catch (error) {
-    console.error('Error creating referral type:', error)
-    return null
-  }
+  return createLookupItem<LookupReferralType>('referral-types', data);
 }
 
 export async function updateLookupReferralType(data: LookupReferralType): Promise<LookupReferralType | null> {
-  try {
-    return await window.electronAPI.db('updateLookupReferralType', data)
-  } catch (error) {
-    console.error('Error updating referral type:', error)
-    return null
-  }
+  return updateLookupItem<LookupReferralType>('referral-types', data);
 }
 
 export async function deleteLookupReferralType(id: number): Promise<boolean> {
-  try {
-    return await window.electronAPI.db('deleteLookupReferralType', id)
-  } catch (error) {
-    console.error('Error deleting referral type:', error)
-    return false
-  }
+  return deleteLookupItem('referral-types', id);
 }
 
+// Lens Model functions
 export async function getAllLookupLensModels(): Promise<LookupLensModel[]> {
-  try {
-    return await window.electronAPI.db('getAllLookupLensModels')
-  } catch (error) {
-    console.error('Error getting lens models:', error)
-    return []
-  }
+  return getLookupItems<LookupLensModel>('lens-models');
 }
 
 export async function createLookupLensModel(data: Omit<LookupLensModel, 'id'>): Promise<LookupLensModel | null> {
-  try {
-    return await window.electronAPI.db('createLookupLensModel', data)
-  } catch (error) {
-    console.error('Error creating lens model:', error)
-    return null
-  }
+  return createLookupItem<LookupLensModel>('lens-models', data);
 }
 
 export async function updateLookupLensModel(data: LookupLensModel): Promise<LookupLensModel | null> {
-  try {
-    return await window.electronAPI.db('updateLookupLensModel', data)
-  } catch (error) {
-    console.error('Error updating lens model:', error)
-    return null
-  }
+  return updateLookupItem<LookupLensModel>('lens-models', data);
 }
 
 export async function deleteLookupLensModel(id: number): Promise<boolean> {
-  try {
-    return await window.electronAPI.db('deleteLookupLensModel', id)
-  } catch (error) {
-    console.error('Error deleting lens model:', error)
-    return false
-  }
+  return deleteLookupItem('lens-models', id);
 }
 
+// Color functions
 export async function getAllLookupColors(): Promise<LookupColor[]> {
-  try {
-    return await window.electronAPI.db('getAllLookupColors')
-  } catch (error) {
-    console.error('Error getting colors:', error)
-    return []
-  }
+  return getLookupItems<LookupColor>('colors');
 }
 
 export async function createLookupColor(data: Omit<LookupColor, 'id'>): Promise<LookupColor | null> {
-  try {
-    return await window.electronAPI.db('createLookupColor', data)
-  } catch (error) {
-    console.error('Error creating color:', error)
-    return null
-  }
+  return createLookupItem<LookupColor>('colors', data);
 }
 
 export async function updateLookupColor(data: LookupColor): Promise<LookupColor | null> {
-  try {
-    return await window.electronAPI.db('updateLookupColor', data)
-  } catch (error) {
-    console.error('Error updating color:', error)
-    return null
-  }
+  return updateLookupItem<LookupColor>('colors', data);
 }
 
 export async function deleteLookupColor(id: number): Promise<boolean> {
-  try {
-    return await window.electronAPI.db('deleteLookupColor', id)
-  } catch (error) {
-    console.error('Error deleting color:', error)
-    return false
-  }
+  return deleteLookupItem('colors', id);
 }
 
+// Material functions
 export async function getAllLookupMaterials(): Promise<LookupMaterial[]> {
-  try {
-    return await window.electronAPI.db('getAllLookupMaterials')
-  } catch (error) {
-    console.error('Error getting materials:', error)
-    return []
-  }
+  return getLookupItems<LookupMaterial>('materials');
 }
 
 export async function createLookupMaterial(data: Omit<LookupMaterial, 'id'>): Promise<LookupMaterial | null> {
-  try {
-    return await window.electronAPI.db('createLookupMaterial', data)
-  } catch (error) {
-    console.error('Error creating material:', error)
-    return null
-  }
+  return createLookupItem<LookupMaterial>('materials', data);
 }
 
 export async function updateLookupMaterial(data: LookupMaterial): Promise<LookupMaterial | null> {
-  try {
-    return await window.electronAPI.db('updateLookupMaterial', data)
-  } catch (error) {
-    console.error('Error updating material:', error)
-    return null
-  }
+  return updateLookupItem<LookupMaterial>('materials', data);
 }
 
 export async function deleteLookupMaterial(id: number): Promise<boolean> {
-  try {
-    return await window.electronAPI.db('deleteLookupMaterial', id)
-  } catch (error) {
-    console.error('Error deleting material:', error)
-    return false
-  }
+  return deleteLookupItem('materials', id);
 }
 
+// Coating functions
 export async function getAllLookupCoatings(): Promise<LookupCoating[]> {
-  try {
-    return await window.electronAPI.db('getAllLookupCoatings')
-  } catch (error) {
-    console.error('Error getting coatings:', error)
-    return []
-  }
+  return getLookupItems<LookupCoating>('coatings');
 }
 
 export async function createLookupCoating(data: Omit<LookupCoating, 'id'>): Promise<LookupCoating | null> {
-  try {
-    return await window.electronAPI.db('createLookupCoating', data)
-  } catch (error) {
-    console.error('Error creating coating:', error)
-    return null
-  }
+  return createLookupItem<LookupCoating>('coatings', data);
 }
 
 export async function updateLookupCoating(data: LookupCoating): Promise<LookupCoating | null> {
-  try {
-    return await window.electronAPI.db('updateLookupCoating', data)
-  } catch (error) {
-    console.error('Error updating coating:', error)
-    return null
-  }
+  return updateLookupItem<LookupCoating>('coatings', data);
 }
 
 export async function deleteLookupCoating(id: number): Promise<boolean> {
-  try {
-    return await window.electronAPI.db('deleteLookupCoating', id)
-  } catch (error) {
-    console.error('Error deleting coating:', error)
-    return false
-  }
+  return deleteLookupItem('coatings', id);
 }
 
+// Manufacturer functions
 export async function getAllLookupManufacturers(): Promise<LookupManufacturer[]> {
-  try {
-    return await window.electronAPI.db('getAllLookupManufacturers')
-  } catch (error) {
-    console.error('Error getting manufacturers:', error)
-    return []
-  }
+  return getLookupItems<LookupManufacturer>('manufacturers');
 }
 
 export async function createLookupManufacturer(data: Omit<LookupManufacturer, 'id'>): Promise<LookupManufacturer | null> {
-  try {
-    return await window.electronAPI.db('createLookupManufacturer', data)
-  } catch (error) {
-    console.error('Error creating manufacturer:', error)
-    return null
-  }
+  return createLookupItem<LookupManufacturer>('manufacturers', data);
 }
 
 export async function updateLookupManufacturer(data: LookupManufacturer): Promise<LookupManufacturer | null> {
-  try {
-    return await window.electronAPI.db('updateLookupManufacturer', data)
-  } catch (error) {
-    console.error('Error updating manufacturer:', error)
-    return null
-  }
+  return updateLookupItem<LookupManufacturer>('manufacturers', data);
 }
 
 export async function deleteLookupManufacturer(id: number): Promise<boolean> {
-  try {
-    return await window.electronAPI.db('deleteLookupManufacturer', id)
-  } catch (error) {
-    console.error('Error deleting manufacturer:', error)
-    return false
-  }
+  return deleteLookupItem('manufacturers', id);
 }
 
+// Frame Model functions
 export async function getAllLookupFrameModels(): Promise<LookupFrameModel[]> {
-  try {
-    return await window.electronAPI.db('getAllLookupFrameModels')
-  } catch (error) {
-    console.error('Error getting frame models:', error)
-    return []
-  }
+  return getLookupItems<LookupFrameModel>('frame-models');
 }
 
 export async function createLookupFrameModel(data: Omit<LookupFrameModel, 'id'>): Promise<LookupFrameModel | null> {
-  try {
-    return await window.electronAPI.db('createLookupFrameModel', data)
-  } catch (error) {
-    console.error('Error creating frame model:', error)
-    return null
-  }
+  return createLookupItem<LookupFrameModel>('frame-models', data);
 }
 
 export async function updateLookupFrameModel(data: LookupFrameModel): Promise<LookupFrameModel | null> {
-  try {
-    return await window.electronAPI.db('updateLookupFrameModel', data)
-  } catch (error) {
-    console.error('Error updating frame model:', error)
-    return null
-  }
+  return updateLookupItem<LookupFrameModel>('frame-models', data);
 }
 
 export async function deleteLookupFrameModel(id: number): Promise<boolean> {
-  try {
-    return await window.electronAPI.db('deleteLookupFrameModel', id)
-  } catch (error) {
-    console.error('Error deleting frame model:', error)
-    return false
-  }
+  return deleteLookupItem('frame-models', id);
 }
 
+// Contact Lens Type functions
 export async function getAllLookupContactLensTypes(): Promise<LookupContactLensType[]> {
-  try {
-    return await window.electronAPI.db('getAllLookupContactLensTypes')
-  } catch (error) {
-    console.error('Error getting contact lens types:', error)
-    return []
-  }
+  return getLookupItems<LookupContactLensType>('contact-lens-types');
 }
 
 export async function createLookupContactLensType(data: Omit<LookupContactLensType, 'id'>): Promise<LookupContactLensType | null> {
-  try {
-    return await window.electronAPI.db('createLookupContactLensType', data)
-  } catch (error) {
-    console.error('Error creating contact lens type:', error)
-    return null
-  }
+  return createLookupItem<LookupContactLensType>('contact-lens-types', data);
 }
 
 export async function updateLookupContactLensType(data: LookupContactLensType): Promise<LookupContactLensType | null> {
-  try {
-    return await window.electronAPI.db('updateLookupContactLensType', data)
-  } catch (error) {
-    console.error('Error updating contact lens type:', error)
-    return null
-  }
+  return updateLookupItem<LookupContactLensType>('contact-lens-types', data);
 }
 
 export async function deleteLookupContactLensType(id: number): Promise<boolean> {
-  try {
-    return await window.electronAPI.db('deleteLookupContactLensType', id)
-  } catch (error) {
-    console.error('Error deleting contact lens type:', error)
-    return false
-  }
+  return deleteLookupItem('contact-lens-types', id);
 }
 
+// Contact Eye Lens Type functions
 export async function getAllLookupContactEyeLensTypes(): Promise<LookupContactEyeLensType[]> {
-  try {
-    return await window.electronAPI.db('getAllLookupContactEyeLensTypes')
-  } catch (error) {
-    console.error('Error getting contact eye lens types:', error)
-    return []
-  }
+  return getLookupItems<LookupContactEyeLensType>('contact-eye-lens-types');
 }
 
 export async function createLookupContactEyeLensType(data: Omit<LookupContactEyeLensType, 'id'>): Promise<LookupContactEyeLensType | null> {
-  try {
-    return await window.electronAPI.db('createLookupContactEyeLensType', data)
-  } catch (error) {
-    console.error('Error creating contact eye lens type:', error)
-    return null
-  }
+  return createLookupItem<LookupContactEyeLensType>('contact-eye-lens-types', data);
 }
 
 export async function updateLookupContactEyeLensType(data: LookupContactEyeLensType): Promise<LookupContactEyeLensType | null> {
-  try {
-    return await window.electronAPI.db('updateLookupContactEyeLensType', data)
-  } catch (error) {
-    console.error('Error updating contact eye lens type:', error)
-    return null
-  }
+  return updateLookupItem<LookupContactEyeLensType>('contact-eye-lens-types', data);
 }
 
 export async function deleteLookupContactEyeLensType(id: number): Promise<boolean> {
-  try {
-    return await window.electronAPI.db('deleteLookupContactEyeLensType', id)
-  } catch (error) {
-    console.error('Error deleting contact eye lens type:', error)
-    return false
-  }
+  return deleteLookupItem('contact-eye-lens-types', id);
 }
 
+// Contact Eye Material functions
 export async function getAllLookupContactEyeMaterials(): Promise<LookupContactEyeMaterial[]> {
-  try {
-    return await window.electronAPI.db('getAllLookupContactEyeMaterials')
-  } catch (error) {
-    console.error('Error getting contact eye materials:', error)
-    return []
-  }
+  return getLookupItems<LookupContactEyeMaterial>('contact-eye-materials');
 }
 
 export async function createLookupContactEyeMaterial(data: Omit<LookupContactEyeMaterial, 'id'>): Promise<LookupContactEyeMaterial | null> {
-  try {
-    return await window.electronAPI.db('createLookupContactEyeMaterial', data)
-  } catch (error) {
-    console.error('Error creating contact eye material:', error)
-    return null
-  }
+  return createLookupItem<LookupContactEyeMaterial>('contact-eye-materials', data);
 }
 
 export async function updateLookupContactEyeMaterial(data: LookupContactEyeMaterial): Promise<LookupContactEyeMaterial | null> {
-  try {
-    return await window.electronAPI.db('updateLookupContactEyeMaterial', data)
-  } catch (error) {
-    console.error('Error updating contact eye material:', error)
-    return null
-  }
+  return updateLookupItem<LookupContactEyeMaterial>('contact-eye-materials', data);
 }
 
 export async function deleteLookupContactEyeMaterial(id: number): Promise<boolean> {
-  try {
-    return await window.electronAPI.db('deleteLookupContactEyeMaterial', id)
-  } catch (error) {
-    console.error('Error deleting contact eye material:', error)
-    return false
-  }
+  return deleteLookupItem('contact-eye-materials', id);
 }
 
+// Cleaning Solution functions
 export async function getAllLookupCleaningSolutions(): Promise<LookupCleaningSolution[]> {
-  try {
-    return await window.electronAPI.db('getAllLookupCleaningSolutions')
-  } catch (error) {
-    console.error('Error getting cleaning solutions:', error)
-    return []
-  }
+  return getLookupItems<LookupCleaningSolution>('cleaning-solutions');
 }
 
 export async function createLookupCleaningSolution(data: Omit<LookupCleaningSolution, 'id'>): Promise<LookupCleaningSolution | null> {
-  try {
-    return await window.electronAPI.db('createLookupCleaningSolution', data)
-  } catch (error) {
-    console.error('Error creating cleaning solution:', error)
-    return null
-  }
+  return createLookupItem<LookupCleaningSolution>('cleaning-solutions', data);
 }
 
 export async function updateLookupCleaningSolution(data: LookupCleaningSolution): Promise<LookupCleaningSolution | null> {
-  try {
-    return await window.electronAPI.db('updateLookupCleaningSolution', data)
-  } catch (error) {
-    console.error('Error updating cleaning solution:', error)
-    return null
-  }
+  return updateLookupItem<LookupCleaningSolution>('cleaning-solutions', data);
 }
 
 export async function deleteLookupCleaningSolution(id: number): Promise<boolean> {
-  try {
-    return await window.electronAPI.db('deleteLookupCleaningSolution', id)
-  } catch (error) {
-    console.error('Error deleting cleaning solution:', error)
-    return false
-  }
+  return deleteLookupItem('cleaning-solutions', id);
 }
 
+// Disinfection Solution functions
 export async function getAllLookupDisinfectionSolutions(): Promise<LookupDisinfectionSolution[]> {
-  try {
-    return await window.electronAPI.db('getAllLookupDisinfectionSolutions')
-  } catch (error) {
-    console.error('Error getting disinfection solutions:', error)
-    return []
-  }
+  return getLookupItems<LookupDisinfectionSolution>('disinfection-solutions');
 }
 
 export async function createLookupDisinfectionSolution(data: Omit<LookupDisinfectionSolution, 'id'>): Promise<LookupDisinfectionSolution | null> {
-  try {
-    return await window.electronAPI.db('createLookupDisinfectionSolution', data)
-  } catch (error) {
-    console.error('Error creating disinfection solution:', error)
-    return null
-  }
+  return createLookupItem<LookupDisinfectionSolution>('disinfection-solutions', data);
 }
 
 export async function updateLookupDisinfectionSolution(data: LookupDisinfectionSolution): Promise<LookupDisinfectionSolution | null> {
-  try {
-    return await window.electronAPI.db('updateLookupDisinfectionSolution', data)
-  } catch (error) {
-    console.error('Error updating disinfection solution:', error)
-    return null
-  }
+  return updateLookupItem<LookupDisinfectionSolution>('disinfection-solutions', data);
 }
 
 export async function deleteLookupDisinfectionSolution(id: number): Promise<boolean> {
-  try {
-    return await window.electronAPI.db('deleteLookupDisinfectionSolution', id)
-  } catch (error) {
-    console.error('Error deleting disinfection solution:', error)
-    return false
-  }
+  return deleteLookupItem('disinfection-solutions', id);
 }
 
+// Rinsing Solution functions
 export async function getAllLookupRinsingSolutions(): Promise<LookupRinsingSolution[]> {
-  try {
-    return await window.electronAPI.db('getAllLookupRinsingSolutions')
-  } catch (error) {
-    console.error('Error getting rinsing solutions:', error)
-    return []
-  }
+  return getLookupItems<LookupRinsingSolution>('rinsing-solutions');
 }
 
 export async function createLookupRinsingSolution(data: Omit<LookupRinsingSolution, 'id'>): Promise<LookupRinsingSolution | null> {
-  try {
-    return await window.electronAPI.db('createLookupRinsingSolution', data)
-  } catch (error) {
-    console.error('Error creating rinsing solution:', error)
-    return null
-  }
+  return createLookupItem<LookupRinsingSolution>('rinsing-solutions', data);
 }
 
 export async function updateLookupRinsingSolution(data: LookupRinsingSolution): Promise<LookupRinsingSolution | null> {
-  try {
-    return await window.electronAPI.db('updateLookupRinsingSolution', data)
-  } catch (error) {
-    console.error('Error updating rinsing solution:', error)
-    return null
-  }
+  return updateLookupItem<LookupRinsingSolution>('rinsing-solutions', data);
 }
 
 export async function deleteLookupRinsingSolution(id: number): Promise<boolean> {
-  try {
-    return await window.electronAPI.db('deleteLookupRinsingSolution', id)
-  } catch (error) {
-    console.error('Error deleting rinsing solution:', error)
-    return false
-  }
+  return deleteLookupItem('rinsing-solutions', id);
 }
 
+// Manufacturing Lab functions
 export async function getAllLookupManufacturingLabs(): Promise<LookupManufacturingLab[]> {
-  try {
-    return await window.electronAPI.db('getAllLookupManufacturingLabs')
-  } catch (error) {
-    console.error('Error getting manufacturing labs:', error)
-    return []
-  }
+  return getLookupItems<LookupManufacturingLab>('manufacturing-labs');
 }
 
 export async function createLookupManufacturingLab(data: Omit<LookupManufacturingLab, 'id'>): Promise<LookupManufacturingLab | null> {
-  try {
-    return await window.electronAPI.db('createLookupManufacturingLab', data)
-  } catch (error) {
-    console.error('Error creating manufacturing lab:', error)
-    return null
-  }
+  return createLookupItem<LookupManufacturingLab>('manufacturing-labs', data);
 }
 
 export async function updateLookupManufacturingLab(data: LookupManufacturingLab): Promise<LookupManufacturingLab | null> {
-  try {
-    return await window.electronAPI.db('updateLookupManufacturingLab', data)
-  } catch (error) {
-    console.error('Error updating manufacturing lab:', error)
-    return null
-  }
+  return updateLookupItem<LookupManufacturingLab>('manufacturing-labs', data);
 }
 
 export async function deleteLookupManufacturingLab(id: number): Promise<boolean> {
-  try {
-    return await window.electronAPI.db('deleteLookupManufacturingLab', id)
-  } catch (error) {
-    console.error('Error deleting manufacturing lab:', error)
-    return false
-  }
+  return deleteLookupItem('manufacturing-labs', id);
 }
 
+// Advisor functions
 export async function getAllLookupAdvisors(): Promise<LookupAdvisor[]> {
-  try {
-    return await window.electronAPI.db('getAllLookupAdvisors')
-  } catch (error) {
-    console.error('Error getting advisors:', error)
-    return []
-  }
+  return getLookupItems<LookupAdvisor>('advisors');
 }
 
 export async function createLookupAdvisor(data: Omit<LookupAdvisor, 'id'>): Promise<LookupAdvisor | null> {
-  try {
-    return await window.electronAPI.db('createLookupAdvisor', data)
-  } catch (error) {
-    console.error('Error creating advisor:', error)
-    return null
-  }
+  return createLookupItem<LookupAdvisor>('advisors', data);
 }
 
 export async function updateLookupAdvisor(data: LookupAdvisor): Promise<LookupAdvisor | null> {
-  try {
-    return await window.electronAPI.db('updateLookupAdvisor', data)
-  } catch (error) {
-    console.error('Error updating advisor:', error)
-    return null
-  }
+  return updateLookupItem<LookupAdvisor>('advisors', data);
 }
 
 export async function deleteLookupAdvisor(id: number): Promise<boolean> {
-  try {
-    return await window.electronAPI.db('deleteLookupAdvisor', id)
-  } catch (error) {
-    console.error('Error deleting advisor:', error)
-    return false
-  }
+  return deleteLookupItem('advisors', id);
 }
 
 export const lookupTables = {

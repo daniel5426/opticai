@@ -3,6 +3,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Building2, Stethoscope, Settings, Users } from 'lucide-react'
 import { useRouter } from '@tanstack/react-router'
+import { apiClient } from '@/lib/api-client'
+import { OctahedronLoader } from '@/components/ui/octahedron-loader'
 
 export default function WelcomeScreen() {
   const [isMultiClinicMode, setIsMultiClinicMode] = useState(false)
@@ -12,8 +14,9 @@ export default function WelcomeScreen() {
   useEffect(() => {
     const checkMultiClinicMode = async () => {
       try {
-        const multiClinicMode = await window.electronAPI.db('isMultiClinicMode')
-        setIsMultiClinicMode(multiClinicMode)
+        const companiesResponse = await apiClient.getCompaniesPublic()
+        const companies = companiesResponse.data || []
+        setIsMultiClinicMode(companies.length > 0)
       } catch (error) {
         console.error('Error checking multi-clinic mode:', error)
         setIsMultiClinicMode(false)
@@ -31,16 +34,20 @@ export default function WelcomeScreen() {
   }
 
   const handleClinicEntranceClick = () => {
+    // Clear any existing clinic data when user explicitly chooses clinic entrance
+    sessionStorage.removeItem('selectedClinic');
+    sessionStorage.removeItem('currentUser');
+    
     // Navigate to clinic entrance flow
     router.navigate({ to: '/clinic-entrance' })
   }
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-accent/50  dark:bg-slate-900  flex items-center justify-center">
-        <div className="text-slate-600 dark:text-slate-400 text-lg">טוען...</div>
-      </div>
-    )
+      <div className="flex items-center justify-center h-full">
+      <OctahedronLoader size="3xl" />
+    </div>
+)
   }
 
   return (

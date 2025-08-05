@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from "react"
 import { SiteHeader } from "@/components/site-header"
 import { getAllFiles } from "@/lib/db/files-db"
-import { File } from "@/lib/db/schema"
+import { File } from "@/lib/db/schema-interface"
 import { FilesTable } from "@/components/files-table"
 import { useNavigate } from "@tanstack/react-router"
+import { useUser } from "@/contexts/UserContext"
 
 export default function AllFilesPage() {
+  const { currentClinic } = useUser()
   const [files, setFiles] = useState<File[]>([])
   const [loading, setLoading] = useState(true)
   const navigate = useNavigate()
@@ -13,7 +15,7 @@ export default function AllFilesPage() {
   const loadFiles = async () => {
     try {
       setLoading(true)
-      const filesData = await getAllFiles()
+      const filesData = await getAllFiles(currentClinic?.id)
       setFiles(filesData)
     } catch (error) {
       console.error('Error loading files:', error)
@@ -23,8 +25,10 @@ export default function AllFilesPage() {
   }
 
   useEffect(() => {
-    loadFiles()
-  }, [])
+    if (currentClinic) {
+      loadFiles()
+    }
+  }, [currentClinic])
 
   const handleFileDeleted = (deletedFileId: number) => {
     setFiles(prevFiles => prevFiles.filter(file => file.id !== deletedFileId))

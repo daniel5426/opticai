@@ -31,6 +31,7 @@ import { NavDocuments } from "@/components/nav-documents"
 import { NavMain } from "@/components/nav-main"
 import { NavSecondary } from "@/components/nav-secondary"
 import { NavUser } from "@/components/nav-user"
+import { ClinicDropdown } from "@/components/clinic-dropdown"
 import {
   Sidebar,
   SidebarContent,
@@ -42,13 +43,14 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar"
 import { cn } from "@/utils/tailwind"
-import { User } from "@/lib/db/schema"
+import { User, Clinic } from "@/lib/db/schema-interface"
+import { useUser } from "@/contexts/UserContext"
 
 const getNavData = (currentUser?: User) => ({
   navMain: [
     {
       title: "דשבורד",
-      url: "/",
+      url: "/dashboard",
       icon: IconDashboard,
     },
     {
@@ -66,7 +68,7 @@ const getNavData = (currentUser?: User) => ({
       url: "/worker-stats",
       icon: IconChartLine,
     },
-    ...(currentUser?.role === 'admin' ? [{
+    ...(currentUser?.role === 'clinic_manager' || currentUser?.role === 'company_ceo' ? [{
       title: "קמפיינים",
       url: "/campaigns",
       icon: IconChartBar,
@@ -128,12 +130,14 @@ export function AppSidebar({
   currentUser,
   logoPath,
   isLogoLoaded,
+  currentClinic,
   ...props 
 }: React.ComponentProps<typeof Sidebar> & { 
   clinicName?: string;
   currentUser?: User;
   logoPath?: string | null;
   isLogoLoaded?: boolean;
+  currentClinic?: Clinic | null;
 }) {
   const { state } = useSidebar()
   const hasLogo = logoPath;
@@ -150,31 +154,43 @@ export function AppSidebar({
     }
   }, [state, isLogoLoaded])
 
+  const clinicHeaderContent = (
+    <>
+      {hasLogo ? (
+        <img 
+          src={logoPath} 
+          alt="לוגו המרפאה" 
+          className={cn(
+            "!size-8 rounded object-cover",
+            state === 'expanded' && 'transition-opacity duration-300',
+            isLogoLoaded && isLogoVisible ? "opacity-100" : "opacity-0"
+          )}
+        />
+      ) : (
+        <IconInnerShadowTop className="!size-5" />
+      )}
+      <span className="text-base font-semibold">{clinicName || ""}</span>
+    </>
+  )
+
   return (
     <Sidebar collapsible="offcanvas" {...props}>
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton
-              asChild
               className="data-[slot=sidebar-menu-button]:!p-1.5"
             >
-              <Link to="/">
-                {hasLogo ? (
-                  <img 
-                    src={logoPath} 
-                    alt="לוגו המרפאה" 
-                    className={cn(
-                      "!size-8 rounded object-cover",
-                      state === 'expanded' && 'transition-opacity duration-300',
-                      isLogoLoaded && isLogoVisible ? "opacity-100" : "opacity-0"
-                    )}
-                  />
-                ) : (
-                  <IconInnerShadowTop className="!size-5" />
-                )}
-                <span className="text-base font-semibold">{clinicName || ""}</span>
-              </Link>
+              <ClinicDropdown
+                currentClinic={currentClinic}
+                clinicName={clinicName}
+                logoPath={logoPath}
+                isLogoLoaded={isLogoLoaded}
+              >
+                <div className="flex items-center gap-2">
+                  {clinicHeaderContent}
+                </div>
+              </ClinicDropdown>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>

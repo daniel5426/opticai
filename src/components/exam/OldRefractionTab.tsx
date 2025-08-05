@@ -3,7 +3,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { VHCalculatorModal } from "@/components/ui/vh-calculator-modal"
-import { OldRefractionExam } from "@/lib/db/schema"
+import { OldRefractionExam } from "@/lib/db/schema-interface"
 import { ChevronUp, ChevronDown } from "lucide-react"
 
 interface OldRefractionTabProps {

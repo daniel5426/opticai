@@ -1,14 +1,20 @@
-import { connectionManager } from './connection-manager';
-import { RGExam } from './schema';
+import { apiClient } from '../api-client';
+import { RGExam } from './schema-interface';
 
-export function createRGExam(data: Omit<RGExam, 'id'>) {
-  return connectionManager.createRGExam(data);
+export async function createRGExam(data: Omit<RGExam, 'id'>): Promise<RGExam | null> {
+  const response = await apiClient.createRGExam(data, data.layout_instance_id);
+  return response.data as RGExam | null;
 }
 
-export function getRGExamByLayoutInstanceId(layoutInstanceId: number) {
-  return connectionManager.getRGExamByLayoutInstanceId(layoutInstanceId);
+export async function getRGExamByLayoutInstanceId(layoutInstanceId: number): Promise<RGExam | null> {
+  const response = await apiClient.getRGExam(layoutInstanceId);
+  return response.data as RGExam | null;
 }
 
-export function updateRGExam(data: RGExam) {
-  return connectionManager.updateRGExam(data);
+export async function updateRGExam(data: RGExam): Promise<RGExam | null> {
+  if (!data.id) {
+    throw new Error('RGExam ID is required for update');
+  }
+  const response = await apiClient.updateRGExam(data.id, data);
+  return response.data as RGExam | null;
 } 

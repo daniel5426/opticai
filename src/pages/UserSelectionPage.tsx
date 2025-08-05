@@ -1,13 +1,16 @@
 import React, { useState, useEffect, useMemo } from 'react'
-import { User } from '@/lib/db/schema'
+import { User } from '@/lib/db/schema-interface'
 import { useUser } from '@/contexts/UserContext'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { useNavigate } from '@tanstack/react-router'
+import { router } from '@/routes/router'
 
 import { toast } from 'sonner'
+import { apiClient } from '@/lib/api-client';
 
 export default function UserSelectionPage() {
   const [users, setUsers] = useState<User[]>([])
@@ -18,6 +21,7 @@ export default function UserSelectionPage() {
   const [loadedImages, setLoadedImages] = useState<Set<string>>(new Set())
   const [selectedClinic, setSelectedClinic] = useState<any>(null)
   const { login, setCurrentClinic } = useUser()
+  const navigate = useNavigate()
 
   // Preload profile images for better performance
   const preloadImages = useMemo(() => {
@@ -87,7 +91,9 @@ export default function UserSelectionPage() {
 
         const clinic = JSON.parse(selectedClinicData)
         setSelectedClinic(clinic)
-        const usersData = await window.electronAPI.db('getUsersByClinicId', clinic.id)
+        const usersResponse = await apiClient.getUsersByClinicPublic(clinic.id)
+        const usersData = usersResponse.data || []
+        console.log('UserSelectionPage: Loaded users:', usersData.map(u => ({ id: u.id, username: u.username, hasPassword: !!u.password, passwordLength: u.password?.length })))
         setUsers(usersData)
       } catch (error) {
         console.error('Error loading users:', error)
@@ -110,20 +116,40 @@ export default function UserSelectionPage() {
 
     setIsLoggingIn(true)
     try {
-      const hasPassword = selectedUser.password && selectedUser.password.trim() !== ''
+      console.log('UserSelectionPage: Starting login process');
+      console.log('UserSelectionPage: Selected user:', selectedUser);
+      console.log('UserSelectionPage: Selected clinic:', selectedClinic);
+      
+      const hasPassword = selectedUser.has_password
+      console.log('UserSelectionPage: Selected user has_password field:', selectedUser.has_password);
+      console.log('UserSelectionPage: Has password:', hasPassword);
+      
       const success = await login(
         selectedUser.username,
         hasPassword ? password : undefined
       )
       
-      if (success && selectedClinic) {
-        // Set the clinic context after successful login
-        setCurrentClinic(selectedClinic)
-      }
+      console.log('UserSelectionPage: Login result:', success);
       
-      if (!success) {
-        toast.error('שגיאה בהתחברות - בדוק את הסיסמה')
-        setPassword('')
+      if (success && selectedClinic) {
+        console.log('UserSelectionPage: Login successful, setting clinic context');
+        setCurrentClinic(selectedClinic)
+        console.log('UserSelectionPage: Clinic context set, navigating to dashboard');
+        
+        try {
+          navigate({ to: '/dashboard' })
+          console.log('UserSelectionPage: Navigation command sent via useNavigate');
+        } catch (navError) {
+          console.error('UserSelectionPage: Navigation error:', navError);
+          // Fallback to window.location if router navigation fails
+          window.location.href = '/dashboard'
+        }
+      } else {
+        console.log('UserSelectionPage: Login failed or no clinic selected');
+        if (!success) {
+          toast.error('שגיאה בהתחברות - בדוק את הסיסמה')
+          setPassword('')
+        }
       }
     } catch (error) {
       console.error('Login error:', error)
@@ -141,7 +167,7 @@ export default function UserSelectionPage() {
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && selectedUser) {
-      const hasPassword = selectedUser.password && selectedUser.password.trim() !== ''
+      const hasPassword = selectedUser.has_password
       if (!hasPassword || password) {
         handleLogin()
       }
@@ -201,7 +227,7 @@ export default function UserSelectionPage() {
                   <div className="relative mb-3 transform transition-all duration-500 ease-out group-hover:scale-110 group-hover:-translate-y-2">
                     <OptimizedAvatar user={user} size="sm" />
                     
-                    {user.password && user.password.trim() !== '' && (
+                    {user.has_password && (
                       <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-emerald-100 dark:bg-emerald-900 border-2 border-white dark:border-slate-950 rounded-full flex items-center justify-center transform transition-all duration-300 group-hover:scale-110">
                         <svg className="w-3 h-3 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
@@ -216,14 +242,14 @@ export default function UserSelectionPage() {
                     </h3>
                     <Badge 
                       variant={
-                        user.role === 'admin' ? 'default' : 
-                        user.role === 'worker' ? 'secondary' : 
+                        user.role === 'clinic_manager' || user.role === 'company_ceo' ? 'default' : 
+                        user.role === 'clinic_worker' ? 'secondary' : 
                         'outline'
                       }
                       className="text-xs scale-90 group-hover:scale-100 transition-transform duration-300"
                     >
-                      {user.role === 'admin' ? 'מנהל' : 
-                       user.role === 'worker' ? 'עובד' : 
+                      {user.role === 'clinic_manager' || user.role === 'company_ceo' ? 'מנהל' : 
+                       user.role === 'clinic_worker' ? 'עובד' : 
                        'צופה'}
                     </Badge>
                   </div>
@@ -253,21 +279,21 @@ export default function UserSelectionPage() {
                 </h2>
                 <Badge 
                   variant={
-                    selectedUser.role === 'admin' ? 'default' : 
-                    selectedUser.role === 'worker' ? 'secondary' : 
+                    selectedUser.role === 'clinic_manager' || selectedUser.role === 'company_ceo' ? 'default' : 
+                    selectedUser.role === 'clinic_worker' ? 'secondary' : 
                     'outline'
                   }
                   className="text-sm"
                 >
-                  {selectedUser.role === 'admin' ? 'מנהל' : 
-                   selectedUser.role === 'worker' ? 'עובד' : 
+                  {selectedUser.role === 'clinic_manager' || selectedUser.role === 'company_ceo' ? 'מנהל' : 
+                   selectedUser.role === 'clinic_worker' ? 'עובד' : 
                    'צופה'}
                 </Badge>
               </div>
             </div>
 
             <Card className="w-full max-w-sm p-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
-              {selectedUser.password && selectedUser.password.trim() !== '' ? (
+              {selectedUser.has_password ? (
                 <div className="space-y-4" dir="rtl">
                   <div className="space-y-2">
                     <Label htmlFor="password" className="text-slate-700 dark:text-slate-300">

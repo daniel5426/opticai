@@ -1,13 +1,14 @@
-import { File } from './schema';
+import { File } from './schema-interface';
+import { apiClient } from '../api-client';
 
 export async function createFile(data: Omit<File, 'id'>): Promise<File | null> {
   try {
-    const result = await window.electronAPI.db('createFile', data);
-    if (result && data.client_id) {
-      await window.electronAPI.db('updateClientUpdatedDate', data.client_id);
-      
+    const response = await apiClient.createFile(data);
+    if (response.error) {
+      console.error('Error creating file:', response.error);
+      return null;
     }
-    return result;
+    return response.data || null;
   } catch (error) {
     console.error('Error creating file:', error);
     return null;
@@ -16,7 +17,12 @@ export async function createFile(data: Omit<File, 'id'>): Promise<File | null> {
 
 export async function getFileById(id: number): Promise<File | null> {
   try {
-    return await window.electronAPI.db('getFileById', id);
+    const response = await apiClient.getFile(id);
+    if (response.error) {
+      console.error('Error getting file:', response.error);
+      return null;
+    }
+    return response.data || null;
   } catch (error) {
     console.error('Error getting file:', error);
     return null;
@@ -25,16 +31,26 @@ export async function getFileById(id: number): Promise<File | null> {
 
 export async function getFilesByClientId(clientId: number): Promise<File[]> {
   try {
-    return await window.electronAPI.db('getFilesByClientId', clientId);
+    const response = await apiClient.getFilesByClient(clientId);
+    if (response.error) {
+      console.error('Error getting files by client:', response.error);
+      return [];
+    }
+    return response.data || [];
   } catch (error) {
     console.error('Error getting files by client:', error);
     return [];
   }
 }
 
-export async function getAllFiles(): Promise<File[]> {
+export async function getAllFiles(clinicId?: number): Promise<File[]> {
   try {
-    return await window.electronAPI.db('getAllFiles');
+    const response = await apiClient.getFiles(clinicId);
+    if (response.error) {
+      console.error('Error getting all files:', response.error);
+      return [];
+    }
+    return response.data || [];
   } catch (error) {
     console.error('Error getting all files:', error);
     return [];
@@ -43,12 +59,16 @@ export async function getAllFiles(): Promise<File[]> {
 
 export async function updateFile(data: File): Promise<File | null> {
   try {
-    const result = await window.electronAPI.db('updateFile', data);
-    if (result && data.client_id) {
-      await window.electronAPI.db('updateClientUpdatedDate', data.client_id);
-      
+    if (!data.id) {
+      console.error('Error updating file: No file ID provided');
+      return null;
     }
-    return result;
+    const response = await apiClient.updateFile(data.id, data);
+    if (response.error) {
+      console.error('Error updating file:', response.error);
+      return null;
+    }
+    return response.data || null;
   } catch (error) {
     console.error('Error updating file:', error);
     return null;
@@ -57,13 +77,12 @@ export async function updateFile(data: File): Promise<File | null> {
 
 export async function deleteFile(id: number): Promise<boolean> {
   try {
-    const file = await window.electronAPI.db('getFileById', id);
-    const result = await window.electronAPI.db('deleteFile', id);
-    if (result && file?.client_id) {
-      await window.electronAPI.db('updateClientUpdatedDate', file.client_id);
-      
+    const response = await apiClient.deleteFile(id);
+    if (response.error) {
+      console.error('Error deleting file:', response.error);
+      return false;
     }
-    return result;
+    return true;
   } catch (error) {
     console.error('Error deleting file:', error);
     return false;
