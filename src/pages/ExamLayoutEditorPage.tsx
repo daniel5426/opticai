@@ -730,8 +730,8 @@ export default function ExamLayoutEditorPage() {
                               {index < row.cards.length - 1 && (() => {
                                 const leftCard = row.cards[index];
                                 const rightCard = row.cards[index + 1];
-                                const leftCol = getColumnCount(leftCard.type);
-                                const rightCol = getColumnCount(rightCard.type);
+                                const leftCol = getColumnCount(leftCard.type, 'editor');
+                                const rightCol = getColumnCount(rightCard.type, 'editor');
                                 if (typeof leftCol === 'number' && typeof rightCol === 'number') {
                                   const leftCardWidth = cardWidths[leftCard.id] || 0;
                                   const rightCardWidth = cardWidths[rightCard.id] || 0;

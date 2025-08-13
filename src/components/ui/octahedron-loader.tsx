@@ -6,7 +6,7 @@ interface OctahedronLoaderProps {
   text?: string;
 }
 
-export function OctahedronLoader({ size = 'md', text = 'טוען נתונים...' }: OctahedronLoaderProps) {
+export function OctahedronLoader({ size = 'md' }: OctahedronLoaderProps) {
   const [animationData, setAnimationData] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -46,22 +46,11 @@ export function OctahedronLoader({ size = 'md', text = 'טוען נתונים...
   };
 
   if (loading) {
-    return (
-      <div className="flex flex-col items-center justify-center space-y-4">
-        <div className={`relative ${sizeClasses[size]}`}>
-          <div className="w-full h-full bg-blue-500 rounded-full animate-pulse" />
-        </div>
-        {text && (
-          <div className={`text-muted-foreground ${textSizes[size]} font-medium animate-pulse`}>
-            {text}
-          </div>
-        )}
-      </div>
-    );
+    return null;
   }
 
   return (
-    <div className="flex flex-col items-center justify-center space-y-4">
+    <div className="fixed inset-0 flex items-center justify-center" dir="rtl" style={{ scrollbarWidth: 'none' }}>
       <div className={`relative ${sizeClasses[size]}`}>
         <Lottie
           animationData={animationData}
@@ -73,7 +62,6 @@ export function OctahedronLoader({ size = 'md', text = 'טוען נתונים...
           }}
         />
       </div>
-      
     </div>
   );
 } 

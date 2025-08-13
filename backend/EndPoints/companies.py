@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from database import get_db
 from models import Company, Clinic
+from sqlalchemy.exc import IntegrityError
 from schemas import CompanyCreate, CompanyUpdate, Company as CompanySchema
 from auth import get_current_user
 from models import User
@@ -22,23 +23,39 @@ def create_company_public(
 ):
     """Public endpoint for creating companies during registration"""
     print(f"DEBUG: Creating new company: {company.name}")
-    db_company = Company(**company.dict())
-    db.add(db_company)
-    db.commit()
-    db.refresh(db_company)
-    print(f"DEBUG: Company created successfully with ID: {db_company.id}")
-    return db_company
+    try:
+        db_company = Company(**company.dict())
+        db.add(db_company)
+        db.commit()
+        db.refresh(db_company)
+        print(f"DEBUG: Company created successfully with ID: {db_company.id}")
+        return db_company
+    except IntegrityError:
+        db.rollback()
+        # If a unique constraint exists at DB level from older schema, reuse existing company
+        existing = db.query(Company).filter(Company.name == company.name).first()
+        if existing:
+            print(f"DEBUG: Company with same name exists, returning existing ID: {existing.id}")
+            return existing
+        raise
 
 @router.post("/", response_model=CompanySchema)
 def create_company(data: CompanyCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     if current_user.role != "company_ceo":
         raise HTTPException(status_code=403, detail="Only company CEOs can create companies")
     
-    db_company = Company(**data.dict())
-    db.add(db_company)
-    db.commit()
-    db.refresh(db_company)
-    return db_company
+    try:
+        db_company = Company(**data.dict())
+        db.add(db_company)
+        db.commit()
+        db.refresh(db_company)
+        return db_company
+    except IntegrityError:
+        db.rollback()
+        existing = db.query(Company).filter(Company.name == data.name).first()
+        if existing:
+            return existing
+        raise
 
 @router.get("/", response_model=List[CompanySchema])
 def get_companies(

@@ -61,7 +61,7 @@ export function ClinicDropdown({
       let clinicData = currentClinic
 
       if (!clinicData && !isInControlCenter) {
-        const savedClinicData = sessionStorage.getItem('selectedClinic')
+    const savedClinicData = localStorage.getItem('selectedClinic')
         if (savedClinicData) {
           try {
             clinicData = JSON.parse(savedClinicData)
@@ -73,7 +73,7 @@ export function ClinicDropdown({
       }
 
       if (isInControlCenter) {
-        const companyData = sessionStorage.getItem('controlCenterCompany')
+    const companyData = localStorage.getItem('controlCenterCompany')
         if (companyData) {
           const parsedCompany = JSON.parse(companyData)
           setCompany(parsedCompany)
@@ -136,7 +136,7 @@ export function ClinicDropdown({
       console.log('ClinicDropdown: Current clinic before switch:', currentClinic?.name)
       
       setCurrentClinic(clinic)
-      sessionStorage.setItem('selectedClinic', JSON.stringify(clinic))
+    localStorage.setItem('selectedClinic', JSON.stringify(clinic))
       
       console.log('ClinicDropdown: About to navigate to /dashboard')
       
@@ -159,10 +159,10 @@ export function ClinicDropdown({
       }
 
       console.log('ClinicDropdown: Switching to control center for company:', company)
-      sessionStorage.setItem('controlCenterCompany', JSON.stringify(company))
+    localStorage.setItem('controlCenterCompany', JSON.stringify(company))
       
       if (currentUser) {
-        sessionStorage.setItem('currentUser', JSON.stringify(currentUser))
+      localStorage.setItem('currentUser', JSON.stringify(currentUser))
       }
       
       navigate({ 

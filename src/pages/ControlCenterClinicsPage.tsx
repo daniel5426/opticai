@@ -31,6 +31,7 @@ import {
 import { toast } from 'sonner';
 import type { Company, Clinic } from '@/lib/db/schema-interface';
 import { apiClient } from '@/lib/api-client';
+import { Skeleton } from '@/components/ui/skeleton';
 
 interface ClinicModalProps {
   isOpen: boolean;
@@ -41,7 +42,15 @@ interface ClinicModalProps {
 
 function ClinicModal({ isOpen, onClose, clinic, onSave }: ClinicModalProps) {
   const [name, setName] = useState(clinic?.name || '');
-  const [location, setLocation] = useState(clinic?.location || '');
+  const [clinicName, setClinicName] = useState(clinic?.clinic_name || '');
+  const [clinicPosition, setClinicPosition] = useState(clinic?.clinic_position || '');
+  const [clinicAddress, setClinicAddress] = useState(clinic?.clinic_address || '');
+  const [clinicCity, setClinicCity] = useState(clinic?.clinic_city || '');
+  const [clinicPostalCode, setClinicPostalCode] = useState(clinic?.clinic_postal_code || '');
+  const [clinicDirections, setClinicDirections] = useState(clinic?.clinic_directions || '');
+  const [clinicWebsite, setClinicWebsite] = useState(clinic?.clinic_website || '');
+  const [managerName, setManagerName] = useState(clinic?.manager_name || '');
+  const [licenseNumber, setLicenseNumber] = useState(clinic?.license_number || '');
   const [phoneNumber, setPhoneNumber] = useState(clinic?.phone_number || '');
   const [email, setEmail] = useState(clinic?.email || '');
   const [isActive, setIsActive] = useState(clinic?.is_active ?? true);
@@ -51,7 +60,15 @@ function ClinicModal({ isOpen, onClose, clinic, onSave }: ClinicModalProps) {
       id: clinic?.id,
       company_id: clinic?.company_id,
       name,
-      location,
+      clinic_name: clinicName,
+      clinic_position: clinicPosition,
+      clinic_address: clinicAddress,
+      clinic_city: clinicCity,
+      clinic_postal_code: clinicPostalCode,
+      clinic_directions: clinicDirections,
+      clinic_website: clinicWebsite,
+      manager_name: managerName,
+      license_number: licenseNumber,
       phone_number: phoneNumber,
       email,
       unique_id: clinic?.unique_id || generateUniqueId(),
@@ -68,7 +85,15 @@ function ClinicModal({ isOpen, onClose, clinic, onSave }: ClinicModalProps) {
 
   const reset = () => {
     setName(clinic?.name || '');
-    setLocation(clinic?.location || '');
+    setClinicName(clinic?.clinic_name || '');
+    setClinicPosition(clinic?.clinic_position || '');
+    setClinicAddress(clinic?.clinic_address || '');
+    setClinicCity(clinic?.clinic_city || '');
+    setClinicPostalCode(clinic?.clinic_postal_code || '');
+    setClinicDirections(clinic?.clinic_directions || '');
+    setClinicWebsite(clinic?.clinic_website || '');
+    setManagerName(clinic?.manager_name || '');
+    setLicenseNumber(clinic?.license_number || '');
     setPhoneNumber(clinic?.phone_number || '');
     setEmail(clinic?.email || '');
     setIsActive(clinic?.is_active ?? true);
@@ -90,17 +115,47 @@ function ClinicModal({ isOpen, onClose, clinic, onSave }: ClinicModalProps) {
     >
       <div className="space-y-6" dir="rtl">
         <div className="space-y-2">
-          <Label htmlFor="name" className="text-sm font-medium">שם המרפאה</Label>
+          <Label htmlFor="name" className="text-sm font-medium">שם המרפאה להצגה</Label>
           <Input
             id="name"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="הכנס שם למרפאה"
+            placeholder="שם המרפאה כפי שמוצג באפליקציה"
+            className="w-full"
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="clinic_name" className="text-sm font-medium">שם המרפאה למסמכים</Label>
+          <Input
+            id="clinic_name"
+            value={clinicName}
+            onChange={(e) => setClinicName(e.target.value)}
+            placeholder="שם המרפאה כפי שיופיע במסמכים"
             className="w-full"
           />
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="manager_name" className="text-sm font-medium">שם המנהל</Label>
+            <Input
+              id="manager_name"
+              value={managerName}
+              onChange={(e) => setManagerName(e.target.value)}
+              placeholder="שם המנהל"
+              className="w-full"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="license_number" className="text-sm font-medium">מספר רישיון</Label>
+            <Input
+              id="license_number"
+              value={licenseNumber}
+              onChange={(e) => setLicenseNumber(e.target.value)}
+              placeholder="OPT-12345"
+              className="w-full"
+            />
+          </div>
           <div className="space-y-2">
             <Label htmlFor="phone" className="text-sm font-medium">טלפון</Label>
             <Input
@@ -124,15 +179,70 @@ function ClinicModal({ isOpen, onClose, clinic, onSave }: ClinicModalProps) {
           </div>
         </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="location" className="text-sm font-medium">כתובת</Label>
-          <Input
-            id="location"
-            value={location}
-            onChange={(e) => setLocation(e.target.value)}
-            placeholder="כתובת המרפאה"
-            className="w-full"
-          />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="clinic_city" className="text-sm font-medium">עיר</Label>
+            <Input
+              id="clinic_city"
+              value={clinicCity}
+              onChange={(e) => setClinicCity(e.target.value)}
+              placeholder="עיר"
+              className="w-full"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="clinic_address" className="text-sm font-medium">רחוב ומספר</Label>
+            <Input
+              id="clinic_address"
+              value={clinicAddress}
+              onChange={(e) => setClinicAddress(e.target.value)}
+              placeholder="רחוב ומספר"
+              className="w-full"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="clinic_postal_code" className="text-sm font-medium">מיקוד</Label>
+            <Input
+              id="clinic_postal_code"
+              value={clinicPostalCode}
+              onChange={(e) => setClinicPostalCode(e.target.value)}
+              placeholder="מיקוד"
+              className="w-full"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="clinic_position" className="text-sm font-medium">מיקום במבנה</Label>
+            <Input
+              id="clinic_position"
+              value={clinicPosition}
+              onChange={(e) => setClinicPosition(e.target.value)}
+              placeholder="קומה/חדר"
+              className="w-full"
+            />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="clinic_directions" className="text-sm font-medium">הוראות הגעה</Label>
+            <Input
+              id="clinic_directions"
+              value={clinicDirections}
+              onChange={(e) => setClinicDirections(e.target.value)}
+              placeholder="לדוגמה: ליד הפארק, קומה 2"
+              className="w-full"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="clinic_website" className="text-sm font-medium">אתר אינטרנט</Label>
+            <Input
+              id="clinic_website"
+              value={clinicWebsite}
+              onChange={(e) => setClinicWebsite(e.target.value)}
+              placeholder="https://clinic.example.com"
+              className="w-full"
+            />
+          </div>
         </div>
 
       </div>
@@ -153,7 +263,7 @@ const ControlCenterClinicsPage: React.FC = () => {
     try {
       setLoading(true);
       
-      const companyData = sessionStorage.getItem('controlCenterCompany');
+      const companyData = localStorage.getItem('controlCenterCompany');
       if (!companyData) {
         router.navigate({ to: '/control-center' });
         return;
@@ -292,8 +402,61 @@ const ControlCenterClinicsPage: React.FC = () => {
     return (
       <>
         <SiteHeader title="ניהול מרפאות" />
-        <div className="flex items-center justify-center h-full">
-          <div className="text-lg">טוען מרפאות...</div>
+        <div className="h-full overflow-auto bg-muted/30" style={{scrollbarWidth: 'none'}} dir="rtl">
+          <div className="max-w-7xl mx-auto p-6 pb-20 space-y-6">
+            <div className="flex justify-between items-center">
+              <div>
+                <h1 className="text-2xl font-bold">מרפאות</h1>
+                <p className="text-muted-foreground">נהל את כל מרפאות החברה</p>
+              </div>
+              <Button size="lg" className="gap-2" disabled>
+                <Plus className="h-5 w-5" />
+                מרפאה חדשה
+              </Button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+              {Array.from({ length: 6 }).map((_, idx) => (
+                <Card key={idx} className="border-0 shadow-sm">
+                  <CardContent className="px-4 py-4 space-y-3">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1 space-y-2 pr-2">
+                        <Skeleton className="h-4 w-40 ml-auto" />
+                        <div className="flex items-center gap-2 justify-end">
+                          <Skeleton className="h-3 w-20" />
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Skeleton className="h-6 w-6 rounded-md" />
+                        <Skeleton className="h-6 w-6 rounded-md" />
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between p-2 rounded-lg">
+                      <div className="flex items-center gap-2">
+                        <Skeleton className="h-2 w-2 rounded-full" />
+                        <Skeleton className="h-3 w-14" />
+                      </div>
+                      <Skeleton className="h-5 w-10 rounded-full" />
+                    </div>
+
+                    <div className="mb-1">
+                      <div className="text-center p-2 py-3 rounded-md relative">
+                        <Skeleton className="h-4 w-48 mx-auto" />
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-4 justify-end">
+                      <Skeleton className="h-3 w-24" />
+                      <Skeleton className="h-3 w-28" />
+                    </div>
+
+                    <Skeleton className="h-8 w-full rounded-md" />
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </div>
         </div>
       </>
     );
@@ -341,7 +504,10 @@ const ControlCenterClinicsPage: React.FC = () => {
                         </h3>
                         <div className="flex items-center gap-2 text-xs text-gray-500">
                           <MapPin className="h-3 w-3" />
-                          {clinic.location ? clinic.location.substring(0, 30) + (clinic.location.length > 30 ? '...' : '') : 'ללא כתובת'}
+                          {(() => {
+                            const loc = clinic.clinic_city && clinic.clinic_address ? `${clinic.clinic_city}, ${clinic.clinic_address}` : (clinic.clinic_city || clinic.clinic_address || 'ללא כתובת');
+                            return loc.length > 30 ? loc.substring(0,30) + '...' : loc;
+                          })()}
                         </div>
                       </div>
                       
@@ -421,7 +587,7 @@ const ControlCenterClinicsPage: React.FC = () => {
                         size="sm" 
                         className="w-full h-8 bg-gradient-to-r from-blue-50 to-green-50 hover:from-blue-100 hover:to-green-100 border-blue-200 text-blue-700 hover:text-blue-800 text-xs font-medium"
                         onClick={() => {
-                          sessionStorage.setItem('selectedClinic', JSON.stringify(clinic));
+                         localStorage.setItem('selectedClinic', JSON.stringify(clinic));
                           router.navigate({ to: '/clinic-entrance' });
                         }}
                       >

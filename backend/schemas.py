@@ -34,6 +34,14 @@ class ClinicBase(BaseModel):
     location: Optional[str] = None
     phone_number: Optional[str] = None
     email: Optional[str] = None
+    clinic_position: Optional[str] = None
+    clinic_address: Optional[str] = None
+    clinic_city: Optional[str] = None
+    clinic_postal_code: Optional[str] = None
+    clinic_directions: Optional[str] = None
+    clinic_website: Optional[str] = None
+    manager_name: Optional[str] = None
+    license_number: Optional[str] = None
     unique_id: str
     is_active: bool = True
 
@@ -55,6 +63,7 @@ class Clinic(ClinicBase):
         from_attributes = True
 
 class UserBase(BaseModel):
+    company_id: Optional[int] = None
     username: str
     email: Optional[str] = None
     phone: Optional[str] = None
@@ -68,7 +77,7 @@ class UserBase(BaseModel):
     google_account_email: Optional[str] = None
 
 class UserCreate(UserBase):
-    password: str
+    password: Optional[str] = None
     clinic_id: Optional[int] = None
 
 class UserUpdate(UserBase):
@@ -76,6 +85,7 @@ class UserUpdate(UserBase):
     role: Optional[str] = None
     password: Optional[str] = None
     clinic_id: Optional[int] = None
+    company_id: Optional[int] = None
 
 class User(UserBase):
     id: int
@@ -173,17 +183,6 @@ class Client(ClientBase):
         from_attributes = True
 
 class SettingsBase(BaseModel):
-    clinic_name: Optional[str] = None
-    clinic_position: Optional[str] = None
-    clinic_email: Optional[str] = None
-    clinic_phone: Optional[str] = None
-    clinic_address: Optional[str] = None
-    clinic_city: Optional[str] = None
-    clinic_postal_code: Optional[str] = None
-    clinic_directions: Optional[str] = None
-    clinic_website: Optional[str] = None
-    manager_name: Optional[str] = None
-    license_number: Optional[str] = None
     clinic_logo_path: Optional[str] = None
     primary_theme_color: Optional[str] = None
     secondary_theme_color: Optional[str] = None
@@ -231,6 +230,9 @@ class TokenData(BaseModel):
 class UserLogin(BaseModel):
     username: str
     password: str
+
+class UserLoginNoPassword(BaseModel):
+    username: str
 
 # Appointment schemas
 class AppointmentBase(BaseModel):
@@ -289,6 +291,7 @@ class OrderBase(BaseModel):
     comb_va: Optional[float] = None
     comb_high: Optional[float] = None
     comb_pd: Optional[float] = None
+    order_data: Optional[Dict[str, Any]] = {}
 
 class OrderCreate(OrderBase):
     pass
@@ -313,6 +316,7 @@ class ReferralBase(BaseModel):
     type: Optional[str] = None
     branch: Optional[str] = None
     recipient: Optional[str] = None
+    referral_data: Optional[Dict[str, Any]] = {}
 
 class ReferralCreate(ReferralBase):
     pass

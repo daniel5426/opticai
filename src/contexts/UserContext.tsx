@@ -29,11 +29,24 @@ export function UserProvider({ children }: UserProviderProps) {
   const [clinicRefreshTrigger, setClinicRefreshTrigger] = useState(0)
 
   useEffect(() => {
+    const onUnauthorized = () => {
+      try {
+        localStorage.removeItem('auth_token')
+        localStorage.removeItem('currentUser')
+        localStorage.removeItem('currentUserId')
+        localStorage.removeItem('selectedClinic')
+      } catch {}
+      setCurrentUser(null)
+      setCurrentClinic(null)
+      router.navigate({ to: '/' })
+    }
+    window.addEventListener('auth:unauthorized', onUnauthorized as EventListener)
+
     const loadCurrentUser = async () => {
       try {
         const savedUserId = localStorage.getItem('currentUserId')
-        const savedClinicData = sessionStorage.getItem('selectedClinic')
-        const controlCenterUserData = sessionStorage.getItem('currentUser')
+        const savedClinicData = localStorage.getItem('selectedClinic')
+        const controlCenterUserData = localStorage.getItem('currentUser')
         const authToken = localStorage.getItem('auth_token')
         
         console.log('UserContext: Loading current user with savedUserId:', savedUserId, 'authToken:', !!authToken)
@@ -42,24 +55,36 @@ export function UserProvider({ children }: UserProviderProps) {
           try {
             const user = JSON.parse(controlCenterUserData)
             if (user && user.is_active) {
-              await applyUserThemeComplete(user.id!)
+              await applyUserThemeComplete(user.id!, user)
               setCurrentUser(user)
               console.log('UserContext: Loaded control center user:', user)
+              const existingToken = localStorage.getItem('auth_token')
+              if (!existingToken && user?.username) {
+                try {
+                  await apiClient.loginWithoutPassword(user.username)
+                  console.log('UserContext: Restored auth token via login-no-password')
+                } catch (e) {
+                  console.error('UserContext: Failed restoring token', e)
+                }
+              }
             } else {
-              sessionStorage.removeItem('currentUser')
+              localStorage.removeItem('currentUser')
             }
           } catch (error) {
             console.error('Error parsing control center user data:', error)
-            sessionStorage.removeItem('currentUser')
+            localStorage.removeItem('currentUser')
           }
         } else if (savedUserId) {
           console.log('UserContext: Attempting to load user by ID:', savedUserId)
           const response = await apiClient.getUser(parseInt(savedUserId))
           console.log('UserContext: getUser response:', response)
           if (response.data && (response.data as User).is_active) {
-            await applyUserThemeComplete((response.data as User).id!)
+            await applyUserThemeComplete((response.data as User).id!, response.data as User)
             setCurrentUser(response.data as User)
             console.log('UserContext: Loaded clinic user:', response.data)
+            try {
+              localStorage.setItem('currentUser', JSON.stringify(response.data))
+            } catch {}
           } else {
             console.log('UserContext: User not found or inactive, clearing savedUserId')
             localStorage.removeItem('currentUserId')
@@ -73,7 +98,7 @@ export function UserProvider({ children }: UserProviderProps) {
             console.log('UserContext: Loaded clinic data:', clinic)
           } catch (error) {
             console.error('Error parsing saved clinic data:', error)
-            sessionStorage.removeItem('selectedClinic')
+            localStorage.removeItem('selectedClinic')
           }
         }
       } catch (error) {
@@ -85,6 +110,10 @@ export function UserProvider({ children }: UserProviderProps) {
     }
 
     loadCurrentUser()
+
+    return () => {
+      window.removeEventListener('auth:unauthorized', onUnauthorized as EventListener)
+    }
   }, [])
 
   const login = async (username: string, password?: string): Promise<boolean> => {
@@ -100,9 +129,15 @@ export function UserProvider({ children }: UserProviderProps) {
           const userResponse = await apiClient.getCurrentUser();
           console.log('UserContext: getCurrentUser response:', userResponse);
           if (userResponse.data && (userResponse.data as User).is_active) {
-            await applyUserThemeComplete((userResponse.data as User).id!)
+            await applyUserThemeComplete((userResponse.data as User).id!, userResponse.data as User)
             setCurrentUser(userResponse.data as User)
-            localStorage.setItem('currentUserId', (userResponse.data as User).id!.toString())
+            localStorage.setItem('currentUser', JSON.stringify(userResponse.data))
+            const hasSelectedClinic = !!localStorage.getItem('selectedClinic')
+            if (!hasSelectedClinic) {
+              localStorage.setItem('currentUserId', (userResponse.data as User).id!.toString())
+            } else {
+              localStorage.removeItem('currentUserId')
+            }
             console.log('UserContext: Successfully logged in without password');
             return true;
           }
@@ -117,10 +152,16 @@ export function UserProvider({ children }: UserProviderProps) {
       if (response.data) {
         const userResponse = await apiClient.getCurrentUser();
         if (userResponse.data && (userResponse.data as User).is_active) {
-          await applyUserThemeComplete((userResponse.data as User).id!)
+          await applyUserThemeComplete((userResponse.data as User).id!, userResponse.data as User)
           console.log('UserContext: Setting current user:', userResponse.data);
           setCurrentUser(userResponse.data as User)
-          localStorage.setItem('currentUserId', (userResponse.data as User).id!.toString())
+          localStorage.setItem('currentUser', JSON.stringify(userResponse.data))
+          const hasSelectedClinic = !!localStorage.getItem('selectedClinic')
+          if (!hasSelectedClinic) {
+            localStorage.setItem('currentUserId', (userResponse.data as User).id!.toString())
+          } else {
+            localStorage.removeItem('currentUserId')
+          }
           return true
         }
       }
@@ -135,20 +176,27 @@ export function UserProvider({ children }: UserProviderProps) {
 
   const logout = () => {
     console.log('UserContext: Logging out user');
+    const role = currentUser?.role
     setCurrentUser(null)
     apiClient.clearToken()
     localStorage.removeItem('currentUserId')
-    sessionStorage.removeItem('currentUser')
-    router.navigate({ to: '/' })
+    if (role === 'company_ceo') {
+      localStorage.removeItem('currentUser')
+      localStorage.removeItem('controlCenterCompany')
+      localStorage.removeItem('selectedClinic')
+      router.navigate({ to: '/' })
+    } else {
+      router.navigate({ to: '/user-selection' })
+    }
   }
 
   const setClinic = (clinic: Clinic | null) => {
     console.log('UserContext: Setting current clinic:', clinic);
     setCurrentClinic(clinic)
     if (clinic) {
-      sessionStorage.setItem('selectedClinic', JSON.stringify(clinic))
+      localStorage.setItem('selectedClinic', JSON.stringify(clinic))
     } else {
-      sessionStorage.removeItem('selectedClinic')
+      localStorage.removeItem('selectedClinic')
     }
   }
 
@@ -158,7 +206,7 @@ export function UserProvider({ children }: UserProviderProps) {
 
   const setUser = async (user: User | null) => {
     if (user) {
-      await applyUserThemeComplete(user.id!)
+      await applyUserThemeComplete(user.id!, user)
       setCurrentUser(user)
       localStorage.setItem('currentUserId', user.id!.toString())
     } else {

@@ -220,7 +220,7 @@ export function ClientDetailsTab({
   }
 
   return (
-    <form ref={formRef} className="" style={{containerType: 'inline-size'}}>
+    <form ref={formRef} className="no-scrollbar" style={{containerType: 'inline-size', scrollbarWidth: 'none', msOverflowStyle: 'none'}}>
       {mode === 'view' && setIsEditing && handleSave && (
         <div className="flex justify-between items-center mb-4">
           <Button 

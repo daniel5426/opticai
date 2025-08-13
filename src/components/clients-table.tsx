@@ -27,6 +27,7 @@ interface ClientsTableProps {
   hideSearch?: boolean
   hideNewButton?: boolean
   compactMode?: boolean
+  loading?: boolean
 }
 
 export function ClientsTable({ 
@@ -39,7 +40,8 @@ export function ClientsTable({
   onSearchChange,
   hideSearch = false,
   hideNewButton = false,
-  compactMode = false
+  compactMode = false,
+  loading = false
 }: ClientsTableProps) {
   const [internalSearchQuery, setInternalSearchQuery] = React.useState("")
   const [isDeleteModalOpen, setIsDeleteModalOpen] = React.useState(false)
@@ -153,7 +155,12 @@ export function ClientsTable({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredData.length > 0 ? (
+            {loading ? (
+              Array.from({ length: 10 }).map((_, i) => (
+                <TableRow key={i}>
+                </TableRow>
+              ))
+            ) : filteredData.length > 0 ? (
               filteredData.map((client) => (
                 <TableRow
                   key={client.id}

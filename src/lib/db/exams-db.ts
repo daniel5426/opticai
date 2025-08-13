@@ -23,7 +23,7 @@ export async function getExamsByClientId(clientId: number, type?: string): Promi
 
 export async function getAllExams(type?: string, clinicId?: number): Promise<OpticalExam[]> {
   try {
-    const response = await apiClient.getExams();
+    const response = await apiClient.getExams(type, clinicId);
     if (response.error) {
       console.error('Error getting all exams:', response.error);
       return [];
@@ -71,6 +71,20 @@ export async function getExamById(examId: number): Promise<OpticalExam | undefin
     return response.data || undefined;
   } catch (error) {
     console.error('Error getting exam:', error);
+    return undefined;
+  }
+}
+
+export async function getExamWithLayouts(examId: number): Promise<any> {
+  try {
+    const response = await apiClient.getExamWithLayouts(examId);
+    if (response.error) {
+      console.error('Error getting exam with layouts:', response.error);
+      return undefined;
+    }
+    return response.data || undefined;
+  } catch (error) {
+    console.error('Error getting exam with layouts:', error);
     return undefined;
   }
 }

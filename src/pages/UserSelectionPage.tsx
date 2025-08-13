@@ -82,7 +82,7 @@ export default function UserSelectionPage() {
     const loadUsers = async () => {
       try {
         // Get the selected clinic from sessionStorage
-        const selectedClinicData = sessionStorage.getItem('selectedClinic')
+        const selectedClinicData = localStorage.getItem('selectedClinic')
         if (!selectedClinicData) {
           toast.error('לא נמצא מידע על המרפאה הנבחרת')
           setLoading(false)
@@ -91,7 +91,7 @@ export default function UserSelectionPage() {
 
         const clinic = JSON.parse(selectedClinicData)
         setSelectedClinic(clinic)
-        const usersResponse = await apiClient.getUsersByClinicPublic(clinic.id)
+         const usersResponse = await apiClient.getUsersByClinicPublic(clinic.id)
         const usersData = usersResponse.data || []
         console.log('UserSelectionPage: Loaded users:', usersData.map(u => ({ id: u.id, username: u.username, hasPassword: !!u.password, passwordLength: u.password?.length })))
         setUsers(usersData)
@@ -136,14 +136,16 @@ export default function UserSelectionPage() {
         setCurrentClinic(selectedClinic)
         console.log('UserSelectionPage: Clinic context set, navigating to dashboard');
         
-        try {
-          navigate({ to: '/dashboard' })
-          console.log('UserSelectionPage: Navigation command sent via useNavigate');
-        } catch (navError) {
-          console.error('UserSelectionPage: Navigation error:', navError);
-          // Fallback to window.location if router navigation fails
-          window.location.href = '/dashboard'
-        }
+        // Defer navigation to ensure context state is applied before route guards run
+        setTimeout(() => {
+          try {
+            navigate({ to: '/dashboard' })
+            console.log('UserSelectionPage: Navigation command sent via useNavigate');
+          } catch (navError) {
+            console.error('UserSelectionPage: Navigation error:', navError);
+            window.location.href = '/dashboard'
+          }
+        }, 0)
       } else {
         console.log('UserSelectionPage: Login failed or no clinic selected');
         if (!success) {
@@ -212,6 +214,22 @@ export default function UserSelectionPage() {
               <p className="text-slate-600 dark:text-slate-400" dir="rtl">
                 לחץ על המשתמש שלך כדי להתחבר למערכת
               </p>
+              <div className="mt-4">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    localStorage.removeItem('selectedClinic')
+                    localStorage.removeItem('currentUser')
+                    localStorage.removeItem('currentUserId')
+                    localStorage.removeItem('controlCenterCompany')
+                    localStorage.removeItem('auth_token')
+                    router.navigate({ to: '/clinic-entrance' })
+                  }}
+                  className="text-xs"
+                >
+                  התנתקות מהמרפאה
+                </Button>
+              </div>
             </div>
 
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 justify-center">

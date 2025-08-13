@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useLayoutEffect } from
 import { useParams, useNavigate, Link, useLocation } from "@tanstack/react-router"
 import { SiteHeader } from "@/components/site-header"
 import { getClientById } from "@/lib/db/clients-db"
-import { getExamById, updateExam, createExam } from "@/lib/db/exams-db"
+import { getExamById, getExamWithLayouts, updateExam, createExam } from "@/lib/db/exams-db"
 import { OpticalExam, Client, User, ExamLayout, ExamLayoutInstance, NotesExam } from "@/lib/db/schema-interface"
 import { getAllExamLayouts, getDefaultExamLayout, getDefaultExamLayouts, getDefaultExamLayoutsByType, getExamLayoutInstancesByExamId, getActiveExamLayoutInstanceByExamId, setActiveExamLayoutInstance, addLayoutToExam, getExamLayoutById, deleteExamLayoutInstance } from "@/lib/db/exam-layouts-db"
 import { Button } from "@/components/ui/button"
@@ -13,7 +13,6 @@ import { useUser } from "@/contexts/UserContext"
 import { getAllUsers } from "@/lib/db/users-db"
 import { ExamCardRenderer, CardItem, DetailProps, calculateCardWidth, hasNoteCard, createDetailProps } from "@/components/exam/ExamCardRenderer"
 import { createToolboxActions } from "@/components/exam/ExamToolbox"
-import { useClientData } from "@/contexts/ClientDataContext"
 import { examComponentRegistry } from "@/lib/exam-component-registry"
 import { ExamComponentType } from "@/lib/exam-field-mappings"
 import { copyToClipboard, pasteFromClipboard, getClipboardContentType } from "@/lib/exam-clipboard"
@@ -135,8 +134,6 @@ export default function ExamDetailPage({
   const [clipboardContentType, setClipboardContentType] = useState<ExamComponentType | null>(null)
   
   // Get the client data context to refresh exams after save
-  const clientDataContext = useClientData();
-  const refreshExams = clientDataContext?.refreshExams;
 
   const isNewMode = mode === 'new'
   const [isEditing, setIsEditing] = useState(isNewMode)
@@ -146,7 +143,6 @@ export default function ExamDetailPage({
     client_id: Number(clientId),
     exam_date: new Date().toISOString().split('T')[0],
     test_name: '',
-    clinic: '',
     user_id: currentUser?.id,
     dominant_eye: null,
     type: config.dbType
@@ -523,114 +519,126 @@ export default function ExamDetailPage({
 
       try {
         setLoading(true)
-
         setClipboardContentType(getClipboardContentType())
 
-        const layoutsData = await getAllExamLayouts()
+        // Load layouts and users in parallel
+        const [layoutsData, usersData] = await Promise.all([
+          getAllExamLayouts(),
+          getAllUsers()
+        ])
+        
         setAvailableLayouts(layoutsData.filter(layout => layout.type === config.dbType))
+        setUsers(usersData)
 
         if (examId && !isNewMode) {
-          const examData = await getExamById(Number(examId))
-          setExam(examData || null)
-
-          if (examData) {
-            const examType = examData.type || config.dbType
-            const filteredLayouts = layoutsData.filter(layout => layout.type === examType)
-            setAvailableLayouts(filteredLayouts)
-            const layoutInstances = await getExamLayoutInstancesByExamId(Number(examId))
+          // Use the optimized endpoint to get exam with layouts in one call
+          const examWithLayoutsData = await getExamWithLayouts(Number(examId))
+          
+          if (examWithLayoutsData) {
+            const { exam: examData, layout_instances: layoutInstances, layouts, layout_map } = examWithLayoutsData
             
-            if (layoutInstances.length > 0) {
-              const activeInstance = await getActiveExamLayoutInstanceByExamId(Number(examId))
+            setExam(examData || null)
+
+            if (examData) {
+              const examType = examData.type || config.dbType
+              const filteredLayouts = layoutsData.filter(layout => layout.type === examType)
+              setAvailableLayouts(filteredLayouts)
               
-              const tabs = await Promise.all(layoutInstances.map(async (instance) => {
-                const layout = await getExamLayoutById(instance.layout_id)
-                return {
-                  id: instance.id || 0,
-                  layout_id: instance.layout_id,
-                  name: layout?.name || '',
-                  layout_data: layout?.layout_data || '',
-                  isActive: instance.is_active || false
-                };
-              }));
-              
-              setLayoutTabs(tabs)
-              
-              if (activeInstance) {
-                setActiveLayoutId(activeInstance.layout_id || 0)
+              if (layoutInstances && layoutInstances.length > 0) {
+                // Find active instance
+                const activeInstance = layoutInstances.find((instance: any) => instance.is_active)
                 
-                const activeLayout = await getExamLayoutById(activeInstance.layout_id)
-                
-                if (activeLayout && activeLayout.layout_data && activeInstance.id) {
-                  const parsedLayout = JSON.parse(activeLayout.layout_data)
-                  if (Array.isArray(parsedLayout)) {
-                    setCardRows(parsedLayout)
-                    setCustomWidths({})
-                  } else {
-                    setCardRows(parsedLayout.rows || [])
-                    setCustomWidths(parsedLayout.customWidths || {})
+                // Build tabs using the layout map from the response
+                const tabs = layoutInstances.map((instance: any) => {
+                  const layout = layout_map[instance.layout_id]
+                  return {
+                    id: instance.id || 0,
+                    layout_id: instance.layout_id,
+                    name: layout?.name || '',
+                    layout_data: layout?.layout_data || '',
+                    isActive: instance.is_active || false
                   }
+                })
                 
-                  await loadExamComponentData(activeInstance.id, activeLayout.layout_data)
-                }
-              }
-            } else {
-              let defaultLayouts = await getDefaultExamLayoutsByType(config.dbType)
-              if (defaultLayouts.length === 0) {
-                // Fallback to any exam type layouts if no defaults found
-                const examTypeLayouts = layoutsData.filter(layout => layout.type === config.dbType)
-                if (examTypeLayouts.length > 0) {
-                  defaultLayouts = [examTypeLayouts[0]]
-                }
-              }
-
-              if (defaultLayouts.length > 0) {
-                const layoutTabsData: LayoutTab[] = []
-                let firstLayoutInstance: any = null
-
-                for (let i = 0; i < defaultLayouts.length; i++) {
-                  const defaultLayout = defaultLayouts[i]
-                  const newLayoutInstance = await addLayoutToExam(Number(examId), defaultLayout.id || 1, i === 0)
+                setLayoutTabs(tabs)
+                
+                if (activeInstance) {
+                  setActiveLayoutId(activeInstance.layout_id || 0)
                   
-                  if (newLayoutInstance) {
-                    if (i === 0) {
-                      firstLayoutInstance = newLayoutInstance
-                      setActiveLayoutId(defaultLayout.id || 0)
-                      
-                      const parsedLayout = JSON.parse(defaultLayout.layout_data)
-                      if (Array.isArray(parsedLayout)) {
-                        setCardRows(parsedLayout)
-                        setCustomWidths({})
-                      } else {
-                        setCardRows(parsedLayout.rows || [])
-                        setCustomWidths(parsedLayout.customWidths || {})
-                      }
-                      
-                      if (newLayoutInstance.id) {
-                        await loadExamComponentData(newLayoutInstance.id, defaultLayout.layout_data)
-                      }
+                  const activeLayout = layout_map[activeInstance.layout_id]
+                  
+                  if (activeLayout && activeLayout.layout_data && activeInstance.id) {
+                    const parsedLayout = JSON.parse(activeLayout.layout_data)
+                    if (Array.isArray(parsedLayout)) {
+                      setCardRows(parsedLayout)
+                      setCustomWidths({})
+                    } else {
+                      setCardRows(parsedLayout.rows || [])
+                      setCustomWidths(parsedLayout.customWidths || {})
                     }
-
-                    layoutTabsData.push({
-                      id: newLayoutInstance.id || 0,
-                      layout_id: defaultLayout.id || 0,
-                      name: defaultLayout.name || '',
-                      layout_data: defaultLayout.layout_data || '',
-                      isActive: i === 0
-                    })
+                  
+                    await loadExamComponentData(activeInstance.id, activeLayout.layout_data)
+                  }
+                }
+              } else {
+                // No layout instances - create default layouts
+                let defaultLayouts = await getDefaultExamLayoutsByType(config.dbType)
+                if (defaultLayouts.length === 0) {
+                  const examTypeLayouts = layoutsData.filter(layout => layout.type === config.dbType)
+                  if (examTypeLayouts.length > 0) {
+                    defaultLayouts = [examTypeLayouts[0]]
                   }
                 }
 
-                setLayoutTabs(layoutTabsData)
+                if (defaultLayouts.length > 0) {
+                  const layoutTabsData: LayoutTab[] = []
+                  let firstLayoutInstance: any = null
+
+                  for (let i = 0; i < defaultLayouts.length; i++) {
+                    const defaultLayout = defaultLayouts[i]
+                    const newLayoutInstance = await addLayoutToExam(Number(examId), defaultLayout.id || 1, i === 0)
+                    
+                    if (newLayoutInstance) {
+                      if (i === 0) {
+                        firstLayoutInstance = newLayoutInstance
+                        setActiveLayoutId(defaultLayout.id || 0)
+                        
+                        const parsedLayout = JSON.parse(defaultLayout.layout_data)
+                        if (Array.isArray(parsedLayout)) {
+                          setCardRows(parsedLayout)
+                          setCustomWidths({})
+                        } else {
+                          setCardRows(parsedLayout.rows || [])
+                          setCustomWidths(parsedLayout.customWidths || {})
+                        }
+                        
+                        if (newLayoutInstance.id) {
+                          await loadExamComponentData(newLayoutInstance.id, defaultLayout.layout_data)
+                        }
+                      }
+
+                      layoutTabsData.push({
+                        id: newLayoutInstance.id || 0,
+                        layout_id: defaultLayout.id || 0,
+                        name: defaultLayout.name || '',
+                        layout_data: defaultLayout.layout_data || '',
+                        isActive: i === 0
+                      })
+                    }
+                  }
+
+                  setLayoutTabs(layoutTabsData)
+                }
               }
             }
           }
         } else {
-          let defaultLayouts = await getDefaultExamLayoutsByType(config.dbType)
+          // New exam - use already loaded layouts
+          let defaultLayouts = layoutsData.filter(layout => layout.type === config.dbType && layout.is_default)
           if (defaultLayouts.length === 0) {
-            // Fallback to any exam type layouts if no defaults found
-            const examTypeLayouts = layoutsData.filter(layout => layout.type === config.dbType)
-            if (examTypeLayouts.length > 0) {
-              defaultLayouts = [examTypeLayouts[0]]
+            defaultLayouts = layoutsData.filter(layout => layout.type === config.dbType)
+            if (defaultLayouts.length > 0) {
+              defaultLayouts = [defaultLayouts[0]]
             }
           }
 
@@ -666,9 +674,6 @@ export default function ExamDetailPage({
             setLayoutTabs(layoutTabsData)
           }
         }
-
-        const usersData = await getAllUsers()
-        setUsers(usersData)
       } catch (error) {
         console.error('Error loading exam data:', error)
         toast.error('שגיאה בטעינת נתוני הבדיקה')
@@ -700,7 +705,7 @@ export default function ExamDetailPage({
         }
       }
     })
-  }, [exam, examComponentData, layoutTabs, isNewMode])
+  }, [exam, examComponentData, layoutTabs, isNewMode]) 
 
   // On layout load, initialize coverTestTabs for each cover-test card
   useEffect(() => {
@@ -812,9 +817,6 @@ export default function ExamDetailPage({
           if (Object.values(savedData).some(data => data !== null)) {
             toast.success(config.saveSuccessNew)
             
-            if (refreshExams) {
-              await refreshExams();
-            }
             
             await new Promise(resolve => setTimeout(resolve, 100));
             
@@ -828,53 +830,48 @@ export default function ExamDetailPage({
           toast.error(config.saveErrorNew)
         }
       } else {
-        const updatedExam = await updateExam(formData as OpticalExam)
-        
-        const activeLayout = layoutTabs.find(tab => tab.isActive);
-        
-        if (!activeLayout) {
-          toast.error("לא נמצאה פריסה פעילה לבדיקה");
-          return;
+        const prevExam = exam
+        const optimisticExam = { ...(exam || {}), ...(formData as OpticalExam) } as OpticalExam
+        setIsEditing(false)
+        if (optimisticExam) {
+          setExam(optimisticExam)
+          setFormData({ ...optimisticExam })
         }
-        
-        // Get the active layout instance from the database to ensure we have the correct ID
-        const activeInstance = await getActiveExamLayoutInstanceByExamId(Number(examId));
-        
-        if (!activeInstance || !activeInstance.id) {
-          toast.error("לא נמצאה פריסה פעילה במסד הנתונים");
-          return;
-        }
-        
-        const setActiveResult = await setActiveExamLayoutInstance(Number(examId), activeInstance.id);
-        if (!setActiveResult) {
-          toast.error("שגיאה בעדכון פריסה פעילה");
-          return;
-        }
-        
-        // Save all exam data using unified API with the correct layout instance ID
-        console.log('Saving exam data with layout instance ID:', activeInstance.id)
-        const savedData = await examComponentRegistry.saveAllData(activeInstance.id, examFormData)
+        const localExamData = { ...examFormData }
+        toast.success(config.saveSuccessUpdate)
 
-        if (updatedExam && Object.values(savedData).some(data => data !== null)) {
-          setIsEditing(false)
-          setExam(updatedExam)
-          setExamComponentData(savedData)
-          setFormData({ ...updatedExam })
-          
-          toast.success(config.saveSuccessUpdate)
-          
-          if (refreshExams) {
-            await refreshExams();
+        ;(async () => {
+          try {
+            const updatedExam = await updateExam(formData as OpticalExam)
+
+            const activeLayout = layoutTabs.find(tab => tab.isActive)
+            if (!activeLayout) throw new Error('no active layout')
+
+            const activeInstance = await getActiveExamLayoutInstanceByExamId(Number(examId))
+            if (!activeInstance || !activeInstance.id) throw new Error('no active instance')
+
+            const setActiveResult = await setActiveExamLayoutInstance(Number(examId), activeInstance.id)
+            if (!setActiveResult) throw new Error('failed to set active layout')
+
+            const savedData = await examComponentRegistry.saveAllData(activeInstance.id, localExamData)
+
+            if (updatedExam) {
+              setExam(updatedExam)
+              setFormData({ ...updatedExam })
+              setExamComponentData(savedData)
+              if (onSave) onSave(updatedExam, ...Object.values(savedData))
+            } else {
+              throw new Error('update failed')
+            }
+          } catch (error) {
+            toast.error('לא הצלחנו לשמור את השינויים')
+            setIsEditing(true)
+            if (prevExam) {
+              setExam(prevExam)
+              setFormData({ ...prevExam })
+            }
           }
-          
-          await new Promise(resolve => setTimeout(resolve, 100));
-          
-          if (onSave) {
-            onSave(updatedExam, ...Object.values(savedData))
-          }
-        } else {
-          toast.error("לא הצלחנו לשמור את השינויים")
-        }
+        })()
       }
     }
   }
@@ -884,11 +881,7 @@ export default function ExamDetailPage({
     if (!selectedTab) return
     
     try {
-      // Load data first if not in new mode
-      if (!isNewMode) {
-        await loadExamComponentData(selectedTab.id, selectedTab.layout_data)
-      }
-
+      // Update UI immediately for better responsiveness
       const updatedTabs = layoutTabs.map(tab => ({
         ...tab,
         isActive: tab.id === tabId
@@ -906,11 +899,18 @@ export default function ExamDetailPage({
         setCustomWidths(parsedLayout.customWidths || {})
       }
       
-      if (exam && exam.id && !isNewMode) {
-        setActiveExamLayoutInstance(exam.id, tabId).catch(error => {
-          console.error('Error updating active layout in database:', error)
-        })
+      // Load data and update database in parallel
+      const promises = []
+      
+      if (!isNewMode) {
+        promises.push(loadExamComponentData(selectedTab.id, selectedTab.layout_data))
       }
+      
+      if (exam && exam.id && !isNewMode) {
+        promises.push(setActiveExamLayoutInstance(exam.id, tabId))
+      }
+      
+      await Promise.all(promises)
     } catch (error) {
       console.error('Error changing layout tab:', error)
       toast.error('שגיאה בהחלפת לשונית פריסה')
@@ -1172,7 +1172,7 @@ export default function ExamDetailPage({
         tabs={{ activeTab, onTabChange: handleTabChange }}
       />
       <ClientSpaceLayout>
-        <div className="flex flex-col flex-1 p-4  lg:p-5 mb-10" dir="rtl">
+        <div className="flex flex-col flex-1 p-4  lg:p-5 mb-10 no-scrollbar" dir="rtl" style={{scrollbarWidth: 'none', msOverflowStyle: 'none'}}>
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-xl font-semibold">{isNewMode ? config.newTitle : config.detailTitle}</h2>
             <div className="flex gap-2">
@@ -1253,7 +1253,7 @@ export default function ExamDetailPage({
           )}
 
           <form ref={formRef} className="pt-4">
-            <div className="space-y-4" style={{ scrollbarWidth: 'none' }}>
+            <div className="space-y-4 no-scrollbar" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
               {cardRows.map((row, rowIndex) => {
                 const pxPerCol = rowWidths[row.id] || 1380
                 const cardWidths = calculateCardWidth(row.cards, row.id, customWidths, pxPerCol, 'detail')

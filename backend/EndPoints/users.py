@@ -1,6 +1,7 @@
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 from database import get_db
 from models import User, Clinic
 from schemas import UserCreate, UserUpdate, User as UserSchema, UserPublic
@@ -24,8 +25,17 @@ def create_user_public(
             detail="Username already exists"
         )
     
+    if user.email:
+        existing_email_user = db.query(User).filter(User.email == user.email).first()
+        if existing_email_user:
+            print(f"DEBUG: Email already exists: {user.email}")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Email already exists"
+            )
+    
     print(f"DEBUG: Creating new user: {user.username}")
-    hashed_password = get_password_hash(user.password)
+    hashed_password = get_password_hash(user.password) if user.password else None
     db_user = User(
         **user.dict(exclude={'password'}),
         password=hashed_password
@@ -61,7 +71,15 @@ def create_user(
             detail="Username already exists"
         )
     
-    hashed_password = get_password_hash(user.password)
+    if user.email:
+        existing_email_user = db.query(User).filter(User.email == user.email).first()
+        if existing_email_user:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Email already exists"
+            )
+    
+    hashed_password = get_password_hash(user.password) if user.password else None
     db_user = User(
         **user.dict(exclude={'password'}),
         password=hashed_password
@@ -77,7 +95,10 @@ def get_users(
     current_user: UserModel = Depends(get_current_user)
 ):
     if current_user.role == "company_ceo":
-        users = db.query(User).all()
+        # CEOs see only users in their company (including other CEOs)
+        users = db.query(User).join(Clinic, isouter=True).filter(
+            (User.company_id == current_user.company_id) | (Clinic.company_id == current_user.company_id)
+        ).all()
     else:
         users = db.query(User).filter(User.clinic_id == current_user.clinic_id).all()
     return users
@@ -106,7 +127,7 @@ def get_user_by_username(
     user = db.query(User).filter(User.username == username).first()
     if user is None:
         raise HTTPException(status_code=404, detail="User not found")
-    
+    # Access allowed if same company or CEO
     if current_user.role != "company_ceo" and current_user.clinic_id != user.clinic_id:
         raise HTTPException(status_code=403, detail="Access denied")
     
@@ -124,6 +145,16 @@ def get_user_by_username_public(
     
     return user
 
+@router.get("/email/{email}/public", response_model=UserSchema)
+def get_user_by_email_public(
+    email: str,
+    db: Session = Depends(get_db)
+):
+    user = db.query(User).filter(User.email == email).first()
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    return user
+
 @router.get("/clinic/{clinic_id}", response_model=List[UserSchema])
 def get_users_by_clinic(
     clinic_id: int,
@@ -138,18 +169,19 @@ def get_users_by_clinic(
     
     # Check permissions
     if current_user.role == "company_ceo":
-        # CEO can see all users in any clinic plus other CEOs
-        users = db.query(User).filter(
-            (User.clinic_id == clinic_id) | (User.role == "company_ceo")
-        ).all()
-    elif current_user.role == "clinic_manager" and current_user.clinic_id == clinic_id:
-        # Clinic manager can see users in their own clinic plus CEOs
-        users = db.query(User).filter(
-            (User.clinic_id == clinic_id) | (User.role == "company_ceo")
-        ).all()
+        if clinic.company_id != current_user.company_id:
+            raise HTTPException(status_code=403, detail="Access denied")
+    elif current_user.role == "clinic_manager":
+        if current_user.clinic_id != clinic_id:
+            raise HTTPException(status_code=403, detail="Access denied")
     else:
         raise HTTPException(status_code=403, detail="Access denied")
-    
+
+    users = db.query(User).filter(
+        (User.clinic_id == clinic_id)
+        | ((User.role == "company_ceo") & (User.company_id == clinic.company_id))
+    ).all()
+
     return users
 
 @router.get("/clinic/{clinic_id}/public", response_model=List[UserPublic])
@@ -208,8 +240,12 @@ def get_users_by_company(
     
     # Check permissions
     if current_user.role == "company_ceo":
-        # CEO can see all users in their company
-        users = db.query(User).join(Clinic).filter(Clinic.company_id == company_id).all()
+        users = (
+            db.query(User)
+            .outerjoin(Clinic, User.clinic_id == Clinic.id)
+            .filter((Clinic.company_id == company_id) | (User.company_id == company_id))
+            .all()
+        )
     else:
         raise HTTPException(status_code=403, detail="Access denied")
     
@@ -239,13 +275,31 @@ def update_user(
         )
     
     update_data = user.dict(exclude_unset=True)
+
+    # Validate unique fields if they are being changed
+    if "username" in update_data and update_data["username"] and update_data["username"] != db_user.username:
+        existing_user = db.query(User).filter(User.username == update_data["username"]).first()
+        if existing_user and existing_user.id != db_user.id:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Username already exists")
+    if "email" in update_data and update_data["email"] and update_data["email"] != db_user.email:
+        existing_email_user = db.query(User).filter(User.email == update_data["email"]).first()
+        if existing_email_user and existing_email_user.id != db_user.id:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email already exists")
     if "password" in update_data:
-        update_data["password"] = get_password_hash(update_data["password"])
+        if update_data["password"] is None:
+            # Remove password (set to None)
+            update_data["password"] = None
+        else:
+            # Hash the new password
+            update_data["password"] = get_password_hash(update_data["password"])
     
     for field, value in update_data.items():
         setattr(db_user, field, value)
-    
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError as e:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Integrity error: duplicate field")
     db.refresh(db_user)
     return db_user
 

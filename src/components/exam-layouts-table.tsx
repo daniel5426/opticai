@@ -109,6 +109,15 @@ export function ExamLayoutsTable({ data, onRefresh }: ExamLayoutsTableProps) {
 
     // Prevent multiple clicks
     if (isProcessing[layoutId]) return;
+
+    const layoutToDelete = localData.find(layout => layout.id === layoutId)
+    if (!layoutToDelete) return
+    const layoutType = layoutToDelete.type || 'exam'
+    const layoutsOfSameType = localData.filter(layout => (layout.type || 'exam') === layoutType)
+    if (layoutsOfSameType.length <= 1) {
+      toast.error("לא ניתן למחוק את הפריסה האחרונה. חייבת להיות לפחות פריסה אחת לכל סוג")
+      return
+    }
     setIsProcessing(prev => ({ ...prev, [layoutId]: true }));
 
     try {

@@ -115,12 +115,12 @@ export function ChatsModal({ isOpen, onClose, onSelectChat }: ChatsModalProps) {
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-lg max-h-[80vh] overflow-hidden" style={{scrollbarWidth: 'none'}}>
         <DialogHeader>
           <DialogTitle className="text-center">שיחות קודמות</DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4">
+        <div className="space-y-4 max-h-[70vh] overflow-auto pr-1" style={{scrollbarWidth: 'none'}}>
           <div className="relative">
             <Input
               placeholder="חיפוש שיחות..."
@@ -131,7 +131,7 @@ export function ChatsModal({ isOpen, onClose, onSelectChat }: ChatsModalProps) {
             />
           </div>
 
-          <div className="space-y-2">
+          <div className="space-y-2 max-h-[60vh] overflow-auto pr-1" style={{scrollbarWidth: 'none'}}>
             {filteredChats.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground" dir="ltr">
                 <p>אין שיחות קודמות</p>

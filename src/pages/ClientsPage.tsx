@@ -106,16 +106,6 @@ export default function ClientsPage() {
     setSearchQuery("")
   }
 
-  if (loading) {
-    return (
-      <>
-        <SiteHeader title="לקוחות" />
-        <div className="flex flex-col items-center justify-center h-full">
-          <div className="text-lg">טוען לקוחות...</div>
-        </div>
-      </>
-    )
-  }
 
   return (  
     <>
@@ -191,6 +181,7 @@ export default function ClientsPage() {
                     hideSearch={true}
                     hideNewButton={true}
                     compactMode={true}
+                    loading={loading}
                   />
                 </div>
               </div>
@@ -203,6 +194,7 @@ export default function ClientsPage() {
                 onSearchChange={setSearchQuery}
                 hideSearch={true}
                 hideNewButton={true}
+                loading={loading}
               />
             )}
             

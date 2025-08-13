@@ -53,24 +53,34 @@ export default function ControlCenterPage() {
         throw new Error('אין לך הרשאות לגשת למרכז הבקרה')
       }
 
-      // Get companies to find the user's company
-      const companiesResponse = await apiClient.getCompaniesPublic();
-      const companies = companiesResponse.data || [];
-      
-      if (companies.length === 0) {
+      // Determine user's company
+      let userCompany = null as any
+      // If CEO, prefer company_id on the user when available
+      if ((user as any).company_id) {
+        const companyResp = await apiClient.getCompany((user as any).company_id)
+        userCompany = companyResp.data
+      }
+      if (!userCompany) {
+        // Try authenticated companies
+        const companiesAuth = await apiClient.getCompanies();
+        const companies = companiesAuth.data || []
+        userCompany = companies[0]
+      }
+      if (!userCompany) {
+        const companiesPublic = await apiClient.getCompaniesPublic();
+        userCompany = (companiesPublic.data || [])[0]
+      }
+      if (!userCompany) {
         throw new Error('לא נמצאה חברה במערכת')
       }
 
-      // For now, assume the first company is the user's company
-      const userCompany = companies[0];
-
       // Store authentication state
-      sessionStorage.setItem('controlCenterCompany', JSON.stringify(userCompany))
-      sessionStorage.setItem('currentUser', JSON.stringify(user))
+      localStorage.setItem('controlCenterCompany', JSON.stringify(userCompany))
+      localStorage.setItem('currentUser', JSON.stringify(user))
       console.log('Authentication state stored, navigating to dashboard...')
 
-      // Ensure user is set in UserContext before navigation
       await setCurrentUser(user)
+      localStorage.setItem('currentUser', JSON.stringify(user))
       console.log('User set in context, navigating to dashboard...')
 
       // Navigate to control center dashboard
@@ -101,8 +111,27 @@ export default function ControlCenterPage() {
         throw new Error('הסיסמאות אינן תואמות')
       }
 
-      if (registerForm.password.length < 5) {
+      if (registerForm.password.length < 6) {
         throw new Error('הסיסמה חייבת להכיל לפחות 6 תווים')
+      }
+
+      // Validate username/email are available before proceeding
+      const byUsername = await apiClient.getUserByUsernamePublic(registerForm.username)
+      if (byUsername.data) {
+        throw new Error('שם המשתמש כבר בשימוש')
+      }
+      if (byUsername.error && byUsername.error !== 'User not found') {
+        throw new Error('שגיאת רשת בבדיקת שם המשתמש')
+      }
+
+      if (registerForm.email) {
+        const byEmail = await apiClient.getUserByEmailPublic(registerForm.email)
+        if (byEmail.data) {
+          throw new Error('האימייל כבר בשימוש')
+        }
+        if (byEmail.error && byEmail.error !== 'User not found') {
+          throw new Error('שגיאת רשת בבדיקת האימייל')
+        }
       }
 
       // Navigate to setup wizard for company creation

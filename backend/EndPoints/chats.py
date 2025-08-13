@@ -98,7 +98,12 @@ def get_chat_messages(chat_id: int, db: Session = Depends(get_db)):
     if not chat:
         raise HTTPException(status_code=404, detail="Chat not found")
     
-    messages = db.query(ChatMessage).filter(ChatMessage.chat_id == chat_id).all()
+    messages = (
+        db.query(ChatMessage)
+        .filter(ChatMessage.chat_id == chat_id)
+        .order_by(ChatMessage.timestamp.asc())
+        .all()
+    )
     return [
         {
             "id": message.id,

@@ -294,3 +294,9 @@ examComponentRegistry.register('cover-test', {
   component: () => import('../components/exam/CoverTestTab'),
   order: 32
 })
+
+examComponentRegistry.register('diopter-adjustment-panel', {
+  name: 'פנל תיקון דיופטר',
+  component: () => import('../components/exam/DiopterAdjustmentPanelTab'),
+  order: 33
+})

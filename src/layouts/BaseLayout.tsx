@@ -59,13 +59,14 @@ export default function BaseLayout({
         const hasCompaniesResult = companies.length > 0;
         setHasCompanies(hasCompaniesResult);
 
-        const companyData = sessionStorage.getItem('controlCenterCompany');
+        const companyData = localStorage.getItem('controlCenterCompany');
         if (companyData) {
           setCompany(JSON.parse(companyData));
         }
 
         if (hasCompaniesResult) {
-          const dbSettings = await getSettings();
+          const clinicIdToLoad = currentClinic?.id;
+          const dbSettings = await getSettings(clinicIdToLoad);
           if (dbSettings) {
             setSettings(dbSettings);
             if (currentUser?.id) {
@@ -129,10 +130,11 @@ export default function BaseLayout({
     location.pathname.startsWith(route)
   );
 
-  // Redirect to user selection if authentication is required
+  // Redirect to clinic entrance or user selection based on stored clinic when a clinic-auth route is accessed
   useEffect(() => {
     if (!isLoading && !isUserLoading && requiresUser && !currentUser) {
-      navigate({ to: '/user-selection' });
+      const hasClinic = !!localStorage.getItem('selectedClinic')
+      navigate({ to: hasClinic ? '/user-selection' : '/clinic-entrance' })
     }
   }, [isLoading, isUserLoading, requiresUser, currentUser, navigate]);
 
@@ -148,25 +150,6 @@ export default function BaseLayout({
                                  (shouldShowSidebar || requiresUser);
 
   // Debug logging
-  console.log('BaseLayout Debug:', {
-    location: location.pathname,
-    shouldShowSidebar,
-    currentUser: !!currentUser,
-    isLoading,
-    isUserLoading,
-    shouldShowSidebarLayout,
-    requiresUser,
-    isControlCenterRoute,
-    hasCompanies,
-    company,
-    settings: !!settings,
-    currentClinic: currentClinic?.name,
-    settingsClinicName: settings?.clinic_name,
-    sessionStorage: {
-      selectedClinic: sessionStorage.getItem('selectedClinic'),
-      controlCenterCompany: sessionStorage.getItem('controlCenterCompany')
-    }
-  });
 
   return (
     <>
@@ -201,13 +184,13 @@ export default function BaseLayout({
                       currentUser={currentUser || undefined}
                       currentClinic={currentClinic}
                     />
-                    <SidebarInset className="flex flex-col flex-1 overflow-hidden" style={{scrollbarWidth: 'none'}}>
+                    <SidebarInset className="flex flex-col flex-1 overflow-hidden no-scrollbar" style={{scrollbarWidth: 'none'}}>
                       <div className="flex flex-col h-full">
                         <div className="sticky top-0 bg-background">
                           <div id="header-container" />
                         </div>
-                        <main className="flex-1 overflow-auto bg-muted/50 flex" style={{scrollbarWidth: 'none'}}>
-                          <div className="flex-1 overflow-auto">
+                        <main className="flex-1 overflow-auto bg-muted/50 flex no-scrollbar" style={{scrollbarWidth: 'none'}}>
+                          <div className="flex-1 overflow-auto no-scrollbar">
                             {children}
                           </div>
                         </main>
@@ -224,19 +207,19 @@ export default function BaseLayout({
                     <AppSidebar
                       variant="inset"
                       side="right"
-                      clinicName={currentClinic?.name || settings?.clinic_name}
+                      clinicName={currentClinic?.name}
                       currentUser={currentUser || undefined}
                       logoPath={settings?.clinic_logo_path}
                       isLogoLoaded={isLogoLoaded}
                       currentClinic={currentClinic}
                     />
-                    <SidebarInset className="flex flex-col flex-1 overflow-hidden" style={{scrollbarWidth: 'none'}}>
+                    <SidebarInset className="flex flex-col flex-1 overflow-hidden no-scrollbar" style={{scrollbarWidth: 'none'}}>
                       <div className="flex flex-col h-full">
                         <div className="sticky top-0 bg-background">
                           <div id="header-container" />
                         </div>
-                        <main className="flex-1 overflow-auto bg-muted/50 flex" style={{scrollbarWidth: 'none'}}>
-                          <div className="flex-1 overflow-auto">
+                        <main className="flex-1 overflow-auto bg-muted/50 flex no-scrollbar" style={{scrollbarWidth: 'none'}}>
+                          <div className="flex-1 overflow-auto no-scrollbar">
                             {children}
                           </div>
                           <ClientSidebar />

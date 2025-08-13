@@ -4,7 +4,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from database import get_db
 from models import User
-from schemas import Token, UserLogin
+from schemas import Token, UserLogin, UserLoginNoPassword
 from auth import authenticate_user, create_access_token, get_current_user, get_password_hash
 from config import settings
 
@@ -52,7 +52,7 @@ async def read_users_me(current_user: User = Depends(get_current_user)):
 
 @router.post("/login-no-password", response_model=Token)
 async def login_without_password(
-    user_data: UserLogin,
+    user_data: UserLoginNoPassword,
     db: Session = Depends(get_db)
 ):
     """Login endpoint for users without passwords"""

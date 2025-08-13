@@ -24,21 +24,26 @@ interface ClientSidebarProviderProps {
 }
 
 export function ClientSidebarProvider({ children }: ClientSidebarProviderProps) {
-  const [isOpen, setIsOpen] = useState(false)
+  const [isOpen, setIsOpen] = useState<boolean>(() => {
+    try {
+      const savedState = localStorage.getItem('client-sidebar-last-state')
+      return savedState === 'true'
+    } catch {
+      return false
+    }
+  })
   const [currentClient, setCurrentClient] = useState<Client | null>(null)
-  const [isClientSpacePage, setIsClientSpacePage] = useState(false)
+  const params = useParams({ strict: false }) as { clientId?: string }
+  const clientIdNum = params.clientId ? Number(params.clientId) : undefined
+  const [isClientSpacePage, setIsClientSpacePage] = useState<boolean>(Boolean(clientIdNum))
   const [hasInitialized, setHasInitialized] = useState(false)
   const [activeTab, setActiveTab] = useState<string | null>(null)
 
   useEffect(() => {
-    const savedState = localStorage.getItem('client-sidebar-last-state')
-    const initialState = savedState === 'true'
-    setIsOpen(initialState)
     setHasInitialized(true)
   }, [])
 
-  const params = useParams({ strict: false }) as { clientId?: string }
-  const clientIdNum = params.clientId ? Number(params.clientId) : undefined
+  // params already read above for initial state
 
   useEffect(() => {
     if (clientIdNum) {

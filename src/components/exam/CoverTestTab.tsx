@@ -88,10 +88,10 @@ export function CoverTestTab({
     <Card className="w-full border-none pt-3 pb-4 shadow-md">
       <CardContent className="px-4" style={{ scrollbarWidth: "none" }}>
         <div className="space-y-3">
-          <div className="relative flex items-center" style={{ minHeight: 40 }}>
+          <div className="relative flex items-center" style={{ minHeight: 20 }}>
             {/* Tab bar: absolutely positioned to the right (RTL) */}
             <div
-              className="absolute bg-accent left-0 mb-3 rounded-md flex items-center justify-start gap-0"
+              className="absolute bg-accent left-0 rounded-md flex items-center justify-start gap-0"
               onMouseEnter={() => setIsHoveringTabs(true)}
               onMouseLeave={() => setIsHoveringTabs(false)}
               style={{ direction: "rtl" }}
@@ -100,9 +100,9 @@ export function CoverTestTab({
                 <DropdownMenu key={revIdx} open={dropdownTabIdx === revIdx} onOpenChange={open => { if (!open) setDropdownTabIdx(null); }} dir="rtl">
                   <DropdownMenuTrigger asChild>
                     <button
-                      ref={el => tabRefs.current[revIdx] = el}
+                      ref={(el) => { tabRefs.current[revIdx] = el; }}
                       type="button"
-                      className={`rounded border-none px-2 py-0.5 text-xs font-bold transition-all duration-150 ${activeTab === revIdx ? "bg-secondary text-primary" : "bg-transparent text-muted-foreground hover:bg-accent"}`}
+                      className={`rounded border-none px-2 text-xs font-bold transition-all duration-150 ${activeTab === revIdx ? "bg-secondary text-primary" : "bg-transparent text-muted-foreground hover:bg-accent"}`}
                       onClick={() => handleTabClick(revIdx)}
                       onDoubleClick={e => { e.preventDefault(); setDropdownTabIdx(revIdx); }}
                       onContextMenu={e => handleTabContextMenu(revIdx, e)}

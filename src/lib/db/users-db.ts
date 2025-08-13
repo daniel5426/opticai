@@ -16,14 +16,27 @@ export async function getAllUsers(clinicId?: number): Promise<User[]> {
   }
 }
 
+export async function getUsersByClinic(clinicId: number): Promise<User[]> {
+  try {
+    const response = await apiClient.getUsersByClinic(clinicId);
+    if (response.error) {
+      console.error('Error getting users by clinic:', response.error);
+      return [];
+    }
+    return response.data || [];
+  } catch (error) {
+    console.error('Error getting users by clinic:', error);
+    return [];
+  }
+}
+
 export async function getUsersByCompanyId(companyId: number): Promise<User[]> {
   try {
-    const response = await apiClient.getUsers();
+    const response = await apiClient.getUsersByCompany(companyId);
     if (response.error) {
       console.error('Error getting users by company ID:', response.error);
       return [];
     }
-    // Filter by company ID if needed (API should handle this automatically)
     return response.data || [];
   } catch (error) {
     console.error('Error getting users by company ID:', error);
@@ -59,7 +72,7 @@ export async function getUserByUsername(username: string): Promise<User | null> 
   }
 }
 
-export async function createUser(userData: Omit<User, 'id' | 'created_at' | 'updated_at'>): Promise<User | null> {
+export async function createUser(userData: Omit<User, 'id' | 'created_at' | 'updated_at'>): Promise<any | null> {
   try {
     const response = await apiClient.createUser(userData);
     if (response.error) {
@@ -82,12 +95,13 @@ export async function updateUser(userData: User): Promise<User | null> {
     const response = await apiClient.updateUser(userData.id, userData);
     if (response.error) {
       console.error('Error updating user:', response.error);
-      return null;
+      throw new Error(response.error);
     }
     return response.data || null;
   } catch (error) {
     console.error('Error updating user:', error);
-    return null;
+    if (error instanceof Error) throw error;
+    throw new Error('Unknown error updating user');
   }
 }
 

@@ -18,6 +18,7 @@ import { Trash2, Edit3, Plus, Filter, Mail, MessageSquare, Users, Calendar, X, C
 import { FILTER_FIELDS, OPERATORS } from "@/lib/campaign-filter-options";
 import { useUser } from "@/contexts/UserContext";
 import { apiClient } from '@/lib/api-client';
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface FilterCondition {
   id: string;
@@ -689,15 +690,17 @@ export default function CampaignsPage() {
     if (!aiInput.trim()) return;
     setAiLoading(true);
     try {
-      const result = await window.electronAPI.createCampaignFromPrompt(aiInput.trim());
-      if (!result.success) {
-        throw new Error(result.error || result.message);
+      const result = await apiClient.aiCreateCampaignFromPrompt(aiInput.trim());
+      const payload = (result as any).data || (result as any);
+      if ((result as any).error || !payload?.data) {
+        throw new Error((result as any).error || 'AI service error');
       }
-      const campaignObj = result.data as Campaign;
+      const campaignObj = payload.data as Campaign;
       
       // Set defaults for missing fields that are not returned by the AI
       const finalCampaign = {
           ...campaignObj,
+          clinic_id: currentClinic?.id,
           active: true,
           mail_sent: false,
           sms_sent: false,
@@ -726,8 +729,64 @@ export default function CampaignsPage() {
     return (
       <>
         <SiteHeader title="קמפיינים" />
-        <div className="flex items-center justify-center h-full">
-          <div className="text-lg">טוען קמפיינים...</div>
+        <div className="h-full overflow-auto bg-muted/30" style={{scrollbarWidth: 'none'}} dir="rtl">
+          <div className="max-w-7xl mx-auto p-6 pb-20 space-y-6">
+            <div className="flex justify-between items-center">
+            <div>
+              <h1 className="text-2xl font-bold">קמפיינים</h1>
+              <p className="text-muted-foreground">נהל קמפיינים שיווקיים ושליחת הודעות ללקוחות</p>
+            </div>
+              <div className="flex gap-2">
+              <Button onClick={() => setAiModalOpen(true)} size="lg" variant="outline" className="gap-2" title="צור קמפיין עם AI">
+                <StarsIcon className="h-5 w-5" />
+              </Button>
+              <Button onClick={() => openModal()} size="lg" className="gap-2">
+                קמפיין חדש
+                <Plus className="h-5 w-5" />
+              </Button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+              {Array.from({ length: 6 }).map((_, idx) => (
+                <Card key={idx} className="border-0 shadow-sm">
+                  <CardContent className="px-4 py-4 space-y-3">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1 space-y-2 pr-2">
+                        <Skeleton className="h-4 w-40 ml-auto" />
+                        <div className="flex items-center gap-2 justify-end">
+                          <Skeleton className="h-3 w-16" />
+                          <Skeleton className="h-3 w-16" />
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1 opacity-100">
+                        <Skeleton className="h-6 w-6 rounded-md" />
+                        <Skeleton className="h-6 w-6 rounded-md" />
+                        <Skeleton className="h-6 w-6 rounded-md" />
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between p-2 rounded-lg">
+                      <div className="flex items-center gap-2">
+                        <Skeleton className="h-2 w-2 rounded-full" />
+                        <Skeleton className="h-3 w-14" />
+                        <Skeleton className="h-3 w-24" />
+                      </div>
+                      <Skeleton className="h-5 w-10 rounded-full" />
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2">
+                      <Skeleton className="h-10 w-full rounded-md" />
+                      <Skeleton className="h-10 w-full rounded-md" />
+                      <Skeleton className="h-10 w-full rounded-md" />
+                    </div>
+
+                    <Skeleton className="h-8 w-full rounded-md" />
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </div>
         </div>
       </>
     );
@@ -961,66 +1020,54 @@ export default function CampaignsPage() {
         onSave={handleSave} 
       />
       {/* AI Campaign Modal */}
-      {aiModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={() => !aiLoading && setAiModalOpen(false)}>
-          <div
-            className="bg-background rounded-3xl shadow-2xl p-8 max-w-lg w-full relative flex flex-col gap-4"
-            style={{ direction: 'rtl', scrollbarWidth: 'none' }}
-            onClick={e => e.stopPropagation()}
-          >
-            <button
-              className="absolute top-3 left-3 text-muted-foreground hover:text-foreground"
-              onClick={() => !aiLoading && setAiModalOpen(false)}
-              tabIndex={-1}
-            >
-              <X className="h-6 w-6" />
-            </button>
-            <div className="flex items-center gap-2 mb-2">
-              <StarsIcon className="h-6 w-6" />
-              <span className="font-bold text-lg">צור קמפיין עם AI</span>
+      <CustomModal
+        isOpen={aiModalOpen}
+        onClose={() => !aiLoading && setAiModalOpen(false)}
+        title="צור קמפיין עם AI"
+        width="max-w-lg"
+      >
+        <div className="space-y-3 ring-0" dir="rtl" style={{scrollbarWidth: 'none'}}>
+          <div className="relative ring-0">
+            <textarea
+              ref={aiTextareaRef}
+              className="min-h-[68px] p-2 h-24 ring-0 shadow-sm max-h-[320px] overflow-hidden resize-none rounded-3xl text-base bg-muted border-1 pb-12 pr-4 pl-12 w-full"
+              style={{ direction: 'rtl', scrollbarWidth: 'none' }}
+              placeholder="תאר בקצרה את הקמפיין שתרצה ליצור..."
+              value={aiInput}
+              onChange={e => setAiInput(e.target.value)}
+              disabled={aiLoading}
+              rows={1}
+              onKeyDown={e => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  if (!aiLoading) handleAICreateCampaign();
+                }
+              }}
+            />
+            <div className="absolute bottom-[13px] left-2 flex items-center">
+              {aiLoading ? (
+                <Button className="rounded-full w-8 h-8 p-0" size="sm" variant="ghost" disabled>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                </Button>
+              ) : (
+                <Button
+                  className="rounded-full w-8 h-8 p-0"
+                  size="sm"
+                  onClick={handleAICreateCampaign}
+                  disabled={!aiInput.trim() || aiLoading}
+                >
+                  <ArrowUp className="h-4 w-4" />
+                </Button>
+              )}
             </div>
-            <div className="relative">
-              <textarea
-                ref={aiTextareaRef}
-                className="min-h-[68px] h-24 focus-visible:ring-0 shadow-sm max-h-[320px] overflow-hidden resize-none rounded-3xl text-base bg-muted border-1 pb-12 pr-4 pl-12 w-full"
-                style={{ direction: 'rtl', scrollbarWidth: 'none' }}
-                placeholder="תאר בקצרה את הקמפיין שתרצה ליצור..."
-                value={aiInput}
-                onChange={e => setAiInput(e.target.value)}
-                disabled={aiLoading}
-                rows={1}
-                onKeyDown={e => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    if (!aiLoading) handleAICreateCampaign();
-                  }
-                }}
-              />
-              <div className="absolute bottom-2 left-2 flex items-center">
-                {aiLoading ? (
-                  <Button className="rounded-full w-8 h-8 p-0" size="sm" variant="ghost" disabled>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  </Button>
-                ) : (
-                  <Button
-                    className="rounded-full w-8 h-8 p-0"
-                    size="sm"
-                    onClick={handleAICreateCampaign}
-                    disabled={!aiInput.trim() || aiLoading}
-                  >
-                    <ArrowUp className="h-4 w-4" />
-                  </Button>
-                )}
-              </div>
-            </div>
-            {aiError && <div className="text-red-600 text-sm text-center mt-2">{aiError}</div>}
-            {aiSuccess && <div className="text-green-600 text-sm text-center mt-2">{aiSuccess}</div>}
-            <p className="text-xs text-muted-foreground mt-3 text-center" dir="rtl">
-              תאר בעברית מה תרצה שהקמפיין יעשה. לדוג׳: "כל שנה לשלוח מייל למי שעשה בדיקה, עם קופון 10% הנחה".
-            </p>
           </div>
+          {aiError && <div className="text-red-600 text-sm text-center mt-2">{aiError}</div>}
+          {aiSuccess && <div className="text-green-600 text-sm text-center mt-2">{aiSuccess}</div>}
+          <p className="text-xs text-muted-foreground mt-3 text-center" dir="rtl">
+            תאר בעברית מה תרצה שהקמפיין יעשה. לדוג׳: "כל שנה לשלוח מייל למי שעשה בדיקה, עם קופון 10% הנחה".
+          </p>
         </div>
-      )}
+      </CustomModal>
     </>
   );
 } 

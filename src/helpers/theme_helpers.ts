@@ -230,10 +230,9 @@ export function getUserThemePreference(userId: number): ThemeMode | null {
   return localStorage.getItem(getUserThemeKey(userId)) as ThemeMode | null;
 }
 
-export async function applyUserThemeComplete(userId: number): Promise<void> {
+export async function applyUserThemeComplete(userId: number, providedUser?: any): Promise<void> {
   try {
-    // Get user data first to avoid multiple DB calls
-    const user = await getUserById(userId);
+    const user = providedUser || await getUserById(userId);
     if (!user) {
       console.error('User not found for theme application');
       return;

@@ -42,6 +42,10 @@ class LookupCreate(BaseModel):
 class LookupUpdate(BaseModel):
     name: str
 
+@router.get("/types")
+def get_lookup_types():
+    return {"lookup_types": list(LOOKUP_MODELS.keys())}
+
 @router.get("/{lookup_type}")
 def get_all_lookups(lookup_type: str, db: Session = Depends(get_db)):
     if lookup_type not in LOOKUP_MODELS:
@@ -141,8 +145,4 @@ def delete_lookup(lookup_type: str, lookup_id: int, db: Session = Depends(get_db
     
     db.delete(lookup)
     db.commit()
-    return {"message": "Lookup deleted successfully"}
-
-@router.get("/types")
-def get_lookup_types():
-    return {"lookup_types": list(LOOKUP_MODELS.keys())} 
+    return {"message": "Lookup deleted successfully"} 

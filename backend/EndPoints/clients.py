@@ -2,9 +2,10 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from database import get_db
-from models import Client, Family
+from models import Client, Family, Clinic, User, OpticalExam, Appointment, Order, Referral, File, MedicalLog, ContactLens
 from schemas import ClientCreate, ClientUpdate, Client as ClientSchema
-from sqlalchemy import and_
+from sqlalchemy import and_, func
+from auth import get_current_user
 
 router = APIRouter(prefix="/clients", tags=["clients"])
 
@@ -88,9 +89,21 @@ def update_client_ai_states(
     if not client:
         raise HTTPException(status_code=404, detail="Client not found")
     
+    mapping = {
+        "exam": "ai_exam_state",
+        "order": "ai_order_state",
+        "referral": "ai_referral_state",
+        "contact_lens": "ai_contact_lens_state",
+        "appointment": "ai_appointment_state",
+        "file": "ai_file_state",
+        "medical": "ai_medical_state",
+    }
+
     for key, value in ai_states.items():
-        if hasattr(client, key):
-            setattr(client, key, value)
+        field_name = mapping.get(key, key)
+        if hasattr(client, field_name):
+            setattr(client, field_name, value)
+    client.ai_updated_date = func.now()
     
     db.commit()
     return {"message": "AI states updated successfully"}
@@ -109,6 +122,7 @@ def update_client_ai_part_state(
     field_name = f"ai_{part}_state"
     if hasattr(client, field_name):
         setattr(client, field_name, ai_part_state)
+        client.ai_updated_date = func.now()
         db.commit()
         return {"message": f"AI {part} state updated successfully"}
     else:
@@ -120,15 +134,53 @@ def get_all_client_data_for_ai(client_id: int, db: Session = Depends(get_db)):
     if not client:
         raise HTTPException(status_code=404, detail="Client not found")
     
-    # This would need to be expanded to include all related data
-    # For now, returning basic client data
+    exams = db.query(OpticalExam).filter(OpticalExam.client_id == client_id).all()
+    appointments = db.query(Appointment).filter(Appointment.client_id == client_id).all()
+    orders = db.query(Order).filter(Order.client_id == client_id).all()
+    referrals = db.query(Referral).filter(Referral.client_id == client_id).all()
+    files = db.query(File).filter(File.client_id == client_id).all()
+    medical_logs = db.query(MedicalLog).filter(MedicalLog.client_id == client_id).order_by(MedicalLog.id.desc()).all()
+    contact_lenses = db.query(ContactLens).filter(ContactLens.client_id == client_id).all()
+
+    try:
+        print(
+            f"[AI DEBUG] all-data-for-ai client_id={client_id} "
+            f"exams={len(exams)} appointments={len(appointments)} orders={len(orders)} "
+            f"referrals={len(referrals)} files={len(files)} medical_logs={len(medical_logs)} contact_lenses={len(contact_lenses)}"
+        )
+        if medical_logs:
+            print("[AI DEBUG] medical_log_ids:", [ml.id for ml in medical_logs])
+    except Exception:
+        pass
+
     return {
         "client": client,
         "family": client.family,
-        "exams": [],  # Would need to implement exam queries
-        "appointments": [],  # Would need to implement appointment queries
-        "orders": [],  # Would need to implement order queries
-        "referrals": [],  # Would need to implement referral queries
-        "files": [],  # Would need to implement file queries
-        "medical_logs": []  # Would need to implement medical log queries
-    } 
+        "exams": exams,
+        "appointments": appointments,
+        "orders": orders,
+        "referrals": referrals,
+        "files": files,
+        "medical_logs": medical_logs,
+        "contact_lenses": contact_lenses,
+    }
+
+@router.get("/stats/company/{company_id}")
+def get_company_new_clients_stats(
+    company_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    if current_user.role != "company_ceo":
+        raise HTTPException(status_code=403, detail="Access denied")
+    month_expr = func.date_trunc('month', Client.file_creation_date)
+    month_str = func.to_char(month_expr, 'YYYY-MM')
+    rows = (
+        db.query(month_str.label('month'), func.count(Client.id).label('count'))
+        .join(Clinic, Clinic.id == Client.clinic_id)
+        .filter(Clinic.company_id == company_id)
+        .group_by(month_expr)
+        .order_by(month_expr)
+        .all()
+    )
+    return [{"month": r.month, "count": int(r.count)} for r in rows]

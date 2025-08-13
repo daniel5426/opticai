@@ -5,7 +5,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { toast } from "sonner"
 import { PencilIcon, Plus, SaveIcon, TrashIcon } from "lucide-react"
 import { useParams } from "@tanstack/react-router"
-import { createMedicalLog, updateMedicalLog, deleteMedicalLog } from "@/lib/db/medical-logs-db"
+import { createMedicalLog as createMedicalLogApi, updateMedicalLog as updateMedicalLogApi, deleteMedicalLog as deleteMedicalLogApi } from "@/lib/db/medical-logs-db"
 import { MedicalLog } from "@/lib/db/schema-interface"
 import { useClientData } from "@/contexts/ClientDataContext"
 import { useUser } from "@/contexts/UserContext"
@@ -18,14 +18,14 @@ type MedicalRecord = MedicalLog & {
 
 export const ClientMedicalRecordTab = () => {
   const { clientId } = useParams({ from: "/clients/$clientId" })
-  const { medicalLogs, loading, refreshMedicalLogs } = useClientData()
+  const { medicalLogs, loading, addMedicalLog, updateMedicalLog: updateMedicalLogInContext, removeMedicalLog } = useClientData()
   const { currentClinic } = useUser()
   const [records, setRecords] = useState<MedicalRecord[]>([])
   const [tempIdCounter, setTempIdCounter] = useState(-1)
   const datePickerRefs = useRef<{ [key: number]: HTMLDivElement | null }>({})
 
   useEffect(() => {
-    const sortedLogs = medicalLogs.sort((a, b) => {
+    const sortedLogs = [...medicalLogs].sort((a, b) => {
       const dateA = new Date(a.log_date || '').getTime()
       const dateB = new Date(b.log_date || '').getTime()
       if (dateB !== dateA) {
@@ -33,11 +33,15 @@ export const ClientMedicalRecordTab = () => {
       }
       return (b.id || 0) - (a.id || 0)
     })
-    setRecords(sortedLogs.map(log => ({
-      ...log,
-      isEditing: false,
-      isDatePickerOpen: false
-    })))
+    setRecords(prev => {
+      const tempRecords = prev.filter(r => (r.id || 0) < 0)
+      const normalizedSaved = sortedLogs.map(log => ({
+        ...log,
+        isEditing: false,
+        isDatePickerOpen: false
+      }))
+      return [...tempRecords, ...normalizedSaved]
+    })
   }, [medicalLogs])
 
   useEffect(() => {
@@ -50,10 +54,11 @@ export const ClientMedicalRecordTab = () => {
               const newDate = new Date(record.tempDateValue)
               if (!isNaN(newDate.getTime())) {
                 setRecords(prevRecords => {
-                  const updatedRecords = prevRecords.map(r => 
+                  const updated = prevRecords.map(r => 
                     r.id === record.id ? { ...r, log_date: record.tempDateValue, isDatePickerOpen: false, tempDateValue: undefined } : r
                   )
-                  return updatedRecords.sort((a, b) => {
+                  const temps = updated.filter(r => (r.id || 0) < 0)
+                  const saved = updated.filter(r => (r.id || 0) > 0).sort((a, b) => {
                     const dateA = new Date(a.log_date || '').getTime()
                     const dateB = new Date(b.log_date || '').getTime()
                     if (dateB !== dateA) {
@@ -61,6 +66,7 @@ export const ClientMedicalRecordTab = () => {
                     }
                     return (b.id || 0) - (a.id || 0)
                   })
+                  return [...temps, ...saved]
                 })
                 toast.success("תאריך הרשומה עודכן בהצלחה")
                 return
@@ -97,14 +103,7 @@ export const ClientMedicalRecordTab = () => {
     }
     setRecords(prev => {
       const updatedRecords = [newRecord, ...prev]
-      return updatedRecords.sort((a, b) => {
-        const dateA = new Date(a.log_date || '').getTime()
-        const dateB = new Date(b.log_date || '').getTime()
-        if (dateB !== dateA) {
-          return dateB - dateA
-        }
-        return (b.id || 0) - (a.id || 0)
-      })
+      return updatedRecords
     })
   }
 
@@ -122,7 +121,8 @@ export const ClientMedicalRecordTab = () => {
 
     try {
       if (id < 0) {
-        const newLog = await createMedicalLog({
+        setRecords(prev => prev.map(r => r.id === id ? { ...r, isEditing: false } : r))
+        const newLog = await createMedicalLogApi({
           client_id: Number(clientId),
           clinic_id: currentClinic?.id,
           log_date: record.log_date || new Date().toISOString().split('T')[0],
@@ -131,10 +131,9 @@ export const ClientMedicalRecordTab = () => {
         
         if (newLog) {
           setRecords(prev => {
-            const updatedRecords = prev.map(r => 
-              r.id === id ? { ...newLog, isEditing: false } : r
-            )
-            return updatedRecords.sort((a, b) => {
+            const replaced = prev.map(r => r.id === id ? { ...newLog, isEditing: false } : r)
+            const temps = replaced.filter(r => (r.id || 0) < 0)
+            const saved = replaced.filter(r => (r.id || 0) > 0).sort((a, b) => {
               const dateA = new Date(a.log_date || '').getTime()
               const dateB = new Date(b.log_date || '').getTime()
               if (dateB !== dateA) {
@@ -142,14 +141,17 @@ export const ClientMedicalRecordTab = () => {
               }
               return (b.id || 0) - (a.id || 0)
             })
+            return [...temps, ...saved]
           })
-          refreshMedicalLogs()
+          addMedicalLog(newLog)
           toast.success("הרשומה נשמרה בהצלחה")
         } else {
+          setRecords(prev => prev.map(r => r.id === id ? { ...r, isEditing: true } : r))
           toast.error("שגיאה בשמירת הרשומה")
         }
       } else {
-        const updatedLog = await updateMedicalLog({
+        setRecords(prev => prev.map(r => r.id === id ? { ...r, isEditing: false } : r))
+        const updatedLog = await updateMedicalLogApi({
           id: record.id,
           client_id: record.client_id,
           log_date: record.log_date,
@@ -157,18 +159,28 @@ export const ClientMedicalRecordTab = () => {
         })
         
         if (updatedLog) {
-          setRecords(prev =>
-            prev.map(r =>
-              r.id === id ? { ...updatedLog, isEditing: false } : r
-            )
-          )
-          refreshMedicalLogs()
+          setRecords(prev => {
+            const updatedList = prev.map(r => r.id === id ? { ...updatedLog, isEditing: false } : r)
+            const temps = updatedList.filter(r => (r.id || 0) < 0)
+            const saved = updatedList.filter(r => (r.id || 0) > 0).sort((a, b) => {
+              const dateA = new Date(a.log_date || '').getTime()
+              const dateB = new Date(b.log_date || '').getTime()
+              if (dateB !== dateA) {
+                return dateB - dateA
+              }
+              return (b.id || 0) - (a.id || 0)
+            })
+            return [...temps, ...saved]
+          })
+          updateMedicalLogInContext(updatedLog)
           toast.success("הרשומה עודכנה בהצלחה")
         } else {
+          setRecords(prev => prev.map(r => r.id === id ? { ...r, isEditing: true } : r))
           toast.error("שגיאה בעדכון הרשומה")
         }
       }
     } catch (error) {
+      setRecords(prev => prev.map(r => r.id === id ? { ...r, isEditing: true } : r))
       toast.error("שגיאה בשמירת הרשומה")
     }
   }
@@ -184,15 +196,17 @@ export const ClientMedicalRecordTab = () => {
   const deleteRecord = async (id: number) => {
     try {
       if (id < 0) {
-        setRecords(records.filter(record => record.id !== id))
+        setRecords(prev => prev.filter(record => record.id !== id))
         toast.success("הרשומה נמחקה")
       } else {
-        const success = await deleteMedicalLog(id)
+        const previous = records
+        setRecords(prev => prev.filter(record => record.id !== id))
+        const success = await deleteMedicalLogApi(id)
         if (success) {
-          setRecords(records.filter(record => record.id !== id))
-          refreshMedicalLogs()
+          removeMedicalLog(id)
           toast.success("הרשומה נמחקה בהצלחה")
         } else {
+          setRecords(previous)
           toast.error("שגיאה במחיקת הרשומה")
         }
       }

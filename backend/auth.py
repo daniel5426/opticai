@@ -21,17 +21,18 @@ def get_password_hash(password: str) -> str:
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode = data.copy()
-    if expires_delta:
+    if expires_delta is None and settings.ACCESS_TOKEN_EXPIRE_MINUTES > 0:
+        expires_delta = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    if expires_delta and settings.ACCESS_TOKEN_EXPIRE_MINUTES != 0:
         expire = datetime.utcnow() + expires_delta
-    else:
-        expire = datetime.utcnow() + timedelta(minutes=15)
-    to_encode.update({"exp": expire})
+        to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
     return encoded_jwt
 
 def verify_token(token: str, credentials_exception):
     try:
-        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        options = {"verify_exp": settings.ACCESS_TOKEN_EXPIRE_MINUTES != 0}
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM], options=options)
         username: str = payload.get("sub")
         if username is None:
             raise credentials_exception

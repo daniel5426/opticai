@@ -1,8 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from database import get_db
 from models import Referral, Client, User, ReferralEye
+from sqlalchemy import func
 from schemas import ReferralCreate, ReferralUpdate, Referral as ReferralSchema
 
 router = APIRouter(prefix="/referrals", tags=["referrals"])
@@ -13,6 +14,15 @@ def create_referral(referral: ReferralCreate, db: Session = Depends(get_db)):
     db.add(db_referral)
     db.commit()
     db.refresh(db_referral)
+    # bump client_updated_date
+    try:
+        if db_referral.client_id:
+            client = db.query(Client).filter(Client.id == db_referral.client_id).first()
+            if client:
+                client.client_updated_date = func.now()
+                db.commit()
+    except Exception:
+        pass
     return db_referral
 
 @router.get("/{referral_id}", response_model=ReferralSchema)
@@ -47,6 +57,15 @@ def update_referral(referral_id: int, referral: ReferralUpdate, db: Session = De
         setattr(db_referral, field, value)
     
     db.commit()
+    # bump client_updated_date
+    try:
+        if db_referral.client_id:
+            client = db.query(Client).filter(Client.id == db_referral.client_id).first()
+            if client:
+                client.client_updated_date = func.now()
+                db.commit()
+    except Exception:
+        pass
     db.refresh(db_referral)
     return db_referral
 
@@ -56,9 +75,87 @@ def delete_referral(referral_id: int, db: Session = Depends(get_db)):
     if not referral:
         raise HTTPException(status_code=404, detail="Referral not found")
     
+    client_id = referral.client_id
     db.delete(referral)
     db.commit()
+    # bump client_updated_date
+    try:
+        if client_id:
+            client = db.query(Client).filter(Client.id == client_id).first()
+            if client:
+                client.client_updated_date = func.now()
+                db.commit()
+    except Exception:
+        pass
     return {"message": "Referral deleted successfully"}
+
+# Referral unified data endpoints
+@router.get("/{referral_id}/data")
+def get_referral_data(referral_id: int, db: Session = Depends(get_db)):
+    referral = db.query(Referral).filter(Referral.id == referral_id).first()
+    if not referral:
+        raise HTTPException(status_code=404, detail="Referral not found")
+    return referral.referral_data or {}
+
+@router.post("/{referral_id}/data")
+async def save_referral_data(referral_id: int, request: Request, db: Session = Depends(get_db)):
+    referral = db.query(Referral).filter(Referral.id == referral_id).first()
+    if not referral:
+        raise HTTPException(status_code=404, detail="Referral not found")
+    try:
+        data = await request.json()
+        if not isinstance(data, dict):
+            raise ValueError("Body must be a JSON object")
+    except Exception as e:
+        raise HTTPException(status_code=422, detail=f"Invalid JSON: {str(e)}")
+    referral.referral_data = data
+    db.commit()
+    # bump client_updated_date
+    try:
+        if referral.client_id:
+            client = db.query(Client).filter(Client.id == referral.client_id).first()
+            if client:
+                client.client_updated_date = func.now()
+                db.commit()
+    except Exception:
+        pass
+    db.refresh(referral)
+    return {"success": True}
+
+@router.get("/{referral_id}/data/component/{component_type}")
+def get_referral_component_data(referral_id: int, component_type: str, db: Session = Depends(get_db)):
+    referral = db.query(Referral).filter(Referral.id == referral_id).first()
+    if not referral:
+        raise HTTPException(status_code=404, detail="Referral not found")
+    data = referral.referral_data or {}
+    return data.get(component_type)
+
+@router.post("/{referral_id}/data/component/{component_type}")
+async def save_referral_component_data(referral_id: int, component_type: str, request: Request, db: Session = Depends(get_db)):
+    referral = db.query(Referral).filter(Referral.id == referral_id).first()
+    if not referral:
+        raise HTTPException(status_code=404, detail="Referral not found")
+    try:
+        component_data = await request.json()
+        if not isinstance(component_data, dict):
+            raise ValueError("Body must be a JSON object")
+    except Exception as e:
+        raise HTTPException(status_code=422, detail=f"Invalid JSON: {str(e)}")
+    data = referral.referral_data or {}
+    data[component_type] = component_data
+    referral.referral_data = data
+    db.commit()
+    # bump client_updated_date
+    try:
+        if referral.client_id:
+            client = db.query(Client).filter(Client.id == referral.client_id).first()
+            if client:
+                client.client_updated_date = func.now()
+                db.commit()
+    except Exception:
+        pass
+    db.refresh(referral)
+    return {"success": True}
 
 @router.get("/{referral_id}/eyes", response_model=List[dict])
 def get_referral_eyes(referral_id: int, db: Session = Depends(get_db)):

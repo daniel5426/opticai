@@ -19,6 +19,15 @@ export interface Clinic {
   location: string;
   phone_number?: string;
   email?: string;
+  clinic_name?: string;
+  clinic_position?: string;
+  clinic_address?: string;
+  clinic_city?: string;
+  clinic_postal_code?: string;
+  clinic_directions?: string;
+  clinic_website?: string;
+  manager_name?: string;
+  license_number?: string;
   unique_id: string; // Auto-generated unique identifier for clinic entrance
   is_active?: boolean;
   created_at?: string;
@@ -95,7 +104,6 @@ export interface OpticalExam {
   id?: number;
   client_id: number;
   clinic_id?: number; // Added for multi-clinic support
-  clinic?: string;
   user_id?: number;
   exam_date?: string;
   test_name?: string;
@@ -351,70 +359,10 @@ export interface Order {
   comb_va?: number;
   comb_high?: number;
   comb_pd?: number;
+  order_data?: Record<string, unknown>;
 }
 
-export interface OrderEye {
-  id?: number;
-  order_id: number;
-  eye: string;
-  sph?: number;
-  cyl?: number;
-  ax?: number;
-  pris?: number;
-  base?: number;
-  va?: number;
-  ad?: number;
-  diam?: number;
-  s_base?: number;
-  high?: number;
-  pd?: number;
-}
-
-export interface OrderLens {
-  id?: number;
-  order_id: number;
-  right_model?: string;
-  left_model?: string;
-  color?: string;
-  coating?: string;
-  material?: string;
-  supplier?: string;
-}
-
-export interface Frame {
-  id?: number;
-  order_id: number;
-  color?: string;
-  supplier?: string;
-  model?: string;
-  manufacturer?: string;
-  supplied_by?: string;
-  bridge?: number;
-  width?: number;
-  height?: number;
-  length?: number;
-}
-
-export interface OrderDetails {
-  id?: number;
-  order_id: number;
-  branch?: string;
-  supplier_status?: string;
-  bag_number?: string;
-  advisor?: string;
-  delivered_by?: string;
-  technician?: string;
-  delivered_at?: string;
-  warranty_expiration?: string;
-  delivery_location?: string;
-  manufacturing_lab?: string;
-  order_status?: string;
-  priority?: string;
-  promised_date?: string;
-  approval_date?: string;
-  notes?: string;
-  lens_order_notes?: string;
-}
+ 
 
 export interface Referral {
   id?: number;
@@ -427,6 +375,7 @@ export interface Referral {
   type?: string;
   branch?: string;
   recipient?: string;
+  referral_data?: Record<string, unknown>;
 }
 
 export interface ReferralEye {
@@ -643,18 +592,6 @@ export interface OrderLineItem {
 export interface Settings {
   id?: number;
   clinic_id?: number; // Added for multi-clinic support
-  // General Info
-  clinic_name?: string;
-  clinic_position?: string;
-  clinic_email?: string;
-  clinic_phone?: string;
-  clinic_address?: string;
-  clinic_city?: string;
-  clinic_postal_code?: string;
-  clinic_directions?: string;
-  clinic_website?: string;
-  manager_name?: string;
-  license_number?: string;
 
   // Customization
   clinic_logo_path?: string;
@@ -688,11 +625,12 @@ export interface Settings {
 
 export interface User {
   id?: number;
+  company_id?: number;
   clinic_id?: number; // Added for multi-clinic support (null for global users)
   username: string;
   email?: string;
   phone?: string;
-  password?: string;
+  password?: string | null;
   has_password?: boolean;
   role: 'clinic_manager' | 'clinic_worker' | 'clinic_viewer' | 'company_ceo';
   is_active?: boolean;

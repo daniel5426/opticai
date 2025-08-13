@@ -10,6 +10,7 @@ import { ArrowRight, ArrowLeft, Building2, MapPin, Phone, Mail, User, Check } fr
 import { toast } from 'sonner';
 import { useUser } from '@/contexts/UserContext';
 import { apiClient } from '@/lib/api-client';
+import type { Company } from '@/lib/db/schema-interface';
 
 interface SetupWizardProps {}
 
@@ -22,15 +23,6 @@ interface ClinicData {
 }
 
 interface SettingsData {
-  clinic_name: string;
-  clinic_position: string;
-  clinic_email: string;
-  clinic_phone: string;
-  clinic_address: string;
-  clinic_city: string;
-  clinic_postal_code: string;
-  manager_name: string;
-  license_number: string;
   work_start_time: string;
   work_end_time: string;
   appointment_duration: number;
@@ -50,8 +42,8 @@ const SetupWizardPage: React.FC<SetupWizardProps> = () => {
   console.log('SetupWizard - Loaded with companyId:', companyId);
   console.log('SetupWizard - Loaded with companyName:', companyName);
   console.log('SetupWizard - Loaded with username:', username);
-  console.log('SetupWizard - SessionStorage company:', sessionStorage.getItem('controlCenterCompany'));
-  console.log('SetupWizard - SessionStorage user:', sessionStorage.getItem('currentUser'));
+  console.log('SetupWizard - Storage company:', localStorage.getItem('controlCenterCompany'));
+  console.log('SetupWizard - Storage user:', localStorage.getItem('currentUser'));
   
   const [currentStep, setCurrentStep] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
@@ -61,8 +53,8 @@ const SetupWizardPage: React.FC<SetupWizardProps> = () => {
   useEffect(() => {
     if (companyId) {
       // This is an existing user coming to setup wizard, check authentication
-      const companyData = sessionStorage.getItem('controlCenterCompany');
-      const userData = sessionStorage.getItem('currentUser');
+      const companyData = localStorage.getItem('controlCenterCompany');
+      const userData = localStorage.getItem('currentUser');
       
       if (!companyData || !userData) {
         console.log('SetupWizard - Authentication state lost, redirecting to control center');
@@ -78,10 +70,9 @@ const SetupWizardPage: React.FC<SetupWizardProps> = () => {
 
   const createCompanyAndCEO = async (companyName: string): Promise<{ newCompany: any; newCeoUser: any }> => {
     try {
-      setIsLoading(true);
       console.log('SetupWizard - Creating company and CEO...');
 
-      let newCompany;
+      let newCompany: Company | null = null;
       let newCeoUser;
 
       // If we have username and password from registration form, this is a new registration
@@ -97,13 +88,14 @@ const SetupWizardPage: React.FC<SetupWizardProps> = () => {
           contact_phone: phone,
           address: ''
         });
-        newCompany = newCompanyResponse.data;
+        newCompany = newCompanyResponse.data as Company;
 
         const ceoUserResponse = await apiClient.createUserPublic({
           username: username,
           password: password,
           role: 'company_ceo',
           clinic_id: null,
+          company_id: newCompany?.id,
           email: email,
           phone: phone
         });
@@ -141,7 +133,7 @@ const SetupWizardPage: React.FC<SetupWizardProps> = () => {
           contact_phone: phone,
           address: ''
         });
-        newCompany = newCompanyResponse.data;
+        newCompany = newCompanyResponse.data as Company;
 
         // Create the CEO user using authenticated endpoint
         const ceoUserResponse = await apiClient.createUser({
@@ -149,6 +141,7 @@ const SetupWizardPage: React.FC<SetupWizardProps> = () => {
           password: password,
           role: 'company_ceo',
           clinic_id: null,
+          company_id: newCompany?.id,
           email: email,
           phone: phone
         });
@@ -160,37 +153,26 @@ const SetupWizardPage: React.FC<SetupWizardProps> = () => {
       console.log('SetupWizard - CEO User:', newCeoUser);
 
       // Store authentication state
-      sessionStorage.setItem('controlCenterCompany', JSON.stringify(newCompany));
-      sessionStorage.setItem('currentUser', JSON.stringify(newCeoUser));
+      localStorage.setItem('controlCenterCompany', JSON.stringify(newCompany));
+      localStorage.setItem('currentUser', JSON.stringify(newCeoUser));
 
       return { newCompany, newCeoUser };
 
     } catch (error) {
       console.error('SetupWizard - Error creating company and CEO:', error);
       throw error;
-    } finally {
-      setIsLoading(false);
     }
   };
   
   const [clinicData, setClinicData] = useState<ClinicData>({
-    companyName: '',
-    name: '',
-    location: '',
-    phone_number: '',
-    email: ''
+    companyName: companyName || 'חברת הדגמה בע"מ',
+    name: 'מרפאה ראשית',
+    location: 'תל אביב, דיזנגוף 123',
+    phone_number: '03-1234567',
+    email: 'info@clinic.co.il'
   });
 
   const [settingsData, setSettingsData] = useState<SettingsData>({
-    clinic_name: '',
-    clinic_position: '',
-    clinic_email: '',
-    clinic_phone: '',
-    clinic_address: '',
-    clinic_city: '',
-    clinic_postal_code: '',
-    manager_name: '',
-    license_number: '',
     work_start_time: '08:00',
     work_end_time: '18:00',
     appointment_duration: 30
@@ -224,7 +206,7 @@ const SetupWizardPage: React.FC<SetupWizardProps> = () => {
       case 1:
         return clinicData.companyName.trim() !== '' && clinicData.name.trim() !== '' && clinicData.location.trim() !== '';
       case 2:
-        return settingsData.clinic_name.trim() !== '' && settingsData.manager_name.trim() !== '';
+        return true;
       case 3:
         return true; // Review step is always valid
       default:
@@ -246,8 +228,8 @@ const SetupWizardPage: React.FC<SetupWizardProps> = () => {
         finalCompany = result.newCompany;
         
         // Store authentication state
-        sessionStorage.setItem('controlCenterCompany', JSON.stringify(result.newCompany));
-        sessionStorage.setItem('currentUser', JSON.stringify(result.newCeoUser));
+        localStorage.setItem('controlCenterCompany', JSON.stringify(result.newCompany));
+        localStorage.setItem('currentUser', JSON.stringify(result.newCeoUser));
         
         // Authenticate the user for subsequent API calls
         console.log('SetupWizard - Authenticating user for clinic creation');
@@ -272,7 +254,7 @@ const SetupWizardPage: React.FC<SetupWizardProps> = () => {
         } else {
           throw new Error('שם משתמש או סיסמה שגויים');
         }
-      }
+       }
       
       if (!finalCompanyId) {
         throw new Error('No company ID available');
@@ -303,15 +285,6 @@ const SetupWizardPage: React.FC<SetupWizardProps> = () => {
       try {
         const settingsResponse = await apiClient.createSettings({
           clinic_id: clinic.id,
-          clinic_name: settingsData.clinic_name,
-          clinic_position: settingsData.clinic_position,
-          clinic_email: settingsData.clinic_email,
-          clinic_phone: settingsData.clinic_phone,
-          clinic_address: settingsData.clinic_address,
-          clinic_city: settingsData.clinic_city,
-          clinic_postal_code: settingsData.clinic_postal_code,
-          manager_name: settingsData.manager_name,
-          license_number: settingsData.license_number,
           work_start_time: settingsData.work_start_time,
           work_end_time: settingsData.work_end_time,
           appointment_duration: settingsData.appointment_duration
@@ -338,20 +311,33 @@ const SetupWizardPage: React.FC<SetupWizardProps> = () => {
       toast.success('הגדרת המערכת הושלמה בהצלחה!');
       
       // Clear any old sessionStorage data that might cause conflicts
-      sessionStorage.removeItem('selectedClinic');
-      sessionStorage.removeItem('selectedUser');
+      localStorage.removeItem('selectedClinic');
+      localStorage.removeItem('selectedUser');
       
       // Ensure user is set in UserContext before navigation
-      const userData = sessionStorage.getItem('currentUser');
-      if (userData) {
-        try {
+      try {
+        let userData = localStorage.getItem('currentUser');
+        if (!userData || userData === 'undefined') {
+          const me = await apiClient.getCurrentUser();
+          if (me.data) {
+            localStorage.setItem('currentUser', JSON.stringify(me.data));
+            userData = JSON.stringify(me.data);
+          }
+        }
+        if (userData) {
           const user = JSON.parse(userData);
           await setCurrentUser(user);
-          console.log('SetupWizard - User set in context:', user);
-        } catch (error) {
-          console.error('SetupWizard - Error setting user in context:', error);
         }
-      }
+      } catch {}
+
+      try {
+        if (!localStorage.getItem('controlCenterCompany') && finalCompanyId) {
+          const c = await apiClient.getCompany(finalCompanyId);
+          if (c.data) {
+            localStorage.setItem('controlCenterCompany', JSON.stringify(c.data));
+          }
+        }
+      } catch {}
       
       console.log('Setup wizard - Navigating to dashboard with auth data');
       // Navigate to control center dashboard with authentication data
@@ -366,7 +352,6 @@ const SetupWizardPage: React.FC<SetupWizardProps> = () => {
     } catch (error) {
       console.error('Setup wizard error:', error);
       toast.error('שגיאה בהגדרת המערכת. אנא נסה שוב.');
-    } finally {
       setIsLoading(false);
     }
   };
@@ -376,66 +361,66 @@ const SetupWizardPage: React.FC<SetupWizardProps> = () => {
       case 1:
         return (
           <div className="space-y-6">
-            <div className="text-center mb-6">
-              <Building2 className="mx-auto h-12 w-12 text-blue-600 mb-4" />
-              <h2 className="text-2xl font-bold text-gray-900">הגדרת המרפאה הראשונה</h2>
-              <p className="text-gray-600 mt-2">בואו נתחיל בהגדרת המרפאה הראשונה שלכם</p>
+            <div className="text-center mb-4">
+              <Building2 className="mx-auto h-10 w-10 text-blue-600 mb-3" />
+              <h2 className="text-xl font-bold text-gray-900">הגדרת המרפאה הראשונה</h2>
+              <p className="text-gray-600 mt-1 text-sm">בואו נתחיל בהגדרת המרפאה הראשונה שלכם</p>
             </div>
 
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="company-name">שם החברה *</Label>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              <div className="space-y-1">
+                <Label htmlFor="company-name" className="text-sm">שם החברה *</Label>
                 <Input
                   id="company-name"
                   value={clinicData.companyName}
                   onChange={(e) => handleClinicDataChange('companyName', e.target.value)}
                   placeholder="לדוגמה: חברת אופטיקה בע״מ"
-                  className="mt-1"
+                  className="mt-1 h-9 text-sm"
                 />
               </div>
 
-              <div>
-                <Label htmlFor="clinic-name">שם המרפאה *</Label>
+              <div className="space-y-1">
+                <Label htmlFor="clinic-name" className="text-sm">שם המרפאה *</Label>
                 <Input
                   id="clinic-name"
                   value={clinicData.name}
                   onChange={(e) => handleClinicDataChange('name', e.target.value)}
                   placeholder="לדוגמה: מרפאת העיניים הראשית"
-                  className="mt-1"
+                  className="mt-1 h-9 text-sm"
                 />
               </div>
 
-              <div>
-                <Label htmlFor="clinic-location">מיקום המרפאה *</Label>
+              <div className="space-y-1 lg:col-span-1 md:col-span-2 col-span-1">
+                <Label htmlFor="clinic-location" className="text-sm">מיקום המרפאה *</Label>
                 <Input
                   id="clinic-location"
                   value={clinicData.location}
                   onChange={(e) => handleClinicDataChange('location', e.target.value)}
                   placeholder="לדוגמה: תל אביב, רחוב דיזנגוף 123"
-                  className="mt-1"
+                  className="mt-1 h-9 text-sm"
                 />
               </div>
 
-              <div>
-                <Label htmlFor="clinic-phone">טלפון המרפאה</Label>
+              <div className="space-y-1">
+                <Label htmlFor="clinic-phone" className="text-sm">טלפון המרפאה</Label>
                 <Input
                   id="clinic-phone"
                   value={clinicData.phone_number}
                   onChange={(e) => handleClinicDataChange('phone_number', e.target.value)}
                   placeholder="לדוגמה: 03-1234567"
-                  className="mt-1"
+                  className="mt-1 h-9 text-sm"
                 />
               </div>
 
-              <div>
-                <Label htmlFor="clinic-email">אימייל המרפאה</Label>
+              <div className="space-y-1">
+                <Label htmlFor="clinic-email" className="text-sm">אימייל המרפאה</Label>
                 <Input
                   id="clinic-email"
                   type="email"
                   value={clinicData.email}
                   onChange={(e) => handleClinicDataChange('email', e.target.value)}
                   placeholder="לדוגמה: info@clinic.co.il"
-                  className="mt-1"
+                  className="mt-1 h-9 text-sm"
                 />
               </div>
             </div>
@@ -445,126 +430,37 @@ const SetupWizardPage: React.FC<SetupWizardProps> = () => {
       case 2:
         return (
           <div className="space-y-6">
-            <div className="text-center mb-6">
-              <User className="mx-auto h-12 w-12 text-blue-600 mb-4" />
-              <h2 className="text-2xl font-bold text-gray-900">פרטי המרפאה והגדרות עבודה</h2>
-              <p className="text-gray-600 mt-2">הגדירו את פרטי המרפאה ושעות העבודה</p>
+            <div className="text-center mb-4">
+              <User className="mx-auto h-10 w-10 text-blue-600 mb-3" />
+              <h2 className="text-xl font-bold text-gray-900">פרטי המרפאה והגדרות עבודה</h2>
+              <p className="text-gray-600 mt-1 text-sm">הגדירו את פרטי המרפאה ושעות העבודה</p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="settings-clinic-name">שם המרפאה למסמכים *</Label>
-                <Input
-                  id="settings-clinic-name"
-                  value={settingsData.clinic_name}
-                  onChange={(e) => handleSettingsDataChange('clinic_name', e.target.value)}
-                  placeholder="שם המרפאה כפי שיופיע במסמכים"
-                  className="mt-1"
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="manager-name">שם המנהל *</Label>
-                <Input
-                  id="manager-name"
-                  value={settingsData.manager_name}
-                  onChange={(e) => handleSettingsDataChange('manager_name', e.target.value)}
-                  placeholder="לדוגמה: ד״ר יוסי כהן"
-                  className="mt-1"
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="clinic-position">מיקום במבנה</Label>
-                <Input
-                  id="clinic-position"
-                  value={settingsData.clinic_position}
-                  onChange={(e) => handleSettingsDataChange('clinic_position', e.target.value)}
-                  placeholder="לדוגמה: קומה 2, חדר 15"
-                  className="mt-1"
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="license-number">מספר רישיון</Label>
-                <Input
-                  id="license-number"
-                  value={settingsData.license_number}
-                  onChange={(e) => handleSettingsDataChange('license_number', e.target.value)}
-                  placeholder="לדוגמה: OPT-12345"
-                  className="mt-1"
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="settings-email">אימייל</Label>
-                <Input
-                  id="settings-email"
-                  type="email"
-                  value={settingsData.clinic_email}
-                  onChange={(e) => handleSettingsDataChange('clinic_email', e.target.value)}
-                  placeholder="info@clinic.co.il"
-                  className="mt-1"
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="settings-phone">טלפון</Label>
-                <Input
-                  id="settings-phone"
-                  value={settingsData.clinic_phone}
-                  onChange={(e) => handleSettingsDataChange('clinic_phone', e.target.value)}
-                  placeholder="03-1234567"
-                  className="mt-1"
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="clinic-address">כתובת</Label>
-                <Input
-                  id="clinic-address"
-                  value={settingsData.clinic_address}
-                  onChange={(e) => handleSettingsDataChange('clinic_address', e.target.value)}
-                  placeholder="רחוב הרצל 123"
-                  className="mt-1"
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="clinic-city">עיר</Label>
-                <Input
-                  id="clinic-city"
-                  value={settingsData.clinic_city}
-                  onChange={(e) => handleSettingsDataChange('clinic_city', e.target.value)}
-                  placeholder="תל אביב"
-                  className="mt-1"
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="work-start">שעת התחלה</Label>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              <div className="space-y-1">
+                <Label htmlFor="work-start" className="text-sm">שעת התחלה</Label>
                 <Input
                   id="work-start"
                   type="time"
                   value={settingsData.work_start_time}
                   onChange={(e) => handleSettingsDataChange('work_start_time', e.target.value)}
-                  className="mt-1"
+                  className="mt-1 h-9 text-sm"
                 />
               </div>
 
-              <div>
-                <Label htmlFor="work-end">שעת סיום</Label>
+              <div className="space-y-1">
+                <Label htmlFor="work-end" className="text-sm">שעת סיום</Label>
                 <Input
                   id="work-end"
                   type="time"
                   value={settingsData.work_end_time}
                   onChange={(e) => handleSettingsDataChange('work_end_time', e.target.value)}
-                  className="mt-1"
+                  className="mt-1 h-9 text-sm"
                 />
               </div>
 
-              <div>
-                <Label htmlFor="appointment-duration">משך תור (דקות)</Label>
+              <div className="space-y-1">
+                <Label htmlFor="appointment-duration" className="text-sm">משך תור (דקות)</Label>
                 <Input
                   id="appointment-duration"
                   type="number"
@@ -573,20 +469,11 @@ const SetupWizardPage: React.FC<SetupWizardProps> = () => {
                   step="15"
                   value={settingsData.appointment_duration}
                   onChange={(e) => handleSettingsDataChange('appointment_duration', parseInt(e.target.value))}
-                  className="mt-1"
+                  className="mt-1 h-9 text-sm"
                 />
               </div>
 
-              <div>
-                <Label htmlFor="postal-code">מיקוד</Label>
-                <Input
-                  id="postal-code"
-                  value={settingsData.clinic_postal_code}
-                  onChange={(e) => handleSettingsDataChange('clinic_postal_code', e.target.value)}
-                  placeholder="12345"
-                  className="mt-1"
-                />
-              </div>
+              
             </div>
           </div>
         );
@@ -594,52 +481,50 @@ const SetupWizardPage: React.FC<SetupWizardProps> = () => {
       case 3:
         return (
           <div className="space-y-6">
-            <div className="text-center mb-6">
-              <Check className="mx-auto h-12 w-12 text-green-600 mb-4" />
-              <h2 className="text-2xl font-bold text-gray-900">סיכום ההגדרות</h2>
-              <p className="text-gray-600 mt-2">אנא בדקו את הפרטים לפני השלמת ההגדרה</p>
+            <div className="text-center mb-4">
+              <Check className="mx-auto h-10 w-10 text-green-600 mb-3" />
+              <h2 className="text-xl font-bold text-gray-900">סיכום ההגדרות</h2>
+              <p className="text-gray-600 mt-1 text-sm">אנא בדקו את הפרטים לפני השלמת ההגדרה</p>
             </div>
 
-            <div className="space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
               <Card>
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
+                  <CardTitle className="flex items-center gap-2 text-base">
                     <Building2 className="h-5 w-5" />
                     פרטי החברה
                   </CardTitle>
                 </CardHeader>
-                <CardContent>
-                  <p><strong>שם החברה:</strong> {companyName}</p>
+                <CardContent className="text-sm space-y-1">
+                  <p>שם החברה: {companyName || clinicData.companyName}</p>
                 </CardContent>
               </Card>
 
-              <Card>
+              <Card className="lg:col-span-2">
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
+                  <CardTitle className="flex items-center gap-2 text-base">
                     <MapPin className="h-5 w-5" />
                     פרטי המרפאה
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-2">
-                  <p><strong>שם המרפאה:</strong> {clinicData.name}</p>
-                  <p><strong>מיקום:</strong> {clinicData.location}</p>
-                  {clinicData.phone_number && <p><strong>טלפון:</strong> {clinicData.phone_number}</p>}
-                  {clinicData.email && <p><strong>אימייל:</strong> {clinicData.email}</p>}
+                <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
+                  <p>שם המרפאה: {clinicData.name}</p>
+                  <p>מיקום: {clinicData.location}</p>
+                  {clinicData.phone_number && <p>טלפון: {clinicData.phone_number}</p>}
+                  {clinicData.email && <p>אימייל: {clinicData.email}</p>}
                 </CardContent>
               </Card>
 
-              <Card>
+              <Card className="lg:col-span-3">
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
+                  <CardTitle className="flex items-center gap-2 text-base">
                     <User className="h-5 w-5" />
                     הגדרות עבודה
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-2">
-                  <p><strong>מנהל המרפאה:</strong> {settingsData.manager_name}</p>
-                  <p><strong>שעות עבודה:</strong> {settingsData.work_start_time} - {settingsData.work_end_time}</p>
-                  <p><strong>משך תור:</strong> {settingsData.appointment_duration} דקות</p>
-                  {settingsData.license_number && <p><strong>מספר רישיון:</strong> {settingsData.license_number}</p>}
+                <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-2 text-sm">
+                  <p>שעות עבודה: {settingsData.work_start_time} - {settingsData.work_end_time}</p>
+                  <p>משך תור: {settingsData.appointment_duration} דקות</p>
                 </CardContent>
               </Card>
             </div>
@@ -652,46 +537,44 @@ const SetupWizardPage: React.FC<SetupWizardProps> = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
-      {isLoading && !company ? (
-        <Card className="w-full max-w-md">
+    <div className="h-full bg-accent/50 dark:bg-slate-900 flex items-center justify-center p-6" dir="rtl" style={{ scrollbarWidth: 'none' }}>
+      {isLoading ? (
+        <Card className="w-full max-w-md bg-white dark:bg-slate-800/80 backdrop-blur-sm border-0 shadow-xl">
           <CardHeader className="text-center">
             <CardTitle className="text-2xl font-bold text-gray-900">
-              יוצר חברה ומשתמש...
+              מבצע הגדרה ושמירה...
             </CardTitle>
             <CardDescription className="text-lg">
-              אנא המתן בזמן יצירת החברה והמשתמש הראשונים
+              אנא המתן לסיום התהליך והעברה ללוח הבקרה
             </CardDescription>
           </CardHeader>
+          <CardContent className="flex items-center justify-center pb-6">
+            <div className="w-6 h-6 border-2 border-current border-t-transparent rounded-full animate-spin" />
+          </CardContent>
         </Card>
       ) : (
-        <Card className="w-full max-w-4xl">
-          <CardHeader className="text-center">
-            <CardTitle className="text-3xl font-bold text-gray-900">
-              אשף הגדרת המערכת
+        <Card className="w-full max-w-5xl bg-white dark:bg-slate-800/80 backdrop-blur-sm border-0 shadow-xl" dir="rtl">
+          <CardHeader className="text-center pb-3">
+            <CardTitle className="text-3xl font-bold text-slate-900 dark:text-slate-100">
+             הגדרת המערכת
             </CardTitle>
             <CardDescription className="text-lg">
               שלב {currentStep} מתוך {totalSteps}
             </CardDescription>
-            <div className="mt-4">
+            <div className="mt-4 px-6">
               <Progress value={progress} className="w-full" />
+            </div>
+            <div className="mt-4 flex items-center justify-center gap-2 text-xs">
+              <div className={`px-2 py-1 rounded-md ${currentStep === 1 ? 'bg-primary text-white' : 'bg-muted'}`}>פרטי חברה ומרפאה</div>
+              <div className={`px-2 py-1 rounded-md ${currentStep === 2 ? 'bg-primary text-white' : 'bg-muted'}`}>הגדרות עבודה</div>
+              <div className={`px-2 py-1 rounded-md ${currentStep === 3 ? 'bg-primary text-white' : 'bg-muted'}`}>סיכום</div>
             </div>
           </CardHeader>
 
-          <CardContent className="p-8">
+          <CardContent className="p-6 sm:p-8" dir="rtl" style={{ scrollbarWidth: 'none' }}>
             {renderStepContent()}
 
             <div className="flex justify-between mt-8">
-              <Button
-                variant="outline"
-                onClick={handlePrevious}
-                disabled={currentStep === 1}
-                className="flex items-center gap-2"
-              >
-                <ArrowLeft className="h-4 w-4" />
-                הקודם
-              </Button>
-
               {currentStep < totalSteps ? (
                 <Button
                   onClick={handleNext}
@@ -707,10 +590,29 @@ const SetupWizardPage: React.FC<SetupWizardProps> = () => {
                   disabled={isLoading}
                   className="flex items-center gap-2"
                 >
-                  {isLoading ? 'מגדיר...' : 'סיים הגדרה'}
-                  <Check className="h-4 w-4" />
+                  {isLoading ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                      מגדיר...
+                    </>
+                  ) : (
+                    <>
+                      סיים הגדרה
+                      <Check className="h-4 w-4" />
+                    </>
+                  )}
                 </Button>
               )}
+
+              <Button
+                variant="outline"
+                onClick={handlePrevious}
+                disabled={currentStep === 1}
+                className="flex items-center gap-2"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                הקודם
+              </Button>
             </div>
           </CardContent>
         </Card>

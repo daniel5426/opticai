@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { CustomModal } from "@/components/ui/custom-modal"
+import { Skeleton } from "@/components/ui/skeleton"
 import { IconClock, IconCalendar, IconChartBar, IconPlus, IconTrash } from "@tabler/icons-react"
 import { apiClient } from "@/lib/api-client"
 import { User, WorkShift } from "@/lib/db/schema-interface"
@@ -106,8 +107,81 @@ export default function WorkerStatsPage() {
     return (
       <>
         <SiteHeader title="יומן נוכחות" />
-        <div className="flex flex-col items-center justify-center h-full" dir="rtl">
-          <div className="text-lg">טוען נתונים...</div>
+        <div className="h-full overflow-auto bg-muted/30" style={{ scrollbarWidth: 'none' }} dir="ltr">
+          <div className="max-w-6xl mx-auto p-6 pb-20 space-y-6" dir="ltr">
+          {/* Header */}
+          <div className="text-right space-y-2 mb-8">
+              <h1 className="text-xl font-bold">יומן נוכחות</h1>
+            <p className="text-muted-foreground">צפה בנתוני נוכחות ומשמרות של העובדים</p>
+          </div>
+
+            <div className="flex gap-6" dir="ltr">
+              <div className="flex-1 space-y-6">
+                <Card className="shadow-md border-none">
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 justify-end mb-6">
+                        <Skeleton className="h-8 w-24" />
+                        <Skeleton className="h-8 w-24" />
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <div className="text-right">
+                          <Skeleton className="h-6 w-24 ml-auto" />
+                          <Skeleton className="h-4 w-56 ml-auto mt-2" />
+                        </div>
+                        <Skeleton className="w-10 h-10 rounded-full" />
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <Skeleton className="h-24 w-full rounded-lg" />
+                      <Skeleton className="h-24 w-full rounded-lg" />
+                      <Skeleton className="h-24 w-full rounded-lg" />
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="shadow-md border-none">
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center">
+                        <Skeleton className="h-8 w-36" />
+                      </div>
+                      <div className="text-right">
+                        <Skeleton className="h-5 w-28 ml-auto" />
+                        <Skeleton className="h-4 w-56 ml-auto mt-2" />
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="flex items-center gap-4 justify-end">
+                      <Skeleton className="h-10 w-40" />
+                      <Skeleton className="h-5 w-16" />
+                    </div>
+                    <div className="grid gap-3">
+                      <Skeleton className="h-20 w-full rounded-lg" />
+                      <Skeleton className="h-20 w-full rounded-lg" />
+                      <Skeleton className="h-20 w-full rounded-lg" />
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              <div className="w-48">
+                <div className="flex flex-col h-fit w-48 p-1 bg-cyan-800/10 dark:bg-card/50 rounded-md gap-1">
+                  {Array.from({ length: 8 }).map((_, i) => (
+                    <div key={i} className="w-full rounded-md px-2 py-2">
+                      <div className="flex items-center justify-end gap-2">
+                        <Skeleton className="h-3 w-14" />
+                        <Skeleton className="h-4 w-20" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </>
     )

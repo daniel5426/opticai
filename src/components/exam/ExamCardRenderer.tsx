@@ -44,8 +44,6 @@ import { StereoTestTab } from "@/components/exam/StereoTestTab"
 import { RGTab } from "@/components/exam/RGTab"
 import { OcularMotorAssessmentTab } from "@/components/exam/OcularMotorAssessmentTab"
 import { v4 as uuidv4 } from 'uuid';
-import { deleteCoverTestExam } from '@/lib/db/cover-test-db';
-import { createCoverTestExam } from '@/lib/db/cover-test-db';
 
 // Renaming for consistency within the component props
 type Exam = OpticalExam;
@@ -498,18 +496,7 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
     case 'exam-details':
      return (
           <Card className="w-full p-4 pt-3  shadow-md border-none ">
-            <div className="grid grid-cols-5 gap-x-3 gap-y-2 w-full" dir="rtl">
-              <div className="col-span-1">
-                <label className="font-semibold text-base">תאריך בדיקה</label>
-                <div className="h-1"></div>
-                <DateInput
-                  name="exam_date"
-                  className={`pl-20 h-9`}
-                  value={mode === 'editor' ? new Date().toISOString().split('T')[0] : detailProps?.formData.exam_date}
-                  disabled={mode === 'editor' ? true : !detailProps?.isEditing}
-                  onChange={detailProps?.handleInputChange || (() => {})}
-                />
-              </div>
+            <div className="grid grid-cols-4 gap-x-3 gap-y-2 w-full" dir="rtl">
               <div className="col-span-1">
                 <label className="font-semibold text-base">שם הבדיקה</label>
                 <div className="h-1"></div>
@@ -528,21 +515,15 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
                 )}
               </div>
               <div className="col-span-1">
-                <label className="font-semibold text-base">סניף</label>
+                <label className="font-semibold text-base">תאריך בדיקה</label>
                 <div className="h-1"></div>
-                {mode === 'editor' ? (
-                  <div className="border h-9 px-3 rounded-md text-sm flex items-center bg-accent/50">דוגמה</div>
-                ) : detailProps?.isEditing ? (
-                  <Input
-                    type="text"
-                    name="clinic"
-                    value={detailProps.formData.clinic || ''}
-                    onChange={detailProps.handleInputChange}
-                    className="text-sm bg-white"
-                  />
-                ) : (
-                  <div className="border h-9 px-3 rounded-md text-sm flex items-center bg-accent/50">{detailProps?.isNewMode ? detailProps?.formData.clinic : detailProps?.exam?.clinic}</div>
-                )}
+                <DateInput
+                  name="exam_date"
+                  className={`pl-20 h-9`}
+                  value={mode === 'editor' ? new Date().toISOString().split('T')[0] : detailProps?.formData.exam_date}
+                  disabled={mode === 'editor' ? true : !detailProps?.isEditing}
+                  onChange={detailProps?.handleInputChange || (() => {})}
+                />
               </div>
               <div className="col-span-1">
                 <label className="font-semibold text-base">בודק</label>
@@ -806,7 +787,6 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
         const key = `cover-test-${item.id}-${removedTabId}`
         const tabData = detailProps?.examFormData?.[key] as CoverTestExam
         if (tabData && tabData.id) {
-          await deleteCoverTestExam(tabData.id)
         }
         detailProps?.setExamFormData?.(prev  => {
           const newData = { ...prev }

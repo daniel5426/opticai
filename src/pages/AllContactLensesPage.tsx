@@ -1,12 +1,10 @@
 import React, { useState, useEffect, useCallback } from "react"
 import { SiteHeader } from "@/components/site-header"
-import { getAllExams } from "@/lib/db/exams-db"
+import { getAllEnrichedExams } from "@/lib/db/exams-db"
 import { OpticalExam } from "@/lib/db/schema-interface"
 import { ContactLensTable } from "@/components/contact-lens-table"
 import { ClientSelectModal } from "@/components/ClientSelectModal"
 import { useNavigate } from "@tanstack/react-router"
-import { getUserById } from "@/lib/db/users-db"
-import { getClientById } from "@/lib/db/clients-db"
 import { useUser } from "@/contexts/UserContext"
 
 export default function AllExamsPage() {
@@ -18,29 +16,14 @@ export default function AllExamsPage() {
   const loadData = useCallback(async () => {
     try {
       setLoading(true)
-      const examsData = await getAllExams('opticlens', currentClinic?.id)
-      const enriched = await Promise.all(
-        examsData.map(async (exam) => {
-          let username = ''
-          let clientName = ''
-          if (exam.user_id) {
-            const user = await getUserById(exam.user_id)
-            username = user?.username || ''
-          }
-          if (exam.client_id) {
-            const client = await getClientById(exam.client_id)
-            clientName = client ? `${client.first_name || ''} ${client.last_name || ''}`.trim() : ''
-          }
-          return { ...exam, username, clientName }
-        })
-      )
-      setExams(enriched)
+      const examsData = await getAllEnrichedExams('opticlens', currentClinic?.id)
+      setExams(examsData)
     } catch (error) {
       console.error('Error loading data:', error)
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [currentClinic])
 
   useEffect(() => {
     if (currentClinic) {

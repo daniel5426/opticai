@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import select
+from sqlalchemy import func
 from typing import List, Optional
 from database import get_db
 from models import OpticalExam, User, Client
@@ -125,6 +126,15 @@ def create_exam(
         db.add(db_exam)
         db.commit()
         db.refresh(db_exam)
+        # bump client_updated_date
+        try:
+            if db_exam.client_id:
+                client = db.query(Client).filter(Client.id == db_exam.client_id).first()
+                if client:
+                    client.client_updated_date = func.now()
+                    db.commit()
+        except Exception:
+            pass
         return db_exam
     except HTTPException:
         raise
@@ -158,6 +168,57 @@ def get_exam(
     
     return exam
 
+@router.get("/{exam_id}/with-layouts")
+def get_exam_with_layouts(
+    exam_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get exam with all its layout instances and layouts in a single call"""
+    from models import ExamLayoutInstance, ExamLayout
+    
+    exam = db.query(OpticalExam).filter(OpticalExam.id == exam_id).first()
+    if not exam:
+        raise HTTPException(status_code=404, detail="Exam not found")
+    
+    # Apply role-based access control
+    if current_user.role == "company_ceo":
+        # CEO can see any exam
+        pass
+    elif current_user.role == "clinic_manager":
+        # Clinic manager can only see exams in their clinic
+        if exam.clinic_id != current_user.clinic_id:
+            raise HTTPException(status_code=403, detail="Access denied")
+    else:
+        # Other users can only see exams in their clinic
+        if exam.clinic_id != current_user.clinic_id:
+            raise HTTPException(status_code=403, detail="Access denied")
+    
+    # Get all layout instances for this exam
+    layout_instances = db.query(ExamLayoutInstance).filter(
+        ExamLayoutInstance.exam_id == exam_id
+    ).all()
+    
+    # Get all unique layout IDs
+    layout_ids = list(set([instance.layout_id for instance in layout_instances]))
+    
+    # Get all layouts in one query
+    layouts = []
+    if layout_ids:
+        layouts = db.query(ExamLayout).filter(ExamLayout.id.in_(layout_ids)).all()
+    
+    layout_map = {layout.id: layout for layout in layouts}
+    
+    # Build the response
+    result = {
+        "exam": exam,
+        "layout_instances": layout_instances,
+        "layouts": layouts,
+        "layout_map": {str(k): v for k, v in layout_map.items()}
+    }
+    
+    return result
+
 @router.put("/{exam_id}", response_model=OpticalExamSchema)
 def update_exam(
     exam_id: int,
@@ -188,6 +249,15 @@ def update_exam(
             setattr(db_exam, field, value)
         
         db.commit()
+        # bump client_updated_date
+        try:
+            if db_exam.client_id:
+                client = db.query(Client).filter(Client.id == db_exam.client_id).first()
+                if client:
+                    client.client_updated_date = func.now()
+                    db.commit()
+        except Exception:
+            pass
         db.refresh(db_exam)
         return db_exam
     except Exception as e:
@@ -219,8 +289,18 @@ def delete_exam(
             raise HTTPException(status_code=403, detail="Access denied")
     
     try:
+        client_id = db_exam.client_id
         db.delete(db_exam)
         db.commit()
+        # bump client_updated_date
+        try:
+            if client_id:
+                client = db.query(Client).filter(Client.id == client_id).first()
+                if client:
+                    client.client_updated_date = func.now()
+                    db.commit()
+        except Exception:
+            pass
         return {"message": "Exam deleted successfully"}
     except Exception as e:
         db.rollback()

@@ -15,6 +15,8 @@ interface UserModalProps {
   editingUser: User | null
   currentUser: User | null
   clinics?: Array<{ id: number; name: string }>
+  companyId?: number
+  defaultClinicId?: number
   onUserSaved: (user: User) => void
   onUserUpdated: (user: User) => void
 }
@@ -25,6 +27,8 @@ export function UserModal({
   editingUser,
   currentUser,
   clinics = [],
+  companyId,
+  defaultClinicId,
   onUserSaved,
   onUserUpdated
 }: UserModalProps) {
@@ -57,10 +61,10 @@ export function UserModal({
         hasPassword: false,
         password: '',
         role: 'clinic_worker',
-        clinic_id: ''
+        clinic_id: defaultClinicId ? String(defaultClinicId) : ''
       })
     }
-  }, [editingUser])
+  }, [editingUser, defaultClinicId])
 
   const handleUserFormChange = (field: string, value: any) => {
     setUserForm(prev => ({ ...prev, [field]: value }))
@@ -77,9 +81,10 @@ export function UserModal({
         username: userForm.username.trim(),
         email: userForm.email.trim() || undefined,
         phone: userForm.phone.trim() || undefined,
-        password: userForm.hasPassword ? userForm.password.trim() || undefined : undefined,
+        password: userForm.hasPassword ? (userForm.password.trim() || undefined) : null,
         role: userForm.role,
         clinic_id: userForm.clinic_id && userForm.clinic_id !== 'global' ? parseInt(userForm.clinic_id) : undefined,
+        company_id: companyId || currentUser?.company_id || undefined,
         is_active: true
       }
 
@@ -184,7 +189,7 @@ export function UserModal({
             </div>
           </div>
 
-          {clinics.length > 0 && (
+          {clinics.length > 0 && userForm.role !== 'company_ceo' && (
             <div className="space-y-2">
               <Label htmlFor="clinic" className="text-right block">מרפאה</Label>
               <Select

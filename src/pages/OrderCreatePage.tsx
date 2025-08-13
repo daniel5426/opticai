@@ -1,7 +1,7 @@
 import React from "react"
 import { useParams, useNavigate } from "@tanstack/react-router"
 import { getClientById } from "@/lib/db/clients-db"
-import { Order, OrderEye, OrderLens, Frame } from "@/lib/db/schema-interface"
+import { Order } from "@/lib/db/schema-interface"
 import { toast } from "sonner"
 import OrderDetailPage from "./OrderDetailPage"
 
@@ -10,7 +10,7 @@ export default function OrderCreatePage() {
   const client = getClientById(Number(clientId))
   const navigate = useNavigate()
 
-  const handleSave = (order: Order, rightEyeOrder: OrderEye, leftEyeOrder: OrderEye, orderLens: OrderLens, frame: Frame) => {
+  const handleSave = (order: Order) => {
     navigate({ to: `/clients/${clientId}`, search: { tab: 'orders' } })
   }
 

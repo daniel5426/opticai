@@ -1,14 +1,17 @@
 # where the backend fastapi app that will be used as a proxy for openai llm call, and for handling the app backups
 
 from fastapi import FastAPI
+import logging
 from fastapi.middleware.cors import CORSMiddleware
 import config
 from database import engine
 from models import Base
-from EndPoints import auth, companies, clinics, users, clients, families, appointments, medical_logs, exam_data, orders, referrals, files, settings, work_shifts, lookups, campaigns, contact_lenses, billing, chats, email_logs, optical_exams, exam_layouts, exams, unified_exam_data
+from EndPoints import auth, companies, clinics, users, clients, families, appointments, medical_logs, exam_data, orders, referrals, files, settings, work_shifts, lookups, campaigns, contact_lenses, billing, chats, email_logs, exam_layouts, exams, unified_exam_data, ai
 import httpx
 import json
 from fastapi.responses import StreamingResponse
+
+logging.basicConfig(level=logging.INFO)
 
 app = FastAPI(
     title=config.settings.PROJECT_NAME,
@@ -46,10 +49,10 @@ app.include_router(contact_lenses.router, prefix=config.settings.API_V1_STR)
 app.include_router(billing.router, prefix=config.settings.API_V1_STR)
 app.include_router(chats.router, prefix=config.settings.API_V1_STR)
 app.include_router(email_logs.router, prefix=config.settings.API_V1_STR)
-app.include_router(optical_exams.router, prefix=config.settings.API_V1_STR)
 app.include_router(exam_layouts.router, prefix=config.settings.API_V1_STR)
 app.include_router(exams.router, prefix=config.settings.API_V1_STR)
 app.include_router(unified_exam_data.router, prefix=config.settings.API_V1_STR)
+app.include_router(ai.router, prefix=config.settings.API_V1_STR)
 
 @app.get("/health")
 async def health_check():

@@ -1,24 +1,11 @@
 import React, { useState, useRef, useEffect } from "react"
 import { useParams, useNavigate } from "@tanstack/react-router"
 import { SiteHeader } from "@/components/site-header"
-import { getClientById } from "@/lib/db/clients-db"
 import { getExamById } from "@/lib/db/exams-db"
 import { 
   getOrderById, 
-  getOrderEyesByOrderId, 
-  getOrderLensByOrderId, 
-  getFrameByOrderId,
-  getOrderDetailsByOrderId,
   updateOrder,
-  updateOrderEye,
-  updateOrderLens,
-  updateFrame,
-  updateOrderDetails,
-  createOrder,
-  createOrderEye,
-  createOrderLens,
-  createFrame,
-  createOrderDetails
+  createOrder
 } from "@/lib/db/orders-db"
 import { 
   getBillingByOrderId, 
@@ -29,7 +16,10 @@ import {
   updateOrderLineItem, 
   deleteOrderLineItem 
 } from "@/lib/db/billing-db"
-import { Order, OrderEye, OrderLens, Frame, OrderDetails, Client, OpticalExam, Billing, OrderLineItem, User, FinalPrescriptionExam } from "@/lib/db/schema-interface"
+import { Order, OpticalExam, Billing, OrderLineItem, User, FinalPrescriptionExam } from "@/lib/db/schema-interface"
+type OrderLens = { order_id: number; right_model?: string; left_model?: string; color?: string; coating?: string; material?: string; supplier?: string }
+type Frame = { order_id: number; color?: string; supplier?: string; model?: string; manufacturer?: string; supplied_by?: string; bridge?: number; width?: number; height?: number; length?: number }
+type OrderDetails = { order_id: number; branch?: string; supplier_status?: string; bag_number?: string; advisor?: string; delivered_by?: string; technician?: string; delivered_at?: string; warranty_expiration?: string; delivery_location?: string; manufacturing_lab?: string; order_status?: string; priority?: string; promised_date?: string; approval_date?: string; notes?: string; lens_order_notes?: string }
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -44,23 +34,23 @@ import { UserSelect } from "@/components/ui/user-select"
 import { useUser } from "@/contexts/UserContext"
 import { getAllUsers } from "@/lib/db/users-db"
 import { Separator } from "@/components/ui/separator"
-import { Badge } from "@/components/ui/badge"
+// removed unused Badge import
 import { LookupSelect } from "@/components/ui/lookup-select"
 import { FinalPrescriptionTab } from "@/components/exam/FinalPrescriptionTab"
 import { ExamToolbox, createToolboxActions } from "@/components/exam/ExamToolbox"
 import { ExamFieldMapper, ExamComponentType } from "@/lib/exam-field-mappings"
 import { copyToClipboard, pasteFromClipboard, getClipboardContentType } from "@/lib/exam-clipboard"
-import { getFinalPrescriptionExamByOrderId, createFinalPrescriptionExam, updateFinalPrescriptionExam } from "@/lib/db/final-prescription-db"
 import { DateInput } from "@/components/ui/date"
 import { ClientSpaceLayout } from "@/layouts/ClientSpaceLayout"
 import { useClientSidebar } from "@/contexts/ClientSidebarContext"
+ 
 
 interface OrderDetailPageProps {
   mode?: 'view' | 'edit' | 'new';
   clientId?: string;
   orderId?: string;
   examId?: string;
-  onSave?: (order: Order, rightEyeOrder: OrderEye, leftEyeOrder: OrderEye, orderLens: OrderLens, frame: Frame) => void;
+  onSave?: (order: Order) => void;
   onCancel?: () => void;
 }
 
@@ -96,14 +86,8 @@ export default function OrderDetailPage({
   const examId = propExamId || examIdFromSearch || undefined;
   
   const [loading, setLoading] = useState(true)
-  const [client, setClient] = useState<Client | null>(null)
   const [order, setOrder] = useState<Order | null>(null)
   const [exam, setExam] = useState<OpticalExam | null>(null)
-  const [rightEyeOrder, setRightEyeOrder] = useState<OrderEye | null>(null)
-  const [leftEyeOrder, setLeftEyeOrder] = useState<OrderEye | null>(null)
-  const [orderLens, setOrderLens] = useState<OrderLens | null>(null)
-  const [frame, setFrame] = useState<Frame | null>(null)
-  const [orderDetails, setOrderDetails] = useState<OrderDetails | null>(null)
   const [billing, setBilling] = useState<Billing | null>(null)
   const [orderLineItems, setOrderLineItems] = useState<OrderLineItem[]>([])
   const [deletedOrderLineItemIds, setDeletedOrderLineItemIds] = useState<number[]>([])
@@ -111,6 +95,7 @@ export default function OrderDetailPage({
   const [finalPrescription, setFinalPrescription] = useState<FinalPrescriptionExam | null>(null)
   const { currentUser, currentClinic } = useUser()
   const { currentClient } = useClientSidebar()
+  const [orderIdForData, setOrderIdForData] = useState<number | null>(null)
   
   const isNewMode = mode === 'new'
   const [isEditing, setIsEditing] = useState(isNewMode)
@@ -130,8 +115,6 @@ export default function OrderDetailPage({
     }
     return {} as Order
   })
-  const [rightEyeFormData, setRightEyeFormData] = useState<OrderEye>(isNewMode ? { order_id: 0, eye: 'R' } as OrderEye : {} as OrderEye)
-  const [leftEyeFormData, setLeftEyeFormData] = useState<OrderEye>(isNewMode ? { order_id: 0, eye: 'L' } as OrderEye : {} as OrderEye)
   const [lensFormData, setLensFormData] = useState<OrderLens>(isNewMode ? { order_id: 0 } as OrderLens : {} as OrderLens)
   const [frameFormData, setFrameFormData] = useState<Frame>(isNewMode ? { order_id: 0 } as Frame : {} as Frame)
   const [orderDetailsFormData, setOrderDetailsFormData] = useState<OrderDetails>(isNewMode ? { order_id: 0 } as OrderDetails : {} as OrderDetails)
@@ -186,6 +169,8 @@ export default function OrderDetailPage({
   const formRef = useRef<HTMLFormElement>(null)
   const navigate = useNavigate()
   
+  
+  
   const handleTabChange = (value: string) => {
     if (clientId && value !== 'orders') {
       navigate({ 
@@ -210,26 +195,17 @@ export default function OrderDetailPage({
           setOrder(orderData || null)
           
           if (orderData) {
-            const [orderEyesData, orderLensData, frameData, orderDetailsData, billingData, finalPrescriptionData] = await Promise.all([
-              getOrderEyesByOrderId(Number(orderId)),
-              getOrderLensByOrderId(Number(orderId)),
-              getFrameByOrderId(Number(orderId)),
-              getOrderDetailsByOrderId(Number(orderId)),
-              getBillingByOrderId(Number(orderId)),
-              getFinalPrescriptionExamByOrderId(Number(orderId))
-            ])
-            
-            const rightEye = orderEyesData.find(e => e.eye === "R")
-            const leftEye = orderEyesData.find(e => e.eye === "L")
-            
-            setRightEyeOrder(rightEye || null)
-            setLeftEyeOrder(leftEye || null)
-            setOrderLens(orderLensData || null)
-            setFrame(frameData || null)
-            setOrderDetails(orderDetailsData || null)
+            const fp = (orderData as any).order_data?.['final-prescription']
+            if (fp) {
+              setFinalPrescription(fp as FinalPrescriptionExam)
+              setFinalPrescriptionFormData({ ...(fp as FinalPrescriptionExam) })
+            }
+            const od = (orderData as any).order_data || {}
+            if (od.lens) setLensFormData({ ...(od.lens as OrderLens), order_id: orderData.id! })
+            if (od.frame) setFrameFormData({ ...(od.frame as Frame), order_id: orderData.id! })
+            if (od.details) setOrderDetailsFormData({ ...(od.details as OrderDetails), order_id: orderData.id! })
+            const billingData = await getBillingByOrderId(Number(orderId))
             setBilling(billingData || null)
-            setFinalPrescription(finalPrescriptionData || null)
-            
             if (billingData && billingData.id) {
               const orderLineItemsData = await getOrderLineItemsByBillingId(billingData.id)
               setOrderLineItems(orderLineItemsData || [])
@@ -253,28 +229,14 @@ export default function OrderDetailPage({
     if (order) {
       setFormData({ ...order })
     }
-    if (rightEyeOrder) {
-      setRightEyeFormData({ ...rightEyeOrder })
-    }
-    if (leftEyeOrder) {
-      setLeftEyeFormData({ ...leftEyeOrder })
-    }
-    if (orderLens) {
-      setLensFormData({ ...orderLens })
-    }
-    if (frame) {
-      setFrameFormData({ ...frame })
-    }
-    if (orderDetails) {
-      setOrderDetailsFormData({ ...orderDetails })
-    }
+    
     if (billing) {
       setBillingFormData({ ...billing })
     }
     if (finalPrescription) {
       setFinalPrescriptionFormData({ ...finalPrescription })
     }
-  }, [order, rightEyeOrder, leftEyeOrder, orderLens, frame, orderDetails, billing, finalPrescription])
+  }, [order, billing, finalPrescription])
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
@@ -317,34 +279,7 @@ export default function OrderDetailPage({
     setFrameFormData(prev => ({ ...prev, [name]: value }))
   }
 
-  const handleEyeFieldChange = (
-    eye: 'R' | 'L',
-    field: keyof OrderEye,
-    rawValue: string
-  ) => {
-    let processedValue: string | number | undefined = rawValue;
   
-    const numericFields: (keyof OrderEye)[] = [
-      "sph", "cyl", "ax", "pris", "ad", "diam", "s_base", "high", "pd"
-    ];
-    const integerFields: (keyof OrderEye)[] = ["ax", "diam"];
-  
-    if (numericFields.includes(field)) {
-      const val = parseFloat(rawValue);
-      processedValue = rawValue === "" || isNaN(val) ? undefined : val;
-    } else if (integerFields.includes(field)) {
-      const val = parseInt(rawValue, 10);
-      processedValue = rawValue === "" || isNaN(val) ? undefined : val;
-    } else if (rawValue === "") {
-      processedValue = undefined;
-    }
-  
-    if (eye === 'R') {
-      setRightEyeFormData(prev => ({ ...prev, [field]: processedValue }));
-    } else {
-      setLeftEyeFormData(prev => ({ ...prev, [field]: processedValue }));
-    }
-  };
   
   const handleOrderFieldChange = (field: keyof Order, rawValue: string) => {
     let processedValue: string | number | undefined = rawValue;
@@ -405,6 +340,9 @@ export default function OrderDetailPage({
       if (isNewMode) {
         console.log('Creating new order...')
         
+        const hasFinalPrescriptionData = Object.values(finalPrescriptionFormData).some(value => 
+          value !== undefined && value !== null && value !== '' && value !== 0
+        );
         const newOrder = await createOrder({
           client_id: Number(clientId),
           clinic_id: currentClinic?.id,
@@ -414,48 +352,16 @@ export default function OrderDetailPage({
           user_id: formData.user_id,
           comb_va: formData.comb_va,
           comb_high: formData.comb_high,
-          comb_pd: formData.comb_pd
+          comb_pd: formData.comb_pd,
+          order_data: {
+            ...(hasFinalPrescriptionData ? { 'final-prescription': { ...finalPrescriptionFormData } } : {}),
+            lens: { ...lensFormData },
+            frame: { ...frameFormData },
+            details: { ...orderDetailsFormData }
+          }
         })
         
-        if (newOrder && newOrder.id) {
-          const [newRightEyeOrder, newLeftEyeOrder, newOrderLens, newFrame, newOrderDetails] = await Promise.all([
-            createOrderEye({
-              ...rightEyeFormData,
-              order_id: newOrder.id,
-              eye: 'R',
-            }),
-            createOrderEye({
-              ...leftEyeFormData,
-              order_id: newOrder.id,
-              eye: 'L',
-            }),
-            createOrderLens({
-              ...lensFormData,
-              order_id: newOrder.id,
-            }),
-            createFrame({
-              ...frameFormData,
-              order_id: newOrder.id,
-            }),
-            createOrderDetails({
-              ...orderDetailsFormData,
-              order_id: newOrder.id,
-            })
-          ])
-
-          // Create final prescription if it has data
-          let newFinalPrescription: FinalPrescriptionExam | null = null
-          const hasFinalPrescriptionData = Object.values(finalPrescriptionFormData).some(value => 
-            value !== undefined && value !== null && value !== '' && value !== 0
-          );
-          
-          if (hasFinalPrescriptionData) {
-            newFinalPrescription = await createFinalPrescriptionExam({
-              ...finalPrescriptionFormData,
-              order_id: newOrder.id,
-            })
-          }
-          
+          if (newOrder && newOrder.id) {
           let newBilling: Billing | null = null
           let savedOrderLineItems: OrderLineItem[] = []
           
@@ -493,10 +399,10 @@ export default function OrderDetailPage({
           
 
 
-          if (newRightEyeOrder && newLeftEyeOrder && newOrderLens && newFrame && newOrderDetails) {
+          if (newOrder) {
             toast.success("הזמנה חדשה נוצרה בהצלחה")
             if (onSave) {
-              onSave(newOrder, newRightEyeOrder, newLeftEyeOrder, newOrderLens, newFrame)
+              onSave(newOrder)
             }
           } else {
             toast.error("לא הצלחנו ליצור את נתוני ההזמנה")
@@ -505,34 +411,18 @@ export default function OrderDetailPage({
           toast.error("לא הצלחנו ליצור את ההזמנה")
         }
       } else {
-        const [updatedOrder, updatedRightEyeOrder, updatedLeftEyeOrder, updatedOrderLens, updatedFrame, updatedOrderDetails] = await Promise.all([
-          updateOrder(formData),
-          updateOrderEye(rightEyeFormData),
-          updateOrderEye(leftEyeFormData),
-          updateOrderLens(lensFormData),
-          updateFrame(frameFormData),
-          orderDetailsFormData.id ? updateOrderDetails(orderDetailsFormData) : createOrderDetails({
-            ...orderDetailsFormData,
-            order_id: formData.id!
-          })
-        ])
-
-        // Handle final prescription
-        let updatedFinalPrescription: FinalPrescriptionExam | null = null
         const hasFinalPrescriptionData = Object.values(finalPrescriptionFormData).some(value => 
           value !== undefined && value !== null && value !== '' && value !== 0
         );
-
-        if (finalPrescriptionFormData.id) {
-          // Update existing final prescription
-          updatedFinalPrescription = await updateFinalPrescriptionExam(finalPrescriptionFormData)
-        } else if (hasFinalPrescriptionData) {
-          // Create new final prescription
-          updatedFinalPrescription = await createFinalPrescriptionExam({
-            ...finalPrescriptionFormData,
-            order_id: formData.id!
-          })
+        const mergedOrderData = {
+          ...((order as any)?.order_data || {}),
+          ...(hasFinalPrescriptionData ? { 'final-prescription': { ...finalPrescriptionFormData } } : {}),
+          lens: { ...lensFormData },
+          frame: { ...frameFormData },
+          details: { ...orderDetailsFormData }
         }
+        const updatedOrder = await updateOrder({ ...(formData as Order), order_data: mergedOrderData })
+        
         
         let updatedBilling: Billing | null = null
         console.log('Billing form data:', billingFormData)
@@ -594,33 +484,28 @@ export default function OrderDetailPage({
         
 
 
-        if (updatedOrder && updatedRightEyeOrder && updatedLeftEyeOrder && updatedOrderLens && updatedFrame && updatedOrderDetails) {
+        if (updatedOrder) {
           setIsEditing(false)
           setOrder(updatedOrder)
-          setRightEyeOrder(updatedRightEyeOrder)
-          setLeftEyeOrder(updatedLeftEyeOrder)
-          setOrderLens(updatedOrderLens)
-          setFrame(updatedFrame)
-          setOrderDetails(updatedOrderDetails)
           if (updatedBilling) {
             setBilling(updatedBilling)
           }
-          if (updatedFinalPrescription) {
-            setFinalPrescription(updatedFinalPrescription)
-            setFinalPrescriptionFormData({ ...updatedFinalPrescription })
-          }
           setFormData({ ...updatedOrder })
-          setRightEyeFormData({ ...updatedRightEyeOrder })
-          setLeftEyeFormData({ ...updatedLeftEyeOrder })
-          setLensFormData({ ...updatedOrderLens })
-          setFrameFormData({ ...updatedFrame })
-          setOrderDetailsFormData({ ...updatedOrderDetails })
+          const od = (updatedOrder as any).order_data || {}
+          const fp2 = od['final-prescription']
+          if (fp2) {
+            setFinalPrescription(fp2 as FinalPrescriptionExam)
+            setFinalPrescriptionFormData({ ...(fp2 as FinalPrescriptionExam) })
+          }
+          setLensFormData({ order_id: updatedOrder.id!, ...(od.lens || {}) })
+          setFrameFormData({ order_id: updatedOrder.id!, ...(od.frame || {}) })
+          setOrderDetailsFormData({ order_id: updatedOrder.id!, ...(od.details || {}) })
           if (updatedBilling) {
             setBillingFormData({ ...updatedBilling })
           }
           toast.success("פרטי ההזמנה עודכנו בהצלחה")
           if (onSave) {
-            onSave(updatedOrder, updatedRightEyeOrder, updatedLeftEyeOrder, updatedOrderLens, updatedFrame)
+            onSave(updatedOrder)
           }
         } else {
           toast.error("לא הצלחנו לשמור את השינויים")
@@ -683,7 +568,7 @@ export default function OrderDetailPage({
           }}
         />
         <ClientSpaceLayout>
-          <div className="flex flex-col flex-1 p-4 lg:p-6 mb-10" dir="rtl" style={{scrollbarWidth: 'none', msOverflowStyle: 'none'}}>
+          <div className="flex flex-col flex-1 p-4 lg:p-6 mb-10 no-scrollbar" dir="rtl" style={{scrollbarWidth: 'none', msOverflowStyle: 'none'}}>
             <Tabs defaultValue="order" className="w-full" dir="rtl">
               <div className="flex justify-between items-center mb-4">
                 <TabsList className="grid grid-cols-2 w-auto">
@@ -713,7 +598,7 @@ export default function OrderDetailPage({
               
               <TabsContent value="order" className="space-y-4">
 
-                <form ref={formRef} className="pt-4 pb-10" style={{scrollbarWidth: 'none', msOverflowStyle: 'none'}}>
+                <form ref={formRef} className="pt-4 pb-10 no-scrollbar" style={{scrollbarWidth: 'none', msOverflowStyle: 'none'}}>
                   <div className="grid grid-cols-1 gap-4">
                 <Card className="w-full p-4 shadow-md border-none">
                   <div className="grid grid-cols-4 gap-x-3 gap-y-2 w-full" dir="rtl">

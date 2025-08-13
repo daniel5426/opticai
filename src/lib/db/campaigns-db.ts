@@ -12,7 +12,7 @@ export async function getCampaignById(id: number) {
 }
 
 export async function getAllCampaigns(clinicId?: number) {
-  const response = await apiClient.getAllCampaigns();
+  const response = await apiClient.getCampaigns(clinicId);
   return response.data;
 }
 

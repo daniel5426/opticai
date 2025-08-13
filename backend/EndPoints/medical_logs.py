@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 from database import get_db
 from models import MedicalLog, Client, User
+from sqlalchemy import func
 from schemas import MedicalLogCreate, MedicalLogUpdate, MedicalLog as MedicalLogSchema
 
 router = APIRouter(prefix="/medical-logs", tags=["medical-logs"])
@@ -13,6 +14,16 @@ def create_medical_log(medical_log: MedicalLogCreate, db: Session = Depends(get_
     db.add(db_medical_log)
     db.commit()
     db.refresh(db_medical_log)
+    # bump client_updated_date and clear ai_medical_state to avoid stale AI
+    try:
+        if db_medical_log.client_id:
+            client = db.query(Client).filter(Client.id == db_medical_log.client_id).first()
+            if client:
+                client.client_updated_date = func.now()
+                client.ai_medical_state = None
+                db.commit()
+    except Exception:
+        pass
     return db_medical_log
 
 @router.get("/{medical_log_id}", response_model=MedicalLogSchema)
@@ -47,6 +58,16 @@ def update_medical_log(medical_log_id: int, medical_log: MedicalLogUpdate, db: S
         setattr(db_medical_log, field, value)
     
     db.commit()
+    # bump client_updated_date and clear ai_medical_state to avoid stale AI
+    try:
+        if db_medical_log.client_id:
+            client = db.query(Client).filter(Client.id == db_medical_log.client_id).first()
+            if client:
+                client.client_updated_date = func.now()
+                client.ai_medical_state = None
+                db.commit()
+    except Exception:
+        pass
     db.refresh(db_medical_log)
     return db_medical_log
 
@@ -56,6 +77,17 @@ def delete_medical_log(medical_log_id: int, db: Session = Depends(get_db)):
     if not medical_log:
         raise HTTPException(status_code=404, detail="Medical log not found")
     
+    client_id = medical_log.client_id
     db.delete(medical_log)
     db.commit()
+    # bump client_updated_date and clear ai_medical_state to avoid stale AI
+    try:
+        if client_id:
+            client = db.query(Client).filter(Client.id == client_id).first()
+            if client:
+                client.client_updated_date = func.now()
+                client.ai_medical_state = None
+                db.commit()
+    except Exception:
+        pass
     return {"message": "Medical log deleted successfully"} 

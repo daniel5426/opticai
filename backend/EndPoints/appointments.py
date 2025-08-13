@@ -3,9 +3,10 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import date
 from database import get_db
-from models import Appointment, Client, User
+from models import Appointment, Client, User, Clinic
 from schemas import AppointmentCreate, AppointmentUpdate, Appointment as AppointmentSchema
 from auth import get_current_user
+from sqlalchemy import func
 
 router = APIRouter(prefix="/appointments", tags=["appointments"])
 
@@ -58,6 +59,16 @@ def create_appointment(
         db.add(db_appointment)
         db.commit()
         db.refresh(db_appointment)
+        # bump client_updated_date and clear ai_appointment_state to avoid stale AI
+        try:
+            if db_appointment.client_id:
+                client = db.query(Client).filter(Client.id == db_appointment.client_id).first()
+                if client:
+                    client.client_updated_date = func.now()
+                    client.ai_appointment_state = None
+                    db.commit()
+        except Exception:
+            pass
         print(f"Successfully created appointment with ID: {db_appointment.id}")
         return db_appointment
     except HTTPException:
@@ -107,6 +118,16 @@ def update_appointment(appointment_id: int, appointment: AppointmentUpdate, db: 
         setattr(db_appointment, field, value)
     
     db.commit()
+    # bump client_updated_date and clear ai_appointment_state to avoid stale AI
+    try:
+        if db_appointment.client_id:
+            client = db.query(Client).filter(Client.id == db_appointment.client_id).first()
+            if client:
+                client.client_updated_date = func.now()
+                client.ai_appointment_state = None
+                db.commit()
+    except Exception:
+        pass
     db.refresh(db_appointment)
     return db_appointment
 
@@ -116,8 +137,19 @@ def delete_appointment(appointment_id: int, db: Session = Depends(get_db)):
     if not appointment:
         raise HTTPException(status_code=404, detail="Appointment not found")
     
+    client_id = appointment.client_id
     db.delete(appointment)
     db.commit()
+    # bump client_updated_date and clear ai_appointment_state to avoid stale AI
+    try:
+        if client_id:
+            client = db.query(Client).filter(Client.id == client_id).first()
+            if client:
+                client.client_updated_date = func.now()
+                client.ai_appointment_state = None
+                db.commit()
+    except Exception:
+        pass
     return {"message": "Appointment deleted successfully"}
 
 @router.put("/{appointment_id}/google-event-id")
@@ -132,4 +164,34 @@ def update_appointment_google_event_id(
     
     appointment.google_calendar_event_id = google_event_id
     db.commit()
+    # bump client_updated_date and clear ai_appointment_state to avoid stale AI
+    try:
+        if appointment.client_id:
+            client = db.query(Client).filter(Client.id == appointment.client_id).first()
+            if client:
+                client.client_updated_date = func.now()
+                client.ai_appointment_state = None
+                db.commit()
+    except Exception:
+        pass
     return {"message": "Google event ID updated successfully"} 
+
+@router.get("/stats/company/{company_id}")
+def get_company_appointments_stats(
+    company_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    if current_user.role != "company_ceo":
+        raise HTTPException(status_code=403, detail="Access denied")
+    month_expr = func.date_trunc('month', Appointment.date)
+    month_str = func.to_char(month_expr, 'YYYY-MM')
+    rows = (
+        db.query(month_str.label('month'), func.count(Appointment.id).label('count'))
+        .join(Clinic, Clinic.id == Appointment.clinic_id)
+        .filter(Clinic.company_id == company_id)
+        .group_by(month_expr)
+        .order_by(month_expr)
+        .all()
+    )
+    return [{"month": r.month, "count": int(r.count)} for r in rows]

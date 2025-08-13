@@ -1,0 +1,68 @@
+---
+alwaysApply: false
+description: Authentication and authorization in OpticAI — roles, endpoints, token handling, Control Center vs Clinic flows, storage, clinic scoping, and common 401/permissions behaviors.
+globs: *.ts,*.tsx,backend/**/*.py
+---
+
+### OpticAI Authentication & Authorization
+
+This rule describes how auth works across the app, including user roles, backend endpoints, token handling, Control Center vs Clinic flows, and clinic-scoped data.
+
+### Roles and Access
+- **company_ceo**: Full access to Control Center and all clinics; the only role permitted in Control Center
+- **clinic_manager**: Full access within assigned clinic; no Control Center access
+- **clinic_worker**: Standard clinic operations; no Control Center access
+- **clinic_viewer**: Read-only clinic access; no Control Center access
+
+### Key Files
+- Backend endpoints: [backend/EndPoints/auth.py](mdc:backend/EndPoints/auth.py)
+- Settings endpoints: [backend/EndPoints/settings.py](mdc:backend/EndPoints/settings.py)
+- Client API layer and token handling: [src/lib/api-client.ts](mdc:src/lib/api-client.ts)
+- User context/session restore: [src/contexts/UserContext.tsx](mdc:src/contexts/UserContext.tsx)
+- Control Center login page: [src/pages/ControlCenterPage.tsx](mdc:src/pages/ControlCenterPage.tsx)
+- Theme helpers touching user fetch: [src/helpers/theme_helpers.ts](mdc:src/helpers/theme_helpers.ts)
+
+### Backend Auth Endpoints
+- `POST /api/v1/auth/login-json` — username/password login, returns JWT
+- `POST /api/v1/auth/login` — OAuth2 form variant (not typically used by UI)
+- `POST /api/v1/auth/login-no-password` — only for users without a password (utility login)
+- `GET /api/v1/auth/me` — returns current user resolved from JWT
+
+All protected routes require `Authorization: Bearer <token>` and should enforce role-based access where appropriate.
+
+### Client Token Flow
+- On successful login, JWT is stored under `auth_token` in localStorage by `apiClient`.
+- `apiClient` attaches the token to all requests and handles 401s:
+  - If a 401 occurs and a stored Control Center user exists without a password, it may retry via `login-no-password` to refresh the token.
+  - If the user has a password or the retry fails, the request remains 401.
+
+### Control Center Flow
+- Login is handled in [src/pages/ControlCenterPage.tsx](mdc:src/pages/ControlCenterPage.tsx) using `apiClient.authenticateUser(username, password)`.
+- After login, `GET /auth/me` confirms the user; only `company_ceo` is allowed into Control Center.
+- Company context is stored in localStorage (`controlCenterCompany`) alongside `currentUser`.
+
+### Clinic Flow
+- Users operate under a selected clinic; clinic-specific data is filtered by `clinic_id`.
+- Typical navigation goes through `ClinicEntrancePage` → `UserSelectionPage` → app pages.
+- Users may have or not have passwords; the app can restore sessions if a valid token exists, or leverage `login-no-password` for users without passwords when appropriate.
+
+### Clinic-Scoped Settings
+- Settings are per-clinic: see [backend/EndPoints/settings.py](mdc:backend/EndPoints/settings.py).
+- Client uses:
+  - `GET /settings/clinic/{clinic_id}` to load settings for the current clinic
+  - `POST /settings` to create new settings
+  - `PUT /settings/{id}` to update existing settings
+
+### Common 401/Permission Pitfalls
+- `401 Unauthorized` on Control Center login: wrong credentials, inactive user, or user missing.
+- Automatic `login-no-password` only succeeds if the stored user truly has no password.
+- Ensure `auth_token` is present for protected routes and refresh it on login.
+
+### Implementation Guidance
+- New protected endpoints should depend on the current user and enforce role checks.
+- Pass and validate `clinic_id` to scope data per clinic.
+- Frontend should always include the bearer token via `apiClient` and prefer per-clinic endpoints where available.
+
+### Quick Checks
+- Verify CEO user exists and is active before Control Center login.
+- When saving settings, make sure payload includes `clinic_id` and uses the correct route (create vs update).

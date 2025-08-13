@@ -9,16 +9,28 @@ import { User, Send, CheckCircle, XCircle, Clock, AlertTriangle, ArrowUp, ArrowD
 import { useTranslation } from 'react-i18next';
 import { cn } from '../lib/utils';
 import { Markdown } from '../components/markdown';
+import { apiClient } from '@/lib/api-client';
+interface MessagePart {
+  type: 'text' | 'tool';
+  content: string;
+  toolName?: string;
+  toolPhase?: 'start' | 'end';
+  timestamp: number;
+}
 
 interface ChatMessage {
   id: string;
   type: 'user' | 'ai';
   content: string;
+  parts?: MessagePart[];
+  currentTextPart?: string;
   timestamp: Date;
   data?: {
     action?: string;
     data?: any;
     requiresConfirmation?: boolean;
+    streaming?: boolean;
+    lastChunk?: string;
   };
 }
 
@@ -66,7 +78,8 @@ export function AIAssistantPage() {
   const createNewChat = async (firstUserMessage?: string): Promise<number | null> => {
     try {
       const title = firstUserMessage ? generateChatTitle(firstUserMessage) : 'שיחה חדשה';
-      const newChat = await window.electronAPI.createChat(title);
+      const resp = await apiClient.createChat(title);
+      const newChat = resp.data;
       if (newChat?.id) {
         setCurrentChatId(newChat.id);
         setCurrentChatTitle(title);
@@ -81,20 +94,26 @@ export function AIAssistantPage() {
 
   const loadChat = async (chatId: number) => {
     try {
-      const chat = await window.electronAPI.getChatById(chatId);
-      const chatMessages = await window.electronAPI.getChatMessages(chatId);
+      const chat = (await apiClient.getChat(chatId)).data;
+      const chatMessages = (await apiClient.getChatMessages(chatId)).data;
       
       if (chat && chatMessages) {
         setCurrentChatId(chatId);
         setCurrentChatTitle(chat.title);
         
-        const formattedMessages: ChatMessage[] = chatMessages.map((msg: any) => ({
-          id: `${msg.type}-${msg.id}`,
-          type: msg.type,
-          content: msg.content,
-          timestamp: new Date(msg.timestamp),
-          data: msg.data ? JSON.parse(msg.data) : undefined
-        }));
+        const formattedMessages: ChatMessage[] = chatMessages
+          .filter((m: any) => m && typeof m.type === 'string' && typeof m.content === 'string' && m.content.trim().length > 0)
+          .map((msg: any) => {
+            const parsedData = msg.data ? JSON.parse(msg.data) : undefined;
+            return {
+              id: `${msg.type}-${msg.id}`,
+              type: msg.type,
+              content: msg.content,
+              parts: parsedData?.parts || [],
+              timestamp: new Date(msg.timestamp),
+              data: parsedData
+            };
+          });
         
         setMessages(formattedMessages);
         setLastMessageCount(formattedMessages.length);
@@ -113,7 +132,7 @@ export function AIAssistantPage() {
         data: data ? JSON.stringify(data) : undefined
       };
       
-      await window.electronAPI.createChatMessage(messageData);
+      await apiClient.createChatMessage(messageData);
     } catch (error) {
       console.error('Error saving message to chat:', error);
     }
@@ -124,6 +143,9 @@ export function AIAssistantPage() {
     setCurrentChatId(null);
     setCurrentChatTitle('');
     setLastMessageCount(0);
+    try {
+      localStorage.removeItem('ai-user-memory');
+    } catch {}
   };
 
   const scrollToBottom = () => {
@@ -163,19 +185,14 @@ export function AIAssistantPage() {
     initializeAI();
     
     // Cleanup function to remove listeners when component unmounts
-    return () => {
-      window.electronAPI.removeAiStreamListeners();
-    };
+    return () => {};
   }, []);
 
   const initializeAI = async () => {
     try {
-      const result = await window.electronAPI.aiInitialize();
-      if (result.success) {
-        setAiInitialized(true);
-      } else {
-        setInitError(result.error || 'Failed to initialize AI assistant');
-      }
+      const result = await apiClient.aiInitialize();
+      if (!result.error) setAiInitialized(true);
+      else setInitError(result.error || 'Failed to initialize AI assistant');
     } catch (error) {
       setInitError(error instanceof Error ? error.message : 'Unknown error occurred');
     }
@@ -201,9 +218,6 @@ export function AIAssistantPage() {
     const userMessage = inputValue.trim();
     setInputValue('');
     
-    // Clean up any existing listeners first
-    window.electronAPI.removeAiStreamListeners();
-    
     // Handle chat management
     let chatId = currentChatId;
     if (!chatId) {
@@ -215,16 +229,10 @@ export function AIAssistantPage() {
     }
     
     // Prepare conversation history for AI (including the current user message)
-    const conversationHistory = [
-      ...messages.map(msg => ({
-        role: msg.type === 'user' ? 'user' : 'assistant',
-        content: msg.content
-      })),
-      {
-        role: 'user' as const,
-        content: userMessage
-      }
-    ];
+    const conversationHistory = messages.map(msg => ({
+      role: msg.type === 'user' ? 'user' : 'assistant',
+      content: msg.content
+    }));
 
     // Add user message with unique ID
     addMessage('user', userMessage);
@@ -255,74 +263,65 @@ export function AIAssistantPage() {
     });
 
     try {
-      // Set up streaming listeners with proper cleanup
-      const onChunk = ({ chunk, fullMessage }: { chunk: string; fullMessage: string }) => {
-        console.log(`Stream chunk for ${aiMessageId}:`, chunk);
-        setMessages(prev => {
-          const updated = prev.map(msg => {
-            if (msg.id === aiMessageId && msg.type === 'ai') {
-              return { ...msg, content: fullMessage };
-            }
-            return msg;
-          });
-          return updated;
-        });
-      };
+      await apiClient.aiChatStream(
+        userMessage,
+        conversationHistory,
+        chatId,
+        (chunk, full, currentTextPartOrParts) => {
+          setMessages(prev => prev.map(msg => {
+            if (msg.id !== aiMessageId || msg.type !== 'ai') return msg;
 
-      const onComplete = async ({ message }: { message: string }) => {
-        console.log(`Stream complete for ${aiMessageId}:`, message);
-        setMessages(prev => {
-          const updated = prev.map(msg => {
-            if (msg.id === aiMessageId && msg.type === 'ai') {
-              return { ...msg, content: message };
+            const next = { ...msg, content: full, data: { ...(msg.data||{}), streaming: true, lastChunk: chunk } } as ChatMessage;
+            if (typeof currentTextPartOrParts === 'string') {
+              next.currentTextPart = currentTextPartOrParts;
+              return next;
             }
-            return msg;
-          });
-          return updated;
-        });
-        
-        // Save AI message to database
-        if (chatId) {
-          await saveMessageToChat(chatId, 'ai', message);
+            const serverParts = currentTextPartOrParts || [];
+            // Preserve a pending currentTextPart by appending it after parts for rendering
+            next.parts = serverParts;
+            next.currentTextPart = undefined;
+            return next;
+          }));
+        },
+        async (full, parts) => {
+          setMessages(prev => prev.map(msg => {
+            if (msg.id !== aiMessageId || msg.type !== 'ai') return msg;
+            return {
+              ...msg,
+              content: full || '',
+              parts: parts || [],
+              currentTextPart: undefined,
+              data: { ...(msg.data || {}), streaming: false }
+            };
+          }));
+
+          if (chatId) {
+            const messageData = {
+              chat_id: chatId,
+              type: 'ai',
+              content: full || '',
+              data: JSON.stringify({ parts: parts || [] })
+            };
+            await apiClient.createChatMessage(messageData);
+          }
+          setIsLoading(false);
+        },
+        (toolEvt) => {
+          setMessages(prev => prev.map(msg => {
+            if (msg.id !== aiMessageId || msg.type !== 'ai') return msg;
+            const updatedParts = [...(toolEvt.parts || [])];
+            return {
+              ...msg,
+              parts: updatedParts,
+              currentTextPart: toolEvt.phase === 'start' ? undefined : msg.currentTextPart,
+              data: { ...(msg.data || {}), toolEvent: true }
+            };
+          }));
         }
-        
-        setIsLoading(false);
-        window.electronAPI.removeAiStreamListeners();
-      };
-
-      const onError = ({ error }: { error: string }) => {
-        console.log(`Stream error for ${aiMessageId}:`, error);
-        setMessages(prev => {
-          const updated = prev.map(msg => {
-            if (msg.id === aiMessageId && msg.type === 'ai') {
-              return { ...msg, content: 'מצטער, אירעה שגיאה בעיבוד הבקשה שלך.' };
-            }
-            return msg;
-          });
-          return updated;
-        });
-        setIsLoading(false);
-        window.electronAPI.removeAiStreamListeners();
-      };
-
-      // Set up listeners
-      window.electronAPI.onAiStreamChunk(onChunk);
-      window.electronAPI.onAiStreamComplete(onComplete);
-      window.electronAPI.onAiStreamError(onError);
-
-      // Start the streaming
-      await window.electronAPI.aiChatStream(userMessage, conversationHistory);
-      
-    } catch (error) {
-      setMessages(prev => 
-        prev.map(msg => 
-          msg.id === aiMessageId 
-            ? { ...msg, content: 'מצטער, אירעה שגיאה בחיבור לשרת.' }
-            : msg
-        )
       );
+    } catch (error) {
+      setMessages(prev => prev.map(msg => msg.id === aiMessageId && msg.type === 'ai' ? { ...msg, content: 'מצטער, אירעה שגיאה בחיבור לשרת.' } : msg));
       setIsLoading(false);
-      window.electronAPI.removeAiStreamListeners();
     }
   };
 
@@ -330,16 +329,10 @@ export function AIAssistantPage() {
     if (!confirmationModal.action || !confirmationModal.data) return;
 
     try {
-      const result = await window.electronAPI.aiExecuteAction(
-        confirmationModal.action,
-        confirmationModal.data
-      );
-
-      if (result.success) {
-        addMessage('ai', result.message);
-      } else {
-        addMessage('ai', `שגיאה בביצוע הפעולה: ${result.error}`);
-      }
+      const result = await apiClient.aiExecuteAction(confirmationModal.action, confirmationModal.data);
+      const serverMessage = (result as any)?.data?.message;
+      if (!result.error && serverMessage) addMessage('ai', serverMessage);
+      else addMessage('ai', `שגיאה בביצוע הפעולה: ${result.error}`);
     } catch (error) {
       addMessage('ai', 'שגיאה בביצוע הפעולה.');
     } finally {
@@ -458,6 +451,34 @@ export function AIAssistantPage() {
                   <p className="whitespace-pre-wrap leading-relaxed m-0">
                     {message.content}
                   </p>
+                ) : message.parts && message.parts.length > 0 ? (
+                  <div className="space-y-2">
+                    {message.parts.map((part, index) => (
+                      <div key={index}>
+                        {part.type === 'text' ? (
+                          <Markdown>{part.content}</Markdown>
+                        ) : (
+                          <div className={cn(
+                            "bg-muted/50 border rounded-md p-2 text-xs text-muted-foreground flex items-center gap-2",
+                            part.toolPhase === 'start' ? 'animate-pulse' : ''
+                          )} dir="rtl">
+                            {part.toolPhase === 'start' && (
+                              <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
+                            )}
+                            {part.content}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                    {/* Show current streaming text part if available */}
+                    {message.currentTextPart && (
+                      <div>
+                        <Markdown>{message.currentTextPart}</Markdown>
+                      </div>
+                    )}
+                  </div>
+                ) : message.currentTextPart ? (
+                  <Markdown>{message.currentTextPart}</Markdown>
                 ) : (
                   <Markdown>{message.content}</Markdown>
                 )}
@@ -513,8 +534,15 @@ export function AIAssistantPage() {
 
         {messages
           .filter((message, index) => {
-            // Hide empty AI messages when showing thinking message
-            if (isLoading && message.type === 'ai' && message.content === '' && index === messages.length - 1) {
+            // Hide only if last AI message truly has nothing to show
+            if (
+              isLoading &&
+              message.type === 'ai' &&
+              index === messages.length - 1 &&
+              message.content === '' &&
+              (!message.parts || message.parts.length === 0) &&
+              !message.currentTextPart
+            ) {
               return false;
             }
             return true;
@@ -528,9 +556,10 @@ export function AIAssistantPage() {
             />
           ))}
 
-        {isLoading && messages.length > 0 && (
-          messages[messages.length - 1].type === 'ai' && messages[messages.length - 1].content === ''
-        ) && (
+        {isLoading && messages.length > 0 && (() => {
+          const last = messages[messages.length - 1];
+          return last.type === 'ai' && last.content === '' && (!last.parts || last.parts.length === 0) && !last.currentTextPart;
+        })() && (
           <ThinkingMessage />
         )}
 

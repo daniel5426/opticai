@@ -12,20 +12,36 @@ export default function WelcomeScreen() {
   const router = useRouter()
 
   useEffect(() => {
-    const checkMultiClinicMode = async () => {
+    const bootstrap = async () => {
       try {
         const companiesResponse = await apiClient.getCompaniesPublic()
         const companies = companiesResponse.data || []
         setIsMultiClinicMode(companies.length > 0)
+
+        const controlCenterUser = localStorage.getItem('currentUser')
+        const controlCenterCompany = localStorage.getItem('controlCenterCompany')
+        if (controlCenterUser && controlCenterCompany) {
+          const company = JSON.parse(controlCenterCompany)
+          const name = company?.name || ''
+          const id = (company?.id || '').toString()
+          return router.navigate({
+            to: '/control-center/dashboard',
+            search: { companyId: id, companyName: name, fromSetup: 'false' },
+          })
+        }
+
+        const selectedClinic = localStorage.getItem('selectedClinic')
+        if (selectedClinic) {
+          return router.navigate({ to: '/user-selection' })
+        }
       } catch (error) {
-        console.error('Error checking multi-clinic mode:', error)
-        setIsMultiClinicMode(false)
+        console.error('Welcome bootstrap error:', error)
       } finally {
         setLoading(false)
       }
     }
 
-    checkMultiClinicMode()
+    bootstrap()
   }, [])
 
   const handleControlCenterClick = () => {
@@ -34,9 +50,10 @@ export default function WelcomeScreen() {
   }
 
   const handleClinicEntranceClick = () => {
-    // Clear any existing clinic data when user explicitly chooses clinic entrance
-    sessionStorage.removeItem('selectedClinic');
-    sessionStorage.removeItem('currentUser');
+    // Clear any existing clinic/control center data when user explicitly chooses clinic entrance
+    localStorage.removeItem('selectedClinic');
+    localStorage.removeItem('currentUser');
+    localStorage.removeItem('controlCenterCompany');
     
     // Navigate to clinic entrance flow
     router.navigate({ to: '/clinic-entrance' })

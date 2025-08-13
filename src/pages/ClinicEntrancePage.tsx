@@ -32,7 +32,7 @@ export default function ClinicEntrancePage() {
         if (!currentUser && !isLoading) {
           console.log('ClinicEntrancePage: No current user and not loading, checking for clinic data');
           // Check if there's already a selected clinic in sessionStorage
-          const selectedClinicData = sessionStorage.getItem('selectedClinic');
+          const selectedClinicData = localStorage.getItem('selectedClinic');
           console.log('ClinicEntrancePage: selectedClinicData exists:', !!selectedClinicData);
           
           if (selectedClinicData) {
@@ -51,11 +51,11 @@ export default function ClinicEntrancePage() {
               } else {
                 // Clinic no longer exists or is inactive, remove from sessionStorage
                 console.log('ClinicEntrancePage: Clinic no longer exists or inactive, clearing data');
-                sessionStorage.removeItem('selectedClinic');
+                localStorage.removeItem('selectedClinic');
               }
             } catch (error) {
               console.error('Error parsing selected clinic data:', error);
-              sessionStorage.removeItem('selectedClinic');
+              localStorage.removeItem('selectedClinic');
             }
           }
         } else {
@@ -95,7 +95,7 @@ export default function ClinicEntrancePage() {
       }
 
       // Store clinic context for user selection
-      sessionStorage.setItem('selectedClinic', JSON.stringify(clinic));
+      localStorage.setItem('selectedClinic', JSON.stringify(clinic));
       
       // Navigate to user selection page with clinic context
       router.navigate({ to: '/user-selection' });

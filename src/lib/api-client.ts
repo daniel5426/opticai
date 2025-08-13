@@ -6,7 +6,7 @@ import {
   LookupManufacturer, LookupFrameModel, LookupContactLensType,
   LookupContactEyeLensType, LookupContactEyeMaterial, LookupCleaningSolution,
   LookupDisinfectionSolution, LookupRinsingSolution, LookupManufacturingLab,
-  LookupAdvisor, Referral, ReferralEye, OrderEye, OrderDetails, OrderLineItem,
+  LookupAdvisor, Referral, ReferralEye, OrderLineItem,
   ContactLensOrder, ContactLensDiameters, ContactLensDetails,
   KeratometerContactLens, ContactLensExam, OldContactLenses,
   OverRefraction, WorkShift, Campaign, CampaignClientExecution,
@@ -31,12 +31,60 @@ interface ApiResponse<T> {
 class ApiClient {
   private baseUrl: string;
   private token: string | null = null;
+  private isRefreshingToken: boolean = false;
 
   constructor(baseUrl: string = API_BASE_URL) {
     this.baseUrl = baseUrl;
     // Check if localStorage is available (renderer process) before using it
     if (typeof localStorage !== 'undefined') {
       this.token = localStorage.getItem('auth_token');
+    }
+  }
+
+  private decodeJwt(token: string): any | null {
+    try {
+      const parts = token.split('.');
+      if (parts.length !== 3) return null;
+      const payload = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+      const decoded = JSON.parse(atob(payload));
+      return decoded;
+    } catch {
+      return null;
+    }
+  }
+
+  private isTokenExpiringSoon(token: string, bufferSeconds: number = 60): boolean {
+    const payload = this.decodeJwt(token);
+    if (!payload?.exp) return false;
+    const now = Math.floor(Date.now() / 1000);
+    return payload.exp <= now + bufferSeconds;
+  }
+
+  private async refreshTokenIfPossible(): Promise<void> {
+    if (this.isRefreshingToken) return;
+    this.isRefreshingToken = true;
+    try {
+      const cu = typeof localStorage !== 'undefined' ? localStorage.getItem('currentUser') : null;
+      if (!cu) return;
+      const parsed = JSON.parse(cu);
+      const hasPassword = typeof parsed?.has_password === 'boolean' ? parsed.has_password : !!(parsed?.password && String(parsed.password).trim() !== '');
+      const canNoPasswordLogin = parsed?.username && !hasPassword;
+      if (!canNoPasswordLogin) return;
+      const url = `${this.baseUrl}/auth/login-no-password`;
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: parsed.username })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data?.access_token) {
+          this.setToken(data.access_token);
+        }
+      }
+    } catch {}
+    finally {
+      this.isRefreshingToken = false;
     }
   }
 
@@ -52,20 +100,76 @@ class ApiClient {
     };
 
     if (this.token) {
-      headers['Authorization'] = `Bearer ${this.token}`;
+      if (!endpoint.startsWith('/auth/') && this.isTokenExpiringSoon(this.token)) {
+        await this.refreshTokenIfPossible();
+      }
+      if (this.token) {
+        headers['Authorization'] = `Bearer ${this.token}`;
+      }
     }
 
     try {
-      const response = await fetch(url, {
+      const fetchOptions: RequestInit = {
         ...options,
         headers,
-      });
+        cache: (options as any)?.cache ?? 'no-store',
+      };
+      let response = await fetch(url, fetchOptions);
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        
+        if (response.status === 401) {
+          try {
+            const isAuthEndpoint = endpoint.startsWith('/auth/');
+            const hadAuthHeader = Boolean(headers['Authorization']);
+            if (!isAuthEndpoint && hadAuthHeader) {
+              const controlCenterUser = typeof localStorage !== 'undefined' ? localStorage.getItem('currentUser') : null;
+              if (controlCenterUser) {
+                const parsed = JSON.parse(controlCenterUser);
+                const hasPassword = typeof parsed?.has_password === 'boolean' ? parsed.has_password : !!(parsed?.password && String(parsed.password).trim() !== '');
+                const canNoPasswordLogin = parsed?.username && !hasPassword;
+                if (canNoPasswordLogin) {
+                  const relogUrl = `${this.baseUrl}/auth/login-no-password`;
+                  const relogRes = await fetch(relogUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: parsed.username })
+                  });
+                  if (relogRes.ok) {
+                    const relogData = await relogRes.json();
+                    if (relogData?.access_token) {
+                      this.setToken(relogData.access_token);
+                      headers['Authorization'] = `Bearer ${relogData.access_token}`;
+                      response = await fetch(url, { ...fetchOptions, headers });
+                    }
+                  }
+                }
+              }
+            }
+          } catch {}
+          const isAuthEndpoint = endpoint.startsWith('/auth/');
+          const hadAuthHeader = Boolean(headers['Authorization']);
+          if (!response.ok && hadAuthHeader && !isAuthEndpoint) {
+            this.clearToken();
+            try {
+              if (typeof localStorage !== 'undefined') {
+                localStorage.removeItem('currentUser');
+                localStorage.removeItem('currentUserId');
+                localStorage.removeItem('selectedClinic');
+              }
+            } catch {}
+            try {
+              if (typeof window !== 'undefined') {
+                window.dispatchEvent(new CustomEvent('auth:unauthorized'));
+              }
+            } catch {}
+          }
+        }
+        if (!response.ok) {
+          const second = await response.json().catch(() => errorData);
+          return { error: second.detail || `HTTP ${response.status}` };
+        }
         if (response.status === 422) {
-          // Handle validation errors
           if (errorData.detail && Array.isArray(errorData.detail)) {
             const validationErrors = errorData.detail.map((err: any) => 
               `${err.loc?.join('.') || 'field'}: ${err.msg}`
@@ -73,8 +177,6 @@ class ApiClient {
             return { error: validationErrors };
           }
         }
-        
-        return { error: errorData.detail || `HTTP ${response.status}` };
       }
 
       const data = await response.json();
@@ -247,6 +349,10 @@ class ApiClient {
     return this.request<User>(`/users/username/${username}/public`);
   }
 
+  async getUserByEmailPublic(email: string) {
+    return this.request<User>(`/users/email/${encodeURIComponent(email)}/public`);
+  }
+
   async getUsersByClinic(clinicId: number) {
     return this.request<User[]>(`/users/clinic/${clinicId}`);
   }
@@ -343,14 +449,14 @@ class ApiClient {
   }
 
   async updateClientAiPartState(clientId: number, part: string, aiPartState: string) {
-    return this.request(`/clients/${clientId}/ai-state/${part}`, {
+    const url = `/clients/${clientId}/ai-part-state?part=${encodeURIComponent(part)}&ai_part_state=${encodeURIComponent(aiPartState)}`;
+    return this.request(url, {
       method: 'PUT',
-      body: JSON.stringify({ state: aiPartState }),
     });
   }
 
   async getAllClientDataForAi(clientId: number) {
-    return this.request(`/clients/${clientId}/ai-data`);
+    return this.request(`/clients/${clientId}/all-data-for-ai`);
   }
 
   // Families
@@ -545,6 +651,10 @@ class ApiClient {
     return this.request<Appointment[]>(`/appointments/user/${userId}`);
   }
 
+  async getCompanyAppointmentsStats(companyId: number) {
+    return this.request(`/appointments/stats/company/${companyId}`);
+  }
+
   async createAppointment(appointment: any) {
     console.log('API Client - Creating appointment with payload:', appointment);
     return this.request<Appointment>('/appointments', {
@@ -675,43 +785,31 @@ class ApiClient {
     });
   }
 
+  // Order unified data
+  async getOrderData(orderId: number) {
+    return this.request(`/orders/${orderId}/data`);
+  }
+
+  async saveOrderData(orderId: number, data: Record<string, any>) {
+    return this.request(`/orders/${orderId}/data`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getOrderComponentData(orderId: number, componentType: string) {
+    return this.request(`/orders/${orderId}/data/component/${componentType}`);
+  }
+
+  async saveOrderComponentData(orderId: number, componentType: string, data: Record<string, any>) {
+    return this.request(`/orders/${orderId}/data/component/${componentType}`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
   // Order Eyes
-  async getOrderEyes(orderId: number) {
-    return this.request<OrderEye[]>(`/order-eyes/order/${orderId}`);
-  }
-
-  async createOrderEye(orderEye: any) {
-    return this.request<OrderEye>('/order-eyes', {
-      method: 'POST',
-      body: JSON.stringify(orderEye),
-    });
-  }
-
-  async updateOrderEye(id: number, orderEye: any) {
-    return this.request<OrderEye>(`/order-eyes/${id}`, {
-      method: 'PUT',
-      body: JSON.stringify(orderEye),
-    });
-  }
-
-  // Order Details
-  async getOrderDetails(orderId: number) {
-    return this.request<OrderDetails>(`/order-details/order/${orderId}`);
-  }
-
-  async createOrderDetails(orderDetails: any) {
-    return this.request<OrderDetails>('/order-details', {
-      method: 'POST',
-      body: JSON.stringify(orderDetails),
-    });
-  }
-
-  async updateOrderDetails(id: number, orderDetails: any) {
-    return this.request<OrderDetails>(`/order-details/${id}`, {
-      method: 'PUT',
-      body: JSON.stringify(orderDetails),
-    });
-  }
+  
 
   // Billing
   async getBillingByOrder(orderId: number) {
@@ -796,6 +894,29 @@ class ApiClient {
   async deleteReferral(id: number) {
     return this.request(`/referrals/${id}`, {
       method: 'DELETE',
+    });
+  }
+
+  // Referral unified data
+  async getReferralData(referralId: number) {
+    return this.request(`/referrals/${referralId}/data`);
+  }
+
+  async saveReferralData(referralId: number, data: Record<string, any>) {
+    return this.request(`/referrals/${referralId}/data`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getReferralComponentData(referralId: number, componentType: string) {
+    return this.request(`/referrals/${referralId}/data/component/${componentType}`);
+  }
+
+  async saveReferralComponentData(referralId: number, componentType: string, data: Record<string, any>) {
+    return this.request(`/referrals/${referralId}/data/component/${componentType}`, {
+      method: 'POST',
+      body: JSON.stringify(data),
     });
   }
 
@@ -938,25 +1059,26 @@ class ApiClient {
 
   // Chat Messages
   async getChatMessages(chatId: number) {
-    return this.request<ChatMessage[]>(`/chat-messages/chat/${chatId}`);
+    return this.request<ChatMessage[]>(`/chats/${chatId}/messages`);
   }
 
-  async createChatMessage(chatMessage: any) {
-    return this.request<ChatMessage>('/chat-messages', {
+  async createChatMessage(messageData: { chat_id: number; type: string; content: string; data?: string }) {
+    const { chat_id, ...payload } = messageData;
+    return this.request<ChatMessage>(`/chats/${chat_id}/messages`, {
       method: 'POST',
-      body: JSON.stringify(chatMessage),
+      body: JSON.stringify(payload),
     });
   }
 
-  async updateChatMessage(id: number, chatMessage: any) {
-    return this.request<ChatMessage>(`/chat-messages/${id}`, {
+  async updateChatMessage(chatId: number, id: number, chatMessage: any) {
+    return this.request<ChatMessage>(`/chats/${chatId}/messages/${id}`, {
       method: 'PUT',
       body: JSON.stringify(chatMessage),
     });
   }
 
-  async deleteChatMessage(id: number) {
-    return this.request(`/chat-messages/${id}`, {
+  async deleteChatMessage(chatId: number, id: number) {
+    return this.request(`/chats/${chatId}/messages/${id}`, {
       method: 'DELETE',
     });
   }
@@ -992,8 +1114,14 @@ class ApiClient {
   }
 
   async updateSettings(settings: any) {
+    if (settings?.id) {
+      return this.request<Settings>(`/settings/${settings.id}`, {
+        method: 'PUT',
+        body: JSON.stringify(settings),
+      });
+    }
     return this.request<Settings>('/settings', {
-      method: 'PUT',
+      method: 'POST',
       body: JSON.stringify(settings),
     });
   }
@@ -1026,6 +1154,10 @@ class ApiClient {
     return this.getClients();
   }
 
+  async getCompanyNewClientsStats(companyId: number) {
+    return this.request(`/clients/stats/company/${companyId}`);
+  }
+
   async getAllAppointments() {
     return this.getAppointments();
   }
@@ -1040,50 +1172,50 @@ class ApiClient {
 
   // Lookup Tables - Generic methods for all lookup tables
   async getLookupTable(tableName: string) {
-    return this.request(`/lookup/${tableName}`);
+    return this.request(`/lookups/${tableName}`);
   }
 
   async createLookupItem(tableName: string, item: any) {
-    return this.request(`/lookup/${tableName}`, {
+    return this.request(`/lookups/${tableName}`, {
       method: 'POST',
       body: JSON.stringify(item),
     });
   }
 
   async updateLookupItem(tableName: string, id: number, item: any) {
-    return this.request(`/lookup/${tableName}/${id}`, {
+    return this.request(`/lookups/${tableName}/${id}`, {
       method: 'PUT',
       body: JSON.stringify(item),
     });
   }
 
   async deleteLookupItem(tableName: string, id: number) {
-    return this.request(`/lookup/${tableName}/${id}`, {
+    return this.request(`/lookups/${tableName}/${id}`, {
       method: 'DELETE',
     });
   }
 
   // Specific lookup methods for backward compatibility
   async getLookupSuppliers() {
-    return this.request<LookupSupplier[]>('/lookup/suppliers');
+    return this.request<LookupSupplier[]>('/lookups/suppliers');
   }
 
   async createLookupSupplier(supplier: any) {
-    return this.request<LookupSupplier>('/lookup/suppliers', {
+    return this.request<LookupSupplier>('/lookups/suppliers', {
       method: 'POST',
       body: JSON.stringify(supplier),
     });
   }
 
   async updateLookupSupplier(id: number, supplier: any) {
-    return this.request<LookupSupplier>(`/lookup/suppliers/${id}`, {
+    return this.request<LookupSupplier>(`/lookups/suppliers/${id}`, {
       method: 'PUT',
       body: JSON.stringify(supplier),
     });
   }
 
   async deleteLookupSupplier(id: number) {
-    return this.request(`/lookup/suppliers/${id}`, {
+    return this.request(`/lookups/suppliers/${id}`, {
       method: 'DELETE',
     });
   }
@@ -1107,138 +1239,6 @@ class ApiClient {
     });
   }
 
-  // Specific Exam Data Methods
-  async createOldRefExam(data: Omit<OldRefExam, 'id'>, layoutInstanceId: number) { return this._createExamData<OldRefExam>('old-ref', data, layoutInstanceId); }
-  async getOldRefExam(layoutInstanceId: number) { return this._getExamData<OldRefExam>('old-ref', layoutInstanceId); }
-  async updateOldRefExam(id: number, data: Partial<OldRefExam>) { return this._updateExamData<OldRefExam>('old-ref', id, data); }
-  
-  async createOldRefractionExam(data: Omit<OldRefractionExam, 'id'>, layoutInstanceId: number) { return this._createExamData<OldRefractionExam>('old-refraction', data, layoutInstanceId); }
-  async getOldRefractionExam(layoutInstanceId: number) { return this._getExamData<OldRefractionExam>('old-refraction', layoutInstanceId); }
-  async updateOldRefractionExam(id: number, data: Partial<OldRefractionExam>) { return this._updateExamData<OldRefractionExam>('old-refraction', id, data); }
-
-  async createObjectiveExam(data: Omit<ObjectiveExam, 'id'>, layoutInstanceId: number) { return this._createExamData<ObjectiveExam>('objective', data, layoutInstanceId); }
-  async getObjectiveExam(layoutInstanceId: number) { return this._getExamData<ObjectiveExam>('objective', layoutInstanceId); }
-  async updateObjectiveExam(id: number, data: Partial<ObjectiveExam>) { return this._updateExamData<ObjectiveExam>('objective', id, data); }
-
-  async createSubjectiveExam(data: Omit<SubjectiveExam, 'id'>, layoutInstanceId: number) { return this._createExamData<SubjectiveExam>('subjective', data, layoutInstanceId); }
-  async getSubjectiveExam(layoutInstanceId: number) { return this._getExamData<SubjectiveExam>('subjective', layoutInstanceId); }
-  async updateSubjectiveExam(id: number, data: Partial<SubjectiveExam>) { return this._updateExamData<SubjectiveExam>('subjective', id, data); }
-
-  async createAdditionExam(data: Omit<AdditionExam, 'id'>, layoutInstanceId: number) { return this._createExamData<AdditionExam>('addition', data, layoutInstanceId); }
-  async getAdditionExam(layoutInstanceId: number) { return this._getExamData<AdditionExam>('addition', layoutInstanceId); }
-  async updateAdditionExam(id: number, data: Partial<AdditionExam>) { return this._updateExamData<AdditionExam>('addition', id, data); }
-
-  async createFinalSubjectiveExam(data: Omit<FinalSubjectiveExam, 'id'>, layoutInstanceId: number) { return this._createExamData<FinalSubjectiveExam>('final-subjective', data, layoutInstanceId); }
-  async getFinalSubjectiveExam(layoutInstanceId: number) { return this._getExamData<FinalSubjectiveExam>('final-subjective', layoutInstanceId); }
-  async updateFinalSubjectiveExam(id: number, data: Partial<FinalSubjectiveExam>) { return this._updateExamData<FinalSubjectiveExam>('final-subjective', id, data); }
-  
-  async createFinalPrescriptionExam(data: Omit<FinalPrescriptionExam, 'id'>, layoutInstanceId: number) { return this._createExamData<FinalPrescriptionExam>('final-prescription', data, layoutInstanceId); }
-  async getFinalPrescriptionExam(layoutInstanceId: number) { return this._getExamData<FinalPrescriptionExam>('final-prescription', layoutInstanceId); }
-  async updateFinalPrescriptionExam(id: number, data: Partial<FinalPrescriptionExam>) { return this._updateExamData<FinalPrescriptionExam>('final-prescription', id, data); }
-  
-  async createCompactPrescriptionExam(data: Omit<CompactPrescriptionExam, 'id'>, layoutInstanceId: number) { return this._createExamData<CompactPrescriptionExam>('compact-prescription', data, layoutInstanceId); }
-  async getCompactPrescriptionExam(layoutInstanceId: number) { return this._getExamData<CompactPrescriptionExam>('compact-prescription', layoutInstanceId); }
-  async updateCompactPrescriptionExam(id: number, data: Partial<CompactPrescriptionExam>) { return this._updateExamData<CompactPrescriptionExam>('compact-prescription', id, data); }
-  
-  async createRetinoscopExam(data: Omit<RetinoscopExam, 'id'>, layoutInstanceId: number) { return this._createExamData<RetinoscopExam>('retinoscop', data, layoutInstanceId); }
-  async getRetinoscopExam(layoutInstanceId: number) { return this._getExamData<RetinoscopExam>('retinoscop', layoutInstanceId); }
-  async updateRetinoscopExam(id: number, data: Partial<RetinoscopExam>) { return this._updateExamData<RetinoscopExam>('retinoscop', id, data); }
-  
-  async createRetinoscopDilationExam(data: Omit<RetinoscopDilationExam, 'id'>, layoutInstanceId: number) { return this._createExamData<RetinoscopDilationExam>('retinoscop-dilation', data, layoutInstanceId); }
-  async getRetinoscopDilationExam(layoutInstanceId: number) { return this._getExamData<RetinoscopDilationExam>('retinoscop-dilation', layoutInstanceId); }
-  async updateRetinoscopDilationExam(id: number, data: Partial<RetinoscopDilationExam>) { return this._updateExamData<RetinoscopDilationExam>('retinoscop-dilation', id, data); }
-  
-  async createUncorrectedVAExam(data: Omit<UncorrectedVAExam, 'id'>, layoutInstanceId: number) { return this._createExamData<UncorrectedVAExam>('uncorrected-va', data, layoutInstanceId); }
-  async getUncorrectedVAExam(layoutInstanceId: number) { return this._getExamData<UncorrectedVAExam>('uncorrected-va', layoutInstanceId); }
-  async updateUncorrectedVAExam(id: number, data: Partial<UncorrectedVAExam>) { return this._updateExamData<UncorrectedVAExam>('uncorrected-va', id, data); }
-
-  async createKeratometerExam(data: Omit<KeratometerExam, 'id'>, layoutInstanceId: number) { return this._createExamData<KeratometerExam>('keratometer', data, layoutInstanceId); }
-  async getKeratometerExam(layoutInstanceId: number) { return this._getExamData<KeratometerExam>('keratometer', layoutInstanceId); }
-  async updateKeratometerExam(id: number, data: Partial<KeratometerExam>) { return this._updateExamData<KeratometerExam>('keratometer', id, data); }
-
-  async createKeratometerFullExam(data: Omit<KeratometerFullExam, 'id'>, layoutInstanceId: number) { return this._createExamData<KeratometerFullExam>('keratometer-full', data, layoutInstanceId); }
-  async getKeratometerFullExam(layoutInstanceId: number) { return this._getExamData<KeratometerFullExam>('keratometer-full', layoutInstanceId); }
-  async updateKeratometerFullExam(id: number, data: Partial<KeratometerFullExam>) { return this._updateExamData<KeratometerFullExam>('keratometer-full', id, data); }
-
-  async createCornealTopographyExam(data: Omit<CornealTopographyExam, 'id'>, layoutInstanceId: number) { return this._createExamData<CornealTopographyExam>('corneal-topography', data, layoutInstanceId); }
-  async getCornealTopographyExam(layoutInstanceId: number) { return this._getExamData<CornealTopographyExam>('corneal-topography', layoutInstanceId); }
-  async updateCornealTopographyExam(id: number, data: Partial<CornealTopographyExam>) { return this._updateExamData<CornealTopographyExam>('corneal-topography', id, data); }
-  
-  async createCoverTestExam(data: Omit<CoverTestExam, 'id'>, layoutInstanceId: number) { return this._createExamData<CoverTestExam>('cover-test', data, layoutInstanceId); }
-  async getCoverTestExam(layoutInstanceId: number) { return this._getExamData<CoverTestExam>('cover-test', layoutInstanceId); }
-  async updateCoverTestExam(id: number, data: Partial<CoverTestExam>) { return this._updateExamData<CoverTestExam>('cover-test', id, data); }
-
-  async createSchirmerTestExam(data: Omit<SchirmerTestExam, 'id'>, layoutInstanceId: number) { return this._createExamData<SchirmerTestExam>('schirmer-test', data, layoutInstanceId); }
-  async getSchirmerTestExam(layoutInstanceId: number) { return this._getExamData<SchirmerTestExam>('schirmer-test', layoutInstanceId); }
-  async updateSchirmerTestExam(id: number, data: Partial<SchirmerTestExam>) { return this._updateExamData<SchirmerTestExam>('schirmer-test', id, data); }
-  
-  async createOldRefractionExtensionExam(data: Omit<OldRefractionExtensionExam, 'id'>, layoutInstanceId: number) { return this._createExamData<OldRefractionExtensionExam>('old-refraction-extension', data, layoutInstanceId); }
-  async getOldRefractionExtensionExam(layoutInstanceId: number) { return this._getExamData<OldRefractionExtensionExam>('old-refraction-extension', layoutInstanceId); }
-  async updateOldRefractionExtensionExam(id: number, data: Partial<OldRefractionExtensionExam>) { return this._updateExamData<OldRefractionExtensionExam>('old-refraction-extension', id, data); }
-  
-  async createAnamnesisExam(data: Omit<AnamnesisExam, 'id'>, layoutInstanceId: number) { return this._createExamData<AnamnesisExam>('anamnesis', data, layoutInstanceId); }
-  async getAnamnesisExam(layoutInstanceId: number) { return this._getExamData<AnamnesisExam>('anamnesis', layoutInstanceId); }
-  async updateAnamnesisExam(id: number, data: Partial<AnamnesisExam>) { return this._updateExamData<AnamnesisExam>('anamnesis', id, data); }
-  
-  async createNotesExam(data: Omit<NotesExam, 'id'>, layoutInstanceId: number) { return this._createExamData<NotesExam>('notes', data, layoutInstanceId); }
-  async getNotesExam(layoutInstanceId: number, cardInstanceId?: string) { return this._getExamData<NotesExam>('notes', layoutInstanceId); }
-  async updateNotesExam(id: number, data: Partial<NotesExam>) { return this._updateExamData<NotesExam>('notes', id, data); }
-
-  async createContactLensDiameters(data: Omit<ContactLensDiameters, 'id'>, layoutInstanceId: number) { return this._createExamData<ContactLensDiameters>('contact-lens-diameters', data, layoutInstanceId); }
-  async getContactLensDiameters(layoutInstanceId: number) { return this._getExamData<ContactLensDiameters>('contact-lens-diameters', layoutInstanceId); }
-  async updateContactLensDiameters(id: number, data: Partial<ContactLensDiameters>) { return this._updateExamData<ContactLensDiameters>('contact-lens-diameters', id, data); }
-  
-  async createContactLensDetails(data: Omit<ContactLensDetails, 'id'>, layoutInstanceId: number) { return this._createExamData<ContactLensDetails>('contact-lens-details', data, layoutInstanceId); }
-  async getContactLensDetails(layoutInstanceId: number) { return this._getExamData<ContactLensDetails>('contact-lens-details', layoutInstanceId); }
-  async updateContactLensDetails(id: number, data: Partial<ContactLensDetails>) { return this._updateExamData<ContactLensDetails>('contact-lens-details', id, data); }
-
-  async createKeratometerContactLens(data: Omit<KeratometerContactLens, 'id'>, layoutInstanceId: number) { return this._createExamData<KeratometerContactLens>('keratometer-contact-lens', data, layoutInstanceId); }
-  async getKeratometerContactLens(layoutInstanceId: number) { return this._getExamData<KeratometerContactLens>('keratometer-contact-lens', layoutInstanceId); }
-  async updateKeratometerContactLens(id: number, data: Partial<KeratometerContactLens>) { return this._updateExamData<KeratometerContactLens>('keratometer-contact-lens', id, data); }
-  
-  async createContactLensExam(data: Omit<ContactLensExam, 'id'>, layoutInstanceId: number) { return this._createExamData<ContactLensExam>('contact-lens-exam', data, layoutInstanceId); }
-  async getContactLensExam(layoutInstanceId: number) { return this._getExamData<ContactLensExam>('contact-lens-exam', layoutInstanceId); }
-  async updateContactLensExam(id: number, data: Partial<ContactLensExam>) { return this._updateExamData<ContactLensExam>('contact-lens-exam', id, data); }
-  
-  async createContactLensOrder(data: Omit<ContactLensOrder, 'id'>, layoutInstanceId: number) { return this._createExamData<ContactLensOrder>('contact-lens-order', data, layoutInstanceId); }
-  async getContactLensOrder(layoutInstanceId: number) { return this._getExamData<ContactLensOrder>('contact-lens-order', layoutInstanceId); }
-  async updateContactLensOrder(id: number, data: Partial<ContactLensOrder>) { return this._updateExamData<ContactLensOrder>('contact-lens-order', id, data); }
-
-  async createOldContactLenses(data: Omit<OldContactLenses, 'id'>, layoutInstanceId: number) { return this._createExamData<OldContactLenses>('old-contact-lenses', data, layoutInstanceId); }
-  async getOldContactLenses(layoutInstanceId: number) { return this._getExamData<OldContactLenses>('old-contact-lenses', layoutInstanceId); }
-  async updateOldContactLenses(id: number, data: Partial<OldContactLenses>) { return this._updateExamData<OldContactLenses>('old-contact-lenses', id, data); }
-
-  async createOverRefraction(data: Omit<OverRefraction, 'id'>, layoutInstanceId: number) { return this._createExamData<OverRefraction>('over-refraction', data, layoutInstanceId); }
-  async getOverRefraction(layoutInstanceId: number) { return this._getExamData<OverRefraction>('over-refraction', layoutInstanceId); }
-  async updateOverRefraction(id: number, data: Partial<OverRefraction>) { return this._updateExamData<OverRefraction>('over-refraction', id, data); }
-
-  async createSensationVisionStabilityExam(data: Omit<SensationVisionStabilityExam, 'id'>, layoutInstanceId: number) { return this._createExamData<SensationVisionStabilityExam>('sensation-vision-stability', data, layoutInstanceId); }
-  async getSensationVisionStabilityExam(layoutInstanceId: number) { return this._getExamData<SensationVisionStabilityExam>('sensation-vision-stability', layoutInstanceId); }
-  async updateSensationVisionStabilityExam(id: number, data: Partial<SensationVisionStabilityExam>) { return this._updateExamData<SensationVisionStabilityExam>('sensation-vision-stability', id, data); }
-  
-  async createDiopterAdjustmentPanel(data: Omit<DiopterAdjustmentPanel, 'id'>, layoutInstanceId: number) { return this._createExamData<DiopterAdjustmentPanel>('diopter-adjustment-panel', data, layoutInstanceId); }
-  async getDiopterAdjustmentPanel(layoutInstanceId: number) { return this._getExamData<DiopterAdjustmentPanel>('diopter-adjustment-panel', layoutInstanceId); }
-  async updateDiopterAdjustmentPanel(id: number, data: Partial<DiopterAdjustmentPanel>) { return this._updateExamData<DiopterAdjustmentPanel>('diopter-adjustment-panel', id, data); }
-  
-  async createFusionRangeExam(data: Omit<FusionRangeExam, 'id'>, layoutInstanceId: number) { return this._createExamData<FusionRangeExam>('fusion-range', data, layoutInstanceId); }
-  async getFusionRangeExam(layoutInstanceId: number) { return this._getExamData<FusionRangeExam>('fusion-range', layoutInstanceId); }
-  async updateFusionRangeExam(id: number, data: Partial<FusionRangeExam>) { return this._updateExamData<FusionRangeExam>('fusion-range', id, data); }
-  
-  async createMaddoxRodExam(data: Omit<MaddoxRodExam, 'id'>, layoutInstanceId: number) { return this._createExamData<MaddoxRodExam>('maddox-rod', data, layoutInstanceId); }
-  async getMaddoxRodExam(layoutInstanceId: number) { return this._getExamData<MaddoxRodExam>('maddox-rod', layoutInstanceId); }
-  async updateMaddoxRodExam(id: number, data: Partial<MaddoxRodExam>) { return this._updateExamData<MaddoxRodExam>('maddox-rod', id, data); }
-
-  async createStereoTestExam(data: Omit<StereoTestExam, 'id'>, layoutInstanceId: number) { return this._createExamData<StereoTestExam>('stereo-test', data, layoutInstanceId); }
-  async getStereoTestExam(layoutInstanceId: number) { return this._getExamData<StereoTestExam>('stereo-test', layoutInstanceId); }
-  async updateStereoTestExam(id: number, data: Partial<StereoTestExam>) { return this._updateExamData<StereoTestExam>('stereo-test', id, data); }
-
-  async createRGExam(data: Omit<RGExam, 'id'>, layoutInstanceId: number) { return this._createExamData<RGExam>('rg', data, layoutInstanceId); }
-  async getRGExam(layoutInstanceId: number) { return this._getExamData<RGExam>('rg', layoutInstanceId); }
-  async updateRGExam(id: number, data: Partial<RGExam>) { return this._updateExamData<RGExam>('rg', id, data); }
-
-  async createOcularMotorAssessmentExam(data: Omit<OcularMotorAssessmentExam, 'id'>, layoutInstanceId: number) { return this._createExamData<OcularMotorAssessmentExam>('ocular-motor-assessment', data, layoutInstanceId); }
-  async getOcularMotorAssessmentExam(layoutInstanceId: number) { return this._getExamData<OcularMotorAssessmentExam>('ocular-motor-assessment', layoutInstanceId); }
-  async updateOcularMotorAssessmentExam(id: number, data: Partial<OcularMotorAssessmentExam>) { return this._updateExamData<OcularMotorAssessmentExam>('ocular-motor-assessment', id, data); }
 
   // Legacy methods for backward compatibility
   async createExamData(examType: string, data: any) {
@@ -1268,6 +1268,10 @@ class ApiClient {
   // Unified Exam Data API - replaces all individual exam component methods
   async getUnifiedExamData(layoutInstanceId: number) {
     return this.request(`/unified-exam-data/${layoutInstanceId}`);
+  }
+
+  async getExamWithLayouts(examId: number) {
+    return this.request(`/exams/${examId}/with-layouts`);
   }
 
   async saveUnifiedExamData(layoutInstanceId: number, data: Record<string, any>) {
@@ -1427,11 +1431,82 @@ class ApiClient {
     });
   }
 
-  async aiChat(message: string, conversationHistory: any[]) {
+  async aiChat(message: string, conversationHistory: any[], chatId?: number) {
     return this.request('/ai/chat', {
       method: 'POST',
-      body: JSON.stringify({ message, conversationHistory }),
+      body: JSON.stringify({ message, conversationHistory, chat_id: chatId }),
     });
+  }
+
+  async aiChatStream(
+    message: string,
+    conversationHistory: any[],
+    chatId: number | null,
+    onChunk: (chunk: string, fullMessage: string, parts?: any[]) => void,
+    onDone: (fullMessage: string, parts?: any[]) => void,
+    onTool?: (evt: { phase: 'start'|'end'; name?: string; args?: any; output?: any; parts?: any[] }) => void
+  ) {
+    const url = `${this.baseUrl}/ai/chat/stream`;
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    if (this.token) headers['Authorization'] = `Bearer ${this.token}`;
+    const res = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ message, conversationHistory, chat_id: chatId ?? undefined }),
+    });
+    if (!res.ok) throw new Error('stream request failed');
+    const reader = res.body?.getReader();
+    if (!reader) {
+      onDone('', []);
+      return;
+    }
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let doneReceived = false;
+    let lastFullMessage = '';
+    let lastParts: any[] | undefined = [];
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      let sepIndex;
+      while ((sepIndex = buffer.indexOf('\n\n')) !== -1) {
+        const frame = buffer.slice(0, sepIndex);
+        buffer = buffer.slice(sepIndex + 2);
+        const line = frame.trim();
+        if (!line) continue;
+        if (line.startsWith('data:')) {
+          const dataStr = line.slice(5).trim();
+          try {
+            const payload = JSON.parse(dataStr);
+            if (payload.tool && onTool) {
+              const { phase, name, args, output } = payload.tool;
+              onTool({ phase, name, args, output, parts: payload.parts });
+              if (Array.isArray(payload.parts)) lastParts = payload.parts;
+              continue;
+            }
+            if (payload.done) {
+              doneReceived = true;
+              lastFullMessage = payload.message || lastFullMessage || '';
+              lastParts = Array.isArray(payload.parts) ? payload.parts : lastParts;
+              onDone(lastFullMessage, lastParts);
+            } else if (payload.currentTextPart !== undefined) {
+              lastFullMessage = payload.fullMessage || lastFullMessage;
+              onChunk(payload.chunk || '', lastFullMessage, payload.currentTextPart);
+            } else {
+              lastFullMessage = payload.fullMessage || lastFullMessage;
+              lastParts = Array.isArray(payload.parts) ? payload.parts : lastParts;
+              onChunk(payload.chunk || '', lastFullMessage, lastParts);
+            }
+          } catch {}
+        }
+      }
+    }
+    if (!doneReceived) {
+      onDone(lastFullMessage || '', lastParts || []);
+    }
   }
 
   async aiExecuteAction(action: string, data: any) {

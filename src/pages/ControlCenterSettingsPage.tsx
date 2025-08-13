@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { toast } from "sonner"
 import { User, Company } from "@/lib/db/schema-interface"
-import { getAllUsers, updateUser, deleteUser } from "@/lib/db/users-db"
+import { getAllUsers, getUsersByCompanyId, updateUser, deleteUser } from "@/lib/db/users-db"
 import { applyThemeColorsFromSettings } from "@/helpers/theme_helpers"
 import { Badge } from "@/components/ui/badge"
 import { IconPlus, IconEdit, IconTrash, IconCalendar, IconBrandGoogle } from "@tabler/icons-react"
@@ -53,22 +53,36 @@ export default function ControlCenterSettingsPage() {
   useEffect(() => {
     const loadData = async () => {
       try {
-        setLoading(true)
+        const firstLoad = company === null
+        if (firstLoad) setLoading(true)
         
-        // For control center users, get company through clinic
         let companyData = null
+        const storedCompany = localStorage.getItem('controlCenterCompany')
+        if (storedCompany) {
+          try {
+            const parsed = JSON.parse(storedCompany)
+            if (parsed?.id) {
+              companyData = parsed
+            }
+          } catch {}
+        }
+        
+        // For control center users, get company through clinic if not from storage
         if (currentUser?.clinic_id) {
-          const clinicResponse = await apiClient.getClinic(currentUser.clinic_id);
-          const clinic = clinicResponse.data;
-          if (clinic?.company_id) {
-            const companyResponse = await apiClient.getCompany(clinic.company_id);
-            companyData = companyResponse.data;
+          if (!companyData) {
+            const clinicResponse = await apiClient.getClinic(currentUser.clinic_id);
+            const clinic = clinicResponse.data;
+            if (clinic?.company_id) {
+              const companyResponse = await apiClient.getCompany(clinic.company_id);
+              companyData = companyResponse.data;
+            }
           }
         } else {
-          // For global users, get the first company
-          const companiesResponse = await apiClient.getCompanies();
-          const companies = companiesResponse.data || [];
-          companyData = companies.length > 0 ? companies[0] : null;
+          if (!companyData) {
+            const companiesResponse = await apiClient.getCompanies();
+            const companies = companiesResponse.data || [];
+            companyData = companies.length > 0 ? companies[0] : null;
+          }
         }
         if (companyData) {
           setCompany(companyData)
@@ -80,9 +94,15 @@ export default function ControlCenterSettingsPage() {
             address: companyData.address || '',
             logo_path: companyData.logo_path || ''
           })
+          localStorage.setItem('controlCenterCompany', JSON.stringify(companyData))
         }
 
-        const usersData = await getAllUsers()
+        let usersData: User[] = []
+        if (company?.id) {
+          usersData = await getUsersByCompanyId(company.id)
+        } else {
+          usersData = await getAllUsers()
+        }
         setUsers(usersData)
 
         if (currentUser) {
@@ -144,10 +164,15 @@ export default function ControlCenterSettingsPage() {
       setSaveSuccess(false)
       
       if (company?.id) {
-        const updatedCompanyResponse = await apiClient.updateCompany(company.id, {
-          ...company,
-          ...localCompany
-        });
+        const payload: Partial<Company> = {
+          name: localCompany.name || undefined,
+          owner_full_name: localCompany.owner_full_name || undefined,
+          contact_email: localCompany.contact_email || undefined,
+          contact_phone: localCompany.contact_phone || undefined,
+          address: localCompany.address || undefined,
+          logo_path: localCompany.logo_path || undefined,
+        } as Partial<Company>;
+        const updatedCompanyResponse = await apiClient.updateCompany(company.id, payload);
         const updatedCompany = updatedCompanyResponse.data;
         
         if (updatedCompany) {
@@ -160,6 +185,7 @@ export default function ControlCenterSettingsPage() {
             address: updatedCompany.address || '',
             logo_path: updatedCompany.logo_path || ''
           })
+          localStorage.setItem('controlCenterCompany', JSON.stringify(updatedCompany))
         } else {
           toast.error('שגיאה בשמירת פרטי החברה')
           return
@@ -176,6 +202,10 @@ export default function ControlCenterSettingsPage() {
           primary_theme_color: personalProfile.primary_theme_color,
           secondary_theme_color: personalProfile.secondary_theme_color,
           theme_preference: personalProfile.theme_preference
+        }).catch((e: any) => {
+          const message = e instanceof Error ? e.message : 'שגיאה בשמירת הפרופיל האישי'
+          toast.error(message)
+          throw e
         })
         
         if (updatedUser) {
@@ -190,6 +220,7 @@ export default function ControlCenterSettingsPage() {
           })
           
           await setCurrentUser(updatedUser)
+          localStorage.setItem('currentUser', JSON.stringify(updatedUser))
         } else {
           toast.error('שגיאה בשמירת הפרופיל האישי')
           return
@@ -941,6 +972,7 @@ export default function ControlCenterSettingsPage() {
         onClose={() => setShowUserModal(false)}
         editingUser={editingUser}
         currentUser={currentUser}
+        companyId={company?.id}
         onUserSaved={(newUser) => {
           setUsers(prev => [...prev, newUser])
         }}

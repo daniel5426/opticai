@@ -22,11 +22,7 @@ import { ExamToolbox, createToolboxActions } from "@/components/exam/ExamToolbox
 import { ExamFieldMapper, ExamComponentType } from "@/lib/exam-field-mappings"
 import { copyToClipboard, pasteFromClipboard, getClipboardContentType } from "@/lib/exam-clipboard"
 import { CompactPrescriptionExam } from "@/lib/db/schema-interface"
-import {
-  createCompactPrescriptionExam,
-  updateCompactPrescriptionExam,
-  getCompactPrescriptionExamByReferralId
-} from "@/lib/db/compact-prescription-db"
+import { apiClient } from "@/lib/api-client"
 import { ClientSpaceLayout } from "@/layouts/ClientSpaceLayout"
 import { useClientSidebar } from "@/contexts/ClientSidebarContext"
 import { useUser } from "@/contexts/UserContext"
@@ -192,11 +188,10 @@ export default function ReferralDetailPage() {
             setClient(clientData || null)
           }
 
-          // Load compact prescription
-          const compactPrescriptionData = await getCompactPrescriptionExamByReferralId(Number(referralId))
-          if (compactPrescriptionData) {
-            setCompactPrescription(compactPrescriptionData)
-            setCompactPrescriptionFormData(compactPrescriptionData)
+          const cp = (referral as any).referral_data?.['compact-prescription']
+          if (cp) {
+            setCompactPrescription(cp)
+            setCompactPrescriptionFormData(cp)
           } else {
             setCompactPrescriptionFormData((prev: CompactPrescriptionExam) => ({ ...prev, referral_id: Number(referralId) }))
           }
@@ -268,14 +263,21 @@ export default function ReferralDetailPage() {
         const leftEyeToSave = { ...leftEyeData, referral_id: referralIdToUse }
         const compactPrescriptionToSave = { ...compactPrescriptionFormData, referral_id: referralIdToUse }
 
-        // Always save eye data and compact prescription (create or update)
-        const [savedRightEye, savedLeftEye, savedCompactPrescription] = await Promise.all([
+        const [savedRightEye, savedLeftEye, savedReferralUpdated] = await Promise.all([
           rightEyeData.id ? updateReferralEye(rightEyeToSave) : createReferralEye(rightEyeToSave),
           leftEyeData.id ? updateReferralEye(leftEyeToSave) : createReferralEye(leftEyeToSave),
-          compactPrescription?.id ? updateCompactPrescriptionExam(compactPrescriptionToSave) : createCompactPrescriptionExam(compactPrescriptionToSave)
+          (async () => {
+            const hasCP = Object.values(compactPrescriptionFormData).some(v => v !== undefined && v !== null && v !== '' && v !== 0)
+            const merged = {
+              ...((savedReferral as any)?.referral_data || {}),
+              ...(hasCP ? { 'compact-prescription': { ...compactPrescriptionToSave } } : {})
+            }
+            const updated = await updateReferral({ ...(savedReferral as Referral), referral_data: merged })
+            return updated
+          })()
         ])
 
-        if (savedRightEye && savedLeftEye && savedCompactPrescription) {
+        if (savedRightEye && savedLeftEye && savedReferralUpdated) {
           toast.success("ההפניה נשמרה בהצלחה")
 
           if (isNewReferral) {

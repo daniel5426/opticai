@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 from database import get_db
 from models import File, Client, User
+from sqlalchemy import func
 from schemas import FileCreate, FileUpdate, File as FileSchema
 
 router = APIRouter(prefix="/files", tags=["files"])
@@ -13,6 +14,15 @@ def create_file(file: FileCreate, db: Session = Depends(get_db)):
     db.add(db_file)
     db.commit()
     db.refresh(db_file)
+    # bump client_updated_date
+    try:
+        if db_file.client_id:
+            client = db.query(Client).filter(Client.id == db_file.client_id).first()
+            if client:
+                client.client_updated_date = func.now()
+                db.commit()
+    except Exception:
+        pass
     return db_file
 
 @router.get("/{file_id}", response_model=FileSchema)
@@ -47,6 +57,15 @@ def update_file(file_id: int, file: FileUpdate, db: Session = Depends(get_db)):
         setattr(db_file, field, value)
     
     db.commit()
+    # bump client_updated_date
+    try:
+        if db_file.client_id:
+            client = db.query(Client).filter(Client.id == db_file.client_id).first()
+            if client:
+                client.client_updated_date = func.now()
+                db.commit()
+    except Exception:
+        pass
     db.refresh(db_file)
     return db_file
 
@@ -56,6 +75,16 @@ def delete_file(file_id: int, db: Session = Depends(get_db)):
     if not file:
         raise HTTPException(status_code=404, detail="File not found")
     
+    client_id = file.client_id
     db.delete(file)
     db.commit()
+    # bump client_updated_date
+    try:
+        if client_id:
+            client = db.query(Client).filter(Client.id == client_id).first()
+            if client:
+                client.client_updated_date = func.now()
+                db.commit()
+    except Exception:
+        pass
     return {"message": "File deleted successfully"} 

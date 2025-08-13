@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { Skeleton } from "@/components/ui/skeleton"
 import {
   CalendarDays,
   Users,
@@ -54,7 +55,6 @@ import { CustomModal } from "@/components/ui/custom-modal"
 import { ClientWarningModal } from "@/components/ClientWarningModal"
 import { UserSelect } from "@/components/ui/user-select"
 import { useUser } from "@/contexts/UserContext"
-import { OctahedronLoader } from "@/components/ui/octahedron-loader"
 
 
 type CalendarView = 'day' | 'week' | 'month'
@@ -1093,8 +1093,64 @@ export default function HomePage() {
     return (
       <>
         <SiteHeader title={ "לוח זמנים"} />
-        <div className="flex items-center justify-center h-full">
-          <OctahedronLoader size="3xl" />
+        <div className="flex flex-col bg-muted/50 flex-1 gap-6" dir="rtl" style={{ scrollbarWidth: 'none' }}>
+          <div className="flex items-center justify-between p-4 lg:p-6 pb-0">
+            <div className="flex items-center gap-4">
+              <Skeleton className="h-9 w-16" />
+              <div className="flex items-center gap-2">
+                <Skeleton className="h-9 w-9 rounded-md" />
+                <Skeleton className="h-9 w-9 rounded-md" />
+              </div>
+              <Skeleton className="h-6 w-44" />
+            </div>
+            <div className="flex items-center gap-2 bg-card shadow-md rounded-md p-1">
+              <Skeleton className="h-8 w-14" />
+              <Skeleton className="h-8 w-14" />
+              <Skeleton className="h-8 w-14" />
+            </div>
+          </div>
+
+          <div className="flex gap-6 px-4 lg:px-6 flex-1">
+            <div className="w-72 space-y-4">
+              <Card className="bg-card shadow-md border-none p-2 justify-center">
+                <CardContent className="p-0 justify-center">
+                  <Skeleton className="w-full h-[300px]" />
+                </CardContent>
+              </Card>
+
+              <div className="grid gap-4 grid-cols-2">
+                <Card className="bg-card border-none shadow-md py-4">
+                  <CardHeader className="flex flex-row items-center mb-[-10px] justify-between space-y-0 ">
+                    <Skeleton className="h-4 w-24" />
+                    <Skeleton className="h-4 w-4 rounded-full" />
+                  </CardHeader>
+                  <CardContent>
+                    <Skeleton className="h-7 w-16" />
+                    <Skeleton className="h-3 w-28 mt-2" />
+                  </CardContent>
+                </Card>
+
+                <Card className="bg-card border-none shadow-md py-4">
+                  <CardHeader className="flex flex-row items-center mb-[-10px] justify-between space-y-0 ">
+                    <Skeleton className="h-4 w-24" />
+                    <Skeleton className="h-4 w-4 rounded-full" />
+                  </CardHeader>
+                  <CardContent>
+                    <Skeleton className="h-7 w-16" />
+                    <Skeleton className="h-3 w-24 mt-2" />
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
+
+            <div className="flex-1 flex flex-col justify-end rounded-xl">
+              <Card className="bg-card rounded-t-xl shadow-md border-none p-0">
+                <CardContent className="p-2 pt-2 rounded-xl">
+                  <Skeleton className="w-full rounded-t-xl" style={{ height: 'calc(100vh - 200px)' }} />
+                </CardContent>
+              </Card>
+            </div>
+          </div>
         </div>
       </>
     )

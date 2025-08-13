@@ -26,31 +26,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   stopServerMode: () => ipcRenderer.invoke('stop-server-mode'),
   getServerInfo: () => ipcRenderer.invoke('get-server-info'),
 
-  // AI Agent operations
-  aiInitialize: () => ipcRenderer.invoke('ai-initialize'),
-  aiChat: (message: string, conversationHistory: any[]) => ipcRenderer.invoke('ai-chat', message, conversationHistory),
-  aiChatStream: (message: string, conversationHistory: any[]) => ipcRenderer.invoke('ai-chat-stream', message, conversationHistory),
-  aiExecuteAction: (action: string, data: any) => ipcRenderer.invoke('ai-execute-action', action, data),
-  aiGenerateMainState: (clientId: number) => ipcRenderer.invoke('ai-generate-main-state', clientId),
-  aiGeneratePartState: (clientId: number, part: string) => ipcRenderer.invoke('ai-generate-part-state', clientId, part),
-  aiGenerateAllStates: (clientId: number) => ipcRenderer.invoke('ai-generate-all-states', clientId),
-  createCampaignFromPrompt: (prompt: string) => ipcRenderer.invoke('ai-create-campaign-from-prompt', prompt),
-  
-  // AI Stream listeners
-  onAiStreamChunk: (callback: (data: { chunk: string; fullMessage: string }) => void) => {
-    ipcRenderer.on('ai-chat-stream-chunk', (_, data) => callback(data));
-  },
-  onAiStreamComplete: (callback: (data: { message: string }) => void) => {
-    ipcRenderer.on('ai-chat-stream-complete', (_, data) => callback(data));
-  },
-  onAiStreamError: (callback: (data: { error: string }) => void) => {
-    ipcRenderer.on('ai-chat-stream-error', (_, data) => callback(data));
-  },
-  removeAiStreamListeners: () => {
-    ipcRenderer.removeAllListeners('ai-chat-stream-chunk');
-    ipcRenderer.removeAllListeners('ai-chat-stream-complete');
-    ipcRenderer.removeAllListeners('ai-chat-stream-error');
-  },
+  // AI moved to backend; no AI IPC exposed
 
   // Chat operations - These are now handled by the API backend
   createChat: (title: string) => ipcRenderer.invoke('chat-create', title),

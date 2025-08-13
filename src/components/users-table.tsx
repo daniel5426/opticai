@@ -32,6 +32,7 @@ interface UsersTableProps {
   hideNewButton?: boolean
   onNewUser?: () => void
   onEditUser?: (user: UserWithClinic) => void
+  loading?: boolean
 }
 
 export function UsersTable({ 
@@ -45,7 +46,8 @@ export function UsersTable({
   hideSearch = false,
   hideNewButton = false,
   onNewUser,
-  onEditUser
+  onEditUser,
+  loading = false
 }: UsersTableProps) {
   const [internalSearchQuery, setInternalSearchQuery] = React.useState("")
   const [isDeleteModalOpen, setIsDeleteModalOpen] = React.useState(false)
@@ -182,7 +184,12 @@ export function UsersTable({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredData.length > 0 ? (
+            {loading ? (
+              Array.from({ length: 10 }).map((_, i) => (
+                <TableRow key={i}>
+                </TableRow>
+              ))
+            ) : filteredData.length > 0 ? (
               filteredData.map((user) => (
                 <TableRow key={user.id}>
                   <TableCell className="font-medium">{user.id}</TableCell>

@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 from database import get_db
 from models import ContactLens, Client, User
+from sqlalchemy import func
 from schemas import ContactLensCreate, ContactLensUpdate, ContactLens as ContactLensSchema
 
 router = APIRouter(prefix="/contact-lenses", tags=["contact-lenses"])
@@ -13,6 +14,15 @@ def create_contact_lens(contact_lens: ContactLensCreate, db: Session = Depends(g
     db.add(db_contact_lens)
     db.commit()
     db.refresh(db_contact_lens)
+    # bump client_updated_date
+    try:
+        if db_contact_lens.client_id:
+            client = db.query(Client).filter(Client.id == db_contact_lens.client_id).first()
+            if client:
+                client.client_updated_date = func.now()
+                db.commit()
+    except Exception:
+        pass
     return db_contact_lens
 
 @router.get("/{contact_lens_id}", response_model=ContactLensSchema)
@@ -47,6 +57,15 @@ def update_contact_lens(contact_lens_id: int, contact_lens: ContactLensUpdate, d
         setattr(db_contact_lens, field, value)
     
     db.commit()
+    # bump client_updated_date
+    try:
+        if db_contact_lens.client_id:
+            client = db.query(Client).filter(Client.id == db_contact_lens.client_id).first()
+            if client:
+                client.client_updated_date = func.now()
+                db.commit()
+    except Exception:
+        pass
     db.refresh(db_contact_lens)
     return db_contact_lens
 
@@ -56,6 +75,16 @@ def delete_contact_lens(contact_lens_id: int, db: Session = Depends(get_db)):
     if not contact_lens:
         raise HTTPException(status_code=404, detail="Contact lens not found")
     
+    client_id = contact_lens.client_id
     db.delete(contact_lens)
     db.commit()
+    # bump client_updated_date
+    try:
+        if client_id:
+            client = db.query(Client).filter(Client.id == client_id).first()
+            if client:
+                client.client_updated_date = func.now()
+                db.commit()
+    except Exception:
+        pass
     return {"message": "Contact lens deleted successfully"} 

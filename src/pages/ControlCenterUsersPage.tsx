@@ -52,7 +52,7 @@ const ControlCenterUsersPage: React.FC = () => {
     try {
       setLoading(true);
       
-      const companyData = sessionStorage.getItem('controlCenterCompany');
+      const companyData = localStorage.getItem('controlCenterCompany');
       if (!companyData) {
         router.navigate({ to: '/control-center' });
         return;
@@ -77,7 +77,8 @@ const ControlCenterUsersPage: React.FC = () => {
       setUsers(usersWithClinics);
     } catch (error) {
       console.error('Error loading users data:', error);
-      toast.error('שגיאה בטעינת נתוני המשתמשים');
+      const message = (error as any)?.message || 'שגיאה בטעינת נתוני המשתמשים'
+      toast.error(message);
     } finally {
       setLoading(false);
     }
@@ -123,19 +124,6 @@ const ControlCenterUsersPage: React.FC = () => {
     }
   };
 
-  if (loading) {
-    return (
-      <>
-      <SiteHeader title="ניהול משתמשים" />
-      <div className="min-h-screen  flex items-center justify-center" dir="rtl" style={{scrollbarWidth: 'none'}}>
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600 dark:text-gray-300">טוען נתוני משתמשים...</p>
-        </div>
-      </div>
-      </>
-    );
-  }
 
   return (
     <>
@@ -152,6 +140,7 @@ const ControlCenterUsersPage: React.FC = () => {
           onSearchChange={setSearchTerm}
           onNewUser={handleNewUser}
           onEditUser={handleEditUserClick as any}
+          loading={loading}
         />
         </div>
       </div>

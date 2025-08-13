@@ -1,8 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from database import get_db
-from models import Order, Client, User, OrderEye, OrderLens, Frame, OrderDetails
+from models import Order, Client, User
+from sqlalchemy import func
 from schemas import OrderCreate, OrderUpdate, Order as OrderSchema
 
 router = APIRouter(prefix="/orders", tags=["orders"])
@@ -13,6 +14,15 @@ def create_order(order: OrderCreate, db: Session = Depends(get_db)):
     db.add(db_order)
     db.commit()
     db.refresh(db_order)
+    # bump client_updated_date
+    try:
+        if db_order.client_id:
+            client = db.query(Client).filter(Client.id == db_order.client_id).first()
+            if client:
+                client.client_updated_date = func.now()
+                db.commit()
+    except Exception:
+        pass
     return db_order
 
 @router.get("/{order_id}", response_model=OrderSchema)
@@ -47,6 +57,15 @@ def update_order(order_id: int, order: OrderUpdate, db: Session = Depends(get_db
         setattr(db_order, field, value)
     
     db.commit()
+    # bump client_updated_date
+    try:
+        if db_order.client_id:
+            client = db.query(Client).filter(Client.id == db_order.client_id).first()
+            if client:
+                client.client_updated_date = func.now()
+                db.commit()
+    except Exception:
+        pass
     db.refresh(db_order)
     return db_order
 
@@ -56,89 +75,86 @@ def delete_order(order_id: int, db: Session = Depends(get_db)):
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
     
+    client_id = order.client_id
     db.delete(order)
     db.commit()
+    # bump client_updated_date
+    try:
+        if client_id:
+            client = db.query(Client).filter(Client.id == client_id).first()
+            if client:
+                client.client_updated_date = func.now()
+                db.commit()
+    except Exception:
+        pass
     return {"message": "Order deleted successfully"}
 
-@router.get("/{order_id}/eyes", response_model=List[dict])
-def get_order_eyes(order_id: int, db: Session = Depends(get_db)):
-    order_eyes = db.query(OrderEye).filter(OrderEye.order_id == order_id).all()
-    return [
-        {
-            "id": eye.id,
-            "eye": eye.eye,
-            "sph": eye.sph,
-            "cyl": eye.cyl,
-            "ax": eye.ax,
-            "pris": eye.pris,
-            "base": eye.base,
-            "va": eye.va,
-            "ad": eye.ad,
-            "diam": eye.diam,
-            "s_base": eye.s_base,
-            "high": eye.high,
-            "pd": eye.pd
-        }
-        for eye in order_eyes
-    ]
+# Order unified data endpoints
+@router.get("/{order_id}/data")
+def get_order_data(order_id: int, db: Session = Depends(get_db)):
+    order = db.query(Order).filter(Order.id == order_id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    return order.order_data or {}
 
-@router.get("/{order_id}/lens", response_model=dict)
-def get_order_lens(order_id: int, db: Session = Depends(get_db)):
-    order_lens = db.query(OrderLens).filter(OrderLens.order_id == order_id).first()
-    if not order_lens:
-        return None
-    
-    return {
-        "id": order_lens.id,
-        "right_model": order_lens.right_model,
-        "left_model": order_lens.left_model,
-        "color": order_lens.color,
-        "coating": order_lens.coating,
-        "material": order_lens.material,
-        "supplier": order_lens.supplier
-    }
+@router.post("/{order_id}/data")
+async def save_order_data(order_id: int, request: Request, db: Session = Depends(get_db)):
+    order = db.query(Order).filter(Order.id == order_id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    try:
+        data = await request.json()
+        if not isinstance(data, dict):
+            raise ValueError("Body must be a JSON object")
+    except Exception as e:
+        raise HTTPException(status_code=422, detail=f"Invalid JSON: {str(e)}")
+    order.order_data = data
+    db.commit()
+    # bump client_updated_date
+    try:
+        if order.client_id:
+            client = db.query(Client).filter(Client.id == order.client_id).first()
+            if client:
+                client.client_updated_date = func.now()
+                db.commit()
+    except Exception:
+        pass
+    db.refresh(order)
+    return {"success": True}
 
-@router.get("/{order_id}/frame", response_model=dict)
-def get_order_frame(order_id: int, db: Session = Depends(get_db)):
-    frame = db.query(Frame).filter(Frame.order_id == order_id).first()
-    if not frame:
-        return None
-    
-    return {
-        "id": frame.id,
-        "color": frame.color,
-        "supplier": frame.supplier,
-        "model": frame.model,
-        "manufacturer": frame.manufacturer,
-        "supplied_by": frame.supplied_by,
-        "bridge": frame.bridge,
-        "width": frame.width,
-        "height": frame.height,
-        "length": frame.length
-    }
+@router.get("/{order_id}/data/component/{component_type}")
+def get_order_component_data(order_id: int, component_type: str, db: Session = Depends(get_db)):
+    order = db.query(Order).filter(Order.id == order_id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    data = order.order_data or {}
+    return data.get(component_type)
 
-@router.get("/{order_id}/details", response_model=dict)
-def get_order_details(order_id: int, db: Session = Depends(get_db)):
-    order_details = db.query(OrderDetails).filter(OrderDetails.order_id == order_id).first()
-    if not order_details:
-        return None
-    
-    return {
-        "id": order_details.id,
-        "branch": order_details.branch,
-        "supplier_status": order_details.supplier_status,
-        "bag_number": order_details.bag_number,
-        "advisor": order_details.advisor,
-        "delivered_by": order_details.delivered_by,
-        "technician": order_details.technician,
-        "delivered_at": order_details.delivered_at,
-        "warranty_expiration": order_details.warranty_expiration,
-        "delivery_location": order_details.delivery_location,
-        "manufacturing_lab": order_details.manufacturing_lab,
-        "order_status": order_details.order_status,
-        "priority": order_details.priority,
-        "promised_date": order_details.promised_date,
-        "approval_date": order_details.approval_date,
-        "notes": order_details.notes,
-        "lens_order_notes": order_details.lens_order_notes
-    } 
+@router.post("/{order_id}/data/component/{component_type}")
+async def save_order_component_data(order_id: int, component_type: str, request: Request, db: Session = Depends(get_db)):
+    order = db.query(Order).filter(Order.id == order_id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    try:
+        component_data = await request.json()
+        if not isinstance(component_data, dict):
+            raise ValueError("Body must be a JSON object")
+    except Exception as e:
+        raise HTTPException(status_code=422, detail=f"Invalid JSON: {str(e)}")
+    data = order.order_data or {}
+    data[component_type] = component_data
+    order.order_data = data
+    db.commit()
+    # bump client_updated_date
+    try:
+        if order.client_id:
+            client = db.query(Client).filter(Client.id == order.client_id).first()
+            if client:
+                client.client_updated_date = func.now()
+                db.commit()
+    except Exception:
+        pass
+    db.refresh(order)
+    return {"success": True}
+
+ 

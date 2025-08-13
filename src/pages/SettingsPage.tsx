@@ -10,9 +10,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch"
 import { Separator } from "@/components/ui/separator"
 import { toast } from "sonner"
-import { Settings, User } from "@/lib/db/schema-interface"
+import { Settings, User, Clinic } from "@/lib/db/schema-interface"
 import { getSettings, updateSettings } from "@/lib/db/settings-db"
-import { getAllUsers, createUser, updateUser, deleteUser } from "@/lib/db/users-db"
+import { getAllUsers, getUsersByClinic, createUser, updateUser, deleteUser } from "@/lib/db/users-db"
 import { applyThemeColorsFromSettings } from "@/helpers/theme_helpers"
 import { CustomModal } from "@/components/ui/custom-modal"
 import { Badge } from "@/components/ui/badge"
@@ -20,7 +20,6 @@ import { IconPlus, IconEdit, IconTrash, IconLayoutGrid, IconBrandGoogle, IconCal
 import { useSettings } from "@/hooks/useSettings"
 import { useUser } from "@/contexts/UserContext"
 import { getUserById } from "@/lib/db/users-db"
-import { ServerConnectionSettings } from "@/components/ServerConnectionSettings"
 import { getEmailProviderConfig } from "@/lib/email/email-providers"
 import { LookupTableManager } from "@/components/LookupTableManager"
 import { lookupTables } from "@/lib/db/lookup-db"
@@ -29,7 +28,7 @@ import { apiClient } from "@/lib/api-client"
 
 export default function SettingsPage() {
   const { settings, updateSettings: updateBaseSettings } = useSettings()
-  const { currentUser, setCurrentUser } = useUser()
+  const { currentUser, currentClinic, setCurrentUser } = useUser()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [saveSuccess, setSaveSuccess] = useState(false)
@@ -76,17 +75,6 @@ export default function SettingsPage() {
   }
 
   const [localSettings, setLocalSettings] = useState<Settings>({
-    clinic_name: '',
-    clinic_position: '',
-    clinic_email: '',
-    clinic_phone: '',
-    clinic_address: '',
-    clinic_city: '',
-    clinic_postal_code: '',
-    clinic_directions: '',
-    clinic_website: '',
-    manager_name: '',
-    license_number: '',
     clinic_logo_path: '',
     work_start_time: '08:00',
     work_end_time: '18:00',
@@ -99,6 +87,8 @@ export default function SettingsPage() {
     break_end_time: '',
     max_appointments_per_day: 20
   })
+
+  const [localClinic, setLocalClinic] = useState<Partial<Clinic>>({})
 
   // Personal profile state
   const [personalProfile, setPersonalProfile] = useState<Partial<User>>({
@@ -130,12 +120,27 @@ export default function SettingsPage() {
         setLoading(false)
       }
     }
+    const loadClinic = async () => {
+      try {
+        if (currentClinic?.id) {
+          const resp = await apiClient.getClinic(currentClinic.id)
+          if (resp.data) setLocalClinic(resp.data as Clinic)
+        }
+      } catch (e) {
+        console.error('Error loading clinic:', e)
+      }
+    }
 
     const loadUsers = async () => {
       try {
         setUsersLoading(true)
-        const usersData = await getAllUsers()
-        setUsers(usersData)
+        if (currentClinic?.id) {
+          // Other users can only see users in their clinic
+          const usersData = await getUsersByClinic(currentClinic.id)
+          setUsers(usersData)
+        } else {
+          setUsers([])
+        }
       } catch (error) {
         console.error('Error loading users:', error)
         toast.error('שגיאה בטעינת המשתמשים')
@@ -159,6 +164,7 @@ export default function SettingsPage() {
     }
 
     loadSettings()
+    loadClinic()
     loadUsers()
     loadPersonalProfile()
     
@@ -175,6 +181,11 @@ export default function SettingsPage() {
   const handleInputChange = (field: keyof Settings, value: string | number | boolean) => {
     const newSettings = { ...localSettings, [field]: value }
     setLocalSettings(newSettings)
+  }
+
+  const handleClinicChange = (field: keyof Clinic, value: any) => {
+    const updated = { ...localClinic, [field]: value }
+    setLocalClinic(updated)
   }
 
   const handlePersonalProfileChange = (field: keyof User, value: string) => {
@@ -202,8 +213,36 @@ export default function SettingsPage() {
       setSaving(true)
       setSaveSuccess(false)
       
-      // Save clinic settings
-      const updatedSettings = await updateSettings(localSettings)
+      // Save clinic info in Clinic table
+      if (currentClinic?.id) {
+        const clinicPayload: Partial<Clinic> = {
+          clinic_name: localClinic.clinic_name || '',
+          clinic_position: localClinic.clinic_position || '',
+          email: localClinic.email || '',
+          phone_number: localClinic.phone_number || '',
+          clinic_address: localClinic.clinic_address || '',
+          clinic_city: localClinic.clinic_city || '',
+          clinic_postal_code: localClinic.clinic_postal_code || '',
+          clinic_directions: localClinic.clinic_directions || '',
+          clinic_website: localClinic.clinic_website || '',
+          manager_name: localClinic.manager_name || '',
+          license_number: localClinic.license_number || ''
+        }
+        const clinicResp = await apiClient.updateClinic(currentClinic.id, clinicPayload)
+        if (clinicResp.error || !clinicResp.data) {
+          toast.error('שגיאה בשמירת פרטי המרפאה')
+          return
+        }
+        setLocalClinic(clinicResp.data as Clinic)
+      }
+      
+      // Save operational settings
+      const settingsToSave = {
+        ...localSettings,
+        clinic_id: localSettings.clinic_id || currentClinic?.id,
+        id: localSettings.id,
+      } as Settings
+      const updatedSettings = await updateSettings(settingsToSave)
       if (!updatedSettings) {
         toast.error('שגיאה בשמירת הגדרות המרפאה')
         return
@@ -547,11 +586,11 @@ export default function SettingsPage() {
                       <CardContent>
                         <div className="grid grid-cols-2 gap-4">
                           <div className="space-y-2">
-                            <Label htmlFor="clinic_name" className="text-right block text-sm">שם המרפאה</Label>
-                            <Input
-                              id="clinic_name"
-                              value={localSettings.clinic_name || ''}
-                              onChange={(e) => handleInputChange('clinic_name', e.target.value)}
+                          <Label htmlFor="clinic_name" className="text-right block text-sm">שם המרפאה למסמכים</Label>
+                          <Input
+                            id="clinic_name"
+                            value={localClinic.clinic_name || ''}
+                            onChange={(e) => handleClinicChange('clinic_name', e.target.value)}
                               placeholder="הזן שם המרפאה"
                               className="text-right  h-9"
                               dir="rtl"
@@ -559,10 +598,10 @@ export default function SettingsPage() {
                           </div>
                           <div className="space-y-2">
                             <Label htmlFor="manager_name" className="text-right block text-sm">שם המנהל</Label>
-                            <Input
-                              id="manager_name"
-                              value={localSettings.manager_name || ''}
-                              onChange={(e) => handleInputChange('manager_name', e.target.value)}
+                          <Input
+                            id="manager_name"
+                            value={localClinic.manager_name || ''}
+                            onChange={(e) => handleClinicChange('manager_name', e.target.value)}
                               placeholder="הזן שם המנהל"
                               className="text-right  h-9"
                               dir="rtl"
@@ -570,10 +609,10 @@ export default function SettingsPage() {
                           </div>
                           <div className="space-y-2">
                             <Label htmlFor="clinic_website" className="text-right block text-sm">אתר אינטרנט</Label>
-                            <Input
-                              id="clinic_website"
-                              value={localSettings.clinic_website || ''}
-                              onChange={(e) => handleInputChange('clinic_website', e.target.value)}
+                          <Input
+                            id="clinic_website"
+                            value={localClinic.clinic_website || ''}
+                            onChange={(e) => handleClinicChange('clinic_website', e.target.value)}
                               placeholder="https://www.clinic.com"
                               className="text-right  h-9"
                               dir="rtl"
@@ -581,10 +620,10 @@ export default function SettingsPage() {
                           </div>
                           <div className="space-y-2">
                             <Label htmlFor="clinic_position" className="text-right block text-sm">מיקום נוסף</Label>
-                            <Input
-                              id="clinic_position"
-                              value={localSettings.clinic_position || ''}
-                              onChange={(e) => handleInputChange('clinic_position', e.target.value)}
+                          <Input
+                            id="clinic_position"
+                            value={localClinic.clinic_position || ''}
+                            onChange={(e) => handleClinicChange('clinic_position', e.target.value)}
                               placeholder="קומה, חדר וכו'"
                               className="text-right  h-9"
                               dir="rtl"
@@ -611,8 +650,8 @@ export default function SettingsPage() {
                                 <Input
                                   id="clinic_email"
                                   type="email"
-                                  value={localSettings.clinic_email || ''}
-                                  onChange={(e) => handleInputChange('clinic_email', e.target.value)}
+                                  value={localClinic.email || ''}
+                                  onChange={(e) => handleClinicChange('email', e.target.value)}
                                   placeholder="clinic@example.com"
                                   className="text-right  h-9"
                                   dir="rtl"
@@ -622,8 +661,8 @@ export default function SettingsPage() {
                                 <Label htmlFor="clinic_phone" className="text-right block text-sm">טלפון</Label>
                                 <Input
                                   id="clinic_phone"
-                                  value={localSettings.clinic_phone || ''}
-                                  onChange={(e) => handleInputChange('clinic_phone', e.target.value)}
+                                  value={localClinic.phone_number || ''}
+                                  onChange={(e) => handleClinicChange('phone_number', e.target.value)}
                                   placeholder="050-1234567"
                                   className="text-right  h-9"
                                   dir="rtl"
@@ -640,8 +679,8 @@ export default function SettingsPage() {
                                 <Label htmlFor="clinic_address" className="text-right block text-sm">רחוב ומספר</Label>
                                 <Input
                                   id="clinic_address"
-                                  value={localSettings.clinic_address || ''}
-                                  onChange={(e) => handleInputChange('clinic_address', e.target.value)}
+                                  value={localClinic.clinic_address || ''}
+                                  onChange={(e) => handleClinicChange('clinic_address', e.target.value)}
                                   placeholder="רחוב הרצל 123"
                                   className="text-right  h-9"
                                   dir="rtl"
@@ -651,8 +690,8 @@ export default function SettingsPage() {
                                 <Label htmlFor="clinic_city" className="text-right block text-sm">עיר</Label>
                                 <Input
                                   id="clinic_city"
-                                  value={localSettings.clinic_city || ''}
-                                  onChange={(e) => handleInputChange('clinic_city', e.target.value)}
+                                  value={localClinic.clinic_city || ''}
+                                  onChange={(e) => handleClinicChange('clinic_city', e.target.value)}
                                   placeholder="תל אביב"
                                   className="text-right  h-9"
                                   dir="rtl"
@@ -669,8 +708,8 @@ export default function SettingsPage() {
                                 <Label htmlFor="clinic_postal_code" className="text-right block text-sm">מיקוד</Label>
                                 <Input
                                   id="clinic_postal_code"
-                                  value={localSettings.clinic_postal_code || ''}
-                                  onChange={(e) => handleInputChange('clinic_postal_code', e.target.value)}
+                                  value={localClinic.clinic_postal_code || ''}
+                                  onChange={(e) => handleClinicChange('clinic_postal_code', e.target.value)}
                                   placeholder="12345"
                                   className="text-right  h-9"
                                   dir="rtl"
@@ -680,8 +719,8 @@ export default function SettingsPage() {
                                 <Label htmlFor="clinic_directions" className="text-right block text-sm">הוראות הגעה</Label>
                                 <Input
                                   id="clinic_directions"
-                                  value={localSettings.clinic_directions || ''}
-                                  onChange={(e) => handleInputChange('clinic_directions', e.target.value)}
+                                  value={localClinic.clinic_directions || ''}
+                                  onChange={(e) => handleClinicChange('clinic_directions', e.target.value)}
                                   placeholder="ליד הפארק, קומה 2"
                                   className="text-right  h-9"
                                   dir="rtl"
@@ -1176,9 +1215,7 @@ export default function SettingsPage() {
                     </Card>
                   </TabsContent>
 
-                  <TabsContent value="server" className="space-y-6 mt-0">
-                    <ServerConnectionSettings />
-                  </TabsContent>
+                  
                   
                   <TabsContent value="field-data" className="space-y-6 mt-0">
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -1492,7 +1529,6 @@ export default function SettingsPage() {
                     <TabsTrigger value="preferences" className="w-full justify-end text-right">ניהול זמן</TabsTrigger>
                     <TabsTrigger value="notifications" className="w-full justify-end text-right">התראות</TabsTrigger>
                     <TabsTrigger value="email" className="w-full justify-end text-right">הגדרות אימייל</TabsTrigger>
-                    <TabsTrigger value="server" className="w-full justify-end text-right">חיבור לשרת</TabsTrigger>
                     <TabsTrigger value="personal-profile" className="w-full justify-end text-right">פרופיל אישי</TabsTrigger>
                     {currentUser?.role === 'company_ceo' && (
                       <TabsTrigger value="users" className="w-full justify-end text-right">ניהול משתמשים</TabsTrigger>
@@ -1511,6 +1547,7 @@ export default function SettingsPage() {
         onClose={() => setShowUserModal(false)}
         editingUser={editingUser}
         currentUser={currentUser}
+        defaultClinicId={currentClinic?.id}
         onUserSaved={(newUser) => {
           setUsers(prev => [...prev, newUser])
         }}
