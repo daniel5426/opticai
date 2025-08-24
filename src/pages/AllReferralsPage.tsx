@@ -1,29 +1,27 @@
 import React, { useState, useEffect } from "react"
 import { SiteHeader } from "@/components/site-header"
-import { getAllReferrals } from "@/lib/db/referral-db"
-import { getAllClients } from "@/lib/db/clients-db"
-import { Referral, Client } from "@/lib/db/schema-interface"
+import { getPaginatedReferrals } from "@/lib/db/referral-db"
+import { Referral } from "@/lib/db/schema-interface"
 import { ReferralTable } from "@/components/referral-table"
-import { ClientSelectModal } from "@/components/ClientSelectModal"
 import { useNavigate } from "@tanstack/react-router"
 import { useUser } from "@/contexts/UserContext"
 
 export default function AllReferralsPage() {
   const { currentClinic } = useUser()
   const [referrals, setReferrals] = useState<Referral[]>([])
-  const [clients, setClients] = useState<Client[]>([])
   const [loading, setLoading] = useState(true)
+  const [page, setPage] = useState(1)
+  const [pageSize] = useState(25)
+  const [total, setTotal] = useState(0)
   const navigate = useNavigate()
 
   const loadData = async () => {
     try {
       setLoading(true)
-      const [referralsData, clientsData] = await Promise.all([
-        getAllReferrals(currentClinic?.id),
-        getAllClients(currentClinic?.id)
-      ])
-      setReferrals(referralsData)
-      setClients(clientsData)
+      const offset = (page - 1) * pageSize
+      const { items, total } = await getPaginatedReferrals(currentClinic?.id, { limit: pageSize, offset, order: 'date_desc' })
+      setReferrals(items)
+      setTotal(total)
     } catch (error) {
       console.error('Error loading data:', error)
     } finally {
@@ -35,10 +33,16 @@ export default function AllReferralsPage() {
     if (currentClinic) {
       loadData()
     }
-  }, [currentClinic])
+  }, [currentClinic, page, pageSize])
 
   const handleReferralDeleted = (deletedReferralId: number) => {
     setReferrals(prevReferrals => prevReferrals.filter(referral => referral.id !== deletedReferralId))
+    // Move to previous page if we deleted the last item on the current page
+    if (referrals.length === 1 && page > 1) {
+      setPage(page - 1)
+    } else {
+      setTotal(prev => prev - 1)
+    }
   }
 
   const handleReferralDeleteFailed = () => {
@@ -62,6 +66,7 @@ export default function AllReferralsPage() {
           onReferralDeleteFailed={handleReferralDeleteFailed}
           clientId={0}
           loading={loading}
+          pagination={{ page, pageSize, total, setPage }}
         />
       </div>
     </>

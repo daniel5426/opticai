@@ -8,30 +8,6 @@ from schemas import ReferralCreate, ReferralUpdate, Referral as ReferralSchema
 
 router = APIRouter(prefix="/referrals", tags=["referrals"])
 
-@router.post("/", response_model=ReferralSchema)
-def create_referral(referral: ReferralCreate, db: Session = Depends(get_db)):
-    db_referral = Referral(**referral.dict())
-    db.add(db_referral)
-    db.commit()
-    db.refresh(db_referral)
-    # bump client_updated_date
-    try:
-        if db_referral.client_id:
-            client = db.query(Client).filter(Client.id == db_referral.client_id).first()
-            if client:
-                client.client_updated_date = func.now()
-                db.commit()
-    except Exception:
-        pass
-    return db_referral
-
-@router.get("/{referral_id}", response_model=ReferralSchema)
-def get_referral(referral_id: int, db: Session = Depends(get_db)):
-    referral = db.query(Referral).filter(Referral.id == referral_id).first()
-    if not referral:
-        raise HTTPException(status_code=404, detail="Referral not found")
-    return referral
-
 @router.get("/paginated")
 def get_referrals_paginated(
     clinic_id: Optional[int] = Query(None, description="Filter by clinic ID"),
@@ -58,6 +34,30 @@ def get_referrals_paginated(
     items = base.offset(offset).limit(limit).all()
     
     return {"items": items, "total": total}
+
+@router.post("/", response_model=ReferralSchema)
+def create_referral(referral: ReferralCreate, db: Session = Depends(get_db)):
+    db_referral = Referral(**referral.dict())
+    db.add(db_referral)
+    db.commit()
+    db.refresh(db_referral)
+    # bump client_updated_date
+    try:
+        if db_referral.client_id:
+            client = db.query(Client).filter(Client.id == db_referral.client_id).first()
+            if client:
+                client.client_updated_date = func.now()
+                db.commit()
+    except Exception:
+        pass
+    return db_referral
+
+@router.get("/{referral_id}", response_model=ReferralSchema)
+def get_referral(referral_id: int, db: Session = Depends(get_db)):
+    referral = db.query(Referral).filter(Referral.id == referral_id).first()
+    if not referral:
+        raise HTTPException(status_code=404, detail="Referral not found")
+    return referral
 
 @router.get("/", response_model=List[ReferralSchema])
 def get_all_referrals(

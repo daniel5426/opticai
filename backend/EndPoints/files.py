@@ -73,13 +73,6 @@ async def create_file(
         pass
     return db_file
 
-@router.get("/{file_id}", response_model=FileSchema)
-def get_file(file_id: int, db: Session = Depends(get_db)):
-    file = db.query(FileModel).filter(FileModel.id == file_id).first()
-    if not file:
-        raise HTTPException(status_code=404, detail="File not found")
-    return file
-
 @router.get("/paginated")
 def get_files_paginated(
     clinic_id: Optional[int] = Query(None, description="Filter by clinic ID"),
@@ -106,6 +99,13 @@ def get_files_paginated(
     items = base.offset(offset).limit(limit).all()
     
     return {"items": items, "total": total}
+
+@router.get("/{file_id}", response_model=FileSchema)
+def get_file(file_id: int, db: Session = Depends(get_db)):
+    file = db.query(FileModel).filter(FileModel.id == file_id).first()
+    if not file:
+        raise HTTPException(status_code=404, detail="File not found")
+    return file
 
 @router.get("/", response_model=List[FileSchema])
 def get_all_files(

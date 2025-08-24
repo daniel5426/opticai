@@ -7,21 +7,6 @@ from schemas import FamilyCreate, FamilyUpdate, Family as FamilySchema
 
 router = APIRouter(prefix="/families", tags=["families"])
 
-@router.post("/", response_model=FamilySchema)
-def create_family(family: FamilyCreate, db: Session = Depends(get_db)):
-    db_family = Family(**family.dict())
-    db.add(db_family)
-    db.commit()
-    db.refresh(db_family)
-    return db_family
-
-@router.get("/{family_id}", response_model=FamilySchema)
-def get_family(family_id: int, db: Session = Depends(get_db)):
-    family = db.query(Family).filter(Family.id == family_id).first()
-    if not family:
-        raise HTTPException(status_code=404, detail="Family not found")
-    return family
-
 @router.get("/paginated")
 def get_families_paginated(
     clinic_id: Optional[int] = Query(None, description="Filter by clinic ID"),
@@ -52,6 +37,21 @@ def get_families_paginated(
     items = base.offset(offset).limit(limit).all()
     
     return {"items": items, "total": total}
+
+@router.post("/", response_model=FamilySchema)
+def create_family(family: FamilyCreate, db: Session = Depends(get_db)):
+    db_family = Family(**family.dict())
+    db.add(db_family)
+    db.commit()
+    db.refresh(db_family)
+    return db_family
+
+@router.get("/{family_id}", response_model=FamilySchema)
+def get_family(family_id: int, db: Session = Depends(get_db)):
+    family = db.query(Family).filter(Family.id == family_id).first()
+    if not family:
+        raise HTTPException(status_code=404, detail="Family not found")
+    return family
 
 @router.get("/", response_model=List[FamilySchema])
 def get_all_families(

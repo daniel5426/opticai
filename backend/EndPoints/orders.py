@@ -8,30 +8,6 @@ from schemas import OrderCreate, OrderUpdate, Order as OrderSchema, BillingCreat
 
 router = APIRouter(prefix="/orders", tags=["orders"])
 
-@router.post("/", response_model=OrderSchema)
-def create_order(order: OrderCreate, db: Session = Depends(get_db)):
-    db_order = Order(**order.dict())
-    db.add(db_order)
-    db.commit()
-    db.refresh(db_order)
-    # bump client_updated_date
-    try:
-        if db_order.client_id:
-            client = db.query(Client).filter(Client.id == db_order.client_id).first()
-            if client:
-                client.client_updated_date = func.now()
-                db.commit()
-    except Exception:
-        pass
-    return db_order
-
-@router.get("/{order_id}", response_model=OrderSchema)
-def get_order(order_id: int, db: Session = Depends(get_db)):
-    order = db.query(Order).filter(Order.id == order_id).first()
-    if not order:
-        raise HTTPException(status_code=404, detail="Order not found")
-    return order
-
 @router.get("/paginated")
 def get_orders_paginated(
     clinic_id: Optional[int] = Query(None, description="Filter by clinic ID"),
@@ -58,6 +34,30 @@ def get_orders_paginated(
     items = base.offset(offset).limit(limit).all()
     
     return {"items": items, "total": total}
+
+@router.post("/", response_model=OrderSchema)
+def create_order(order: OrderCreate, db: Session = Depends(get_db)):
+    db_order = Order(**order.dict())
+    db.add(db_order)
+    db.commit()
+    db.refresh(db_order)
+    # bump client_updated_date
+    try:
+        if db_order.client_id:
+            client = db.query(Client).filter(Client.id == db_order.client_id).first()
+            if client:
+                client.client_updated_date = func.now()
+                db.commit()
+    except Exception:
+        pass
+    return db_order
+
+@router.get("/{order_id}", response_model=OrderSchema)
+def get_order(order_id: int, db: Session = Depends(get_db)):
+    order = db.query(Order).filter(Order.id == order_id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    return order
 
 @router.get("/", response_model=List[OrderSchema])
 def get_all_orders(

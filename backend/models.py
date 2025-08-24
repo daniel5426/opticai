@@ -137,7 +137,6 @@ class Client(Base):
     clinic = relationship("Clinic", back_populates="clients")
     family = relationship("Family", back_populates="clients")
 
-# Indexes to speed up common client list queries
 class Settings(Base):
     __tablename__ = "settings"
     
@@ -225,6 +224,7 @@ class ExamLayoutInstance(Base):
     exam_data = Column(JSON, nullable=False, default={})
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
  
 
 
@@ -579,15 +579,8 @@ class LookupAdvisor(Base):
     name = Column(String, nullable=False, unique=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now()) 
 
-# Indexes to speed up common filters and sorting on exams list
-Index('ix_optical_exams_clinic_id', OpticalExam.clinic_id)
-Index('ix_optical_exams_type', OpticalExam.type)
-Index('ix_optical_exams_clinic_type_date', OpticalExam.clinic_id, OpticalExam.type, OpticalExam.exam_date)
 
-Index('ix_exam_layout_instances_exam_id', ExamLayoutInstance.exam_id)
-Index('ix_exam_layout_instances_exam_id_is_active', ExamLayoutInstance.exam_id, ExamLayoutInstance.is_active)
-Index('ix_exam_layout_instances_exam_id_order', ExamLayoutInstance.exam_id, ExamLayoutInstance.order)
-
+# Indexes to speed up common client list queries
 Index('ix_clients_clinic_id', Client.clinic_id)
 Index('ix_clients_clinic_id_id_desc', Client.clinic_id, Client.id.desc())
 
@@ -618,3 +611,12 @@ Index('ix_families_clinic_created', Family.clinic_id, Family.created_date.desc()
 # Indexes for users table
 Index('ix_users_clinic_id', User.clinic_id)
 Index('ix_users_is_active', User.is_active)
+
+Index('ix_exam_layout_instances_exam_id', ExamLayoutInstance.exam_id)
+Index('ix_exam_layout_instances_exam_id_is_active', ExamLayoutInstance.exam_id, ExamLayoutInstance.is_active)
+Index('ix_exam_layout_instances_exam_id_order', ExamLayoutInstance.exam_id, ExamLayoutInstance.order)
+
+# Indexes to speed up common filters and sorting on exams list
+Index('ix_optical_exams_clinic_id', OpticalExam.clinic_id)
+Index('ix_optical_exams_type', OpticalExam.type)
+Index('ix_optical_exams_clinic_type_date', OpticalExam.clinic_id, OpticalExam.type, OpticalExam.exam_date)
