@@ -15,6 +15,7 @@ import { PlusIcon, Trash2 } from "lucide-react"
 import { CustomModal } from "@/components/ui/custom-modal"
 import { deleteClient } from "@/lib/db/clients-db"
 import { toast } from "sonner"
+import { Skeleton } from "@/components/ui/skeleton"
 
 interface ClientsTableProps {
   data: Client[]
@@ -28,6 +29,7 @@ interface ClientsTableProps {
   hideNewButton?: boolean
   compactMode?: boolean
   loading?: boolean
+  pagination?: { page: number; pageSize: number; total: number; setPage: (p: number) => void }
 }
 
 export function ClientsTable({ 
@@ -41,7 +43,8 @@ export function ClientsTable({
   hideSearch = false,
   hideNewButton = false,
   compactMode = false,
-  loading = false
+  loading = false,
+  pagination
 }: ClientsTableProps) {
   const [internalSearchQuery, setInternalSearchQuery] = React.useState("")
   const [isDeleteModalOpen, setIsDeleteModalOpen] = React.useState(false)
@@ -156,8 +159,43 @@ export function ClientsTable({
           </TableHeader>
           <TableBody>
             {loading ? (
-              Array.from({ length: 10 }).map((_, i) => (
+              Array.from({ length: 7 }).map((_, i) => (
                 <TableRow key={i}>
+                  <TableCell>
+                    <Skeleton className="w-[20%] h-4 my-2" />
+                  </TableCell>
+                  <TableCell>
+                    <Skeleton className="w-[70%] h-4 my-2" />
+                  </TableCell>
+                  <TableCell>
+                    <Skeleton className="w-[70%] h-4 my-2" />
+                  </TableCell>
+                  {!compactMode && (
+                    <TableCell>
+                      <Skeleton className="w-[70%] h-4 my-2" />
+                    </TableCell>
+                  )}
+                  <TableCell>
+                    <Skeleton className="w-[70%] h-4 my-2" />
+                  </TableCell>
+                  {!compactMode && (
+                    <TableCell>
+                      <Skeleton className="w-[70%] h-4 my-2" />
+                    </TableCell>
+                  )}
+                  {!compactMode && (
+                    <TableCell>
+                      <Skeleton className="w-[70%] h-4 my-2" />
+                    </TableCell>
+                  )}
+                  {showFamilyColumn && (
+                    <TableCell>
+                      <Skeleton className="w-[70%] h-4 my-2" />
+                    </TableCell>
+                  )}
+                  <TableCell>
+                    <Skeleton className="w-[70%] h-4 my-2" />
+                  </TableCell>
                 </TableRow>
               ))
             ) : filteredData.length > 0 ? (
@@ -202,6 +240,28 @@ export function ClientsTable({
           </TableBody>
         </Table>
       </div>
+
+      {pagination && (
+        <div className="flex items-center justify-between mt-4">
+          <div className="text-sm text-muted-foreground">
+            עמוד {pagination.page} מתוך {Math.max(1, Math.ceil((pagination.total || 0) / (pagination.pageSize || 1)))} · סה"כ {pagination.total || 0}
+          </div>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={loading || pagination.page <= 1}
+              onClick={() => pagination.setPage(Math.max(1, pagination.page - 1))}
+            >הקודם</Button>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={loading || pagination.page >= Math.ceil((pagination.total || 0) / (pagination.pageSize || 1))}
+              onClick={() => pagination.setPage(pagination.page + 1)}
+            >הבא</Button>
+          </div>
+        </div>
+      )}
 
       <CustomModal
         isOpen={isDeleteModalOpen}

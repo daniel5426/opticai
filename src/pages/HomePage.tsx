@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useRef } from "react"
 import { SiteHeader } from "@/components/site-header"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Calendar } from "@/components/ui/calendar"
+import { Calendar, CalendarDayButton } from "@/components/ui/calendar"
+import { isJewishHoliday, getJewishHolidayName } from "@/lib/jewish-holidays"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -351,6 +353,30 @@ export default function HomePage() {
 
   const visibleDates = getVisibleDates()
 
+  // Vacation helpers
+  const parseDateOnly = (dateStr?: string) => {
+    if (!dateStr) return null
+    try {
+      return new Date(`${dateStr}T00:00:00`)
+    } catch {
+      return null
+    }
+  }
+
+  const isUserOnVacation = (userId?: number, dateStr?: string) => {
+    console.log('isUserOnVacation', userId, dateStr)
+    if (!userId || !dateStr) return false
+    const user = users.find(u => u.id === userId)
+    if (!user) return false
+    const allVacations: string[] = [
+      ...(user.system_vacation_dates || []),
+      ...(user.added_vacation_dates || [])
+    ]
+    console.log('allVacations', allVacations, allVacations.some(d => d === dateStr))
+    console.log(dateStr)
+    return allVacations.some(d => d === dateStr)
+  }
+
   // Filter appointments for visible dates
   const getAppointmentsForDate = (date: Date) => {
     return appointments.filter(appointment => {
@@ -522,12 +548,13 @@ export default function HomePage() {
 
   // Handle time slot click for creating appointments
   const handleTimeSlotClick = (date: Date, time: string) => {
+    const dateStr = format(date, 'yyyy-MM-dd')
     setSelectedTimeSlot({ date, time })
     resetAllForms()
     setFormData({
       client_id: 0,
       user_id: currentUser?.id || 0,
-      date: format(date, 'yyyy-MM-dd'),
+      date: dateStr,
       time: time,
       duration: APPOINTMENT_DURATION,
       exam_name: '',
@@ -786,6 +813,14 @@ export default function HomePage() {
       ))
 
       try {
+        if (updatedAppointment.date && isUserOnVacation(updatedAppointment.user_id, updatedAppointment.date)) {
+          toast.error('לא ניתן להעביר תור ליום חופשה של המשתמש')
+          // Rollback on invalid move
+          setAppointments(prev => prev.map(apt =>
+            apt.id === originalAppointment.id ? originalAppointment : apt
+          ))
+          return
+        }
         const result = await updateAppointment(updatedAppointment)
         if (result) {
           toast.success("התור הועבר בהצלחה")
@@ -938,11 +973,11 @@ export default function HomePage() {
       setFormData({
         client_id: appointment.client_id,
         user_id: appointment.user_id || currentUser?.id || 0,
-        date: appointment.date || undefined,
-        time: appointment.time || undefined,
+        date: appointment.date || '',
+        time: appointment.time || '',
         duration: appointment.duration || APPOINTMENT_DURATION,
-        exam_name: appointment.exam_name || undefined,
-        note: appointment.note || undefined
+        exam_name: appointment.exam_name || '',
+        note: appointment.note || ''
       })
       setIsCreateModalOpen(true)
     } catch (error) {
@@ -975,6 +1010,10 @@ export default function HomePage() {
 
   const handleSaveAppointment = async () => {
     try {
+      if (formData.date && isUserOnVacation(formData.user_id, formData.date)) {
+        toast.error('לא ניתן לקבוע תור ביום חופשה של המשתמש')
+        return
+      }
       if (!formData.client_id || formData.client_id <= 0) {
         toast.error("יש לבחור לקוח")
         return
@@ -1094,7 +1133,7 @@ export default function HomePage() {
       <>
         <SiteHeader title={ "לוח זמנים"} />
         <div className="flex flex-col bg-muted/50 flex-1 gap-6" dir="rtl" style={{ scrollbarWidth: 'none' }}>
-          <div className="flex items-center justify-between p-4 lg:p-6 pb-0">
+          <div className="flex items-center justify-between p-6 pb-5">
             <div className="flex items-center gap-4">
               <Skeleton className="h-9 w-16" />
               <div className="flex items-center gap-2">
@@ -1114,7 +1153,7 @@ export default function HomePage() {
             <div className="w-72 space-y-4">
               <Card className="bg-card shadow-md border-none p-2 justify-center">
                 <CardContent className="p-0 justify-center">
-                  <Skeleton className="w-full h-[300px]" />
+                  <Skeleton className="w-full h-[350px]" />
                 </CardContent>
               </Card>
 
@@ -1220,6 +1259,45 @@ export default function HomePage() {
                   onSelect={(date) => date && setCurrentDate(date)}
                   className="w-full justify-center"
                   locale={he}
+                  components={{
+                    DayButton: (props: any) => {
+                      const dateStr = format(props.day.date, 'yyyy-MM-dd')
+                      const isVacation = [
+                        ...(currentUser?.system_vacation_dates || []),
+                        ...(currentUser?.added_vacation_dates || [])
+                      ].includes(dateStr)
+                      const isHoliday = isJewishHoliday(dateStr)
+                      return (
+                        <div className="relative">
+                          <CalendarDayButton {...props} />
+                          {isVacation && (
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-red-500" />
+                                </TooltipTrigger>
+                                <TooltipContent side="top" align="end">
+                                  יום חופש
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          )}
+                          {!isVacation && isHoliday && (
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-blue-500" />
+                                </TooltipTrigger>
+                                <TooltipContent side="top" align="end">
+                                  {getJewishHolidayName(dateStr) || 'חג'}
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          )}
+                        </div>
+                      )
+                    }
+                  }}
                 />
               </CardContent>
             </Card>
@@ -1285,8 +1363,43 @@ export default function HomePage() {
                             setView('day')
                           }}
                         >
-                          <div className={`text-sm ${isCurrentDay ? 'font-bold text-primary' : ''}`}>
-                            {format(date, 'd')}
+                          <div className="relative">
+                            <div className={`text-sm ${isCurrentDay ? 'font-bold text-primary' : ''}`}>
+                              {format(date, 'd')}
+                            </div>
+                            {(() => {
+                              const dateStr = format(date, 'yyyy-MM-dd')
+                              const vac = [
+                                ...(currentUser?.system_vacation_dates || []),
+                                ...(currentUser?.added_vacation_dates || [])
+                              ].includes(dateStr)
+                              if (vac) {
+                                return (
+                                  <TooltipProvider>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <span className="absolute top-0 left-0 w-2 h-2 rounded-full bg-red-500" />
+                                      </TooltipTrigger>
+                                      <TooltipContent side="top" align="start">יום חופש</TooltipContent>
+                                    </Tooltip>
+                                  </TooltipProvider>
+                                )
+                              }
+                              const name = getJewishHolidayName(dateStr)
+                              if (name) {
+                                return (
+                                  <TooltipProvider>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <span className="absolute top-0 left-0 w-2 h-2 rounded-full bg-blue-500" />
+                                      </TooltipTrigger>
+                                      <TooltipContent side="top" align="start">{name}</TooltipContent>
+                                    </Tooltip>
+                                  </TooltipProvider>
+                                )
+                              }
+                              return null
+                            })()}
                           </div>
                           <div className="mt-1 space-y-1">
                             {dayAppointments.slice(0, 3).map((appointment) => (
@@ -1320,12 +1433,40 @@ export default function HomePage() {
                         <div className="w-16 h-10 border-l bg-transparent"></div>
                         {/* Day headers */}
                         <div className="flex-1 grid" style={{ gridTemplateColumns: `repeat(${visibleDates.length}, 1fr)` }}>
-                          {visibleDates.map((date, dateIndex) => (
-                            <div key={dateIndex} className={`h-10 flex items-center justify-center text-sm font-medium bg-transparent ${isToday(date) && view === 'week' ? 'bg-primary/10 text-primary' : ''
-                              } ${dateIndex < visibleDates.length - 1 ? "border-l" : ""} ${dateIndex === visibleDates.length - 1 ? "rounded-tr-md" : ""}`}>
-                              {view === 'week' ? format(date, 'EEE d/M', { locale: he }) : format(date, 'EEE d/M', { locale: he })}
-                            </div>
-                          ))}
+                          {visibleDates.map((date, dateIndex) => {
+                            const dateStr = format(date, 'yyyy-MM-dd')
+                            const vacation = [
+                              ...(currentUser?.system_vacation_dates || []),
+                              ...(currentUser?.added_vacation_dates || [])
+                            ].includes(dateStr)
+                            const holiday = isJewishHoliday(dateStr)
+                            return (
+                              <div key={dateIndex} className={`relative h-10 flex items-center justify-center text-sm font-medium bg-transparent ${isToday(date) && view === 'week' ? 'bg-primary/10 text-primary' : ''
+                                } ${dateIndex < visibleDates.length - 1 ? "border-l" : ""} ${dateIndex === visibleDates.length - 1 ? "rounded-tr-md" : ""}`}>
+                                {view === 'week' ? format(date, 'EEE d/M', { locale: he }) : format(date, 'EEE d/M', { locale: he })}
+                                {vacation && (
+                                  <TooltipProvider>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-red-500" />
+                                      </TooltipTrigger>
+                                      <TooltipContent side="top" align="end">יום חופש</TooltipContent>
+                                    </Tooltip>
+                                  </TooltipProvider>
+                                )}
+                                {!vacation && holiday && (
+                                  <TooltipProvider>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-blue-500" />
+                                      </TooltipTrigger>
+                                      <TooltipContent side="top" align="end">{getJewishHolidayName(dateStr) || 'חג'}</TooltipContent>
+                                    </Tooltip>
+                                  </TooltipProvider>
+                                )}
+                              </div>
+                            )
+                          })}
                         </div>
                       </div>
 
@@ -1645,6 +1786,7 @@ export default function HomePage() {
                 <UserSelect
                   value={formData.user_id}
                   onValueChange={(userId) => setFormData(prev => ({ ...prev, user_id: userId }))}
+                  users={users}
                 />
               </div>
             </div>

@@ -5,6 +5,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
+import { NotesCard } from "@/components/ui/notes-card"
 import { Plus, Edit, Trash2, Save, X } from "lucide-react"
 import { Billing, OrderLineItem } from "@/lib/db/schema-interface"
 
@@ -520,15 +521,12 @@ export function BillingTab({
       </Card>
 
       <div className="mt-6">
-        <Label className="text-sm">הערות</Label>
-        <Textarea
-          name="notes"
+        <NotesCard
+          title="הערות"
           value={billingFormData.notes || ''}
-          onChange={handleBillingInputChange}
+          onChange={(value) => setBillingFormData(prev => ({ ...prev, notes: value }))}
           disabled={!isEditing}
-          className="mt-1.5"
           placeholder="הערות נוספות..."
-          rows={3}
         />
       </div>
     </div>

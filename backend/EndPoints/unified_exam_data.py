@@ -2,8 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.orm import Session
 from typing import Dict, Any
 from database import get_db
-from models import ExamData, ExamLayoutInstance
-from schemas import ExamDataCreate, ExamDataUpdate, ExamData as ExamDataSchema
+from models import ExamLayoutInstance
+# Unified exam data now stored on ExamLayoutInstance.exam_data
 from auth import get_current_user
 from models import User
 import json
@@ -30,15 +30,8 @@ async def get_exam_data(
             detail="Layout instance not found"
         )
     
-    # Get exam data
-    exam_data = db.query(ExamData).filter(
-        ExamData.layout_instance_id == layout_instance_id
-    ).first()
-    
-    if not exam_data:
-        return {}
-    
-    return exam_data.exam_data
+    # Return instance-level JSON
+    return layout_instance.exam_data or {}
 
 @router.post("/{layout_instance_id}")
 async def save_exam_data(
@@ -81,31 +74,12 @@ async def save_exam_data(
             detail="Layout instance not found"
         )
     
-    # Check if exam data already exists
-    existing_data = db.query(ExamData).filter(
-        ExamData.layout_instance_id == layout_instance_id
-    ).first()
-    
-    print(f"DEBUG: Existing data found: {existing_data is not None}")
-    
-    if existing_data:
-        # Update existing data
-        existing_data.exam_data = exam_data
-        db.commit()
-        db.refresh(existing_data)
-        print(f"DEBUG: Updated existing exam data")
-        return {"success": True, "message": "Exam data updated successfully"}
-    else:
-        # Create new data
-        new_exam_data = ExamData(
-            layout_instance_id=layout_instance_id,
-            exam_data=exam_data
-        )
-        db.add(new_exam_data)
-        db.commit()
-        db.refresh(new_exam_data)
-        print(f"DEBUG: Created new exam data")
-        return {"success": True, "message": "Exam data created successfully"}
+    # Upsert directly on instance row
+    layout_instance.exam_data = exam_data
+    db.commit()
+    db.refresh(layout_instance)
+    print(f"DEBUG: Upserted exam data on instance")
+    return {"success": True, "message": "Exam data saved successfully"}
 
 @router.delete("/{layout_instance_id}")
 async def delete_exam_data(
@@ -127,17 +101,10 @@ async def delete_exam_data(
             detail="Layout instance not found"
         )
     
-    # Delete exam data
-    exam_data = db.query(ExamData).filter(
-        ExamData.layout_instance_id == layout_instance_id
-    ).first()
-    
-    if exam_data:
-        db.delete(exam_data)
-        db.commit()
-        return {"success": True, "message": "Exam data deleted successfully"}
-    else:
-        return {"success": True, "message": "No exam data found to delete"}
+    # Clear instance JSON
+    layout_instance.exam_data = {}
+    db.commit()
+    return {"success": True, "message": "Exam data cleared successfully"}
 
 @router.get("/{layout_instance_id}/component/{component_type}")
 async def get_exam_component_data(
@@ -160,15 +127,10 @@ async def get_exam_component_data(
             detail="Layout instance not found"
         )
     
-    # Get exam data
-    exam_data = db.query(ExamData).filter(
-        ExamData.layout_instance_id == layout_instance_id
-    ).first()
-    
-    if not exam_data or component_type not in exam_data.exam_data:
+    data = layout_instance.exam_data or {}
+    if component_type not in data:
         return None
-    
-    return exam_data.exam_data[component_type]
+    return data[component_type]
 
 @router.post("/{layout_instance_id}/component/{component_type}")
 async def save_exam_component_data(
@@ -192,21 +154,10 @@ async def save_exam_component_data(
             detail="Layout instance not found"
         )
     
-    # Get or create exam data
-    exam_data = db.query(ExamData).filter(
-        ExamData.layout_instance_id == layout_instance_id
-    ).first()
-    
-    if not exam_data:
-        exam_data = ExamData(
-            layout_instance_id=layout_instance_id,
-            exam_data={}
-        )
-        db.add(exam_data)
-    
-    # Update the specific component
-    exam_data.exam_data[component_type] = component_data
+    # Update the specific component on instance JSON
+    merged = dict(layout_instance.exam_data or {})
+    merged[component_type] = component_data
+    layout_instance.exam_data = merged
     db.commit()
-    db.refresh(exam_data)
-    
-    return {"success": True, "message": f"{component_type} data saved successfully"} 
+    db.refresh(layout_instance)
+    return {"success": True, "message": f"{component_type} data saved successfully"}

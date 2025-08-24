@@ -6,6 +6,7 @@ pydantic==2.10.0
 sqlalchemy==2.0.23
 psycopg2-binary==2.9.9
 alembic==1.13.1
+supabase==2.6.0
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
 python-multipart==0.0.6
@@ -13,3 +14,5 @@ asyncpg==0.29.0
 langchain>=0.3.0,<0.4.0
 langgraph>=0.2.22,<0.3.0
 langchain-openai>=0.2.3,<0.3.0
+orjson==3.10.7
+requests>=2.32.3

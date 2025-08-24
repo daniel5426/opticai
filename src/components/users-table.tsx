@@ -15,6 +15,7 @@ import { CustomModal } from "@/components/ui/custom-modal"
 import { deleteUser, updateUser } from "@/lib/db/users-db"
 import { toast } from "sonner"
 import { Badge } from "@/components/ui/badge"
+import { Skeleton } from "@/components/ui/skeleton"
 
 interface UserWithClinic extends User {
   clinic_name?: string;
@@ -33,6 +34,7 @@ interface UsersTableProps {
   onNewUser?: () => void
   onEditUser?: (user: UserWithClinic) => void
   loading?: boolean
+  pagination?: { page: number; pageSize: number; total: number; setPage: (p: number) => void }
 }
 
 export function UsersTable({ 
@@ -47,7 +49,8 @@ export function UsersTable({
   hideNewButton = false,
   onNewUser,
   onEditUser,
-  loading = false
+  loading = false,
+  pagination
 }: UsersTableProps) {
   const [internalSearchQuery, setInternalSearchQuery] = React.useState("")
   const [isDeleteModalOpen, setIsDeleteModalOpen] = React.useState(false)
@@ -69,7 +72,7 @@ export function UsersTable({
     if (searchQuery && filtered.length > 0) {
       filtered = filtered.filter((user) => {
         const searchableFields = [
-          user.username,
+          user.full_name || user.username,
           user.email,
           user.phone,
           user.clinic_name,
@@ -174,7 +177,7 @@ export function UsersTable({
           <TableHeader>
             <TableRow>
               <TableHead className="text-right">מס' משתמש</TableHead>
-              <TableHead className="text-right">שם משתמש</TableHead>
+              <TableHead className="text-right">שם מלא</TableHead>
               <TableHead className="text-right">תפקיד</TableHead>
               <TableHead className="text-right">אימייל</TableHead>
               <TableHead className="text-right">טלפון</TableHead>
@@ -185,15 +188,39 @@ export function UsersTable({
           </TableHeader>
           <TableBody>
             {loading ? (
-              Array.from({ length: 10 }).map((_, i) => (
+              Array.from({ length: 5 }).map((_, i) => (
                 <TableRow key={i}>
+                  <TableCell>
+                    <Skeleton className="w-[70%] h-4 my-2" />
+                  </TableCell>
+                  <TableCell>
+                    <Skeleton className="w-[70%] h-4 my-2" />
+                  </TableCell>
+                  <TableCell>
+                    <Skeleton className="w-[70%] h-4 my-2" />
+                  </TableCell>
+                  <TableCell>
+                    <Skeleton className="w-[70%] h-4 my-2" />
+                  </TableCell>
+                  <TableCell>
+                    <Skeleton className="w-[70%] h-4 my-2" />
+                  </TableCell>
+                  <TableCell>
+                    <Skeleton className="w-[70%] h-4 my-2 " />
+                  </TableCell>
+                  <TableCell>
+                    <Skeleton className="w-[70%] h-4 my-2" />
+                  </TableCell>
+                  <TableCell>
+                    <Skeleton className="w-[70%] h-4 my-2" />
+                  </TableCell>
                 </TableRow>
               ))
             ) : filteredData.length > 0 ? (
               filteredData.map((user) => (
                 <TableRow key={user.id}>
                   <TableCell className="font-medium">{user.id}</TableCell>
-                  <TableCell>{user.username || ""}</TableCell>
+                  <TableCell>{user.full_name || user.username || ""}</TableCell>
                   <TableCell>
                     <Badge className={getRoleBadgeColor(user.role)}>
                       {getRoleDisplayName(user.role)}
@@ -255,11 +282,33 @@ export function UsersTable({
         </Table>
       </div>
 
+      {pagination && (
+        <div className="flex items-center justify-between mt-4">
+          <div className="text-sm text-muted-foreground">
+            עמוד {pagination.page} מתוך {Math.max(1, Math.ceil((pagination.total || 0) / (pagination.pageSize || 1)))} · סה"כ {pagination.total || 0}
+          </div>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={loading || pagination.page <= 1}
+              onClick={() => pagination.setPage(Math.max(1, pagination.page - 1))}
+            >הקודם</Button>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={loading || pagination.page >= Math.ceil((pagination.total || 0) / (pagination.pageSize || 1))}
+              onClick={() => pagination.setPage(pagination.page + 1)}
+            >הבא</Button>
+          </div>
+        </div>
+      )}
+
       <CustomModal
         isOpen={isDeleteModalOpen}
         onClose={() => setIsDeleteModalOpen(false)}
         title="מחיקת משתמש"
-        description={userToDelete ? `האם אתה בטוח שברצונך למחוק את המשתמש ${userToDelete.username}? פעולה זו אינה הפיכה.` : "האם אתה בטוח שברצונך למחוק משתמש זה? פעולה זו אינה הפיכה."}
+        description={userToDelete ? `האם אתה בטוח שברצונך למחוק את המשתמש ${userToDelete.full_name || userToDelete.username}? פעולה זו אינה הפיכה.` : "האם אתה בטוח שברצונך למחוק משתמש זה? פעולה זו אינה הפיכה."}
         onConfirm={handleDeleteConfirm}
         confirmText="מחק"
         className="text-center"

@@ -27,9 +27,10 @@ interface OrdersTableProps {
   onOrderDeleted: (orderId: number) => void
   onOrderDeleteFailed: () => void
   loading: boolean
+  pagination?: { page: number; pageSize: number; total: number; setPage: (p: number) => void }
 }
 
-export function OrdersTable({ data, clientId, onOrderDeleted, onOrderDeleteFailed, loading }: OrdersTableProps) {
+export function OrdersTable({ data, clientId, onOrderDeleted, onOrderDeleteFailed, loading, pagination }: OrdersTableProps) {
   const { currentClinic } = useUser()
   const [searchQuery, setSearchQuery] = useState("")
   const [users, setUsers] = useState<User[]>([])
@@ -59,7 +60,7 @@ export function OrdersTable({ data, clientId, onOrderDeleted, onOrderDeleteFaile
   const getUserName = (userId?: number): string => {
     if (!userId) return ''
     const user = users.find(u => u.id === userId)
-    return user?.username || ''
+  return user?.full_name || user?.username || ''
   }
 
   const getClientName = (clientId: number): string => {
@@ -112,23 +113,43 @@ export function OrdersTable({ data, clientId, onOrderDeleted, onOrderDeleteFaile
             className="w-[250px] bg-card dark:bg-card" dir="rtl"
           />
         </div>
-        {clientId > 0 ? (
-          <Link to="/clients/$clientId/orders/new" params={{ clientId: String(clientId) }}>
-            <Button>הזמנה חדשה
-              <Plus className="h-4 w-4 mr-2" />
-              </Button>
-          </Link>
-        ) : (
-          <ClientSelectModal
-            triggerText="הזמנה חדשה"
-            onClientSelect={(selectedClientId) => {
-              navigate({
-                to: "/clients/$clientId/orders/new",
-                params: { clientId: String(selectedClientId) },
-              });
-            }}
-          />
-        )}
+        <div className="flex gap-2">
+          {clientId > 0 ? (
+            <>
+              <Link to="/clients/$clientId/orders/new" params={{ clientId: String(clientId) }}>
+                <Button>הזמנה חדשה
+                </Button>
+              </Link>
+              <Link to="/clients/$clientId/orders/new" params={{ clientId: String(clientId) }} search={{ type: 'contact' }}>
+                <Button variant="secondary">עדשות מגע
+                </Button>
+              </Link>
+            </>
+          ) : (
+            <>
+              <ClientSelectModal
+                triggerText="הזמנה חדשה"
+                onClientSelect={(selectedClientId) => {
+                  navigate({
+                    to: "/clients/$clientId/orders/new",
+                    params: { clientId: String(selectedClientId) },
+                  });
+                }}
+              />
+              <ClientSelectModal
+                triggerText="עדשות מגע"
+                triggerVariant="secondary"
+                onClientSelect={(selectedClientId) => {
+                  navigate({
+                    to: "/clients/$clientId/orders/new",
+                    params: { clientId: String(selectedClientId) },
+                    search: { type: 'contact' }
+                  });
+                }}
+              />
+            </>
+          )}
+        </div>
       </div>
 
       <div className="rounded-md border bg-card">
@@ -146,8 +167,31 @@ export function OrdersTable({ data, clientId, onOrderDeleted, onOrderDeleteFaile
           </TableHeader>
           <TableBody>
             {loading ? (
-              Array.from({ length: 10 }).map((_, i) => (
+              Array.from({ length: 5 }).map((_, i) => (
                 <TableRow key={i}>
+                  <TableCell>
+                    <Skeleton className="w-[70%] h-4 my-2 " />
+                  </TableCell>
+                  <TableCell>
+                    <Skeleton className="w-[70%] h-4 my-2" />
+                  </TableCell>
+                  {clientId === 0 && (
+                    <TableCell>
+                      <Skeleton className="w-[70%] h-4 my-2" />
+                    </TableCell>
+                  )}
+                  <TableCell>
+                    <Skeleton className="w-[70%] h-4 my-2" />
+                  </TableCell>
+                  <TableCell>
+                    <Skeleton className="w-[70%] h-4 my-2" />
+                  </TableCell>
+                  <TableCell>
+                    <Skeleton className="w-[70%] h-4 my-2 " />
+                  </TableCell>
+                  <TableCell>
+                    <Skeleton className="w-[70%] h-4 my-2" />
+                  </TableCell>
                 </TableRow>
               ))
             ) : filteredData.length > 0 ? (
@@ -164,7 +208,8 @@ export function OrdersTable({ data, clientId, onOrderDeleted, onOrderDeleteFaile
                           params: { 
                             clientId: String(orderClientId), 
                             orderId: String(order.id) 
-                          }
+                          },
+                          search: (order as any).__contact ? { type: 'contact' } : undefined
                         });
                       }
                     }}
@@ -209,6 +254,29 @@ export function OrdersTable({ data, clientId, onOrderDeleted, onOrderDeleteFaile
           </TableBody>
         </Table>
       </div>
+
+      {pagination && (
+        <div className="flex items-center justify-between mt-4">
+          <div className="text-sm text-muted-foreground">
+            עמוד {pagination.page} מתוך {Math.max(1, Math.ceil((pagination.total || 0) / (pagination.pageSize || 1)))} · סה"כ {pagination.total || 0}
+          </div>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={loading || pagination.page <= 1}
+              onClick={() => pagination.setPage(Math.max(1, pagination.page - 1))}
+            >הקודם</Button>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={loading || pagination.page >= Math.ceil((pagination.total || 0) / (pagination.pageSize || 1))}
+              onClick={() => pagination.setPage(pagination.page + 1)}
+            >הבא</Button>
+          </div>
+        </div>
+      )}
+
       <CustomModal
         isOpen={isDeleteModalOpen}
         onClose={() => setIsDeleteModalOpen(false)}

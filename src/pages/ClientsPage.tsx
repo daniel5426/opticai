@@ -5,7 +5,7 @@ import { SiteHeader } from "@/components/site-header"
 import { ClientsTable } from "@/components/clients-table"
 import { FamiliesTable } from "@/components/families-table"
 import { FamilyManagementModal } from "@/components/FamilyManagementModal"
-import { getAllClients } from "@/lib/db/clients-db"
+import { getAllClients, getPaginatedClients } from "@/lib/db/clients-db"
 import { getAllFamilies } from "@/lib/db/family-db"
 import { Client, Family } from "@/lib/db/schema-interface"
 import { Button } from "@/components/ui/button"
@@ -20,6 +20,9 @@ export default function ClientsPage() {
   const [clients, setClients] = useState<Client[]>([])
   const [families, setFamilies] = useState<Family[]>([])
   const [loading, setLoading] = useState(true)
+  const [page, setPage] = useState(1)
+  const [pageSize] = useState(25)
+  const [total, setTotal] = useState(0)
   const [isFamilyMode, setIsFamilyMode] = useState(false)
   const [selectedFamily, setSelectedFamily] = useState<Family | null>(null)
   const [isFamilyModalOpen, setIsFamilyModalOpen] = useState(false)
@@ -29,8 +32,10 @@ export default function ClientsPage() {
   const loadClients = async () => {
     try {
       setLoading(true)
-      const clientsData = await getAllClients(currentClinic?.id)
-      setClients(clientsData)
+      const offset = (page - 1) * pageSize
+      const { items, total } = await getPaginatedClients(currentClinic?.id, { limit: pageSize, offset, order: 'id_desc' })
+      setClients(items)
+      setTotal(total)
     } catch (error) {
       console.error('Error loading clients:', error)
     } finally {
@@ -55,7 +60,7 @@ export default function ClientsPage() {
     if (currentClinic) {
       loadData()
     }
-  }, [currentClinic])
+  }, [currentClinic, page, pageSize])
 
   const handleClientDeleted = (clientId: number) => {
     setClients(prevClients => prevClients.filter(client => client.id !== clientId))
@@ -195,6 +200,7 @@ export default function ClientsPage() {
                 hideSearch={true}
                 hideNewButton={true}
                 loading={loading}
+                pagination={{ page, pageSize, total, setPage }}
               />
             )}
             

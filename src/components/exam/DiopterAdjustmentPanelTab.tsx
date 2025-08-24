@@ -18,6 +18,22 @@ export function DiopterAdjustmentPanelTab({
   const [rightDeviation, setRightDeviation] = useState(0)
   const [leftDeviation, setLeftDeviation] = useState(0)
   const [pulse, setPulse] = useState<'right' | 'left' | null>(null)
+  
+  // Initialize visual state from loaded data
+  React.useEffect(() => {
+    const rightRaw = diopterData.right_diopter as unknown
+    const leftRaw = diopterData.left_diopter as unknown
+    const rightParsed = typeof rightRaw === 'number' ? rightRaw : Number(rightRaw)
+    const leftParsed = typeof leftRaw === 'number' ? leftRaw : Number(leftRaw)
+    
+    if (Number.isFinite(rightParsed)) {
+      setRightDeviation(rightParsed)
+    }
+    if (Number.isFinite(leftParsed)) {
+      setLeftDeviation(leftParsed)
+    }
+  }, [diopterData.right_diopter, diopterData.left_diopter])
+  
   const maxDeviation = 10
   const pxPerUnit = 1
   const dotBaseX = 55
@@ -49,8 +65,11 @@ export function DiopterAdjustmentPanelTab({
   }
   const handleAdjust = (eye: 'right_diopter' | 'left_diopter', delta: number) => {
     if (!isEditing) return
-    const current = typeof diopterData[eye] === 'number' ? (diopterData[eye] as number) : 0
+    const raw = diopterData[eye] as unknown
+    const parsed = typeof raw === 'number' ? raw : Number(raw)
+    const current = Number.isFinite(parsed) ? parsed : 0
     const next = Math.round((current + delta) * 100) / 100
+    console.log(`DiopterAdjustmentPanel: ${eye} change from ${current} to ${next}`)
     onDiopterChange(eye, next.toString())
     if (eye === 'right_diopter') animateDot('right', delta > 0)
     else animateDot('left', delta > 0)

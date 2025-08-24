@@ -9,12 +9,12 @@ import { useUser } from "@/contexts/UserContext"
 interface ClientSelectModalProps {
   triggerText?: string
   onClientSelect: (clientId: number) => void
-  variant?: "default" | "table"
+  triggerVariant?: "secondary" | "link" | "default" | "destructive" | "outline" | "ghost" | null | undefined
   isOpen?: boolean
   onClose?: () => void
 }
 
-export function ClientSelectModal({ triggerText, onClientSelect, variant = "default", isOpen, onClose }: ClientSelectModalProps) {
+export function ClientSelectModal({ triggerText, onClientSelect, triggerVariant = "default", isOpen, onClose }: ClientSelectModalProps) {
   const { currentClinic } = useUser()
   const [clients, setClients] = useState<Client[]>([])
   const [internalOpen, setInternalOpen] = useState(false)
@@ -89,7 +89,7 @@ export function ClientSelectModal({ triggerText, onClientSelect, variant = "defa
   return (
     <>
       {triggerText && (
-        <Button onClick={handleTriggerClick}>{triggerText}</Button>
+        <Button onClick={handleTriggerClick} variant={triggerVariant}>{triggerText}</Button>
       )}
       
       <CustomModal

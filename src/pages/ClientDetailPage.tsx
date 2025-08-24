@@ -11,7 +11,6 @@ import {
   ClientExamsTab, 
   ClientOrdersTab,
   ClientMedicalRecordTab,
-  ClientContactLensTab,
   ClientReferralTab,
   ClientAppointmentsTab,
   ClientFilesTab
@@ -56,6 +55,7 @@ export default function ClientDetailPage() {
   const [activeTab, setActiveTab] = useState(initialTab)
   const [refreshKey, setRefreshKey] = useState(0)
   const formRef = useRef<HTMLFormElement>(null)
+  const isDetailsLoading = !currentClient || !currentClient.id
   
   useEffect(() => {
     if (currentClient && (!formData.id || formData.id !== currentClient.id)) {
@@ -95,22 +95,27 @@ export default function ClientDetailPage() {
   }
   
   const handleSave = async () => {
-    if (formRef.current) {
-      try {
-        const updatedClient = await updateClient(formData)
-        
-        if (updatedClient) {
-          updateCurrentClient(updatedClient)
-          setFormData({ ...updatedClient })
-          setIsEditing(false)
-          toast.success("פרטי הלקוח עודכנו בהצלחה")
-        } else {
-          toast.error("לא הצלחנו לשמור את השינויים")
-        }
-      } catch (error) {
+    if (!formRef.current) return
+    const prev = { ...formData }
+    updateCurrentClient(formData)
+    setIsEditing(false)
+    const p = updateClient(formData)
+    p.then((updated) => {
+      if (updated) {
+        setFormData({ ...updated })
+        toast.success("פרטי הלקוח עודכנו בהצלחה")
+      } else {
+        updateCurrentClient(prev)
+        setFormData(prev)
+        setIsEditing(true)
         toast.error("לא הצלחנו לשמור את השינויים")
       }
-    }
+    }).catch(() => {
+      updateCurrentClient(prev)
+      setFormData(prev)
+      setIsEditing(true)
+      toast.error("לא הצלחנו לשמור את השינויים")
+    })
   }
   
   
@@ -138,6 +143,7 @@ export default function ClientDetailPage() {
                 client={currentClient || {} as Client}
                 formData={formData}
                 isEditing={isEditing}
+                isLoading={isDetailsLoading}
                 handleInputChange={handleInputChange}
                 handleSelectChange={handleSelectChange}
                 formRef={formRef as React.RefObject<HTMLFormElement>}
@@ -159,9 +165,6 @@ export default function ClientDetailPage() {
               <ClientOrdersTab key={refreshKey} />
             </TabsContent>
             
-            <TabsContent value="contact-lenses">
-              <ClientContactLensTab />
-            </TabsContent>
             
             <TabsContent value="referrals">
               <ClientReferralTab />

@@ -1,85 +1,67 @@
-from datetime import timedelta
 from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from database import get_db
 from models import User
-from schemas import Token, UserLogin, UserLoginNoPassword
-from auth import authenticate_user, create_access_token, get_current_user, get_password_hash
+from auth import get_current_user
+from jose import jwt
+from datetime import datetime, timedelta
 from config import settings
+from pydantic import BaseModel
 
 router = APIRouter(prefix="/auth", tags=["authentication"])
 
-@router.post("/login", response_model=Token)
-async def login_for_access_token(
-    form_data: OAuth2PasswordRequestForm = Depends(),
-    db: Session = Depends(get_db)
-):
-    user = authenticate_user(db, form_data.username, form_data.password)
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect username or password",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = create_access_token(
-        data={"sub": user.username}, expires_delta=access_token_expires
-    )
-    return {"access_token": access_token, "token_type": "bearer"}
+class PasswordlessLoginRequest(BaseModel):
+    username: str
 
-@router.post("/login-json", response_model=Token)
-async def login_with_json(
-    user_data: UserLogin,
+@router.post("/login-no-password")
+async def login_no_password(
+    request: PasswordlessLoginRequest,
     db: Session = Depends(get_db)
 ):
-    user = authenticate_user(db, user_data.username, user_data.password)
-    if not user:
+    """Login endpoint for users without passwords"""
+    # Find user by username
+    user = db.query(User).filter(User.username == request.username).first()
+    if not user or not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect username or password",
-            headers={"WWW-Authenticate": "Bearer"},
+            detail="Invalid username or user not active"
         )
-    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = create_access_token(
-        data={"sub": user.username}, expires_delta=access_token_expires
-    )
-    return {"access_token": access_token, "token_type": "bearer"}
+    
+    # Check if user has no password (passwordless user)
+    if user.password:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This user requires a password. Please use regular login."
+        )
+    
+    # Create a simple JWT token for the passwordless user
+    # We'll use the same format as Supabase JWT but with our own signature
+    payload = {
+        "email": user.email or f"{user.username}@clinic.local",
+        "username": user.username,
+        "user_id": str(user.id),
+        "iat": datetime.utcnow(),
+        "exp": datetime.utcnow() + timedelta(hours=24),
+        "aud": "authenticated",
+        "role": "authenticated"
+    }
+    
+    # Use Supabase JWT secret to sign the token so it's compatible with our auth system
+    secret = settings.SUPABASE_JWT_SECRET or settings.SUPABASE_KEY
+    if not secret:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Authentication configuration error"
+        )
+    
+    access_token = jwt.encode(payload, secret, algorithm="HS256")
+    
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "user": user
+    }
 
 @router.get("/me")
 async def read_users_me(current_user: User = Depends(get_current_user)):
     return current_user
-
-@router.post("/login-no-password", response_model=Token)
-async def login_without_password(
-    user_data: UserLoginNoPassword,
-    db: Session = Depends(get_db)
-):
-    """Login endpoint for users without passwords"""
-    user = db.query(User).filter(User.username == user_data.username).first()
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User not found",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    
-    if not user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User is inactive",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    
-    if user.password and user.password.strip():
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User has a password, use regular login",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    
-    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = create_access_token(
-        data={"sub": user.username}, expires_delta=access_token_expires
-    )
-    return {"access_token": access_token, "token_type": "bearer"} 

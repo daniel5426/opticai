@@ -32,6 +32,33 @@ def get_referral(referral_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Referral not found")
     return referral
 
+@router.get("/paginated")
+def get_referrals_paginated(
+    clinic_id: Optional[int] = Query(None, description="Filter by clinic ID"),
+    limit: int = Query(25, ge=1, le=100, description="Max items to return"),
+    offset: int = Query(0, ge=0, description="Items to skip"),
+    order: Optional[str] = Query("date_desc", description="Sort order: date_desc|date_asc|id_desc|id_asc"),
+    db: Session = Depends(get_db)
+):
+    base = db.query(Referral)
+    if clinic_id:
+        base = base.filter(Referral.clinic_id == clinic_id)
+    
+    # Apply ordering
+    if order == "date_desc":
+        base = base.order_by(Referral.date.desc().nulls_last())
+    elif order == "date_asc":
+        base = base.order_by(Referral.date.asc().nulls_last())
+    elif order == "id_asc":
+        base = base.order_by(Referral.id.asc())
+    else:  # default to id_desc
+        base = base.order_by(Referral.id.desc())
+    
+    total = base.count()
+    items = base.offset(offset).limit(limit).all()
+    
+    return {"items": items, "total": total}
+
 @router.get("/", response_model=List[ReferralSchema])
 def get_all_referrals(
     clinic_id: Optional[int] = Query(None, description="Filter by clinic ID"),

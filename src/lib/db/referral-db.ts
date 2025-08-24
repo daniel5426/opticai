@@ -30,6 +30,24 @@ export async function getAllReferrals(clinicId?: number): Promise<Referral[]> {
   }
 }
 
+export async function getPaginatedReferrals(
+  clinicId?: number,
+  options?: { limit?: number; offset?: number; order?: 'date_desc' | 'date_asc' | 'id_desc' | 'id_asc' }
+): Promise<{ items: Referral[]; total: number }> {
+  try {
+    const effectiveOptions = options ?? { limit: 25, offset: 0, order: 'date_desc' as const };
+    const response = await apiClient.getReferralsPaginated(clinicId, effectiveOptions);
+    if (response.error) {
+      console.error('Error getting paginated referrals:', response.error);
+      return { items: [], total: 0 };
+    }
+    return response.data || { items: [], total: 0 };
+  } catch (error) {
+    console.error('Error getting paginated referrals:', error);
+    return { items: [], total: 0 };
+  }
+}
+
 export async function getReferralById(referralId: number): Promise<Referral | null> {
   try {
     const response = await apiClient.getReferral(referralId);

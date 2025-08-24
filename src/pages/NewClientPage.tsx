@@ -30,35 +30,26 @@ export default function NewClientPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
-    // Validate required fields
-    if (!formData.first_name?.trim()) {
-      toast.error("שם פרטי הוא שדה חובה")
-      return
+    if (!formData.first_name?.trim()) { toast.error("שם פרטי הוא שדה חובה"); return }
+    if (!formData.last_name?.trim()) { toast.error("שם משפחה הוא שדה חובה"); return }
+    const clientData = {
+      ...formData,
+      clinic_id: currentClinic?.id,
+      file_creation_date: new Date().toISOString().split('T')[0]
     }
-    
-    if (!formData.last_name?.trim()) {
-      toast.error("שם משפחה הוא שדה חובה")
-      return
-    }
-    
-    try {
-      // Add file creation date and clinic_id
-      const clientData = {
-        ...formData,
-        clinic_id: currentClinic?.id,
-        file_creation_date: new Date().toISOString().split('T')[0]
-      }
-      const newClient = await createClient(clientData)
-      if (newClient) {
-        toast.success("לקוח נוצר בהצלחה")
-        navigate({ to: "/clients/$clientId", params: { clientId: String(newClient.id) }, search: { tab: "details" } })
-      } else {
+    ;(async () => {
+      try {
+        const newClient = await createClient(clientData)
+        if (newClient) {
+          toast.success("לקוח נוצר בהצלחה")
+          navigate({ to: "/clients/$clientId", params: { clientId: String(newClient.id) }, search: { tab: "details" } })
+        } else {
+          toast.error("שגיאה ביצירת לקוח חדש")
+        }
+      } catch {
         toast.error("שגיאה ביצירת לקוח חדש")
       }
-    } catch (error) {
-      toast.error("שגיאה ביצירת לקוח חדש")
-    }
+    })()
   }
 
   const handleCancel = () => {

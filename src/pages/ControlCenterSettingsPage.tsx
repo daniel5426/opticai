@@ -10,16 +10,19 @@ import { User, Company } from "@/lib/db/schema-interface"
 import { getAllUsers, getUsersByCompanyId, updateUser, deleteUser } from "@/lib/db/users-db"
 import { applyThemeColorsFromSettings } from "@/helpers/theme_helpers"
 import { Badge } from "@/components/ui/badge"
-import { IconPlus, IconEdit, IconTrash, IconCalendar, IconBrandGoogle } from "@tabler/icons-react"
+import { IconPlus, IconEdit, IconTrash, IconCalendar, IconBrandGoogle, IconCamera, IconX } from "@tabler/icons-react"
 import { useUser } from "@/contexts/UserContext"
 import { UserModal } from "@/components/UserModal"
 import { apiClient } from "@/lib/api-client"
+import { supabase } from "@/lib/supabaseClient"
+import { ImageInput } from "@/components/ui/image-input"
 
 export default function ControlCenterSettingsPage() {
   const { currentUser, setCurrentUser } = useUser()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [saveSuccess, setSaveSuccess] = useState(false)
+  const [emailError, setEmailError] = useState<string | null>(null)
   
   const [users, setUsers] = useState<User[]>([])
   const [usersLoading, setUsersLoading] = useState(false)
@@ -37,12 +40,12 @@ export default function ControlCenterSettingsPage() {
   })
 
   const [personalProfile, setPersonalProfile] = useState<Partial<User>>({
-    username: '',
+    full_name: '',
     email: '',
     phone: '',
     profile_picture: '',
-    primary_theme_color: '#3b82f6',
-    secondary_theme_color: '#8b5cf6',
+    primary_theme_color: '#2256aa',
+    secondary_theme_color: '#cce9ff',
     theme_preference: 'system'
   })
   const [profileColorUpdateTimeout, setProfileColorUpdateTimeout] = useState<NodeJS.Timeout | null>(null)
@@ -107,12 +110,12 @@ export default function ControlCenterSettingsPage() {
 
         if (currentUser) {
           setPersonalProfile({
-            username: currentUser.username,
+            full_name: currentUser.full_name || '',
             email: currentUser.email || '',
             phone: currentUser.phone || '',
             profile_picture: currentUser.profile_picture || '',
-            primary_theme_color: currentUser.primary_theme_color || '#3b82f6',
-            secondary_theme_color: currentUser.secondary_theme_color || '#8b5cf6',
+            primary_theme_color: currentUser.primary_theme_color || '#2256aa',
+            secondary_theme_color: currentUser.secondary_theme_color || '#cce9ff',
             theme_preference: currentUser.theme_preference || 'system'
           })
         }
@@ -141,6 +144,7 @@ export default function ControlCenterSettingsPage() {
   const handlePersonalProfileChange = (field: keyof User, value: string) => {
     const newProfile = { ...personalProfile, [field]: value }
     setPersonalProfile(newProfile)
+    if (field === 'email' && emailError) setEmailError(null)
     
     if (field === 'primary_theme_color' || field === 'secondary_theme_color') {
       if (profileColorUpdateTimeout) {
@@ -162,68 +166,86 @@ export default function ControlCenterSettingsPage() {
     try {
       setSaving(true)
       setSaveSuccess(false)
+      setEmailError(null)
       
+      // Unified save (company+user) -- reuse save-all to keep flow consistent
+      const payload: any = {}
       if (company?.id) {
-        const payload: Partial<Company> = {
+        payload.company_id = company.id
+        payload.company = {
           name: localCompany.name || undefined,
           owner_full_name: localCompany.owner_full_name || undefined,
           contact_email: localCompany.contact_email || undefined,
           contact_phone: localCompany.contact_phone || undefined,
           address: localCompany.address || undefined,
-          logo_path: localCompany.logo_path || undefined,
-        } as Partial<Company>;
-        const updatedCompanyResponse = await apiClient.updateCompany(company.id, payload);
-        const updatedCompany = updatedCompanyResponse.data;
-        
-        if (updatedCompany) {
-          setCompany(updatedCompany)
-          setLocalCompany({
-            name: updatedCompany.name || '',
-            owner_full_name: updatedCompany.owner_full_name || '',
-            contact_email: updatedCompany.contact_email || '',
-            contact_phone: updatedCompany.contact_phone || '',
-            address: updatedCompany.address || '',
-            logo_path: updatedCompany.logo_path || ''
-          })
-          localStorage.setItem('controlCenterCompany', JSON.stringify(updatedCompany))
-        } else {
-          toast.error('שגיאה בשמירת פרטי החברה')
-          return
+          logo_path: (localCompany.logo_path === '' ? null : localCompany.logo_path) as any,
         }
       }
-      
       if (currentUser?.id) {
-        const updatedUser = await updateUser({
-          ...currentUser,
-          username: personalProfile.username || currentUser.username,
+        payload.user_id = currentUser.id
+        payload.user = {
+          full_name: personalProfile.full_name || currentUser.full_name,
           email: personalProfile.email,
           phone: personalProfile.phone,
           profile_picture: personalProfile.profile_picture,
           primary_theme_color: personalProfile.primary_theme_color,
           secondary_theme_color: personalProfile.secondary_theme_color,
-          theme_preference: personalProfile.theme_preference
-        }).catch((e: any) => {
-          const message = e instanceof Error ? e.message : 'שגיאה בשמירת הפרופיל האישי'
-          toast.error(message)
-          throw e
-        })
-        
-        if (updatedUser) {
-          setPersonalProfile({
-            username: updatedUser.username,
-            email: updatedUser.email || '',
-            phone: updatedUser.phone || '',
-            profile_picture: updatedUser.profile_picture || '',
-            primary_theme_color: updatedUser.primary_theme_color || '#3b82f6',
-            secondary_theme_color: updatedUser.secondary_theme_color || '#8b5cf6',
-            theme_preference: updatedUser.theme_preference || 'system'
-          })
-          
-          await setCurrentUser(updatedUser)
-          localStorage.setItem('currentUser', JSON.stringify(updatedUser))
-        } else {
-          toast.error('שגיאה בשמירת הפרופיל האישי')
+          theme_preference: personalProfile.theme_preference,
+        }
+      }
+      const unifiedResp = await apiClient.saveAll(payload)
+      if (unifiedResp.error) {
+        if (String(unifiedResp.error).includes('EMAIL_ALREADY_REGISTERED')) {
+          setEmailError('האימייל הזה כבר נמצא בשימוש')
+          toast.error('האימייל הזה כבר נמצא בשימוש במערכת')
           return
+        }
+        toast.error('שגיאה בשמירת ההגדרות')
+        return
+      }
+      const data = unifiedResp.data as any
+      if (data?.company) {
+        setCompany(data.company as Company)
+        setLocalCompany({
+          name: data.company.name || '',
+          owner_full_name: data.company.owner_full_name || '',
+          contact_email: data.company.contact_email || '',
+          contact_phone: data.company.contact_phone || '',
+          address: data.company.address || '',
+          logo_path: data.company.logo_path || ''
+        })
+        localStorage.setItem('controlCenterCompany', JSON.stringify(data.company))
+        try { window.dispatchEvent(new CustomEvent('companyUpdated', { detail: data.company })) } catch {}
+      }
+      if (data?.user) {
+        const updatedUser = data.user as User
+        setPersonalProfile({
+          full_name: updatedUser.full_name || '',
+          email: updatedUser.email || '',
+          phone: updatedUser.phone || '',
+          profile_picture: updatedUser.profile_picture || '',
+          primary_theme_color: updatedUser.primary_theme_color || '#2256aa',
+          secondary_theme_color: updatedUser.secondary_theme_color || '#cce9ff',
+          theme_preference: updatedUser.theme_preference || 'system'
+        })
+        const emailChanged = (currentUser?.email || '').trim() !== (updatedUser.email || '').trim()
+        await setCurrentUser(updatedUser)
+        localStorage.setItem('currentUser', JSON.stringify(updatedUser))
+        // Reflect change in users list immediately
+        setUsers(prev => prev.map(u => u.id === updatedUser.id ? updatedUser : u))
+        if (emailChanged) {
+          try {
+            const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession()
+            if (refreshError) {
+              console.warn('Supabase refreshSession failed after email change:', refreshError)
+              toast.warning('האימייל עודכן. אם יש בעיות גישה, נא להתחבר מחדש')
+            } else if (refreshed?.session?.access_token) {
+              toast.success('האימייל עודכן בהצלחה והחיבור נשמר')
+            }
+          } catch (e) {
+            console.error('Error refreshing session after email change:', e)
+            toast.warning('האימייל עודכן. אם יש בעיות גישה, נא להתחבר מחדש')
+          }
         }
       }
       
@@ -240,29 +262,7 @@ export default function ControlCenterSettingsPage() {
     }
   }
 
-  const handleLogoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    if (file) {
-      const reader = new FileReader()
-      reader.onload = (e) => {
-        const result = e.target?.result as string
-        handleCompanyChange('logo_path', result)
-      }
-      reader.readAsDataURL(file)
-    }
-  }
-
-  const handleProfilePictureUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    if (file) {
-      const reader = new FileReader()
-      reader.onload = (e) => {
-        const result = e.target?.result as string
-        handlePersonalProfileChange('profile_picture', result)
-      }
-      reader.readAsDataURL(file)
-    }
-  }
+  // Image uploads are handled via ImageInput component
 
   const openCreateUserModal = () => {
     setEditingUser(null)
@@ -500,28 +500,44 @@ export default function ControlCenterSettingsPage() {
                         <p className="text-sm text-muted-foreground text-right">מידע כללי על החברה והבעלים</p>
                       </CardHeader>
                       <CardContent>
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="space-y-2">
-                            <Label htmlFor="company_name" className="text-right block text-sm">שם החברה</Label>
-                            <Input
-                              id="company_name"
-                              value={localCompany.name || ''}
-                              onChange={(e) => handleCompanyChange('name', e.target.value)}
-                              placeholder="הזן שם החברה"
-                              className="text-right h-9"
-                              dir="rtl"
-                            />
+                        <div className="grid grid-cols-3 gap-6 items-center">
+                          <div className="flex items-center justify-center">
+                            <div className="flex flex-col items-center space-y-2">
+                              <ImageInput
+                                value={localCompany.logo_path || ''}
+                                onChange={(val) => handleCompanyChange('logo_path', val)}
+                                onRemove={() => handleCompanyChange('logo_path', '')}
+                                size={112}
+                                shape="circle"
+                                fit="contain"
+                                alt="לוגו החברה"
+                              />
+                              <Label className="text-sm text-center">לוגו החברה</Label>
+                            </div>
                           </div>
-                          <div className="space-y-2">
-                            <Label htmlFor="owner_full_name" className="text-right block text-sm">שם הבעלים</Label>
-                            <Input
-                              id="owner_full_name"
-                              value={localCompany.owner_full_name || ''}
-                              onChange={(e) => handleCompanyChange('owner_full_name', e.target.value)}
-                              placeholder="הזן שם הבעלים"
-                              className="text-right h-9"
-                              dir="rtl"
-                            />
+                          <div className="space-y-4 col-span-2">
+                            <div className="space-y-2">
+                              <Label htmlFor="company_name" className="text-right block text-sm">שם החברה</Label>
+                              <Input
+                                id="company_name"
+                                value={localCompany.name || ''}
+                                onChange={(e) => handleCompanyChange('name', e.target.value)}
+                                placeholder="הזן שם החברה"
+                                className="text-right h-9"
+                                dir="rtl"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor="owner_full_name" className="text-right block text-sm">שם הבעלים</Label>
+                              <Input
+                                id="owner_full_name"
+                                value={localCompany.owner_full_name || ''}
+                                onChange={(e) => handleCompanyChange('owner_full_name', e.target.value)}
+                                placeholder="הזן שם הבעלים"
+                                className="text-right h-9"
+                                dir="rtl"
+                              />
+                            </div>
                           </div>
                         </div>
                       </CardContent>
@@ -583,49 +599,7 @@ export default function ControlCenterSettingsPage() {
                       </CardContent>
                     </Card>
 
-                    <Card className="shadow-md border-none">
-                      <CardHeader>
-                        <CardTitle className="text-right">מיתוג</CardTitle>
-                        <p className="text-sm text-muted-foreground text-right">לוגו החברה</p>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="flex flex-col items-center space-y-3">
-                          <div className="relative">
-                            {localCompany.logo_path ? (
-                              <img 
-                                src={localCompany.logo_path} 
-                                alt="לוגו החברה" 
-                                className="w-24 h-24 rounded-lg object-cover shadow-lg"
-                              />
-                            ) : (
-                              <div className="w-24 h-24 rounded-lg bg-muted flex items-center justify-center shadow-lg">
-                                <svg className="w-8 h-8 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                                </svg>
-                              </div>
-                            )}
-                            <Input
-                              id="logo-upload"
-                              type="file"
-                              accept="image/*"
-                              onChange={handleLogoUpload}
-                              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                            />
-                          </div>
-                          <div className="text-center">
-                            <Label className="text-sm font-medium">לוגו החברה</Label>
-                            <Button 
-                              variant="outline" 
-                              size="sm" 
-                              className="mt-2 text-xs shadow-sm"
-                              onClick={() => document.getElementById('logo-upload')?.click()}
-                            >
-                              שנה תמונה
-                            </Button>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
+                    
                   </TabsContent>
 
                   <TabsContent value="personal-profile" className="space-y-6 mt-0">
@@ -637,50 +611,28 @@ export default function ControlCenterSettingsPage() {
                       <CardContent>
                         <div className="flex gap-8 items-start">
                           <div className="flex flex-col items-center space-y-3 min-w-[140px]">
-                            <div className="relative">
-                              {personalProfile.profile_picture ? (
-                                <img 
-                                  src={personalProfile.profile_picture} 
-                                  alt="תמונת פרופיל" 
-                                  className="w-24 h-24 rounded-full object-cover shadow-lg"
-                                />
-                              ) : (
-                                <div className="w-24 h-24 rounded-full bg-muted flex items-center justify-center shadow-lg">
-                                  <span className="text-2xl font-semibold text-muted-foreground">
-                                    {personalProfile.username?.charAt(0)?.toUpperCase() || 'U'}
-                                  </span>
-                                </div>
-                              )}
-                              <Input
-                                id="profile-picture-upload"
-                                type="file"
-                                accept="image/*"
-                                onChange={handleProfilePictureUpload}
-                                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                              />
-                            </div>
+                            <ImageInput
+                              value={personalProfile.profile_picture || ''}
+                              onChange={(val) => handlePersonalProfileChange('profile_picture', val)}
+                              onRemove={() => setPersonalProfile(prev => ({ ...prev, profile_picture: '' }))}
+                              size={96}
+                              shape="circle"
+                              alt="תמונת פרופיל"
+                            />
                             <div className="text-center">
                               <Label className="text-sm font-medium">תמונת פרופיל</Label>
-                              <Button 
-                                variant="outline" 
-                                size="sm" 
-                                className="mt-2 text-xs shadow-sm"
-                                onClick={() => document.getElementById('profile-picture-upload')?.click()}
-                              >
-                                שנה תמונה
-                              </Button>
                             </div>
                           </div>
                           
                           <div className="flex-1 space-y-4">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                               <div className="space-y-2">
-                                <Label htmlFor="personal_username" className="text-right block text-sm">שם משתמש</Label>
+                                <Label htmlFor="personal_full_name" className="text-right block text-sm">שם מלא</Label>
                                 <Input
-                                  id="personal_username"
-                                  value={personalProfile.username || ''}
-                                  onChange={(e) => handlePersonalProfileChange('username', e.target.value)}
-                                  placeholder="הזן שם משתמש"
+                                  id="personal_full_name"
+                                  value={personalProfile.full_name || ''}
+                                  onChange={(e) => handlePersonalProfileChange('full_name', e.target.value)}
+                                  placeholder="הזן שם מלא"
                                   className="text-right h-9"
                                   dir="rtl"
                                 />
@@ -693,9 +645,12 @@ export default function ControlCenterSettingsPage() {
                                   value={personalProfile.email || ''}
                                   onChange={(e) => handlePersonalProfileChange('email', e.target.value)}
                                   placeholder="example@email.com"
-                                  className="text-right h-9"
+                                  className={`text-right h-9 ${emailError ? 'border-red-500' : ''}`}
                                   dir="rtl"
                                 />
+                                {emailError && (
+                                  <div className="text-xs text-red-600 text-right">{emailError}</div>
+                                )}
                               </div>
                               <div className="space-y-2 md:col-span-2">
                                 <Label htmlFor="personal_phone" className="text-right block text-sm">טלפון</Label>
@@ -726,13 +681,13 @@ export default function ControlCenterSettingsPage() {
                             <div className="flex items-center gap-4">
                               <Input
                                 type="color"
-                                value={personalProfile.primary_theme_color || '#3b82f6'}
+                                value={personalProfile.primary_theme_color }
                                 onChange={(e) => handlePersonalProfileChange('primary_theme_color', e.target.value)}
                                 className="w-16 h-12 p-1 rounded shadow-sm"
                               />
                               <div className="flex-1">
                                 <Input
-                                  value={personalProfile.primary_theme_color || '#3b82f6'}
+                                  value={personalProfile.primary_theme_color }
                                   onChange={(e) => handlePersonalProfileChange('primary_theme_color', e.target.value)}
                                   className="font-mono text-center shadow-sm h-9"
                                   dir="ltr"
@@ -746,13 +701,13 @@ export default function ControlCenterSettingsPage() {
                             <div className="flex items-center gap-4">
                               <Input
                                 type="color"
-                                value={personalProfile.secondary_theme_color || '#8b5cf6'}
+                                value={personalProfile.secondary_theme_color}
                                 onChange={(e) => handlePersonalProfileChange('secondary_theme_color', e.target.value)}
                                 className="w-16 h-12 p-1 rounded shadow-sm"
                               />
                               <div className="flex-1">
                                 <Input
-                                  value={personalProfile.secondary_theme_color || '#8b5cf6'}
+                                  value={personalProfile.secondary_theme_color}
                                   onChange={(e) => handlePersonalProfileChange('secondary_theme_color', e.target.value)}
                                   className="font-mono text-center shadow-sm h-9"
                                   dir="ltr"
@@ -930,7 +885,7 @@ export default function ControlCenterSettingsPage() {
                                          user.role === 'clinic_manager' ? 'מנהל סניף' : 
                                          'צופה'}
                                       </Badge>
-                                      <h3 className="font-medium">{user.username}</h3>
+                                      <h3 className="font-medium">{user.full_name || user.username}</h3>
                                     </div>
                                     <div className="text-sm text-muted-foreground mt-1">
                                       {user.email && <span>אימייל: {user.email}</span>}

@@ -29,6 +29,24 @@ export async function getAllAppointments(clinicId?: number): Promise<Appointment
   }
 }
 
+export async function getPaginatedAppointments(
+  clinicId?: number,
+  options?: { limit?: number; offset?: number; order?: 'date_desc' | 'date_asc' | 'id_desc' | 'id_asc' }
+): Promise<{ items: Appointment[]; total: number }> {
+  try {
+    const effectiveOptions = options ?? { limit: 25, offset: 0, order: 'date_desc' as const };
+    const response = await apiClient.getAppointmentsPaginated(clinicId, effectiveOptions);
+    if (response.error) {
+      console.error('Error getting paginated appointments:', response.error);
+      return { items: [], total: 0 };
+    }
+    return response.data || { items: [], total: 0 };
+  } catch (error) {
+    console.error('Error getting paginated appointments:', error);
+    return { items: [], total: 0 };
+  }
+}
+
 export async function getAppointmentById(id: number): Promise<Appointment | null> {
   try {
     const response = await apiClient.getAppointment(id);

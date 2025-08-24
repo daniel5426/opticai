@@ -24,7 +24,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { MoreHorizontal, ChevronDown, UserPlus, Users, Plus, Trash2, Edit } from "lucide-react"
+import { MoreHorizontal, ChevronDown, UserPlus, Users, Plus, Trash2, Edit, Loader2 } from "lucide-react"
 import { Appointment, Client, User } from "@/lib/db/schema-interface"
 import { toast } from "sonner"
 import { ClientSelectModal } from "@/components/ClientSelectModal"
@@ -35,7 +35,7 @@ import { UserSelect } from "@/components/ui/user-select"
 import { useUser } from "@/contexts/UserContext"
 import { Skeleton } from "@/components/ui/skeleton"
 import { getClientById, getAllClients, createClient } from "@/lib/db/clients-db"
-import { getUserById } from "@/lib/db/users-db"
+import { getAllUsers, getUserById } from "@/lib/db/users-db"
 import { createAppointment, updateAppointment, deleteAppointment } from "@/lib/db/appointments-db"
 import { useNavigate } from "@tanstack/react-router"
 
@@ -46,6 +46,7 @@ interface AppointmentsTableProps {
   onAppointmentDeleted: (appointmentId: number) => void
   onAppointmentDeleteFailed: () => void
   loading: boolean
+  pagination?: { page: number; pageSize: number; total: number; setPage: (p: number) => void }
 }
 
 interface AppointmentTableRowProps {
@@ -116,7 +117,7 @@ function AppointmentTableRow({ appointment, onEdit, onDelete, onSendEmail, clien
       <TableCell
         onClick={() => onEdit(appointment)}
         className="cursor-pointer"
-      >{user?.username || ''}</TableCell>
+    >{user?.full_name || user?.username || ''}</TableCell>
       <TableCell
         onClick={() => onEdit(appointment)}
         className="cursor-pointer"
@@ -151,7 +152,7 @@ function AppointmentTableRow({ appointment, onEdit, onDelete, onSendEmail, clien
   )
 }
 
-export function AppointmentsTable({ data, clientId, onAppointmentChange, onAppointmentDeleted, onAppointmentDeleteFailed, loading }: AppointmentsTableProps) {
+export function AppointmentsTable({ data, clientId, onAppointmentChange, onAppointmentDeleted, onAppointmentDeleteFailed, loading, pagination }: AppointmentsTableProps) {
   const [searchQuery, setSearchQuery] = useState("")
   const [isAppointmentDialogOpen, setIsAppointmentDialogOpen] = useState(false)
   const [isNewClientDialogOpen, setIsNewClientDialogOpen] = useState(false)
@@ -161,6 +162,9 @@ export function AppointmentsTable({ data, clientId, onAppointmentChange, onAppoi
   const { currentUser, currentClinic } = useUser()
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
   const [appointmentToDelete, setAppointmentToDelete] = useState<Appointment | null>(null)
+  const [users, setUsers] = useState<User[]>([])
+  const [optimisticAppointments, setOptimisticAppointments] = useState<Appointment[]>([])
+  const [isSavingNewClientAppointment, setIsSavingNewClientAppointment] = useState(false)
   
   const [appointmentFormData, setAppointmentFormData] = useState<Omit<Appointment, 'id'>>({
     client_id: clientId,
@@ -206,7 +210,20 @@ export function AppointmentsTable({ data, clientId, onAppointmentChange, onAppoi
     type: 'name'
   })
 
-  const filteredData = data.filter((appointment) => {
+  const allAppointments = React.useMemo(() => {
+    const combined = [...optimisticAppointments, ...data]
+    const seen = new Set<number>()
+    const deduped: Appointment[] = []
+    for (const appt of combined) {
+      if (typeof appt.id === 'number') {
+        if (seen.has(appt.id)) continue
+        seen.add(appt.id)
+      }
+      deduped.push(appt)
+    }
+    return deduped
+  }, [optimisticAppointments, data])
+  const filteredData = allAppointments.filter((appointment) => {
     const searchableFields = [
       appointment.date || '',
       appointment.time || '',
@@ -271,6 +288,29 @@ export function AppointmentsTable({ data, clientId, onAppointmentChange, onAppoi
     setIsAppointmentDialogOpen(true)
   }
 
+  React.useEffect(() => {
+    const loadUsersOnce = async () => {
+      try {
+        const data = await getAllUsers()
+        setUsers(data || [])
+      } catch {}
+    }
+    loadUsersOnce()
+  }, [])
+
+  const isVacation = (userId?: number, dateStr?: string) => {
+    console.log('isVacation', userId, dateStr)
+    if (!userId || !dateStr) return false
+    const u = users.find(x => x.id === userId)
+    if (!u) return false
+    const vacations = [
+      ...((u.system_vacation_dates) || []),
+      ...((u.added_vacation_dates) || [])
+    ]
+    console.log('vacations', vacations, vacations.includes(dateStr))
+    return vacations.includes(dateStr)
+  }
+
   const openNewClientDialog = () => {
     resetAllForms()
     setIsNewClientDialogOpen(true)
@@ -315,7 +355,14 @@ export function AppointmentsTable({ data, clientId, onAppointmentChange, onAppoi
   }
 
   const handleSaveAppointment = async () => {
+    console.log('handleSaveAppointment', appointmentFormData)
     try {
+      const dateStr = appointmentFormData.date
+      const userId = appointmentFormData.user_id
+      if (isVacation(userId, dateStr)) {
+        toast.error('לא ניתן לקבוע תור ביום חופשה של המשתמש')
+        return
+      }
       if (editingAppointment) {
         const result = await updateAppointment({ ...appointmentFormData, id: editingAppointment.id, client_id: appointmentFormData.client_id })
         if (result) {
@@ -324,18 +371,43 @@ export function AppointmentsTable({ data, clientId, onAppointmentChange, onAppoi
           toast.error("שגיאה בעדכון התור")
         }
       } else {
-        const result = await createAppointment({
-          ...appointmentFormData,
-          clinic_id: currentClinic?.id
-        })
-        if (result) {
-          toast.success("התור נוצר בהצלחה")
-        } else {
-          toast.error("שגיאה ביצירת התור")
-        }
+        // Optimistic create: add temporary appointment to the table immediately
+        const tempId = -Date.now()
+        const tempAppointment: Appointment = {
+          id: tempId,
+          client_id: appointmentFormData.client_id,
+          clinic_id: currentClinic?.id,
+          user_id: appointmentFormData.user_id,
+          date: appointmentFormData.date,
+          time: appointmentFormData.time,
+          duration: appointmentFormData.duration,
+          exam_name: appointmentFormData.exam_name,
+          note: appointmentFormData.note,
+        } as Appointment
+        setOptimisticAppointments(prev => [tempAppointment, ...prev])
+
+        // Fire-and-forget the actual creation, then reconcile
+        ;(async () => {
+          try {
+            const result = await createAppointment({
+              ...appointmentFormData,
+              clinic_id: currentClinic?.id
+            })
+            if (result) {
+              toast.success("התור נוצר בהצלחה")
+              // Replace temp with server result, avoid table reload
+              setOptimisticAppointments(prev => prev.map(a => a.id === tempId ? (result as Appointment) : a))
+            } else {
+              setOptimisticAppointments(prev => prev.filter(a => a.id !== tempId))
+              toast.error("שגיאה ביצירת התור")
+            }
+          } catch (error) {
+            setOptimisticAppointments(prev => prev.filter(a => a.id !== tempId))
+            toast.error("שגיאה ביצירת התור")
+          }
+        })()
       }
       closeAllDialogs()
-      onAppointmentChange()
     } catch (error) {
       console.error('Error saving appointment:', error)
       toast.error("שגיאה בשמירת התור")
@@ -412,9 +484,16 @@ export function AppointmentsTable({ data, clientId, onAppointmentChange, onAppoi
 
   const handleSaveNewClientAndAppointment = async (forceCreate = false) => {
     try {
+      setIsSavingNewClientAppointment(true)
       if (!forceCreate) {
         const canProceed = await checkForExistingClients()
-        if (!canProceed) return
+        if (!canProceed) { setIsSavingNewClientAppointment(false); return }
+      }
+
+      if (isVacation(newClientFormData.user_id, newClientFormData.date)) {
+        toast.error('לא ניתן לקבוע תור ביום חופשה של המשתמש')
+        setIsSavingNewClientAppointment(false)
+        return
       }
 
               const newClient = await createClient({
@@ -451,11 +530,17 @@ export function AppointmentsTable({ data, clientId, onAppointmentChange, onAppoi
     } catch (error) {
       console.error('Error creating client and appointment:', error)
       toast.error("שגיאה ביצירת לקוח ותור")
+    } finally {
+      setIsSavingNewClientAppointment(false)
     }
   }
 
   const handleUseExistingClient = async (existingClient: Client) => {
     try {
+      if (isVacation(newClientFormData.user_id, newClientFormData.date)) {
+        toast.error('לא ניתן לקבוע תור ביום חופשה של המשתמש')
+        return
+      }
       const appointmentData = {
         client_id: existingClient.id!,
         clinic_id: currentClinic?.id,
@@ -667,6 +752,7 @@ export function AppointmentsTable({ data, clientId, onAppointmentChange, onAppoi
               <UserSelect
                 value={newClientFormData.user_id}
                 onValueChange={(userId) => setNewClientFormData(prev => ({ ...prev, user_id: userId }))}
+                users={users}
               />
             </div>
           </div>
@@ -684,7 +770,10 @@ export function AppointmentsTable({ data, clientId, onAppointmentChange, onAppoi
 
         </div>
         <div className="flex justify-start gap-2 mt-4">
-          <Button onClick={() => handleSaveNewClientAndAppointment(false)}>שמור</Button>
+          <Button onClick={() => handleSaveNewClientAndAppointment(false)} disabled={isSavingNewClientAppointment}>
+            {isSavingNewClientAppointment && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+            שמור
+          </Button>
           <Button variant="outline" onClick={closeAllDialogs}>ביטול</Button>
         </div>
       </CustomModal>
@@ -745,6 +834,7 @@ export function AppointmentsTable({ data, clientId, onAppointmentChange, onAppoi
               <UserSelect
                 value={appointmentFormData.user_id}
                 onValueChange={(userId) => setAppointmentFormData(prev => ({ ...prev, user_id: userId }))}
+                users={users}
               />
             </div>
           </div>
@@ -800,8 +890,31 @@ export function AppointmentsTable({ data, clientId, onAppointmentChange, onAppoi
           </TableHeader>
           <TableBody>
             {loading ? (
-              Array.from({ length: 10 }).map((_, i) => (
+              Array.from({ length: 5 }).map((_, i) => (
                 <TableRow key={i}>
+                  <TableCell>
+                    <Skeleton className="w-[70%] h-4 my-2" />
+                  </TableCell>
+                  <TableCell>
+                    <Skeleton className="w-[70%] h-4 my-2" />
+                  </TableCell>
+                  {clientId === 0 && (
+                    <TableCell>
+                      <Skeleton className="w-[70%] h-4 my-2" />
+                    </TableCell>
+                  )}
+                  <TableCell>
+                    <Skeleton className="w-[70%] h-4 my-2" />
+                  </TableCell>
+                  <TableCell>
+                    <Skeleton className="w-[70%] h-4 my-2" />
+                  </TableCell>
+                  <TableCell>
+                    <Skeleton className="w-[70%] h-4 my-2" />
+                  </TableCell>
+                  <TableCell>
+                    <Skeleton className="w-[70%] h-4 my-2" />
+                  </TableCell>
                 </TableRow>
               ))
             ) : filteredData.length > 0 ? (
@@ -825,6 +938,28 @@ export function AppointmentsTable({ data, clientId, onAppointmentChange, onAppoi
           </TableBody>
         </Table>
       </div>
+
+      {pagination && (
+        <div className="flex items-center justify-between mt-4">
+          <div className="text-sm text-muted-foreground">
+            עמוד {pagination.page} מתוך {Math.max(1, Math.ceil((pagination.total || 0) / (pagination.pageSize || 1)))} · סה"כ {pagination.total || 0}
+          </div>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={loading || pagination.page <= 1}
+              onClick={() => pagination.setPage(Math.max(1, pagination.page - 1))}
+            >הקודם</Button>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={loading || pagination.page >= Math.ceil((pagination.total || 0) / (pagination.pageSize || 1))}
+              onClick={() => pagination.setPage(pagination.page + 1)}
+            >הבא</Button>
+          </div>
+        </div>
+      )}
     </div>
   )
 } 

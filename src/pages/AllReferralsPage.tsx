@@ -46,10 +46,7 @@ export default function AllReferralsPage() {
   }
 
   const handleClientSelect = (clientId: number) => {
-    navigate({
-      to: "/referrals/create",
-      search: { clientId: String(clientId) }
-    })
+    navigate({ to: "/clients/$clientId/referrals/new", params: { clientId: String(clientId) } })
   }
 
   return (

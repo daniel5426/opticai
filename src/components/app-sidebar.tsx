@@ -103,11 +103,6 @@ const getNavData = (currentUser?: User) => ({
       icon: IconShoppingCart,
     },
     {
-      name: "עדשות מגע",
-      url: "/contact-lenses",
-      icon: IconCircleDot,
-    },
-    {
       name: "הפניות",
       url: "/referrals",
       icon: IconArrowForward,
@@ -161,7 +156,7 @@ export function AppSidebar({
           src={logoPath} 
           alt="לוגו המרפאה" 
           className={cn(
-            "!size-8 rounded object-cover",
+            "max-h-10 h-auto w-auto rounded object-contain",
             state === 'expanded' && 'transition-opacity duration-300',
             isLogoLoaded && isLogoVisible ? "opacity-100" : "opacity-0"
           )}

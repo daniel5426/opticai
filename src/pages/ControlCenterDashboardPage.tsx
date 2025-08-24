@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { SiteHeader } from "@/components/site-header"
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -22,7 +22,7 @@ import {
 import type { Company, Clinic, User } from '@/lib/db/schema-interface';
 import { apiClient } from '@/lib/api-client';
 import { ChartContainer, ChartLegend, ChartLegendContent, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
-import { Line, LineChart, CartesianGrid, XAxis, YAxis } from 'recharts';
+import { Line, LineChart, CartesianGrid, XAxis, YAxis, BarChart, Bar, PieChart, Pie, Label } from 'recharts';
 
 interface DashboardStats {
   totalClinics: number;
@@ -60,8 +60,12 @@ const ControlCenterDashboardPage: React.FC = () => {
     monthlyRevenue: 0
   });
   const [loading, setLoading] = useState(true);
-  const [appointmentsSeries, setAppointmentsSeries] = useState<{ month: string; count: number }[]>([]);
   const [newClientsSeries, setNewClientsSeries] = useState<{ month: string; count: number }[]>([]);
+  const [ordersByType, setOrdersByType] = useState<{ type: string; count: number }[]>([]);
+  const [appointmentsByClinic, setAppointmentsByClinic] = useState<{ clinic_name: string; count: number }[]>([]);
+  const [usersClientsPerClinic, setUsersClientsPerClinic] = useState<{ clinic_name: string; users: number; clients: number }[]>([]);
+  const [topSkus, setTopSkus] = useState<{ sku: string; quantity: number }[]>([]);
+  const [aov, setAov] = useState<number>(0);
 
   useEffect(() => {
     loadDashboardData();
@@ -122,36 +126,32 @@ const ControlCenterDashboardPage: React.FC = () => {
 
       setCompany(parsedCompany);
 
-      const clinicsResult = await apiClient.getClinicsByCompany(parsedCompany.id!);
-      const clinicsData = clinicsResult.data || [];
-      setClinics(clinicsData);
-
-      const companyUsersResponse = await apiClient.getUsersByCompany(parsedCompany.id!);
-      const companyUsers = companyUsersResponse.data || [];
-      setUsers(companyUsers);
-
-      const activeClinics = clinicsData?.filter((clinic: Clinic) => clinic.is_active) || [];
-      const totalAppointmentsResponse = await apiClient.getAppointments();
-      const totalAppointments = totalAppointmentsResponse.data || [];
+      const aggResp = await apiClient.getControlCenterDashboard(parsedCompany.id!);
+      const agg = aggResp.data as any;
+      const aggStats = (agg?.stats as any) || {};
+      const currentMonthAppointmentsCount = Number(aggStats.totalAppointments || 0);
       
-      if (USE_DUMMY_CHARTS) {
-        setAppointmentsSeries(DUMMY_APPOINTMENTS_SERIES);
-        setNewClientsSeries(DUMMY_NEW_CLIENTS_SERIES);
-      } else {
-        const [apptStatsResp, newClientsResp] = await Promise.all([
-          apiClient.getCompanyAppointmentsStats(parsedCompany.id!),
-          apiClient.getCompanyNewClientsStats(parsedCompany.id!),
-        ]);
-        setAppointmentsSeries((apptStatsResp.data as any) || []);
-        setNewClientsSeries((newClientsResp.data as any) || []);
-      }
+      const [usersClientsResp, apptMonthClinicResp, newClientsResp, aovResp, ordersByTypeResp, topSkusResp] = await Promise.all([
+        apiClient.ccStatsUsersClientsPerClinic(parsedCompany.id!),
+        apiClient.ccStatsAppointmentsMonthPerClinic(parsedCompany.id!),
+        apiClient.ccStatsNewClientsSeries(parsedCompany.id!, 12),
+        apiClient.ccStatsAov(parsedCompany.id!, 3),
+        apiClient.ccStatsOrdersByType(parsedCompany.id!, 6),
+        apiClient.ccStatsTopSkus(parsedCompany.id!, 6, 10),
+      ]);
+      setUsersClientsPerClinic(((usersClientsResp.data as any)?.items) || []);
+      setAppointmentsByClinic(((apptMonthClinicResp.data as any)?.items) || []);
+      setNewClientsSeries(((newClientsResp.data as any)?.items) || []);
+      setAov(Number((aovResp.data as any)?.aov || 0));
+      setOrdersByType(((ordersByTypeResp.data as any)?.items) || []);
+      setTopSkus(((topSkusResp.data as any)?.items) || []);
 
       setStats({
-        totalClinics: clinicsData?.length || 0,
-        activeClinics: activeClinics.length,
-        totalUsers: companyUsers.length,
-        totalAppointments: totalAppointments.length,
-        monthlyRevenue: 0
+        totalClinics: Number(aggStats.totalClinics || 0),
+        activeClinics: Number(aggStats.activeClinics || 0),
+        totalUsers: Number(aggStats.totalUsers || 0),
+        totalAppointments: currentMonthAppointmentsCount,
+        monthlyRevenue: Number(aggStats.monthlyRevenue || 0)
       });
 
     } catch (error) {
@@ -275,10 +275,10 @@ const ControlCenterDashboardPage: React.FC = () => {
           </div>
         </div>
 
-        <div className="px-4 lg:px-6 space-y-6">
+        <div className="px-4 lg:px-6 space-y-6 pb-40">
           
           {/* Stats Bar - First Row */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
             <Card className="bg-card border-none shadow-md">
               <CardHeader className="flex flex-row items-center mb-[-10px] justify-between space-y-0">
                 <CardTitle className="text-sm font-medium">סה"כ מרפאות</CardTitle>
@@ -330,54 +330,187 @@ const ControlCenterDashboardPage: React.FC = () => {
                 </p>
               </CardContent>
             </Card>
-          </div>
-
-
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <Card className="bg-card border-none shadow-md">
-              <CardHeader>
-                <CardTitle className="text-sm font-medium">תורים בחודשים</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ChartContainer
-                  config={{ appointments: { label: 'תורים', color: 'hsl(var(--primary))' } }}
-                  className="w-full h-64"
-                >
-                  <LineChart data={appointmentsSeries} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="month" />
-                    <YAxis allowDecimals={false} />
-                    <ChartTooltip content={<ChartTooltipContent />} />
-                    <Line name="appointments" type="monotone" dataKey="count" stroke="var(--color-appointments)" strokeWidth={2} dot={false} />
-                    <ChartLegend content={<ChartLegendContent />} />
-                  </LineChart>
-                </ChartContainer>
-              </CardContent>
-            </Card>
 
             <Card className="bg-card border-none shadow-md">
-              <CardHeader>
-                <CardTitle className="text-sm font-medium">לקוחות חדשים בחודשים</CardTitle>
+              <CardHeader className="flex flex-row items-center mb-[-10px] justify-between space-y-0">
+                <CardTitle className="text-sm font-medium">AOV ממוצע</CardTitle>
+                <TrendingUp className="h-4 w-4 text-primary" />
               </CardHeader>
               <CardContent>
-                <ChartContainer
-                  config={{ clients: { label: 'לקוחות חדשים', color: 'hsl(var(--secondary-foreground))' } }}
-                  className="w-full h-64"
-                >
-                  <LineChart data={newClientsSeries} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="month" />
-                    <YAxis allowDecimals={false} />
-                    <ChartTooltip content={<ChartTooltipContent />} />
-                    <Line name="clients" type="monotone" dataKey="count" stroke="var(--color-clients)" strokeWidth={2} dot={false} />
-                    <ChartLegend content={<ChartLegendContent />} />
-                  </LineChart>
-                </ChartContainer>
+                <div className="text-2xl font-bold text-primary">₪{Number(aov || 0).toLocaleString()}</div>
+                <p className="text-xs text-muted-foreground">3 חודשים אחרונים</p>
               </CardContent>
             </Card>
           </div>
 
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <Card className="bg-card border-none shadow-md">
+              <CardHeader>
+                <CardTitle className="text-sm font-medium">הזמנות לפי סוג</CardTitle>
+              </CardHeader>
+              <CardContent className="m-auto">
+                {loading ? (
+                  <div className="mx-auto  w-full max-w-[320px] flex items-center justify-center">
+                    <Skeleton className="h-64 w-64 rounded-full" />
+                  </div>
+                ) : ordersByType.length === 0 ? (
+                  <div className="mx-auto m-auto w-full max-w-[320px] flex flex-col items-center justify-center text-center">
+                    <div className="text-muted-foreground text-sm mb-2">אין נתונים זמינים</div>
+                    <div className="text-muted-foreground text-xs">עדיין לא בוצעו הזמנות במערכת</div>
+                  </div>
+                ) : (
+                  <ChartContainer
+                    config={ordersByType.reduce((acc, it, idx) => {
+                      acc[it.type || 'unknown'] = { label: it.type || 'לא ידוע', color: idx % 2 === 0 ? 'hsl(var(--primary))' : 'hsl(var(--secondary-foreground))' };
+                      return acc;
+                    }, {} as any)}
+                    className="mx-auto aspect-square w-full max-w-[320px]"
+                  >
+                    <PieChart>
+                      <ChartTooltip cursor={false} content={<ChartTooltipContent hideLabel />} />
+                      <Pie
+                        data={ordersByType.map((it, idx) => ({ key: it.type || 'unknown', value: it.count, fill: idx % 2 === 0 ? 'hsl(var(--primary))' : 'hsl(var(--secondary-foreground))' }))}
+                        dataKey="value"
+                        nameKey="key"
+                        innerRadius={60}
+                        strokeWidth={5}
+                      >
+                        <Label content={({ viewBox }) => {
+                          if (viewBox && 'cx' in viewBox && 'cy' in viewBox) {
+                            const total = ordersByType.reduce((s, i) => s + Number(i.count || 0), 0)
+                            return (
+                              <text x={viewBox.cx as number} y={viewBox.cy as number} textAnchor="middle" dominantBaseline="middle">
+                                <tspan x={viewBox.cx as number} y={viewBox.cy as number} className="fill-foreground text-2xl font-bold">{total.toLocaleString()}</tspan>
+                                <tspan x={viewBox.cx as number} y={(viewBox.cy as number) + 20} className="fill-muted-foreground text-xs">סה"כ</tspan>
+                              </text>
+                            )
+                          }
+                          return null
+                        }} />
+                      </Pie>
+                    </PieChart>
+                  </ChartContainer>
+                )}
+              </CardContent>
+              <CardFooter className="flex-col mb-0 items-start gap-2 text-sm">
+                <div className="flex gap-2 leading-none font-medium">התפלגות סוגי הזמנות לפי ספירה</div>
+                <div className="text-muted-foreground leading-none">חצי שנה אחרונה</div>
+              </CardFooter>
+            </Card>
 
+            <Card className="bg-card border-none shadow-md">
+              <CardHeader>
+                <CardTitle className="text-sm font-medium">תורים החודש לפי מרפאה</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {loading ? (
+                  <Skeleton className="w-full h-64" />
+                ) : appointmentsByClinic.length === 0 ? (
+                  <div className="w-full h-64 flex flex-col items-center justify-center text-center">
+                    <div className="text-muted-foreground text-sm mb-2">אין תורים החודש</div>
+                    <div className="text-muted-foreground text-xs">עדיין לא נקבעו תורים במרפאות</div>
+                  </div>
+                ) : (
+                  <ChartContainer config={{ count: { label: 'תורים', color: 'hsl(var(--primary))' } }}>
+                    <BarChart accessibilityLayer data={appointmentsByClinic}>
+                      <CartesianGrid vertical={false} />
+                      <XAxis dataKey="clinic_name" tickLine={false} tickMargin={10} axisLine={false} />
+                      <ChartTooltip cursor={false} content={<ChartTooltipContent hideLabel />} />
+                      <Bar dataKey="count" fill="hsl(var(--primary))" radius={4} />
+                    </BarChart>
+                  </ChartContainer>
+                )}
+              </CardContent>
+              <CardFooter className="flex-col items-start gap-2 text-sm">
+                <div className="flex gap-2 leading-none font-medium">תורים לפי מרפאה (חודש נוכחי)</div>
+                <div className="text-muted-foreground leading-none">מסודר לפי כמות</div>
+              </CardFooter>
+            </Card>
+
+            <Card className="bg-card border-none shadow-md">
+              <CardHeader>
+                <CardTitle className="text-sm font-medium">משתמשים ולקוחות לפי מרפאה</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {loading ? (
+                  <Skeleton className="w-full h-64" />
+                ) : usersClientsPerClinic.length === 0 ? (
+                  <div className="w-full h-64 flex flex-col items-center justify-center text-center">
+                    <div className="text-muted-foreground text-sm mb-2">אין מרפאות במערכת</div>
+                    <div className="text-muted-foreground text-xs">נראה שעדיין לא הוגדרו מרפאות</div>
+                  </div>
+                ) : (
+                  <ChartContainer config={{ users: { label: 'משתמשים', color: 'hsl(var(--primary))' }, clients: { label: 'לקוחות', color: 'hsl(var(--secondary-foreground))' } }}>
+                    <BarChart accessibilityLayer data={usersClientsPerClinic}>
+                      <CartesianGrid vertical={false} />
+                      <XAxis dataKey="clinic_name" tickLine={false} tickMargin={10} axisLine={false} />
+                      <ChartTooltip cursor={false} content={<ChartTooltipContent indicator="dashed" />} />
+                      <Bar dataKey="users" fill="hsl(var(--primary))" radius={4} />
+                      <Bar dataKey="clients" fill="hsl(var(--secondary-foreground))" radius={4} />
+                    </BarChart>
+                  </ChartContainer>
+                )}
+              </CardContent>
+              <CardFooter className="flex-col items-start gap-2 text-sm">
+                <div className="flex gap-2 leading-none font-medium">משתמשים מול לקוחות בכל מרפאה</div>
+                <div className="text-muted-foreground leading-none">ממויין לפי סך הכול</div>
+              </CardFooter>
+            </Card>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <Card className="bg-card border-none shadow-md">
+              <CardHeader>
+                <CardTitle className="text-sm font-medium">מוצרים מובילים (SKU)</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {loading ? (
+                  <Skeleton className="w-full h-64" />
+                ) : topSkus.length === 0 ? (
+                  <div className="w-full h-64 flex flex-col items-center justify-center text-center">
+                    <div className="text-muted-foreground text-sm mb-2">אין מוצרים</div>
+                    <div className="text-muted-foreground text-xs">עדיין לא בוצעו הזמנות עם פריטים</div>
+                  </div>
+                ) : (
+                  <ChartContainer config={{ quantity: { label: 'כמות', color: 'var(--chart-1)' } }}>
+                    <BarChart accessibilityLayer data={topSkus.map((it) => ({ sku: it.sku || 'unknown', quantity: it.quantity }))} layout="vertical" margin={{ left: -10 }}>
+                      <XAxis type="number" dataKey="quantity" hide />
+                      <YAxis dataKey="sku" type="category" tickLine={false} tickMargin={10} axisLine={false} />
+                      <ChartTooltip cursor={false} content={<ChartTooltipContent hideLabel />} />
+                      <Bar dataKey="quantity" fill="var(--color-quantity)" radius={5} />
+                    </BarChart>
+                  </ChartContainer>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card className="bg-card border-none shadow-md lg:col-span-2">
+              <CardHeader>
+                <CardTitle className="text-sm font-medium">לקוחות חדשים ב-12 חודשים</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {loading ? (
+                  <Skeleton className="w-full h-64" />
+                ) : newClientsSeries.length === 0 ? (
+                  <div className="w-full h-64 flex flex-col items-center justify-center text-center">
+                    <div className="text-muted-foreground text-sm mb-2">אין נתוני לקוחות</div>
+                    <div className="text-muted-foreground text-xs">עדיין לא נוספו לקוחות חדשים למערכת</div>
+                  </div>
+                ) : (
+                  <ChartContainer config={{ clients: { label: 'לקוחות חדשים', color: 'var(--chart-1)' } }} className="w-full h-64">
+                    <LineChart data={newClientsSeries} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="month" />
+                      <YAxis allowDecimals={false} />
+                      <ChartTooltip content={<ChartTooltipContent />} />
+                      <Line name="clients" type="monotone" dataKey="count" stroke="var(--color-clients)" strokeWidth={2} dot={false} />
+                      <ChartLegend content={<ChartLegendContent />} />
+                    </LineChart>
+                  </ChartContainer>
+                )}
+              </CardContent>
+            </Card>
+          </div>
         </div>
       </div>
     </>

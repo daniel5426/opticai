@@ -47,17 +47,39 @@ export async function getAllExams(type?: string, clinicId?: number): Promise<Opt
   }
 }
 
-export async function getAllEnrichedExams(type?: string, clinicId?: number): Promise<any[]> {
+export async function getAllEnrichedExams(type?: string, clinicId?: number, options?: { limit?: number; offset?: number; order?: 'exam_date_desc' | 'exam_date_asc' }): Promise<any[]> {
   try {
-    const response = await apiClient.getEnrichedExams(type, clinicId);
+    const effectiveOptions = options ?? { limit: 100, offset: 0, order: 'exam_date_desc' as const };
+    const response = await apiClient.getEnrichedExams(type, clinicId, effectiveOptions);
     if (response.error) {
       console.error('Error getting enriched exams:', response.error);
       return [];
     }
-    return response.data as any[] || [];
+    const payload = response.data as { items: any[]; total: number } | undefined;
+    return payload?.items || [];
   } catch (error) {
     console.error('Error getting enriched exams:', error);
     return [];
+  }
+}
+
+export async function getPaginatedEnrichedExams(
+  type?: string,
+  clinicId?: number,
+  options?: { limit?: number; offset?: number; order?: 'exam_date_desc' | 'exam_date_asc' }
+): Promise<{ items: any[]; total: number }> {
+  try {
+    const effectiveOptions = options ?? { limit: 25, offset: 0, order: 'exam_date_desc' as const };
+    const response = await apiClient.getEnrichedExams(type, clinicId, effectiveOptions);
+    if (response.error) {
+      console.error('Error getting enriched exams (paginated):', response.error);
+      return { items: [], total: 0 };
+    }
+    const payload = response.data as { items: any[]; total: number } | undefined;
+    return { items: payload?.items || [], total: payload?.total || 0 };
+  } catch (error) {
+    console.error('Error getting enriched exams (paginated):', error);
+    return { items: [], total: 0 };
   }
 }
 
@@ -85,6 +107,20 @@ export async function getExamWithLayouts(examId: number): Promise<any> {
     return response.data || undefined;
   } catch (error) {
     console.error('Error getting exam with layouts:', error);
+    return undefined;
+  }
+}
+
+export async function getExamPageData(examId: number): Promise<any> {
+  try {
+    const response = await apiClient.getExamPageData(examId);
+    if (response.error) {
+      console.error('Error getting exam page data:', response.error);
+      return undefined;
+    }
+    return response.data || undefined;
+  } catch (error) {
+    console.error('Error getting exam page data:', error);
     return undefined;
   }
 }

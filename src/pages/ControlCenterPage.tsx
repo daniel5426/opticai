@@ -4,10 +4,14 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { ArrowRight, Building2, User, Lock, Mail, Phone, ArrowLeft } from 'lucide-react'
+import { ArrowRight, User, Lock, Mail, Phone, ArrowLeft } from 'lucide-react'
 import { useRouter } from '@tanstack/react-router'
 import { useUser } from '@/contexts/UserContext'
 import { apiClient } from '@/lib/api-client'
+import { supabase } from '@/lib/supabaseClient'
+import type { User as AppUser } from '@/lib/db/schema-interface'
+import { cn } from '@/lib/utils'
+import loginBanner from '@/assets/images/login-banner.png'
 
 export default function ControlCenterPage() {
   const [loading, setLoading] = useState(false)
@@ -24,6 +28,7 @@ export default function ControlCenterPage() {
 
   // Registration form state
   const [registerForm, setRegisterForm] = useState({
+    full_name: 'Admin Admin',
     username: 'admin',
     password: 'admin',
     confirmPassword: 'admin',
@@ -37,16 +42,27 @@ export default function ControlCenterPage() {
     setError('')
 
     try {
-      console.log('Login attempt:', { username: loginForm.username })
-      
-      // Authenticate user with username and password
-      const userResponse = await apiClient.authenticateUser(loginForm.username, loginForm.password);
-      const user = userResponse.data;
-      console.log('Authentication result:', user)
-
-      if (!user || !('role' in user)) {
-        throw new Error('שם משתמש או סיסמה שגויים')
+      const { data, error: authError } = await supabase.auth.signInWithPassword({
+        email: loginForm.username,
+        password: loginForm.password,
+      })
+      if (authError) {
+        const code = (authError as any)?.status || (authError as any)?.code || ''
+        const msg = String((authError as any)?.message || '').toLowerCase()
+        if (msg.includes('email not confirmed')) throw new Error('יש לאשר את האימייל לפני התחברות')
+        if (String(code) === '400') throw new Error('פרטי התחברות שגויים')
+        throw new Error('שגיאה בהתחברות, נסה שוב')
       }
+      if (!data.session) throw new Error('שגיאת התחברות')
+      if (data?.session?.access_token) {
+        apiClient.setToken(data.session.access_token)
+      }
+      const me = await apiClient.getCurrentUser()
+      const raw = me.data
+      const isUser = (u: any): u is AppUser => !!u && typeof u === 'object' && typeof u.username === 'string' && typeof u.role === 'string'
+      if (!isUser(raw)) throw new Error('שם משתמש או סיסמה שגויים')
+      const user = raw
+      console.log('Authentication result:', user)
 
       // Verify user has CEO role
       if (user.role !== 'company_ceo') {
@@ -134,6 +150,38 @@ export default function ControlCenterPage() {
         }
       }
 
+      // Create Supabase auth user and sign in
+      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+        email: registerForm.email,
+        password: registerForm.password,
+        options: { data: { full_name: registerForm.full_name } }
+      })
+      if (signUpError && signUpError.message && !/User already registered/i.test(signUpError.message)) {
+        const code = (signUpError as any)?.status || (signUpError as any)?.code || ''
+        if (String(code).startsWith('429')) {
+          throw new Error('יותר מדי נסיונות הרשמה, נסה שוב בעוד רגע')
+        }
+        throw new Error('שגיאה ביצירת משתמש אימייל')
+      }
+      const hasSession = !!signUpData?.session
+      if (!hasSession) {
+        const { error: siErr } = await supabase.auth.signInWithPassword({
+          email: registerForm.email,
+          password: registerForm.password,
+        })
+        if (siErr) {
+          const code = (siErr as any)?.status || (siErr as any)?.code || ''
+          const msg = String((siErr as any)?.message || '').toLowerCase()
+          if (msg.includes('email not confirmed')) throw new Error('יש לאשר את האימייל שנשלח אליך לפני המשך')
+          if (String(code) === '400') throw new Error('פרטי התחברות שגויים לאחר הרשמה')
+          throw new Error('שגיאה בהתחברות לאחר הרשמה')
+        }
+        const sess = await supabase.auth.getSession()
+        if (sess.data.session?.access_token) apiClient.setToken(sess.data.session.access_token)
+      } else if (signUpData.session?.access_token) {
+        apiClient.setToken(signUpData.session.access_token)
+      }
+
       // Navigate to setup wizard for company creation
       router.navigate({ 
         to: '/setup-wizard',
@@ -143,7 +191,8 @@ export default function ControlCenterPage() {
           username: registerForm.username,
           password: registerForm.password,
           email: registerForm.email,
-          phone: registerForm.phone
+          phone: registerForm.phone,
+          full_name: registerForm.full_name
         }
       })
     } catch (error) {
@@ -160,201 +209,104 @@ export default function ControlCenterPage() {
   }
 
   return (
-    <div className="h-full bg-accent/50 dark:bg-slate-900 flex items-center justify-center p-6" dir="rtl" style={{scrollbarWidth: 'none'}}>
-      <div className="w-full max-w-md">
-        {/* Header */}
-        <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-general-secondary rounded-xl flex items-center justify-center mx-auto mb-4 shadow-sm">
-            <Building2 className="w-8 h-8 text-white" />
-          </div>
-          <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-100 mb-2">
-            מרכז בקרה
-          </h1>
-          <p className="text-slate-600 dark:text-slate-400">
-            {isRegisterMode ? 'צור חשבון חדש' : 'התחבר למערכת'}
-          </p>
-        </div>
-
-        {/* Error Alert */}
+    <div className="bg-muted flex min-h-svh flex-col items-center justify-center p-6 md:p-10" dir="rtl" style={{scrollbarWidth: 'none'}}>
+      <div className="w-full max-w-sm md:max-w-3xl">
         {error && (
-          <Alert className="mb-6 border-red-200 bg-red-50 text-red-800">
+          <Alert className="mb-6">
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}
-
-        <Card className="bg-white dark:bg-slate-800/80 backdrop-blur-sm border-0 shadow-xl" dir="rtl">
-          <CardContent className="p-6" dir="rtl">
-            {isRegisterMode ? (
-              // Registration Form
-              <div>
-                <CardHeader className="px-0 pb-4">
-                  <CardTitle className="text-center text-xl">צור חשבון חדש</CardTitle>
-                </CardHeader>
-                <form onSubmit={handleRegister} className="space-y-4">
-                  <div className="space-y-2" dir="rtl">
-                    <Label htmlFor="regUsername">שם משתמש</Label>
-                    <div className="relative">
-                      <User className="absolute right-3 top-3 h-4 w-4 text-gray-400" />
-                      <Input
-                        dir="rtl"
-                        id="regUsername"
-                        type="text"
-                        value={registerForm.username}
-                        onChange={(e) => setRegisterForm(prev => ({ ...prev, username: e.target.value }))}
-                        className="pr-10"
-                        required
-                      />
+        <div className={cn('flex flex-col gap-6')}>
+          <Card className="overflow-hidden p-0">
+            <CardContent className="grid p-0 md:grid-cols-2">
+              {isRegisterMode ? (
+                <form onSubmit={handleRegister} className="p-6 md:p-8">
+                  <div className="flex flex-col gap-6">
+                    <div className="flex flex-col items-center text-center">
+                      <h1 className="text-2xl font-bold">צור חשבון חדש</h1>
+                      <p className="text-muted-foreground text-balance">המשך להגדרת החברה</p>
+                    </div>
+                    <div className="grid gap-3">
+                      <Label htmlFor="regFullName">שם מלא</Label>
+                      <Input id="regFullName" type="text" dir="rtl" value={registerForm.full_name} onChange={(e) => setRegisterForm(prev => ({ ...prev, full_name: e.target.value }))} required />
+                    </div>
+                    <div className="grid gap-3">
+                      <Label htmlFor="regUsername">שם משתמש</Label>
+                      <Input id="regUsername" type="text" dir="rtl" value={registerForm.username} onChange={(e) => setRegisterForm(prev => ({ ...prev, username: e.target.value }))} required />
+                    </div>
+                    <div className="grid gap-3">
+                      <Label htmlFor="regEmail">אימייל</Label>
+                      <Input id="regEmail" type="email" dir="rtl" value={registerForm.email} onChange={(e) => setRegisterForm(prev => ({ ...prev, email: e.target.value }))} required />
+                    </div>
+                    <div className="grid gap-3">
+                      <Label htmlFor="regPhone">טלפון</Label>
+                      <Input id="regPhone" type="tel" dir="rtl" value={registerForm.phone} onChange={(e) => setRegisterForm(prev => ({ ...prev, phone: e.target.value }))} required />
+                    </div>
+                    <div className="grid gap-3">
+                      <Label htmlFor="regPassword">סיסמה</Label>
+                      <Input id="regPassword" type="password" dir="rtl" value={registerForm.password} onChange={(e) => setRegisterForm(prev => ({ ...prev, password: e.target.value }))} required />
+                    </div>
+                    <div className="grid gap-3">
+                      <Label htmlFor="confirmPassword">אישור סיסמה</Label>
+                      <Input id="confirmPassword" type="password" dir="rtl" value={registerForm.confirmPassword} onChange={(e) => setRegisterForm(prev => ({ ...prev, confirmPassword: e.target.value }))} required />
+                    </div>
+                    <Button type="submit" className="w-full bg-general-primary hover:bg-general-primary/80" disabled={loading}>
+                      {loading ? 'ממשיך...' : 'המשך להגדרת החברה'}
+                      <ArrowRight className="mr-2 h-4 w-4" />
+                    </Button>
+                    <div className="text-center text-sm">
+                      כבר יש לך חשבון?{' '}
+                      <button type="button" onClick={toggleMode} className="underline underline-offset-4">התחבר</button>
                     </div>
                   </div>
-
-                  <div className="space-y-2" dir="rtl">
-                    <Label htmlFor="regPassword">סיסמה</Label>
-                    <div className="relative">
-                      <Lock className="absolute right-3 top-3 h-4 w-4 text-gray-400" />
-                      <Input
-                        dir="rtl"
-                        id="regPassword"
-                        type="password"
-                        value={registerForm.password}
-                        onChange={(e) => setRegisterForm(prev => ({ ...prev, password: e.target.value }))}
-                        className="pr-10"
-                        required
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-2" dir="rtl">
-                    <Label htmlFor="confirmPassword">אישור סיסמה</Label>
-                    <div className="relative">
-                      <Lock className="absolute right-3 top-3 h-4 w-4 text-gray-400" />
-                      <Input
-                        dir="rtl"
-                        id="confirmPassword"
-                        type="password"
-                        value={registerForm.confirmPassword}
-                        onChange={(e) => setRegisterForm(prev => ({ ...prev, confirmPassword: e.target.value }))}
-                        className="pr-10"
-                        required
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-2" dir="rtl">
-                    <Label htmlFor="regEmail">אימייל</Label>
-                    <div className="relative">
-                      <Mail className="absolute right-3 top-3 h-4 w-4 text-gray-400" />
-                      <Input
-                        dir="rtl"
-                        id="regEmail"
-                        type="email"
-                        value={registerForm.email}
-                        onChange={(e) => setRegisterForm(prev => ({ ...prev, email: e.target.value }))}
-                        className="pr-10"
-                        required
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-2" dir="rtl">
-                    <Label htmlFor="regPhone">טלפון</Label>
-                    <div className="relative">
-                      <Phone className="absolute right-3 top-3 h-4 w-4 text-gray-400" />
-                      <Input
-                        dir="rtl"
-                        id="regPhone"
-                        type="tel"
-                        value={registerForm.phone}
-                        onChange={(e) => setRegisterForm(prev => ({ ...prev, phone: e.target.value }))}
-                        className="pr-10"
-                        required
-                      />
-                    </div>
-                  </div>
-
-                  <Button type="submit" className="w-full bg-general-primary hover:bg-general-primary/80" disabled={loading}>
-                    {loading ? 'ממשיך...' : 'המשך להגדרת החברה'}
-                    <ArrowRight className="mr-2 h-4 w-4" />
-                  </Button>
                 </form>
-
-                <div className="mt-4 text-center">
-                  <Button
-                    variant="ghost"
-                    onClick={toggleMode}
-                    className="text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100"
-                  >
-                    יש לך כבר חשבון? התחבר
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              // Login Form
-              <div>
-                <CardHeader className="px-0 pb-4">
-                  <CardTitle className="text-center text-xl">התחברות למערכת</CardTitle>
-                </CardHeader>
-                <form onSubmit={handleLogin} className="space-y-4">
-                  <div className="space-y-2" dir="rtl">
-                    <Label htmlFor="username">שם משתמש</Label>
-                    <div className="relative">
-                      <User className="absolute right-3 top-3 h-4 w-4 text-gray-400" />
-                      <Input
-                        dir="rtl"
-                        id="username"
-                        type="text"
-                        value={loginForm.username}
-                        onChange={(e) => setLoginForm(prev => ({ ...prev, username: e.target.value }))}
-                        className="pr-10"
-                        required
-                      />
+              ) : (
+                <form onSubmit={handleLogin} className="p-6 md:p-8">
+                  <div className="flex flex-col gap-6">
+                    <div className="flex flex-col items-center text-center">
+                      <h1 className="text-2xl font-bold">ברוך שובך</h1>
+                      <p className="text-muted-foreground text-balance">התחבר למרכז הבקרה</p>
+                    </div>
+                    <div className="grid gap-3">
+                      <Label htmlFor="email">אימייל</Label>
+                      <Input id="email" type="email" dir="rtl" placeholder="m@example.com" value={loginForm.username} onChange={(e) => setLoginForm(prev => ({ ...prev, username: e.target.value }))} required />
+                    </div>
+                    <div className="grid gap-3">
+                      <div className="flex items-center">
+                        <Label htmlFor="password">סיסמה</Label>
+                        <a href="#" className="ml-auto text-sm underline-offset-2 hover:underline">שכחת סיסמה?</a>
+                      </div>
+                      <Input id="password" type="password" dir="rtl" value={loginForm.password} onChange={(e) => setLoginForm(prev => ({ ...prev, password: e.target.value }))} required />
+                    </div>
+                    <Button type="submit" className="w-full bg-general-primary hover:bg-general-primary/80" disabled={loading}>
+                      {loading ? 'מתחבר...' : 'התחברות'}
+                    </Button>
+                    <div className="after:border-border relative text-center text-sm after:absolute after:inset-0 after:top-1/2 after:z-0 after:flex after:items-center after:border-t">
+                      <span className="bg-card text-muted-foreground relative z-10 px-2">או המשך עם</span>
+                    </div>
+                    <div className="grid grid-cols-1 gap-4">
+                      <Button variant="outline" type="button" className="w-full">
+                        <svg xmlns="http://www.w3.org/200/svg" viewBox="0 0 24 24" className="h-4 w-4">
+                          <path d="M12.48 10.92v3.28h7.84c-.24 1.84-.853 3.187-1.787 4.133-1.147 1.147-2.933 2.4-6.053 2.4-4.827 0-8.6-3.893-8.6-8.72s3.773-8.72 8.6-8.72c2.6 0 4.507 1.027 5.907 2.347l2.307-2.307C18.747 1.44 16.133 0 12.48 0 5.867 0 .307 5.387.307 12s5.56 12 12.173 12c3.573 0 6.267-1.173 8.373-3.36 2.16-2.16 2.84-5.213 2.84-7.667 0-.76-.053-1.467-.173-2.053H12.48z" fill="currentColor" />
+                        </svg>
+                        <span className="sr-only">התחבר עם גוגל</span>
+                      </Button>
+                    </div>
+                    <div className="text-center text-sm">
+                      אין לך חשבון?{' '}
+                      <button type="button" onClick={toggleMode} className="underline underline-offset-4">הירשם</button>
                     </div>
                   </div>
-
-                  <div className="space-y-2" dir="rtl">
-                    <Label htmlFor="password">סיסמה</Label>
-                    <div className="relative">
-                      <Lock className="absolute right-3 top-3 h-4 w-4 text-gray-400" />
-                      <Input
-                        dir="rtl"
-                        id="password"
-                        type="password"
-                        value={loginForm.password}
-                        onChange={(e) => setLoginForm(prev => ({ ...prev, password: e.target.value }))}
-                        className="pr-10"
-                        required
-                      />
-                    </div>
-                  </div>
-
-                  <Button type="submit" className="w-full bg-general-primary hover:bg-general-primary/80" disabled={loading}>
-                    <ArrowLeft className="mr-2 h-4 w-4" />
-                    {loading ? 'מתחבר...' : 'התחברות'}
-                  </Button>
                 </form>
-
-                <div className="mt-4 text-center">
-                  <Button
-                    variant="ghost"
-                    onClick={toggleMode}
-                    className="text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100"
-                  >
-                    אין לך חשבון? צור חשבון חדש
-                  </Button>
-                </div>
+              )}
+              <div className="bg-muted relative hidden md:block">
+                <img src={loginBanner} alt="Image" className="absolute inset-0 h-fit w-fit object-cover dark:brightness-[0.2] dark:grayscale" />
               </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Back to Welcome */}
-        <div className="text-center mt-6">
-          <Button
-            variant="ghost"
-            onClick={() => router.navigate({ to: '/' })}
-            className="text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100"
-          >
-            חזרה למסך הבית
-          </Button>
+            </CardContent>
+          </Card>
+          <div className="text-muted-foreground *:[a]:hover:text-primary text-center text-xs text-balance *:[a]:underline *:[a]:underline-offset-4">
+            בלחיצה על המשך, אתה מסכים ל־ <a href="#">תנאי השירות</a> ו־ <a href="#">מדיניות הפרטיות</a>.
+          </div>
         </div>
       </div>
     </div>

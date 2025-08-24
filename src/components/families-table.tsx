@@ -14,6 +14,7 @@ import { Edit2, Trash2 } from "lucide-react"
 import { CustomModal } from "@/components/ui/custom-modal"
 import { deleteFamily, getFamilyMembers } from "@/lib/db/family-db"
 import { toast } from "sonner"
+import { Skeleton } from "@/components/ui/skeleton"
 
 interface FamiliesTableProps {
   data: Family[]
@@ -25,6 +26,8 @@ interface FamiliesTableProps {
   searchQuery: string
   onSearchChange: (query: string) => void
   hideSearch?: boolean
+  loading?: boolean
+  pagination?: { page: number; pageSize: number; total: number; setPage: (p: number) => void }
 }
 
 export function FamiliesTable({ 
@@ -36,7 +39,9 @@ export function FamiliesTable({
   selectedFamilyId,
   searchQuery,
   onSearchChange,
-  hideSearch = false
+  hideSearch = false,
+  loading = false,
+  pagination
 }: FamiliesTableProps) {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = React.useState(false)
   const [familyToDelete, setFamilyToDelete] = React.useState<Family | null>(null)
@@ -122,7 +127,24 @@ export function FamiliesTable({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredData.length > 0 ? (
+            {loading ? (
+              Array.from({ length: 5 }).map((_, i) => (
+                <TableRow key={i}>
+                  <TableCell>
+                    <Skeleton className="w-[70%] h-4 my-2" />
+                  </TableCell>
+                  <TableCell>
+                    <Skeleton className="w-[70%] h-4 my-2" />
+                  </TableCell>
+                  <TableCell>
+                    <Skeleton className="w-[70%] h-4 my-2" />
+                  </TableCell>
+                  <TableCell>
+                    <Skeleton className="w-[70%] h-4 my-2" />
+                  </TableCell>
+                </TableRow>
+              ))
+            ) : filteredData.length > 0 ? (
               filteredData.map((family) => (
                 <TableRow
                   key={family.id}
@@ -185,6 +207,28 @@ export function FamiliesTable({
           </TableBody>
         </Table>
       </div>
+
+      {pagination && (
+        <div className="flex items-center justify-between mt-4">
+          <div className="text-sm text-muted-foreground">
+            עמוד {pagination.page} מתוך {Math.max(1, Math.ceil((pagination.total || 0) / (pagination.pageSize || 1)))} · סה"כ {pagination.total || 0}
+          </div>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={loading || pagination.page <= 1}
+              onClick={() => pagination.setPage(Math.max(1, pagination.page - 1))}
+            >הקודם</Button>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={loading || pagination.page >= Math.ceil((pagination.total || 0) / (pagination.pageSize || 1))}
+              onClick={() => pagination.setPage(pagination.page + 1)}
+            >הבא</Button>
+          </div>
+        </div>
+      )}
 
       <CustomModal
         isOpen={isDeleteModalOpen}

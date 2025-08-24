@@ -10,6 +10,7 @@ import { ArrowRight, ArrowLeft, Building2, MapPin, Phone, Mail, User, Check } fr
 import { toast } from 'sonner';
 import { useUser } from '@/contexts/UserContext';
 import { apiClient } from '@/lib/api-client';
+import { supabase } from '@/lib/supabaseClient';
 import type { Company } from '@/lib/db/schema-interface';
 
 interface SetupWizardProps {}
@@ -35,6 +36,7 @@ const SetupWizardPage: React.FC<SetupWizardProps> = () => {
   const companyId = parseInt(search.companyId || '0');
   const companyName = search.companyName || '';
   const username = search.username || '';
+  const full_name = (search as any).full_name || '';
   const password = search.password || '';
   const email = search.email || '';
   const phone = search.phone || '';
@@ -76,14 +78,19 @@ const SetupWizardPage: React.FC<SetupWizardProps> = () => {
       let newCeoUser;
 
       // If we have username and password from registration form, this is a new registration
-      // Always use public endpoints for new registrations
+      // Ensure Supabase session exists for protected API calls
       if (username && password) {
         console.log('SetupWizard - New registration, using public endpoints');
+        const { data: sessionData } = await supabase.auth.getSession()
+        if (!sessionData?.session) {
+          const { error: siErr } = await supabase.auth.signInWithPassword({ email, password })
+          if (siErr) throw new Error('שגיאה בהתחברות לסשן אימות')
+        }
         
         // Use public endpoints for new registration
         const newCompanyResponse = await apiClient.createCompanyPublic({
           name: companyName,
-          owner_full_name: username,
+          owner_full_name: full_name || username,
           contact_email: email,
           contact_phone: phone,
           address: ''
@@ -92,6 +99,7 @@ const SetupWizardPage: React.FC<SetupWizardProps> = () => {
 
         const ceoUserResponse = await apiClient.createUserPublic({
           username: username,
+          full_name: full_name || username,
           password: password,
           role: 'company_ceo',
           clinic_id: null,
@@ -103,32 +111,15 @@ const SetupWizardPage: React.FC<SetupWizardProps> = () => {
       } else {
         // This is an existing user setting up additional clinic, authenticate first
         console.log('SetupWizard - Existing user, authenticating first');
-        
-        // Authenticate with the provided credentials
-        const authResponse = await apiClient.authenticateUser(username, password);
-        const authUser = authResponse.data;
-        
-        if (!authUser) {
-          throw new Error('שם משתמש או סיסמה שגויים');
-        }
-
-        // Check if we got a token response or user response
-        if ('access_token' in authUser) {
-          // We got a token response, set it for authenticated requests
-          apiClient.setToken(authUser.access_token);
-        } else if ('role' in authUser) {
-          // We got a user response, check if it's a CEO
-          if (authUser.role !== 'company_ceo') {
-            throw new Error('אין לך הרשאות ליצירת חברות');
-          }
-        } else {
-          throw new Error('שם משתמש או סיסמה שגויים');
-        }
+        const me = await apiClient.getCurrentUser();
+        const authUser = me.data as any;
+        if (!authUser) throw new Error('חיבור אימות חסר')
+        if (authUser.role !== 'company_ceo') throw new Error('רק מנכ"ל החברה יכול ליצור חברות')
 
         // Create the new company using authenticated endpoint
         const newCompanyResponse = await apiClient.createCompany({
           name: companyName,
-          owner_full_name: username,
+          owner_full_name: full_name || username,
           contact_email: email,
           contact_phone: phone,
           address: ''
@@ -138,6 +129,7 @@ const SetupWizardPage: React.FC<SetupWizardProps> = () => {
         // Create the CEO user using authenticated endpoint
         const ceoUserResponse = await apiClient.createUser({
           username: username,
+          full_name: full_name || username,
           password: password,
           role: 'company_ceo',
           clinic_id: null,
@@ -217,6 +209,19 @@ const SetupWizardPage: React.FC<SetupWizardProps> = () => {
   const handleFinish = async () => {
     setIsLoading(true);
     try {
+      const ensureSession = async () => {
+        const { data: sess } = await supabase.auth.getSession()
+        if (!sess?.session) {
+          if (email && password) {
+            const { error: siErr } = await supabase.auth.signInWithPassword({ email, password })
+            if (siErr) throw new Error('שגיאת אימות – נסה להתחבר שוב')
+          } else {
+            throw new Error('חיבור אימות חסר')
+          }
+        }
+      }
+      await ensureSession()
+
       let finalCompanyId = company?.id || companyId;
       let finalCompany = company;
 
@@ -231,29 +236,11 @@ const SetupWizardPage: React.FC<SetupWizardProps> = () => {
         localStorage.setItem('controlCenterCompany', JSON.stringify(result.newCompany));
         localStorage.setItem('currentUser', JSON.stringify(result.newCeoUser));
         
-        // Authenticate the user for subsequent API calls
-        console.log('SetupWizard - Authenticating user for clinic creation');
-        const authResponse = await apiClient.authenticateUser(username, password);
-        const authUser = authResponse.data;
-        
-        if (!authUser) {
-          throw new Error('שם משתמש או סיסמה שגויים');
-        }
-
-        // Check if we got a token response or user response
-        if ('access_token' in authUser) {
-          // We got a token response, set it for authenticated requests
-          apiClient.setToken(authUser.access_token);
-          console.log('SetupWizard - Authentication token set');
-        } else if ('role' in authUser) {
-          // We got a user response, check if it's a CEO
-          if (authUser.role !== 'company_ceo') {
-            throw new Error('אין לך הרשאות ליצירת חברות');
-          }
-          console.log('SetupWizard - User authenticated successfully');
-        } else {
-          throw new Error('שם משתמש או סיסמה שגויים');
-        }
+        console.log('SetupWizard - Verifying current user role for clinic creation');
+        const me = await apiClient.getCurrentUser();
+        const authUser = me.data as any;
+        if (!authUser) throw new Error('חיבור אימות חסר')
+        if (authUser.role !== 'company_ceo') throw new Error('רק מנכ"ל החברה יכול ליצור חברות')
        }
       
       if (!finalCompanyId) {

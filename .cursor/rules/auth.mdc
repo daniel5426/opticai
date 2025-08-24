@@ -1,9 +1,7 @@
 ---
-alwaysApply: false
 description: Authentication and authorization in OpticAI — roles, endpoints, token handling, Control Center vs Clinic flows, storage, clinic scoping, and common 401/permissions behaviors.
-globs: *.ts,*.tsx,backend/**/*.py
+alwaysApply: false
 ---
-
 ### OpticAI Authentication & Authorization
 
 This rule describes how auth works across the app, including user roles, backend endpoints, token handling, Control Center vs Clinic flows, and clinic-scoped data.
@@ -15,36 +13,34 @@ This rule describes how auth works across the app, including user roles, backend
 - **clinic_viewer**: Read-only clinic access; no Control Center access
 
 ### Key Files
-- Backend endpoints: [backend/EndPoints/auth.py](mdc:backend/EndPoints/auth.py)
+- Backend auth dependency and user resolve: [backend/auth.py](mdc:backend/auth.py)
+- Backend endpoint exposing current user: [backend/EndPoints/auth.py](mdc:backend/EndPoints/auth.py)
 - Settings endpoints: [backend/EndPoints/settings.py](mdc:backend/EndPoints/settings.py)
 - Client API layer and token handling: [src/lib/api-client.ts](mdc:src/lib/api-client.ts)
+- Supabase client: [src/lib/supabaseClient.ts](mdc:src/lib/supabaseClient.ts)
 - User context/session restore: [src/contexts/UserContext.tsx](mdc:src/contexts/UserContext.tsx)
 - Control Center login page: [src/pages/ControlCenterPage.tsx](mdc:src/pages/ControlCenterPage.tsx)
 - Theme helpers touching user fetch: [src/helpers/theme_helpers.ts](mdc:src/helpers/theme_helpers.ts)
 
 ### Backend Auth Endpoints
-- `POST /api/v1/auth/login-json` — username/password login, returns JWT
-- `POST /api/v1/auth/login` — OAuth2 form variant (not typically used by UI)
-- `POST /api/v1/auth/login-no-password` — only for users without a password (utility login)
-- `GET /api/v1/auth/me` — returns current user resolved from JWT
+- `GET /api/v1/auth/me` — returns current user resolved from Supabase JWT
 
 All protected routes require `Authorization: Bearer <token>` and should enforce role-based access where appropriate.
 
 ### Client Token Flow
-- On successful login, JWT is stored under `auth_token` in localStorage by `apiClient`.
-- `apiClient` attaches the token to all requests and handles 401s:
-  - If a 401 occurs and a stored Control Center user exists without a password, it may retry via `login-no-password` to refresh the token.
-  - If the user has a password or the retry fails, the request remains 401.
+- Auth handled by Supabase Auth via `@supabase/supabase-js`.
+- Access token is read at request time from `supabase.auth.getSession()` inside `apiClient` and attached as `Authorization: Bearer <token>`.
+- No app-managed JWT storage/refresh. Local `auth_token` is deprecated.
 
 ### Control Center Flow
-- Login is handled in [src/pages/ControlCenterPage.tsx](mdc:src/pages/ControlCenterPage.tsx) using `apiClient.authenticateUser(username, password)`.
-- After login, `GET /auth/me` confirms the user; only `company_ceo` is allowed into Control Center.
+- Login is handled via `supabase.auth.signInWithPassword` in [src/pages/ControlCenterPage.tsx](mdc:src/pages/ControlCenterPage.tsx).
+- After login, the app calls `GET /auth/me` to resolve the app `User` from the Supabase token; only `company_ceo` can access Control Center.
 - Company context is stored in localStorage (`controlCenterCompany`) alongside `currentUser`.
 
 ### Clinic Flow
 - Users operate under a selected clinic; clinic-specific data is filtered by `clinic_id`.
 - Typical navigation goes through `ClinicEntrancePage` → `UserSelectionPage` → app pages.
-- Users may have or not have passwords; the app can restore sessions if a valid token exists, or leverage `login-no-password` for users without passwords when appropriate.
+- Sessions are restored via Supabase; no `login-no-password` flow.
 
 ### Clinic-Scoped Settings
 - Settings are per-clinic: see [backend/EndPoints/settings.py](mdc:backend/EndPoints/settings.py).
@@ -54,15 +50,15 @@ All protected routes require `Authorization: Bearer <token>` and should enforce 
   - `PUT /settings/{id}` to update existing settings
 
 ### Common 401/Permission Pitfalls
-- `401 Unauthorized` on Control Center login: wrong credentials, inactive user, or user missing.
-- Automatic `login-no-password` only succeeds if the stored user truly has no password.
-- Ensure `auth_token` is present for protected routes and refresh it on login.
+- `401 Unauthorized`: missing/expired Supabase session or mismatch between Supabase user email and app `users.email`.
+- Ensure frontend has a valid Supabase session; backend validates JWT via Supabase JWKS and looks up the user by `email`.
 
 ### Implementation Guidance
-- New protected endpoints should depend on the current user and enforce role checks.
+- New protected endpoints should depend on `get_current_user` (Supabase JWT) and enforce role checks.
 - Pass and validate `clinic_id` to scope data per clinic.
-- Frontend should always include the bearer token via `apiClient` and prefer per-clinic endpoints where available.
+- Frontend automatically includes the bearer token via `apiClient`.
 
 ### Quick Checks
-- Verify CEO user exists and is active before Control Center login.
-- When saving settings, make sure payload includes `clinic_id` and uses the correct route (create vs update).
+- Verify Supabase env is configured: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` (frontend) and `SUPABASE_URL` (backend).
+- Confirm `users.email` matches the Supabase Auth user email for proper mapping.
+- When saving settings, include `clinic_id` and use the correct route (create vs update).

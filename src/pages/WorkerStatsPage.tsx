@@ -296,17 +296,17 @@ export default function WorkerStatsPage() {
                           </div>
                             <div className="flex items-center gap-3">
                               <div className="text-right">
-                                <CardTitle>{user.username}</CardTitle>
+                                <CardTitle>{user.full_name || user.username}</CardTitle>
                                 <p className="text-sm text-muted-foreground">
                                   נתוני נוכחות לחודש {new Date(selectedYear, selectedMonth - 1).toLocaleDateString('he-IL', { month: 'long', year: 'numeric' })}
                                 </p>
                               </div>
                               <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center overflow-hidden">
                                 {user.profile_picture ? (
-                                  <img src={user.profile_picture} alt={user.username} className="w-full h-full object-cover" />
+                                  <img src={user.profile_picture} alt={user.full_name || user.username} className="w-full h-full object-cover" />
                                 ) : (
                                   <span className="font-semibold">
-                                    {user.username.charAt(0).toUpperCase()}
+                                    {(user.full_name || user.username).charAt(0).toUpperCase()}
                                   </span>
                                 )}
                               </div>
@@ -463,7 +463,7 @@ export default function WorkerStatsPage() {
                         <span className="text-muted-foreground text-sm">
                             {user.role === 'clinic_manager' || user.role === 'company_ceo' ? '(מנהל)' : '(עובד)'}
                           </span>
-                          <span className="font-medium">{user.username}</span>
+                          <span className="font-medium">{user.full_name || user.username}</span>
                         </div>
                       </div>
                     </TabsTrigger>

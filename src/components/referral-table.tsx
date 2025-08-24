@@ -26,6 +26,7 @@ interface ReferralTableProps {
   onReferralDeleteFailed: () => void;
   clientId: number;
   loading: boolean;
+  pagination?: { page: number; pageSize: number; total: number; setPage: (p: number) => void };
 }
 
 export function ReferralTable({
@@ -34,6 +35,7 @@ export function ReferralTable({
   onReferralDeleteFailed,
   clientId,
   loading,
+  pagination,
 }: ReferralTableProps) {
   const { currentClinic } = useUser()
   const [searchTerm, setSearchTerm] = useState("");
@@ -93,7 +95,8 @@ export function ReferralTable({
   };
 
   const handleRowClick = (referral: Referral) => {
-    navigate({ to: "/referrals/$referralId", params: { referralId: String(referral.id) } });
+    if (!referral.client_id) return;
+    navigate({ to: "/clients/$clientId/referrals/$referralId", params: { clientId: String(referral.client_id), referralId: String(referral.id) } });
   };
 
   return (
@@ -107,7 +110,7 @@ export function ReferralTable({
           dir="rtl"
         />
         {clientId > 0 ? (
-          <Link to="/referrals/create" search={{ clientId: String(clientId) }}>
+          <Link to="/clients/$clientId/referrals/new" params={{ clientId: String(clientId) }}>
             <Button>
               הפניה חדשה
               <Plus className="mr-2 h-4 w-4" />
@@ -117,10 +120,7 @@ export function ReferralTable({
           <ClientSelectModal
             triggerText="הפניה חדשה"
             onClientSelect={(selectedClientId) => {
-              navigate({
-                to: "/referrals/create",
-                search: { clientId: String(selectedClientId) },
-              });
+              navigate({ to: "/clients/$clientId/referrals/new", params: { clientId: String(selectedClientId) } });
             }}
           />
         )}
@@ -143,8 +143,28 @@ export function ReferralTable({
           </TableHeader>
           <TableBody>
             {loading ? (
-              Array.from({ length: 10 }).map((_, i) => (
+              Array.from({ length: 5 }).map((_, i) => (
                 <TableRow key={i}>
+                  <TableCell>
+                    <Skeleton className="w-[70%] h-4 my-2" />
+                  </TableCell>
+                  <TableCell>
+                    <Skeleton className="w-[70%] h-4 my-2" />
+                  </TableCell>
+                  {clientId === 0 && (
+                    <TableCell>
+                      <Skeleton className="w-[70%] h-4 my-2" />
+                    </TableCell>
+                  )}
+                  <TableCell>
+                    <Skeleton className="w-[70%] h-4 my-2 " />
+                  </TableCell>
+                  <TableCell>
+                    <Skeleton className="w-[70%] h-4 my-2" />
+                  </TableCell>
+                  <TableCell>
+                    <Skeleton className="w-[70%] h-4 my-2" />
+                  </TableCell>
                 </TableRow>
               ))
             ) : filteredReferrals.length > 0 ? (
@@ -207,6 +227,29 @@ export function ReferralTable({
           </TableBody>
         </Table>
       </div>
+
+      {pagination && (
+        <div className="flex items-center justify-between mt-4">
+          <div className="text-sm text-muted-foreground">
+            עמוד {pagination.page} מתוך {Math.max(1, Math.ceil((pagination.total || 0) / (pagination.pageSize || 1)))} · סה"כ {pagination.total || 0}
+          </div>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={loading || pagination.page <= 1}
+              onClick={() => pagination.setPage(Math.max(1, pagination.page - 1))}
+            >הקודם</Button>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={loading || pagination.page >= Math.ceil((pagination.total || 0) / (pagination.pageSize || 1))}
+              onClick={() => pagination.setPage(pagination.page + 1)}
+            >הבא</Button>
+          </div>
+        </div>
+      )}
+
       <CustomModal
         isOpen={isDeleteModalOpen}
         onClose={() => setIsDeleteModalOpen(false)}

@@ -8,9 +8,9 @@ import { ControlCenterSidebar } from "@/components/control-center-sidebar";
 import { getSettings } from "@/lib/db/settings-db";
 import { applyThemeColorsFromSettings } from "@/helpers/theme_helpers";
 import { Settings } from "@/lib/db/schema-interface";
-import { useUser } from "@/contexts/UserContext";
 import { SettingsContext } from "@/contexts/SettingsContext";
 import { ClientSidebarProvider } from "@/contexts/ClientSidebarContext";
+import { useUser } from "@/contexts/UserContext";
 import { ClientSidebar } from "@/components/ClientSidebar";
 import { useLocation, useNavigate } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
@@ -18,11 +18,8 @@ import { User, Clinic } from "@/lib/db/schema-interface";
 import { apiClient } from '@/lib/api-client';
 import { OctahedronLoader } from "@/components/ui/octahedron-loader";
 
-export default function BaseLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+// Create a wrapper component that safely uses UserContext
+function BaseLayoutContent({ children }: { children: React.ReactNode }) {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [isSettingsLoading, setIsSettingsLoading] = useState(true);
   const [isLogoLoaded, setIsLogoLoaded] = useState(false);
@@ -31,21 +28,8 @@ export default function BaseLayout({
   const navigate = useNavigate();
   const location = useLocation();
   
-  // Safely get user context with error handling
-  let currentUser: User | null = null
-  let currentClinic: Clinic | null = null
-  let isUserLoading = true
-  try {
-    const userContext = useUser()
-    currentUser = userContext.currentUser
-    currentClinic = userContext.currentClinic
-    isUserLoading = userContext.isLoading
-  } catch (error) {
-    // UserContext not ready yet, use default values
-    currentUser = null
-    currentClinic = null
-    isUserLoading = true
-  }
+  // Use the imported useUser hook
+  const { currentUser, currentClinic, isLoading: isUserLoading } = useUser()
   
   const updateSettings = (newSettings: Settings) => {
     setSettings(newSettings);
@@ -62,6 +46,11 @@ export default function BaseLayout({
         const companyData = localStorage.getItem('controlCenterCompany');
         if (companyData) {
           setCompany(JSON.parse(companyData));
+        } else if (currentClinic?.company_id) {
+          try {
+            const resp = await apiClient.getCompany(currentClinic.company_id);
+            if (resp.data) setCompany(resp.data);
+          } catch {}
         }
 
         if (hasCompaniesResult) {
@@ -83,6 +72,16 @@ export default function BaseLayout({
     };
     loadInitialData();
   }, [currentUser?.id]);
+
+  useEffect(() => {
+    const handler = (e: any) => {
+      if (e?.detail) {
+        setCompany(e.detail)
+      }
+    }
+    window.addEventListener('companyUpdated', handler as EventListener)
+    return () => window.removeEventListener('companyUpdated', handler as EventListener)
+  }, [])
 
   useEffect(() => {
     if (settings?.clinic_logo_path) {
@@ -169,8 +168,9 @@ export default function BaseLayout({
                 <div className="text-foreground text-xl">מפנה למרכז הבקרה...</div>
               </div>
             ) : isControlCenterRoute && currentUser && !canAccessControlCenter ? (
-              <div className="min-h-screen bg-background flex items-center justify-center">
+              <div className="min-h-screen bg-background flex flex-col gap-4 items-center justify-center">
                 <div className="text-foreground text-xl">אין לך הרשאה לגשת למרכז הבקרה</div>
+                <Button onClick={() => navigate({ to: '/control-center' })}>למסך התחלה</Button>
               </div>
             ) : isControlCenterRoute && currentUser && canAccessControlCenter ? (
               <SidebarProvider dir="rtl">
@@ -209,7 +209,7 @@ export default function BaseLayout({
                       side="right"
                       clinicName={currentClinic?.name}
                       currentUser={currentUser || undefined}
-                      logoPath={settings?.clinic_logo_path}
+                      logoPath={settings?.clinic_logo_path || company?.logo_path}
                       isLogoLoaded={isLogoLoaded}
                       currentClinic={currentClinic}
                     />
@@ -242,5 +242,25 @@ export default function BaseLayout({
         <Toaster />
       </ThemeProvider>
     </>
+  );
+}
+
+// Main BaseLayout component with error boundary for UserContext
+export default function BaseLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <React.Suspense fallback={
+      <ThemeProvider defaultTheme="light" storageKey="vite-ui-theme">
+        <div className="flex items-center justify-center h-full">
+          <OctahedronLoader size="3xl" />
+        </div>
+        <Toaster />
+      </ThemeProvider>
+    }>
+      <BaseLayoutContent>{children}</BaseLayoutContent>
+    </React.Suspense>
   );
 }

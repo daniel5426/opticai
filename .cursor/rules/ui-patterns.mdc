@@ -1,5 +1,5 @@
 ---
-globs: *.tsx
+description: when the task is about ui, any ui stuff: changes, creation and so on.
 alwaysApply: false
 ---
 # OpticAI UI Patterns
@@ -180,6 +180,7 @@ const [isLoading, setIsLoading] = useState(false);
   )}
 </Button>
 ```
+## for buttons a loadin circle, but for page loading, replicate the page layout with skeletons.
 
 ## Key UI Files
 - [src/components/ui/](mdc:src/components/ui/) - shadcn/ui components

@@ -88,6 +88,33 @@ def get_appointment(appointment_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Appointment not found")
     return appointment
 
+@router.get("/paginated")
+def get_appointments_paginated(
+    clinic_id: Optional[int] = Query(None, description="Filter by clinic ID"),
+    limit: int = Query(25, ge=1, le=100, description="Max items to return"),
+    offset: int = Query(0, ge=0, description="Items to skip"),
+    order: Optional[str] = Query("date_desc", description="Sort order: date_desc|date_asc|id_desc|id_asc"),
+    db: Session = Depends(get_db)
+):
+    base = db.query(Appointment)
+    if clinic_id:
+        base = base.filter(Appointment.clinic_id == clinic_id)
+    
+    # Apply ordering
+    if order == "date_desc":
+        base = base.order_by(Appointment.date.desc().nulls_last())
+    elif order == "date_asc":
+        base = base.order_by(Appointment.date.asc().nulls_last())
+    elif order == "id_asc":
+        base = base.order_by(Appointment.id.asc())
+    else:  # default to id_desc
+        base = base.order_by(Appointment.id.desc())
+    
+    total = base.count()
+    items = base.offset(offset).limit(limit).all()
+    
+    return {"items": items, "total": total}
+
 @router.get("/", response_model=List[AppointmentSchema])
 def get_all_appointments(
     clinic_id: Optional[int] = Query(None, description="Filter by clinic ID"),

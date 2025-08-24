@@ -16,6 +16,23 @@ export async function getAllUsers(clinicId?: number): Promise<User[]> {
   }
 }
 
+export async function getPaginatedUsers(
+  options?: { limit?: number; offset?: number; order?: 'id_desc' | 'id_asc' | 'username_asc' | 'username_desc' | 'role_asc' | 'role_desc' }
+): Promise<{ items: User[]; total: number }> {
+  try {
+    const effectiveOptions = options ?? { limit: 25, offset: 0, order: 'id_desc' as const };
+    const response = await apiClient.getUsersPaginated(effectiveOptions);
+    if (response.error) {
+      console.error('Error getting paginated users:', response.error);
+      return { items: [], total: 0 };
+    }
+    return response.data || { items: [], total: 0 };
+  } catch (error) {
+    console.error('Error getting paginated users:', error);
+    return { items: [], total: 0 };
+  }
+}
+
 export async function getUsersByClinic(clinicId: number): Promise<User[]> {
   try {
     const response = await apiClient.getUsersByClinic(clinicId);
@@ -92,7 +109,9 @@ export async function updateUser(userData: User): Promise<User | null> {
       console.error('Error updating user: No user ID provided');
       return null;
     }
-    const response = await apiClient.updateUser(userData.id, userData);
+    const { password, ...safeUser } = userData;
+    const payload = password === undefined ? safeUser : userData;
+    const response = await apiClient.updateUser(userData.id, payload);
     if (response.error) {
       console.error('Error updating user:', response.error);
       throw new Error(response.error);
@@ -119,34 +138,16 @@ export async function deleteUser(userId: number): Promise<boolean> {
   }
 }
 
-export async function authenticateUser(username: string, password?: string): Promise<User | null> {
+export async function authenticateUser(): Promise<User | null> {
   try {
-    if (!password) {
-      // No password provided, try to get user by username
-      const response = await apiClient.getUserByUsername(username);
-      if (response.error) {
-        console.error('Error authenticating user:', response.error);
-        return null;
-      }
-      return response.data || null;
-    }
-
-    // Login with password
-    const loginResponse = await apiClient.login(username, password);
-    if (loginResponse.error) {
-      console.error('Error logging in:', loginResponse.error);
-      return null;
-    }
-
-    // Get current user after successful login
     const userResponse = await apiClient.getCurrentUser();
     if (userResponse.error) {
       console.error('Error getting current user:', userResponse.error);
       return null;
     }
-    return userResponse.data as User || null;
+    return (userResponse.data as User) || null;
   } catch (error) {
     console.error('Error authenticating user:', error);
     return null;
   }
-} 
+}

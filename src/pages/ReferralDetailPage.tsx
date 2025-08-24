@@ -1,19 +1,16 @@
 import React, { useState, useEffect } from "react"
-import { useParams, useNavigate, useSearch, useLocation } from "@tanstack/react-router"
+import { useParams, useNavigate, useLocation } from "@tanstack/react-router"
 import { SiteHeader } from "@/components/site-header"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent } from "@/components/ui/card"
-import { Referral, ReferralEye, Client } from "@/lib/db/schema-interface"
+import { Referral, Client } from "@/lib/db/schema-interface"
 import {
   getReferralById,
   updateReferral,
-  createReferral,
-  getReferralEyesByReferralId,
-  createReferralEye,
-  updateReferralEye
+  createReferral
 } from "@/lib/db/referral-db"
 import { getClientById } from "@/lib/db/clients-db"
 import { toast } from "sonner"
@@ -24,6 +21,7 @@ import { copyToClipboard, pasteFromClipboard, getClipboardContentType } from "@/
 import { CompactPrescriptionExam } from "@/lib/db/schema-interface"
 import { apiClient } from "@/lib/api-client"
 import { ClientSpaceLayout } from "@/layouts/ClientSpaceLayout"
+import { Skeleton } from "@/components/ui/skeleton"
 import { useClientSidebar } from "@/contexts/ClientSidebarContext"
 import { useUser } from "@/contexts/UserContext"
 
@@ -36,26 +34,15 @@ export default function ReferralDetailPage() {
   const [activeTab, setActiveTab] = useState('referrals')
 
   // Check if we're on the create route
-  const isNewReferral = location.pathname === '/referrals/create'
+  const isNewReferral = location.pathname.endsWith('/referrals/new')
   const [isEditing, setIsEditing] = useState(isNewReferral)
 
-  // Get referralId for detail route, or search params for create route
-  let referralId: string | undefined
-  let clientIdFromSearch: string | undefined
-
-  if (isNewReferral) {
-    try {
-      const searchParams = useSearch({ from: "/referrals/create" })
-      clientIdFromSearch = searchParams.clientId
-    } catch (error) {
-      // Fallback to URL search params if hook fails
-      const urlParams = new URLSearchParams(window.location.search)
-      clientIdFromSearch = urlParams.get('clientId') || undefined
-    }
-  } else {
-    const params = useParams({ from: "/referrals/$referralId" })
-    referralId = params.referralId
-  }
+  // Get params for nested referral routes
+  const routeParams = isNewReferral
+    ? useParams({ from: "/clients/$clientId/referrals/new" })
+    : useParams({ from: "/clients/$clientId/referrals/$referralId" })
+  const clientIdFromRoute = routeParams.clientId as string | undefined
+  const referralId = isNewReferral ? undefined : (routeParams as any).referralId as string | undefined
 
   const [formData, setFormData] = useState<Referral>({
     client_id: 0,
@@ -117,37 +104,7 @@ export default function ReferralDetailPage() {
     toast.success("נתונים הודבקו בהצלחה")
   }
 
-  const [rightEyeData, setRightEyeData] = useState<ReferralEye>({
-    referral_id: 0,
-    eye: 'R',
-    sph: undefined,
-    cyl: undefined,
-    ax: undefined,
-    pris: undefined,
-    base: undefined,
-    va: undefined,
-    add: undefined,
-    decent: undefined,
-    s_base: undefined,
-    high: undefined,
-    pd: undefined
-  })
-
-  const [leftEyeData, setLeftEyeData] = useState<ReferralEye>({
-    referral_id: 0,
-    eye: 'L',
-    sph: undefined,
-    cyl: undefined,
-    ax: undefined,
-    pris: undefined,
-    base: undefined,
-    va: undefined,
-    add: undefined,
-    decent: undefined,
-    s_base: undefined,
-    high: undefined,
-    pd: undefined
-  })
+  
 
   const { currentClient } = useClientSidebar()
 
@@ -157,7 +114,7 @@ export default function ReferralDetailPage() {
         setLoading(true)
 
         // Load client data first
-        const clientId = isNewReferral ? clientIdFromSearch : formData.client_id?.toString()
+        const clientId = isNewReferral ? clientIdFromRoute : formData.client_id?.toString()
         if (clientId) {
           const clientData = await getClientById(Number(clientId))
           setClient(clientData || null)
@@ -166,8 +123,8 @@ export default function ReferralDetailPage() {
         }
 
         if (isNewReferral) {
-          if (clientIdFromSearch) {
-            setFormData((prev: Referral) => ({ ...prev, client_id: Number(clientIdFromSearch) }))
+          if (clientIdFromRoute) {
+            setFormData((prev: Referral) => ({ ...prev, client_id: Number(clientIdFromRoute) }))
           }
           setLoading(false)
           return
@@ -196,21 +153,7 @@ export default function ReferralDetailPage() {
             setCompactPrescriptionFormData((prev: CompactPrescriptionExam) => ({ ...prev, referral_id: Number(referralId) }))
           }
 
-          const eyeData = await getReferralEyesByReferralId(Number(referralId))
-          const rightEye = eyeData.find(eye => eye.eye === 'R')
-          const leftEye = eyeData.find(eye => eye.eye === 'L')
-
-          if (rightEye) {
-            setRightEyeData(rightEye)
-          } else {
-            setRightEyeData(prev => ({ ...prev, referral_id: Number(referralId) }))
-          }
-
-          if (leftEye) {
-            setLeftEyeData(leftEye)
-          } else {
-            setLeftEyeData(prev => ({ ...prev, referral_id: Number(referralId) }))
-          }
+          
         }
       } catch (error) {
         console.error('Error loading referral:', error)
@@ -221,7 +164,7 @@ export default function ReferralDetailPage() {
     }
 
     loadReferralData()
-  }, [referralId, isNewReferral, clientIdFromSearch, currentClient])
+  }, [referralId, isNewReferral, clientIdFromRoute, currentClient])
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
@@ -233,7 +176,7 @@ export default function ReferralDetailPage() {
   }
 
   const handleTabChange = (value: string) => {
-    const clientId = isNewReferral ? clientIdFromSearch : formData.client_id?.toString()
+    const clientId = isNewReferral ? clientIdFromRoute : formData.client_id?.toString()
     if (clientId && value !== 'referrals') {
       navigate({
         to: "/clients/$clientId",
@@ -248,54 +191,49 @@ export default function ReferralDetailPage() {
       let savedReferral
 
       if (isNewReferral) {
-        savedReferral = await createReferral({
-          ...formData,
-          clinic_id: currentClinic?.id
-        })
+        toast.success("ההפניה נשמרת")
+        if (clientIdFromRoute) {
+          navigate({ to: `/clients/${clientIdFromRoute}`, search: { tab: 'referrals' } })
+        }
+        ;(async () => {
+          try {
+            const createPayload = {
+              ...formData,
+              clinic_id: currentClinic?.id,
+              date: formData.date && formData.date.trim() !== '' ? formData.date : undefined,
+            }
+            const created = await createReferral(createPayload as any)
+            if (created && created.id) {
+              const referralIdToUse = created.id!
+              const compactPrescriptionToSave = { ...compactPrescriptionFormData, referral_id: referralIdToUse }
+              const hasCP = Object.values(compactPrescriptionFormData).some(v => v !== undefined && v !== null && v !== '' && v !== 0)
+              if (hasCP) {
+                const merged = {
+                  ...((created as any)?.referral_data || {}),
+                  'compact-prescription': { ...compactPrescriptionToSave }
+                }
+                await updateReferral({ ...(created as Referral), referral_data: merged })
+              }
+            } else {
+              toast.error("לא הצלחנו ליצור את ההפניה")
+            }
+          } catch {
+            toast.error("שמירת ההפניה נכשלה ברקע")
+          }
+        })()
+        return
       } else {
-        savedReferral = await updateReferral(formData)
+        const updatePayload = {
+          ...formData,
+          date: formData.date && formData.date.trim() !== '' ? formData.date : undefined,
+        }
+        savedReferral = await updateReferral(updatePayload as any)
       }
 
       if (savedReferral) {
-        const referralIdToUse = savedReferral.id!
-
-        const rightEyeToSave = { ...rightEyeData, referral_id: referralIdToUse }
-        const leftEyeToSave = { ...leftEyeData, referral_id: referralIdToUse }
-        const compactPrescriptionToSave = { ...compactPrescriptionFormData, referral_id: referralIdToUse }
-
-        const [savedRightEye, savedLeftEye, savedReferralUpdated] = await Promise.all([
-          rightEyeData.id ? updateReferralEye(rightEyeToSave) : createReferralEye(rightEyeToSave),
-          leftEyeData.id ? updateReferralEye(leftEyeToSave) : createReferralEye(leftEyeToSave),
-          (async () => {
-            const hasCP = Object.values(compactPrescriptionFormData).some(v => v !== undefined && v !== null && v !== '' && v !== 0)
-            const merged = {
-              ...((savedReferral as any)?.referral_data || {}),
-              ...(hasCP ? { 'compact-prescription': { ...compactPrescriptionToSave } } : {})
-            }
-            const updated = await updateReferral({ ...(savedReferral as Referral), referral_data: merged })
-            return updated
-          })()
-        ])
-
-        if (savedRightEye && savedLeftEye && savedReferralUpdated) {
-          toast.success("ההפניה נשמרה בהצלחה")
-
-          if (isNewReferral) {
-            // Navigate back to client's referrals tab after creating
-            if (clientIdFromSearch) {
-              navigate({ to: `/clients/${clientIdFromSearch}`, search: { tab: 'referrals' } })
-            } else {
-              navigate({ to: `/referrals/${savedReferral.id}` })
-            }
-          } else {
-            // For edit mode, stay on the page but switch to view mode
-            setIsEditing(false)
-            // Update the form data with the saved data
-            setFormData(savedReferral)
-          }
-        } else {
-          toast.error("שגיאה בשמירת נתוני העיניים או המרשם")
-        }
+        toast.success("ההפניה נשמרה בהצלחה")
+        setIsEditing(false)
+        setFormData(savedReferral)
       } else {
         toast.error("שגיאה בשמירת ההפניה")
       }
@@ -314,8 +252,8 @@ export default function ReferralDetailPage() {
   }
 
   const handleCancel = () => {
-    if (isNewReferral && clientIdFromSearch) {
-      navigate({ to: `/clients/${clientIdFromSearch}`, search: { tab: 'referrals' } })
+    if (isNewReferral && clientIdFromRoute) {
+      navigate({ to: `/clients/${clientIdFromRoute}`, search: { tab: 'referrals' } })
     } else if (formData.client_id) {
       navigate({ to: `/clients/${formData.client_id}`, search: { tab: 'referrals' } })
     } else {
@@ -329,16 +267,73 @@ export default function ReferralDetailPage() {
         <SiteHeader
           title="לקוחות"
           backLink="/clients"
-          clientBackLink={clientIdFromSearch || formData.client_id ? `/clients/${clientIdFromSearch || formData.client_id}` : "/clients"}
+          clientBackLink={clientIdFromRoute || formData.client_id ? `/clients/${clientIdFromRoute || formData.client_id}` : "/clients"}
           examInfo="הפניה"
           tabs={{
             activeTab,
             onTabChange: handleTabChange
           }}
         />
-        <div className="flex flex-col items-center justify-center h-full">
-          <div className="text-lg">טוען נתוני הפניה...</div>
-        </div>
+        <ClientSpaceLayout>
+          <div className="flex flex-col flex-1 p-4 lg:p-6 mb-10 no-scrollbar" dir="rtl" style={{scrollbarWidth: 'none', msOverflowStyle: 'none'}}>
+            <div className="flex justify-between items-center mb-10">
+              <div></div>
+              <div className="flex gap-2">
+                {isNewReferral && (
+                  <Button variant="outline" disabled>ביטול</Button>
+                )}
+                <Button variant="default" disabled>
+                  {isNewReferral ? "שמור הפניה" : (isEditing ? "שמור שינויים" : "ערוך הפניה")}
+                </Button>
+              </div>
+            </div>
+
+            <div className="mb-8">
+              <div className="w-full p-4 rounded-md bg-muted/40">
+                <div className="grid grid-cols-4 gap-3">
+                  {Array.from({ length: 4 }).map((_, i) => (
+                    <div key={i} className="space-y-2">
+                      <Skeleton className="h-4 w-20 ml-auto" />
+                      <Skeleton className="h-9 w-full" />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="mb-6">
+              <div className="rounded-md p-4 bg-muted/40">
+                <div className="space-y-3">
+                  <div className="flex justify-center">
+                    <Skeleton className="h-5 w-36" />
+                  </div>
+                  <div className="grid grid-cols-10 gap-2">
+                    {Array.from({ length: 30 }).map((_, i) => (
+                      <Skeleton key={i} className="h-6 w-full" />
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-6">
+              <div className="rounded-md p-4 bg-muted/40">
+                <div className="space-y-2 mb-3">
+                  <Skeleton className="h-5 w-28 ml-auto" />
+                  <Skeleton className="h-3 w-40 ml-auto" />
+                </div>
+                <Skeleton className="h-28 w-full" />
+              </div>
+              <div className="rounded-md p-4 bg-muted/40">
+                <div className="space-y-2 mb-3">
+                  <Skeleton className="h-5 w-32 ml-auto" />
+                  <Skeleton className="h-3 w-44 ml-auto" />
+                </div>
+                <Skeleton className="h-28 w-full" />
+              </div>
+            </div>
+          </div>
+        </ClientSpaceLayout>
       </>
     )
   }
@@ -347,16 +342,16 @@ export default function ReferralDetailPage() {
 
   return (
     <>
-      <SiteHeader
-        title="לקוחות"
-        backLink="/clients"
-        clientBackLink={clientIdFromSearch || formData.client_id ? `/clients/${clientIdFromSearch || formData.client_id}` : "/clients"}
-        examInfo={isNewReferral ? "הפניה חדשה" : `הפניה מס' ${referralId}`}
-        tabs={{
-          activeTab,
-          onTabChange: handleTabChange
-        }}
-      />
+        <SiteHeader
+          title="לקוחות"
+          backLink="/clients"
+          clientBackLink={currentClient?.id ? `/clients/${currentClient.id}` : "/clients"}
+          examInfo={isNewReferral ? "הפניה חדשה" : `הפניה מס' ${referralId}`}
+          tabs={{
+            activeTab,
+            onTabChange: handleTabChange
+          }}
+        />
       <ClientSpaceLayout>
         <div className="flex flex-col flex-1 p-4 lg:p-6" dir="rtl" style={{ scrollbarWidth: 'none' }}>
           <div className="space-y-6">

@@ -16,7 +16,10 @@ import { getAllUsers, getUsersByClinic, createUser, updateUser, deleteUser } fro
 import { applyThemeColorsFromSettings } from "@/helpers/theme_helpers"
 import { CustomModal } from "@/components/ui/custom-modal"
 import { Badge } from "@/components/ui/badge"
-import { IconPlus, IconEdit, IconTrash, IconLayoutGrid, IconBrandGoogle, IconCalendar } from "@tabler/icons-react"
+import { IconPlus, IconEdit, IconTrash, IconLayoutGrid, IconBrandGoogle, IconCalendar, IconX } from "@tabler/icons-react"
+import { Calendar } from "@/components/ui/calendar"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import type { DateRange } from "react-day-picker"
 import { useSettings } from "@/hooks/useSettings"
 import { useUser } from "@/contexts/UserContext"
 import { getUserById } from "@/lib/db/users-db"
@@ -25,6 +28,8 @@ import { LookupTableManager } from "@/components/LookupTableManager"
 import { lookupTables } from "@/lib/db/lookup-db"
 import { UserModal } from "@/components/UserModal"
 import { apiClient } from "@/lib/api-client"
+import { supabase } from "@/lib/supabaseClient"
+import { ImageInput } from "@/components/ui/image-input"
 
 export default function SettingsPage() {
   const { settings, updateSettings: updateBaseSettings } = useSettings()
@@ -33,6 +38,7 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false)
   const [saveSuccess, setSaveSuccess] = useState(false)
   const [colorUpdateTimeout, setColorUpdateTimeout] = useState<NodeJS.Timeout | null>(null)
+  const [emailError, setEmailError] = useState<string | null>(null)
   
   // User management state
   const [users, setUsers] = useState<User[]>([])
@@ -92,15 +98,21 @@ export default function SettingsPage() {
 
   // Personal profile state
   const [personalProfile, setPersonalProfile] = useState<Partial<User>>({
-    username: '',
+    full_name: '',
     email: '',
     phone: '',
     profile_picture: '',
-    primary_theme_color: '#3b82f6',
-    secondary_theme_color: '#8b5cf6',
-    theme_preference: 'system'
+    primary_theme_color: '#2256aa',
+    secondary_theme_color: '#cce9ff',
+    theme_preference: 'system',//8b5cf6, 3b82f6
+    system_vacation_dates: [],
+    added_vacation_dates: []
   })
   const [profileColorUpdateTimeout, setProfileColorUpdateTimeout] = useState<NodeJS.Timeout | null>(null)
+  const [openSystemVacation, setOpenSystemVacation] = useState(false)
+  const [openAddedVacation, setOpenAddedVacation] = useState(false)
+  const [systemVacationRange, setSystemVacationRange] = useState<DateRange | undefined>(undefined)
+  const [addedVacationRange, setAddedVacationRange] = useState<DateRange | undefined>(undefined)
 
   // Google Calendar state
   const [googleCalendarLoading, setGoogleCalendarLoading] = useState(false)
@@ -152,13 +164,15 @@ export default function SettingsPage() {
     const loadPersonalProfile = () => {
       if (currentUser) {
         setPersonalProfile({
-          username: currentUser.username,
+          full_name: currentUser.full_name || '',
           email: currentUser.email || '',
           phone: currentUser.phone || '',
           profile_picture: currentUser.profile_picture || '',
-          primary_theme_color: currentUser.primary_theme_color || '#3b82f6',
-          secondary_theme_color: currentUser.secondary_theme_color || '#8b5cf6',
-          theme_preference: currentUser.theme_preference || 'system'
+          primary_theme_color: currentUser.primary_theme_color || '#2256aa',
+          secondary_theme_color: currentUser.secondary_theme_color || '#cce9ff',
+          theme_preference: currentUser.theme_preference || 'system',
+          system_vacation_dates: currentUser.system_vacation_dates || [],
+          added_vacation_dates: currentUser.added_vacation_dates || []
         })
       }
     }
@@ -191,6 +205,9 @@ export default function SettingsPage() {
   const handlePersonalProfileChange = (field: keyof User, value: string) => {
     const newProfile = { ...personalProfile, [field]: value }
     setPersonalProfile(newProfile)
+    if (field === 'email' && emailError) {
+      setEmailError(null)
+    }
     
     if (field === 'primary_theme_color' || field === 'secondary_theme_color') {
       if (profileColorUpdateTimeout) {
@@ -208,80 +225,160 @@ export default function SettingsPage() {
     }
   }
 
+  const formatDate = (d: Date) => {
+    const year = d.getFullYear()
+    const month = String(d.getMonth() + 1).padStart(2, '0')
+    const day = String(d.getDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
+  }
+
+  const enumerateDates = (from: Date, to: Date) => {
+    const start = new Date(from.getFullYear(), from.getMonth(), from.getDate())
+    const end = new Date(to.getFullYear(), to.getMonth(), to.getDate())
+    const list: string[] = []
+    let cur = start
+    while (cur <= end) {
+      list.push(formatDate(cur))
+      cur = new Date(cur)
+      cur.setDate(cur.getDate() + 1)
+    }
+    return list
+  }
+
+  const addVacationRange = (type: 'system' | 'added', range: DateRange | undefined) => {
+    if (!range?.from || !range?.to) return
+    const dates = enumerateDates(range.from, range.to)
+    if (type === 'system') {
+      const existing = new Set(personalProfile.system_vacation_dates || [])
+      dates.forEach(d => existing.add(d))
+      setPersonalProfile(prev => ({ ...prev, system_vacation_dates: Array.from(existing).sort() }))
+      setSystemVacationRange(undefined)
+      setOpenSystemVacation(false)
+    } else {
+      const existing = new Set(personalProfile.added_vacation_dates || [])
+      dates.forEach(d => existing.add(d))
+      setPersonalProfile(prev => ({ ...prev, added_vacation_dates: Array.from(existing).sort() }))
+      setAddedVacationRange(undefined)
+      setOpenAddedVacation(false)
+    }
+  }
+
+  const compressDatesToRanges = (dates: string[]) => {
+    const sorted = [...dates].sort()
+    const ranges: { from: string; to: string }[] = []
+    for (let i = 0; i < sorted.length; i++) {
+      const start = sorted[i]
+      let end = start
+      while (i + 1 < sorted.length) {
+        const cur = new Date(sorted[i])
+        const next = new Date(sorted[i + 1])
+        cur.setDate(cur.getDate() + 1)
+        if (formatDate(cur) === formatDate(next)) {
+          i++
+          end = sorted[i]
+        } else {
+          break
+        }
+      }
+      ranges.push({ from: start, to: end })
+    }
+    return ranges
+  }
+
   const handleSave = async () => {
     try {
       setSaving(true)
       setSaveSuccess(false)
-      
-      // Save clinic info in Clinic table
-      if (currentClinic?.id) {
-        const clinicPayload: Partial<Clinic> = {
-          clinic_name: localClinic.clinic_name || '',
-          clinic_position: localClinic.clinic_position || '',
-          email: localClinic.email || '',
-          phone_number: localClinic.phone_number || '',
-          clinic_address: localClinic.clinic_address || '',
-          clinic_city: localClinic.clinic_city || '',
-          clinic_postal_code: localClinic.clinic_postal_code || '',
-          clinic_directions: localClinic.clinic_directions || '',
-          clinic_website: localClinic.clinic_website || '',
-          manager_name: localClinic.manager_name || '',
-          license_number: localClinic.license_number || ''
-        }
-        const clinicResp = await apiClient.updateClinic(currentClinic.id, clinicPayload)
-        if (clinicResp.error || !clinicResp.data) {
-          toast.error('שגיאה בשמירת פרטי המרפאה')
-          return
-        }
-        setLocalClinic(clinicResp.data as Clinic)
+      setEmailError(null)
+
+      // Unified save API call
+      const payload: any = {
+        clinic_id: currentClinic?.id,
+        settings_id: localSettings.id,
       }
-      
-      // Save operational settings
-      const settingsToSave = {
+      // Map clinic fields to backend ClinicUpdate names
+      if (currentClinic?.id) {
+        payload.clinic = {
+          clinic_position: localClinic.clinic_position || undefined,
+          email: localClinic.email || undefined,
+          phone_number: localClinic.phone_number || undefined,
+          clinic_address: localClinic.clinic_address || undefined,
+          clinic_city: localClinic.clinic_city || undefined,
+          clinic_postal_code: localClinic.clinic_postal_code || undefined,
+          clinic_directions: localClinic.clinic_directions || undefined,
+          clinic_website: localClinic.clinic_website || undefined,
+          manager_name: localClinic.manager_name || undefined,
+          license_number: localClinic.license_number || undefined,
+        }
+      }
+      payload.settings = {
         ...localSettings,
         clinic_id: localSettings.clinic_id || currentClinic?.id,
-        id: localSettings.id,
-      } as Settings
-      const updatedSettings = await updateSettings(settingsToSave)
-      if (!updatedSettings) {
-        toast.error('שגיאה בשמירת הגדרות המרפאה')
-        return
       }
-      
-      // Save personal profile if current user exists
       if (currentUser?.id) {
-        const updatedUser = await updateUser({
-          ...currentUser,
-          username: personalProfile.username || currentUser.username,
+        payload.user_id = currentUser.id
+        payload.user = {
+          full_name: personalProfile.full_name || currentUser.full_name,
           email: personalProfile.email,
           phone: personalProfile.phone,
           profile_picture: personalProfile.profile_picture,
           primary_theme_color: personalProfile.primary_theme_color,
           secondary_theme_color: personalProfile.secondary_theme_color,
-          theme_preference: personalProfile.theme_preference
-        })
-        
-        if (updatedUser) {
-          setPersonalProfile({
-            username: updatedUser.username,
-            email: updatedUser.email || '',
-            phone: updatedUser.phone || '',
-            profile_picture: updatedUser.profile_picture || '',
-            primary_theme_color: updatedUser.primary_theme_color || '#3b82f6',
-            secondary_theme_color: updatedUser.secondary_theme_color || '#8b5cf6',
-            theme_preference: updatedUser.theme_preference || 'system'
-          })
-          
-          // Update the current user in context (theme will be applied automatically)
-          await setCurrentUser(updatedUser)
-        } else {
-          toast.error('שגיאה בשמירת הפרופיל האישי')
-          return
+          theme_preference: personalProfile.theme_preference,
+          system_vacation_dates: personalProfile.system_vacation_dates,
+          added_vacation_dates: personalProfile.added_vacation_dates,
         }
       }
-      
-      setLocalSettings(updatedSettings)
-      updateBaseSettings(updatedSettings)
+
+      const unifiedResp = await apiClient.saveAll(payload)
+      if (unifiedResp.error) {
+        if (String(unifiedResp.error).includes('EMAIL_ALREADY_REGISTERED')) {
+          setEmailError('האימייל הזה כבר נמצא בשימוש')
+          toast.error('האימייל הזה כבר נמצא בשימוש במערכת')
+          return
+        }
+        toast.error('שגיאה בשמירת ההגדרות')
+        return
+      }
+      const data = unifiedResp.data as any
+      if (data?.clinic) setLocalClinic(data.clinic as Clinic)
+      if (data?.settings) {
+        setLocalSettings(data.settings as Settings)
+        updateBaseSettings(data.settings as Settings)
+      }
+      if (data?.user) {
+        const updatedUser = data.user as User
+        setPersonalProfile({
+          full_name: updatedUser.full_name || '',
+          email: updatedUser.email || '',
+          phone: updatedUser.phone || '',
+          profile_picture: updatedUser.profile_picture || '',
+          primary_theme_color: updatedUser.primary_theme_color || '#2256aa',
+          secondary_theme_color: updatedUser.secondary_theme_color || '#cce9ff',
+          theme_preference: updatedUser.theme_preference || 'system',
+          system_vacation_dates: updatedUser.system_vacation_dates || [],
+          added_vacation_dates: updatedUser.added_vacation_dates || []
+        })
+        const emailChanged = (currentUser?.email || '').trim() !== (updatedUser.email || '').trim()
+        await setCurrentUser(updatedUser)
+        // Reflect changes immediately in users list (if present)
+        setUsers(prev => prev.map(u => u.id === updatedUser.id ? updatedUser : u))
+        if (emailChanged) {
+          try {
+            const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession()
+            if (refreshError) {
+              console.warn('Supabase refreshSession failed after email change:', refreshError)
+              toast.warning('האימייל עודכן. אם יש בעיות גישה, נא להתחבר מחדש')
+            } else if (refreshed?.session?.access_token) {
+              // Token auto-used by apiClient on next requests
+              toast.success('האימייל עודכן בהצלחה והחיבור נשמר')
+            }
+          } catch (e) {
+            console.error('Error refreshing session after email change:', e)
+            toast.warning('האימייל עודכן. אם יש בעיות גישה, נא להתחבר מחדש')
+          }
+        }
+      }
       setSaveSuccess(true)
       setTimeout(() => {
         setSaveSuccess(false)
@@ -297,29 +394,7 @@ export default function SettingsPage() {
 
 
 
-  const handleLogoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    if (file) {
-      const reader = new FileReader()
-      reader.onload = (e) => {
-        const result = e.target?.result as string
-        handleInputChange('clinic_logo_path', result)
-      }
-      reader.readAsDataURL(file)
-    }
-  }
-
-  const handleProfilePictureUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    if (file) {
-      const reader = new FileReader()
-      reader.onload = (e) => {
-        const result = e.target?.result as string
-        handlePersonalProfileChange('profile_picture', result)
-      }
-      reader.readAsDataURL(file)
-    }
-  }
+  // Image upload handled via ImageInput component
 
   // User management handlers
   const openCreateUserModal = () => {
@@ -733,8 +808,10 @@ export default function SettingsPage() {
                     </Card>
                   </TabsContent>
 
-                  <TabsContent value="customization" className="space-y-6 mt-0">
-                    {/* Layout Management */}
+                  {/* Removed customization tab */}
+
+                  <TabsContent value="preferences" className="space-y-6 mt-0">
+                    {/* Layout Management moved here */}
                     <Card className="shadow-md border-none">
                       <CardContent>
                         <div className="flex items-center justify-between">
@@ -751,54 +828,6 @@ export default function SettingsPage() {
                         </div>
                       </CardContent>
                     </Card>
-
-                    {/* Branding & Appearance */}
-                    <Card className="shadow-md border-none">
-                      <CardHeader>
-                        <CardTitle className="text-right">מיתוג</CardTitle>
-                        <p className="text-sm text-muted-foreground text-right">לוגו המרפאה</p>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="flex flex-col items-center space-y-3">
-                          <div className="relative">
-                            {localSettings.clinic_logo_path ? (
-                              <img 
-                                src={localSettings.clinic_logo_path} 
-                                alt="לוגו המרפאה" 
-                                className="w-24 h-24 rounded-lg object-cover shadow-lg"
-                              />
-                            ) : (
-                              <div className="w-24 h-24 rounded-lg bg-muted flex items-center justify-center shadow-lg">
-                                <svg className="w-8 h-8 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                                </svg>
-                              </div>
-                            )}
-                            <Input
-                              id="logo-upload"
-                              type="file"
-                              accept="image/*"
-                              onChange={handleLogoUpload}
-                              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                            />
-                          </div>
-                          <div className="text-center">
-                            <Label className="text-sm font-medium">לוגו המרפאה</Label>
-                            <Button 
-                              variant="outline" 
-                              size="sm" 
-                              className="mt-2 text-xs shadow-sm"
-                              onClick={() => document.getElementById('logo-upload')?.click()}
-                            >
-                              שנה תמונה
-                            </Button>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </TabsContent>
-
-                  <TabsContent value="preferences" className="space-y-6 mt-0">
                     {/* Work Hours */}
                     <Card className="shadow-md border-none">
                       <CardHeader>
@@ -1284,38 +1313,16 @@ export default function SettingsPage() {
                         <div className="flex gap-8 items-start">
                           {/* Profile Picture - Left Side */}
                           <div className="flex flex-col items-center space-y-3 min-w-[140px]">
-                            <div className="relative">
-                              {personalProfile.profile_picture ? (
-                                <img 
-                                  src={personalProfile.profile_picture} 
-                                  alt="תמונת פרופיל" 
-                                  className="w-24 h-24 rounded-full object-cover shadow-lg"
-                                />
-                              ) : (
-                                <div className="w-24 h-24 rounded-full bg-muted flex items-center justify-center shadow-lg">
-                                  <span className="text-2xl font-semibold text-muted-foreground">
-                                    {personalProfile.username?.charAt(0)?.toUpperCase() || 'U'}
-                                  </span>
-                                </div>
-                              )}
-                              <Input
-                                id="profile-picture-upload"
-                                type="file"
-                                accept="image/*"
-                                onChange={handleProfilePictureUpload}
-                                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                              />
-                            </div>
+                            <ImageInput
+                              value={personalProfile.profile_picture || ''}
+                              onChange={(val) => handlePersonalProfileChange('profile_picture', val)}
+                              onRemove={() => setPersonalProfile(prev => ({ ...prev, profile_picture: '' }))}
+                              size={96}
+                              shape="circle"
+                              alt="תמונת פרופיל"
+                            />
                             <div className="text-center">
                               <Label className="text-sm font-medium">תמונת פרופיל</Label>
-                              <Button 
-                                variant="outline" 
-                                size="sm" 
-                                className="mt-2 text-xs shadow-sm"
-                                onClick={() => document.getElementById('profile-picture-upload')?.click()}
-                              >
-                                שנה תמונה
-                              </Button>
                             </div>
                           </div>
                           
@@ -1323,12 +1330,12 @@ export default function SettingsPage() {
                           <div className="flex-1 space-y-4">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                               <div className="space-y-2">
-                                <Label htmlFor="personal_username" className="text-right block text-sm">שם משתמש</Label>
+                                <Label htmlFor="personal_full_name" className="text-right block text-sm">שם מלא</Label>
                                 <Input
-                                  id="personal_username"
-                                  value={personalProfile.username || ''}
-                                  onChange={(e) => handlePersonalProfileChange('username', e.target.value)}
-                                  placeholder="הזן שם משתמש"
+                                  id="personal_full_name"
+                                  value={personalProfile.full_name || ''}
+                                  onChange={(e) => handlePersonalProfileChange('full_name', e.target.value)}
+                                  placeholder="הזן שם מלא"
                                   className="text-right h-9"
                                   dir="rtl"
                                 />
@@ -1341,9 +1348,12 @@ export default function SettingsPage() {
                                   value={personalProfile.email || ''}
                                   onChange={(e) => handlePersonalProfileChange('email', e.target.value)}
                                   placeholder="example@email.com"
-                                  className="text-right h-9"
+                                  className={`text-right h-9 ${emailError ? 'border-red-500' : ''}`}
                                   dir="rtl"
                                 />
+                                {emailError && (
+                                  <div className="text-xs text-red-600 text-right">{emailError}</div>
+                                )}
                               </div>
                               <div className="space-y-2 md:col-span-2">
                                 <Label htmlFor="personal_phone" className="text-right block text-sm">טלפון</Label>
@@ -1362,7 +1372,156 @@ export default function SettingsPage() {
                       </CardContent>
                     </Card>
 
-                    {/* Personal Theme Colors */}
+                  {/* Vacation Card */}
+                  <Card className="shadow-md border-none">
+                    <CardHeader>
+                      <CardTitle className="text-right">חופשות</CardTitle>
+                      <p className="text-sm text-muted-foreground text-right">ניהול ימי חופשה</p>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="relative grid grid-cols-1 md:grid-cols-2 gap-6" dir="rtl">
+                        <div className="hidden md:block absolute inset-y-2 left-1/2 w-px bg-border" />
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between">
+                            <div className="flex flex-col gap-1">
+                              <Label className="text-right">חופשה מערכתית</Label>
+                              <p className="text-xs text-muted-foreground text-right">ימי חופשה מוגדרים על ידי המערכת</p>
+                            </div>
+                            <Popover open={openSystemVacation} onOpenChange={setOpenSystemVacation}>
+                              <PopoverTrigger asChild>
+                                <Button size="icon" variant="outline">
+                                  <IconPlus className="h-4 w-4" />
+                                </Button>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-auto p-0" align="end">
+                                <div className="p-2">
+                                  <Calendar
+                                    mode="range"
+                                    selected={systemVacationRange}
+                                    onSelect={(r) => setSystemVacationRange(r)}
+                                    numberOfMonths={2}
+                                    captionLayout="dropdown"
+                                  />
+                                  <div className="flex justify-end gap-2 p-2">
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => {
+                                        setSystemVacationRange(undefined)
+                                      }}
+                                    >
+                                      נקה
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      disabled={!systemVacationRange?.from || !systemVacationRange?.to}
+                                      onClick={() => addVacationRange('system', systemVacationRange)}
+                                    >
+                                      הוסף
+                                    </Button>
+                                  </div>
+                                </div>
+                              </PopoverContent>
+                            </Popover>
+                          </div>
+                          <div className="flex flex-wrap gap-2" style={{scrollbarWidth: 'none'}}>
+                            {compressDatesToRanges(personalProfile.system_vacation_dates || []).map((rg, idx) => (
+                              <span key={idx} className="relative group/range">
+                                <Badge variant="secondary" className="px-2 py-1">
+                                  {rg.from === rg.to ? rg.from : `${rg.from} — ${rg.to}`}
+                                </Badge>
+                                <Button
+                                  type="button"
+                                  size="icon"
+                                  variant="ghost"
+                                  className="absolute -top-1 -right-1 size-4 hidden group-hover/range:flex bg-red-400"
+                                  onClick={() => {
+                                    const dates = enumerateDates(new Date(rg.from), new Date(rg.to))
+                                    const setDates = new Set(personalProfile.system_vacation_dates || [])
+                                    dates.forEach(d => setDates.delete(d))
+                                    setPersonalProfile(prev => ({ ...prev, system_vacation_dates: Array.from(setDates).sort() }))
+                                  }}
+                                  title="מחק טווח"
+                                >
+                                  <IconX className="h-2.5 w-2.5" />
+                                </Button>
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between">
+                            <div className="flex flex-col gap-1">
+                              <Label className="text-right">חופשה נוספת</Label>
+                              <p className="text-xs text-muted-foreground text-right">ימי חופשה שנוספו</p>
+                            </div>
+                            <Popover open={openAddedVacation} onOpenChange={setOpenAddedVacation}>
+                              <PopoverTrigger asChild>
+                                <Button size="icon" variant="outline">
+                                  <IconPlus className="h-4 w-4" />
+                                </Button>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-auto p-0" align="end">
+                                <div className="p-2">
+                                  <Calendar
+                                    mode="range"
+                                    selected={addedVacationRange}
+                                    onSelect={(r) => setAddedVacationRange(r)}
+                                    numberOfMonths={2}
+                                    captionLayout="dropdown"
+                                  />
+                                  <div className="flex justify-end gap-2 p-2">
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => {
+                                        setAddedVacationRange(undefined)
+                                      }}
+                                    >
+                                      נקה
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      disabled={!addedVacationRange?.from || !addedVacationRange?.to}
+                                      onClick={() => addVacationRange('added', addedVacationRange)}
+                                    >
+                                      הוסף
+                                    </Button>
+                                  </div>
+                                </div>
+                              </PopoverContent>
+                            </Popover>
+                          </div>
+                          <div className="flex flex-wrap gap-2" style={{scrollbarWidth: 'none'}}>
+                            {compressDatesToRanges(personalProfile.added_vacation_dates || []).map((rg, idx) => (
+                              <span key={idx} className="relative group">
+                                <Badge variant="secondary" className="px-2 py-1">
+                                  {rg.from === rg.to ? rg.from : `${rg.from} — ${rg.to}`}
+                                </Badge>
+                                <Button
+                                  type="button"
+                                  size="icon"
+                                  variant="ghost"
+                                  className="absolute -top-1 -right-1 size-4 hidden group-hover:flex bg-red-400"
+                                  onClick={() => {
+                                    const dates = enumerateDates(new Date(rg.from), new Date(rg.to))
+                                    const setDates = new Set(personalProfile.added_vacation_dates || [])
+                                    dates.forEach(d => setDates.delete(d))
+                                    setPersonalProfile(prev => ({ ...prev, added_vacation_dates: Array.from(setDates).sort() }))
+                                  }}
+                                  title="מחק טווח"
+                                >
+                                  <IconX className="h-1 w-1" />
+                                </Button>
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Personal Theme Colors */}
                     <Card className="shadow-md border-none">
                       <CardHeader>
                         <CardTitle className="text-right">צבעי המערכת האישיים</CardTitle>
@@ -1376,13 +1535,13 @@ export default function SettingsPage() {
                             <div className="flex items-center gap-4">
                               <Input
                                 type="color"
-                                value={personalProfile.primary_theme_color || '#3b82f6'}
+                                value={personalProfile.primary_theme_color}
                                 onChange={(e) => handlePersonalProfileChange('primary_theme_color', e.target.value)}
                                 className="w-16 h-12 p-1 rounded shadow-sm"
                               />
                               <div className="flex-1">
                                 <Input
-                                  value={personalProfile.primary_theme_color || '#3b82f6'}
+                                  value={personalProfile.primary_theme_color}
                                   onChange={(e) => handlePersonalProfileChange('primary_theme_color', e.target.value)}
                                   className="font-mono text-center shadow-sm h-9"
                                   dir="ltr"
@@ -1397,13 +1556,13 @@ export default function SettingsPage() {
                             <div className="flex items-center gap-4">
                               <Input
                                 type="color"
-                                value={personalProfile.secondary_theme_color || '#8b5cf6'}
+                                value={personalProfile.secondary_theme_color}
                                 onChange={(e) => handlePersonalProfileChange('secondary_theme_color', e.target.value)}
                                 className="w-16 h-12 p-1 rounded shadow-sm"
                               />
                               <div className="flex-1">
                                 <Input
-                                  value={personalProfile.secondary_theme_color || '#8b5cf6'}
+                                  value={personalProfile.secondary_theme_color}
                                   onChange={(e) => handlePersonalProfileChange('secondary_theme_color', e.target.value)}
                                   className="font-mono text-center shadow-sm h-9"
                                   dir="ltr"
@@ -1525,8 +1684,7 @@ export default function SettingsPage() {
                 <div className="flex-shrink-0">
                   <TabsList className="flex flex-col h-fit w-48 p-1">
                     <TabsTrigger value="profile" className="w-full justify-end text-right">פרופיל המרפאה</TabsTrigger>
-                    <TabsTrigger value="customization" className="w-full justify-end text-right">התאמה אישית</TabsTrigger>
-                    <TabsTrigger value="preferences" className="w-full justify-end text-right">ניהול זמן</TabsTrigger>
+                    <TabsTrigger value="preferences" className="w-full justify-end text-right">הגדרות המרפאה</TabsTrigger>
                     <TabsTrigger value="notifications" className="w-full justify-end text-right">התראות</TabsTrigger>
                     <TabsTrigger value="email" className="w-full justify-end text-right">הגדרות אימייל</TabsTrigger>
                     <TabsTrigger value="personal-profile" className="w-full justify-end text-right">פרופיל אישי</TabsTrigger>

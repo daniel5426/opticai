@@ -1,7 +1,7 @@
 import { File } from './schema-interface';
 import { apiClient } from '../api-client';
 
-export async function createFile(data: Omit<File, 'id'>): Promise<File | null> {
+export async function createFile(data: Omit<File, 'id'> | FormData): Promise<File | null> {
   try {
     const response = await apiClient.createFile(data);
     if (response.error) {
@@ -54,6 +54,24 @@ export async function getAllFiles(clinicId?: number): Promise<File[]> {
   } catch (error) {
     console.error('Error getting all files:', error);
     return [];
+  }
+}
+
+export async function getPaginatedFiles(
+  clinicId?: number,
+  options?: { limit?: number; offset?: number; order?: 'upload_date_desc' | 'upload_date_asc' | 'id_desc' | 'id_asc' }
+): Promise<{ items: File[]; total: number }> {
+  try {
+    const effectiveOptions = options ?? { limit: 25, offset: 0, order: 'upload_date_desc' as const };
+    const response = await apiClient.getFilesPaginated(clinicId, effectiveOptions);
+    if (response.error) {
+      console.error('Error getting paginated files:', response.error);
+      return { items: [], total: 0 };
+    }
+    return response.data || { items: [], total: 0 };
+  } catch (error) {
+    console.error('Error getting paginated files:', error);
+    return { items: [], total: 0 };
   }
 }
 

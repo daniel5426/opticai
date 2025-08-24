@@ -1,5 +1,5 @@
-from typing import List
-from fastapi import APIRouter, Depends, HTTPException, status
+from typing import List, Optional
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from database import get_db
@@ -7,6 +7,7 @@ from models import User, Clinic
 from schemas import UserCreate, UserUpdate, User as UserSchema, UserPublic
 from auth import get_current_user, get_password_hash
 from models import User as UserModel
+from utils.storage import upload_base64_image
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -36,8 +37,14 @@ def create_user_public(
     
     print(f"DEBUG: Creating new user: {user.username}")
     hashed_password = get_password_hash(user.password) if user.password else None
+    up = user.dict(exclude={'password'})
+    if up.get('profile_picture'):
+        try:
+            up['profile_picture'] = upload_base64_image(up['profile_picture'], f"users/public/profile")
+        except Exception:
+            pass
     db_user = User(
-        **user.dict(exclude={'password'}),
+        **up,
         password=hashed_password
     )
     db.add(db_user)
@@ -80,14 +87,85 @@ def create_user(
             )
     
     hashed_password = get_password_hash(user.password) if user.password else None
+    up = user.dict(exclude={'password'})
+    if up.get('profile_picture'):
+        try:
+            up['profile_picture'] = upload_base64_image(up['profile_picture'], f"users/profile")
+        except Exception:
+            pass
     db_user = User(
-        **user.dict(exclude={'password'}),
+        **up,
         password=hashed_password
     )
     db.add(db_user)
     db.commit()
     db.refresh(db_user)
     return db_user
+
+@router.get("/paginated")
+def get_users_paginated(
+    limit: int = Query(25, ge=1, le=100, description="Max items to return"),
+    offset: int = Query(0, ge=0, description="Items to skip"),
+    order: Optional[str] = Query("id_desc", description="Sort order: id_desc|id_asc|username_asc|username_desc|role_asc|role_desc"),
+    db: Session = Depends(get_db),
+    current_user: UserModel = Depends(get_current_user)
+):
+    from sqlalchemy import or_, and_
+    
+    if current_user.role == "company_ceo":
+        # CEOs see only users in their company (including other CEOs)
+        base = db.query(User).join(Clinic, isouter=True).filter(
+            or_(User.company_id == current_user.company_id, Clinic.company_id == current_user.company_id)
+        )
+    elif current_user.role == "clinic_manager":
+        # Clinic managers see users in their clinic and CEOs from their company
+        if current_user.clinic_id:
+            clinic = db.query(Clinic).filter(Clinic.id == current_user.clinic_id).first()
+            if clinic:
+                base = db.query(User).filter(
+                    or_(
+                        User.clinic_id == current_user.clinic_id,
+                        and_(User.role == "company_ceo", User.company_id == clinic.company_id)
+                    )
+                )
+            else:
+                base = db.query(User).filter(User.clinic_id == current_user.clinic_id)
+        else:
+            base = db.query(User).filter(User.id == -1)  # Empty result
+    else:
+        # Regular clinic workers see users in their clinic and CEOs from their company
+        if current_user.clinic_id:
+            clinic = db.query(Clinic).filter(Clinic.id == current_user.clinic_id).first()
+            if clinic:
+                base = db.query(User).filter(
+                    or_(
+                        User.clinic_id == current_user.clinic_id,
+                        and_(User.role == "company_ceo", User.company_id == clinic.company_id)
+                    )
+                )
+            else:
+                base = db.query(User).filter(User.clinic_id == current_user.clinic_id)
+        else:
+            base = db.query(User).filter(User.id == -1)  # Empty result
+    
+    # Apply ordering
+    if order == "id_asc":
+        base = base.order_by(User.id.asc())
+    elif order == "username_asc":
+        base = base.order_by(User.username.asc())
+    elif order == "username_desc":
+        base = base.order_by(User.username.desc())
+    elif order == "role_asc":
+        base = base.order_by(User.role.asc())
+    elif order == "role_desc":
+        base = base.order_by(User.role.desc())
+    else:  # default to id_desc
+        base = base.order_by(User.id.desc())
+    
+    total = base.count()
+    items = base.offset(offset).limit(limit).all()
+    
+    return {"items": items, "total": total}
 
 @router.get("/", response_model=List[UserSchema])
 def get_users(
@@ -99,8 +177,32 @@ def get_users(
         users = db.query(User).join(Clinic, isouter=True).filter(
             (User.company_id == current_user.company_id) | (Clinic.company_id == current_user.company_id)
         ).all()
+    elif current_user.role == "clinic_manager":
+        # Clinic managers see users in their clinic and CEOs from their company
+        if current_user.clinic_id:
+            clinic = db.query(Clinic).filter(Clinic.id == current_user.clinic_id).first()
+            if clinic:
+                users = db.query(User).filter(
+                    (User.clinic_id == current_user.clinic_id) |
+                    ((User.role == "company_ceo") & (User.company_id == clinic.company_id))
+                ).all()
+            else:
+                users = db.query(User).filter(User.clinic_id == current_user.clinic_id).all()
+        else:
+            users = []
     else:
-        users = db.query(User).filter(User.clinic_id == current_user.clinic_id).all()
+        # Regular clinic workers see users in their clinic and CEOs from their company
+        if current_user.clinic_id:
+            clinic = db.query(Clinic).filter(Clinic.id == current_user.clinic_id).first()
+            if clinic:
+                users = db.query(User).filter(
+                    (User.clinic_id == current_user.clinic_id) |
+                    ((User.role == "company_ceo") & (User.company_id == clinic.company_id))
+                ).all()
+            else:
+                users = db.query(User).filter(User.clinic_id == current_user.clinic_id).all()
+        else:
+            users = []
     return users
 
 @router.get("/{user_id}", response_model=UserSchema)
@@ -110,6 +212,7 @@ def get_user(
     current_user: UserModel = Depends(get_current_user)
 ):
     user = db.query(User).filter(User.id == user_id).first()
+    print(f"DEBUG: User: {user.system_vacation_dates}")
     if user is None:
         raise HTTPException(status_code=404, detail="User not found")
     
@@ -133,7 +236,7 @@ def get_user_by_username(
     
     return user
 
-@router.get("/username/{username}/public", response_model=UserSchema)
+@router.get("/username/{username}/public", response_model=UserPublic)
 def get_user_by_username_public(
     username: str,
     db: Session = Depends(get_db)
@@ -142,10 +245,31 @@ def get_user_by_username_public(
     user = db.query(User).filter(User.username == username).first()
     if user is None:
         raise HTTPException(status_code=404, detail="User not found")
-    
-    return user
+    user_dict = {
+        "id": user.id,
+        "full_name": user.full_name,
+        "username": user.username,
+        "email": user.email,
+        "phone": user.phone,
+        "role": user.role,
+        "is_active": user.is_active,
+        "profile_picture": user.profile_picture,
+        "primary_theme_color": user.primary_theme_color,
+        "secondary_theme_color": user.secondary_theme_color,
+        "theme_preference": user.theme_preference,
+        "google_account_connected": user.google_account_connected,
+        "google_account_email": user.google_account_email,
+        "clinic_id": user.clinic_id,
+        "system_vacation_dates": user.system_vacation_dates,
+        "added_vacation_dates": user.added_vacation_dates,
+        "has_password": bool(user.password and user.password.strip()),
+        "created_at": user.created_at,
+        "updated_at": user.updated_at,
+        "company_id": user.company_id,
+    }
+    return UserPublic(**user_dict)
 
-@router.get("/email/{email}/public", response_model=UserSchema)
+@router.get("/email/{email}/public", response_model=UserPublic)
 def get_user_by_email_public(
     email: str,
     db: Session = Depends(get_db)
@@ -153,7 +277,29 @@ def get_user_by_email_public(
     user = db.query(User).filter(User.email == email).first()
     if user is None:
         raise HTTPException(status_code=404, detail="User not found")
-    return user
+    user_dict = {
+        "id": user.id,
+        "full_name": user.full_name,
+        "username": user.username,
+        "email": user.email,
+        "phone": user.phone,
+        "role": user.role,
+        "is_active": user.is_active,
+        "profile_picture": user.profile_picture,
+        "primary_theme_color": user.primary_theme_color,
+        "secondary_theme_color": user.secondary_theme_color,
+        "theme_preference": user.theme_preference,
+        "google_account_connected": user.google_account_connected,
+        "google_account_email": user.google_account_email,
+        "clinic_id": user.clinic_id,
+        "system_vacation_dates": user.system_vacation_dates,
+        "added_vacation_dates": user.added_vacation_dates,
+        "has_password": bool(user.password and user.password.strip()),
+        "created_at": user.created_at,
+        "updated_at": user.updated_at,
+        "company_id": user.company_id,
+    }
+    return UserPublic(**user_dict)
 
 @router.get("/clinic/{clinic_id}", response_model=List[UserSchema])
 def get_users_by_clinic(
@@ -195,9 +341,10 @@ def get_users_by_clinic_public(
     if not clinic:
         raise HTTPException(status_code=404, detail="Clinic not found")
     
-    # Get all users for this clinic (including CEOs)
+    # Get users for this clinic and CEOs belonging to the same company
     users = db.query(User).filter(
-        (User.clinic_id == clinic_id) | (User.role == "company_ceo")
+        (User.clinic_id == clinic_id)
+        | ((User.role == "company_ceo") & (User.company_id == clinic.company_id))
     ).all()
     
     # Convert to UserPublic schema with has_password field
@@ -205,6 +352,7 @@ def get_users_by_clinic_public(
     for user in users:
         user_dict = {
             "id": user.id,
+            "full_name": user.full_name,
             "username": user.username,
             "email": user.email,
             "phone": user.phone,
@@ -217,6 +365,8 @@ def get_users_by_clinic_public(
             "google_account_connected": user.google_account_connected,
             "google_account_email": user.google_account_email,
             "clinic_id": user.clinic_id,
+            "system_vacation_dates": user.system_vacation_dates,
+            "added_vacation_dates": user.added_vacation_dates,
             "has_password": bool(user.password and user.password.strip()),
             "created_at": user.created_at,
             "updated_at": user.updated_at
@@ -275,6 +425,11 @@ def update_user(
         )
     
     update_data = user.dict(exclude_unset=True)
+    if update_data.get('profile_picture'):
+        try:
+            update_data['profile_picture'] = upload_base64_image(update_data['profile_picture'], f"users/{user_id}/profile")
+        except Exception:
+            pass
 
     # Validate unique fields if they are being changed
     if "username" in update_data and update_data["username"] and update_data["username"] != db_user.username:

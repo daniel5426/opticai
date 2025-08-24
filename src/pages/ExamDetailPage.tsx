@@ -2,15 +2,14 @@ import React, { useState, useRef, useEffect, useCallback, useLayoutEffect } from
 import { useParams, useNavigate, Link, useLocation } from "@tanstack/react-router"
 import { SiteHeader } from "@/components/site-header"
 import { getClientById } from "@/lib/db/clients-db"
-import { getExamById, getExamWithLayouts, updateExam, createExam } from "@/lib/db/exams-db"
+import { getExamById, getExamWithLayouts, updateExam, createExam, getExamPageData } from "@/lib/db/exams-db"
 import { OpticalExam, Client, User, ExamLayout, ExamLayoutInstance, NotesExam } from "@/lib/db/schema-interface"
-import { getAllExamLayouts, getDefaultExamLayout, getDefaultExamLayouts, getDefaultExamLayoutsByType, getExamLayoutInstancesByExamId, getActiveExamLayoutInstanceByExamId, setActiveExamLayoutInstance, addLayoutToExam, getExamLayoutById, deleteExamLayoutInstance } from "@/lib/db/exam-layouts-db"
+import { getAllExamLayouts, getDefaultExamLayout, getDefaultExamLayouts, getExamLayoutInstancesByExamId, getActiveExamLayoutInstanceByExamId, setActiveExamLayoutInstance, addLayoutToExam, getExamLayoutById, deleteExamLayoutInstance } from "@/lib/db/exam-layouts-db"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu"
 import { ChevronDownIcon, PlusCircleIcon, X as XIcon } from "lucide-react"
 import { toast } from "sonner"
 import { useUser } from "@/contexts/UserContext"
-import { getAllUsers } from "@/lib/db/users-db"
 import { ExamCardRenderer, CardItem, DetailProps, calculateCardWidth, hasNoteCard, createDetailProps } from "@/components/exam/ExamCardRenderer"
 import { createToolboxActions } from "@/components/exam/ExamToolbox"
 import { examComponentRegistry } from "@/lib/exam-component-registry"
@@ -22,6 +21,7 @@ import { useClientSidebar } from "@/contexts/ClientSidebarContext"
 import { v4 as uuidv4 } from 'uuid';
 import { CoverTestExam } from "@/lib/db/schema-interface"
 import { apiClient } from '@/lib/api-client';
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface ExamDetailPageProps {
   mode?: 'view' | 'edit' | 'new';
@@ -80,6 +80,17 @@ export default function ExamDetailPage({
   onSave,
   onCancel
 }: ExamDetailPageProps = {}) {
+  const shallowEqual = (a: any, b: any) => {
+    if (a === b) return true
+    if (!a || !b) return false
+    const aKeys = Object.keys(a)
+    const bKeys = Object.keys(b)
+    if (aKeys.length !== bKeys.length) return false
+    for (const k of aKeys) {
+      if (a[k] !== b[k]) return false
+    }
+    return true
+  }
   const location = useLocation();
   const pageType = propPageType || (location.pathname.includes('/contact-lenses') ? 'contact-lens' : 'exam');
   const config = pageConfig[pageType];
@@ -122,15 +133,15 @@ export default function ExamDetailPage({
   const [loading, setLoading] = useState(true)
   const [client, setClient] = useState<Client | null>(null)
   const [exam, setExam] = useState<OpticalExam | null>(null)
-  const [users, setUsers] = useState<User[]>([])
   const [availableLayouts, setAvailableLayouts] = useState<ExamLayout[]>([])
-  const [activeLayoutId, setActiveLayoutId] = useState<number | null>(null)
+  const [activeInstanceId, setActiveInstanceId] = useState<number | null>(null)
   const [layoutTabs, setLayoutTabs] = useState<LayoutTab[]>([])
   const { currentUser, currentClinic } = useUser()
   
   // Unified state management for all exam components
   const [examComponentData, setExamComponentData] = useState<Record<string, any>>({})
   const [examFormData, setExamFormData] = useState<Record<string, any>>({})
+  const [examFormDataByInstance, setExamFormDataByInstance] = useState<Record<number | string, Record<string, any>>>({})
   const [clipboardContentType, setClipboardContentType] = useState<ExamComponentType | null>(null)
   
   // Get the client data context to refresh exams after save
@@ -164,6 +175,7 @@ export default function ExamDetailPage({
   const rowRefs = useRef<Record<string, HTMLDivElement | null>>({})
   const [coverTestTabs, setCoverTestTabs] = useState<Record<string, string[]>>({})
   const [activeCoverTestTabs, setActiveCoverTestTabs] = useState<Record<string, number>>({})
+  const latestLoadIdRef = useRef(0)
 
 
   useLayoutEffect(() => {
@@ -179,23 +191,10 @@ export default function ExamDetailPage({
         observers.push(observer)
       }
     })
-    setTimeout(() => {
-      Object.entries(rowRefs.current).forEach(([rowId, el]) => {
-        if (el) {
-          const observer = new ResizeObserver(entries => {
-            for (const entry of entries) {
-              setRowWidths(prev => ({ ...prev, [rowId]: entry.contentRect.width }))
-            }
-          })
-          observer.observe(el)
-          observers.push(observer)
-        }
-      })
-      }, 100)
     return () => {
       observers.forEach(o => o.disconnect())
     }
-  }, [cardRows, activeLayoutId, layoutTabs])
+  }, [cardRows, activeInstanceId, layoutTabs])
   const formRef = useRef<HTMLFormElement>(null)
   const navigate = useNavigate()
 
@@ -274,7 +273,7 @@ export default function ExamDetailPage({
   }
 
   // Initialize form data for all registered components
-  const initializeFormData = (layoutInstanceId: number, layoutData?: string) => {
+  const initializeFormData = (instanceKey: number, layoutData?: string) => {
     const initialData: Record<string, any> = {}
     
     // Parse layout data to get titles and card instances
@@ -303,12 +302,12 @@ export default function ExamDetailPage({
     }
     
     examComponentRegistry.getAllTypes().forEach(type => {
-      const baseData: any = { layout_instance_id: layoutInstanceId }
+      const baseData: any = { layout_instance_id: instanceKey }
       
       // For notes, create separate data for each card instance
       if (type === 'notes' && cardInstances[type]) {
         cardInstances[type].forEach(cardId => {
-          const instanceData = { ...baseData, card_instance_id: cardId }
+           const instanceData = { ...baseData, card_instance_id: cardId }
           // Add title from layout if available for this specific card
           if (layoutTitles[cardId]) {
             instanceData.title = layoutTitles[cardId]
@@ -328,10 +327,11 @@ export default function ExamDetailPage({
     })
     
     setExamFormData(initialData)
+    setExamFormDataByInstance(prev => ({ ...prev, [instanceKey]: initialData }))
   }
 
   // Load all exam component data for a layout instance
-  const loadExamComponentData = async (layoutInstanceId: number, layoutData?: string) => {
+  const loadExamComponentData = async (layoutInstanceId: number, layoutData?: string, setCurrent: boolean = false) => {
     try {
       const data = await examComponentRegistry.loadAllData(layoutInstanceId)
       setExamComponentData(data)
@@ -366,7 +366,15 @@ export default function ExamDetailPage({
       const coverTestRows: any[] = []
       Object.entries(data).forEach(([key, value]) => {
         if (key.startsWith('cover-test-') && value && typeof value === 'object') {
-          coverTestRows.push(value)
+          const row = value as any
+          const meaningfulFields = ['deviation_type','deviation_direction','fv_1','fv_2','nv_1','nv_2']
+          const hasContent = meaningfulFields.some(f => {
+            const v = row?.[f]
+            return v !== undefined && v !== null && String(v).trim() !== ''
+          })
+          if (hasContent) {
+            coverTestRows.push(row)
+          }
         }
       })
       // Group by card_id
@@ -381,11 +389,7 @@ export default function ExamDetailPage({
         coverTestTabsFromDb[cardId] = tabs.map(t => t.tabId);
       })
       // If no DB data, fall back to layout (for new exams)
-      if (Object.keys(coverTestTabsFromDb).length === 0 && cardInstances['cover-test']) {
-        cardInstances['cover-test'].forEach(cardId => {
-          coverTestTabsFromDb[cardId] = [window.crypto?.randomUUID?.() || uuidv4()]
-        })
-      }
+      // Do not auto-create extra tabs here; initial tab seed happens later only when needed
       setCoverTestTabs(coverTestTabsFromDb)
       
       // Initialize active tabs for cover tests
@@ -414,13 +418,14 @@ export default function ExamDetailPage({
           // For cover-test, handle each card instance and tab
           cardInstances[type].forEach(cardId => {
             const tabIds = coverTestTabsFromDb[cardId] || []
+            if (tabIds.length === 0) {
+              // Delay seeding; a first tab will be created only when user adds it explicitly
+              return
+            }
             tabIds.forEach(tabId => {
               const key = `cover-test-${cardId}-${tabId}`
-              // Always use the full DB row if present, including id
               if (data[key]) {
                 formData[key] = data[key]
-              } else {
-                formData[key] = { layout_instance_id: layoutInstanceId, card_instance_id: tabId }
               }
             })
           })
@@ -436,7 +441,10 @@ export default function ExamDetailPage({
           formData[type] = existingData
         }
       })
-      setExamFormData(formData)
+      setExamFormDataByInstance(prev => ({ ...prev, [layoutInstanceId]: formData }))
+      if (setCurrent || activeInstanceId === layoutInstanceId) {
+        setExamFormData(formData)
+      }
     } catch (error) {
       console.error('Error loading exam component data:', error)
     }
@@ -516,140 +524,80 @@ export default function ExamDetailPage({
   useEffect(() => {
     const loadData = async () => {
       if (!clientId) return
-
       try {
         setLoading(true)
         setClipboardContentType(getClipboardContentType())
-
-        // Load layouts and users in parallel
-        const [layoutsData, usersData] = await Promise.all([
-          getAllExamLayouts(),
-          getAllUsers()
-        ])
-        
-        setAvailableLayouts(layoutsData.filter(layout => layout.type === config.dbType))
-        setUsers(usersData)
-
         if (examId && !isNewMode) {
-          // Use the optimized endpoint to get exam with layouts in one call
-          const examWithLayoutsData = await getExamWithLayouts(Number(examId))
-          
-          if (examWithLayoutsData) {
-            const { exam: examData, layout_instances: layoutInstances, layouts, layout_map } = examWithLayoutsData
-            
+          const pageData = await getExamPageData(Number(examId))
+          if (pageData) {
+            const { exam: examData, instances, chosen_active_instance_id, available_layouts } = pageData
             setExam(examData || null)
-
-            if (examData) {
-              const examType = examData.type || config.dbType
-              const filteredLayouts = layoutsData.filter(layout => layout.type === examType)
-              setAvailableLayouts(filteredLayouts)
-              
-              if (layoutInstances && layoutInstances.length > 0) {
-                // Find active instance
-                const activeInstance = layoutInstances.find((instance: any) => instance.is_active)
-                
-                // Build tabs using the layout map from the response
-                const tabs = layoutInstances.map((instance: any) => {
-                  const layout = layout_map[instance.layout_id]
-                  return {
-                    id: instance.id || 0,
-                    layout_id: instance.layout_id,
-                    name: layout?.name || '',
-                    layout_data: layout?.layout_data || '',
-                    isActive: instance.is_active || false
-                  }
-                })
-                
-                setLayoutTabs(tabs)
-                
-                if (activeInstance) {
-                  setActiveLayoutId(activeInstance.layout_id || 0)
-                  
-                  const activeLayout = layout_map[activeInstance.layout_id]
-                  
-                  if (activeLayout && activeLayout.layout_data && activeInstance.id) {
-                    const parsedLayout = JSON.parse(activeLayout.layout_data)
-                    if (Array.isArray(parsedLayout)) {
-                      setCardRows(parsedLayout)
-                      setCustomWidths({})
-                    } else {
-                      setCardRows(parsedLayout.rows || [])
-                      setCustomWidths(parsedLayout.customWidths || {})
+            const layoutInstances = (instances || []).map((e: any) => e.instance)
+            const layoutMapLocal: Record<number, any> = Object.fromEntries((instances || []).map((e: any) => [e.instance.layout_id, e.layout]))
+            if (layoutInstances && layoutInstances.length > 0) {
+              const tabs = layoutInstances.map((instance: any) => {
+                const layout = layoutMapLocal[instance.layout_id]
+                return {
+                  id: instance.id || 0,
+                  layout_id: instance.layout_id,
+                  name: layout?.name || '',
+                  layout_data: layout?.layout_data || '',
+                  isActive: instance.id === (chosen_active_instance_id)
+                }
+              })
+              setLayoutTabs(tabs)
+              const chosenInstId = (chosen_active_instance_id) as number | undefined
+              const chosen = (instances || []).find((e: any) => e?.instance?.id === chosenInstId) || (instances || [])[0]
+              if (chosen && chosen.instance && chosen.layout) {
+                setActiveInstanceId(chosen.instance.id || 0)
+                const parsedLayout = JSON.parse(chosen.layout.layout_data || '[]')
+                if (Array.isArray(parsedLayout)) {
+                  setCardRows(parsedLayout)
+                  setCustomWidths({})
+                } else {
+                  setCardRows(parsedLayout.rows || [])
+                  setCustomWidths(parsedLayout.customWidths || {})
+                }
+                const layoutDataStr = chosen.layout.layout_data || ''
+                await loadExamComponentData(chosen.instance.id, layoutDataStr, true)
+                if (chosen.exam_data && typeof chosen.exam_data === 'object') {
+                  setExamFormData(chosen.exam_data)
+                  setExamFormDataByInstance(prev => ({ ...prev, [chosen.instance.id]: chosen.exam_data }))
+                }
+              }
+              const others = (instances || []).filter((e: any) => e?.instance?.id !== (chosen_active_instance_id))
+              if (others.length > 0) {
+                setTimeout(() => {
+                  const preloadPromises: Promise<void>[] = []
+                  others.forEach((e: any) => {
+                    const inst = e.instance
+                    const l = e.layout
+                    if (l && l.layout_data && inst?.id) {
+                      preloadPromises.push(loadExamComponentData(inst.id, l.layout_data))
                     }
-                  
-                    await loadExamComponentData(activeInstance.id, activeLayout.layout_data)
-                  }
-                }
-              } else {
-                // No layout instances - create default layouts
-                let defaultLayouts = await getDefaultExamLayoutsByType(config.dbType)
-                if (defaultLayouts.length === 0) {
-                  const examTypeLayouts = layoutsData.filter(layout => layout.type === config.dbType)
-                  if (examTypeLayouts.length > 0) {
-                    defaultLayouts = [examTypeLayouts[0]]
-                  }
-                }
-
-                if (defaultLayouts.length > 0) {
-                  const layoutTabsData: LayoutTab[] = []
-                  let firstLayoutInstance: any = null
-
-                  for (let i = 0; i < defaultLayouts.length; i++) {
-                    const defaultLayout = defaultLayouts[i]
-                    const newLayoutInstance = await addLayoutToExam(Number(examId), defaultLayout.id || 1, i === 0)
-                    
-                    if (newLayoutInstance) {
-                      if (i === 0) {
-                        firstLayoutInstance = newLayoutInstance
-                        setActiveLayoutId(defaultLayout.id || 0)
-                        
-                        const parsedLayout = JSON.parse(defaultLayout.layout_data)
-                        if (Array.isArray(parsedLayout)) {
-                          setCardRows(parsedLayout)
-                          setCustomWidths({})
-                        } else {
-                          setCardRows(parsedLayout.rows || [])
-                          setCustomWidths(parsedLayout.customWidths || {})
-                        }
-                        
-                        if (newLayoutInstance.id) {
-                          await loadExamComponentData(newLayoutInstance.id, defaultLayout.layout_data)
-                        }
-                      }
-
-                      layoutTabsData.push({
-                        id: newLayoutInstance.id || 0,
-                        layout_id: defaultLayout.id || 0,
-                        name: defaultLayout.name || '',
-                        layout_data: defaultLayout.layout_data || '',
-                        isActive: i === 0
-                      })
-                    }
-                  }
-
-                  setLayoutTabs(layoutTabsData)
-                }
+                  })
+                  void Promise.all(preloadPromises)
+                }, 0)
+              }
+              if (Array.isArray(available_layouts)) {
+                setAvailableLayouts(available_layouts as any)
               }
             }
           }
         } else {
-          // New exam - use already loaded layouts
-          let defaultLayouts = layoutsData.filter(layout => layout.type === config.dbType && layout.is_default)
+          let defaultLayouts = await getAllExamLayouts()
           if (defaultLayouts.length === 0) {
-            defaultLayouts = layoutsData.filter(layout => layout.type === config.dbType)
-            if (defaultLayouts.length > 0) {
-              defaultLayouts = [defaultLayouts[0]]
-            }
+            const res = await apiClient.getExamLayouts(currentClinic?.id)
+            const layoutsData = (res.data || []) as any[]
+            defaultLayouts = layoutsData.filter(l => l.is_default)
+            if (defaultLayouts.length === 0 && layoutsData.length > 0) defaultLayouts = [layoutsData[0] as any]
           }
-
           if (defaultLayouts.length > 0) {
             const layoutTabsData: LayoutTab[] = []
-
             for (let i = 0; i < defaultLayouts.length; i++) {
               const defaultLayout = defaultLayouts[i]
-              
+              const tempInstanceId = -Date.now() - i
               if (i === 0) {
-                setActiveLayoutId(defaultLayout.id || 0)
                 const parsedLayout = JSON.parse(defaultLayout.layout_data)
                 if (Array.isArray(parsedLayout)) {
                   setCardRows(parsedLayout)
@@ -658,65 +606,77 @@ export default function ExamDetailPage({
                   setCardRows(parsedLayout.rows || [])
                   setCustomWidths(parsedLayout.customWidths || {})
                 }
-                
-                initializeFormData(defaultLayout.id || 0, defaultLayout.layout_data)
+                setActiveInstanceId(tempInstanceId)
               }
-
+              initializeFormData(tempInstanceId, defaultLayout.layout_data)
               layoutTabsData.push({
-                id: -Date.now() - i,
+                id: tempInstanceId,
                 layout_id: defaultLayout.id || 0,
                 name: defaultLayout.name || '',
                 layout_data: defaultLayout.layout_data || '',
                 isActive: i === 0
               })
             }
-
             setLayoutTabs(layoutTabsData)
           }
         }
       } catch (error) {
-        console.error('Error loading exam data:', error)
         toast.error('שגיאה בטעינת נתוני הבדיקה')
       } finally {
         setLoading(false)
       }
     }
-
     loadData()
-  }, [clientId, examId, isNewMode, config.dbType])
+  }, [clientId, examId, isNewMode, config.dbType, currentClinic?.id])
 
   useEffect(() => {
-    if (exam) {
-      setFormData({ ...exam })
+    const prefetch = async () => {
+      const types = ['old-refraction','objective','subjective','final-subjective','addition','notes','final-prescription'] as const
+      await Promise.all(types.map(t => {
+        const cfg = examComponentRegistry.get(t as any)
+        return cfg?.component ? cfg.component().catch(() => null) : Promise.resolve(null)
+      }))
     }
-    
-    // Update form data when exam component data changes
-    examComponentRegistry.getAllTypes().forEach(type => {
-      const data = examComponentData[type]
-      if (data) {
-        setExamFormData(prev => ({ ...prev, [type]: { ...data } }))
-    } else if (!isNewMode) {
-      const activeLayout = layoutTabs.find(tab => tab.isActive);
-      if (activeLayout) {
-          setExamFormData(prev => ({ 
-            ...prev, 
-            [type]: { layout_instance_id: activeLayout.id } 
-          }))
-        }
-      }
-    })
-  }, [exam, examComponentData, layoutTabs, isNewMode]) 
+    prefetch()
+  }, [])
 
-  // On layout load, initialize coverTestTabs for each cover-test card
+  useEffect(() => {
+    if (exam) setFormData({ ...exam })
+  }, [exam])
+
+  useEffect(() => {
+    if (activeInstanceId != null) {
+      const bucket = examFormDataByInstance[activeInstanceId]
+      if (!shallowEqual(bucket || {}, examFormData)) {
+        setExamFormData(bucket || {})
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeInstanceId])
+
+  useEffect(() => {
+    if (activeInstanceId != null) {
+      const currentBucket = examFormDataByInstance[activeInstanceId] || {}
+      if (!shallowEqual(currentBucket, examFormData)) {
+        setExamFormDataByInstance(prev => ({
+          ...prev,
+          [activeInstanceId]: examFormData
+        }))
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [examFormData])
+
+  // On layout load, initialize coverTestTabs for each cover-test card only if none exist yet
   useEffect(() => {
     const newTabs: { [cardId: string]: string[] } = {}
     cardRows.forEach(row => {
       row.cards.forEach(card => {
         if (card.type === 'cover-test') {
-          if (!coverTestTabs[card.id]) {
-            newTabs[card.id] = [uuidv4()]
-          } else {
+          if (coverTestTabs[card.id]) {
             newTabs[card.id] = coverTestTabs[card.id]
+          } else {
+            newTabs[card.id] = []
           }
         }
       })
@@ -737,7 +697,7 @@ export default function ExamDetailPage({
           card_instance_id: newTabId,
           card_id: cardId,
           tab_index: tabIndex,
-          layout_instance_id: activeLayoutId,
+          layout_instance_id: activeInstanceId,
           deviation_type: null,
           deviation_direction: null,
           fv_1: null,
@@ -775,12 +735,13 @@ export default function ExamDetailPage({
 
   const handleSave = async () => {
     console.log('examFormData', examFormData)
-    console.log('activeLayoutId', activeLayoutId)
+    console.log('activeInstanceId', activeInstanceId)
     console.log('layoutTabs', layoutTabs)
     console.log('activeLayout', layoutTabs.find(tab => tab.isActive))
     
     if (formRef.current) {
       if (isNewMode) {
+        setIsEditing(false)
         const examData = {
           client_id: Number(clientId),
           exam_date: formData.exam_date || new Date().toISOString().split('T')[0],
@@ -794,40 +755,51 @@ export default function ExamDetailPage({
         const newExam = await createExam(examData)
 
         if (newExam && newExam.id) {
-          const activeLayout = layoutTabs.find(tab => tab.isActive) || layoutTabs[0];
-          
-          if (!activeLayout) {
-            toast.error("לא נמצאה פריסה פעילה לבדיקה");
-            return;
-          }
-          
-          const layoutInstance = await addLayoutToExam(
-            newExam.id, 
-            activeLayout.layout_id, 
-            true
-          );
-          
-          if (!layoutInstance || !layoutInstance.id) {
-            toast.error("שגיאה ביצירת פריסת בדיקה");
-            return;
-          }
-          
-          const savedData = await examComponentRegistry.saveAllData(layoutInstance.id, examFormData)
-          
-          if (Object.values(savedData).some(data => data !== null)) {
-            toast.success(config.saveSuccessNew)
-            
-            
-            await new Promise(resolve => setTimeout(resolve, 100));
-            
-            if (onSave) {
-              onSave(newExam, ...Object.values(savedData))
+          setExam(newExam)
+          setFormData({ ...newExam })
+          toast.success(config.saveSuccessNew)
+          if (onSave) onSave(newExam)
+          navigate({
+            to: "/clients/$clientId",
+            params: { clientId: String(clientId) },
+            search: { tab: config.sidebarTab }
+          })
+          ;(async () => {
+            try {
+              const activeTempTab = layoutTabs.find(t => t.isActive)
+              if (activeTempTab && activeInstanceId != null && activeTempTab.id === activeInstanceId) {
+                setExamFormDataByInstance(prev => ({
+                  ...prev,
+                  [activeTempTab.id]: examFormData
+                }))
+              }
+              const tempIdToRealId: Record<number, number> = {}
+              for (const tab of layoutTabs) {
+                const instance = await addLayoutToExam(Number(newExam.id), Number(tab.layout_id || 0), tab.isActive)
+                if (!instance || instance.id == null) throw new Error('failed to create instance')
+                tempIdToRealId[tab.id] = Number(instance.id)
+                const dataBucket = examFormDataByInstance[tab.id] || {}
+                await examComponentRegistry.saveAllData(Number(instance.id), dataBucket)
+              }
+              // Optionally remap tabs to real IDs for correctness
+              const remappedTabs = layoutTabs.map(tab => ({
+                ...tab,
+                id: (tempIdToRealId[tab.id] !== undefined ? tempIdToRealId[tab.id] : tab.id) as number
+              }))
+              setLayoutTabs(remappedTabs)
+              if (activeTempTab && Object.prototype.hasOwnProperty.call(tempIdToRealId, activeTempTab.id)) {
+                const realId = Number(tempIdToRealId[activeTempTab.id])
+                setActiveInstanceId(realId as number)
+                setExamFormData(examFormDataByInstance[activeTempTab.id] || {})
+              }
+            } catch (e) {
+              toast.error(config.saveErrorNewData)
+              setIsEditing(true)
             }
-          } else {
-            toast.error(config.saveErrorNewData)
-          }
+          })()
         } else {
           toast.error(config.saveErrorNew)
+          setIsEditing(true)
         }
       } else {
         const prevExam = exam
@@ -844,22 +816,25 @@ export default function ExamDetailPage({
           try {
             const updatedExam = await updateExam(formData as OpticalExam)
 
-            const activeLayout = layoutTabs.find(tab => tab.isActive)
-            if (!activeLayout) throw new Error('no active layout')
+            // ensure active instance bucket is up-to-date
+            if (activeInstanceId != null) {
+              setExamFormDataByInstance(prev => ({
+                ...prev,
+                [activeInstanceId]: examFormData
+              }))
+            }
 
-            const activeInstance = await getActiveExamLayoutInstanceByExamId(Number(examId))
-            if (!activeInstance || !activeInstance.id) throw new Error('no active instance')
-
-            const setActiveResult = await setActiveExamLayoutInstance(Number(examId), activeInstance.id)
-            if (!setActiveResult) throw new Error('failed to set active layout')
-
-            const savedData = await examComponentRegistry.saveAllData(activeInstance.id, localExamData)
+            for (const tab of layoutTabs) {
+              if (tab.id > 0) {
+                const bucket = examFormDataByInstance[tab.id] || {}
+                await examComponentRegistry.saveAllData(tab.id, bucket)
+              }
+            }
 
             if (updatedExam) {
               setExam(updatedExam)
               setFormData({ ...updatedExam })
-              setExamComponentData(savedData)
-              if (onSave) onSave(updatedExam, ...Object.values(savedData))
+              if (onSave) onSave(updatedExam, ...Object.values(localExamData))
             } else {
               throw new Error('update failed')
             }
@@ -881,6 +856,7 @@ export default function ExamDetailPage({
     if (!selectedTab) return
     
     try {
+      const loadId = ++latestLoadIdRef.current
       // Update UI immediately for better responsiveness
       const updatedTabs = layoutTabs.map(tab => ({
         ...tab,
@@ -888,7 +864,7 @@ export default function ExamDetailPage({
       }))
       
       setLayoutTabs(updatedTabs)
-      setActiveLayoutId(selectedTab.layout_id)
+      setActiveInstanceId(selectedTab.id)
       
       const parsedLayout = JSON.parse(selectedTab.layout_data)
       if (Array.isArray(parsedLayout)) {
@@ -898,12 +874,24 @@ export default function ExamDetailPage({
         setCardRows(parsedLayout.rows || [])
         setCustomWidths(parsedLayout.customWidths || {})
       }
+      const existingBucket = examFormDataByInstance[selectedTab.id]
+      if (existingBucket && Object.keys(existingBucket).length > 0) {
+        setExamFormData(existingBucket)
+      }
       
       // Load data and update database in parallel
       const promises = []
       
       if (!isNewMode) {
-        promises.push(loadExamComponentData(selectedTab.id, selectedTab.layout_data))
+        promises.push((async () => {
+          await loadExamComponentData(selectedTab.id, selectedTab.layout_data)
+          if (loadId === latestLoadIdRef.current) {
+            const bucket = examFormDataByInstance[selectedTab.id]
+            if (bucket && Object.keys(bucket).length > 0) {
+              setExamFormData(bucket)
+            }
+          }
+        })())
       }
       
       if (exam && exam.id && !isNewMode) {
@@ -931,9 +919,10 @@ export default function ExamDetailPage({
       const newLayoutInstance = await addLayoutToExam(exam.id, layoutId, true)
       
       if (newLayoutInstance) {
+        latestLoadIdRef.current++
         const updatedTabs = layoutTabs.map(tab => ({ ...tab, isActive: false }))
         
-        const newTab = {
+      const newTab = {
           id: newLayoutInstance.id || 0,
           layout_id: layoutId,
           name: layoutToAdd.name || '',
@@ -942,7 +931,7 @@ export default function ExamDetailPage({
         }
         
         setLayoutTabs([...updatedTabs, newTab])
-        setActiveLayoutId(layoutId)
+        setActiveInstanceId(newLayoutInstance.id || null)
         
         const parsedLayout = JSON.parse(layoutToAdd.layout_data)
         if (Array.isArray(parsedLayout)) {
@@ -974,7 +963,7 @@ export default function ExamDetailPage({
       }
       
       setLayoutTabs([...updatedTabs, newTab])
-      setActiveLayoutId(layoutId)
+      setActiveInstanceId(newTab.id)
       
       const parsedLayout = JSON.parse(layoutToAdd.layout_data)
       if (Array.isArray(parsedLayout)) {
@@ -984,6 +973,7 @@ export default function ExamDetailPage({
         setCardRows(parsedLayout.rows || [])
         setCustomWidths(parsedLayout.customWidths || {})
       }
+      initializeFormData(newTab.id, layoutToAdd.layout_data)
       toast.success(`פריסה "${layoutToAdd.name}" הוספה והוחלה`)
     }
   }
@@ -1020,7 +1010,7 @@ export default function ExamDetailPage({
           await setActiveExamLayoutInstance(exam.id, updatedTabs[newActiveIndex].id);
         }
         
-        setActiveLayoutId(updatedTabs[newActiveIndex].layout_id);
+        setActiveInstanceId(updatedTabs[newActiveIndex].id);
         
         try {
           const newActiveTab = updatedTabs[newActiveIndex];
@@ -1129,7 +1119,7 @@ export default function ExamDetailPage({
       setActiveCoverTestTabs: setActiveCoverTestTabs as any,
       addCoverTestTab: addCoverTestTab as any,
       removeCoverTestTab: removeCoverTestTab as any,
-      layoutInstanceId: activeLayoutId,
+      layoutInstanceId: activeInstanceId,
       setExamFormData: setExamFormData,
     } as any
   )
@@ -1142,11 +1132,76 @@ export default function ExamDetailPage({
           backLink="/clients"
           tabs={{ activeTab, onTabChange: handleTabChange }}
         />
+        <ClientSpaceLayout>
+          <div className="flex flex-col flex-1 p-4 lg:p-5 mb-10 no-scrollbar" dir="rtl" style={{scrollbarWidth: 'none', msOverflowStyle: 'none'}}>
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-semibold">{config.detailTitle}</h2>
+              <div className="flex gap-2">
+                <Button variant="outline" disabled>יצירת הזמנה</Button>
+                <DropdownMenu dir="rtl">
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" className="flex items-center gap-1" onClick={async () => {
+                      if (availableLayouts.length === 0 && currentClinic?.id) {
+                        const res = await apiClient.getExamLayouts(currentClinic.id)
+                        if (!res.error) setAvailableLayouts((res.data || []) as any)
+                      }
+                    }}>
+                      <span>פריסות</span>
+                      <ChevronDownIcon className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-48">
+                    <DropdownMenuItem className="text-sm font-bold" disabled>הוספת פריסה</DropdownMenuItem>
+                    {availableLayouts.length === 0 ? (
+                      <DropdownMenuItem disabled className="text-sm">טוען...</DropdownMenuItem>
+                    ) : (
+                      availableLayouts.map((layout) => (
+                        <DropdownMenuItem 
+                          key={layout.id} 
+                          onClick={() => handleAddLayoutTab(layout.id || 0)}
+                          className="text-sm"
+                        >
+                          <PlusCircleIcon className="h-4 w-4 mr-2" />
+                          {layout.name}
+                        </DropdownMenuItem>
+                      ))
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                {isNewMode && onCancel && (
+                  <Button variant="outline" onClick={onCancel} disabled>ביטול</Button>
+                )}
+                <Button
+                  variant={isEditing ? "outline" : "default"}
+                  disabled
+                >
+                  {isNewMode ? "שמור בדיקה" : (isEditing ? "שמור שינויים" : "ערוך בדיקה")}
+                </Button>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 mb-4">
+              <Skeleton className="h-8 w-20 rounded-xl" />
+              <Skeleton className="h-8 w-24 rounded-xl" />
+              <Skeleton className="h-8 w-28 rounded-xl" />
+            </div>
+
+            <div className="space-y-4">
+              {Array.from({ length: 3 }).map((_, idx) => (
+                <div key={idx} className="w-full">
+                  <div className="flex gap-4" dir="ltr">
+                    <Skeleton className="h-40 w-full" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </ClientSpaceLayout>
       </>
     )
   }
 
-  if (!isNewMode && !exam) {
+  if (!isNewMode && !loading && !exam) {
     return (
       <>
         <SiteHeader
@@ -1156,7 +1211,7 @@ export default function ExamDetailPage({
         />
         <ClientSpaceLayout>
           <div className="flex flex-col items-center justify-center h-full">
-            <h1 className="text-2xl">{isNewMode ? "לקוח לא נמצא" : "בדיקה לא נמצאה"}</h1>
+            <h1 className="text-2xl">בדיקה לא נמצאה</h1>
           </div>
         </ClientSpaceLayout>
       </>
@@ -1184,7 +1239,12 @@ export default function ExamDetailPage({
 
               <DropdownMenu dir="rtl">
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" className="flex items-center gap-1">
+                  <Button variant="outline" className="flex items-center gap-1" onClick={async () => {
+                    if (availableLayouts.length === 0 && currentClinic?.id) {
+                      const res = await apiClient.getExamLayouts(currentClinic.id)
+                      if (!res.error) setAvailableLayouts((res.data || []) as any)
+                    }
+                  }}>
                     <span>פריסות</span>
                     <ChevronDownIcon className="h-4 w-4" />
                   </Button>

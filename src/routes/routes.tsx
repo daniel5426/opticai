@@ -18,7 +18,6 @@ import ExamCreatePage from "@/pages/ExamCreatePage";
 import OrderDetailPage from "@/pages/OrderDetailPage";
 import OrderCreatePage from "@/pages/OrderCreatePage";
 import ContactLensCreatePage from "@/pages/ContactLensCreatePage";
-import AllContactLensesPage from "@/pages/AllContactLensesPage";
 import AllReferralsPage from "@/pages/AllReferralsPage";
 import AllAppointmentsPage from "@/pages/AllAppointmentsPage";
 import AllFilesPage from "@/pages/AllFilesPage";
@@ -81,6 +80,7 @@ export const SetupWizardRoute = createRoute({
     password: search.password as string,
     email: search.email as string,
     phone: search.phone as string,
+    full_name: search.full_name as string,
   }),
   component: SetupWizardPage,
 });
@@ -191,17 +191,14 @@ export const ContactLensCreateRoute = createRoute({
 
 export const ReferralDetailRoute = createRoute({
   getParentRoute: () => RootRoute,
-  path: "/referrals/$referralId",
+  path: "/clients/$clientId/referrals/$referralId",
   component: ReferralDetailPage,
 });
 
 export const ReferralCreateRoute = createRoute({
   getParentRoute: () => RootRoute,
-  path: "/referrals/create",
+  path: "/clients/$clientId/referrals/new",
   component: ReferralDetailPage,
-  validateSearch: (search: Record<string, unknown>) => ({
-    clientId: search.clientId as string,
-  }),
 });
 
 // Global pages routes
@@ -217,11 +214,6 @@ export const AllOrdersRoute = createRoute({
   component: AllOrdersPage,
 });
 
-export const AllContactLensesRoute = createRoute({
-  getParentRoute: () => RootRoute,
-  path: "/contact-lenses",
-  component: AllContactLensesPage,
-});
 
 export const AllReferralsRoute = createRoute({
   getParentRoute: () => RootRoute,
@@ -266,7 +258,6 @@ export const ExamLayoutEditorRoute = createRoute({
   component: ExamLayoutEditorPage,
   validateSearch: (search: Record<string, unknown>) => ({
     name: search.name as string,
-    type: search.type as string,
   }),
 });
 
@@ -313,7 +304,6 @@ export const rootTree = RootRoute.addChildren([
   ReferralCreateRoute,
   AllExamsRoute,
   AllOrdersRoute,
-  AllContactLensesRoute,
   AllReferralsRoute,
   AllAppointmentsRoute,
   AllFilesRoute,

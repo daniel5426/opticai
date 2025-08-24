@@ -52,7 +52,7 @@ export function NavUser({
   showShiftControls?: boolean
 }) {
   const { isMobile } = useSidebar()
-  const { logout } = useUser()
+  const { logoutUser, logoutClinic } = useUser()
   const [showProfileModal, setShowProfileModal] = React.useState(false)
   const [currentTime, setCurrentTime] = React.useState(new Date())
   const [activeShift, setActiveShift] = React.useState<WorkShift | null>(null)
@@ -84,8 +84,12 @@ export function NavUser({
     return null
   }
 
-  const handleLogout = () => {
-    logout()
+  const handleLogoutUser = () => {
+    logoutUser()
+  }
+
+  const handleLogoutClinic = () => {
+    logoutClinic()
   }
 
   const openProfileModal = () => {
@@ -177,7 +181,8 @@ export function NavUser({
     }
   }
 
-  const userInitials = currentUser.username.charAt(0).toUpperCase()
+  const displayName = currentUser.full_name?.trim() || currentUser.username
+  const userInitials = displayName.charAt(0).toUpperCase()
   const roleName = currentUser.role === 'company_ceo' ? 'מנהל חברה' :
     currentUser.role === 'clinic_manager' ? 'מנהל סניף' :
     currentUser.role === 'clinic_worker' ? 'עובד סניף' : 'צופה'
@@ -194,14 +199,14 @@ export function NavUser({
               >
                 <Avatar className="h-8 w-8 rounded-lg ">
                   {currentUser.profile_picture ? (
-                    <AvatarImage src={currentUser.profile_picture} alt={currentUser.username} />
+                    <AvatarImage src={currentUser.profile_picture} alt={displayName} />
                   ) : null}
                   <AvatarFallback className="rounded-lg ">
                     {userInitials}
                   </AvatarFallback>
                 </Avatar>
                 <div className="grid flex-1 text-right text-sm leading-tight" dir="rtl">
-                  <span className="truncate font-medium">{currentUser.username}</span>
+                  <span className="truncate font-medium">{displayName}</span>
                 </div>
                 <IconDotsVertical className="ml-auto size-4" />
               </SidebarMenuButton>
@@ -216,7 +221,7 @@ export function NavUser({
                 <div className="flex items-center gap-2 px-1 py-1.5 text-right text-sm" dir="rtl">
                 <Avatar className="h-8 w-8 rounded-lg">
                         {currentUser.profile_picture ? (
-                          <AvatarImage src={currentUser.profile_picture} alt={currentUser.username} />
+                          <AvatarImage src={currentUser.profile_picture} alt={displayName} />
                         ) : null}
                         <AvatarFallback className="rounded-lg ">
                           {userInitials}
@@ -225,7 +230,7 @@ export function NavUser({
 
                   <div className="grid flex-1  text-sm">
                     <div className="flex items-center justify-start gap-2">
-                      <span className="truncate font-medium">{currentUser.username}</span>
+                      <span className="truncate font-medium">{displayName}</span>
                     </div>
                     {currentUser.email && (
                       <span className="text-muted-foreground truncate text-xs">
@@ -319,14 +324,24 @@ export function NavUser({
                 </DropdownMenuItem>
               </DropdownMenuGroup>
               <DropdownMenuSeparator />
-              <DropdownMenuItem
-                className="flex justify-between items-center text-red-600 hover:text-red-700"
-                onClick={handleLogout}
-                dir="rtl"
-              >
-                <span>התנתק</span>
-                <IconLogout className="mr-2" />
-              </DropdownMenuItem>
+              <DropdownMenuGroup>
+                <DropdownMenuItem
+                  className="flex justify-between items-center"
+                  onClick={handleLogoutUser}
+                  dir="rtl"
+                >
+                  <span>התנתקות משתמש</span>
+                  <IconLogout className="mr-2" />
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  className="flex justify-between items-center text-red-600 hover:text-red-700"
+                  onClick={handleLogoutClinic}
+                  dir="rtl"
+                >
+                  <span>התנתקות מרפאה</span>
+                  <IconLogout className="mr-2" />
+                </DropdownMenuItem>
+              </DropdownMenuGroup>
             </DropdownMenuContent>
           </DropdownMenu>
         </SidebarMenuItem>
@@ -352,7 +367,7 @@ export function NavUser({
                 </AvatarFallback>
               </Avatar>
               <div className="flex-1 text-right">
-                <h3 className="font-semibold text-lg">{currentUser.username}</h3>
+                 <h3 className="font-semibold text-lg">{displayName}</h3>
                 <Badge variant={
                   currentUser.role === 'company_ceo' ? 'default' : 
                   currentUser.role === 'clinic_manager' ? 'secondary' : 

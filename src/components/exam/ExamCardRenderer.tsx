@@ -439,7 +439,11 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
         const key = `${type}-${cardInstanceId}` as keyof typeof detailProps.examFormData
         return detailProps.examFormData[key] || {}
       }
-      return getExamFormData(detailProps.examFormData, type)
+      const data = getExamFormData(detailProps.examFormData, type)
+      if (type === 'diopter-adjustment-panel') {
+        console.log(`DiopterAdjustmentPanel: Getting exam data for ${type}:`, data)
+      }
+      return data
     }
     // Return empty/default data for editor mode
     switch (type) {
@@ -772,10 +776,12 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
       const coverTestTabs = detailProps?.coverTestTabs?.[item.id] || []
       const activeTab = detailProps?.activeCoverTestTabs?.[item.id] ?? 0
       const setActiveTab = (idx: number) => { detailProps?.setActiveCoverTestTabs?.({ ...detailProps.activeCoverTestTabs, [item.id]: idx }); forceUpdate(); }
-      const tabId = coverTestTabs[activeTab] || coverTestTabs[0]
-      const coverTestKey = `cover-test-${item.id}-${tabId}`
-      const coverTestData = (detailProps?.examFormData?.[coverTestKey] as CoverTestExam) || {}
+      const hasTabs = coverTestTabs.length > 0
+      const tabId = hasTabs ? (coverTestTabs[activeTab] || coverTestTabs[0]) : undefined
+      const coverTestKey = tabId ? `cover-test-${item.id}-${tabId}` : undefined
+      const coverTestData = coverTestKey ? ((detailProps?.examFormData?.[coverTestKey] as CoverTestExam) || {}) : ({} as CoverTestExam)
       const onCoverTestChange = (field: keyof CoverTestExam, value: string) => {
+        if (!coverTestKey) return
         detailProps?.fieldHandlers?.[coverTestKey]?.(field, value)
       }
       const handleTabChange = (idx: number) => setActiveTab(idx)
@@ -1020,9 +1026,10 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
         <div className={`relative h-full ${matchHeight ? 'flex flex-col' : ''}`}>
           {toolbox}
           <ContactLensOrderTab
-            data={getExamData('contact-lens-order') as ContactLensOrder}
-            onChange={getChangeHandler('contact-lens-order')}
-            layoutInstanceId={mode === 'detail' ? detailProps!.exam?.id || 0 : 0}
+            contactLensOrder={getExamData('contact-lens-order') as ContactLensOrder}
+            onContactLensOrderChange={(field: any, value: any) => {
+              detailProps?.setExamFormData?.((prev: any) => ({ ...prev, ['contact-lens-order']: { ...prev['contact-lens-order'], [field]: value } }))
+            }}
             isEditing={mode === 'detail' ? detailProps!.isEditing : false}
           />
         </div>

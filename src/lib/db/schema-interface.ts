@@ -497,6 +497,48 @@ export interface ContactLensDetails {
 
 }
 
+export interface ContactLensOrderEntity {
+  id?: number;
+  client_id?: number;
+  order_data?: Record<string, unknown>;
+  user_id?: number;
+
+  l_lens_type?: string;
+  l_model?: string;
+  l_supplier?: string;
+  l_material?: string;
+  l_color?: string;
+  l_quantity?: number;
+  l_order_quantity?: number;
+  l_dx?: boolean;
+
+  r_lens_type?: string;
+  r_model?: string;
+  r_supplier?: string;
+  r_material?: string;
+  r_color?: string;
+  r_quantity?: number;
+  r_order_quantity?: number;
+  r_dx?: boolean;
+
+  clinic_id?: number;
+
+  supply_in_clinic_id?: number;
+  order_status?: string;
+  advisor?: string;
+  deliverer?: string;
+  delivery_date?: string;
+  priority?: string;
+  guaranteed_date?: string;
+  approval_date?: string;
+  cleaning_solution?: string;
+  disinfection_solution?: string;
+  rinsing_solution?: string;
+  notes?: string;
+  supplier_notes?: string;
+
+}
+
 export interface KeratometerContactLens {
   id?: number;
   layout_instance_id: number;
@@ -564,8 +606,6 @@ export interface ContactLensOrder {
 
 export interface Billing {
   id?: number;
-  contact_lens_id?: number;
-  optical_exams_id?: number;
   order_id?: number;
   total_before_discount?: number;
   discount_amount?: number;
@@ -627,6 +667,7 @@ export interface User {
   id?: number;
   company_id?: number;
   clinic_id?: number; // Added for multi-clinic support (null for global users)
+  full_name?: string;
   username: string;
   email?: string;
   phone?: string;
@@ -642,6 +683,8 @@ export interface User {
   google_account_email?: string;
   google_access_token?: string;
   google_refresh_token?: string;
+  system_vacation_dates?: string[];
+  added_vacation_dates?: string[];
   created_at?: string;
   updated_at?: string;
 }
@@ -798,7 +841,6 @@ export interface ExamLayout {
   clinic_id?: number; // Added for multi-clinic support
   name: string;
   layout_data: string; // JSON string of layout configuration with custom widths
-  type?: 'opticlens' | 'exam';
   is_default?: boolean;
   is_active?: boolean;
   created_at?: string;

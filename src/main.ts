@@ -255,8 +255,7 @@ function setupExpressRoutes(app: express.Application) {
 
   app.post('/api/auth', async (req, res) => {
     try {
-      const { username, password } = req.body;
-      const response = await apiClient.authenticateUser(username, password);
+      const response = await apiClient.getCurrentUser();
       if (response.error) {
         res.status(401).json({ error: response.error });
       } else {

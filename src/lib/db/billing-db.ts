@@ -18,12 +18,29 @@ export async function getBillingByOrderId(orderId: number): Promise<Billing | nu
 
 export async function getOrderLineItemsByBillingId(billingId: number): Promise<OrderLineItem[]> {
   try {
-    // This would need a specific endpoint in the API
-    console.warn('getOrderLineItemsByBillingId: API endpoint not yet implemented');
-    return [];
+    const response = await apiClient.getOrderLineItems(billingId);
+    if ((response as any).error) {
+      console.error('Error getting order line items:', (response as any).error);
+      return [];
+    }
+    return (response as any).data || [];
   } catch (error) {
     console.error('Error getting order line items:', error);
     return [];
+  }
+}
+
+export async function getBillingByContactLensId(contactLensId: number): Promise<Billing | null> {
+  try {
+    const response = await apiClient.getBillingByContactLens(contactLensId);
+    if ((response as any).error) {
+      console.error('Error getting billing by contact lens:', (response as any).error);
+      return null;
+    }
+    return (response as any).data || null;
+  } catch (error) {
+    console.error('Error getting billing by contact lens:', error);
+    return null;
   }
 }
 
@@ -61,9 +78,12 @@ export async function updateBilling(billing: Billing): Promise<Billing | null> {
 
 export async function createOrderLineItem(orderLineItem: Omit<OrderLineItem, 'id'>): Promise<OrderLineItem | null> {
   try {
-    // This would need a specific endpoint in the API
-    console.warn('createOrderLineItem: API endpoint not yet implemented');
-    return null;
+    const response = await apiClient.createOrderLineItem(orderLineItem);
+    if ((response as any).error) {
+      console.error('Error creating order line item:', (response as any).error);
+      return null;
+    }
+    return (response as any).data || null;
   } catch (error) {
     console.error('Error creating order line item:', error);
     return null;
@@ -72,9 +92,13 @@ export async function createOrderLineItem(orderLineItem: Omit<OrderLineItem, 'id
 
 export async function updateOrderLineItem(orderLineItem: OrderLineItem): Promise<OrderLineItem | null> {
   try {
-    // This would need a specific endpoint in the API
-    console.warn('updateOrderLineItem: API endpoint not yet implemented');
-    return null;
+    if (!orderLineItem.id) return null;
+    const response = await apiClient.updateOrderLineItem(orderLineItem.id, orderLineItem);
+    if ((response as any).error) {
+      console.error('Error updating order line item:', (response as any).error);
+      return null;
+    }
+    return (response as any).data || null;
   } catch (error) {
     console.error('Error updating order line item:', error);
     return null;
@@ -83,9 +107,12 @@ export async function updateOrderLineItem(orderLineItem: OrderLineItem): Promise
 
 export async function deleteOrderLineItem(orderLineItemId: number): Promise<boolean> {
   try {
-    // This would need a specific endpoint in the API
-    console.warn('deleteOrderLineItem: API endpoint not yet implemented');
-    return false;
+    const response = await apiClient.deleteOrderLineItem(orderLineItemId);
+    if ((response as any).error) {
+      console.error('Error deleting order line item:', (response as any).error);
+      return false;
+    }
+    return true;
   } catch (error) {
     console.error('Error deleting order line item:', error);
     return false;

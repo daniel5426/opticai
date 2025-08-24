@@ -2,16 +2,69 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from database import get_db
-from models import Client, Family, Clinic, User, OpticalExam, Appointment, Order, Referral, File, MedicalLog, ContactLens
+from models import Client, Family, Clinic, User, OpticalExam, Appointment, Order, Referral, File, MedicalLog
 from schemas import ClientCreate, ClientUpdate, Client as ClientSchema
 from sqlalchemy import and_, func
 from auth import get_current_user
+from utils.storage import upload_base64_image
 
 router = APIRouter(prefix="/clients", tags=["clients"])
 
+@router.get("/paginated")
+def get_clients_paginated(
+    clinic_id: Optional[int] = Query(None, description="Filter by clinic ID"),
+    limit: int = Query(25, ge=1, le=100, description="Max items to return"),
+    offset: int = Query(0, ge=0, description="Items to skip"),
+    order: Optional[str] = Query("id_desc", description="Sort order: id_desc|id_asc"),
+    db: Session = Depends(get_db)
+):
+    base = db.query(
+        Client.id,
+        Client.clinic_id,
+        Client.first_name,
+        Client.last_name,
+        Client.gender,
+        Client.national_id,
+        Client.phone_mobile,
+        Client.email,
+        Client.family_role,
+    )
+    if clinic_id:
+        base = base.filter(Client.clinic_id == clinic_id)
+
+    total = base.count()
+
+    if order == "id_asc":
+        base = base.order_by(Client.id.asc())
+    else:
+        base = base.order_by(Client.id.desc())
+
+    rows = base.offset(offset).limit(limit).all()
+    items = [
+        {
+            "id": r[0],
+            "clinic_id": r[1],
+            "first_name": r[2],
+            "last_name": r[3],
+            "gender": r[4],
+            "national_id": r[5],
+            "phone_mobile": r[6],
+            "email": r[7],
+            "family_role": r[8],
+        }
+        for r in rows
+    ]
+    return { "items": items, "total": total }
+
 @router.post("/", response_model=ClientSchema)
 def create_client(client: ClientCreate, db: Session = Depends(get_db)):
-    db_client = Client(**client.dict())
+    payload = client.dict()
+    if payload.get('profile_picture'):
+        try:
+            payload['profile_picture'] = upload_base64_image(payload['profile_picture'], f"clients/{payload.get('clinic_id') or 'no-clinic'}/{payload.get('id') or 'new'}/profile")
+        except Exception:
+            pass
+    db_client = Client(**payload)
     db.add(db_client)
     db.commit()
     db.refresh(db_client)
@@ -34,13 +87,20 @@ def get_all_clients(
         query = query.filter(Client.clinic_id == clinic_id)
     return query.all()
 
+
 @router.put("/{client_id}", response_model=ClientSchema)
 def update_client(client_id: int, client: ClientUpdate, db: Session = Depends(get_db)):
     db_client = db.query(Client).filter(Client.id == client_id).first()
     if not db_client:
         raise HTTPException(status_code=404, detail="Client not found")
     
-    for field, value in client.dict(exclude_unset=True).items():
+    update_fields = client.dict(exclude_unset=True)
+    if update_fields.get('profile_picture'):
+        try:
+            update_fields['profile_picture'] = upload_base64_image(update_fields['profile_picture'], f"clients/{db_client.clinic_id or 'no-clinic'}/{client_id}/profile")
+        except Exception:
+            pass
+    for field, value in update_fields.items():
         setattr(db_client, field, value)
     
     db.commit()
@@ -140,7 +200,7 @@ def get_all_client_data_for_ai(client_id: int, db: Session = Depends(get_db)):
     referrals = db.query(Referral).filter(Referral.client_id == client_id).all()
     files = db.query(File).filter(File.client_id == client_id).all()
     medical_logs = db.query(MedicalLog).filter(MedicalLog.client_id == client_id).order_by(MedicalLog.id.desc()).all()
-    contact_lenses = db.query(ContactLens).filter(ContactLens.client_id == client_id).all()
+    contact_lenses = []
 
     try:
         print(

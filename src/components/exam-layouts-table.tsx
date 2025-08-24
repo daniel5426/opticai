@@ -35,11 +35,11 @@ export function ExamLayoutsTable({ data, onRefresh }: ExamLayoutsTableProps) {
     return layout.name && layout.name.toLowerCase().includes(searchQuery.toLowerCase());
   });
 
-  const handleCreateNew = (type: 'exam' | 'opticlens') => {
+  const handleCreateNew = () => {
     const layoutCount = localData.length + 1;
     navigate({
       to: "/exam-layouts/new",
-      search: { name: `פריסה ${layoutCount}`, type: type }
+      search: { name: `פריסה ${layoutCount}` }
     });
   };
 
@@ -58,13 +58,9 @@ export function ExamLayoutsTable({ data, onRefresh }: ExamLayoutsTableProps) {
 
       // Check if trying to remove the last default layout
       if (!newDefaultStatus) {
-        const layoutType = layoutToUpdate.type || 'exam';
-        const layoutsOfSameType = data.filter(layout => 
-          (layout.type || 'exam') === layoutType
-        );
-        const defaultLayoutsOfSameType = layoutsOfSameType.filter(layout => layout.is_default);
+        const defaultLayouts = data.filter(layout => layout.is_default);
         
-        if (defaultLayoutsOfSameType.length <= 1) {
+        if (defaultLayouts.length <= 1) {
           toast.error("חייב להיות לפחות פריסת ברירת מחדל אחת");
           setIsProcessing(prev => ({ ...prev, [layoutId]: false }));
           return;
@@ -112,10 +108,9 @@ export function ExamLayoutsTable({ data, onRefresh }: ExamLayoutsTableProps) {
 
     const layoutToDelete = localData.find(layout => layout.id === layoutId)
     if (!layoutToDelete) return
-    const layoutType = layoutToDelete.type || 'exam'
-    const layoutsOfSameType = localData.filter(layout => (layout.type || 'exam') === layoutType)
-    if (layoutsOfSameType.length <= 1) {
-      toast.error("לא ניתן למחוק את הפריסה האחרונה. חייבת להיות לפחות פריסה אחת לכל סוג")
+    
+    if (localData.length <= 1) {
+      toast.error("לא ניתן למחוק את הפריסה האחרונה. חייבת להיות לפחות פריסה אחת")
       return
     }
     setIsProcessing(prev => ({ ...prev, [layoutId]: true }));
@@ -152,21 +147,25 @@ export function ExamLayoutsTable({ data, onRefresh }: ExamLayoutsTableProps) {
     }
   };
 
-  const examLayouts = filteredData.filter(layout => layout.type === 'exam' || !layout.type)
-  const contactLensLayouts = filteredData.filter(layout => layout.type === 'opticlens')
 
-  const renderTable = (layouts: ExamLayout[], title: string, type: 'exam' | 'opticlens') => (
-    <div className="space-y-2 bg-transparent" dir="rtl">
-      <div className="flex items-center justify-between px-1">
-      <h3 className="text-lg  text-muted-foreground">{title}</h3>
 
-      <Button onClick={() => handleCreateNew(type)} className="bg-card shadow-none text-card-foreground hover:bg-accent size-8 border">
-          <Plus className="h-4 w-4" />
+  return (
+    <div className="space-y-6" dir="rtl">
+      <div className="flex items-center justify-between">
+        <Input
+          placeholder="חיפוש פריסות..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="max-w-sm"
+        />
+        <Button onClick={handleCreateNew} className="bg-card shadow-none text-card-foreground hover:bg-accent border">
+          <Plus className="h-4 w-4 mr-2" />
+          פריסה חדשה
         </Button>
-
       </div>
+
       <div className="rounded-md border bg-card">
-        <Table dir="rtl" className="">
+        <Table dir="rtl">
           <TableHeader>
             <TableRow>
               <TableHead className="text-right">שם הפריסה</TableHead>
@@ -177,14 +176,14 @@ export function ExamLayoutsTable({ data, onRefresh }: ExamLayoutsTableProps) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {layouts.length === 0 ? (
+            {filteredData.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={5} className="h-24 text-center">
                   לא נמצאו פריסות לתצוגה
                 </TableCell>
               </TableRow>
             ) : (
-              layouts.map((layout) => (
+              filteredData.map((layout) => (
                 <TableRow
                   key={layout.id}
                   className="cursor-pointer"
@@ -241,16 +240,6 @@ export function ExamLayoutsTable({ data, onRefresh }: ExamLayoutsTableProps) {
             )}
           </TableBody>
         </Table>
-      </div>
-    </div>
-  )
-
-  return (
-    <div className="space-y-6" dir="rtl">
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {renderTable(examLayouts, "פריסות בדיקה", 'exam')}
-        {renderTable(contactLensLayouts, "פריסות עדשות מגע", 'opticlens')}
       </div>
     </div>
   );

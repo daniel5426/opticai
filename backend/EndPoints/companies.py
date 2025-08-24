@@ -7,6 +7,7 @@ from sqlalchemy.exc import IntegrityError
 from schemas import CompanyCreate, CompanyUpdate, Company as CompanySchema
 from auth import get_current_user
 from models import User
+from utils.storage import upload_base64_image
 
 router = APIRouter(prefix="/companies", tags=["companies"])
 
@@ -24,7 +25,13 @@ def create_company_public(
     """Public endpoint for creating companies during registration"""
     print(f"DEBUG: Creating new company: {company.name}")
     try:
-        db_company = Company(**company.dict())
+        payload = company.dict()
+        if payload.get('logo_path'):
+            try:
+                payload['logo_path'] = upload_base64_image(payload['logo_path'], f"companies")
+            except Exception:
+                pass
+        db_company = Company(**payload)
         db.add(db_company)
         db.commit()
         db.refresh(db_company)
@@ -45,7 +52,13 @@ def create_company(data: CompanyCreate, db: Session = Depends(get_db), current_u
         raise HTTPException(status_code=403, detail="Only company CEOs can create companies")
     
     try:
-        db_company = Company(**data.dict())
+        payload = data.dict()
+        if payload.get('logo_path'):
+            try:
+                payload['logo_path'] = upload_base64_image(payload['logo_path'], f"companies")
+            except Exception:
+                pass
+        db_company = Company(**payload)
         db.add(db_company)
         db.commit()
         db.refresh(db_company)
@@ -102,7 +115,13 @@ def update_company(
     if db_company is None:
         raise HTTPException(status_code=404, detail="Company not found")
     
-    for field, value in company.dict(exclude_unset=True).items():
+    update_fields = company.dict(exclude_unset=True)
+    if update_fields.get('logo_path'):
+        try:
+            update_fields['logo_path'] = upload_base64_image(update_fields['logo_path'], f"companies/{company_id}")
+        except Exception:
+            pass
+    for field, value in update_fields.items():
         setattr(db_company, field, value)
     
     db.commit()

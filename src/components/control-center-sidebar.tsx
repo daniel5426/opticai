@@ -68,9 +68,18 @@ export function ControlCenterSidebar({
 }) {
   const { state } = useSidebar()
 
+  const hasLogo = company?.logo_path
   const companyHeaderContent = (
     <>
-      <IconInnerShadowTop className="!size-5" />
+      {hasLogo ? (
+        <img
+          src={company?.logo_path || undefined}
+          alt="לוגו החברה"
+          className="max-h-10 h-auto w-auto rounded object-contain"
+        />
+      ) : (
+        <IconInnerShadowTop className="!size-5" />
+      )}
       <span className="text-base font-semibold">{company?.name || "מרכז בקרה"}</span>
     </>
   )
@@ -81,18 +90,21 @@ export function ControlCenterSidebar({
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton
+              asChild
               className="data-[slot=sidebar-menu-button]:!p-1.5"
             >
-              <ClinicDropdown
-                currentClinic={currentClinic}
-                clinicName={company?.name}
-                logoPath={company?.logo_path}
-                isLogoLoaded={true}
-              >
-                <div className="flex items-center gap-2">
-                  {companyHeaderContent}
-                </div>
-              </ClinicDropdown>
+              <div>
+                <ClinicDropdown
+                  currentClinic={currentClinic}
+                  clinicName={company?.name}
+                  logoPath={company?.logo_path}
+                  isLogoLoaded={true}
+                >
+                  <div className="flex items-center gap-2">
+                    {companyHeaderContent}
+                  </div>
+                </ClinicDropdown>
+              </div>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>

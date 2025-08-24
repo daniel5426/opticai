@@ -8,6 +8,7 @@ import { toast } from 'sonner'
 import { User } from '@/lib/db/schema-interface'
 import { createUser, updateUser } from '@/lib/db/users-db'
 import { CustomModal } from '@/components/ui/custom-modal'
+import { supabase } from '@/lib/supabaseClient'
 
 interface UserModalProps {
   isOpen: boolean
@@ -33,6 +34,7 @@ export function UserModal({
   onUserUpdated
 }: UserModalProps) {
   const [userForm, setUserForm] = useState({
+    full_name: '',
     username: '',
     email: '',
     phone: '',
@@ -41,10 +43,12 @@ export function UserModal({
     role: 'clinic_worker' as 'clinic_manager' | 'clinic_worker' | 'clinic_viewer' | 'company_ceo',
     clinic_id: ''
   })
+  const [isSaving, setIsSaving] = useState(false)
 
   useEffect(() => {
     if (editingUser) {
       setUserForm({
+        full_name: editingUser.full_name || '',
         username: editingUser.username,
         email: editingUser.email || '',
         phone: editingUser.phone || '',
@@ -55,6 +59,7 @@ export function UserModal({
       })
     } else {
       setUserForm({
+        full_name: '',
         username: '',
         email: '',
         phone: '',
@@ -71,13 +76,21 @@ export function UserModal({
   }
 
   const handleUserSave = async () => {
+    setIsSaving(true)
     try {
       if (!userForm.username.trim()) {
         toast.error('שם המשתמש הוא שדה חובה')
+        setIsSaving(false)
+        return
+      }
+      if (!userForm.full_name.trim()) {
+        toast.error('שם מלא הוא שדה חובה')
+        setIsSaving(false)
         return
       }
 
       const userData = {
+        full_name: userForm.full_name.trim(),
         username: userForm.username.trim(),
         email: userForm.email.trim() || undefined,
         phone: userForm.phone.trim() || undefined,
@@ -98,6 +111,63 @@ export function UserModal({
           toast.error('שגיאה בעדכון המשתמש')
         }
       } else {
+        // For new users, create in Supabase Auth first if they have email
+        // Note: We'll do this in a way that doesn't interfere with current session
+        if (userData.email) {
+          try {
+            // Create a separate Supabase client instance for user creation
+            // This avoids interfering with the current session
+            const { createClient } = await import('@supabase/supabase-js')
+            const supabaseUrl = (import.meta as any).env.VITE_SUPABASE_URL
+            const supabaseKey = (import.meta as any).env.VITE_SUPABASE_ANON_KEY
+            const tempClient = createClient(supabaseUrl, supabaseKey)
+            
+            if (userData.password) {
+              // Create user with password using temporary client
+              const { data: signUpData, error: signUpError } = await tempClient.auth.signUp({
+                email: userData.email,
+                password: userData.password,
+                options: { 
+                  data: { 
+                    full_name: userData.full_name,
+                    username: userData.username
+                  }
+                }
+              })
+              
+              if (signUpError && !signUpError.message?.includes('User already registered')) {
+                console.error('Supabase signup error:', signUpError)
+                // Don't show error for signup issues, continue with database creation
+                console.log('Continuing with database creation despite Supabase signup error')
+              }
+            } else {
+              // For passwordless users with email, create them with a temporary password
+              // The database will store them without a password
+              const tempPassword = Math.random().toString(36).slice(-12) + Math.random().toString(36).slice(-12)
+              const { data: signUpData, error: signUpError } = await tempClient.auth.signUp({
+                email: userData.email,
+                password: tempPassword,
+                options: { 
+                  data: { 
+                    full_name: userData.full_name,
+                    username: userData.username,
+                    is_passwordless: true // Mark as passwordless user
+                  }
+                }
+              })
+              
+              if (signUpError && !signUpError.message?.includes('User already registered')) {
+                console.error('Supabase signup error for passwordless user:', signUpError)
+                // Continue anyway - user might still be created in database
+                console.log('Continuing with database creation despite Supabase signup error')
+              }
+            }
+          } catch (supabaseError) {
+            console.error('Supabase auth exception:', supabaseError)
+            // Continue anyway - user might still be created in database
+          }
+        }
+
         const newUser = await createUser(userData)
         if (newUser) {
           onUserSaved(newUser)
@@ -110,6 +180,8 @@ export function UserModal({
     } catch (error) {
       console.error('Error saving user:', error)
       toast.error('שגיאה בשמירת המשתמש')
+    } finally {
+      setIsSaving(false)
     }
   }
 
@@ -122,6 +194,17 @@ export function UserModal({
     >
       <div className="space-y-4" dir="rtl">
         <div className="grid grid-cols-1 gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="full_name" className="text-right block">שם מלא *</Label>
+            <Input
+              id="full_name"
+              value={userForm.full_name}
+              onChange={(e) => handleUserFormChange('full_name', e.target.value)}
+              placeholder="הזן שם מלא"
+              className="text-right"
+              dir="rtl"
+            />
+          </div>
           <div className="space-y-2">
             <Label htmlFor="username" className="text-right block">שם משתמש *</Label>
             <Input
@@ -245,10 +328,13 @@ export function UserModal({
         </div>
         
         <div className="flex justify-start gap-2 pt-4">
-          <Button onClick={handleUserSave}>
+          <Button onClick={handleUserSave} disabled={isSaving}>
+            {isSaving ? (
+              <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin ml-2" />
+            ) : null}
             {editingUser ? 'עדכן משתמש' : 'צור משתמש'}
           </Button>
-          <Button variant="outline" onClick={onClose}>
+          <Button variant="outline" onClick={onClose} disabled={isSaving}>
             ביטול
           </Button>
         </div>

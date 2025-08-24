@@ -1,0 +1,17 @@
+---
+alwaysApply: true
+---
+Never use * → always select only needed columns.
+
+Always paginate (limit, range) → never fetch whole tables.
+
+Filter first → push filtering/sorting to the DB, don’t fetch everything and filter client-side.
+
+Cache responses in the frontend when possible (avoid repeat identical queries).
+
+Disable realtime unless you absolutely need live updates.
+
+Use storage for files/blobs (images, docs) — don’t put them in Postgres.
+
+Batch writes → avoid many small writes/reads in loops, send bulk queries.
+

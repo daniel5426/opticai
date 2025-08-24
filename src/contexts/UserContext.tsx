@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react'
 import { User, Clinic } from '@/lib/db/schema-interface'
 import { apiClient } from '@/lib/api-client'
+import { supabase } from '@/lib/supabaseClient'
 import { applyThemeColorsFromSettings, applyUserThemePreference, applyUserThemeComplete } from '@/helpers/theme_helpers'
 import { router } from '@/routes/router'
 
@@ -10,6 +11,8 @@ interface UserContextType {
   isLoading: boolean
   login: (username: string, password?: string) => Promise<boolean>
   logout: () => void
+  logoutUser: () => void
+  logoutClinic: () => void
   setCurrentUser: (user: User | null) => Promise<void>
   setCurrentClinic: (clinic: Clinic | null) => void
   refreshClinics: () => void
@@ -47,26 +50,30 @@ export function UserProvider({ children }: UserProviderProps) {
         const savedUserId = localStorage.getItem('currentUserId')
         const savedClinicData = localStorage.getItem('selectedClinic')
         const controlCenterUserData = localStorage.getItem('currentUser')
-        const authToken = localStorage.getItem('auth_token')
+        const { data: sessionData } = await supabase.auth.getSession()
+        const hasSession = !!sessionData?.session
+        if (hasSession && sessionData.session?.access_token) {
+          apiClient.setToken(sessionData.session.access_token)
+          try {
+            const me = await apiClient.getCurrentUser()
+            if (me.data) {
+              await applyUserThemeComplete((me.data as User).id!, me.data as User)
+              setCurrentUser(me.data as User)
+              try { localStorage.setItem('currentUser', JSON.stringify(me.data)) } catch {}
+            }
+          } catch {}
+        }
+        console.log('UserContext: Loading current user with savedUserId:', savedUserId, 'hasSession:', hasSession)
         
-        console.log('UserContext: Loading current user with savedUserId:', savedUserId, 'authToken:', !!authToken)
-        
-        if (controlCenterUserData) {
+        const hasSelectedClinic = Boolean(savedClinicData)
+        if (!hasSelectedClinic && controlCenterUserData) {
           try {
             const user = JSON.parse(controlCenterUserData)
             if (user && user.is_active) {
               await applyUserThemeComplete(user.id!, user)
               setCurrentUser(user)
               console.log('UserContext: Loaded control center user:', user)
-              const existingToken = localStorage.getItem('auth_token')
-              if (!existingToken && user?.username) {
-                try {
-                  await apiClient.loginWithoutPassword(user.username)
-                  console.log('UserContext: Restored auth token via login-no-password')
-                } catch (e) {
-                  console.error('UserContext: Failed restoring token', e)
-                }
-              }
+              
             } else {
               localStorage.removeItem('currentUser')
             }
@@ -110,9 +117,27 @@ export function UserProvider({ children }: UserProviderProps) {
     }
 
     loadCurrentUser()
+    const { data: authListener } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      const token = session?.access_token
+      if (token) {
+        apiClient.setToken(token)
+        try {
+          const me = await apiClient.getCurrentUser()
+          if (me.data) {
+            await applyUserThemeComplete((me.data as User).id!, me.data as User)
+            setCurrentUser(me.data as User)
+            try { localStorage.setItem('currentUser', JSON.stringify(me.data)) } catch {}
+          }
+        } catch {}
+      } else {
+        apiClient.clearToken()
+        setCurrentUser(null)
+      }
+    })
 
     return () => {
       window.removeEventListener('auth:unauthorized', onUnauthorized as EventListener)
+      authListener?.subscription?.unsubscribe?.()
     }
   }, [])
 
@@ -120,36 +145,9 @@ export function UserProvider({ children }: UserProviderProps) {
     try {
       console.log('UserContext: Starting login for username:', username);
       
-      if (!password) {
-        console.log('UserContext: No password provided, logging in without password');
-        const response = await apiClient.loginWithoutPassword(username);
-        console.log('UserContext: loginWithoutPassword response:', response);
-        if (response.data) {
-          console.log('UserContext: Token received, getting current user');
-          const userResponse = await apiClient.getCurrentUser();
-          console.log('UserContext: getCurrentUser response:', userResponse);
-          if (userResponse.data && (userResponse.data as User).is_active) {
-            await applyUserThemeComplete((userResponse.data as User).id!, userResponse.data as User)
-            setCurrentUser(userResponse.data as User)
-            localStorage.setItem('currentUser', JSON.stringify(userResponse.data))
-            const hasSelectedClinic = !!localStorage.getItem('selectedClinic')
-            if (!hasSelectedClinic) {
-              localStorage.setItem('currentUserId', (userResponse.data as User).id!.toString())
-            } else {
-              localStorage.removeItem('currentUserId')
-            }
-            console.log('UserContext: Successfully logged in without password');
-            return true;
-          }
-        }
-        console.log('UserContext: Failed to login without password');
-        return false;
-      }
-
-      const response = await apiClient.login(username, password);
-      console.log('UserContext: Authentication result:', response);
-      
-      if (response.data) {
+      if (password) {
+        const { data, error } = await supabase.auth.signInWithPassword({ email: username, password })
+        if (error || !data.session) return false
         const userResponse = await apiClient.getCurrentUser();
         if (userResponse.data && (userResponse.data as User).is_active) {
           await applyUserThemeComplete((userResponse.data as User).id!, userResponse.data as User)
@@ -164,6 +162,11 @@ export function UserProvider({ children }: UserProviderProps) {
           }
           return true
         }
+      } else {
+        // For passwordless login, we don't use Supabase auth
+        // The user is already set by UserSelectionPage
+        console.log('UserContext: Passwordless login - user already set by UserSelectionPage');
+        return true
       }
       
       console.log('UserContext: Login failed - user not found or inactive');
@@ -179,6 +182,7 @@ export function UserProvider({ children }: UserProviderProps) {
     const role = currentUser?.role
     setCurrentUser(null)
     apiClient.clearToken()
+    supabase.auth.signOut()
     localStorage.removeItem('currentUserId')
     if (role === 'company_ceo') {
       localStorage.removeItem('currentUser')
@@ -188,6 +192,27 @@ export function UserProvider({ children }: UserProviderProps) {
     } else {
       router.navigate({ to: '/user-selection' })
     }
+  }
+
+  const logoutUser = () => {
+    console.log('UserContext: Logout user only (keep clinic)')
+    setCurrentUser(null)
+    apiClient.clearToken()
+    supabase.auth.signOut()
+    localStorage.removeItem('currentUserId')
+    router.navigate({ to: '/user-selection' })
+  }
+
+  const logoutClinic = () => {
+    console.log('UserContext: Logout clinic (clear clinic and user)')
+    setCurrentUser(null)
+    setCurrentClinic(null)
+    apiClient.clearToken()
+    supabase.auth.signOut()
+    localStorage.removeItem('currentUserId')
+    localStorage.removeItem('currentUser')
+    localStorage.removeItem('selectedClinic')
+    router.navigate({ to: '/' })
   }
 
   const setClinic = (clinic: Clinic | null) => {
@@ -221,6 +246,8 @@ export function UserProvider({ children }: UserProviderProps) {
     isLoading,
     login,
     logout,
+    logoutUser,
+    logoutClinic,
     setCurrentUser: setUser,
     setCurrentClinic: setClinic,
     refreshClinics,

@@ -23,6 +23,7 @@ import { ClientSelectModal } from "@/components/ClientSelectModal"
 import { getAllUsers } from "@/lib/db/users-db"
 import { getAllClients } from "@/lib/db/clients-db"
 import { deleteFile, createFile } from "@/lib/db/files-db"
+import { apiClient } from "@/lib/api-client"
 import { toast } from "sonner"
 import { CustomModal } from "@/components/ui/custom-modal"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -36,9 +37,10 @@ interface FilesTableProps {
   onFileUploaded?: () => void
   onClientSelectForUpload?: (files: FileList, clientId: number) => void
   loading: boolean
+  pagination?: { page: number; pageSize: number; total: number; setPage: (p: number) => void }
 }
 
-export function FilesTable({ data, clientId, onFileDeleted, onFileDeleteFailed, onFileUploaded, onClientSelectForUpload, loading }: FilesTableProps) {
+export function FilesTable({ data, clientId, onFileDeleted, onFileDeleteFailed, onFileUploaded, onClientSelectForUpload, loading, pagination }: FilesTableProps) {
   const { currentClinic } = useUser()
   const [searchQuery, setSearchQuery] = useState("")
   const [users, setUsers] = useState<User[]>([])
@@ -51,6 +53,7 @@ export function FilesTable({ data, clientId, onFileDeleted, onFileDeleteFailed, 
   const navigate = useNavigate()
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
   const [fileToDelete, setFileToDelete] = useState<FileType | null>(null)
+  const [isDownloading, setIsDownloading] = useState<Record<number, boolean>>({})
 
   useEffect(() => {
     const loadData = async () => {
@@ -73,7 +76,7 @@ export function FilesTable({ data, clientId, onFileDeleted, onFileDeleteFailed, 
   const getUserName = (userId?: number): string => {
     if (!userId) return ''
     const user = users.find(u => u.id === userId)
-    return user?.username || ''
+  return user?.full_name || user?.username || ''
   }
 
   const getClientName = (clientId: number): string => {
@@ -138,14 +141,33 @@ export function FilesTable({ data, clientId, onFileDeleted, onFileDeleteFailed, 
     setIsDeleteModalOpen(false);
   }
 
-  const handleDownload = (file: FileType) => {
-    if (file.file_path) {
+  const handleDownload = async (file: FileType) => {
+    if (!file.id) return
+    setIsDownloading(prev => ({ ...prev, [file.id!]: true }))
+    try {
+      const res = await apiClient.getFileDownloadUrl(file.id)
+      if (!res.data?.url) {
+        toast.error('שגיאה ביצירת קישור הורדה')
+        return
+      }
+      const response = await fetch(res.data.url)
+      if (!response.ok) {
+        toast.error('שגיאה בהורדת הקובץ')
+        return
+      }
+      const blob = await response.blob()
+      const url = URL.createObjectURL(blob)
       const link = document.createElement('a')
-      link.href = file.file_path
-      link.download = file.file_name
+      link.href = url
+      link.download = file.file_name || 'download'
       document.body.appendChild(link)
       link.click()
       document.body.removeChild(link)
+      URL.revokeObjectURL(url)
+    } catch (e) {
+      toast.error('שגיאה בהורדת הקובץ')
+    } finally {
+      setIsDownloading(prev => ({ ...prev, [file.id!]: false }))
     }
   }
 
@@ -162,20 +184,14 @@ export function FilesTable({ data, clientId, onFileDeleted, onFileDeleteFailed, 
           continue
         }
 
-        const fileUrl = URL.createObjectURL(file)
-        
-        const fileData = {
-          client_id: targetClientId,
-          clinic_id: currentClinic?.id,
-          file_name: file.name,
-          file_path: fileUrl,
-          file_size: file.size,
-          file_type: file.type,
-          uploaded_by: 1,
-          notes: ''
-        }
+        const form = new FormData()
+        form.append('client_id', String(targetClientId))
+        if (currentClinic?.id) form.append('clinic_id', String(currentClinic.id))
+        form.append('uploaded_by', '1')
+        form.append('notes', '')
+        form.append('upload', file, file.name)
 
-        const result = await createFile(fileData)
+        const result = await createFile(form)
         if (result) {
           toast.success(`קובץ "${file.name}" הועלה בהצלחה`)
         } else {
@@ -331,15 +347,37 @@ export function FilesTable({ data, clientId, onFileDeleted, onFileDeleteFailed, 
               <TableHead className="text-right">סוג</TableHead>
               <TableHead className="text-right">גודל</TableHead>
               <TableHead className="text-right">תאריך העלאה</TableHead>
-              <TableHead className="text-right">הועלה על ידי</TableHead>
               {clientId === 0 && <TableHead className="text-right">לקוח</TableHead>}
               <TableHead className="text-right w-[50px]"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading ? (
-              Array.from({ length: 10 }).map((_, i) => (
+              Array.from({ length: 5 }).map((_, i) => (
                 <TableRow key={i}>
+                  <TableCell>
+                    <Skeleton className="w-[70%] h-4 my-2" />
+                  </TableCell>
+                  <TableCell>
+                    <Skeleton className="w-[70%] h-4 my-2 " />
+                  </TableCell>
+                  <TableCell>
+                    <Skeleton className="w-[70%] h-4 my-2" />
+                  </TableCell>
+                  <TableCell>
+                    <Skeleton className="w-[70%] h-4 my-2" />
+                  </TableCell>
+                  <TableCell>
+                    <Skeleton className="w-[70%] h-4 my-2" />
+                  </TableCell>
+                  {clientId === 0 && (
+                    <TableCell>
+                      <Skeleton className="w-[70%] h-4 my-2   " />
+                    </TableCell>
+                  )}
+                  <TableCell>
+                    <Skeleton className="w-[70%] h-4 my-2" />
+                  </TableCell>
                 </TableRow>
               ))
             ) : filteredData.length > 0 ? (
@@ -350,7 +388,6 @@ export function FilesTable({ data, clientId, onFileDeleted, onFileDeleteFailed, 
                   <TableCell>{getSimpleFileType(file.file_type)}</TableCell>
                   <TableCell>{formatFileSize(file.file_size)}</TableCell>
                   <TableCell>{file.upload_date ? new Date(file.upload_date).toLocaleDateString('he-IL') : ''}</TableCell>
-                  <TableCell>{getUserName(file.uploaded_by)}</TableCell>
                   {clientId === 0 && (
                     <TableCell>
                       <button
@@ -372,8 +409,13 @@ export function FilesTable({ data, clientId, onFileDeleted, onFileDeleteFailed, 
                         className="h-8 w-8 p-0"
                         onClick={() => handleDownload(file)}
                         title="הורדה"
+                        disabled={Boolean(file.id && isDownloading[file.id])}
                       >
-                        <Download className="h-4 w-4" />
+                        {file.id && isDownloading[file.id] ? (
+                          <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                        ) : (
+                          <Download className="h-4 w-4" />
+                        )}
                       </Button>
                       <Button
                         variant="ghost"
@@ -400,6 +442,28 @@ export function FilesTable({ data, clientId, onFileDeleted, onFileDeleteFailed, 
           </TableBody>
         </Table>
       </div>
+
+      {pagination && (
+        <div className="flex items-center justify-between mt-4">
+          <div className="text-sm text-muted-foreground">
+            עמוד {pagination.page} מתוך {Math.max(1, Math.ceil((pagination.total || 0) / (pagination.pageSize || 1)))} · סה"כ {pagination.total || 0}
+          </div>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={loading || pagination.page <= 1}
+              onClick={() => pagination.setPage(Math.max(1, pagination.page - 1))}
+            >הקודם</Button>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={loading || pagination.page >= Math.ceil((pagination.total || 0) / (pagination.pageSize || 1))}
+              onClick={() => pagination.setPage(pagination.page + 1)}
+            >הבא</Button>
+          </div>
+        </div>
+      )}
       
       <ClientSelectModal
         triggerText=""

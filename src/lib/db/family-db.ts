@@ -16,6 +16,24 @@ export async function getAllFamilies(clinicId?: number): Promise<Family[]> {
   }
 }
 
+export async function getPaginatedFamilies(
+  clinicId?: number,
+  options?: { limit?: number; offset?: number; order?: 'created_desc' | 'created_asc' | 'name_asc' | 'name_desc' | 'id_desc' | 'id_asc' }
+): Promise<{ items: Family[]; total: number }> {
+  try {
+    const effectiveOptions = options ?? { limit: 25, offset: 0, order: 'created_desc' as const };
+    const response = await apiClient.getFamiliesPaginated(clinicId, effectiveOptions);
+    if (response.error) {
+      console.error('Error getting paginated families:', response.error);
+      return { items: [], total: 0 };
+    }
+    return response.data || { items: [], total: 0 };
+  } catch (error) {
+    console.error('Error getting paginated families:', error);
+    return { items: [], total: 0 };
+  }
+}
+
 export async function getFamilyById(id: number): Promise<Family | undefined> {
   try {
     const response = await apiClient.getFamily(id);
@@ -104,9 +122,9 @@ export async function addClientToFamily(clientId: number, familyId: number, role
   }
 }
 
-export async function removeClientFromFamily(clientId: number): Promise<boolean> {
+export async function removeClientFromFamily(clientId: number, familyId: number): Promise<boolean> {
   try {
-    const response = await apiClient.removeClientFromFamily(clientId);
+    const response = await apiClient.removeClientFromFamily(clientId, familyId);
     if (response.error) {
       console.error('Error removing client from family:', response.error);
       return false;

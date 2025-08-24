@@ -61,11 +61,11 @@ const ControlCenterUsersPage: React.FC = () => {
       const parsedCompany = JSON.parse(companyData) as Company;
       setCompany(parsedCompany);
 
-      const clinicsResponse = await apiClient.getClinicsByCompany(parsedCompany.id!);
-      const clinicsResult = clinicsResponse.data || [];
+      const aggResp = await apiClient.getControlCenterUsers(parsedCompany.id!);
+      const agg = aggResp.data as any;
+      const clinicsResult = (agg?.clinics as Clinic[]) || [];
+      const allUsers = (agg?.users as User[]) || [];
       setClinics(clinicsResult);
-
-      const allUsers = await getUsersByCompanyId(parsedCompany.id!);
       const usersWithClinics = (allUsers || []).map((user: User): LocalUserWithClinic => {
         const clinic = clinicsResult.find((c: Clinic) => c.id === user.clinic_id);
         return {
@@ -155,6 +155,7 @@ const ControlCenterUsersPage: React.FC = () => {
         editingUser={editingUser}
         currentUser={null}
         clinics={clinics.filter(c => c.id !== undefined).map(c => ({ id: c.id!, name: c.name }))}
+        companyId={company?.id}
         onUserSaved={handleUserSaved}
         onUserUpdated={handleUserUpdated}
       />

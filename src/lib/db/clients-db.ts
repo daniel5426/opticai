@@ -16,6 +16,25 @@ export async function getAllClients(clinicId?: number): Promise<Client[]> {
   }
 }
 
+export async function getPaginatedClients(
+  clinicId?: number,
+  options?: { limit?: number; offset?: number; order?: 'id_desc' | 'id_asc' }
+): Promise<{ items: Client[]; total: number }> {
+  try {
+    const effective = options ?? { limit: 25, offset: 0, order: 'id_desc' as const };
+    const response = await apiClient.getClientsPaginated(clinicId, effective);
+    if (response.error) {
+      console.error('Error getting clients (paginated):', response.error);
+      return { items: [], total: 0 };
+    }
+    const payload = response.data as { items: Client[]; total: number } | undefined;
+    return { items: payload?.items || [], total: payload?.total || 0 };
+  } catch (error) {
+    console.error('Error getting clients (paginated):', error);
+    return { items: [], total: 0 };
+  }
+}
+
 export async function getClientById(id: number): Promise<Client | undefined> {
   try {
     const response = await apiClient.getClient(id);

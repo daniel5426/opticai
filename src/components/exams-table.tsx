@@ -23,6 +23,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 interface ExamWithNames extends OpticalExam {
   username?: string;
   clientName?: string;
+  clinic?: string;
+  full_name?: string;
 }
 
 interface ExamsTableProps {
@@ -31,9 +33,10 @@ interface ExamsTableProps {
   onExamDeleted: (examId: number) => void;
   onExamDeleteFailed: () => void;
   loading: boolean;
+  pagination?: { page: number; pageSize: number; total: number; setPage: (p: number) => void };
 }
 
-export function ExamsTable({ data, clientId, onExamDeleted, onExamDeleteFailed, loading }: ExamsTableProps) {
+export function ExamsTable({ data, clientId, onExamDeleted, onExamDeleteFailed, loading, pagination }: ExamsTableProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const navigate = useNavigate();
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -42,7 +45,7 @@ export function ExamsTable({ data, clientId, onExamDeleted, onExamDeleteFailed, 
   // Filter data based on search query
   const filteredData = data.filter((exam) => {
     const searchableFields = [
-      exam.username,
+      exam.full_name || exam.username,
       exam.clinic,
       exam.test_name,
       exam.exam_date,
@@ -78,7 +81,7 @@ export function ExamsTable({ data, clientId, onExamDeleted, onExamDeleteFailed, 
   };
 
   return (
-    <div className="space-y-4" dir="rtl">
+    <div className="space-y-4" dir="rtl" style={{scrollbarWidth: 'none'}}>
       <div className="flex items-center justify-between">
         <div className="flex gap-2">
           <Input
@@ -113,21 +116,40 @@ export function ExamsTable({ data, clientId, onExamDeleted, onExamDeleteFailed, 
       </div>
 
       <div className="rounded-md border bg-card">
-        <Table dir="rtl">
-          <TableHeader>
-            <TableRow>
-              <TableHead className="text-right">תאריך בדיקה</TableHead>
-              <TableHead className="text-right">סוג בדיקה</TableHead>
-              {clientId === 0 && <TableHead className="text-right">לקוח</TableHead>}
-              <TableHead className="text-right">סניף</TableHead>
-              <TableHead className="text-right">בודק</TableHead>
-              <TableHead className="w-[50px] text-right"></TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {loading ? (
-                Array.from({ length: 10 }).map((_, i) => (
-                  <TableRow key={i}>
+        
+          <Table dir="rtl">
+            <TableHeader>
+              <TableRow>
+                <TableHead className="text-right">תאריך בדיקה</TableHead>
+                <TableHead className="text-right">סוג בדיקה</TableHead>
+                {clientId === 0 && <TableHead className="text-right">לקוח</TableHead>}
+                <TableHead className="text-right">סניף</TableHead>
+                <TableHead className="text-right">בודק</TableHead>
+                <TableHead className="w-[50px] text-right"></TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {loading ? (
+                Array.from({ length: 5 }).map((_, i) => (
+                  <TableRow
+                    key={i}
+                    className="cursor-pointer"
+                  >
+                    <TableCell>
+                      <Skeleton className="w-[70%] h-4 my-2" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="w-[70%] h-4 my-2" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="w-[70%] h-4 my-2" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="w-[70%] h-4 my-2" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="w-[70%] h-4 my-2" />
+                    </TableCell>
                   </TableRow>
                 ))
               ) : filteredData.length > 0 ? (
@@ -162,7 +184,7 @@ export function ExamsTable({ data, clientId, onExamDeleted, onExamDeleteFailed, 
                       >{exam.clientName}</TableCell>
                     )}
                     <TableCell>{exam.clinic}</TableCell>
-                    <TableCell>{exam.username}</TableCell>
+                    <TableCell>{exam.full_name || exam.username}</TableCell>
                     <TableCell>
                       <Button variant="ghost" className="h-8 w-8 p-0" onClick={(e) => {
                         e.stopPropagation();
@@ -181,9 +203,32 @@ export function ExamsTable({ data, clientId, onExamDeleted, onExamDeleteFailed, 
                   </TableCell>
                 </TableRow>
               )}
-          </TableBody>
-        </Table>
+            </TableBody>
+          </Table>
+        
       </div>
+
+      {pagination && (
+        <div className="flex items-center justify-between mt-4">
+          <div className="text-sm text-muted-foreground">
+            עמוד {pagination.page} מתוך {Math.max(1, Math.ceil((pagination.total || 0) / (pagination.pageSize || 1)))} · סה"כ {pagination.total || 0}
+          </div>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={loading || pagination.page <= 1}
+              onClick={() => pagination.setPage(Math.max(1, pagination.page - 1))}
+            >הקודם</Button>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={loading || pagination.page >= Math.ceil((pagination.total || 0) / (pagination.pageSize || 1))}
+              onClick={() => pagination.setPage(pagination.page + 1)}
+            >הבא</Button>
+          </div>
+        </div>
+      )}
 
       <CustomModal
         isOpen={isDeleteModalOpen}

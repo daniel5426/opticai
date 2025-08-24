@@ -9,7 +9,9 @@ import { Card } from "@/components/ui/card"
 import { Textarea } from "@/components/ui/textarea"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { getAllFamilies, getFamilyById, createFamily, addClientToFamily, removeClientFromFamily } from "@/lib/db/family-db"
+import { useUser } from "@/contexts/UserContext"
 import { SaveIcon, XIcon, ChevronDownIcon, CheckIcon } from "lucide-react"
+import { Skeleton } from "@/components/ui/skeleton"
 
 // Custom label component
 function ModernLabel({ children }: { children: React.ReactNode }) {
@@ -75,6 +77,7 @@ interface ClientDetailsTabProps {
   formData: Client;
   isEditing: boolean;
   mode?: 'view' | 'edit' | 'new';
+  isLoading?: boolean;
   handleInputChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => void;
   handleSelectChange: (value: string | boolean, name: string) => void;
   formRef: React.RefObject<HTMLFormElement>;
@@ -88,6 +91,7 @@ export function ClientDetailsTab({
   formData, 
   isEditing, 
   mode = 'view',
+  isLoading = false,
   handleInputChange, 
   handleSelectChange,
   formRef,
@@ -97,6 +101,7 @@ export function ClientDetailsTab({
 }: ClientDetailsTabProps) {
   const isNewMode = mode === 'new'
   const showEditableFields = isEditing || isNewMode
+  const { currentClinic } = useUser()
 
   const [families, setFamilies] = React.useState<Family[]>([])
   const [filteredFamilies, setFilteredFamilies] = React.useState<Family[]>([])
@@ -141,6 +146,7 @@ export function ClientDetailsTab({
 
   const loadSelectedFamily = async (familyId: number) => {
     try {
+      if (!familyId || familyId < 0) { setSelectedFamily(null); return }
       const family = await getFamilyById(familyId)
       setSelectedFamily(family || null)
     } catch (error) {
@@ -150,65 +156,64 @@ export function ClientDetailsTab({
 
   const handleCreateFamily = async () => {
     if (!newFamilyName.trim()) return
-
+    const optimisticFamily = { id: -Date.now(), name: newFamilyName.trim(), clinic_id: currentClinic?.id } as Family
+    const prevFamilies = families
+    const prevClient = { ...client }
+    setFamilies(prev => [...prev, optimisticFamily])
+    handleSelectChange(String(optimisticFamily.id), 'family_id')
+    handleSelectChange(newFamilyRole, 'family_role')
+    if (onClientUpdate) onClientUpdate({ ...client, family_id: optimisticFamily.id as number, family_role: newFamilyRole })
+    setIsCreatingFamily(false)
+    setNewFamilyName('')
     try {
-      const newFamily = await createFamily({ name: newFamilyName.trim() })
-      if (newFamily && newFamily.id) {
-        setFamilies(prev => [...prev, newFamily])
-        
-        if (client.id) {
-          const success = await addClientToFamily(client.id, newFamily.id, newFamilyRole)
-          if (success) {
-            handleSelectChange(newFamily.id.toString(), 'family_id')
-            handleSelectChange(newFamilyRole, 'family_role')
-            
-            if (onClientUpdate) {
-              const updatedClient = { ...client, family_id: newFamily.id, family_role: newFamilyRole }
-              onClientUpdate(updatedClient)
-            }
-          } else {
-            console.error('Failed to add client to family')
-          }
-        } else {
-          handleSelectChange(newFamily.id.toString(), 'family_id')
-          handleSelectChange(newFamilyRole, 'family_role')
-        }
-        
-        setNewFamilyName('')
-        setNewFamilyRole('אחר')
-        setIsCreatingFamily(false)
+      const created = await createFamily({ name: optimisticFamily.name, clinic_id: currentClinic?.id as number })
+      if (!created || !created.id) throw new Error('createFamily failed')
+      setFamilies(curr => curr.map(f => (f.id === optimisticFamily.id ? created : f)))
+      handleSelectChange(String(created.id), 'family_id')
+      if (client.id) {
+        const ok = await addClientToFamily(client.id, created.id, newFamilyRole)
+        if (!ok) throw new Error('addClientToFamily failed')
+        if (onClientUpdate) onClientUpdate({ ...prevClient, family_id: created.id, family_role: newFamilyRole })
       }
-    } catch (error) {
-      console.error('Error creating family:', error)
+    } catch (e) {
+      setFamilies(prevFamilies)
+      handleSelectChange('', 'family_id')
+      handleSelectChange('', 'family_role')
     }
   }
 
   const handleFamilyChange = async (familyId: string) => {
+    setIsFamilySelectOpen(false)
+    setFamilySearchTerm('')
+    const prev = { id: formData.family_id, role: formData.family_role }
     if (familyId === 'none') {
-      if (client.id) {
-        const success = await removeClientFromFamily(client.id)
-        if (success) {
-          handleSelectChange('', 'family_id')
-          handleSelectChange('', 'family_role')
+      handleSelectChange('', 'family_id')
+      handleSelectChange('', 'family_role')
+      if (client.id && prev.id) {
+        const ok = await removeClientFromFamily(client.id, prev.id)
+        if (!ok) {
+          handleSelectChange(String(prev.id), 'family_id')
+          handleSelectChange(String(prev.role || ''), 'family_role')
         }
-      } else {
-        handleSelectChange('', 'family_id')
-        handleSelectChange('', 'family_role')
       }
     } else {
       handleSelectChange(familyId, 'family_id')
+      if (client.id) {
+        const ok = await addClientToFamily(client.id, parseInt(familyId, 10), formData.family_role || 'אחר')
+        if (!ok) {
+          handleSelectChange(String(prev.id || ''), 'family_id')
+        }
+      }
     }
-    setIsFamilySelectOpen(false)
-    setFamilySearchTerm('')
   }
 
   const handleRoleChange = async (role: string) => {
+    const prevRole = formData.family_role
     handleSelectChange(role, 'family_role')
-    
     if (client.id && formData.family_id && role) {
-      const success = await addClientToFamily(client.id, formData.family_id, role)
-      if (!success) {
-        console.error('Failed to add client to family with role')
+      const ok = await addClientToFamily(client.id, formData.family_id, role)
+      if (!ok) {
+        handleSelectChange(String(prevRole || ''), 'family_role')
       }
     }
   }
@@ -217,6 +222,105 @@ export function ClientDetailsTab({
     if (!formData.family_id) return 'בחר משפחה'
     const family = families.find(f => f.id === formData.family_id)
     return family ? family.name : 'בחר משפחה'
+  }
+
+  if (isLoading) {
+    return (
+      <div className="no-scrollbar space-y-6" style={{scrollbarWidth: 'none', msOverflowStyle: 'none'}}>
+                <div className="flex justify-between items-center mb-4">
+          <Button 
+            type="button"
+            variant={isEditing ? "outline" : "default"} 
+          >
+            {isEditing ? "שמור שינויים" : "ערוך פרטים"}
+          </Button>
+          <h2 className="text-xl font-semibold">פרטים אישיים</h2>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="bg-card rounded-lg shadow-md p-6">
+            <div className="flex items-center gap-3 mb-10" dir="rtl">
+              <Skeleton className="h-7 w-7 rounded-lg" />
+              <Skeleton className="h-5 w-32" />
+            </div>
+            <div className="grid grid-cols-2 @[900px]:grid-cols-2 gap-4" dir="rtl">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <div className="space-y-2" key={`contact-skel-${i}`}>
+                  <Skeleton className="h-3 w-16" />
+                  <Skeleton className="h-9 w-full" />
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="bg-card rounded-lg shadow-md p-6">
+            <div className="flex items-center gap-3 mb-10" dir="rtl">
+              <Skeleton className="h-7 w-7 rounded-lg" />
+              <Skeleton className="h-5 w-40" />
+            </div>
+            <div className="grid grid-cols-2 @[900px]:grid-cols-2 gap-4" dir="rtl">
+              {Array.from({ length: 7 }).map((_, i) => (
+                <div className="space-y-2" key={`membership-skel-${i}`}>
+                  <Skeleton className="h-3 w-20" />
+                  <Skeleton className="h-9 w-full" />
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="bg-card rounded-lg shadow-md p-6">
+            <div className="flex items-center gap-3 mb-10" dir="rtl">
+              <Skeleton className="h-7 w-7 rounded-lg" />
+              <Skeleton className="h-5 w-28" />
+            </div>
+            <div className="grid grid-cols-2 @[900px]:grid-cols-2 gap-4" dir="rtl">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <div className="space-y-2" key={`personal-skel-${i}`}>
+                  <Skeleton className="h-3 w-16" />
+                  <Skeleton className="h-9 w-full" />
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-23 gap-6 items-start">
+          <div className="lg:col-span-10 bg-card rounded-lg shadow-md p-5 pb-14" dir="rtl">
+            <div className="flex items-center gap-3 mb-4 justify-between">
+              <div className="flex items-center gap-3">
+                <Skeleton className="h-6 w-6 rounded-lg" />
+                <Skeleton className="h-4 w-16" />
+              </div>
+            </div>
+            <div className="grid grid-cols-1 @[500px]:grid-cols-3 gap-3">
+              <div className="col-span-1 @[500px]:col-span-2 space-y-2">
+                <Skeleton className="h-3 w-14" />
+                <Skeleton className="h-9 w-full" />
+              </div>
+            </div>
+          </div>
+
+          <div className="lg:col-span-9 bg-card rounded-lg shadow-md p-6" dir="rtl">
+            <div className="flex items-center gap-3 mb-4">
+              <Skeleton className="h-6 w-6 rounded-lg" />
+              <Skeleton className="h-4 w-16" />
+            </div>
+            <Skeleton className="h-[84px] w-full" />
+          </div>
+
+          <div className="lg:col-span-4 bg-transparent rounded-lg flex justify-center items-center">
+            <div className="flex justify-center items-center">
+              <div className="relative">
+                <div className="w-full h-full shadow-md rounded-lg bg-card overflow-hidden">
+                  <Skeleton className="w-44 h-44 rounded-lg" />
+                </div>
+                <Skeleton className="absolute bottom-0 right-0 h-6 w-6 rounded-full" />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -437,7 +541,7 @@ export function ClientDetailsTab({
               <div className="space-y-2">
                 <div className="grid grid-cols-1 @[400px]:grid-cols-2 gap-3">
                   <div>
-                    <ModernLabel>צ'קים חסומים</ModernLabel>
+                    <ModernLabel>צ'ק חסום</ModernLabel>
                     <Select 
                       disabled={!showEditableFields}
                       value={formData.blocked_checks ? 'true' : 'false'} 
@@ -600,8 +704,8 @@ export function ClientDetailsTab({
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 items-start">
-        <div className="lg:col-span-2 bg-card rounded-lg shadow-md p-5" dir="rtl">
+        <div className="grid grid-cols-1 lg:grid-cols-23 gap-6 items-start">
+        <div className="lg:col-span-10 bg-card rounded-lg shadow-md p-5" dir="rtl">
             <div className="flex items-center gap-3 mb-4 justify-between">
               <div className="flex items-center gap-3">
               <div className="p-2 bg-muted rounded-lg">
@@ -766,13 +870,8 @@ export function ClientDetailsTab({
                 </div>
               )}
 
-              {selectedFamily && (
-                <div className="text-sm text-muted-foreground">
-                  <p>נוצר בתאריך: {selectedFamily.created_date ? new Date(selectedFamily.created_date).toLocaleDateString('he-IL') : 'לא זמין'}</p>
-                </div>
-              )}
-              {!selectedFamily && !isCreatingFamily && (
-                <div className="text-sm h-[1.2586rem] text-muted-foreground">
+              {!isCreatingFamily && (
+                <div className="text-sm h-[0.786rem] text-muted-foreground">
                 </div>
               )}
 
@@ -780,7 +879,7 @@ export function ClientDetailsTab({
             </div>
           </div>
 
-          <div className="lg:col-span-2 bg-card rounded-lg shadow-md p-6" dir="rtl">
+          <div className="lg:col-span-9 bg-card rounded-lg shadow-md p-5" dir="rtl">
             <div className="flex items-center gap-3 mb-4">
               <div className="p-2 bg-muted rounded-lg">
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-foreground">
@@ -798,30 +897,33 @@ export function ClientDetailsTab({
               disabled={!showEditableFields}
               value={formData.notes || ''}
               onChange={handleInputChange}
-              className={`text-sm w-full p-3 border rounded-lg disabled:opacity-100 disabled:cursor-default min-h-[60px]`}
+              className={`text-sm w-full p-3 border rounded-lg disabled:opacity-100 disabled:cursor-default min-h-[55px]`}
               style={{scrollbarWidth: 'none'}}
               rows={3}
               placeholder={showEditableFields ? "הכנס הערות כלליות על הלקוח..." : ""}
             />
           </div>
 
-          <div className="bg-card p-[35px] rounded-lg shadow-md flex justify-center items-center ">
+          <div className="lg:col-span-4 bg-transparent rounded-lg flex justify-center items-center ">
             
             <div className="flex justify-center items-center">
               <div className="relative">
-                <div className="w-28 h-28 rounded-lg bg-muted overflow-hidden border-2 border-border">
+                <div className="w-full h-full shadow-md rounded-lg bg-card overflow-hidden">
                   {formData.profile_picture ? (
                     <img 
                       src={formData.profile_picture} 
                       alt="תמונת פרופיל" 
-                      className="w-28 h-28 object-cover"
+                      className="w-full h-full object-cover rounded-lg"
                     />
                   ) : (
-                    <div className="w-28 h-28 flex items-center justify-center">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-muted-foreground">
+                    <div className="w-44 h-44 items-center rounded-lg content-center">
+                      <div className="flex flex-col items-center justify-center">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-muted-foreground m-auto self-center justify-center">
                         <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
                         <circle cx="12" cy="7" r="4"></circle>
                       </svg>
+                      <div className="text-sm text-muted-foreground mt-2">תמונת הלקוח</div>
+                      </div>
                     </div>
                   )}
                 </div>

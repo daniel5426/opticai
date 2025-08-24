@@ -7,7 +7,7 @@ import {
   LookupContactEyeLensType, LookupContactEyeMaterial, LookupCleaningSolution,
   LookupDisinfectionSolution, LookupRinsingSolution, LookupManufacturingLab,
   LookupAdvisor, Referral, ReferralEye, OrderLineItem,
-  ContactLensOrder, ContactLensDiameters, ContactLensDetails,
+  ContactLensOrderEntity, ContactLensDiameters, ContactLensDetails,
   KeratometerContactLens, ContactLensExam, OldContactLenses,
   OverRefraction, WorkShift, Campaign, CampaignClientExecution,
   Chat, ChatMessage, EmailLog, NotesExam, OldRefExam,
@@ -20,6 +20,7 @@ import {
   FinalPrescriptionExam, RetinoscopExam, RetinoscopDilationExam,
   CompactPrescriptionExam
 } from './db/schema-interface';
+import { getSupabaseAccessToken } from './supabaseClient'
 
 const API_BASE_URL = 'http://localhost:8001/api/v1';
 
@@ -35,7 +36,6 @@ class ApiClient {
 
   constructor(baseUrl: string = API_BASE_URL) {
     this.baseUrl = baseUrl;
-    // Check if localStorage is available (renderer process) before using it
     if (typeof localStorage !== 'undefined') {
       this.token = localStorage.getItem('auth_token');
     }
@@ -94,18 +94,21 @@ class ApiClient {
   ): Promise<ApiResponse<T>> {
     const url = `${this.baseUrl}${endpoint}`;
     
+    const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData;
     const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
       ...(options.headers as Record<string, string> || {}),
     };
+    if (!isFormData) {
+      headers['Content-Type'] = headers['Content-Type'] || 'application/json';
+    }
 
-    if (this.token) {
-      if (!endpoint.startsWith('/auth/') && this.isTokenExpiringSoon(this.token)) {
-        await this.refreshTokenIfPossible();
-      }
-      if (this.token) {
-        headers['Authorization'] = `Bearer ${this.token}`;
-      }
+    let effectiveToken = this.token;
+    if (!effectiveToken) {
+      const supabaseToken = await getSupabaseAccessToken();
+      effectiveToken = supabaseToken || null;
+    }
+    if (effectiveToken) {
+      headers['Authorization'] = `Bearer ${effectiveToken}`;
     }
 
     try {
@@ -119,37 +122,8 @@ class ApiClient {
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         if (response.status === 401) {
-          try {
-            const isAuthEndpoint = endpoint.startsWith('/auth/');
-            const hadAuthHeader = Boolean(headers['Authorization']);
-            if (!isAuthEndpoint && hadAuthHeader) {
-              const controlCenterUser = typeof localStorage !== 'undefined' ? localStorage.getItem('currentUser') : null;
-              if (controlCenterUser) {
-                const parsed = JSON.parse(controlCenterUser);
-                const hasPassword = typeof parsed?.has_password === 'boolean' ? parsed.has_password : !!(parsed?.password && String(parsed.password).trim() !== '');
-                const canNoPasswordLogin = parsed?.username && !hasPassword;
-                if (canNoPasswordLogin) {
-                  const relogUrl = `${this.baseUrl}/auth/login-no-password`;
-                  const relogRes = await fetch(relogUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ username: parsed.username })
-                  });
-                  if (relogRes.ok) {
-                    const relogData = await relogRes.json();
-                    if (relogData?.access_token) {
-                      this.setToken(relogData.access_token);
-                      headers['Authorization'] = `Bearer ${relogData.access_token}`;
-                      response = await fetch(url, { ...fetchOptions, headers });
-                    }
-                  }
-                }
-              }
-            }
-          } catch {}
-          const isAuthEndpoint = endpoint.startsWith('/auth/');
           const hadAuthHeader = Boolean(headers['Authorization']);
-          if (!response.ok && hadAuthHeader && !isAuthEndpoint) {
+          if (!response.ok && hadAuthHeader) {
             this.clearToken();
             try {
               if (typeof localStorage !== 'undefined') {
@@ -202,53 +176,8 @@ class ApiClient {
     }
   }
 
-  // Authentication
-  async login(username: string, password: string) {
-    const response = await this.request<{ access_token: string; token_type: string }>('/auth/login-json', {
-      method: 'POST',
-      body: JSON.stringify({ username, password }),
-    });
-
-    if (response.data) {
-      this.setToken(response.data.access_token);
-    }
-
-    return response;
-  }
-
-  async loginWithoutPassword(username: string) {
-    const response = await this.request<{ access_token: string; token_type: string }>('/auth/login-no-password', {
-      method: 'POST',
-      body: JSON.stringify({ username }),
-    });
-
-    if (response.data) {
-      this.setToken(response.data.access_token);
-    }
-
-    return response;
-  }
-
   async getCurrentUser() {
     return this.request('/auth/me');
-  }
-
-  async authenticateUser(username: string, password?: string) {
-    const tokenResponse = await this.request<{access_token: string, token_type: string}>('/auth/login-json', {
-      method: 'POST',
-      body: JSON.stringify({ username, password }),
-    });
-    
-    if (tokenResponse.data?.access_token) {
-      // Set the token for future requests
-      this.setToken(tokenResponse.data.access_token);
-      
-      // Get the user data using the token
-      const userResponse = await this.request<User>('/auth/me');
-      return userResponse;
-    }
-    
-    return tokenResponse;
   }
 
   // Companies
@@ -411,6 +340,81 @@ class ApiClient {
     return this.request<Client[]>(url);
   }
 
+  async getClientsPaginated(clinicId?: number, options?: { limit?: number; offset?: number; order?: 'id_desc' | 'id_asc' }) {
+    const params = new URLSearchParams();
+    if (clinicId) params.append('clinic_id', clinicId.toString());
+    if (options?.limit !== undefined) params.append('limit', String(options.limit));
+    if (options?.offset !== undefined) params.append('offset', String(options.offset));
+    if (options?.order) params.append('order', options.order);
+    const qs = params.toString();
+    return this.request<{ items: Client[]; total: number }>(`/clients/paginated${qs ? `?${qs}` : ''}`);
+  }
+
+  // Referrals pagination
+  async getReferralsPaginated(clinicId?: number, options?: { limit?: number; offset?: number; order?: 'date_desc' | 'date_asc' | 'id_desc' | 'id_asc' }) {
+    const params = new URLSearchParams();
+    if (clinicId) params.append('clinic_id', clinicId.toString());
+    if (options?.limit !== undefined) params.append('limit', String(options.limit));
+    if (options?.offset !== undefined) params.append('offset', String(options.offset));
+    if (options?.order) params.append('order', options.order);
+    const qs = params.toString();
+    return this.request<{ items: any[]; total: number }>(`/referrals/paginated${qs ? `?${qs}` : ''}`);
+  }
+
+  // Orders pagination
+  async getOrdersPaginated(clinicId?: number, options?: { limit?: number; offset?: number; order?: 'date_desc' | 'date_asc' | 'id_desc' | 'id_asc' }) {
+    const params = new URLSearchParams();
+    if (clinicId) params.append('clinic_id', clinicId.toString());
+    if (options?.limit !== undefined) params.append('limit', String(options.limit));
+    if (options?.offset !== undefined) params.append('offset', String(options.offset));
+    if (options?.order) params.append('order', options.order);
+    const qs = params.toString();
+    return this.request<{ items: any[]; total: number }>(`/orders/paginated${qs ? `?${qs}` : ''}`);
+  }
+
+  // Files pagination
+  async getFilesPaginated(clinicId?: number, options?: { limit?: number; offset?: number; order?: 'upload_date_desc' | 'upload_date_asc' | 'id_desc' | 'id_asc' }) {
+    const params = new URLSearchParams();
+    if (clinicId) params.append('clinic_id', clinicId.toString());
+    if (options?.limit !== undefined) params.append('limit', String(options.limit));
+    if (options?.offset !== undefined) params.append('offset', String(options.offset));
+    if (options?.order) params.append('order', options.order);
+    const qs = params.toString();
+    return this.request<{ items: any[]; total: number }>(`/files/paginated${qs ? `?${qs}` : ''}`);
+  }
+
+  // Appointments pagination
+  async getAppointmentsPaginated(clinicId?: number, options?: { limit?: number; offset?: number; order?: 'date_desc' | 'date_asc' | 'id_desc' | 'id_asc' }) {
+    const params = new URLSearchParams();
+    if (clinicId) params.append('clinic_id', clinicId.toString());
+    if (options?.limit !== undefined) params.append('limit', String(options.limit));
+    if (options?.offset !== undefined) params.append('offset', String(options.offset));
+    if (options?.order) params.append('order', options.order);
+    const qs = params.toString();
+    return this.request<{ items: any[]; total: number }>(`/appointments/paginated${qs ? `?${qs}` : ''}`);
+  }
+
+  // Families pagination
+  async getFamiliesPaginated(clinicId?: number, options?: { limit?: number; offset?: number; order?: 'created_desc' | 'created_asc' | 'name_asc' | 'name_desc' | 'id_desc' | 'id_asc' }) {
+    const params = new URLSearchParams();
+    if (clinicId) params.append('clinic_id', clinicId.toString());
+    if (options?.limit !== undefined) params.append('limit', String(options.limit));
+    if (options?.offset !== undefined) params.append('offset', String(options.offset));
+    if (options?.order) params.append('order', options.order);
+    const qs = params.toString();
+    return this.request<{ items: any[]; total: number }>(`/families/paginated${qs ? `?${qs}` : ''}`);
+  }
+
+  // Users pagination
+  async getUsersPaginated(options?: { limit?: number; offset?: number; order?: 'id_desc' | 'id_asc' | 'username_asc' | 'username_desc' | 'role_asc' | 'role_desc' }) {
+    const params = new URLSearchParams();
+    if (options?.limit !== undefined) params.append('limit', String(options.limit));
+    if (options?.offset !== undefined) params.append('offset', String(options.offset));
+    if (options?.order) params.append('order', options.order);
+    const qs = params.toString();
+    return this.request<{ items: any[]; total: number }>(`/users/paginated${qs ? `?${qs}` : ''}`);
+  }
+
   async getClient(id: number) {
     return this.request<Client>(`/clients/${id}`);
   }
@@ -494,14 +498,14 @@ class ApiClient {
   }
 
   async addClientToFamily(clientId: number, familyId: number, role: string) {
-    return this.request(`/families/${familyId}/members`, {
+    const params = new URLSearchParams({ client_id: String(clientId), role });
+    return this.request(`/families/${familyId}/add-client?${params.toString()}`, {
       method: 'POST',
-      body: JSON.stringify({ client_id: clientId, role }),
     });
   }
 
-  async removeClientFromFamily(clientId: number) {
-    return this.request(`/clients/${clientId}/family`, {
+  async removeClientFromFamily(clientId: number, familyId: number) {
+    return this.request(`/families/${familyId}/remove-client/${clientId}`, {
       method: 'DELETE',
     });
   }
@@ -544,22 +548,22 @@ class ApiClient {
     });
   }
 
-  async getEnrichedExams(type?: string, clinicId?: number) {
+  async getEnrichedExams(type?: string, clinicId?: number, options?: { limit?: number; offset?: number; order?: 'exam_date_desc' | 'exam_date_asc' }) {
     const params = new URLSearchParams();
     if (type) params.append('type', type);
     if (clinicId) params.append('clinic_id', clinicId.toString());
-    
+    if (options?.limit !== undefined) params.append('limit', String(options.limit));
+    if (options?.offset !== undefined) params.append('offset', String(options.offset));
+    if (options?.order) params.append('order', options.order);
     const queryString = params.toString();
     const url = `/exams/enriched${queryString ? `?${queryString}` : ''}`;
-    
-    return this.request(url);
+    return this.request<{ items: any[]; total: number }>(url);
   }
 
   // Exam Layouts
-  async getExamLayouts(clinicId?: number, type?: string) {
+  async getExamLayouts(clinicId?: number) {
     const params = new URLSearchParams();
     if (clinicId) params.append('clinic_id', clinicId.toString());
-    if (type) params.append('type', type);
     const url = `/exam-layouts${params.toString() ? '?' + params.toString() : ''}`;
     return this.request<ExamLayout[]>(url);
   }
@@ -693,14 +697,19 @@ class ApiClient {
     return this.request<File>(`/files/${id}`);
   }
 
+  async getFileDownloadUrl(id: number) {
+    return this.request<{ url: string }>(`/files/${id}/download-url`);
+  }
+
   async getFilesByClient(clientId: number) {
     return this.request<File[]>(`/files/client/${clientId}`);
   }
 
-  async createFile(file: any) {
+  async createFile(payload: any) {
+    const isFormData = typeof FormData !== 'undefined' && payload instanceof FormData;
     return this.request<File>('/files', {
       method: 'POST',
-      body: JSON.stringify(file),
+      body: isFormData ? payload : JSON.stringify(payload),
     });
   }
 
@@ -779,9 +788,57 @@ class ApiClient {
     });
   }
 
+  async upsertOrderFull(payload: any) {
+    return this.request(`/orders/upsert-full`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
   async deleteOrder(id: number) {
     return this.request(`/orders/${id}`, {
       method: 'DELETE',
+    });
+  }
+
+  // Contact Lens Orders
+  async getContactLensOrders(clinicId?: number) {
+    const url = clinicId ? `/contact-lens-orders?clinic_id=${clinicId}` : '/contact-lens-orders';
+    return this.request<ContactLensOrderEntity[]>(url);
+  }
+
+  async getContactLensOrder(id: number) {
+    return this.request<ContactLensOrderEntity>(`/contact-lens-orders/${id}`);
+  }
+
+  async getContactLensOrdersByClient(clientId: number) {
+    return this.request<ContactLensOrderEntity[]>(`/contact-lens-orders/client/${clientId}`);
+  }
+
+  async createContactLensOrder(order: any) {
+    return this.request<ContactLensOrderEntity>('/contact-lens-orders', {
+      method: 'POST',
+      body: JSON.stringify(order),
+    });
+  }
+
+  async updateContactLensOrder(id: number, order: any) {
+    return this.request<ContactLensOrderEntity>(`/contact-lens-orders/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(order),
+    });
+  }
+
+  async deleteContactLensOrder(id: number) {
+    return this.request(`/contact-lens-orders/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async upsertContactLensOrderFull(payload: any) {
+    return this.request(`/contact-lens-orders/upsert-full`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
     });
   }
 
@@ -1133,6 +1190,13 @@ class ApiClient {
     });
   }
 
+  async saveAll(payload: any) {
+    return this.request('/settings/save-all', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
   // Additional convenience methods
   async getClientById(id: number) {
     return this.getClient(id);
@@ -1274,6 +1338,10 @@ class ApiClient {
     return this.request(`/exams/${examId}/with-layouts`);
   }
 
+  async getExamPageData(examId: number) {
+    return this.request(`/exams/${examId}/page-data`);
+  }
+
   async saveUnifiedExamData(layoutInstanceId: number, data: Record<string, any>) {
     return this.request(`/unified-exam-data/${layoutInstanceId}`, {
       method: 'POST',
@@ -1312,6 +1380,43 @@ class ApiClient {
   // Health check
   async healthCheck() {
     return this.request('/health');
+  }
+
+  // Control Center aggregated endpoints
+  async getControlCenterDashboard(companyId: number) {
+    return this.request(`/control-center/dashboard/${companyId}`);
+  }
+
+  async getControlCenterUsers(companyId: number) {
+    return this.request(`/control-center/users/${companyId}`);
+  }
+
+  async getControlCenterClinics(companyId: number) {
+    return this.request(`/control-center/clinics/${companyId}`);
+  }
+
+  async ccStatsUsersClientsPerClinic(companyId: number) {
+    return this.request(`/control-center/stats/users-clients-per-clinic/${companyId}`);
+  }
+
+  async ccStatsAppointmentsMonthPerClinic(companyId: number) {
+    return this.request(`/control-center/stats/appointments-month-per-clinic/${companyId}`);
+  }
+
+  async ccStatsNewClientsSeries(companyId: number, months: number = 12) {
+    return this.request(`/control-center/stats/new-clients-series/${companyId}?months=${months}`);
+  }
+
+  async ccStatsAov(companyId: number, months: number = 3) {
+    return this.request(`/control-center/stats/aov/${companyId}?months=${months}`);
+  }
+
+  async ccStatsOrdersByType(companyId: number, months: number = 6) {
+    return this.request(`/control-center/stats/orders-by-type/${companyId}?months=${months}`);
+  }
+
+  async ccStatsTopSkus(companyId: number, months: number = 6, limit: number = 10) {
+    return this.request(`/control-center/stats/top-skus/${companyId}?months=${months}&limit=${limit}`);
   }
 
   // Email operations

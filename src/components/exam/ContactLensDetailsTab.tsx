@@ -60,7 +60,7 @@ export function ContactLensDetailsTab({
   };
 
   return (
-    <Card className="w-full shadow-md pb-4 pt-3 border-none">
+    <Card className="w-full shadow-md pb-4 pt-3 border-none" dir="ltr">
       <CardContent className="px-4" style={{scrollbarWidth: 'none'}}>
         <div className="space-y-3">
           <div className="text-center">

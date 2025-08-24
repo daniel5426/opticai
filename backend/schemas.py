@@ -64,6 +64,7 @@ class Clinic(ClinicBase):
 
 class UserBase(BaseModel):
     company_id: Optional[int] = None
+    full_name: Optional[str] = None
     username: str
     email: Optional[str] = None
     phone: Optional[str] = None
@@ -75,6 +76,8 @@ class UserBase(BaseModel):
     theme_preference: str = "system"
     google_account_connected: bool = False
     google_account_email: Optional[str] = None
+    system_vacation_dates: Optional[List[str]] = None
+    added_vacation_dates: Optional[List[str]] = None
 
 class UserCreate(UserBase):
     password: Optional[str] = None
@@ -219,6 +222,23 @@ class Settings(SettingsBase):
     class Config:
         from_attributes = True
 
+# Unified save request/response
+class SaveAllRequest(BaseModel):
+    clinic_id: Optional[int] = None
+    clinic: Optional[ClinicUpdate] = None
+    settings_id: Optional[int] = None
+    settings: Optional[SettingsUpdate] = None
+    user_id: Optional[int] = None
+    user: Optional[UserUpdate] = None
+    company_id: Optional[int] = None
+    company: Optional[CompanyUpdate] = None
+
+class SaveAllResponse(BaseModel):
+    clinic: Optional[Clinic] = None
+    settings: Optional[Settings] = None
+    user: Optional[User] = None
+    company: Optional[Company] = None
+
 # Authentication schemas
 class Token(BaseModel):
     access_token: str
@@ -288,9 +308,6 @@ class OrderBase(BaseModel):
     user_id: Optional[int] = None
     lens_id: Optional[int] = None
     frame_id: Optional[int] = None
-    comb_va: Optional[float] = None
-    comb_high: Optional[float] = None
-    comb_pd: Optional[float] = None
     order_data: Optional[Dict[str, Any]] = {}
 
 class OrderCreate(OrderBase):
@@ -302,6 +319,58 @@ class OrderUpdate(OrderBase):
 class Order(OrderBase):
     id: int
     
+    class Config:
+        from_attributes = True
+
+class ContactLensOrderBase(BaseModel):
+    client_id: int
+    clinic_id: Optional[int] = None
+    user_id: Optional[int] = None
+    order_date: Optional[date] = None
+    type: Optional[str] = None
+
+    l_lens_type: Optional[str] = None
+    l_model: Optional[str] = None
+    l_supplier: Optional[str] = None
+    l_material: Optional[str] = None
+    l_color: Optional[str] = None
+    l_quantity: Optional[int] = None
+    l_order_quantity: Optional[int] = None
+    l_dx: Optional[bool] = None
+
+    r_lens_type: Optional[str] = None
+    r_model: Optional[str] = None
+    r_supplier: Optional[str] = None
+    r_material: Optional[str] = None
+    r_color: Optional[str] = None
+    r_quantity: Optional[int] = None
+    r_order_quantity: Optional[int] = None
+    r_dx: Optional[bool] = None
+
+    supply_in_clinic_id: Optional[int] = None
+    order_status: Optional[str] = None
+    advisor: Optional[str] = None
+    deliverer: Optional[str] = None
+    delivery_date: Optional[date] = None
+    priority: Optional[str] = None
+    guaranteed_date: Optional[date] = None
+    approval_date: Optional[date] = None
+    cleaning_solution: Optional[str] = None
+    disinfection_solution: Optional[str] = None
+    rinsing_solution: Optional[str] = None
+    notes: Optional[str] = None
+    supplier_notes: Optional[str] = None
+
+    order_data: Optional[Dict[str, Any]] = {}
+
+class ContactLensOrderCreate(ContactLensOrderBase):
+    pass
+
+class ContactLensOrderUpdate(ContactLensOrderBase):
+    client_id: Optional[int] = None
+
+class ContactLensOrder(ContactLensOrderBase):
+    id: int
     class Config:
         from_attributes = True
 
@@ -443,10 +512,40 @@ class ContactLens(ContactLensBase):
         from_attributes = True
 
 # Billing schemas
+class OrderLineItemBase(BaseModel):
+    billings_id: int
+    sku: Optional[str] = None
+    description: Optional[str] = None
+    supplied_by: Optional[str] = None
+    supplied: Optional[bool] = None
+    price: Optional[float] = None
+    quantity: Optional[float] = None
+    discount: Optional[float] = None
+    line_total: Optional[float] = None
+
+class OrderLineItemCreate(OrderLineItemBase):
+    pass
+
+class OrderLineItemUpdate(BaseModel):
+    billings_id: Optional[int] = None
+    sku: Optional[str] = None
+    description: Optional[str] = None
+    supplied_by: Optional[str] = None
+    supplied: Optional[bool] = None
+    price: Optional[float] = None
+    quantity: Optional[float] = None
+    discount: Optional[float] = None
+    line_total: Optional[float] = None
+
+class OrderLineItem(OrderLineItemBase):
+    id: int
+    
+    class Config:
+        from_attributes = True
+
 class BillingBase(BaseModel):
-    contact_lens_id: Optional[int] = None
-    optical_exams_id: Optional[int] = None
     order_id: Optional[int] = None
+    contact_lens_id: Optional[int] = None
     total_before_discount: Optional[float] = None
     discount_amount: Optional[float] = None
     discount_percent: Optional[float] = None
@@ -456,10 +555,10 @@ class BillingBase(BaseModel):
     notes: Optional[str] = None
 
 class BillingCreate(BillingBase):
-    pass
+    line_items: Optional[List[OrderLineItemCreate]] = None
 
 class BillingUpdate(BillingBase):
-    pass
+    line_items: Optional[List[OrderLineItemUpdate]] = None
 
 class Billing(BillingBase):
     id: int
@@ -534,7 +633,6 @@ class OpticalExam(OpticalExamBase):
 class ExamLayoutBase(BaseModel):
     clinic_id: Optional[int] = None
     name: str
-    type: str
     layout_data: str
     is_default: bool = False
 
@@ -543,7 +641,6 @@ class ExamLayoutCreate(ExamLayoutBase):
 
 class ExamLayoutUpdate(ExamLayoutBase):
     name: Optional[str] = None
-    type: Optional[str] = None
     layout_data: Optional[str] = None
 
 class ExamLayout(ExamLayoutBase):

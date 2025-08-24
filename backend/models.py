@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text, Float, ForeignKey, Date, JSON
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text, Float, ForeignKey, Date, JSON, Index
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from database import Base
@@ -53,6 +53,7 @@ class User(Base):
     id = Column(Integer, primary_key=True, index=True)
     company_id = Column(Integer, ForeignKey("companies.id"))
     clinic_id = Column(Integer, ForeignKey("clinics.id"))
+    full_name = Column(String)
     username = Column(String, nullable=False, unique=True)
     email = Column(String)
     phone = Column(String)
@@ -67,6 +68,8 @@ class User(Base):
     google_account_email = Column(String)
     google_access_token = Column(String)
     google_refresh_token = Column(String)
+    system_vacation_dates = Column(JSON, default=list)
+    added_vacation_dates = Column(JSON, default=list)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     
@@ -134,6 +137,7 @@ class Client(Base):
     clinic = relationship("Clinic", back_populates="clients")
     family = relationship("Family", back_populates="clients")
 
+# Indexes to speed up common client list queries
 class Settings(Base):
     __tablename__ = "settings"
     
@@ -179,9 +183,9 @@ class MedicalLog(Base):
     __tablename__ = "medical_logs"
     
     id = Column(Integer, primary_key=True, index=True)
-    client_id = Column(Integer, ForeignKey("clients.id"), nullable=False)
+    client_id = Column(Integer, ForeignKey("clients.id", ondelete="CASCADE"), nullable=False)
     clinic_id = Column(Integer, ForeignKey("clinics.id"))
-    user_id = Column(Integer, ForeignKey("users.id"))
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="RESTRICT"))
     log_date = Column(Date)
     log = Column(Text)
 
@@ -189,10 +193,10 @@ class OpticalExam(Base):
     __tablename__ = "optical_exams"
     
     id = Column(Integer, primary_key=True, index=True)
-    client_id = Column(Integer, ForeignKey("clients.id"), nullable=False)
+    client_id = Column(Integer, ForeignKey("clients.id", ondelete="CASCADE"), nullable=False)
     clinic_id = Column(Integer, ForeignKey("clinics.id"))
     clinic = Column(String)
-    user_id = Column(Integer, ForeignKey("users.id"))
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="RESTRICT"))
     exam_date = Column(Date)
     test_name = Column(String)
     dominant_eye = Column(String)
@@ -205,7 +209,6 @@ class ExamLayout(Base):
     clinic_id = Column(Integer, ForeignKey("clinics.id"))
     name = Column(String, nullable=False)
     layout_data = Column(Text, nullable=False)
-    type = Column(String, default="exam")
     is_default = Column(Boolean, default=False)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -216,306 +219,21 @@ class ExamLayoutInstance(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     exam_id = Column(Integer, ForeignKey("optical_exams.id", ondelete="CASCADE"), nullable=False)
-    layout_id = Column(Integer, ForeignKey("exam_layouts.id", ondelete="CASCADE"), nullable=False)
+    layout_id = Column(Integer, ForeignKey("exam_layouts.id", ondelete="RESTRICT"), nullable=False)
     is_active = Column(Boolean, default=False)
     order = Column(Integer, default=0)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
-
-class ExamData(Base):
-    __tablename__ = "exam_data"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    layout_instance_id = Column(Integer, ForeignKey("exam_layout_instances.id", ondelete="CASCADE"), nullable=False, unique=True)
     exam_data = Column(JSON, nullable=False, default={})
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+ 
 
-class NotesExam(Base):
-    __tablename__ = "notes_exams"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    layout_instance_id = Column(Integer, ForeignKey("exam_layout_instances.id", ondelete="CASCADE"), nullable=False)
-    card_instance_id = Column(String)
-    title = Column(String, default="הערות")
-    note = Column(Text)
-
-class OldRefractionExam(Base):
-    __tablename__ = "old_refraction_exams"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    layout_instance_id = Column(Integer, ForeignKey("exam_layout_instances.id", ondelete="CASCADE"), nullable=False)
-    r_sph = Column(Float)
-    l_sph = Column(Float)
-    r_cyl = Column(Float)
-    l_cyl = Column(Float)
-    r_ax = Column(Integer)
-    l_ax = Column(Integer)
-    r_pris = Column(Float)
-    l_pris = Column(Float)
-    r_base = Column(Float)
-    l_base = Column(Float)
-    r_va = Column(Float)
-    l_va = Column(Float)
-    r_ad = Column(Float)
-    l_ad = Column(Float)
-    comb_va = Column(Float)
-
-class OldRefractionExtensionExam(Base):
-    __tablename__ = "old_refraction_extension_exams"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    layout_instance_id = Column(Integer, ForeignKey("exam_layout_instances.id", ondelete="CASCADE"), nullable=False)
-    r_sph = Column(Float)
-    l_sph = Column(Float)
-    r_cyl = Column(Float)
-    l_cyl = Column(Float)
-    r_ax = Column(Integer)
-    l_ax = Column(Integer)
-    r_pr_h = Column(Float)
-    l_pr_h = Column(Float)
-    r_base_h = Column(String)
-    l_base_h = Column(String)
-    r_pr_v = Column(Float)
-    l_pr_v = Column(Float)
-    r_base_v = Column(String)
-    l_base_v = Column(String)
-    r_va = Column(Float)
-    l_va = Column(Float)
-    r_ad = Column(Float)
-    l_ad = Column(Float)
-    r_j = Column(Integer)
-    l_j = Column(Integer)
-    r_pd_far = Column(Float)
-    l_pd_far = Column(Float)
-    r_pd_close = Column(Float)
-    l_pd_close = Column(Float)
-    comb_va = Column(Float)
-    comb_pd_far = Column(Float)
-    comb_pd_close = Column(Float)
-
-class ObjectiveExam(Base):
-    __tablename__ = "objective_exams"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    layout_instance_id = Column(Integer, ForeignKey("exam_layout_instances.id", ondelete="CASCADE"), nullable=False)
-    r_sph = Column(Float)
-    l_sph = Column(Float)
-    r_cyl = Column(Float)
-    l_cyl = Column(Float)
-    r_ax = Column(Integer)
-    l_ax = Column(Integer)
-    r_se = Column(Float)
-    l_se = Column(Float)
-
-class SubjectiveExam(Base):
-    __tablename__ = "subjective_exams"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    layout_instance_id = Column(Integer, ForeignKey("exam_layout_instances.id", ondelete="CASCADE"), nullable=False)
-    r_fa = Column(Float)
-    l_fa = Column(Float)
-    r_fa_tuning = Column(Float)
-    l_fa_tuning = Column(Float)
-    r_sph = Column(Float)
-    l_sph = Column(Float)
-    r_cyl = Column(Float)
-    l_cyl = Column(Float)
-    r_ax = Column(Integer)
-    l_ax = Column(Integer)
-    r_pris = Column(Float)
-    l_pris = Column(Float)
-    r_base = Column(Float)
-    l_base = Column(Float)
-    r_va = Column(Float)
-    l_va = Column(Float)
-    r_ph = Column(Float)
-    l_ph = Column(Float)
-    r_pd_close = Column(Float)
-    l_pd_close = Column(Float)
-    r_pd_far = Column(Float)
-    l_pd_far = Column(Float)
-    comb_va = Column(Float)
-    comb_fa = Column(Float)
-    comb_fa_tuning = Column(Float)
-    comb_pd_close = Column(Float)
-    comb_pd_far = Column(Float) 
-
-class AdditionExam(Base):
-    __tablename__ = "addition_exams"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    layout_instance_id = Column(Integer, ForeignKey("exam_layout_instances.id", ondelete="CASCADE"), nullable=False)
-    r_fcc = Column(Float)
-    l_fcc = Column(Float)
-    r_read = Column(Float)
-    l_read = Column(Float)
-    r_int = Column(Float)
-    l_int = Column(Float)
-    r_bif = Column(Float)
-    l_bif = Column(Float)
-    r_mul = Column(Float)
-    l_mul = Column(Float)
-    r_j = Column(Integer)
-    l_j = Column(Integer)
-    r_iop = Column(Float)
-    l_iop = Column(Float)
-
-class RetinoscopExam(Base):
-    __tablename__ = "retinoscop_exams"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    layout_instance_id = Column(Integer, ForeignKey("exam_layout_instances.id", ondelete="CASCADE"), nullable=False)
-    r_sph = Column(Float)
-    l_sph = Column(Float)
-    r_cyl = Column(Float)
-    l_cyl = Column(Float)
-    r_ax = Column(Integer)
-    l_ax = Column(Integer)
-    r_reflex = Column(String)
-    l_reflex = Column(String)
-
-class RetinoscopDilationExam(Base):
-    __tablename__ = "retinoscop_dilation_exams"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    layout_instance_id = Column(Integer, ForeignKey("exam_layout_instances.id"), nullable=False)
-    r_sph = Column(Float)
-    l_sph = Column(Float)
-    r_cyl = Column(Float)
-    l_cyl = Column(Float)
-    r_ax = Column(Integer)
-    l_ax = Column(Integer)
-    r_reflex = Column(String)
-    l_reflex = Column(String)
-
-class FinalSubjectiveExam(Base):
-    __tablename__ = "final_subjective_exams"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    layout_instance_id = Column(Integer, ForeignKey("exam_layout_instances.id"), nullable=False)
-    order_id = Column(Integer, ForeignKey("orders.id"))
-    r_sph = Column(Float)
-    l_sph = Column(Float)
-    r_cyl = Column(Float)
-    l_cyl = Column(Float)
-    r_ax = Column(Integer)
-    l_ax = Column(Integer)
-    r_pr_h = Column(Float)
-    l_pr_h = Column(Float)
-    r_base_h = Column(String)
-    l_base_h = Column(String)
-    r_pr_v = Column(Float)
-    l_pr_v = Column(Float)
-    r_base_v = Column(String)
-    l_base_v = Column(String)
-    r_va = Column(Float)
-    l_va = Column(Float)
-    r_j = Column(Integer)
-    l_j = Column(Integer)
-    r_pd_far = Column(Float)
-    l_pd_far = Column(Float)
-    r_pd_close = Column(Float)
-    l_pd_close = Column(Float)
-    comb_pd_far = Column(Float)
-    comb_pd_close = Column(Float)
-    comb_va = Column(Float)
-
-class FinalPrescriptionExam(Base):
-    __tablename__ = "final_prescription_exams"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    layout_instance_id = Column(Integer, ForeignKey("exam_layout_instances.id", ondelete="CASCADE"))
-    order_id = Column(Integer, ForeignKey("orders.id"))
-    r_sph = Column(Float)
-    l_sph = Column(Float)
-    r_cyl = Column(Float)
-    l_cyl = Column(Float)
-    r_ax = Column(Integer)
-    l_ax = Column(Integer)
-    r_pris = Column(Float)
-    l_pris = Column(Float)
-    r_base = Column(String)
-    l_base = Column(String)
-    r_va = Column(Float)
-    l_va = Column(Float)
-    r_ad = Column(Float)
-    l_ad = Column(Float)
-    r_pd = Column(Float)
-    l_pd = Column(Float)
-    r_high = Column(Float)
-    l_high = Column(Float)
-    r_diam = Column(Integer)
-    l_diam = Column(Integer)
-    comb_va = Column(Float)
-    comb_pd = Column(Float)
-    comb_high = Column(Float)
-
-class CompactPrescriptionExam(Base):
-    __tablename__ = "compact_prescription_exams"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    layout_instance_id = Column(Integer, ForeignKey("exam_layout_instances.id", ondelete="CASCADE"))
-    referral_id = Column(Integer, ForeignKey("referrals.id"))
-    r_sph = Column(Float)
-    l_sph = Column(Float)
-    r_cyl = Column(Float)
-    l_cyl = Column(Float)
-    r_ax = Column(Integer)
-    l_ax = Column(Integer)
-    r_pris = Column(Float)
-    l_pris = Column(Float)
-    r_base = Column(Float)
-    l_base = Column(Float)
-    r_va = Column(Float)
-    l_va = Column(Float)
-    r_ad = Column(Float)
-    l_ad = Column(Float)
-    r_pd = Column(Float)
-    l_pd = Column(Float)
-    comb_va = Column(Float)
-    comb_pd = Column(Float)
-
-class ContactLens(Base):
-    __tablename__ = "contact_lens"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    client_id = Column(Integer, ForeignKey("clients.id"), nullable=False)
-    exam_date = Column(Date)
-    type = Column(String)
-    user_id = Column(Integer, ForeignKey("users.id"))
-    comb_va = Column(Float)
-    pupil_diameter = Column(Float)
-    corneal_diameter = Column(Float)
-    eyelid_aperture = Column(Float)
-    notes = Column(Text)
-    notes_for_supplier = Column(Text)
-
-class ContactLensOrder(Base):
-    __tablename__ = "contact_lens_order"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    layout_instance_id = Column(Integer, ForeignKey("exam_layout_instances.id", ondelete="CASCADE"), nullable=False)
-    branch = Column(String)
-    supply_in_branch = Column(String)
-    order_status = Column(String)
-    advisor = Column(String)
-    deliverer = Column(String)
-    delivery_date = Column(Date)
-    priority = Column(String)
-    guaranteed_date = Column(Date)
-    approval_date = Column(Date)
-    cleaning_solution = Column(String)
-    disinfection_solution = Column(String)
-    rinsing_solution = Column(String)
 
 class Billing(Base):
     __tablename__ = "billings"
     
     id = Column(Integer, primary_key=True, index=True)
-    contact_lens_id = Column(Integer, ForeignKey("contact_lens.id"))
-    optical_exams_id = Column(Integer, ForeignKey("optical_exams.id", ondelete="SET NULL"))
     order_id = Column(Integer, ForeignKey("orders.id"))
+    contact_lens_id = Column(Integer, ForeignKey("contact_lens_orders.id"))
     total_before_discount = Column(Float)
     discount_amount = Column(Float)
     discount_percent = Column(Float)
@@ -542,12 +260,12 @@ class Order(Base):
     __tablename__ = "orders"
     
     id = Column(Integer, primary_key=True, index=True)
-    client_id = Column(Integer, ForeignKey("clients.id"), nullable=False)
+    client_id = Column(Integer, ForeignKey("clients.id", ondelete="CASCADE"), nullable=False)
     clinic_id = Column(Integer, ForeignKey("clinics.id"))
     order_date = Column(Date)
     type = Column(String)
     dominant_eye = Column(String)
-    user_id = Column(Integer, ForeignKey("users.id"))
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="RESTRICT"))
     lens_id = Column(Integer)
     frame_id = Column(Integer)
     comb_va = Column(Float)
@@ -556,14 +274,58 @@ class Order(Base):
     order_data = Column(JSON, nullable=False, default={})
 
  
+class ContactLensOrder(Base):
+    __tablename__ = "contact_lens_orders"
+
+    id = Column(Integer, primary_key=True, index=True)
+    client_id = Column(Integer, ForeignKey("clients.id", ondelete="CASCADE"), nullable=False)
+    clinic_id = Column(Integer, ForeignKey("clinics.id"))
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="RESTRICT"))
+    order_date = Column(Date)
+    type = Column(String)
+
+    l_lens_type = Column(String)
+    l_model = Column(String)
+    l_supplier = Column(String)
+    l_material = Column(String)
+    l_color = Column(String)
+    l_quantity = Column(Integer)
+    l_order_quantity = Column(Integer)
+    l_dx = Column(Boolean)
+
+    r_lens_type = Column(String)
+    r_model = Column(String)
+    r_supplier = Column(String)
+    r_material = Column(String)
+    r_color = Column(String)
+    r_quantity = Column(Integer)
+    r_order_quantity = Column(Integer)
+    r_dx = Column(Boolean)
+
+    supply_in_clinic_id = Column(Integer, ForeignKey("clinics.id"))
+    order_status = Column(String)
+    advisor = Column(String)
+    deliverer = Column(String)
+    delivery_date = Column(Date)
+    priority = Column(String)
+    guaranteed_date = Column(Date)
+    approval_date = Column(Date)
+    cleaning_solution = Column(String)
+    disinfection_solution = Column(String)
+    rinsing_solution = Column(String)
+    notes = Column(Text)
+    supplier_notes = Column(Text)
+
+    order_data = Column(JSON, nullable=False, default={})
+
 
 class Referral(Base):
     __tablename__ = "referrals"
     
     id = Column(Integer, primary_key=True, index=True)
-    client_id = Column(Integer, ForeignKey("clients.id"), nullable=False)
+    client_id = Column(Integer, ForeignKey("clients.id", ondelete="CASCADE"), nullable=False)
     clinic_id = Column(Integer, ForeignKey("clinics.id"))
-    user_id = Column(Integer, ForeignKey("users.id"))
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="RESTRICT"))
     referral_notes = Column(Text, nullable=False)
     prescription_notes = Column(Text)
     date = Column(Date)
@@ -594,9 +356,9 @@ class Appointment(Base):
     __tablename__ = "appointments"
     
     id = Column(Integer, primary_key=True, index=True)
-    client_id = Column(Integer, ForeignKey("clients.id"), nullable=False)
+    client_id = Column(Integer, ForeignKey("clients.id", ondelete="CASCADE"), nullable=False)
     clinic_id = Column(Integer, ForeignKey("clinics.id"))
-    user_id = Column(Integer, ForeignKey("users.id"))
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="RESTRICT"))
     date = Column(Date)
     time = Column(String)
     duration = Column(Integer, default=30)
@@ -608,14 +370,14 @@ class File(Base):
     __tablename__ = "files"
     
     id = Column(Integer, primary_key=True, index=True)
-    client_id = Column(Integer, ForeignKey("clients.id"), nullable=False)
+    client_id = Column(Integer, ForeignKey("clients.id", ondelete="CASCADE"), nullable=False)
     clinic_id = Column(Integer, ForeignKey("clinics.id"))
     file_name = Column(String, nullable=False)
     file_path = Column(String, nullable=False)
     file_size = Column(Integer)
     file_type = Column(String)
     upload_date = Column(DateTime(timezone=True), server_default=func.now())
-    uploaded_by = Column(Integer, ForeignKey("users.id"))
+    uploaded_by = Column(Integer, ForeignKey("users.id", ondelete="RESTRICT"))
     notes = Column(Text)
 
 class Chat(Base):
@@ -651,7 +413,7 @@ class WorkShift(Base):
     __tablename__ = "work_shifts"
     
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
     start_time = Column(String, nullable=False)
     end_time = Column(String)
     duration_minutes = Column(Integer)
@@ -688,318 +450,8 @@ class CampaignClientExecution(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     campaign_id = Column(Integer, ForeignKey("campaigns.id"), nullable=False)
-    client_id = Column(Integer, ForeignKey("clients.id"), nullable=False)
+    client_id = Column(Integer, ForeignKey("clients.id", ondelete="CASCADE"), nullable=False)
     executed_at = Column(DateTime(timezone=True), server_default=func.now())
-
-class UncorrectedVAExam(Base):
-    __tablename__ = "uncorrected_va_exams"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    layout_instance_id = Column(Integer, ForeignKey("exam_layout_instances.id", ondelete="CASCADE"), nullable=False)
-    r_fv = Column(String)
-    l_fv = Column(String)
-    r_iv = Column(String)
-    l_iv = Column(String)
-    r_nv_j = Column(String)
-    l_nv_j = Column(String)
-
-class KeratometerExam(Base):
-    __tablename__ = "keratometer_exams"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    layout_instance_id = Column(Integer, ForeignKey("exam_layout_instances.id", ondelete="CASCADE"), nullable=False)
-    r_k1 = Column(Float)
-    r_k2 = Column(Float)
-    r_axis = Column(Integer)
-    l_k1 = Column(Float)
-    l_k2 = Column(Float)
-    l_axis = Column(Integer)
-
-class KeratometerFullExam(Base):
-    __tablename__ = "keratometer_full_exams"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    layout_instance_id = Column(Integer, ForeignKey("exam_layout_instances.id", ondelete="CASCADE"), nullable=False)
-    r_dpt_k1 = Column(Float)
-    r_dpt_k2 = Column(Float)
-    l_dpt_k1 = Column(Float)
-    l_dpt_k2 = Column(Float)
-    r_mm_k1 = Column(Float)
-    r_mm_k2 = Column(Float)
-    l_mm_k1 = Column(Float)
-    l_mm_k2 = Column(Float)
-    r_mer_k1 = Column(Float)
-    r_mer_k2 = Column(Float)
-    l_mer_k1 = Column(Float)
-    l_mer_k2 = Column(Float)
-    r_astig = Column(Boolean)
-    l_astig = Column(Boolean)
-
-class CornealTopographyExam(Base):
-    __tablename__ = "corneal_topography_exams"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    layout_instance_id = Column(Integer, ForeignKey("exam_layout_instances.id", ondelete="CASCADE"), nullable=False)
-    l_note = Column(Text)
-    r_note = Column(Text)
-    title = Column(String)
-
-class AnamnesisExam(Base):
-    __tablename__ = "anamnesis_exams"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    layout_instance_id = Column(Integer, ForeignKey("exam_layout_instances.id", ondelete="CASCADE"), nullable=False)
-    medications = Column(Text)
-    allergies = Column(Text)
-    family_history = Column(Text)
-    previous_treatments = Column(Text)
-    lazy_eye = Column(Text)
-    contact_lens_wear = Column(Boolean, default=False)
-    started_wearing_since = Column(String)
-    stopped_wearing_since = Column(String)
-    additional_notes = Column(Text)
-
-class CoverTestExam(Base):
-    __tablename__ = "cover_test_exams"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    layout_instance_id = Column(Integer, ForeignKey("exam_layout_instances.id", ondelete="CASCADE"), nullable=False)
-    card_instance_id = Column(String)
-    card_id = Column(String)
-    tab_index = Column(Integer)
-    deviation_type = Column(String)
-    deviation_direction = Column(String)
-    fv_1 = Column(Float)
-    fv_2 = Column(Float)
-    nv_1 = Column(Float)
-    nv_2 = Column(Float)
-
-class SchirmerTestExam(Base):
-    __tablename__ = "schirmer_test_exams"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    layout_instance_id = Column(Integer, ForeignKey("exam_layout_instances.id", ondelete="CASCADE"), nullable=False)
-    r_mm = Column(Float)
-    l_mm = Column(Float)
-    r_but = Column(Float)
-    l_but = Column(Float)
-
-class OldRefExam(Base):
-    __tablename__ = "old_ref_exams"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    layout_instance_id = Column(Integer, ForeignKey("exam_layout_instances.id", ondelete="CASCADE"), nullable=False)
-    role = Column(String)
-    source = Column(String)
-    contacts = Column(Text)
-
-class ContactLensDiameters(Base):
-    __tablename__ = "contact_lens_diameters"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    layout_instance_id = Column(Integer, ForeignKey("exam_layout_instances.id", ondelete="CASCADE"), nullable=False)
-    pupil_diameter = Column(Float)
-    corneal_diameter = Column(Float)
-    eyelid_aperture = Column(Float)
-
-class ContactLensDetails(Base):
-    __tablename__ = "contact_lens_details"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    layout_instance_id = Column(Integer, ForeignKey("exam_layout_instances.id", ondelete="CASCADE"), nullable=False)
-    l_lens_type = Column(String)
-    l_model = Column(String)
-    l_supplier = Column(String)
-    l_material = Column(String)
-    l_color = Column(String)
-    l_quantity = Column(Integer)
-    l_order_quantity = Column(Integer)
-    l_dx = Column(Boolean)
-    r_lens_type = Column(String)
-    r_model = Column(String)
-    r_supplier = Column(String)
-    r_material = Column(String)
-    r_color = Column(String)
-    r_quantity = Column(Integer)
-    r_order_quantity = Column(Integer)
-    r_dx = Column(Boolean)
-
-class KeratometerContactLens(Base):
-    __tablename__ = "keratometer_contact_lens"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    layout_instance_id = Column(Integer, ForeignKey("exam_layout_instances.id", ondelete="CASCADE"), nullable=False)
-    l_rh = Column(Float)
-    l_rv = Column(Float)
-    l_avg = Column(Float)
-    l_cyl = Column(Float)
-    l_ax = Column(Integer)
-    l_ecc = Column(Float)
-    r_rh = Column(Float)
-    r_rv = Column(Float)
-    r_avg = Column(Float)
-    r_cyl = Column(Float)
-    r_ax = Column(Integer)
-    r_ecc = Column(Float)
-
-class ContactLensExam(Base):
-    __tablename__ = "contact_lens_exam"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    layout_instance_id = Column(Integer, ForeignKey("exam_layout_instances.id"), nullable=False)
-    comb_va = Column(Float)
-    l_bc = Column(Float)
-    l_bc_2 = Column(Float)
-    l_oz = Column(Float)
-    l_diam = Column(Float)
-    l_sph = Column(Float)
-    l_cyl = Column(Float)
-    l_ax = Column(Integer)
-    l_read_ad = Column(Float)
-    l_va = Column(Float)
-    l_j = Column(Float)
-    r_bc = Column(Float)
-    r_bc_2 = Column(Float)
-    r_oz = Column(Float)
-    r_diam = Column(Float)
-    r_sph = Column(Float)
-    r_cyl = Column(Float)
-    r_ax = Column(Integer)
-    r_read_ad = Column(Float)
-    r_va = Column(Float)
-    r_j = Column(Float)
-
-class OldContactLenses(Base):
-    __tablename__ = "old_contact_lenses"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    layout_instance_id = Column(Integer, ForeignKey("exam_layout_instances.id"), nullable=False)
-    r_lens_type = Column(String)
-    l_lens_type = Column(String)
-    r_model = Column(String)
-    l_model = Column(String)
-    r_supplier = Column(String)
-    l_supplier = Column(String)
-    l_bc = Column(Float)
-    l_diam = Column(Float)
-    l_sph = Column(Float)
-    l_cyl = Column(Float)
-    l_ax = Column(Float)
-    l_va = Column(Float)
-    l_j = Column(Float)
-    r_bc = Column(Float)
-    r_diam = Column(Float)
-    r_sph = Column(Float)
-    r_cyl = Column(Float)
-    r_ax = Column(Float)
-    r_va = Column(Float)
-    r_j = Column(Float)
-    comb_va = Column(Float)
-    comb_j = Column(Float)
-
-class OverRefraction(Base):
-    __tablename__ = "over_refraction"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    layout_instance_id = Column(Integer, ForeignKey("exam_layout_instances.id"), nullable=False)
-    r_sph = Column(Float)
-    l_sph = Column(Float)
-    r_cyl = Column(Float)
-    l_cyl = Column(Float)
-    r_ax = Column(Float)
-    l_ax = Column(Float)
-    r_va = Column(Float)
-    l_va = Column(Float)
-    r_j = Column(Float)
-    l_j = Column(Float)
-    comb_va = Column(Float)
-    comb_j = Column(Float)
-    l_add = Column(Float)
-    r_add = Column(Float)
-    l_florescent = Column(String)
-    r_florescent = Column(String)
-    l_bio_m = Column(String)
-    r_bio_m = Column(String)
-
-class SensationVisionStabilityExam(Base):
-    __tablename__ = "sensation_vision_stability_exams"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    layout_instance_id = Column(Integer, ForeignKey("exam_layout_instances.id"), nullable=False)
-    r_sensation = Column(Text)
-    l_sensation = Column(Text)
-    r_vision = Column(Text)
-    l_vision = Column(Text)
-    r_stability = Column(Text)
-    l_stability = Column(Text)
-    r_movement = Column(Text)
-    l_movement = Column(Text)
-    r_recommendations = Column(Text)
-    l_recommendations = Column(Text)
-
-class DiopterAdjustmentPanel(Base):
-    __tablename__ = "diopter_adjustment_panel"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    layout_instance_id = Column(Integer, ForeignKey("exam_layout_instances.id"), nullable=False)
-    right_diopter = Column(Float)
-    left_diopter = Column(Float)
-
-class FusionRangeExam(Base):
-    __tablename__ = "fusion_range_exams"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    layout_instance_id = Column(Integer, ForeignKey("exam_layout_instances.id"), nullable=False)
-    fv_base_in = Column(Float)
-    fv_base_in_recovery = Column(Float)
-    fv_base_out = Column(Float)
-    fv_base_out_recovery = Column(Float)
-    nv_base_in = Column(Float)
-    nv_base_in_recovery = Column(Float)
-    nv_base_out = Column(Float)
-    nv_base_out_recovery = Column(Float)
-
-class MaddoxRodExam(Base):
-    __tablename__ = "maddox_rod_exams"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    layout_instance_id = Column(Integer, ForeignKey("exam_layout_instances.id"), nullable=False)
-    c_r_h = Column(Float)
-    c_r_v = Column(Float)
-    c_l_h = Column(Float)
-    c_l_v = Column(Float)
-    wc_r_h = Column(Float)
-    wc_r_v = Column(Float)
-    wc_l_h = Column(Float)
-    wc_l_v = Column(Float)
-
-class StereoTestExam(Base):
-    __tablename__ = "stereo_test_exams"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    layout_instance_id = Column(Integer, ForeignKey("exam_layout_instances.id"), nullable=False)
-    fly_result = Column(Boolean)
-    circle_score = Column(Integer)
-    circle_max = Column(Integer)
-
-class OcularMotorAssessmentExam(Base):
-    __tablename__ = "ocular_motor_assessment_exams"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    layout_instance_id = Column(Integer, ForeignKey("exam_layout_instances.id"), nullable=False)
-    ocular_motility = Column(Text)
-    acc_od = Column(Float)
-    acc_os = Column(Float)
-    npc_break = Column(Float)
-    npc_recovery = Column(Float)
-
-class RGExam(Base):
-    __tablename__ = "rg_exams"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    layout_instance_id = Column(Integer, ForeignKey("exam_layout_instances.id"), nullable=False)
-    rg_status = Column(String)
-    suppressed_eye = Column(String)
 
 class LookupSupplier(Base):
     __tablename__ = "lookup_supplier"
@@ -1126,3 +578,43 @@ class LookupAdvisor(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, nullable=False, unique=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now()) 
+
+# Indexes to speed up common filters and sorting on exams list
+Index('ix_optical_exams_clinic_id', OpticalExam.clinic_id)
+Index('ix_optical_exams_type', OpticalExam.type)
+Index('ix_optical_exams_clinic_type_date', OpticalExam.clinic_id, OpticalExam.type, OpticalExam.exam_date)
+
+Index('ix_exam_layout_instances_exam_id', ExamLayoutInstance.exam_id)
+Index('ix_exam_layout_instances_exam_id_is_active', ExamLayoutInstance.exam_id, ExamLayoutInstance.is_active)
+Index('ix_exam_layout_instances_exam_id_order', ExamLayoutInstance.exam_id, ExamLayoutInstance.order)
+
+Index('ix_clients_clinic_id', Client.clinic_id)
+Index('ix_clients_clinic_id_id_desc', Client.clinic_id, Client.id.desc())
+
+# Indexes for referrals table
+Index('ix_referrals_clinic_id', Referral.clinic_id)
+Index('ix_referrals_client_id', Referral.client_id)
+Index('ix_referrals_clinic_date', Referral.clinic_id, Referral.date.desc())
+
+# Indexes for orders table
+Index('ix_orders_clinic_id', Order.clinic_id)
+Index('ix_orders_client_id', Order.client_id)
+Index('ix_orders_clinic_date', Order.clinic_id, Order.order_date.desc())
+
+# Indexes for files table
+Index('ix_files_clinic_id', File.clinic_id)
+Index('ix_files_client_id', File.client_id)
+Index('ix_files_clinic_upload_date', File.clinic_id, File.upload_date.desc())
+
+# Indexes for appointments table
+Index('ix_appointments_clinic_id', Appointment.clinic_id)
+Index('ix_appointments_client_id', Appointment.client_id)
+Index('ix_appointments_clinic_date', Appointment.clinic_id, Appointment.date.desc())
+
+# Indexes for families table
+Index('ix_families_clinic_id', Family.clinic_id)
+Index('ix_families_clinic_created', Family.clinic_id, Family.created_date.desc())
+
+# Indexes for users table
+Index('ix_users_clinic_id', User.clinic_id)
+Index('ix_users_is_active', User.is_active)

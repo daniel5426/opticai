@@ -47,19 +47,7 @@ export async function getExamLayoutsByClinicId(clinicId?: number): Promise<ExamL
   }
 }
 
-export async function getExamLayoutsByType(type: string): Promise<ExamLayout[]> {
-  try {
-    const response = await apiClient.getExamLayouts();
-    if (response.error) {
-      console.error('Error getting exam layouts by type:', response.error);
-      return [];
-    }
-    return (response.data || []).filter(layout => layout.type === type);
-  } catch (error) {
-    console.error('Error getting exam layouts by type:', error);
-    return [];
-  }
-}
+
 
 export async function getExamLayoutById(id: number): Promise<ExamLayout | null> {
   try {
@@ -150,19 +138,7 @@ export async function getDefaultExamLayouts(): Promise<ExamLayout[]> {
   }
 }
 
-export async function getDefaultExamLayoutsByType(type: 'opticlens' | 'exam'): Promise<ExamLayout[]> {
-  try {
-    const response = await apiClient.getExamLayouts();
-    if (response.error) {
-      console.error('Error getting default exam layouts by type:', response.error);
-      return [];
-    }
-    return (response.data || []).filter(layout => layout.is_default && layout.type === type);
-  } catch (error) {
-    console.error('Error getting default exam layouts by type:', error);
-    return [];
-  }
-}
+
 
 export async function setDefaultExamLayout(layoutId: number): Promise<boolean> {
   try {

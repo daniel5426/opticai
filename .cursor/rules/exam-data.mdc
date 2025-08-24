@@ -1,0 +1,92 @@
+---
+alwaysApply: false
+description: Exam data architecture — how exams, layout instances, and unified JSON are saved/loaded across backend and frontend
+---
+# Exam Data: Save/Load Architecture
+
+This rule explains how exam data is modeled, saved, and loaded across the app (backend + frontend), including layouts, instances, and unified JSON storage.
+
+## Backend Data Model
+
+- `optical_exams` row represents a single exam header.
+- `exam_layout_instances` links an exam to one or more layouts (tabs). Each instance has its own JSON field for all card data:
+  - Columns of note in [`backend/models.py`](mdc:backend/models.py):
+    - `exam_id` (ondelete="CASCADE")
+    - `layout_id` (ondelete="RESTRICT")
+    - `exam_data JSON` — unified storage for all components in this instance
+
+## Unified Exam Data API
+
+All component data for an instance is read/written as a single JSON object via [`backend/EndPoints/unified_exam_data.py`](mdc:backend/EndPoints/unified_exam_data.py):
+
+- `GET /unified-exam-data/{layout_instance_id}` → returns the full JSON for that instance
+- `POST /unified-exam-data/{layout_instance_id}` → upserts the full JSON
+- `GET /unified-exam-data/{layout_instance_id}/component/{type}` → returns one component payload from the JSON
+- `POST /unified-exam-data/{layout_instance_id}/component/{type}` → updates one component inside the JSON
+
+Notes:
+- Deleting an exam cascades and removes its instances and data.
+- Deleting a layout is restricted if instances exist (no cascade from layout → instance).
+
+## Frontend API Layer
+
+Use `apiClient` unified helpers in [`src/lib/api-client.ts`](mdc:src/lib/api-client.ts):
+- `getUnifiedExamData(layoutInstanceId)`
+- `saveUnifiedExamData(layoutInstanceId, data)`
+
+The exam component registry wraps these in [`src/lib/exam-component-registry.ts`](mdc:src/lib/exam-component-registry.ts):
+- `loadAllData(layoutInstanceId)` → loads full instance JSON
+- `saveAllData(layoutInstanceId, formData)` → posts full instance JSON
+
+## Exam Detail Page Behavior
+
+Main logic is in [`src/pages/ExamDetailPage.tsx`](mdc:src/pages/ExamDetailPage.tsx).
+
+### Core State
+- `activeInstanceId`: the selected `exam_layout_instances.id`
+- `examFormDataByInstance: { [instanceId]: Record<string, any> }` — per-instance buckets holding unified JSON for each tab/instance
+- `examFormData`: the current working copy that UI renders/edits, always synced with `examFormDataByInstance[activeInstanceId]`
+
+### Loading Flow (Existing Exam)
+1. Fetch exam plus all layout instances and the chosen active instance/layout (via an optimized endpoint, e.g. `getExamPageData`).
+2. Build tabs from instances; set `activeInstanceId`.
+3. Load active instance JSON via registry and set both:
+   - `examFormDataByInstance[activeInstanceId]`
+   - `examFormData` (so UI shows data immediately)
+4. Preload other instances in the background; their parsed JSON is cached into `examFormDataByInstance` so switching is instant.
+
+### Switching Tabs (Instances)
+- Update `activeInstanceId`, apply the layout schema, then either:
+  - Use cached bucket (`examFormDataByInstance[instanceId]`) if present, or
+  - Load once via registry, cache in bucket, then set `examFormData`.
+ 
+### Editing & Sync
+- As the user edits, `examFormData` is guardedly mirrored back into `examFormDataByInstance[activeInstanceId]` to avoid loops.
+
+### Saving
+- Update mode:
+  - Iterate all tabs (instances) and call `saveAllData(instanceId, examFormDataByInstance[instanceId])` to persist each unified JSON.
+- New mode:
+  - Create the exam row (optimistic UI update).
+  - Create layout instances for each tab, then save each instance’s JSON bucket.
+  - Remap temporary tab ids to real instance ids and set `activeInstanceId`.
+  - Immediately navigate to the client Exams tab (optimistic redirect), while the instance saves happen in the background.
+
+## Component Keying
+
+- Unified JSON is a flat object with keys per component type (e.g., `subjective`, `final-prescription`).
+- Multi-instance components (e.g., cover-test, notes) use namespaced keys per card/tab such as `cover-test-<cardId>-<tabId>` or `notes-<cardId>`.
+
+## Gotchas / Best Practices
+
+- Always work with `instance.id` (not `layout_id`) when loading/saving unified JSON.
+- Keep `examFormData` in sync with `examFormDataByInstance[activeInstanceId]` to avoid stale UI.
+- Preload non-active instances’ data after the first active load to make tab switches instant.
+- When creating new exams with multiple default layouts, create all instances and save each bucket so reopening shows all data.
+
+## Useful References
+- Models: [`backend/models.py`](mdc:backend/models.py)
+- Unified endpoints: [`backend/EndPoints/unified_exam_data.py`](mdc:backend/EndPoints/unified_exam_data.py)
+- Client API: [`src/lib/api-client.ts`](mdc:src/lib/api-client.ts)
+- Registry: [`src/lib/exam-component-registry.ts`](mdc:src/lib/exam-component-registry.ts)
+- Page: [`src/pages/ExamDetailPage.tsx`](mdc:src/pages/ExamDetailPage.tsx)

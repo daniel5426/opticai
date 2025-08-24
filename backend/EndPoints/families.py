@@ -22,6 +22,37 @@ def get_family(family_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Family not found")
     return family
 
+@router.get("/paginated")
+def get_families_paginated(
+    clinic_id: Optional[int] = Query(None, description="Filter by clinic ID"),
+    limit: int = Query(25, ge=1, le=100, description="Max items to return"),
+    offset: int = Query(0, ge=0, description="Items to skip"),
+    order: Optional[str] = Query("created_desc", description="Sort order: created_desc|created_asc|name_asc|name_desc|id_desc|id_asc"),
+    db: Session = Depends(get_db)
+):
+    base = db.query(Family)
+    if clinic_id:
+        base = base.filter(Family.clinic_id == clinic_id)
+    
+    # Apply ordering
+    if order == "created_desc":
+        base = base.order_by(Family.created_date.desc().nulls_last())
+    elif order == "created_asc":
+        base = base.order_by(Family.created_date.asc().nulls_last())
+    elif order == "name_asc":
+        base = base.order_by(Family.name.asc())
+    elif order == "name_desc":
+        base = base.order_by(Family.name.desc())
+    elif order == "id_asc":
+        base = base.order_by(Family.id.asc())
+    else:  # default to id_desc
+        base = base.order_by(Family.id.desc())
+    
+    total = base.count()
+    items = base.offset(offset).limit(limit).all()
+    
+    return {"items": items, "total": total}
+
 @router.get("/", response_model=List[FamilySchema])
 def get_all_families(
     clinic_id: Optional[int] = Query(None, description="Filter by clinic ID"),

@@ -1,12 +1,14 @@
 # where the backend fastapi app that will be used as a proxy for openai llm call, and for handling the app backups
 
 from fastapi import FastAPI
+from fastapi.responses import ORJSONResponse
+from fastapi.middleware.gzip import GZipMiddleware
 import logging
 from fastapi.middleware.cors import CORSMiddleware
 import config
 from database import engine
 from models import Base
-from EndPoints import auth, companies, clinics, users, clients, families, appointments, medical_logs, exam_data, orders, referrals, files, settings, work_shifts, lookups, campaigns, contact_lenses, billing, chats, email_logs, exam_layouts, exams, unified_exam_data, ai
+from EndPoints import auth, companies, clinics, users, clients, families, appointments, medical_logs, orders, referrals, files, settings, work_shifts, lookups, campaigns, billing, chats, email_logs, exam_layouts, exams, unified_exam_data, ai, control_center
 import httpx
 import json
 from fastapi.responses import StreamingResponse
@@ -16,7 +18,8 @@ logging.basicConfig(level=logging.INFO)
 app = FastAPI(
     title=config.settings.PROJECT_NAME,
     version=config.settings.VERSION,
-    openapi_url=f"{config.settings.API_V1_STR}/openapi.json"
+    openapi_url=f"{config.settings.API_V1_STR}/openapi.json",
+    default_response_class=ORJSONResponse
 )
 
 app.add_middleware(
@@ -26,6 +29,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.add_middleware(GZipMiddleware, minimum_size=1024)
 
 Base.metadata.create_all(bind=engine)
 
@@ -37,22 +42,23 @@ app.include_router(clients.router, prefix=config.settings.API_V1_STR)
 app.include_router(families.router, prefix=config.settings.API_V1_STR)
 app.include_router(appointments.router, prefix=config.settings.API_V1_STR)
 app.include_router(medical_logs.router, prefix=config.settings.API_V1_STR)
-app.include_router(exam_data.router, prefix=config.settings.API_V1_STR)
 app.include_router(orders.router, prefix=config.settings.API_V1_STR)
+app.include_router(orders.cl_router, prefix=config.settings.API_V1_STR)
 app.include_router(referrals.router, prefix=config.settings.API_V1_STR)
 app.include_router(files.router, prefix=config.settings.API_V1_STR)
 app.include_router(settings.router, prefix=config.settings.API_V1_STR)
 app.include_router(work_shifts.router, prefix=config.settings.API_V1_STR)
 app.include_router(lookups.router, prefix=config.settings.API_V1_STR)
 app.include_router(campaigns.router, prefix=config.settings.API_V1_STR)
-app.include_router(contact_lenses.router, prefix=config.settings.API_V1_STR)
 app.include_router(billing.router, prefix=config.settings.API_V1_STR)
+app.include_router(billing.ol_router, prefix=config.settings.API_V1_STR)
 app.include_router(chats.router, prefix=config.settings.API_V1_STR)
 app.include_router(email_logs.router, prefix=config.settings.API_V1_STR)
 app.include_router(exam_layouts.router, prefix=config.settings.API_V1_STR)
 app.include_router(exams.router, prefix=config.settings.API_V1_STR)
 app.include_router(unified_exam_data.router, prefix=config.settings.API_V1_STR)
 app.include_router(ai.router, prefix=config.settings.API_V1_STR)
+app.include_router(control_center.router, prefix=config.settings.API_V1_STR)
 
 @app.get("/health")
 async def health_check():

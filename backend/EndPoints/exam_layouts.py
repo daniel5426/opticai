@@ -40,10 +40,7 @@ def get_exam_layouts_by_clinic(clinic_id: int, db: Session = Depends(get_db)):
     layouts = db.query(ExamLayout).filter(ExamLayout.clinic_id == clinic_id).all()
     return layouts
 
-@router.get("/type/{type}", response_model=List[ExamLayoutSchema])
-def get_exam_layouts_by_type(type: str, db: Session = Depends(get_db)):
-    layouts = db.query(ExamLayout).filter(ExamLayout.type == type).all()
-    return layouts
+
 
 @router.put("/{layout_id}", response_model=ExamLayoutSchema)
 def update_exam_layout(layout_id: int, layout: ExamLayoutUpdate, db: Session = Depends(get_db)):

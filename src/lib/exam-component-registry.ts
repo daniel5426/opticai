@@ -48,7 +48,9 @@ export class ExamComponentRegistry {
   async loadAllData(layoutInstanceId: number): Promise<Record<string, unknown>> {
     try {
       const response = await apiClient.getUnifiedExamData(layoutInstanceId)
-      return response.data || Object.create(null)
+      const data = response.data || Object.create(null)
+      console.log(`DiopterAdjustmentPanel: Loaded data for layout ${layoutInstanceId}:`, data)
+      return data
     } catch (error) {
       console.error('Error loading exam data:', error)
       return Object.create(null)
@@ -75,9 +77,28 @@ export class ExamComponentRegistry {
           const config = this.get(componentType)
           if (config) {
             // Fix the layout_instance_id to match the correct instance
-            const fixedData = { ...data }
+            const fixedData: any = { ...data }
             if ('layout_instance_id' in fixedData) {
               fixedData.layout_instance_id = layoutInstanceId
+            }
+            // Filter out empty/placeholder Cover Test tabs and deleted ones
+            if (componentType === 'cover-test') {
+              if (fixedData && typeof fixedData === 'object') {
+                if (fixedData.__deleted) {
+                  continue
+                }
+                const meaningfulFields = ['deviation_type','deviation_direction','fv_1','fv_2','nv_1','nv_2']
+                const hasContent = meaningfulFields.some(f => {
+                  const v = (fixedData as any)[f]
+                  return v !== undefined && v !== null && String(v).trim() !== ''
+                })
+                if (!hasContent) {
+                  continue
+                }
+              }
+            }
+            if (componentType === 'diopter-adjustment-panel') {
+              console.log(`DiopterAdjustmentPanel: Saving data for key ${key}:`, fixedData)
             }
             dataToSave[key] = fixedData
           }

@@ -43,12 +43,7 @@ export function CoverTestTab({
   const [dropdownTabIdx, setDropdownTabIdx] = useState<number | null>(null);
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
-  // Always ensure at least one tab exists
-  React.useEffect(() => {
-    if (tabCount === 0 && isEditing) {
-      onAddTab();
-    }
-  }, [tabCount, isEditing, onAddTab]);
+  // Removed auto-add of first tab to avoid duplicate tabs; parent manages initial tab creation
 
   const handleTabClick = (revIdx: number) => {
     onTabChange(revIdx);

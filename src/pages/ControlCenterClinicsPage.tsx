@@ -272,8 +272,8 @@ const ControlCenterClinicsPage: React.FC = () => {
       const parsedCompany = JSON.parse(companyData) as Company;
       setCompany(parsedCompany);
 
-      const clinicsResult = await apiClient.getClinicsByCompany(parsedCompany.id!);
-      const clinicsData = clinicsResult.data || [];
+      const aggResp = await apiClient.getControlCenterClinics(parsedCompany.id!);
+      const clinicsData = (aggResp.data as any)?.clinics || [];
       setClinics(clinicsData);
     } catch (error) {
       console.error('Error loading clinics data:', error);

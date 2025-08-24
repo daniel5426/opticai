@@ -20,7 +20,7 @@ export default function UserSelectionPage() {
   const [isLoggingIn, setIsLoggingIn] = useState(false)
   const [loadedImages, setLoadedImages] = useState<Set<string>>(new Set())
   const [selectedClinic, setSelectedClinic] = useState<any>(null)
-  const { login, setCurrentClinic } = useUser()
+  const { login, setCurrentClinic, setCurrentUser } = useUser()
   const navigate = useNavigate()
 
   // Preload profile images for better performance
@@ -70,7 +70,7 @@ export default function UserSelectionPage() {
         ) : (
           <div className="w-full h-full flex items-center justify-center">
             <span className={`text-slate-700 dark:text-slate-300 ${textSizes[size]} font-medium group-hover:text-slate-900 dark:group-hover:text-slate-100 transition-colors duration-300`}>
-              {user.username.charAt(0).toUpperCase()}
+              {(user.full_name || user.username).charAt(0).toUpperCase()}
             </span>
           </div>
         )}
@@ -124,10 +124,58 @@ export default function UserSelectionPage() {
       console.log('UserSelectionPage: Selected user has_password field:', selectedUser.has_password);
       console.log('UserSelectionPage: Has password:', hasPassword);
       
-      const success = await login(
-        selectedUser.username,
-        hasPassword ? password : undefined
-      )
+      const identifier = selectedUser.email || selectedUser.username
+      if (!identifier) {
+        toast.error('למשתמש אין אימייל או שם משתמש תקין')
+        setIsLoggingIn(false)
+        return
+      }
+      // For users without password, use the passwordless login endpoint
+      if (!hasPassword) {
+        console.log('UserSelectionPage: User has no password, using passwordless login');
+        try {
+          const response = await fetch(`${(apiClient as any).baseUrl}/auth/login-no-password`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ username: selectedUser.username }),
+          });
+          
+          const loginResponse = await response.json();
+          
+          if (loginResponse?.access_token) {
+            // Set the token for future API calls
+            apiClient.setToken(loginResponse.access_token);
+            
+            // Set user in context
+            await setCurrentUser(selectedUser)
+            setCurrentClinic(selectedClinic)
+            
+            // Store user info locally
+            localStorage.setItem('currentUserId', selectedUser.id!.toString())
+            localStorage.setItem('currentUser', JSON.stringify(selectedUser))
+            
+            setTimeout(() => {
+              try {
+                navigate({ to: '/dashboard' })
+                console.log('UserSelectionPage: Navigation command sent for passwordless user');
+              } catch (navError) {
+                console.error('UserSelectionPage: Navigation error:', navError);
+                window.location.href = '/dashboard'
+              }
+            }, 0)
+          } else {
+            toast.error('שגיאה בהתחברות ללא סיסמה')
+          }
+        } catch (error) {
+          console.error('Passwordless login error:', error);
+          toast.error('שגיאה בהתחברות ללא סיסמה')
+        }
+        setIsLoggingIn(false)
+        return
+      }
+      const success = await login(identifier, password)
       
       console.log('UserSelectionPage: Login result:', success);
       
@@ -211,9 +259,9 @@ export default function UserSelectionPage() {
               <h1 className="text-3xl font-medium text-slate-900 dark:text-slate-100 mb-2" dir="rtl">
                 בחר משתמש
               </h1>
-              <p className="text-slate-600 dark:text-slate-400" dir="rtl">
-                לחץ על המשתמש שלך כדי להתחבר למערכת
-              </p>
+                   <p className="text-slate-600 dark:text-slate-400" dir="rtl">
+                 לחץ על המשתמש שלך כדי להתחבר למערכת
+               </p>
               <div className="mt-4">
                 <Button
                   variant="outline"
@@ -255,8 +303,8 @@ export default function UserSelectionPage() {
                   </div>
                   
                   <div className="text-center transform transition-all duration-300 group-hover:-translate-y-1">
-                    <h3 className="text-slate-900 dark:text-slate-100 text-sm font-medium mb-1 group-hover:text-slate-600 dark:group-hover:text-slate-300 transition-colors duration-300">
-                      {user.username}
+                     <h3 className="text-slate-900 dark:text-slate-100 text-sm font-medium mb-1 group-hover:text-slate-600 dark:group-hover:text-slate-300 transition-colors duration-300">
+                      {user.full_name || user.username}
                     </h3>
                     <Badge 
                       variant={
@@ -292,8 +340,8 @@ export default function UserSelectionPage() {
               </div>
               
               <div className="text-center">
-                <h2 className="text-slate-900 dark:text-slate-100 text-2xl font-medium mb-2">
-                  {selectedUser.username}
+                 <h2 className="text-slate-900 dark:text-slate-100 text-2xl font-medium mb-2">
+                  {selectedUser.full_name || selectedUser.username}
                 </h2>
                 <Badge 
                   variant={

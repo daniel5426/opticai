@@ -124,12 +124,11 @@ class ConnectionManager {
     }
   }
 
-  async authenticateUser(username: string, password?: string): Promise<any> {
+  async authenticateUser(): Promise<any> {
     if (this.isRemoteMode()) {
-      return httpClient.authenticateUser(username, password);
-  }
-    // For local mode, authentication is handled by a specific IPC call, not the generic DB one.
-    return window.electronAPI.db('authenticateUser', username, password);
+      return apiClient.getCurrentUser();
+    }
+    return window.electronAPI.db('authenticateUser');
   }
 
   getConnectionStatus(): {
@@ -173,7 +172,7 @@ class DynamicConnectionManager extends ConnectionManager {
             'createUser': 'createUser',
             'updateUser': 'updateUser',
             'deleteUser': 'deleteUser',
-            'authenticateUser': 'authenticateUser',
+            'authenticateUser': 'getCurrentUser',
             'getAllAppointments': 'getAllAppointments',
             'getAppointmentById': 'getAppointmentById',
             'createAppointment': 'createAppointment',
