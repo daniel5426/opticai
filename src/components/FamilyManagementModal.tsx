@@ -7,11 +7,12 @@ import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
-import { getAllClients } from "@/lib/db/clients-db"
-import { createFamily, updateFamily, addClientToFamily, removeClientFromFamily, getFamilyMembers } from "@/lib/db/family-db"
+import { getPaginatedClients } from "@/lib/db/clients-db"
+import { createFamily, updateFamily, addClientToFamily, removeClientFromFamily } from "@/lib/db/family-db"
 import { toast } from "sonner"
-import { SearchIcon } from "lucide-react"
+import { SearchIcon, Loader2 } from "lucide-react"
 import { useUser } from "@/contexts/UserContext"
+import { Skeleton } from "@/components/ui/skeleton"
 
 interface FamilyManagementModalProps {
   isOpen: boolean
@@ -29,16 +30,21 @@ export function FamilyManagementModal({ isOpen, onClose, family, onFamilyChange 
   const { currentClinic } = useUser()
   const [familyName, setFamilyName] = useState('')
   const [familyNotes, setFamilyNotes] = useState('')
-  const [allClients, setAllClients] = useState<Client[]>([])
-  const [clientsWithSelection, setClientsWithSelection] = useState<ClientWithSelection[]>([])
-  const [filteredClients, setFilteredClients] = useState<ClientWithSelection[]>([])
-  const [searchTerm, setSearchTerm] = useState('')
+  const [clients, setClients] = useState<Client[]>([])
+  const [total, setTotal] = useState(0)
+  const [offset, setOffset] = useState(0)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const listRef = React.useRef<HTMLDivElement | null>(null)
+  const pageSize = 25
   const [isLoading, setIsLoading] = useState(false)
   const [currentMembers, setCurrentMembers] = useState<Client[]>([])
+  const [selectedState, setSelectedState] = useState<Record<number, { isSelected: boolean; role: string }>>({})
 
   useEffect(() => {
     if (isOpen) {
-      loadClients()
       if (family) {
         setFamilyName(family.name)
         setFamilyNotes(family.notes || '')
@@ -47,77 +53,127 @@ export function FamilyManagementModal({ isOpen, onClose, family, onFamilyChange 
         setFamilyName('')
         setFamilyNotes('')
         setCurrentMembers([])
+        setSelectedState({})
       }
-      setSearchTerm('')
+      setClients([])
+      setTotal(0)
+      setOffset(0)
+      setSearchQuery('')
     }
   }, [isOpen, family])
 
-  const loadClients = async () => {
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(searchQuery), 400)
+    return () => clearTimeout(t)
+  }, [searchQuery])
+
+  const fetchPage = async (nextOffset: number, isLoadMore: boolean = false) => {
     if (!currentClinic) return
-    
     try {
-      const clients = await getAllClients(currentClinic.id)
-      setAllClients(clients)
+      if (isLoadMore) {
+        setLoadingMore(true)
+      } else {
+        setLoading(true)
+      }
+      const { items, total } = await getPaginatedClients(currentClinic.id, {
+        limit: pageSize,
+        offset: nextOffset,
+        order: 'id_desc',
+        search: debouncedSearch || undefined,
+      })
+      setClients(prev => (nextOffset === 0 ? items : [...prev, ...items]))
+      setTotal(total)
+      setOffset(nextOffset + items.length)
     } catch (error) {
       console.error('Error loading clients:', error)
+    } finally {
+      if (isLoadMore) {
+        setLoadingMore(false)
+      } else {
+        setLoading(false)
+      }
     }
   }
 
-  const loadCurrentMembers = async () => {
+  const loadCurrentMembers = () => {
     if (!family?.id) return
-    try {
-      const members = await getFamilyMembers(family.id)
-      setCurrentMembers(members)
-    } catch (error) {
-      console.error('Error loading current members:', error)
+    const members = Array.isArray(family.clients) ? family.clients : []
+    setCurrentMembers(members)
+    const initialSelected: Record<number, { isSelected: boolean; role: string }> = {}
+    for (const m of members) {
+      if (m.id !== undefined) initialSelected[m.id] = { isSelected: true, role: m.family_role || 'אחר' }
     }
+    setSelectedState(prev => ({ ...initialSelected, ...prev }))
   }
 
   useEffect(() => {
-    if (allClients.length > 0) {
-      const clientsWithSelectionData = allClients.map(client => ({
-        ...client,
-        isSelected: currentMembers.some(member => member.id === client.id),
-        selectedRole: currentMembers.find(member => member.id === client.id)?.family_role || 'אחר'
-      }))
-      setClientsWithSelection(clientsWithSelectionData)
+    if (isOpen && currentClinic) {
+      setClients([])
+      setTotal(0)
+      setOffset(0)
+      fetchPage(0)
     }
-  }, [allClients, currentMembers])
+  }, [isOpen, currentClinic, debouncedSearch])
 
   useEffect(() => {
-    if (searchTerm.trim() === '') {
-      setFilteredClients(clientsWithSelection)
-    } else {
-      const filtered = clientsWithSelection.filter(client => {
-        const fullName = `${client.first_name} ${client.last_name}`.toLowerCase()
-        const nationalId = client.national_id?.toLowerCase() || ''
-        const search = searchTerm.toLowerCase()
-        
-        return fullName.includes(search) || nationalId.includes(search)
-      })
-      setFilteredClients(filtered)
+    const el = listRef.current
+    if (!el) return
+    const onScroll = () => {
+      if (loadingMore || loading) return
+      if (clients.length >= total) return
+      const threshold = 64
+      if (el.scrollTop + el.clientHeight >= el.scrollHeight - threshold) {
+        fetchPage(offset, true)
+      }
     }
-  }, [clientsWithSelection, searchTerm])
+    el.addEventListener('scroll', onScroll)
+    return () => el.removeEventListener('scroll', onScroll)
+  }, [clients.length, total, offset, loading, loadingMore])
 
   const handleClientSelection = (clientId: number, isSelected: boolean) => {
-    setClientsWithSelection(prev => 
-      prev.map(client => 
-        client.id === clientId 
-          ? { ...client, isSelected }
-          : client
-      )
-    )
+    setSelectedState(prev => ({
+      ...prev,
+      [clientId]: { isSelected, role: prev[clientId]?.role || 'אחר' }
+    }))
   }
 
   const handleRoleChange = (clientId: number, role: string) => {
-    setClientsWithSelection(prev => 
-      prev.map(client => 
-        client.id === clientId 
-          ? { ...client, selectedRole: role }
-          : client
-      )
-    )
+    setSelectedState(prev => ({
+      ...prev,
+      [clientId]: { isSelected: prev[clientId]?.isSelected ?? true, role }
+    }))
   }
+
+  const currentMemberIdSet = React.useMemo(() => {
+    const s = new Set<number>()
+    for (const m of currentMembers) {
+      if (m.id !== undefined) s.add(m.id)
+    }
+    return s
+  }, [currentMembers])
+
+  const displayClients = React.useMemo(() => {
+    const match = (c: Client) => {
+      const name = `${c.first_name || ''} ${c.last_name || ''}`.toLowerCase()
+      const nid = (c.national_id || '').toLowerCase()
+      const q = (debouncedSearch || '').toLowerCase().trim()
+      if (!q) return true
+      return name.includes(q) || nid.includes(q)
+    }
+    const head: Client[] = []
+    const seen = new Set<number>()
+    for (const m of currentMembers) {
+      if (m.id !== undefined && match(m)) {
+        head.push(m)
+        seen.add(m.id)
+      }
+    }
+    const tail: Client[] = []
+    for (const c of clients) {
+      if (c.id !== undefined && !seen.has(c.id) && match(c)) tail.push(c)
+    }
+    return head.concat(tail)
+  }, [currentMembers, clients, debouncedSearch])
 
   const handleSave = async () => {
     if (!familyName.trim()) {
@@ -147,7 +203,9 @@ export function FamilyManagementModal({ isOpen, onClose, family, onFamilyChange 
         return
       }
 
-      const selectedClients = clientsWithSelection.filter(client => client.isSelected)
+      const selectedClients = Object.entries(selectedState)
+        .filter(([_, v]) => v.isSelected)
+        .map(([k, v]) => ({ id: Number(k), selectedRole: v.role }))
       const currentMemberIds = currentMembers.map(member => member.id)
 
       for (const client of selectedClients) {
@@ -169,7 +227,7 @@ export function FamilyManagementModal({ isOpen, onClose, family, onFamilyChange 
         if (currentMember.id !== undefined) {
           const isStillSelected = selectedClients.some(client => client.id === currentMember.id)
           if (!isStillSelected) {
-            await removeClientFromFamily(currentMember.id)
+            await removeClientFromFamily(currentMember.id, familyResult.id!)
           }
         }
       }
@@ -188,7 +246,8 @@ export function FamilyManagementModal({ isOpen, onClose, family, onFamilyChange 
   const handleCancel = () => {
     setFamilyName('')
     setFamilyNotes('')
-    setClientsWithSelection([])
+    setClients([])
+    setSelectedState({})
     onClose()
   }
 
@@ -235,47 +294,80 @@ export function FamilyManagementModal({ isOpen, onClose, family, onFamilyChange 
             <SearchIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="חפש לקוח לפי שם או תעודת זהות..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-10 text-right"
               dir="rtl"
             />
           </div>
           
-          <div className="max-h-64 overflow-y-auto border rounded-lg p-3" style={{scrollbarWidth: 'none'}}>
-            {filteredClients.length === 0 ? (
-              <p className="text-muted-foreground text-center py-4">
-                {searchTerm ? 'לא נמצאו לקוחות התואמים לחיפוש' : 'טוען לקוחות...'}
-              </p>
-            ) : (
-              <div className="space-y-3">
-                {filteredClients.map((client) => (
-                  <div key={client.id} className="flex items-center justify-between p-3 border rounded-lg bg-muted/20">
+          <div ref={listRef} className="max-h-64 overflow-y-auto border rounded-lg p-3" style={{scrollbarWidth: 'none'}}>
+            {loading ? (
+              <div className="space-y-2 p-1">
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <div key={`skeleton-${i}`} className="p-3 border rounded-md mb-2">
                     <div className="flex items-center gap-3">
-                      <Checkbox
-                        checked={client.isSelected}
-                        onCheckedChange={(checked) => handleClientSelection(client.id!, checked as boolean)}
-                      />
-                      <div>
-                        <p className="font-medium">{client.first_name} {client.last_name}</p>
-                        <p className="text-sm text-muted-foreground">{client.national_id}</p>
+                      <Skeleton className="h-6 w-6 rounded-full" />
+                      <div className="flex-1 space-y-2">
+                        <Skeleton className="h-4 w-2/3" />
+                        <Skeleton className="h-3 w-1/3" />
                       </div>
                     </div>
-                    {client.isSelected && (
-                      <div className="w-32">
-                        <Select value={client.selectedRole} onValueChange={(value) => handleRoleChange(client.id!, value)}>
-                          <SelectTrigger size="sm">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="אב">אב</SelectItem>
-                            <SelectItem value="אם">אם</SelectItem>
-                            <SelectItem value="ילד">ילד</SelectItem>
-                            <SelectItem value="אחר">אחר</SelectItem>
-                          </SelectContent>
-                        </Select>
+                  </div>
+                ))}
+              </div>
+            ) : clients.length === 0 ? (
+              <div className="flex justify-center items-center h-20">
+                <div className="text-gray-500">לא נמצאו לקוחות</div>
+              </div>
+            ) : (
+              displayClients.map((client) => {
+                const isSelected = !!selectedState[client.id!]?.isSelected
+                const selectedRole = selectedState[client.id!]?.role || 'אחר'
+                return (
+                  <div key={`client-${client.id}`} className="p-3 border rounded-md mb-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <Checkbox
+                          checked={isSelected}
+                          onCheckedChange={(checked) => handleClientSelection(client.id!, checked as boolean)}
+                        />
+                        <div>
+                          <p className="font-medium">{client.first_name} {client.last_name}</p>
+                          <p className="text-sm text-muted-foreground">{client.national_id}</p>
+                        </div>
                       </div>
-                    )}
+                      {isSelected && (
+                        <div className="w-32">
+                          <Select value={selectedRole} onValueChange={(value) => handleRoleChange(client.id!, value)}>
+                            <SelectTrigger size="sm">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="אב">אב</SelectItem>
+                              <SelectItem value="אם">אם</SelectItem>
+                              <SelectItem value="ילד">ילד</SelectItem>
+                              <SelectItem value="אחר">אחר</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )
+              })
+            )}
+            {loadingMore && (
+              <div className="space-y-2 p-2">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <div key={`skeleton-more-${i}`} className="p-3 border rounded-md mb-2">
+                    <div className="flex items-center gap-3">
+                      <Skeleton className="h-5 w-5 rounded-full" />
+                      <div className="flex-1 space-y-2">
+                        <Skeleton className="h-3 w-1/2" />
+                        <Skeleton className="h-3 w-1/4" />
+                      </div>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -288,7 +380,7 @@ export function FamilyManagementModal({ isOpen, onClose, family, onFamilyChange 
             בטל
           </Button>
           <Button onClick={handleSave} disabled={isLoading || !familyName.trim()}>
-            {isLoading ? 'שומר...' : family ? 'עדכן משפחה' : 'צור משפחה'}
+            {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : (family ? 'עדכן משפחה' : 'צור משפחה')}
           </Button>
         </div>
       </div>

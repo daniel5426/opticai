@@ -6,7 +6,7 @@ import { ClientsTable } from "@/components/clients-table"
 import { FamiliesTable } from "@/components/families-table"
 import { FamilyManagementModal } from "@/components/FamilyManagementModal"
 import { getAllClients, getPaginatedClients } from "@/lib/db/clients-db"
-import { getAllFamilies } from "@/lib/db/family-db"
+import { getAllFamilies, getPaginatedFamilies } from "@/lib/db/family-db"
 import { Client, Family } from "@/lib/db/schema-interface"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -19,48 +19,91 @@ export default function ClientsPage() {
   const { currentClinic } = useUser()
   const [clients, setClients] = useState<Client[]>([])
   const [families, setFamilies] = useState<Family[]>([])
-  const [loading, setLoading] = useState(true)
-  const [page, setPage] = useState(1)
+  const [clientsLoading, setClientsLoading] = useState(true)
+  const [familiesLoading, setFamiliesLoading] = useState(false)
+  const [clientsPage, setClientsPage] = useState(1)
+  const [familiesPage, setFamiliesPage] = useState(1)
   const [pageSize] = useState(25)
-  const [total, setTotal] = useState(0)
+  const [clientsTotal, setClientsTotal] = useState(0)
+  const [familiesTotal, setFamiliesTotal] = useState(0)
   const [isFamilyMode, setIsFamilyMode] = useState(false)
   const [selectedFamily, setSelectedFamily] = useState<Family | null>(null)
+  
   const [isFamilyModalOpen, setIsFamilyModalOpen] = useState(false)
   const [editingFamily, setEditingFamily] = useState<Family | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
+  const [debouncedSearch, setDebouncedSearch] = useState("")
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(searchQuery), 400)
+    return () => clearTimeout(t)
+  }, [searchQuery])
+
+  // Show loading instantly while waiting for debounced server search
+  useEffect(() => {
+    if (!currentClinic) return
+    if (isFamilyMode) {
+      setFamiliesLoading(true)
+      setFamilies([])
+    } else {
+      setClientsLoading(true)
+      setClients([])
+    }
+  }, [searchQuery, currentClinic, isFamilyMode])
 
   const loadClients = async () => {
     try {
-      setLoading(true)
-      const offset = (page - 1) * pageSize
-      const { items, total } = await getPaginatedClients(currentClinic?.id, { limit: pageSize, offset, order: 'id_desc' })
+      setClientsLoading(true)
+      const offset = (clientsPage - 1) * pageSize
+      const { items, total } = await getPaginatedClients(
+        currentClinic?.id,
+        { limit: pageSize, offset, order: 'id_desc', search: isFamilyMode ? undefined : (debouncedSearch || undefined) }
+      )
       setClients(items)
-      setTotal(total)
+      setClientsTotal(total)
     } catch (error) {
       console.error('Error loading clients:', error)
     } finally {
-      setLoading(false)
+      setClientsLoading(false)
     }
   }
 
   const loadFamilies = async () => {
     try {
-      const familiesData = await getAllFamilies(currentClinic?.id)
-      setFamilies(familiesData)
+      setFamiliesLoading(true)
+      const offset = (familiesPage - 1) * pageSize
+      const {items, total} = await getPaginatedFamilies(currentClinic?.id, { limit: pageSize, offset, order: 'id_desc', search: debouncedSearch || undefined })
+      setFamilies(items)
+      setFamiliesTotal(total)
     } catch (error) {
       console.error('Error loading families:', error)
+    } finally {
+      setFamiliesLoading(false)
     }
   }
 
   const loadData = async () => {
-    await Promise.all([loadClients(), loadFamilies()])
+    if (isFamilyMode) {
+      await Promise.all([loadFamilies(), loadClients()])
+    } else {
+      await loadClients()
+    }
   }
 
   useEffect(() => {
     if (currentClinic) {
       loadData()
     }
-  }, [currentClinic, page, pageSize])
+  }, [currentClinic, pageSize, debouncedSearch, isFamilyMode, clientsPage, familiesPage])
+
+  // Reset to first page when search changes
+  useEffect(() => {
+    if (isFamilyMode) {
+      setFamiliesPage(1)
+    } else {
+      setClientsPage(1)
+    }
+  }, [debouncedSearch, isFamilyMode])
 
   const handleClientDeleted = (clientId: number) => {
     setClients(prevClients => prevClients.filter(client => client.id !== clientId))
@@ -70,9 +113,35 @@ export default function ClientsPage() {
     loadClients()
   }
 
+  
+
   const handleFamilySelected = (family: Family | null) => {
     setSelectedFamily(family)
+    if (isFamilyMode) {
+      if (family?.id) {
+        const found = families.find(f => f.id === family.id)
+        const members = found?.clients || []
+        setClients(members)
+        setClientsTotal(members.length)
+      } else {
+        setClients([])
+        setClientsTotal(0)
+      }
+    }
   }
+
+  useEffect(() => {
+    if (!isFamilyMode) return
+    if (!selectedFamily?.id) {
+      setClients([])
+      setClientsTotal(0)
+      return
+    }
+    const found = families.find(f => f.id === selectedFamily.id)
+    const members = found?.clients || []
+    setClients(members)
+    setClientsTotal(members.length)
+  }, [isFamilyMode, selectedFamily?.id, currentClinic?.id, families])
 
   const handleFamilyEdit = (family: Family) => {
     setEditingFamily(family)
@@ -96,8 +165,19 @@ export default function ClientsPage() {
     setEditingFamily(null)
   }
 
-  const handleFamilyChange = () => {
-    loadData()
+  const handleFamilyChange = async () => {
+    await loadData()
+    if (isFamilyMode) {
+      if (!selectedFamily?.id) {
+        setClients([])
+        setClientsTotal(0)
+      } else {
+        const found = families.find(f => f.id === selectedFamily.id)
+        const members = found?.clients || []
+        setClients(members)
+        setClientsTotal(members.length)
+      }
+    }
   }
 
   const handleCreateFamily = () => {
@@ -174,6 +254,8 @@ export default function ClientsPage() {
                     searchQuery={searchQuery}
                     onSearchChange={setSearchQuery}
                     hideSearch={true}
+                    loading={familiesLoading}
+                    pagination={{ page: familiesPage, pageSize, total: familiesTotal, setPage: setFamiliesPage }}
                   />
                 </div>
                 <div className="space-y-2">
@@ -186,7 +268,6 @@ export default function ClientsPage() {
                     hideSearch={true}
                     hideNewButton={true}
                     compactMode={true}
-                    loading={loading}
                   />
                 </div>
               </div>
@@ -199,8 +280,8 @@ export default function ClientsPage() {
                 onSearchChange={setSearchQuery}
                 hideSearch={true}
                 hideNewButton={true}
-                loading={loading}
-                pagination={{ page, pageSize, total, setPage }}
+                loading={clientsLoading}
+                pagination={{ page: clientsPage, pageSize, total: clientsTotal, setPage: setClientsPage }}
               />
             )}
             

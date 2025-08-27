@@ -18,6 +18,7 @@ def get_enriched_exams(
     limit: int = Query(50, ge=1, le=100, description="Max items to return"),
     offset: int = Query(0, ge=0, description="Items to skip"),
     order: Optional[str] = Query("exam_date_desc", description="Sort order: exam_date_desc|exam_date_asc"),
+    search: Optional[str] = Query(None, description="Search by client name, username, test name, or clinic"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -40,6 +41,19 @@ def get_enriched_exams(
         pass
     else:
         base_query = base_query.filter(OpticalExam.clinic_id == current_user.clinic_id)
+
+    # Apply search
+    if search:
+        like = f"%{search.strip()}%"
+        base_query = base_query.filter(
+            or_(
+                func.concat(Client.first_name, ' ', Client.last_name).ilike(like),
+                User.username.ilike(like),
+                User.full_name.ilike(like),
+                OpticalExam.test_name.ilike(like),
+                OpticalExam.clinic.ilike(like),
+            )
+        )
 
     # Count total before pagination
     total = base_query.count()

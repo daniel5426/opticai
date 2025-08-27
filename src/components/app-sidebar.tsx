@@ -24,6 +24,7 @@ import {
   IconFiles,
   IconLayoutGrid,
   IconChartLine,
+  IconUserCog,
 } from "@tabler/icons-react"
 import { Link } from "@tanstack/react-router"
 
@@ -151,7 +152,7 @@ export function AppSidebar({
 
   const clinicHeaderContent = (
     <>
-      {hasLogo ? (
+      {hasLogo && (
         <img 
           src={logoPath} 
           alt="לוגו המרפאה" 
@@ -161,10 +162,8 @@ export function AppSidebar({
             isLogoLoaded && isLogoVisible ? "opacity-100" : "opacity-0"
           )}
         />
-      ) : (
-        <IconInnerShadowTop className="!size-5" />
-      )}
-      <span className="text-base font-semibold">{clinicName || ""}</span>
+      ) }
+      <span className="text-base font-semibold whitespace-normal break-words leading-tight text-right max-w-full">{clinicName || ""}</span>
     </>
   )
 
@@ -173,19 +172,22 @@ export function AppSidebar({
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton
-              className="data-[slot=sidebar-menu-button]:!p-1.5"
+          <SidebarMenuButton
+              asChild
+              className="data-[slot=sidebar-menu-button]:!p-1.5 !h-auto min-h-5 items-start"
             >
-              <ClinicDropdown
-                currentClinic={currentClinic}
-                clinicName={clinicName}
-                logoPath={logoPath}
-                isLogoLoaded={isLogoLoaded}
-              >
-                <div className="flex items-center gap-2">
-                  {clinicHeaderContent}
-                </div>
-              </ClinicDropdown>
+              <div>
+                <ClinicDropdown
+                  currentClinic={currentClinic}
+                  clinicName={clinicName}
+                  logoPath={logoPath}
+                  isLogoLoaded={true}
+                >
+                  <div className="flex items-start gap-2 w-full max-w-full min-w-0 overflow-hidden ring-0 border-0">
+                    {clinicHeaderContent}
+                  </div>
+                </ClinicDropdown>
+              </div>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>

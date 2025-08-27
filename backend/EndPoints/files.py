@@ -79,12 +79,35 @@ def get_files_paginated(
     limit: int = Query(25, ge=1, le=100, description="Max items to return"),
     offset: int = Query(0, ge=0, description="Items to skip"),
     order: Optional[str] = Query("upload_date_desc", description="Sort order: upload_date_desc|upload_date_asc|id_desc|id_asc"),
+    search: Optional[str] = Query(None, description="Search by file name/type/uploader/client name/notes"),
     db: Session = Depends(get_db)
 ):
-    base = db.query(FileModel)
+    from sqlalchemy import or_, func
+    base = (
+        db.query(
+            FileModel,
+            func.concat(Client.first_name, ' ', Client.last_name).label('client_full_name')
+        )
+        .outerjoin(Client, Client.id == FileModel.client_id)
+    )
     if clinic_id:
         base = base.filter(FileModel.clinic_id == clinic_id)
-    
+    if search:
+        like = f"%{search.strip()}%"
+        base = (
+            base
+            .outerjoin(User, User.id == FileModel.uploaded_by)
+            .filter(
+                or_(
+                    FileModel.file_name.ilike(like),
+                    FileModel.file_type.ilike(like),
+                    FileModel.notes.ilike(like),
+                    func.concat(Client.first_name, ' ', Client.last_name).ilike(like),
+                    User.full_name.ilike(like),
+                    User.username.ilike(like),
+                )
+            )
+        )
     # Apply ordering
     if order == "upload_date_desc":
         base = base.order_by(FileModel.upload_date.desc().nulls_last())
@@ -94,10 +117,13 @@ def get_files_paginated(
         base = base.order_by(FileModel.id.asc())
     else:  # default to id_desc
         base = base.order_by(FileModel.id.desc())
-    
     total = base.count()
-    items = base.offset(offset).limit(limit).all()
-    
+    rows = base.offset(offset).limit(limit).all()
+    items = []
+    for row in rows:
+        f = row[0]
+        setattr(f, 'client_full_name', row[1])
+        items.append(f)
     return {"items": items, "total": total}
 
 @router.get("/{file_id}", response_model=FileSchema)

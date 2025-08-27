@@ -107,6 +107,7 @@ def get_users_paginated(
     limit: int = Query(25, ge=1, le=100, description="Max items to return"),
     offset: int = Query(0, ge=0, description="Items to skip"),
     order: Optional[str] = Query("id_desc", description="Sort order: id_desc|id_asc|username_asc|username_desc|role_asc|role_desc"),
+    search: Optional[str] = Query(None, description="Search by name/email/phone/username"),
     db: Session = Depends(get_db),
     current_user: UserModel = Depends(get_current_user)
 ):
@@ -148,6 +149,19 @@ def get_users_paginated(
         else:
             base = db.query(User).filter(User.id == -1)  # Empty result
     
+    # Apply search filtering
+    if search:
+        from sqlalchemy import or_
+        like = f"%{search.strip()}%"
+        base = base.filter(
+            or_(
+                User.full_name.ilike(like),
+                User.username.ilike(like),
+                User.email.ilike(like),
+                User.phone.ilike(like),
+            )
+        )
+
     # Apply ordering
     if order == "id_asc":
         base = base.order_by(User.id.asc())

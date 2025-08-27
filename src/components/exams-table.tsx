@@ -36,14 +36,15 @@ interface ExamsTableProps {
   pagination?: { page: number; pageSize: number; total: number; setPage: (p: number) => void };
 }
 
-export function ExamsTable({ data, clientId, onExamDeleted, onExamDeleteFailed, loading, pagination }: ExamsTableProps) {
+export function ExamsTable({ data, clientId, onExamDeleted, onExamDeleteFailed, loading, pagination, searchQuery: externalSearch, onSearchChange }: ExamsTableProps & { searchQuery?: string; onSearchChange?: (q: string) => void }) {
   const [searchQuery, setSearchQuery] = useState("");
+  const searchValue = externalSearch !== undefined ? externalSearch : searchQuery;
   const navigate = useNavigate();
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [examToDelete, setExamToDelete] = useState<ExamWithNames | null>(null);
 
   // Filter data based on search query
-  const filteredData = data.filter((exam) => {
+  const filteredData = externalSearch !== undefined ? data : data.filter((exam) => {
     const searchableFields = [
       exam.full_name || exam.username,
       exam.clinic,
@@ -52,7 +53,7 @@ export function ExamsTable({ data, clientId, onExamDeleted, onExamDeleteFailed, 
     ];
     return searchableFields.some(
       (field) =>
-        field && field.toLowerCase().includes(searchQuery.toLowerCase()),
+        field && field.toLowerCase().includes(searchValue.toLowerCase()),
     );
   });
 
@@ -81,13 +82,13 @@ export function ExamsTable({ data, clientId, onExamDeleted, onExamDeleteFailed, 
   };
 
   return (
-    <div className="space-y-4" dir="rtl" style={{scrollbarWidth: 'none'}}>
+    <div className="space-y-4 mb-10" dir="rtl" style={{scrollbarWidth: 'none'}}>
       <div className="flex items-center justify-between">
         <div className="flex gap-2">
           <Input
             placeholder="חיפוש בדיקות..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            value={searchValue}
+            onChange={(e) => (onSearchChange ? onSearchChange(e.target.value) : setSearchQuery(e.target.value))}
             className="w-[250px] bg-card dark:bg-card"
             dir="rtl"
           />
@@ -115,10 +116,10 @@ export function ExamsTable({ data, clientId, onExamDeleted, onExamDeleteFailed, 
 
       </div>
 
-      <div className="rounded-md border bg-card">
+      <div className="rounded-md bg-card">
         
-          <Table dir="rtl">
-            <TableHeader>
+          <Table dir="rtl" containerClassName="max-h-[70vh] overflow-y-auto overscroll-contain" containerStyle={{ scrollbarWidth: 'none' }}>
+            <TableHeader className="sticky top-0 z-30 bg-card">
               <TableRow>
                 <TableHead className="text-right">תאריך בדיקה</TableHead>
                 <TableHead className="text-right">סוג בדיקה</TableHead>

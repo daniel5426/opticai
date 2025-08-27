@@ -14,12 +14,19 @@ export default function AllOrdersPage() {
   const [pageSize] = useState(25)
   const [total, setTotal] = useState(0)
   const navigate = useNavigate()
+  const [searchQuery, setSearchQuery] = useState("")
+  const [debouncedSearch, setDebouncedSearch] = useState("")
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(searchQuery), 400)
+    return () => clearTimeout(t)
+  }, [searchQuery])
 
   const loadData = async () => {
     try {
       setLoading(true)
       const offset = (page - 1) * pageSize
-      const { items, total } = await getPaginatedOrders(currentClinic?.id, { limit: pageSize, offset, order: 'date_desc' })
+      const { items, total } = await getPaginatedOrders(currentClinic?.id, { limit: pageSize, offset, order: 'date_desc', search: debouncedSearch || undefined })
       setOrders(items)
       setTotal(total)
     } catch (error) {
@@ -33,7 +40,11 @@ export default function AllOrdersPage() {
     if (currentClinic) {
       loadData()
     }
-  }, [currentClinic, page, pageSize])
+  }, [currentClinic, page, pageSize, debouncedSearch])
+
+  useEffect(() => {
+    setPage(1)
+  }, [debouncedSearch])
 
   const handleOrderDeleted = (deletedOrderId: number) => {
     setOrders(prevOrders => prevOrders.filter(order => order.id !== deletedOrderId))
@@ -68,6 +79,8 @@ export default function AllOrdersPage() {
           clientId={0} 
           onOrderDeleted={handleOrderDeleted} 
           onOrderDeleteFailed={handleOrderDeleteFailed}
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
           loading={loading}
           pagination={{ page, pageSize, total, setPage }}
         />

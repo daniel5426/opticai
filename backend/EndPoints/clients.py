@@ -4,7 +4,7 @@ from typing import List, Optional
 from database import get_db
 from models import Client, Family, Clinic, User, OpticalExam, Appointment, Order, Referral, File, MedicalLog
 from schemas import ClientCreate, ClientUpdate, Client as ClientSchema
-from sqlalchemy import and_, func
+from sqlalchemy import and_, func, or_
 from auth import get_current_user
 from utils.storage import upload_base64_image
 
@@ -16,6 +16,7 @@ def get_clients_paginated(
     limit: int = Query(25, ge=1, le=100, description="Max items to return"),
     offset: int = Query(0, ge=0, description="Items to skip"),
     order: Optional[str] = Query("id_desc", description="Sort order: id_desc|id_asc"),
+    search: Optional[str] = Query(None, description="Search by name/phone/email"),
     db: Session = Depends(get_db)
 ):
     base = db.query(
@@ -27,10 +28,26 @@ def get_clients_paginated(
         Client.national_id,
         Client.phone_mobile,
         Client.email,
+        Client.family_id,
         Client.family_role,
     )
     if clinic_id:
         base = base.filter(Client.clinic_id == clinic_id)
+
+    # Apply search filtering server-side to avoid fetching entire tables
+    if search:
+        search = search.strip()
+        if search:
+            like = f"%{search}%"
+            base = base.filter(
+                or_(
+                    Client.first_name.ilike(like),
+                    Client.last_name.ilike(like),
+                    func.concat(Client.first_name, ' ', Client.last_name).ilike(like),
+                    Client.phone_mobile.ilike(like),
+                    Client.email.ilike(like),
+                )
+            )
 
     total = base.count()
 
@@ -50,7 +67,8 @@ def get_clients_paginated(
             "national_id": r[5],
             "phone_mobile": r[6],
             "email": r[7],
-            "family_role": r[8],
+            "family_id": r[8],
+            "family_role": r[9],
         }
         for r in rows
     ]

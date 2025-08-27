@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from typing import List, Optional
 from database import get_db
 from models import Family, Client
@@ -13,13 +14,35 @@ def get_families_paginated(
     limit: int = Query(25, ge=1, le=100, description="Max items to return"),
     offset: int = Query(0, ge=0, description="Items to skip"),
     order: Optional[str] = Query("created_desc", description="Sort order: created_desc|created_asc|name_asc|name_desc|id_desc|id_asc"),
+    search: Optional[str] = Query(None, description="Search by family name"),
     db: Session = Depends(get_db)
 ):
-    base = db.query(Family)
+    count_q = db.query(func.count(Family.id))
+    if clinic_id:
+        count_q = count_q.filter(Family.clinic_id == clinic_id)
+    if search:
+        like = f"%{search.strip()}%"
+        count_q = count_q.filter(Family.name.ilike(like))
+
+    total = count_q.scalar() or 0
+
+    base = db.query(
+        Family.id,
+        Family.clinic_id,
+        Family.name,
+        Family.created_date,
+        Family.notes,
+        func.count(Client.id).label('member_count')
+    ).outerjoin(Client, Client.family_id == Family.id)
+
     if clinic_id:
         base = base.filter(Family.clinic_id == clinic_id)
-    
-    # Apply ordering
+    if search:
+        like = f"%{search.strip()}%"
+        base = base.filter(Family.name.ilike(like))
+
+    base = base.group_by(Family.id, Family.clinic_id, Family.name, Family.created_date, Family.notes)
+
     if order == "created_desc":
         base = base.order_by(Family.created_date.desc().nulls_last())
     elif order == "created_asc":
@@ -30,12 +53,47 @@ def get_families_paginated(
         base = base.order_by(Family.name.desc())
     elif order == "id_asc":
         base = base.order_by(Family.id.asc())
-    else:  # default to id_desc
+    else:
         base = base.order_by(Family.id.desc())
-    
-    total = base.count()
-    items = base.offset(offset).limit(limit).all()
-    
+
+    rows = base.offset(offset).limit(limit).all()
+    family_ids = [r[0] for r in rows]
+
+    clients_by_family: dict[int, list] = {}
+    if family_ids:
+        members = (
+            db.query(Client)
+            .filter(Client.family_id.in_(family_ids))
+            .all()
+        )
+        for m in members:
+            if m.family_id is None:
+                continue
+            clients_by_family.setdefault(m.family_id, []).append({
+                "id": m.id,
+                "first_name": m.first_name,
+                "last_name": m.last_name,
+                "family_id": m.family_id,
+                "family_role": m.family_role,
+                "national_id": m.national_id,
+                "phone_mobile": m.phone_mobile,
+                "email": m.email,
+            })
+
+    items = []
+    for r in rows:
+        fid = r[0]
+        clients = clients_by_family.get(fid, [])
+        items.append({
+            "id": fid,
+            "clinic_id": r[1],
+            "name": r[2],
+            "created_date": r[3],
+            "notes": r[4],
+            "member_count": len(clients),
+            "clients": clients,
+        })
+
     return {"items": items, "total": total}
 
 @router.post("/", response_model=FamilySchema)
@@ -98,7 +156,11 @@ def get_family_members(family_id: int, db: Session = Depends(get_db)):
             "id": member.id,
             "first_name": member.first_name,
             "last_name": member.last_name,
-            "family_role": member.family_role
+            "family_id": member.family_id,
+            "family_role": member.family_role,
+            "national_id": member.national_id,
+            "phone_mobile": member.phone_mobile,
+            "email": member.email,
         }
         for member in members
     ]

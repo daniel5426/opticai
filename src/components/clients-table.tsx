@@ -52,6 +52,7 @@ export function ClientsTable({
   const navigate = useNavigate()
 
   const searchQuery = externalSearchQuery !== undefined ? externalSearchQuery : internalSearchQuery
+  const isExternalSearch = externalSearchQuery !== undefined
 
   const handleSearchChange = (value: string) => {
     if (onSearchChange) {
@@ -72,7 +73,8 @@ export function ClientsTable({
       }
     }
 
-    if (searchQuery && filtered.length > 0) {
+    // Only apply local text filtering when using internal search.
+    if (!isExternalSearch && searchQuery && filtered.length > 0) {
       filtered = filtered.filter((client) => {
         const searchableFields = [
           client.first_name,
@@ -90,7 +92,7 @@ export function ClientsTable({
     }
 
     return filtered
-  }, [data, searchQuery, selectedFamilyId, showFamilyColumn])
+  }, [data, searchQuery, selectedFamilyId, showFamilyColumn, isExternalSearch])
 
   const handleDeleteConfirm = async () => {
     if (clientToDelete && clientToDelete.id !== undefined) {
@@ -121,7 +123,7 @@ export function ClientsTable({
   }
 
   return (
-    <div className="space-y-4" dir="rtl">
+    <div className="space-y-4 mb-10" dir="rtl" style={{ scrollbarWidth: 'none' }}>
       {!hideSearch && (
         <div className="flex items-center justify-between">
           <div className="flex gap-2">
@@ -142,19 +144,23 @@ export function ClientsTable({
         </div>
       )}
 
-      <div className="rounded-md border bg-card">
-        <Table dir="rtl">
-          <TableHeader>
+      <div className="rounded-md bg-card">
+        <Table
+          dir="rtl"
+          containerClassName="max-h-[70vh] overflow-y-auto overscroll-contain"
+          containerStyle={{ scrollbarWidth: 'none' }}
+        >
+          <TableHeader className="sticky top-0 z-30 bg-card">
             <TableRow>
-              <TableHead className="text-right">מס' לקוח</TableHead>
-              <TableHead className="text-right">שם פרטי</TableHead>
-              <TableHead className="text-right">שם משפחה</TableHead>
-              {!compactMode && <TableHead className="text-right">מגדר</TableHead>}
-              <TableHead className="text-right">ת.ז.</TableHead>
-              {!compactMode && <TableHead className="text-right">נייד</TableHead>}
-              {!compactMode && <TableHead className="text-right">אימייל</TableHead>}
-              {showFamilyColumn && <TableHead className="text-right">תפקיד במשפחה</TableHead>}
-              <TableHead className="w-[50px] text-right"></TableHead>
+              <TableHead className="text-right sticky top-0 z-20 bg-card">מס' לקוח</TableHead>
+              <TableHead className="text-right sticky top-0 z-20 bg-card">שם פרטי</TableHead>
+              <TableHead className="text-right sticky top-0 z-20 bg-card">שם משפחה</TableHead>
+              {!compactMode && <TableHead className="text-right sticky top-0 z-20 bg-card">מגדר</TableHead>}
+              <TableHead className="text-right sticky top-0 z-20 bg-card">ת.ז.</TableHead>
+              {!compactMode && <TableHead className="text-right sticky top-0 z-20 bg-card">נייד</TableHead>}
+              {!compactMode && <TableHead className="text-right sticky top-0 z-20 bg-card">אימייל</TableHead>}
+              {showFamilyColumn && <TableHead className="text-right sticky top-0 z-20 bg-card">תפקיד במשפחה</TableHead>}
+              <TableHead className="w-[50px] text-right sticky top-0 z-20 bg-card"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>

@@ -230,43 +230,43 @@ export function SiteHeader({ title, backLink, parentTitle, parentLink, grandpare
             >
               <TabsList className="bg-transparent">
                 <TabsTrigger 
-                  className="data-[state=active]:text-foreground data-[state=active]:bg-accent data-[state=inactive]:text-muted-foreground data-[state=inactive]:bg-transparent" 
+                  className="data-[state=active]:text-foreground data-[state=active]:bg-accent data-[state=inactive]:text-muted-foreground data-[state=inactive]:bg-transparent flex-none whitespace-nowrap" 
                   value="details"
                 >
                   פרטים אישיים
                 </TabsTrigger>
                 <TabsTrigger 
-                  className="data-[state=active]:text-foreground data-[state=active]:bg-accent data-[state=inactive]:text-muted-foreground data-[state=inactive]:bg-transparent" 
+                  className="data-[state=active]:text-foreground data-[state=active]:bg-accent data-[state=inactive]:text-muted-foreground data-[state=inactive]:bg-transparent flex-none whitespace-nowrap" 
                   value="exams"
                 >
                   בדיקות
                 </TabsTrigger>
                 <TabsTrigger 
-                  className="data-[state=active]:text-foreground data-[state=active]:bg-accent data-[state=inactive]:text-muted-foreground data-[state=inactive]:bg-transparent" 
+                  className="data-[state=active]:text-foreground data-[state=active]:bg-accent data-[state=inactive]:text-muted-foreground data-[state=inactive]:bg-transparent flex-none whitespace-nowrap" 
                   value="medical"
                 >
                   גליון רפואי
                 </TabsTrigger>
                 <TabsTrigger 
-                  className="data-[state=active]:text-foreground data-[state=active]:bg-accent data-[state=inactive]:text-muted-foreground data-[state=inactive]:bg-transparent" 
+                  className="data-[state=active]:text-foreground data-[state=active]:bg-accent data-[state=inactive]:text-muted-foreground data-[state=inactive]:bg-transparent flex-none whitespace-nowrap" 
                   value="orders"
                 >
                   הזמנות
                 </TabsTrigger>
                 <TabsTrigger 
-                  className="data-[state=active]:text-foreground data-[state=active]:bg-accent data-[state=inactive]:text-muted-foreground data-[state=inactive]:bg-transparent" 
+                  className="data-[state=active]:text-foreground data-[state=active]:bg-accent data-[state=inactive]:text-muted-foreground data-[state=inactive]:bg-transparent flex-none whitespace-nowrap" 
                   value="referrals"
                 >
                   הפניות
                 </TabsTrigger>
                 <TabsTrigger 
-                  className="data-[state=active]:text-foreground data-[state=active]:bg-accent data-[state=inactive]:text-muted-foreground data-[state=inactive]:bg-transparent" 
+                  className="data-[state=active]:text-foreground data-[state=active]:bg-accent data-[state=inactive]:text-muted-foreground data-[state=inactive]:bg-transparent flex-none whitespace-nowrap" 
                   value="appointments"
                 >
                   תורים
                 </TabsTrigger>
                 <TabsTrigger 
-                  className="data-[state=active]:text-foreground data-[state=active]:bg-accent data-[state=inactive]:text-muted-foreground data-[state=inactive]:bg-transparent" 
+                  className="data-[state=active]:text-foreground data-[state=active]:bg-accent data-[state=inactive]:text-muted-foreground data-[state=inactive]:bg-transparent flex-none whitespace-nowrap" 
                   value="files"
                 >
                   קבצים

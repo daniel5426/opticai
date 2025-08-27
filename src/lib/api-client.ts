@@ -340,77 +340,87 @@ class ApiClient {
     return this.request<Client[]>(url);
   }
 
-  async getClientsPaginated(clinicId?: number, options?: { limit?: number; offset?: number; order?: 'id_desc' | 'id_asc' }) {
+  async getClientsPaginated(
+    clinicId?: number,
+    options?: { limit?: number; offset?: number; order?: 'id_desc' | 'id_asc'; search?: string }
+  ) {
     const params = new URLSearchParams();
     if (clinicId) params.append('clinic_id', clinicId.toString());
     if (options?.limit !== undefined) params.append('limit', String(options.limit));
     if (options?.offset !== undefined) params.append('offset', String(options.offset));
     if (options?.order) params.append('order', options.order);
+    if (options?.search) params.append('search', options.search);
     const qs = params.toString();
     return this.request<{ items: Client[]; total: number }>(`/clients/paginated${qs ? `?${qs}` : ''}`);
   }
 
   // Referrals pagination
-  async getReferralsPaginated(clinicId?: number, options?: { limit?: number; offset?: number; order?: 'date_desc' | 'date_asc' | 'id_desc' | 'id_asc' }) {
+  async getReferralsPaginated(clinicId?: number, options?: { limit?: number; offset?: number; order?: 'date_desc' | 'date_asc' | 'id_desc' | 'id_asc'; search?: string }) {
     const params = new URLSearchParams();
     if (clinicId) params.append('clinic_id', clinicId.toString());
     if (options?.limit !== undefined) params.append('limit', String(options.limit));
     if (options?.offset !== undefined) params.append('offset', String(options.offset));
     if (options?.order) params.append('order', options.order);
+    if (options?.search) params.append('search', options.search);
     const qs = params.toString();
     return this.request<{ items: any[]; total: number }>(`/referrals/paginated${qs ? `?${qs}` : ''}`);
   }
 
   // Orders pagination
-  async getOrdersPaginated(clinicId?: number, options?: { limit?: number; offset?: number; order?: 'date_desc' | 'date_asc' | 'id_desc' | 'id_asc' }) {
+  async getOrdersPaginated(clinicId?: number, options?: { limit?: number; offset?: number; order?: 'date_desc' | 'date_asc' | 'id_desc' | 'id_asc'; search?: string }) {
     const params = new URLSearchParams();
     if (clinicId) params.append('clinic_id', clinicId.toString());
     if (options?.limit !== undefined) params.append('limit', String(options.limit));
     if (options?.offset !== undefined) params.append('offset', String(options.offset));
     if (options?.order) params.append('order', options.order);
+    if (options?.search) params.append('search', options.search);
     const qs = params.toString();
     return this.request<{ items: any[]; total: number }>(`/orders/paginated${qs ? `?${qs}` : ''}`);
   }
 
   // Files pagination
-  async getFilesPaginated(clinicId?: number, options?: { limit?: number; offset?: number; order?: 'upload_date_desc' | 'upload_date_asc' | 'id_desc' | 'id_asc' }) {
+  async getFilesPaginated(clinicId?: number, options?: { limit?: number; offset?: number; order?: 'upload_date_desc' | 'upload_date_asc' | 'id_desc' | 'id_asc'; search?: string }) {
     const params = new URLSearchParams();
     if (clinicId) params.append('clinic_id', clinicId.toString());
     if (options?.limit !== undefined) params.append('limit', String(options.limit));
     if (options?.offset !== undefined) params.append('offset', String(options.offset));
     if (options?.order) params.append('order', options.order);
+    if (options?.search) params.append('search', options.search);
     const qs = params.toString();
     return this.request<{ items: any[]; total: number }>(`/files/paginated${qs ? `?${qs}` : ''}`);
   }
 
   // Appointments pagination
-  async getAppointmentsPaginated(clinicId?: number, options?: { limit?: number; offset?: number; order?: 'date_desc' | 'date_asc' | 'id_desc' | 'id_asc' }) {
+  async getAppointmentsPaginated(clinicId?: number, options?: { limit?: number; offset?: number; order?: 'date_desc' | 'date_asc' | 'id_desc' | 'id_asc'; search?: string }) {
     const params = new URLSearchParams();
     if (clinicId) params.append('clinic_id', clinicId.toString());
     if (options?.limit !== undefined) params.append('limit', String(options.limit));
     if (options?.offset !== undefined) params.append('offset', String(options.offset));
     if (options?.order) params.append('order', options.order);
+    if (options?.search) params.append('search', options.search);
     const qs = params.toString();
     return this.request<{ items: any[]; total: number }>(`/appointments/paginated${qs ? `?${qs}` : ''}`);
   }
 
   // Families pagination
-  async getFamiliesPaginated(clinicId?: number, options?: { limit?: number; offset?: number; order?: 'created_desc' | 'created_asc' | 'name_asc' | 'name_desc' | 'id_desc' | 'id_asc' }) {
+  async getFamiliesPaginated(clinicId?: number, options?: { limit?: number; offset?: number; order?: 'created_desc' | 'created_asc' | 'name_asc' | 'name_desc' | 'id_desc' | 'id_asc'; search?: string }) {
     const params = new URLSearchParams();
     if (clinicId) params.append('clinic_id', clinicId.toString());
     if (options?.limit !== undefined) params.append('limit', String(options.limit));
     if (options?.offset !== undefined) params.append('offset', String(options.offset));
     if (options?.order) params.append('order', options.order);
+    if (options?.search) params.append('search', options.search);
     const qs = params.toString();
-    return this.request<{ items: any[]; total: number }>(`/families/paginated${qs ? `?${qs}` : ''}`);
+    return this.request<{ items: (Family & { clients?: Client[] })[]; total: number }>(`/families/paginated${qs ? `?${qs}` : ''}`);
   }
 
   // Users pagination
-  async getUsersPaginated(options?: { limit?: number; offset?: number; order?: 'id_desc' | 'id_asc' | 'username_asc' | 'username_desc' | 'role_asc' | 'role_desc' }) {
+  async getUsersPaginated(options?: { limit?: number; offset?: number; order?: 'id_desc' | 'id_asc' | 'username_asc' | 'username_desc' | 'role_asc' | 'role_desc'; search?: string }) {
     const params = new URLSearchParams();
     if (options?.limit !== undefined) params.append('limit', String(options.limit));
     if (options?.offset !== undefined) params.append('offset', String(options.offset));
     if (options?.order) params.append('order', options.order);
+    if (options?.search) params.append('search', options.search);
     const qs = params.toString();
     return this.request<{ items: any[]; total: number }>(`/users/paginated${qs ? `?${qs}` : ''}`);
   }
@@ -548,13 +558,14 @@ class ApiClient {
     });
   }
 
-  async getEnrichedExams(type?: string, clinicId?: number, options?: { limit?: number; offset?: number; order?: 'exam_date_desc' | 'exam_date_asc' }) {
+  async getEnrichedExams(type?: string, clinicId?: number, options?: { limit?: number; offset?: number; order?: 'exam_date_desc' | 'exam_date_asc'; search?: string }) {
     const params = new URLSearchParams();
     if (type) params.append('type', type);
     if (clinicId) params.append('clinic_id', clinicId.toString());
     if (options?.limit !== undefined) params.append('limit', String(options.limit));
     if (options?.offset !== undefined) params.append('offset', String(options.offset));
     if (options?.order) params.append('order', options.order);
+    if (options?.search) params.append('search', options.search);
     const queryString = params.toString();
     const url = `/exams/enriched${queryString ? `?${queryString}` : ''}`;
     return this.request<{ items: any[]; total: number }>(url);
@@ -1380,6 +1391,16 @@ class ApiClient {
   // Health check
   async healthCheck() {
     return this.request('/health');
+  }
+
+  // Dashboard aggregated endpoint
+  async getDashboardHome(clinicId: number, startDate?: string, endDate?: string) {
+    const params = new URLSearchParams();
+    params.append('clinic_id', String(clinicId));
+    if (startDate) params.append('start_date', startDate);
+    if (endDate) params.append('end_date', endDate);
+    const qs = params.toString();
+    return this.request(`/dashboard/home?${qs}`);
   }
 
   // Control Center aggregated endpoints

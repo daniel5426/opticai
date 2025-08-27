@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import config
 from database import engine
 from models import Base
-from EndPoints import auth, companies, clinics, users, clients, families, appointments, medical_logs, orders, referrals, files, settings, work_shifts, lookups, campaigns, billing, chats, email_logs, exam_layouts, exams, unified_exam_data, ai, control_center
+from EndPoints import auth, companies, clinics, users, clients, families, appointments, medical_logs, orders, referrals, files, settings, work_shifts, lookups, campaigns, billing, chats, email_logs, exam_layouts, exams, unified_exam_data, ai, control_center, dashboard
 import httpx
 import json
 from fastapi.responses import StreamingResponse
@@ -59,6 +59,7 @@ app.include_router(exams.router, prefix=config.settings.API_V1_STR)
 app.include_router(unified_exam_data.router, prefix=config.settings.API_V1_STR)
 app.include_router(ai.router, prefix=config.settings.API_V1_STR)
 app.include_router(control_center.router, prefix=config.settings.API_V1_STR)
+app.include_router(dashboard.router, prefix=config.settings.API_V1_STR)
 
 @app.get("/health")
 async def health_check():

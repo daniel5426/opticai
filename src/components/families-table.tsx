@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/table"
 import { Edit2, Trash2 } from "lucide-react"
 import { CustomModal } from "@/components/ui/custom-modal"
-import { deleteFamily, getFamilyMembers } from "@/lib/db/family-db"
+import { deleteFamily } from "@/lib/db/family-db"
 import { toast } from "sonner"
 import { Skeleton } from "@/components/ui/skeleton"
 
@@ -23,8 +23,8 @@ interface FamiliesTableProps {
   onFamilyDeleted?: (familyId: number) => void
   onFamilyDeleteFailed?: () => void
   selectedFamilyId?: number | null
-  searchQuery: string
-  onSearchChange: (query: string) => void
+  searchQuery?: string
+  onSearchChange?: (query: string) => void
   hideSearch?: boolean
   loading?: boolean
   pagination?: { page: number; pageSize: number; total: number; setPage: (p: number) => void }
@@ -37,42 +37,45 @@ export function FamiliesTable({
   onFamilyDeleted, 
   onFamilyDeleteFailed,
   selectedFamilyId,
-  searchQuery,
+  searchQuery: externalSearchQuery,
   onSearchChange,
   hideSearch = false,
   loading = false,
   pagination
 }: FamiliesTableProps) {
+  const [internalSearchQuery, setInternalSearchQuery] = React.useState("")
   const [isDeleteModalOpen, setIsDeleteModalOpen] = React.useState(false)
   const [familyToDelete, setFamilyToDelete] = React.useState<Family | null>(null)
   const [memberCounts, setMemberCounts] = React.useState<Record<number, number>>({})
 
+  const searchQuery = externalSearchQuery !== undefined ? externalSearchQuery : internalSearchQuery
+  const isExternalSearch = externalSearchQuery !== undefined
+
   const filteredData = React.useMemo(() => {
-    return data.filter((family) => {
-      return family.name.toLowerCase().includes(searchQuery.toLowerCase())
-    })
-  }, [data, searchQuery])
+    if (!isExternalSearch && searchQuery) {
+      return data.filter((family) => family.name.toLowerCase().includes(searchQuery.toLowerCase()))
+    }
+    return data
+  }, [data, searchQuery, isExternalSearch])
+
+  const handleSearchChange = (value: string) => {
+    if (onSearchChange) {
+      onSearchChange(value)
+    } else {
+      setInternalSearchQuery(value)
+    }
+  }
 
   React.useEffect(() => {
-    const loadMemberCounts = async () => {
-      const counts: Record<number, number> = {}
-      for (const family of data) {
-        if (family.id) {
-          try {
-            const members = await getFamilyMembers(family.id)
-            counts[family.id] = members.length
-          } catch (error) {
-            console.error('Error loading member count for family:', family.id, error)
-            counts[family.id] = 0
-          }
-        }
+    const counts: Record<number, number> = {}
+    for (const family of data) {
+      if (family.id) {
+        counts[family.id] = typeof family.member_count === 'number' 
+          ? family.member_count 
+          : (family.clients?.length || 0)
       }
-      setMemberCounts(counts)
     }
-
-    if (data.length > 0) {
-      loadMemberCounts()
-    }
+    setMemberCounts(counts)
   }, [data])
 
   const handleDeleteConfirm = async () => {
@@ -102,13 +105,13 @@ export function FamiliesTable({
   }
 
   return (
-    <div className="space-y-4" dir="rtl">
+    <div className="space-y-4 mb-10" dir="rtl">
       {!hideSearch && (
         <div className="flex items-center justify-between">
           <Input
             placeholder="חיפוש משפחות..."
             value={searchQuery}
-            onChange={(e) => onSearchChange(e.target.value)}
+            onChange={(e) => handleSearchChange(e.target.value)}
             className="w-[250px] bg-card dark:bg-card"
             dir="rtl"
           />
@@ -116,9 +119,9 @@ export function FamiliesTable({
         </div>
       )}
 
-      <div className="rounded-md border bg-card">
-        <Table dir="rtl">
-          <TableHeader>
+      <div className="rounded-md bg-card">
+        <Table dir="rtl" containerClassName="max-h-[70vh] overflow-y-auto overscroll-contain" containerStyle={{ scrollbarWidth: 'none' }}>
+          <TableHeader className="sticky top-0 z-30 bg-card">
             <TableRow>
               <TableHead className="text-right">שם המשפחה</TableHead>
               <TableHead className="text-right">מספר חברים</TableHead>

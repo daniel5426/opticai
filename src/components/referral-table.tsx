@@ -11,14 +11,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Referral, Client } from "@/lib/db/schema-interface";
+import { Referral } from "@/lib/db/schema-interface";
 import { deleteReferral } from "@/lib/db/referral-db";
-import { getAllClients } from "@/lib/db/clients-db";
 import { toast } from "sonner";
 import { ClientSelectModal } from "@/components/ClientSelectModal";
 import { CustomModal } from "@/components/ui/custom-modal";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useUser } from "@/contexts/UserContext";
 
 interface ReferralTableProps {
   referrals: Referral[];
@@ -27,6 +25,8 @@ interface ReferralTableProps {
   clientId: number;
   loading: boolean;
   pagination?: { page: number; pageSize: number; total: number; setPage: (p: number) => void };
+  searchQuery?: string;
+  onSearchChange?: (query: string) => void;
 }
 
 export function ReferralTable({
@@ -36,39 +36,22 @@ export function ReferralTable({
   clientId,
   loading,
   pagination,
+  searchQuery: externalSearch,
+  onSearchChange,
 }: ReferralTableProps) {
-  const { currentClinic } = useUser()
   const [searchTerm, setSearchTerm] = useState("");
-  const [clients, setClients] = useState<Client[]>([]);
+  const searchValue = externalSearch !== undefined ? externalSearch : searchTerm;
   const navigate = useNavigate();
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [referralToDelete, setReferralToDelete] = useState<Referral | null>(null);
 
-  useEffect(() => {
-    const loadClients = async () => {
-      if (!currentClinic) return
-      
-      try {
-        const clientsData = await getAllClients(currentClinic.id);
-        setClients(clientsData);
-      } catch (error) {
-        console.error('Error loading clients:', error);
-      }
-    };
-    loadClients();
-  }, [currentClinic]);
 
-  const getClientName = (clientId: number): string => {
-    const client = clients.find(c => c.id === clientId);
-    return client ? `${client.first_name} ${client.last_name}`.trim() : '';
-  };
-
-  const filteredReferrals = referrals.filter(
+  const filteredReferrals = externalSearch !== undefined ? referrals : referrals.filter(
     (referral) =>
-      referral.type?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      referral.recipient?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      referral.branch?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      referral.date?.includes(searchTerm),
+      referral.type?.toLowerCase().includes(searchValue.toLowerCase()) ||
+      referral.recipient?.toLowerCase().includes(searchValue.toLowerCase()) ||
+      referral.branch?.toLowerCase().includes(searchValue.toLowerCase()) ||
+      referral.date?.includes(searchValue),
   );
 
   const handleDeleteConfirm = async () => {
@@ -100,12 +83,12 @@ export function ReferralTable({
   };
 
   return (
-    <div className="space-y-4" style={{ scrollbarWidth: "none" }}>
+    <div className="space-y-4 mb-10" style={{ scrollbarWidth: "none" }}>
       <div className="flex items-center justify-between" dir="rtl">
         <Input
           placeholder="חיפוש הפניות..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
+          value={searchValue}
+          onChange={(e) => (onSearchChange ? onSearchChange(e.target.value) : setSearchTerm(e.target.value))}
           className="w-[250px] bg-card dark:bg-card"
           dir="rtl"
         />
@@ -127,11 +110,11 @@ export function ReferralTable({
       </div>
 
       <div
-        className="overflow-hidden rounded-lg border bg-card"
+        className="overflow-hidden rounded-lg bg-card"
         style={{ scrollbarWidth: "none" }}
       >
-        <Table dir="rtl">
-          <TableHeader>
+        <Table dir="rtl" containerClassName="max-h-[70vh] overflow-y-auto overscroll-contain" containerStyle={{ scrollbarWidth: 'none' }}>
+          <TableHeader className="sticky top-0 z-30 bg-card">
             <TableRow>
               <TableHead className="text-right">תאריך</TableHead>
               <TableHead className="text-right">סוג הפניה</TableHead>
@@ -190,7 +173,7 @@ export function ReferralTable({
                           navigate({ to: "/clients/$clientId", params: { clientId: String(referral.client_id) }, search: { tab: 'referrals' } })
                         }
                       }}
-                    >{getClientName(referral.client_id)}</TableCell>
+                    >{referral.client_full_name || ''}</TableCell>
                   )}
                   <TableCell className="text-right">
                     {referral.branch || "-"}

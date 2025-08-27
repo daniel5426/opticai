@@ -35,6 +35,7 @@ class ClinicBase(BaseModel):
     phone_number: Optional[str] = None
     email: Optional[str] = None
     clinic_position: Optional[str] = None
+    clinic_name: Optional[str] = None
     clinic_address: Optional[str] = None
     clinic_city: Optional[str] = None
     clinic_postal_code: Optional[str] = None
@@ -274,6 +275,8 @@ class AppointmentUpdate(AppointmentBase):
 
 class Appointment(AppointmentBase):
     id: int
+    client_full_name: Optional[str] = None
+    examiner_name: Optional[str] = None
     
     class Config:
         from_attributes = True
@@ -381,7 +384,7 @@ class ReferralBase(BaseModel):
     user_id: Optional[int] = None
     referral_notes: str
     prescription_notes: Optional[str] = None
-    date: Optional[date] = None
+    date: Optional[date]
     type: Optional[str] = None
     branch: Optional[str] = None
     recipient: Optional[str] = None

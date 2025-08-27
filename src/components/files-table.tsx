@@ -18,10 +18,9 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { MoreHorizontal, File, FileText, FileImage, FileVideo, FileAudio, Upload, Download, Trash2 } from "lucide-react"
-import { File as FileType, User, Client } from "@/lib/db/schema-interface"
+import { File as FileType, User } from "@/lib/db/schema-interface"
 import { ClientSelectModal } from "@/components/ClientSelectModal"
 import { getAllUsers } from "@/lib/db/users-db"
-import { getAllClients } from "@/lib/db/clients-db"
 import { deleteFile, createFile } from "@/lib/db/files-db"
 import { apiClient } from "@/lib/api-client"
 import { toast } from "sonner"
@@ -38,13 +37,15 @@ interface FilesTableProps {
   onClientSelectForUpload?: (files: FileList, clientId: number) => void
   loading: boolean
   pagination?: { page: number; pageSize: number; total: number; setPage: (p: number) => void }
+  searchQuery?: string
+  onSearchChange?: (query: string) => void
 }
 
-export function FilesTable({ data, clientId, onFileDeleted, onFileDeleteFailed, onFileUploaded, onClientSelectForUpload, loading, pagination }: FilesTableProps) {
+export function FilesTable({ data, clientId, onFileDeleted, onFileDeleteFailed, onFileUploaded, onClientSelectForUpload, loading, pagination, searchQuery: externalSearch, onSearchChange }: FilesTableProps) {
   const { currentClinic } = useUser()
   const [searchQuery, setSearchQuery] = useState("")
+  const searchValue = externalSearch !== undefined ? externalSearch : searchQuery
   const [users, setUsers] = useState<User[]>([])
-  const [clients, setClients] = useState<Client[]>([])
   const [isDragOver, setIsDragOver] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
   const [showClientSelect, setShowClientSelect] = useState(false)
@@ -55,34 +56,9 @@ export function FilesTable({ data, clientId, onFileDeleted, onFileDeleteFailed, 
   const [fileToDelete, setFileToDelete] = useState<FileType | null>(null)
   const [isDownloading, setIsDownloading] = useState<Record<number, boolean>>({})
 
-  useEffect(() => {
-    const loadData = async () => {
-      if (!currentClinic) return
-      
-      try {
-        const [usersData, clientsData] = await Promise.all([
-          getAllUsers(currentClinic.id),
-          getAllClients(currentClinic.id)
-        ])
-        setUsers(usersData)
-        setClients(clientsData)
-      } catch (error) {
-        console.error('Error loading data:', error)
-      }
-    }
-    loadData()
-  }, [currentClinic])
 
-  const getUserName = (userId?: number): string => {
-    if (!userId) return ''
-    const user = users.find(u => u.id === userId)
-  return user?.full_name || user?.username || ''
-  }
 
-  const getClientName = (clientId: number): string => {
-    const client = clients.find(c => c.id === clientId)
-    return client ? `${client.first_name} ${client.last_name}`.trim() : ''
-  }
+  const getClientName = (file: FileType): string => file.client_full_name || ''
 
   const getFileIcon = (fileType?: string) => {
     if (!fileType) return <File className="h-4 w-4" />
@@ -280,24 +256,23 @@ export function FilesTable({ data, clientId, onFileDeleted, onFileDeleteFailed, 
     }
   }
 
-  const filteredData = data.filter((file) => {
+  const filteredData = externalSearch !== undefined ? data : data.filter((file) => {
     const searchableFields = [
       file.file_name || '',
       file.file_type || '',
       file.upload_date || '',
-      getUserName(file.uploaded_by),
-      getClientName(file.client_id),
+      getClientName(file),
       file.notes || ''
     ]
 
     return searchableFields.some(
-      (field) => field.toLowerCase().includes(searchQuery.toLowerCase())
+      (field) => field.toLowerCase().includes(searchValue.toLowerCase())
     )
   })
 
   return (
     <div 
-      className="relative space-y-4 min-h-[60vh]" 
+      className="relative space-y-4 mb-10" 
       style={{scrollbarWidth: 'none'}}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
@@ -317,8 +292,8 @@ export function FilesTable({ data, clientId, onFileDeleted, onFileDeleteFailed, 
         <div className="flex gap-2">
           <Input
             placeholder="חיפוש קבצים..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            value={searchValue}
+            onChange={(e) => (onSearchChange ? onSearchChange(e.target.value) : setSearchQuery(e.target.value))}
             className="w-[250px] bg-card dark:bg-card" dir="rtl"
           />
         </div>
@@ -338,9 +313,9 @@ export function FilesTable({ data, clientId, onFileDeleted, onFileDeleteFailed, 
         />
       </div>
 
-      <div className="rounded-md border bg-card">
-        <Table dir="rtl">
-          <TableHeader>
+      <div className="rounded-md bg-card">
+        <Table dir="rtl" containerClassName="max-h-[70vh] overflow-y-auto overscroll-contain" containerStyle={{ scrollbarWidth: 'none' }}>
+          <TableHeader className="sticky top-0 z-30 bg-card">
             <TableRow>
               <TableHead className="text-right w-[50px]"></TableHead>
               <TableHead className="text-right">שם הקובץ</TableHead>
@@ -398,7 +373,7 @@ export function FilesTable({ data, clientId, onFileDeleted, onFileDeleteFailed, 
                         })}
                         className="text-blue-600 hover:underline"
                       >
-                        {getClientName(file.client_id)}
+                        {getClientName(file)}
                       </button>
                     </TableCell>
                   )}

@@ -199,6 +199,7 @@ export default function SettingsPage() {
 
   const handleClinicChange = (field: keyof Clinic, value: any) => {
     const updated = { ...localClinic, [field]: value }
+    console.log(updated)
     setLocalClinic(updated)
   }
 
@@ -302,6 +303,7 @@ export default function SettingsPage() {
           clinic_position: localClinic.clinic_position || undefined,
           email: localClinic.email || undefined,
           phone_number: localClinic.phone_number || undefined,
+          clinic_name: localClinic.clinic_name || undefined,
           clinic_address: localClinic.clinic_address || undefined,
           clinic_city: localClinic.clinic_city || undefined,
           clinic_postal_code: localClinic.clinic_postal_code || undefined,

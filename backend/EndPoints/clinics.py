@@ -30,6 +30,8 @@ def create_clinic(
     
     if not clinic.unique_id:
         clinic.unique_id = str(uuid.uuid4())
+
+    print(clinic.dict())
     
     db_clinic = Clinic(**clinic.dict())
     db.add(db_clinic)

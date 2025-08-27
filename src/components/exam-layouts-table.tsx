@@ -150,7 +150,7 @@ export function ExamLayoutsTable({ data, onRefresh }: ExamLayoutsTableProps) {
 
 
   return (
-    <div className="space-y-6" dir="rtl">
+    <div className="space-y-6 mb-10" dir="rtl">
       <div className="flex items-center justify-between">
         <Input
           placeholder="חיפוש פריסות..."
@@ -164,9 +164,9 @@ export function ExamLayoutsTable({ data, onRefresh }: ExamLayoutsTableProps) {
         </Button>
       </div>
 
-      <div className="rounded-md border bg-card">
-        <Table dir="rtl">
-          <TableHeader>
+      <div className="rounded-md bg-card">
+        <Table dir="rtl" containerClassName="max-h-[70vh] overflow-y-auto overscroll-contain" containerStyle={{ scrollbarWidth: 'none' }}>
+          <TableHeader className="sticky top-0 z-30 bg-card">
             <TableRow>
               <TableHead className="text-right">שם הפריסה</TableHead>
               <TableHead className="text-right">ברירת מחדל</TableHead>

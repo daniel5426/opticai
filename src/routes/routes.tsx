@@ -31,6 +31,7 @@ import CampaignsPage from "@/pages/CampaignsPage";
 import ReferralDetailPage from "../pages/ReferralDetailPage";
 import AllExamsPage from "@/pages/AllExamsPage";
 import AllOrdersPage from "@/pages/AllOrdersPage";
+import AllUsersPage from "@/pages/AllUsersPage";
 
 
 // TODO: Steps to add a new route:
@@ -233,6 +234,12 @@ export const AllFilesRoute = createRoute({
   component: AllFilesPage,
 });
 
+export const AllUsersRoute = createRoute({
+  getParentRoute: () => RootRoute,
+  path: "/users",
+  component: AllUsersPage,
+});
+
 export const SettingsRoute = createRoute({
   getParentRoute: () => RootRoute,
   path: "/settings",
@@ -307,6 +314,7 @@ export const rootTree = RootRoute.addChildren([
   AllReferralsRoute,
   AllAppointmentsRoute,
   AllFilesRoute,
+  AllUsersRoute,
   SettingsRoute,
   AIAssistantRoute,
   ExamLayoutsRoute,

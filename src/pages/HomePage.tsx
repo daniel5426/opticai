@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react"
+import React, { useState, useEffect, useRef, useMemo, useCallback } from "react"
 import { SiteHeader } from "@/components/site-header"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Calendar, CalendarDayButton } from "@/components/ui/calendar"
@@ -19,12 +19,12 @@ import {
   ChevronRight,
   Plus,
   Edit2,
-  Trash2
+  Trash2,
+  Loader2
 } from "lucide-react"
-import { getAllAppointments, createAppointment, updateAppointment, deleteAppointment } from "@/lib/db/appointments-db"
-import { getAllClients, getClientById, createClient } from "@/lib/db/clients-db"
-import { getSettings } from "@/lib/db/settings-db"
-import { getAllUsers } from "@/lib/db/users-db"
+import { createAppointment, updateAppointment, deleteAppointment } from "@/lib/db/appointments-db"
+import { getClientById, createClient } from "@/lib/db/clients-db"
+import { getDashboardHome } from "@/lib/db/dashboard-db"
 import { applyThemeColorsFromSettings } from "@/helpers/theme_helpers"
 import { Appointment, Client, Settings } from "@/lib/db/schema-interface"
 import {
@@ -95,6 +95,11 @@ export default function HomePage() {
     originalStart: string;
     originalEnd: string;
   } | null>(null)
+  const mouseDownPosRef = useRef<{ x: number; y: number } | null>(null)
+  const isDraggingRef = useRef(false)
+  const suppressClickRef = useRef(false)
+  const pendingDragDataRef = useRef<DragData | null>(null)
+  const [isPointerDown, setIsPointerDown] = useState(false)
   const [users, setUsers] = useState<any[]>([])
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [selectedTimeSlot, setSelectedTimeSlot] = useState<{ date: Date; time: string }>({ date: new Date(), time: '' })
@@ -118,6 +123,7 @@ export default function HomePage() {
   const [isClientSelectOpen, setIsClientSelectOpen] = useState(false)
   const [selectedClient, setSelectedClient] = useState<Client | null>(null)
   const [editingAppointment, setEditingAppointment] = useState<Appointment | null>(null)
+  const [saving, setSaving] = useState(false)
 
   const [newClientFormData, setNewClientFormData] = useState<{
     first_name: string
@@ -155,19 +161,33 @@ export default function HomePage() {
 
   const calendarRef = useRef<HTMLDivElement>(null)
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       setLoading(true)
-      const [appointmentsData, clientsData, settingsData, usersData] = await Promise.all([
-        getAllAppointments(currentClinic?.id),
-        getAllClients(currentClinic?.id),
-        getSettings(currentClinic?.id),
-        getAllUsers(currentClinic?.id)
-      ])
-      setAppointments(appointmentsData)
-      setClients(clientsData)
-      setSettings(settingsData)
-      setUsers(usersData)
+      
+      // Get date range for current view to limit appointment queries
+      const startDate = view === 'month' 
+        ? startOfMonth(currentDate)
+        : view === 'week' 
+          ? startOfWeek(currentDate, { weekStartsOn: 0 })
+          : startOfDay(currentDate)
+      
+      const endDate = view === 'month'
+        ? endOfMonth(currentDate)
+        : view === 'week'
+          ? endOfWeek(currentDate, { weekStartsOn: 0 })
+          : endOfDay(currentDate)
+
+      // Use aggregated dashboard endpoint
+      if (currentClinic?.id) {
+        const s = format(startDate, 'yyyy-MM-dd')
+        const e = format(endDate, 'yyyy-MM-dd')
+        const data = await getDashboardHome(currentClinic.id, s, e)
+        setAppointments(data.appointments)
+        setClients(data.clients)
+        setSettings(data.settings)
+        setUsers(data.users)
+      }
 
       if (currentUser?.id) {
         await applyThemeColorsFromSettings(undefined, currentUser.id)
@@ -177,7 +197,7 @@ export default function HomePage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [currentClinic?.id, currentUser?.id, currentDate, view])
 
   useEffect(() => {
     if (currentClinic) {
@@ -187,9 +207,18 @@ export default function HomePage() {
 
   useEffect(() => {
     if (!isClientSelectOpen && selectedClient) {
+      // Ensure default examiner is current user when opening create modal
+      setFormData(prev => ({ ...prev, user_id: currentUser?.id || prev.user_id || 0 }))
       setIsCreateModalOpen(true)
     }
-  }, [isClientSelectOpen, selectedClient])
+  }, [isClientSelectOpen, selectedClient, currentUser?.id])
+
+  // Ensure the default examiner in the modal is the current user when modal opens without client selection path (e.g., editing or direct open)
+  useEffect(() => {
+    if (isCreateModalOpen && (!formData.user_id || formData.user_id === 0) && currentUser?.id) {
+      setFormData(prev => ({ ...prev, user_id: currentUser.id }))
+    }
+  }, [isCreateModalOpen, currentUser?.id])
 
   useEffect(() => {
     if (!isCreateModalOpen && !isNewClientDialogOpen && !isClientSelectOpen) {
@@ -215,28 +244,47 @@ export default function HomePage() {
   const workEndHour = parseInt(WORK_END.split(':')[0])
   const totalWorkHours = workEndHour - workStartHour
 
-  // Helper function to get user color with conflict resolution
-  const getUserColor = (userId?: number) => {
-    if (!userId) return '#3b82f6' // default blue
+  // Memoized user color mapping with conflict resolution
+  const userColorMap = useMemo(() => {
+    const colorMap = new Map<number, string>()
+    const colorGroups = new Map<string, number[]>()
+    
+    // Group users by color
+    users.forEach(user => {
+      if (user.id && user.primary_theme_color) {
+        const color = user.primary_theme_color
+        if (!colorGroups.has(color)) {
+          colorGroups.set(color, [])
+        }
+        colorGroups.get(color)!.push(user.id)
+      }
+    })
+    
+    // Assign colors with conflict resolution
+    colorGroups.forEach((userIds, baseColor) => {
+      if (userIds.length === 1) {
+        colorMap.set(userIds[0], baseColor)
+      } else {
+        userIds.forEach((userId, index) => {
+          if (index === 0) {
+            colorMap.set(userId, baseColor)
+          } else {
+            const hsl = hexToHsl(baseColor)
+            const adjustedHue = (hsl[0] + (index * 60)) % 360
+            colorMap.set(userId, hslToHex(adjustedHue, hsl[1], hsl[2]))
+          }
+        })
+      }
+    })
+    
+    return colorMap
+  }, [users])
 
-    const user = users.find(u => u.id === userId)
-    if (!user || !user.primary_theme_color) return '#3b82f6'
-
-    // Check for color conflicts
-    const colorCount = users.filter(u => u.primary_theme_color === user.primary_theme_color).length
-    const userIndex = users.filter(u => u.primary_theme_color === user.primary_theme_color)
-      .findIndex(u => u.id === userId)
-
-    if (colorCount > 1 && userIndex > 0) {
-      // Generate a variant color by adjusting HSL
-      const hex = user.primary_theme_color
-      const hsl = hexToHsl(hex)
-      const adjustedHue = (hsl[0] + (userIndex * 60)) % 360 // Shift hue
-      return hslToHex(adjustedHue, hsl[1], hsl[2])
-    }
-
-    return user.primary_theme_color
-  }
+  // Helper function to get user color (now memoized)
+  const getUserColor = useCallback((userId?: number) => {
+    if (!userId) return '#3b82f6'
+    return userColorMap.get(userId) || '#3b82f6'
+  }, [userColorMap])
 
   // Helper functions for color conversion
   const hexToHsl = (hex: string): [number, number, number] => {
@@ -351,7 +399,27 @@ export default function HomePage() {
     }
   }
 
-  const visibleDates = getVisibleDates()
+  // Memoized visible dates to prevent recalculation on every render
+  const visibleDates = useMemo(() => {
+    if (view === 'day') {
+      return [currentDate]
+    } else if (view === 'week') {
+      const start = startOfWeek(currentDate, { weekStartsOn: 0 })
+      return Array.from({ length: 7 }, (_, i) => addDays(start, i))
+    } else {
+      const start = startOfMonth(currentDate)
+      const end = endOfMonth(currentDate)
+      const startWeek = startOfWeek(start, { weekStartsOn: 0 })
+      const endWeek = endOfWeek(end, { weekStartsOn: 0 })
+      const days = []
+      let current = startWeek
+      while (current <= endWeek) {
+        days.push(current)
+        current = addDays(current, 1)
+      }
+      return days
+    }
+  }, [currentDate, view])
 
   // Vacation helpers
   const parseDateOnly = (dateStr?: string) => {
@@ -364,7 +432,6 @@ export default function HomePage() {
   }
 
   const isUserOnVacation = (userId?: number, dateStr?: string) => {
-    console.log('isUserOnVacation', userId, dateStr)
     if (!userId || !dateStr) return false
     const user = users.find(u => u.id === userId)
     if (!user) return false
@@ -372,26 +439,48 @@ export default function HomePage() {
       ...(user.system_vacation_dates || []),
       ...(user.added_vacation_dates || [])
     ]
-    console.log('allVacations', allVacations, allVacations.some(d => d === dateStr))
-    console.log(dateStr)
     return allVacations.some(d => d === dateStr)
   }
 
-  // Filter appointments for visible dates
-  const getAppointmentsForDate = (date: Date) => {
-    return appointments.filter(appointment => {
-      if (!appointment.date) return false
+  // Memoized appointments grouped by date for performance
+  const appointmentsByDate = useMemo(() => {
+    const dateMap = new Map<string, Appointment[]>()
+    
+    appointments.forEach(appointment => {
+      if (!appointment.date) return
       try {
-        const appointmentDate = new Date(appointment.date)
-        return isSameDay(appointmentDate, date)
+        const dateStr = format(new Date(appointment.date), 'yyyy-MM-dd')
+        if (!dateMap.has(dateStr)) {
+          dateMap.set(dateStr, [])
+        }
+        dateMap.get(dateStr)!.push(appointment)
       } catch {
-        return false
+        // Invalid date, skip
       }
     })
-  }
+    
+    return dateMap
+  }, [appointments])
 
-  // Convert appointments to positioned blocks
-  const getAppointmentBlocks = (date: Date): AppointmentBlock[] => {
+  // Optimized function to get appointments for a specific date
+  const getAppointmentsForDate = useCallback((date: Date) => {
+    const dateStr = format(date, 'yyyy-MM-dd')
+    return appointmentsByDate.get(dateStr) || []
+  }, [appointmentsByDate])
+
+  // Memoized client lookup for performance
+  const clientsMap = useMemo(() => {
+    const map = new Map<number, Client>()
+    clients.forEach(client => {
+      if (client.id) {
+        map.set(client.id, client)
+      }
+    })
+    return map
+  }, [clients])
+
+  // Optimized appointment blocks calculation with memoization
+  const getAppointmentBlocks = useCallback((date: Date): AppointmentBlock[] => {
     const dayAppointments = getAppointmentsForDate(date)
     const HOUR_HEIGHT = 95
     const blocks: AppointmentBlock[] = []
@@ -424,7 +513,7 @@ export default function HomePage() {
         height = Math.max((currentDuration / 60) * HOUR_HEIGHT, 15) // Minimum height of 15px
       }
 
-      const client = clients.find(c => c.id === appointment.client_id)
+      const client = clientsMap.get(appointment.client_id)
 
       blocks.push({
         ...appointment,
@@ -535,16 +624,18 @@ export default function HomePage() {
     })
 
     return blocks
-  }
+  }, [getAppointmentsForDate, resizeData, workStartHour, clientsMap, getAppointmentDuration])
 
-  // Time slots for the grid
-  const timeSlots = Array.from({ length: totalWorkHours }, (_, i) => {
-    const hour = workStartHour + i
-    return {
-      time: `${hour.toString().padStart(2, '0')}:00`,
-      hour: hour
-    }
-  })
+  // Memoized time slots for the grid
+  const timeSlots = useMemo(() => {
+    return Array.from({ length: totalWorkHours }, (_, i) => {
+      const hour = workStartHour + i
+      return {
+        time: `${hour.toString().padStart(2, '0')}:00`,
+        hour: hour
+      }
+    })
+  }, [totalWorkHours, workStartHour])
 
   // Handle time slot click for creating appointments
   const handleTimeSlotClick = (date: Date, time: string) => {
@@ -669,12 +760,16 @@ export default function HomePage() {
       y: e.clientY - rect.top
     }
 
-    setDraggedData({
+    // Prepare potential drag; only activate after threshold movement
+    pendingDragDataRef.current = {
       appointment,
       offset,
       originalElement: e.currentTarget as HTMLElement
-    })
-    setDraggedBlockId(appointment.id!)
+    }
+    mouseDownPosRef.current = { x: e.clientX, y: e.clientY }
+    isDraggingRef.current = false
+    suppressClickRef.current = false
+    setIsPointerDown(true)
   }
 
   const calculateDragPosition = (e: MouseEvent) => {
@@ -747,10 +842,26 @@ export default function HomePage() {
   }
 
   const handleMouseMove = (e: MouseEvent) => {
-    if (draggedData && calendarRef.current && !resizeData) {
-      const position = calculateDragPosition(e)
-      if (position) {
-        setDragPosition(position)
+    if (calendarRef.current && !resizeData) {
+      // Activate drag only after small movement threshold
+      if (!isDraggingRef.current && pendingDragDataRef.current && mouseDownPosRef.current) {
+        const dx = e.clientX - mouseDownPosRef.current.x
+        const dy = e.clientY - mouseDownPosRef.current.y
+        const manhattan = Math.abs(dx) + Math.abs(dy)
+        if (manhattan >= 4) { // ~2px threshold in both axes combined
+          const startData = pendingDragDataRef.current
+          setDraggedData(startData)
+          setDraggedBlockId(startData.appointment.id!)
+          isDraggingRef.current = true
+          suppressClickRef.current = true // consume next click
+        }
+      }
+
+      if (isDraggingRef.current && draggedData) {
+        const position = calculateDragPosition(e)
+        if (position) {
+          setDragPosition(position)
+        }
       }
     }
 
@@ -791,7 +902,7 @@ export default function HomePage() {
     // Reset body style
     document.body.style.userSelect = ''
 
-    if (draggedData && dragPosition && !resizeData) {
+    if (isDraggingRef.current && draggedData && dragPosition && !resizeData) {
       // Optimistic update - immediately update UI
       const updatedAppointment = {
         ...draggedData.appointment,
@@ -911,6 +1022,10 @@ export default function HomePage() {
     }
 
     // Reset remaining states
+    pendingDragDataRef.current = null
+    mouseDownPosRef.current = null
+    isDraggingRef.current = false
+    setIsPointerDown(false)
     setDraggedData(null)
     setDraggedBlockId(null)
     setDragPosition(null)
@@ -918,7 +1033,7 @@ export default function HomePage() {
   }
 
   useEffect(() => {
-    if (draggedData || resizeData) {
+    if (isPointerDown || draggedData || resizeData) {
       document.addEventListener('mousemove', handleMouseMove)
       document.addEventListener('mouseup', handleMouseUp)
       return () => {
@@ -926,7 +1041,7 @@ export default function HomePage() {
         document.removeEventListener('mouseup', handleMouseUp)
       }
     }
-  }, [draggedData, dragPosition, resizeData])
+  }, [isPointerDown, draggedData, dragPosition, resizeData])
 
   // Form and modal handlers (keeping existing functionality)
   const resetAllForms = () => {
@@ -963,13 +1078,10 @@ export default function HomePage() {
     resetAllForms()
   }
 
-  const openEditDialog = async (appointment: Appointment) => {
+  const openEditDialog = (appointment: Appointment) => {
     try {
       setEditingAppointment(appointment)
-      const client = await getClientById(appointment.client_id)
-      if (client) {
-        setSelectedClient(client)
-      }
+      // Set form immediately and open modal without waiting for network
       setFormData({
         client_id: appointment.client_id,
         user_id: appointment.user_id || currentUser?.id || 0,
@@ -979,9 +1091,20 @@ export default function HomePage() {
         exam_name: appointment.exam_name || '',
         note: appointment.note || ''
       })
+      // Try to resolve client from local map first
+      const localClient = clientsMap.get(appointment.client_id)
+      if (localClient) {
+        setSelectedClient(localClient)
+      } else {
+        // Background fetch if not available locally
+        getClientById(appointment.client_id)
+          .then((client) => client && setSelectedClient(client))
+          .catch((error) => console.error('Error loading client (background):', error))
+      }
       setIsCreateModalOpen(true)
     } catch (error) {
-      console.error('Error loading appointment for edit:', error)
+      console.error('Error preparing appointment for edit:', error)
+      setIsCreateModalOpen(true)
     }
   }
 
@@ -993,7 +1116,7 @@ export default function HomePage() {
         setFormData(prev => ({
           ...prev,
           client_id: selectedClientId,
-          user_id: currentUser?.id || 0,
+          user_id: currentUser?.id || prev.user_id || 0,
           date: format(selectedTimeSlot.date, 'yyyy-MM-dd'),
           time: selectedTimeSlot.time,
           duration: APPOINTMENT_DURATION,
@@ -1010,6 +1133,7 @@ export default function HomePage() {
 
   const handleSaveAppointment = async () => {
     try {
+      setSaving(true)
       if (formData.date && isUserOnVacation(formData.user_id, formData.date)) {
         toast.error('לא ניתן לקבוע תור ביום חופשה של המשתמש')
         return
@@ -1058,6 +1182,8 @@ export default function HomePage() {
     } catch (error) {
       console.error('Error saving appointment:', error)
       toast.error("שגיאה בשמירת התור")
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -1097,36 +1223,53 @@ export default function HomePage() {
     }
   }
 
-  // Calculate statistics
-  const todayAppointments = appointments.filter(appointment => {
-    if (!appointment.date) return false
-    try {
-      const appointmentDate = new Date(appointment.date)
-      return isToday(appointmentDate)
-    } catch {
-      return false
-    }
-  })
+  // Memoized statistics calculations
+  const todayAppointments = useMemo(() => {
+    return appointments.filter(appointment => {
+      if (!appointment.date) return false
+      try {
+        const appointmentDate = new Date(appointment.date)
+        return isToday(appointmentDate)
+      } catch {
+        return false
+      }
+    })
+  }, [appointments])
 
-  const thisMonthNewClients = clients.filter(client => {
-    if (!client.file_creation_date) return false
-    try {
-      const creationDate = new Date(client.file_creation_date)
-      const now = new Date()
-      return isWithinInterval(creationDate, {
-        start: startOfMonth(now),
-        end: endOfMonth(now)
-      })
-    } catch {
-      return false
-    }
-  })
+  const thisMonthNewClients = useMemo(() => {
+    return clients.filter(client => {
+      if (!client.file_creation_date) return false
+      try {
+        const creationDate = new Date(client.file_creation_date)
+        const now = new Date()
+        return isWithinInterval(creationDate, {
+          start: startOfMonth(now),
+          end: endOfMonth(now)
+        })
+      } catch {
+        return false
+      }
+    })
+  }, [clients])
 
-  const workStartTime = parseISO(`2000-01-01T${WORK_START}`)
-  const workEndTime = parseISO(`2000-01-01T${WORK_END}`)
-  const WORK_DAY_MINUTES = (workEndTime.getTime() - workStartTime.getTime()) / (1000 * 60)
-  const TOTAL_SLOTS = Math.floor(WORK_DAY_MINUTES / APPOINTMENT_DURATION)
-  const todayFreeSlots = TOTAL_SLOTS - todayAppointments.length
+  // Memoized work schedule calculations
+  const workScheduleInfo = useMemo(() => {
+    const workStartTime = parseISO(`2000-01-01T${WORK_START}`)
+    const workEndTime = parseISO(`2000-01-01T${WORK_END}`)
+    const WORK_DAY_MINUTES = (workEndTime.getTime() - workStartTime.getTime()) / (1000 * 60)
+    const TOTAL_SLOTS = Math.floor(WORK_DAY_MINUTES / APPOINTMENT_DURATION)
+    
+    return {
+      workStartTime,
+      workEndTime, 
+      WORK_DAY_MINUTES,
+      TOTAL_SLOTS
+    }
+  }, [WORK_START, WORK_END, APPOINTMENT_DURATION])
+
+  const todayFreeSlots = useMemo(() => {
+    return workScheduleInfo.TOTAL_SLOTS - todayAppointments.length
+  }, [workScheduleInfo.TOTAL_SLOTS, todayAppointments.length])
 
   if (loading) {
     return (
@@ -1311,7 +1454,7 @@ export default function HomePage() {
                 <CardContent>
                   <div className="text-2xl font-bold text-primary">{todayAppointments.length}</div>
                   <p className="text-xs text-muted-foreground">
-                    מתוך {TOTAL_SLOTS} תורים אפשריים
+                    מתוך {workScheduleInfo.TOTAL_SLOTS} תורים אפשריים
                   </p>
                 </CardContent>
               </Card>
@@ -1485,7 +1628,9 @@ export default function HomePage() {
 
                         {/* Day columns */}
                         <div className="flex-1 grid" style={{ gridTemplateColumns: `repeat(${visibleDates.length}, 1fr)` }}>
-                      {visibleDates.map((date, dateIndex) => (
+                      {visibleDates.map((date, dateIndex) => {
+                        const dayBlocks = getAppointmentBlocks(date)
+                        return (
                         <div key={dateIndex} className="relative">
 
                           {/* Time slots */}
@@ -1522,7 +1667,7 @@ export default function HomePage() {
                             ))}
 
                             {/* Appointment blocks */}
-                            {getAppointmentBlocks(date).map((block) => {
+                            {dayBlocks.map((block) => {
                               const isDragging = draggedBlockId === block.id
                               const isResizing = resizeData?.appointmentId === block.id
                               const isInCurrentColumn = dragPosition && isSameDay(dragPosition.date, date)
@@ -1531,7 +1676,6 @@ export default function HomePage() {
                               const timeRange = getAppointmentTimeRange(block.time || '')
 
                               // Determine which specific corners touch neighbors
-                              const dayBlocks = getAppointmentBlocks(date)
                               
                               // Check each corner individually
                               const blockTop = block.top
@@ -1646,12 +1790,18 @@ export default function HomePage() {
                                       }
                                     }}
                                     onClick={(e) => {
-                                      // Only open edit dialog if not dragging
-                                      if (!draggedData && !resizeData) {
+                                      // Suppress click if a drag just happened or during resize
+                                      if (suppressClickRef.current || draggedData || resizeData) {
                                         e.preventDefault()
                                         e.stopPropagation()
-                                        openEditDialog(block)
+                                        // consume one click after drag
+                                        suppressClickRef.current = false
+                                        return
                                       }
+                                      // For pure click, open immediately
+                                      e.preventDefault()
+                                      e.stopPropagation()
+                                      openEditDialog(block)
                                     }}
                                   >
                                     <div className="font-medium text-right truncate text-[10px] pointer-events-none">
@@ -1697,7 +1847,7 @@ export default function HomePage() {
                             })}
 
                             {/* Show dragged block in new position if moved to this column */}
-                            {dragPosition && draggedData && isSameDay(dragPosition.date, date) && !getAppointmentBlocks(date).some(block => block.id === draggedBlockId) && (
+                            {dragPosition && draggedData && isSameDay(dragPosition.date, date) && !dayBlocks.some(block => block.id === draggedBlockId) && (
                               <div
                                 className="absolute text-white rounded-md text-xs shadow-lg border"
                                 style={{
@@ -1735,7 +1885,7 @@ export default function HomePage() {
                             )}
                           </div>
                         </div>
-                      ))}
+                      )})}
                         </div>
                       </div>
                     </div>
@@ -1831,7 +1981,9 @@ export default function HomePage() {
             </div>
           </div>
           <div className="flex justify-center gap-2 mt-4">
-            <Button onClick={handleSaveAppointment}>שמור</Button>
+            <Button onClick={handleSaveAppointment} disabled={saving}>
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : 'שמור'}
+            </Button>
             <Button 
               variant="destructive" 
               size="icon"

@@ -30,9 +30,10 @@ interface OrdersTableProps {
   pagination?: { page: number; pageSize: number; total: number; setPage: (p: number) => void }
 }
 
-export function OrdersTable({ data, clientId, onOrderDeleted, onOrderDeleteFailed, loading, pagination }: OrdersTableProps) {
+export function OrdersTable({ data, clientId, onOrderDeleted, onOrderDeleteFailed, loading, pagination, searchQuery: externalSearch, onSearchChange }: OrdersTableProps & { searchQuery?: string; onSearchChange?: (q: string) => void }) {
   const { currentClinic } = useUser()
   const [searchQuery, setSearchQuery] = useState("")
+  const searchValue = externalSearch !== undefined ? externalSearch : searchQuery
   const [users, setUsers] = useState<User[]>([])
   const [clients, setClients] = useState<Client[]>([])
   const navigate = useNavigate()
@@ -90,7 +91,7 @@ export function OrdersTable({ data, clientId, onOrderDeleted, onOrderDeleteFaile
     setIsDeleteModalOpen(false);
   };
 
-  const filteredData = data.filter((order) => {
+  const filteredData = externalSearch !== undefined ? data : data.filter((order) => {
     const searchableFields = [
       order.type || '',
       order.order_date || '',
@@ -98,18 +99,18 @@ export function OrdersTable({ data, clientId, onOrderDeleted, onOrderDeleteFaile
     ]
 
     return searchableFields.some(
-      (field) => field.toLowerCase().includes(searchQuery.toLowerCase())
+      (field) => field.toLowerCase().includes(searchValue.toLowerCase())
     )
   })
 
   return (
-    <div className="space-y-4" style={{scrollbarWidth: 'none'}}>
+    <div className="space-y-4 mb-10" style={{scrollbarWidth: 'none'}}>
       <div className="flex justify-between items-center" dir="rtl">
         <div className="flex gap-2 bg-card">
           <Input
             placeholder="חיפוש הזמנות..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            value={searchValue}
+            onChange={(e) => (onSearchChange ? onSearchChange(e.target.value) : setSearchQuery(e.target.value))}
             className="w-[250px] bg-card dark:bg-card" dir="rtl"
           />
         </div>
@@ -152,9 +153,9 @@ export function OrdersTable({ data, clientId, onOrderDeleted, onOrderDeleteFaile
         </div>
       </div>
 
-      <div className="rounded-md border bg-card">
-        <Table dir="rtl">
-          <TableHeader>
+      <div className="rounded-md bg-card">
+        <Table dir="rtl" containerClassName="max-h-[70vh] overflow-y-auto overscroll-contain" containerStyle={{ scrollbarWidth: 'none' }}>
+          <TableHeader className="sticky top-0 z-30 bg-card">
             <TableRow>
               <TableHead className="text-right">תאריך הזמנה</TableHead>
               <TableHead className="text-right">סוג הזמנה</TableHead>

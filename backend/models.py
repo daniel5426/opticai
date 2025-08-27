@@ -225,6 +225,9 @@ class ExamLayoutInstance(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
+# exam_data is a JSON field that contains all the exam data for the layout instance (prescription, cover test, etc.)
+# so to understand the structure of the exam data read the file docs/exam_data.md
+
  
 
 
@@ -268,10 +271,10 @@ class Order(Base):
     user_id = Column(Integer, ForeignKey("users.id", ondelete="RESTRICT"))
     lens_id = Column(Integer)
     frame_id = Column(Integer)
-    comb_va = Column(Float)
-    comb_high = Column(Float)
-    comb_pd = Column(Float)
     order_data = Column(JSON, nullable=False, default={})
+
+# order_data is a JSON field that contains all the order data for the order
+# so to understand the structure of the order data read the file docs/exam_data.md
 
  
 class ContactLensOrder(Base):
@@ -317,6 +320,9 @@ class ContactLensOrder(Base):
     supplier_notes = Column(Text)
 
     order_data = Column(JSON, nullable=False, default={})
+
+# order_data is a JSON field that contains all the order data for the contact lens order
+# so to understand the structure of the order data read the file docs/exam_data.md
 
 
 class Referral(Base):
@@ -583,10 +589,13 @@ class LookupAdvisor(Base):
 # Indexes to speed up common client list queries
 Index('ix_clients_clinic_id', Client.clinic_id)
 Index('ix_clients_clinic_id_id_desc', Client.clinic_id, Client.id.desc())
+Index('ix_clients_family_id', Client.family_id)
+Index('ix_clients_family_id_id', Client.family_id, Client.id)
 
 # Indexes for referrals table
 Index('ix_referrals_clinic_id', Referral.clinic_id)
 Index('ix_referrals_client_id', Referral.client_id)
+Index('ix_referrals_user_id', Referral.user_id)
 Index('ix_referrals_clinic_date', Referral.clinic_id, Referral.date.desc())
 
 # Indexes for orders table
@@ -603,6 +612,7 @@ Index('ix_files_clinic_upload_date', File.clinic_id, File.upload_date.desc())
 Index('ix_appointments_clinic_id', Appointment.clinic_id)
 Index('ix_appointments_client_id', Appointment.client_id)
 Index('ix_appointments_clinic_date', Appointment.clinic_id, Appointment.date.desc())
+Index('ix_appointments_user_id', Appointment.user_id)
 
 # Indexes for families table
 Index('ix_families_clinic_id', Family.clinic_id)

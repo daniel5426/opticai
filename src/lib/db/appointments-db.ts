@@ -29,9 +29,35 @@ export async function getAllAppointments(clinicId?: number): Promise<Appointment
   }
 }
 
+export async function getAppointmentsByDateRange(
+  clinicId?: number,
+  startDate?: string,
+  endDate?: string
+): Promise<Appointment[]> {
+  try {
+    // Prefer aggregated dashboard endpoint for performance when possible
+    if (clinicId) {
+      const resp = await apiClient.getDashboardHome(clinicId, startDate, endDate);
+      if ((resp as any).error) {
+        console.error('Error getting appointments by date range (dashboard):', (resp as any).error);
+        return [];
+      }
+      const data = (resp as any).data as { appointments?: Appointment[] };
+      return (data?.appointments as Appointment[]) || [];
+    }
+    // Fallback: fetch all and filter (should not happen in normal flow)
+    const allAppointments = await getAllAppointments(clinicId);
+    if (!startDate || !endDate) return allAppointments;
+    return allAppointments.filter(a => a.date && a.date >= startDate && a.date <= endDate);
+  } catch (error) {
+    console.error('Error getting appointments by date range:', error);
+    return [];
+  }
+}
+
 export async function getPaginatedAppointments(
   clinicId?: number,
-  options?: { limit?: number; offset?: number; order?: 'date_desc' | 'date_asc' | 'id_desc' | 'id_asc' }
+  options?: { limit?: number; offset?: number; order?: 'date_desc' | 'date_asc' | 'id_desc' | 'id_asc'; search?: string }
 ): Promise<{ items: Appointment[]; total: number }> {
   try {
     const effectiveOptions = options ?? { limit: 25, offset: 0, order: 'date_desc' as const };

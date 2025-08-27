@@ -83,6 +83,14 @@ export function ClinicDropdown({
     loadData();
   }, [loadData]);
 
+  useEffect(() => {
+    const companyId = effectiveCompanyId;
+    if (companyId) {
+      clinicsCacheRef.current.delete(companyId);
+      loadData();
+    }
+  }, [clinicRefreshTrigger, effectiveCompanyId, loadData]);
+
   const handleClinicSelect = async (clinic: Clinic) => {
     if (!isInControlCenter && clinic.id === currentClinic?.id) {
       return;
@@ -135,11 +143,14 @@ export function ClinicDropdown({
       <DropdownMenuTrigger asChild>
         <Button
           variant="ghost"
-          className="flex h-auto items-center gap-2 p-0 hover:bg-transparent data-[state=open]:bg-transparent"
+          className="flex ring-0 border-0 h-auto w-full max-w-full items-start gap-2 p-0 hover:bg-transparent data-[state=open]:bg-transparent whitespace-normal overflow-hidden"
           type="button"
         >
-          {children}
-          <IconChevronDown className="mr-2 h-4 w-4 opacity-50" />
+          <div className="flex w-full max-w-full items-start gap-2 min-w-0 overflow-hidden">
+            <div className="flex-1 ring-0 border-0 min-w-0 overflow-hidden">
+              {children}
+            </div>
+          </div>
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent

@@ -57,6 +57,7 @@ export function UsersTable({
   const [userToDelete, setUserToDelete] = React.useState<UserWithClinic | null>(null)
 
   const searchQuery = externalSearchQuery !== undefined ? externalSearchQuery : internalSearchQuery
+  const isExternalSearch = externalSearchQuery !== undefined
 
   const handleSearchChange = (value: string) => {
     if (onSearchChange) {
@@ -69,7 +70,7 @@ export function UsersTable({
   const filteredData = React.useMemo(() => {
     let filtered = data
 
-    if (searchQuery && filtered.length > 0) {
+    if (!isExternalSearch && searchQuery && filtered.length > 0) {
       filtered = filtered.filter((user) => {
         const searchableFields = [
           user.full_name || user.username,
@@ -86,7 +87,7 @@ export function UsersTable({
     }
 
     return filtered
-  }, [data, searchQuery])
+  }, [data, searchQuery, isExternalSearch])
 
   const handleDeleteConfirm = async () => {
     if (userToDelete && userToDelete.id !== undefined) {
@@ -151,7 +152,7 @@ export function UsersTable({
   }
 
   return (
-    <div className="space-y-4" dir="rtl">
+    <div className="space-y-4 mb-10" dir="rtl">
       {!hideSearch && (
         <div className="flex items-center justify-between">
           <div className="flex gap-2">
@@ -172,9 +173,9 @@ export function UsersTable({
         </div>
       )}
 
-      <div className="rounded-md border bg-card">
-        <Table dir="rtl">
-          <TableHeader>
+      <div className="rounded-md bg-card">
+        <Table dir="rtl" containerClassName="max-h-[70vh] overflow-y-auto overscroll-contain" containerStyle={{ scrollbarWidth: 'none' }}>
+          <TableHeader className="sticky top-0 z-30 bg-card">
             <TableRow>
               <TableHead className="text-right">מס' משתמש</TableHead>
               <TableHead className="text-right">שם מלא</TableHead>

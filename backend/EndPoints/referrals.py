@@ -14,25 +14,47 @@ def get_referrals_paginated(
     limit: int = Query(25, ge=1, le=100, description="Max items to return"),
     offset: int = Query(0, ge=0, description="Items to skip"),
     order: Optional[str] = Query("date_desc", description="Sort order: date_desc|date_asc|id_desc|id_asc"),
+    search: Optional[str] = Query(None, description="Search by type/recipient/branch/client name"),
     db: Session = Depends(get_db)
 ):
-    base = db.query(Referral)
+    from sqlalchemy import or_, func, String
+    base = (
+        db.query(
+            Referral,
+            func.concat(Client.first_name, ' ', Client.last_name).label('client_full_name'),
+            func.coalesce(User.full_name, User.username).label('examiner_name')
+        )
+        .outerjoin(Client, Client.id == Referral.client_id)
+        .outerjoin(User, User.id == Referral.user_id)
+    )
     if clinic_id:
         base = base.filter(Referral.clinic_id == clinic_id)
-    
-    # Apply ordering
+    if search:
+        like = f"%{search.strip()}%"
+        base = base.filter(
+            or_(
+                Referral.type.ilike(like),
+                Referral.recipient.ilike(like),
+                Referral.branch.ilike(like),
+                func.concat(Client.first_name, ' ', Client.last_name).ilike(like)
+            )
+        )
     if order == "date_desc":
         base = base.order_by(Referral.date.desc().nulls_last())
     elif order == "date_asc":
         base = base.order_by(Referral.date.asc().nulls_last())
     elif order == "id_asc":
         base = base.order_by(Referral.id.asc())
-    else:  # default to id_desc
+    else:
         base = base.order_by(Referral.id.desc())
-    
     total = base.count()
-    items = base.offset(offset).limit(limit).all()
-    
+    rows = base.offset(offset).limit(limit).all()
+    items = []
+    for row in rows:
+        ref = row[0]
+        setattr(ref, 'client_full_name', row[1])
+        setattr(ref, 'examiner_name', row[2])
+        items.append(ref)
     return {"items": items, "total": total}
 
 @router.post("/", response_model=ReferralSchema)

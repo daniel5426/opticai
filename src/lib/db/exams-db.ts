@@ -66,7 +66,7 @@ export async function getAllEnrichedExams(type?: string, clinicId?: number, opti
 export async function getPaginatedEnrichedExams(
   type?: string,
   clinicId?: number,
-  options?: { limit?: number; offset?: number; order?: 'exam_date_desc' | 'exam_date_asc' }
+  options?: { limit?: number; offset?: number; order?: 'exam_date_desc' | 'exam_date_asc'; search?: string }
 ): Promise<{ items: any[]; total: number }> {
   try {
     const effectiveOptions = options ?? { limit: 25, offset: 0, order: 'exam_date_desc' as const };

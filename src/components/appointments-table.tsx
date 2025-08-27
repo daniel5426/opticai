@@ -35,7 +35,7 @@ import { UserSelect } from "@/components/ui/user-select"
 import { useUser } from "@/contexts/UserContext"
 import { Skeleton } from "@/components/ui/skeleton"
 import { getClientById, getAllClients, createClient } from "@/lib/db/clients-db"
-import { getAllUsers, getUserById } from "@/lib/db/users-db"
+import { getAllUsers } from "@/lib/db/users-db"
 import { createAppointment, updateAppointment, deleteAppointment } from "@/lib/db/appointments-db"
 import { useNavigate } from "@tanstack/react-router"
 
@@ -47,6 +47,8 @@ interface AppointmentsTableProps {
   onAppointmentDeleteFailed: () => void
   loading: boolean
   pagination?: { page: number; pageSize: number; total: number; setPage: (p: number) => void }
+  searchQuery?: string
+  onSearchChange?: (q: string) => void
 }
 
 interface AppointmentTableRowProps {
@@ -58,35 +60,8 @@ interface AppointmentTableRowProps {
 }
 
 function AppointmentTableRow({ appointment, onEdit, onDelete, onSendEmail, clientId }: AppointmentTableRowProps) {
-  const [client, setClient] = React.useState<Client | null>(null)
-  const [user, setUser] = React.useState<User | null>(null)
   const navigate = useNavigate()
 
-  React.useEffect(() => {
-    const loadClient = async () => {
-      try {
-        const clientData = await getClientById(appointment.client_id)
-        setClient(clientData || null)
-      } catch (error) {
-        console.error('Error loading client:', error)
-      }
-    }
-    loadClient()
-  }, [appointment.client_id])
-
-  React.useEffect(() => {
-    const loadUser = async () => {
-      if (appointment.user_id) {
-        try {
-          const userData = await getUserById(appointment.user_id)
-          setUser(userData)
-        } catch (error) {
-          console.error('Error loading user:', error)
-        }
-      }
-    }
-    loadUser()
-  }, [appointment.user_id])
 
   return (
     <TableRow>
@@ -104,11 +79,9 @@ function AppointmentTableRow({ appointment, onEdit, onDelete, onSendEmail, clien
         <TableCell className="cursor-pointer text-blue-600 hover:underline"
           onClick={e => {
             e.stopPropagation();
-            if (client) {
-              navigate({ to: "/clients/$clientId", params: { clientId: String(client.id) }, search: { tab: 'appointments' } })
-            }
+            navigate({ to: "/clients/$clientId", params: { clientId: String(appointment.client_id) }, search: { tab: 'appointments' } })
           }}
-        >{client ? `${client.first_name || ''} ${client.last_name || ''}`.trim() : 'טוען...'}</TableCell>
+        >{appointment.client_full_name || ''}</TableCell>
       )}
       <TableCell
         onClick={() => onEdit(appointment)}
@@ -117,7 +90,7 @@ function AppointmentTableRow({ appointment, onEdit, onDelete, onSendEmail, clien
       <TableCell
         onClick={() => onEdit(appointment)}
         className="cursor-pointer"
-    >{user?.full_name || user?.username || ''}</TableCell>
+    >{appointment.examiner_name || ''}</TableCell>
       <TableCell
         onClick={() => onEdit(appointment)}
         className="cursor-pointer"
@@ -152,8 +125,9 @@ function AppointmentTableRow({ appointment, onEdit, onDelete, onSendEmail, clien
   )
 }
 
-export function AppointmentsTable({ data, clientId, onAppointmentChange, onAppointmentDeleted, onAppointmentDeleteFailed, loading, pagination }: AppointmentsTableProps) {
+export function AppointmentsTable({ data, clientId, onAppointmentChange, onAppointmentDeleted, onAppointmentDeleteFailed, loading, pagination, searchQuery: externalSearch, onSearchChange }: AppointmentsTableProps) {
   const [searchQuery, setSearchQuery] = useState("")
+  const searchValue = externalSearch !== undefined ? externalSearch : searchQuery
   const [isAppointmentDialogOpen, setIsAppointmentDialogOpen] = useState(false)
   const [isNewClientDialogOpen, setIsNewClientDialogOpen] = useState(false)
   const [isClientSelectOpen, setIsClientSelectOpen] = useState(false)
@@ -223,7 +197,7 @@ export function AppointmentsTable({ data, clientId, onAppointmentChange, onAppoi
     }
     return deduped
   }, [optimisticAppointments, data])
-  const filteredData = allAppointments.filter((appointment) => {
+  const filteredData = externalSearch !== undefined ? allAppointments : allAppointments.filter((appointment) => {
     const searchableFields = [
       appointment.date || '',
       appointment.time || '',
@@ -232,7 +206,7 @@ export function AppointmentsTable({ data, clientId, onAppointmentChange, onAppoi
     ]
 
     return searchableFields.some(
-      (field) => field.toLowerCase().includes(searchQuery.toLowerCase())
+      (field) => field.toLowerCase().includes(searchValue.toLowerCase())
     )
   })
 
@@ -612,13 +586,13 @@ export function AppointmentsTable({ data, clientId, onAppointmentChange, onAppoi
   }
 
   return (
-    <div className="space-y-4" style={{scrollbarWidth: 'none'}}>
+    <div className="space-y-4 mb-10" style={{scrollbarWidth: 'none'}}>
       <div className="flex justify-between items-center" dir="rtl">        
         <div className="flex gap-2">
           <Input
             placeholder="חיפוש תורים..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            value={searchValue}
+            onChange={(e) => (onSearchChange ? onSearchChange(e.target.value) : setSearchQuery(e.target.value))}
             className="w-[250px] bg-card dark:bg-card" 
             dir="rtl"
           />
@@ -875,9 +849,9 @@ export function AppointmentsTable({ data, clientId, onAppointmentChange, onAppoi
         cancelText="בטל"
       />
 
-      <div className="rounded-md border bg-card">
-        <Table dir="rtl">
-          <TableHeader>
+      <div className="rounded-md bg-card">
+        <Table dir="rtl" containerClassName="max-h-[70vh] overflow-y-auto overscroll-contain" containerStyle={{ scrollbarWidth: 'none' }}>
+          <TableHeader className="sticky top-0 z-30 bg-card">
             <TableRow>
               <TableHead className="text-right">תאריך</TableHead>
               <TableHead className="text-right">שעה</TableHead>

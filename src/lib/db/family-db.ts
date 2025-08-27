@@ -18,8 +18,8 @@ export async function getAllFamilies(clinicId?: number): Promise<Family[]> {
 
 export async function getPaginatedFamilies(
   clinicId?: number,
-  options?: { limit?: number; offset?: number; order?: 'created_desc' | 'created_asc' | 'name_asc' | 'name_desc' | 'id_desc' | 'id_asc' }
-): Promise<{ items: Family[]; total: number }> {
+  options?: { limit?: number; offset?: number; order?: 'created_desc' | 'created_asc' | 'name_asc' | 'name_desc' | 'id_desc' | 'id_asc'; search?: string }
+): Promise<{ items: (Family & { clients?: Client[] })[]; total: number }> {
   try {
     const effectiveOptions = options ?? { limit: 25, offset: 0, order: 'created_desc' as const };
     const response = await apiClient.getFamiliesPaginated(clinicId, effectiveOptions);

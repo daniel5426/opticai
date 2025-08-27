@@ -14,12 +14,19 @@ export default function AllReferralsPage() {
   const [pageSize] = useState(25)
   const [total, setTotal] = useState(0)
   const navigate = useNavigate()
+  const [searchQuery, setSearchQuery] = useState("")
+  const [debouncedSearch, setDebouncedSearch] = useState("")
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(searchQuery), 400)
+    return () => clearTimeout(t)
+  }, [searchQuery])
 
   const loadData = async () => {
     try {
       setLoading(true)
       const offset = (page - 1) * pageSize
-      const { items, total } = await getPaginatedReferrals(currentClinic?.id, { limit: pageSize, offset, order: 'date_desc' })
+      const { items, total } = await getPaginatedReferrals(currentClinic?.id, { limit: pageSize, offset, order: 'date_desc', search: debouncedSearch || undefined })
       setReferrals(items)
       setTotal(total)
     } catch (error) {
@@ -33,7 +40,11 @@ export default function AllReferralsPage() {
     if (currentClinic) {
       loadData()
     }
-  }, [currentClinic, page, pageSize])
+  }, [currentClinic, page, pageSize, debouncedSearch])
+
+  useEffect(() => {
+    setPage(1)
+  }, [debouncedSearch])
 
   const handleReferralDeleted = (deletedReferralId: number) => {
     setReferrals(prevReferrals => prevReferrals.filter(referral => referral.id !== deletedReferralId))
@@ -66,6 +77,8 @@ export default function AllReferralsPage() {
           onReferralDeleteFailed={handleReferralDeleteFailed}
           clientId={0}
           loading={loading}
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
           pagination={{ page, pageSize, total, setPage }}
         />
       </div>

@@ -14,11 +14,31 @@ def get_orders_paginated(
     limit: int = Query(25, ge=1, le=100, description="Max items to return"),
     offset: int = Query(0, ge=0, description="Items to skip"),
     order: Optional[str] = Query("date_desc", description="Sort order: date_desc|date_asc|id_desc|id_asc"),
+    search: Optional[str] = Query(None, description="Search by type/examiner/client name/VA/PD/date"),
     db: Session = Depends(get_db)
 ):
+    from sqlalchemy import or_, func, String
     base = db.query(Order)
     if clinic_id:
         base = base.filter(Order.clinic_id == clinic_id)
+    if search:
+        like = f"%{search.strip()}%"
+        base = (
+            base
+            .outerjoin(Client, Client.id == Order.client_id)
+            .outerjoin(User, User.id == Order.user_id)
+            .filter(
+                or_(
+                    Order.type.ilike(like),
+                    func.concat(Client.first_name, ' ', Client.last_name).ilike(like),
+                    User.full_name.ilike(like),
+                    User.username.ilike(like),
+                    func.cast(Order.comb_va, String).ilike(like),
+                    func.cast(Order.comb_pd, String).ilike(like),
+                    func.cast(Order.order_date, String).ilike(like),
+                )
+            )
+        )
     
     # Apply ordering
     if order == "date_desc":

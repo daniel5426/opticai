@@ -87,11 +87,33 @@ def get_appointments_paginated(
     limit: int = Query(25, ge=1, le=100, description="Max items to return"),
     offset: int = Query(0, ge=0, description="Items to skip"),
     order: Optional[str] = Query("date_desc", description="Sort order: date_desc|date_asc|id_desc|id_asc"),
+    search: Optional[str] = Query(None, description="Search by date/time/exam_name/note or client name"),
     db: Session = Depends(get_db)
 ):
-    base = db.query(Appointment)
+    from sqlalchemy import or_, func, String
+    # Build base query with joins to include client and user names
+    base = (
+        db.query(
+            Appointment,
+            func.concat(Client.first_name, ' ', Client.last_name).label('client_full_name'),
+            func.coalesce(User.full_name, User.username).label('examiner_name')
+        )
+        .outerjoin(Client, Client.id == Appointment.client_id)
+        .outerjoin(User, User.id == Appointment.user_id)
+    )
     if clinic_id:
         base = base.filter(Appointment.clinic_id == clinic_id)
+    if search:
+        like = f"%{search.strip()}%"
+        base = base.filter(
+            or_(
+                func.cast(Appointment.date, String).ilike(like),
+                Appointment.time.ilike(like),
+                Appointment.exam_name.ilike(like),
+                Appointment.note.ilike(like),
+                func.concat(Client.first_name, ' ', Client.last_name).ilike(like)
+            )
+        )
     
     # Apply ordering
     if order == "date_desc":
@@ -104,15 +126,34 @@ def get_appointments_paginated(
         base = base.order_by(Appointment.id.desc())
     
     total = base.count()
-    items = base.offset(offset).limit(limit).all()
-    
+    rows = base.offset(offset).limit(limit).all()
+    # rows are tuples (Appointment, client_full_name, examiner_name)
+    items = []
+    for row in rows:
+        appt = row[0]
+        setattr(appt, 'client_full_name', row[1])
+        setattr(appt, 'examiner_name', row[2])
+        items.append(appt)
     return {"items": items, "total": total}
 
 @router.get("/{appointment_id}", response_model=AppointmentSchema)
 def get_appointment(appointment_id: int, db: Session = Depends(get_db)):
-    appointment = db.query(Appointment).filter(Appointment.id == appointment_id).first()
+    row = (
+        db.query(
+            Appointment,
+            func.concat(Client.first_name, ' ', Client.last_name).label('client_full_name'),
+            func.coalesce(User.full_name, User.username).label('examiner_name')
+        )
+        .outerjoin(Client, Client.id == Appointment.client_id)
+        .outerjoin(User, User.id == Appointment.user_id)
+        .filter(Appointment.id == appointment_id)
+        .first()
+    )
+    appointment = row[0] if row else None
     if not appointment:
         raise HTTPException(status_code=404, detail="Appointment not found")
+    setattr(appointment, 'client_full_name', row[1])
+    setattr(appointment, 'examiner_name', row[2])
     return appointment
 
 @router.get("/", response_model=List[AppointmentSchema])
@@ -120,20 +161,67 @@ def get_all_appointments(
     clinic_id: Optional[int] = Query(None, description="Filter by clinic ID"),
     db: Session = Depends(get_db)
 ):
-    query = db.query(Appointment)
+    base = (
+        db.query(
+            Appointment,
+            func.concat(Client.first_name, ' ', Client.last_name).label('client_full_name'),
+            func.coalesce(User.full_name, User.username).label('examiner_name')
+        )
+        .outerjoin(Client, Client.id == Appointment.client_id)
+        .outerjoin(User, User.id == Appointment.user_id)
+    )
     if clinic_id:
-        query = query.filter(Appointment.clinic_id == clinic_id)
-    return query.all()
+        base = base.filter(Appointment.clinic_id == clinic_id)
+    rows = base.all()
+    items = []
+    for row in rows:
+        appt = row[0]
+        setattr(appt, 'client_full_name', row[1])
+        setattr(appt, 'examiner_name', row[2])
+        items.append(appt)
+    return items
 
 @router.get("/client/{client_id}", response_model=List[AppointmentSchema])
 def get_appointments_by_client(client_id: int, db: Session = Depends(get_db)):
-    appointments = db.query(Appointment).filter(Appointment.client_id == client_id).all()
-    return appointments
+    rows = (
+        db.query(
+            Appointment,
+            func.concat(Client.first_name, ' ', Client.last_name).label('client_full_name'),
+            func.coalesce(User.full_name, User.username).label('examiner_name')
+        )
+        .outerjoin(Client, Client.id == Appointment.client_id)
+        .outerjoin(User, User.id == Appointment.user_id)
+        .filter(Appointment.client_id == client_id)
+        .all()
+    )
+    items = []
+    for row in rows:
+        appt = row[0]
+        setattr(appt, 'client_full_name', row[1])
+        setattr(appt, 'examiner_name', row[2])
+        items.append(appt)
+    return items
 
 @router.get("/user/{user_id}", response_model=List[AppointmentSchema])
 def get_appointments_by_user(user_id: int, db: Session = Depends(get_db)):
-    appointments = db.query(Appointment).filter(Appointment.user_id == user_id).all()
-    return appointments
+    rows = (
+        db.query(
+            Appointment,
+            func.concat(Client.first_name, ' ', Client.last_name).label('client_full_name'),
+            func.coalesce(User.full_name, User.username).label('examiner_name')
+        )
+        .outerjoin(Client, Client.id == Appointment.client_id)
+        .outerjoin(User, User.id == Appointment.user_id)
+        .filter(Appointment.user_id == user_id)
+        .all()
+    )
+    items = []
+    for row in rows:
+        appt = row[0]
+        setattr(appt, 'client_full_name', row[1])
+        setattr(appt, 'examiner_name', row[2])
+        items.append(appt)
+    return items
 
 @router.put("/{appointment_id}", response_model=AppointmentSchema)
 def update_appointment(appointment_id: int, appointment: AppointmentUpdate, db: Session = Depends(get_db)):

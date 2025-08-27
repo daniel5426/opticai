@@ -89,6 +89,8 @@ export interface Family {
   name: string;
   created_date?: string;
   notes?: string;
+  member_count?: number;
+  clients?: Pick<Client, 'id' | 'first_name' | 'last_name' | 'family_id' | 'family_role' | 'national_id' | 'phone_mobile' | 'email'>[];
 }
 
 export interface MedicalLog {
@@ -376,6 +378,8 @@ export interface Referral {
   branch?: string;
   recipient?: string;
   referral_data?: Record<string, unknown>;
+  client_full_name?: string;
+  examiner_name?: string;
 }
 
 export interface ReferralEye {
@@ -406,6 +410,8 @@ export interface Appointment {
   exam_name?: string;
   note?: string;
   google_calendar_event_id?: string;
+  client_full_name?: string;
+  examiner_name?: string;
 }
 
 export interface ContactLensDiameters {
@@ -834,6 +840,7 @@ export interface File {
   upload_date?: string;
   uploaded_by?: number;
   notes?: string;
+  client_full_name?: string;
 }
 
 export interface ExamLayout {

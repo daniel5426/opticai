@@ -4,11 +4,17 @@ import * as React from "react"
 
 import { cn } from "@/utils/tailwind"
 
-function Table({ className, ...props }: React.ComponentProps<"table">) {
+type TableProps = React.ComponentProps<"table"> & {
+  containerClassName?: string
+  containerStyle?: React.CSSProperties
+}
+
+function Table({ className, containerClassName, containerStyle, ...props }: TableProps) {
   return (
     <div
       data-slot="table-container"
-      className="relative w-full overflow-x-auto"
+      className={cn("relative w-full overflow-x-auto rounded-md border", containerClassName)}
+      style={containerStyle}
     >
       <table
         data-slot="table"

@@ -32,7 +32,7 @@ export async function getAllReferrals(clinicId?: number): Promise<Referral[]> {
 
 export async function getPaginatedReferrals(
   clinicId?: number,
-  options?: { limit?: number; offset?: number; order?: 'date_desc' | 'date_asc' | 'id_desc' | 'id_asc' }
+  options?: { limit?: number; offset?: number; order?: 'date_desc' | 'date_asc' | 'id_desc' | 'id_asc'; search?: string }
 ): Promise<{ items: Referral[]; total: number }> {
   try {
     const effectiveOptions = options ?? { limit: 25, offset: 0, order: 'date_desc' as const };

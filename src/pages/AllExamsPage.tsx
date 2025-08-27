@@ -16,12 +16,19 @@ export default function AllExamsPage() {
   const [pageSize] = useState(25)
   const [total, setTotal] = useState(0)
   const navigate = useNavigate()
+  const [searchQuery, setSearchQuery] = useState("")
+  const [debouncedSearch, setDebouncedSearch] = useState("")
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(searchQuery), 400)
+    return () => clearTimeout(t)
+  }, [searchQuery])
 
   const loadData = useCallback(async () => {
     try {
       setLoading(true)
       const offset = (page - 1) * pageSize
-      const { items, total } = await getPaginatedEnrichedExams('exam', currentClinic?.id, { limit: pageSize, offset, order: 'exam_date_desc' })
+      const { items, total } = await getPaginatedEnrichedExams('exam', currentClinic?.id, { limit: pageSize, offset, order: 'exam_date_desc', search: debouncedSearch || undefined })
       setExams(items)
       setTotal(total)
     } catch (error) {
@@ -29,7 +36,11 @@ export default function AllExamsPage() {
     } finally {
       setLoading(false)
     }
-  }, [currentClinic, page, pageSize])
+  }, [currentClinic, page, pageSize, debouncedSearch])
+
+  useEffect(() => {
+    setPage(1)
+  }, [debouncedSearch])
 
   useEffect(() => {
     if (currentClinic) {
@@ -72,6 +83,8 @@ export default function AllExamsPage() {
           clientId={0} 
           onExamDeleted={handleExamDeleted} 
           onExamDeleteFailed={handleExamDeleteFailed} 
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
           loading={loading} 
           pagination={{ page, pageSize, total, setPage }}
         />
