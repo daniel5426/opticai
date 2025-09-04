@@ -375,7 +375,7 @@ export interface Referral {
   prescription_notes?: string;
   date?: string;
   type?: string;
-  branch?: string;
+  urgency_level?: string;
   recipient?: string;
   referral_data?: Record<string, unknown>;
   client_full_name?: string;
@@ -857,9 +857,10 @@ export interface ExamLayout {
 export interface ExamLayoutInstance {
   id?: number;
   exam_id: number;
-  layout_id: number;
+  layout_id?: number | null;
   is_active?: boolean;
   order?: number;
+  layout_data?: string;
   created_at?: string;
   updated_at?: string;
 }

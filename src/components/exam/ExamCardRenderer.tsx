@@ -125,6 +125,8 @@ const getExamFormData = (examFormData: Record<string, unknown>, componentType: E
     case 'diopter-adjustment-panel': return { layout_instance_id: 0 } as DiopterAdjustmentPanel
     case 'fusion-range': return { layout_instance_id: 0 } as FusionRangeExam
     case 'maddox-rod': return { layout_instance_id: 0 } as MaddoxRodExam
+    case 'stereo-test': return { layout_instance_id: 0 } as StereoTestExam
+    case 'rg': return { layout_instance_id: 0 } as RGExam
     case 'ocular-motor-assessment': return { layout_instance_id: 0 } as OcularMotorAssessmentExam
     case 'old-contact-lenses': return { layout_instance_id: 0 } as OldContactLenses
     case 'over-refraction': return { layout_instance_id: 0 } as OverRefraction
@@ -226,7 +228,7 @@ export const getColumnCount = (type: CardItem['type'], mode: 'editor' | 'detail'
     case 'keratometer-full': return 9
     case 'corneal-topography': return 1
     case 'cover-test': return 5
-    case 'notes': return 2
+    case 'notes': return 5
     case 'anamnesis': return 11
     case 'schirmer-test': return 2
     case 'contact-lens-diameters': return 2
@@ -246,11 +248,33 @@ export const getColumnCount = (type: CardItem['type'], mode: 'editor' | 'detail'
   }
 }
 
+// Define maximum width constraints for specific card types (in percentage)
+export const getMaxWidth = (type: CardItem['type']): number | null => {
+  switch (type) {
+    case 'stereo-test': return 25
+    case 'rg': return 25
+    case 'schirmer-test': return 30
+    case 'uncorrected-va': return 35
+    case 'keratometer': return 35
+    case 'objective': return 40
+    case 'addition': return 45
+    case 'retinoscop': return 40
+    case 'retinoscop-dilation': return 40
+    case 'old-ref': return 35
+    case 'contact-lens-diameters': return 35
+    case 'maddox-rod': return 45
+    case 'fusion-range': return 45
+    case 'cover-test': return 50
+    case 'ocular-motor-assessment': return 35
+    default: return null // No max width constraint
+  }
+}
+
 export const hasNoteCard = (cards: CardItem[]): boolean => {
   return cards.some(card => card.type === 'notes')
 }
 
-// Update calculateCardWidth to support fixedPx widths
+// Update calculateCardWidth to support fixedPx widths and max width constraints
 export const calculateCardWidth = (
   cards: CardItem[],
   rowId: string,
@@ -259,7 +283,8 @@ export const calculateCardWidth = (
   mode: 'editor' | 'detail' = 'detail'
 ): Record<string, number> => {
   if (cards.length === 1) {
-    return { [cards[0].id]: 100 }
+    const maxWidth = getMaxWidth(cards[0].type)
+    return { [cards[0].id]: maxWidth ? Math.min(100, maxWidth) : 100 }
   }
 
   // Identify fixedPx and flexible cards
@@ -277,10 +302,15 @@ export const calculateCardWidth = (
     return typeof col === 'number'
   })
 
-  // If all are fixedPx, just divide equally
+  // If all are fixedPx, just divide equally (respecting max widths)
   if (fixedPxCards.length === cards.length) {
     const percent = 100 / cards.length
-    return Object.fromEntries(cards.map(card => [card.id, percent]))
+    const widths: Record<string, number> = {}
+    cards.forEach(card => {
+      const maxWidth = getMaxWidth(card.type)
+      widths[card.id] = maxWidth ? Math.min(percent, maxWidth) : percent
+    })
+    return widths
   }
 
   // Assign fixedPx cards their percent based on current pxPerCol
@@ -290,40 +320,101 @@ export const calculateCardWidth = (
     const col = getColumnCount(card.type, mode)
     if (typeof col === 'object' && 'fixedPx' in col) {
       const percent = (col.fixedPx / pxPerCol) * 100
-      widths[card.id] = percent
-      usedPercent += percent
+      const maxWidth = getMaxWidth(card.type)
+      const finalPercent = maxWidth ? Math.min(percent, maxWidth) : percent
+      widths[card.id] = finalPercent
+      usedPercent += finalPercent
     }
   })
 
   // For flexible cards, use customWidths if present, but scale to remaining percent
   const rowCustomWidths = customWidths[rowId]
   const flexiblePercents: Record<string, number> = {}
+  
   if (rowCustomWidths) {
     // Only use custom widths for flexible cards
     let totalCustom = 0
+    let constrainedCards: CardItem[] = []
+    let unconstrainedCards: CardItem[] = []
+    let constrainedPercent = 0
+
+    // First pass: identify constrained vs unconstrained cards
     flexibleCards.forEach(card => {
       const val = rowCustomWidths[card.id] ?? 0
-      flexiblePercents[card.id] = val
-      totalCustom += val
+      const maxWidth = getMaxWidth(card.type)
+      
+      if (maxWidth && val > maxWidth) {
+        // This card is constrained by max width
+        constrainedCards.push(card)
+        flexiblePercents[card.id] = maxWidth
+        constrainedPercent += maxWidth
+      } else {
+        // This card is not constrained
+        unconstrainedCards.push(card)
+        flexiblePercents[card.id] = val
+        totalCustom += val
+      }
     })
-    // Scale so sum = 100 - usedPercent
-    const scale = totalCustom > 0 ? (100 - usedPercent) / totalCustom : 1
-    flexibleCards.forEach(card => {
-      widths[card.id] = flexiblePercents[card.id] * scale
+
+    // Calculate remaining space for unconstrained cards
+    const remainingForFlexible = 100 - usedPercent - constrainedPercent
+    const scale = totalCustom > 0 ? remainingForFlexible / totalCustom : 1
+
+    // Apply scaling to unconstrained cards
+    unconstrainedCards.forEach(card => {
+      const scaledWidth = flexiblePercents[card.id] * scale
+      const maxWidth = getMaxWidth(card.type)
+      widths[card.id] = maxWidth ? Math.min(scaledWidth, maxWidth) : scaledWidth
+    })
+
+    // Apply constrained widths
+    constrainedCards.forEach(card => {
+      widths[card.id] = flexiblePercents[card.id]
     })
   } else {
-    // Distribute by column count
-    const totalCols = flexibleCards.reduce((sum, card) => {
+    // Distribute by column count, but respect max widths
+    let totalCols = 0
+    let constrainedCards: CardItem[] = []
+    let unconstrainedCards: CardItem[] = []
+    let constrainedPercent = 0
+    const remainingPercent = 100 - usedPercent
+
+    // Calculate initial distribution
+    const totalColsInitial = flexibleCards.reduce((sum, card) => {
       const col = getColumnCount(card.type, mode)
       return sum + (typeof col === 'number' ? col : 1)
     }, 0)
-    const remainingPercent = 100 - usedPercent
+
+    // First pass: identify constrained cards
     flexibleCards.forEach(card => {
       const col = getColumnCount(card.type, mode)
-      const percent = (typeof col === 'number' ? col : 1) / (totalCols || 1) * remainingPercent
-      widths[card.id] = percent
+      const cols = typeof col === 'number' ? col : 1
+      const initialPercent = (cols / (totalColsInitial || 1)) * remainingPercent
+      const maxWidth = getMaxWidth(card.type)
+      
+      if (maxWidth && initialPercent > maxWidth) {
+        // This card is constrained by max width
+        constrainedCards.push(card)
+        constrainedPercent += maxWidth
+        widths[card.id] = maxWidth
+      } else {
+        // This card is not constrained
+        unconstrainedCards.push(card)
+        totalCols += cols
+      }
+    })
+
+    // Distribute remaining space among unconstrained cards
+    const remainingForUnconstrained = remainingPercent - constrainedPercent
+    unconstrainedCards.forEach(card => {
+      const col = getColumnCount(card.type, mode)
+      const cols = typeof col === 'number' ? col : 1
+      const percent = (cols / (totalCols || 1)) * remainingForUnconstrained
+      const maxWidth = getMaxWidth(card.type)
+      widths[card.id] = maxWidth ? Math.min(percent, maxWidth) : percent
     })
   }
+  
   return widths
 }
 
@@ -1039,10 +1130,10 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
       return (
         <div className="relative">
           {toolbox}
-          <ObservationTab 
-            data={mode === 'editor' ? emptySensationVisionStabilityExam : detailProps!.examFormData['sensation-vision-stability'] as SensationVisionStabilityExam}
-            onChange={mode === 'editor' ? () => {} : getFieldHandler(detailProps!.fieldHandlers, 'sensation-vision-stability')}
-            isEditing={mode === 'editor' ? false : detailProps!.isEditing}
+          <ObservationTab
+            data={getExamData('sensation-vision-stability') as SensationVisionStabilityExam}
+            onChange={getChangeHandler('sensation-vision-stability')}
+            isEditing={mode === 'detail' ? detailProps!.isEditing : false}
           />
         </div>
       )
@@ -1061,9 +1152,23 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
         <div className="relative">
           {toolbox}
           <FusionRangeTab
-            fusionRangeData={mode === 'editor' ? {} : (detailProps!.examFormData['fusion-range'] as any)}
-            onFusionRangeChange={mode === 'editor' ? () => {} : (detailProps!.fieldHandlers['fusion-range'] as (field: keyof FusionRangeExam, value: string | boolean) => void)}
-            isEditing={mode === 'editor' ? false : detailProps!.isEditing}
+            fusionRangeData={(() => {
+              const data = getExamData('fusion-range') as FusionRangeExam;
+              // Convert numeric fields to strings for the component
+              return {
+                ...data,
+                fv_base_in: data.fv_base_in?.toString() || '',
+                fv_base_in_recovery: data.fv_base_in_recovery?.toString() || '',
+                nv_base_in: data.nv_base_in?.toString() || '',
+                nv_base_in_recovery: data.nv_base_in_recovery?.toString() || '',
+                fv_base_out: data.fv_base_out?.toString() || '',
+                fv_base_out_recovery: data.fv_base_out_recovery?.toString() || '',
+                nv_base_out: data.nv_base_out?.toString() || '',
+                nv_base_out_recovery: data.nv_base_out_recovery?.toString() || '',
+              };
+            })()}
+            onFusionRangeChange={getChangeHandler('fusion-range')}
+            isEditing={mode === 'detail' ? detailProps!.isEditing : false}
             needsMiddleSpacer={hasSiblingWithMiddleRow && componentsDontHaveMiddleRow.includes(item.type)}
             hideEyeLabels={finalHideEyeLabels}
           />
@@ -1075,9 +1180,9 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
         <div className="relative">
           {toolbox}
           <MaddoxRodTab
-            maddoxRodData={mode === 'editor' ? {} : (detailProps!.examFormData['maddox-rod'] as any)}
-            onMaddoxRodChange={mode === 'editor' ? () => {} : detailProps!.fieldHandlers['maddox-rod']}
-            isEditing={mode === 'editor' ? false : detailProps!.isEditing}
+            maddoxRodData={getExamData('maddox-rod') as MaddoxRodExam}
+            onMaddoxRodChange={getChangeHandler('maddox-rod')}
+            isEditing={mode === 'detail' ? detailProps!.isEditing : false}
             needsMiddleSpacer={hasSiblingWithMiddleRow && componentsDontHaveMiddleRow.includes(item.type)}
           />
         </div>
@@ -1088,9 +1193,9 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
         <div className="relative">
           {toolbox}
           <StereoTestTab
-            stereoTestData={mode === 'editor' ? {} : (detailProps!.examFormData['stereo-test'] as any)}
-            onStereoTestChange={mode === 'editor' ? () => {} : (detailProps!.fieldHandlers['stereo-test'] as any)}
-            isEditing={mode === 'editor' ? false : detailProps!.isEditing}
+            stereoTestData={getExamData('stereo-test') as StereoTestExam}
+            onStereoTestChange={getChangeHandler('stereo-test') as (field: keyof StereoTestExam, value: string | boolean | number) => void}
+            isEditing={mode === 'detail' ? detailProps!.isEditing : false}
             needsMiddleSpacer={hasSiblingWithMiddleRow && componentsDontHaveMiddleRow.includes(item.type)}
           />
         </div>
@@ -1101,9 +1206,9 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
         <div className="relative">
           {toolbox}
           <RGTab
-            rgData={mode === 'editor' ? {} : (detailProps!.examFormData['rg'] as any)}
-            onRGChange={mode === 'editor' ? () => {} : (detailProps!.fieldHandlers['rg'] as (field: keyof RGExam, value: string | null) => void)}
-            isEditing={mode === 'editor' ? false : detailProps!.isEditing}
+            rgData={getExamData('rg') as RGExam}
+            onRGChange={getChangeHandler('rg') as (field: keyof RGExam, value: string | null) => void}
+            isEditing={mode === 'detail' ? detailProps!.isEditing : false}
             needsMiddleSpacer={hasSiblingWithMiddleRow && componentsDontHaveMiddleRow.includes(item.type)}
           />
         </div>
@@ -1139,9 +1244,9 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
         <div className="relative">
           {toolbox}
           <OcularMotorAssessmentTab
-            ocularMotorAssessmentData={mode === 'editor' ? {} : (detailProps!.examFormData['ocular-motor-assessment'] as any)}
-            onOcularMotorAssessmentChange={mode === 'editor' ? () => {} : detailProps!.fieldHandlers['ocular-motor-assessment']}
-            isEditing={mode === 'editor' ? false : detailProps!.isEditing}
+            ocularMotorAssessmentData={getExamData('ocular-motor-assessment') as OcularMotorAssessmentExam}
+            onOcularMotorAssessmentChange={getChangeHandler('ocular-motor-assessment')}
+            isEditing={mode === 'detail' ? detailProps!.isEditing : false}
             needsMiddleSpacer={hasSiblingWithMiddleRow && componentsDontHaveMiddleRow.includes(item.type)}
           />
         </div>

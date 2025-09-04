@@ -7,6 +7,7 @@ import { updateAppLanguage } from "./helpers/language_helpers";
 import { router } from "./routes/router";
 import { RouterProvider } from "@tanstack/react-router";
 import { UserProvider } from "./contexts/UserContext";
+import { RenderGate } from "./components/RenderGate";
 
 // Simple error boundary component
 class ErrorBoundary extends React.Component<{ children: ReactNode }> {
@@ -50,18 +51,21 @@ export default function App() {
   const { i18n } = useTranslation();
 
   useEffect(() => {
+    // Theme is already applied in preboot, just sync state
     syncThemeWithLocal();
     updateAppLanguage(i18n);
   }, [i18n]);
 
   return (
-    <ErrorBoundary>
-      <Suspense fallback={<Loading />}>
-        <UserProvider>
-          <RouterProvider router={router} />
-        </UserProvider>
-      </Suspense>
-    </ErrorBoundary>
+    <RenderGate>
+      <ErrorBoundary>
+        <Suspense fallback={<Loading />}>
+          <UserProvider>
+            <RouterProvider router={router} />
+          </UserProvider>
+        </Suspense>
+      </ErrorBoundary>
+    </RenderGate>
   );
 }
 
@@ -71,3 +75,4 @@ root.render(
     <App />
   </React.StrictMode>,
 );
+

@@ -13,8 +13,7 @@ import { Input } from "@/components/ui/input"
 import { Plus, Trash2 } from "lucide-react"
 import { Order, User, Client } from "@/lib/db/schema-interface"
 import { ClientSelectModal } from "@/components/ClientSelectModal"
-import { getAllUsers } from "@/lib/db/users-db"
-import { getAllClients } from "@/lib/db/clients-db"
+
 import { CustomModal } from "@/components/ui/custom-modal"
 import { deleteOrder } from "@/lib/db/orders-db"
 import { toast } from "sonner"
@@ -32,42 +31,14 @@ interface OrdersTableProps {
 
 export function OrdersTable({ data, clientId, onOrderDeleted, onOrderDeleteFailed, loading, pagination, searchQuery: externalSearch, onSearchChange }: OrdersTableProps & { searchQuery?: string; onSearchChange?: (q: string) => void }) {
   const { currentClinic } = useUser()
-  const [searchQuery, setSearchQuery] = useState("")
-  const searchValue = externalSearch !== undefined ? externalSearch : searchQuery
-  const [users, setUsers] = useState<User[]>([])
-  const [clients, setClients] = useState<Client[]>([])
+
   const navigate = useNavigate()
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
   const [orderToDelete, setOrderToDelete] = useState<Order | null>(null)
 
-  useEffect(() => {
-    const loadData = async () => {
-      if (!currentClinic) return
-      
-      try {
-        const [usersData, clientsData] = await Promise.all([
-          getAllUsers(currentClinic.id),
-          getAllClients(currentClinic.id)
-        ])
-        setUsers(usersData)
-        setClients(clientsData)
-      } catch (error) {
-        console.error('Error loading data:', error)
-      }
-    }
-    loadData()
-  }, [currentClinic])
 
-  const getUserName = (userId?: number): string => {
-    if (!userId) return ''
-    const user = users.find(u => u.id === userId)
-  return user?.full_name || user?.username || ''
-  }
 
-  const getClientName = (clientId: number): string => {
-    const client = clients.find(c => c.id === clientId)
-    return client ? `${client.first_name} ${client.last_name}`.trim() : ''
-  }
+
 
   const handleDeleteConfirm = async () => {
     if (orderToDelete && orderToDelete.id !== undefined) {
@@ -91,17 +62,7 @@ export function OrdersTable({ data, clientId, onOrderDeleted, onOrderDeleteFaile
     setIsDeleteModalOpen(false);
   };
 
-  const filteredData = externalSearch !== undefined ? data : data.filter((order) => {
-    const searchableFields = [
-      order.type || '',
-      order.order_date || '',
-      getUserName(order.user_id),
-    ]
-
-    return searchableFields.some(
-      (field) => field.toLowerCase().includes(searchValue.toLowerCase())
-    )
-  })
+  const filteredData = data
 
   return (
     <div className="space-y-4 mb-10" style={{scrollbarWidth: 'none'}}>
@@ -109,8 +70,8 @@ export function OrdersTable({ data, clientId, onOrderDeleted, onOrderDeleteFaile
         <div className="flex gap-2 bg-card">
           <Input
             placeholder="חיפוש הזמנות..."
-            value={searchValue}
-            onChange={(e) => (onSearchChange ? onSearchChange(e.target.value) : setSearchQuery(e.target.value))}
+            value={externalSearch || ""}
+            onChange={(e) => onSearchChange?.(e.target.value)}
             className="w-[250px] bg-card dark:bg-card" dir="rtl"
           />
         </div>
@@ -159,6 +120,7 @@ export function OrdersTable({ data, clientId, onOrderDeleted, onOrderDeleteFaile
             <TableRow>
               <TableHead className="text-right">תאריך הזמנה</TableHead>
               <TableHead className="text-right">סוג הזמנה</TableHead>
+              <TableHead className="text-right">סוג</TableHead>
               {clientId === 0 && <TableHead className="text-right">לקוח</TableHead>}
               <TableHead className="text-right">בודק</TableHead>
               <TableHead className="text-right">VA</TableHead>
@@ -168,7 +130,7 @@ export function OrdersTable({ data, clientId, onOrderDeleted, onOrderDeleteFaile
           </TableHeader>
           <TableBody>
             {loading ? (
-              Array.from({ length: 5 }).map((_, i) => (
+              Array.from({ length: 14 }).map((_, i) => (
                 <TableRow key={i}>
                   <TableCell>
                     <Skeleton className="w-[70%] h-4 my-2 " />
@@ -219,15 +181,16 @@ export function OrdersTable({ data, clientId, onOrderDeleted, onOrderDeleteFaile
                       {order.order_date ? new Date(order.order_date).toLocaleDateString('he-IL') : ''}
                     </TableCell>
                     <TableCell>{order.type}</TableCell>
+                    <TableCell>{(order as any).__contact ? 'עדשות מגע' : 'הזמנה רגילה'}</TableCell>
                     {clientId === 0 && (
                       <TableCell className="cursor-pointer text-blue-600 hover:underline"
                         onClick={e => {
                           e.stopPropagation();
                           navigate({ to: "/clients/$clientId", params: { clientId: String(order.client_id) }, search: { tab: 'orders' } })
                         }}
-                      >{getClientName(order.client_id)}</TableCell>
+                      >{(order as any).clientName || ''}</TableCell>
                     )}
-                    <TableCell>{getUserName(order.user_id)}</TableCell>
+                    <TableCell>{(order as any).username || ''}</TableCell>
                     <TableCell>{order.comb_va ? `6/${order.comb_va}` : ''}</TableCell>
                     <TableCell>{order.comb_pd}</TableCell>
                     <TableCell>

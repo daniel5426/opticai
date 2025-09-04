@@ -25,7 +25,7 @@ import {
 import { createAppointment, updateAppointment, deleteAppointment } from "@/lib/db/appointments-db"
 import { getClientById, createClient } from "@/lib/db/clients-db"
 import { getDashboardHome } from "@/lib/db/dashboard-db"
-import { applyThemeColorsFromSettings } from "@/helpers/theme_helpers"
+import { applyThemeColorsFromSettings, applyThemeColorsFromUserData } from "@/helpers/theme_helpers"
 import { Appointment, Client, Settings } from "@/lib/db/schema-interface"
 import {
   format,
@@ -84,6 +84,7 @@ export default function HomePage() {
   const [clients, setClients] = useState<Client[]>([])
   const [settings, setSettings] = useState<Settings | null>(null)
   const [loading, setLoading] = useState(true)
+  const [themeLoading, setThemeLoading] = useState(false)
   const { currentUser, currentClinic } = useUser()
 
   const [draggedData, setDraggedData] = useState<DragData | null>(null)
@@ -160,50 +161,64 @@ export default function HomePage() {
   })
 
   const calendarRef = useRef<HTMLDivElement>(null)
+  const loadedStartRef = useRef<Date | null>(null)
+  const loadedEndRef = useRef<Date | null>(null)
+  const loadedClinicIdRef = useRef<number | null>(null)
 
-  const loadData = useCallback(async () => {
+  const loadData = useCallback(async (startDate: Date, endDate: Date) => {
     try {
       setLoading(true)
       
-      // Get date range for current view to limit appointment queries
-      const startDate = view === 'month' 
-        ? startOfMonth(currentDate)
-        : view === 'week' 
-          ? startOfWeek(currentDate, { weekStartsOn: 0 })
-          : startOfDay(currentDate)
-      
-      const endDate = view === 'month'
-        ? endOfMonth(currentDate)
-        : view === 'week'
-          ? endOfWeek(currentDate, { weekStartsOn: 0 })
-          : endOfDay(currentDate)
-
-      // Use aggregated dashboard endpoint
       if (currentClinic?.id) {
         const s = format(startDate, 'yyyy-MM-dd')
         const e = format(endDate, 'yyyy-MM-dd')
+        
         const data = await getDashboardHome(currentClinic.id, s, e)
         setAppointments(data.appointments)
         setClients(data.clients)
         setSettings(data.settings)
         setUsers(data.users)
+        loadedStartRef.current = startDate
+        loadedEndRef.current = endDate
+        loadedClinicIdRef.current = currentClinic.id
       }
 
-      if (currentUser?.id) {
-        await applyThemeColorsFromSettings(undefined, currentUser.id)
+      // Apply theme colors synchronously using already loaded user data
+      if (currentUser) {
+        setThemeLoading(true)
+        // Use setTimeout to defer theme application
+        setTimeout(() => {
+          applyThemeColorsFromUserData(currentUser)
+          setThemeLoading(false)
+        }, 0)
       }
     } catch (error) {
       console.error('Error loading dashboard data:', error)
     } finally {
       setLoading(false)
     }
-  }, [currentClinic?.id, currentUser?.id, currentDate, view])
+  }, [currentClinic?.id, currentUser?.id])
 
   useEffect(() => {
-    if (currentClinic) {
-      loadData()
+    if (!currentClinic?.id) return
+
+    const desiredStart = startOfMonth(subMonths(currentDate, 6))
+    const desiredEnd = endOfMonth(addMonths(currentDate, 6))
+
+    const needsLoad =
+      loadedClinicIdRef.current !== currentClinic.id ||
+      !loadedStartRef.current ||
+      !loadedEndRef.current ||
+      currentDate < loadedStartRef.current ||
+      currentDate > loadedEndRef.current
+
+    if (needsLoad) {
+      const timeoutId = setTimeout(() => {
+        loadData(desiredStart, desiredEnd)
+      }, 100)
+      return () => clearTimeout(timeoutId)
     }
-  }, [currentUser?.id, currentClinic])
+  }, [currentClinic?.id, currentDate])
 
   useEffect(() => {
     if (!isClientSelectOpen && selectedClient) {
@@ -246,6 +261,8 @@ export default function HomePage() {
 
   // Memoized user color mapping with conflict resolution
   const userColorMap = useMemo(() => {
+    if (!users.length) return new Map<number, string>()
+    
     const colorMap = new Map<number, string>()
     const colorGroups = new Map<string, number[]>()
     
@@ -278,7 +295,7 @@ export default function HomePage() {
     })
     
     return colorMap
-  }, [users])
+  }, [users.map(u => ({ id: u.id, primary_theme_color: u.primary_theme_color }))])
 
   // Helper function to get user color (now memoized)
   const getUserColor = useCallback((userId?: number) => {
@@ -444,6 +461,8 @@ export default function HomePage() {
 
   // Memoized appointments grouped by date for performance
   const appointmentsByDate = useMemo(() => {
+    if (!appointments.length) return new Map<string, Appointment[]>()
+    
     const dateMap = new Map<string, Appointment[]>()
     
     appointments.forEach(appointment => {
@@ -460,7 +479,7 @@ export default function HomePage() {
     })
     
     return dateMap
-  }, [appointments])
+  }, [appointments.map(a => ({ id: a.id, date: a.date, time: a.time, duration: a.duration, client_id: a.client_id, user_id: a.user_id, exam_name: a.exam_name, note: a.note }))])
 
   // Optimized function to get appointments for a specific date
   const getAppointmentsForDate = useCallback((date: Date) => {
@@ -470,6 +489,8 @@ export default function HomePage() {
 
   // Memoized client lookup for performance
   const clientsMap = useMemo(() => {
+    if (!clients.length) return new Map<number, Client>()
+    
     const map = new Map<number, Client>()
     clients.forEach(client => {
       if (client.id) {
@@ -477,11 +498,13 @@ export default function HomePage() {
       }
     })
     return map
-  }, [clients])
+  }, [clients.map(c => ({ id: c.id, first_name: c.first_name, last_name: c.last_name, phone_mobile: c.phone_mobile, file_creation_date: c.file_creation_date }))])
 
   // Optimized appointment blocks calculation with memoization
   const getAppointmentBlocks = useCallback((date: Date): AppointmentBlock[] => {
     const dayAppointments = getAppointmentsForDate(date)
+    if (!dayAppointments.length) return []
+    
     const HOUR_HEIGHT = 95
     const blocks: AppointmentBlock[] = []
 
@@ -1017,7 +1040,11 @@ export default function HomePage() {
       } else {
         // Invalid resize position, restore original state
         setResizeData(null)
-        await loadData()
+        {
+          const desiredStart = startOfMonth(subMonths(currentDate, 6))
+          const desiredEnd = endOfMonth(addMonths(currentDate, 6))
+          await loadData(desiredStart, desiredEnd)
+        }
       }
     }
 
@@ -1342,6 +1369,14 @@ export default function HomePage() {
     <>
       <SiteHeader title={ "לוח זמנים"} />
       <div className="flex flex-col bg-muted/50 flex-1 gap-6" dir="rtl" style={{ scrollbarWidth: 'none' }}>
+        {themeLoading && (
+          <div className="absolute top-4 right-4 z-50">
+            <div className="bg-background/80 backdrop-blur-sm rounded-md px-3 py-2 text-sm">
+              <Loader2 className="h-4 w-4 animate-spin inline mr-2" />
+              טוען עיצוב...
+            </div>
+          </div>
+        )}
 
         {/* Calendar Header */}
         <div className="flex items-center justify-between p-4 lg:p-6 pb-0">

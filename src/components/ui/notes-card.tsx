@@ -8,9 +8,10 @@ type NotesCardProps = {
   onChange: (value: string) => void
   disabled?: boolean
   placeholder?: string
+  height?: string
 }
 
-export function NotesCard({ title, value, onChange, disabled = false, placeholder = '' }: NotesCardProps) {
+export function NotesCard({ title, value, onChange, disabled = false, placeholder = '', height = 'full' }: NotesCardProps) {
   return (
     <Card className={`w-full px-4 pt-3 pb-4 shadow-md border-none gap-2`} dir="rtl">
       <div className="flex items-center gap-3">
@@ -29,7 +30,7 @@ export function NotesCard({ title, value, onChange, disabled = false, placeholde
         disabled={disabled}
         value={value || ''}
         onChange={(e) => onChange(e.target.value)}
-        className={`text-sm w-full p-3 border rounded-lg disabled:opacity-100 disabled:cursor-default min-h[90px] ${disabled ? 'bg-accent/50' : ''}`}
+        className={`text-sm w-full p-3 border rounded-lg disabled:opacity-100 disabled:cursor-default min-h[90px] ${disabled ? 'bg-accent/50' : ''} h-[${height}]`}
         rows={4}
         placeholder={disabled ? '' : placeholder}
       />

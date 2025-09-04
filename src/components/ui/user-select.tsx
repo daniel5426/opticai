@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import {
   Select,
   SelectContent,
@@ -7,7 +7,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { User } from '@/lib/db/schema-interface'
-import { getAllUsers } from '@/lib/db/users-db'
+import { getAllUsers, getUsersByClinic } from '@/lib/db/users-db'
 import { useUser } from '@/contexts/UserContext'
 
 interface UserSelectProps {
@@ -22,24 +22,46 @@ interface UserSelectProps {
 export function UserSelect({ value, onValueChange, placeholder = "בחר משתמש", disabled = false, users: usersProp, onUsersLoaded }: UserSelectProps) {
   const [users, setUsers] = useState<User[]>(usersProp || [])
   const [loading, setLoading] = useState(!usersProp)
-  const { currentUser } = useUser()
+  const { currentUser, currentClinic } = useUser()
+  const initializedRef = useRef(false)
 
   useEffect(() => {
     if (usersProp) {
       setUsers(usersProp)
       setLoading(false)
-      if ((!value || value === 0) && currentUser?.id) {
+      if (!initializedRef.current && (!value || value === 0) && currentUser?.id) {
+        initializedRef.current = true
         onValueChange(currentUser.id)
       }
       return
     }
+    const key = currentClinic?.id ? `users_cache_${currentClinic.id}` : 'users_cache_all'
+    try {
+      const cachedStr = typeof localStorage !== 'undefined' ? localStorage.getItem(key) : null
+      if (cachedStr) {
+        const cached = JSON.parse(cachedStr) as { users: User[]; ts: number }
+        setUsers(cached.users || [])
+        setLoading(false)
+        if (!initializedRef.current && (!value || value === 0) && currentUser?.id) {
+          initializedRef.current = true
+          onValueChange(currentUser.id)
+        }
+        if (onUsersLoaded) onUsersLoaded(cached.users || [])
+      }
+    } catch {}
 
     const loadUsers = async () => {
       try {
-        const usersData = await getAllUsers()
-        setUsers(usersData)
-        if (onUsersLoaded) onUsersLoaded(usersData)
-        if ((!value || value === 0) && currentUser?.id) {
+        const fetched = currentClinic?.id ? await getUsersByClinic(currentClinic.id) : await getAllUsers()
+        setUsers(fetched)
+        if (onUsersLoaded) onUsersLoaded(fetched)
+        if (typeof localStorage !== 'undefined') {
+          try {
+            localStorage.setItem(key, JSON.stringify({ users: fetched, ts: Date.now() }))
+          } catch {}
+        }
+        if (!initializedRef.current && (!value || value === 0) && currentUser?.id) {
+          initializedRef.current = true
           onValueChange(currentUser.id)
         }
       } catch (error) {
@@ -48,15 +70,21 @@ export function UserSelect({ value, onValueChange, placeholder = "בחר משת�
         setLoading(false)
       }
     }
-
     loadUsers()
-  }, [value, currentUser, onValueChange, usersProp])
+  }, [usersProp, currentClinic?.id, currentUser?.id])
 
   if (loading) {
     return (
-      <Select disabled>
+      <Select
+        value={value && value > 0 ? value.toString() : ''}
+        onValueChange={() => {}}
+        disabled
+        dir="rtl"
+      >
         <SelectTrigger className="w-full">
+          <SelectValue placeholder={placeholder} />
         </SelectTrigger>
+        <SelectContent />
       </Select>
     )
   }

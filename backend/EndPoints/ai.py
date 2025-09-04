@@ -230,6 +230,29 @@ def _make_tools_for_user(user: User) -> List[Tool]:
                 "user_role": user.role,
                 "user_clinic_id": user.clinic_id,
             })
+            # Support single JSON/dict payload passed as first argument
+            try:
+                if isinstance(client_id, str):
+                    txt = client_id.strip()
+                    if txt.startswith("{") and txt.endswith("}"):
+                        try:
+                            payload = json.loads(txt)
+                            client_id = payload.get("client_id", client_id)
+                            date = payload.get("date", date)
+                            time = payload.get("time", time)
+                            exam_name = payload.get("exam_name", exam_name)
+                            note = payload.get("note", note)
+                        except Exception:
+                            pass
+                elif isinstance(client_id, dict):
+                    payload = client_id
+                    client_id = payload.get("client_id", client_id)
+                    date = payload.get("date", date)
+                    time = payload.get("time", time)
+                    exam_name = payload.get("exam_name", exam_name)
+                    note = payload.get("note", note)
+            except Exception:
+                pass
             try:
                 client_id = _coerce_int(client_id)  # type: ignore
             except Exception:
@@ -395,7 +418,7 @@ async def ai_chat_stream(
     if not message:
         raise HTTPException(status_code=422, detail="message is required")
 
-    llm = ChatOpenAI(model="gpt-4o", api_key=settings.OPENAI_API_KEY, base_url=settings.OPENAI_BASE_URL, temperature=0.7)
+    llm = ChatOpenAI(model="gpt-4o", api_key=settings.OPENAI_API_KEY, base_url=settings.OPENAI_BASE_URL, temperature=0.7, streaming=True)
     tools = _make_tools_for_user(current_user)
     agent = create_react_agent(llm, tools)
 
@@ -525,9 +548,10 @@ async def ai_chat_stream(
         event_stream(),
         media_type="text/event-stream",
         headers={
-            "Cache-Control": "no-cache",
+            "Cache-Control": "no-cache, no-transform",
             "Connection": "keep-alive",
             "X-Accel-Buffering": "no",
+            "Content-Encoding": "identity",
         },
     )
 

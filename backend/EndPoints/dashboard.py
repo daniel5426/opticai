@@ -41,6 +41,7 @@ def get_home_dashboard(
             Appointment.note,
         )
         .filter(and_(*filters))
+        .order_by(Appointment.date.asc(), Appointment.time.asc())
         .all()
     )
     appointments = [
@@ -120,6 +121,7 @@ def get_home_dashboard(
             User.added_vacation_dates,
         )
         .filter(User.clinic_id == clinic_id)
+        .order_by(User.id.asc())
         .all()
     )
     users = [

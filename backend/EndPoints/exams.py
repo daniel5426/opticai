@@ -279,7 +279,13 @@ def get_exam_page_data(
     enriched_instances = []
     for inst in layout_instances_sorted:
         enriched_instances.append({
-            "instance": inst,
+            "instance": {
+                "id": inst.id,
+                "layout_id": inst.layout_id,
+                "is_active": inst.is_active,
+                "order": inst.order,
+                "layout_data": getattr(inst, 'layout_data', None),
+            },
             "layout": layout_map.get(inst.layout_id),
             "exam_data": inst.exam_data or {}
         })
@@ -310,12 +316,7 @@ def get_exam_page_data(
         },
         "instances": [
             {
-                "instance": {
-                    "id": ei["instance"].id,
-                    "layout_id": ei["instance"].layout_id,
-                    "is_active": ei["instance"].is_active,
-                    "order": ei["instance"].order,
-                },
+                "instance": ei["instance"],
                 "layout": {
                     "id": ei["layout"].id if ei["layout"] else None,
                     "name": ei["layout"].name if ei["layout"] else None,

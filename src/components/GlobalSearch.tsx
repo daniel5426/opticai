@@ -4,16 +4,11 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Search, X, User, Eye, ShoppingCart, FileText, Users, Calendar, Mail, Phone, MapPin, Hash } from 'lucide-react'
-import { getAllClients } from '@/lib/db/clients-db'
-import { getAllExams } from '@/lib/db/exams-db'
-import { getAllMedicalLogs } from '@/lib/db/medical-logs-db'
-import { getAllFamilies } from '@/lib/db/family-db'
-import { getAllReferrals } from '@/lib/db/referral-db'
-import { getAllAppointments } from '@/lib/db/appointments-db'
-import { getAllCampaigns } from '@/lib/db/campaigns-db'
 import { Client, OpticalExam, MedicalLog, Family, Referral, Appointment, Campaign, Clinic } from '@/lib/db/schema-interface'
 import { useUser } from '@/contexts/UserContext'
+import { apiClient } from '@/lib/api-client'
 
 interface SearchResult {
   id: string
@@ -44,6 +39,9 @@ export function GlobalSearch({ onClose }: GlobalSearchProps) {
   const [results, setResults] = useState<SearchResult[]>([])
   const [loading, setLoading] = useState(false)
   const [isOpen, setIsOpen] = useState(false)
+  const [page, setPage] = useState(1)
+  const [total, setTotal] = useState(0)
+  const pageSize = 50
   const [allData, setAllData] = useState<{
     clients: Client[]
     exams: OpticalExam[]
@@ -65,38 +63,49 @@ export function GlobalSearch({ onClose }: GlobalSearchProps) {
   const navigate = useNavigate()
   const inputRef = useRef<HTMLInputElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+  const loadedClinicIdRef = useRef<number | null>(null)
+  const isLoadingAllRef = useRef(false)
 
   useEffect(() => {
-    const loadAllData = async () => {
-      if (!currentClinic) return
-      
+    setPage(1)
+  }, [query])
+
+  useEffect(() => {
+    const run = async () => {
+      if (!isOpen) return
+      if (!currentClinic?.id) return
+      const q = query.trim()
+      if (q.length < 2) {
+        setResults([])
+        setTotal(0)
+        return
+      }
+      setLoading(true)
       try {
-        const [clients, exams, medicalLogs, families, referrals, appointments, campaigns] = await Promise.all([
-          getAllClients(currentClinic.id),
-          getAllExams(undefined, currentClinic.id),
-          getAllMedicalLogs(currentClinic.id),
-          getAllFamilies(currentClinic.id),
-          getAllReferrals(currentClinic.id),
-          getAllAppointments(currentClinic.id),
-          getAllCampaigns(currentClinic.id)
-        ])
-        
-        setAllData({
-          clients: clients || [],
-          exams: exams || [],
-          medicalLogs: medicalLogs || [],
-          families: families || [],
-          referrals: referrals || [],
-          appointments: appointments || [],
-          campaigns: campaigns || []
-        })
-      } catch (error) {
-        console.error('Error loading search data:', error)
+        const offset = (page - 1) * pageSize
+        const res = await apiClient.unifiedSearch(q, currentClinic.id, { limit: pageSize, offset })
+        const data = res.data
+        if (data) {
+          const mapped: SearchResult[] = data.items.map((it) => ({
+            id: `${it.type}-${it.id}`,
+            type: it.type as SearchResult['type'],
+            title: it.title,
+            subtitle: it.subtitle,
+            description: it.description,
+            data: it,
+            matchedFields: []
+          }))
+          setResults(mapped)
+          setTotal(data.total)
+        }
+      } catch (e) {
+        console.error('Unified search error:', e)
+      } finally {
+        setLoading(false)
       }
     }
-
-    loadAllData()
-  }, [currentClinic])
+    run()
+  }, [isOpen, currentClinic?.id, query, page])
 
   const normalizeDate = (dateStr: string): string => {
     return dateStr.replace(/[.-]/g, '-')
@@ -464,13 +473,7 @@ export function GlobalSearch({ onClose }: GlobalSearchProps) {
     }
   }
 
-  useEffect(() => {
-    const delayedSearch = setTimeout(() => {
-      performSearch(query)
-    }, 300)
-
-    return () => clearTimeout(delayedSearch)
-  }, [query, allData])
+  // No local filtering; results come from backend now
 
   const handleResultClick = (result: SearchResult) => {
     switch (result.type) {
@@ -499,8 +502,8 @@ export function GlobalSearch({ onClose }: GlobalSearchProps) {
         break
       case 'referral':
         navigate({
-          to: '/referrals/$referralId',
-          params: { referralId: String(result.data.id) }
+          to: '/clients/$clientId/referrals/$referralId',
+          params: { clientId: String(result.data.client_id), referralId: String(result.data.id) }
         })
         break
       case 'appointment':
@@ -592,8 +595,21 @@ export function GlobalSearch({ onClose }: GlobalSearchProps) {
         <Card dir="rtl" className="absolute top-full pb-0 pt-0 left-0 right-0 mt-1 z-50 max-h-96 overflow-hidden shadow-lg">
           <CardContent className="p-0">
             {loading ? (
-              <div className="p-4 text-center text-sm text-muted-foreground">
-                מחפש...
+              <div className="max-h-96 overflow-auto" style={{ scrollbarWidth: 'none' }}>
+                {Array.from({ length: 6 }).map((_, idx) => (
+                  <div key={idx} className="p-3 border-b last:border-b-0">
+                    <div className="flex items-center gap-6 px-4">
+                      <div className="flex-shrink-0 py-4 text-muted-foreground">
+                        <Skeleton className="h-5 w-5 rounded" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <Skeleton className="h-4 w-40 mb-2" />
+                        <Skeleton className="h-3 w-24 mb-2" />
+                        <Skeleton className="h-3 w-64" />
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
             ) : results.length > 0 ? (
               <div className="max-h-96 overflow-auto" style={{ scrollbarWidth: 'none' }}>
@@ -648,4 +664,4 @@ export function GlobalSearch({ onClose }: GlobalSearchProps) {
       )}
     </div>
   )
-} 
+}

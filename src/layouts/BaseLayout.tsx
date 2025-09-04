@@ -17,13 +17,16 @@ import { Button } from "@/components/ui/button";
 import { User, Clinic } from "@/lib/db/schema-interface";
 import { apiClient } from '@/lib/api-client';
 import { OctahedronLoader } from "@/components/ui/octahedron-loader";
+import { LayoutPreloader } from "@/components/LayoutPreloader";
 
 // Create a wrapper component that safely uses UserContext
 function BaseLayoutContent({ children }: { children: React.ReactNode }) {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [isSettingsLoading, setIsSettingsLoading] = useState(true);
   const [isLogoLoaded, setIsLogoLoaded] = useState(false);
-  const [hasCompanies, setHasCompanies] = useState<boolean | null>(null);
+  const [hasCompanies, setHasCompanies] = useState<boolean | null>(
+    sessionStorage.getItem('hasCompanies') ? sessionStorage.getItem('hasCompanies') === 'true' : null
+  );
   const [company, setCompany] = useState<any>(null);
   const navigate = useNavigate();
   const location = useLocation();
@@ -94,72 +97,83 @@ function BaseLayoutContent({ children }: { children: React.ReactNode }) {
     }
   }, [settings]);
 
-  const isLoading = isUserLoading || isSettingsLoading || hasCompanies === null;
-
+  // Route definitions
   const noSidebarRoutes = ['/', '/control-center', '/setup-wizard', '/clinic-entrance', '/user-selection'];
-  const shouldShowSidebar = !noSidebarRoutes.some(route =>
-    location.pathname === route || location.pathname.startsWith(route)
-  );
-
   const controlCenterRoutes = ['/control-center/dashboard', '/control-center/users', '/control-center/clinics', '/control-center/settings'];
-  const isControlCenterRoute = controlCenterRoutes.some(route =>
-    location.pathname.startsWith(route)
-  );
+  const clinicRoutes = ['/dashboard', '/clients', '/exams', '/orders', '/appointments', '/settings', '/campaigns', '/files', '/referrals', '/contact-lenses', '/ai-assistant', '/exam-layouts', '/worker-stats', '/second-page'];
 
-  // Check if user has access to control center (only company_ceo can access)
+  const isControlCenterRoute = controlCenterRoutes.some(route => location.pathname.startsWith(route));
+  const requiresUser = clinicRoutes.some(route => location.pathname.startsWith(route));
+  const shouldShowSidebar = !noSidebarRoutes.some(route => location.pathname === route || location.pathname.startsWith(route));
   const canAccessControlCenter = currentUser?.role === 'company_ceo';
 
-  const clinicRoutes = [
-    '/dashboard', 
-    '/clients', 
-    '/exams', 
-    '/orders', 
-    '/appointments', 
-    '/settings', 
-    '/campaigns',
-    '/files',
-    '/referrals',
-    '/contact-lenses',
-    '/ai-assistant',
-    '/exam-layouts',
-    '/worker-stats',
-    '/second-page'
-  ];
-  const requiresUser = clinicRoutes.some(route =>
-    location.pathname.startsWith(route)
-  );
+  // Consolidated loading state
+  const isBaseLoading = isUserLoading || isSettingsLoading || hasCompanies === null;
 
-  // Redirect to clinic entrance or user selection based on stored clinic when a clinic-auth route is accessed
+  // Determine if we need a logged-in user (clinic routes)
+  const needsUser = clinicRoutes.some(route => location.pathname.startsWith(route));
+
+  // App is ready ONLY when:
+  // 1) base async data finished AND
+  // 2) If route needs a user, we have one (currentUser)
+  // 3) If route is control-center, we validated access (currentUser & role)
+  const isAppReady = !isBaseLoading &&
+    (!needsUser || !!currentUser) &&
+    (!isControlCenterRoute || (currentUser && canAccessControlCenter));
+
+  const shouldShowSidebarLayout = currentUser && isAppReady && (shouldShowSidebar || requiresUser);
+
+  // Handle redirects only when fully loaded
   useEffect(() => {
-    if (!isLoading && !isUserLoading && requiresUser && !currentUser) {
-      const hasClinic = !!localStorage.getItem('selectedClinic')
-      navigate({ to: hasClinic ? '/user-selection' : '/clinic-entrance' })
+    if (isAppReady) {
+      if (requiresUser && !currentUser) {
+        const hasClinic = !!localStorage.getItem('selectedClinic')
+        navigate({ to: hasClinic ? '/user-selection' : '/clinic-entrance' })
+      } else if (isControlCenterRoute && !currentUser) {
+        navigate({ to: '/control-center' });
+      }
     }
-  }, [isLoading, isUserLoading, requiresUser, currentUser, navigate]);
-
-  // Redirect to control center if user is not authenticated for control center routes
-  useEffect(() => {
-    if (isControlCenterRoute && !currentUser && !isLoading) {
-      navigate({ to: '/control-center' });
-    }
-  }, [isControlCenterRoute, currentUser, isLoading, navigate]);
-
-  // Determine if we should show the sidebar layout
-  const shouldShowSidebarLayout = currentUser && !isLoading && !isUserLoading && 
-                                 (shouldShowSidebar || requiresUser);
+  }, [isAppReady, requiresUser, currentUser, isControlCenterRoute, navigate]);
 
   // Debug logging
 
+  // Add a small delay to ensure sidebar components are ready
+  const [layoutReady, setLayoutReady] = useState(false);
+  
+  const handleLayoutReady = () => {
+    setLayoutReady(true);
+  };
+
+  // Single clean render decision - either show loader or final layout
+  if (!isAppReady || !layoutReady || !currentUser) {
+    return (
+      <ThemeProvider defaultTheme="light" storageKey="vite-ui-theme">
+        <div className="flex items-center justify-center h-screen bg-background">
+          <OctahedronLoader size="3xl" />
+          {isAppReady && currentUser && (
+            <LayoutPreloader
+              onReady={handleLayoutReady}
+              isControlCenter={isControlCenterRoute && canAccessControlCenter}
+              currentUser={currentUser ?? undefined}
+              currentClinic={currentClinic}
+              company={company}
+              settings={settings}
+            />
+          )}
+        </div>
+        <Toaster />
+      </ThemeProvider>
+    );
+  }
+
+  // Render final layout only when everything is ready
   return (
     <>
       <ThemeProvider defaultTheme="light" storageKey="vite-ui-theme">
         <SettingsContext.Provider value={{ settings, updateSettings }}>
           <ClientSidebarProvider>
-            {isLoading ? (
-              <div className="flex items-center justify-center h-full">
-                <OctahedronLoader size="3xl" />
-              </div>
-            ) : hasCompanies === false && !currentUser && !['/', '/control-center', '/setup-wizard', '/clinic-entrance', '/user-selection'].includes(location.pathname) && !location.pathname.startsWith('/control-center/') ? (
+            {/* Special redirect states */}
+            {hasCompanies === false && !currentUser && !noSidebarRoutes.includes(location.pathname) && !location.pathname.startsWith('/control-center/') ? (
               <div className="min-h-screen bg-background flex-row flex items-center justify-center">
                 <div className="text-foreground text-xl">מפנה למסך הבית...</div>
               </div>
@@ -175,13 +189,13 @@ function BaseLayoutContent({ children }: { children: React.ReactNode }) {
             ) : isControlCenterRoute && currentUser && canAccessControlCenter ? (
               <SidebarProvider dir="rtl">
                 <div className="flex flex-col h-screen">
-                  <DragWindowRegion title="" />
+                  {layoutReady && <DragWindowRegion title="" />}
                   <div className="flex-1 flex overflow-hidden">
                     <ControlCenterSidebar
                       variant="inset"
                       side="right"
                       company={company}
-                      currentUser={currentUser || undefined}
+                      currentUser={currentUser ?? undefined}
                       currentClinic={currentClinic}
                     />
                     <SidebarInset className="flex flex-col flex-1 overflow-hidden no-scrollbar" style={{scrollbarWidth: 'none'}}>
@@ -202,13 +216,13 @@ function BaseLayoutContent({ children }: { children: React.ReactNode }) {
             ) : shouldShowSidebarLayout ? (
               <SidebarProvider dir="rtl">
                 <div className="flex flex-col h-screen">
-                  <DragWindowRegion title="" />
+                  {layoutReady && <DragWindowRegion title="" />}
                   <div className="flex-1 flex overflow-hidden">
                     <AppSidebar
                       variant="inset"
                       side="right"
                       clinicName={currentClinic?.name}
-                      currentUser={currentUser || undefined}
+                      currentUser={currentUser ?? undefined}
                       logoPath={settings?.clinic_logo_path || company?.logo_path}
                       isLogoLoaded={isLogoLoaded}
                       currentClinic={currentClinic}
@@ -230,8 +244,7 @@ function BaseLayoutContent({ children }: { children: React.ReactNode }) {
                 </div>
               </SidebarProvider>
             ) : (
-              <div className="flex flex-col h-screen">
-                <DragWindowRegion title="" />
+              <div className="flex flex-col h-screen" dir="rtl">
                 <main className="flex-1 overflow-auto">
                   {children}
                 </main>
@@ -251,16 +264,5 @@ export default function BaseLayout({
 }: {
   children: React.ReactNode;
 }) {
-  return (
-    <React.Suspense fallback={
-      <ThemeProvider defaultTheme="light" storageKey="vite-ui-theme">
-        <div className="flex items-center justify-center h-full">
-          <OctahedronLoader size="3xl" />
-        </div>
-        <Toaster />
-      </ThemeProvider>
-    }>
-      <BaseLayoutContent>{children}</BaseLayoutContent>
-    </React.Suspense>
-  );
+  return <BaseLayoutContent>{children}</BaseLayoutContent>;
 }

@@ -8,7 +8,7 @@ import { toast } from 'sonner'
 import { User } from '@/lib/db/schema-interface'
 import { createUser, updateUser } from '@/lib/db/users-db'
 import { CustomModal } from '@/components/ui/custom-modal'
-import { supabase } from '@/lib/supabaseClient'
+ 
 
 interface UserModalProps {
   isOpen: boolean
@@ -120,7 +120,9 @@ export function UserModal({
             const { createClient } = await import('@supabase/supabase-js')
             const supabaseUrl = (import.meta as any).env.VITE_SUPABASE_URL
             const supabaseKey = (import.meta as any).env.VITE_SUPABASE_ANON_KEY
-            const tempClient = createClient(supabaseUrl, supabaseKey)
+            const tempClient = createClient(supabaseUrl, supabaseKey, {
+              auth: { persistSession: false, autoRefreshToken: false }
+            })
             
             if (userData.password) {
               // Create user with password using temporary client

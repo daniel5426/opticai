@@ -14,7 +14,7 @@ def get_referrals_paginated(
     limit: int = Query(25, ge=1, le=100, description="Max items to return"),
     offset: int = Query(0, ge=0, description="Items to skip"),
     order: Optional[str] = Query("date_desc", description="Sort order: date_desc|date_asc|id_desc|id_asc"),
-    search: Optional[str] = Query(None, description="Search by type/recipient/branch/client name"),
+    search: Optional[str] = Query(None, description="Search by type/recipient/urgency_level/client name"),
     db: Session = Depends(get_db)
 ):
     from sqlalchemy import or_, func, String
@@ -35,7 +35,7 @@ def get_referrals_paginated(
             or_(
                 Referral.type.ilike(like),
                 Referral.recipient.ilike(like),
-                Referral.branch.ilike(like),
+                Referral.urgency_level.ilike(like),
                 func.concat(Client.first_name, ' ', Client.last_name).ilike(like)
             )
         )

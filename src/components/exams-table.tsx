@@ -131,7 +131,7 @@ export function ExamsTable({ data, clientId, onExamDeleted, onExamDeleteFailed, 
             </TableHeader>
             <TableBody>
               {loading ? (
-                Array.from({ length: 5 }).map((_, i) => (
+                Array.from({ length: 14 }).map((_, i) => (
                   <TableRow
                     key={i}
                     className="cursor-pointer"

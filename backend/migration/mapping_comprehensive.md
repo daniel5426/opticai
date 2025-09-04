@@ -694,6 +694,21 @@ New orders mapping added below.
 - Contact-lens-details fallback: from `lens_type`, `lens_model`, `lens_supplier` into r_/l_ if missing.
 - Notes: append `trial_sct` and `chk_comment` into `order_data["contact-lens-order"].notes`.
 
+### Billing for Contact Lens Orders (NEW)
+**Source:** `optic_contact_presc` → **Target:** `billings` + `order_line_item`
+
+| Old Field | New Field | Transformation | Notes |
+|-----------|-----------|----------------|-------|
+| `total_sum` | `billings.total_after_discount` | Parse float | Final total |
+| `discount_sum` | `billings.discount_amount` | Parse float | Discount amount |
+| `advance_sum` | `billings.prepayment_amount` | Parse float | Prepayment |
+| `num_payments` | `billings.installment_count` | Parse int | - |
+| - | `billings.total_before_discount` | Compute | `total_sum + discount_sum` when both present |
+| `order_remarks` | `billings.notes` | Direct | - |
+| link | `billings.contact_lens_id` | Link | To the created `contact_lens_orders.id` |
+| Right: `right_lens_price`, `right_qty`, `rlens_discount` | `order_line_item` | Parse floats/ints | description: `right_model`/`right_type` |
+| Left: `left_lens_price`, `left_qty`, `llens_discount` | `order_line_item` | Parse floats/ints | description: `left_model`/`left_type` |
+
 ## 36. Referral Data Migration
 **Source:** `optic_reference` table → **Target:** `referrals` table
 

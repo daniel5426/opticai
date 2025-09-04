@@ -18,8 +18,8 @@ export async function getSettings(clinicId?: number): Promise<Settings | null> {
     const defaultSettings = {
       clinic_id: clinicId,
       clinic_logo_path: '',
-      primary_theme_color: '#3b82f6',
-      secondary_theme_color: '#1e40af',
+      primary_theme_color: '#000000',
+      secondary_theme_color: '#000000',
       work_start_time: '08:00',
       work_end_time: '17:00',
       appointment_duration: 30,

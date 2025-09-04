@@ -111,6 +111,14 @@ class UserPublic(UserBase):
     class Config:
         from_attributes = True
 
+class UserSelectItem(BaseModel):
+    id: int
+    full_name: Optional[str] = None
+    username: str
+    role: str
+    clinic_id: Optional[int] = None
+    is_active: bool
+
 class FamilyBase(BaseModel):
     name: str
     notes: Optional[str] = None
@@ -386,7 +394,7 @@ class ReferralBase(BaseModel):
     prescription_notes: Optional[str] = None
     date: Optional[date]
     type: Optional[str] = None
-    branch: Optional[str] = None
+    urgency_level: Optional[str] = None
     recipient: Optional[str] = None
     referral_data: Optional[Dict[str, Any]] = {}
 

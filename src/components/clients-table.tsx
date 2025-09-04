@@ -165,7 +165,7 @@ export function ClientsTable({
           </TableHeader>
           <TableBody>
             {loading ? (
-              Array.from({ length: 7 }).map((_, i) => (
+              Array.from({ length: 14 }).map((_, i) => (
                 <TableRow key={i}>
                   <TableCell>
                     <Skeleton className="w-[20%] h-4 my-2" />

@@ -170,89 +170,6 @@ const ControlCenterDashboardPage: React.FC = () => {
   };
 
 
-  if (loading) {
-    return (
-      <>
-        <SiteHeader title="לוח בקרה" />
-        <div className="flex flex-col bg-muted/50 h-full flex-1 gap-6 pb-40" dir="rtl" style={{ scrollbarWidth: 'none' }}>
-          <div className="flex items-center justify-between p-4 lg:p-6 pb-0 lg:pb-1">
-            <div className="flex items-center gap-4">
-              <div>
-                <Skeleton className="h-6 w-40" />
-                <Skeleton className="h-4 w-64 mt-2" />
-              </div>
-            </div>
-            <Skeleton className="h-9 w-28 rounded-md" />
-          </div>
-
-          <div className="px-4 lg:px-6 space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              <Card className="bg-card border-none shadow-md">
-                <CardHeader className="flex flex-row items-center mb-[-10px] justify-between space-y-0">
-                  <Skeleton className="h-4 w-24" />
-                  <Skeleton className="h-4 w-4 rounded-full" />
-                </CardHeader>
-                <CardContent>
-                  <Skeleton className="h-7 w-16" />
-                  <Skeleton className="h-3 w-20 mt-2" />
-                </CardContent>
-              </Card>
-              <Card className="bg-card border-none shadow-md">
-                <CardHeader className="flex flex-row items-center mb-[-10px] justify-between space-y-0">
-                  <Skeleton className="h-4 w-28" />
-                  <Skeleton className="h-4 w-4 rounded-full" />
-                </CardHeader>
-                <CardContent>
-                  <Skeleton className="h-7 w-16" />
-                  <Skeleton className="h-3 w-24 mt-2" />
-                </CardContent>
-              </Card>
-              <Card className="bg-card border-none shadow-md">
-                <CardHeader className="flex flex-row items-center mb-[-10px] justify-between space-y-0">
-                  <Skeleton className="h-4 w-24" />
-                  <Skeleton className="h-4 w-4 rounded-full" />
-                </CardHeader>
-                <CardContent>
-                  <Skeleton className="h-7 w-16" />
-                  <Skeleton className="h-3 w-24 mt-2" />
-                </CardContent>
-              </Card>
-              <Card className="bg-card border-none shadow-md">
-                <CardHeader className="flex flex-row items-center mb-[-10px] justify-between space-y-0">
-                  <Skeleton className="h-4 w-28" />
-                  <Skeleton className="h-4 w-4 rounded-full" />
-                </CardHeader>
-                <CardContent>
-                  <Skeleton className="h-7 w-24" />
-                  <Skeleton className="h-3 w-28 mt-2" />
-                </CardContent>
-              </Card>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              <Card className="bg-card border-none shadow-md">
-                <CardHeader>
-                  <Skeleton className="h-4 w-40" />
-                </CardHeader>
-                <CardContent>
-                  <Skeleton className="w-full h-64" />
-                </CardContent>
-              </Card>
-
-              <Card className="bg-card border-none shadow-md">
-                <CardHeader>
-                  <Skeleton className="h-4 w-48" />
-                </CardHeader>
-                <CardContent>
-                  <Skeleton className="w-full h-64" />
-                </CardContent>
-              </Card>
-            </div>
-          </div>
-        </div>
-      </>
-    );
-  }
 
   return (
     <>
@@ -285,10 +202,19 @@ const ControlCenterDashboardPage: React.FC = () => {
                 <Building2 className="h-4 w-4 text-primary" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-primary">{stats.totalClinics}</div>
-                <p className="text-xs text-muted-foreground">
-                  {stats.activeClinics} פעילות
-                </p>
+                {loading ? (
+                  <>
+                    <Skeleton className="h-7 w-16" />
+                    <Skeleton className="h-3 w-20 mt-2" />
+                  </>
+                ) : (
+                  <>
+                    <div className="text-2xl font-bold text-primary">{stats.totalClinics}</div>
+                    <p className="text-xs text-muted-foreground">
+                      {stats.activeClinics} פעילות
+                    </p>
+                  </>
+                )}
               </CardContent>
             </Card>
 
@@ -298,10 +224,19 @@ const ControlCenterDashboardPage: React.FC = () => {
                 <Users className="h-4 w-4 text-secondary-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-secondary-foreground">{stats.totalUsers}</div>
-                <p className="text-xs text-muted-foreground">
-                  בכל המרפאות
-                </p>
+                {loading ? (
+                  <>
+                    <Skeleton className="h-7 w-16" />
+                    <Skeleton className="h-3 w-24 mt-2" />
+                  </>
+                ) : (
+                  <>
+                    <div className="text-2xl font-bold text-secondary-foreground">{stats.totalUsers}</div>
+                    <p className="text-xs text-muted-foreground">
+                      בכל המרפאות
+                    </p>
+                  </>
+                )}
               </CardContent>
             </Card>
 
@@ -311,10 +246,19 @@ const ControlCenterDashboardPage: React.FC = () => {
                 <Calendar className="h-4 w-4 text-primary" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-primary">{stats.totalAppointments}</div>
-                <p className="text-xs text-muted-foreground">
-                  בכל המרפאות
-                </p>
+                {loading ? (
+                  <>
+                    <Skeleton className="h-7 w-16" />
+                    <Skeleton className="h-3 w-24 mt-2" />
+                  </>
+                ) : (
+                  <>
+                    <div className="text-2xl font-bold text-primary">{stats.totalAppointments}</div>
+                    <p className="text-xs text-muted-foreground">
+                      בכל המרפאות
+                    </p>
+                  </>
+                )}
               </CardContent>
             </Card>
 
@@ -324,10 +268,19 @@ const ControlCenterDashboardPage: React.FC = () => {
                 <TrendingUp className="h-4 w-4 text-secondary-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-secondary-foreground">₪{stats.monthlyRevenue.toLocaleString()}</div>
-                <p className="text-xs text-muted-foreground">
-                  מכל המרפאות
-                </p>
+                {loading ? (
+                  <>
+                    <Skeleton className="h-7 w-24" />
+                    <Skeleton className="h-3 w-28 mt-2" />
+                  </>
+                ) : (
+                  <>
+                    <div className="text-2xl font-bold text-secondary-foreground">₪{stats.monthlyRevenue.toLocaleString()}</div>
+                    <p className="text-xs text-muted-foreground">
+                      מכל המרפאות
+                    </p>
+                  </>
+                )}
               </CardContent>
             </Card>
 
@@ -337,8 +290,17 @@ const ControlCenterDashboardPage: React.FC = () => {
                 <TrendingUp className="h-4 w-4 text-primary" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-primary">₪{Number(aov || 0).toLocaleString()}</div>
-                <p className="text-xs text-muted-foreground">3 חודשים אחרונים</p>
+                {loading ? (
+                  <>
+                    <Skeleton className="h-7 w-24" />
+                    <Skeleton className="h-3 w-28 mt-2" />
+                  </>
+                ) : (
+                  <>
+                    <div className="text-2xl font-bold text-primary">₪{Number(aov || 0).toLocaleString()}</div>
+                    <p className="text-xs text-muted-foreground">3 חודשים אחרונים</p>
+                  </>
+                )}
               </CardContent>
             </Card>
           </div>
@@ -350,8 +312,12 @@ const ControlCenterDashboardPage: React.FC = () => {
               </CardHeader>
               <CardContent className="m-auto">
                 {loading ? (
-                  <div className="mx-auto  w-full max-w-[320px] flex items-center justify-center">
+                  <div className="mx-auto w-full max-w-[320px] flex flex-col items-center justify-center">
                     <Skeleton className="h-64 w-64 rounded-full" />
+                    <div className="mt-4 space-y-2">
+                      <Skeleton className="h-3 w-20" />
+                      <Skeleton className="h-3 w-16" />
+                    </div>
                   </div>
                 ) : ordersByType.length === 0 ? (
                   <div className="mx-auto m-auto w-full max-w-[320px] flex flex-col items-center justify-center text-center">
@@ -393,8 +359,17 @@ const ControlCenterDashboardPage: React.FC = () => {
                 )}
               </CardContent>
               <CardFooter className="flex-col mb-0 items-start gap-2 text-sm">
-                <div className="flex gap-2 leading-none font-medium">התפלגות סוגי הזמנות לפי ספירה</div>
-                <div className="text-muted-foreground leading-none">חצי שנה אחרונה</div>
+                {loading ? (
+                  <>
+                    <Skeleton className="h-3 w-32" />
+                    <Skeleton className="h-3 w-24" />
+                  </>
+                ) : (
+                  <>
+                    <div className="flex gap-2 leading-none font-medium">התפלגות סוגי הזמנות לפי ספירה</div>
+                    <div className="text-muted-foreground leading-none">חצי שנה אחרונה</div>
+                  </>
+                )}
               </CardFooter>
             </Card>
 
@@ -404,7 +379,13 @@ const ControlCenterDashboardPage: React.FC = () => {
               </CardHeader>
               <CardContent>
                 {loading ? (
-                  <Skeleton className="w-full h-64" />
+                  <div className="w-full h-64 flex flex-col items-center justify-center">
+                    <Skeleton className="w-full h-64" />
+                    <div className="mt-4 space-y-2">
+                      <Skeleton className="h-3 w-32" />
+                      <Skeleton className="h-3 w-24" />
+                    </div>
+                  </div>
                 ) : appointmentsByClinic.length === 0 ? (
                   <div className="w-full h-64 flex flex-col items-center justify-center text-center">
                     <div className="text-muted-foreground text-sm mb-2">אין תורים החודש</div>
@@ -422,8 +403,17 @@ const ControlCenterDashboardPage: React.FC = () => {
                 )}
               </CardContent>
               <CardFooter className="flex-col items-start gap-2 text-sm">
-                <div className="flex gap-2 leading-none font-medium">תורים לפי מרפאה (חודש נוכחי)</div>
-                <div className="text-muted-foreground leading-none">מסודר לפי כמות</div>
+                {loading ? (
+                  <>
+                    <Skeleton className="h-3 w-32" />
+                    <Skeleton className="h-3 w-24" />
+                  </>
+                ) : (
+                  <>
+                    <div className="flex gap-2 leading-none font-medium">תורים לפי מרפאה (חודש נוכחי)</div>
+                    <div className="text-muted-foreground leading-none">מסודר לפי כמות</div>
+                  </>
+                )}
               </CardFooter>
             </Card>
 
@@ -433,7 +423,13 @@ const ControlCenterDashboardPage: React.FC = () => {
               </CardHeader>
               <CardContent>
                 {loading ? (
-                  <Skeleton className="w-full h-64" />
+                  <div className="w-full h-64 flex flex-col items-center justify-center">
+                    <Skeleton className="w-full h-64" />
+                    <div className="mt-4 space-y-2">
+                      <Skeleton className="h-3 w-32" />
+                      <Skeleton className="h-3 w-24" />
+                    </div>
+                  </div>
                 ) : usersClientsPerClinic.length === 0 ? (
                   <div className="w-full h-64 flex flex-col items-center justify-center text-center">
                     <div className="text-muted-foreground text-sm mb-2">אין מרפאות במערכת</div>
@@ -452,8 +448,17 @@ const ControlCenterDashboardPage: React.FC = () => {
                 )}
               </CardContent>
               <CardFooter className="flex-col items-start gap-2 text-sm">
-                <div className="flex gap-2 leading-none font-medium">משתמשים מול לקוחות בכל מרפאה</div>
-                <div className="text-muted-foreground leading-none">ממויין לפי סך הכול</div>
+                {loading ? (
+                  <>
+                    <Skeleton className="h-3 w-32" />
+                    <Skeleton className="h-3 w-24" />
+                  </>
+                ) : (
+                  <>
+                    <div className="flex gap-2 leading-none font-medium">משתמשים מול לקוחות בכל מרפאה</div>
+                    <div className="text-muted-foreground leading-none">ממויין לפי סך הכול</div>
+                  </>
+                )}
               </CardFooter>
             </Card>
           </div>
@@ -465,7 +470,9 @@ const ControlCenterDashboardPage: React.FC = () => {
               </CardHeader>
               <CardContent>
                 {loading ? (
-                  <Skeleton className="w-full h-64" />
+                  <div className="w-full h-64 flex flex-col items-center justify-center">
+                    <Skeleton className="w-full h-64" />
+                  </div>
                 ) : topSkus.length === 0 ? (
                   <div className="w-full h-64 flex flex-col items-center justify-center text-center">
                     <div className="text-muted-foreground text-sm mb-2">אין מוצרים</div>
@@ -490,7 +497,13 @@ const ControlCenterDashboardPage: React.FC = () => {
               </CardHeader>
               <CardContent>
                 {loading ? (
-                  <Skeleton className="w-full h-64" />
+                  <div className="w-full h-64 flex flex-col items-center justify-center">
+                    <Skeleton className="w-full h-64" />
+                    <div className="mt-4 space-y-2">
+                      <Skeleton className="h-3 w-32" />
+                      <Skeleton className="h-3 w-24" />
+                    </div>
+                  </div>
                 ) : newClientsSeries.length === 0 ? (
                   <div className="w-full h-64 flex flex-col items-center justify-center text-center">
                     <div className="text-muted-foreground text-sm mb-2">אין נתוני לקוחות</div>

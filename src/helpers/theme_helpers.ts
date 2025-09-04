@@ -80,6 +80,31 @@ export async function applyThemeColorsFromSettings(providedSettings?: any, userI
   }
 }
 
+export function applyThemeColorsFromUserData(user?: any): void {
+  try {
+    const root = document.documentElement;
+    
+    // Only apply custom colors if not in dark mode
+    if (root.classList.contains('dark')) {
+      root.style.removeProperty('--primary');
+      root.style.removeProperty('--secondary');
+      return;
+    }
+
+    if (user?.primary_theme_color) {
+      const primaryHsl = hexToHsl(user.primary_theme_color);
+      root.style.setProperty('--primary', primaryHsl);
+    }
+    
+    if (user?.secondary_theme_color) {
+      const secondaryHsl = hexToHsl(user.secondary_theme_color);
+      root.style.setProperty('--secondary', secondaryHsl);
+    }
+  } catch (error) {
+    console.error('Error applying theme colors from user data:', error);
+  }
+}
+
 export async function getCurrentTheme(): Promise<ThemePreferences> {
   const themeMode = (window as any).themeMode;
   if (!themeMode) {
@@ -308,12 +333,107 @@ export async function applyUserThemeComplete(userId: number, providedUser?: any)
   }
 }
 
+export function applyUserThemeFromStorage(): void {
+  try {
+    const savedUserData = localStorage.getItem('currentUser');
+    if (savedUserData) {
+      const user = JSON.parse(savedUserData);
+      if (user && (user.primary_theme_color || user.secondary_theme_color)) {
+        const root = document.documentElement;
+
+        // Only apply custom colors if not in dark mode
+        if (!root.classList.contains('dark')) {
+          if (user.primary_theme_color) {
+            const primaryHsl = hexToHsl(user.primary_theme_color);
+            root.style.setProperty('--primary', primaryHsl);
+          }
+
+          if (user.secondary_theme_color) {
+            const secondaryHsl = hexToHsl(user.secondary_theme_color);
+            root.style.setProperty('--secondary', secondaryHsl);
+          }
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Error applying theme from storage:', error);
+  }
+}
+
+// Apply theme immediately when script loads to prevent any flash
+(function() {
+  try {
+    const savedUserData = localStorage.getItem('currentUser');
+    if (savedUserData) {
+      const user = JSON.parse(savedUserData);
+      if (user && (user.primary_theme_color || user.secondary_theme_color)) {
+        const root = document.documentElement;
+        
+        // Check if we're in dark mode by checking if the dark class exists
+        const isDark = root.classList.contains('dark');
+        
+        if (!isDark && user.primary_theme_color) {
+          // Convert hex to HSL inline to avoid dependency issues
+          const hex = user.primary_theme_color;
+          const r = parseInt(hex.slice(1, 3), 16) / 255;
+          const g = parseInt(hex.slice(3, 5), 16) / 255;
+          const b = parseInt(hex.slice(5, 7), 16) / 255;
+          const max = Math.max(r, g, b);
+          const min = Math.min(r, g, b);
+          let h = 0;
+          let s = 0;
+          const l = (max + min) / 2;
+          if (max !== min) {
+            const d = max - min;
+            s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+            switch (max) {
+              case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+              case g: h = (b - r) / d + 2; break;
+              case b: h = (r - g) / d + 4; break;
+            }
+            h /= 6;
+          }
+          const primaryHsl = `${Math.round(h * 360)} ${Math.round(s * 100)}% ${Math.round(l * 100)}%`;
+          root.style.setProperty('--primary', primaryHsl);
+        }
+        
+        if (!isDark && user.secondary_theme_color) {
+          // Convert hex to HSL inline
+          const hex = user.secondary_theme_color;
+          const r = parseInt(hex.slice(1, 3), 16) / 255;
+          const g = parseInt(hex.slice(3, 5), 16) / 255;
+          const b = parseInt(hex.slice(5, 7), 16) / 255;
+          const max = Math.max(r, g, b);
+          const min = Math.min(r, g, b);
+          let h = 0;
+          let s = 0;
+          const l = (max + min) / 2;
+          if (max !== min) {
+            const d = max - min;
+            s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+            switch (max) {
+              case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+              case g: h = (b - r) / d + 2; break;
+              case b: h = (r - g) / d + 4; break;
+            }
+            h /= 6;
+          }
+          const secondaryHsl = `${Math.round(h * 360)} ${Math.round(s * 100)}% ${Math.round(l * 100)}%`;
+          root.style.setProperty('--secondary', secondaryHsl);
+        }
+      }
+    }
+  } catch (error) {
+    // Silent fail to prevent blocking app load
+  }
+})();
+
 export async function applyUserThemePreference(userId: number): Promise<void> {
   try {
     // Always get the latest theme preference from the database
     const user = await getUserById(userId);
     let userTheme: ThemeMode | null = null;
-    
+
     if (user?.theme_preference) {
       userTheme = user.theme_preference;
       // Update localStorage for future quick access
@@ -322,7 +442,7 @@ export async function applyUserThemePreference(userId: number): Promise<void> {
       // Check localStorage as fallback
       userTheme = getUserThemePreference(userId);
     }
-    
+
     if (userTheme) {
       await setTheme(userTheme, userId, false);
     } else {

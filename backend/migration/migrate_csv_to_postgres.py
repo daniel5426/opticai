@@ -38,6 +38,8 @@ from backend.models import (
     Referral,
     File,
     Appointment,
+    Billing,
+    OrderLineItem,
     LookupSupplier,
     LookupClinic,
     LookupOrderType,
@@ -917,6 +919,63 @@ def migrate_contact_lens_orders(db: Session, csv_dir: str, account_to_client: Di
         code = str(r.get("code")) if r.get("code") else None
         if code:
             presc_code_to_order_id[code] = order.id
+
+        try:
+            total_sum = parse_float(r.get("total_sum"))
+            discount_sum = parse_float(r.get("discount_sum"))
+            advance_sum = parse_float(r.get("advance_sum"))
+            num_payments = parse_int(r.get("num_payments"))
+            if any(v is not None for v in (total_sum, discount_sum, advance_sum, num_payments)):
+                billing = Billing(
+                    order_id=None,
+                    contact_lens_id=order.id,
+                    total_before_discount=(total_sum + (discount_sum or 0.0)) if total_sum is not None else None,
+                    discount_amount=discount_sum,
+                    discount_percent=None,
+                    total_after_discount=total_sum,
+                    prepayment_amount=advance_sum,
+                    installment_count=num_payments,
+                    notes=r.get("order_remarks") or None,
+                )
+                db.add(billing)
+                db.flush()
+
+                right_price = parse_float(r.get("right_lens_price"))
+                left_price = parse_float(r.get("left_lens_price"))
+                rl_discount = parse_float(r.get("rlens_discount"))
+                ll_discount = parse_float(r.get("llens_discount"))
+                right_qty = parse_int(r.get("right_qty")) or 0
+                left_qty = parse_int(r.get("left_qty")) or 0
+
+                if right_price is not None and right_qty > 0:
+                    oli = OrderLineItem(
+                        billings_id=billing.id,
+                        sku=None,
+                        description=r.get("right_model") or r.get("right_type") or "Right lens",
+                        supplied_by=r.get("right_manuf") or None,
+                        supplied=None,
+                        price=right_price,
+                        quantity=float(right_qty),
+                        discount=rl_discount,
+                        line_total=(right_price * float(right_qty)) - (rl_discount or 0.0),
+                    )
+                    db.add(oli)
+
+                if left_price is not None and left_qty > 0:
+                    oli = OrderLineItem(
+                        billings_id=billing.id,
+                        sku=None,
+                        description=r.get("left_model") or r.get("left_type") or "Left lens",
+                        supplied_by=r.get("left_manuf") or None,
+                        supplied=None,
+                        price=left_price,
+                        quantity=float(left_qty),
+                        discount=ll_discount,
+                        line_total=(left_price * float(left_qty)) - (ll_discount or 0.0),
+                    )
+                    db.add(oli)
+        except Exception:
+            pass
         count += 1
         if count % 1000 == 0:
             print(f"[cl_orders] inserted: {count}", flush=True)
@@ -1127,7 +1186,12 @@ def migrate_files(db: Session, csv_dir: str, account_to_client: Dict[str, int], 
         client_id = account_to_client[account_code]
         clinic_id = branch_to_clinic.get(r.get("branch_code"))
         upload_date = parse_date(r.get("file_date"))
-        file_name = r.get("file_description") or "legacy-file"
+        raw_filename = r.get("file_description")
+        if raw_filename and raw_filename.strip():
+            file_name = raw_filename.strip()
+        else:
+            # Use the original code as fallback if description is missing
+            file_name = f"legacy-file-{r.get('code', 'unknown')}"
         notes = r.get("file_remark") or None
 
         f = File(

@@ -144,96 +144,9 @@ export function BillingTab({
 
   return (
     <div className="pt-4 pb-10" style={{scrollbarWidth: 'none', msOverflowStyle: 'none'}}>
-      <Card className="mb-6">
-        <CardContent>
-          <div className="grid grid-cols-6 gap-3 items-end">
-            <div>
-              <Label className="text-sm">מספר תשלומים</Label>
-              <Input
-                name="installment_count"
-                type="number"
-                value={billingFormData.installment_count || ''}
-                onChange={handleBillingInputChange}
-                disabled={!isEditing}
-                className="mt-1.5"
-                placeholder="1"
-              />
-            </div>
-            <div>
-              <Label className="text-sm">מקדמה</Label>
-              <Input
-                name="prepayment_amount"
-                type="number"
-                step="0.01"
-                value={billingFormData.prepayment_amount || ''}
-                onChange={handleBillingInputChange}
-                disabled={!isEditing}
-                className="mt-1.5"
-                placeholder="0.00"
-              />
-            </div>
-            
-            <div className="flex items-center justify-center">
-              <div className="h-12 w-px bg-gray-300"></div>
-            </div>
-            
-            <div>
-              <Label className="text-sm">סה"כ לפני הנחה</Label>
-              <Input
-                name="total_before_discount"
-                type="number"
-                step="0.01"
-                value={billingFormData.total_before_discount || ''}
-                onChange={handleBillingInputChange}
-                disabled={!isEditing}
-                className="mt-1.5"
-                placeholder="0.00"
-              />
-            </div>
-            <div>
-              <Label className="text-sm">הנחה (₪/%)</Label>
-              <div className="flex gap-1 mt-1.5">
-                <Input
-                  name="discount_amount"
-                  type="number"
-                  step="0.01"
-                  value={billingFormData.discount_amount || ''}
-                  onChange={handleBillingInputChange}
-                  disabled={!isEditing}
-                  className="flex-1"
-                  placeholder="0.00"
-                />
-                <Input
-                  name="discount_percent"
-                  type="number"
-                  step="0.01"
-                  value={billingFormData.discount_percent || ''}
-                  onChange={handleBillingInputChange}
-                  disabled={!isEditing}
-                  className="flex-1"
-                  placeholder="0%"
-                />
-              </div>
-            </div>
-            <div>
-              <Label className="text-sm">סה"כ אחרי הנחה</Label>
-              <Input
-                name="total_after_discount"
-                type="number"
-                step="0.01"
-                value={billingFormData.total_after_discount || ''}
-                onChange={handleBillingInputChange}
-                disabled={!isEditing}
-                className="mt-1.5"
-                placeholder="0.00"
-              />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
 
-      <Card>
-        <CardHeader className="pb-3 flex flex-row items-center justify-between">
+      <Card className="shadow-md">
+        <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-base">פריטי חיוב</CardTitle>
           <Button 
             variant="outline" 
@@ -247,8 +160,19 @@ export function BillingTab({
           </Button>
         </CardHeader>
         <CardContent>
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse">
+          <div className="overflow-x-auto border-x border-t  rounded-md">
+            <table className="w-full table-fixed rounded-md">
+              <colgroup>
+                <col style={{ width: '25%' }} />
+                <col style={{ width: '10%' }} />
+                <col style={{ width: '10%' }} />
+                <col style={{ width: '8%' }} />
+                <col style={{ width: '10%' }} />
+                <col style={{ width: '12%' }} />
+                <col style={{ width: '8%' }} />
+                <col style={{ width: '10%' }} />
+                <col style={{ width: '7%' }} />
+              </colgroup>
               <thead>
                 <tr className="border-b">
                   <th className="text-right p-2 text-sm font-medium">תיאור</th>
@@ -264,16 +188,16 @@ export function BillingTab({
               </thead>
               <tbody>
                 {orderLineItems.map((item) => (
-                  <tr key={item.id} className="border-b">
+                  <tr key={item.id} className="border-b rounded-md">
                     <td className="p-2">
                       {editingLineId === item.id ? (
                         <Input
                           value={item.description || ''}
                           onChange={(e) => handleLineItemChange(item.id!, 'description', e.target.value)}
-                          className="h-8 text-xs"
+                          className="h-8 text-xs w-full"
                         />
                       ) : (
-                        <span className="text-sm">{item.description}</span>
+                        <span className="block w-full text-sm truncate">{item.description}</span>
                       )}
                     </td>
                     <td className="p-2">
@@ -281,10 +205,10 @@ export function BillingTab({
                         <Input
                           value={item.sku || ''}
                           onChange={(e) => handleLineItemChange(item.id!, 'sku', e.target.value)}
-                          className="h-8 text-xs"
+                          className="h-8 text-xs w-full"
                         />
                       ) : (
-                        <span className="text-sm">{item.sku}</span>
+                        <span className="block w-full text-sm truncate">{item.sku}</span>
                       )}
                     </td>
                     <td className="p-2">
@@ -294,10 +218,10 @@ export function BillingTab({
                           step="0.01"
                           value={item.price || ''}
                           onChange={(e) => handleLineItemChange(item.id!, 'price', e.target.value)}
-                          className="h-8 text-xs"
+                          className="h-8 text-xs w-full"
                         />
                       ) : (
-                        <span className="text-sm">{item.price}</span>
+                        <span className="block w-full text-sm truncate">{item.price}</span>
                       )}
                     </td>
                     <td className="p-2">
@@ -306,10 +230,10 @@ export function BillingTab({
                           type="number"
                           value={item.quantity || ''}
                           onChange={(e) => handleLineItemChange(item.id!, 'quantity', e.target.value)}
-                          className="h-8 text-xs"
+                          className="h-8 text-xs w-full"
                         />
                       ) : (
-                        <span className="text-sm">{item.quantity}</span>
+                        <span className="block w-full text-sm truncate">{item.quantity}</span>
                       )}
                     </td>
                     <td className="p-2">
@@ -319,10 +243,10 @@ export function BillingTab({
                           step="0.01"
                           value={item.discount || ''}
                           onChange={(e) => handleLineItemChange(item.id!, 'discount', e.target.value)}
-                          className="h-8 text-xs"
+                          className="h-8 text-xs w-full"
                         />
                       ) : (
-                        <span className="text-sm">{item.discount}</span>
+                        <span className="block w-full text-sm truncate">{item.discount}</span>
                       )}
                     </td>
                     <td className="p-2">
@@ -331,7 +255,7 @@ export function BillingTab({
                           value={item.supplied_by || ''}
                           onValueChange={(value) => handleLineItemChange(item.id!, 'supplied_by', value)}
                         >
-                          <SelectTrigger className="h-8 text-xs">
+                          <SelectTrigger className="h-8 text-xs w-full">
                             <SelectValue placeholder="בחר" />
                           </SelectTrigger>
                           <SelectContent>
@@ -340,7 +264,7 @@ export function BillingTab({
                           </SelectContent>
                         </Select>
                       ) : (
-                        <span className="text-sm">{item.supplied_by}</span>
+                        <span className="block w-full text-sm truncate">{item.supplied_by}</span>
                       )}
                     </td>
                     <td className="p-2">
@@ -349,7 +273,7 @@ export function BillingTab({
                           value={item.supplied ? 'true' : 'false'}
                           onValueChange={(value) => handleLineItemChange(item.id!, 'supplied', value)}
                         >
-                          <SelectTrigger className="h-8 text-xs">
+                          <SelectTrigger className="h-8 text-xs w-full">
                             <SelectValue placeholder="בחר" />
                           </SelectTrigger>
                           <SelectContent>
@@ -358,11 +282,11 @@ export function BillingTab({
                           </SelectContent>
                         </Select>
                       ) : (
-                        <span className="text-sm">{item.supplied ? 'כן' : 'לא'}</span>
+                        <span className="block w-full text-sm truncate">{item.supplied ? 'כן' : 'לא'}</span>
                       )}
                     </td>
                     <td className="p-2">
-                      <span className="text-sm">{item.line_total?.toFixed(2)}</span>
+                      <span className="block w-full text-sm truncate">{item.line_total?.toFixed(2)}</span>
                     </td>
                     <td className="p-2">
                       <div className="flex gap-1">
@@ -412,13 +336,13 @@ export function BillingTab({
                   </tr>
                 ))}
                 {isAddingNewLine && (
-                  <tr className="border-b bg-gray-50">
+                  <tr className="border-b rounded-md bg-gray-50">
                     <td className="p-2">
                       <Input
                         value={newLineItem.description || ''}
                         onChange={(e) => handleLineItemChange('new', 'description', e.target.value)}
                         placeholder="תיאור"
-                        className="h-8 text-xs"
+                        className="h-8 text-xs w-full"
                       />
                     </td>
                     <td className="p-2">
@@ -426,7 +350,7 @@ export function BillingTab({
                         value={newLineItem.sku || ''}
                         onChange={(e) => handleLineItemChange('new', 'sku', e.target.value)}
                         placeholder="SKU"
-                        className="h-8 text-xs"
+                        className="h-8 text-xs w-full"
                       />
                     </td>
                     <td className="p-2">
@@ -436,7 +360,7 @@ export function BillingTab({
                         value={newLineItem.price || ''}
                         onChange={(e) => handleLineItemChange('new', 'price', e.target.value)}
                         placeholder="0.00"
-                        className="h-8 text-xs"
+                        className="h-8 text-xs w-full"
                       />
                     </td>
                     <td className="p-2">
@@ -445,7 +369,7 @@ export function BillingTab({
                         value={newLineItem.quantity || ''}
                         onChange={(e) => handleLineItemChange('new', 'quantity', e.target.value)}
                         placeholder="1"
-                        className="h-8 text-xs"
+                        className="h-8 text-xs w-full"
                       />
                     </td>
                     <td className="p-2">
@@ -455,7 +379,7 @@ export function BillingTab({
                         value={newLineItem.discount || ''}
                         onChange={(e) => handleLineItemChange('new', 'discount', e.target.value)}
                         placeholder="0.00"
-                        className="h-8 text-xs"
+                        className="h-8 text-xs w-full"
                       />
                     </td>
                     <td className="p-2">
@@ -463,7 +387,7 @@ export function BillingTab({
                         value={newLineItem.supplied_by || ''}
                         onValueChange={(value) => handleLineItemChange('new', 'supplied_by', value)}
                       >
-                        <SelectTrigger className="h-8 text-xs">
+                        <SelectTrigger className="h-8 text-xs w-full">
                           <SelectValue placeholder="בחר" />
                         </SelectTrigger>
                         <SelectContent>
@@ -477,7 +401,7 @@ export function BillingTab({
                         value={newLineItem.supplied ? 'true' : 'false'}
                         onValueChange={(value) => handleLineItemChange('new', 'supplied', value)}
                       >
-                        <SelectTrigger className="h-8 text-xs">
+                        <SelectTrigger className="h-8 text-xs w-full">
                           <SelectValue placeholder="בחר" />
                         </SelectTrigger>
                         <SelectContent>
@@ -487,7 +411,7 @@ export function BillingTab({
                       </Select>
                     </td>
                     <td className="p-2">
-                      <span className="text-sm">{newLineItem.line_total?.toFixed(2) || '0.00'}</span>
+                      <span className="block w-full text-sm truncate">{newLineItem.line_total?.toFixed(2) || '0.00'}</span>
                     </td>
                     <td className="p-2">
                       <div className="flex gap-1">
@@ -520,14 +444,100 @@ export function BillingTab({
         </CardContent>
       </Card>
 
-      <div className="mt-6">
-        <NotesCard
-          title="הערות"
-          value={billingFormData.notes || ''}
-          onChange={(value) => setBillingFormData(prev => ({ ...prev, notes: value }))}
-          disabled={!isEditing}
-          placeholder="הערות נוספות..."
-        />
+      <div className="grid grid-cols-3 md:grid-cols-3 gap-4 mt-4">
+        <Card className="h-full col-span-1 py-5 shadow-md">
+          <CardContent>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3 items-end">
+              <div>
+                <Label className="text-sm">מספר תשלומים</Label>
+                <Input
+                  name="installment_count"
+                  type="number"
+                  value={billingFormData.installment_count || ''}
+                  onChange={handleBillingInputChange}
+                  disabled={!isEditing}
+                  className="mt-1.5"
+                  placeholder="1"
+                />
+              </div>
+              <div>
+                <Label className="text-sm">מקדמה</Label>
+                <Input
+                  name="prepayment_amount"
+                  type="number"
+                  step="0.01"
+                  value={billingFormData.prepayment_amount || ''}
+                  onChange={handleBillingInputChange}
+                  disabled={!isEditing}
+                  className="mt-1.5"
+                  placeholder="0.00"
+                />
+              </div>
+              <div>
+                <Label className="text-sm">סה"כ לפני הנחה</Label>
+                <Input
+                  name="total_before_discount"
+                  type="number"
+                  step="0.01"
+                  value={billingFormData.total_before_discount || ''}
+                  onChange={handleBillingInputChange}
+                  disabled={!isEditing}
+                  className="mt-1.5"
+                  placeholder="0.00"
+                />
+              </div>
+              <div>
+                <Label className="text-sm">הנחה (₪)</Label>
+                  <Input
+                    name="discount_amount"
+                    type="number"
+                    step="0.01"
+                    value={billingFormData.discount_amount || ''}
+                    onChange={handleBillingInputChange}
+                    disabled={!isEditing}
+                    className="flex-1"
+                    placeholder="0.00"
+                  />
+              </div>
+              <div>
+                <Label className="text-sm">הנחה (%)</Label>
+                  <Input
+                    name="discount_percent"
+                    type="number"
+                    step="0.01"
+                    value={billingFormData.discount_percent || ''}
+                    onChange={handleBillingInputChange}
+                    disabled={!isEditing}
+                    className="flex-1"
+                    placeholder="0%"
+                  />
+              </div>
+
+              <div>
+                <Label className="text-sm">אחרי הנחה</Label>
+                <Input
+                  name="total_after_discount"
+                  type="number"
+                  step="0.01"
+                  value={billingFormData.total_after_discount || ''}
+                  onChange={handleBillingInputChange}
+                  disabled={!isEditing}
+                  className="mt-1.5"
+                  placeholder="0.00"
+                />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <div className="h-full col-span-2">
+          <NotesCard
+            title="הערות"
+            value={billingFormData.notes || ''}
+            onChange={(value) => setBillingFormData(prev => ({ ...prev, notes: value }))}
+            disabled={!isEditing}
+            placeholder="הערות נוספות..."
+          />
+        </div>
       </div>
     </div>
   );

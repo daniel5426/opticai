@@ -17,43 +17,93 @@ def get_orders_paginated(
     search: Optional[str] = Query(None, description="Search by type/examiner/client name/VA/PD/date"),
     db: Session = Depends(get_db)
 ):
-    from sqlalchemy import or_, func, String
-    base = db.query(Order)
+    from sqlalchemy import or_, func, String, literal
+    from sqlalchemy import union_all, select
+
+    like = f"%{search.strip()}%" if search else None
+
+    order_filters = []
     if clinic_id:
-        base = base.filter(Order.clinic_id == clinic_id)
-    if search:
-        like = f"%{search.strip()}%"
-        base = (
-            base
-            .outerjoin(Client, Client.id == Order.client_id)
-            .outerjoin(User, User.id == Order.user_id)
-            .filter(
-                or_(
-                    Order.type.ilike(like),
-                    func.concat(Client.first_name, ' ', Client.last_name).ilike(like),
-                    User.full_name.ilike(like),
-                    User.username.ilike(like),
-                    func.cast(Order.comb_va, String).ilike(like),
-                    func.cast(Order.comb_pd, String).ilike(like),
-                    func.cast(Order.order_date, String).ilike(like),
-                )
+        order_filters.append(Order.clinic_id == clinic_id)
+    if like:
+        order_filters.append(
+            or_(
+                Order.type.ilike(like),
+                func.concat(Client.first_name, ' ', Client.last_name).ilike(like),
+                User.full_name.ilike(like),
+                User.username.ilike(like),
+                func.cast(Order.order_date, String).ilike(like),
             )
         )
-    
-    # Apply ordering
-    if order == "date_desc":
-        base = base.order_by(Order.order_date.desc().nulls_last())
-    elif order == "date_asc":
-        base = base.order_by(Order.order_date.asc().nulls_last())
+
+    cl_filters = []
+    if clinic_id:
+        cl_filters.append(ContactLensOrder.clinic_id == clinic_id)
+    if like:
+        cl_filters.append(
+            or_(
+                ContactLensOrder.type.ilike(like),
+                func.concat(Client.first_name, ' ', Client.last_name).ilike(like),
+                User.full_name.ilike(like),
+                User.username.ilike(like),
+                func.cast(ContactLensOrder.order_date, String).ilike(like),
+            )
+        )
+
+    orders_from = Order.__table__.outerjoin(User.__table__, Order.user_id == User.id).outerjoin(Client.__table__, Order.client_id == Client.id)
+    orders_select = select(
+        Order.id.label('id'),
+        Order.client_id.label('client_id'),
+        Order.clinic_id.label('clinic_id'),
+        Order.order_date.label('order_date'),
+        Order.type.label('type'),
+        Order.user_id.label('user_id'),
+        literal(None).label('comb_va'),
+        literal(None).label('comb_pd'),
+        literal(False).label('__contact'),
+        (User.username).label('username'),
+        (func.concat(Client.first_name, ' ', Client.last_name)).label('clientName'),
+    ).select_from(orders_from)
+    if order_filters:
+        orders_select = orders_select.where(*order_filters)
+
+    cl_from = ContactLensOrder.__table__.outerjoin(User.__table__, ContactLensOrder.user_id == User.id).outerjoin(Client.__table__, ContactLensOrder.client_id == Client.id)
+    cl_select = select(
+        ContactLensOrder.id.label('id'),
+        ContactLensOrder.client_id.label('client_id'),
+        ContactLensOrder.clinic_id.label('clinic_id'),
+        ContactLensOrder.order_date.label('order_date'),
+        ContactLensOrder.type.label('type'),
+        ContactLensOrder.user_id.label('user_id'),
+        literal(None).label('comb_va'),
+        literal(None).label('comb_pd'),
+        literal(True).label('__contact'),
+        (User.username).label('username'),
+        (func.concat(Client.first_name, ' ', Client.last_name)).label('clientName'),
+    ).select_from(cl_from)
+    if cl_filters:
+        cl_select = cl_select.where(*cl_filters)
+
+    merged_subq = union_all(orders_select, cl_select).subquery()
+
+    # Total count
+    total = db.execute(select(func.count()).select_from(merged_subq)).scalar() or 0
+
+    # Ordering
+    if order == "date_asc":
+        order_by_clause = merged_subq.c.order_date.asc().nulls_last()
     elif order == "id_asc":
-        base = base.order_by(Order.id.asc())
-    else:  # default to id_desc
-        base = base.order_by(Order.id.desc())
-    
-    total = base.count()
-    items = base.offset(offset).limit(limit).all()
-    
-    return {"items": items, "total": total}
+        order_by_clause = merged_subq.c.id.asc()
+    elif order == "id_desc":
+        order_by_clause = merged_subq.c.id.desc()
+    else:
+        order_by_clause = merged_subq.c.order_date.desc().nulls_last()
+
+    stmt = select(merged_subq).order_by(order_by_clause).offset(offset).limit(limit)
+    rows = db.execute(stmt).mappings().all()
+    items = [dict(r) for r in rows]
+
+    return {"items": items, "total": int(total)}
 
 @router.post("/", response_model=OrderSchema)
 def create_order(order: OrderCreate, db: Session = Depends(get_db)):

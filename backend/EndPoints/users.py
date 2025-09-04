@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from database import get_db
 from models import User, Clinic
-from schemas import UserCreate, UserUpdate, User as UserSchema, UserPublic
+from schemas import UserCreate, UserUpdate, User as UserSchema, UserPublic, UserSelectItem
 from auth import get_current_user, get_password_hash
 from models import User as UserModel
 from utils.storage import upload_base64_image
@@ -218,6 +218,50 @@ def get_users(
         else:
             users = []
     return users
+
+@router.get("/select", response_model=List[UserSelectItem])
+def get_users_for_select(
+    clinic_id: Optional[int] = Query(None, description="Filter by clinic id; defaults to current user's clinic scope"),
+    include_ceo: bool = Query(True, description="Include company CEO if belongs to same company"),
+    db: Session = Depends(get_db),
+    current_user: UserModel = Depends(get_current_user)
+):
+    # Determine base query according to role
+    if current_user.role == "company_ceo":
+        q = db.query(User).join(Clinic, isouter=True)
+        if clinic_id:
+            q = q.filter((User.clinic_id == clinic_id) | ((User.role == "company_ceo") & (User.company_id == current_user.company_id)))
+        else:
+            q = q.filter((User.company_id == current_user.company_id) | (User.company_id == current_user.company_id))
+    elif current_user.role in ("clinic_manager", "clinic_worker", "clinic_viewer"):
+        if not current_user.clinic_id and not clinic_id:
+            return []
+        effective_clinic_id = clinic_id or current_user.clinic_id
+        clinic = db.query(Clinic).filter(Clinic.id == effective_clinic_id).first()
+        if not clinic:
+            return []
+        q = db.query(User).filter(User.clinic_id == effective_clinic_id)
+        if include_ceo:
+            q = q.union_all(
+                db.query(User).filter(
+                    (User.role == "company_ceo") & (User.company_id == clinic.company_id)
+                )
+            )
+    else:
+        return []
+
+    users = q.all()
+    result: List[UserSelectItem] = []
+    for u in users:
+        result.append(UserSelectItem(
+            id=u.id,
+            full_name=u.full_name,
+            username=u.username,
+            role=u.role,
+            clinic_id=u.clinic_id,
+            is_active=u.is_active
+        ))
+    return result
 
 @router.get("/{user_id}", response_model=UserSchema)
 def get_user(

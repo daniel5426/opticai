@@ -864,7 +864,7 @@ export function AppointmentsTable({ data, clientId, onAppointmentChange, onAppoi
           </TableHeader>
           <TableBody>
             {loading ? (
-              Array.from({ length: 5 }).map((_, i) => (
+              Array.from({ length: 14 }).map((_, i) => (
                 <TableRow key={i}>
                   <TableCell>
                     <Skeleton className="w-[70%] h-4 my-2" />

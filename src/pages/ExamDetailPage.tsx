@@ -4,13 +4,13 @@ import { SiteHeader } from "@/components/site-header"
 import { getClientById } from "@/lib/db/clients-db"
 import { getExamById, getExamWithLayouts, updateExam, createExam, getExamPageData } from "@/lib/db/exams-db"
 import { OpticalExam, Client, User, ExamLayout, ExamLayoutInstance, NotesExam } from "@/lib/db/schema-interface"
-import { getAllExamLayouts, getDefaultExamLayout, getDefaultExamLayouts, getExamLayoutInstancesByExamId, getActiveExamLayoutInstanceByExamId, setActiveExamLayoutInstance, addLayoutToExam, getExamLayoutById, deleteExamLayoutInstance } from "@/lib/db/exam-layouts-db"
+import { getAllExamLayouts, getDefaultExamLayout, getDefaultExamLayouts, getExamLayoutInstancesByExamId, getActiveExamLayoutInstanceByExamId, setActiveExamLayoutInstance, addLayoutToExam, getExamLayoutById, deleteExamLayoutInstance, createExamLayoutInstance, updateExamLayoutInstance } from "@/lib/db/exam-layouts-db"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu"
-import { ChevronDownIcon, PlusCircleIcon, X as XIcon } from "lucide-react"
+import { ChevronDownIcon, PlusCircleIcon, X as XIcon, RefreshCw } from "lucide-react"
 import { toast } from "sonner"
 import { useUser } from "@/contexts/UserContext"
-import { ExamCardRenderer, CardItem, DetailProps, calculateCardWidth, hasNoteCard, createDetailProps } from "@/components/exam/ExamCardRenderer"
+import { ExamCardRenderer, CardItem, DetailProps, calculateCardWidth, hasNoteCard, createDetailProps, getColumnCount, getMaxWidth } from "@/components/exam/ExamCardRenderer"
 import { createToolboxActions } from "@/components/exam/ExamToolbox"
 import { examComponentRegistry } from "@/lib/exam-component-registry"
 import { ExamComponentType } from "@/lib/exam-field-mappings"
@@ -173,8 +173,25 @@ export default function ExamDetailPage({
   // Track row widths for responsive fixedPx calculation
   const [rowWidths, setRowWidths] = useState<Record<string, number>>({})
   const rowRefs = useRef<Record<string, HTMLDivElement | null>>({})
-  const [coverTestTabs, setCoverTestTabs] = useState<Record<string, string[]>>({})
   const [activeCoverTestTabs, setActiveCoverTestTabs] = useState<Record<string, number>>({})
+  const computedCoverTestTabs = React.useMemo(() => {
+    const map: Record<string, string[]> = {}
+    const coverCardIds: string[] = []
+    cardRows.forEach(row => {
+      row.cards.forEach(card => { if (card.type === 'cover-test') coverCardIds.push(card.id) })
+    })
+    coverCardIds.forEach(cardId => {
+      const keys = Object.keys(examFormData).filter(k => k.startsWith(`cover-test-${cardId}-`))
+      if (keys.length === 0) return
+      const pairs = keys.map(k => ({
+        tabId: k.replace(`cover-test-${cardId}-`, ''),
+        idx: Number((examFormData[k]?.tab_index ?? 0) as any) || 0
+      }))
+      pairs.sort((a, b) => a.idx - b.idx)
+      map[cardId] = pairs.map(p => p.tabId)
+    })
+    return map
+  }, [examFormData, JSON.stringify(cardRows)])
   const latestLoadIdRef = useRef(0)
 
 
@@ -204,7 +221,7 @@ export default function ExamDetailPage({
     if (cardType === 'cover-test') {
       const cardId = card.id
       const activeTabIndex = activeCoverTestTabs[cardId]
-      const activeTabId = coverTestTabs[cardId]?.[activeTabIndex]
+      const activeTabId = computedCoverTestTabs[cardId]?.[activeTabIndex]
       key = `cover-test-${cardId}-${activeTabId}`
       cardData = examFormData[key]
     } else {
@@ -236,7 +253,7 @@ export default function ExamDetailPage({
     if (targetType === 'cover-test') {
       const cardId = targetCard.id
       const activeTabIndex = activeCoverTestTabs[cardId]
-      const activeTabId = coverTestTabs[cardId]?.[activeTabIndex]
+      const activeTabId = computedCoverTestTabs[cardId]?.[activeTabIndex]
       key = `cover-test-${cardId}-${activeTabId}`
       targetData = examFormData[key]
       targetChangeHandler = fieldHandlers[key]
@@ -361,43 +378,7 @@ export default function ExamDetailPage({
         }
       }
       
-      // New: Build coverTestTabs and examFormData directly from DB data
-      const coverTestTabsFromDb: { [cardId: string]: string[] } = {}
-      const coverTestRows: any[] = []
-      Object.entries(data).forEach(([key, value]) => {
-        if (key.startsWith('cover-test-') && value && typeof value === 'object') {
-          const row = value as any
-          const meaningfulFields = ['deviation_type','deviation_direction','fv_1','fv_2','nv_1','nv_2']
-          const hasContent = meaningfulFields.some(f => {
-            const v = row?.[f]
-            return v !== undefined && v !== null && String(v).trim() !== ''
-          })
-          if (hasContent) {
-            coverTestRows.push(row)
-          }
-        }
-      })
-      // Group by card_id
-      const tabsByCard: { [cardId: string]: { tabId: string, tabIndex: number }[] } = {}
-      coverTestRows.forEach(row => {
-        if (!row.card_id || !row.card_instance_id) return;
-        if (!tabsByCard[row.card_id]) tabsByCard[row.card_id] = [];
-        tabsByCard[row.card_id].push({ tabId: row.card_instance_id, tabIndex: row.tab_index ?? 0 });
-      })
-      Object.entries(tabsByCard).forEach(([cardId, tabs]) => {
-        tabs.sort((a, b) => a.tabIndex - b.tabIndex);
-        coverTestTabsFromDb[cardId] = tabs.map(t => t.tabId);
-      })
-      // If no DB data, fall back to layout (for new exams)
-      // Do not auto-create extra tabs here; initial tab seed happens later only when needed
-      setCoverTestTabs(coverTestTabsFromDb)
-      
-      // Initialize active tabs for cover tests
-      const initialActiveTabs: Record<string, number> = {}
-      Object.keys(coverTestTabsFromDb).forEach(cardId => {
-        initialActiveTabs[cardId] = 0
-      })
-      setActiveCoverTestTabs(initialActiveTabs)
+      // No explicit tab state; tabs are derived from keys in data
       
       // Update form data with loaded data or empty data with layout_instance_id
       const formData: Record<string, any> = {}
@@ -415,17 +396,11 @@ export default function ExamDetailPage({
             formData[`${type}-${cardId}`] = existingData
           })
         } else if (type === 'cover-test' && cardInstances[type]) {
-          // For cover-test, handle each card instance and tab
+          // For cover-test, include all tab keys found in loaded data for each card instance
           cardInstances[type].forEach(cardId => {
-            const tabIds = coverTestTabsFromDb[cardId] || []
-            if (tabIds.length === 0) {
-              // Delay seeding; a first tab will be created only when user adds it explicitly
-              return
-            }
-            tabIds.forEach(tabId => {
-              const key = `cover-test-${cardId}-${tabId}`
-              if (data[key]) {
-                formData[key] = data[key]
+            Object.keys(data).forEach(k => {
+              if (k.startsWith(`cover-test-${cardId}-`)) {
+                formData[k] = (data as any)[k]
               }
             })
           })
@@ -484,12 +459,12 @@ export default function ExamDetailPage({
           }
           if (card.type === 'cover-test') {
             const cardId = card.id
-            const tabIds = coverTestTabs[cardId] || []
+            const tabIds = computedCoverTestTabs[cardId] || []
             tabIds.forEach(tabId => {
               const key = `cover-test-${cardId}-${tabId}`
               handlers[key] = (field, value) => {
                 setExamFormData(prev => {
-                  const tabIndex = (coverTestTabs[cardId] || []).indexOf(tabId)
+                  const tabIndex = (computedCoverTestTabs[cardId] || []).indexOf(tabId)
                   return {
                     ...prev,
                     [key]: {
@@ -537,20 +512,23 @@ export default function ExamDetailPage({
             if (layoutInstances && layoutInstances.length > 0) {
               const tabs = layoutInstances.map((instance: any) => {
                 const layout = layoutMapLocal[instance.layout_id]
+                const layoutDataStr = layout?.layout_data || instance?.layout_data || ''
+                const name = layout?.name || (instance?.layout_data ? FULL_DATA_NAME : '')
                 return {
                   id: instance.id || 0,
                   layout_id: instance.layout_id,
-                  name: layout?.name || '',
-                  layout_data: layout?.layout_data || '',
+                  name,
+                  layout_data: layoutDataStr,
                   isActive: instance.id === (chosen_active_instance_id)
                 }
               })
               setLayoutTabs(tabs)
               const chosenInstId = (chosen_active_instance_id) as number | undefined
               const chosen = (instances || []).find((e: any) => e?.instance?.id === chosenInstId) || (instances || [])[0]
-              if (chosen && chosen.instance && chosen.layout) {
+              if (chosen && chosen.instance && (chosen.layout || chosen.instance?.layout_data)) {
                 setActiveInstanceId(chosen.instance.id || 0)
-                const parsedLayout = JSON.parse(chosen.layout.layout_data || '[]')
+                const layoutDataStr = (chosen.layout?.layout_data || chosen.instance?.layout_data || '[]')
+                const parsedLayout = JSON.parse(layoutDataStr)
                 if (Array.isArray(parsedLayout)) {
                   setCardRows(parsedLayout)
                   setCustomWidths({})
@@ -558,8 +536,13 @@ export default function ExamDetailPage({
                   setCardRows(parsedLayout.rows || [])
                   setCustomWidths(parsedLayout.customWidths || {})
                 }
-                const layoutDataStr = chosen.layout.layout_data || ''
-                await loadExamComponentData(chosen.instance.id, layoutDataStr, true)
+                if (chosen.layout && chosen.layout.layout_data) {
+                  await loadExamComponentData(chosen.instance.id, layoutDataStr, true)
+                } else {
+                  const seedBucket = buildFullDataBucket(chosen.instance.id, layoutDataStr)
+                  setExamFormData(seedBucket)
+                  setExamFormDataByInstance(prev => ({ ...prev, [chosen.instance.id]: seedBucket }))
+                }
                 if (chosen.exam_data && typeof chosen.exam_data === 'object') {
                   setExamFormData(chosen.exam_data)
                   setExamFormDataByInstance(prev => ({ ...prev, [chosen.instance.id]: chosen.exam_data }))
@@ -572,7 +555,7 @@ export default function ExamDetailPage({
                   others.forEach((e: any) => {
                     const inst = e.instance
                     const l = e.layout
-                    if (l && l.layout_data && inst?.id) {
+                    if (inst?.id && l && l.layout_data) {
                       preloadPromises.push(loadExamComponentData(inst.id, l.layout_data))
                     }
                   })
@@ -667,36 +650,24 @@ export default function ExamDetailPage({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [examFormData])
 
-  // On layout load, initialize coverTestTabs for each cover-test card only if none exist yet
+  // Ensure there is a first tab when none exist for a cover-test card
   useEffect(() => {
-    const newTabs: { [cardId: string]: string[] } = {}
-    cardRows.forEach(row => {
-      row.cards.forEach(card => {
-        if (card.type === 'cover-test') {
-          if (coverTestTabs[card.id]) {
-            newTabs[card.id] = coverTestTabs[card.id]
-          } else {
-            newTabs[card.id] = []
-          }
-        }
-      })
-    })
-    setCoverTestTabs(newTabs)
-    // eslint-disable-next-line
-  }, [JSON.stringify(cardRows)])
-
-  // Tab management functions
-  const addCoverTestTab = (cardId: string) => {
-    setCoverTestTabs(prev => {
-      const newTabId = uuidv4()
-      const updatedTabs = { ...prev, [cardId]: [...(prev[cardId] || []), newTabId] }
-      const tabIndex = updatedTabs[cardId].length - 1
-      setExamFormData(formData => ({
-        ...formData,
-        [`cover-test-${cardId}-${newTabId}`]: {
-          card_instance_id: newTabId,
+    if (loading) return
+    const coverCardIds: string[] = []
+    cardRows.forEach(row => row.cards.forEach(card => { if (card.type === 'cover-test') coverCardIds.push(card.id) }))
+    if (coverCardIds.length === 0) return
+    // Create the first tab lazily per card if no keys exist yet
+    let changed = false
+    const updates: Record<string, any> = {}
+    coverCardIds.forEach(cardId => {
+      const keys = Object.keys(examFormData).filter(k => k.startsWith(`cover-test-${cardId}-`))
+      if (keys.length === 0) {
+        const tabId = uuidv4()
+        const key = `cover-test-${cardId}-${tabId}`
+        updates[key] = {
+          card_instance_id: tabId,
           card_id: cardId,
-          tab_index: tabIndex,
+          tab_index: 0,
           layout_instance_id: activeInstanceId,
           deviation_type: null,
           deviation_direction: null,
@@ -705,23 +676,54 @@ export default function ExamDetailPage({
           nv_1: null,
           nv_2: null
         }
-      }))
-      return updatedTabs
+        changed = true
+        setActiveCoverTestTabs(prev => ({ ...prev, [cardId]: 0 }))
+      }
     })
+    if (changed) setExamFormData(prev => ({ ...prev, ...updates }))
+    // eslint-disable-next-line
+  }, [JSON.stringify(cardRows), activeInstanceId, loading])
+
+  // Tab management functions: derive tabs from data; we only add/remove by mutating examFormData
+  const addCoverTestTab = (cardId: string) => {
+    const newTabId = uuidv4()
+    const keyPrefix = `cover-test-${cardId}-`
+    const currentTabs = Object.keys(examFormData).filter(k => k.startsWith(keyPrefix))
+    const tabIndex = currentTabs.length
+    setExamFormData(formData => ({
+      ...formData,
+      [`${keyPrefix}${newTabId}`]: {
+        card_instance_id: newTabId,
+        card_id: cardId,
+        tab_index: tabIndex,
+        layout_instance_id: activeInstanceId,
+        deviation_type: null,
+        deviation_direction: null,
+        fv_1: null,
+        fv_2: null,
+        nv_1: null,
+        nv_2: null
+      }
+    }))
+    setActiveCoverTestTabs(prev => ({ ...prev, [cardId]: tabIndex }))
   }
   const removeCoverTestTab = (cardId: string, tabIdx: number) => {
-    setCoverTestTabs(prev => {
-      const tabs = prev[cardId] || []
-      if (tabs.length <= 1) return prev
-      const newTabs = [...tabs.slice(0, tabIdx), ...tabs.slice(tabIdx + 1)]
-      
-      setActiveCoverTestTabs(prevActive => ({
-        ...prevActive,
-        [cardId]: Math.max(0, Math.min(prevActive[cardId], newTabs.length - 1))
-      }))
-      
-      return { ...prev, [cardId]: newTabs }
+    const tabs = computedCoverTestTabs[cardId] || []
+    if (tabs.length <= 1) return
+    const toRemoveId = tabs[tabIdx]
+    const key = `cover-test-${cardId}-${toRemoveId}`
+    setExamFormData(prev => {
+      const updated = { ...prev }
+      delete updated[key]
+      // Recompute indices
+      const remaining = (computedCoverTestTabs[cardId] || []).filter((_, i) => i !== tabIdx)
+      remaining.forEach((tabId, idx) => {
+        const k = `cover-test-${cardId}-${tabId}`
+        if (updated[k]) updated[k] = { ...updated[k], tab_index: idx }
+      })
+      return updated
     })
+    setActiveCoverTestTabs(prev => ({ ...prev, [cardId]: Math.max(0, Math.min(prev[cardId] || 0, (tabs.length - 2))) }))
   }
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -875,14 +877,18 @@ export default function ExamDetailPage({
         setCustomWidths(parsedLayout.customWidths || {})
       }
       const existingBucket = examFormDataByInstance[selectedTab.id]
-      if (existingBucket && Object.keys(existingBucket).length > 0) {
+      if (selectedTab.name === FULL_DATA_NAME && selectedTab.layout_data) {
+        const refreshedBucket = buildFullDataBucket(selectedTab.id, selectedTab.layout_data)
+        setExamFormDataByInstance(prev => ({ ...prev, [selectedTab.id]: refreshedBucket }))
+        setExamFormData(refreshedBucket)
+      } else if (existingBucket && Object.keys(existingBucket).length > 0) {
         setExamFormData(existingBucket)
       }
       
       // Load data and update database in parallel
       const promises = []
       
-      if (!isNewMode) {
+      if (!isNewMode && selectedTab.name !== FULL_DATA_NAME && (!isEditing || !(existingBucket && Object.keys(existingBucket).length > 0))) {
         promises.push((async () => {
           await loadExamComponentData(selectedTab.id, selectedTab.layout_data)
           if (loadId === latestLoadIdRef.current) {
@@ -978,6 +984,289 @@ export default function ExamDetailPage({
     }
   }
 
+  const FULL_DATA_NAME = "Full data"
+
+  const isMeaningfulValue = (v: any) => {
+    if (v === null || v === undefined) return false
+    if (typeof v === 'string') return v.trim() !== ''
+    return true
+  }
+
+  const isNonEmptyComponent = (key: string, value: any) => {
+    if (!value || typeof value !== 'object') return false
+    const ignored = new Set(['id','layout_instance_id','card_id','card_instance_id','tab_index','__deleted'])
+    const specialCover = ['deviation_type','deviation_direction','fv_1','fv_2','nv_1','nv_2']
+    const specialNotes = ['title','note']
+    if (key.startsWith('cover-test-')) {
+      return specialCover.some(k => isMeaningfulValue((value as any)[k]))
+    }
+    if (key.startsWith('notes-')) {
+      return specialNotes.some(k => isMeaningfulValue((value as any)[k]))
+    }
+    for (const [k, v] of Object.entries(value)) {
+      if (ignored.has(k)) continue
+      if (isMeaningfulValue(v)) return true
+    }
+    return false
+  }
+
+  const pxToCols = (px: number) => {
+    const pxPerCol = 1680 / 16
+    return Math.max(1, Math.min(16, Math.round(px / pxPerCol)))
+  }
+
+  const computeCardCols = (type: CardItem['type']): number => {
+    const spec = getColumnCount(type, 'editor') as any
+    if (typeof spec === 'number') return Math.max(1, Math.min(16, spec))
+    if (spec && typeof spec === 'object' && typeof spec.fixedPx === 'number') return pxToCols(spec.fixedPx)
+    return 1
+  }
+
+  const packCardsIntoRows = (cards: { id: string; type: CardItem['type'] }[]) => {
+    const items = cards.map(c => ({ ...c, cols: computeCardCols(c.type) }))
+    
+    // Calculate ideal target columns per row
+    const totalCols = items.reduce((sum, item) => sum + item.cols, 0)
+    const minRowsNeeded = Math.ceil(totalCols / 16)
+    const targetColsPerRow = Math.ceil(totalCols / minRowsNeeded)
+
+    // Sort descending by size
+    items.sort((a, b) => b.cols - a.cols)
+
+    const rows: { id: string; cards: { id: string; type: CardItem['type']; title?: string }[]; used: number }[] = []
+
+    items.forEach(item => {
+      let bestIdx = -1
+      let bestScore = -Infinity
+
+      rows.forEach((row, idx) => {
+        if (row.cards.length < 3 && row.used + item.cols <= 16) {
+          // Calculate how close this placement gets us to the target balance
+          const newUsed = row.used + item.cols
+          
+          // Score based on how close to target this row would be
+          const distanceFromTarget = Math.abs(targetColsPerRow - newUsed)
+          
+          // Also consider overall variance reduction
+          const currentVariance = rows.reduce((sum, r) => sum + Math.pow(r.used - targetColsPerRow, 2), 0)
+          const newVariance = rows.reduce((sum, r, i) => {
+            const used = i === idx ? newUsed : r.used
+            return sum + Math.pow(used - targetColsPerRow, 2)
+          }, 0)
+          
+          // Higher score is better: prefer placements that reduce variance and get close to target
+          const score = (currentVariance - newVariance) * 100 - distanceFromTarget
+          
+          if (score > bestScore) {
+            bestScore = score
+            bestIdx = idx
+          }
+        }
+      })
+
+      if (bestIdx === -1) {
+        // No suitable row, create a new one
+        rows.push({ id: `row-${rows.length + 1}`, cards: [{ id: item.id, type: item.type }], used: item.cols })
+      } else {
+        // Place in the best row for balance
+        const row = rows[bestIdx]
+        row.cards.push({ id: item.id, type: item.type })
+        row.used += item.cols
+      }
+    })
+
+    return rows.map(r => ({ id: r.id, cards: r.cards }))
+  }
+
+  const buildFullDataLayoutData = (): string | null => {
+    const aggregated: Record<string, any> = {}
+    Object.values(examFormDataByInstance).forEach(bucket => {
+      Object.entries(bucket || {}).forEach(([key, val]) => {
+        if (val && typeof val === 'object') {
+          if (!aggregated[key]) aggregated[key] = val
+        }
+      })
+    })
+    const cardDefs: { id: string; type: CardItem['type']; title?: string }[] = []
+    const addedNotesIds = new Set<string>()
+    const addedCoverIds = new Set<string>()
+    Object.entries(aggregated).forEach(([key, value]) => {
+      if (!isNonEmptyComponent(key, value)) return
+      if (key.startsWith('notes-')) {
+        const cardId = key.slice('notes-'.length) || `auto-${Date.now()}`
+        if (!addedNotesIds.has(cardId)) {
+          const title = (value as any)?.title
+          cardDefs.push({ id: cardId, type: 'notes', ...(title ? { title } : {}) })
+          addedNotesIds.add(cardId)
+        }
+        return
+      }
+      if (key.startsWith('cover-test-')) {
+        const rest = key.slice('cover-test-'.length)
+        const dash = rest.indexOf('-')
+        const cardId = dash >= 0 ? rest.slice(0, dash) : (rest || `auto-${Date.now()}`)
+        if (!addedCoverIds.has(cardId)) {
+          cardDefs.push({ id: cardId, type: 'cover-test' })
+          addedCoverIds.add(cardId)
+        }
+        return
+      }
+      const type = key as CardItem['type']
+      const cId = `${type}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
+      if (type === 'corneal-topography' && (value as any)?.title) {
+        cardDefs.push({ id: cId, type, title: (value as any).title })
+      } else {
+        cardDefs.push({ id: cId, type })
+      }
+    })
+    if (cardDefs.length === 0) return null
+    const rows = packCardsIntoRows(cardDefs)
+    const layout = { rows, customWidths: {} as Record<string, Record<string, number>> }
+    return JSON.stringify(layout)
+  }
+
+  const aggregateAllData = (): Record<string, any> => {
+    const aggregated: Record<string, any> = {}
+    Object.values(examFormDataByInstance).forEach(bucket => {
+      Object.entries(bucket || {}).forEach(([key, val]) => {
+        if (val && typeof val === 'object') {
+          if (!aggregated[key]) aggregated[key] = val
+        }
+      })
+    })
+    return aggregated
+  }
+
+  const buildFullDataBucket = (instanceId: number, layoutData: string): Record<string, any> => {
+    const aggregated = aggregateAllData()
+    const bucket: Record<string, any> = {}
+    const allowedKeys = new Set<string>()
+    try {
+      const parsed = JSON.parse(layoutData)
+      const rows = Array.isArray(parsed) ? parsed : parsed.rows || []
+      rows.forEach((row: any) => {
+        row.cards?.forEach((card: any) => {
+          if (card.type === 'notes') {
+            allowedKeys.add(`notes-${card.id}`)
+          } else if (card.type === 'cover-test') {
+            const prefix = `cover-test-${card.id}-`
+            Object.keys(aggregated).forEach(k => {
+              if (k.startsWith(prefix)) allowedKeys.add(k)
+            })
+          } else {
+            allowedKeys.add(card.type)
+          }
+        })
+      })
+    } catch {}
+    Object.entries(aggregated).forEach(([key, val]) => {
+      if (!allowedKeys.has(key)) return
+      if (!isNonEmptyComponent(key, val)) return
+      const clone = { ...(val as any) }
+      clone.layout_instance_id = instanceId
+      if (key.startsWith('notes-')) {
+        const cardId = key.replace('notes-', '')
+        clone.card_instance_id = cardId
+      }
+      bucket[key] = clone
+    })
+    return bucket
+  }
+
+  // Tabs derive from examFormData; no explicit sync function
+
+  const handleAddFullDataTab = async () => {
+    const existing = layoutTabs.find(t => t.name === FULL_DATA_NAME)
+    if (existing) {
+      handleLayoutTabChange(existing.id)
+      return
+    }
+    const layoutData = buildFullDataLayoutData()
+    if (!layoutData) {
+      toast.info('אין נתונים להצגה בפריסת Full data')
+      return
+    }
+    if (exam && exam.id && !isNewMode) {
+      const newInstance = await createExamLayoutInstance({ exam_id: exam.id, layout_id: null, is_active: true, order: 0, layout_data: layoutData } as any)
+      if (!newInstance || !newInstance.id) {
+        toast.error('שגיאה בהוספת פריסת Full data')
+        return
+      }
+      const updatedTabs = layoutTabs.map(t => ({ ...t, isActive: false }))
+      const newTab = { id: newInstance.id || 0, layout_id: null as any, name: FULL_DATA_NAME, layout_data: layoutData, isActive: true }
+      setLayoutTabs([...updatedTabs, newTab])
+      setActiveInstanceId(newInstance.id || null)
+      // Seed the instance bucket with aggregated data
+      const seedBucket = buildFullDataBucket(newInstance.id!, layoutData)
+      setExamFormDataByInstance(prev => ({ ...prev, [newInstance.id!]: seedBucket }))
+      setExamFormData(seedBucket)
+      try {
+        const parsed = JSON.parse(layoutData)
+        if (Array.isArray(parsed)) {
+          setCardRows(parsed)
+          setCustomWidths({})
+        } else {
+          setCardRows(parsed.rows || [])
+          setCustomWidths(parsed.customWidths || {})
+        }
+      } catch {}
+      toast.success('Full data הוחל לבדיקה')
+    } else {
+      const updatedTabs = layoutTabs.map(t => ({ ...t, isActive: false }))
+      const tempId = -Date.now()
+      const newTab = { id: tempId, layout_id: 0, name: FULL_DATA_NAME, layout_data: layoutData, isActive: true }
+      setLayoutTabs([...updatedTabs, newTab])
+      setActiveInstanceId(tempId)
+      try {
+        const parsed = JSON.parse(layoutData)
+        if (Array.isArray(parsed)) {
+          setCardRows(parsed)
+          setCustomWidths({})
+        } else {
+          setCardRows(parsed.rows || [])
+          setCustomWidths(parsed.customWidths || {})
+        }
+      } catch {}
+      const seedBucket = buildFullDataBucket(tempId, layoutData)
+      setExamFormData(seedBucket)
+      setExamFormDataByInstance(prev => ({ ...prev, [tempId]: seedBucket }))
+      toast.success('Full data הוחל לבדיקה')
+    }
+  }
+
+  const handleRegenerateFullData = async () => {
+    const active = layoutTabs.find(t => t.isActive)
+    if (!active || active.name !== FULL_DATA_NAME) return
+    const layoutData = buildFullDataLayoutData()
+    if (!layoutData) {
+      toast.info('אין עדכונים לפריסת Full data')
+      return
+    }
+    if (exam && exam.id && !isNewMode && active.id > 0) {
+      await updateExamLayoutInstance({ id: active.id, exam_id: exam.id, layout_id: null as any, layout_data: layoutData } as any)
+      const seedBucket = buildFullDataBucket(active.id, layoutData)
+      setExamFormDataByInstance(prev => ({ ...prev, [active.id]: seedBucket }))
+      setExamFormData(seedBucket)
+    } else {
+      const seedBucket = buildFullDataBucket(active.id, layoutData)
+      setExamFormDataByInstance(prev => ({ ...prev, [active.id]: seedBucket }))
+      setExamFormData(seedBucket)
+    }
+    const newTabs = layoutTabs.map(t => t.id === active.id ? { ...t, layout_data: layoutData } : t)
+    setLayoutTabs(newTabs)
+    try {
+      const parsed = JSON.parse(layoutData)
+      if (Array.isArray(parsed)) {
+        setCardRows(parsed)
+        setCustomWidths({})
+      } else {
+        setCardRows(parsed.rows || [])
+        setCustomWidths(parsed.customWidths || {})
+      }
+    } catch {}
+    toast.success('Full data רועננה')
+  }
+
   const handleRemoveLayoutTab = async (tabId: number) => {
     if (layoutTabs.length <= 1) {
       toast.error('לא ניתן להסיר את הלשונית האחרונה');
@@ -1041,7 +1330,6 @@ export default function ExamDetailPage({
     } else {
       if (exam) setFormData({ ...exam });
       
-      // Copy current component data to form data for editing
       examComponentRegistry.getAllTypes().forEach(type => {
         const data = examComponentData[type]
         if (data) {
@@ -1113,8 +1401,7 @@ export default function ExamDetailPage({
       },
       handleMultifocalOldRefractionExtension: () => {},
       // Add tab management for cover-test
-      coverTestTabs: coverTestTabs as any,
-      setCoverTestTabs: setCoverTestTabs as any,
+      coverTestTabs: computedCoverTestTabs as any,
       activeCoverTestTabs: activeCoverTestTabs as any,
       setActiveCoverTestTabs: setActiveCoverTestTabs as any,
       addCoverTestTab: addCoverTestTab as any,
@@ -1249,18 +1536,30 @@ export default function ExamDetailPage({
                     <ChevronDownIcon className="h-4 w-4" />
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuContent align="end" className="w-56">
                   <DropdownMenuItem className="text-sm font-bold" disabled>הוספת פריסה</DropdownMenuItem>
-                  {availableLayouts.map((layout) => (
-                    <DropdownMenuItem 
-                      key={layout.id} 
-                      onClick={() => handleAddLayoutTab(layout.id || 0)}
-                      className="text-sm"
-                    >
-                      <PlusCircleIcon className="h-4 w-4 mr-2" />
-                      {layout.name}
-                    </DropdownMenuItem>
-                  ))}
+                  <DropdownMenuItem 
+                    className="text-sm"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      handleAddFullDataTab();
+                    }}
+                  >
+                    <PlusCircleIcon className="h-4 w-4 mr-2" />
+                    Full data
+                  </DropdownMenuItem>
+                  {availableLayouts
+                    .filter(layout => layout.name !== FULL_DATA_NAME)
+                    .map((layout) => (
+                      <DropdownMenuItem 
+                        key={layout.id} 
+                        onClick={() => handleAddLayoutTab(layout.id || 0)}
+                        className="text-sm"
+                      >
+                        <PlusCircleIcon className="h-4 w-4 mr-2" />
+                        {layout.name}
+                      </DropdownMenuItem>
+                    ))}
                 </DropdownMenuContent>
               </DropdownMenu>
 
@@ -1270,6 +1569,7 @@ export default function ExamDetailPage({
               <Button
                 variant={isEditing ? "outline" : "default"}
                 onClick={handleEditButtonClick}
+                title={layoutTabs.find(t => t.isActive)?.name === FULL_DATA_NAME ? 'פריסת Full data היא לתצוגה בלבד' : undefined}
               >
                 {isNewMode ? "שמור בדיקה" : (isEditing ? "שמור שינויים" : "ערוך בדיקה")}
               </Button>
@@ -1305,7 +1605,24 @@ export default function ExamDetailPage({
                         <XIcon className="h-2.5 w-2.5" />
                       </button>
                     )}
-                    <span className="text-sm py-2 px-5 font-medium whitespace-nowrap block">{tab.name}</span>
+                    <span className="text-sm py-2 px-5 font-medium whitespace-nowrap flex items-center gap-2">
+                      {tab.name}
+                      {tab.isActive && tab.name === FULL_DATA_NAME && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            handleRegenerateFullData();
+                          }}
+                          className="rounded-full w-[18px] h-[18px] flex items-center justify-center hover:bg-primary-foreground/20"
+                          aria-label="רענן Full data"
+                          title="רענן"
+                        >
+                          <RefreshCw className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </span>
                   </div>
                 ))}
               </div>
@@ -1335,12 +1652,12 @@ export default function ExamDetailPage({
                             <ExamCardRenderer
                               item={item}
                               rowCards={row.cards}
-                              isEditing={isEditing}
+                              isEditing={isEditing && layoutTabs.find(t => t.isActive)?.name !== FULL_DATA_NAME}
                               mode="detail"
                               detailProps={{
                                 ...detailProps,
-                                coverTestTabs,
-                                setCoverTestTabs,
+                                isEditing: (layoutTabs.find(t => t.isActive)?.name !== FULL_DATA_NAME) && (detailProps as any)?.isEditing,
+                                coverTestTabs: computedCoverTestTabs,
                               }}
                               hideEyeLabels={cardIndex > 0}
                               matchHeight={hasNoteCard(row.cards) && row.cards.length > 1}
@@ -1353,7 +1670,7 @@ export default function ExamDetailPage({
                                 if (item.type === 'cover-test') {
                                   const cardId = item.id
                                   const activeTabIndex = activeCoverTestTabs[cardId]
-                                  const activeTabId = coverTestTabs[cardId]?.[activeTabIndex]
+                                  const activeTabId = computedCoverTestTabs[cardId]?.[activeTabIndex]
                                   if (activeTabId) {
                                     const key = `cover-test-${cardId}-${activeTabId}`
                                     setExamFormData(prev => ({
@@ -1387,13 +1704,13 @@ export default function ExamDetailPage({
                                       if (item.type === 'cover-test') {
                                         const cardId = item.id
                                         const activeTabIndex = activeCoverTestTabs[cardId]
-                                        const activeTabId = coverTestTabs[cardId]?.[activeTabIndex]
+                                        const activeTabId = computedCoverTestTabs[cardId]?.[activeTabIndex]
                                         sourceKey = `cover-test-${cardId}-${activeTabId}`
                                       }
                                       if (card.type === 'cover-test') {
                                         const cardId = card.id
                                         const activeTabIndex = activeCoverTestTabs[cardId]
-                                        const activeTabId = coverTestTabs[cardId]?.[activeTabIndex]
+                                        const activeTabId = computedCoverTestTabs[cardId]?.[activeTabIndex]
                                         targetKey = `cover-test-${cardId}-${activeTabId}`
                                       }
                                       toolboxActions.copyToLeft(item.type as ExamComponentType, type, sourceKey, targetKey)
@@ -1414,13 +1731,13 @@ export default function ExamDetailPage({
                                       if (item.type === 'cover-test') {
                                         const cardId = item.id
                                         const activeTabIndex = activeCoverTestTabs[cardId]
-                                        const activeTabId = coverTestTabs[cardId]?.[activeTabIndex]
+                                        const activeTabId = computedCoverTestTabs[cardId]?.[activeTabIndex]
                                         sourceKey = `cover-test-${cardId}-${activeTabId}`
                                       }
                                       if (card.type === 'cover-test') {
                                         const cardId = card.id
                                         const activeTabIndex = activeCoverTestTabs[cardId]
-                                        const activeTabId = coverTestTabs[cardId]?.[activeTabIndex]
+                                        const activeTabId = computedCoverTestTabs[cardId]?.[activeTabIndex]
                                         targetKey = `cover-test-${cardId}-${activeTabId}`
                                       }
                                       toolboxActions.copyToRight(item.type as ExamComponentType, type, sourceKey, targetKey)
@@ -1442,13 +1759,13 @@ export default function ExamDetailPage({
                                       if (item.type === 'cover-test') {
                                         const cardId = item.id
                                         const activeTabIndex = activeCoverTestTabs[cardId]
-                                        const activeTabId = coverTestTabs[cardId]?.[activeTabIndex]
+                                        const activeTabId = computedCoverTestTabs[cardId]?.[activeTabIndex]
                                         sourceKey = `cover-test-${cardId}-${activeTabId}`
                                       }
                                       if (card.type === 'cover-test') {
                                         const cardId = card.id
                                         const activeTabIndex = activeCoverTestTabs[cardId]
-                                        const activeTabId = coverTestTabs[cardId]?.[activeTabIndex]
+                                        const activeTabId = computedCoverTestTabs[cardId]?.[activeTabIndex]
                                         targetKey = `cover-test-${cardId}-${activeTabId}`
                                       }
                                       toolboxActions.copyToBelow(item.type as ExamComponentType, type, sourceKey, targetKey)

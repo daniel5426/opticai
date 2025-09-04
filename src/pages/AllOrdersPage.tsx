@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react"
+import React, { useState, useEffect, useCallback } from "react"
 import { SiteHeader } from "@/components/site-header"
 import { getPaginatedOrders } from "@/lib/db/orders-db"
 import { Order } from "@/lib/db/schema-interface"
@@ -22,7 +22,7 @@ export default function AllOrdersPage() {
     return () => clearTimeout(t)
   }, [searchQuery])
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       setLoading(true)
       const offset = (page - 1) * pageSize
@@ -34,13 +34,13 @@ export default function AllOrdersPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [currentClinic, page, pageSize, debouncedSearch])
 
   useEffect(() => {
     if (currentClinic) {
       loadData()
     }
-  }, [currentClinic, page, pageSize, debouncedSearch])
+  }, [loadData, currentClinic])
 
   useEffect(() => {
     setPage(1)

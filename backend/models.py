@@ -218,10 +218,11 @@ class ExamLayoutInstance(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     exam_id = Column(Integer, ForeignKey("optical_exams.id", ondelete="CASCADE"), nullable=False)
-    layout_id = Column(Integer, ForeignKey("exam_layouts.id", ondelete="RESTRICT"), nullable=False)
+    layout_id = Column(Integer, ForeignKey("exam_layouts.id", ondelete="RESTRICT"), nullable=True)
     is_active = Column(Boolean, default=False)
     order = Column(Integer, default=0)
     exam_data = Column(JSON, nullable=False, default={})
+    layout_data = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
@@ -336,7 +337,7 @@ class Referral(Base):
     prescription_notes = Column(Text)
     date = Column(Date)
     type = Column(String)
-    branch = Column(String)
+    urgency_level = Column(String)
     recipient = Column(String)
     referral_data = Column(JSON, nullable=False, default={})
 
@@ -602,6 +603,11 @@ Index('ix_referrals_clinic_date', Referral.clinic_id, Referral.date.desc())
 Index('ix_orders_clinic_id', Order.clinic_id)
 Index('ix_orders_client_id', Order.client_id)
 Index('ix_orders_clinic_date', Order.clinic_id, Order.order_date.desc())
+Index('ix_orders_user_id', Order.user_id)
+Index('ix_contact_lens_orders_clinic_id', ContactLensOrder.clinic_id)
+Index('ix_contact_lens_orders_client_id', ContactLensOrder.client_id)
+Index('ix_contact_lens_orders_user_id', ContactLensOrder.user_id)
+Index('ix_contact_lens_orders_clinic_date', ContactLensOrder.clinic_id, ContactLensOrder.order_date.desc())
 
 # Indexes for files table
 Index('ix_files_clinic_id', File.clinic_id)
@@ -612,6 +618,7 @@ Index('ix_files_clinic_upload_date', File.clinic_id, File.upload_date.desc())
 Index('ix_appointments_clinic_id', Appointment.clinic_id)
 Index('ix_appointments_client_id', Appointment.client_id)
 Index('ix_appointments_clinic_date', Appointment.clinic_id, Appointment.date.desc())
+Index('ix_appointments_clinic_date_time', Appointment.clinic_id, Appointment.date, Appointment.time)
 Index('ix_appointments_user_id', Appointment.user_id)
 
 # Indexes for families table
@@ -621,6 +628,7 @@ Index('ix_families_clinic_created', Family.clinic_id, Family.created_date.desc()
 # Indexes for users table
 Index('ix_users_clinic_id', User.clinic_id)
 Index('ix_users_is_active', User.is_active)
+Index('ix_settings_clinic_id', Settings.clinic_id)
 
 Index('ix_exam_layout_instances_exam_id', ExamLayoutInstance.exam_id)
 Index('ix_exam_layout_instances_exam_id_is_active', ExamLayoutInstance.exam_id, ExamLayoutInstance.is_active)

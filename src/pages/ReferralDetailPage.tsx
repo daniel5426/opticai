@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent } from "@/components/ui/card"
 import { Referral, Client } from "@/lib/db/schema-interface"
 import {
@@ -50,7 +51,7 @@ export default function ReferralDetailPage() {
     prescription_notes: '',
     date: '',
     type: '',
-    branch: '',
+    urgency_level: '',
     recipient: ''
   })
 
@@ -188,13 +189,15 @@ export default function ReferralDetailPage() {
 
   const handleSave = async () => {
     try {
-      let savedReferral
-
       if (isNewReferral) {
-        toast.success("ההפניה נשמרת")
+        // Optimistic UI update for new referral
+        setIsEditing(false)
+        toast.success("ההפניה נשמרה בהצלחה")
         if (clientIdFromRoute) {
           navigate({ to: `/clients/${clientIdFromRoute}`, search: { tab: 'referrals' } })
         }
+
+        // Background server work
         ;(async () => {
           try {
             const createPayload = {
@@ -204,8 +207,8 @@ export default function ReferralDetailPage() {
             }
             const created = await createReferral(createPayload as any)
             if (created && created.id) {
-              const referralIdToUse = created.id!
-              const compactPrescriptionToSave = { ...compactPrescriptionFormData, referral_id: referralIdToUse }
+              // Save compact prescription data in background
+              const compactPrescriptionToSave = { ...compactPrescriptionFormData, referral_id: created.id! }
               const hasCP = Object.values(compactPrescriptionFormData).some(v => v !== undefined && v !== null && v !== '' && v !== 0)
               if (hasCP) {
                 const merged = {
@@ -216,30 +219,50 @@ export default function ReferralDetailPage() {
               }
             } else {
               toast.error("לא הצלחנו ליצור את ההפניה")
+              // Re-enable editing on error
+              setIsEditing(true)
             }
-          } catch {
+          } catch (error) {
+            console.error('Background referral creation error:', error)
             toast.error("שמירת ההפניה נכשלה ברקע")
+            // Re-enable editing on error
+            setIsEditing(true)
           }
         })()
-        return
       } else {
+        // Optimistic UI update for existing referral
+        setIsEditing(false)
+        toast.success("ההפניה נשמרה בהצלחה")
+
         const updatePayload = {
           ...formData,
           date: formData.date && formData.date.trim() !== '' ? formData.date : undefined,
         }
-        savedReferral = await updateReferral(updatePayload as any)
-      }
 
-      if (savedReferral) {
-        toast.success("ההפניה נשמרה בהצלחה")
-        setIsEditing(false)
-        setFormData(savedReferral)
-      } else {
-        toast.error("שגיאה בשמירת ההפניה")
+        // Update formData optimistically with the current values
+        setFormData(prev => ({ ...prev, ...updatePayload }))
+
+        // Background server work
+        ;(async () => {
+          try {
+            const savedReferral = await updateReferral(updatePayload as any)
+            if (savedReferral) {
+              setFormData(savedReferral)
+            } else {
+              toast.error("שגיאה בשמירת ההפניה")
+              setIsEditing(true)
+            }
+          } catch (error) {
+            console.error('Background referral update error:', error)
+            toast.error("שגיאה בשמירת ההפניה")
+            setIsEditing(true)
+          }
+        })()
       }
     } catch (error) {
-      console.error('Error saving referral:', error)
+      console.error('Error in handleSave:', error)
       toast.error("שגיאה בשמירת ההפניה")
+      setIsEditing(true)
     }
   }
 
@@ -401,16 +424,22 @@ export default function ReferralDetailPage() {
                   />
                 </div>
                 <div className="col-span-1">
-                  <label className="font-semibold text-base">סניף</label>
+                  <label className="font-semibold text-base">רמת דחיפות</label>
                   <div className="h-1"></div>
-                  <Input
-                    name="branch"
-                    value={formData.branch || ''}
-                    onChange={handleInputChange}
-                    placeholder="סניף"
+                  <Select
+                    value={formData.urgency_level || ''}
+                    onValueChange={(value) => setFormData(prev => ({ ...prev, urgency_level: value }))}
                     disabled={!isEditing}
-                    className={`h-9 text-sm ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
-                  />
+                  >
+                    <SelectTrigger className={`h-9 text-sm ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}>
+                      <SelectValue placeholder="בחר רמת דחיפות" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="routine">שגרתי</SelectItem>
+                      <SelectItem value="urgent">דחוף</SelectItem>
+                      <SelectItem value="emergency">חירום</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="col-span-1">
                   <label className="font-semibold text-base">נמען</label>

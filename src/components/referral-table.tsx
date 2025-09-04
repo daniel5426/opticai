@@ -50,7 +50,7 @@ export function ReferralTable({
     (referral) =>
       referral.type?.toLowerCase().includes(searchValue.toLowerCase()) ||
       referral.recipient?.toLowerCase().includes(searchValue.toLowerCase()) ||
-      referral.branch?.toLowerCase().includes(searchValue.toLowerCase()) ||
+      referral.urgency_level?.toLowerCase().includes(searchValue.toLowerCase()) ||
       referral.date?.includes(searchValue),
   );
 
@@ -119,14 +119,14 @@ export function ReferralTable({
               <TableHead className="text-right">תאריך</TableHead>
               <TableHead className="text-right">סוג הפניה</TableHead>
               {clientId === 0 && <TableHead className="text-right">לקוח</TableHead>}
-              <TableHead className="text-right">סניף</TableHead>
+              <TableHead className="text-right">רמת דחיפות</TableHead>
               <TableHead className="text-right">נמען</TableHead>
               <TableHead className="w-[50px] text-right"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading ? (
-              Array.from({ length: 5 }).map((_, i) => (
+              Array.from({ length: 14 }).map((_, i) => (
                 <TableRow key={i}>
                   <TableCell>
                     <Skeleton className="w-[70%] h-4 my-2" />
@@ -140,7 +140,7 @@ export function ReferralTable({
                     </TableCell>
                   )}
                   <TableCell>
-                    <Skeleton className="w-[70%] h-4 my-2 " />
+                    <Skeleton className="w-[70%] h-4 my-2" />
                   </TableCell>
                   <TableCell>
                     <Skeleton className="w-[70%] h-4 my-2" />
@@ -176,7 +176,11 @@ export function ReferralTable({
                     >{referral.client_full_name || ''}</TableCell>
                   )}
                   <TableCell className="text-right">
-                    {referral.branch || "-"}
+                    {referral.urgency_level ? (
+                      referral.urgency_level === 'routine' ? 'שגרתי' :
+                      referral.urgency_level === 'urgent' ? 'דחוף' :
+                      referral.urgency_level === 'emergency' ? 'חירום' : referral.urgency_level
+                    ) : "-"}
                   </TableCell>
                   <TableCell className="text-right">
                     {referral.recipient || "-"}

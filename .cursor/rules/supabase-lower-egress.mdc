@@ -1,6 +1,5 @@
 ---
-globs: .py,.tsx
-alwaysApply: false
+alwaysApply: true
 ---
 Never use * → always select only needed columns.
 

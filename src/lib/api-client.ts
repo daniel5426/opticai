@@ -266,6 +266,14 @@ class ApiClient {
     return this.request<User[]>('/users');
   }
 
+  async getUsersForSelect(params?: { clinic_id?: number; include_ceo?: boolean }) {
+    const u = new URLSearchParams()
+    if (params?.clinic_id !== undefined) u.append('clinic_id', String(params.clinic_id))
+    if (params?.include_ceo !== undefined) u.append('include_ceo', String(params.include_ceo))
+    const qs = u.toString()
+    return this.request<Array<Pick<User,'id'|'full_name'|'username'|'role'|'clinic_id'|'is_active'>>>('/users/select' + (qs ? `?${qs}` : ''))
+  }
+
   async getUser(id: number) {
     return this.request<User>(`/users/${id}`);
   }
@@ -1401,6 +1409,17 @@ class ApiClient {
     if (endDate) params.append('end_date', endDate);
     const qs = params.toString();
     return this.request(`/dashboard/home?${qs}`);
+  }
+
+  // Unified search
+  async unifiedSearch(query: string, clinicId?: number, options?: { limit?: number; offset?: number }) {
+    const params = new URLSearchParams();
+    params.append('q', query);
+    if (clinicId) params.append('clinic_id', String(clinicId));
+    if (options?.limit !== undefined) params.append('limit', String(options.limit));
+    if (options?.offset !== undefined) params.append('offset', String(options.offset));
+    const qs = params.toString();
+    return this.request<{ items: Array<{ type: string; id: number; title: string; subtitle?: string; description?: string; client_id?: number }>; total: number }>(`/search?${qs}`);
   }
 
   // Control Center aggregated endpoints

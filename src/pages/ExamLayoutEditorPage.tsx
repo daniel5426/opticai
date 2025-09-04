@@ -29,7 +29,7 @@ import {
 } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
 import { GripVertical, Plus, Edit, Trash2 } from "lucide-react"
-import { ExamCardRenderer, CardItem, calculateCardWidth, hasNoteCard, DetailProps, getColumnCount } from "@/components/exam/ExamCardRenderer"
+import { ExamCardRenderer, CardItem, calculateCardWidth, hasNoteCard, DetailProps, getColumnCount, getMaxWidth } from "@/components/exam/ExamCardRenderer"
 import { getExamLayoutById, createExamLayout, updateExamLayout } from "@/lib/db/exam-layouts-db"
 import { examComponentRegistry } from "@/lib/exam-component-registry"
 import { Eye, EyeOff } from "lucide-react"
@@ -169,6 +169,8 @@ interface CardResizerProps {
   rowId: string
   leftCardId: string
   rightCardId: string
+  leftCardType: CardItem['type']
+  rightCardType: CardItem['type']
   isEditing: boolean
   cardCount: number
   onResize: (rowId: string, leftCardId: string, rightCardId: string, leftWidth: number) => void
@@ -176,7 +178,7 @@ interface CardResizerProps {
   rightCardWidth: number
 }
 
-function CardResizer({ rowId, leftCardId, rightCardId, isEditing, cardCount, onResize, leftCardWidth, rightCardWidth }: CardResizerProps) {
+function CardResizer({ rowId, leftCardId, rightCardId, leftCardType, rightCardType, isEditing, cardCount, onResize, leftCardWidth, rightCardWidth }: CardResizerProps) {
   const [isDragging, setIsDragging] = useState(false)
   const [isHovering, setIsHovering] = useState(false)
 
@@ -189,14 +191,19 @@ function CardResizer({ rowId, leftCardId, rightCardId, isEditing, cardCount, onR
     
     const resizerElement = e.currentTarget as HTMLElement
     const leftCardElement = resizerElement.previousElementSibling as HTMLElement
+    const rightCardElement = resizerElement.nextElementSibling as HTMLElement
     const cardsContainer = resizerElement.parentElement
-    if (!cardsContainer || !leftCardElement) return
+    if (!cardsContainer || !leftCardElement || !rightCardElement) return
         
     setIsDragging(true)
     
     const startX = e.clientX
     const containerWidth = cardsContainer.getBoundingClientRect().width
     const startLeftWidth = leftCardElement.getBoundingClientRect().width
+
+    // Get max width constraints
+    const leftMaxWidth = getMaxWidth(leftCardType)
+    const rightMaxWidth = getMaxWidth(rightCardType)
 
     // Use logical widths from props
     const originalCombinedPercent = leftCardWidth + rightCardWidth
@@ -206,9 +213,18 @@ function CardResizer({ rowId, leftCardId, rightCardId, isEditing, cardCount, onR
       const deltaPercent = (deltaX / containerWidth) * 100;
       const newLeftPercent = leftCardWidth + deltaPercent;
 
-      // Clamp so left and right never go below MIN_WIDTH and sum never exceeds originalCombinedPercent
-      const minLeft = MIN_WIDTH
-      const maxLeft = originalCombinedPercent - MIN_WIDTH
+      // Calculate constraints
+      let minLeft = MIN_WIDTH
+      let maxLeft = originalCombinedPercent - MIN_WIDTH
+      
+      // Apply max width constraints
+      if (leftMaxWidth) {
+        maxLeft = Math.min(maxLeft, leftMaxWidth)
+      }
+      if (rightMaxWidth) {
+        minLeft = Math.max(minLeft, originalCombinedPercent - rightMaxWidth)
+      }
+
       const clampedLeft = Math.max(minLeft, Math.min(newLeftPercent, maxLeft))
       onResize(rowId, leftCardId, rightCardId, clampedLeft)
     }
@@ -385,8 +401,18 @@ export default function ExamLayoutEditorPage() {
       // Calculate current widths for all cards
       const currentWidths = calculateCardWidth(row.cards, rowId, prev)
       
-      // Set the left card to the new width
-      newWidths[rowId][leftCardId] = leftWidth
+      // Find the left and right cards to get their types
+      const leftCard = row.cards.find(card => card.id === leftCardId)
+      const rightCard = row.cards.find(card => card.id === rightCardId)
+      if (!leftCard || !rightCard) return prev
+      
+      // Get max width constraints
+      const leftMaxWidth = getMaxWidth(leftCard.type)
+      const rightMaxWidth = getMaxWidth(rightCard.type)
+      
+      // Apply max width constraint to left card
+      const constrainedLeftWidth = leftMaxWidth ? Math.min(leftWidth, leftMaxWidth) : leftWidth
+      newWidths[rowId][leftCardId] = constrainedLeftWidth
       
       // Calculate the right card width as the remaining space from what these two cards originally had
       const leftIndex = row.cards.findIndex(card => card.id === leftCardId)
@@ -397,7 +423,13 @@ export default function ExamLayoutEditorPage() {
         const originalCombinedWidth = currentWidths[leftCardId] + currentWidths[rightCardId]
         
         // Right card gets what's left from their combined original width
-        const rightWidth = originalCombinedWidth - leftWidth
+        let rightWidth = originalCombinedWidth - constrainedLeftWidth
+        
+        // Apply max width constraint to right card
+        if (rightMaxWidth) {
+          rightWidth = Math.min(rightWidth, rightMaxWidth)
+        }
+        
         newWidths[rowId][rightCardId] = Math.max(15, rightWidth) // Minimum 15% width
         
         // Preserve widths of other cards by setting them as custom widths
@@ -722,6 +754,8 @@ export default function ExamLayoutEditorPage() {
                                       rowId={row.id}
                                       leftCardId={leftCard.id}
                                       rightCardId={rightCard.id}
+                                      leftCardType={leftCard.type}
+                                      rightCardType={rightCard.type}
                                       isEditing={isEditing}
                                       cardCount={row.cards.length}
                                       onResize={handleCardResize}

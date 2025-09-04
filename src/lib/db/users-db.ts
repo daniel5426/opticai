@@ -4,7 +4,7 @@ import { apiClient } from '../api-client';
 
 export async function getAllUsers(clinicId?: number): Promise<User[]> {
   try {
-    const response = await apiClient.getUsers();
+    const response = await apiClient.getUsersForSelect({ clinic_id: clinicId, include_ceo: true });
     if (response.error) {
       console.error('Error getting all users:', response.error);
       return [];
@@ -35,7 +35,7 @@ export async function getPaginatedUsers(
 
 export async function getUsersByClinic(clinicId: number): Promise<User[]> {
   try {
-    const response = await apiClient.getUsersByClinic(clinicId);
+    const response = await apiClient.getUsersForSelect({ clinic_id: clinicId, include_ceo: true });
     if (response.error) {
       console.error('Error getting users by clinic:', response.error);
       return [];
