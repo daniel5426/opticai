@@ -44,6 +44,7 @@ export function UserModal({
     clinic_id: ''
   })
   const [isSaving, setIsSaving] = useState(false)
+  const [usernameError, setUsernameError] = useState('')
 
   useEffect(() => {
     if (editingUser) {
@@ -69,10 +70,14 @@ export function UserModal({
         clinic_id: defaultClinicId ? String(defaultClinicId) : ''
       })
     }
-  }, [editingUser, defaultClinicId])
+    setUsernameError('')
+  }, [editingUser, defaultClinicId, isOpen])
 
   const handleUserFormChange = (field: string, value: any) => {
     setUserForm(prev => ({ ...prev, [field]: value }))
+    if (field === 'username') {
+      setUsernameError('')
+    }
   }
 
   const handleUserSave = async () => {
@@ -181,7 +186,14 @@ export function UserModal({
       }
     } catch (error) {
       console.error('Error saving user:', error)
-      toast.error('שגיאה בשמירת המשתמש')
+      const errorMessage = error instanceof Error ? error.message : 'שגיאה בשמירת המשתמש'
+      
+      // Check if it's a username already exists error
+      if (errorMessage.includes('Username already exists') || errorMessage.includes('already exists')) {
+        setUsernameError('שם המשתמש כבר קיים במערכת')
+      } else {
+        toast.error(errorMessage)
+      }
     } finally {
       setIsSaving(false)
     }
@@ -209,12 +221,17 @@ export function UserModal({
           </div>
           <div className="space-y-2">
             <Label htmlFor="username" className="text-right block">שם משתמש *</Label>
+            {usernameError && (
+              <div className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2 text-right">
+                {usernameError}
+              </div>
+            )}
             <Input
               id="username"
               value={userForm.username}
               onChange={(e) => handleUserFormChange('username', e.target.value)}
               placeholder="הזן שם משתמש"
-              className="text-right"
+              className={`text-right ${usernameError ? 'border-destructive focus-visible:ring-destructive' : ''}`}
               dir="rtl"
             />
           </div>

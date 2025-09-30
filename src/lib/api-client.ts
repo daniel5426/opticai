@@ -102,13 +102,20 @@ class ApiClient {
       headers['Content-Type'] = headers['Content-Type'] || 'application/json';
     }
 
+    const isPublicEndpoint = endpoint.includes('/public') || endpoint.startsWith('/auth/login-no-password') || endpoint.startsWith('/auth/login');
     let effectiveToken = this.token;
-    if (!effectiveToken) {
-      const supabaseToken = await getSupabaseAccessToken();
-      effectiveToken = supabaseToken || null;
-    }
-    if (effectiveToken) {
-      headers['Authorization'] = `Bearer ${effectiveToken}`;
+    if (!isPublicEndpoint) {
+      if (!effectiveToken) {
+        // Only try to get Supabase token if we're not in a clinic context
+        const isInClinicContext = typeof localStorage !== 'undefined' && localStorage.getItem('selectedClinic');
+        if (!isInClinicContext) {
+          const supabaseToken = await getSupabaseAccessToken();
+          effectiveToken = supabaseToken || null;
+        }
+      }
+      if (effectiveToken) {
+        headers['Authorization'] = `Bearer ${effectiveToken}`;
+      }
     }
 
     try {
@@ -123,7 +130,7 @@ class ApiClient {
         const errorData = await response.json().catch(() => ({}));
         if (response.status === 401) {
           const hadAuthHeader = Boolean(headers['Authorization']);
-          if (!response.ok && hadAuthHeader) {
+          if (hadAuthHeader && !isPublicEndpoint) {
             this.clearToken();
             try {
               if (typeof localStorage !== 'undefined') {
@@ -139,18 +146,8 @@ class ApiClient {
             } catch {}
           }
         }
-        if (!response.ok) {
-          const second = await response.json().catch(() => errorData);
-          return { error: second.detail || `HTTP ${response.status}` };
-        }
-        if (response.status === 422) {
-          if (errorData.detail && Array.isArray(errorData.detail)) {
-            const validationErrors = errorData.detail.map((err: any) => 
-              `${err.loc?.join('.') || 'field'}: ${err.msg}`
-            ).join(', ');
-            return { error: validationErrors };
-          }
-        }
+        const second = await response.json().catch(() => errorData);
+        return { error: (second && (second as any).detail) || `HTTP ${response.status}` };
       }
 
       const data = await response.json();
@@ -242,7 +239,7 @@ class ApiClient {
   }
 
   async createClinic(clinic: any) {
-    return this.request<Clinic>('/clinics', {
+    return this.request<Clinic>('/clinics/', {
       method: 'POST',
       body: JSON.stringify(clinic),
     });
@@ -700,9 +697,11 @@ class ApiClient {
   }
 
   async updateAppointmentGoogleEventId(appointmentId: number, googleEventId: string | null) {
-    return this.request(`/appointments/${appointmentId}/google-event`, {
+    // Backend endpoint is /appointments/{id}/google-event-id and expects 'google_event_id'
+    const param = googleEventId ? encodeURIComponent(googleEventId) : ''
+    const url = `/appointments/${appointmentId}/google-event-id?google_event_id=${param}`
+    return this.request(url, {
       method: 'PUT',
-      body: JSON.stringify({ googleEventId }),
     });
   }
 

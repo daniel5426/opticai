@@ -43,7 +43,7 @@ class ClinicBase(BaseModel):
     clinic_website: Optional[str] = None
     manager_name: Optional[str] = None
     license_number: Optional[str] = None
-    unique_id: str
+    unique_id: Optional[str] = None
     is_active: bool = True
 
 class ClinicCreate(ClinicBase):
@@ -64,7 +64,7 @@ class Clinic(ClinicBase):
         from_attributes = True
 
 class UserBase(BaseModel):
-    company_id: Optional[int] = None
+    company_id: int
     full_name: Optional[str] = None
     username: str
     email: Optional[str] = None
@@ -77,6 +77,9 @@ class UserBase(BaseModel):
     theme_preference: str = "system"
     google_account_connected: bool = False
     google_account_email: Optional[str] = None
+    google_access_token: Optional[str] = None
+    google_refresh_token: Optional[str] = None
+    google_calendar_sync_enabled: bool = False
     system_vacation_dates: Optional[List[str]] = None
     added_vacation_dates: Optional[List[str]] = None
 

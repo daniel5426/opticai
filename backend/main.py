@@ -66,6 +66,21 @@ app.include_router(search.router, prefix=config.settings.API_V1_STR)
 async def health_check():
     return {"status": "healthy", "service": "OpticAI API"}
 
+@app.get("/health/database")
+async def database_health_check():
+    from database import get_db
+    from sqlalchemy.exc import OperationalError, DatabaseError, TimeoutError
+    from sqlalchemy import text
+    
+    try:
+        db = next(get_db())
+        db.execute(text("SELECT 1"))
+        return {"status": "healthy", "database": "connected"}
+    except (OperationalError, DatabaseError, TimeoutError) as e:
+        return {"status": "unhealthy", "database": "disconnected", "error": str(e)}
+    except Exception as e:
+        return {"status": "error", "database": "unknown", "error": str(e)}
+
 @app.post("/chat/completions")
 async def chat_completions(request: dict):
     try:

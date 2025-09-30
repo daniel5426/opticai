@@ -9,8 +9,14 @@ declare module "@tanstack/react-router" {
 }
 
 // Create the memory history with error handling
+// IMPORTANT: Initialize history with the actual current URL so popup/callback
+// windows render the correct route (e.g. /auth/callback) instead of '/'
+const initialEntry = typeof window !== 'undefined'
+  ? (window.location.pathname + window.location.search + window.location.hash || '/')
+  : '/';
+
 const history = createMemoryHistory({
-  initialEntries: ["/"],
+  initialEntries: [initialEntry],
 });
 
 // Create router with error handlers

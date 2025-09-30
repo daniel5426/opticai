@@ -6,15 +6,16 @@ export interface GoogleConfig {
 }
 
 export const GOOGLE_CONFIG: GoogleConfig = {
-  // These will need to be replaced with actual Google OAuth credentials
-  // Get these from Google Cloud Console: https://console.cloud.google.com/
+  // Desktop OAuth credentials for Google Calendar API access
+  // These are separate from the web OAuth used by Supabase for login
   get clientId() {
-    return process.env.GOOGLE_CLIENT_ID || 'your-client-id.apps.googleusercontent.com';
+    return process.env.GOOGLE_DESKTOP_CLIENT_ID || 'your-desktop-client-id.apps.googleusercontent.com';
   },
   get clientSecret() {
-    return process.env.GOOGLE_CLIENT_SECRET || 'your-client-secret';
+    return process.env.GOOGLE_DESKTOP_CLIENT_SECRET || 'your-desktop-client-secret';
   },
-  redirectUri: 'http://localhost:3000/oauth/callback',
+  // Use loopback URI for desktop OAuth (works in both dev and prod)
+  redirectUri: 'http://127.0.0.1:3000/oauth/callback',
   scopes: [
     'https://www.googleapis.com/auth/calendar',
     'https://www.googleapis.com/auth/calendar.events',

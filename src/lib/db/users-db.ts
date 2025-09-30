@@ -94,12 +94,13 @@ export async function createUser(userData: Omit<User, 'id' | 'created_at' | 'upd
     const response = await apiClient.createUser(userData);
     if (response.error) {
       console.error('Error creating user:', response.error);
-      return null;
+      throw new Error(response.error);
     }
     return response.data || null;
   } catch (error) {
     console.error('Error creating user:', error);
-    return null;
+    if (error instanceof Error) throw error;
+    throw new Error('Unknown error creating user');
   }
 }
 

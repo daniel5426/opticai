@@ -7,75 +7,88 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { ControlCenterSidebar } from "@/components/control-center-sidebar";
 import { getSettings } from "@/lib/db/settings-db";
 import { applyThemeColorsFromSettings } from "@/helpers/theme_helpers";
-import { Settings } from "@/lib/db/schema-interface";
+import { Settings, User } from "@/lib/db/schema-interface";
 import { SettingsContext } from "@/contexts/SettingsContext";
 import { ClientSidebarProvider } from "@/contexts/ClientSidebarContext";
 import { useUser } from "@/contexts/UserContext";
 import { ClientSidebar } from "@/components/ClientSidebar";
 import { useLocation, useNavigate } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
-import { User, Clinic } from "@/lib/db/schema-interface";
 import { apiClient } from '@/lib/api-client';
 import { OctahedronLoader } from "@/components/ui/octahedron-loader";
-import { LayoutPreloader } from "@/components/LayoutPreloader";
 
-// Create a wrapper component that safely uses UserContext
+/**
+ * BaseLayoutContent - Main layout wrapper
+ * Handles sidebar rendering and settings loading
+ * Auth logic is delegated to AuthService - this component just consumes the state
+ */
 function BaseLayoutContent({ children }: { children: React.ReactNode }) {
   const [settings, setSettings] = useState<Settings | null>(null);
-  const [isSettingsLoading, setIsSettingsLoading] = useState(true);
   const [isLogoLoaded, setIsLogoLoaded] = useState(false);
-  const [hasCompanies, setHasCompanies] = useState<boolean | null>(
-    sessionStorage.getItem('hasCompanies') ? sessionStorage.getItem('hasCompanies') === 'true' : null
-  );
   const [company, setCompany] = useState<any>(null);
   const navigate = useNavigate();
   const location = useLocation();
   
-  // Use the imported useUser hook
-  const { currentUser, currentClinic, isLoading: isUserLoading } = useUser()
+  // Safe access to user context (handles HMR gracefully)
+  let currentUser: User | null = null;
+  let currentClinic: any = null;
+  let isUserLoading = true;
+  
+  try {
+    const userContext = useUser();
+    currentUser = userContext.currentUser;
+    currentClinic = userContext.currentClinic;
+    isUserLoading = userContext.isLoading;
+  } catch (error) {
+    // During HMR, UserProvider might be temporarily unavailable
+    console.log('[BaseLayout] UserContext temporarily unavailable (likely HMR)')
+  }
   
   const updateSettings = (newSettings: Settings) => {
     setSettings(newSettings);
   };
   
+  // Load settings when clinic context is available
   useEffect(() => {
-    const loadInitialData = async () => {
+    const loadSettings = async () => {
+      if (!currentClinic?.id) return;
+
       try {
-        const companiesResponse = await apiClient.getCompaniesPublic();
-        const companies = companiesResponse.data || [];
-        const hasCompaniesResult = companies.length > 0;
-        setHasCompanies(hasCompaniesResult);
-
-        const companyData = localStorage.getItem('controlCenterCompany');
-        if (companyData) {
-          setCompany(JSON.parse(companyData));
-        } else if (currentClinic?.company_id) {
-          try {
-            const resp = await apiClient.getCompany(currentClinic.company_id);
-            if (resp.data) setCompany(resp.data);
-          } catch {}
-        }
-
-        if (hasCompaniesResult) {
-          const clinicIdToLoad = currentClinic?.id;
-          const dbSettings = await getSettings(clinicIdToLoad);
-          if (dbSettings) {
-            setSettings(dbSettings);
-            if (currentUser?.id) {
-              applyThemeColorsFromSettings(undefined, currentUser.id);
-            }
+        const dbSettings = await getSettings(currentClinic.id);
+        if (dbSettings) {
+          setSettings(dbSettings);
+          if (currentUser?.id) {
+            applyThemeColorsFromSettings(undefined, currentUser.id);
           }
         }
       } catch (error) {
-        console.error('Error loading initial data:', error);
-        setHasCompanies(false);
-      } finally {
-        setIsSettingsLoading(false);
+        console.error('[BaseLayout] Error loading settings:', error);
       }
     };
-    loadInitialData();
-  }, [currentUser?.id]);
 
+    loadSettings();
+  }, [currentClinic?.id, currentUser?.id]);
+
+  // Load company data
+  useEffect(() => {
+    const loadCompany = async () => {
+      const companyData = localStorage.getItem('controlCenterCompany');
+      if (companyData) {
+        setCompany(JSON.parse(companyData));
+      } else if (currentClinic?.company_id) {
+        try {
+          const resp = await apiClient.getCompany(currentClinic.company_id);
+          if (resp.data) setCompany(resp.data);
+        } catch (error) {
+          console.error('[BaseLayout] Error loading company:', error);
+        }
+      }
+    };
+
+    loadCompany();
+  }, [currentClinic?.company_id]);
+
+  // Listen for company updates
   useEffect(() => {
     const handler = (e: any) => {
       if (e?.detail) {
@@ -86,8 +99,10 @@ function BaseLayoutContent({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener('companyUpdated', handler as EventListener)
   }, [])
 
+  // Preload logo
   useEffect(() => {
     if (settings?.clinic_logo_path) {
+      setIsLogoLoaded(false);
       const img = new Image();
       img.src = settings.clinic_logo_path;
       img.onload = () => setIsLogoLoaded(true);
@@ -95,107 +110,58 @@ function BaseLayoutContent({ children }: { children: React.ReactNode }) {
     } else {
       setIsLogoLoaded(true);
     }
-  }, [settings]);
+  }, [settings?.clinic_logo_path]);
 
-  // Route definitions
-  const noSidebarRoutes = ['/', '/control-center', '/setup-wizard', '/clinic-entrance', '/user-selection'];
+  // Determine which layout to show
+  const noSidebarRoutes = ['/control-center', '/user-selection', '/auth/callback'];
+  const shouldShowSidebar = !noSidebarRoutes.some(route =>
+    location.pathname.startsWith(route)
+  ) && location.pathname !== '/'; // Exclude exact root path
+
   const controlCenterRoutes = ['/control-center/dashboard', '/control-center/users', '/control-center/clinics', '/control-center/settings'];
-  const clinicRoutes = ['/dashboard', '/clients', '/exams', '/orders', '/appointments', '/settings', '/campaigns', '/files', '/referrals', '/contact-lenses', '/ai-assistant', '/exam-layouts', '/worker-stats', '/second-page'];
+  const isControlCenterRoute = controlCenterRoutes.some(route =>
+    location.pathname.startsWith(route)
+  );
 
-  const isControlCenterRoute = controlCenterRoutes.some(route => location.pathname.startsWith(route));
-  const requiresUser = clinicRoutes.some(route => location.pathname.startsWith(route));
-  const shouldShowSidebar = !noSidebarRoutes.some(route => location.pathname === route || location.pathname.startsWith(route));
   const canAccessControlCenter = currentUser?.role === 'company_ceo';
 
-  // Consolidated loading state
-  const isBaseLoading = isUserLoading || isSettingsLoading || hasCompanies === null;
+  // Don't show loading screen on callback route (OAuth popup)
+  const isCallbackRoute = location.pathname === '/auth/callback';
 
-  // Determine if we need a logged-in user (clinic routes)
-  const needsUser = clinicRoutes.some(route => location.pathname.startsWith(route));
-
-  // App is ready ONLY when:
-  // 1) base async data finished AND
-  // 2) If route needs a user, we have one (currentUser)
-  // 3) If route is control-center, we validated access (currentUser & role)
-  const isAppReady = !isBaseLoading &&
-    (!needsUser || !!currentUser) &&
-    (!isControlCenterRoute || (currentUser && canAccessControlCenter));
-
-  const shouldShowSidebarLayout = currentUser && isAppReady && (shouldShowSidebar || requiresUser);
-
-  // Handle redirects only when fully loaded
-  useEffect(() => {
-    if (isAppReady) {
-      if (requiresUser && !currentUser) {
-        const hasClinic = !!localStorage.getItem('selectedClinic')
-        navigate({ to: hasClinic ? '/user-selection' : '/clinic-entrance' })
-      } else if (isControlCenterRoute && !currentUser) {
-        navigate({ to: '/control-center' });
-      }
-    }
-  }, [isAppReady, requiresUser, currentUser, isControlCenterRoute, navigate]);
-
-  // Debug logging
-
-  // Add a small delay to ensure sidebar components are ready
-  const [layoutReady, setLayoutReady] = useState(false);
-  
-  const handleLayoutReady = () => {
-    setLayoutReady(true);
-  };
-
-  // Single clean render decision - either show loader or final layout
-  if (!isAppReady || !layoutReady || !currentUser) {
+  // Show loading during auth initialization (except on callback route)
+  if (isUserLoading && !isCallbackRoute) {
     return (
       <ThemeProvider defaultTheme="light" storageKey="vite-ui-theme">
-        <div className="flex items-center justify-center h-screen bg-background">
+        <div className="flex flex-col items-center justify-center h-screen bg-background">
           <OctahedronLoader size="3xl" />
-          {isAppReady && currentUser && (
-            <LayoutPreloader
-              onReady={handleLayoutReady}
-              isControlCenter={isControlCenterRoute && canAccessControlCenter}
-              currentUser={currentUser ?? undefined}
-              currentClinic={currentClinic}
-              company={company}
-              settings={settings}
-            />
-          )}
         </div>
         <Toaster />
       </ThemeProvider>
     );
   }
 
-  // Render final layout only when everything is ready
   return (
     <>
       <ThemeProvider defaultTheme="light" storageKey="vite-ui-theme">
         <SettingsContext.Provider value={{ settings, updateSettings }}>
           <ClientSidebarProvider>
-            {/* Special redirect states */}
-            {hasCompanies === false && !currentUser && !noSidebarRoutes.includes(location.pathname) && !location.pathname.startsWith('/control-center/') ? (
-              <div className="min-h-screen bg-background flex-row flex items-center justify-center">
-                <div className="text-foreground text-xl">מפנה למסך הבית...</div>
-              </div>
-            ) : isControlCenterRoute && !currentUser ? (
-              <div className="min-h-screen bg-background flex items-center justify-center">
-                <div className="text-foreground text-xl">מפנה למרכז הבקרה...</div>
-              </div>
-            ) : isControlCenterRoute && currentUser && !canAccessControlCenter ? (
+            {isControlCenterRoute && currentUser && !canAccessControlCenter ? (
+              // Access denied for non-CEO trying to access control center
               <div className="min-h-screen bg-background flex flex-col gap-4 items-center justify-center">
                 <div className="text-foreground text-xl">אין לך הרשאה לגשת למרכז הבקרה</div>
                 <Button onClick={() => navigate({ to: '/control-center' })}>למסך התחלה</Button>
               </div>
             ) : isControlCenterRoute && currentUser && canAccessControlCenter ? (
+              // Control Center Layout
               <SidebarProvider dir="rtl">
                 <div className="flex flex-col h-screen">
-                  {layoutReady && <DragWindowRegion title="" />}
+                  <DragWindowRegion title="" />
                   <div className="flex-1 flex overflow-hidden">
                     <ControlCenterSidebar
                       variant="inset"
                       side="right"
                       company={company}
-                      currentUser={currentUser ?? undefined}
+                      currentUser={currentUser}
                       currentClinic={currentClinic}
                     />
                     <SidebarInset className="flex flex-col flex-1 overflow-hidden no-scrollbar" style={{scrollbarWidth: 'none'}}>
@@ -213,16 +179,17 @@ function BaseLayoutContent({ children }: { children: React.ReactNode }) {
                   </div>
                 </div>
               </SidebarProvider>
-            ) : shouldShowSidebarLayout ? (
+            ) : shouldShowSidebar && currentUser ? (
+              // Clinic Layout with Sidebar
               <SidebarProvider dir="rtl">
                 <div className="flex flex-col h-screen">
-                  {layoutReady && <DragWindowRegion title="" />}
+                  <DragWindowRegion title="" />
                   <div className="flex-1 flex overflow-hidden">
                     <AppSidebar
                       variant="inset"
                       side="right"
                       clinicName={currentClinic?.name}
-                      currentUser={currentUser ?? undefined}
+                      currentUser={currentUser}
                       logoPath={settings?.clinic_logo_path || company?.logo_path}
                       isLogoLoaded={isLogoLoaded}
                       currentClinic={currentClinic}
@@ -244,7 +211,8 @@ function BaseLayoutContent({ children }: { children: React.ReactNode }) {
                 </div>
               </SidebarProvider>
             ) : (
-              <div className="flex flex-col h-screen" dir="rtl">
+              // No Sidebar Layout (Welcome, Control Center login, User Selection)
+              <div className="flex flex-col h-screen">
                 <main className="flex-1 overflow-auto">
                   {children}
                 </main>
@@ -258,11 +226,25 @@ function BaseLayoutContent({ children }: { children: React.ReactNode }) {
   );
 }
 
-// Main BaseLayout component with error boundary for UserContext
+/**
+ * BaseLayout - Root layout component
+ * Note: UserProvider is now in __root.tsx to prevent context loss during navigation
+ */
 export default function BaseLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  return <BaseLayoutContent>{children}</BaseLayoutContent>;
+  return (
+    <React.Suspense fallback={
+      <ThemeProvider defaultTheme="light" storageKey="vite-ui-theme">
+        <div className="flex items-center justify-center h-screen">
+          <OctahedronLoader size="3xl" />
+        </div>
+        <Toaster />
+      </ThemeProvider>
+    }>
+      <BaseLayoutContent>{children}</BaseLayoutContent>
+    </React.Suspense>
+  );
 }

@@ -1,5 +1,52 @@
-import { Appointment } from './schema-interface';
+import { Appointment, User, Client } from './schema-interface';
 import { apiClient } from '../api-client';
+import { googleCalendarSync } from '../google/google-calendar-sync';
+
+/**
+ * Get current user from localStorage for sync operations
+ */
+async function getCurrentUserForSync(): Promise<User | null> {
+  try {
+    const userStr = localStorage.getItem('currentUser');
+    if (!userStr) return null;
+    return JSON.parse(userStr) as User;
+  } catch (error) {
+    console.error('Error getting current user for sync:', error);
+    return null;
+  }
+}
+
+/**
+ * Get client data for sync operations
+ */
+async function getClientForSync(clientId: number): Promise<Client | null> {
+  try {
+    const response = await apiClient.getClientById(clientId);
+    return response.data || null;
+  } catch (error) {
+    console.error('Error getting client for sync:', error);
+    return null;
+  }
+}
+
+/**
+ * Get the appointment owner (assigned examiner) user for calendar sync
+ */
+async function getOwnerUserForSync(userId?: number | null): Promise<User | null> {
+  try {
+    if (!userId) return null;
+    // Prefer locally stored currentUser if it matches (has tokens)
+    const currentUser = await getCurrentUserForSync();
+    if (currentUser?.id === userId) {
+      return currentUser;
+    }
+    const response = await apiClient.getUser(userId);
+    return response.data || null;
+  } catch (error) {
+    console.error('Error getting owner user for sync:', error);
+    return null;
+  }
+}
 
 export async function getAppointmentsByClient(clientId: number): Promise<Appointment[]> {
   try {
@@ -140,7 +187,42 @@ export async function createAppointment(appointment: Omit<Appointment, 'id'>): P
       console.error('Full error response:', response);
       return null;
     }
-    return response.data || null;
+    
+    const createdAppointment = response.data;
+    if (createdAppointment) {
+      // Trigger automatic Google Calendar sync
+      try {
+        // Prefer assigned examiner's calendar; fallback to current user
+        let calendarUser: User | null = null;
+        if (createdAppointment.user_id) {
+          calendarUser = await getOwnerUserForSync(createdAppointment.user_id);
+        }
+        if (!calendarUser) {
+          calendarUser = await getCurrentUserForSync();
+        }
+        if (calendarUser?.google_account_connected) {
+          console.log('Auto-syncing new appointment to Google Calendar');
+          const client = await getClientForSync(createdAppointment.client_id);
+          const eventId = await googleCalendarSync.syncAppointmentCreated(createdAppointment, client, calendarUser);
+          
+          // Update appointment with Google Calendar event ID if sync was successful
+          if (eventId && createdAppointment.id) {
+            try {
+              await apiClient.updateAppointmentGoogleEventId(createdAppointment.id, eventId);
+              createdAppointment.google_calendar_event_id = eventId;
+              console.log('Appointment synced to Google Calendar with event ID:', eventId);
+            } catch (error) {
+              console.error('Failed to save Google Calendar event ID:', error);
+            }
+          }
+        }
+      } catch (syncError) {
+        console.error('Auto-sync to Google Calendar failed (non-blocking):', syncError);
+        // Don't fail the appointment creation if sync fails
+      }
+    }
+    
+    return createdAppointment || null;
   } catch (error) {
     console.error('Error creating appointment:', error);
     if (error instanceof Error) {
@@ -157,12 +239,87 @@ export async function updateAppointment(appointment: Appointment): Promise<Appoi
       console.error('Error updating appointment: No appointment ID provided');
       return null;
     }
+    
+    // Fetch previous appointment to get existing google event id and owner
+    const previous = await getAppointmentById(appointment.id);
     const response = await apiClient.updateAppointment(appointment.id, appointment);
     if (response.error) {
       console.error('Error updating appointment:', response.error);
       return null;
     }
-    return response.data || null;
+    
+    const updatedAppointment = response.data;
+    if (updatedAppointment) {
+      // Trigger automatic Google Calendar sync
+      try {
+        // Determine which user's calendar to use: assigned user if present; otherwise current user
+        let calendarUser: User | null = null;
+        if (updatedAppointment.user_id) {
+          calendarUser = await getOwnerUserForSync(updatedAppointment.user_id);
+        }
+        if (!calendarUser) {
+          calendarUser = await getCurrentUserForSync();
+        }
+        if (calendarUser?.google_account_connected) {
+          console.log('Auto-syncing updated appointment to Google Calendar');
+          const client = await getClientForSync(updatedAppointment.client_id);
+
+          // If the appointment owner changed, delete the old event from previous owner's calendar
+          const ownerChanged = previous && previous.user_id !== updatedAppointment.user_id;
+          if (ownerChanged && previous?.google_calendar_event_id) {
+            const previousOwner = await getOwnerUserForSync(previous.user_id);
+            // Even if previous owner is not currently connected, try deleting using current user's tokens if they match previous owner
+            const deleterUser = (previousOwner?.google_account_connected ? previousOwner : null)
+              || ((await getCurrentUserForSync())?.id === previous.user_id ? await getCurrentUserForSync() : null);
+            if (deleterUser?.google_account_connected) {
+              try {
+                await googleCalendarSync.syncAppointmentDeleted(deleterUser, previous.google_calendar_event_id);
+              } catch (e) {
+                console.warn('Failed to delete old event on previous owner calendar:', e);
+              }
+            }
+          }
+
+          // If there is no stored event ID (or owner changed), create new event and store id
+          if (!updatedAppointment.google_calendar_event_id || ownerChanged) {
+            const eventId = await googleCalendarSync.syncAppointmentCreated(updatedAppointment, client, calendarUser);
+            if (eventId && updatedAppointment.id) {
+              try {
+                await apiClient.updateAppointmentGoogleEventId(updatedAppointment.id, eventId);
+                updatedAppointment.google_calendar_event_id = eventId;
+              } catch (error) {
+                console.error('Failed to save Google Calendar event ID on update:', error);
+              }
+            }
+          } else {
+            // Update existing event
+            const success = await googleCalendarSync.syncAppointmentUpdated(
+              updatedAppointment,
+              client,
+              calendarUser,
+              updatedAppointment.google_calendar_event_id
+            );
+            if (!success) {
+              console.warn('Update failed; attempting to recreate event');
+              const eventId = await googleCalendarSync.syncAppointmentCreated(updatedAppointment, client, calendarUser);
+              if (eventId && updatedAppointment.id) {
+                try {
+                  await apiClient.updateAppointmentGoogleEventId(updatedAppointment.id, eventId);
+                  updatedAppointment.google_calendar_event_id = eventId;
+                } catch (error) {
+                  console.error('Failed to save recreated Google event ID:', error);
+                }
+              }
+            }
+          }
+        }
+      } catch (syncError) {
+        console.error('Auto-sync to Google Calendar failed (non-blocking):', syncError);
+        // Don't fail the appointment update if sync fails
+      }
+    }
+    
+    return updatedAppointment || null;
   } catch (error) {
     console.error('Error updating appointment:', error);
     return null;
@@ -171,11 +328,43 @@ export async function updateAppointment(appointment: Appointment): Promise<Appoi
 
 export async function deleteAppointment(id: number): Promise<boolean> {
   try {
+    // Get appointment data before deletion for sync purposes
+    let appointmentToDelete: Appointment | null = null;
+    try {
+      appointmentToDelete = await getAppointmentById(id);
+    } catch (error) {
+      console.log('Could not fetch appointment before deletion for sync purposes');
+    }
+    
     const response = await apiClient.deleteAppointment(id);
     if (response.error) {
       console.error('Error deleting appointment:', response.error);
       return false;
     }
+    
+    // Trigger automatic Google Calendar sync for deletion
+    if (appointmentToDelete) {
+      try {
+        // Prefer appointment owner calendar if available
+        const owner = await getOwnerUserForSync(appointmentToDelete.user_id);
+        const calendarUser = owner || await getCurrentUserForSync();
+        if (calendarUser?.google_account_connected && appointmentToDelete.google_calendar_event_id) {
+          console.log('Auto-syncing appointment deletion to Google Calendar');
+          const success = await googleCalendarSync.syncAppointmentDeleted(
+            calendarUser, 
+            appointmentToDelete.google_calendar_event_id
+          );
+          
+          if (success) {
+            console.log('Appointment deleted from Google Calendar');
+          }
+        }
+      } catch (syncError) {
+        console.error('Auto-sync deletion to Google Calendar failed (non-blocking):', syncError);
+        // Don't fail the appointment deletion if sync fails
+      }
+    }
+    
     return true;
   } catch (error) {
     console.error('Error deleting appointment:', error);

@@ -51,7 +51,7 @@ class User(Base):
     __tablename__ = "users"
     
     id = Column(Integer, primary_key=True, index=True)
-    company_id = Column(Integer, ForeignKey("companies.id"))
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False)
     clinic_id = Column(Integer, ForeignKey("clinics.id"))
     full_name = Column(String)
     username = Column(String, nullable=False, unique=True)
@@ -68,6 +68,7 @@ class User(Base):
     google_account_email = Column(String)
     google_access_token = Column(String)
     google_refresh_token = Column(String)
+    google_calendar_sync_enabled = Column(Boolean, default=False)
     system_vacation_dates = Column(JSON, default=list)
     added_vacation_dates = Column(JSON, default=list)
     created_at = Column(DateTime(timezone=True), server_default=func.now())

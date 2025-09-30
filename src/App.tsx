@@ -1,13 +1,11 @@
 import React, { useEffect, Suspense, ReactNode } from "react";
-import { createRoot } from "react-dom/client";
-import { syncThemeWithLocal } from "./helpers/theme_helpers";
+import { syncThemeWithLocal, applyUserThemeFromStorage } from "./helpers/theme_helpers";
 import { useTranslation } from "react-i18next";
 import "./localization/i18n";
 import { updateAppLanguage } from "./helpers/language_helpers";
 import { router } from "./routes/router";
 import { RouterProvider } from "@tanstack/react-router";
 import { UserProvider } from "./contexts/UserContext";
-import { RenderGate } from "./components/RenderGate";
 
 // Simple error boundary component
 class ErrorBoundary extends React.Component<{ children: ReactNode }> {
@@ -51,28 +49,20 @@ export default function App() {
   const { i18n } = useTranslation();
 
   useEffect(() => {
-    // Theme is already applied in preboot, just sync state
+    // Apply user's theme colors immediately from localStorage to prevent flash
+    applyUserThemeFromStorage();
+    // Then sync theme mode settings
     syncThemeWithLocal();
     updateAppLanguage(i18n);
   }, [i18n]);
 
   return (
-    <RenderGate>
-      <ErrorBoundary>
-        <Suspense fallback={<Loading />}>
-          <UserProvider>
-            <RouterProvider router={router} />
-          </UserProvider>
-        </Suspense>
-      </ErrorBoundary>
-    </RenderGate>
+    <ErrorBoundary>
+      <Suspense fallback={<Loading />}>
+        <RouterProvider router={router} />
+      </Suspense>
+    </ErrorBoundary>
   );
 }
 
-const root = createRoot(document.getElementById("app")!);
-root.render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>,
-);
-
+// Rendering is handled in renderer.ts

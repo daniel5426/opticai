@@ -1,16 +1,13 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { User } from '@/lib/db/schema-interface'
-import { useUser } from '@/contexts/UserContext'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { useNavigate } from '@tanstack/react-router'
-import { router } from '@/routes/router'
-
 import { toast } from 'sonner'
-import { apiClient } from '@/lib/api-client';
+import { apiClient } from '@/lib/api-client'
+import { authService } from '@/lib/auth/AuthService'
 
 export default function UserSelectionPage() {
   const [users, setUsers] = useState<User[]>([])
@@ -20,11 +17,9 @@ export default function UserSelectionPage() {
   const [isLoggingIn, setIsLoggingIn] = useState(false)
   const [loadedImages, setLoadedImages] = useState<Set<string>>(new Set())
   const [selectedClinic, setSelectedClinic] = useState<any>(null)
-  const { login, setCurrentClinic, setCurrentUser } = useUser()
-  const navigate = useNavigate()
 
-  // Preload profile images for better performance
-  const preloadImages = useMemo(() => {
+  // Preload user images
+  useMemo(() => {
     const imageUrls = users
       .filter(user => user.profile_picture)
       .map(user => user.profile_picture!)
@@ -40,169 +35,58 @@ export default function UserSelectionPage() {
     })
   }, [users, loadedImages])
 
-  // Optimized Avatar Component
-  const OptimizedAvatar = React.memo(({ user, size = 'md' }: { user: User; size?: 'sm' | 'md' | 'lg' }) => {
-    const sizeClasses = {
-      sm: 'w-20 h-20',
-      md: 'w-28 h-28',
-      lg: 'w-32 h-32'
-    }
-    
-    const textSizes = {
-      sm: 'text-xl',
-      md: 'text-3xl',
-      lg: 'text-4xl'
-    }
-
-    return (
-      <div className={`${sizeClasses[size]} rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm group-hover:shadow-lg group-hover:shadow-slate-900/10 dark:group-hover:shadow-slate-100/10 transition-all duration-500 overflow-hidden`}>
-        {user.profile_picture && loadedImages.has(user.profile_picture) ? (
-          <img 
-            src={user.profile_picture} 
-            alt={user.username}
-            className="w-full h-full object-cover"
-            loading="lazy"
-            style={{ 
-              transform: 'translateZ(0)', // Force hardware acceleration
-              willChange: 'transform' // Optimize for animations
-            }}
-          />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center">
-            <span className={`text-slate-700 dark:text-slate-300 ${textSizes[size]} font-medium group-hover:text-slate-900 dark:group-hover:text-slate-100 transition-colors duration-300`}>
-              {(user.full_name || user.username).charAt(0).toUpperCase()}
-            </span>
-          </div>
-        )}
-      </div>
-    )
-  })
-
+  // Load users for selected clinic
   useEffect(() => {
-    const loadUsers = async () => {
-      try {
-        // Get the selected clinic from sessionStorage
-        const selectedClinicData = localStorage.getItem('selectedClinic')
-        if (!selectedClinicData) {
-          toast.error('לא נמצא מידע על המרפאה הנבחרת')
-          setLoading(false)
-          return
-        }
-
-        const clinic = JSON.parse(selectedClinicData)
-        setSelectedClinic(clinic)
-         const usersResponse = await apiClient.getUsersByClinicPublic(clinic.id)
-        const usersData = usersResponse.data || []
-        console.log('UserSelectionPage: Loaded users:', usersData.map(u => ({ id: u.id, username: u.username, hasPassword: !!u.password, passwordLength: u.password?.length })))
-        setUsers(usersData)
-      } catch (error) {
-        console.error('Error loading users:', error)
-        toast.error('שגיאה בטעינת המשתמשים')
-      } finally {
-        setLoading(false)
-      }
-    }
-
     loadUsers()
   }, [])
 
-  const handleUserSelect = (user: User) => {
-    setSelectedUser(user)
-    setPassword('')
+  const loadUsers = async () => {
+    try {
+      const selectedClinicData = localStorage.getItem('selectedClinic')
+      if (!selectedClinicData) {
+        // Silently return - this is expected during logout or if navigation is happening
+        console.log('[UserSelection] No clinic data found, likely during logout')
+        setLoading(false)
+        return
+      }
+
+      const clinic = JSON.parse(selectedClinicData)
+      setSelectedClinic(clinic)
+      
+      const usersResponse = await apiClient.getUsersByClinicPublic(clinic.id)
+      const usersData = usersResponse.data || []
+      
+      console.log('[UserSelection] Loaded users:', usersData.length)
+      setUsers(usersData)
+    } catch (error) {
+      console.error('[UserSelection] Error loading users:', error)
+      toast.error('שגיאה בטעינת המשתמשים')
+    } finally {
+      setLoading(false)
+    }
   }
 
-  const handleLogin = async () => {
-    if (!selectedUser) return
+  // ============================================================================
+  // LOGIN HANDLERS
+  // ============================================================================
+
+  const handlePasswordLogin = async () => {
+    if (!selectedUser || !password) return
 
     setIsLoggingIn(true)
     try {
-      console.log('UserSelectionPage: Starting login process');
-      console.log('UserSelectionPage: Selected user:', selectedUser);
-      console.log('UserSelectionPage: Selected clinic:', selectedClinic);
+      console.log('[UserSelection] Password login for:', selectedUser.username)
       
-      const hasPassword = selectedUser.has_password
-      console.log('UserSelectionPage: Selected user has_password field:', selectedUser.has_password);
-      console.log('UserSelectionPage: Has password:', hasPassword);
+      const user = await authService.signInClinicUser(selectedUser.username, password)
       
-      const identifier = selectedUser.email || selectedUser.username
-      if (!identifier) {
-        toast.error('למשתמש אין אימייל או שם משתמש תקין')
-        setIsLoggingIn(false)
-        return
-      }
-      // For users without password, use the passwordless login endpoint
-      if (!hasPassword) {
-        console.log('UserSelectionPage: User has no password, using passwordless login');
-        try {
-          const response = await fetch(`${(apiClient as any).baseUrl}/auth/login-no-password`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ username: selectedUser.username }),
-          });
-          
-          const loginResponse = await response.json();
-          
-          if (loginResponse?.access_token) {
-            // Set the token for future API calls
-            apiClient.setToken(loginResponse.access_token);
-            
-            // Set user in context
-            await setCurrentUser(selectedUser)
-            setCurrentClinic(selectedClinic)
-            
-            // Store user info locally
-            localStorage.setItem('currentUserId', selectedUser.id!.toString())
-            localStorage.setItem('currentUser', JSON.stringify(selectedUser))
-            
-            setTimeout(() => {
-              try {
-                navigate({ to: '/dashboard' })
-                console.log('UserSelectionPage: Navigation command sent for passwordless user');
-              } catch (navError) {
-                console.error('UserSelectionPage: Navigation error:', navError);
-                window.location.href = '/dashboard'
-              }
-            }, 0)
-          } else {
-            toast.error('שגיאה בהתחברות ללא סיסמה')
-          }
-        } catch (error) {
-          console.error('Passwordless login error:', error);
-          toast.error('שגיאה בהתחברות ללא סיסמה')
-        }
-        setIsLoggingIn(false)
-        return
-      }
-      const success = await login(identifier, password)
-      
-      console.log('UserSelectionPage: Login result:', success);
-      
-      if (success && selectedClinic) {
-        console.log('UserSelectionPage: Login successful, setting clinic context');
-        setCurrentClinic(selectedClinic)
-        console.log('UserSelectionPage: Clinic context set, navigating to dashboard');
-        
-        // Defer navigation to ensure context state is applied before route guards run
-        setTimeout(() => {
-          try {
-            navigate({ to: '/dashboard' })
-            console.log('UserSelectionPage: Navigation command sent via useNavigate');
-          } catch (navError) {
-            console.error('UserSelectionPage: Navigation error:', navError);
-            window.location.href = '/dashboard'
-          }
-        }, 0)
+      if (user) {
+        authService.setClinicSession(selectedClinic, user)
       } else {
-        console.log('UserSelectionPage: Login failed or no clinic selected');
-        if (!success) {
-          toast.error('שגיאה בהתחברות - בדוק את הסיסמה')
-          setPassword('')
-        }
+        toast.error('שגיאה בהתחברות - בדוק את הסיסמה')
+        setPassword('')
       }
     } catch (error) {
-      console.error('Login error:', error)
+      console.error('[UserSelection] Login error:', error)
       toast.error('שגיאה בהתחברות')
       setPassword('')
     } finally {
@@ -210,16 +94,78 @@ export default function UserSelectionPage() {
     }
   }
 
+  const handlePasswordlessLogin = async () => {
+    if (!selectedUser) return
+
+    setIsLoggingIn(true)
+    try {
+      console.log('[UserSelection] Passwordless login for:', selectedUser.username)
+      
+      const user = await authService.signInClinicUser(selectedUser.username)
+      
+      if (user) {
+        authService.setClinicSession(selectedClinic, user)
+      } else {
+        toast.error('שגיאה בהתחברות')
+      }
+    } catch (error) {
+      console.error('[UserSelection] Passwordless login error:', error)
+      toast.error('שגיאה בהתחברות')
+    } finally {
+      setIsLoggingIn(false)
+    }
+  }
+
+  const handleGoogleLogin = async () => {
+    if (!selectedUser?.google_account_connected) return
+
+    setIsLoggingIn(true)
+    try {
+      console.log('[UserSelection] Google login for:', selectedUser.username)
+      
+      await authService.signInClinicUserWithGoogle(selectedUser.id!)
+      // OAuth will handle the rest via popup
+    } catch (error: any) {
+      console.error('[UserSelection] Google login error:', error)
+      toast.error(error.message || 'שגיאה בהתחברות עם Google')
+      setIsLoggingIn(false)
+    }
+  }
+
+  // ============================================================================
+  // UI HANDLERS
+  // ============================================================================
+
+  const handleUserSelect = (user: User) => {
+    setSelectedUser(user)
+    setPassword('')
+  }
+
   const handleBack = () => {
     setSelectedUser(null)
     setPassword('')
   }
 
+  const handleLogoutFromClinic = async () => {
+    try {
+      console.log('[UserSelection] Logging out from clinic')
+      await authService.logoutClinic()
+    } catch (error) {
+      console.error('[UserSelection] Error logging out from clinic:', error)
+      toast.error('שגיאה בהתנתקות')
+    }
+  }
+
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && selectedUser) {
-      const hasPassword = selectedUser.has_password
-      if (!hasPassword || password) {
-        handleLogin()
+      if (selectedUser.has_password && password) {
+        handlePasswordLogin()
+      } else if (!selectedUser.has_password) {
+        if (selectedUser.google_account_connected) {
+          handleGoogleLogin()
+        } else {
+          handlePasswordlessLogin()
+        }
       }
     }
     if (e.key === 'Escape' && selectedUser) {
@@ -227,10 +173,17 @@ export default function UserSelectionPage() {
     }
   }
 
+  // ============================================================================
+  // RENDER
+  // ============================================================================
+
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center" style={{scrollbarWidth: 'none'}}>
-        <div className="text-slate-900 dark:text-slate-100 text-lg">טוען משתמשים...</div>
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-12 h-12 border-4 border-slate-200 border-t-slate-600 rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-slate-600">טוען משתמשים...</p>
+        </div>
       </div>
     )
   }
@@ -259,20 +212,13 @@ export default function UserSelectionPage() {
               <h1 className="text-3xl font-medium text-slate-900 dark:text-slate-100 mb-2" dir="rtl">
                 בחר משתמש
               </h1>
-                   <p className="text-slate-600 dark:text-slate-400" dir="rtl">
-                 לחץ על המשתמש שלך כדי להתחבר למערכת
-               </p>
+              <p className="text-slate-600 dark:text-slate-400" dir="rtl">
+                לחץ על המשתמש שלך כדי להתחבר למערכת
+              </p>
               <div className="mt-4">
                 <Button
                   variant="outline"
-                  onClick={() => {
-                    localStorage.removeItem('selectedClinic')
-                    localStorage.removeItem('currentUser')
-                    localStorage.removeItem('currentUserId')
-                    localStorage.removeItem('controlCenterCompany')
-                    localStorage.removeItem('auth_token')
-                    router.navigate({ to: '/clinic-entrance' })
-                  }}
+                  onClick={handleLogoutFromClinic}
                   className="text-xs"
                 >
                   התנתקות מהמרפאה
@@ -282,168 +228,32 @@ export default function UserSelectionPage() {
 
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 justify-center">
               {users.map((user, index) => (
-                <div
+                <UserCard
                   key={user.id}
-                  className="flex flex-col items-center cursor-pointer group"
-                  onClick={() => handleUserSelect(user)}
-                  style={{
-                    animation: `fadeInUp 0.6s ease-out ${index * 0.05}s both`
-                  }}
-                >
-                  <div className="relative mb-3 transform transition-all duration-500 ease-out group-hover:scale-110 group-hover:-translate-y-2">
-                    <OptimizedAvatar user={user} size="sm" />
-                    
-                    {user.has_password && (
-                      <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-emerald-100 dark:bg-emerald-900 border-2 border-white dark:border-slate-950 rounded-full flex items-center justify-center transform transition-all duration-300 group-hover:scale-110">
-                        <svg className="w-3 h-3 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                        </svg>
-                      </div>
-                    )}
-                  </div>
-                  
-                  <div className="text-center transform transition-all duration-300 group-hover:-translate-y-1">
-                     <h3 className="text-slate-900 dark:text-slate-100 text-sm font-medium mb-1 group-hover:text-slate-600 dark:group-hover:text-slate-300 transition-colors duration-300">
-                      {user.full_name || user.username}
-                    </h3>
-                    <Badge 
-                      variant={
-                        user.role === 'clinic_manager' || user.role === 'company_ceo' ? 'default' : 
-                        user.role === 'clinic_worker' ? 'secondary' : 
-                        'outline'
-                      }
-                      className="text-xs scale-90 group-hover:scale-100 transition-transform duration-300"
-                    >
-                      {user.role === 'clinic_manager' || user.role === 'company_ceo' ? 'מנהל' : 
-                       user.role === 'clinic_worker' ? 'עובד' : 
-                       'צופה'}
-                    </Badge>
-                  </div>
-                </div>
+                  user={user}
+                  index={index}
+                  loadedImages={loadedImages}
+                  onSelect={() => handleUserSelect(user)}
+                />
               ))}
             </div>
           </>
         ) : (
-          <div 
-            className="flex flex-col items-center"
-            style={{
-              animation: 'slideInFromRight 0.6s cubic-bezier(0.16, 1, 0.3, 1) both'
-            }}
-          >
-            <div className="mb-6">
-              <div
-                style={{
-                  animation: 'bounce 1s ease-out'
-                }}
-              >
-                <OptimizedAvatar user={selectedUser} size="md" />
-              </div>
-              
-              <div className="text-center">
-                 <h2 className="text-slate-900 dark:text-slate-100 text-2xl font-medium mb-2">
-                  {selectedUser.full_name || selectedUser.username}
-                </h2>
-                <Badge 
-                  variant={
-                    selectedUser.role === 'clinic_manager' || selectedUser.role === 'company_ceo' ? 'default' : 
-                    selectedUser.role === 'clinic_worker' ? 'secondary' : 
-                    'outline'
-                  }
-                  className="text-sm"
-                >
-                  {selectedUser.role === 'clinic_manager' || selectedUser.role === 'company_ceo' ? 'מנהל' : 
-                   selectedUser.role === 'clinic_worker' ? 'עובד' : 
-                   'צופה'}
-                </Badge>
-              </div>
-            </div>
-
-            <Card className="w-full max-w-sm p-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
-              {selectedUser.has_password ? (
-                <div className="space-y-4" dir="rtl">
-                  <div className="space-y-2">
-                    <Label htmlFor="password" className="text-slate-700 dark:text-slate-300">
-                      הזן סיסמה
-                    </Label>
-                    <Input
-                      id="password"
-                      type="password"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      className="bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700"
-                      placeholder="סיסמה"
-                      autoFocus
-                      dir="rtl"
-                    />
-                  </div>
-                  
-                  <div className="flex gap-3">
-                    <Button 
-                      onClick={handleLogin}
-                      disabled={!password || isLoggingIn}
-                      className="flex-1 bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:hover:bg-slate-200 dark:text-slate-900"
-                    >
-                      {isLoggingIn ? (
-                        <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                      ) : (
-                        'התחבר'
-                      )}
-                    </Button>
-                    <Button 
-                      variant="outline" 
-                      onClick={handleBack}
-                      size="icon"
-                      className="bg-slate-50 hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 border-slate-200 dark:border-slate-700"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                      </svg>
-                    </Button>
-                  </div>
-                </div>
-              ) : (
-                <div className="text-center space-y-4" dir="rtl">
-                  <p className="text-slate-600 dark:text-slate-400">
-                    משתמש זה אינו מוגן בסיסמה
-                  </p>
-                  <div className="flex gap-3">
-                    <Button 
-                      onClick={handleLogin}
-                      disabled={isLoggingIn}
-                      className="flex-1 bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:hover:bg-slate-200 dark:text-slate-900"
-                    >
-                      {isLoggingIn ? (
-                        <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                      ) : (
-                        'התחבר'
-                      )}
-                    </Button>
-                    <Button 
-                      variant="outline" 
-                      onClick={handleBack}
-                      size="icon"
-                      className="bg-slate-50 hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 border-slate-200 dark:border-slate-700"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                      </svg>
-                    </Button>
-                  </div>
-                </div>
-              )}
-            </Card>
-
-            <div className="text-center mt-6">
-              <p className="text-slate-500 dark:text-slate-400 text-xs">
-                לחץ ESC כדי לחזור • לחץ Enter כדי להתחבר
-              </p>
-            </div>
-          </div>
+          <UserLoginPanel
+            user={selectedUser}
+            password={password}
+            setPassword={setPassword}
+            isLoggingIn={isLoggingIn}
+            loadedImages={loadedImages}
+            onPasswordLogin={handlePasswordLogin}
+            onPasswordlessLogin={handlePasswordlessLogin}
+            onGoogleLogin={handleGoogleLogin}
+            onBack={handleBack}
+          />
         )}
       </div>
 
       <style>{`
-        /* Performance optimizations */
         .group {
           will-change: transform;
           transform: translateZ(0);
@@ -453,7 +263,6 @@ export default function UserSelectionPage() {
           transform: translateZ(0) scale(1.05);
         }
         
-        /* Optimized animations with hardware acceleration */
         @keyframes fadeInUp {
           from {
             opacity: 0;
@@ -491,7 +300,6 @@ export default function UserSelectionPage() {
           }
         }
         
-        /* Optimize image rendering */
         img {
           image-rendering: -webkit-optimize-contrast;
           image-rendering: crisp-edges;
@@ -500,4 +308,239 @@ export default function UserSelectionPage() {
       `}</style>
     </div>
   )
-} 
+}
+
+// ============================================================================
+// SUB-COMPONENTS
+// ============================================================================
+
+function UserAvatar({ user, loadedImages, size = 'md' }: { user: User; loadedImages: Set<string>; size?: 'sm' | 'md' | 'lg' }) {
+  const sizeClasses = {
+    sm: 'w-20 h-20',
+    md: 'w-28 h-28',
+    lg: 'w-32 h-32'
+  }
+  
+  const textSizes = {
+    sm: 'text-xl',
+    md: 'text-3xl',
+    lg: 'text-4xl'
+  }
+
+  return (
+    <div className={`${sizeClasses[size]} rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm group-hover:shadow-lg group-hover:shadow-slate-900/10 dark:group-hover:shadow-slate-100/10 transition-all duration-500 overflow-hidden`}>
+      {user.profile_picture && loadedImages.has(user.profile_picture) ? (
+        <img 
+          src={user.profile_picture} 
+          alt={user.username}
+          className="w-full h-full object-cover"
+          loading="lazy"
+          style={{ 
+            transform: 'translateZ(0)',
+            willChange: 'transform'
+          }}
+        />
+      ) : (
+        <div className="w-full h-full flex items-center justify-center">
+          <span className={`text-slate-700 dark:text-slate-300 ${textSizes[size]} font-medium group-hover:text-slate-900 dark:group-hover:text-slate-100 transition-colors duration-300`}>
+            {(user.full_name || user.username).charAt(0).toUpperCase()}
+          </span>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function UserCard({ user, index, loadedImages, onSelect }: any) {
+  const roleText = user.role === 'clinic_manager' || user.role === 'company_ceo' ? 'מנהל' : 
+                   user.role === 'clinic_worker' ? 'עובד' : 'צופה'
+  
+  const roleVariant = user.role === 'clinic_manager' || user.role === 'company_ceo' ? 'default' : 
+                      user.role === 'clinic_worker' ? 'secondary' : 'outline'
+
+  return (
+    <div
+      className="flex flex-col items-center cursor-pointer group"
+      onClick={onSelect}
+      style={{
+        animation: `fadeInUp 0.6s ease-out ${index * 0.05}s both`
+      }}
+    >
+      <div className="relative mb-3 transform transition-all duration-500 ease-out group-hover:scale-110 group-hover:-translate-y-2">
+        <UserAvatar user={user} loadedImages={loadedImages} size="sm" />
+        
+        {user.has_password && (
+          <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-emerald-100 dark:bg-emerald-900 border-2 border-white dark:border-slate-950 rounded-full flex items-center justify-center transform transition-all duration-300 group-hover:scale-110">
+            <svg className="w-3 h-3 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+            </svg>
+          </div>
+        )}
+      </div>
+      
+      <div className="text-center transform transition-all duration-300 group-hover:-translate-y-1">
+        <h3 className="text-slate-900 dark:text-slate-100 text-sm font-medium mb-1 group-hover:text-slate-600 dark:group-hover:text-slate-300 transition-colors duration-300">
+          {user.full_name || user.username}
+        </h3>
+        <Badge 
+          variant={roleVariant}
+          className="text-xs scale-90 group-hover:scale-100 transition-transform duration-300"
+        >
+          {roleText}
+        </Badge>
+      </div>
+    </div>
+  )
+}
+
+function UserLoginPanel({
+  user,
+  password,
+  setPassword,
+  isLoggingIn,
+  loadedImages,
+  onPasswordLogin,
+  onPasswordlessLogin,
+  onGoogleLogin,
+  onBack,
+}: any) {
+  const roleText = user.role === 'clinic_manager' || user.role === 'company_ceo' ? 'מנהל' : 
+                   user.role === 'clinic_worker' ? 'עובד' : 'צופה'
+  
+  const roleVariant = user.role === 'clinic_manager' || user.role === 'company_ceo' ? 'default' : 
+                      user.role === 'clinic_worker' ? 'secondary' : 'outline'
+
+  return (
+    <div 
+      className="flex flex-col items-center"
+      style={{
+        animation: 'slideInFromRight 0.6s cubic-bezier(0.16, 1, 0.3, 1) both'
+      }}
+    >
+      <div className="mb-6">
+        <div style={{ animation: 'bounce 1s ease-out' }}>
+          <UserAvatar user={user} loadedImages={loadedImages} size="md" />
+        </div>
+        
+        <div className="text-center mt-4">
+          <h2 className="text-slate-900 dark:text-slate-100 text-2xl font-medium mb-2">
+            {user.full_name || user.username}
+          </h2>
+          <Badge variant={roleVariant} className="text-sm">
+            {roleText}
+          </Badge>
+        </div>
+      </div>
+
+      <Card className="w-full max-w-sm p-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
+        {user.google_account_connected && !user.has_password ? (
+          <div className="text-center space-y-4" dir="rtl">
+            <p className="text-slate-600 dark:text-slate-400">
+              התחברות עם Google עבור משתמש זה
+            </p>
+            <div className="flex gap-3">
+              <Button
+                onClick={onGoogleLogin}
+                disabled={isLoggingIn}
+                className="flex-1 bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:hover:bg-slate-200 dark:text-slate-900"
+              >
+                {isLoggingIn ? (
+                  <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  'התחבר עם Google'
+                )}
+              </Button>
+              <Button 
+                variant="outline" 
+                onClick={onBack}
+                size="icon"
+                className="bg-slate-50 hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 border-slate-200 dark:border-slate-700"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                </svg>
+              </Button>
+            </div>
+          </div>
+        ) : user.has_password ? (
+          <div className="space-y-4" dir="rtl">
+            <div className="space-y-2">
+              <Label htmlFor="password" className="text-slate-700 dark:text-slate-300">
+                הזן סיסמה
+              </Label>
+              <Input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700"
+                placeholder="סיסמה"
+                autoFocus
+                dir="rtl"
+              />
+            </div>
+            
+            <div className="flex gap-3">
+              <Button 
+                onClick={onPasswordLogin}
+                disabled={!password || isLoggingIn}
+                className="flex-1 bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:hover:bg-slate-200 dark:text-slate-900"
+              >
+                {isLoggingIn ? (
+                  <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  'התחבר'
+                )}
+              </Button>
+              <Button 
+                variant="outline" 
+                onClick={onBack}
+                size="icon"
+                className="bg-slate-50 hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 border-slate-200 dark:border-slate-700"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                </svg>
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="text-center space-y-4" dir="rtl">
+            <p className="text-slate-600 dark:text-slate-400">
+              התחברות ללא סיסמה עבור משתמש זה
+            </p>
+            <div className="flex gap-3">
+              <Button
+                onClick={onPasswordlessLogin}
+                disabled={isLoggingIn}
+                className="flex-1 bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:hover:bg-slate-200 dark:text-slate-900"
+              >
+                {isLoggingIn ? (
+                  <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  'התחבר'
+                )}
+              </Button>
+              <Button 
+                variant="outline" 
+                onClick={onBack}
+                size="icon"
+                className="bg-slate-50 hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 border-slate-200 dark:border-slate-700"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                </svg>
+              </Button>
+            </div>
+          </div>
+        )}
+      </Card>
+
+      <div className="text-center mt-6">
+        <p className="text-slate-500 dark:text-slate-400 text-xs">
+          לחץ ESC כדי לחזור • לחץ Enter כדי להתחבר
+        </p>
+      </div>
+    </div>
+  )
+}

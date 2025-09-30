@@ -391,12 +391,168 @@ export default function ControlCenterSettingsPage() {
       setGoogleCalendarSyncing(true)
       toast.info('מסנכרן תורים עם Google Calendar...')
       
-      const tokens = {
+      console.log('🔍 Calendar Sync Debug - Current User:', {
+        id: currentUser.id,
+        email: currentUser.email,
+        google_account_connected: currentUser.google_account_connected,
+        has_google_access_token: !!currentUser.google_access_token,
+        has_google_refresh_token: !!currentUser.google_refresh_token,
+        google_access_token_preview: currentUser.google_access_token ? currentUser.google_access_token.substring(0, 20) + '...' : 'null'
+      })
+      
+      // Try to get tokens from user database first
+      let tokens = {
         access_token: currentUser.google_access_token,
         refresh_token: currentUser.google_refresh_token,
         scope: 'https://www.googleapis.com/auth/calendar',
         token_type: 'Bearer',
         expiry_date: Date.now() + 3600000
+      }
+      
+      console.log('🔍 Calendar Sync Debug - Database Tokens:', {
+        has_access_token: !!tokens.access_token,
+        has_refresh_token: !!tokens.refresh_token,
+        access_token_preview: tokens.access_token ? tokens.access_token.substring(0, 20) + '...' : 'null'
+      })
+      
+      // If tokens are not in database, try to get them from Supabase session
+      if (!tokens.access_token || !tokens.refresh_token) {
+        console.log('Google tokens not found in database, trying Supabase session...')
+        try {
+          const { data: sessionData } = await supabase.auth.getSession()
+          console.log('🔍 Calendar Sync Debug - Supabase Session:', {
+            has_session: !!sessionData?.session,
+            session_user: sessionData?.session?.user?.email || 'null',
+            expires_at: sessionData?.session?.expires_at,
+            has_access_token: !!sessionData?.session?.access_token,
+            has_refresh_token: !!sessionData?.session?.refresh_token
+          })
+          
+          if (sessionData?.session) {
+            // Try to get provider tokens first (these are the actual Google tokens)
+            const providerToken = (sessionData.session as any).provider_token
+            const providerRefreshToken = (sessionData.session as any).provider_refresh_token
+            
+            console.log('🔍 Calendar Sync Debug - Provider Tokens:', {
+              has_provider_token: !!providerToken,
+              has_provider_refresh_token: !!providerRefreshToken,
+              provider_token_preview: providerToken ? providerToken.substring(0, 20) + '...' : 'null',
+              session_keys: Object.keys(sessionData.session)
+            })
+            
+            if (providerToken && providerRefreshToken) {
+              console.log('✅ Using Google provider tokens for calendar sync')
+              tokens = {
+                access_token: providerToken,
+                refresh_token: providerRefreshToken,
+                scope: 'https://www.googleapis.com/auth/calendar',
+                token_type: 'Bearer',
+                expiry_date: sessionData.session.expires_at || Date.now() + 3600000
+              }
+            } else {
+              console.log('⚠️ No provider tokens found, using Supabase tokens as fallback')
+              tokens = {
+                access_token: sessionData.session.access_token,
+                refresh_token: sessionData.session.refresh_token,
+                scope: 'https://www.googleapis.com/auth/calendar',
+                token_type: 'Bearer',
+                expiry_date: sessionData.session.expires_at || Date.now() + 3600000
+              }
+            }
+            
+            // Also update the user's tokens in the database for future use
+            try {
+              const updatedUser = await apiClient.updateUser(currentUser.id, {
+                ...currentUser,
+                google_access_token: tokens.access_token,
+                google_refresh_token: tokens.refresh_token
+              })
+              if (updatedUser?.data) {
+                console.log('Updated user tokens in database')
+                await setCurrentUser(updatedUser.data)
+              }
+            } catch (updateError) {
+              console.log('Could not update tokens in database:', updateError)
+            }
+          } else {
+            console.log('❌ No Supabase session found')
+            toast.error('לא נמצאו אסימוני Google - יש להתחבר מחדש עם Google כדי לאפשר גישה ליומן')
+            toast.info('לחץ על "נתק חשבון Google" ולאחר מכן "חבר חשבון Google" כדי לאפשר הרשאות יומן')
+            return
+          }
+        } catch (sessionError) {
+          console.error('Could not get Supabase session:', sessionError)
+          toast.error('שגיאה בקבלת אסימוני Google')
+          return
+        }
+      }
+      
+      // Validate token format - Google OAuth tokens should start with 'ya29.' or similar
+      const isLikelyGoogleToken = tokens.access_token && (
+        tokens.access_token.startsWith('ya29.') || 
+        tokens.access_token.startsWith('1/') ||
+        !tokens.access_token.includes('.') // JWT tokens contain dots
+      )
+      
+      console.log('🔍 Calendar Sync Debug - Final Tokens Being Used:', {
+        has_access_token: !!tokens.access_token,
+        has_refresh_token: !!tokens.refresh_token,
+        access_token_preview: tokens.access_token ? tokens.access_token.substring(0, 30) + '...' : 'null',
+        token_type: tokens.token_type,
+        scope: tokens.scope,
+        likely_google_token: isLikelyGoogleToken,
+        token_format: tokens.access_token ? (tokens.access_token.includes('.') ? 'JWT-like' : 'OAuth-like') : 'none'
+      })
+      
+      if (!isLikelyGoogleToken && tokens.access_token) {
+        console.log('⚠️ Warning: Token does not appear to be a Google OAuth token - using manual Google OAuth flow')
+        toast.info('נדרשת הרשאה ליומן Google - מתחיל תהליך הרשאה...')
+        
+        // For calendar access, we need real Google OAuth tokens, not Supabase JWT tokens
+        // Redirect to manual Google OAuth flow
+        try {
+          const result = await window.electronAPI.googleOAuthAuthenticate()
+          
+          if (result.success === false) {
+            toast.error(`שגיאה בחיבור לחשבון Google: ${result.error}`)
+            return
+          }
+          
+          if (result.tokens && result.userInfo) {
+            // Update user with proper Google OAuth tokens
+            const updatedUser = await apiClient.updateUser(currentUser.id, {
+              ...currentUser,
+              google_access_token: result.tokens.access_token,
+              google_refresh_token: result.tokens.refresh_token
+            })
+            
+            if (updatedUser?.data) {
+              await setCurrentUser(updatedUser.data)
+              
+              // Use the new proper Google tokens
+              tokens = {
+                access_token: result.tokens.access_token,
+                refresh_token: result.tokens.refresh_token,
+                scope: 'https://www.googleapis.com/auth/calendar',
+                token_type: 'Bearer',
+                expiry_date: result.tokens.expiry_date || Date.now() + 3600000
+              }
+              
+              console.log('✅ Updated to use proper Google OAuth tokens for calendar access')
+              toast.success('הרשאות Google Calendar עודכנו בהצלחה!')
+            } else {
+              toast.error('שגיאה בעדכון אסימוני Google')
+              return
+            }
+          } else {
+            toast.error('לא התקבלו נתוני הרשאה מ-Google')
+            return
+          }
+        } catch (error) {
+          console.error('Error with manual Google OAuth:', error)
+          toast.error('שגיאה בתהליך הרשאה Google')
+          return
+        }
       }
       
       const appointmentsResponse = await apiClient.getAppointmentsByUser(currentUser.id)
@@ -414,6 +570,7 @@ export default function ControlCenterSettingsPage() {
       
       if (syncResult.success > 0) {
         toast.success(`${syncResult.success} תורים סונכרנו בהצלחה עם Google Calendar!`)
+
         if (syncResult.failed > 0) {
           toast.warning(`${syncResult.failed} תורים לא הצליחו להיסנכרן`)
         }
@@ -731,31 +888,34 @@ export default function ControlCenterSettingsPage() {
                         {currentUser?.google_account_connected ? (
                           <div className="space-y-4">
                             <div className="flex items-center justify-between p-4 bg-green-50 dark:bg-green-950/20 rounded-lg border border-green-200 dark:border-green-800">
-                              <div className="flex items-center gap-3">
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={handleDisconnectGoogleAccount}
-                                  disabled={googleCalendarLoading}
-                                  className="text-red-600 hover:text-red-700 border-red-200 hover:border-red-300"
-                                >
-                                  {googleCalendarLoading ? (
-                                    <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin ml-2" />
-                                  ) : null}
-                                  נתק חשבון
-                                </Button>
-                                <Button
-                                  onClick={handleSyncGoogleCalendar}
-                                  disabled={googleCalendarSyncing || googleCalendarLoading}
-                                  className="flex items-center gap-2"
-                                >
-                                  {googleCalendarSyncing ? (
-                                    <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                                  ) : (
-                                    <IconCalendar className="h-4 w-4" />
-                                  )}
-                                  {googleCalendarSyncing ? 'מסנכרן...' : 'סנכרן עכשיו'}
-                                </Button>
+                              <div className="space-y-3">
+                                {/* Action Buttons */}
+                                <div className="flex items-center gap-3">
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={handleDisconnectGoogleAccount}
+                                    disabled={googleCalendarLoading}
+                                    className="text-red-600 hover:text-red-700 border-red-200 hover:border-red-300"
+                                  >
+                                    {googleCalendarLoading ? (
+                                      <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin ml-2" />
+                                    ) : null}
+                                    נתק חשבון
+                                  </Button>
+                                  <Button
+                                    onClick={handleSyncGoogleCalendar}
+                                    disabled={googleCalendarSyncing || googleCalendarLoading}
+                                    className="flex items-center gap-2"
+                                  >
+                                    {googleCalendarSyncing ? (
+                                      <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                                    ) : (
+                                      <IconCalendar className="h-4 w-4" />
+                                    )}
+                                    {googleCalendarSyncing ? 'מסנכרן...' : 'סנכרן עכשיו'}
+                                  </Button>
+                                </div>
                               </div>
                               
                               <div className="text-right">
@@ -793,7 +953,7 @@ export default function ControlCenterSettingsPage() {
                                 ) : (
                                   <IconBrandGoogle className="h-4 w-4" />
                                 )}
-                                {googleCalendarLoading ? 'מתחבר...' : 'חבר חשבון Google'}
+                                {googleCalendarLoading ? 'מתחבר...' : 'חבר חשבון Google (עם גישה ליומן)'}
                               </Button>
                               
                               <div className="text-right">

@@ -8,7 +8,6 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 export async function getSupabaseAccessToken(): Promise<string | null> {
   try {
     const { data } = await supabase.auth.getSession()
-    console.log('getSupabaseAccessToken', data)
     const token = data?.session?.access_token || null
     return token
   } catch {

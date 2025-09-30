@@ -1,4 +1,3 @@
-import { google } from 'googleapis'
 import { BrowserWindow } from 'electron'
 import { GOOGLE_CONFIG } from './google-config'
 
@@ -21,14 +20,16 @@ export class GoogleOAuthService {
 
   constructor() {
     // Debug: Print the credentials being used
-    console.log('🔍 Google OAuth Debug Info:')
+    console.log('🔍 Google OAuth Debug Info (Desktop Client):')
     console.log('Client ID:', GOOGLE_CONFIG.clientId)
     console.log('Client Secret:', GOOGLE_CONFIG.clientSecret ? `${GOOGLE_CONFIG.clientSecret.substring(0, 10)}...` : 'NOT SET')
     console.log('Redirect URI:', GOOGLE_CONFIG.redirectUri)
     console.log('Environment variables:')
-    console.log('- GOOGLE_CLIENT_ID:', process.env.GOOGLE_CLIENT_ID ? `${process.env.GOOGLE_CLIENT_ID.substring(0, 20)}...` : 'NOT SET')
-    console.log('- GOOGLE_CLIENT_SECRET:', process.env.GOOGLE_CLIENT_SECRET ? 'SET' : 'NOT SET')
+    console.log('- GOOGLE_DESKTOP_CLIENT_ID:', process.env.GOOGLE_DESKTOP_CLIENT_ID ? `${process.env.GOOGLE_DESKTOP_CLIENT_ID.substring(0, 20)}...` : 'NOT SET')
+    console.log('- GOOGLE_DESKTOP_CLIENT_SECRET:', process.env.GOOGLE_DESKTOP_CLIENT_SECRET ? 'SET' : 'NOT SET')
     
+    // Import google dynamically to avoid loading Node.js dependencies in renderer
+    const { google } = require('googleapis')
     this.oauth2Client = new google.auth.OAuth2(
       GOOGLE_CONFIG.clientId,
       GOOGLE_CONFIG.clientSecret,
@@ -85,6 +86,7 @@ export class GoogleOAuthService {
             this.oauth2Client.setCredentials(tokens)
 
             // Get user info
+            const { google } = require('googleapis')
             const oauth2 = google.oauth2({ version: 'v2', auth: this.oauth2Client })
             const userInfoResponse = await oauth2.userinfo.get()
             
@@ -126,6 +128,7 @@ export class GoogleOAuthService {
    * Create an authenticated OAuth2 client
    */
   createAuthenticatedClient(tokens: GoogleTokens): any {
+    const { google } = require('googleapis')
     const client = new google.auth.OAuth2(
       GOOGLE_CONFIG.clientId,
       GOOGLE_CONFIG.clientSecret,
@@ -142,6 +145,7 @@ export class GoogleOAuthService {
   async validateTokens(tokens: GoogleTokens): Promise<boolean> {
     try {
       const client = this.createAuthenticatedClient(tokens)
+      const { google } = require('googleapis')
       const oauth2 = google.oauth2({ version: 'v2', auth: client })
       await oauth2.userinfo.get()
       return true

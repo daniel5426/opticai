@@ -689,6 +689,7 @@ export interface User {
   google_account_email?: string;
   google_access_token?: string;
   google_refresh_token?: string;
+  google_calendar_sync_enabled?: boolean;
   system_vacation_dates?: string[];
   added_vacation_dates?: string[];
   created_at?: string;

@@ -588,7 +588,7 @@ const ControlCenterClinicsPage: React.FC = () => {
                         className="w-full h-8 bg-gradient-to-r from-blue-50 to-green-50 hover:from-blue-100 hover:to-green-100 border-blue-200 text-blue-700 hover:text-blue-800 text-xs font-medium"
                         onClick={() => {
                          localStorage.setItem('selectedClinic', JSON.stringify(clinic));
-                          router.navigate({ to: '/clinic-entrance' });
+                          router.navigate({ to: '/control-center' });
                         }}
                       >
                         <Eye className="h-3 w-3 mr-1" />

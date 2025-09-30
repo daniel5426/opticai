@@ -1,28 +1,11 @@
-import React, { useState, useEffect } from 'react';
-import Lottie from 'lottie-react';
+import React from 'react';
 
-interface OctahedronLoaderProps {
+interface LoadingCircleProps {
   size?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '3xl' | '4xl' | '5xl';
   text?: string;
 }
 
-export function OctahedronLoader({ size = 'md' }: OctahedronLoaderProps) {
-  const [animationData, setAnimationData] = useState(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    fetch('/animations/Pyraminx Shape Lottie Animation.json')
-      .then(response => response.json())
-      .then(data => {
-        setAnimationData(data);
-        setLoading(false);
-      })
-      .catch(error => {
-        console.error('Error loading animation:', error);
-        setLoading(false);
-      });
-  }, []);
-
+export function OctahedronLoader({ size = 'md', text }: LoadingCircleProps) {
   const sizeClasses = {
     sm: 'w-8 h-8',
     md: 'w-12 h-12',
@@ -45,23 +28,16 @@ export function OctahedronLoader({ size = 'md' }: OctahedronLoaderProps) {
     '5xl': 'text-5xl'
   };
 
-  if (loading) {
-    return null;
-  }
-
   return (
-    <div className="fixed inset-0 flex items-center justify-center" dir="rtl" style={{ scrollbarWidth: 'none' }}>
-      <div className={`relative ${sizeClasses[size]}`}>
-        <Lottie
-          animationData={animationData}
-          loop={true}
-          autoplay={true}
-          className="w-full h-full"
-          style={{
-            filter: 'drop-shadow(0 6px 12px rgba(59, 130, 246, 0.3))'
-          }}
-        />
+    <div className="fixed inset-0 flex flex-col items-center justify-center" dir="rtl" style={{ scrollbarWidth: 'none' }}>
+      <div className={`${sizeClasses[size]} relative`}>
+        <div className="w-full h-full border-4 border-gray-200 border-t-blue-500 rounded-full animate-spin"></div>
       </div>
+      {text && (
+        <p className={`mt-4 text-gray-600 ${textSizes[size]}`}>
+          {text}
+        </p>
+      )}
     </div>
   );
 } 

@@ -1,14 +1,11 @@
 import { createRoute } from "@tanstack/react-router";
 import { RootRoute } from "./__root";
-import WelcomeScreen from "../pages/WelcomeScreen";
 import HomePage from "../pages/HomePage";
 import ControlCenterPage from "../pages/ControlCenterPage";
 import ControlCenterDashboardPage from "../pages/ControlCenterDashboardPage";
 import ControlCenterUsersPage from "../pages/ControlCenterUsersPage";
 import ControlCenterClinicsPage from "../pages/ControlCenterClinicsPage";
 import ControlCenterSettingsPage from "../pages/ControlCenterSettingsPage";
-import SetupWizardPage from "../pages/SetupWizardPage";
-import ClinicEntrancePage from "../pages/ClinicEntrancePage";
 import SecondPage from "@/pages/SecondPage";
 import ClientsPage from "@/pages/ClientsPage";
 import ClientDetailPage from "@/pages/ClientDetailPage";
@@ -32,6 +29,7 @@ import ReferralDetailPage from "../pages/ReferralDetailPage";
 import AllExamsPage from "@/pages/AllExamsPage";
 import AllOrdersPage from "@/pages/AllOrdersPage";
 import AllUsersPage from "@/pages/AllUsersPage";
+import AuthCallbackPage from "@/pages/AuthCallbackPage";
 
 
 // TODO: Steps to add a new route:
@@ -56,7 +54,7 @@ import AllUsersPage from "@/pages/AllUsersPage";
 export const HomeRoute = createRoute({
   getParentRoute: () => RootRoute,
   path: "/",
-  component: WelcomeScreen,
+  component: ControlCenterPage,
 });
 
 export const DashboardRoute = createRoute({
@@ -71,20 +69,6 @@ export const ControlCenterRoute = createRoute({
   component: ControlCenterPage,
 });
 
-export const SetupWizardRoute = createRoute({
-  getParentRoute: () => RootRoute,
-  path: "/setup-wizard",
-  validateSearch: (search: Record<string, unknown>) => ({
-    companyId: search.companyId as string,
-    companyName: search.companyName as string,
-    username: search.username as string,
-    password: search.password as string,
-    email: search.email as string,
-    phone: search.phone as string,
-    full_name: search.full_name as string,
-  }),
-  component: SetupWizardPage,
-});
 
 export const ControlCenterDashboardRoute = createRoute({
   getParentRoute: () => RootRoute,
@@ -115,11 +99,6 @@ export const ControlCenterSettingsRoute = createRoute({
   component: ControlCenterSettingsPage,
 });
 
-export const ClinicEntranceRoute = createRoute({
-  getParentRoute: () => RootRoute,
-  path: "/clinic-entrance",
-  component: ClinicEntrancePage,
-});
 
 export const UserSelectionRoute = createRoute({
   getParentRoute: () => RootRoute,
@@ -286,16 +265,20 @@ export const CampaignsRoute = createRoute({
   component: CampaignsPage,
 });
 
+export const AuthCallbackRoute = createRoute({
+  getParentRoute: () => RootRoute,
+  path: "/auth/callback",
+  component: AuthCallbackPage,
+});
+
 export const rootTree = RootRoute.addChildren([
   HomeRoute,
   DashboardRoute,
   ControlCenterRoute,
-  SetupWizardRoute,
   ControlCenterDashboardRoute,
   ControlCenterUsersRoute,
   ControlCenterClinicsRoute,
   ControlCenterSettingsRoute,
-  ClinicEntranceRoute,
   UserSelectionRoute,
   SecondPageRoute,
   ClientsRoute,
@@ -322,4 +305,5 @@ export const rootTree = RootRoute.addChildren([
   ExamLayoutEditorDetailRoute,
   WorkerStatsRoute,
   CampaignsRoute,
+  AuthCallbackRoute,
 ]);

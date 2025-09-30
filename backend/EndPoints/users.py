@@ -1,5 +1,5 @@
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Body
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from database import get_db
@@ -16,25 +16,57 @@ def create_user_public(
     user: UserCreate,
     db: Session = Depends(get_db)
 ):
-    """Public endpoint for creating users during registration"""
-    # Check if username already exists
-    existing_user = db.query(User).filter(User.username == user.username).first()
-    if existing_user:
-        print(f"DEBUG: Username already exists: {user.username}")
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Username already exists"
-        )
-    
+
+    # Prefer matching by email when provided; fallback to username
+    existing: Optional[User] = None
     if user.email:
-        existing_email_user = db.query(User).filter(User.email == user.email).first()
-        if existing_email_user:
-            print(f"DEBUG: Email already exists: {user.email}")
+        existing = db.query(User).filter(User.email == user.email).first()
+    if not existing:
+        existing = db.query(User).filter(User.username == user.username).first()
+
+    if existing:
+        # If existing user is already linked to a company, block duplicate signup
+        if existing.company_id is not None:
+            # Keep original error semantics depending on what clashes
+            if user.email and existing.email == user.email:
+                print(f"DEBUG: Email already exists and linked to company: {user.email}")
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Email already exists"
+                )
+            print(f"DEBUG: Username already exists and linked to company: {user.username}")
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Email already exists"
+                detail="Username already exists"
             )
-    
+
+        # Existing user without company: continue setup by updating the record
+        print(f"DEBUG: Continuing setup for existing user without company (id={existing.id})")
+        update_payload = user.dict(exclude_unset=True)
+        # Never override username when continuing by email/username match
+        update_payload.pop('username', None)
+        # Handle password hashing
+        if 'password' in update_payload:
+            pwd = update_payload.pop('password')
+            existing.password = get_password_hash(pwd) if pwd else None
+        # Handle profile picture upload
+        if update_payload.get('profile_picture'):
+            try:
+                update_payload['profile_picture'] = upload_base64_image(update_payload['profile_picture'], f"users/public/profile")
+            except Exception:
+                update_payload.pop('profile_picture', None)
+        for k, v in update_payload.items():
+            setattr(existing, k, v)
+        try:
+            db.commit()
+        except IntegrityError:
+            db.rollback()
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Integrity error: duplicate field")
+        db.refresh(existing)
+        print(f"DEBUG: User updated and linked successfully (id={existing.id}, company_id={existing.company_id})")
+        return existing
+
+    # Create a fresh user
     print(f"DEBUG: Creating new user: {user.username}")
     hashed_password = get_password_hash(user.password) if user.password else None
     up = user.dict(exclude={'password'})
@@ -51,6 +83,28 @@ def create_user_public(
     db.commit()
     db.refresh(db_user)
     print(f"DEBUG: User created successfully with ID: {db_user.id}")
+    return db_user
+
+@router.post("/link-company", response_model=UserSchema)
+def link_company(
+    company_id: int = Body(...),
+    db: Session = Depends(get_db),
+    current_user: UserModel = Depends(get_current_user)
+):
+    if current_user.company_id is not None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="User already linked to a company")
+    db_user = db.query(User).filter(User.id == current_user.id).first()
+    if not db_user:
+        raise HTTPException(status_code=404, detail="User not found")
+    db_user.company_id = company_id
+    if not db_user.role:
+        db_user.role = "company_ceo"
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Integrity error")
+    db.refresh(db_user)
     return db_user
 
 @router.post("/", response_model=UserSchema)
@@ -427,7 +481,8 @@ def get_users_by_clinic_public(
             "added_vacation_dates": user.added_vacation_dates,
             "has_password": bool(user.password and user.password.strip()),
             "created_at": user.created_at,
-            "updated_at": user.updated_at
+            "updated_at": user.updated_at,
+            "company_id": user.company_id
         }
         public_users.append(UserPublic(**user_dict))
     

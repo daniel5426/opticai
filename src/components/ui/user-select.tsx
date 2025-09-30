@@ -17,9 +17,10 @@ interface UserSelectProps {
   disabled?: boolean
   users?: User[]
   onUsersLoaded?: (users: User[]) => void
+  autoDefaultToCurrentUser?: boolean
 }
 
-export function UserSelect({ value, onValueChange, placeholder = "בחר משתמש", disabled = false, users: usersProp, onUsersLoaded }: UserSelectProps) {
+export function UserSelect({ value, onValueChange, placeholder = "בחר משתמש", disabled = false, users: usersProp, onUsersLoaded, autoDefaultToCurrentUser = true }: UserSelectProps) {
   const [users, setUsers] = useState<User[]>(usersProp || [])
   const [loading, setLoading] = useState(!usersProp)
   const { currentUser, currentClinic } = useUser()
@@ -29,7 +30,7 @@ export function UserSelect({ value, onValueChange, placeholder = "בחר משת�
     if (usersProp) {
       setUsers(usersProp)
       setLoading(false)
-      if (!initializedRef.current && (!value || value === 0) && currentUser?.id) {
+      if (autoDefaultToCurrentUser && !initializedRef.current && (!value || value === 0) && currentUser?.id) {
         initializedRef.current = true
         onValueChange(currentUser.id)
       }
@@ -42,7 +43,7 @@ export function UserSelect({ value, onValueChange, placeholder = "בחר משת�
         const cached = JSON.parse(cachedStr) as { users: User[]; ts: number }
         setUsers(cached.users || [])
         setLoading(false)
-        if (!initializedRef.current && (!value || value === 0) && currentUser?.id) {
+        if (autoDefaultToCurrentUser && !initializedRef.current && (!value || value === 0) && currentUser?.id) {
           initializedRef.current = true
           onValueChange(currentUser.id)
         }
@@ -60,7 +61,7 @@ export function UserSelect({ value, onValueChange, placeholder = "בחר משת�
             localStorage.setItem(key, JSON.stringify({ users: fetched, ts: Date.now() }))
           } catch {}
         }
-        if (!initializedRef.current && (!value || value === 0) && currentUser?.id) {
+        if (autoDefaultToCurrentUser && !initializedRef.current && (!value || value === 0) && currentUser?.id) {
           initializedRef.current = true
           onValueChange(currentUser.id)
         }
@@ -71,7 +72,7 @@ export function UserSelect({ value, onValueChange, placeholder = "בחר משת�
       }
     }
     loadUsers()
-  }, [usersProp, currentClinic?.id, currentUser?.id])
+  }, [usersProp, currentClinic?.id, currentUser?.id, autoDefaultToCurrentUser])
 
   if (loading) {
     return (

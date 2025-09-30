@@ -11,7 +11,7 @@ import {
   IconPlayerStop,
   IconX,
 } from "@tabler/icons-react"
-import { Link } from "@tanstack/react-router"
+import { Link, useRouter } from "@tanstack/react-router"
 
 import {
   Avatar,
@@ -53,6 +53,7 @@ export function NavUser({
 }) {
   const { isMobile } = useSidebar()
   const { logoutUser, logoutClinic } = useUser()
+  const router = useRouter()
   const [showProfileModal, setShowProfileModal] = React.useState(false)
   const [currentTime, setCurrentTime] = React.useState(new Date())
   const [activeShift, setActiveShift] = React.useState<WorkShift | null>(null)
@@ -88,8 +89,15 @@ export function NavUser({
     logoutUser()
   }
 
-  const handleLogoutClinic = () => {
-    logoutClinic()
+  const handleLogoutClinic = async () => {
+    try {
+      console.log('NavUser: Starting clinic logout')
+      await logoutClinic()
+      // AuthService will handle navigation automatically
+      console.log('NavUser: Clinic logout completed')
+    } catch (error) {
+      console.error('NavUser: Error during clinic logout:', error)
+    }
   }
 
   const openProfileModal = () => {
@@ -325,22 +333,37 @@ export function NavUser({
               </DropdownMenuGroup>
               <DropdownMenuSeparator />
               <DropdownMenuGroup>
-                <DropdownMenuItem
-                  className="flex justify-between items-center"
-                  onClick={handleLogoutUser}
-                  dir="rtl"
-                >
-                  <span>התנתקות משתמש</span>
-                  <IconLogout className="mr-2" />
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  className="flex justify-between items-center text-red-600 hover:text-red-700"
-                  onClick={handleLogoutClinic}
-                  dir="rtl"
-                >
-                  <span>התנתקות מרפאה</span>
-                  <IconLogout className="mr-2" />
-                </DropdownMenuItem>
+                {currentUser.role === 'company_ceo' ? (
+                  // CEO only sees full logout
+                  <DropdownMenuItem
+                    className="flex justify-between items-center text-red-600 hover:text-red-700"
+                    onClick={handleLogoutClinic}
+                    dir="rtl"
+                  >
+                    <span>התנתקות</span>
+                    <IconLogout className="mr-2" />
+                  </DropdownMenuItem>
+                ) : (
+                  // Clinic users see both user and clinic logout
+                  <>
+                    <DropdownMenuItem
+                      className="flex justify-between items-center"
+                      onClick={handleLogoutUser}
+                      dir="rtl"
+                    >
+                      <span>התנתקות משתמש</span>
+                      <IconLogout className="mr-2" />
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      className="flex justify-between items-center text-red-600 hover:text-red-700"
+                      onClick={handleLogoutClinic}
+                      dir="rtl"
+                    >
+                      <span>התנתקות מרפאה</span>
+                      <IconLogout className="mr-2" />
+                    </DropdownMenuItem>
+                  </>
+                )}
               </DropdownMenuGroup>
             </DropdownMenuContent>
           </DropdownMenu>

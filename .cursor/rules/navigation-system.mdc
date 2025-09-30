@@ -1,0 +1,234 @@
+---
+description: Navigation system architecture, routing patterns, and authentication-based navigation in OpticAI
+---
+
+# OpticAI Navigation System Architecture
+
+## Overview
+OpticAI uses a simplified, robust navigation system with authentication-based routing that supports multi-clinic management. The navigation is tightly integrated with the authentication system and automatically routes users based on their authentication state and role.
+
+## Core Navigation Files
+- [src/routes/routes.tsx](mdc:src/routes/routes.tsx) - TanStack Router route definitions
+- [src/routes/router.tsx](mdc:src/routes/router.tsx) - Router instance configuration
+- [src/lib/auth/AuthService.ts](mdc:src/lib/auth/AuthService.ts) - Simplified authentication and navigation logic
+- [src/layouts/BaseLayout.tsx](mdc:src/layouts/BaseLayout.tsx) - Main layout with route protection
+- [src/contexts/UserContext.tsx](mdc:src/contexts/UserContext.tsx) - User state and navigation integration
+
+## Navigation Architecture
+
+### Authentication States and Routing
+The navigation system is driven by `AuthService` states:
+
+#### State-Based Navigation
+- **`UNAUTHENTICATED`** → `/control-center` (Company login/registration)
+- **`CLINIC_SELECTED`** → `/user-selection` (Clinic chosen, user login needed)
+- **`AUTHENTICATED`** → `/dashboard` or `/control-center/dashboard` (Based on user role)
+- **`SETUP_REQUIRED`** → `/control-center` (New company setup)
+- **`LOADING`** → No navigation (initialization in progress)
+
+#### Automatic Navigation
+Navigation happens automatically when authentication state changes:
+```typescript
+// Simplified state management with automatic navigation
+private setState(state: AuthState) {
+  if (this.state === state) return
+  
+  this.state = state
+  this.notifyListeners()
+  
+  if (state !== AuthState.LOADING) {
+    setTimeout(() => this.navigate(), 50)
+  }
+}
+```
+
+### Application Flow Patterns
+
+#### 1. Control Center Flow (CEO Users)
+```
+/control-center → /control-center/dashboard
+```
+- For `company_ceo` role users
+- Uses Supabase OAuth authentication
+- Manages multiple clinics and company settings
+- Logout clears all sessions and navigates to `/control-center`
+
+#### 2. Clinic Flow (Clinic Users)
+```
+/control-center → /user-selection → /dashboard
+```
+- For clinic-specific users (`clinic_manager`, `clinic_worker`, `clinic_viewer`)
+- Clinic context stored in localStorage as `selectedClinic`
+- User context stored as `currentUser` and `currentUserId`
+- User logout keeps clinic context, navigates to `/user-selection`
+- Clinic logout clears all sessions, navigates to `/control-center`
+
+
+#### 3. Session Restoration
+On app restart/reload:
+- AuthService checks for existing clinic sessions first
+- Then checks for Supabase sessions
+- Automatically navigates to appropriate page based on found session
+
+### Route Protection and Access Control
+
+#### Role-Based Access
+- **Control Center Routes** (`/control-center/*`) - Only `company_ceo`
+- **Clinic Management** - `clinic_manager` and `company_ceo` only
+- **Settings Access** - `clinic_manager` and `company_ceo` only
+- **Standard Operations** - All authenticated clinic users
+
+#### Protected Route Implementation
+```typescript
+// BaseLayout.tsx handles route protection
+const { currentUser, currentClinic, authState } = useUser()
+
+// Routes automatically protected based on authentication state
+// AuthService.navigateBasedOnState() handles redirects
+```
+
+### Session Management and Navigation
+
+#### Simplified Session Management
+```typescript
+// Setting clinic session (from ClinicEntrance)
+authService.setClinicSession(clinic) // → CLINIC_SELECTED → /user-selection
+
+// Setting user session (from UserSelectionPage)
+authService.setClinicSession(clinic, user) // → AUTHENTICATED → /dashboard
+```
+
+#### Simplified Logout Navigation
+```typescript
+// User logout (keep clinic context)
+authService.logoutUser() // → CLINIC_SELECTED → /user-selection
+
+// Clinic logout (clear all sessions)
+authService.logoutClinic() // → UNAUTHENTICATED → /control-center
+
+// Complete logout (clear everything)
+authService.signOut() // → UNAUTHENTICATED → /control-center
+```
+
+### Key Navigation Components
+
+#### 1. ClinicEntrance Component
+- Handles clinic ID input and validation
+- Uses `authService.setClinicSession(clinic)` for navigation
+- Auto-redirects if clinic session exists
+
+#### 2. UserSelectionPage
+- Displays clinic users for selection
+- Handles multiple authentication methods (password, passwordless, Google)
+- Uses `authService.setClinicSession(clinic, user)` after login
+
+#### 3. WelcomeComponent
+- Entry point with Control Center and Clinic Entrance options
+- Uses `authService.navigateBasedOnState()` for session restoration
+
+### Navigation Patterns and Best Practices
+
+#### Programmatic Navigation
+```typescript
+// Use router for direct navigation
+import { router } from '@/routes/router'
+router.navigate({ to: '/dashboard' })
+
+// Use AuthService for authentication-aware navigation
+authService.navigateBasedOnState() // Navigates based on current auth state
+```
+
+#### Navigation Hooks
+```typescript
+// In components
+import { useNavigate } from '@tanstack/react-router'
+const navigate = useNavigate()
+navigate({ to: '/path' })
+```
+
+#### Route Parameters and Search
+```typescript
+// With search parameters
+router.navigate({
+  to: '/control-center/dashboard',
+  search: {
+    companyId: company.id.toString(),
+    companyName: company.name
+  }
+})
+```
+
+### Session Persistence
+
+#### localStorage Keys
+- `selectedClinic` - Current clinic context
+- `currentUser` - Current user data
+- `currentUserId` - Current user ID
+- `controlCenterCompany` - Company context for CEOs
+
+#### Session Restoration Logic
+1. Check clinic session (`selectedClinic` + `currentUser`)
+2. Check Supabase session for OAuth users
+3. Set appropriate AuthState
+4. Navigate based on state
+
+### Common Navigation Scenarios
+
+#### New User Flow
+1. App opens → `LOADING`
+2. No sessions found → `UNAUTHENTICATED` → `/`
+3. User clicks clinic entrance → Clinic selection
+4. Valid clinic → `CLINIC_SELECTED` → `/user-selection`
+5. User login → `CLINIC_USER_AUTHENTICATED` → `/dashboard`
+
+#### Returning User Flow
+1. App opens → `LOADING`
+2. Clinic session found → `CLINIC_USER_AUTHENTICATED` → `/dashboard`
+3. User stays logged in across app restarts
+
+#### Logout Flow
+1. User logout → `CLINIC_SELECTED` → `/user-selection`
+2. Clinic logout → `UNAUTHENTICATED` → `/`
+
+### Error Handling and Fallbacks
+- Navigation errors fall back to `window.location.href`
+- Invalid sessions are cleared automatically
+- Route protection redirects unauthorized users
+- Failed authentication returns to appropriate entry point
+
+### Integration with Authentication
+- Navigation is tightly coupled with simplified AuthService
+- State changes automatically trigger navigation
+- Session management handles persistence across app restarts
+- Role-based access control enforced at navigation level
+
+## Simplified AuthService Architecture
+
+### Key Improvements
+- **Reduced complexity**: Removed duplicate state management and redundant code paths
+- **Cleaner state transitions**: Only 5 states instead of 6, with clearer responsibilities
+- **Simplified methods**: Unified login methods, cleaner logout logic
+- **Better error handling**: Fewer edge cases and race conditions
+- **Improved maintainability**: Less code, clearer logic flow
+
+### Main AuthService Methods
+```typescript
+// Authentication
+authService.signInWithGoogle(intent?: 'login' | 'register')
+authService.signInWithPassword(email: string, password: string)
+authService.signInClinicUser(username: string, password?: string)
+authService.signInClinicUserWithGoogle(userId: number)
+
+// Session Management  
+authService.setClinicSession(clinic: Clinic, user?: User)
+authService.logoutUser() // Keep clinic, clear user
+authService.logoutClinic() // Clear clinic and user
+authService.signOut() // Clear everything
+
+// State Access
+authService.getAuthState()
+authService.getSession()
+authService.isInitialized()
+```
+
+This simplified navigation system provides a robust, secure, and maintainable routing experience that adapts to the user's authentication state and role while maintaining proper session persistence with significantly reduced complexity.

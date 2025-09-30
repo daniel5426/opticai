@@ -18,6 +18,7 @@ import { useUser } from "@/contexts/UserContext";
 import { toast } from "sonner";
 import { cn } from "@/utils/tailwind";
 import { apiClient } from "@/lib/api-client";
+import { authService } from "@/lib/auth/AuthService";
 
 interface ClinicDropdownProps {
   currentClinic?: Clinic | null;
@@ -97,11 +98,23 @@ export function ClinicDropdown({
     }
 
     try {
-      setCurrentClinic(clinic);
-      setTimeout(() => {
-        navigate({ to: "/dashboard" });
-      }, 100);
+      console.log('ClinicDropdown: Handling clinic select for:', clinic.name, 'user role:', currentUser?.role);
+      
+      // For CEO users switching to a clinic, set up the clinic session properly
+      if (currentUser?.role === 'company_ceo') {
+        console.log('ClinicDropdown: CEO selecting clinic, setting clinic session');
+        authService.setClinicSession(clinic, currentUser);
+
+        // Let AuthService handle navigation automatically based on state change
+        // No need to force navigation manually
+      } else {
+        setCurrentClinic(clinic);
+        setTimeout(() => {
+          navigate({ to: "/dashboard" });
+        }, 100);
+      }
     } catch (error) {
+      console.error('ClinicDropdown: Error in handleClinicSelect:', error);
       toast.error("שגיאה בהחלפת מרפאה");
     }
   };
@@ -161,10 +174,9 @@ export function ClinicDropdown({
       >
         <DropdownMenuItem
           dir="rtl"
-          onClick={(e) => {
+          onSelect={(e) => {
             console.log("ClinicDropdown: Control center clicked");
             e.preventDefault();
-            e.stopPropagation();
             handleControlCenterClick();
           }}
           className={cn(
@@ -211,24 +223,17 @@ export function ClinicDropdown({
                   otherClinics.map((clinic, index) => (
                     <DropdownMenuItem
                       key={clinic.id}
-                      onClick={(e) => {
+                      onSelect={(e) => {
+                        // Use only onSelect to avoid duplicate calls
                         console.log(
                           "ClinicDropdown: Clinic item clicked:",
                           clinic.name,
                         );
                         e.preventDefault();
-                        e.stopPropagation();
                         handleClinicSelect(clinic);
                       }}
                       dir="rtl"
                       className="flex cursor-pointer items-center gap-2"
-                      onSelect={(e) => {
-                        console.log(
-                          "ClinicDropdown: Clinic item selected:",
-                          clinic.name,
-                        );
-                        e.preventDefault();
-                      }}
                     >
                       <IconBuilding className="h-4 w-4" />
                       <span>{clinic.name}</span>

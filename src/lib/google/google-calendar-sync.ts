@@ -1,16 +1,13 @@
-import { GoogleCalendarService } from './google-calendar'
 import { GoogleTokens } from './google-oauth'
 import { Appointment, Client, User } from '../db/schema-interface'
 
 export class GoogleCalendarSyncService {
-  private calendarService: GoogleCalendarService
-
   constructor() {
-    this.calendarService = new GoogleCalendarService()
+    // No direct calendar service - we'll use Electron IPC calls
   }
 
   /**
-   * Get user's Google tokens if they're connected
+   * Get user's Google tokens if they're explicitly connected
    */
   private getUserTokens(user: User): GoogleTokens | null {
     if (!user.google_account_connected || !user.google_access_token || !user.google_refresh_token) {
@@ -38,7 +35,7 @@ export class GoogleCalendarSyncService {
       }
 
       console.log('Syncing new appointment to Google Calendar:', appointment.id)
-      const eventId = await this.calendarService.createEvent(tokens, appointment, client || undefined)
+      const eventId = await window.electronAPI.googleCalendarCreateEvent(tokens, appointment, client || undefined)
       
       if (eventId) {
         console.log('Successfully created Google Calendar event:', eventId)
@@ -72,7 +69,7 @@ export class GoogleCalendarSyncService {
       }
 
       console.log('Syncing appointment update to Google Calendar:', appointment.id, 'Event ID:', googleEventId)
-      const success = await this.calendarService.updateEvent(tokens, googleEventId, appointment, client || undefined)
+      const success = await window.electronAPI.googleCalendarUpdateEvent(tokens, googleEventId, appointment, client || undefined)
       
       if (success) {
         console.log('Successfully updated Google Calendar event')
@@ -115,7 +112,7 @@ export class GoogleCalendarSyncService {
       }
 
       console.log('Syncing appointment deletion to Google Calendar, Event ID:', googleEventId)
-      const success = await this.calendarService.deleteEvent(tokens, googleEventId)
+      const success = await window.electronAPI.googleCalendarDeleteEvent(tokens, googleEventId)
       
       if (success) {
         console.log('Successfully deleted Google Calendar event')
