@@ -26,6 +26,7 @@ import { UsersTable } from '@/components/users-table';
 import { UserModal } from '@/components/UserModal';
 import { getUsersByCompanyId } from '@/lib/db/users-db';
 import { apiClient } from '@/lib/api-client';
+import { useUser } from '@/contexts/UserContext';
 
 interface LocalUserWithClinic extends User {
   clinic_name?: string;
@@ -33,6 +34,7 @@ interface LocalUserWithClinic extends User {
 
 const ControlCenterUsersPage: React.FC = () => {
   const router = useRouter();
+  const { currentUser } = useUser();
   const [company, setCompany] = useState<Company | null>(null);
   const [clinics, setClinics] = useState<Clinic[]>([]);
   const [users, setUsers] = useState<LocalUserWithClinic[]>([]);
@@ -153,11 +155,12 @@ const ControlCenterUsersPage: React.FC = () => {
           setEditingUser(null)
         }}
         editingUser={editingUser}
-        currentUser={null}
+        currentUser={currentUser}
         clinics={clinics.filter(c => c.id !== undefined).map(c => ({ id: c.id!, name: c.name }))}
         companyId={company?.id}
         onUserSaved={handleUserSaved}
         onUserUpdated={handleUserUpdated}
+        disableRoleChange={editingUser?.role === 'company_ceo' && users.filter(u => u.role === 'company_ceo').length === 1}
       />
     </>
   );

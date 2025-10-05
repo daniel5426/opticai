@@ -272,6 +272,21 @@ export function AppointmentsTable({ data, clientId, onAppointmentChange, onAppoi
     loadUsersOnce()
   }, [])
 
+  React.useEffect(() => {
+    const handleOpenAppointmentModal = (e: CustomEvent) => {
+      const appointmentId = e.detail?.appointmentId
+      if (appointmentId) {
+        const appointment = data.find(a => a.id === appointmentId)
+        if (appointment) {
+          openEditDialog(appointment)
+        }
+      }
+    }
+    
+    window.addEventListener('openAppointmentModal', handleOpenAppointmentModal as EventListener)
+    return () => window.removeEventListener('openAppointmentModal', handleOpenAppointmentModal as EventListener)
+  }, [data])
+
   const isVacation = (userId?: number, dateStr?: string) => {
     console.log('isVacation', userId, dateStr)
     if (!userId || !dateStr) return false

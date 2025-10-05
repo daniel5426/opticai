@@ -507,7 +507,13 @@ export function GlobalSearch({ onClose }: GlobalSearchProps) {
         })
         break
       case 'appointment':
-        navigate({ to: '/', search: {} })
+        navigate({ to: '/appointments', search: {} })
+        setTimeout(() => {
+          const event = new CustomEvent('openAppointmentModal', { 
+            detail: { appointmentId: result.data.id } 
+          })
+          window.dispatchEvent(event)
+        }, 100)
         break
       case 'campaign':
         navigate({ to: '/campaigns', search: {} })
@@ -563,7 +569,7 @@ export function GlobalSearch({ onClose }: GlobalSearchProps) {
   }, [])
 
   return (
-    <div className="relative z-50 pt-2 pointer-events-auto" ref={containerRef} style={{ pointerEvents: 'auto' }}>
+    <div className="relative z-9999 pt-2 pointer-events-auto" ref={containerRef} style={{ pointerEvents: 'auto' }}>
       <div className="relative  pointer-events-auto " style={{ pointerEvents: 'auto' }}>
         <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 h-3 w-4 text-muted-foreground pointer-events-none" />
         <Input

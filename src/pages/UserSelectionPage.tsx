@@ -418,7 +418,7 @@ function UserLoginPanel({
       }}
     >
       <div className="mb-6">
-        <div style={{ animation: 'bounce 1s ease-out' }}>
+        <div style={{ animation: 'bounce 1s ease-out', justifyItems: 'center' }} >
           <UserAvatar user={user} loadedImages={loadedImages} size="md" />
         </div>
         

@@ -379,13 +379,33 @@ class AuthService {
         throw new Error('No clinic context')
       }
 
-      // Set clinic session with the user
+      // Build session with proper context
+      const newSession: AuthSession = { user, clinic }
+      
+      // CEOs keep their Supabase auth, clinic workers don't need it
+      if (user.role === 'company_ceo') {
+        newSession.isSupabaseAuth = true
+        // Load company context for CEO
+        if (user.company_id) {
+          const companyResponse = await apiClient.getCompany(user.company_id)
+          if (companyResponse.data) {
+            newSession.company = companyResponse.data as Company
+            this.storeCompany(companyResponse.data as Company)
+          }
+        }
+      }
+      
       this.storeUser(user)
-      this.session = { user, clinic }
+      this.session = newSession
       this.transitionTo(AuthState.AUTHENTICATED)
 
-      // Sign out from Supabase (we don't need it for clinic users)
-      setTimeout(() => supabase.auth.signOut(), 100)
+      // Only sign out from Supabase if NOT a CEO (clinic workers don't need Supabase session)
+      if (user.role !== 'company_ceo') {
+        console.log('[Auth] Signing out from Supabase (clinic worker)')
+        setTimeout(() => supabase.auth.signOut(), 100)
+      } else {
+        console.log('[Auth] Keeping Supabase session (CEO)')
+      }
       
         } catch (error) {
       console.error('[Auth] Failed to complete pending clinic auth:', error)

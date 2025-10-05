@@ -20,6 +20,7 @@ interface UserModalProps {
   defaultClinicId?: number
   onUserSaved: (user: User) => void
   onUserUpdated: (user: User) => void
+  disableRoleChange?: boolean
 }
 
 export function UserModal({
@@ -31,7 +32,8 @@ export function UserModal({
   companyId,
   defaultClinicId,
   onUserSaved,
-  onUserUpdated
+  onUserUpdated,
+  disableRoleChange = false
 }: UserModalProps) {
   const [userForm, setUserForm] = useState({
     full_name: '',
@@ -252,7 +254,7 @@ export function UserModal({
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="role" className="text-right block">תפקיד *</Label>
-              {currentUser?.role === 'company_ceo' ? (
+              {currentUser?.role === 'company_ceo' && !disableRoleChange ? (
                 <Select
                   value={userForm.role}
                   onValueChange={(value) => handleUserFormChange('role', value)}
@@ -273,7 +275,12 @@ export function UserModal({
                   {userForm.role === 'company_ceo' ? 'מנכ"ל החברה' : 
                    userForm.role === 'clinic_manager' ? 'מנהל מרפאה' : 
                    userForm.role === 'clinic_worker' ? 'עובד מרפאה' : 'צופה מרפאה'}
-                  <span className="text-xs text-muted-foreground mr-2">(לא ניתן לשינוי)</span>
+                  {disableRoleChange && (
+                    <span className="text-xs text-muted-foreground mr-2">(מנכ"ל יחיד)</span>
+                  )}
+                  {!disableRoleChange && currentUser?.role !== 'company_ceo' && (
+                    <span className="text-xs text-muted-foreground mr-2">(לא ניתן לשינוי)</span>
+                  )}
                 </div>
               )}
             </div>

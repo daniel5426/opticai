@@ -89,6 +89,18 @@ export function UsersTable({
     return filtered
   }, [data, searchQuery, isExternalSearch])
 
+  const handleDeleteClick = (user: UserWithClinic) => {
+    const ceoCount = data.filter(u => u.role === 'company_ceo').length;
+    
+    if (user.role === 'company_ceo' && ceoCount === 1) {
+      toast.warning('לא ניתן למחוק את מנכ"ל החברה היחיד. יש להוסיף מנכ"ל נוסף לפני מחיקת משתמש זה.');
+      return;
+    }
+    
+    setUserToDelete(user);
+    setIsDeleteModalOpen(true);
+  }
+
   const handleDeleteConfirm = async () => {
     if (userToDelete && userToDelete.id !== undefined) {
       try {
@@ -260,10 +272,7 @@ export function UsersTable({
                       <Button 
                         variant="ghost" 
                         className="h-8 w-8 p-0" 
-                        onClick={() => {
-                          setUserToDelete(user);
-                          setIsDeleteModalOpen(true);
-                        }} 
+                        onClick={() => handleDeleteClick(user)} 
                         title="מחיקה"
                       >
                         <Trash2 className="h-4 w-4 text-red-600" />
