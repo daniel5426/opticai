@@ -352,7 +352,7 @@ export default function WorkerStatsPage() {
                         <CardHeader>
                           <div className="flex items-center justify-between">
                             <div className="flex items-center">
-                              {currentUser?.role === 'company_ceo' && (
+                              {currentUser?.role === 'company_ceo' || currentUser?.role === 'clinic_manager' && (
                                 <Button
                                   variant="outline"
                                   size="sm"
@@ -402,7 +402,7 @@ export default function WorkerStatsPage() {
                                          shift.status === 'active' ? 'פעילה' :
                                          'בוטלה'}
                                       </Badge>
-                                      {currentUser?.role === 'company_ceo' && (
+                                      {currentUser?.role === 'company_ceo' || currentUser?.role === 'clinic_manager'  && (
                                         <Button
                                           variant="ghost"
                                           size="sm"

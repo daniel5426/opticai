@@ -65,6 +65,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
+import { FileText } from "lucide-react";
 import { BillingTab } from "@/components/BillingTab";
 import { useUser } from "@/contexts/UserContext";
 import { getAllUsers } from "@/lib/db/users-db";
@@ -83,6 +84,8 @@ import { useClientSidebar } from "@/contexts/ClientSidebarContext";
 import { Skeleton } from "@/components/ui/skeleton";
 import RegularOrderTab from "@/components/orders/RegularOrderTab";
 import ContactOrderTab from "@/components/orders/ContactOrderTab";
+import { docxGenerator } from "@/lib/docx-generator";
+import { OrderToDocxMapper } from "@/lib/order-to-docx-mapper";
 
 interface OrderDetailPageProps {
   mode?: "view" | "edit" | "new";
@@ -151,6 +154,25 @@ export default function OrderDetailPage({
   const [deletedOrderLineItemIds, setDeletedOrderLineItemIds] = useState<
     number[]
   >([]);
+
+  // Debug wrapper for setOrderLineItems
+  const setOrderLineItemsWithLogging = (
+    value: OrderLineItem[] | ((prev: OrderLineItem[]) => OrderLineItem[])
+  ) => {
+    if (typeof value === "function") {
+      setOrderLineItems((prev) => {
+        const newValue = value(prev);
+        console.log("Order line items updated (function):", {
+          before: prev,
+          after: newValue,
+        });
+        return newValue;
+      });
+    } else {
+      console.log("Order line items updated (direct):", value);
+      setOrderLineItems(value);
+    }
+  };
   const [users, setUsers] = useState<User[]>([]);
   const [finalPrescription, setFinalPrescription] =
     useState<FinalPrescriptionExam | null>(null);
@@ -335,7 +357,11 @@ export default function OrderDetailPage({
               const orderLineItemsData = await getOrderLineItemsByBillingId(
                 billingData.id,
               );
+              console.log("Loaded line items from server:", orderLineItemsData);
               setOrderLineItems(orderLineItemsData || []);
+            } else {
+              console.log("No billing found, resetting line items to empty array");
+              setOrderLineItems([]);
             }
           }
         } else if (orderId && isContactMode) {
@@ -362,7 +388,11 @@ export default function OrderDetailPage({
               const orderLineItemsData = await getOrderLineItemsByBillingId(
                 billingData.id,
               );
+              console.log("Loaded CL line items from server:", orderLineItemsData);
               setOrderLineItems(orderLineItemsData || []);
+            } else {
+              console.log("No CL billing found, resetting line items to empty array");
+              setOrderLineItems([]);
             }
           }
         } else if (examId) {
@@ -603,6 +633,9 @@ export default function OrderDetailPage({
             return { id, ...rest } as any;
           }),
         };
+        console.log("Contact lens order payload:", JSON.stringify(payload, null, 2));
+        console.log("Contact order line items count:", orderLineItems.length);
+        console.log("Contact should create billing:", shouldCreateBilling);
         setIsEditing(false);
         toast.success(
           isNewMode ? "הזמנה נשמרה בהצלחה" : "פרטי ההזמנה עודכנו בהצלחה",
@@ -648,9 +681,8 @@ export default function OrderDetailPage({
                 ...(updatedBilling as any),
               }));
             }
-            if (updatedLineItems.length > 0) {
-              setOrderLineItems(updatedLineItems as any);
-            }
+            console.log("Setting line items after save (contact):", updatedLineItems);
+            setOrderLineItems(updatedLineItems as any);
             if (onSave) onSave(updatedOrder);
           })
           .catch(() => {
@@ -710,9 +742,7 @@ export default function OrderDetailPage({
       const shouldCreateBilling = hasBillingData || orderLineItems.length > 0;
       const payload: any = {
         order: mergedOrderData,
-        billing: shouldCreateBilling
-          ? { ...billingFormData, order_id: formData.id }
-          : null,
+        billing: shouldCreateBilling ? { ...billingFormData } : null,
         line_items: orderLineItems.map(({ id, billings_id, ...rest }) => {
           if (!id || id <= 0) {
             return { ...rest } as any;
@@ -720,6 +750,11 @@ export default function OrderDetailPage({
           return { id, ...rest } as any;
         }),
       };
+
+      console.log("Regular order payload:", JSON.stringify(payload, null, 2));
+      console.log("Order line items count:", orderLineItems.length);
+      console.log("Should create billing:", shouldCreateBilling);
+      console.log("Billing form data:", billingFormData);
 
       setIsEditing(false);
       toast.success(
@@ -734,6 +769,7 @@ export default function OrderDetailPage({
       }
       void upsertOrderFull(payload)
         .then((upsertResult) => {
+          console.log("Regular order upsert result:", upsertResult);
           if (!upsertResult || !upsertResult.order) {
             toast.error("שגיאה בשמירת ההזמנה (שרת)");
             return;
@@ -742,6 +778,9 @@ export default function OrderDetailPage({
           const updatedBilling = upsertResult.billing as Billing | undefined;
           const updatedLineItems =
             (upsertResult.line_items as OrderLineItem[] | undefined) || [];
+          console.log("Updated billing:", updatedBilling);
+          console.log("Updated line items:", updatedLineItems);
+          console.log("Updated line items length:", updatedLineItems.length);
           setOrder(updatedOrder);
           setFormData((prev) => ({ ...prev, ...updatedOrder }));
           const od = (updatedOrder as any).order_data || {};
@@ -787,18 +826,38 @@ export default function OrderDetailPage({
               ...(updatedBilling as any),
             }));
           }
-          if (updatedLineItems.length > 0) {
-            setOrderLineItems(updatedLineItems);
-          }
+          console.log("Setting line items after save (regular):", updatedLineItems);
+          setOrderLineItems(updatedLineItems);
           if (onSave) onSave(updatedOrder);
         })
-        .catch(() => {
+        .catch((error) => {
+          console.error("Error saving regular order:", error);
           toast.error("שגיאה בשמירת ההזמנה (רשת)");
         });
       return;
     } catch (error) {
       console.error("Error saving order:", error);
       toast.error("שגיאה בשמירת ההזמנה");
+    }
+  };
+
+  const handleExportDocx = async () => {
+    try {
+      const orderToExport = isContactMode ? contactFormData : formData;
+      const userData = users.find((u) => u.id === orderToExport.user_id);
+      
+      const templateData = OrderToDocxMapper.mapOrderToTemplateData(
+        orderToExport,
+        currentClient,
+        userData,
+        billing
+      );
+
+      await docxGenerator.generate(templateData);
+      toast.success("הדוח יוצא בהצלחה");
+    } catch (error) {
+      console.error("Error exporting DOCX:", error);
+      toast.error("שגיאה ביצירת הדוח");
     }
   };
 
@@ -986,6 +1045,16 @@ export default function OrderDetailPage({
                     ביטול
                   </Button>
                 )}
+                {!isNewMode && (
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={handleExportDocx}
+                    title="ייצוא לדוח Word"
+                  >
+                    <FileText className="h-4 w-4" />
+                  </Button>
+                )}
                 <Button
                   variant={isEditing ? "outline" : "default"}
                   onClick={() => {
@@ -1061,7 +1130,7 @@ export default function OrderDetailPage({
                 billingFormData={billingFormData}
                 setBillingFormData={setBillingFormData}
                 orderLineItems={orderLineItems}
-                setOrderLineItems={setOrderLineItems}
+                setOrderLineItems={setOrderLineItemsWithLogging}
                 isEditing={isEditing}
                 handleDeleteOrderLineItem={handleDeleteOrderLineItem}
               />

@@ -164,6 +164,20 @@ export async function deleteOrder(orderId: number): Promise<boolean> {
   }
 }
 
+export async function deleteContactLensOrder(orderId: number): Promise<boolean> {
+  try {
+    const response = await apiClient.deleteContactLensOrder(orderId);
+    if ((response as any).error) {
+      console.error('Error deleting contact lens order:', (response as any).error);
+      return false;
+    }
+    return true;
+  } catch (error) {
+    console.error('Error deleting contact lens order:', error);
+    return false;
+  }
+}
+
 export async function upsertContactLensOrderFull(payload: any): Promise<any | null> {
   try {
     const response = await apiClient.upsertContactLensOrderFull(payload);

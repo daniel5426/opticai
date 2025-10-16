@@ -88,9 +88,6 @@ const ControlCenterDashboardPage: React.FC = () => {
       let companyDataRaw = localStorage.getItem('controlCenterCompany');
       let userDataRaw = localStorage.getItem('currentUser');
 
-      console.log('Dashboard - Company data (localStorage):', companyDataRaw);
-      console.log('Dashboard - User data (localStorage):', userDataRaw);
-      console.log('Dashboard - Search params:', search);
 
       if ((!companyDataRaw || companyDataRaw === 'undefined') && search.companyId) {
         try {
@@ -119,7 +116,6 @@ const ControlCenterDashboardPage: React.FC = () => {
       const parsedUser = safeParse<User>(userDataRaw);
 
       if (!parsedCompany || !parsedUser) {
-        console.log('Dashboard - Missing company or user, redirecting to control center');
         router.navigate({ to: '/control-center' });
         return;
       }

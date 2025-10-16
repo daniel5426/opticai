@@ -119,31 +119,35 @@ export function ClinicDropdown({
     }
   };
 
-  const handleControlCenterClick = async () => {
-    try {
-      const companyId = effectiveCompanyId;
-      if (!companyId) {
-        toast.error("לא ניתן לגשת למרכז הבקרה");
-        return;
-      }
-      let companyName = "";
-      const companyResponse = await apiClient.getCompany(companyId);
-      if (companyResponse?.data) {
-        companyName = (companyResponse.data as any).name || "";
-        try { localStorage.setItem("controlCenterCompany", JSON.stringify(companyResponse.data)); } catch {}
-      }
-      if (currentUser) try { localStorage.setItem("currentUser", JSON.stringify(currentUser)); } catch {}
-      navigate({
-        to: "/control-center/dashboard",
-        search: {
-          companyId: companyId.toString(),
-          companyName: companyName,
-          fromSetup: "false",
-        },
-      });
-    } catch (error) {
-      toast.error("שגיאה בגישה למרכז הבקרה");
+  const handleControlCenterClick = () => {
+    const companyId = effectiveCompanyId;
+    if (!companyId) {
+      toast.error("לא ניתן לגשת למרכז הבקרה");
+      return;
     }
+
+    // Navigate immediately to avoid blocking on network calls
+    navigate({
+      to: "/control-center/dashboard",
+      search: {
+        companyId: companyId.toString(),
+        companyName: "",
+        fromSetup: "false",
+      },
+    });
+
+    // Fire-and-forget enrichment: fetch company and persist for later use
+    (async () => {
+      try {
+        const companyResponse = await apiClient.getCompany(companyId);
+        if (companyResponse?.data) {
+          try { localStorage.setItem("controlCenterCompany", JSON.stringify(companyResponse.data)); } catch {}
+        }
+        if (currentUser) try { localStorage.setItem("currentUser", JSON.stringify(currentUser)); } catch {}
+      } catch (_error) {
+        // swallow errors; navigation already happened
+      }
+    })();
   };
 
   if (!currentUser || currentUser.role !== "company_ceo") {
@@ -176,7 +180,6 @@ export function ClinicDropdown({
           dir="rtl"
           onSelect={(e) => {
             console.log("ClinicDropdown: Control center clicked");
-            e.preventDefault();
             handleControlCenterClick();
           }}
           className={cn(

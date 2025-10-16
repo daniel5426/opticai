@@ -12,7 +12,15 @@ import { setTheme } from "@/helpers/theme_helpers"
 import { useUser } from "@/contexts/UserContext"
 
 export function ModeToggle() {
-  const { currentUser } = useUser()
+  // Safely access user context (may not be available on some routes)
+  let currentUser: any | null = null
+  try {
+    const userContext = useUser()
+    currentUser = userContext.currentUser
+  } catch (error) {
+    // UserContext not available, theme will work without user ID
+    console.log('[ModeToggle] UserContext not available')
+  }
 
   const handleSetTheme = (theme: "light" | "dark" | "system") => {
     setTheme(theme, currentUser?.id, true)

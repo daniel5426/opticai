@@ -32,6 +32,7 @@ import { toast } from 'sonner';
 import type { Company, Clinic } from '@/lib/db/schema-interface';
 import { apiClient } from '@/lib/api-client';
 import { Skeleton } from '@/components/ui/skeleton';
+import { authService } from '@/lib/auth/AuthService';
 
 interface ClinicModalProps {
   isOpen: boolean;
@@ -257,7 +258,7 @@ const ControlCenterClinicsPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingClinic, setEditingClinic] = useState<Clinic | undefined>(undefined);
-  const { refreshClinics } = useUser();
+  const { refreshClinics, currentUser } = useUser();
 
   const loadData = async () => {
     try {
@@ -587,8 +588,9 @@ const ControlCenterClinicsPage: React.FC = () => {
                         size="sm" 
                         className="w-full h-8 bg-gradient-to-r from-blue-50 to-green-50 hover:from-blue-100 hover:to-green-100 border-blue-200 text-blue-700 hover:text-blue-800 text-xs font-medium"
                         onClick={() => {
-                         localStorage.setItem('selectedClinic', JSON.stringify(clinic));
-                          router.navigate({ to: '/control-center' });
+                          if (currentUser) {
+                            authService.setClinicSession(clinic, currentUser);
+                          }
                         }}
                       >
                         <Eye className="h-3 w-3 mr-1" />

@@ -118,6 +118,10 @@ export function BillingTab({
   };
 
   const addNewLineItem = () => {
+    console.log("addNewLineItem called with:", newLineItem);
+    console.log("Current orderLineItems:", orderLineItems);
+    console.log("Description check:", newLineItem.description, newLineItem.description?.trim());
+    
     if (newLineItem.description && newLineItem.description.trim() !== '') {
       const tempId = -(Math.max(0, ...orderLineItems.map(item => Math.abs(item.id || 0))) + 1);
       const itemToAdd: OrderLineItem = {
@@ -132,9 +136,16 @@ export function BillingTab({
         supplied: newLineItem.supplied || false,
         line_total: newLineItem.line_total || 0
       };
-      setOrderLineItems(prev => [...prev, itemToAdd]);
+      console.log("Adding new line item:", itemToAdd);
+      setOrderLineItems(prev => {
+        const newItems = [...prev, itemToAdd];
+        console.log("New orderLineItems array:", newItems);
+        return newItems;
+      });
       setNewLineItem({});
       setIsAddingNewLine(false);
+    } else {
+      console.warn("Cannot add line item: description is missing or empty");
     }
   };
 
@@ -151,7 +162,10 @@ export function BillingTab({
           <Button 
             variant="outline" 
             size="sm" 
-            onClick={() => setIsAddingNewLine(true)}
+            onClick={() => {
+              console.log("Plus button clicked, isEditing:", isEditing, "isAddingNewLine:", isAddingNewLine);
+              setIsAddingNewLine(true);
+            }}
             disabled={!isEditing || isAddingNewLine}
             className="h-8"
           >

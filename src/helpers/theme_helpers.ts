@@ -5,6 +5,24 @@ import { updateUser, getUserById } from "@/lib/db/users-db";
 const THEME_KEY = "theme";
 const USER_THEME_PREFIX = "user_theme_";
 
+// Helper function to wait for themeMode to be available
+async function waitForThemeMode(maxWaitMs: number = 1000): Promise<boolean> {
+  const startTime = Date.now();
+  while (!((window as any).themeMode)) {
+    if (Date.now() - startTime > maxWaitMs) {
+      console.warn('themeMode not available after waiting - using fallback theme');
+      return false;
+    }
+    await new Promise(resolve => setTimeout(resolve, 10));
+  }
+  return true;
+}
+
+// Check if themeMode is immediately available (synchronous)
+function isThemeModeAvailable(): boolean {
+  return !!((window as any).themeMode);
+}
+
 export interface ThemePreferences {
   system: ThemeMode;
   local: ThemeMode | null;
@@ -106,15 +124,16 @@ export function applyThemeColorsFromUserData(user?: any): void {
 }
 
 export async function getCurrentTheme(): Promise<ThemePreferences> {
-  const themeMode = (window as any).themeMode;
-  if (!themeMode) {
-    console.error('themeMode is not available on window object');
+  // Wait for themeMode to be available
+  const isAvailable = await waitForThemeMode();
+  if (!isAvailable) {
     return {
       system: 'system' as ThemeMode,
       local: null,
     };
   }
   
+  const themeMode = (window as any).themeMode;
   const currentTheme = await themeMode.current();
   const localTheme = localStorage.getItem(THEME_KEY) as ThemeMode | null;
 
@@ -125,15 +144,16 @@ export async function getCurrentTheme(): Promise<ThemePreferences> {
 }
 
 export async function getActualThemeState(): Promise<{ electronTheme: ThemeMode; isDark: boolean }> {
-  const themeMode = (window as any).themeMode;
-  if (!themeMode) {
-    console.error('themeMode is not available on window object');
+  // Wait for themeMode to be available
+  const isAvailable = await waitForThemeMode();
+  if (!isAvailable) {
     return {
       electronTheme: 'system' as ThemeMode,
       isDark: document.documentElement.classList.contains('dark'),
     };
   }
   
+  const themeMode = (window as any).themeMode;
   const electronTheme = await themeMode.current();
   const isDark = document.documentElement.classList.contains('dark');
   
@@ -144,11 +164,13 @@ export async function getActualThemeState(): Promise<{ electronTheme: ThemeMode;
 }
 
 export async function setTheme(newTheme: ThemeMode, userId?: number, savePreference: boolean = true) {
-  const themeMode = (window as any).themeMode;
-  if (!themeMode) {
-    console.error('themeMode is not available on window object');
+  // Wait for themeMode to be available
+  const isAvailable = await waitForThemeMode();
+  if (!isAvailable) {
     return;
   }
+
+  const themeMode = (window as any).themeMode;
 
   switch (newTheme) {
     case "dark":
@@ -176,12 +198,13 @@ export async function setTheme(newTheme: ThemeMode, userId?: number, savePrefere
 }
 
 export async function toggleTheme(currentUserId?: number) {
-  const themeMode = (window as any).themeMode;
-  if (!themeMode) {
-    console.error('themeMode is not available on window object');
+  // Wait for themeMode to be available
+  const isAvailable = await waitForThemeMode();
+  if (!isAvailable) {
     return;
   }
 
+  const themeMode = (window as any).themeMode;
   const isDarkMode = await themeMode.toggle();
   const newTheme = isDarkMode ? "dark" : "light";
 
@@ -199,13 +222,31 @@ export async function toggleTheme(currentUserId?: number) {
 }
 
 export async function syncThemeWithLocal() {
-  const themeMode = (window as any).themeMode;
-  if (!themeMode) {
-    console.error('themeMode is not available on window object');
-    return;
-  }
-
   try {
+    // First, apply theme immediately from localStorage if available (CSS-only)
+    const localTheme = localStorage.getItem(THEME_KEY) as ThemeMode | null;
+    if (localTheme === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else if (localTheme === 'light') {
+      document.documentElement.classList.remove('dark');
+    } else {
+      // System default
+      const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      document.documentElement.classList.toggle('dark', isDark);
+    }
+
+    // Wait for themeMode to be available
+    const isAvailable = await waitForThemeMode();
+    if (!isAvailable) {
+      // Continue without Electron themeMode - use CSS-only themes
+      console.warn('Running in fallback mode without Electron theme integration');
+      await applyThemeColorsFromSettings();
+      return;
+    }
+
+    const themeMode = (window as any).themeMode;
+
+    // Now sync with Electron's theme system
     const { local } = await getCurrentTheme();
     
     if (!local) {
@@ -269,13 +310,17 @@ export async function applyUserThemeComplete(userId: number, providedUser?: any)
     // Update localStorage for future quick access
     localStorage.setItem(getUserThemeKey(userId), userTheme);
 
-    // Apply theme mode first
-    const themeMode = (window as any).themeMode;
-    if (!themeMode) {
-      console.error('themeMode is not available on window object');
+    // Wait for themeMode to be available
+    const isAvailable = await waitForThemeMode();
+    if (!isAvailable) {
+      // Fallback to CSS-only theme without Electron integration
+      const isDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      document.documentElement.classList.toggle('dark', isDarkMode);
       return;
     }
 
+    // Apply theme mode first
+    const themeMode = (window as any).themeMode;
     let isDarkMode = false;
     try {
       switch (userTheme) {

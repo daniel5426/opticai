@@ -1,5 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron';
 
+console.log('[Preload] Script loading...');
+
 // Expose theme functionality
 contextBridge.exposeInMainWorld('themeMode', {
   current: () => ipcRenderer.invoke('theme-mode:current'),
@@ -8,6 +10,8 @@ contextBridge.exposeInMainWorld('themeMode', {
   light: () => ipcRenderer.invoke('theme-mode:light'),
   system: () => ipcRenderer.invoke('theme-mode:system'),
 });
+
+console.log('[Preload] themeMode exposed to window');
 
 // Expose window controls
 contextBridge.exposeInMainWorld('electronWindow', {

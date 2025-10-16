@@ -10,12 +10,15 @@ import {
 } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Plus, Trash2 } from "lucide-react"
+import { Plus, Trash2, FileText } from "lucide-react"
 import { Order, User, Client } from "@/lib/db/schema-interface"
 import { ClientSelectModal } from "@/components/ClientSelectModal"
+import { docxGenerator } from "@/lib/docx-generator"
+import { OrderToDocxMapper } from "@/lib/order-to-docx-mapper"
 
 import { CustomModal } from "@/components/ui/custom-modal"
-import { deleteOrder } from "@/lib/db/orders-db"
+import { deleteOrder, deleteContactLensOrder } from "@/lib/db/orders-db"
+import { getBillingByOrderId, getBillingByContactLensId } from "@/lib/db/billing-db"
 import { toast } from "sonner"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useUser } from "@/contexts/UserContext"
@@ -41,25 +44,67 @@ export function OrdersTable({ data, clientId, onOrderDeleted, onOrderDeleteFaile
 
 
   const handleDeleteConfirm = async () => {
-    if (orderToDelete && orderToDelete.id !== undefined) {
-      try {
-        const deletedOrderId = orderToDelete.id;
-        onOrderDeleted(deletedOrderId);
-        toast.success("הזמנה נמחקה בהצלחה");
-
-        const success = await deleteOrder(deletedOrderId);
-        if (!success) {
-          toast.error("אירעה שגיאה בעת מחיקת ההזמנה. מרענן נתונים...");
-          onOrderDeleteFailed();
-        }
-      } catch (error) {
-        toast.error("אירעה שגיאה בעת מחיקת ההזמנה");
-        onOrderDeleteFailed();
-      } finally {
-        setOrderToDelete(null);
-      }
+    const selected = orderToDelete;
+    if (!selected || selected.id === undefined) {
+      setIsDeleteModalOpen(false);
+      return;
     }
+
+    // Close modal immediately
     setIsDeleteModalOpen(false);
+    setOrderToDelete(null);
+
+    try {
+      const deletedOrderId = selected.id;
+      onOrderDeleted(deletedOrderId);
+      toast.success("הזמנה נמחקה בהצלחה");
+
+      const isContact = Boolean((selected as any).__contact);
+      const success = await (isContact
+        ? deleteContactLensOrder(deletedOrderId)
+        : deleteOrder(deletedOrderId));
+      if (!success) {
+        toast.error("אירעה שגיאה בעת מחיקת ההזמנה. מרענן נתונים...");
+        onOrderDeleteFailed();
+      }
+    } catch (error) {
+      toast.error("אירעה שגיאה בעת מחיקת ההזמנה");
+      onOrderDeleteFailed();
+    }
+  };
+
+  const handleExportDocx = async (order: Order) => {
+    try {
+      // Fetch billing data
+      const isContact = Boolean((order as any).__contact);
+      const billingData = order.id 
+        ? await (isContact 
+            ? getBillingByContactLensId(order.id)
+            : getBillingByOrderId(order.id))
+        : null;
+
+      // Create a minimal client object from the order data
+      const clientData = {
+        full_name: (order as any).clientName || "",
+        id_number: "",
+        address: "",
+        phone: "",
+        mobile_phone: "",
+      };
+
+      const templateData = OrderToDocxMapper.mapOrderToTemplateData(
+        order,
+        clientData,
+        undefined,
+        billingData
+      );
+
+      await docxGenerator.generate(templateData);
+      toast.success("הדוח יוצא בהצלחה");
+    } catch (error) {
+      console.error("Error exporting DOCX:", error);
+      toast.error("שגיאה ביצירת הדוח");
+    }
   };
 
   const filteredData = data
@@ -125,7 +170,7 @@ export function OrdersTable({ data, clientId, onOrderDeleted, onOrderDeleteFaile
               <TableHead className="text-right">בודק</TableHead>
               <TableHead className="text-right">VA</TableHead>
               <TableHead className="text-right">PD</TableHead>
-              <TableHead className="w-[50px] text-right"></TableHead>
+              <TableHead className="w-[80px] text-right"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -194,13 +239,31 @@ export function OrdersTable({ data, clientId, onOrderDeleted, onOrderDeleteFaile
                     <TableCell>{order.comb_va ? `6/${order.comb_va}` : ''}</TableCell>
                     <TableCell>{order.comb_pd}</TableCell>
                     <TableCell>
-                      <Button variant="ghost" className="h-8 w-8 p-0" onClick={(e) => {
-                        e.stopPropagation();
-                        setOrderToDelete(order);
-                        setIsDeleteModalOpen(true);
-                      }} title="מחיקה">
-                        <Trash2 className="h-4 w-4 text-red-600" />
-                      </Button>
+                      <div className="flex gap-1">
+                        <Button 
+                          variant="ghost" 
+                          className="h-8 w-8 p-0" 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleExportDocx(order);
+                          }} 
+                          title="ייצוא לדוח Word"
+                        >
+                          <FileText className="h-4 w-4" />
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          className="h-8 w-8 p-0" 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setOrderToDelete(order);
+                            setIsDeleteModalOpen(true);
+                          }} 
+                          title="מחיקה"
+                        >
+                          <Trash2 className="h-4 w-4 text-red-600" />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 )
