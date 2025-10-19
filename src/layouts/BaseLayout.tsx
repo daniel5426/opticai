@@ -6,7 +6,7 @@ import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { ControlCenterSidebar } from "@/components/control-center-sidebar";
 import { getSettings } from "@/lib/db/settings-db";
-import { applyThemeColorsFromSettings } from "@/helpers/theme_helpers";
+import { applyCompanyThemeColors, cacheCompanyThemeColors } from "@/helpers/theme_helpers";
 import { Settings, User } from "@/lib/db/schema-interface";
 import { SettingsContext } from "@/contexts/SettingsContext";
 import { ClientSidebarProvider } from "@/contexts/ClientSidebarContext";
@@ -57,9 +57,8 @@ function BaseLayoutContent({ children }: { children: React.ReactNode }) {
         const dbSettings = await getSettings(currentClinic.id);
         if (dbSettings) {
           setSettings(dbSettings);
-          if (currentUser?.id) {
-            applyThemeColorsFromSettings(undefined, currentUser.id);
-          }
+          // Apply company theme colors (they're already cached from UserContext)
+          applyCompanyThemeColors();
         }
       } catch (error) {
         console.error('[BaseLayout] Error loading settings:', error);
@@ -74,11 +73,20 @@ function BaseLayoutContent({ children }: { children: React.ReactNode }) {
     const loadCompany = async () => {
       const companyData = localStorage.getItem('controlCenterCompany');
       if (companyData) {
-        setCompany(JSON.parse(companyData));
+        const company = JSON.parse(companyData);
+        setCompany(company);
+        // Cache company theme colors
+        cacheCompanyThemeColors(company);
+        applyCompanyThemeColors(company);
       } else if (currentClinic?.company_id) {
         try {
           const resp = await apiClient.getCompany(currentClinic.company_id);
-          if (resp.data) setCompany(resp.data);
+          if (resp.data) {
+            setCompany(resp.data);
+            // Cache company theme colors
+            cacheCompanyThemeColors(resp.data);
+            applyCompanyThemeColors(resp.data);
+          }
         } catch (error) {
           console.error('[BaseLayout] Error loading company:', error);
         }
@@ -92,7 +100,10 @@ function BaseLayoutContent({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const handler = (e: any) => {
       if (e?.detail) {
-        setCompany(e.detail)
+        setCompany(e.detail);
+        // Cache and apply updated company theme colors
+        cacheCompanyThemeColors(e.detail);
+        applyCompanyThemeColors(e.detail);
       }
     }
     window.addEventListener('companyUpdated', handler as EventListener)

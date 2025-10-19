@@ -163,7 +163,7 @@ export function AppSidebar({
           )}
         />
       ) }
-      <span className="text-base font-semibold whitespace-normal break-words leading-tight text-right max-w-full">{clinicName || ""}</span>
+      <span className="text-base self-center font-semibold whitespace-normal break-words leading-tight text-right max-w-full">{clinicName || ""}</span>
     </>
   )
 

@@ -108,7 +108,7 @@ export function ControlCenterSidebar({
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>
-        <NavMain items={getControlCenterNavData().navMain} />
+        <NavMain items={getControlCenterNavData().navMain} showAddClientButton={false} />
         <NavSecondary items={getControlCenterNavData().navSecondary} className="mt-auto" />
       </SidebarContent>
       <SidebarFooter>

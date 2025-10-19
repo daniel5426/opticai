@@ -1103,8 +1103,14 @@ class ApiClient {
   }
 
   // Chats
-  async getChats(clinicId?: number) {
-    const url = clinicId ? `/chats?clinic_id=${clinicId}` : '/chats';
+  async getChats(clinicId?: number, limit: number = 10, offset: number = 0, search?: string) {
+    let url = `/chats?limit=${limit}&offset=${offset}`;
+    if (clinicId) {
+      url += `&clinic_id=${clinicId}`;
+    }
+    if (search && search.trim()) {
+      url += `&search=${encodeURIComponent(search.trim())}`;
+    }
     return this.request<Chat[]>(url);
   }
 

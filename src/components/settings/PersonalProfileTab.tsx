@@ -10,6 +10,7 @@ import { ImageInput } from "@/components/ui/image-input"
 import { IconPlus, IconX, IconCalendar, IconBrandGoogle } from "@tabler/icons-react"
 import type { DateRange } from "react-day-picker"
 import { User } from "@/lib/db/schema-interface"
+import { Switch } from "@/components/ui/switch"
 
 interface PersonalProfileTabProps {
   personalProfile: Partial<User>
@@ -17,11 +18,12 @@ interface PersonalProfileTabProps {
   emailError: string | null
   googleCalendarLoading: boolean
   googleCalendarSyncing: boolean
-  onProfileChange: (field: keyof User, value: string) => void
+  onProfileChange: (field: keyof User, value: any) => void
   onProfilePictureRemove: () => void
   onConnectGoogle: () => void
   onDisconnectGoogle: () => void
   onSyncGoogleCalendar: () => void
+  onToggleGoogleAutoSync: (enabled: boolean) => void
 }
 
 export function PersonalProfileTab({
@@ -34,12 +36,28 @@ export function PersonalProfileTab({
   onProfilePictureRemove,
   onConnectGoogle,
   onDisconnectGoogle,
-  onSyncGoogleCalendar
+  onSyncGoogleCalendar,
+  onToggleGoogleAutoSync
 }: PersonalProfileTabProps) {
   const [openSystemVacation, setOpenSystemVacation] = useState(false)
   const [openAddedVacation, setOpenAddedVacation] = useState(false)
   const [systemVacationRange, setSystemVacationRange] = useState<DateRange | undefined>(undefined)
   const [addedVacationRange, setAddedVacationRange] = useState<DateRange | undefined>(undefined)
+
+  const normalizeDates = (value: unknown): string[] => {
+    if (Array.isArray(value)) return value as string[]
+    if (typeof value === 'string') {
+      const trimmed = value.trim()
+      if (!trimmed) return []
+      try {
+        const parsed = JSON.parse(trimmed)
+        return Array.isArray(parsed) ? (parsed as string[]) : []
+      } catch {
+        return []
+      }
+    }
+    return []
+  }
 
   const formatDate = (d: Date) => {
     const year = d.getFullYear()
@@ -65,13 +83,13 @@ export function PersonalProfileTab({
     if (!range?.from || !range?.to) return
     const dates = enumerateDates(range.from, range.to)
     if (type === 'system') {
-      const existing = new Set(personalProfile.system_vacation_dates || [])
+      const existing = new Set(normalizeDates(personalProfile.system_vacation_dates))
       dates.forEach(d => existing.add(d))
       updateProfile({ system_vacation_dates: Array.from(existing).sort() })
       setSystemVacationRange(undefined)
       setOpenSystemVacation(false)
     } else {
-      const existing = new Set(personalProfile.added_vacation_dates || [])
+      const existing = new Set(normalizeDates(personalProfile.added_vacation_dates))
       dates.forEach(d => existing.add(d))
       updateProfile({ added_vacation_dates: Array.from(existing).sort() })
       setAddedVacationRange(undefined)
@@ -82,11 +100,11 @@ export function PersonalProfileTab({
   const removeVacationRange = (type: 'system' | 'added', from: string, to: string, updateProfile: (updates: Partial<User>) => void) => {
     const dates = enumerateDates(new Date(from), new Date(to))
     if (type === 'system') {
-      const setDates = new Set(personalProfile.system_vacation_dates || [])
+      const setDates = new Set(normalizeDates(personalProfile.system_vacation_dates))
       dates.forEach(d => setDates.delete(d))
       updateProfile({ system_vacation_dates: Array.from(setDates).sort() })
     } else {
-      const setDates = new Set(personalProfile.added_vacation_dates || [])
+      const setDates = new Set(normalizeDates(personalProfile.added_vacation_dates))
       dates.forEach(d => setDates.delete(d))
       updateProfile({ added_vacation_dates: Array.from(setDates).sort() })
     }
@@ -193,23 +211,19 @@ export function PersonalProfileTab({
             <VacationSection
               label="חופשה מערכתית"
               description="ימי חופשה מוגדרים על ידי המערכת"
-              dates={personalProfile.system_vacation_dates || []}
+            dates={normalizeDates(personalProfile.system_vacation_dates)}
               open={openSystemVacation}
               onOpenChange={setOpenSystemVacation}
               range={systemVacationRange}
               onRangeChange={setSystemVacationRange}
               onAdd={(range) => addVacationRange('system', range, (updates) => {
                 Object.entries(updates).forEach(([key, value]) => {
-                  if (key === 'system_vacation_dates') {
-                    onProfileChange(key as keyof User, JSON.stringify(value))
-                  }
+                  if (key === 'system_vacation_dates') onProfileChange(key as keyof User, value)
                 })
               })}
               onRemove={(from, to) => removeVacationRange('system', from, to, (updates) => {
                 Object.entries(updates).forEach(([key, value]) => {
-                  if (key === 'system_vacation_dates') {
-                    onProfileChange(key as keyof User, JSON.stringify(value))
-                  }
+                  if (key === 'system_vacation_dates') onProfileChange(key as keyof User, value)
                 })
               })}
               compressDates={compressDatesToRanges}
@@ -217,23 +231,19 @@ export function PersonalProfileTab({
             <VacationSection
               label="חופשה נוספת"
               description="ימי חופשה שנוספו"
-              dates={personalProfile.added_vacation_dates || []}
+            dates={normalizeDates(personalProfile.added_vacation_dates)}
               open={openAddedVacation}
               onOpenChange={setOpenAddedVacation}
               range={addedVacationRange}
               onRangeChange={setAddedVacationRange}
               onAdd={(range) => addVacationRange('added', range, (updates) => {
                 Object.entries(updates).forEach(([key, value]) => {
-                  if (key === 'added_vacation_dates') {
-                    onProfileChange(key as keyof User, JSON.stringify(value))
-                  }
+                  if (key === 'added_vacation_dates') onProfileChange(key as keyof User, value)
                 })
               })}
               onRemove={(from, to) => removeVacationRange('added', from, to, (updates) => {
                 Object.entries(updates).forEach(([key, value]) => {
-                  if (key === 'added_vacation_dates') {
-                    onProfileChange(key as keyof User, JSON.stringify(value))
-                  }
+                  if (key === 'added_vacation_dates') onProfileChange(key as keyof User, value)
                 })
               })}
               compressDates={compressDatesToRanges}
@@ -244,50 +254,31 @@ export function PersonalProfileTab({
 
       <Card className="shadow-md border-none">
         <CardHeader>
-          <CardTitle className="text-right">צבעי המערכת האישיים</CardTitle>
-          <p className="text-sm text-muted-foreground text-right">התאם את צבעי המערכת לפי הטעם האישי שלך</p>
+          <CardTitle className="text-right">צבע אישי</CardTitle>
+          <p className="text-sm text-muted-foreground text-right">צבע אישי לסימון התורים שלך ביומן</p>
         </CardHeader>
         <CardContent>
-          <div className="space-y-6">
-            <div className="space-y-2">
-              <Label className="text-right block text-sm font-medium">צבע ראשי</Label>
-              <div className="flex items-center gap-4">
+          <div className="space-y-2">
+            <Label className="text-right block text-sm font-medium">צבע לתורים ביומן</Label>
+            <div className="flex items-center gap-4">
+              <Input
+                type="color"
+                value={personalProfile.primary_theme_color}
+                onChange={(e) => onProfileChange('primary_theme_color', e.target.value)}
+                className="w-16 h-12 p-1 rounded shadow-sm"
+              />
+              <div className="flex-1">
                 <Input
-                  type="color"
                   value={personalProfile.primary_theme_color}
                   onChange={(e) => onProfileChange('primary_theme_color', e.target.value)}
-                  className="w-16 h-12 p-1 rounded shadow-sm"
+                  className="font-mono text-center shadow-sm h-9"
+                  dir="ltr"
                 />
-                <div className="flex-1">
-                  <Input
-                    value={personalProfile.primary_theme_color}
-                    onChange={(e) => onProfileChange('primary_theme_color', e.target.value)}
-                    className="font-mono text-center shadow-sm h-9"
-                    dir="ltr"
-                  />
-                </div>
               </div>
             </div>
-            
-            <div className="space-y-2">
-              <Label className="text-right block text-sm font-medium">צבע משני</Label>
-              <div className="flex items-center gap-4">
-                <Input
-                  type="color"
-                  value={personalProfile.secondary_theme_color}
-                  onChange={(e) => onProfileChange('secondary_theme_color', e.target.value)}
-                  className="w-16 h-12 p-1 rounded shadow-sm"
-                />
-                <div className="flex-1">
-                  <Input
-                    value={personalProfile.secondary_theme_color}
-                    onChange={(e) => onProfileChange('secondary_theme_color', e.target.value)}
-                    className="font-mono text-center shadow-sm h-9"
-                    dir="ltr"
-                  />
-                </div>
-              </div>
-            </div>
+            <p className="text-xs text-muted-foreground text-right mt-2">
+              הצבע הזה ישמש לסימון התורים שלך באפליקציה וביומן Google Calendar
+            </p>
           </div>
         </CardContent>
       </Card>
@@ -308,6 +299,8 @@ export function PersonalProfileTab({
               syncing={googleCalendarSyncing}
               onDisconnect={onDisconnectGoogle}
               onSync={onSyncGoogleCalendar}
+              autoSyncEnabled={!!currentUser.google_calendar_sync_enabled}
+              onToggleAutoSync={onToggleGoogleAutoSync}
             />
           ) : (
             <GoogleCalendarDisconnected
@@ -417,6 +410,8 @@ interface GoogleCalendarConnectedProps {
   syncing: boolean
   onDisconnect: () => void
   onSync: () => void
+  autoSyncEnabled: boolean
+  onToggleAutoSync: (enabled: boolean) => void
 }
 
 function GoogleCalendarConnected({
@@ -424,7 +419,9 @@ function GoogleCalendarConnected({
   loading,
   syncing,
   onDisconnect,
-  onSync
+  onSync,
+  autoSyncEnabled,
+  onToggleAutoSync
 }: GoogleCalendarConnectedProps) {
   return (
     <div className="space-y-4">
@@ -443,18 +440,10 @@ function GoogleCalendarConnected({
               )}
               נתק חשבון
             </Button>
-            <Button
-              onClick={onSync}
-              disabled={syncing || loading}
-              className="flex items-center gap-2"
-            >
-              {syncing ? (
-                <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-              ) : (
-                <IconCalendar className="h-4 w-4" />
-              )}
-              {syncing ? 'מסנכרן...' : 'סנכרן עכשיו'}
-            </Button>
+            <div className="flex items-center gap-2">
+              <Switch checked={autoSyncEnabled} onCheckedChange={onToggleAutoSync} />
+              <span className="text-sm">סנכרון אוטומטי</span>
+            </div>
           </div>
         </div>
         

@@ -3,7 +3,7 @@ import { syncThemeWithLocal, applyUserThemeFromStorage } from "./helpers/theme_h
 import { useTranslation } from "react-i18next";
 import "./localization/i18n";
 import { updateAppLanguage } from "./helpers/language_helpers";
-import { router } from "./routes/router";
+import { router } from "@/routes/router";
 import { RouterProvider } from "@tanstack/react-router";
 import { UserProvider } from "./contexts/UserContext";
 

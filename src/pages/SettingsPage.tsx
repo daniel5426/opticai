@@ -5,7 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { toast } from "sonner"
 import { Settings, User, Clinic } from "@/lib/db/schema-interface"
 import { getUsersByClinic, updateUser, deleteUser } from "@/lib/db/users-db"
-import { applyThemeColorsFromSettings } from "@/helpers/theme_helpers"
+import { applyCompanyThemeColors, cacheCompanyThemeColors } from "@/helpers/theme_helpers"
 import { lookupTables } from "@/lib/db/lookup-db"
 import { UserModal } from "@/components/UserModal"
 import { useSettings } from "@/hooks/useSettings"
@@ -168,7 +168,7 @@ export default function SettingsPage() {
     loadClinic()
     loadUsers()
     loadPersonalProfile()
-    
+
     return () => {
       if (colorUpdateTimeout) {
         clearTimeout(colorUpdateTimeout)
@@ -190,27 +190,15 @@ export default function SettingsPage() {
     setLocalClinic(updated)
   }
 
-  const handlePersonalProfileChange = (field: keyof User, value: string) => {
+  const handlePersonalProfileChange = (field: keyof User, value: any) => {
     const newProfile = { ...personalProfile, [field]: value }
     setPersonalProfile(newProfile)
     if (field === 'email' && emailError) {
       setEmailError(null)
     }
     
-    if (field === 'primary_theme_color' || field === 'secondary_theme_color') {
-      if (profileColorUpdateTimeout) {
-        clearTimeout(profileColorUpdateTimeout)
-      }
-      
-      const timeout = setTimeout(() => {
-        applyThemeColorsFromSettings({
-          primary_theme_color: newProfile.primary_theme_color,
-          secondary_theme_color: newProfile.secondary_theme_color
-        } as Settings)
-      }, 150)
-      
-      setProfileColorUpdateTimeout(timeout)
-    }
+    // Note: primary_theme_color is now only used for appointment coloring, not for app theme
+    // App theme colors come from company settings
   }
 
   const handleSave = async () => {
@@ -277,19 +265,40 @@ export default function SettingsPage() {
       }
       if (data?.user) {
         const updatedUser = data.user as User
-        setPersonalProfile({
-          full_name: updatedUser.full_name || '',
-          email: updatedUser.email || '',
-          phone: updatedUser.phone || '',
-          profile_picture: updatedUser.profile_picture || '',
-          primary_theme_color: updatedUser.primary_theme_color || '#2256aa',
-          secondary_theme_color: updatedUser.secondary_theme_color || '#cce9ff',
-          theme_preference: updatedUser.theme_preference || 'system',
-          system_vacation_dates: updatedUser.system_vacation_dates || [],
-          added_vacation_dates: updatedUser.added_vacation_dates || []
-        })
+        
+        const normalizeDates = (v: any): string[] => {
+          if (Array.isArray(v)) return v as string[]
+          if (typeof v === 'string') {
+            try {
+              const parsed = JSON.parse(v)
+              return Array.isArray(parsed) ? (parsed as string[]) : []
+            } catch {
+              return []
+            }
+          }
+          return []
+        }
+        
+        const newProfile = {
+          full_name: updatedUser.full_name ?? personalProfile.full_name ?? '',
+          email: updatedUser.email ?? personalProfile.email ?? '',
+          phone: updatedUser.phone ?? personalProfile.phone ?? '',
+          profile_picture: updatedUser.profile_picture ?? personalProfile.profile_picture ?? '',
+          primary_theme_color: updatedUser.primary_theme_color ?? personalProfile.primary_theme_color ?? '#2256aa',
+          secondary_theme_color: updatedUser.secondary_theme_color ?? personalProfile.secondary_theme_color ?? '#cce9ff',
+          theme_preference: updatedUser.theme_preference ?? personalProfile.theme_preference ?? 'system',
+          system_vacation_dates: updatedUser.system_vacation_dates !== undefined && updatedUser.system_vacation_dates !== null
+            ? normalizeDates(updatedUser.system_vacation_dates)
+            : (personalProfile.system_vacation_dates as string[] || []),
+          added_vacation_dates: updatedUser.added_vacation_dates !== undefined && updatedUser.added_vacation_dates !== null
+            ? normalizeDates(updatedUser.added_vacation_dates)
+            : (personalProfile.added_vacation_dates as string[] || [])
+        }
+        
+        setPersonalProfile(newProfile)
+        
         const emailChanged = (currentUser?.email || '').trim() !== (updatedUser.email || '').trim()
-        await setCurrentUser(updatedUser)
+        await setCurrentUser(updatedUser, true)
         // Reflect changes immediately in users list (if present)
         setUsers(prev => prev.map(u => u.id === updatedUser.id ? updatedUser : u))
         if (emailChanged) {
@@ -408,9 +417,9 @@ export default function SettingsPage() {
           google_access_token: result.tokens.access_token,
           google_refresh_token: result.tokens.refresh_token
         })
-        
+
         if (updatedUser) {
-          await setCurrentUser(updatedUser)
+          await setCurrentUser(updatedUser, true) // Skip navigation when just updating Google account
           setPersonalProfile(prev => ({
             ...prev,
             google_account_connected: true,
@@ -445,9 +454,9 @@ export default function SettingsPage() {
         google_access_token: undefined,
         google_refresh_token: undefined
       })
-      
+
       if (updatedUser) {
-        await setCurrentUser(updatedUser)
+        await setCurrentUser(updatedUser, true) // Skip navigation when just updating Google account
         setPersonalProfile(prev => ({
           ...prev,
           google_account_connected: false,
@@ -520,7 +529,7 @@ export default function SettingsPage() {
               })
               if (updatedUser) {
                 console.log('Updated user tokens in database')
-                await setCurrentUser(updatedUser)
+                await setCurrentUser(updatedUser, true) // Skip navigation when just updating tokens
               }
             } catch (updateError) {
               console.log('Could not update tokens in database:', updateError)
@@ -574,9 +583,9 @@ export default function SettingsPage() {
               google_access_token: result.tokens.access_token,
               google_refresh_token: result.tokens.refresh_token
             })
-            
+
             if (updatedUser) {
-              await setCurrentUser(updatedUser)
+              await setCurrentUser(updatedUser, true) // Skip navigation when just updating tokens
               
               // Use the new proper Google tokens
               tokens = {
@@ -634,6 +643,35 @@ export default function SettingsPage() {
       toast.error('שגיאה בסנכרון עם Google Calendar')
     } finally {
       setGoogleCalendarSyncing(false)
+    }
+  }
+
+  const handleToggleGoogleAutoSync = async (enabled: boolean) => {
+    if (!currentUser?.id) return
+    try {
+      setGoogleCalendarLoading(true)
+      const updatedUser = await updateUser({
+        ...currentUser,
+        google_calendar_sync_enabled: enabled
+      })
+      if (updatedUser) {
+        await setCurrentUser(updatedUser, true)
+        setPersonalProfile(prev => ({
+          ...prev,
+          google_calendar_sync_enabled: enabled
+        }))
+        if (enabled) {
+          await handleSyncGoogleCalendar()
+        }
+        const msg = enabled ? 'סנכרון אוטומטי הופעל' : 'סנכרון אוטומטי כובה'
+        // eslint-disable-next-line no-console
+        console.log(msg)
+      }
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error('Error toggling Google auto sync:', e)
+    } finally {
+      setGoogleCalendarLoading(false)
     }
   }
 
@@ -765,6 +803,7 @@ export default function SettingsPage() {
                       onConnectGoogle={handleConnectGoogleAccount}
                       onDisconnectGoogle={handleDisconnectGoogleAccount}
                       onSyncGoogleCalendar={handleSyncGoogleCalendar}
+                      onToggleGoogleAutoSync={handleToggleGoogleAutoSync}
                     />
                   </TabsContent>
                 </div>

@@ -13,6 +13,8 @@ class CompanyBase(BaseModel):
     contact_phone: Optional[str] = None
     logo_path: Optional[str] = None
     address: Optional[str] = None
+    primary_theme_color: Optional[str] = None
+    secondary_theme_color: Optional[str] = None
 
 class CompanyCreate(CompanyBase):
     pass

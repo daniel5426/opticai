@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { Chat } from '@/lib/db/schema-interface';
 import { apiClient } from '@/lib/api-client';
-import { MessageSquare, Trash2, Edit3, Search } from 'lucide-react';
+import { MessageSquare, Trash2, Edit3, Search, Loader2 } from 'lucide-react';
 
 interface ChatsModalProps {
   isOpen: boolean;
@@ -17,33 +17,98 @@ interface ChatsModalProps {
 
 export function ChatsModal({ isOpen, onClose, onSelectChat }: ChatsModalProps) {
   const [chats, setChats] = useState<Chat[]>([]);
-  const [filteredChats, setFilteredChats] = useState<Chat[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [editingChatId, setEditingChatId] = useState<number | null>(null);
   const [editingTitle, setEditingTitle] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const [offset, setOffset] = useState(0);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const LIMIT = 10;
 
   useEffect(() => {
     if (isOpen) {
-      loadChats();
+      // Reset state when modal opens
+      setChats([]);
+      setOffset(0);
+      setHasMore(true);
+      setSearchTerm('');
+      loadChats(true);
     }
   }, [isOpen]);
 
+  // Handle search with debounce
   useEffect(() => {
-    const filtered = chats.filter(chat =>
-      chat.title.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-    setFilteredChats(filtered);
-  }, [chats, searchTerm]);
+    // Clear previous timeout
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
 
-  const loadChats = async () => {
+    // Set new timeout for search
+    searchTimeoutRef.current = setTimeout(() => {
+      // Reset and load with search term
+      setChats([]);
+      setOffset(0);
+      setHasMore(true);
+      loadChats(true, searchTerm);
+    }, 300); // 300ms debounce
+
+    // Cleanup timeout on unmount
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, [searchTerm]);
+
+  const loadChats = async (reset: boolean = false, search?: string) => {
+    if (reset) {
+      setIsLoading(true);
+    } else {
+      setIsLoadingMore(true);
+    }
+    
     try {
-      const allChatsResponse = await apiClient.getChats();
-      const allChats = allChatsResponse.data || [];
-      setChats(allChats);
+      const currentOffset = reset ? 0 : offset;
+      const searchQuery = search !== undefined ? search : searchTerm;
+      const response = await apiClient.getChats(
+        undefined, 
+        LIMIT, 
+        currentOffset, 
+        searchQuery.trim() || undefined
+      );
+      const newChats = response.data || [];
+      
+      if (reset) {
+        setChats(newChats);
+        setOffset(LIMIT);
+      } else {
+        setChats(prev => [...prev, ...newChats]);
+        setOffset(prev => prev + LIMIT);
+      }
+      
+      // If we got fewer chats than the limit, there are no more chats
+      setHasMore(newChats.length === LIMIT);
     } catch (error) {
       console.error('Error loading chats:', error);
+    } finally {
+      setIsLoading(false);
+      setIsLoadingMore(false);
     }
   };
+
+  const handleScroll = useCallback(() => {
+    if (!scrollContainerRef.current || isLoadingMore || !hasMore) return;
+    
+    const { scrollTop, scrollHeight, clientHeight } = scrollContainerRef.current;
+    
+    // Load more when user scrolls near the bottom (within 100px)
+    if (scrollHeight - scrollTop - clientHeight < 100) {
+      loadChats(false, searchTerm);
+    }
+  }, [isLoadingMore, hasMore, offset, searchTerm]);
 
   const handleDeleteChat = async (chatId: number, event: React.MouseEvent) => {
     event.stopPropagation();
@@ -51,7 +116,7 @@ export function ChatsModal({ isOpen, onClose, onSelectChat }: ChatsModalProps) {
     if (window.confirm('האם אתה בטוח שברצונך למחוק את השיחה?')) {
       try {
         await apiClient.deleteChat(chatId);
-        setChats(chats.filter(chat => chat.id !== chatId));
+        setChats(prev => prev.filter(chat => chat.id !== chatId));
       } catch (error) {
         console.error('Error deleting chat:', error);
       }
@@ -74,7 +139,7 @@ export function ChatsModal({ isOpen, onClose, onSelectChat }: ChatsModalProps) {
       const updatedChat = updatedChatResponse.data;
       
       if (updatedChat) {
-        setChats(chats.map(chat => 
+        setChats(prev => prev.map(chat => 
           chat.id === chatId ? { ...chat, title: editingTitle.trim() } : chat
         ));
       }
@@ -96,8 +161,16 @@ export function ChatsModal({ isOpen, onClose, onSelectChat }: ChatsModalProps) {
     onClose();
   };
 
-  const formatDate = (dateString: string) => {
+  const formatDate = (dateString: string | undefined) => {
+    if (!dateString) return 'תאריך לא ידוע';
+    
     const date = new Date(dateString);
+    
+    // Check if date is valid
+    if (isNaN(date.getTime())) {
+      return 'תאריך לא ידוע';
+    }
+    
     const now = new Date();
     const diffTime = Math.abs(now.getTime() - date.getTime());
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
@@ -115,13 +188,13 @@ export function ChatsModal({ isOpen, onClose, onSelectChat }: ChatsModalProps) {
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-lg max-h-[80vh] overflow-hidden" style={{scrollbarWidth: 'none'}}>
-        <DialogHeader>
+      <DialogContent className="max-w-lg h-[500px] flex flex-col" style={{scrollbarWidth: 'none'}}>
+        <DialogHeader className="flex-shrink-0">
           <DialogTitle className="text-center">שיחות קודמות</DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4 max-h-[70vh] overflow-auto pr-1" style={{scrollbarWidth: 'none'}}>
-          <div className="relative">
+        <div className="flex flex-col gap-4 flex-1 min-h-0">
+          <div className="relative flex-shrink-0">
             <Input
               placeholder="חיפוש שיחות..."
               value={searchTerm}
@@ -131,13 +204,23 @@ export function ChatsModal({ isOpen, onClose, onSelectChat }: ChatsModalProps) {
             />
           </div>
 
-          <div className="space-y-2 max-h-[60vh] overflow-auto pr-1" style={{scrollbarWidth: 'none'}}>
-            {filteredChats.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground" dir="ltr">
+          <div 
+            ref={scrollContainerRef}
+            onScroll={handleScroll}
+            className="space-y-2 overflow-auto flex-1" 
+            style={{scrollbarWidth: 'none'}}
+          >
+            {isLoading ? (
+              <div className="flex items-center justify-center py-8" dir="rtl">
+                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              </div>
+            ) : chats.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground" dir="rtl">
                 <p>אין שיחות קודמות</p>
               </div>
             ) : (
-              filteredChats.map((chat) => (
+              <>
+                {chats.map((chat) => (
                 <div
                   key={chat.id} dir="rtl"
                   className="flex max-w-full items-center justify-start p-3 rounded-lg border border-border hover:bg-accent/50 cursor-pointer transition-colors"
@@ -189,7 +272,7 @@ export function ChatsModal({ isOpen, onClose, onSelectChat }: ChatsModalProps) {
                           {chat.title}
                         </div>
                         <div className="text-xs text-muted-foreground text-right">
-                          {formatDate(chat.updated_at || '')}
+                          {formatDate(chat.updated_at)}
                         </div>
                       </div>
                     )}
@@ -216,7 +299,22 @@ export function ChatsModal({ isOpen, onClose, onSelectChat }: ChatsModalProps) {
                     </div>
                   )}
                 </div>
-              ))
+              ))}
+              
+              {/* Loading more indicator */}
+              {isLoadingMore && (
+                <div className="flex items-center justify-center py-4" dir="rtl">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                </div>
+              )}
+              
+              {/* No more chats indicator */}
+              {!hasMore && chats.length > 0 && (
+                <div className="text-center py-4 text-xs text-muted-foreground" dir="rtl">
+                  <p>אין עוד שיחות</p>
+                </div>
+              )}
+              </>
             )}
           </div>
         </div>

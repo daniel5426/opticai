@@ -13,17 +13,20 @@ import {
 
 export function NavMain({
   items,
-}: {
+  showAddClientButton = true,
+}: React.ComponentProps<typeof SidebarGroup> & {
   items: {
     title: string
-    url: string
-    icon?: Icon
-  }[]
+    url: string;
+    icon?: Icon;
+  }[];
+  showAddClientButton?: boolean;
 }) {
   return (
     <SidebarGroup>
       <SidebarGroupContent className="flex flex-col gap-2">
         <SidebarMenu>
+          {showAddClientButton && (
           <SidebarMenuItem>
             <SidebarMenuButton
               asChild
@@ -36,6 +39,7 @@ export function NavMain({
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
+          )}
         </SidebarMenu>
         <SidebarMenu>
           {items.map((item) => (

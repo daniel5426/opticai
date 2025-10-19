@@ -1,14 +1,15 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react'
 import { User, Clinic } from '@/lib/db/schema-interface'
 import { authService, AuthState, AuthSession } from '@/lib/auth/AuthService'
-import { applyUserThemeComplete } from '@/helpers/theme_helpers'
+import { applyUserThemeComplete, cacheCompanyThemeColors } from '@/helpers/theme_helpers'
+import { apiClient } from '@/lib/api-client'
 
 interface UserContextType {
   currentUser: User | null
   currentClinic: Clinic | null
   authState: AuthState
   isLoading: boolean
-  setCurrentUser: (user: User | null) => void
+  setCurrentUser: (user: User | null, skipNavigation?: boolean) => void
   setCurrentClinic: (clinic: Clinic | null) => Promise<void>
   logout: () => void
   logoutUser: () => void
@@ -44,6 +45,29 @@ export function UserProvider({ children }: UserProviderProps) {
 
       // Update user and clinic from session
       if (session?.user) {
+        // Load company and cache theme colors
+        try {
+          if (session.clinic?.company_id) {
+            const companyResponse = await apiClient.getCompany(session.clinic.company_id)
+            if (companyResponse.data) {
+              cacheCompanyThemeColors(companyResponse.data)
+            }
+          } else {
+            // Try to get company from localStorage (for control center users)
+            const storedCompany = localStorage.getItem('controlCenterCompany')
+            if (storedCompany) {
+              try {
+                const company = JSON.parse(storedCompany)
+                cacheCompanyThemeColors(company)
+              } catch (e) {
+                console.error('[UserContext] Failed to parse stored company:', e)
+              }
+            }
+          }
+        } catch (error) {
+          console.error('[UserContext] Failed to load company for theme colors:', error)
+        }
+        
         // Apply user theme
         try {
           await applyUserThemeComplete(session.user.id!, session.user)
@@ -62,13 +86,20 @@ export function UserProvider({ children }: UserProviderProps) {
     return unsubscribe
   }, [])
 
-  const handleSetCurrentUser = (user: User | null) => {
-    console.log('[UserContext] setCurrentUser called:', user?.username)
-    
+  const handleSetCurrentUser = (user: User | null, skipNavigation = false) => {
+    console.log('[UserContext] setCurrentUser called:', user?.username, skipNavigation ? '(skip navigation)' : '')
+
     if (user) {
-      const clinic = currentClinic || authService.getSession()?.clinic
-      if (clinic) {
-        authService.setClinicSession(clinic, user)
+      // Only set clinic session if we have a clinic AND we're not explicitly skipping navigation
+      // This prevents unwanted navigation when just updating user profile/settings
+      if (!skipNavigation) {
+        const clinic = currentClinic || authService.getSession()?.clinic
+        if (clinic) {
+          authService.setClinicSession(clinic, user)
+        }
+      } else {
+        // When skipping navigation, just update the local state without triggering auth service
+        setCurrentUser(user)
       }
     } else {
       authService.logoutUser()

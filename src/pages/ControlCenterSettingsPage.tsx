@@ -8,7 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { toast } from "sonner"
 import { User, Company } from "@/lib/db/schema-interface"
 import { getAllUsers, getUsersByCompanyId, updateUser, deleteUser } from "@/lib/db/users-db"
-import { applyThemeColorsFromSettings } from "@/helpers/theme_helpers"
+import { cacheCompanyThemeColors, applyCompanyThemeColors } from "@/helpers/theme_helpers"
 import { Badge } from "@/components/ui/badge"
 import { IconPlus, IconEdit, IconTrash, IconCalendar, IconBrandGoogle, IconCamera, IconX } from "@tabler/icons-react"
 import { useUser } from "@/contexts/UserContext"
@@ -36,7 +36,9 @@ export default function ControlCenterSettingsPage() {
     contact_email: '',
     contact_phone: '',
     address: '',
-    logo_path: ''
+    logo_path: '',
+    primary_theme_color: '#2256aa',
+    secondary_theme_color: '#cce9ff'
   })
 
   const [personalProfile, setPersonalProfile] = useState<Partial<User>>({
@@ -95,7 +97,9 @@ export default function ControlCenterSettingsPage() {
             contact_email: companyData.contact_email || '',
             contact_phone: companyData.contact_phone || '',
             address: companyData.address || '',
-            logo_path: companyData.logo_path || ''
+            logo_path: companyData.logo_path || '',
+            primary_theme_color: companyData.primary_theme_color || '#2256aa',
+            secondary_theme_color: companyData.secondary_theme_color || '#cce9ff'
           })
           localStorage.setItem('controlCenterCompany', JSON.stringify(companyData))
         }
@@ -146,20 +150,8 @@ export default function ControlCenterSettingsPage() {
     setPersonalProfile(newProfile)
     if (field === 'email' && emailError) setEmailError(null)
     
-    if (field === 'primary_theme_color' || field === 'secondary_theme_color') {
-      if (profileColorUpdateTimeout) {
-        clearTimeout(profileColorUpdateTimeout)
-      }
-      
-      const timeout = setTimeout(() => {
-        applyThemeColorsFromSettings({
-          primary_theme_color: newProfile.primary_theme_color,
-          secondary_theme_color: newProfile.secondary_theme_color
-        } as any)
-      }, 150)
-      
-      setProfileColorUpdateTimeout(timeout)
-    }
+    // Note: primary_theme_color is now only used for appointment coloring, not for app theme
+    // App theme colors come from company settings
   }
 
   const handleSave = async () => {
@@ -179,6 +171,8 @@ export default function ControlCenterSettingsPage() {
           contact_phone: localCompany.contact_phone || undefined,
           address: localCompany.address || undefined,
           logo_path: (localCompany.logo_path === '' ? null : localCompany.logo_path) as any,
+          primary_theme_color: localCompany.primary_theme_color || undefined,
+          secondary_theme_color: localCompany.secondary_theme_color || undefined,
         }
       }
       if (currentUser?.id) {
@@ -212,9 +206,14 @@ export default function ControlCenterSettingsPage() {
           contact_email: data.company.contact_email || '',
           contact_phone: data.company.contact_phone || '',
           address: data.company.address || '',
-          logo_path: data.company.logo_path || ''
+          logo_path: data.company.logo_path || '',
+          primary_theme_color: data.company.primary_theme_color || '#2256aa',
+          secondary_theme_color: data.company.secondary_theme_color || '#cce9ff'
         })
         localStorage.setItem('controlCenterCompany', JSON.stringify(data.company))
+        // Cache and apply new company theme colors
+        cacheCompanyThemeColors(data.company)
+        applyCompanyThemeColors(data.company)
         try { window.dispatchEvent(new CustomEvent('companyUpdated', { detail: data.company })) } catch {}
       }
       if (data?.user) {
@@ -229,7 +228,7 @@ export default function ControlCenterSettingsPage() {
           theme_preference: updatedUser.theme_preference || 'system'
         })
         const emailChanged = (currentUser?.email || '').trim() !== (updatedUser.email || '').trim()
-        await setCurrentUser(updatedUser)
+        await setCurrentUser(updatedUser, true) // Skip navigation when just updating profile
         localStorage.setItem('currentUser', JSON.stringify(updatedUser))
         // Reflect change in users list immediately
         setUsers(prev => prev.map(u => u.id === updatedUser.id ? updatedUser : u))
@@ -330,7 +329,7 @@ export default function ControlCenterSettingsPage() {
         })
         
         if (updatedUser) {
-          await setCurrentUser(updatedUser)
+          await setCurrentUser(updatedUser, true) // Skip navigation when just updating Google account
           setPersonalProfile(prev => ({
             ...prev,
             google_account_connected: true,
@@ -366,7 +365,7 @@ export default function ControlCenterSettingsPage() {
       })
       
       if (updatedUser) {
-        await setCurrentUser(updatedUser)
+        await setCurrentUser(updatedUser, true) // Skip navigation when just updating Google account
         setPersonalProfile(prev => ({
           ...prev,
           google_account_connected: false,
@@ -469,7 +468,7 @@ export default function ControlCenterSettingsPage() {
               })
               if (updatedUser?.data) {
                 console.log('Updated user tokens in database')
-                await setCurrentUser(updatedUser.data)
+                await setCurrentUser(updatedUser.data, true) // Skip navigation when just updating tokens
               }
             } catch (updateError) {
               console.log('Could not update tokens in database:', updateError)
@@ -527,7 +526,7 @@ export default function ControlCenterSettingsPage() {
             })
             
             if (updatedUser?.data) {
-              await setCurrentUser(updatedUser.data)
+              await setCurrentUser(updatedUser.data, true) // Skip navigation when just updating tokens
               
               // Use the new proper Google tokens
               tokens = {
@@ -756,6 +755,167 @@ export default function ControlCenterSettingsPage() {
                       </CardContent>
                     </Card>
 
+                    <Card className="shadow-md border-none">
+                      <CardHeader>
+                        <CardTitle className="text-right">צבעי המערכת</CardTitle>
+                        <p className="text-sm text-muted-foreground text-right">התאם את צבעי המערכת עבור כל משתמשי החברה</p>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-6">
+                          <div className="space-y-2">
+                            <Label className="text-right block text-sm font-medium">צבע ראשי</Label>
+                            <div className="flex items-center gap-4">
+                              <Input
+                                type="color"
+                                value={localCompany.primary_theme_color || '#2256aa'}
+                                onChange={(e) => {
+                                  handleCompanyChange('primary_theme_color', e.target.value);
+                                  // Apply preview immediately
+                                  if (profileColorUpdateTimeout) clearTimeout(profileColorUpdateTimeout);
+                                  const timeout = setTimeout(() => {
+                                    const root = document.documentElement;
+                                    if (!root.classList.contains('dark')) {
+                                      const r = parseInt(e.target.value.slice(1, 3), 16) / 255;
+                                      const g = parseInt(e.target.value.slice(3, 5), 16) / 255;
+                                      const b = parseInt(e.target.value.slice(5, 7), 16) / 255;
+                                      const max = Math.max(r, g, b);
+                                      const min = Math.min(r, g, b);
+                                      let h = 0, s = 0;
+                                      const l = (max + min) / 2;
+                                      if (max !== min) {
+                                        const d = max - min;
+                                        s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+                                        switch (max) {
+                                          case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+                                          case g: h = (b - r) / d + 2; break;
+                                          case b: h = (r - g) / d + 4; break;
+                                        }
+                                        h /= 6;
+                                      }
+                                      root.style.setProperty('--primary', `${Math.round(h * 360)} ${Math.round(s * 100)}% ${Math.round(l * 100)}%`);
+                                    }
+                                  }, 150);
+                                  setProfileColorUpdateTimeout(timeout);
+                                }}
+                                className="w-16 h-12 p-1 rounded shadow-sm"
+                              />
+                              <div className="flex-1">
+                                <Input
+                                  value={localCompany.primary_theme_color || '#2256aa'}
+                                  onChange={(e) => {
+                                    handleCompanyChange('primary_theme_color', e.target.value);
+                                    // Apply preview immediately
+                                    if (profileColorUpdateTimeout) clearTimeout(profileColorUpdateTimeout);
+                                    const timeout = setTimeout(() => {
+                                      const root = document.documentElement;
+                                      if (!root.classList.contains('dark') && /^#[0-9A-F]{6}$/i.test(e.target.value)) {
+                                        const r = parseInt(e.target.value.slice(1, 3), 16) / 255;
+                                        const g = parseInt(e.target.value.slice(3, 5), 16) / 255;
+                                        const b = parseInt(e.target.value.slice(5, 7), 16) / 255;
+                                        const max = Math.max(r, g, b);
+                                        const min = Math.min(r, g, b);
+                                        let h = 0, s = 0;
+                                        const l = (max + min) / 2;
+                                        if (max !== min) {
+                                          const d = max - min;
+                                          s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+                                          switch (max) {
+                                            case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+                                            case g: h = (b - r) / d + 2; break;
+                                            case b: h = (r - g) / d + 4; break;
+                                          }
+                                          h /= 6;
+                                        }
+                                        root.style.setProperty('--primary', `${Math.round(h * 360)} ${Math.round(s * 100)}% ${Math.round(l * 100)}%`);
+                                      }
+                                    }, 150);
+                                    setProfileColorUpdateTimeout(timeout);
+                                  }}
+                                  className="font-mono text-center shadow-sm h-9"
+                                  dir="ltr"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                          
+                          <div className="space-y-2">
+                            <Label className="text-right block text-sm font-medium">צבע משני</Label>
+                            <div className="flex items-center gap-4">
+                              <Input
+                                type="color"
+                                value={localCompany.secondary_theme_color || '#cce9ff'}
+                                onChange={(e) => {
+                                  handleCompanyChange('secondary_theme_color', e.target.value);
+                                  // Apply preview immediately
+                                  if (profileColorUpdateTimeout) clearTimeout(profileColorUpdateTimeout);
+                                  const timeout = setTimeout(() => {
+                                    const root = document.documentElement;
+                                    if (!root.classList.contains('dark')) {
+                                      const r = parseInt(e.target.value.slice(1, 3), 16) / 255;
+                                      const g = parseInt(e.target.value.slice(3, 5), 16) / 255;
+                                      const b = parseInt(e.target.value.slice(5, 7), 16) / 255;
+                                      const max = Math.max(r, g, b);
+                                      const min = Math.min(r, g, b);
+                                      let h = 0, s = 0;
+                                      const l = (max + min) / 2;
+                                      if (max !== min) {
+                                        const d = max - min;
+                                        s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+                                        switch (max) {
+                                          case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+                                          case g: h = (b - r) / d + 2; break;
+                                          case b: h = (r - g) / d + 4; break;
+                                        }
+                                        h /= 6;
+                                      }
+                                      root.style.setProperty('--secondary', `${Math.round(h * 360)} ${Math.round(s * 100)}% ${Math.round(l * 100)}%`);
+                                    }
+                                  }, 150);
+                                  setProfileColorUpdateTimeout(timeout);
+                                }}
+                                className="w-16 h-12 p-1 rounded shadow-sm"
+                              />
+                              <div className="flex-1">
+                                <Input
+                                  value={localCompany.secondary_theme_color || '#cce9ff'}
+                                  onChange={(e) => {
+                                    handleCompanyChange('secondary_theme_color', e.target.value);
+                                    // Apply preview immediately
+                                    if (profileColorUpdateTimeout) clearTimeout(profileColorUpdateTimeout);
+                                    const timeout = setTimeout(() => {
+                                      const root = document.documentElement;
+                                      if (!root.classList.contains('dark') && /^#[0-9A-F]{6}$/i.test(e.target.value)) {
+                                        const r = parseInt(e.target.value.slice(1, 3), 16) / 255;
+                                        const g = parseInt(e.target.value.slice(3, 5), 16) / 255;
+                                        const b = parseInt(e.target.value.slice(5, 7), 16) / 255;
+                                        const max = Math.max(r, g, b);
+                                        const min = Math.min(r, g, b);
+                                        let h = 0, s = 0;
+                                        const l = (max + min) / 2;
+                                        if (max !== min) {
+                                          const d = max - min;
+                                          s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+                                          switch (max) {
+                                            case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+                                            case g: h = (b - r) / d + 2; break;
+                                            case b: h = (r - g) / d + 4; break;
+                                          }
+                                          h /= 6;
+                                        }
+                                        root.style.setProperty('--secondary', `${Math.round(h * 360)} ${Math.round(s * 100)}% ${Math.round(l * 100)}%`);
+                                      }
+                                    }, 150);
+                                    setProfileColorUpdateTimeout(timeout);
+                                  }}
+                                  className="font-mono text-center shadow-sm h-9"
+                                  dir="ltr"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
                     
                   </TabsContent>
 
@@ -828,50 +988,31 @@ export default function ControlCenterSettingsPage() {
 
                     <Card className="shadow-md border-none">
                       <CardHeader>
-                        <CardTitle className="text-right">צבעי המערכת האישיים</CardTitle>
-                        <p className="text-sm text-muted-foreground text-right">התאם את צבעי המערכת לפי הטעם האישי שלך</p>
+                        <CardTitle className="text-right">צבע אישי</CardTitle>
+                        <p className="text-sm text-muted-foreground text-right">צבע אישי לסימון התורים שלך ביומן</p>
                       </CardHeader>
                       <CardContent>
-                        <div className="space-y-6">
-                          <div className="space-y-2">
-                            <Label className="text-right block text-sm font-medium">צבע ראשי</Label>
-                            <div className="flex items-center gap-4">
+                        <div className="space-y-2">
+                          <Label className="text-right block text-sm font-medium">צבע לתורים ביומן</Label>
+                          <div className="flex items-center gap-4">
+                            <Input
+                              type="color"
+                              value={personalProfile.primary_theme_color}
+                              onChange={(e) => handlePersonalProfileChange('primary_theme_color', e.target.value)}
+                              className="w-16 h-12 p-1 rounded shadow-sm"
+                            />
+                            <div className="flex-1">
                               <Input
-                                type="color"
-                                value={personalProfile.primary_theme_color }
+                                value={personalProfile.primary_theme_color}
                                 onChange={(e) => handlePersonalProfileChange('primary_theme_color', e.target.value)}
-                                className="w-16 h-12 p-1 rounded shadow-sm"
+                                className="font-mono text-center shadow-sm h-9"
+                                dir="ltr"
                               />
-                              <div className="flex-1">
-                                <Input
-                                  value={personalProfile.primary_theme_color }
-                                  onChange={(e) => handlePersonalProfileChange('primary_theme_color', e.target.value)}
-                                  className="font-mono text-center shadow-sm h-9"
-                                  dir="ltr"
-                                />
-                              </div>
                             </div>
                           </div>
-                          
-                          <div className="space-y-2">
-                            <Label className="text-right block text-sm font-medium">צבע משני</Label>
-                            <div className="flex items-center gap-4">
-                              <Input
-                                type="color"
-                                value={personalProfile.secondary_theme_color}
-                                onChange={(e) => handlePersonalProfileChange('secondary_theme_color', e.target.value)}
-                                className="w-16 h-12 p-1 rounded shadow-sm"
-                              />
-                              <div className="flex-1">
-                                <Input
-                                  value={personalProfile.secondary_theme_color}
-                                  onChange={(e) => handlePersonalProfileChange('secondary_theme_color', e.target.value)}
-                                  className="font-mono text-center shadow-sm h-9"
-                                  dir="ltr"
-                                />
-                              </div>
-                            </div>
-                          </div>
+                          <p className="text-xs text-muted-foreground text-right mt-2">
+                            הצבע הזה ישמש לסימון התורים שלך באפליקציה וביומן Google Calendar
+                          </p>
                         </div>
                       </CardContent>
                     </Card>

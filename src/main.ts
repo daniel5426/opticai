@@ -4,6 +4,8 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 import { app, BrowserWindow, ipcMain } from "electron";
+import { GoogleOAuthService } from './lib/google/google-oauth';
+import { GoogleCalendarService } from './lib/google/google-calendar';
 import registerListeners from "./helpers/ipc/listeners-register";
 // "electron-squirrel-startup" seems broken when packaging with vite
 //import started from "electron-squirrel-startup";
@@ -549,7 +551,6 @@ function setupIpcHandlers() {
   // Google OAuth and Calendar operations
   ipcMain.handle('google-oauth-authenticate', async () => {
     try {
-      const { GoogleOAuthService } = await import('./lib/google/google-oauth');
       const oauthService = new GoogleOAuthService();
       return await oauthService.authenticate();
     } catch (error) {
@@ -560,7 +561,6 @@ function setupIpcHandlers() {
 
   ipcMain.handle('google-oauth-refresh-token', async (event, refreshToken: string) => {
     try {
-      const { GoogleOAuthService } = await import('./lib/google/google-oauth');
       const oauthService = new GoogleOAuthService();
       return await oauthService.refreshToken(refreshToken);
     } catch (error) {
@@ -571,7 +571,6 @@ function setupIpcHandlers() {
 
   ipcMain.handle('google-oauth-validate-tokens', async (event, tokens: any) => {
     try {
-      const { GoogleOAuthService } = await import('./lib/google/google-oauth');
       const oauthService = new GoogleOAuthService();
       return await oauthService.validateTokens(tokens);
     } catch (error) {
@@ -582,7 +581,6 @@ function setupIpcHandlers() {
 
   ipcMain.handle('google-calendar-create-event', async (event, tokens: any, appointment: any, client?: any) => {
     try {
-      const { GoogleCalendarService } = await import('./lib/google/google-calendar');
       const calendarService = new GoogleCalendarService();
       return await calendarService.createEvent(tokens, appointment, client);
     } catch (error) {
@@ -593,7 +591,6 @@ function setupIpcHandlers() {
 
   ipcMain.handle('google-calendar-update-event', async (event, tokens: any, eventId: string, appointment: any, client?: any) => {
     try {
-      const { GoogleCalendarService } = await import('./lib/google/google-calendar');
       const calendarService = new GoogleCalendarService();
       return await calendarService.updateEvent(tokens, eventId, appointment, client);
     } catch (error) {
@@ -604,7 +601,6 @@ function setupIpcHandlers() {
 
   ipcMain.handle('google-calendar-delete-event', async (event, tokens: any, eventId: string) => {
     try {
-      const { GoogleCalendarService } = await import('./lib/google/google-calendar');
       const calendarService = new GoogleCalendarService();
       return await calendarService.deleteEvent(tokens, eventId);
     } catch (error) {
@@ -615,7 +611,6 @@ function setupIpcHandlers() {
 
   ipcMain.handle('google-calendar-sync-appointments', async (event, tokens: any, appointments: any[]) => {
     try {
-      const { GoogleCalendarService } = await import('./lib/google/google-calendar');
       const calendarService = new GoogleCalendarService();
       return await calendarService.syncAppointments(tokens, appointments);
     } catch (error) {
@@ -626,7 +621,6 @@ function setupIpcHandlers() {
 
   ipcMain.handle('google-calendar-get-events', async (event, tokens: any, startDate: string, endDate: string) => {
     try {
-      const { GoogleCalendarService } = await import('./lib/google/google-calendar');
       const calendarService = new GoogleCalendarService();
       return await calendarService.getEvents(tokens, startDate, endDate);
     } catch (error) {

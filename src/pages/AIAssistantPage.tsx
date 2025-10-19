@@ -143,6 +143,7 @@ export function AIAssistantPage() {
     setCurrentChatId(null);
     setCurrentChatTitle('');
     setLastMessageCount(0);
+    setIsAtBottom(true);
     try {
       localStorage.removeItem('ai-user-memory');
     } catch {}
@@ -165,7 +166,7 @@ export function AIAssistantPage() {
   const adjustTextareaHeight = () => {
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
-      textareaRef.current.style.height = `${Math.max(48, Math.min(textareaRef.current.scrollHeight, 320))}px`;
+      textareaRef.current.style.height = `${Math.max(96, Math.min(textareaRef.current.scrollHeight, 320))}px`;
     }
   };
 
@@ -218,31 +219,32 @@ export function AIAssistantPage() {
     const userMessage = inputValue.trim();
     setInputValue('');
     
-    // Handle chat management
-    let chatId = currentChatId;
-    if (!chatId) {
-      chatId = await createNewChat(userMessage);
-      if (!chatId) {
-        console.error('Failed to create new chat');
-        return;
-      }
-    }
+    // Add user message to UI immediately for instant feedback
+    addMessage('user', userMessage);
+    setIsLoading(true);
     
     // Prepare conversation history for AI (including the current user message)
     const conversationHistory = messages.map(msg => ({
       role: msg.type === 'user' ? 'user' : 'assistant',
       content: msg.content
     }));
-
-    // Add user message with unique ID
-    addMessage('user', userMessage);
-    setIsLoading(true);
+    
+    // Handle chat management
+    let chatId = currentChatId;
+    if (!chatId) {
+      chatId = await createNewChat(userMessage);
+      if (!chatId) {
+        console.error('Failed to create new chat');
+        setIsLoading(false);
+        return;
+      }
+    }
 
     // Save user message to database
     await saveMessageToChat(chatId, 'user', userMessage);
 
     if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = '96px';
     }
 
     // Add a small delay to ensure user message is rendered before AI message

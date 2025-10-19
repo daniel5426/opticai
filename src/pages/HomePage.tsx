@@ -104,6 +104,7 @@ export default function HomePage() {
   const [users, setUsers] = useState<User[]>([])
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [selectedTimeSlot, setSelectedTimeSlot] = useState<{ date: Date; time: string }>({ date: new Date(), time: '' })
+  const lastDragSigRef = useRef<string | null>(null)
   const [formData, setFormData] = useState<Omit<Appointment, 'id'>>({
     client_id: 0,
     user_id: currentUser?.id || 0,
@@ -892,7 +893,11 @@ export default function HomePage() {
       if (isDraggingRef.current && draggedData) {
         const position = calculateDragPosition(e)
         if (position) {
-          setDragPosition(position)
+          const sig = `${position.date.toDateString()}|${position.time}|${Math.round(position.y)}`
+          if (lastDragSigRef.current !== sig) {
+            lastDragSigRef.current = sig
+            setDragPosition(position)
+          }
         }
       }
     }
@@ -902,29 +907,26 @@ export default function HomePage() {
       e.preventDefault()
       const resizePosition = calculateResizePosition(e)
       if (resizePosition) {
-        // Update the appointment temporarily for visual feedback
         if (resizeData.type === 'top') {
-          // Dragging top handle - update start time and calculate new duration
           const originalEndMinutes = timeToMinutes(resizeData.originalEnd)
           const newStartMinutes = timeToMinutes(resizePosition.startTime)
           const newDuration = originalEndMinutes - newStartMinutes
 
-          setAppointments(prev => prev.map(apt =>
-            apt.id === resizeData.appointmentId
-              ? { ...apt, time: resizePosition.startTime, duration: newDuration }
-              : apt
-          ))
+          setAppointments(prev => prev.map(apt => {
+            if (apt.id !== resizeData.appointmentId) return apt
+            if (apt.time === resizePosition.startTime && apt.duration === newDuration) return apt
+            return { ...apt, time: resizePosition.startTime, duration: newDuration }
+          }))
         } else {
-          // Dragging bottom handle - keep start time, update duration
           const startMinutes = timeToMinutes(resizeData.originalStart)
           const newEndMinutes = timeToMinutes(resizePosition.endTime)
           const newDuration = newEndMinutes - startMinutes
 
-          setAppointments(prev => prev.map(apt =>
-            apt.id === resizeData.appointmentId
-              ? { ...apt, time: resizeData.originalStart, duration: newDuration }
-              : apt
-          ))
+          setAppointments(prev => prev.map(apt => {
+            if (apt.id !== resizeData.appointmentId) return apt
+            if (apt.time === resizeData.originalStart && apt.duration === newDuration) return apt
+            return { ...apt, time: resizeData.originalStart, duration: newDuration }
+          }))
         }
       }
     }
@@ -934,12 +936,25 @@ export default function HomePage() {
     // Reset body style
     document.body.style.userSelect = ''
 
-    if (isDraggingRef.current && draggedData && dragPosition && !resizeData) {
+    if (isDraggingRef.current && draggedData && !resizeData) {
+      const finalPosition = calculateDragPosition(e) || dragPosition
+      if (!finalPosition) {
+        pendingDragDataRef.current = null
+        mouseDownPosRef.current = null
+        isDraggingRef.current = false
+        setIsPointerDown(false)
+        setDraggedData(null)
+        setDraggedBlockId(null)
+        setDragPosition(null)
+        setResizeData(null)
+        lastDragSigRef.current = null
+        return
+      }
       // Optimistic update - immediately update UI
       const updatedAppointment = {
         ...draggedData.appointment,
-        date: format(dragPosition.date, 'yyyy-MM-dd'),
-        time: dragPosition.time
+        date: format(finalPosition.date, 'yyyy-MM-dd'),
+        time: finalPosition.time
       }
 
       // Store original appointment for rollback
@@ -1066,6 +1081,7 @@ export default function HomePage() {
     setDraggedBlockId(null)
     setDragPosition(null)
     setResizeData(null)
+    lastDragSigRef.current = null
   }
 
   useEffect(() => {
@@ -1077,7 +1093,7 @@ export default function HomePage() {
         document.removeEventListener('mouseup', handleMouseUp)
       }
     }
-  }, [isPointerDown, draggedData, dragPosition, resizeData])
+  }, [isPointerDown, draggedData, resizeData])
 
   // Form and modal handlers (keeping existing functionality)
   const resetAllForms = () => {

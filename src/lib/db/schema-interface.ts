@@ -8,6 +8,8 @@ export interface Company {
   contact_phone: string;
   logo_path?: string;
   address: string;
+  primary_theme_color?: string;
+  secondary_theme_color?: string;
   created_at?: string;
   updated_at?: string;
 }

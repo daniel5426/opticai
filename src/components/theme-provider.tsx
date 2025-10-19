@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from "react"
-import { applyThemeColorsFromSettings } from "@/helpers/theme_helpers"
+import { applyCompanyThemeColors } from "@/helpers/theme_helpers"
 
 type Theme = "dark" | "light" | "system"
 
@@ -91,17 +91,8 @@ export function ThemeProvider({
 
     root.classList.add(actualTheme)
     
-    if (actualTheme === "dark") {
-      root.style.removeProperty('--primary')
-      root.style.removeProperty('--secondary')
-    } else {
-      // Only apply global theme colors if no user is logged in
-      // User-specific colors are handled by UserContext
-      const currentUserId = localStorage.getItem('currentUserId')
-      if (!currentUserId) {
-        applyThemeColorsFromSettings()
-      }
-    }
+    // Apply company theme colors immediately (synchronous from cache)
+    applyCompanyThemeColors()
   }, [theme, isInitialized])
 
   // Sync with Electron native theme when theme changes

@@ -104,9 +104,15 @@ export function ClinicDropdown({
       if (currentUser?.role === 'company_ceo') {
         console.log('ClinicDropdown: CEO selecting clinic, setting clinic session');
         authService.setClinicSession(clinic, currentUser);
-
-        // Let AuthService handle navigation automatically based on state change
-        // No need to force navigation manually
+        // Always navigate to dashboard regardless of current route state
+        // Ensures UI updates even if router thinks it's already on a clinic route
+        setTimeout(() => {
+          try {
+            navigate({ to: "/dashboard" });
+          } catch (e) {
+            console.error('ClinicDropdown: navigate to /dashboard failed:', e)
+          }
+        }, 0);
       } else {
         setCurrentClinic(clinic);
         setTimeout(() => {

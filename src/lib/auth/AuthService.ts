@@ -520,19 +520,25 @@ class AuthService {
 
     if (user) {
       this.storeUser(user)
-      
+
       // Build new session preserving company context for CEOs
       const newSession: AuthSession = { clinic, user }
-      
+
       if (user.role === 'company_ceo' && this.session?.company) {
           newSession.company = this.session.company
         newSession.isSupabaseAuth = this.session.isSupabaseAuth
       }
-      
+
+      const previousClinicId = this.session?.clinic?.id
       this.session = newSession
-      
-      // Force navigation when switching contexts (e.g., CEO switching from control center to clinic)
+
+      // For CEOs, always force navigation when selecting a clinic
+      // This handles cases where they're switching from control center to clinic,
+      // or even if they're already "in" that clinic but coming from control center context
       const forceNavigation = user.role === 'company_ceo' && !!clinic
+
+      console.log('[Auth] Clinic switch:', { previousClinicId, newClinicId: clinic.id, forceNavigation })
+
       this.transitionTo(AuthState.AUTHENTICATED, forceNavigation)
     } else {
       this.session = { clinic }
@@ -719,17 +725,22 @@ class AuthService {
     const oldState = this.state
     
     if (oldState === newState && !forceNavigation) {
-      console.log('[Auth] Already in state:', newState)
+      console.log('[Auth] Already in state:', newState, '- skipping transition and navigation')
       return
     }
 
     console.log('[Auth] State transition:', oldState, '->', newState, forceNavigation ? '(forced)' : '')
     
-    this.state = newState
+    // Update state if different
+    if (oldState !== newState) {
+      this.state = newState
+    }
+    
     this.notifyListeners()
 
     // Navigate after state update (synchronous)
-    if (newState !== AuthState.LOADING || forceNavigation) {
+    // Always navigate if forceNavigation is true, even in same state
+    if (forceNavigation || newState !== AuthState.LOADING) {
       this.navigate()
     }
   }
@@ -753,7 +764,17 @@ class AuthService {
 
     console.log('[Auth] Navigating for state:', this.state)
 
-    const currentPath = window.location.pathname
+    // Try to get current path from router first, fallback to window.location
+    let currentPath = window.location.pathname
+    try {
+      if (router?.state?.location?.pathname) {
+        currentPath = router.state.location.pathname
+      }
+    } catch (error) {
+      console.log('[Auth] Could not get path from router, using window.location')
+    }
+
+    console.log('[Auth] Current path:', currentPath)
 
     try {
       switch (this.state) {
@@ -776,6 +797,7 @@ class AuthService {
 
         case AuthState.CLINIC_SELECTED:
           if (currentPath !== '/user-selection') {
+            console.log('[Auth] Navigating to user selection from:', currentPath)
             router.navigate({ 
               to: '/user-selection',
               replace: true
@@ -802,12 +824,20 @@ class AuthService {
             
             if (!isOnClinicPage || isComingFromControlCenter) {
               console.log('[Auth] Navigating to clinic dashboard from:', currentPath)
-              router.navigate({ to: '/dashboard' })
+              const navResult = router.navigate({ to: '/dashboard' })
+              if (navResult && typeof navResult.then === 'function') {
+                navResult.catch((err: Error) => {
+                  console.error('[Auth] Dashboard navigation failed:', err)
+                })
+              }
+            } else {
+              console.log('[Auth] Already on clinic page, skipping navigation')
             }
           } else if (this.session?.user?.role === 'company_ceo') {
             // CEO context - go to control center dashboard
             if (!currentPath.startsWith('/control-center/dashboard')) {
-              router.navigate({
+              console.log('[Auth] Navigating to control center dashboard from:', currentPath)
+              const navResult = router.navigate({
                 to: '/control-center/dashboard',
                 search: {
                   companyId: this.session.company?.id?.toString() || '',
@@ -815,12 +845,20 @@ class AuthService {
                   fromSetup: 'false'
                 }
               })
+              if (navResult && typeof navResult.then === 'function') {
+                navResult.catch((err: Error) => {
+                  console.error('[Auth] Control center navigation failed:', err)
+                })
+              }
+            } else {
+              console.log('[Auth] Already on control center dashboard, skipping navigation')
             }
           }
           break
 
         case AuthState.SETUP_REQUIRED:
           if (currentPath !== '/control-center') {
+            console.log('[Auth] Navigating to control center for setup from:', currentPath)
             router.navigate({ to: '/control-center' })
           }
           break

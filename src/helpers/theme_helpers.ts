@@ -1,9 +1,11 @@
 import { ThemeMode } from "@/types/theme-mode";
 import { getSettings } from "@/lib/db/settings-db";
 import { updateUser, getUserById } from "@/lib/db/users-db";
+import { Company } from "@/lib/db/schema-interface";
 
 const THEME_KEY = "theme";
 const USER_THEME_PREFIX = "user_theme_";
+const COMPANY_THEME_CACHE_KEY = "company_theme_colors";
 
 // Helper function to wait for themeMode to be available
 async function waitForThemeMode(maxWaitMs: number = 1000): Promise<boolean> {
@@ -54,73 +56,84 @@ function hexToHsl(hex: string): string {
   return `${Math.round(h * 360)} ${Math.round(s * 100)}% ${Math.round(l * 100)}%`;
 }
 
-export async function applyThemeColorsFromSettings(providedSettings?: any, userId?: number): Promise<void> {
-  try {
-    const root = document.documentElement;
-    
-    // Only apply custom colors if not in dark mode
-    if (root.classList.contains('dark')) {
-      root.style.removeProperty('--primary');
-      root.style.removeProperty('--secondary');
-      return;
-    }
+// Cache company theme colors in localStorage
+export function cacheCompanyThemeColors(company: Company | null): void {
+  if (!company) {
+    localStorage.removeItem(COMPANY_THEME_CACHE_KEY);
+    return;
+  }
+  
+  const cache = {
+    primary: company.primary_theme_color || '#2256aa',
+    secondary: company.secondary_theme_color || '#cce9ff'
+  };
+  localStorage.setItem(COMPANY_THEME_CACHE_KEY, JSON.stringify(cache));
+}
 
-    // If userId is provided, get user-specific colors
-    if (userId) {
-      const user = await getUserById(userId);
-      if (user?.primary_theme_color) {
-        const primaryHsl = hexToHsl(user.primary_theme_color);
+// Get cached company theme colors
+export function getCompanyThemeColors(): { primary: string; secondary: string } | null {
+  try {
+    const cached = localStorage.getItem(COMPANY_THEME_CACHE_KEY);
+    if (cached) {
+      return JSON.parse(cached);
+    }
+  } catch (error) {
+    console.error('Error reading company theme colors cache:', error);
+  }
+  return null;
+}
+
+// Apply company theme colors synchronously (no async database calls)
+export function applyCompanyThemeColors(company?: Company | null): void {
+  const root = document.documentElement;
+  
+  // Don't apply custom colors in dark mode
+  if (root.classList.contains('dark')) {
+    root.style.removeProperty('--primary');
+    root.style.removeProperty('--secondary');
+    return;
+  }
+
+  let colors = null;
+  
+  // If company provided directly, use it
+  if (company?.primary_theme_color || company?.secondary_theme_color) {
+    colors = {
+      primary: company.primary_theme_color || '#2256aa',
+      secondary: company.secondary_theme_color || '#cce9ff'
+    };
+  } else {
+    // Otherwise get from cache
+    colors = getCompanyThemeColors();
+  }
+
+  if (colors) {
+    try {
+      if (colors.primary) {
+        const primaryHsl = hexToHsl(colors.primary);
         root.style.setProperty('--primary', primaryHsl);
       }
       
-      if (user?.secondary_theme_color) {
-        const secondaryHsl = hexToHsl(user.secondary_theme_color);
+      if (colors.secondary) {
+        const secondaryHsl = hexToHsl(colors.secondary);
         root.style.setProperty('--secondary', secondaryHsl);
       }
-      return;
+    } catch (error) {
+      console.error('Error applying company theme colors:', error);
     }
-
-    // Fallback to global settings
-    const settings = providedSettings || await getSettings();
-    if (!settings) return;
-    
-    if (settings.primary_theme_color) {
-      const primaryHsl = hexToHsl(settings.primary_theme_color);
-      root.style.setProperty('--primary', primaryHsl);
-    }
-    
-    if (settings.secondary_theme_color) {
-      const secondaryHsl = hexToHsl(settings.secondary_theme_color);
-      root.style.setProperty('--secondary', secondaryHsl);
-    }
-  } catch (error) {
-    console.error('Error applying theme colors from settings:', error);
   }
 }
 
-export function applyThemeColorsFromUserData(user?: any): void {
-  try {
-    const root = document.documentElement;
-    
-    // Only apply custom colors if not in dark mode
-    if (root.classList.contains('dark')) {
-      root.style.removeProperty('--primary');
-      root.style.removeProperty('--secondary');
-      return;
-    }
+// Legacy function - now just calls applyCompanyThemeColors
+export async function applyThemeColorsFromSettings(providedSettings?: any, userId?: number): Promise<void> {
+  // Simply apply company colors from cache (synchronous)
+  applyCompanyThemeColors();
+}
 
-    if (user?.primary_theme_color) {
-      const primaryHsl = hexToHsl(user.primary_theme_color);
-      root.style.setProperty('--primary', primaryHsl);
-    }
-    
-    if (user?.secondary_theme_color) {
-      const secondaryHsl = hexToHsl(user.secondary_theme_color);
-      root.style.setProperty('--secondary', secondaryHsl);
-    }
-  } catch (error) {
-    console.error('Error applying theme colors from user data:', error);
-  }
+// Legacy function - now just calls applyCompanyThemeColors
+export function applyThemeColorsFromUserData(user?: any): void {
+  // Simply apply company colors from cache (synchronous)
+  applyCompanyThemeColors();
 }
 
 export async function getCurrentTheme(): Promise<ThemePreferences> {
@@ -194,7 +207,8 @@ export async function setTheme(newTheme: ThemeMode, userId?: number, savePrefere
     localStorage.setItem(THEME_KEY, newTheme);
   }
   
-  await applyThemeColorsFromSettings(undefined, userId);
+  // Apply company theme colors immediately (synchronous)
+  applyCompanyThemeColors();
 }
 
 export async function toggleTheme(currentUserId?: number) {
@@ -218,7 +232,8 @@ export async function toggleTheme(currentUserId?: number) {
     localStorage.setItem(THEME_KEY, newTheme);
   }
   
-  await applyThemeColorsFromSettings(undefined, currentUserId);
+  // Apply company theme colors immediately (synchronous)
+  applyCompanyThemeColors();
 }
 
 export async function syncThemeWithLocal() {
@@ -235,12 +250,14 @@ export async function syncThemeWithLocal() {
       document.documentElement.classList.toggle('dark', isDark);
     }
 
+    // Apply company colors immediately from cache (before async theme sync)
+    applyCompanyThemeColors();
+
     // Wait for themeMode to be available
     const isAvailable = await waitForThemeMode();
     if (!isAvailable) {
       // Continue without Electron themeMode - use CSS-only themes
       console.warn('Running in fallback mode without Electron theme integration');
-      await applyThemeColorsFromSettings();
       return;
     }
 
@@ -259,8 +276,6 @@ export async function syncThemeWithLocal() {
       // Apply saved theme preference
       await setTheme(local);
     }
-    
-    await applyThemeColorsFromSettings();
   } catch (error) {
     console.error('Error syncing theme with local storage:', error);
   }
@@ -316,6 +331,8 @@ export async function applyUserThemeComplete(userId: number, providedUser?: any)
       // Fallback to CSS-only theme without Electron integration
       const isDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches;
       document.documentElement.classList.toggle('dark', isDarkMode);
+      // Apply company colors
+      applyCompanyThemeColors();
       return;
     }
 
@@ -346,64 +363,16 @@ export async function applyUserThemeComplete(userId: number, providedUser?: any)
     // Update document theme class immediately
     document.documentElement.classList.toggle('dark', isDarkMode);
 
-    // Apply custom colors based on theme mode
-    const root = document.documentElement;
-    
-    if (isDarkMode) {
-      // Remove custom colors in dark mode
-      root.style.removeProperty('--primary');
-      root.style.removeProperty('--secondary');
-    } else {
-      // Apply user's custom colors in light mode
-      if (user.primary_theme_color) {
-        try {
-          const primaryHsl = hexToHsl(user.primary_theme_color);
-          root.style.setProperty('--primary', primaryHsl);
-        } catch (error) {
-          console.error('Error applying primary color:', error);
-        }
-      }
-      
-      if (user.secondary_theme_color) {
-        try {
-          const secondaryHsl = hexToHsl(user.secondary_theme_color);
-          root.style.setProperty('--secondary', secondaryHsl);
-        } catch (error) {
-          console.error('Error applying secondary color:', error);
-        }
-      }
-    }
+    // Apply company theme colors immediately (synchronous)
+    applyCompanyThemeColors();
   } catch (error) {
     console.error('Error applying complete user theme:', error);
   }
 }
 
 export function applyUserThemeFromStorage(): void {
-  try {
-    const savedUserData = localStorage.getItem('currentUser');
-    if (savedUserData) {
-      const user = JSON.parse(savedUserData);
-      if (user && (user.primary_theme_color || user.secondary_theme_color)) {
-        const root = document.documentElement;
-
-        // Only apply custom colors if not in dark mode
-        if (!root.classList.contains('dark')) {
-          if (user.primary_theme_color) {
-            const primaryHsl = hexToHsl(user.primary_theme_color);
-            root.style.setProperty('--primary', primaryHsl);
-          }
-
-          if (user.secondary_theme_color) {
-            const secondaryHsl = hexToHsl(user.secondary_theme_color);
-            root.style.setProperty('--secondary', secondaryHsl);
-          }
-        }
-      }
-    }
-  } catch (error) {
-    console.error('Error applying theme from storage:', error);
-    // Fallback gracefully - CSS defaults will be used
-  }
+  // Simply apply company colors from cache (synchronous)
+  applyCompanyThemeColors();
 }
 
 export async function applyUserThemePreference(userId: number): Promise<void> {

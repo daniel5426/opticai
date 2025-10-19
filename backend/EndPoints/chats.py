@@ -25,11 +25,25 @@ def get_chat(chat_id: int, db: Session = Depends(get_db)):
 @router.get("/", response_model=List[ChatSchema])
 def get_all_chats(
     clinic_id: Optional[int] = Query(None, description="Filter by clinic ID"),
+    search: Optional[str] = Query(None, description="Search term for chat titles"),
+    limit: Optional[int] = Query(10, description="Number of chats to return"),
+    offset: Optional[int] = Query(0, description="Number of chats to skip"),
     db: Session = Depends(get_db)
 ):
     query = db.query(Chat)
     if clinic_id:
         query = query.filter(Chat.clinic_id == clinic_id)
+    
+    # Apply search filter if provided
+    if search:
+        query = query.filter(Chat.title.ilike(f"%{search}%"))
+    
+    # Order by updated_at descending (most recent first)
+    query = query.order_by(Chat.updated_at.desc())
+    
+    # Apply pagination
+    query = query.offset(offset).limit(limit)
+    
     return query.all()
 
 @router.get("/clinic/{clinic_id}", response_model=List[ChatSchema])
