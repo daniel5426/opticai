@@ -94,6 +94,10 @@ export function LookupSelect({
         getAll: lookupDb.getAllLookupContactEyeMaterials,
         create: lookupDb.createLookupContactEyeMaterial
       },
+      contactLensModel: {
+        getAll: lookupDb.getAllLookupContactLensModels,
+        create: lookupDb.createLookupContactLensModel
+      },
       cleaningSolution: {
         getAll: lookupDb.getAllLookupCleaningSolutions,
         create: lookupDb.createLookupCleaningSolution

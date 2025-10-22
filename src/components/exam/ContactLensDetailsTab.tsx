@@ -1,6 +1,7 @@
 import React, { useState } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import { LookupSelect } from "@/components/ui/lookup-select"
 import { ContactLensDetails } from "@/lib/db/schema-interface"
 import { ChevronUp, ChevronDown } from "lucide-react"
 
@@ -22,11 +23,11 @@ export function ContactLensDetailsTab({
   const [hoveredEye, setHoveredEye] = useState<"R" | "L" | null>(null);
   
   const columns = [
-    { key: "type", label: "TYPE", step: "1" },
-    { key: "model", label: "MODEL", step: "1" },
-    { key: "supplier", label: "SUPPLIER", step: "1" },
-    { key: "material", label: "MATERIAL", step: "1" },
-    { key: "color", label: "COLOR", step: "1" },
+    { key: "type", label: "TYPE", step: "1", lookupType: "contactLensType" },
+    { key: "model", label: "MODEL", step: "1", lookupType: "contactLensModel" },
+    { key: "supplier", label: "SUPPLIER", step: "1", lookupType: "supplier" },
+    { key: "material", label: "MATERIAL", step: "1", lookupType: "contactEyeMaterial" },
+    { key: "color", label: "COLOR", step: "1", lookupType: "color" },
     { key: "quantity", label: "QTY", step: "1" },
     { key: "order_quantity", label: "ORDER QTY", step: "1" },
     { key: "dx", label: "DX", step: "0.25" },
@@ -59,6 +60,15 @@ export function ContactLensDetailsTab({
     return "text";
   };
 
+  const isLookupField = (key: string) => {
+    return ["type", "model", "supplier", "material", "color"].includes(key);
+  };
+
+  const getLookupType = (key: string) => {
+    const column = columns.find(col => col.key === key);
+    return column?.lookupType || "";
+  };
+
   return (
     <Card className="w-full shadow-md pb-4 pt-3 border-none" dir="ltr">
       <CardContent className="px-4" style={{scrollbarWidth: 'none'}}>
@@ -89,15 +99,32 @@ export function ContactLensDetailsTab({
               </span>
             </div>}
             {columns.map(({ key, step }) => (
-              <Input
-                key={`r-${key}`}
-                type={getInputType(key)}
-                step={getInputType(key) === "number" ? step : undefined}
-                value={getFieldValue("R", key)}
-                onChange={(e) => handleChange("R", key, e.target.value)}
-                disabled={!isEditing}
-                className={`h-8 pr-1 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
-              />
+              <React.Fragment key={`r-${key}`}>
+                {isLookupField(key) ? (
+                  isEditing ? (
+                    <LookupSelect
+                      value={getFieldValue("R", key)}
+                      onChange={(value) => handleChange("R", key, value)}
+                      lookupType={getLookupType(key)}
+                      placeholder=""
+                      className="h-8 text-xs bg-white"
+                    />
+                  ) : (
+                    <div className="bg-accent/50 flex h-8 items-center rounded-md border px-2 text-xs">
+                      {getFieldValue("R", key) || ""}
+                    </div>
+                  )
+                ) : (
+                  <Input
+                    type={getInputType(key)}
+                    step={getInputType(key) === "number" ? step : undefined}
+                    value={getFieldValue("R", key)}
+                    onChange={(e) => handleChange("R", key, e.target.value)}
+                    disabled={!isEditing}
+                    className={`h-8 pr-1 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
+                  />
+                )}
+              </React.Fragment>
             ))}
             
             {needsMiddleSpacer && (
@@ -121,15 +148,32 @@ export function ContactLensDetailsTab({
               </span>
             </div>}
             {columns.map(({ key, step }) => (
-              <Input
-                key={`l-${key}`}
-                type={getInputType(key)}
-                step={getInputType(key) === "number" ? step : undefined}
-                value={getFieldValue("L", key)}
-                onChange={(e) => handleChange("L", key, e.target.value)}
-                disabled={!isEditing}
-                className={`h-8 pr-1 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
-              />
+              <React.Fragment key={`l-${key}`}>
+                {isLookupField(key) ? (
+                  isEditing ? (
+                    <LookupSelect
+                      value={getFieldValue("L", key)}
+                      onChange={(value) => handleChange("L", key, value)}
+                      lookupType={getLookupType(key)}
+                      placeholder=""
+                      className="h-8 text-xs bg-white"
+                    />
+                  ) : (
+                    <div className="bg-accent/50 flex h-8 items-center rounded-md border px-2 text-xs">
+                      {getFieldValue("L", key) || ""}
+                    </div>
+                  )
+                ) : (
+                  <Input
+                    type={getInputType(key)}
+                    step={getInputType(key) === "number" ? step : undefined}
+                    value={getFieldValue("L", key)}
+                    onChange={(e) => handleChange("L", key, e.target.value)}
+                    disabled={!isEditing}
+                    className={`h-8 pr-1 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
+                  />
+                )}
+              </React.Fragment>
             ))}
           </div>
         </div>

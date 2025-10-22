@@ -12,6 +12,7 @@ import {
   LookupContactLensType,
   LookupContactEyeLensType,
   LookupContactEyeMaterial,
+  LookupContactLensModel,
   LookupCleaningSolution,
   LookupDisinfectionSolution,
   LookupRinsingSolution,
@@ -302,6 +303,23 @@ export async function deleteLookupContactEyeMaterial(id: number): Promise<boolea
   return deleteLookupItem('contact-eye-materials', id);
 }
 
+// Contact Lens Model functions
+export async function getAllLookupContactLensModels(): Promise<LookupContactLensModel[]> {
+  return getLookupItems<LookupContactLensModel>('contact-lens-models');
+}
+
+export async function createLookupContactLensModel(data: Omit<LookupContactLensModel, 'id'>): Promise<LookupContactLensModel | null> {
+  return createLookupItem<LookupContactLensModel>('contact-lens-models', data);
+}
+
+export async function updateLookupContactLensModel(data: LookupContactLensModel): Promise<LookupContactLensModel | null> {
+  return updateLookupItem<LookupContactLensModel>('contact-lens-models', data);
+}
+
+export async function deleteLookupContactLensModel(id: number): Promise<boolean> {
+  return deleteLookupItem('contact-lens-models', id);
+}
+
 // Cleaning Solution functions
 export async function getAllLookupCleaningSolutions(): Promise<LookupCleaningSolution[]> {
   return getLookupItems<LookupCleaningSolution>('cleaning-solutions');
@@ -478,6 +496,13 @@ export const lookupTables = {
     update: updateLookupContactEyeMaterial,
     delete: deleteLookupContactEyeMaterial,
     displayName: 'חומרי עדשות מגע'
+  },
+  contactLensModel: {
+    getAll: getAllLookupContactLensModels,
+    create: createLookupContactLensModel,
+    update: updateLookupContactLensModel,
+    delete: deleteLookupContactLensModel,
+    displayName: 'דגמי עדשות מגע'
   },
   cleaningSolution: {
     getAll: getAllLookupCleaningSolutions,

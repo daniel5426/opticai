@@ -35,10 +35,17 @@ export class DocxGenerator {
   /**
    * Generate and download a DOCX file from template and data
    */
-  async generate(data: Record<string, any>, fileName?: string): Promise<void> {
+  async generate(data: Record<string, any>, fileName?: string, templatePath?: string): Promise<void> {
     try {
+      // Use custom template if provided, otherwise use default
+      const template = templatePath || this.templatePath;
+      
       // Load template
-      const content = await this.loadTemplate();
+      const response = await fetch(template);
+      if (!response.ok) {
+        throw new Error(`Failed to load template: HTTP ${response.status}`);
+      }
+      const content = await response.arrayBuffer();
 
       // Create docxtemplater instance
       const zip = new PizZip(content);

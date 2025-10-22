@@ -802,6 +802,12 @@ export interface LookupContactEyeMaterial {
   created_at?: string;
 }
 
+export interface LookupContactLensModel {
+  id?: number;
+  name: string;
+  created_at?: string;
+}
+
 export interface LookupCleaningSolution {
   id?: number;
   name: string;

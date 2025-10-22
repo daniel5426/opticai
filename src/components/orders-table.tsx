@@ -18,7 +18,8 @@ import { OrderToDocxMapper } from "@/lib/order-to-docx-mapper"
 
 import { CustomModal } from "@/components/ui/custom-modal"
 import { deleteOrder, deleteContactLensOrder } from "@/lib/db/orders-db"
-import { getBillingByOrderId, getBillingByContactLensId } from "@/lib/db/billing-db"
+import { getBillingByOrderId, getBillingByContactLensId, getOrderLineItemsByBillingId } from "@/lib/db/billing-db"
+import { getClientById } from "@/lib/db/clients-db"
 import { toast } from "sonner"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useUser } from "@/contexts/UserContext"
@@ -75,7 +76,17 @@ export function OrdersTable({ data, clientId, onOrderDeleted, onOrderDeleteFaile
 
   const handleExportDocx = async (order: Order) => {
     try {
-      // Fetch billing data
+      // Fetch full client data
+      const clientData = order.client_id 
+        ? await getClientById(order.client_id)
+        : null;
+
+      if (!clientData) {
+        toast.error("לא ניתן למצוא את פרטי הלקוח");
+        return;
+      }
+
+      // Fetch billing data and line items
       const isContact = Boolean((order as any).__contact);
       const billingData = order.id 
         ? await (isContact 
@@ -83,23 +94,25 @@ export function OrdersTable({ data, clientId, onOrderDeleted, onOrderDeleteFaile
             : getBillingByOrderId(order.id))
         : null;
 
-      // Create a minimal client object from the order data
-      const clientData = {
-        full_name: (order as any).clientName || "",
-        id_number: "",
-        address: "",
-        phone: "",
-        mobile_phone: "",
-      };
+      // Fetch line items if billing exists
+      const lineItems = billingData?.id 
+        ? await getOrderLineItemsByBillingId(billingData.id)
+        : [];
 
       const templateData = OrderToDocxMapper.mapOrderToTemplateData(
         order,
         clientData,
         undefined,
-        billingData
+        billingData,
+        lineItems
       );
 
-      await docxGenerator.generate(templateData);
+      // Use different templates based on order type
+      const templatePath = isContact 
+        ? "/templates/template.docx"
+        : "/templates/template_regular_order.docx";
+
+      await docxGenerator.generate(templateData, undefined, templatePath);
       toast.success("הדוח יוצא בהצלחה");
     } catch (error) {
       console.error("Error exporting DOCX:", error);

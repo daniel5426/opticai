@@ -75,7 +75,17 @@ export function UserModal({
     setUsernameError('')
   }, [editingUser, defaultClinicId, isOpen])
 
-  const handleUserFormChange = (field: string, value: any) => {
+  const handleUserFormChange = async (field: string, value: any) => {
+    // Show warning when user is changing their own role
+    if (field === 'role' && editingUser && currentUser && editingUser.id === currentUser.id) {
+      const confirmed = window.confirm(
+        'אתה עומד לשנות את התפקיד שלך. פעולה זו עלולה להגביל את הגישה שלך למערכת. האם אתה בטוח?'
+      )
+      if (!confirmed) {
+        return // Don't change the role
+      }
+    }
+    
     setUserForm(prev => ({ ...prev, [field]: value }))
     if (field === 'username') {
       setUsernameError('')
@@ -254,7 +264,7 @@ export function UserModal({
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="role" className="text-right block">תפקיד *</Label>
-              {currentUser?.role === 'company_ceo' && !disableRoleChange ? (
+              {(currentUser?.role === 'company_ceo' || currentUser?.role === 'clinic_manager') && !disableRoleChange ? (
                 <Select
                   value={userForm.role}
                   onValueChange={(value) => handleUserFormChange('role', value)}
@@ -264,7 +274,9 @@ export function UserModal({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="company_ceo">מנכ"ל החברה</SelectItem>
+                    {currentUser?.role === 'company_ceo' && (
+                      <SelectItem value="company_ceo">מנכ"ל החברה</SelectItem>
+                    )}
                     <SelectItem value="clinic_manager">מנהל מרפאה</SelectItem>
                     <SelectItem value="clinic_worker">עובד מרפאה</SelectItem>
                     <SelectItem value="clinic_viewer">צופה מרפאה</SelectItem>
@@ -278,7 +290,7 @@ export function UserModal({
                   {disableRoleChange && (
                     <span className="text-xs text-muted-foreground mr-2">(מנכ"ל יחיד)</span>
                   )}
-                  {!disableRoleChange && currentUser?.role !== 'company_ceo' && (
+                  {!disableRoleChange && currentUser?.role !== 'company_ceo' && currentUser?.role !== 'clinic_manager' && (
                     <span className="text-xs text-muted-foreground mr-2">(לא ניתן לשינוי)</span>
                   )}
                 </div>

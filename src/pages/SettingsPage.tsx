@@ -816,7 +816,7 @@ export default function SettingsPage() {
                     <TabsTrigger value="notifications" className="w-full justify-end text-right">התראות</TabsTrigger>
                     <TabsTrigger value="email" className="w-full justify-end text-right">הגדרות אימייל</TabsTrigger>
                     <TabsTrigger value="personal-profile" className="w-full justify-end text-right">פרופיל אישי</TabsTrigger>
-                    {currentUser?.role === 'company_ceo' || currentUser?.role === 'clinic_manager' && (
+                    {(currentUser?.role === 'company_ceo' || currentUser?.role === 'clinic_manager') && (
                       <TabsTrigger value="users" className="w-full justify-end text-right">ניהול משתמשים</TabsTrigger>
                     )}
                     <TabsTrigger value="field-data" className="w-full justify-end text-right">ניהול נתוני שדות</TabsTrigger>

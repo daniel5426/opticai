@@ -846,14 +846,24 @@ export default function OrderDetailPage({
       const orderToExport = isContactMode ? contactFormData : formData;
       const userData = users.find((u) => u.id === orderToExport.user_id);
       
+      // Use currentClient if available, otherwise it should already be loaded from context
+      // For safety, we're using currentClient which should have full data
+      const clientData = currentClient;
+      
       const templateData = OrderToDocxMapper.mapOrderToTemplateData(
         orderToExport,
-        currentClient,
+        clientData,
         userData,
-        billing
+        billing,
+        orderLineItems
       );
 
-      await docxGenerator.generate(templateData);
+      // Use different templates based on order type
+      const templatePath = isContactMode 
+        ? "/templates/template.docx"
+        : "/templates/template_regular_order.docx";
+
+      await docxGenerator.generate(templateData, undefined, templatePath);
       toast.success("הדוח יוצא בהצלחה");
     } catch (error) {
       console.error("Error exporting DOCX:", error);

@@ -6,9 +6,9 @@ from models import (
     LookupSupplier, LookupClinic, LookupOrderType, LookupReferralType,
     LookupLensModel, LookupColor, LookupMaterial, LookupCoating,
     LookupManufacturer, LookupFrameModel, LookupContactLensType,
-    LookupContactEyeLensType, LookupContactEyeMaterial, LookupCleaningSolution,
-    LookupDisinfectionSolution, LookupRinsingSolution, LookupManufacturingLab,
-    LookupAdvisor
+    LookupContactEyeLensType, LookupContactEyeMaterial, LookupContactLensModel,
+    LookupCleaningSolution, LookupDisinfectionSolution, LookupRinsingSolution,
+    LookupManufacturingLab, LookupAdvisor
 )
 from pydantic import BaseModel
 
@@ -29,6 +29,7 @@ LOOKUP_MODELS = {
     'contact-lens-types': LookupContactLensType,
     'contact-eye-lens-types': LookupContactEyeLensType,
     'contact-eye-materials': LookupContactEyeMaterial,
+    'contact-lens-models': LookupContactLensModel,
     'cleaning-solutions': LookupCleaningSolution,
     'disinfection-solutions': LookupDisinfectionSolution,
     'rinsing-solutions': LookupRinsingSolution,
