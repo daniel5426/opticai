@@ -3,7 +3,8 @@
 import dotenv from 'dotenv';
 dotenv.config();
 
-import { app, BrowserWindow, ipcMain } from "electron";
+import { app, BrowserWindow, ipcMain, dialog } from "electron";
+import { autoUpdater } from "electron-updater";
 import { GoogleOAuthService } from './lib/google/google-oauth';
 import { GoogleCalendarService } from './lib/google/google-calendar';
 import registerListeners from "./helpers/ipc/listeners-register";
@@ -26,6 +27,10 @@ import { apiClient } from "./lib/api-client";
 
 const inDevelopment = process.env.NODE_ENV === "development";
 let mainWindow: BrowserWindow | null = null; // Store reference to the main window
+
+// Configure auto-updater
+autoUpdater.autoDownload = false; // We'll prompt the user first
+autoUpdater.autoInstallOnAppQuit = true;
 
 // Server Mode Variables
 let expressApp: express.Application | null = null;
@@ -684,6 +689,105 @@ function setupIpcHandlers() {
   });
 }
 
+// Auto-updater event handlers
+function setupAutoUpdater() {
+  // Skip auto-update in development
+  if (inDevelopment) {
+    console.log('Auto-update disabled in development mode');
+    return;
+  }
+
+  autoUpdater.on('checking-for-update', () => {
+    console.log('Checking for updates...');
+  });
+
+  autoUpdater.on('update-available', (info) => {
+    console.log('Update available:', info.version);
+    
+    // Ask user if they want to download the update
+    dialog.showMessageBox(mainWindow!, {
+      type: 'info',
+      title: 'עדכון זמין',
+      message: `גרסה חדשה ${info.version} זמינה להורדה.`,
+      detail: 'האם ברצונך להוריד ולהתקין את העדכון?',
+      buttons: ['כן', 'לא'],
+      defaultId: 0,
+      cancelId: 1
+    }).then((result) => {
+      if (result.response === 0) {
+        // User chose to download
+        autoUpdater.downloadUpdate();
+        
+        // Show downloading notification
+        dialog.showMessageBox(mainWindow!, {
+          type: 'info',
+          title: 'מוריד עדכון',
+          message: 'העדכון מתבצע ברקע. תקבל הודעה כאשר יהיה מוכן להתקנה.',
+          buttons: ['אישור']
+        });
+      }
+    });
+  });
+
+  autoUpdater.on('update-not-available', () => {
+    console.log('No updates available');
+  });
+
+  autoUpdater.on('error', (err) => {
+    console.error('Error in auto-updater:', err);
+  });
+
+  autoUpdater.on('download-progress', (progressObj) => {
+    const logMessage = `Download speed: ${progressObj.bytesPerSecond} - Downloaded ${progressObj.percent}% (${progressObj.transferred}/${progressObj.total})`;
+    console.log(logMessage);
+  });
+
+  autoUpdater.on('update-downloaded', (info) => {
+    console.log('Update downloaded:', info.version);
+    
+    // Notify user that update is ready to install
+    dialog.showMessageBox(mainWindow!, {
+      type: 'info',
+      title: 'עדכון מוכן',
+      message: `גרסה ${info.version} הורדה בהצלחה והוכנה להתקנה.`,
+      detail: 'האפליקציה תאותחל מחדש כדי להתקין את העדכון.',
+      buttons: ['אתחל עכשיו', 'אתחל מאוחר יותר'],
+      defaultId: 0,
+      cancelId: 1
+    }).then((result) => {
+      if (result.response === 0) {
+        // User chose to restart now
+        setImmediate(() => autoUpdater.quitAndInstall());
+      }
+    });
+  });
+
+  // Check for updates on app start
+  setTimeout(() => {
+    autoUpdater.checkForUpdates().catch((err) => {
+      console.error('Failed to check for updates:', err);
+    });
+  }, 3000); // Wait 3 seconds after app start
+}
+
+// IPC handler for manual update check
+ipcMain.handle('check-for-updates', async () => {
+  if (inDevelopment) {
+    return { available: false, message: 'Updates disabled in development' };
+  }
+  
+  try {
+    const result = await autoUpdater.checkForUpdates();
+    return {
+      available: result !== null,
+      version: result?.updateInfo.version || null
+    };
+  } catch (error) {
+    console.error('Error checking for updates:', error);
+    return { available: false, error: error instanceof Error ? error.message : 'Unknown error' };
+  }
+});
+
 async function installExtensions() {
   try {
     const result = await installExtension(REACT_DEVELOPER_TOOLS);
@@ -696,6 +800,7 @@ async function installExtensions() {
 app.whenReady().then(() => {
   setupIpcHandlers();
   createWindow();
+  setupAutoUpdater();
 }).then(installExtensions);
 
 //osX only

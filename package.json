@@ -1,14 +1,18 @@
 {
-  "name": "electron-shadcn",
-  "productName": "electron-shadcn Template",
+  "name": "opticai",
+  "productName": "OpticAI",
   "version": "1.0.0",
-  "description": "Electron Forge with shadcn-ui (Vite + Typescript)",
+  "description": "Multi-clinic management system for optical clinics",
   "main": ".vite/build/main.js",
   "private": true,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/YOUR-USERNAME/opticai.git"
+  },
   "scripts": {
     "dev": "electron-forge start",
     "dev:forge": "electron-forge start",
-    "reset": "rm '/Users/danielbenassaya/Library/Application Support/electron-shadcn Template/database.sqlite' && npm run dev",
+    "reset": "rm '/Users/danielbenassaya/Library/Application Support/OpticAI/database.sqlite' && npm run dev",
     "start": "electron-forge start",
     "package": "electron-forge package",
     "make": "electron-forge make",
@@ -22,7 +26,7 @@
     "test:e2e": "playwright test",
     "test:all": "vitest run && playwright test"
   },
-  "author": "ROG <luan.roger.2003@gmail.com>",
+  "author": "Daniel Benassayag",
   "license": "MIT",
   "devDependencies": {
     "@electron-forge/cli": "^7.8.0",
@@ -49,6 +53,7 @@
     "@types/node": "^22.15.3",
     "@types/react": "^19.1.2",
     "@types/react-dom": "^19.1.2",
+    "@types/semver": "^7.7.1",
     "@types/sql.js": "^1.4.9",
     "electron": "^35.2.1",
     "electron-devtools-installer": "^4.0.0",
@@ -76,6 +81,7 @@
     "@dnd-kit/modifiers": "^9.0.0",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
+    "@electron-forge/publisher-github": "^7.10.2",
     "@eslint/eslintrc": "^3.3.1",
     "@icons-pack/react-simple-icons": "^12.7.0",
     "@langchain/core": "^0.3.61",
@@ -120,6 +126,7 @@
     "dotenv": "^17.2.0",
     "electron-oauth-helper": "^5.1.1",
     "electron-squirrel-startup": "^1.0.1",
+    "electron-updater": "^6.6.2",
     "electron-winstaller": "^5.4.0",
     "express": "^5.1.0",
     "file-saver": "^2.0.5",

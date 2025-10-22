@@ -6,17 +6,51 @@ import { MakerRpm } from "@electron-forge/maker-rpm";
 import { VitePlugin } from "@electron-forge/plugin-vite";
 import { FusesPlugin } from "@electron-forge/plugin-fuses";
 import { FuseV1Options, FuseVersion } from "@electron/fuses";
+import { PublisherGithub } from "@electron-forge/publisher-github";
 
 const config: ForgeConfig = {
   packagerConfig: {
     asar: true,
+    name: "Prysm",
+    executableName: "prysm",
+    appBundleId: "com.prysm.app",
+    icon: "./images/prysm-logo", // Will use .ico on Windows, .icns on macOS
   },
   rebuildConfig: {},
   makers: [
-    new MakerSquirrel({}),
+    new MakerSquirrel({
+      name: "Prysm",
+      setupExe: "Prysm-Setup.exe",
+      setupIcon: "./images/prysm-logo.png",
+    }),
     new MakerZIP({}, ["darwin"]),
-    new MakerRpm({}),
-    new MakerDeb({}),
+    // Uncomment when ready for macOS builds
+    // new MakerDMG({
+    //   name: "OpticAI",
+    //   icon: "./images/prysm-logo.icns",
+    // }, ["darwin"]),
+    new MakerRpm({
+      options: {
+        name: "prysm",
+        productName: "Prysm",
+      }
+    }),
+    new MakerDeb({
+      options: {
+        name: "prysm",
+        productName: "Prysm",
+      }
+    }),
+  ],
+  publishers: [
+    new PublisherGithub({
+      repository: {
+        owner: "daniel5426",  // Replace with your GitHub username
+        name: "opticai",  // Replace with your repository name
+      },
+      prerelease: false,
+      draft: true,  // Creates as draft initially for review
+    }),
   ],
   plugins: [
     new VitePlugin({

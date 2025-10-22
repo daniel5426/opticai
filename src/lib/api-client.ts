@@ -22,7 +22,7 @@ import {
 } from './db/schema-interface';
 import { getSupabaseAccessToken } from './supabaseClient'
 
-const API_BASE_URL = 'http://localhost:8001/api/v1';
+const API_BASE_URL = (import.meta as any).env?.VITE_API_URL || 'http://localhost:8001/api/v1';
 
 interface ApiResponse<T> {
   data?: T;
