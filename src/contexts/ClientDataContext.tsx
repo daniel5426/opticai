@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react'
+import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react'
 import { Client, MedicalLog, Referral, File, Appointment, OpticalExam, Order } from '@/lib/db/schema-interface'
 import { getExamsByClientId } from '@/lib/db/exams-db'
 import { getOrdersByClientId } from '@/lib/db/orders-db'
@@ -83,8 +83,8 @@ export function ClientDataProvider({ children, clientId }: { children: React.Rea
     files: true
   })
 
-  // Refresh methods (existing)
-  const refreshContactLenses = async () => {
+  // Refresh methods (existing) - wrapped in useCallback to prevent re-renders
+  const refreshContactLenses = useCallback(async () => {
     setLoading(prev => ({ ...prev, contactLenses: true }))
     const data = await getExamsByClientId(clientId, 'opticlens')
     let clientName = ''
@@ -104,9 +104,9 @@ export function ClientDataProvider({ children, clientId }: { children: React.Rea
     )
     setContactLenses(enriched)
     setLoading(prev => ({ ...prev, contactLenses: false }))
-  }
+  }, [clientId])
 
-  const refreshExams = async () => {
+  const refreshExams = useCallback(async () => {
     setLoading(prev => ({ ...prev, exams: true }))
     const data = await getExamsByClientId(clientId, 'exam')
     let clientName = ''
@@ -126,127 +126,127 @@ export function ClientDataProvider({ children, clientId }: { children: React.Rea
     )
     setExams(enriched)
     setLoading(prev => ({ ...prev, exams: false }))
-  }
+  }, [clientId])
 
-  const refreshOrders = async () => {
+  const refreshOrders = useCallback(async () => {
     setLoading(prev => ({ ...prev, orders: true }))
     const data = await getOrdersByClientId(clientId)
     setOrders(data)
     setLoading(prev => ({ ...prev, orders: false }))
-  }
+  }, [clientId])
 
-  const refreshMedicalLogs = async () => {
+  const refreshMedicalLogs = useCallback(async () => {
     setLoading(prev => ({ ...prev, medicalLogs: true }))
     const data = await getMedicalLogsByClientId(clientId)
     setMedicalLogs(data)
     setLoading(prev => ({ ...prev, medicalLogs: false }))
-  }
+  }, [clientId])
 
-  const refreshReferrals = async () => {
+  const refreshReferrals = useCallback(async () => {
     setLoading(prev => ({ ...prev, referrals: true }))
     const data = await getReferralsByClientId(clientId)
     setReferrals(data)
     setLoading(prev => ({ ...prev, referrals: false }))
-  }
+  }, [clientId])
 
-  const refreshAppointments = async () => {
+  const refreshAppointments = useCallback(async () => {
     setLoading(prev => ({ ...prev, appointments: true }))
     const data = await getAppointmentsByClient(clientId)
     setAppointments(data)
     setLoading(prev => ({ ...prev, appointments: false }))
-  }
+  }, [clientId])
 
-  const refreshFiles = async () => {
+  const refreshFiles = useCallback(async () => {
     setLoading(prev => ({ ...prev, files: true }))
     const data = await getFilesByClientId(clientId)
     setFiles(data)
     setLoading(prev => ({ ...prev, files: false }))
-  }
+  }, [clientId])
 
-  // Optimistic update methods
-  const removeContactLens = (id: number) => {
+  // Optimistic update methods - wrapped in useCallback
+  const removeContactLens = useCallback((id: number) => {
     setContactLenses(prev => prev.filter(item => item.id !== id))
-  }
+  }, [])
 
-  const removeExam = (id: number) => {
+  const removeExam = useCallback((id: number) => {
     setExams(prev => prev.filter(item => item.id !== id))
-  }
+  }, [])
 
-  const removeOrder = (id: number) => {
+  const removeOrder = useCallback((id: number) => {
     setOrders(prev => prev.filter(item => item.id !== id))
-  }
+  }, [])
 
-  const removeMedicalLog = (id: number) => {
+  const removeMedicalLog = useCallback((id: number) => {
     setMedicalLogs(prev => prev.filter(item => item.id !== id))
-  }
+  }, [])
 
-  const removeReferral = (id: number) => {
+  const removeReferral = useCallback((id: number) => {
     setReferrals(prev => prev.filter(item => item.id !== id))
-  }
+  }, [])
 
-  const removeAppointment = (id: number) => {
+  const removeAppointment = useCallback((id: number) => {
     setAppointments(prev => prev.filter(item => item.id !== id))
-  }
+  }, [])
 
-  const removeFile = (id: number) => {
+  const removeFile = useCallback((id: number) => {
     setFiles(prev => prev.filter(item => item.id !== id))
-  }
+  }, [])
 
-  const addContactLens = (contactLens: OpticalExam) => {
+  const addContactLens = useCallback((contactLens: OpticalExam) => {
     setContactLenses(prev => [...prev, contactLens])
-  }
+  }, [])
 
-  const addExam = (exam: OpticalExam) => {
+  const addExam = useCallback((exam: OpticalExam) => {
     setExams(prev => [...prev, exam])
-  }
+  }, [])
 
-  const addOrder = (order: Order) => {
+  const addOrder = useCallback((order: Order) => {
     setOrders(prev => [...prev, order])
-  }
+  }, [])
 
-  const addMedicalLog = (medicalLog: MedicalLog) => {
+  const addMedicalLog = useCallback((medicalLog: MedicalLog) => {
     setMedicalLogs(prev => [...prev, medicalLog])
-  }
+  }, [])
 
-  const addReferral = (referral: Referral) => {
+  const addReferral = useCallback((referral: Referral) => {
     setReferrals(prev => [...prev, referral])
-  }
+  }, [])
 
-  const addAppointment = (appointment: Appointment) => {
+  const addAppointment = useCallback((appointment: Appointment) => {
     setAppointments(prev => [...prev, appointment])
-  }
+  }, [])
 
-  const addFile = (file: File) => {
+  const addFile = useCallback((file: File) => {
     setFiles(prev => [...prev, file])
-  }
+  }, [])
 
-  const updateContactLens = (contactLens: OpticalExam) => {
+  const updateContactLens = useCallback((contactLens: OpticalExam) => {
     setContactLenses(prev => prev.map(item => item.id === contactLens.id ? contactLens : item))
-  }
+  }, [])
 
-  const updateExam = (exam: OpticalExam) => {
+  const updateExam = useCallback((exam: OpticalExam) => {
     setExams(prev => prev.map(item => item.id === exam.id ? exam : item))
-  }
+  }, [])
 
-  const updateOrder = (order: Order) => {
+  const updateOrder = useCallback((order: Order) => {
     setOrders(prev => prev.map(item => item.id === order.id ? order : item))
-  }
+  }, [])
 
-  const updateMedicalLog = (medicalLog: MedicalLog) => {
+  const updateMedicalLog = useCallback((medicalLog: MedicalLog) => {
     setMedicalLogs(prev => prev.map(item => item.id === medicalLog.id ? medicalLog : item))
-  }
+  }, [])
 
-  const updateReferral = (referral: Referral) => {
+  const updateReferral = useCallback((referral: Referral) => {
     setReferrals(prev => prev.map(item => item.id === referral.id ? referral : item))
-  }
+  }, [])
 
-  const updateAppointment = (appointment: Appointment) => {
+  const updateAppointment = useCallback((appointment: Appointment) => {
     setAppointments(prev => prev.map(item => item.id === appointment.id ? appointment : item))
-  }
+  }, [])
 
-  const updateFile = (file: File) => {
+  const updateFile = useCallback((file: File) => {
     setFiles(prev => prev.map(item => item.id === file.id ? file : item))
-  }
+  }, [])
 
   useEffect(() => {
     refreshContactLenses()
@@ -256,47 +256,86 @@ export function ClientDataProvider({ children, clientId }: { children: React.Rea
     refreshReferrals()
     refreshAppointments()
     refreshFiles()
-  }, [clientId])
+  }, [clientId, refreshContactLenses, refreshExams, refreshOrders, refreshMedicalLogs, refreshReferrals, refreshAppointments, refreshFiles])
+
+  const value = useMemo(() => ({
+    contactLenses,
+    exams,
+    orders,
+    medicalLogs,
+    referrals,
+    appointments,
+    files,
+    loading,
+    refreshContactLenses,
+    refreshExams,
+    refreshOrders,
+    refreshMedicalLogs,
+    refreshReferrals,
+    refreshAppointments,
+    refreshFiles,
+    removeContactLens,
+    removeExam,
+    removeOrder,
+    removeMedicalLog,
+    removeReferral,
+    removeAppointment,
+    removeFile,
+    addContactLens,
+    addExam,
+    addOrder,
+    addMedicalLog,
+    addReferral,
+    addAppointment,
+    addFile,
+    updateContactLens,
+    updateExam,
+    updateOrder,
+    updateMedicalLog,
+    updateReferral,
+    updateAppointment,
+    updateFile
+  }), [
+    contactLenses,
+    exams,
+    orders,
+    medicalLogs,
+    referrals,
+    appointments,
+    files,
+    loading,
+    refreshContactLenses,
+    refreshExams,
+    refreshOrders,
+    refreshMedicalLogs,
+    refreshReferrals,
+    refreshAppointments,
+    refreshFiles,
+    removeContactLens,
+    removeExam,
+    removeOrder,
+    removeMedicalLog,
+    removeReferral,
+    removeAppointment,
+    removeFile,
+    addContactLens,
+    addExam,
+    addOrder,
+    addMedicalLog,
+    addReferral,
+    addAppointment,
+    addFile,
+    updateContactLens,
+    updateExam,
+    updateOrder,
+    updateMedicalLog,
+    updateReferral,
+    updateAppointment,
+    updateFile
+  ])
 
   return (
-    <ClientDataContext.Provider value={{
-      contactLenses,
-      exams,
-      orders,
-      medicalLogs,
-      referrals,
-      appointments,
-      files,
-      loading,
-      refreshContactLenses,
-      refreshExams,
-      refreshOrders,
-      refreshMedicalLogs,
-      refreshReferrals,
-      refreshAppointments,
-      refreshFiles,
-      removeContactLens,
-      removeExam,
-      removeOrder,
-      removeMedicalLog,
-      removeReferral,
-      removeAppointment,
-      removeFile,
-      addContactLens,
-      addExam,
-      addOrder,
-      addMedicalLog,
-      addReferral,
-      addAppointment,
-      addFile,
-      updateContactLens,
-      updateExam,
-      updateOrder,
-      updateMedicalLog,
-      updateReferral,
-      updateAppointment,
-      updateFile
-    }}>
+    <ClientDataContext.Provider value={value}>
       {children}
     </ClientDataContext.Provider>
   )

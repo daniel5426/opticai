@@ -17,10 +17,17 @@ if (!window.__APP_ROOT__) {
   window.__APP_ROOT__ = createRoot(container);
 }
 
+// Only use StrictMode in development for better production performance
+const isDevelopment = process.env.NODE_ENV === "development";
+
 window.__APP_ROOT__.render(
-  <React.StrictMode>
+  isDevelopment ? (
+    <React.StrictMode>
+      <App />
+    </React.StrictMode>
+  ) : (
     <App />
-  </React.StrictMode>
+  )
 );
 
 const hot = (import.meta as any).hot;

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react'
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useMemo } from 'react'
 import { Client } from '@/lib/db/schema-interface'
 import { useParams } from "@tanstack/react-router"
 import { getClientById } from "@/lib/db/clients-db"
@@ -104,7 +104,11 @@ export function ClientSidebarProvider({ children }: ClientSidebarProviderProps) 
     setCurrentClient(client)
   }, [])
 
-  const value = {
+  const handleSetActiveTab = useCallback((tab: string | null) => {
+    setActiveTab(tab)
+  }, [])
+
+  const value = useMemo(() => ({
     isOpen,
     toggleSidebar,
     openSidebar,
@@ -115,8 +119,20 @@ export function ClientSidebarProvider({ children }: ClientSidebarProviderProps) 
     isClientSpacePage,
     setIsClientSpacePage: handleSetIsClientSpacePage,
     activeTab,
-    setActiveTab
-  }
+    setActiveTab: handleSetActiveTab
+  }), [
+    isOpen,
+    toggleSidebar,
+    openSidebar,
+    closeSidebar,
+    currentClient,
+    handleSetCurrentClient,
+    updateCurrentClient,
+    isClientSpacePage,
+    handleSetIsClientSpacePage,
+    activeTab,
+    handleSetActiveTab
+  ])
 
   return (
     <ClientSidebarContext.Provider value={value}>

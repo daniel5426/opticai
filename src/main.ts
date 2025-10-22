@@ -1,7 +1,20 @@
 /// <reference types="@electron-forge/plugin-vite/forge-vite-env" />
 // Load environment variables from .env file
 import dotenv from 'dotenv';
-dotenv.config();
+import path from "path";
+
+// Load the appropriate .env file based on environment
+if (process.env.NODE_ENV === 'production') {
+  // In production, load .env.production from extraResources
+  const envPath = path.join(process.resourcesPath, '.env.production');
+  dotenv.config({ path: envPath });
+  console.log('Loading production environment from:', envPath);
+} else {
+  // In development, load .env.development or .env
+  dotenv.config({ path: '.env.development' });
+  dotenv.config(); // Fallback to .env if .env.development doesn't exist
+  console.log('Loading development environment');
+}
 
 import { app, BrowserWindow, ipcMain, dialog } from "electron";
 import { autoUpdater } from "electron-updater";
@@ -10,14 +23,14 @@ import { GoogleCalendarService } from './lib/google/google-calendar';
 import registerListeners from "./helpers/ipc/listeners-register";
 // "electron-squirrel-startup" seems broken when packaging with vite
 //import started from "electron-squirrel-startup";
-import path from "path";
 import {
   installExtension,
   REACT_DEVELOPER_TOOLS,
 } from "electron-devtools-installer";
-import express from "express";
-import cors from "cors";
-import { Server } from "http";
+// Express server removed - using FastAPI backend instead
+// import express from "express";
+// import cors from "cors";
+// import { Server } from "http";
 import os from "os";
 import { emailScheduler } from "./lib/email/email-scheduler";
 import { emailService } from "./lib/email/email-service";
@@ -28,297 +41,28 @@ import { apiClient } from "./lib/api-client";
 const inDevelopment = process.env.NODE_ENV === "development";
 let mainWindow: BrowserWindow | null = null; // Store reference to the main window
 
+// Performance optimizations for production
+if (!inDevelopment) {
+  // Enable hardware acceleration (enabled by default, but explicit for clarity)
+  // app.disableHardwareAcceleration() // DON'T call this - we WANT hardware acceleration
+  
+  // Optimize memory usage
+  app.commandLine.appendSwitch('disable-software-rasterizer');
+  app.commandLine.appendSwitch('disable-gpu-sandbox');
+}
+
 // Configure auto-updater
 autoUpdater.autoDownload = false; // We'll prompt the user first
 autoUpdater.autoInstallOnAppQuit = true;
 
-// Server Mode Variables
-let expressApp: express.Application | null = null;
-let httpServer: Server | null = null;
-const SERVER_PORT = 3000;
+// Server Mode Variables - REMOVED (using FastAPI backend instead)
+// let expressApp: express.Application | null = null;
+// let httpServer: Server | null = null;
+// const SERVER_PORT = 3000;
 
 // AI handlers removed; AI now handled in backend
 
-function setupExpressRoutes(app: express.Application) {
-  app.use(cors());
-  app.use(express.json());
-
-  // Client operations
-  app.get('/api/clients', async (req, res) => {
-    try {
-      const response = await apiClient.getClients();
-      if (response.error) {
-        res.status(500).json({ error: response.error });
-      } else {
-        res.json(response.data);
-      }
-    } catch (error) {
-      res.status(500).json({ error: 'Failed to get clients' });
-    }
-  });
-
-  app.get('/api/clients/:id', async (req, res) => {
-    try {
-      const response = await apiClient.getClient(parseInt(req.params.id));
-      if (response.error) {
-        res.status(500).json({ error: response.error });
-      } else if (!response.data) {
-        res.status(404).json({ error: 'Client not found' });
-      } else {
-        res.json(response.data);
-      }
-    } catch (error) {
-      res.status(500).json({ error: 'Failed to get client' });
-    }
-  });
-
-  app.post('/api/clients', async (req, res) => {
-    try {
-      const response = await apiClient.createClient(req.body);
-      if (response.error) {
-        res.status(500).json({ error: response.error });
-      } else {
-        res.json(response.data);
-      }
-    } catch (error) {
-      res.status(500).json({ error: 'Failed to create client' });
-    }
-  });
-
-  app.put('/api/clients/:id', async (req, res) => {
-    try {
-      const response = await apiClient.updateClient(parseInt(req.params.id), req.body);
-      if (response.error) {
-        res.status(500).json({ error: response.error });
-      } else {
-        res.json(response.data);
-      }
-    } catch (error) {
-      res.status(500).json({ error: 'Failed to update client' });
-    }
-  });
-
-  app.delete('/api/clients/:id', async (req, res) => {
-    try {
-      const response = await apiClient.deleteClient(parseInt(req.params.id));
-      if (response.error) {
-        res.status(500).json({ error: response.error });
-      } else {
-        res.json({ success: true });
-      }
-    } catch (error) {
-      res.status(500).json({ error: 'Failed to delete client' });
-    }
-  });
-
-  // Exam operations
-  app.get('/api/exams', async (req, res) => {
-    try {
-      const response = await apiClient.getExams();
-      if (response.error) {
-        res.status(500).json({ error: response.error });
-      } else {
-        res.json(response.data);
-      }
-    } catch (error) {
-      res.status(500).json({ error: 'Failed to get exams' });
-    }
-  });
-
-  app.get('/api/exams/client/:clientId', async (req, res) => {
-    try {
-      const response = await apiClient.getExamsByClient(parseInt(req.params.clientId));
-      if (response.error) {
-        res.status(500).json({ error: response.error });
-      } else {
-        res.json(response.data);
-      }
-    } catch (error) {
-      res.status(500).json({ error: 'Failed to get exams' });
-    }
-  });
-
-  app.get('/api/exams/:id', async (req, res) => {
-    try {
-      const response = await apiClient.getExam(parseInt(req.params.id));
-      if (response.error) {
-        res.status(500).json({ error: response.error });
-      } else if (!response.data) {
-        res.status(404).json({ error: 'Exam not found' });
-      } else {
-        res.json(response.data);
-      }
-    } catch (error) {
-      res.status(500).json({ error: 'Failed to get exam' });
-    }
-  });
-
-  app.post('/api/exams', async (req, res) => {
-    try {
-      const response = await apiClient.createExam(req.body);
-      if (response.error) {
-        res.status(500).json({ error: response.error });
-      } else {
-        res.json(response.data);
-      }
-    } catch (error) {
-      res.status(500).json({ error: 'Failed to create exam' });
-    }
-  });
-
-  app.put('/api/exams/:id', async (req, res) => {
-    try {
-      const response = await apiClient.updateExam(parseInt(req.params.id), req.body);
-      if (response.error) {
-        res.status(500).json({ error: response.error });
-      } else {
-        res.json(response.data);
-      }
-    } catch (error) {
-      res.status(500).json({ error: 'Failed to update exam' });
-    }
-  });
-
-  app.delete('/api/exams/:id', async (req, res) => {
-    try {
-      const response = await apiClient.deleteExam(parseInt(req.params.id));
-      if (response.error) {
-        res.status(500).json({ error: response.error });
-      } else {
-        res.json({ success: true });
-      }
-    } catch (error) {
-      res.status(500).json({ error: 'Failed to delete exam' });
-    }
-  });
-
-  // Users operations
-  app.get('/api/users', async (req, res) => {
-    try {
-      const response = await apiClient.getUsers();
-      if (response.error) {
-        res.status(500).json({ error: response.error });
-      } else {
-        res.json(response.data);
-      }
-    } catch (error) {
-      res.status(500).json({ error: 'Failed to get users' });
-    }
-  });
-
-  app.get('/api/users/:id', async (req, res) => {
-    try {
-      const response = await apiClient.getUser(parseInt(req.params.id));
-      if (response.error) {
-        res.status(500).json({ error: response.error });
-      } else if (!response.data) {
-        res.status(404).json({ error: 'User not found' });
-      } else {
-        res.json(response.data);
-      }
-    } catch (error) {
-      res.status(500).json({ error: 'Failed to get user' });
-    }
-  });
-
-  app.post('/api/users', async (req, res) => {
-    try {
-      const response = await apiClient.createUser(req.body);
-      if (response.error) {
-        res.status(500).json({ error: response.error });
-      } else {
-        res.json(response.data);
-      }
-    } catch (error) {
-      res.status(500).json({ error: 'Failed to create user' });
-    }
-  });
-
-  app.put('/api/users/:id', async (req, res) => {
-    try {
-      const response = await apiClient.updateUser(parseInt(req.params.id), req.body);
-      if (response.error) {
-        res.status(500).json({ error: response.error });
-      } else {
-        res.json(response.data);
-      }
-    } catch (error) {
-      res.status(500).json({ error: 'Failed to update user' });
-    }
-  });
-
-  app.delete('/api/users/:id', async (req, res) => {
-    try {
-      const response = await apiClient.deleteUser(parseInt(req.params.id));
-      if (response.error) {
-        res.status(500).json({ error: response.error });
-      } else {
-        res.json({ success: true });
-      }
-    } catch (error) {
-      res.status(500).json({ error: 'Failed to delete user' });
-    }
-  });
-
-  app.post('/api/auth', async (req, res) => {
-    try {
-      const response = await apiClient.getCurrentUser();
-      if (response.error) {
-        res.status(401).json({ error: response.error });
-      } else {
-        res.json({ user: response.data, success: !!response.data });
-      }
-    } catch (error) {
-      res.status(500).json({ error: 'Authentication failed' });
-    }
-  });
-}
-
-function startExpressServer(): Promise<boolean> {
-  return new Promise((resolve) => {
-    if (httpServer) {
-      console.log('Server already running');
-      resolve(true);
-      return;
-    }
-
-    try {
-      expressApp = express();
-      setupExpressRoutes(expressApp);
-
-      httpServer = expressApp.listen(SERVER_PORT, '0.0.0.0', () => {
-        console.log(`Server is running on port ${SERVER_PORT}`);
-        resolve(true);
-      });
-
-      httpServer.on('error', (error) => {
-        console.error('Server error:', error);
-        httpServer = null;
-        expressApp = null;
-        resolve(false);
-      });
-    } catch (error) {
-      console.error('Failed to start server:', error);
-      resolve(false);
-    }
-  });
-}
-
-function stopExpressServer(): Promise<void> {
-  return new Promise((resolve) => {
-    if (!httpServer) {
-      resolve();
-      return;
-    }
-
-    httpServer.close(() => {
-      console.log('Server stopped');
-      httpServer = null;
-      expressApp = null;
-      resolve();
-    });
-  });
-}
+// Express server functions removed - using FastAPI backend instead
 
 function createWindow() {
   // Don't create a new window if one already exists
@@ -333,7 +77,7 @@ function createWindow() {
     width: 1200,
     height: 800,
     webPreferences: {
-      devTools: true,
+      devTools: inDevelopment, // Only enable DevTools in development
       contextIsolation: true,
       nodeIntegration: false,
       nodeIntegrationInSubFrames: false,
@@ -344,13 +88,15 @@ function createWindow() {
   });
   registerListeners(mainWindow);
 
-  // Add keyboard shortcut for DevTools
-  mainWindow.webContents.on('before-input-event', (event, input) => {
-    if (input.control && input.shift && input.key.toLowerCase() === 'i') {
-      mainWindow?.webContents.toggleDevTools();
-      event.preventDefault();
-    }
-  });
+  // Add keyboard shortcut for DevTools (development only)
+  if (inDevelopment) {
+    mainWindow.webContents.on('before-input-event', (event, input) => {
+      if (input.control && input.shift && input.key.toLowerCase() === 'i') {
+        mainWindow?.webContents.toggleDevTools();
+        event.preventDefault();
+      }
+    });
+  }
 
   // Clean up the reference when window is closed
   mainWindow.on('closed', () => {
@@ -375,50 +121,7 @@ function setupIpcHandlers() {
     throw new Error(`DB operation ${methodName} is deprecated. Use direct API calls instead.`);
   });
 
-  // Server Mode operations
-  ipcMain.handle('start-server-mode', async () => {
-    try {
-      return await startExpressServer();
-    } catch (error) {
-      console.error('Error starting server mode:', error);
-      return false;
-    }
-  });
-
-  ipcMain.handle('stop-server-mode', async () => {
-    try {
-      await stopExpressServer();
-    } catch (error) {
-      console.error('Error stopping server mode:', error);
-    }
-  });
-
-  ipcMain.handle('get-server-info', async () => {
-    try {
-      if (!httpServer) return null;
-      
-      const networkInterfaces = os.networkInterfaces();
-      const addresses: string[] = [];
-      
-      for (const name of Object.keys(networkInterfaces)) {
-        for (const net of networkInterfaces[name] || []) {
-          if (net.family === 'IPv4' && !net.internal) {
-            addresses.push(net.address);
-          }
-        }
-      }
-      
-      return {
-        hostname: os.hostname(),
-        addresses,
-        port: SERVER_PORT,
-        urls: addresses.map(addr => `http://${addr}:${SERVER_PORT}`)
-      };
-    } catch (error) {
-      console.error('Error getting server info:', error);
-      return null;
-    }
-  });
+  // Server Mode operations removed - using FastAPI backend instead
 
   // Removed AI IPC handlers; AI moved to backend
 
@@ -789,6 +492,11 @@ ipcMain.handle('check-for-updates', async () => {
 });
 
 async function installExtensions() {
+  // Only install extensions in development mode
+  if (!inDevelopment) {
+    return;
+  }
+  
   try {
     const result = await installExtension(REACT_DEVELOPER_TOOLS);
     console.log(`Extensions installed successfully: ${result.name}`);
@@ -801,11 +509,11 @@ app.whenReady().then(() => {
   setupIpcHandlers();
   createWindow();
   setupAutoUpdater();
-}).then(installExtensions);
+  installExtensions(); // Install extensions after other setup
+});
 
 //osX only
-app.on("window-all-closed", async () => {
-  await stopExpressServer();
+app.on("window-all-closed", () => {
   if (process.platform !== "darwin") {
     app.quit();
   }
@@ -817,7 +525,3 @@ app.on("activate", () => {
   }
 });
 //osX only ends
-
-app.on("before-quit", async () => {
-  await stopExpressServer();
-});

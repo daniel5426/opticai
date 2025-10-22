@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react'
+import React, { createContext, useContext, useState, useEffect, ReactNode, useMemo, useCallback } from 'react'
 import { User, Clinic } from '@/lib/db/schema-interface'
 import { authService, AuthState, AuthSession } from '@/lib/auth/AuthService'
 import { applyUserThemeComplete, cacheCompanyThemeColors } from '@/helpers/theme_helpers'
@@ -86,7 +86,7 @@ export function UserProvider({ children }: UserProviderProps) {
     return unsubscribe
   }, [])
 
-  const handleSetCurrentUser = (user: User | null, skipNavigation = false) => {
+  const handleSetCurrentUser = useCallback((user: User | null, skipNavigation = false) => {
     console.log('[UserContext] setCurrentUser called:', user?.username, skipNavigation ? '(skip navigation)' : '')
 
     if (user) {
@@ -104,9 +104,9 @@ export function UserProvider({ children }: UserProviderProps) {
     } else {
       authService.logoutUser()
     }
-  }
+  }, [currentClinic])
 
-  const handleSetCurrentClinic = async (clinic: Clinic | null) => {
+  const handleSetCurrentClinic = useCallback(async (clinic: Clinic | null) => {
     console.log('[UserContext] setCurrentClinic called:', clinic?.name)
     
     if (clinic) {
@@ -114,28 +114,28 @@ export function UserProvider({ children }: UserProviderProps) {
     } else {
       await authService.logoutClinic()
     }
-  }
+  }, [])
 
-  const refreshClinics = () => {
+  const refreshClinics = useCallback(() => {
     setClinicRefreshTrigger(prev => prev + 1)
-  }
+  }, [])
 
-  const logout = () => {
+  const logout = useCallback(() => {
     console.log('[UserContext] Full logout')
     authService.signOut()
-  }
+  }, [])
 
-  const logoutUser = () => {
+  const logoutUser = useCallback(() => {
     console.log('[UserContext] Logout user only')
     authService.logoutUser()
-  }
+  }, [])
 
-  const logoutClinic = async () => {
+  const logoutClinic = useCallback(async () => {
     console.log('[UserContext] Logout clinic')
     await authService.logoutClinic()
-  }
+  }, [])
 
-  const value: UserContextType = {
+  const value: UserContextType = useMemo(() => ({
     currentUser,
     currentClinic,
     authState,
@@ -147,7 +147,19 @@ export function UserProvider({ children }: UserProviderProps) {
     logoutClinic,
     refreshClinics,
     clinicRefreshTrigger
-  }
+  }), [
+    currentUser,
+    currentClinic,
+    authState,
+    isLoading,
+    handleSetCurrentUser,
+    handleSetCurrentClinic,
+    logout,
+    logoutUser,
+    logoutClinic,
+    refreshClinics,
+    clinicRefreshTrigger
+  ])
 
   return (
     <UserContext.Provider value={value}>

@@ -15,6 +15,13 @@ import { ClinicEntrance } from "@/components/ClinicEntrance";
 
 const loginBanner = "/src/assets/images/login-banner.png";
 
+// Get the API base URL without the /api/v1 suffix for health checks
+const getHealthCheckUrl = () => {
+  const apiUrl = (import.meta as any).env?.VITE_API_URL || 'http://localhost:8001/api/v1';
+  // Remove /api/v1 suffix if present
+  return apiUrl.replace(/\/api\/v1$/, '');
+};
+
 export default function ControlCenterPage() {
   const [loading, setLoading] = useState(false);
   const [isRegisterMode, setIsRegisterMode] = useState(false);
@@ -71,7 +78,8 @@ export default function ControlCenterPage() {
   useEffect(() => {
     const check = async () => {
       try {
-        const res = await fetch("http://localhost:8001/health", { cache: "no-store" });
+        const baseUrl = getHealthCheckUrl();
+        const res = await fetch(`${baseUrl}/health`, { cache: "no-store" });
         setServerDown(!res.ok);
       } catch {
         setServerDown(true);
@@ -85,7 +93,8 @@ export default function ControlCenterPage() {
   const handleRetryServer = async () => {
     setCheckingServer(true);
     try {
-      const res = await fetch("http://localhost:8001/health", { cache: "no-store" });
+      const baseUrl = getHealthCheckUrl();
+      const res = await fetch(`${baseUrl}/health`, { cache: "no-store" });
       setServerDown(!res.ok);
     } catch {
       setServerDown(true);

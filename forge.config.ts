@@ -1,6 +1,7 @@
 import type { ForgeConfig } from "@electron-forge/shared-types";
 import { MakerSquirrel } from "@electron-forge/maker-squirrel";
 import { MakerZIP } from "@electron-forge/maker-zip";
+import { MakerDMG } from "@electron-forge/maker-dmg";
 import { MakerDeb } from "@electron-forge/maker-deb";
 import { MakerRpm } from "@electron-forge/maker-rpm";
 import { VitePlugin } from "@electron-forge/plugin-vite";
@@ -15,6 +16,9 @@ const config: ForgeConfig = {
     executableName: "prysm",
     appBundleId: "com.prysm.app",
     icon: "./images/prysm-logo", // Will use .ico on Windows, .icns on macOS
+    extraResource: [
+      ".env.production"
+    ],
   },
   rebuildConfig: {},
   makers: [
@@ -24,10 +28,11 @@ const config: ForgeConfig = {
       setupIcon: "./images/prysm-logo.png",
     }),
     new MakerZIP({}, ["darwin"]),
-    // Uncomment when ready for macOS builds
+    // DMG disabled due to Apple Silicon compatibility issues
     // new MakerDMG({
     //   name: "OpticAI",
-    //   icon: "./images/prysm-logo.icns",
+    //   icon: "./images/prysm-logo.png",
+    //   format: "ULFO"
     // }, ["darwin"]),
     new MakerRpm({
       options: {

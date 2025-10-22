@@ -9,6 +9,9 @@ export default defineConfig({
     }
   },
   build: {
+    sourcemap: false, // Disable source maps in production
+    minify: "esbuild",
+    target: "node18",
     rollupOptions: {
       external: ['better-sqlite3', 'electron', 'path', 'fs', 'express', 'cors', 'os', 'http']
     }
