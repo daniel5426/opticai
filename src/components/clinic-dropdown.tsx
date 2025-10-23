@@ -80,59 +80,45 @@ export function ClinicDropdown({
     }
   }, [currentUser, effectiveCompanyId, clinicRefreshTrigger]);
 
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
-
+  // Single useEffect for data loading - only refresh when trigger changes
   useEffect(() => {
     const companyId = effectiveCompanyId;
-    if (companyId) {
+    if (companyId && clinicRefreshTrigger > 0) {
       clinicsCacheRef.current.delete(companyId);
-      loadData();
     }
-  }, [clinicRefreshTrigger, effectiveCompanyId, loadData]);
+    loadData();
+  }, [clinicRefreshTrigger, loadData]);
 
-  const handleClinicSelect = async (clinic: Clinic) => {
+  const handleClinicSelect = useCallback((clinic: Clinic) => {
     if (!isInControlCenter && clinic.id === currentClinic?.id) {
       return;
     }
 
     try {
-      console.log('ClinicDropdown: Handling clinic select for:', clinic.name, 'user role:', currentUser?.role);
-      
       // For CEO users switching to a clinic, set up the clinic session properly
       if (currentUser?.role === 'company_ceo') {
-        console.log('ClinicDropdown: CEO selecting clinic, setting clinic session');
         authService.setClinicSession(clinic, currentUser);
-        // Always navigate to dashboard regardless of current route state
-        // Ensures UI updates even if router thinks it's already on a clinic route
-        setTimeout(() => {
-          try {
-            navigate({ to: "/dashboard" });
-          } catch (e) {
-            console.error('ClinicDropdown: navigate to /dashboard failed:', e)
-          }
-        }, 0);
+        // Navigate immediately without setTimeout - blocking is bad
+        navigate({ to: "/dashboard" });
       } else {
         setCurrentClinic(clinic);
-        setTimeout(() => {
-          navigate({ to: "/dashboard" });
-        }, 100);
+        // Navigate immediately
+        navigate({ to: "/dashboard" });
       }
     } catch (error) {
       console.error('ClinicDropdown: Error in handleClinicSelect:', error);
       toast.error("שגיאה בהחלפת מרפאה");
     }
-  };
+  }, [isInControlCenter, currentClinic?.id, currentUser, setCurrentClinic, navigate]);
 
-  const handleControlCenterClick = () => {
+  const handleControlCenterClick = useCallback(() => {
     const companyId = effectiveCompanyId;
     if (!companyId) {
       toast.error("לא ניתן לגשת למרכז הבקרה");
       return;
     }
 
-    // Navigate immediately to avoid blocking on network calls
+    // Navigate immediately - don't wait for anything
     navigate({
       to: "/control-center/dashboard",
       search: {
@@ -142,19 +128,21 @@ export function ClinicDropdown({
       },
     });
 
-    // Fire-and-forget enrichment: fetch company and persist for later use
-    (async () => {
+    // Fire-and-forget: Cache data asynchronously AFTER navigation
+    Promise.resolve().then(async () => {
       try {
         const companyResponse = await apiClient.getCompany(companyId);
         if (companyResponse?.data) {
-          try { localStorage.setItem("controlCenterCompany", JSON.stringify(companyResponse.data)); } catch {}
+          localStorage.setItem("controlCenterCompany", JSON.stringify(companyResponse.data));
         }
-        if (currentUser) try { localStorage.setItem("currentUser", JSON.stringify(currentUser)); } catch {}
-      } catch (_error) {
-        // swallow errors; navigation already happened
+        if (currentUser) {
+          localStorage.setItem("currentUser", JSON.stringify(currentUser));
+        }
+      } catch {
+        // Ignore errors - already navigated
       }
-    })();
-  };
+    });
+  }, [effectiveCompanyId, navigate, currentUser]);
 
   if (!currentUser || currentUser.role !== "company_ceo") {
     console.log("ClinicDropdown: User is not CEO, rendering as link");
@@ -184,10 +172,7 @@ export function ClinicDropdown({
       >
         <DropdownMenuItem
           dir="rtl"
-          onSelect={(e) => {
-            console.log("ClinicDropdown: Control center clicked");
-            handleControlCenterClick();
-          }}
+          onSelect={handleControlCenterClick}
           className={cn(
             "flex cursor-pointer items-center gap-2",
             isInControlCenter && "bg-muted/50",
@@ -232,15 +217,7 @@ export function ClinicDropdown({
                   otherClinics.map((clinic, index) => (
                     <DropdownMenuItem
                       key={clinic.id}
-                      onSelect={(e) => {
-                        // Use only onSelect to avoid duplicate calls
-                        console.log(
-                          "ClinicDropdown: Clinic item clicked:",
-                          clinic.name,
-                        );
-                        e.preventDefault();
-                        handleClinicSelect(clinic);
-                      }}
+                      onSelect={() => handleClinicSelect(clinic)}
                       dir="rtl"
                       className="flex cursor-pointer items-center gap-2"
                     >

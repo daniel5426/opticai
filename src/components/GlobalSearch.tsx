@@ -36,6 +36,7 @@ export function GlobalSearch({ onClose }: GlobalSearchProps) {
   }
   
   const [query, setQuery] = useState('')
+  const [debouncedQuery, setDebouncedQuery] = useState('')
   const [results, setResults] = useState<SearchResult[]>([])
   const [loading, setLoading] = useState(false)
   const [isOpen, setIsOpen] = useState(false)
@@ -66,15 +67,21 @@ export function GlobalSearch({ onClose }: GlobalSearchProps) {
   const loadedClinicIdRef = useRef<number | null>(null)
   const isLoadingAllRef = useRef(false)
 
+  // Debounce query input
   useEffect(() => {
-    setPage(1)
+    const timer = setTimeout(() => {
+      setDebouncedQuery(query)
+      setPage(1)
+    }, 300)
+    
+    return () => clearTimeout(timer)
   }, [query])
 
   useEffect(() => {
     const run = async () => {
       if (!isOpen) return
       if (!currentClinic?.id) return
-      const q = query.trim()
+      const q = debouncedQuery.trim()
       if (q.length < 2) {
         setResults([])
         setTotal(0)
@@ -105,7 +112,7 @@ export function GlobalSearch({ onClose }: GlobalSearchProps) {
       }
     }
     run()
-  }, [isOpen, currentClinic?.id, query, page])
+  }, [isOpen, currentClinic?.id, debouncedQuery, page])
 
   const normalizeDate = (dateStr: string): string => {
     return dateStr.replace(/[.-]/g, '-')

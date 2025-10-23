@@ -8,6 +8,7 @@ import { ModeToggle } from "@/components/mode-toggle";
 import { GlobalSearch } from "@/components/GlobalSearch";
 import { RotateCcw } from "lucide-react";
 import { useLocation } from "@tanstack/react-router";
+import prysmLogo from "@/assets/images/prysm-logo.png";
 
 interface DragWindowRegionProps {
   title?: ReactNode;
@@ -27,7 +28,7 @@ export default function DragWindowRegion({ title }: DragWindowRegionProps) {
       <div className="bg-secondary flex w-screen items-center h-8 relative">
         <div className="draglayer flex-1 bg-secondary px-1 flex items-center gap-2">
           <img 
-            src="/src/assets/images/prysm-logo.png" 
+            src={prysmLogo} 
             alt="Prysm Logo" 
             className="h-5 w-9 pl-1 object-contain"
           />

@@ -6,11 +6,7 @@ import { defineConfig } from "vite";
 export default defineConfig(({ mode }) => ({
   plugins: [
     tailwindcss(),
-    react({
-      babel: {
-        plugins: [["babel-plugin-react-compiler"]], // Enable React Compiler for all modes
-      },
-    }),
+    react(), // Disable React Compiler - it may be causing production performance issues
   ],
   define: {
     'process.env.NODE_ENV': mode === 'production' ? '"production"' : '"development"',

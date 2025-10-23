@@ -11,7 +11,7 @@ import { PublisherGithub } from "@electron-forge/publisher-github";
 
 const config: ForgeConfig = {
   packagerConfig: {
-    asar: true,
+    asar: false, // Disable ASAR to test if it's causing performance issues
     name: "Prysm",
     executableName: "prysm",
     appBundleId: "com.prysm.app",
@@ -85,8 +85,9 @@ const config: ForgeConfig = {
       [FuseV1Options.EnableCookieEncryption]: true,
       [FuseV1Options.EnableNodeOptionsEnvironmentVariable]: false,
       [FuseV1Options.EnableNodeCliInspectArguments]: false,
-      [FuseV1Options.EnableEmbeddedAsarIntegrityValidation]: true,
-      [FuseV1Options.OnlyLoadAppFromAsar]: true,
+      // Disabled ASAR-related fuses since ASAR is disabled
+      // [FuseV1Options.EnableEmbeddedAsarIntegrityValidation]: true,
+      // [FuseV1Options.OnlyLoadAppFromAsar]: true,
     }),
   ],
 };

@@ -135,8 +135,8 @@ function DragHandle({ id }: { id: number }) {
   )
 }
 
-// Add draggable row component
-function DraggableRow({ row }: { row: Row<z.infer<typeof schema>> }) {
+// Add draggable row component with memoization
+const DraggableRow = React.memo(function DraggableRow({ row }: { row: Row<z.infer<typeof schema>> }) {
   const { transform, transition, setNodeRef, isDragging } = useSortable({
     id: row.original.id,
   })
@@ -162,7 +162,7 @@ function DraggableRow({ row }: { row: Row<z.infer<typeof schema>> }) {
       ))}
     </TableRow>
   )
-}
+})
 
 export function DataTable({
   data: initialData,
@@ -182,9 +182,6 @@ export function DataTable({
     pageSize: 10,
   })
   
-  // Add a renderKey state to force re-renders
-  const [renderKey, setRenderKey] = React.useState(0)
-  
   const sortableId = React.useId()
   const sensors = useSensors(
     useSensor(MouseSensor, {}),
@@ -197,7 +194,7 @@ export function DataTable({
     [data]
   )
   
-  // Define columns inside component to access renderKey
+  // Define columns with proper memoization
   const columns = React.useMemo<ColumnDef<z.infer<typeof schema>>[]>(() => [
     {
       id: "drag",
@@ -209,35 +206,28 @@ export function DataTable({
       header: ({ table }) => (
         <div className="flex items-center justify-center">
           <Checkbox
-            key={`select-all-${renderKey}`}
             checked={
               table.getIsAllPageRowsSelected() ||
               (table.getIsSomePageRowsSelected() && "indeterminate")
             }
             onCheckedChange={(value) => {
               table.toggleAllPageRowsSelected(!!value)
-              setRenderKey(prev => prev + 1) // Force immediate update
             }}
             aria-label="Select all"
           />
         </div>
       ),
-      cell: ({ row }) => {
-        const isSelected = row.getIsSelected()
-        return (
-          <div className="flex items-center justify-center">
-            <Checkbox
-              key={`select-row-${row.id}-${renderKey}`}
-              checked={isSelected}
-              onCheckedChange={(value) => {
-                row.toggleSelected(!!value)
-                setRenderKey(prev => prev + 1) // Force immediate update
-              }}
-              aria-label="Select row"
-            />
-          </div>
-        )
-      },
+      cell: ({ row }) => (
+        <div className="flex items-center justify-center">
+          <Checkbox
+            checked={row.getIsSelected()}
+            onCheckedChange={(value) => {
+              row.toggleSelected(!!value)
+            }}
+            aria-label="Select row"
+          />
+        </div>
+      ),
       enableSorting: false,
       enableHiding: false,
     },
@@ -382,17 +372,7 @@ export function DataTable({
         </DropdownMenu>
       ),
     },
-  ], [renderKey])
-  
-  // Force re-render on state changes
-  React.useEffect(() => {
-    // Add a debounce to avoid excessive renders
-    const timer = setTimeout(() => {
-      setRenderKey(prev => prev + 1);
-    }, 100);
-    
-    return () => clearTimeout(timer);
-  }, [rowSelection, columnVisibility]);
+  ], [])
 
   const table = useReactTable({
     data,
@@ -406,16 +386,10 @@ export function DataTable({
     },
     enableRowSelection: true,
     getRowId: (row) => row.id.toString(),
-    onRowSelectionChange: (updater) => {
-      setRowSelection(updater)
-      setRenderKey(prev => prev + 1) // Force immediate update
-    },
+    onRowSelectionChange: setRowSelection,
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
-    onColumnVisibilityChange: (updater) => {
-      setColumnVisibility(updater)
-      setRenderKey(prev => prev + 1) // Force immediate update
-    },
+    onColumnVisibilityChange: setColumnVisibility,
     onPaginationChange: setPagination,
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
@@ -476,7 +450,6 @@ export function DataTable({
               <Button
                 variant="outline"
                 size="sm"
-                key={`column-trigger-${renderKey}`}
               >
                 <IconLayoutColumns />
                 <span className="hidden lg:inline">Customize Columns</span>
@@ -495,12 +468,11 @@ export function DataTable({
                 .map((column) => {
                   return (
                     <DropdownMenuCheckboxItem
-                      key={`${column.id}-${renderKey}`}
+                      key={column.id}
                       className="capitalize"
                       checked={column.getIsVisible()}
                       onCheckedChange={(value) => {
                         column.toggleVisibility(!!value)
-                        setRenderKey(prev => prev + 1)
                       }}
                     >
                       {column.id}
@@ -526,7 +498,6 @@ export function DataTable({
             onDragEnd={handleDragEnd}
             sensors={sensors}
             id={sortableId}
-            key={renderKey}
           >
             <Table>
               <TableHeader className="bg-muted sticky top-0 z-10">
@@ -552,10 +523,9 @@ export function DataTable({
                   <SortableContext
                     items={dataIds}
                     strategy={verticalListSortingStrategy}
-                    key={renderKey}
                   >
                     {table.getRowModel().rows.map((row) => (
-                      <DraggableRow key={`${row.id}-${renderKey}`} row={row} />
+                      <DraggableRow key={row.id} row={row} />
                     ))}
                   </SortableContext>
                 ) : (

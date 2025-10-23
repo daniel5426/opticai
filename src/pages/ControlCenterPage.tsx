@@ -12,8 +12,7 @@ import { Progress } from "@/components/ui/progress";
 import { ArrowRight, ArrowLeft, Building2, MapPin, Check, AlertTriangle } from "lucide-react";
 import { WelcomeComponent } from "@/components/WelcomeComponent";
 import { ClinicEntrance } from "@/components/ClinicEntrance";
-
-const loginBanner = "/src/assets/images/login-banner.png";
+import loginBanner from "@/assets/images/login-banner.png";
 
 // Get the API base URL without the /api/v1 suffix for health checks
 const getHealthCheckUrl = () => {

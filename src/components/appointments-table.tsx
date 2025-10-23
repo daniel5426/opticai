@@ -59,7 +59,7 @@ interface AppointmentTableRowProps {
   clientId: number
 }
 
-function AppointmentTableRow({ appointment, onEdit, onDelete, onSendEmail, clientId }: AppointmentTableRowProps) {
+const AppointmentTableRow = React.memo(function AppointmentTableRow({ appointment, onEdit, onDelete, onSendEmail, clientId }: AppointmentTableRowProps) {
   const navigate = useNavigate()
 
 
@@ -123,7 +123,7 @@ function AppointmentTableRow({ appointment, onEdit, onDelete, onSendEmail, clien
       </TableCell>
     </TableRow>
   )
-}
+})
 
 export function AppointmentsTable({ data, clientId, onAppointmentChange, onAppointmentDeleted, onAppointmentDeleteFailed, loading, pagination, searchQuery: externalSearch, onSearchChange }: AppointmentsTableProps) {
   const [searchQuery, setSearchQuery] = useState("")

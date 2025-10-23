@@ -8,6 +8,7 @@ import { OctahedronLoader } from '@/components/ui/octahedron-loader'
 import { authService, AuthState } from '@/lib/auth/AuthService'
 import { useUser } from '@/contexts/UserContext'
 import { Skeleton } from '@/components/ui/skeleton'
+import prysmLogo from '@/assets/images/prysm-logo.png'
 
 interface WelcomeComponentProps {
   onControlCenterClick: () => void
@@ -137,7 +138,7 @@ export function WelcomeComponent({ onControlCenterClick, onClinicEntranceClick }
       <div className="w-full max-w-4xl">
         <div className="text-center mb-12">
           <div className="flex items-center justify-center">
-            <img src="/src/assets/images/prysm-logo.png" alt="Prysm Logo" className="w-26 h-26 pb-5 object-contain" />
+            <img src={prysmLogo} alt="Prysm Logo" className="w-26 h-26 pb-5 object-contain" />
           </div>
           <h1 className="text-4xl font-bold text-slate-900 dark:text-slate-100 mb-4">
             ברוכים הבאים למערכת ניהול המרפאה
