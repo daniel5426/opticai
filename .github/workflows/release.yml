@@ -99,54 +99,8 @@ jobs:
           tag_name: v${{ steps.version.outputs.VERSION }}
           files: ./out/make/squirrel.windows/x64/Prysm-Setup.exe
 
-  build-linux:
-    needs: create-release
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    strategy:
-      matrix:
-        target: [deb, rpm]
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: '20'
-          
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build for Linux
-        run: npm run make
-        env:
-          NODE_ENV: production
-          NODE_OPTIONS: --max-old-space-size=4096
-
-      - name: Get version
-        id: version
-        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
-
-      - name: Find ${{ matrix.target }} package
-        id: find_package
-        run: |
-          if [ "${{ matrix.target }}" = "deb" ]; then
-            FILE=$(find ./out/make -name "*.deb" | head -1)
-          else
-            FILE=$(find ./out/make -name "*.rpm" | head -1)
-          fi
-          echo "PACKAGE_PATH=$FILE" >> $GITHUB_OUTPUT
-          
-      - name: Upload ${{ matrix.target }} package
-        uses: softprops/action-gh-release@v1
-        with:
-          tag_name: v${{ steps.version.outputs.VERSION }}
-          files: ${{ steps.find_package.outputs.PACKAGE_PATH }}
-
   finalize-release:
-    needs: [build-macos, build-windows, build-linux]
+    needs: [build-macos, build-windows]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -192,17 +146,6 @@ jobs:
             2. Run the installer
             3. Follow the installation wizard
             
-            #### Linux
-            **Debian/Ubuntu (DEB):**
-            \`\`\`bash
-            sudo dpkg -i prysm_${version}_amd64.deb
-            sudo apt-get install -f  # Fix dependencies if needed
-            \`\`\`
-            
-            **Fedora/RHEL/CentOS (RPM):**
-            \`\`\`bash
-            sudo rpm -i prysm-${version}.x86_64.rpm
-            \`\`\`
             
             ### What's Changed
             See the commits for detailed changes.
