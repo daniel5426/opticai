@@ -14,6 +14,8 @@ interface DragWindowRegionProps {
   title?: ReactNode;
 }
 
+
+
 export default function DragWindowRegion({ title }: DragWindowRegionProps) {
   const location = useLocation();
   
