@@ -94,6 +94,8 @@ dist/
 
 # Electron-Forge
 out/
+test-arm64/
+test-x64/
 /test-results/
 /playwright-report/
 /blob-report/

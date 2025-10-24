@@ -1,0 +1,210 @@
+name: Release Build
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    outputs:
+      upload_url: ${{ steps.create_release.outputs.upload_url }}
+      release_id: ${{ steps.create_release.outputs.id }}
+    steps:
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: Release ${{ github.ref }}
+          draft: true
+          prerelease: false
+
+  build-macos:
+    needs: create-release
+    runs-on: macos-latest
+    strategy:
+      matrix:
+        arch: [arm64, x64]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '20'
+          
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build for macOS ${{ matrix.arch }}
+        run: npm run make:${{ matrix.arch }}
+        env:
+          NODE_ENV: production
+
+      - name: Get version
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Upload macOS ${{ matrix.arch }} ZIP
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: ./out/make/zip/darwin/${{ matrix.arch }}/Prysm-darwin-${{ matrix.arch }}-${{ steps.version.outputs.VERSION }}.zip
+          asset_name: Prysm-darwin-${{ matrix.arch }}-${{ steps.version.outputs.VERSION }}.zip
+          asset_content_type: application/zip
+
+  build-windows:
+    needs: create-release
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '20'
+          
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build for Windows
+        run: npm run make
+        env:
+          NODE_ENV: production
+
+      - name: Get version
+        id: version
+        shell: bash
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Upload Windows Installer
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: ./out/make/squirrel.windows/x64/Prysm-Setup.exe
+          asset_name: Prysm-Setup-${{ steps.version.outputs.VERSION }}.exe
+          asset_content_type: application/octet-stream
+
+  build-linux:
+    needs: create-release
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target: [deb, rpm]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '20'
+          
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build for Linux
+        run: npm run make
+        env:
+          NODE_ENV: production
+
+      - name: Get version
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Find and upload ${{ matrix.target }} package
+        run: |
+          if [ "${{ matrix.target }}" = "deb" ]; then
+            FILE=$(find ./out/make -name "*.deb" | head -1)
+            EXT="deb"
+          else
+            FILE=$(find ./out/make -name "*.rpm" | head -1)
+            EXT="rpm"
+          fi
+          
+          if [ -f "$FILE" ]; then
+            echo "Found package: $FILE"
+            gh release upload ${{ github.ref }} "$FILE" --clobber
+          else
+            echo "No ${{ matrix.target }} package found"
+            exit 1
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  finalize-release:
+    needs: [build-macos, build-windows, build-linux]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        
+      - name: Update release notes
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const version = context.ref.replace('refs/tags/v', '');
+            const { data: release } = await github.rest.repos.getReleaseByTag({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              tag: `v${version}`
+            });
+            
+            await github.rest.repos.updateRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              release_id: release.id,
+              body: `## 🎉 Release v${version}
+            
+            ### Downloads
+            - **macOS Apple Silicon (M1/M2/M3)**: \`Prysm-darwin-arm64-${version}.zip\`
+            - **macOS Intel**: \`Prysm-darwin-x64-${version}.zip\`
+            - **Windows**: \`Prysm-Setup-${version}.exe\`
+            - **Linux DEB**: \`prysm_${version}_amd64.deb\`
+            - **Linux RPM**: \`prysm-${version}.x86_64.rpm\`
+            
+            ### Installation
+            
+            #### macOS
+            1. Download the appropriate ZIP for your Mac (Apple Silicon or Intel)
+            2. Extract the ZIP file
+            3. Move Prysm.app to your Applications folder
+            4. Right-click and select "Open" for first launch (to bypass Gatekeeper)
+            
+            #### Windows
+            1. Download \`Prysm-Setup-${version}.exe\`
+            2. Run the installer
+            3. Follow the installation wizard
+            
+            #### Linux
+            **Debian/Ubuntu (DEB):**
+            \`\`\`bash
+            sudo dpkg -i prysm_${version}_amd64.deb
+            sudo apt-get install -f  # Fix dependencies if needed
+            \`\`\`
+            
+            **Fedora/RHEL/CentOS (RPM):**
+            \`\`\`bash
+            sudo rpm -i prysm-${version}.x86_64.rpm
+            \`\`\`
+            
+            ### What's Changed
+            See the commits for detailed changes.
+            
+            ---
+            
+            **Full Changelog**: https://github.com/${context.repo.owner}/${context.repo.repo}/compare/v${parseFloat(version) - 0.1}...v${version}`,
+              draft: false  // Publish the release
+            });
+
