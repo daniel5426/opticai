@@ -54,10 +54,21 @@ jobs:
         env:
           NODE_ENV: production
           NODE_OPTIONS: --max-old-space-size=4096
+          CSC_IDENTITY_AUTO_DISCOVERY: false
 
       - name: Get version
         id: version
         run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Remove quarantine attribute (fix "damaged" app issue)
+        run: |
+          cd ./out/make/zip/darwin/${{ matrix.arch }}/
+          unzip -q Prysm-darwin-${{ matrix.arch }}-${{ steps.version.outputs.VERSION }}.zip
+          xattr -d com.apple.quarantine Prysm.app 2>/dev/null || true
+          xattr -c Prysm.app
+          rm -f Prysm-darwin-${{ matrix.arch }}-${{ steps.version.outputs.VERSION }}.zip
+          zip -r Prysm-darwin-${{ matrix.arch }}-${{ steps.version.outputs.VERSION }}.zip Prysm.app
+          rm -rf Prysm.app
 
       - name: Upload macOS ${{ matrix.arch }} ZIP
         uses: softprops/action-gh-release@v1
@@ -139,7 +150,8 @@ jobs:
             1. Download the appropriate ZIP for your Mac (Apple Silicon or Intel)
             2. Extract the ZIP file
             3. Move Prysm.app to your Applications folder
-            4. Right-click and select "Open" for first launch (to bypass Gatekeeper)
+            4. **If you get "damaged" error**: Right-click Prysm.app → "Open" → "Open" (bypasses Gatekeeper)
+            5. **Alternative**: Run `xattr -d com.apple.quarantine /Applications/Prysm.app` in Terminal
             
             #### Windows
             1. Download \`Prysm-Setup-${version}.exe\`
