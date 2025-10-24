@@ -5,27 +5,35 @@ on:
     tags:
       - 'v*.*.*'
 
+# Add permissions for the workflow
+permissions:
+  contents: write
+  packages: write
+
 jobs:
   create-release:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     outputs:
       upload_url: ${{ steps.create_release.outputs.upload_url }}
       release_id: ${{ steps.create_release.outputs.id }}
     steps:
       - name: Create Release
         id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: softprops/action-gh-release@v1
         with:
-          tag_name: ${{ github.ref }}
-          release_name: Release ${{ github.ref }}
+          tag_name: ${{ github.ref_name }}
+          name: Release ${{ github.ref_name }}
           draft: true
           prerelease: false
+          generate_release_notes: true
 
   build-macos:
     needs: create-release
     runs-on: macos-latest
+    permissions:
+      contents: write
     strategy:
       matrix:
         arch: [arm64, x64]
@@ -51,18 +59,16 @@ jobs:
         run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
 
       - name: Upload macOS ${{ matrix.arch }} ZIP
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: softprops/action-gh-release@v1
         with:
-          upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: ./out/make/zip/darwin/${{ matrix.arch }}/Prysm-darwin-${{ matrix.arch }}-${{ steps.version.outputs.VERSION }}.zip
-          asset_name: Prysm-darwin-${{ matrix.arch }}-${{ steps.version.outputs.VERSION }}.zip
-          asset_content_type: application/zip
+          tag_name: v${{ steps.version.outputs.VERSION }}
+          files: ./out/make/zip/darwin/${{ matrix.arch }}/Prysm-darwin-${{ matrix.arch }}-${{ steps.version.outputs.VERSION }}.zip
 
   build-windows:
     needs: create-release
     runs-on: windows-latest
+    permissions:
+      contents: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -86,18 +92,16 @@ jobs:
         run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
 
       - name: Upload Windows Installer
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: softprops/action-gh-release@v1
         with:
-          upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: ./out/make/squirrel.windows/x64/Prysm-Setup.exe
-          asset_name: Prysm-Setup-${{ steps.version.outputs.VERSION }}.exe
-          asset_content_type: application/octet-stream
+          tag_name: v${{ steps.version.outputs.VERSION }}
+          files: ./out/make/squirrel.windows/x64/Prysm-Setup.exe
 
   build-linux:
     needs: create-release
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     strategy:
       matrix:
         target: [deb, rpm]
@@ -122,29 +126,27 @@ jobs:
         id: version
         run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
 
-      - name: Find and upload ${{ matrix.target }} package
+      - name: Find ${{ matrix.target }} package
+        id: find_package
         run: |
           if [ "${{ matrix.target }}" = "deb" ]; then
             FILE=$(find ./out/make -name "*.deb" | head -1)
-            EXT="deb"
           else
             FILE=$(find ./out/make -name "*.rpm" | head -1)
-            EXT="rpm"
           fi
+          echo "PACKAGE_PATH=$FILE" >> $GITHUB_OUTPUT
           
-          if [ -f "$FILE" ]; then
-            echo "Found package: $FILE"
-            gh release upload ${{ github.ref }} "$FILE" --clobber
-          else
-            echo "No ${{ matrix.target }} package found"
-            exit 1
-          fi
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Upload ${{ matrix.target }} package
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ steps.version.outputs.VERSION }}
+          files: ${{ steps.find_package.outputs.PACKAGE_PATH }}
 
   finalize-release:
     needs: [build-macos, build-windows, build-linux]
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
