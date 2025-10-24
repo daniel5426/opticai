@@ -25,7 +25,8 @@ const config: ForgeConfig = {
     new MakerSquirrel({
       name: "Prysm",
       setupExe: "Prysm-Setup.exe",
-      setupIcon: "./images/prysm-logo.png",
+      // Remove icon for now - Windows installer will work without it
+      // setupIcon: "./images/prysm-logo.png",
     }),
     new MakerZIP({}, ["darwin"]),
     // DMG disabled due to Apple Silicon compatibility issues
