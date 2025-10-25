@@ -55,6 +55,15 @@ if (!inDevelopment) {
 autoUpdater.autoDownload = false; // We'll prompt the user first
 autoUpdater.autoInstallOnAppQuit = true;
 
+// Set update server for GitHub releases
+if (!inDevelopment) {
+  autoUpdater.setFeedURL({
+    provider: 'github',
+    owner: 'daniel5426',
+    repo: 'opticai'
+  });
+}
+
 // Server Mode Variables - REMOVED (using FastAPI backend instead)
 // let expressApp: express.Application | null = null;
 // let httpServer: Server | null = null;

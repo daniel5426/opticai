@@ -61,7 +61,11 @@ export function AboutTab() {
       }
 
       if (result.error && manual) {
-        toast.error(`שגיאה בבדיקת עדכונים: ${result.error}`);
+        if (result.error.includes('ENOENT') || result.error.includes('app-update.yml')) {
+          toast.error('קובץ עדכונים לא נמצא. נא לבנות מחדש את האפליקציה.');
+        } else {
+          toast.error(`שגיאה בבדיקת עדכונים: ${result.error}`);
+        }
       }
     } catch (error) {
       console.error('Error checking for updates:', error);
@@ -226,28 +230,29 @@ export function AboutTab() {
           {/* App Information */}
           <div className="p-4 bg-muted/50 rounded-lg">
             <h4 className="text-sm font-medium mb-3 text-right">פרטי האפליקציה</h4>
-            <div className="space-y-2 text-sm text-muted-foreground">
+            <div className="space-y-2 text-sm text-muted-foreground" dir="rtl">
               <div className="flex justify-between">
+              <span>גרסה:</span>
+
                 <span className="font-mono">{currentVersion}</span>
-                <span>גרסה:</span>
               </div>
               <div className="flex justify-between">
-                <span>Prysm</span>
                 <span>שם:</span>
+                <span>Prysm</span>
               </div>
               <div className="flex justify-between">
-                <span>מערכת ניהול לאופטיקאים</span>
                 <span>תיאור:</span>
+                <span>מערכת ניהול לאופטיקאים</span>
               </div>
               <div className="flex justify-between">
-                <span className="font-mono">{new Date().getFullYear()}</span>
                 <span>© זכויות יוצרים:</span>
+                <span className="font-mono">{new Date().getFullYear()}</span>
               </div>
             </div>
           </div>
 
           {/* Release Notes Link */}
-          <div className="p-4 border rounded-lg text-center">
+          <div className="p-4 border rounded-lg text-center" dir="rtl">
             <div className="text-sm text-muted-foreground mb-2">
               רוצה לראות מה חדש?
             </div>

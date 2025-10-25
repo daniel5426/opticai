@@ -17,7 +17,8 @@ const config: ForgeConfig = {
     appBundleId: "com.prysm.app",
     icon: "./images/prysm-logo", // Will use .ico on Windows, .icns on macOS
     extraResource: [
-      ".env.production"
+      ".env.production",
+      "app-update.yml"
     ],
   },
   rebuildConfig: {},
