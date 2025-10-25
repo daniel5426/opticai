@@ -55,6 +55,7 @@ export function AboutTab() {
           if (result.message) {
             if (result.message.includes('No releases found') || result.message.includes('first version')) {
               toast.info('זוהי כנראה הגרסה הראשונה. עדכונים יהיו זמינים לאחר שחרור גרסאות חדשות.');
+              toast.info(result.message);
             } else {
               toast.info(result.message);
             }

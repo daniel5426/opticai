@@ -501,13 +501,6 @@ function setupAutoUpdater() {
 
 // IPC handler for manual update check
 ipcMain.handle('check-for-updates', async () => {
-  if (inDevelopment) {
-    return { 
-      available: false, 
-      message: 'Updates disabled in development',
-      currentVersion: app.getVersion()
-    };
-  }
   
   try {
     const result = await autoUpdater.checkForUpdates();
