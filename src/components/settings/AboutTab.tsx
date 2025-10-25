@@ -222,6 +222,7 @@ export function AboutTab() {
             </div>
           </div>
 
+
           {/* App Information */}
           <div className="p-4 bg-muted/50 rounded-lg">
             <h4 className="text-sm font-medium mb-3 text-right">פרטי האפליקציה</h4>
