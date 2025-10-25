@@ -1,53 +1,6 @@
 import { 
-  Client, 
-  OpticalExam, 
-  OldRefractionExam, 
-  ObjectiveExam, 
-  SubjectiveExam, 
-  AdditionExam, 
-  FinalSubjectiveExam,
-  RetinoscopExam,
-  RetinoscopDilationExam, 
-  UncorrectedVAExam,
-  KeratometerExam,
-  Order, 
-  OrderEye, 
-  OrderLens, 
-  Frame, 
-  OrderDetails, 
-  Billing, 
-  OrderLineItem, 
-  MedicalLog, 
-  ContactLensOrder, 
-  Referral, 
-  ReferralEye, 
-  Appointment, 
-  Settings, 
-  User, 
   Chat, 
   ChatMessage, 
-  EmailLog, 
-  File, 
-  ExamLayout,
-  ExamLayoutInstance,
-  LookupSupplier,
-  LookupClinic,
-  LookupOrderType,
-  LookupReferralType,
-  LookupLensModel,
-  LookupColor,
-  LookupMaterial,
-  LookupCoating,
-  LookupManufacturer,
-  LookupFrameModel,
-  LookupContactLensType,
-  LookupContactEyeLensType,
-  LookupContactEyeMaterial,
-  LookupCleaningSolution,
-  LookupDisinfectionSolution,
-  LookupRinsingSolution,
-  LookupManufacturingLab,
-  LookupAdvisor 
 } from '@/lib/db/schema-interface';
 
 interface IpcRenderer {
@@ -131,6 +84,12 @@ export interface ElectronAPI {
   googleCalendarDeleteEvent: (tokens: any, eventId: string) => Promise<boolean>;
   googleCalendarSyncAppointments: (tokens: any, appointments: any[]) => Promise<{ success: number; failed: number }>;
   googleCalendarGetEvents: (tokens: any, startDate: string, endDate: string) => Promise<any[]>;
+
+  // Update operations
+  checkForUpdates: () => Promise<{ available: boolean; version?: string; currentVersion?: string; error?: string; message?: string }>;
+  downloadUpdate: () => Promise<{ success: boolean; error?: string }>;
+  installUpdate: () => Promise<void>;
+  getAppVersion: () => Promise<string>;
 }
 
 declare global {

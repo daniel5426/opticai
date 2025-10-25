@@ -25,7 +25,7 @@ jobs:
         with:
           tag_name: ${{ github.ref_name }}
           name: Release ${{ github.ref_name }}
-          draft: true
+          draft: true  # Keep as draft until all builds complete
           prerelease: false
           generate_release_notes: true
 
@@ -165,6 +165,7 @@ jobs:
             ---
             
             **Full Changelog**: https://github.com/${context.repo.owner}/${context.repo.repo}/compare/v${parseFloat(version) - 0.1}...v${version}`,
-              draft: false  // Publish the release
+              draft: false,  // Publish the release (required for electron-updater)
+              make_latest: true  // Mark as latest release
             });
 

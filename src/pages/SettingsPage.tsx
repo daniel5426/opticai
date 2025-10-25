@@ -21,6 +21,7 @@ import { DateRange } from "react-day-picker"
 import { UsersTab } from "@/components/settings/UsersTab"
 import { FieldDataTab } from "@/components/settings/FieldDataTab"
 import { PersonalProfileTab } from "@/components/settings/PersonalProfileTab"
+import { AboutTab } from "@/components/settings/AboutTab"
 
 export default function SettingsPage() {
   const { settings, updateSettings: updateBaseSettings } = useSettings()
@@ -691,7 +692,7 @@ export default function SettingsPage() {
       <SiteHeader title="הגדרות" />
       <div className="h-[calc(100vh-4rem)] flex flex-col" dir="rtl">
         {/* Fixed Header */}
-        <div className="flex-shrink-0 bg-transparent pt-5 pb-2">
+        <div className="shrink-0 bg-transparent pt-5 pb-2">
           <div className="max-w-4xl mx-auto flex justify-between items-start">
             <div className="text-right space-y-2">
               <h1 className="text-2xl font-bold">הגדרות המרפאה</h1>
@@ -806,10 +807,14 @@ export default function SettingsPage() {
                       onToggleGoogleAutoSync={handleToggleGoogleAutoSync}
                     />
                   </TabsContent>
+
+                  <TabsContent value="about" className="space-y-6 mt-0">
+                    <AboutTab />
+                  </TabsContent>
                 </div>
 
                 {/* Fixed Vertical TabsList on the Right */}
-                <div className="flex-shrink-0">
+                <div className="shrink-0">
                   <TabsList className="flex flex-col h-fit w-48 p-1">
                     <TabsTrigger value="profile" className="w-full justify-end text-right">פרופיל המרפאה</TabsTrigger>
                     <TabsTrigger value="preferences" className="w-full justify-end text-right">הגדרות המרפאה</TabsTrigger>
@@ -820,6 +825,7 @@ export default function SettingsPage() {
                       <TabsTrigger value="users" className="w-full justify-end text-right">ניהול משתמשים</TabsTrigger>
                     )}
                     <TabsTrigger value="field-data" className="w-full justify-end text-right">ניהול נתוני שדות</TabsTrigger>
+                    <TabsTrigger value="about" className="w-full justify-end text-right">אודות האפליקציה</TabsTrigger>
                   </TabsList>
                 </div>
               </div>

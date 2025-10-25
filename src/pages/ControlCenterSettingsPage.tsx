@@ -16,6 +16,7 @@ import { UserModal } from "@/components/UserModal"
 import { apiClient } from "@/lib/api-client"
 import { supabase } from "@/lib/supabaseClient"
 import { ImageInput } from "@/components/ui/image-input"
+import { AboutTab } from "@/components/settings/AboutTab"
 
 export default function ControlCenterSettingsPage() {
   const { currentUser, setCurrentUser } = useUser()
@@ -599,7 +600,7 @@ export default function ControlCenterSettingsPage() {
     <>
       <SiteHeader title="הגדרות מרכז הבקרה" />
       <div className="h-[calc(100vh-4rem)] flex flex-col" dir="rtl">
-        <div className="flex-shrink-0 bg-transparent pt-5 pb-2">
+        <div className="shrink-0 bg-transparent pt-5 pb-2">
           <div className="max-w-4xl mx-auto flex justify-between items-start">
             <div className="text-right space-y-2">
               <h1 className="text-2xl font-bold">הגדרות מרכז הבקרה</h1>
@@ -1206,15 +1207,20 @@ export default function ControlCenterSettingsPage() {
                       </CardContent>
                     </Card>
                   </TabsContent>
+
+                  <TabsContent value="about" className="space-y-6 mt-0">
+                    <AboutTab />
+                  </TabsContent>
                 </div>
 
-                <div className="flex-shrink-0">
+                <div className="shrink-0">
                   <TabsList className="flex flex-col h-fit w-48 p-1">
                     <TabsTrigger value="company-profile" className="w-full justify-end text-right">פרופיל החברה</TabsTrigger>
                     <TabsTrigger value="personal-profile" className="w-full justify-end text-right">פרופיל אישי</TabsTrigger>
                     {currentUser?.role === 'company_ceo' && (
                       <TabsTrigger value="users" className="w-full justify-end text-right">ניהול משתמשים</TabsTrigger>
                     )}
+                    <TabsTrigger value="about" className="w-full justify-end text-right">אודות האפליקציה</TabsTrigger>
                   </TabsList>
                 </div>
               </div>

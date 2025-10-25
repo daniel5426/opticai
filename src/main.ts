@@ -476,19 +476,60 @@ function setupAutoUpdater() {
 // IPC handler for manual update check
 ipcMain.handle('check-for-updates', async () => {
   if (inDevelopment) {
-    return { available: false, message: 'Updates disabled in development' };
+    return { 
+      available: false, 
+      message: 'Updates disabled in development',
+      currentVersion: app.getVersion()
+    };
   }
   
   try {
     const result = await autoUpdater.checkForUpdates();
     return {
       available: result !== null,
-      version: result?.updateInfo.version || null
+      version: result?.updateInfo.version || null,
+      currentVersion: app.getVersion()
     };
   } catch (error) {
     console.error('Error checking for updates:', error);
-    return { available: false, error: error instanceof Error ? error.message : 'Unknown error' };
+    return { 
+      available: false, 
+      error: error instanceof Error ? error.message : 'Unknown error',
+      currentVersion: app.getVersion()
+    };
   }
+});
+
+// IPC handler for downloading update
+ipcMain.handle('download-update', async () => {
+  if (inDevelopment) {
+    return { success: false, error: 'Updates disabled in development' };
+  }
+  
+  try {
+    await autoUpdater.downloadUpdate();
+    return { success: true };
+  } catch (error) {
+    console.error('Error downloading update:', error);
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Unknown error' 
+    };
+  }
+});
+
+// IPC handler for installing update
+ipcMain.handle('install-update', async () => {
+  if (inDevelopment) {
+    return;
+  }
+  
+  setImmediate(() => autoUpdater.quitAndInstall());
+});
+
+// IPC handler for getting app version
+ipcMain.handle('get-app-version', async () => {
+  return app.getVersion();
 });
 
 async function installExtensions() {
