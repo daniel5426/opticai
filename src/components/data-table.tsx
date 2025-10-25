@@ -572,6 +572,7 @@ export function DataTable({
                 </SelectContent>
               </Select>
             </div>
+            
             <div className="flex w-fit items-center justify-center text-sm font-medium">
               Page {table.getState().pagination.pageIndex + 1} of{" "}
               {table.getPageCount()}
