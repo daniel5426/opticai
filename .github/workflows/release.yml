@@ -151,7 +151,7 @@ jobs:
             2. Extract the ZIP file
             3. Move Prysm.app to your Applications folder
             4. **If you get "damaged" error**: Right-click Prysm.app → "Open" → "Open" (bypasses Gatekeeper)
-            5. **Alternative**: Run `xattr -d com.apple.quarantine /Applications/Prysm.app` in Terminal
+            5. **Alternative**: Run \`xattr -d com.apple.quarantine /Applications/Prysm.app\` in Terminal
             
             #### Windows
             1. Download \`Prysm-Setup-${version}.exe\`
