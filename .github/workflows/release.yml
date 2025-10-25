@@ -28,6 +28,7 @@ jobs:
           draft: true  # Keep as draft until all builds complete
           prerelease: false
           generate_release_notes: true
+          token: ${{ secrets.GITHUB_TOKEN }}
 
   build-macos:
     needs: create-release

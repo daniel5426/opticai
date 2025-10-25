@@ -57,11 +57,28 @@ autoUpdater.autoInstallOnAppQuit = true;
 
 // Set update server for GitHub releases
 if (!inDevelopment) {
-  autoUpdater.setFeedURL({
-    provider: 'github',
-    owner: 'daniel5426',
-    repo: 'opticai'
-  });
+  try {
+    const updateConfig: any = {
+      provider: 'github',
+      owner: 'daniel5426',
+      repo: 'opticai'
+    };
+    
+    // Add private repository configuration if token is available
+    const ghToken = process.env.GH_TOKEN;
+    if (ghToken) {
+      updateConfig.private = true;
+      updateConfig.token = ghToken;
+      console.log('Auto-updater configured for private GitHub repository');
+    } else {
+      console.log('Auto-updater configured for public GitHub repository');
+    }
+    
+    autoUpdater.setFeedURL(updateConfig);
+    console.log('Auto-updater configured for GitHub releases');
+  } catch (error) {
+    console.error('Error setting up auto-updater:', error);
+  }
 }
 
 // Server Mode Variables - REMOVED (using FastAPI backend instead)
@@ -494,6 +511,16 @@ ipcMain.handle('check-for-updates', async () => {
   
   try {
     const result = await autoUpdater.checkForUpdates();
+    
+    // If no result, it might mean no updates available or no releases exist yet
+    if (!result) {
+      return {
+        available: false,
+        message: 'No updates available or no releases found',
+        currentVersion: app.getVersion()
+      };
+    }
+    
     return {
       available: result !== null,
       version: result?.updateInfo.version || null,
@@ -501,6 +528,16 @@ ipcMain.handle('check-for-updates', async () => {
     };
   } catch (error) {
     console.error('Error checking for updates:', error);
+    
+    // Handle specific GitHub 404 errors
+    if (error instanceof Error && error.message.includes('404')) {
+      return {
+        available: false,
+        message: 'No releases found - this might be the first version',
+        currentVersion: app.getVersion()
+      };
+    }
+    
     return { 
       available: false, 
       error: error instanceof Error ? error.message : 'Unknown error',

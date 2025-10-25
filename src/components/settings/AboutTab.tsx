@@ -53,7 +53,11 @@ export function AboutTab() {
         setLatestVersion(null);
         if (manual) {
           if (result.message) {
-            toast.info(result.message);
+            if (result.message.includes('No releases found') || result.message.includes('first version')) {
+              toast.info('זוהי כנראה הגרסה הראשונה. עדכונים יהיו זמינים לאחר שחרור גרסאות חדשות.');
+            } else {
+              toast.info(result.message);
+            }
           } else {
             toast.success('הגרסה שלך היא העדכנית ביותר');
           }
@@ -63,6 +67,8 @@ export function AboutTab() {
       if (result.error && manual) {
         if (result.error.includes('ENOENT') || result.error.includes('app-update.yml')) {
           toast.error('קובץ עדכונים לא נמצא. נא לבנות מחדש את האפליקציה.');
+        } else if (result.error.includes('404') || result.error.includes('releases.atom')) {
+          toast.error('לא נמצאו עדכונים זמינים. ייתכן שזוהי הגרסה הראשונה או שהמאגר לא פורסם עדיין.');
         } else {
           toast.error(`שגיאה בבדיקת עדכונים: ${result.error}`);
         }

@@ -1,3 +1,5 @@
 owner: daniel5426
 repo: opticai
 provider: github
+private: true
+token: ${GH_TOKEN}
