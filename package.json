@@ -1,7 +1,7 @@
 {
   "name": "opticai",
   "productName": "OpticAI",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "description": "Multi-clinic management system for optical clinics",
   "main": ".vite/build/main.js",
   "private": true,
