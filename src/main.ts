@@ -103,7 +103,7 @@ function createWindow() {
     width: 1200,
     height: 800,
     webPreferences: {
-      devTools: inDevelopment, // Only enable DevTools in development
+      devTools: true, // Enable DevTools in both development and production for debugging
       contextIsolation: true,
       nodeIntegration: false,
       nodeIntegrationInSubFrames: false,
@@ -524,9 +524,10 @@ ipcMain.handle('check-for-updates', async () => {
     
     // Handle specific GitHub 404 errors
     if (error instanceof Error && error.message.includes('404')) {
+      console.error('Error checking for updates:', error);
       return {
         available: false,
-        message: 'No releases found - this might be the first version',
+        message: 'No releases found - this might be the first version, here the error: ' + error.message,
         currentVersion: app.getVersion()
       };
     }
