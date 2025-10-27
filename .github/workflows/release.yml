@@ -35,9 +35,6 @@ jobs:
     runs-on: macos-latest
     permissions:
       contents: write
-    strategy:
-      matrix:
-        arch: [arm64, x64]
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -50,8 +47,8 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build for macOS ${{ matrix.arch }}
-        run: npm run build:mac:${{ matrix.arch }}
+      - name: Build for macOS arm64
+        run: npm run build:mac:arm64
         env:
           NODE_ENV: production
           NODE_OPTIONS: --max-old-space-size=4096
@@ -62,12 +59,12 @@ jobs:
         id: version
         run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
 
-      - name: Upload macOS ${{ matrix.arch }} artifacts
+      - name: Upload macOS arm64 artifacts
         uses: softprops/action-gh-release@v1
         with:
           tag_name: v${{ steps.version.outputs.VERSION }}
           files: |
-            release/Prysm-darwin-${{ matrix.arch }}-${{ steps.version.outputs.VERSION }}.zip
+            release/*.zip
             release/latest-mac.yml
 
   build-windows:
