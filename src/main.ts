@@ -1,4 +1,3 @@
-/// <reference types="@electron-forge/plugin-vite/forge-vite-env" />
 // Load environment variables from .env file
 import dotenv from 'dotenv';
 import path from "path";
@@ -129,12 +128,10 @@ function createWindow() {
     mainWindow = null;
   });
 
-  if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
-    mainWindow.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL);
+  if (inDevelopment) {
+    mainWindow.loadURL('http://localhost:5173');
   } else {
-    mainWindow.loadFile(
-      path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`),
-    );
+    mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
   }
 
   return mainWindow;

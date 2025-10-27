@@ -150,7 +150,7 @@ export function ClientsTable({
           containerClassName="max-h-[70vh] overflow-y-auto overscroll-contain"
           containerStyle={{ scrollbarWidth: 'none' }}
         >
-          <TableHeader className="sticky top-0 z-30 bg-card">
+          <TableHeader className="sticky top-0 bg-card">
             <TableRow>
               <TableHead className="text-right sticky top-0 z-20 bg-card">מס' לקוח</TableHead>
               <TableHead className="text-right sticky top-0 z-20 bg-card">שם פרטי</TableHead>

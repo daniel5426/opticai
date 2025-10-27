@@ -119,7 +119,7 @@ export function ExamsTable({ data, clientId, onExamDeleted, onExamDeleteFailed, 
       <div className="rounded-md bg-card">
         
           <Table dir="rtl" containerClassName="max-h-[70vh] overflow-y-auto overscroll-contain" containerStyle={{ scrollbarWidth: 'none' }}>
-            <TableHeader className="sticky top-0 z-30 bg-card">
+            <TableHeader className="sticky top-0 z-0 bg-card">
               <TableRow>
                 <TableHead className="text-right">תאריך בדיקה</TableHead>
                 <TableHead className="text-right">סוג בדיקה</TableHead>

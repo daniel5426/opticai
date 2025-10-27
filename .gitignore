@@ -91,8 +91,10 @@ typings/
 # Vite
 .vite/
 dist/
+dist-electron/
 
-# Electron-Forge
+# Electron-Builder
+release/
 out/
 test-arm64/
 test-x64/

@@ -51,31 +51,24 @@ jobs:
         run: npm ci
 
       - name: Build for macOS ${{ matrix.arch }}
-        run: npm run make:${{ matrix.arch }}
+        run: npm run build:mac:${{ matrix.arch }}
         env:
           NODE_ENV: production
           NODE_OPTIONS: --max-old-space-size=4096
           CSC_IDENTITY_AUTO_DISCOVERY: false
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Get version
         id: version
         run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
 
-      - name: Remove quarantine attribute (fix "damaged" app issue)
-        run: |
-          cd ./out/make/zip/darwin/${{ matrix.arch }}/
-          unzip -q Prysm-darwin-${{ matrix.arch }}-${{ steps.version.outputs.VERSION }}.zip
-          xattr -d com.apple.quarantine Prysm.app 2>/dev/null || true
-          xattr -c Prysm.app
-          rm -f Prysm-darwin-${{ matrix.arch }}-${{ steps.version.outputs.VERSION }}.zip
-          zip -r Prysm-darwin-${{ matrix.arch }}-${{ steps.version.outputs.VERSION }}.zip Prysm.app
-          rm -rf Prysm.app
-
-      - name: Upload macOS ${{ matrix.arch }} ZIP
+      - name: Upload macOS ${{ matrix.arch }} artifacts
         uses: softprops/action-gh-release@v1
         with:
           tag_name: v${{ steps.version.outputs.VERSION }}
-          files: ./out/make/zip/darwin/${{ matrix.arch }}/Prysm-darwin-${{ matrix.arch }}-${{ steps.version.outputs.VERSION }}.zip
+          files: |
+            release/Prysm-darwin-${{ matrix.arch }}-${{ steps.version.outputs.VERSION }}.zip
+            release/latest-mac.yml
 
   build-windows:
     needs: create-release
@@ -95,21 +88,24 @@ jobs:
         run: npm ci
 
       - name: Build for Windows
-        run: npm run make
+        run: npm run build:win
         env:
           NODE_ENV: production
           NODE_OPTIONS: --max-old-space-size=4096
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Get version
         id: version
         shell: bash
         run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
 
-      - name: Upload Windows Installer
+      - name: Upload Windows artifacts
         uses: softprops/action-gh-release@v1
         with:
           tag_name: v${{ steps.version.outputs.VERSION }}
-          files: ./out/make/squirrel.windows/x64/Prysm-Setup.exe
+          files: |
+            release/Prysm-Setup-${{ steps.version.outputs.VERSION }}.exe
+            release/latest.yml
 
   finalize-release:
     needs: [build-macos, build-windows]
@@ -142,8 +138,9 @@ jobs:
             - **macOS Apple Silicon (M1/M2/M3)**: \`Prysm-darwin-arm64-${version}.zip\`
             - **macOS Intel**: \`Prysm-darwin-x64-${version}.zip\`
             - **Windows**: \`Prysm-Setup-${version}.exe\`
-            - **Linux DEB**: \`prysm_${version}_amd64.deb\`
-            - **Linux RPM**: \`prysm-${version}.x86_64.rpm\`
+            
+            ### Auto-Update Support
+            This release includes automatic update support! The app will notify you when new versions are available.
             
             ### Installation
             
@@ -151,14 +148,14 @@ jobs:
             1. Download the appropriate ZIP for your Mac (Apple Silicon or Intel)
             2. Extract the ZIP file
             3. Move Prysm.app to your Applications folder
-            4. **If you get "damaged" error**: Right-click Prysm.app → "Open" → "Open" (bypasses Gatekeeper)
-            5. **Alternative**: Run \`xattr -d com.apple.quarantine /Applications/Prysm.app\` in Terminal
+            4. **First time opening**: Right-click Prysm.app → "Open" → "Open" (bypasses Gatekeeper)
+            5. **Alternative**: Run \`xattr -cr /Applications/Prysm.app\` in Terminal
             
             #### Windows
             1. Download \`Prysm-Setup-${version}.exe\`
             2. Run the installer
             3. Follow the installation wizard
-            
+            4. The app will auto-update in the background
             
             ### What's Changed
             See the commits for detailed changes.

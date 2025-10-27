@@ -1,24 +1,28 @@
 {
   "name": "opticai",
-  "productName": "OpticAI",
+  "productName": "Prysm",
   "version": "1.0.8",
   "description": "Multi-clinic management system for optical clinics",
-  "main": ".vite/build/main.js",
+  "main": "dist-electron/main.js",
   "private": true,
   "repository": {
     "type": "git",
-    "url": "https://github.com/YOUR-USERNAME/opticai.git"
+    "url": "https://github.com/daniel5426/opticai.git"
   },
   "scripts": {
-    "dev": "electron-forge start",
-    "dev:forge": "electron-forge start",
+    "dev": "vite",
+    "build": "vite build && electron-builder --dir",
+    "build:mac": "vite build && electron-builder --mac",
+    "build:mac:arm64": "vite build && electron-builder --mac --arm64",
+    "build:mac:x64": "vite build && electron-builder --mac --x64",
+    "build:win": "vite build && electron-builder --win",
+    "build:linux": "vite build && electron-builder --linux",
+    "dist": "vite build && electron-builder",
+    "dist:mac": "vite build && electron-builder --mac",
+    "dist:win": "vite build && electron-builder --win",
+    "dist:linux": "vite build && electron-builder --linux",
     "reset": "rm '/Users/danielbenassaya/Library/Application Support/OpticAI/database.sqlite' && npm run dev",
-    "start": "electron-forge start",
-    "package": "electron-forge package",
-    "make": "electron-forge make",
-    "make:arm64": "electron-forge make --arch=arm64",
-    "make:x64": "electron-forge make --arch=x64",
-    "publish": "electron-forge publish",
+    "start": "vite",
     "lint": "eslint .",
     "format": "prettier --check .",
     "format:write": "prettier --write .",
@@ -31,18 +35,7 @@
   "author": "Daniel Benassayag",
   "license": "MIT",
   "devDependencies": {
-    "@electron-forge/cli": "^7.8.0",
-    "@electron-forge/maker-deb": "^7.8.0",
-    "@electron-forge/maker-dmg": "^7.10.2",
-    "@electron-forge/maker-rpm": "^7.8.0",
-    "@electron-forge/maker-squirrel": "^7.8.0",
-    "@electron-forge/maker-zip": "^7.8.0",
-    "@electron-forge/plugin-auto-unpack-natives": "^7.8.0",
-    "@electron-forge/plugin-fuses": "^7.8.0",
-    "@electron-forge/plugin-vite": "^7.8.0",
-    "@electron-forge/shared-types": "^7.8.0",
     "@electron-toolkit/tsconfig": "^1.0.1",
-    "@electron/fuses": "^1.8.0",
     "@eslint/compat": "^1.2.8",
     "@eslint/js": "^9.25.1",
     "@playwright/test": "^1.52.0",
@@ -59,6 +52,7 @@
     "@types/semver": "^7.7.1",
     "@types/sql.js": "^1.4.9",
     "electron": "^35.2.1",
+    "electron-builder": "^26.0.12",
     "electron-devtools-installer": "^4.0.0",
     "electron-playwright-helpers": "^1.7.1",
     "eslint": "^9.31.0",
@@ -84,7 +78,6 @@
     "@dnd-kit/modifiers": "^9.0.0",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
-    "@electron-forge/publisher-github": "^7.10.2",
     "@eslint/eslintrc": "^3.3.1",
     "@icons-pack/react-simple-icons": "^12.7.0",
     "@langchain/core": "^0.3.61",
@@ -156,5 +149,91 @@
     "tailwindcss-animate": "^1.0.7",
     "vaul": "^1.1.2",
     "zod": "^3.25.67"
+  },
+  "build": {
+    "appId": "com.prysm.app",
+    "productName": "Prysm",
+    "artifactName": "${productName}-${os}-${arch}-${version}.${ext}",
+    "directories": {
+      "output": "release",
+      "buildResources": "images"
+    },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*",
+      ".env.production",
+      "app-update.yml"
+    ],
+    "extraResources": [
+      {
+        "from": ".env.production",
+        "to": ".env.production"
+      },
+      {
+        "from": "app-update.yml",
+        "to": "app-update.yml"
+      }
+    ],
+    "mac": {
+      "category": "public.app-category.business",
+      "icon": "images/prysm-icon-1024.icns",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist",
+      "target": [
+        {
+          "target": "zip",
+          "arch": ["x64", "arm64"]
+        }
+      ]
+    },
+    "dmg": {
+      "contents": [
+        {
+          "x": 130,
+          "y": 220
+        },
+        {
+          "x": 410,
+          "y": 220,
+          "type": "link",
+          "path": "/Applications"
+        }
+      ]
+    },
+    "win": {
+      "icon": "images/prysm-icon.ico",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "deleteAppDataOnUninstall": false,
+      "installerIcon": "images/prysm-icon.ico",
+      "uninstallerIcon": "images/prysm-icon.ico",
+      "artifactName": "${productName}-Setup-${version}.${ext}"
+    },
+    "linux": {
+      "icon": "images/prysm-icon.png",
+      "category": "Office",
+      "target": [
+        "deb",
+        "rpm",
+        "AppImage"
+      ]
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "daniel5426",
+      "repo": "opticai",
+      "private": true
+    }
   }
 }
