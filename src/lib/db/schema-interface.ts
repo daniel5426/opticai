@@ -681,7 +681,7 @@ export interface User {
   phone?: string;
   password?: string | null;
   has_password?: boolean;
-  role: 'clinic_manager' | 'clinic_worker' | 'clinic_viewer' | 'company_ceo';
+  role_level?: 1 | 2 | 3 | 4;
   is_active?: boolean;
   profile_picture?: string;
   primary_theme_color?: string;

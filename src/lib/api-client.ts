@@ -268,7 +268,7 @@ class ApiClient {
     if (params?.clinic_id !== undefined) u.append('clinic_id', String(params.clinic_id))
     if (params?.include_ceo !== undefined) u.append('include_ceo', String(params.include_ceo))
     const qs = u.toString()
-    return this.request<Array<Pick<User,'id'|'full_name'|'username'|'role'|'clinic_id'|'is_active'>>>('/users/select' + (qs ? `?${qs}` : ''))
+    return this.request<Array<Pick<User,'id'|'full_name'|'username'|'role_level'|'clinic_id'|'is_active'>>>('/users/select' + (qs ? `?${qs}` : ''))
   }
 
   async getUser(id: number) {

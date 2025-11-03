@@ -9,6 +9,9 @@ from auth import get_current_user
 from models import User
 from utils.storage import upload_base64_image
 
+
+CEO_LEVEL = 4
+
 router = APIRouter(prefix="/companies", tags=["companies"])
 
 @router.get("/public", response_model=List[CompanySchema])
@@ -48,7 +51,7 @@ def create_company_public(
 
 @router.post("/", response_model=CompanySchema)
 def create_company(data: CompanyCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    if current_user.role != "company_ceo":
+    if current_user.role_level < CEO_LEVEL:
         raise HTTPException(status_code=403, detail="Only company CEOs can create companies")
     
     try:
@@ -75,7 +78,7 @@ def get_companies(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    if current_user.role == "company_ceo":
+    if current_user.role_level >= CEO_LEVEL:
         companies = db.query(Company).all()
     else:
         companies = db.query(Company).join(Clinic).filter(Clinic.id == current_user.clinic_id).all()
@@ -91,7 +94,7 @@ def get_company(
     if company is None:
         raise HTTPException(status_code=404, detail="Company not found")
     
-    if current_user.role != "company_ceo" and current_user.clinic_id:
+    if current_user.role_level < CEO_LEVEL and current_user.clinic_id:
         clinic = db.query(Clinic).filter(Clinic.id == current_user.clinic_id).first()
         if not clinic or clinic.company_id != company_id:
             raise HTTPException(status_code=403, detail="Access denied")
@@ -105,7 +108,7 @@ def update_company(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    if current_user.role != "company_ceo":
+    if current_user.role_level < CEO_LEVEL:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only company CEOs can update companies"
@@ -134,7 +137,7 @@ def delete_company(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    if current_user.role != "company_ceo":
+    if current_user.role_level < CEO_LEVEL:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only company CEOs can delete companies"

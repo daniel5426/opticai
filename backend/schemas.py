@@ -71,7 +71,7 @@ class UserBase(BaseModel):
     username: str
     email: Optional[str] = None
     phone: Optional[str] = None
-    role: str
+    role_level: int = 1
     is_active: bool = True
     profile_picture: Optional[str] = None
     primary_theme_color: Optional[str] = None
@@ -91,7 +91,7 @@ class UserCreate(UserBase):
 
 class UserUpdate(UserBase):
     username: Optional[str] = None
-    role: Optional[str] = None
+    role_level: Optional[int] = None
     password: Optional[str] = None
     clinic_id: Optional[int] = None
     company_id: Optional[int] = None
@@ -120,7 +120,7 @@ class UserSelectItem(BaseModel):
     id: int
     full_name: Optional[str] = None
     username: str
-    role: str
+    role_level: int
     clinic_id: Optional[int] = None
     is_active: bool
 

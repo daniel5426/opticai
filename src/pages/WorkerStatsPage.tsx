@@ -11,6 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { IconClock, IconCalendar, IconChartBar, IconPlus, IconTrash } from "@tabler/icons-react"
 import { apiClient } from "@/lib/api-client"
 import { User, WorkShift } from "@/lib/db/schema-interface"
+import { ROLE_LEVELS, isRoleAtLeast } from "@/lib/role-levels"
 import { useUser } from "@/contexts/UserContext"
 
 export default function WorkerStatsPage() {
@@ -38,7 +39,7 @@ export default function WorkerStatsPage() {
       try {
         const response = await apiClient.getUsers()
         if (response.data) {
-          const workers = response.data.filter(user => user.role !== 'clinic_viewer')
+          const workers = response.data.filter(user => isRoleAtLeast(user.role_level, ROLE_LEVELS.worker))
           setUsers(workers)
           if (workers.length > 0 && !selectedUserId) {
             setSelectedUserId(workers[0].id!)
@@ -352,7 +353,7 @@ export default function WorkerStatsPage() {
                         <CardHeader>
                           <div className="flex items-center justify-between">
                             <div className="flex items-center">
-                              {currentUser?.role === 'company_ceo' || currentUser?.role === 'clinic_manager' && (
+                              {isRoleAtLeast(currentUser?.role_level, ROLE_LEVELS.manager) && (
                                 <Button
                                   variant="outline"
                                   size="sm"
@@ -402,7 +403,7 @@ export default function WorkerStatsPage() {
                                          shift.status === 'active' ? 'פעילה' :
                                          'בוטלה'}
                                       </Badge>
-                                      {currentUser?.role === 'company_ceo' || currentUser?.role === 'clinic_manager'  && (
+                                      {isRoleAtLeast(currentUser?.role_level, ROLE_LEVELS.manager) && (
                                         <Button
                                           variant="ghost"
                                           size="sm"
@@ -461,7 +462,7 @@ export default function WorkerStatsPage() {
                       <div className="text-right w-full">
                         <div className="flex items-center justify-end gap-2">
                         <span className="text-muted-foreground text-sm">
-                            {user.role === 'clinic_manager' || user.role === 'company_ceo' ? '(מנהל)' : '(עובד)'}
+                            {isRoleAtLeast(user.role_level, ROLE_LEVELS.manager) ? '(מנהל)' : '(עובד)'}
                           </span>
                           <span className="font-medium">{user.full_name || user.username}</span>
                         </div>

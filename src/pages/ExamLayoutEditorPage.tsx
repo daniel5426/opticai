@@ -33,6 +33,7 @@ import { ExamCardRenderer, CardItem, calculateCardWidth, hasNoteCard, DetailProp
 import { getExamLayoutById, createExamLayout, updateExamLayout } from "@/lib/db/exam-layouts-db"
 import { examComponentRegistry } from "@/lib/exam-component-registry"
 import { Eye, EyeOff } from "lucide-react"
+import { useUser } from "@/contexts/UserContext"
 
 interface CardRow {
   id: string
@@ -261,6 +262,7 @@ function CardResizer({ rowId, leftCardId, rightCardId, leftCardType, rightCardTy
 
 export default function ExamLayoutEditorPage() {
   const navigate = useNavigate()
+  const { currentClinic } = useUser()
   
   // Handle both route cases safely
   let params: { layoutId?: string } = {}
@@ -292,6 +294,7 @@ export default function ExamLayoutEditorPage() {
   const [isEditing, setIsEditing] = useState(true)
   const [activeId, setActiveId] = useState<UniqueIdentifier | null>(null)
   const [isDefault, setIsDefault] = useState(false)
+  const [layoutClinicId, setLayoutClinicId] = useState<number | null>(currentClinic?.id ?? null)
   
   const [cardRows, setCardRows] = useState<CardRow[]>([
     { id: 'row-1', cards: [{ id: 'exam-details-1', type: 'exam-details' }] },
@@ -356,6 +359,12 @@ export default function ExamLayoutEditorPage() {
   }
 
   useEffect(() => {
+    if (isNewMode) {
+      setLayoutClinicId(currentClinic?.id ?? null)
+    }
+  }, [isNewMode, currentClinic?.id])
+
+  useEffect(() => {
     const loadLayout = async () => {
       if (isNewMode || !params.layoutId) return
       
@@ -365,6 +374,7 @@ export default function ExamLayoutEditorPage() {
         if (layout) {
           setLayoutName(layout.name)
           setIsDefault(layout.is_default ?? false)
+          setLayoutClinicId(layout.clinic_id ?? null)
           if (layout.layout_data) {
             const parsedLayout = JSON.parse(layout.layout_data)
             if (Array.isArray(parsedLayout)) {
@@ -566,7 +576,9 @@ export default function ExamLayoutEditorPage() {
     }
 
     try {
+      const targetClinicId = layoutClinicId ?? currentClinic?.id ?? null
       const layoutData = {
+        ...(targetClinicId !== null ? { clinic_id: targetClinicId } : {}),
         name: layoutName,
         layout_data: JSON.stringify({
           rows: cardRows,

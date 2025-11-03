@@ -16,6 +16,7 @@ import { deleteUser, updateUser } from "@/lib/db/users-db"
 import { toast } from "sonner"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
+import { ROLE_LEVELS, getRoleBadgeVariant, getRoleLabel, isRoleAtLeast } from "@/lib/role-levels"
 
 interface UserWithClinic extends User {
   clinic_name?: string;
@@ -90,9 +91,9 @@ export function UsersTable({
   }, [data, searchQuery, isExternalSearch])
 
   const handleDeleteClick = (user: UserWithClinic) => {
-    const ceoCount = data.filter(u => u.role === 'company_ceo').length;
-    
-    if (user.role === 'company_ceo' && ceoCount === 1) {
+    const ceoCount = data.filter(u => isRoleAtLeast(u.role_level, ROLE_LEVELS.ceo)).length
+
+    if (isRoleAtLeast(user.role_level, ROLE_LEVELS.ceo) && ceoCount === 1) {
       toast.warning('לא ניתן למחוק את מנכ"ל החברה היחיד. יש להוסיף מנכ"ל נוסף לפני מחיקת משתמש זה.');
       return;
     }
@@ -142,24 +143,6 @@ export function UsersTable({
     } catch (error) {
       toast.error('שגיאה בעדכון סטטוס המשתמש')
       onUserUpdateFailed?.()
-    }
-  }
-
-  const getRoleBadgeColor = (role: string) => {
-    switch (role) {
-      case 'admin': return 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200';
-      case 'worker': return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200';
-      case 'viewer': return 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200';
-      default: return 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200';
-    }
-  }
-
-  const getRoleDisplayName = (role: string) => {
-    switch (role) {
-      case 'admin': return 'מנהל מערכת';
-      case 'worker': return 'עובד';
-      case 'viewer': return 'צופה';
-      default: return role;
     }
   }
 
@@ -235,8 +218,8 @@ export function UsersTable({
                   <TableCell className="font-medium">{user.id}</TableCell>
                   <TableCell>{user.full_name || user.username || ""}</TableCell>
                   <TableCell>
-                    <Badge className={getRoleBadgeColor(user.role)}>
-                      {getRoleDisplayName(user.role)}
+                    <Badge variant={getRoleBadgeVariant(user.role_level)}>
+                      {getRoleLabel(user.role_level)}
                     </Badge>
                   </TableCell>
                   <TableCell>{user.email || ""}</TableCell>

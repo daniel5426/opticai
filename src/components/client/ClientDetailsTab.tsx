@@ -12,6 +12,8 @@ import { getAllFamilies, getFamilyById, createFamily, addClientToFamily, removeC
 import { useUser } from "@/contexts/UserContext"
 import { SaveIcon, XIcon, ChevronDownIcon, CheckIcon } from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
+import israelCities from "@/utils/israel_cities.json"
+import { CityLookupInput } from "@/components/ui/city-lookup-input"
 
 // Custom label component
 function ModernLabel({ children }: { children: React.ReactNode }) {
@@ -352,14 +354,13 @@ export function ClientDetailsTab({
             <div className="grid grid-cols-1 @[900px]:grid-cols-2 gap-4" dir="rtl">
               <div className="space-y-2">
                 <ModernLabel>עיר</ModernLabel>
-                <Input 
-                  type="text"
-                  name="address_city"
+                <CityLookupInput
                   value={formData.address_city || ''}
-                  onChange={handleInputChange}
+                  onChange={(v) => handleSelectChange(v, 'address_city')}
+                  placeholder={showEditableFields ? "בחר או הקלד..." : ''}
+                  className="h-9"
                   disabled={!showEditableFields}
-                  className={`text-sm h-9 disabled:opacity-100 disabled:cursor-default`}
-                  placeholder={showEditableFields ? "הכנס עיר" : ""}
+                  dir="rtl"
                 />
               </div>
               <div className="space-y-2">
@@ -588,6 +589,23 @@ export function ClientDetailsTab({
               <h3 className="text-lg font-semibold">פרטים אישיים</h3>
             </div>
             <div className="grid grid-cols-1 @[900px]:grid-cols-2 gap-4" dir="rtl">
+            <div className="space-y-2">
+                <ModernLabel>
+                  שם משפחה
+                  {isNewMode && <span className="text-red-500 mr-1">*</span>}
+                </ModernLabel>
+                <Input 
+                  type="text"
+                  name="last_name"
+                  value={formData.last_name || ''}
+                  onChange={handleInputChange}
+                  disabled={!showEditableFields}
+                  className={`text-sm h-9 disabled:opacity-100 disabled:cursor-default`}
+                  placeholder={showEditableFields ? "הכנס שם משפחה" : ""}
+                  required={isNewMode}
+                />
+              </div>
+
               <div className="space-y-2">
                 <ModernLabel>
                   שם פרטי
@@ -601,22 +619,6 @@ export function ClientDetailsTab({
                   disabled={!showEditableFields}
                   className={`text-sm h-9 disabled:opacity-100 disabled:cursor-default`}
                   placeholder={showEditableFields ? "הכנס שם פרטי" : ""}
-                  required={isNewMode}
-                />
-              </div>
-              <div className="space-y-2">
-                <ModernLabel>
-                  שם משפחה
-                  {isNewMode && <span className="text-red-500 mr-1">*</span>}
-                </ModernLabel>
-                <Input 
-                  type="text"
-                  name="last_name"
-                  value={formData.last_name || ''}
-                  onChange={handleInputChange}
-                  disabled={!showEditableFields}
-                  className={`text-sm h-9 disabled:opacity-100 disabled:cursor-default`}
-                  placeholder={showEditableFields ? "הכנס שם משפחה" : ""}
                   required={isNewMode}
                 />
               </div>

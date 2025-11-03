@@ -8,6 +8,10 @@ from auth import get_current_user
 from models import User
 import uuid
 
+
+CEO_LEVEL = 4
+MANAGER_LEVEL = 3
+
 router = APIRouter(prefix="/clinics", tags=["clinics"])
 
 @router.post("/", response_model=ClinicSchema)
@@ -16,13 +20,13 @@ def create_clinic(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    if current_user.role not in ["company_ceo", "clinic_manager"]:
+    if current_user.role_level < MANAGER_LEVEL:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Insufficient permissions to create clinics"
         )
     
-    if current_user.role == "clinic_manager" and current_user.clinic_id:
+    if current_user.role_level == MANAGER_LEVEL and current_user.clinic_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Clinic managers cannot create new clinics"
@@ -44,7 +48,7 @@ def get_clinics(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    if current_user.role == "company_ceo":
+    if current_user.role_level >= CEO_LEVEL:
         clinics = db.query(Clinic).all()
     else:
         clinics = db.query(Clinic).filter(Clinic.id == current_user.clinic_id).all()
@@ -60,7 +64,7 @@ def get_clinic(
     if clinic is None:
         raise HTTPException(status_code=404, detail="Clinic not found")
     
-    if current_user.role != "company_ceo" and current_user.clinic_id != clinic_id:
+    if current_user.role_level < CEO_LEVEL and current_user.clinic_id != clinic_id:
         raise HTTPException(status_code=403, detail="Access denied")
     
     return clinic
@@ -88,7 +92,7 @@ def get_clinics_by_company(
         raise HTTPException(status_code=404, detail="Company not found")
     
     # Check permissions
-    if current_user.role == "company_ceo":
+    if current_user.role_level >= CEO_LEVEL:
         # CEO can see all clinics in their company
         clinics = db.query(Clinic).filter(Clinic.company_id == company_id).all()
     else:
@@ -103,13 +107,13 @@ def update_clinic(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    if current_user.role not in ["company_ceo", "clinic_manager"]:
+    if current_user.role_level < MANAGER_LEVEL:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Insufficient permissions to update clinics"
         )
     
-    if current_user.role == "clinic_manager" and current_user.clinic_id != clinic_id:
+    if current_user.role_level == MANAGER_LEVEL and current_user.clinic_id != clinic_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Can only update your own clinic"
@@ -132,7 +136,7 @@ def delete_clinic(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    if current_user.role != "company_ceo":
+    if current_user.role_level < CEO_LEVEL:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only company CEOs can delete clinics"

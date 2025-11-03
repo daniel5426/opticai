@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Company, Clinic, User } from '@/lib/db/schema-interface';
+import { ROLE_LEVELS, isRoleAtLeast } from '@/lib/role-levels';
 import { UsersTable } from '@/components/users-table';
 import { UserModal } from '@/components/UserModal';
 import { getUsersByCompanyId } from '@/lib/db/users-db';
@@ -160,7 +161,7 @@ const ControlCenterUsersPage: React.FC = () => {
         companyId={company?.id}
         onUserSaved={handleUserSaved}
         onUserUpdated={handleUserUpdated}
-        disableRoleChange={editingUser?.role === 'company_ceo' && users.filter(u => u.role === 'company_ceo').length === 1}
+        disableRoleChange={isRoleAtLeast(editingUser?.role_level, ROLE_LEVELS.ceo) && users.filter(u => isRoleAtLeast(u.role_level, ROLE_LEVELS.ceo)).length === 1}
       />
     </>
   );

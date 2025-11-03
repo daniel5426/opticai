@@ -8,6 +8,7 @@ import { toast } from 'sonner'
 import { User } from '@/lib/db/schema-interface'
 import { createUser, updateUser } from '@/lib/db/users-db'
 import { CustomModal } from '@/components/ui/custom-modal'
+import { ROLE_LEVELS, getRoleLabel, isRoleAtLeast } from '@/lib/role-levels'
  
 
 interface UserModalProps {
@@ -42,7 +43,7 @@ export function UserModal({
     phone: '',
     hasPassword: false,
     password: '',
-    role: 'clinic_worker' as 'clinic_manager' | 'clinic_worker' | 'clinic_viewer' | 'company_ceo',
+    role_level: ROLE_LEVELS.worker as 1 | 2 | 3 | 4,
     clinic_id: ''
   })
   const [isSaving, setIsSaving] = useState(false)
@@ -57,7 +58,7 @@ export function UserModal({
         phone: editingUser.phone || '',
         hasPassword: !!editingUser.password,
         password: '',
-        role: editingUser.role,
+        role_level: (editingUser.role_level as 1 | 2 | 3 | 4) || ROLE_LEVELS.worker,
         clinic_id: editingUser.clinic_id?.toString() || ''
       })
     } else {
@@ -68,7 +69,7 @@ export function UserModal({
         phone: '',
         hasPassword: false,
         password: '',
-        role: 'clinic_worker',
+        role_level: ROLE_LEVELS.worker,
         clinic_id: defaultClinicId ? String(defaultClinicId) : ''
       })
     }
@@ -77,7 +78,7 @@ export function UserModal({
 
   const handleUserFormChange = async (field: string, value: any) => {
     // Show warning when user is changing their own role
-    if (field === 'role' && editingUser && currentUser && editingUser.id === currentUser.id) {
+    if (field === 'role_level' && editingUser && currentUser && editingUser.id === currentUser.id) {
       const confirmed = window.confirm(
         'אתה עומד לשנות את התפקיד שלך. פעולה זו עלולה להגביל את הגישה שלך למערכת. האם אתה בטוח?'
       )
@@ -112,7 +113,7 @@ export function UserModal({
         email: userForm.email.trim() || undefined,
         phone: userForm.phone.trim() || undefined,
         password: userForm.hasPassword ? (userForm.password.trim() || undefined) : null,
-        role: userForm.role,
+        role_level: userForm.role_level,
         clinic_id: userForm.clinic_id && userForm.clinic_id !== 'global' ? parseInt(userForm.clinic_id) : undefined,
         company_id: companyId || currentUser?.company_id || undefined,
         is_active: true
@@ -263,34 +264,32 @@ export function UserModal({
           
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="role" className="text-right block">תפקיד *</Label>
-              {(currentUser?.role === 'company_ceo' || currentUser?.role === 'clinic_manager') && !disableRoleChange ? (
+              <Label htmlFor="role_level" className="text-right block">תפקיד *</Label>
+              {isRoleAtLeast(currentUser?.role_level, ROLE_LEVELS.manager) && !disableRoleChange ? (
                 <Select
-                  value={userForm.role}
-                  onValueChange={(value) => handleUserFormChange('role', value)}
+                  value={String(userForm.role_level)}
+                  onValueChange={(value) => handleUserFormChange('role_level', parseInt(value, 10) as 1 | 2 | 3 | 4)}
                   dir="rtl"
                 >
                   <SelectTrigger className="text-right" dir="rtl">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {currentUser?.role === 'company_ceo' && (
-                      <SelectItem value="company_ceo">מנכ"ל החברה</SelectItem>
+                    {isRoleAtLeast(currentUser?.role_level, ROLE_LEVELS.ceo) && (
+                      <SelectItem value={String(ROLE_LEVELS.ceo)}>מנכ"ל החברה</SelectItem>
                     )}
-                    <SelectItem value="clinic_manager">מנהל מרפאה</SelectItem>
-                    <SelectItem value="clinic_worker">עובד מרפאה</SelectItem>
-                    <SelectItem value="clinic_viewer">צופה מרפאה</SelectItem>
+                    <SelectItem value={String(ROLE_LEVELS.manager)}>מנהל מרפאה</SelectItem>
+                    <SelectItem value={String(ROLE_LEVELS.worker)}>עובד מרפאה</SelectItem>
+                    <SelectItem value={String(ROLE_LEVELS.viewer)}>צופה מרפאה</SelectItem>
                   </SelectContent>
                 </Select>
               ) : (
                 <div className="px-3 py-2 bg-muted rounded-md text-right">
-                  {userForm.role === 'company_ceo' ? 'מנכ"ל החברה' : 
-                   userForm.role === 'clinic_manager' ? 'מנהל מרפאה' : 
-                   userForm.role === 'clinic_worker' ? 'עובד מרפאה' : 'צופה מרפאה'}
+                  {getRoleLabel(userForm.role_level)}
                   {disableRoleChange && (
                     <span className="text-xs text-muted-foreground mr-2">(מנכ"ל יחיד)</span>
                   )}
-                  {!disableRoleChange && currentUser?.role !== 'company_ceo' && currentUser?.role !== 'clinic_manager' && (
+                  {!disableRoleChange && !isRoleAtLeast(currentUser?.role_level, ROLE_LEVELS.manager) && (
                     <span className="text-xs text-muted-foreground mr-2">(לא ניתן לשינוי)</span>
                   )}
                 </div>
@@ -310,7 +309,7 @@ export function UserModal({
             </div>
           </div>
 
-          {clinics.length > 0 && userForm.role !== 'company_ceo' && (
+          {clinics.length > 0 && userForm.role_level !== ROLE_LEVELS.ceo && (
             <div className="space-y-2">
               <Label htmlFor="clinic" className="text-right block">מרפאה</Label>
               <Select

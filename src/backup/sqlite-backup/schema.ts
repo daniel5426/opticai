@@ -807,7 +807,7 @@ export const createTables = (db: Database): void => {
       email TEXT,
       phone TEXT,
       password TEXT,
-      role TEXT CHECK(role IN ('clinic_manager','clinic_worker','clinic_viewer','company_ceo')) NOT NULL DEFAULT 'clinic_manager',
+      role_level INTEGER NOT NULL DEFAULT 1 CHECK(role_level BETWEEN 1 AND 4),
       is_active BOOLEAN DEFAULT 1,
       profile_picture TEXT,
       primary_theme_color TEXT,
@@ -838,7 +838,7 @@ export const createTables = (db: Database): void => {
         email TEXT,
         phone TEXT,
         password TEXT,
-        role TEXT CHECK(role IN ('company_ceo','clinic_manager','clinic_worker','clinic_viewer')) NOT NULL DEFAULT 'clinic_manager',
+        role_level INTEGER NOT NULL DEFAULT 1 CHECK(role_level BETWEEN 1 AND 4),
         is_active BOOLEAN DEFAULT 1,
         profile_picture TEXT,
         primary_theme_color TEXT,
@@ -1405,7 +1405,7 @@ export const createTables = (db: Database): void => {
     CREATE TABLE IF NOT EXISTS old_ref_exams (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       layout_instance_id INTEGER NOT NULL,
-      role TEXT,
+      role_level INTEGER,
       source TEXT,
       contacts TEXT,
       FOREIGN KEY(layout_instance_id) REFERENCES exam_layout_instances(id) ON DELETE CASCADE

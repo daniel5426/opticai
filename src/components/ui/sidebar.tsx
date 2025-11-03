@@ -497,11 +497,12 @@ const sidebarMenuButtonVariants = cva(
 
 function SidebarMenuButton({
   asChild = false,
-  isActive = false,
+  isActive,
   variant = "default",
   size = "default",
   tooltip,
   className,
+  children,
   ...props
 }: React.ComponentProps<"button"> & {
   asChild?: boolean
@@ -510,16 +511,63 @@ function SidebarMenuButton({
 } & VariantProps<typeof sidebarMenuButtonVariants>) {
   const Comp = asChild ? Slot : "button"
   const { isMobile, state } = useSidebar()
+  const normalizePath = (value: string) => {
+    if (!value) {
+      return "/"
+    }
+
+    if (value === "/") {
+      return "/"
+    }
+
+    return value.replace(/\/+$/, "")
+  }
+
+  let computedIsActive = typeof isActive === "boolean" ? isActive : false
+
+  if (typeof isActive !== "boolean" && asChild && React.Children.count(children) === 1) {
+    const child = React.Children.only(children)
+
+    if (React.isValidElement(child)) {
+      const childProps = child.props as Record<string, unknown>
+      const target =
+        typeof childProps.to === "string"
+          ? childProps.to
+          : typeof childProps.href === "string"
+            ? childProps.href
+            : typeof childProps["data-path"] === "string"
+              ? (childProps["data-path"] as string)
+              : undefined
+
+      if (target) {
+        const normalizedTarget = normalizePath(target)
+        const currentPath = typeof window !== "undefined"
+          ? normalizePath(window.location.pathname)
+          : "/"
+
+        if (normalizedTarget === "/") {
+          computedIsActive = currentPath === "/"
+        } else {
+          computedIsActive =
+            currentPath === normalizedTarget ||
+            currentPath.startsWith(`${normalizedTarget}/`)
+        }
+      }
+    }
+  }
 
   const button = (
     <Comp
       data-slot="sidebar-menu-button"
       data-sidebar="menu-button"
       data-size={size}
-      data-active={isActive}
+      data-active={computedIsActive}
+      aria-current={computedIsActive ? "page" : undefined}
       className={cn(sidebarMenuButtonVariants({ variant, size }), className)}
       {...props}
-    />
+    >
+      {children}
+    </Comp>
   )
 
   if (!tooltip) {

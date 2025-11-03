@@ -29,6 +29,8 @@ logger = logging.getLogger("uvicorn.error")
 # Simple in-memory conversation per user
 USER_MEMORY: Dict[int, List[Any]] = {}
 
+CEO_LEVEL = 4
+
 
 @router.post("/initialize")
 async def ai_initialize(current_user: User = Depends(get_current_user)):
@@ -155,7 +157,7 @@ def _make_tools_for_user(user: User) -> List[Tool]:
         session = SessionLocal()
         try:
             q = session.query(Client)
-            if user.role != "company_ceo" and user.clinic_id:
+            if user.role_level < CEO_LEVEL and user.clinic_id:
                 q = q.filter(Client.clinic_id == user.clinic_id)
             clients = q.all()
             if not search or search.strip() == "" or search.lower() == "all":
@@ -180,7 +182,7 @@ def _make_tools_for_user(user: User) -> List[Tool]:
         session = SessionLocal()
         try:
             q = session.query(Appointment)
-            if user.role != "company_ceo" and user.clinic_id:
+            if user.role_level < CEO_LEVEL and user.clinic_id:
                 q = q.filter(Appointment.clinic_id == user.clinic_id)
             appts = q.all()
             # Sort by date then time when available
@@ -206,7 +208,7 @@ def _make_tools_for_user(user: User) -> List[Tool]:
         session = SessionLocal()
         try:
             q = session.query(OpticalExam)
-            if user.role != "company_ceo" and user.clinic_id:
+            if user.role_level < CEO_LEVEL and user.clinic_id:
                 q = q.filter(OpticalExam.clinic_id == user.clinic_id)
             exams = q.all()
             exams_sorted = sorted(exams, key=lambda e: (e.exam_date or ""), reverse=True)
@@ -227,7 +229,7 @@ def _make_tools_for_user(user: User) -> List[Tool]:
                 "time": time,
                 "exam_name": exam_name,
                 "user_id": user.id,
-                "user_role": user.role,
+                "user_role": user.role_level,
                 "user_clinic_id": user.clinic_id,
             })
             # Support single JSON/dict payload passed as first argument
@@ -257,7 +259,7 @@ def _make_tools_for_user(user: User) -> List[Tool]:
                 client_id = _coerce_int(client_id)  # type: ignore
             except Exception:
                 raise ValueError("invalid client_id")
-            if not user.clinic_id and user.role != "company_ceo":
+            if not user.clinic_id and user.role_level < CEO_LEVEL:
                 raise ValueError("Clinic context required")
             client = session.query(Client).filter(Client.id == client_id).first()
             if not client:
@@ -567,7 +569,7 @@ def ai_execute_action(
 
     if action == "create_appointment":
         print("[AI] execute_action:create_appointment called with:", data)
-        logger.info("AI execute_action:create_appointment called", extra={"data": data, "user_id": current_user.id, "role": current_user.role, "clinic_id": current_user.clinic_id})
+        logger.info("AI execute_action:create_appointment called", extra={"data": data, "user_id": current_user.id, "role_level": current_user.role_level, "clinic_id": current_user.clinic_id})
         client_id = data.get("client_id")
         if not client_id:
             raise HTTPException(status_code=422, detail="client_id is required")

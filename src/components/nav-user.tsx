@@ -11,7 +11,7 @@ import {
   IconPlayerStop,
   IconX,
 } from "@tabler/icons-react"
-import { Link, useRouter } from "@tanstack/react-router"
+import { Link, useNavigate } from "@tanstack/react-router"
 
 import {
   Avatar,
@@ -36,6 +36,7 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { CustomModal } from "@/components/ui/custom-modal"
 import { User, WorkShift } from "@/lib/db/schema-interface"
+import { ROLE_LEVELS, getRoleBadgeVariant, getRoleLabel, isRoleAtLeast } from "@/lib/role-levels"
 import { useUser } from "@/contexts/UserContext"
 import { 
   createWorkShift, 
@@ -53,7 +54,7 @@ export function NavUser({
 }) {
   const { isMobile } = useSidebar()
   const { logoutUser, logoutClinic } = useUser()
-  const router = useRouter()
+  const navigate = useNavigate()
   const [showProfileModal, setShowProfileModal] = React.useState(false)
   const [currentTime, setCurrentTime] = React.useState(new Date())
   const [activeShift, setActiveShift] = React.useState<WorkShift | null>(null)
@@ -191,9 +192,7 @@ export function NavUser({
 
   const displayName = currentUser.full_name?.trim() || currentUser.username
   const userInitials = displayName.charAt(0).toUpperCase()
-  const roleName = currentUser.role === 'company_ceo' ? 'מנהל חברה' :
-    currentUser.role === 'clinic_manager' ? 'מנהל סניף' :
-    currentUser.role === 'clinic_worker' ? 'עובד סניף' : 'צופה'
+  const roleName = getRoleLabel(currentUser.role_level)
 
   return (
     <>
@@ -325,7 +324,7 @@ export function NavUser({
                   <IconUserCircle className="mr-2" />
                 </DropdownMenuItem>
                 <DropdownMenuItem className="flex justify-between items-center" dir="rtl" asChild>
-                  <Link to="/settings">
+                  <Link to="/settings" onClick={() => navigate({ to: '/settings' })}>
                     <span>הגדרות</span>
                     <IconSettings className="mr-2" />
                   </Link>
@@ -333,7 +332,7 @@ export function NavUser({
               </DropdownMenuGroup>
               <DropdownMenuSeparator />
               <DropdownMenuGroup>
-                {currentUser.role === 'company_ceo' ? (
+                {isRoleAtLeast(currentUser.role_level, ROLE_LEVELS.ceo) ? (
                   // CEO only sees full logout
                   <DropdownMenuItem
                     className="flex justify-between items-center text-red-600 hover:text-red-700"
@@ -391,11 +390,7 @@ export function NavUser({
               </Avatar>
               <div className="flex-1 text-right">
                  <h3 className="font-semibold text-lg">{displayName}</h3>
-                <Badge variant={
-                  currentUser.role === 'company_ceo' ? 'default' : 
-                  currentUser.role === 'clinic_manager' ? 'secondary' : 
-                  'outline'
-                } className="mt-1">
+                <Badge variant={getRoleBadgeVariant(currentUser.role_level)} className="mt-1">
                   {roleName}
                 </Badge>
               </div>

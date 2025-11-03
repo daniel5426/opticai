@@ -60,7 +60,7 @@ class User(Base):
     email = Column(String)
     phone = Column(String)
     password = Column(String)
-    role = Column(String, nullable=False)
+    role_level = Column(Integer, nullable=False, default=1)
     is_active = Column(Boolean, default=True)
     profile_picture = Column(String)
     primary_theme_color = Column(String)

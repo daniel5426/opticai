@@ -8,6 +8,7 @@ import { User } from "@/lib/db/schema-interface"
 import { Button } from "@/components/ui/button"
 import { UserPlus } from "lucide-react"
 import { useUser } from "@/contexts/UserContext"
+import { ROLE_LEVELS, isRoleAtLeast } from '@/lib/role-levels'
 
 interface UserWithClinic extends User {
   clinic_name?: string;
@@ -99,7 +100,7 @@ export default function AllUsersPage() {
   }
 
   // Check if current user can manage users
-  const canManageUsers = currentUser?.role === 'company_ceo' || currentUser?.role === 'clinic_manager'
+  const canManageUsers = isRoleAtLeast(currentUser?.role_level, ROLE_LEVELS.manager)
 
   if (!canManageUsers) {
     return (

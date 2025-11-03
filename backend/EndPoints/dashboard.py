@@ -7,6 +7,9 @@ from models import Appointment, Client, User, Settings
 from auth import get_current_user
 from sqlalchemy import and_
 
+
+CEO_LEVEL = 4
+
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
 @router.get("/home")
@@ -18,7 +21,7 @@ def get_home_dashboard(
     current_user: User = Depends(get_current_user)
 ):
     # Authorization and clinic scoping
-    if current_user.role != "company_ceo":
+    if current_user.role_level < CEO_LEVEL:
         if not current_user.clinic_id or current_user.clinic_id != clinic_id:
             raise HTTPException(status_code=403, detail="Access denied for this clinic")
 
@@ -115,7 +118,7 @@ def get_home_dashboard(
             User.id,
             User.full_name,
             User.username,
-            User.role,
+            User.role_level,
             User.primary_theme_color,
             User.system_vacation_dates,
             User.added_vacation_dates,
@@ -129,7 +132,7 @@ def get_home_dashboard(
             "id": r.id,
             "full_name": r.full_name,
             "username": r.username,
-            "role": r.role,
+            "role_level": r.role_level,
             "primary_theme_color": r.primary_theme_color,
             "system_vacation_dates": r.system_vacation_dates or [],
             "added_vacation_dates": r.added_vacation_dates or [],

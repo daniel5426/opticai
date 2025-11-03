@@ -17,6 +17,7 @@ import { PreferencesTab } from "@/components/settings/PreferencesTab"
 import { NotificationsTab } from "@/components/settings/NotificationsTab"
 import { EmailTab } from "@/components/settings/EmailTab"
 import { DateRange } from "react-day-picker"
+import { ROLE_LEVELS, isRoleAtLeast } from "@/lib/role-levels"
 
 import { UsersTab } from "@/components/settings/UsersTab"
 import { FieldDataTab } from "@/components/settings/FieldDataTab"
@@ -342,7 +343,7 @@ export default function SettingsPage() {
   }
 
   const openEditUserModal = (user: User) => {
-    if (currentUser?.role !== 'company_ceo' && user.id !== currentUser?.id) {
+    if (!isRoleAtLeast(currentUser?.role_level, ROLE_LEVELS.ceo) && user.id !== currentUser?.id) {
       toast.error('אין לך הרשאה לערוך משתמש זה')
       return
     }
@@ -352,7 +353,7 @@ export default function SettingsPage() {
   }
 
   const handleUserDelete = async (userId: number) => {
-    if (currentUser?.role !== 'company_ceo') {
+    if (!isRoleAtLeast(currentUser?.role_level, ROLE_LEVELS.ceo)) {
       toast.error('אין לך הרשאה למחוק משתמשים')
       return
     }
@@ -821,7 +822,7 @@ export default function SettingsPage() {
                     <TabsTrigger value="notifications" className="w-full justify-end text-right">התראות</TabsTrigger>
                     <TabsTrigger value="email" className="w-full justify-end text-right">הגדרות אימייל</TabsTrigger>
                     <TabsTrigger value="personal-profile" className="w-full justify-end text-right">פרופיל אישי</TabsTrigger>
-                    {(currentUser?.role === 'company_ceo' || currentUser?.role === 'clinic_manager') && (
+                    {isRoleAtLeast(currentUser?.role_level, ROLE_LEVELS.manager) && (
                       <TabsTrigger value="users" className="w-full justify-end text-right">ניהול משתמשים</TabsTrigger>
                     )}
                     <TabsTrigger value="field-data" className="w-full justify-end text-right">ניהול נתוני שדות</TabsTrigger>

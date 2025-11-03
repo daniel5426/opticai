@@ -1,5 +1,5 @@
-import React, { useState, useRef, useEffect } from "react";
-import { useParams, useNavigate, useSearch } from "@tanstack/react-router";
+import React, { useState, useRef, useEffect, useCallback } from "react";
+import { useParams, useNavigate, useSearch, useBlocker } from "@tanstack/react-router";
 import { SiteHeader } from "@/components/site-header";
 import { getExamById } from "@/lib/db/exams-db";
 import {
@@ -86,6 +86,7 @@ import RegularOrderTab from "@/components/orders/RegularOrderTab";
 import ContactOrderTab from "@/components/orders/ContactOrderTab";
 import { docxGenerator } from "@/lib/docx-generator";
 import { OrderToDocxMapper } from "@/lib/order-to-docx-mapper";
+import { UnsavedChangesDialog } from "@/components/unsaved-changes-dialog";
 
 interface OrderDetailPageProps {
   mode?: "view" | "edit" | "new";
@@ -127,16 +128,12 @@ export default function OrderDetailPage({
     examIdFromSearch: string | null = null;
   try {
     const search = useSearch({ from: "/clients/$clientId/orders/$orderId" });
-    // @ts-expect-error tanstack search is typed per-route
     searchTypeParam = search?.type as string | undefined;
-    // @ts-expect-error
     examIdFromSearch = (search?.examId as string | undefined) ?? null;
   } catch {
     try {
       const search = useSearch({ from: "/clients/$clientId/orders/new" });
-      // @ts-expect-error
       searchTypeParam = search?.type as string | undefined;
-      // @ts-expect-error
       examIdFromSearch = (search?.examId as string | undefined) ?? null;
     } catch {
       searchTypeParam = undefined;
@@ -181,6 +178,14 @@ export default function OrderDetailPage({
   const [orderIdForData, setOrderIdForData] = useState<number | null>(null);
 
   const isNewMode = mode === "new";
+  const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
+  const pendingNavigationRef = useRef<(() => void) | null>(null);
+  const baselineRef = useRef<string>("");
+  const baselineInitializedRef = useRef(false);
+  const allowNavigationRef = useRef(false);
+  const blockerProceedRef = useRef<(() => void) | null>(null);
+  const blockerResetRef = useRef<(() => void) | null>(null);
+  const [isSaveInFlight, setIsSaveInFlight] = useState(false);
   const [isEditing, setIsEditing] = useState(isNewMode);
   const [activeTab, setActiveTab] = useState("orders");
 
@@ -238,6 +243,79 @@ export default function OrderDetailPage({
         ? ({ order_id: 0 } as FinalPrescriptionExam)
         : ({} as FinalPrescriptionExam),
     );
+
+  const getSerializedState = useCallback(
+    () =>
+      JSON.stringify({
+        isContactMode,
+        formData,
+        lensFormData,
+        frameFormData,
+        orderDetailsFormData,
+        billingFormData,
+        finalPrescriptionFormData,
+        contactFormData,
+        contactLensExamData,
+        contactLensDetailsData,
+        keratoCLData,
+        schirmerData,
+        diametersData,
+        orderLineItems,
+        deletedOrderLineItemIds,
+      }),
+    [
+      isContactMode,
+      formData,
+      lensFormData,
+      frameFormData,
+      orderDetailsFormData,
+      billingFormData,
+      finalPrescriptionFormData,
+      contactFormData,
+      contactLensExamData,
+      contactLensDetailsData,
+      keratoCLData,
+      schirmerData,
+      diametersData,
+      orderLineItems,
+      deletedOrderLineItemIds,
+    ],
+  );
+
+  const checkDirty = useCallback(() => {
+    if (!baselineInitializedRef.current) return false;
+    if (!isEditing && !isNewMode) return false;
+    return getSerializedState() !== baselineRef.current;
+  }, [getSerializedState, isEditing, isNewMode]);
+
+  const hasUnsavedChanges = checkDirty();
+
+  const setBaseline = useCallback(
+    (override?: {
+      isContactMode: boolean;
+      formData: Order;
+      lensFormData: OrderLens;
+      frameFormData: Frame;
+      orderDetailsFormData: OrderDetails;
+      billingFormData: Billing;
+      finalPrescriptionFormData: FinalPrescriptionExam;
+      contactFormData: any;
+      contactLensExamData: any;
+      contactLensDetailsData: any;
+      keratoCLData: any;
+      schirmerData: any;
+      diametersData: any;
+      orderLineItems: OrderLineItem[];
+      deletedOrderLineItemIds: number[];
+    }) => {
+      const serialized = override
+        ? JSON.stringify(override)
+        : getSerializedState();
+      baselineRef.current = serialized;
+      baselineInitializedRef.current = true;
+    },
+    [getSerializedState],
+  );
 
   const type: ExamComponentType = "final-prescription";
   const examFormData = { [type]: finalPrescriptionFormData };
@@ -304,17 +382,75 @@ export default function OrderDetailPage({
   const formRef = useRef<HTMLFormElement>(null);
   const navigate = useNavigate();
 
+  const blockerState = useBlocker(
+    {
+      shouldBlockFn: () => hasUnsavedChanges && !allowNavigationRef.current,
+      withResolver: true,
+      disabled: !hasUnsavedChanges,
+      enableBeforeUnload: false,
+    },
+    hasUnsavedChanges,
+  );
+
+  useEffect(() => {
+    if (blockerState.status === "blocked") {
+      blockerProceedRef.current = blockerState.proceed ?? null;
+      blockerResetRef.current = blockerState.reset ?? null;
+      pendingNavigationRef.current = null;
+      setShowUnsavedDialog(true);
+    } else if (blockerState.status === "idle") {
+      blockerProceedRef.current = null;
+      blockerResetRef.current = null;
+    }
+  }, [blockerState.status, blockerState.proceed, blockerState.reset]);
+
+  const handleNavigationAttempt = useCallback(
+    (action: () => void) => {
+      if (checkDirty()) {
+        pendingNavigationRef.current = action;
+        setShowUnsavedDialog(true);
+        return;
+      }
+      action();
+    },
+    [checkDirty],
+  );
+
+  const handleUnsavedConfirm = useCallback(() => {
+    setShowUnsavedDialog(false);
+    allowNavigationRef.current = true;
+    const action = pendingNavigationRef.current;
+    pendingNavigationRef.current = null;
+    if (action) {
+      action();
+    } else {
+      blockerProceedRef.current?.();
+    }
+    setTimeout(() => {
+      allowNavigationRef.current = false;
+    }, 0);
+  }, []);
+
+  const handleUnsavedCancel = useCallback(() => {
+    setShowUnsavedDialog(false);
+    pendingNavigationRef.current = null;
+    blockerResetRef.current?.();
+  }, []);
+
   const handleTabChange = (value: string) => {
     if (clientId && value !== "orders") {
-      navigate({
-        to: "/clients/$clientId",
-        params: { clientId: String(clientId) },
-        search: { tab: value },
+      handleNavigationAttempt(() => {
+        navigate({
+          to: "/clients/$clientId",
+          params: { clientId: String(clientId) },
+          search: { tab: value },
+        });
       });
     }
   };
 
   useEffect(() => {
+    baselineInitializedRef.current = false;
     const loadData = async () => {
       try {
         setLoading(true);
@@ -408,6 +544,30 @@ export default function OrderDetailPage({
 
     loadData();
   }, [clientId, orderId, examId]);
+
+  useEffect(() => {
+    if (!loading && !baselineInitializedRef.current) {
+      setBaseline();
+    }
+  }, [loading, setBaseline]);
+
+  useEffect(() => {
+    if (!hasUnsavedChanges) return;
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+    };
+  }, [hasUnsavedChanges]);
+
+  useEffect(() => {
+    if (hasUnsavedChanges) return;
+    pendingNavigationRef.current = null;
+    setShowUnsavedDialog(false);
+  }, [hasUnsavedChanges]);
 
   useEffect(() => {
     if (order && Object.keys(order).length > 0) {
@@ -545,12 +705,14 @@ export default function OrderDetailPage({
         toast.error("אנא בחר סוג הזמנה");
         return;
       }
-    } else {
-      if (!contactFormData.type) {
-        toast.error("אנא בחר סוג הזמנה");
-        return;
-      }
+    } else if (!contactFormData.type) {
+      toast.error("אנא בחר סוג הזמנה");
+      return;
     }
+
+    if (isSaveInFlight) return;
+
+    setIsSaveInFlight(true);
 
     try {
       if (isContactMode) {
@@ -633,63 +795,116 @@ export default function OrderDetailPage({
             return { id, ...rest } as any;
           }),
         };
-        console.log("Contact lens order payload:", JSON.stringify(payload, null, 2));
+        console.log(
+          "Contact lens order payload:",
+          JSON.stringify(payload, null, 2),
+        );
         console.log("Contact order line items count:", orderLineItems.length);
         console.log("Contact should create billing:", shouldCreateBilling);
         setIsEditing(false);
         toast.success(
           isNewMode ? "הזמנה נשמרה בהצלחה" : "פרטי ההזמנה עודכנו בהצלחה",
         );
-        if (isNewMode && clientId) {
-          navigate({
-            to: "/clients/$clientId",
-            params: { clientId: String(clientId) },
-            search: { tab: "orders" },
+        try {
+          const upsertResult = await upsertContactLensOrderFull(payload);
+          if (!upsertResult || !upsertResult.order) {
+            toast.error("שגיאה בשמירת ההזמנה (שרת)");
+            setIsEditing(true);
+            return;
+          }
+          const updatedOrder = upsertResult.order as any;
+          const updatedBilling = upsertResult.billing as any | undefined;
+          const updatedLineItems =
+            (upsertResult.line_items as any[] | undefined) || [];
+          setContactFormData((prev: any) => ({ ...prev, ...updatedOrder }));
+          const od = (updatedOrder as any).order_data || {};
+          if (od["contact-lens-details"]) {
+            setContactLensDetailsData({ ...(od["contact-lens-details"] as any) });
+          }
+          if (od["contact-lens-exam"]) {
+            setContactLensExamData({ ...(od["contact-lens-exam"] as any) });
+          }
+          if (od["keratometer-contact-lens"]) {
+            setKeratoCLData({ ...(od["keratometer-contact-lens"] as any) });
+          }
+          if (od["schirmer-test"]) {
+            setSchirmerData({ ...(od["schirmer-test"] as any) });
+          }
+          if (od["contact-lens-diameters"]) {
+            setDiametersData({ ...(od["contact-lens-diameters"] as any) });
+          }
+          if (updatedBilling) {
+            setBilling(updatedBilling);
+            setBillingFormData((prev) => ({
+              ...prev,
+              ...(updatedBilling as any),
+            }));
+          }
+          console.log(
+            "Setting line items after save (contact):",
+            updatedLineItems,
+          );
+          setOrderLineItems(updatedLineItems as any);
+          setDeletedOrderLineItemIds([]);
+
+          const nextBillingFormData = updatedBilling
+            ? { ...billingFormData, ...(updatedBilling as any) }
+            : billingFormData;
+          const nextContactFormData = { ...contactFormData, ...updatedOrder };
+          const nextContactLensExamData = od["contact-lens-exam"]
+            ? { ...(od["contact-lens-exam"] as any) }
+            : contactLensExamData;
+          const nextContactLensDetailsData = od["contact-lens-details"]
+            ? { ...(od["contact-lens-details"] as any) }
+            : contactLensDetailsData;
+          const nextKeratoCLData = od["keratometer-contact-lens"]
+            ? { ...(od["keratometer-contact-lens"] as any) }
+            : keratoCLData;
+          const nextSchirmerData = od["schirmer-test"]
+            ? { ...(od["schirmer-test"] as any) }
+            : schirmerData;
+          const nextDiametersData = od["contact-lens-diameters"]
+            ? { ...(od["contact-lens-diameters"] as any) }
+            : diametersData;
+
+          setBaseline({
+            isContactMode,
+            formData,
+            lensFormData,
+            frameFormData,
+            orderDetailsFormData,
+            billingFormData: nextBillingFormData,
+            finalPrescriptionFormData,
+            contactFormData: nextContactFormData,
+            contactLensExamData: nextContactLensExamData,
+            contactLensDetailsData: nextContactLensDetailsData,
+            keratoCLData: nextKeratoCLData,
+            schirmerData: nextSchirmerData,
+            diametersData: nextDiametersData,
+            orderLineItems: updatedLineItems as any,
+            deletedOrderLineItemIds: [],
           });
+
+          if (onSave) onSave(updatedOrder);
+          if (isNewMode && clientId) {
+            allowNavigationRef.current = true;
+            navigate({
+              to: "/clients/$clientId",
+              params: { clientId: String(clientId) },
+              search: { tab: "orders" },
+            });
+            setTimeout(() => {
+              allowNavigationRef.current = false;
+            }, 0);
+          }
+        } catch (error) {
+          console.error("Error saving contact order:", error);
+          toast.error("שגיאה בשמירת ההזמנה (רשת)");
+          setIsEditing(true);
         }
-        void upsertContactLensOrderFull(payload)
-          .then((upsertResult) => {
-            if (!upsertResult || !upsertResult.order) {
-              toast.error("שגיאה בשמירת ההזמנה (שרת)");
-              return;
-            }
-            const updatedOrder = upsertResult.order as any;
-            const updatedBilling = upsertResult.billing as any | undefined;
-            const updatedLineItems =
-              (upsertResult.line_items as any[] | undefined) || [];
-            setContactFormData((prev: any) => ({ ...prev, ...updatedOrder }));
-            const od = (updatedOrder as any).order_data || {};
-            if (od["contact-lens-details"]) {
-              setContactLensDetailsData({ ...(od["contact-lens-details"] as any) });
-            }
-            if (od["contact-lens-exam"]) {
-              setContactLensExamData({ ...(od["contact-lens-exam"] as any) });
-            }
-            if (od["keratometer-contact-lens"]) {
-              setKeratoCLData({ ...(od["keratometer-contact-lens"] as any) });
-            }
-            if (od["schirmer-test"]) {
-              setSchirmerData({ ...(od["schirmer-test"] as any) });
-            }
-            if (od["contact-lens-diameters"]) {
-              setDiametersData({ ...(od["contact-lens-diameters"] as any) });
-            }
-            if (updatedBilling) {
-              setBilling(updatedBilling);
-              setBillingFormData((prev) => ({
-                ...prev,
-                ...(updatedBilling as any),
-              }));
-            }
-            console.log("Setting line items after save (contact):", updatedLineItems);
-            setOrderLineItems(updatedLineItems as any);
-            if (onSave) onSave(updatedOrder);
-          })
-          .catch(() => {
-            toast.error("שגיאה בשמירת ההזמנה (רשת)");
-          });
         return;
       }
+
       const hasFinalPrescriptionData = Object.values(
         finalPrescriptionFormData,
       ).some(
@@ -760,84 +975,124 @@ export default function OrderDetailPage({
       toast.success(
         isNewMode ? "הזמנה נשמרה בהצלחה" : "פרטי ההזמנה עודכנו בהצלחה",
       );
-      if (isNewMode && clientId) {
-        navigate({
-          to: "/clients/$clientId",
-          params: { clientId: String(clientId) },
-          search: { tab: "orders" },
+      try {
+        const upsertResult = await upsertOrderFull(payload);
+        console.log("Regular order upsert result:", upsertResult);
+        if (!upsertResult || !upsertResult.order) {
+          toast.error("שגיאה בשמירת ההזמנה (שרת)");
+          setIsEditing(true);
+          return;
+        }
+        const updatedOrder = upsertResult.order as Order;
+        const updatedBilling = upsertResult.billing as Billing | undefined;
+        const updatedLineItems =
+          (upsertResult.line_items as OrderLineItem[] | undefined) || [];
+        console.log("Updated billing:", updatedBilling);
+        console.log("Updated line items:", updatedLineItems);
+        console.log("Updated line items length:", updatedLineItems.length);
+        setOrder(updatedOrder);
+        setFormData((prev) => ({ ...prev, ...updatedOrder }));
+        const od = (updatedOrder as any).order_data || {};
+        const fp2 = od["final-prescription"];
+        if (fp2) {
+          setFinalPrescription(fp2 as FinalPrescriptionExam);
+          setFinalPrescriptionFormData({ ...(fp2 as FinalPrescriptionExam) });
+        }
+        if (Object.prototype.hasOwnProperty.call(od, "lens")) {
+          setLensFormData({ order_id: updatedOrder.id!, ...(od.lens || {}) });
+        } else {
+          setLensFormData((prev) => ({
+            ...prev,
+            order_id: updatedOrder.id!,
+          }));
+        }
+        if (Object.prototype.hasOwnProperty.call(od, "frame")) {
+          setFrameFormData({
+            order_id: updatedOrder.id!,
+            ...(od.frame || {}),
+          });
+        } else {
+          setFrameFormData((prev) => ({
+            ...prev,
+            order_id: updatedOrder.id!,
+          }));
+        }
+        if (Object.prototype.hasOwnProperty.call(od, "details")) {
+          setOrderDetailsFormData({
+            order_id: updatedOrder.id!,
+            ...(od.details || {}),
+          });
+        } else {
+          setOrderDetailsFormData((prev) => ({
+            ...prev,
+            order_id: updatedOrder.id!,
+          }));
+        }
+        if (updatedBilling) {
+          setBilling(updatedBilling as any);
+          setBillingFormData((prev) => ({
+            ...prev,
+            ...(updatedBilling as any),
+          }));
+        }
+        console.log("Setting line items after save (regular):", updatedLineItems);
+        setOrderLineItems(updatedLineItems);
+        setDeletedOrderLineItemIds([]);
+
+        const nextFormData = { ...formData, ...updatedOrder } as Order;
+        const nextLensFormData = Object.prototype.hasOwnProperty.call(od, "lens")
+          ? ({ order_id: updatedOrder.id!, ...(od.lens || {}) } as OrderLens)
+          : ({ ...lensFormData, order_id: updatedOrder.id! } as OrderLens);
+        const nextFrameFormData = Object.prototype.hasOwnProperty.call(od, "frame")
+          ? ({ order_id: updatedOrder.id!, ...(od.frame || {}) } as Frame)
+          : ({ ...frameFormData, order_id: updatedOrder.id! } as Frame);
+        const nextOrderDetailsFormData = Object.prototype.hasOwnProperty.call(od, "details")
+          ? ({ order_id: updatedOrder.id!, ...(od.details || {}) } as OrderDetails)
+          : ({ ...orderDetailsFormData, order_id: updatedOrder.id! } as OrderDetails);
+        const nextBillingFormData = updatedBilling
+          ? { ...billingFormData, ...(updatedBilling as any) }
+          : billingFormData;
+        const nextFinalPrescriptionFormData = fp2
+          ? ({ ...(fp2 as FinalPrescriptionExam) } as FinalPrescriptionExam)
+          : finalPrescriptionFormData;
+
+        setBaseline({
+          isContactMode,
+          formData: nextFormData,
+          lensFormData: nextLensFormData,
+          frameFormData: nextFrameFormData,
+          orderDetailsFormData: nextOrderDetailsFormData,
+          billingFormData: nextBillingFormData,
+          finalPrescriptionFormData: nextFinalPrescriptionFormData,
+          contactFormData,
+          contactLensExamData,
+          contactLensDetailsData,
+          keratoCLData,
+          schirmerData,
+          diametersData,
+          orderLineItems: updatedLineItems,
+          deletedOrderLineItemIds: [],
         });
+
+        if (onSave) onSave(updatedOrder);
+        if (isNewMode && clientId) {
+          allowNavigationRef.current = true;
+          navigate({
+            to: "/clients/$clientId",
+            params: { clientId: String(clientId) },
+            search: { tab: "orders" },
+          });
+          setTimeout(() => {
+            allowNavigationRef.current = false;
+          }, 0);
+        }
+      } catch (error) {
+        console.error("Error saving regular order:", error);
+        toast.error("שגיאה בשמירת ההזמנה (רשת)");
+        setIsEditing(true);
       }
-      void upsertOrderFull(payload)
-        .then((upsertResult) => {
-          console.log("Regular order upsert result:", upsertResult);
-          if (!upsertResult || !upsertResult.order) {
-            toast.error("שגיאה בשמירת ההזמנה (שרת)");
-            return;
-          }
-          const updatedOrder = upsertResult.order as Order;
-          const updatedBilling = upsertResult.billing as Billing | undefined;
-          const updatedLineItems =
-            (upsertResult.line_items as OrderLineItem[] | undefined) || [];
-          console.log("Updated billing:", updatedBilling);
-          console.log("Updated line items:", updatedLineItems);
-          console.log("Updated line items length:", updatedLineItems.length);
-          setOrder(updatedOrder);
-          setFormData((prev) => ({ ...prev, ...updatedOrder }));
-          const od = (updatedOrder as any).order_data || {};
-          const fp2 = od["final-prescription"];
-          if (fp2) {
-            setFinalPrescription(fp2 as FinalPrescriptionExam);
-            setFinalPrescriptionFormData({ ...(fp2 as FinalPrescriptionExam) });
-          }
-          if (Object.prototype.hasOwnProperty.call(od, "lens")) {
-            setLensFormData({ order_id: updatedOrder.id!, ...(od.lens || {}) });
-          } else {
-            setLensFormData((prev) => ({
-              ...prev,
-              order_id: updatedOrder.id!,
-            }));
-          }
-          if (Object.prototype.hasOwnProperty.call(od, "frame")) {
-            setFrameFormData({
-              order_id: updatedOrder.id!,
-              ...(od.frame || {}),
-            });
-          } else {
-            setFrameFormData((prev) => ({
-              ...prev,
-              order_id: updatedOrder.id!,
-            }));
-          }
-          if (Object.prototype.hasOwnProperty.call(od, "details")) {
-            setOrderDetailsFormData({
-              order_id: updatedOrder.id!,
-              ...(od.details || {}),
-            });
-          } else {
-            setOrderDetailsFormData((prev) => ({
-              ...prev,
-              order_id: updatedOrder.id!,
-            }));
-          }
-          if (updatedBilling) {
-            setBilling(updatedBilling as any);
-            setBillingFormData((prev) => ({
-              ...prev,
-              ...(updatedBilling as any),
-            }));
-          }
-          console.log("Setting line items after save (regular):", updatedLineItems);
-          setOrderLineItems(updatedLineItems);
-          if (onSave) onSave(updatedOrder);
-        })
-        .catch((error) => {
-          console.error("Error saving regular order:", error);
-          toast.error("שגיאה בשמירת ההזמנה (רשת)");
-        });
-      return;
-    } catch (error) {
-      console.error("Error saving order:", error);
-      toast.error("שגיאה בשמירת ההזמנה");
+    } finally {
+      setIsSaveInFlight(false);
     }
   };
 
@@ -1051,7 +1306,15 @@ export default function OrderDetailPage({
               </TabsList>
               <div className="flex gap-2">
                 {isNewMode && onCancel && (
-                  <Button variant="outline" onClick={onCancel}>
+                  <Button
+                    variant="outline"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      handleNavigationAttempt(() => {
+                        if (onCancel) onCancel();
+                      });
+                    }}
+                  >
                     ביטול
                   </Button>
                 )}
@@ -1148,6 +1411,11 @@ export default function OrderDetailPage({
           </Tabs>
         </div>
       </ClientSpaceLayout>
+      <UnsavedChangesDialog
+        open={showUnsavedDialog}
+        onConfirm={handleUnsavedConfirm}
+        onCancel={handleUnsavedCancel}
+      />
     </>
   );
 }

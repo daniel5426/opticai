@@ -19,6 +19,7 @@ import { toast } from "sonner";
 import { cn } from "@/utils/tailwind";
 import { apiClient } from "@/lib/api-client";
 import { authService } from "@/lib/auth/AuthService";
+import { ROLE_LEVELS, isRoleAtLeast } from "@/lib/role-levels";
 
 interface ClinicDropdownProps {
   currentClinic?: Clinic | null;
@@ -50,7 +51,7 @@ export function ClinicDropdown({
   const clinicsCacheRef = React.useRef<Map<number, Clinic[]>>(new Map());
 
   const loadData = useCallback(async () => {
-    if (!currentUser || currentUser.role !== "company_ceo") {
+    if (!currentUser || !isRoleAtLeast(currentUser.role_level, ROLE_LEVELS.ceo)) {
       return;
     }
 
@@ -96,7 +97,7 @@ export function ClinicDropdown({
 
     try {
       // For CEO users switching to a clinic, set up the clinic session properly
-      if (currentUser?.role === 'company_ceo') {
+      if (isRoleAtLeast(currentUser?.role_level, ROLE_LEVELS.ceo)) {
         authService.setClinicSession(clinic, currentUser);
         // Navigate immediately without setTimeout - blocking is bad
         navigate({ to: "/dashboard" });
@@ -144,7 +145,7 @@ export function ClinicDropdown({
     });
   }, [effectiveCompanyId, navigate, currentUser]);
 
-  if (!currentUser || currentUser.role !== "company_ceo") {
+  if (!currentUser || !isRoleAtLeast(currentUser.role_level, ROLE_LEVELS.ceo)) {
     console.log("ClinicDropdown: User is not CEO, rendering as link");
     return <>{children}</>;
   }

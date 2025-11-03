@@ -9,6 +9,11 @@ from auth import get_current_user, get_password_hash
 from models import User as UserModel
 from utils.storage import upload_base64_image
 
+
+CEO_LEVEL = 4
+MANAGER_LEVEL = 3
+WORKER_LEVEL = 2
+
 router = APIRouter(prefix="/users", tags=["users"])
 
 @router.post("/public", response_model=UserSchema)
@@ -97,8 +102,8 @@ def link_company(
     if not db_user:
         raise HTTPException(status_code=404, detail="User not found")
     db_user.company_id = company_id
-    if not db_user.role:
-        db_user.role = "company_ceo"
+    if not getattr(db_user, "role_level", None) or db_user.role_level < CEO_LEVEL:
+        db_user.role_level = CEO_LEVEL
     try:
         db.commit()
     except IntegrityError:
@@ -113,13 +118,13 @@ def create_user(
     db: Session = Depends(get_db),
     current_user: UserModel = Depends(get_current_user)
 ):
-    if current_user.role not in ["company_ceo", "clinic_manager"]:
+    if current_user.role_level < MANAGER_LEVEL:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Insufficient permissions to create users"
         )
     
-    if current_user.role == "clinic_manager" and user.clinic_id != current_user.clinic_id:
+    if current_user.role_level == MANAGER_LEVEL and user.clinic_id != current_user.clinic_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Can only create users for your own clinic"
@@ -167,12 +172,12 @@ def get_users_paginated(
 ):
     from sqlalchemy import or_, and_
     
-    if current_user.role == "company_ceo":
+    if current_user.role_level >= CEO_LEVEL:
         # CEOs see only users in their company (including other CEOs)
         base = db.query(User).join(Clinic, isouter=True).filter(
             or_(User.company_id == current_user.company_id, Clinic.company_id == current_user.company_id)
         )
-    elif current_user.role == "clinic_manager":
+    elif current_user.role_level >= MANAGER_LEVEL:
         # Clinic managers see users in their clinic and CEOs from their company
         if current_user.clinic_id:
             clinic = db.query(Clinic).filter(Clinic.id == current_user.clinic_id).first()
@@ -180,7 +185,7 @@ def get_users_paginated(
                 base = db.query(User).filter(
                     or_(
                         User.clinic_id == current_user.clinic_id,
-                        and_(User.role == "company_ceo", User.company_id == clinic.company_id)
+                        and_(User.role_level >= CEO_LEVEL, User.company_id == clinic.company_id)
                     )
                 )
             else:
@@ -195,7 +200,7 @@ def get_users_paginated(
                 base = db.query(User).filter(
                     or_(
                         User.clinic_id == current_user.clinic_id,
-                        and_(User.role == "company_ceo", User.company_id == clinic.company_id)
+                        and_(User.role_level >= CEO_LEVEL, User.company_id == clinic.company_id)
                     )
                 )
             else:
@@ -224,9 +229,9 @@ def get_users_paginated(
     elif order == "username_desc":
         base = base.order_by(User.username.desc())
     elif order == "role_asc":
-        base = base.order_by(User.role.asc())
+        base = base.order_by(User.role_level.asc())
     elif order == "role_desc":
-        base = base.order_by(User.role.desc())
+        base = base.order_by(User.role_level.desc())
     else:  # default to id_desc
         base = base.order_by(User.id.desc())
     
@@ -240,19 +245,19 @@ def get_users(
     db: Session = Depends(get_db),
     current_user: UserModel = Depends(get_current_user)
 ):
-    if current_user.role == "company_ceo":
+    if current_user.role_level >= CEO_LEVEL:
         # CEOs see only users in their company (including other CEOs)
         users = db.query(User).join(Clinic, isouter=True).filter(
             (User.company_id == current_user.company_id) | (Clinic.company_id == current_user.company_id)
         ).all()
-    elif current_user.role == "clinic_manager":
+    elif current_user.role_level >= MANAGER_LEVEL:
         # Clinic managers see users in their clinic and CEOs from their company
         if current_user.clinic_id:
             clinic = db.query(Clinic).filter(Clinic.id == current_user.clinic_id).first()
             if clinic:
                 users = db.query(User).filter(
                     (User.clinic_id == current_user.clinic_id) |
-                    ((User.role == "company_ceo") & (User.company_id == clinic.company_id))
+                    ((User.role_level >= CEO_LEVEL) & (User.company_id == clinic.company_id))
                 ).all()
             else:
                 users = db.query(User).filter(User.clinic_id == current_user.clinic_id).all()
@@ -265,7 +270,7 @@ def get_users(
             if clinic:
                 users = db.query(User).filter(
                     (User.clinic_id == current_user.clinic_id) |
-                    ((User.role == "company_ceo") & (User.company_id == clinic.company_id))
+                    ((User.role_level >= CEO_LEVEL) & (User.company_id == clinic.company_id))
                 ).all()
             else:
                 users = db.query(User).filter(User.clinic_id == current_user.clinic_id).all()
@@ -281,13 +286,13 @@ def get_users_for_select(
     current_user: UserModel = Depends(get_current_user)
 ):
     # Determine base query according to role
-    if current_user.role == "company_ceo":
+    if current_user.role_level >= CEO_LEVEL:
         q = db.query(User).join(Clinic, isouter=True)
         if clinic_id:
-            q = q.filter((User.clinic_id == clinic_id) | ((User.role == "company_ceo") & (User.company_id == current_user.company_id)))
+            q = q.filter((User.clinic_id == clinic_id) | ((User.role_level >= CEO_LEVEL) & (User.company_id == current_user.company_id)))
         else:
             q = q.filter((User.company_id == current_user.company_id) | (User.company_id == current_user.company_id))
-    elif current_user.role in ("clinic_manager", "clinic_worker", "clinic_viewer"):
+    elif current_user.role_level >= 1:
         if not current_user.clinic_id and not clinic_id:
             return []
         effective_clinic_id = clinic_id or current_user.clinic_id
@@ -298,7 +303,7 @@ def get_users_for_select(
         if include_ceo:
             q = q.union_all(
                 db.query(User).filter(
-                    (User.role == "company_ceo") & (User.company_id == clinic.company_id)
+                    (User.role_level >= CEO_LEVEL) & (User.company_id == clinic.company_id)
                 )
             )
     else:
@@ -311,7 +316,7 @@ def get_users_for_select(
             id=u.id,
             full_name=u.full_name,
             username=u.username,
-            role=u.role,
+            role_level=u.role_level,
             clinic_id=u.clinic_id,
             is_active=u.is_active
         ))
@@ -328,7 +333,7 @@ def get_user(
     if user is None:
         raise HTTPException(status_code=404, detail="User not found")
     
-    if current_user.role != "company_ceo" and current_user.clinic_id != user.clinic_id:
+    if current_user.role_level < CEO_LEVEL and current_user.clinic_id != user.clinic_id:
         raise HTTPException(status_code=403, detail="Access denied")
     
     return user
@@ -343,7 +348,7 @@ def get_user_by_username(
     if user is None:
         raise HTTPException(status_code=404, detail="User not found")
     # Access allowed if same company or CEO
-    if current_user.role != "company_ceo" and current_user.clinic_id != user.clinic_id:
+    if current_user.role_level < CEO_LEVEL and current_user.clinic_id != user.clinic_id:
         raise HTTPException(status_code=403, detail="Access denied")
     
     return user
@@ -363,7 +368,7 @@ def get_user_by_username_public(
         "username": user.username,
         "email": user.email,
         "phone": user.phone,
-        "role": user.role,
+        "role_level": user.role_level,
         "is_active": user.is_active,
         "profile_picture": user.profile_picture,
         "primary_theme_color": user.primary_theme_color,
@@ -395,7 +400,7 @@ def get_user_by_email_public(
         "username": user.username,
         "email": user.email,
         "phone": user.phone,
-        "role": user.role,
+        "role_level": user.role_level,
         "is_active": user.is_active,
         "profile_picture": user.profile_picture,
         "primary_theme_color": user.primary_theme_color,
@@ -426,10 +431,10 @@ def get_users_by_clinic(
         raise HTTPException(status_code=404, detail="Clinic not found")
     
     # Check permissions
-    if current_user.role == "company_ceo":
+    if current_user.role_level >= CEO_LEVEL:
         if clinic.company_id != current_user.company_id:
             raise HTTPException(status_code=403, detail="Access denied")
-    elif current_user.role == "clinic_manager":
+    elif current_user.role_level == MANAGER_LEVEL:
         if current_user.clinic_id != clinic_id:
             raise HTTPException(status_code=403, detail="Access denied")
     else:
@@ -437,7 +442,7 @@ def get_users_by_clinic(
 
     users = db.query(User).filter(
         (User.clinic_id == clinic_id)
-        | ((User.role == "company_ceo") & (User.company_id == clinic.company_id))
+        | ((User.role_level >= CEO_LEVEL) & (User.company_id == clinic.company_id))
     ).all()
 
     return users
@@ -456,7 +461,7 @@ def get_users_by_clinic_public(
     # Get users for this clinic and CEOs belonging to the same company
     users = db.query(User).filter(
         (User.clinic_id == clinic_id)
-        | ((User.role == "company_ceo") & (User.company_id == clinic.company_id))
+        | ((User.role_level >= CEO_LEVEL) & (User.company_id == clinic.company_id))
     ).all()
     
     # Convert to UserPublic schema with has_password field
@@ -468,7 +473,7 @@ def get_users_by_clinic_public(
             "username": user.username,
             "email": user.email,
             "phone": user.phone,
-            "role": user.role,
+            "role_level": user.role_level,
             "is_active": user.is_active,
             "profile_picture": user.profile_picture,
             "primary_theme_color": user.primary_theme_color,
@@ -502,7 +507,7 @@ def get_users_by_company(
         raise HTTPException(status_code=404, detail="Company not found")
     
     # Check permissions
-    if current_user.role == "company_ceo":
+    if current_user.role_level >= CEO_LEVEL:
         users = (
             db.query(User)
             .outerjoin(Clinic, User.clinic_id == Clinic.id)
@@ -521,7 +526,7 @@ def update_user(
     db: Session = Depends(get_db),
     current_user: UserModel = Depends(get_current_user)
 ):
-    if current_user.role not in ["company_ceo", "clinic_manager"]:
+    if current_user.role_level < MANAGER_LEVEL:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Insufficient permissions to update users"
@@ -531,7 +536,7 @@ def update_user(
     if db_user is None:
         raise HTTPException(status_code=404, detail="User not found")
     
-    if current_user.role == "clinic_manager" and current_user.clinic_id != db_user.clinic_id:
+    if current_user.role_level == MANAGER_LEVEL and current_user.clinic_id != db_user.clinic_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Can only update users in your own clinic"
@@ -577,7 +582,7 @@ def delete_user(
     db: Session = Depends(get_db),
     current_user: UserModel = Depends(get_current_user)
 ):
-    if current_user.role not in ["company_ceo", "clinic_manager"]:
+    if current_user.role_level < MANAGER_LEVEL:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Insufficient permissions to delete users"
@@ -587,7 +592,7 @@ def delete_user(
     if db_user is None:
         raise HTTPException(status_code=404, detail="User not found")
     
-    if current_user.role == "clinic_manager" and current_user.clinic_id != db_user.clinic_id:
+    if current_user.role_level == MANAGER_LEVEL and current_user.clinic_id != db_user.clinic_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Can only delete users in your own clinic"

@@ -184,7 +184,7 @@ def get_or_create_admin_user(db: Session, company: Company) -> User:
         email="admin@opticai.local",
         phone=None,
         password="admin",  # Consider updating post-migration
-        role="company_ceo",
+        role_level=4,
         is_active=True,
     )
     db.add(user)

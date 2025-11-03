@@ -1,6 +1,7 @@
 import { supabase } from '@/lib/supabaseClient'
 import { apiClient } from '@/lib/api-client'
 import { User, Company, Clinic } from '@/lib/db/schema-interface'
+import { ROLE_LEVELS, isRoleAtLeast } from '@/lib/role-levels'
 import { router } from '@/routes/router'
 
 /**
@@ -142,7 +143,7 @@ class AuthService {
           const user = userResponse.data as User
       
       // Check if CEO without company (shouldn't happen, but handle it)
-      if (user.role === 'company_ceo' && !user.company_id) {
+      if (isRoleAtLeast(user.role_level, ROLE_LEVELS.ceo) && !user.company_id) {
         console.log('[Auth] CEO without company, setup required')
         this.session = { user, isSupabaseAuth: true }
         this.transitionTo(AuthState.SETUP_REQUIRED)
@@ -183,7 +184,7 @@ class AuthService {
   private async loadUserContext(user: User, isSupabaseAuth: boolean): Promise<void> {
     this.storeUser(user)
 
-    if (user.role === 'company_ceo' && user.company_id) {
+    if (isRoleAtLeast(user.role_level, ROLE_LEVELS.ceo) && user.company_id) {
       // Load company for CEO
       const companyResponse = await apiClient.getCompany(user.company_id)
       if (companyResponse.data) {
@@ -383,7 +384,7 @@ class AuthService {
       const newSession: AuthSession = { user, clinic }
       
       // CEOs keep their Supabase auth, clinic workers don't need it
-      if (user.role === 'company_ceo') {
+      if (isRoleAtLeast(user.role_level, ROLE_LEVELS.ceo)) {
         newSession.isSupabaseAuth = true
         // Load company context for CEO
         if (user.company_id) {
@@ -400,7 +401,7 @@ class AuthService {
       this.transitionTo(AuthState.AUTHENTICATED)
 
       // Only sign out from Supabase if NOT a CEO (clinic workers don't need Supabase session)
-      if (user.role !== 'company_ceo') {
+      if (!isRoleAtLeast(user.role_level, ROLE_LEVELS.ceo)) {
         console.log('[Auth] Signing out from Supabase (clinic worker)')
         setTimeout(() => supabase.auth.signOut(), 100)
       } else {
@@ -456,7 +457,7 @@ class AuthService {
         username: session.user.email.split('@')[0] + '_ceo',
         email: session.user.email,
         password: '',
-        role: 'company_ceo',
+        role_level: ROLE_LEVELS.ceo,
         full_name: session.user.user_metadata?.full_name || session.user.email.split('@')[0],
         google_account_connected: isGoogleAuth,
         google_account_email: isGoogleAuth ? session.user.email : null,
@@ -524,7 +525,7 @@ class AuthService {
       // Build new session preserving company context for CEOs
       const newSession: AuthSession = { clinic, user }
 
-      if (user.role === 'company_ceo' && this.session?.company) {
+      if (isRoleAtLeast(user.role_level, ROLE_LEVELS.ceo) && this.session?.company) {
           newSession.company = this.session.company
         newSession.isSupabaseAuth = this.session.isSupabaseAuth
       }
@@ -535,7 +536,7 @@ class AuthService {
       // For CEOs, always force navigation when selecting a clinic
       // This handles cases where they're switching from control center to clinic,
       // or even if they're already "in" that clinic but coming from control center context
-      const forceNavigation = user.role === 'company_ceo' && !!clinic
+      const forceNavigation = isRoleAtLeast(user.role_level, ROLE_LEVELS.ceo) && !!clinic
 
       console.log('[Auth] Clinic switch:', { previousClinicId, newClinicId: clinic.id, forceNavigation })
 
@@ -833,7 +834,7 @@ class AuthService {
             } else {
               console.log('[Auth] Already on clinic page, skipping navigation')
             }
-          } else if (this.session?.user?.role === 'company_ceo') {
+          } else if (isRoleAtLeast(this.session?.user?.role_level, ROLE_LEVELS.ceo)) {
             // CEO context - go to control center dashboard
             if (!currentPath.startsWith('/control-center/dashboard')) {
               console.log('[Auth] Navigating to control center dashboard from:', currentPath)

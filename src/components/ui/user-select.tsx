@@ -7,6 +7,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { User } from '@/lib/db/schema-interface'
+import { getRoleLabel } from '@/lib/role-levels'
 import { getAllUsers, getUsersByClinic } from '@/lib/db/users-db'
 import { useUser } from '@/contexts/UserContext'
 
@@ -106,9 +107,7 @@ export function UserSelect({ value, onValueChange, placeholder = "בחר משת�
             <div className="flex items-center gap-2">
               <span>{user.full_name || user.username}</span>
               <span className="text-xs text-muted-foreground">
-                ({user.role === 'company_ceo' ? 'מנכ"ל החברה' : 
-                  user.role === 'clinic_manager' ? 'מנהל מרפאה' : 
-                  user.role === 'clinic_worker' ? 'עובד מרפאה' : 'צופה מרפאה'})
+                ({getRoleLabel(user.role_level)})
               </span>
             </div>
           </SelectItem>

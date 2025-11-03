@@ -693,7 +693,7 @@ export interface User {
   email?: string;
   phone?: string;
   password?: string;
-  role: 'clinic_manager' | 'clinic_worker' | 'clinic_viewer' | 'company_ceo';
+  role_level?: 1 | 2 | 3 | 4;
   is_active?: boolean;
   profile_picture?: string;
   primary_theme_color?: string;

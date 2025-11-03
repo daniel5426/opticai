@@ -11,6 +11,7 @@ import { Settings, User } from "@/lib/db/schema-interface";
 import { SettingsContext } from "@/contexts/SettingsContext";
 import { ClientSidebarProvider } from "@/contexts/ClientSidebarContext";
 import { useUser } from "@/contexts/UserContext";
+import { ROLE_LEVELS, isRoleAtLeast } from "@/lib/role-levels";
 import { ClientSidebar } from "@/components/ClientSidebar";
 import { useLocation, useNavigate } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
@@ -134,7 +135,7 @@ function BaseLayoutContent({ children }: { children: React.ReactNode }) {
     location.pathname.startsWith(route)
   );
 
-  const canAccessControlCenter = currentUser?.role === 'company_ceo';
+  const canAccessControlCenter = isRoleAtLeast(currentUser?.role_level, ROLE_LEVELS.ceo);
 
   // Don't show loading screen on callback route (OAuth popup)
   const isCallbackRoute = location.pathname === '/auth/callback';

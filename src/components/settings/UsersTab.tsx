@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { IconPlus, IconEdit, IconTrash } from "@tabler/icons-react"
 import { User } from "@/lib/db/schema-interface"
+import { getRoleBadgeVariant, getRoleLabel } from "@/lib/role-levels"
 
 interface UsersTabProps {
   users: User[]
@@ -80,16 +81,8 @@ export function UsersTab({
                     </div>
                     <div className="text-right flex-1">
                       <div className="flex items-center gap-2 justify-end">
-                        <Badge variant={
-                          user.role === 'company_ceo' ? 'default' : 
-                          user.role === 'clinic_manager' ? 'secondary' : 
-                          user.role === 'clinic_worker' ? 'outline' :
-                          'outline'
-                        }>
-                          {user.role === 'company_ceo' ? 'מנכ"ל החברה' : 
-                           user.role === 'clinic_manager' ? 'מנהל מרפאה' : 
-                           user.role === 'clinic_worker' ? 'עובד מרפאה' : 
-                           'צופה מרפאה'}
+                        <Badge variant={getRoleBadgeVariant(user.role_level)}>
+                          {getRoleLabel(user.role_level)}
                         </Badge>
                         <h3 className="font-medium">{user.username}</h3>
                       </div>

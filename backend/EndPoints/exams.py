@@ -37,9 +37,7 @@ def get_enriched_exams(
         base_query = base_query.filter(OpticalExam.clinic_id == clinic_id)
 
     # Apply role-based access control
-    if current_user.role == "company_ceo":
-        pass
-    else:
+    if current_user.role_level < 4:
         base_query = base_query.filter(OpticalExam.clinic_id == current_user.clinic_id)
 
     # Apply search
@@ -102,14 +100,7 @@ def get_exams(
         query = query.filter(OpticalExam.clinic_id == clinic_id)
     
     # Apply role-based access control
-    if current_user.role == "company_ceo":
-        # CEO can see all exams
-        pass
-    elif current_user.role == "clinic_manager":
-        # Clinic manager can see exams in their clinic
-        query = query.filter(OpticalExam.clinic_id == current_user.clinic_id)
-    else:
-        # Other users can only see exams in their clinic
+    if current_user.role_level < 4:
         query = query.filter(OpticalExam.clinic_id == current_user.clinic_id)
     
     return query.all()
@@ -131,17 +122,8 @@ def create_exam(
             exam.user_id = current_user.id
         
         # Apply role-based access control
-        if current_user.role == "company_ceo":
-            # CEO can create exams in any clinic
-            pass
-        elif current_user.role == "clinic_manager":
-            # Clinic manager can only create exams in their clinic
-            if exam.clinic_id != current_user.clinic_id:
-                raise HTTPException(status_code=403, detail="Can only create exams in your clinic")
-        else:
-            # Other users can only create exams in their clinic
-            if exam.clinic_id != current_user.clinic_id:
-                raise HTTPException(status_code=403, detail="Can only create exams in your clinic")
+        if current_user.role_level < 4 and exam.clinic_id != current_user.clinic_id:
+            raise HTTPException(status_code=403, detail="Can only create exams in your clinic")
         
         db_exam = OpticalExam(**exam.dict())
         db.add(db_exam)
@@ -175,17 +157,8 @@ def get_exam(
         raise HTTPException(status_code=404, detail="Exam not found")
     
     # Apply role-based access control
-    if current_user.role == "company_ceo":
-        # CEO can see any exam
-        pass
-    elif current_user.role == "clinic_manager":
-        # Clinic manager can only see exams in their clinic
-        if exam.clinic_id != current_user.clinic_id:
-            raise HTTPException(status_code=403, detail="Access denied")
-    else:
-        # Other users can only see exams in their clinic
-        if exam.clinic_id != current_user.clinic_id:
-            raise HTTPException(status_code=403, detail="Access denied")
+    if current_user.role_level < 4 and exam.clinic_id != current_user.clinic_id:
+        raise HTTPException(status_code=403, detail="Access denied")
     
     return exam
 
@@ -203,17 +176,8 @@ def get_exam_with_layouts(
         raise HTTPException(status_code=404, detail="Exam not found")
     
     # Apply role-based access control
-    if current_user.role == "company_ceo":
-        # CEO can see any exam
-        pass
-    elif current_user.role == "clinic_manager":
-        # Clinic manager can only see exams in their clinic
-        if exam.clinic_id != current_user.clinic_id:
-            raise HTTPException(status_code=403, detail="Access denied")
-    else:
-        # Other users can only see exams in their clinic
-        if exam.clinic_id != current_user.clinic_id:
-            raise HTTPException(status_code=403, detail="Access denied")
+    if current_user.role_level < 4 and exam.clinic_id != current_user.clinic_id:
+        raise HTTPException(status_code=403, detail="Access denied")
     
     # Get all layout instances for this exam
     layout_instances = db.query(ExamLayoutInstance).filter(
@@ -250,14 +214,8 @@ def get_exam_page_data(
     exam = db.query(OpticalExam).filter(OpticalExam.id == exam_id).first()
     if not exam:
         raise HTTPException(status_code=404, detail="Exam not found")
-    if current_user.role == "company_ceo":
-        pass
-    elif current_user.role == "clinic_manager":
-        if exam.clinic_id != current_user.clinic_id:
-            raise HTTPException(status_code=403, detail="Access denied")
-    else:
-        if exam.clinic_id != current_user.clinic_id:
-            raise HTTPException(status_code=403, detail="Access denied")
+    if current_user.role_level < 4 and exam.clinic_id != current_user.clinic_id:
+        raise HTTPException(status_code=403, detail="Access denied")
     # One roundtrip: fetch instances joined with layouts
     pairs = (
         db.query(ExamLayoutInstance, ExamLayout)
@@ -350,17 +308,8 @@ def update_exam(
         raise HTTPException(status_code=404, detail="Exam not found")
     
     # Apply role-based access control
-    if current_user.role == "company_ceo":
-        # CEO can update any exam
-        pass
-    elif current_user.role == "clinic_manager":
-        # Clinic manager can only update exams in their clinic
-        if db_exam.clinic_id != current_user.clinic_id:
-            raise HTTPException(status_code=403, detail="Access denied")
-    else:
-        # Other users can only update exams in their clinic
-        if db_exam.clinic_id != current_user.clinic_id:
-            raise HTTPException(status_code=403, detail="Access denied")
+    if current_user.role_level < 4 and db_exam.clinic_id != current_user.clinic_id:
+        raise HTTPException(status_code=403, detail="Access denied")
     
     try:
         for field, value in exam_update.dict(exclude_unset=True).items():
@@ -394,17 +343,8 @@ def delete_exam(
         raise HTTPException(status_code=404, detail="Exam not found")
     
     # Apply role-based access control
-    if current_user.role == "company_ceo":
-        # CEO can delete any exam
-        pass
-    elif current_user.role == "clinic_manager":
-        # Clinic manager can only delete exams in their clinic
-        if db_exam.clinic_id != current_user.clinic_id:
-            raise HTTPException(status_code=403, detail="Access denied")
-    else:
-        # Other users can only delete exams in their clinic
-        if db_exam.clinic_id != current_user.clinic_id:
-            raise HTTPException(status_code=403, detail="Access denied")
+    if current_user.role_level < 4 and db_exam.clinic_id != current_user.clinic_id:
+        raise HTTPException(status_code=403, detail="Access denied")
     
     try:
         client_id = db_exam.client_id
@@ -439,14 +379,7 @@ def get_exams_by_client(
         query = query.filter(OpticalExam.type == type)
     
     # Apply role-based access control
-    if current_user.role == "company_ceo":
-        # CEO can see all exams
-        pass
-    elif current_user.role == "clinic_manager":
-        # Clinic manager can see exams in their clinic
-        query = query.filter(OpticalExam.clinic_id == current_user.clinic_id)
-    else:
-        # Other users can only see exams in their clinic
+    if current_user.role_level < 4:
         query = query.filter(OpticalExam.clinic_id == current_user.clinic_id)
     
     return query.all() 

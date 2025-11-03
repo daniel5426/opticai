@@ -8,6 +8,9 @@ from sqlalchemy import and_, func, or_
 from auth import get_current_user
 from utils.storage import upload_base64_image
 
+
+CEO_LEVEL = 4
+
 router = APIRouter(prefix="/clients", tags=["clients"])
 
 @router.get("/paginated")
@@ -249,7 +252,7 @@ def get_company_new_clients_stats(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    if current_user.role != "company_ceo":
+    if current_user.role_level < CEO_LEVEL:
         raise HTTPException(status_code=403, detail="Access denied")
     month_expr = func.date_trunc('month', Client.file_creation_date)
     month_str = func.to_char(month_expr, 'YYYY-MM')

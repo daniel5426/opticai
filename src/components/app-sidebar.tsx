@@ -45,6 +45,7 @@ import {
 } from "@/components/ui/sidebar"
 import { cn } from "@/utils/tailwind"
 import { User, Clinic } from "@/lib/db/schema-interface"
+import { ROLE_LEVELS, isRoleAtLeast } from "@/lib/role-levels"
 import { useUser } from "@/contexts/UserContext"
 
 const getNavData = (currentUser?: User) => ({
@@ -69,7 +70,7 @@ const getNavData = (currentUser?: User) => ({
       url: "/worker-stats",
       icon: IconChartLine,
     },
-    ...(currentUser?.role === 'clinic_manager' || currentUser?.role === 'company_ceo' ? [{
+    ...(isRoleAtLeast(currentUser?.role_level, ROLE_LEVELS.manager) ? [{
       title: "קמפיינים",
       url: "/campaigns",
       icon: IconChartBar,

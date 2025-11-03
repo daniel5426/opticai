@@ -17,6 +17,7 @@ import { apiClient } from "@/lib/api-client"
 import { supabase } from "@/lib/supabaseClient"
 import { ImageInput } from "@/components/ui/image-input"
 import { AboutTab } from "@/components/settings/AboutTab"
+import { ROLE_LEVELS, getRoleBadgeVariant, getRoleLabel, isRoleAtLeast } from "@/lib/role-levels"
 
 export default function ControlCenterSettingsPage() {
   const { currentUser, setCurrentUser } = useUser()
@@ -270,7 +271,7 @@ export default function ControlCenterSettingsPage() {
   }
 
   const openEditUserModal = (user: User) => {
-    if (currentUser?.role !== 'company_ceo' && user.id !== currentUser?.id) {
+    if (!isRoleAtLeast(currentUser?.role_level, ROLE_LEVELS.ceo) && user.id !== currentUser?.id) {
       toast.error('אין לך הרשאה לערוך משתמש זה')
       return
     }
@@ -280,7 +281,7 @@ export default function ControlCenterSettingsPage() {
   }
 
   const handleUserDelete = async (userId: number) => {
-    if (currentUser?.role !== 'company_ceo') {
+    if (!isRoleAtLeast(currentUser?.role_level, ROLE_LEVELS.ceo)) {
       toast.error('אין לך הרשאה למחוק משתמשים')
       return
     }
@@ -1178,14 +1179,8 @@ export default function ControlCenterSettingsPage() {
                                   </div>
                                   <div className="text-right flex-1">
                                     <div className="flex items-center gap-2 justify-end">
-                                      <Badge variant={
-                                        user.role === 'company_ceo' ? 'default' : 
-                                        user.role === 'clinic_manager' ? 'secondary' : 
-                                        'outline'
-                                      }>
-                                        {user.role === 'company_ceo' ? 'מנהל חברה' : 
-                                         user.role === 'clinic_manager' ? 'מנהל סניף' : 
-                                         'צופה'}
+                                      <Badge variant={getRoleBadgeVariant(user.role_level)}>
+                                        {getRoleLabel(user.role_level)}
                                       </Badge>
                                       <h3 className="font-medium">{user.full_name || user.username}</h3>
                                     </div>
@@ -1217,7 +1212,7 @@ export default function ControlCenterSettingsPage() {
                   <TabsList className="flex flex-col h-fit w-48 p-1">
                     <TabsTrigger value="company-profile" className="w-full justify-end text-right">פרופיל החברה</TabsTrigger>
                     <TabsTrigger value="personal-profile" className="w-full justify-end text-right">פרופיל אישי</TabsTrigger>
-                    {currentUser?.role === 'company_ceo' && (
+                    {isRoleAtLeast(currentUser?.role_level, ROLE_LEVELS.ceo) && (
                       <TabsTrigger value="users" className="w-full justify-end text-right">ניהול משתמשים</TabsTrigger>
                     )}
                     <TabsTrigger value="about" className="w-full justify-end text-right">אודות האפליקציה</TabsTrigger>

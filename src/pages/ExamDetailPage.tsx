@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback, useLayoutEffect } from "react"
-import { useParams, useNavigate, Link, useLocation } from "@tanstack/react-router"
+import { useParams, useNavigate, Link, useLocation, useBlocker } from "@tanstack/react-router"
 import { SiteHeader } from "@/components/site-header"
 import { getClientById } from "@/lib/db/clients-db"
 import { getExamById, getExamWithLayouts, updateExam, createExam, getExamPageData } from "@/lib/db/exams-db"
@@ -22,6 +22,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { CoverTestExam } from "@/lib/db/schema-interface"
 import { apiClient } from '@/lib/api-client';
 import { Skeleton } from "@/components/ui/skeleton";
+import { UnsavedChangesDialog } from "@/components/unsaved-changes-dialog"
 
 interface ExamDetailPageProps {
   mode?: 'view' | 'edit' | 'new';
@@ -194,6 +195,41 @@ export default function ExamDetailPage({
   }, [examFormData, JSON.stringify(cardRows)])
   const latestLoadIdRef = useRef(0)
 
+  const [showUnsavedDialog, setShowUnsavedDialog] = useState(false)
+  const pendingNavigationRef = useRef<(() => void) | null>(null)
+  const baselineRef = useRef<string>('')
+  const baselineInitializedRef = useRef(false)
+  const allowNavigationRef = useRef(false)
+  const blockerProceedRef = useRef<(() => void) | null>(null)
+  const blockerResetRef = useRef<(() => void) | null>(null)
+  const [isSaveInFlight, setIsSaveInFlight] = useState(false)
+
+  const getSerializedState = useCallback(() => JSON.stringify({
+    formData,
+    examFormData,
+    examFormDataByInstance
+  }), [formData, examFormData, examFormDataByInstance])
+
+  const checkDirty = useCallback(() => {
+    if (!baselineInitializedRef.current) return false
+    if (!isEditing && !isNewMode) return false
+    return getSerializedState() !== baselineRef.current
+  }, [getSerializedState, isEditing, isNewMode])
+
+  const hasUnsavedChanges = checkDirty()
+
+  const setBaseline = useCallback((override?: {
+    formData: Partial<OpticalExam>
+    examFormData: Record<string, any>
+    examFormDataByInstance: Record<number | string, Record<string, any>>
+  }) => {
+    const serialized = override
+      ? JSON.stringify(override)
+      : getSerializedState()
+    baselineRef.current = serialized
+    baselineInitializedRef.current = true
+  }, [getSerializedState])
+
 
   useLayoutEffect(() => {
     const observers: ResizeObserver[] = []
@@ -214,6 +250,55 @@ export default function ExamDetailPage({
   }, [cardRows, activeInstanceId, layoutTabs])
   const formRef = useRef<HTMLFormElement>(null)
   const navigate = useNavigate()
+
+  const blockerState = useBlocker({
+    shouldBlockFn: () => hasUnsavedChanges && !allowNavigationRef.current,
+    withResolver: true,
+    disabled: !hasUnsavedChanges,
+    enableBeforeUnload: false
+  }, hasUnsavedChanges)
+
+  useEffect(() => {
+    if (blockerState.status === 'blocked') {
+      blockerProceedRef.current = blockerState.proceed ?? null
+      blockerResetRef.current = blockerState.reset ?? null
+      pendingNavigationRef.current = null
+      setShowUnsavedDialog(true)
+    } else if (blockerState.status === 'idle') {
+      blockerProceedRef.current = null
+      blockerResetRef.current = null
+    }
+  }, [blockerState.status, blockerState.proceed, blockerState.reset])
+
+  const handleNavigationAttempt = useCallback((action: () => void) => {
+    if (checkDirty()) {
+      pendingNavigationRef.current = action
+      setShowUnsavedDialog(true)
+      return
+    }
+    action()
+  }, [checkDirty])
+
+  const handleUnsavedConfirm = useCallback(() => {
+    setShowUnsavedDialog(false)
+    allowNavigationRef.current = true
+    const action = pendingNavigationRef.current
+    pendingNavigationRef.current = null
+    if (action) {
+      action()
+    } else {
+      blockerProceedRef.current?.()
+    }
+    setTimeout(() => {
+      allowNavigationRef.current = false
+    }, 0)
+  }, [])
+
+  const handleUnsavedCancel = useCallback(() => {
+    setShowUnsavedDialog(false)
+    pendingNavigationRef.current = null
+    blockerResetRef.current?.()
+  }, [])
 
   const handleCopy = (card: CardItem) => {
     const cardType = card.type as ExamComponentType
@@ -497,6 +582,7 @@ export default function ExamDetailPage({
   }, [setSidebarActiveTab, config.sidebarTab])
 
   useEffect(() => {
+    baselineInitializedRef.current = false
     const loadData = async () => {
       if (!clientId) return
       try {
@@ -611,6 +697,30 @@ export default function ExamDetailPage({
     }
     loadData()
   }, [clientId, examId, isNewMode, config.dbType, currentClinic?.id])
+
+  useEffect(() => {
+    if (!loading && !baselineInitializedRef.current) {
+      setBaseline()
+    }
+  }, [loading, setBaseline])
+
+  useEffect(() => {
+    if (!hasUnsavedChanges) return
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault()
+      event.returnValue = ''
+    }
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload)
+    }
+  }, [hasUnsavedChanges])
+
+  useEffect(() => {
+    if (hasUnsavedChanges) return
+    pendingNavigationRef.current = null
+    setShowUnsavedDialog(false)
+  }, [hasUnsavedChanges])
 
   useEffect(() => {
     const prefetch = async () => {
@@ -740,8 +850,12 @@ export default function ExamDetailPage({
     console.log('activeInstanceId', activeInstanceId)
     console.log('layoutTabs', layoutTabs)
     console.log('activeLayout', layoutTabs.find(tab => tab.isActive))
-    
-    if (formRef.current) {
+
+    if (!formRef.current || isSaveInFlight) return
+
+    setIsSaveInFlight(true)
+
+    try {
       if (isNewMode) {
         setIsEditing(false)
         const examData = {
@@ -753,56 +867,69 @@ export default function ExamDetailPage({
           dominant_eye: formData.dominant_eye || null,
           type: formData.type || config.dbType
         }
-        
+
         const newExam = await createExam(examData)
 
-        if (newExam && newExam.id) {
-          setExam(newExam)
-          setFormData({ ...newExam })
-          toast.success(config.saveSuccessNew)
-          if (onSave) onSave(newExam)
-          navigate({
-            to: "/clients/$clientId",
-            params: { clientId: String(clientId) },
-            search: { tab: config.sidebarTab }
-          })
-          ;(async () => {
-            try {
-              const activeTempTab = layoutTabs.find(t => t.isActive)
-              if (activeTempTab && activeInstanceId != null && activeTempTab.id === activeInstanceId) {
-                setExamFormDataByInstance(prev => ({
-                  ...prev,
-                  [activeTempTab.id]: examFormData
-                }))
-              }
-              const tempIdToRealId: Record<number, number> = {}
-              for (const tab of layoutTabs) {
-                const instance = await addLayoutToExam(Number(newExam.id), Number(tab.layout_id || 0), tab.isActive)
-                if (!instance || instance.id == null) throw new Error('failed to create instance')
-                tempIdToRealId[tab.id] = Number(instance.id)
-                const dataBucket = examFormDataByInstance[tab.id] || {}
-                await examComponentRegistry.saveAllData(Number(instance.id), dataBucket)
-              }
-              // Optionally remap tabs to real IDs for correctness
-              const remappedTabs = layoutTabs.map(tab => ({
-                ...tab,
-                id: (tempIdToRealId[tab.id] !== undefined ? tempIdToRealId[tab.id] : tab.id) as number
-              }))
-              setLayoutTabs(remappedTabs)
-              if (activeTempTab && Object.prototype.hasOwnProperty.call(tempIdToRealId, activeTempTab.id)) {
-                const realId = Number(tempIdToRealId[activeTempTab.id])
-                setActiveInstanceId(realId as number)
-                setExamFormData(examFormDataByInstance[activeTempTab.id] || {})
-              }
-            } catch (e) {
-              toast.error(config.saveErrorNewData)
-              setIsEditing(true)
-            }
-          })()
-        } else {
+        if (!newExam || !newExam.id) {
           toast.error(config.saveErrorNew)
           setIsEditing(true)
+          return
         }
+
+        setExam(newExam)
+        setFormData({ ...newExam })
+        toast.success(config.saveSuccessNew)
+        if (onSave) onSave(newExam)
+
+        const activeTempTab = layoutTabs.find(t => t.isActive)
+        if (activeTempTab && activeInstanceId != null && activeTempTab.id === activeInstanceId) {
+          setExamFormDataByInstance(prev => ({
+            ...prev,
+            [activeTempTab.id]: examFormData
+          }))
+        }
+
+        const tempIdToRealId: Record<number, number> = {}
+        try {
+          for (const tab of layoutTabs) {
+            const instance = await addLayoutToExam(Number(newExam.id), Number(tab.layout_id || 0), tab.isActive)
+            if (!instance || instance.id == null) throw new Error('failed to create instance')
+            tempIdToRealId[tab.id] = Number(instance.id)
+            const dataBucket = examFormDataByInstance[tab.id] || {}
+            await examComponentRegistry.saveAllData(Number(instance.id), dataBucket)
+          }
+
+          const remappedTabs = layoutTabs.map(tab => ({
+            ...tab,
+            id: tempIdToRealId[tab.id] !== undefined ? tempIdToRealId[tab.id] : tab.id
+          }))
+          setLayoutTabs(remappedTabs)
+
+          if (activeTempTab && Object.prototype.hasOwnProperty.call(tempIdToRealId, activeTempTab.id)) {
+            const realId = Number(tempIdToRealId[activeTempTab.id])
+            setActiveInstanceId(realId)
+            setExamFormData(examFormDataByInstance[activeTempTab.id] || {})
+          }
+        } catch (error) {
+          toast.error(config.saveErrorNewData)
+          setIsEditing(true)
+          return
+        }
+
+        setBaseline({
+          formData: { ...newExam },
+          examFormData,
+          examFormDataByInstance
+        })
+        allowNavigationRef.current = true
+        navigate({
+          to: "/clients/$clientId",
+          params: { clientId: String(clientId) },
+          search: { tab: config.sidebarTab }
+        })
+        setTimeout(() => {
+          allowNavigationRef.current = false
+        }, 0)
       } else {
         const prevExam = exam
         const optimisticExam = { ...(exam || {}), ...(formData as OpticalExam) } as OpticalExam
@@ -814,42 +941,46 @@ export default function ExamDetailPage({
         const localExamData = { ...examFormData }
         toast.success(config.saveSuccessUpdate)
 
-        ;(async () => {
-          try {
-            const updatedExam = await updateExam(formData as OpticalExam)
+        try {
+          const updatedExam = await updateExam(formData as OpticalExam)
 
-            // ensure active instance bucket is up-to-date
-            if (activeInstanceId != null) {
-              setExamFormDataByInstance(prev => ({
-                ...prev,
-                [activeInstanceId]: examFormData
-              }))
-            }
+          if (activeInstanceId != null) {
+            setExamFormDataByInstance(prev => ({
+              ...prev,
+              [activeInstanceId]: examFormData
+            }))
+          }
 
-            for (const tab of layoutTabs) {
-              if (tab.id > 0) {
-                const bucket = examFormDataByInstance[tab.id] || {}
-                await examComponentRegistry.saveAllData(tab.id, bucket)
-              }
-            }
-
-            if (updatedExam) {
-              setExam(updatedExam)
-              setFormData({ ...updatedExam })
-              if (onSave) onSave(updatedExam, ...Object.values(localExamData))
-            } else {
-              throw new Error('update failed')
-            }
-          } catch (error) {
-            toast.error('לא הצלחנו לשמור את השינויים')
-            setIsEditing(true)
-            if (prevExam) {
-              setExam(prevExam)
-              setFormData({ ...prevExam })
+          for (const tab of layoutTabs) {
+            if (tab.id > 0) {
+              const bucket = examFormDataByInstance[tab.id] || {}
+              await examComponentRegistry.saveAllData(tab.id, bucket)
             }
           }
-        })()
+
+          if (updatedExam) {
+            setExam(updatedExam)
+            setFormData({ ...updatedExam })
+            if (onSave) onSave(updatedExam, ...Object.values(localExamData))
+            setBaseline({
+              formData: { ...updatedExam },
+              examFormData,
+              examFormDataByInstance
+            })
+          } else {
+            throw new Error('update failed')
+          }
+        } catch (error) {
+          toast.error('לא הצלחנו לשמור את השינויים')
+          setIsEditing(true)
+          if (prevExam) {
+            setExam(prevExam)
+            setFormData({ ...prevExam })
+          }
+        }
       }
+    } finally {
+      setIsSaveInFlight(false)
     }
   }
 
@@ -1343,10 +1474,12 @@ export default function ExamDetailPage({
 
   const handleTabChange = (value: string) => {
     if (clientId && value !== config.sidebarTab) {
-      navigate({
-        to: "/clients/$clientId",
-        params: { clientId: String(clientId) },
-        search: { tab: value }
+      handleNavigationAttempt(() => {
+        navigate({
+          to: "/clients/$clientId",
+          params: { clientId: String(clientId) },
+          search: { tab: value }
+        })
       })
     }
   }
@@ -1519,7 +1652,22 @@ export default function ExamDetailPage({
             <h2 className="text-xl font-semibold">{isNewMode ? config.newTitle : config.detailTitle}</h2>
             <div className="flex gap-2">
               {!isNewMode && !isEditing && exam?.id && (
-                <Link to="/clients/$clientId/orders/new" params={{ clientId: String(clientId) }} search={{ examId: String(exam.id) }}>
+                <Link
+                  to="/clients/$clientId/orders/new"
+                  params={{ clientId: String(clientId) }}
+                  search={{ examId: String(exam.id) }}
+                  onClick={(e) => {
+                    if (!hasUnsavedChanges) return
+                    e.preventDefault()
+                    handleNavigationAttempt(() => {
+                      navigate({
+                        to: "/clients/$clientId/orders/new",
+                        params: { clientId: String(clientId) },
+                        search: { examId: String(exam.id) }
+                      })
+                    })
+                  }}
+                >
                   <Button variant="outline">יצירת הזמנה</Button>
                 </Link>
               )}
@@ -1564,7 +1712,17 @@ export default function ExamDetailPage({
               </DropdownMenu>
 
               {isNewMode && onCancel && (
-                <Button variant="outline" onClick={onCancel}>ביטול</Button>
+                <Button
+                  variant="outline"
+                  onClick={(e) => {
+                    e.preventDefault()
+                    handleNavigationAttempt(() => {
+                      if (onCancel) onCancel()
+                    })
+                  }}
+                >
+                  ביטול
+                </Button>
               )}
               <Button
                 variant={isEditing ? "outline" : "default"}
@@ -1785,6 +1943,11 @@ export default function ExamDetailPage({
           </form>
         </div>
       </ClientSpaceLayout>
+      <UnsavedChangesDialog
+        open={showUnsavedDialog}
+        onConfirm={handleUnsavedConfirm}
+        onCancel={handleUnsavedCancel}
+      />
     </>
   )
 } 

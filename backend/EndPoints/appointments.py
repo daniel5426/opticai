@@ -8,6 +8,9 @@ from schemas import AppointmentCreate, AppointmentUpdate, Appointment as Appoint
 from auth import get_current_user
 from sqlalchemy import func
 
+
+CEO_LEVEL = 4
+
 router = APIRouter(prefix="/appointments", tags=["appointments"])
 
 @router.post("/", response_model=AppointmentSchema)
@@ -19,7 +22,7 @@ def create_appointment(
     try:
         print(f"Received appointment data: {appointment.dict()}")
         print(f"Date field: {appointment.date} (type: {type(appointment.date)})")
-        print(f"Current user: {current_user.username} (role: {current_user.role})")
+        print(f"Current user: {current_user.username} (role_level: {current_user.role_level})")
         
         if not appointment.client_id:
             raise HTTPException(status_code=422, detail="client_id is required")
@@ -42,17 +45,8 @@ def create_appointment(
             appointment.user_id = current_user.id
         
         # Apply role-based access control
-        if current_user.role == "company_ceo":
-            # CEO can create appointments in any clinic
-            pass
-        elif current_user.role == "clinic_manager":
-            # Clinic manager can only create appointments in their clinic
-            if appointment.clinic_id != current_user.clinic_id:
-                raise HTTPException(status_code=403, detail="Can only create appointments in your clinic")
-        else:
-            # Other users can only create appointments in their clinic
-            if appointment.clinic_id != current_user.clinic_id:
-                raise HTTPException(status_code=403, detail="Can only create appointments in your clinic")
+        if current_user.role_level < CEO_LEVEL and appointment.clinic_id != current_user.clinic_id:
+            raise HTTPException(status_code=403, detail="Can only create appointments in your clinic")
         
         print(f"Creating appointment with final data: {appointment.dict()}")
         db_appointment = Appointment(**appointment.dict())
@@ -297,7 +291,7 @@ def get_company_appointments_stats(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    if current_user.role != "company_ceo":
+    if current_user.role_level < CEO_LEVEL:
         raise HTTPException(status_code=403, detail="Access denied")
     month_expr = func.date_trunc('month', Appointment.date)
     month_str = func.to_char(month_expr, 'YYYY-MM')

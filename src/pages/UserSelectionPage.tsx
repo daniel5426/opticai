@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { ROLE_LEVELS, getRoleBadgeVariant, getRoleLabel, isRoleAtLeast } from '@/lib/role-levels'
 import { toast } from 'sonner'
 import { apiClient } from '@/lib/api-client'
 import { authService } from '@/lib/auth/AuthService'
@@ -352,11 +353,8 @@ function UserAvatar({ user, loadedImages, size = 'md' }: { user: User; loadedIma
 }
 
 function UserCard({ user, index, loadedImages, onSelect }: any) {
-  const roleText = user.role === 'clinic_manager' || user.role === 'company_ceo' ? 'מנהל' : 
-                   user.role === 'clinic_worker' ? 'עובד' : 'צופה'
-  
-  const roleVariant = user.role === 'clinic_manager' || user.role === 'company_ceo' ? 'default' : 
-                      user.role === 'clinic_worker' ? 'secondary' : 'outline'
+  const roleText = getRoleLabel(user.role_level)
+  const roleVariant = getRoleBadgeVariant(user.role_level)
 
   return (
     <div
@@ -404,11 +402,9 @@ function UserLoginPanel({
   onGoogleLogin,
   onBack,
 }: any) {
-  const roleText = user.role === 'clinic_manager' || user.role === 'company_ceo' ? 'מנהל' : 
-                   user.role === 'clinic_worker' ? 'עובד' : 'צופה'
+  const roleText = getRoleLabel(user.role_level)
   
-  const roleVariant = user.role === 'clinic_manager' || user.role === 'company_ceo' ? 'default' : 
-                      user.role === 'clinic_worker' ? 'secondary' : 'outline'
+  const roleVariant = getRoleBadgeVariant(user.role_level)
 
   return (
     <div 

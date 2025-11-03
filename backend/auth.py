@@ -76,6 +76,12 @@ def check_database_connection(db: Session) -> bool:
     except (OperationalError, DatabaseError, TimeoutError):
         return False
 
+
+def ensure_user_role_level(user: User) -> User:
+    if getattr(user, "role_level", None) is None:
+        user.role_level = 1
+    return user
+
 def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security), db: Session = Depends(get_db)):
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -116,7 +122,7 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(securit
         
         if user is None:
             raise credentials_exception
-        return user
+        return ensure_user_role_level(user)
     except JWTError:
         raise credentials_exception
 

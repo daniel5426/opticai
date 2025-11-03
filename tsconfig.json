@@ -18,9 +18,9 @@
       "@/*": ["./src/*"]
     },
     "outDir": "dist",
-    "moduleResolution": "node",
+    "moduleResolution": "nodenext",
     "resolveJsonModule": true,
     "typeRoots": ["./node_modules/@types", "./src/types"]
   },
-  "include": ["src/**/*", "./package.json", "./forge.config.ts", "src/lib/db/**/*.json", "src/types.d.ts", "src/types/**/*.d.ts"]
+  "include": ["src/**/*", "./package.json", "./forge.config.ts", "src/lib/db/**/*.json", "src/utils/**/*.json", "src/types.d.ts", "src/types/**/*.d.ts"]
 }
