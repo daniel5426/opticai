@@ -12,7 +12,7 @@ import { Progress } from "@/components/ui/progress";
 import { ArrowRight, ArrowLeft, Building2, MapPin, Check, AlertTriangle } from "lucide-react";
 import { WelcomeComponent } from "@/components/WelcomeComponent";
 import { ClinicEntrance } from "@/components/ClinicEntrance";
-import loginBanner from "@/assets/images/image.png";
+import loginBanner from "@/assets/images/login-banner.jpeg";
 
 // Get the API base URL without the /api/v1 suffix for health checks
 const getHealthCheckUrl = () => {
@@ -347,7 +347,7 @@ export default function ControlCenterPage() {
                   <img
                     src={loginBanner}
                     alt="Image"
-                    className="absolute inset-0 h-full w-full object-cover dark:brightness-[0.2] dark:grayscale"
+                    className="absolute inset-0 h-full w-full object-cover object-[center_10%] dark:brightness-[0.2] dark:grayscale"
                   />
                 </div>
               </CardContent>
@@ -419,7 +419,7 @@ function LoginForm({
               <Label htmlFor="password">סיסמה</Label>
               <a
                 href="#"
-                className="ml-auto text-sm underline-offset-2 hover:underline"
+                className="mr-auto text-sm text-end underline-offset-2 hover:underline"
               >
                 שכחת סיסמה?
               </a>
