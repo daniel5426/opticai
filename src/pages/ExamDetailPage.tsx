@@ -23,6 +23,7 @@ import { CoverTestExam } from "@/lib/db/schema-interface"
 import { apiClient } from '@/lib/api-client';
 import { Skeleton } from "@/components/ui/skeleton";
 import { UnsavedChangesDialog } from "@/components/unsaved-changes-dialog"
+import { useNavigationGuard } from "@/contexts/NavigationGuardContext"
 
 interface ExamDetailPageProps {
   mode?: 'view' | 'edit' | 'new';
@@ -72,6 +73,34 @@ const pageConfig = {
     saveErrorNewData: "לא הצלחנו ליצור את נתוני העדשות מגע",
   }
 };
+
+const sortKeysDeep = (value: any): any => {
+  if (Array.isArray(value)) {
+    return value
+      .map(sortKeysDeep)
+      .filter((item) => item !== undefined)
+  }
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    return Object.keys(value)
+      .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0))
+      .reduce((acc, key) => {
+        const child = sortKeysDeep(value[key])
+        if (child !== undefined) {
+          acc[key] = child
+        }
+        return acc
+      }, {} as Record<string, any>)
+  }
+  if (value === null) return null
+  if (typeof value === "string") {
+    const trimmed = value.trim()
+    return trimmed === "" ? undefined : trimmed
+  }
+  if (typeof value === "number" || typeof value === "boolean") {
+    return String(value)
+  }
+  return value
+}
 
 export default function ExamDetailPage({
   mode = 'view',
@@ -205,9 +234,9 @@ export default function ExamDetailPage({
   const [isSaveInFlight, setIsSaveInFlight] = useState(false)
 
   const getSerializedState = useCallback(() => JSON.stringify({
-    formData,
-    examFormData,
-    examFormDataByInstance
+    formData: sortKeysDeep(formData),
+    examFormData: sortKeysDeep(examFormData),
+    examFormDataByInstance: sortKeysDeep(examFormDataByInstance)
   }), [formData, examFormData, examFormDataByInstance])
 
   const checkDirty = useCallback(() => {
@@ -250,6 +279,7 @@ export default function ExamDetailPage({
   }, [cardRows, activeInstanceId, layoutTabs])
   const formRef = useRef<HTMLFormElement>(null)
   const navigate = useNavigate()
+  const { registerGuard } = useNavigationGuard()
 
   const blockerState = useBlocker({
     shouldBlockFn: () => hasUnsavedChanges && !allowNavigationRef.current,
@@ -299,6 +329,11 @@ export default function ExamDetailPage({
     pendingNavigationRef.current = null
     blockerResetRef.current?.()
   }, [])
+
+  useEffect(() => {
+    registerGuard(handleNavigationAttempt)
+    return () => registerGuard(null)
+  }, [handleNavigationAttempt, registerGuard])
 
   const handleCopy = (card: CardItem) => {
     const cardType = card.type as ExamComponentType
@@ -510,20 +545,49 @@ export default function ExamDetailPage({
     }
   }
 
+  const normalizeFieldValue = (previous: any, rawValue: string) => {
+    const trimmed = typeof rawValue === "string" ? rawValue.trim() : rawValue
+    if (trimmed === "") {
+      if (previous === null) return null
+      return undefined
+    }
+    if (typeof previous === "number") {
+      const normalizedNumber = Number(String(trimmed).replace(",", "."))
+      return Number.isFinite(normalizedNumber) ? normalizedNumber : rawValue
+    }
+    if (typeof previous === "boolean") {
+      if (trimmed === "true" || trimmed === "1") return true
+      if (trimmed === "false" || trimmed === "0") return false
+      return rawValue
+    }
+    return trimmed
+  }
+
   // Create field change handlers for all components
   const createFieldHandlers = () => {
     const handlers: Record<string, (field: string, value: string) => void> = {}
     
     examComponentRegistry.getAllTypes().forEach(type => {
-      handlers[type] = examComponentRegistry.createFieldChangeHandler(
-        type,
-        (updater: (prev: any) => any) => {
-          setExamFormData(prev => ({
+      handlers[type] = (field: string, value: string) => {
+        setExamFormData(prev => {
+          const prevComponent = prev[type] || {}
+          const prevValue = prevComponent[field]
+          const normalized = normalizeFieldValue(prevValue, value)
+          const nextComponent = { ...prevComponent }
+          if (nextComponent.layout_instance_id == null && activeInstanceId != null) {
+            nextComponent.layout_instance_id = activeInstanceId
+          }
+          if (normalized === undefined) {
+            delete nextComponent[field]
+          } else {
+            nextComponent[field] = normalized
+          }
+          return {
             ...prev,
-            [type]: updater(prev[type] || {})
-          }))
-        }
-      )
+            [type]: nextComponent
+          }
+        })
+      }
     })
 
     // Create field handlers for notes card instances
@@ -533,13 +597,23 @@ export default function ExamDetailPage({
           if (card.type === 'notes') {
             const key = `notes-${card.id}`
             handlers[key] = (field: string, value: string) => {
-              setExamFormData(prev => ({
-                ...prev,
-                [key]: {
-                  ...prev[key],
-                  [field]: value
+              setExamFormData(prev => {
+                const prevNote = prev[key] || {}
+                const normalized = normalizeFieldValue(prevNote[field], value)
+                const nextNote = { ...prevNote }
+                if (nextNote.layout_instance_id == null && activeInstanceId != null) {
+                  nextNote.layout_instance_id = activeInstanceId
                 }
-              }))
+                if (normalized === undefined) {
+                  delete nextNote[field]
+                } else {
+                  nextNote[field] = normalized
+                }
+                return {
+                  ...prev,
+                  [key]: nextNote
+                }
+              })
             }
           }
           if (card.type === 'cover-test') {
@@ -550,15 +624,23 @@ export default function ExamDetailPage({
               handlers[key] = (field, value) => {
                 setExamFormData(prev => {
                   const tabIndex = (computedCoverTestTabs[cardId] || []).indexOf(tabId)
+                  const prevTab = prev[key] || {}
+                  const normalized = normalizeFieldValue(prevTab[field], value)
+                  const nextTab = {
+                    ...prevTab,
+                    card_instance_id: tabId,
+                    card_id: cardId,
+                    tab_index: tabIndex,
+                    layout_instance_id: prevTab.layout_instance_id ?? activeInstanceId
+                  }
+                  if (normalized === undefined) {
+                    delete nextTab[field]
+                  } else {
+                    nextTab[field] = normalized
+                  }
                   return {
                     ...prev,
-                    [key]: {
-                      ...prev[key],
-                      [field]: value,
-                      card_instance_id: tabId,
-                      card_id: cardId,
-                      tab_index: tabIndex
-                    }
+                    [key]: nextTab
                   }
                 })
               }
@@ -700,7 +782,10 @@ export default function ExamDetailPage({
 
   useEffect(() => {
     if (!loading && !baselineInitializedRef.current) {
-      setBaseline()
+      const timer = setTimeout(() => {
+        setBaseline()
+      }, 100)
+      return () => clearTimeout(timer)
     }
   }, [loading, setBaseline])
 
@@ -1459,16 +1544,10 @@ export default function ExamDetailPage({
     if (isEditing) {
       handleSave();
     } else {
-      if (exam) setFormData({ ...exam });
-      
-      examComponentRegistry.getAllTypes().forEach(type => {
-        const data = examComponentData[type]
-        if (data) {
-          setExamFormData(prev => ({ ...prev, [type]: { ...data } }))
-        }
-      })
-      
       setIsEditing(true);
+      setTimeout(() => {
+        setBaseline();
+      }, 0);
     }
   }
 

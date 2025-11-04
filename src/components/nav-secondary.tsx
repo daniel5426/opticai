@@ -2,7 +2,6 @@
 
 import * as React from "react"
 import { type Icon } from "@tabler/icons-react"
-import { Link } from "@tanstack/react-router"
 
 import {
   SidebarGroup,
@@ -11,6 +10,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
+import { GuardedRouterLink } from "@/components/GuardedRouterLink"
 
 export function NavSecondary({
   items,
@@ -29,10 +29,10 @@ export function NavSecondary({
           {items.map((item) => (
             <SidebarMenuItem key={item.title}>
               <SidebarMenuButton asChild>
-                <Link to={item.url}>
+                <GuardedRouterLink to={item.url}>
                   <item.icon />
                   <span>{item.title}</span>
-                </Link>
+                </GuardedRouterLink>
               </SidebarMenuButton>
             </SidebarMenuItem>
           ))}

@@ -6,17 +6,21 @@ import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { ControlCenterSidebar } from "@/components/control-center-sidebar";
 import { getSettings } from "@/lib/db/settings-db";
-import { applyCompanyThemeColors, cacheCompanyThemeColors } from "@/helpers/theme_helpers";
+import {
+  applyCompanyThemeColors,
+  cacheCompanyThemeColors,
+} from "@/helpers/theme_helpers";
 import { Settings, User } from "@/lib/db/schema-interface";
 import { SettingsContext } from "@/contexts/SettingsContext";
 import { ClientSidebarProvider } from "@/contexts/ClientSidebarContext";
+import { NavigationGuardProvider } from "@/contexts/NavigationGuardContext";
 import { useUser } from "@/contexts/UserContext";
 import { ROLE_LEVELS, isRoleAtLeast } from "@/lib/role-levels";
 import { ClientSidebar } from "@/components/ClientSidebar";
 import { useLocation, useNavigate } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
-import { apiClient } from '@/lib/api-client';
-import { OctahedronLoader } from "@/components/ui/octahedron-loader";
+import { apiClient } from "@/lib/api-client";
+import Loader from "@/components/kokonutui/loader";
 
 /**
  * BaseLayoutContent - Main layout wrapper
@@ -29,12 +33,12 @@ function BaseLayoutContent({ children }: { children: React.ReactNode }) {
   const [company, setCompany] = useState<any>(null);
   const navigate = useNavigate();
   const location = useLocation();
-  
+
   // Safe access to user context (handles HMR gracefully)
   let currentUser: User | null = null;
   let currentClinic: any = null;
   let isUserLoading = true;
-  
+
   try {
     const userContext = useUser();
     currentUser = userContext.currentUser;
@@ -42,13 +46,15 @@ function BaseLayoutContent({ children }: { children: React.ReactNode }) {
     isUserLoading = userContext.isLoading;
   } catch (error) {
     // During HMR, UserProvider might be temporarily unavailable
-    console.log('[BaseLayout] UserContext temporarily unavailable (likely HMR)')
+    console.log(
+      "[BaseLayout] UserContext temporarily unavailable (likely HMR)",
+    );
   }
-  
+
   const updateSettings = (newSettings: Settings) => {
     setSettings(newSettings);
   };
-  
+
   // Load settings when clinic context is available
   useEffect(() => {
     const loadSettings = async () => {
@@ -62,7 +68,7 @@ function BaseLayoutContent({ children }: { children: React.ReactNode }) {
           applyCompanyThemeColors();
         }
       } catch (error) {
-        console.error('[BaseLayout] Error loading settings:', error);
+        console.error("[BaseLayout] Error loading settings:", error);
       }
     };
 
@@ -72,7 +78,7 @@ function BaseLayoutContent({ children }: { children: React.ReactNode }) {
   // Load company data
   useEffect(() => {
     const loadCompany = async () => {
-      const companyData = localStorage.getItem('controlCenterCompany');
+      const companyData = localStorage.getItem("controlCenterCompany");
       if (companyData) {
         const company = JSON.parse(companyData);
         setCompany(company);
@@ -89,7 +95,7 @@ function BaseLayoutContent({ children }: { children: React.ReactNode }) {
             applyCompanyThemeColors(resp.data);
           }
         } catch (error) {
-          console.error('[BaseLayout] Error loading company:', error);
+          console.error("[BaseLayout] Error loading company:", error);
         }
       }
     };
@@ -106,10 +112,11 @@ function BaseLayoutContent({ children }: { children: React.ReactNode }) {
         cacheCompanyThemeColors(e.detail);
         applyCompanyThemeColors(e.detail);
       }
-    }
-    window.addEventListener('companyUpdated', handler as EventListener)
-    return () => window.removeEventListener('companyUpdated', handler as EventListener)
-  }, [])
+    };
+    window.addEventListener("companyUpdated", handler as EventListener);
+    return () =>
+      window.removeEventListener("companyUpdated", handler as EventListener);
+  }, []);
 
   // Preload logo
   useEffect(() => {
@@ -125,27 +132,39 @@ function BaseLayoutContent({ children }: { children: React.ReactNode }) {
   }, [settings?.clinic_logo_path]);
 
   // Determine which layout to show
-  const noSidebarRoutes = ['/control-center', '/user-selection', '/auth/callback'];
-  const shouldShowSidebar = !noSidebarRoutes.some(route =>
-    location.pathname.startsWith(route)
-  ) && location.pathname !== '/'; // Exclude exact root path
+  const noSidebarRoutes = [
+    "/control-center",
+    "/user-selection",
+    "/auth/callback",
+  ];
+  const shouldShowSidebar =
+    !noSidebarRoutes.some((route) => location.pathname.startsWith(route)) &&
+    location.pathname !== "/"; // Exclude exact root path
 
-  const controlCenterRoutes = ['/control-center/dashboard', '/control-center/users', '/control-center/clinics', '/control-center/settings'];
-  const isControlCenterRoute = controlCenterRoutes.some(route =>
-    location.pathname.startsWith(route)
+  const controlCenterRoutes = [
+    "/control-center/dashboard",
+    "/control-center/users",
+    "/control-center/clinics",
+    "/control-center/settings",
+  ];
+  const isControlCenterRoute = controlCenterRoutes.some((route) =>
+    location.pathname.startsWith(route),
   );
 
-  const canAccessControlCenter = isRoleAtLeast(currentUser?.role_level, ROLE_LEVELS.ceo);
+  const canAccessControlCenter = isRoleAtLeast(
+    currentUser?.role_level,
+    ROLE_LEVELS.ceo,
+  );
 
   // Don't show loading screen on callback route (OAuth popup)
-  const isCallbackRoute = location.pathname === '/auth/callback';
+  const isCallbackRoute = location.pathname === "/auth/callback";
 
   // Show loading during auth initialization (except on callback route)
   if (isUserLoading && !isCallbackRoute) {
     return (
       <ThemeProvider defaultTheme="light" storageKey="vite-ui-theme">
-        <div className="flex flex-col items-center justify-center h-screen bg-background">
-          <OctahedronLoader size="3xl" />
+        <div className="bg-background flex h-screen flex-col items-center justify-center">
+          <Loader size="lg" />
         </div>
         <Toaster />
       </ThemeProvider>
@@ -157,79 +176,101 @@ function BaseLayoutContent({ children }: { children: React.ReactNode }) {
       <ThemeProvider defaultTheme="light" storageKey="vite-ui-theme">
         <SettingsContext.Provider value={{ settings, updateSettings }}>
           <ClientSidebarProvider>
-            {isControlCenterRoute && currentUser && !canAccessControlCenter ? (
-              // Access denied for non-CEO trying to access control center
-              <div className="min-h-screen bg-background flex flex-col gap-4 items-center justify-center">
-                <div className="text-foreground text-xl">אין לך הרשאה לגשת למרכז הבקרה</div>
-                <Button onClick={() => navigate({ to: '/control-center' })}>למסך התחלה</Button>
-              </div>
-            ) : isControlCenterRoute && currentUser && canAccessControlCenter ? (
-              // Control Center Layout
-              <SidebarProvider dir="rtl">
-                <div className="flex flex-col h-screen">
-                  <DragWindowRegion title="" />
-                  <div className="flex-1 flex overflow-hidden">
-                    <ControlCenterSidebar
-                      variant="inset"
-                      side="right"
-                      company={company}
-                      currentUser={currentUser}
-                      currentClinic={currentClinic}
-                    />
-                    <SidebarInset className="flex flex-col flex-1 overflow-hidden no-scrollbar" style={{scrollbarWidth: 'none'}}>
-                      <div className="flex flex-col h-full">
-                        <div className="sticky top-0 bg-background">
-                          <div id="header-container" />
-                        </div>
-                        <main className="flex-1 overflow-auto bg-muted/50 flex no-scrollbar" style={{scrollbarWidth: 'none'}}>
-                          <div className="flex-1 overflow-auto no-scrollbar">
-                            {children}
-                          </div>
-                        </main>
-                      </div>
-                    </SidebarInset>
+            <NavigationGuardProvider>
+              {isControlCenterRoute &&
+              currentUser &&
+              !canAccessControlCenter ? (
+                // Access denied for non-CEO trying to access control center
+                <div className="bg-background flex min-h-screen flex-col items-center justify-center gap-4">
+                  <div className="text-foreground text-xl">
+                    אין לך הרשאה לגשת למרכז הבקרה
                   </div>
+                  <Button onClick={() => navigate({ to: "/control-center" })}>
+                    למסך התחלה
+                  </Button>
                 </div>
-              </SidebarProvider>
-            ) : shouldShowSidebar && currentUser ? (
-              // Clinic Layout with Sidebar
-              <SidebarProvider dir="rtl">
-                <div className="flex flex-col h-screen">
-                  <DragWindowRegion title="" />
-                  <div className="flex-1 flex overflow-hidden">
-                    <AppSidebar
-                      variant="inset"
-                      side="right"
-                      clinicName={currentClinic?.name}
-                      currentUser={currentUser}
-                      logoPath={settings?.clinic_logo_path || company?.logo_path}
-                      isLogoLoaded={isLogoLoaded}
-                      currentClinic={currentClinic}
-                    />
-                    <SidebarInset className="flex flex-col flex-1 overflow-hidden no-scrollbar" style={{scrollbarWidth: 'none'}}>
-                      <div className="flex flex-col h-full">
-                        <div className="sticky top-0 bg-background">
-                          <div id="header-container" />
-                        </div>
-                        <main className="flex-1 overflow-auto bg-muted/50 flex no-scrollbar" style={{scrollbarWidth: 'none'}}>
-                          <div className="flex-1 overflow-auto no-scrollbar">
-                            {children}
+              ) : isControlCenterRoute &&
+                currentUser &&
+                canAccessControlCenter ? (
+                // Control Center Layout
+                <SidebarProvider dir="rtl">
+                  <div className="flex h-screen flex-col">
+                    <DragWindowRegion title="" />
+                    <div className="flex flex-1 overflow-hidden">
+                      <ControlCenterSidebar
+                        variant="inset"
+                        side="right"
+                        company={company}
+                        currentUser={currentUser}
+                        currentClinic={currentClinic}
+                      />
+                      <SidebarInset
+                        className="no-scrollbar flex flex-1 flex-col overflow-hidden"
+                        style={{ scrollbarWidth: "none" }}
+                      >
+                        <div className="flex h-full flex-col">
+                          <div className="bg-background sticky top-0">
+                            <div id="header-container" />
                           </div>
-                          <ClientSidebar />
-                        </main>
-                      </div>
-                    </SidebarInset>
+                          <main
+                            className="bg-muted/50 no-scrollbar flex flex-1 overflow-auto"
+                            style={{ scrollbarWidth: "none" }}
+                          >
+                            <div className="no-scrollbar flex-1 overflow-auto">
+                              {children}
+                            </div>
+                          </main>
+                        </div>
+                      </SidebarInset>
+                    </div>
                   </div>
+                </SidebarProvider>
+              ) : shouldShowSidebar && currentUser ? (
+                // Clinic Layout with Sidebar
+                <SidebarProvider dir="rtl">
+                  <div className="flex h-screen flex-col">
+                    <DragWindowRegion title="" />
+                    <div className="flex flex-1 overflow-hidden">
+                      <AppSidebar
+                        variant="inset"
+                        side="right"
+                        clinicName={currentClinic?.name}
+                        currentUser={currentUser}
+                        logoPath={
+                          settings?.clinic_logo_path || company?.logo_path
+                        }
+                        isLogoLoaded={isLogoLoaded}
+                        currentClinic={currentClinic}
+                      />
+                      <SidebarInset
+                        className="no-scrollbar flex flex-1 flex-col overflow-hidden"
+                        style={{ scrollbarWidth: "none" }}
+                      >
+                        <div className="flex h-full flex-col">
+                          <div className="bg-background sticky top-0">
+                            <div id="header-container" />
+                          </div>
+                          <main
+                            className="bg-muted/50 no-scrollbar flex flex-1 overflow-auto"
+                            style={{ scrollbarWidth: "none" }}
+                          >
+                            <div className="no-scrollbar flex-1 overflow-auto">
+                              {children}
+                            </div>
+                            <ClientSidebar />
+                          </main>
+                        </div>
+                      </SidebarInset>
+                    </div>
+                  </div>
+                </SidebarProvider>
+              ) : (
+                // No Sidebar Layout (Welcome, Control Center login, User Selection)
+                <div className="flex h-screen flex-col">
+                  <main className="flex-1 overflow-auto">{children}</main>
                 </div>
-              </SidebarProvider>
-            ) : (
-              // No Sidebar Layout (Welcome, Control Center login, User Selection)
-              <div className="flex flex-col h-screen">
-                <main className="flex-1 overflow-auto">
-                  {children}
-                </main>
-              </div>
-            )}
+              )}
+            </NavigationGuardProvider>
           </ClientSidebarProvider>
         </SettingsContext.Provider>
         <Toaster />
@@ -248,14 +289,16 @@ export default function BaseLayout({
   children: React.ReactNode;
 }) {
   return (
-    <React.Suspense fallback={
-      <ThemeProvider defaultTheme="light" storageKey="vite-ui-theme">
-        <div className="flex items-center justify-center h-screen">
-          <OctahedronLoader size="3xl" />
-        </div>
-        <Toaster />
-      </ThemeProvider>
-    }>
+    <React.Suspense
+      fallback={
+        <ThemeProvider defaultTheme="light" storageKey="vite-ui-theme">
+          <div className="flex h-screen items-center justify-center">
+            <Loader size="lg" />
+          </div>
+          <Toaster />
+        </ThemeProvider>
+      }
+    >
       <BaseLayoutContent>{children}</BaseLayoutContent>
     </React.Suspense>
   );

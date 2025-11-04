@@ -459,21 +459,25 @@ async def ai_chat_stream(
                 try:
                     name = event.get("name")
                     args = event.get("data", {}).get("input")
-                    # If no text was emitted yet for this answer, inject a short preface line so tool doesn't lead
+                    
+                    tool_descriptions = {
+                        "get_clients": "מחפש מטופלים במערכת",
+                        "get_appointments": "מחפש תורים",
+                        "get_exams": "מחפש בדיקות",
+                        "create_appointment": "יוצר תור חדש",
+                        "create_medical_log": "יוצר רשומה רפואית",
+                    }
+                    tool_desc = tool_descriptions.get(name, f"מבצע: {name}")
+                    
                     has_any_text = any(p.get("type") == "text" for p in parts) or bool(current_text_part_content.strip())
                     if not has_any_text:
-                        parts.append({
-                            "type": "text",
-                            "content": "בודק את המידע עבורך...",
-                            "timestamp": part_order,
-                        })
-                        part_order += 1
+                        append_text_part_if_any()
                     else:
                         append_text_part_if_any()
                     
                     parts.append({
                         "type": "tool",
-                        "content": f"מבצע: {name}...",
+                        "content": tool_desc,
                         "toolName": name,
                         "toolPhase": "start",
                         "timestamp": part_order
@@ -487,41 +491,73 @@ async def ai_chat_stream(
                 try:
                     name = event.get("name")
                     output = event.get("data", {}).get("output")
-                    # Update the last tool part to show completion instead of adding new part
-                    if parts and parts[-1]["type"] == "tool" and parts[-1]["toolName"] == name:
-                        parts[-1]["content"] = f"הושלם: {name}"
-                        parts[-1]["toolPhase"] = "end"
-                    # Surface tool output for debugging when available
+                    
+                    logger.info(f"AI tool_end: name={name}, output_type={type(output).__name__}, output_preview={str(output)[:200]}")
+                    
+                    result_summary = ""
                     if output:
                         try:
-                            parsed_output = output
-                            if isinstance(output, str):
+                            raw_output = output
+                            if hasattr(output, 'content'):
+                                raw_output = output.content
+                                logger.info(f"AI tool_end extracted content from ToolMessage: {str(raw_output)[:200]}")
+                            
+                            parsed_output = raw_output
+                            if isinstance(raw_output, str):
                                 try:
-                                    parsed_output = json.loads(output)
+                                    parsed_output = json.loads(raw_output)
+                                    logger.info(f"AI tool_end parsed JSON: type={type(parsed_output).__name__}")
                                 except Exception:
-                                    parsed_output = output
-                            if isinstance(parsed_output, dict) and parsed_output.get("error"):
-                                append_text_part_if_any()
-                                parts.append({
-                                    "type": "text",
-                                    "content": f"שגיאת כלי: {parsed_output.get('error')}",
-                                    "timestamp": part_order,
-                                })
-                                part_order += 1
+                                    parsed_output = raw_output
+                                    logger.info(f"AI tool_end could not parse JSON, using raw string")
+                            
+                            if isinstance(parsed_output, dict):
+                                if parsed_output.get("error"):
+                                    result_summary = f"שגיאה: {parsed_output.get('error')}"
+                                elif parsed_output.get("status") == "ok":
+                                    if "appointment_id" in parsed_output:
+                                        result_summary = f"תור נוצר בהצלחה (מזהה: {parsed_output['appointment_id']})"
+                                    elif "medical_log_id" in parsed_output:
+                                        result_summary = f"רשומה רפואית נוצרה (מזהה: {parsed_output['medical_log_id']})"
+                                    else:
+                                        result_summary = "הפעולה הושלמה בהצלחה"
+                            elif isinstance(parsed_output, list):
+                                count = len(parsed_output)
+                                if name == "get_clients":
+                                    result_summary = f"נמצאו {count} מטופלים"
+                                elif name == "get_appointments":
+                                    result_summary = f"נמצאו {count} תורים"
+                                elif name == "get_exams":
+                                    result_summary = f"נמצאו {count} בדיקות"
+                                else:
+                                    result_summary = f"נמצאו {count} תוצאות"
+                                logger.info(f"AI tool_end set list result: {result_summary}")
                             elif isinstance(parsed_output, str):
-                                # Add a short snippet of raw output
-                                snippet = parsed_output
-                                if len(snippet) > 400:
-                                    snippet = snippet[:400] + "…"
-                                append_text_part_if_any()
-                                parts.append({
-                                    "type": "text",
-                                    "content": f"פלט כלי: {snippet}",
-                                    "timestamp": part_order,
-                                })
-                                part_order += 1
-                        except Exception:
-                            pass
+                                if len(parsed_output) > 100:
+                                    result_summary = f"{parsed_output[:100]}..."
+                                else:
+                                    result_summary = parsed_output
+                        except Exception as e:
+                            result_summary = f"שגיאה: {str(e)}"
+                            logger.error("AI chat/stream on_tool_end error: %s\n%s", str(e), traceback.format_exc())
+                    
+                    if not result_summary:
+                        fallback_messages = {
+                            "get_clients": "חיפוש מטופלים הושלם",
+                            "get_appointments": "חיפוש תורים הושלם",
+                            "get_exams": "חיפוש בדיקות הושלם",
+                            "create_appointment": "יצירת תור הושלמה",
+                            "create_medical_log": "יצירת רשומה רפואית הושלמה",
+                        }
+                        result_summary = fallback_messages.get(name, "הפעולה הושלמה")
+                        logger.info(f"AI tool_end using fallback: {result_summary}")
+                    else:
+                        logger.info(f"AI tool_end final result_summary: {result_summary}")
+                    
+                    if parts and parts[-1]["type"] == "tool" and parts[-1]["toolName"] == name:
+                        parts[-1]["content"] = result_summary
+                        parts[-1]["toolPhase"] = "end"
+                    
                     yield f"data: {json.dumps({'tool': {'phase': 'end', 'name': name, 'output': output}, 'parts': parts}, ensure_ascii=False)}\n\n"
                 except Exception:
                     pass

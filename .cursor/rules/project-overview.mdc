@@ -2,529 +2,98 @@
 alwaysApply: true
 ---
 
-# Electron-Vite-React Project Overview
+## Electron + Vite + React Project Overview
 
-This project is an Electron desktop application built with Vite, React, and TypeScript. The project includes **PostgreSQL database integration** via a FastAPI backend for data persistence and uses shadcn/ui for UI components. An all-in-one **multi-clinic management system** for optical clinics and stores, handling patient records, medical and optical exams, orders, billing, and inventory across multiple clinic locations under a company structure.
+Electron app built with Vite, React, TypeScript, TailwindCSS, and shadcn/ui. Backend is FastAPI with PostgreSQL. The product is a multi-clinic management system for optical clinics: clients, exams, orders, billing, and inventory.
 
-## Multi-Clinic Architecture
+### Architecture
+- Companies → Clinics → Users/Data hierarchy
+- Data isolation by `clinic_id`; company-level management available
+- Desktop UI using TanStack Router and shadcn/ui
 
-The application now supports a **hierarchical multi-clinic structure**:
-- **Companies** → **Clinics** → **Users/Data**
-- Each company can manage multiple clinic locations
-- Data isolation between clinics while maintaining centralized company management
-- Flexible user access: global company users or clinic-specific users
+### Core Flows
+1. Welcome (`/`)
+2. Control Center (`/control-center/*`)
+3. Clinic Entrance (`/clinic-entrance` → `/user-selection`)
+4. Clinic Operations (`/dashboard`, `/clients`, etc.)
 
-### Application Flow
-1. **Welcome Screen** (`/`) - Entry point with two main options
-2. **Control Center Flow** (`/control-center/*`) - Company management and setup
-3. **Clinic Entrance Flow** (`/clinic-entrance` → `/user-selection`) - Individual clinic access
-4. **Clinic Operations** (`/dashboard`, `/clients`, etc.) - Standard clinic functionality
+Key pages: `src/pages/WelcomeScreen.tsx`, `ControlCenterPage.tsx`, `ControlCenterDashboardPage.tsx`, `ControlCenterUsersPage.tsx`, `ControlCenterClinicsPage.tsx`, `SetupWizardPage.tsx`, `ClinicEntrancePage.tsx`, `UserSelectionPage.tsx`.
 
-### New Pages & Components
-- **WelcomeScreen** (`src/pages/WelcomeScreen.tsx`) - Initial entry point
-- **ControlCenterPage** (`src/pages/ControlCenterPage.tsx`) - Company login/registration
-- **ControlCenterDashboardPage** (`src/pages/ControlCenterDashboardPage.tsx`) - Company overview
-- **ControlCenterUsersPage** (`src/pages/ControlCenterUsersPage.tsx`) - Global user management
-- **ControlCenterClinicsPage** (`src/pages/ControlCenterClinicsPage.tsx`) - Clinic management
-- **SetupWizardPage** (`src/pages/SetupWizardPage.tsx`) - Initial clinic setup
-- **ClinicEntrancePage** (`src/pages/ClinicEntrancePage.tsx`) - Clinic ID input
-- **UserSelectionPage** (`src/pages/UserSelectionPage.tsx`) - Enhanced with clinic context
+### Role-Based Access (summary)
+- company_ceo: Full access across company and clinics; only role with Control Center.
+- clinic_manager: Full access to assigned clinic; manage clinic users; no company-level.
+- clinic_worker: Day-to-day clinic ops only; no users/campaigns/settings.
+- clinic_viewer: Read-only; no management access.
 
-### Database Schema Extensions
-- **companies** table - Company information and ownership
-- **clinics** table - Individual clinic locations with unique IDs
-- **clinic_id** field added to existing tables for data isolation
-- Enhanced user management with company/clinic associations
+### Routing
+Uses [TanStack Router](mdc:https:/tanstack.com/router) with declarative routes in `src/routes/routes.tsx` and root layout `src/routes/__root.tsx`.
 
-### Role-Based Access Control System
-
-The application implements a hierarchical role-based access control system:
-
-#### User Roles
-1. **company_ceo** - Company Chief Executive Officer
-   - Full access to control center and all company clinics
-   - Can manage all users across the company
-   - Can create and manage clinics
-   - Can access all clinic data
-   - Only role that can access control center
-
-2. **clinic_manager** - Clinic Manager
-   - Full access to assigned clinic only
-   - Can manage clinic users (create, edit, delete)
-   - Can access campaigns and clinic settings
-   - Cannot access control center or other clinics
-   - Cannot manage company-level settings
-
-3. **clinic_worker** - Clinic Worker
-   - Standard clinic operations (clients, exams, orders, appointments)
-   - Cannot manage users or access campaigns
-   - Cannot access clinic settings.
-   - Cannot access control center.
-
-4. **clinic_viewer** - Clinic Viewer
-   - Read-only access to clinic data
-   - Cannot create, edit, or delete records
-   - Cannot access settings or user management
-   - Cannot access control center
-
-#### Role Assignment
-- **Company Setup**: When a company is created, a CEO user is automatically created
-- **Clinic Users**: Can be assigned to specific clinics or remain global (clinic_id = null for CEO)
-- **Access Control**: Implemented at both UI and database levels
-
-## UI Components
-
-The application uses [shadcn/ui](mdc:https:/ui.shadcn.com) for UI components, which provides:
-- Beautifully designed components
-- Accessibility-focused design
-- Tailwind CSS for styling
-- Customizable and reusable components
-
-ALWAYS FOLLOW THOSE GUIDELINE FOR UI:
-- Its an app in hebrew, so ui need to be rtl
-- each new page created should be added a button in the appsidebar to go to it
-- ALWAYS in every page or component use: style={{scrollbarWidth: 'none'}}
-  to hide the vizible scrollbar without removing the functionality of scrolling
-- ALWAYS if you want to create a modal use the [src/components/ui/cusom-modal.tsx](mdc:src/components/ui/cusom-modal.tsx) component
-- When creating classic buttons try to use icons instead of label text, use text only if its an unusual button
-- try to not have dupclicated codes, create components when a part of code is used multiple time.
-
-## Routing System
-
-The application uses [TanStack Router](mdc:https:/tanstack.com/router) for client-side routing:
-- Memory-based router optimized for Electron applications
-- Declarative route definitions in `src/routes/routes.tsx`
-- Root layout with outlet pattern in `src/routes/__root.tsx` 
-- Navigation through `Link` components:
-  ```tsx
-  <Link to="/path">Link Text</Link>
-  ```
-- Clean, type-safe routing with automatic type generation
-- Route parameters and nested routes support
-
-## Database System
-
-The application now uses **PostgreSQL with FastAPI backend** for data persistence, supporting multi-clinic architecture with a modern API-based communication pattern.
-
-### Key Database Features
-- **API-Based Communication**: Uses `apiClient` for HTTP requests to FastAPI backend
-- **Multi-Clinic Support**: Database schema supports company → clinic → data hierarchy
-- **Data Isolation**: Clinic-specific data filtering with `clinic_id` foreign keys
-- **JWT Authentication**: Secure token-based authentication
-- **Role-Based Access**: API endpoints enforce role-based permissions
-- **TypeScript Integration**: Fully typed interfaces for all entities
-
-### API Usage Pattern
-All database operations now use the consistent pattern:
-```typescript
-// Correct usage
-const response = await apiClient.methodName(param1, param2);
-
-// Examples
-const companies = await apiClient.getCompanies();
-const clinic = await apiClient.getClinicByUniqueId(uniqueId);
-const users = await apiClient.getUsers();
+Example navigation:
+```tsx
+<Link to="/path">Go</Link>
 ```
 
-### Multi-Clinic Database Schema
+### Backend & Data
+- FastAPI + PostgreSQL; JWT authentication
+- API methods consumed via `apiClient`
+- Multi-clinic schema: `companies`, `clinics`, and `users` with `clinic_id`
 
-The database now includes these core multi-clinic tables:
-
-#### Companies Table
-```sql
-CREATE TABLE companies (
-  id SERIAL PRIMARY KEY,
-  name VARCHAR NOT NULL UNIQUE,
-  owner_full_name VARCHAR NOT NULL,
-  contact_email VARCHAR,
-  contact_phone VARCHAR,
-  logo_path VARCHAR,
-  address VARCHAR,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+API pattern:
+```ts
+const res = await apiClient.methodName(param1, param2)
 ```
 
-#### Clinics Table
-```sql
-CREATE TABLE clinics (
-  id SERIAL PRIMARY KEY,
-  company_id INTEGER NOT NULL,
-  name VARCHAR NOT NULL,
-  location VARCHAR,
-  phone_number VARCHAR,
-  email VARCHAR,
-  unique_id VARCHAR NOT NULL UNIQUE,
-  is_active BOOLEAN DEFAULT TRUE,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (company_id) REFERENCES companies(id)
-);
-```
+Backend changes checklist:
+- Model in `backend/models.py`
+- Schema in `backend/schemas.py`
+- Endpoint in `backend/EndPoints/*`
+- Client method in `src/lib/api-client.ts`
 
-#### Enhanced Users Table
-```sql
-CREATE TABLE users (
-  id SERIAL PRIMARY KEY,
-  clinic_id INTEGER,
-  username VARCHAR NOT NULL UNIQUE,
-  email VARCHAR,
-  phone VARCHAR,
-  password VARCHAR NOT NULL,
-  role VARCHAR CHECK(role IN ('company_ceo','clinic_manager','clinic_worker','clinic_viewer')) NOT NULL,
-  is_active BOOLEAN DEFAULT TRUE,
-  profile_picture VARCHAR,
-  primary_theme_color VARCHAR,
-  secondary_theme_color VARCHAR,
-  theme_preference VARCHAR DEFAULT 'system',
-  google_account_connected BOOLEAN DEFAULT FALSE,
-  google_account_email VARCHAR,
-  google_access_token VARCHAR,
-  google_refresh_token VARCHAR,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (clinic_id) REFERENCES clinics(id)
-);
-```
+### Mandatory UI Rules (project-specific)
+- RTL Hebrew UI
+- Add a sidebar button for every new page
+- Always set `style={{scrollbarWidth: 'none'}}` on pages/components
+- Use modal `src/components/ui/cusom-modal.tsx`
+- Prefer icon-only classic buttons; text only if unusual
+- Avoid duplication; extract reusable components
 
-### Making Database Schema Changes
+### Data Access Best Practices (must follow)
+- Never use `*`; select only needed columns
+- Always paginate and filter/sort in DB (no client-side large filters)
+- Cache identical frontend requests when possible
+- Disable realtime unless strictly needed
+- Use storage for files/blobs; not Postgres
+- Batch writes/reads; avoid N+1 loops
 
-**⚠️ IMPORTANT**: When adding new database entities or modifying schemas:
+### Troubleshooting (quick)
+- API method not found → add client method, implement backend, verify token
+- DB connection issues → check `.env`, server status, connectivity
 
-#### 1. Backend Models (`backend/models.py`)
-Define the SQLAlchemy model:
-```python
-class NewTable(Base):
-    __tablename__ = "new_table"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    clinic_id = Column(Integer, ForeignKey("clinics.id"))
-    # ... other fields
-```
+---
+## TypeScript Dev Prompt (Frontend)
 
-#### 2. Backend Schemas (`backend/schemas.py`)
-Define the Pydantic schemas:
-```python
-class NewTableBase(BaseModel):
-    # ... field definitions
+You are a Senior Front-End Developer expert in React, Vite, Electron, JavaScript, TypeScript, HTML, CSS, TailwindCSS, shadcn/ui, Radix. Provide accurate, thoughtful, concise answers and strong reasoning.
 
-class NewTableCreate(NewTableBase):
-    clinic_id: int
+Process
+1) Think step-by-step; write detailed pseudocode of the plan
+2) Confirm, then write code
+3) Deliver complete, DRY, bug-free, readable code with imports and proper names
 
-class NewTable(NewTableBase):
-    id: int
-    clinic_id: int
-    created_at: datetime
-```
+Code Guidelines
+- Prefer early returns
+- Tailwind for all styling; avoid CSS files
+- Use descriptive names; event handlers prefixed with `handle*`
+- Accessibility: `tabIndex`, `aria-*`, keyboard handlers on interactive elements
+- Use `const` arrow functions; add types where useful
+- Prefer `class:` style bindings over ternaries when available
+- No TODOs/placeholders; fully implement requested functionality
+- If unsure or unknown, say so rather than guess
+- Dont write too long files, Be shure to be component oriented, oop.
 
-#### 3. Backend Endpoints (`backend/EndPoints/`)
-Create API endpoints:
-```python
-@router.post("/", response_model=NewTableSchema)
-def create_new_table(data: NewTableCreate, db: Session = Depends(get_db)):
-    # Implementation
-```
+Environment Targets
+- React, Vite, Electron, TypeScript, TailwindCSS, HTML, CSS
 
-#### 4. Frontend API Client (`src/lib/api-client.ts`)
-Add API methods:
-```typescript
-async createNewTable(data: any) {
-  return this.request('/new-table', {
-    method: 'POST',
-    body: JSON.stringify(data),
-  });
-}
-```
-
-### Database Reset (Development)
-- **Backend**: Use `python init_db.py` to initialize with sample data
-- **Migration**: Use `python migrate_sqlite_to_postgres.py` to transfer existing data
-- **Environment**: Update `.env` file with PostgreSQL connection string
-
-### Common Issues & Solutions
-
-**"API method not found" Errors:**
-- Ensure the method exists in the API client
-- Check that the backend endpoint is properly implemented
-- Verify authentication token is valid
-
-**"Database connection" Errors:**
-- Check PostgreSQL connection string in `.env`
-- Ensure database server is running
-- Verify network connectivity to database
-
-### Best Practices
-- Always use TypeScript interfaces for type safety
-- Keep backend models and frontend schemas in sync
-- Use the `apiClient` pattern for all database calls
-- Test API endpoints after schema changes
-- Use proper error handling in API operations
-- Implement proper authentication and authorization
-
-- Use the `connectionManager` via wrapper functions in `*-db.ts` files for all database calls from the renderer process.
-- Test database operations after schema changes
-- Use proper error handling in database operations
-- Delete old database during development when schema changes
-# Electron-Vite-React Project Overview
-
-This project is an Electron desktop application built with Vite, React, and TypeScript. The project includes **PostgreSQL database integration** via a FastAPI backend for data persistence and uses shadcn/ui for UI components. An all-in-one **multi-clinic management system** for optical clinics and stores, handling patient records, medical and optical exams, orders, billing, and inventory across multiple clinic locations under a company structure.
-
-## Multi-Clinic Architecture
-
-The application now supports a **hierarchical multi-clinic structure**:
-- **Companies** → **Clinics** → **Users/Data**
-- Each company can manage multiple clinic locations
-- Data isolation between clinics while maintaining centralized company management
-- Flexible user access: global company users or clinic-specific users
-
-### Application Flow
-1. **Welcome Screen** (`/`) - Entry point with two main options
-2. **Control Center Flow** (`/control-center/*`) - Company management and setup
-3. **Clinic Entrance Flow** (`/clinic-entrance` → `/user-selection`) - Individual clinic access
-4. **Clinic Operations** (`/dashboard`, `/clients`, etc.) - Standard clinic functionality
-
-### New Pages & Components
-- **WelcomeScreen** (`src/pages/WelcomeScreen.tsx`) - Initial entry point
-- **ControlCenterPage** (`src/pages/ControlCenterPage.tsx`) - Company login/registration
-- **ControlCenterDashboardPage** (`src/pages/ControlCenterDashboardPage.tsx`) - Company overview
-- **ControlCenterUsersPage** (`src/pages/ControlCenterUsersPage.tsx`) - Global user management
-- **ControlCenterClinicsPage** (`src/pages/ControlCenterClinicsPage.tsx`) - Clinic management
-- **SetupWizardPage** (`src/pages/SetupWizardPage.tsx`) - Initial clinic setup
-- **ClinicEntrancePage** (`src/pages/ClinicEntrancePage.tsx`) - Clinic ID input
-- **UserSelectionPage** (`src/pages/UserSelectionPage.tsx`) - Enhanced with clinic context
-
-### Database Schema Extensions
-- **companies** table - Company information and ownership
-- **clinics** table - Individual clinic locations with unique IDs
-- **clinic_id** field added to existing tables for data isolation
-- Enhanced user management with company/clinic associations
-
-### Role-Based Access Control System
-
-The application implements a hierarchical role-based access control system:
-
-#### User Roles
-1. **company_ceo** - Company Chief Executive Officer
-   - Full access to control center and all company clinics
-   - Can manage all users across the company
-   - Can create and manage clinics
-   - Can access all clinic data
-   - Only role that can access control center
-
-2. **clinic_manager** - Clinic Manager
-   - Full access to assigned clinic only
-   - Can manage clinic users (create, edit, delete)
-   - Can access campaigns and clinic settings
-   - Cannot access control center or other clinics
-   - Cannot manage company-level settings
-
-3. **clinic_worker** - Clinic Worker
-   - Standard clinic operations (clients, exams, orders, appointments)
-   - Cannot manage users or access campaigns
-   - Cannot access clinic settings.
-   - Cannot access control center.
-
-4. **clinic_viewer** - Clinic Viewer
-   - Read-only access to clinic data
-   - Cannot create, edit, or delete records
-   - Cannot access settings or user management
-   - Cannot access control center
-
-#### Role Assignment
-- **Company Setup**: When a company is created, a CEO user is automatically created
-- **Clinic Users**: Can be assigned to specific clinics or remain global (clinic_id = null for CEO)
-- **Access Control**: Implemented at both UI and database levels
-
-## UI Components
-
-The application uses [shadcn/ui](mdc:https:/ui.shadcn.com) for UI components, which provides:
-- Beautifully designed components
-- Accessibility-focused design
-- Tailwind CSS for styling
-- Customizable and reusable components
-
-ALWAYS FOLLOW THOSE GUIDELINE FOR UI:
-- Its an app in hebrew, so ui need to be rtl
-- each new page created should be added a button in the appsidebar to go to it
-- ALWAYS in every page or component use: style={{scrollbarWidth: 'none'}}
-  to hide the vizible scrollbar without removing the functionality of scrolling
-- ALWAYS if you want to create a modal use the [src/components/ui/cusom-modal.tsx](mdc:src/components/ui/cusom-modal.tsx) component
-- When creating classic buttons try to use icons instead of label text, use text only if its an unusual button
-- try to not have dupclicated codes, create components when a part of code is used multiple time.
-
-## Routing System
-
-The application uses [TanStack Router](mdc:https:/tanstack.com/router) for client-side routing:
-- Memory-based router optimized for Electron applications
-- Declarative route definitions in `src/routes/routes.tsx`
-- Root layout with outlet pattern in `src/routes/__root.tsx` 
-- Navigation through `Link` components:
-  ```tsx
-  <Link to="/path">Link Text</Link>
-  ```
-- Clean, type-safe routing with automatic type generation
-- Route parameters and nested routes support
-
-## Database System
-
-The application now uses **PostgreSQL with FastAPI backend** for data persistence, supporting multi-clinic architecture with a modern API-based communication pattern.
-
-### Key Database Features
-- **API-Based Communication**: Uses `apiClient` for HTTP requests to FastAPI backend
-- **Multi-Clinic Support**: Database schema supports company → clinic → data hierarchy
-- **Data Isolation**: Clinic-specific data filtering with `clinic_id` foreign keys
-- **JWT Authentication**: Secure token-based authentication
-- **Role-Based Access**: API endpoints enforce role-based permissions
-- **TypeScript Integration**: Fully typed interfaces for all entities
-
-### API Usage Pattern
-All database operations now use the consistent pattern:
-```typescript
-// Correct usage
-const response = await apiClient.methodName(param1, param2);
-
-// Examples
-const companies = await apiClient.getCompanies();
-const clinic = await apiClient.getClinicByUniqueId(uniqueId);
-const users = await apiClient.getUsers();
-```
-
-### Multi-Clinic Database Schema
-
-The database now includes these core multi-clinic tables:
-
-#### Companies Table
-```sql
-CREATE TABLE companies (
-  id SERIAL PRIMARY KEY,
-  name VARCHAR NOT NULL UNIQUE,
-  owner_full_name VARCHAR NOT NULL,
-  contact_email VARCHAR,
-  contact_phone VARCHAR,
-  logo_path VARCHAR,
-  address VARCHAR,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-```
-
-#### Clinics Table
-```sql
-CREATE TABLE clinics (
-  id SERIAL PRIMARY KEY,
-  company_id INTEGER NOT NULL,
-  name VARCHAR NOT NULL,
-  location VARCHAR,
-  phone_number VARCHAR,
-  email VARCHAR,
-  unique_id VARCHAR NOT NULL UNIQUE,
-  is_active BOOLEAN DEFAULT TRUE,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (company_id) REFERENCES companies(id)
-);
-```
-
-#### Enhanced Users Table
-```sql
-CREATE TABLE users (
-  id SERIAL PRIMARY KEY,
-  clinic_id INTEGER,
-  username VARCHAR NOT NULL UNIQUE,
-  email VARCHAR,
-  phone VARCHAR,
-  password VARCHAR NOT NULL,
-  role VARCHAR CHECK(role IN ('company_ceo','clinic_manager','clinic_worker','clinic_viewer')) NOT NULL,
-  is_active BOOLEAN DEFAULT TRUE,
-  profile_picture VARCHAR,
-  primary_theme_color VARCHAR,
-  secondary_theme_color VARCHAR,
-  theme_preference VARCHAR DEFAULT 'system',
-  google_account_connected BOOLEAN DEFAULT FALSE,
-  google_account_email VARCHAR,
-  google_access_token VARCHAR,
-  google_refresh_token VARCHAR,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (clinic_id) REFERENCES clinics(id)
-);
-```
-
-### Making Database Schema Changes
-
-**⚠️ IMPORTANT**: When adding new database entities or modifying schemas:
-
-#### 1. Backend Models (`backend/models.py`)
-Define the SQLAlchemy model:
-```python
-class NewTable(Base):
-    __tablename__ = "new_table"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    clinic_id = Column(Integer, ForeignKey("clinics.id"))
-    # ... other fields
-```
-
-#### 2. Backend Schemas (`backend/schemas.py`)
-Define the Pydantic schemas:
-```python
-class NewTableBase(BaseModel):
-    # ... field definitions
-
-class NewTableCreate(NewTableBase):
-    clinic_id: int
-
-class NewTable(NewTableBase):
-    id: int
-    clinic_id: int
-    created_at: datetime
-```
-
-#### 3. Backend Endpoints (`backend/EndPoints/`)
-Create API endpoints:
-```python
-@router.post("/", response_model=NewTableSchema)
-def create_new_table(data: NewTableCreate, db: Session = Depends(get_db)):
-    # Implementation
-```
-
-#### 4. Frontend API Client (`src/lib/api-client.ts`)
-Add API methods:
-```typescript
-async createNewTable(data: any) {
-  return this.request('/new-table', {
-    method: 'POST',
-    body: JSON.stringify(data),
-  });
-}
-```
-
-### Database Reset (Development)
-- **Backend**: Use `python init_db.py` to initialize with sample data
-- **Migration**: Use `python migrate_sqlite_to_postgres.py` to transfer existing data
-- **Environment**: Update `.env` file with PostgreSQL connection string
-
-### Common Issues & Solutions
-
-**"API method not found" Errors:**
-- Ensure the method exists in the API client
-- Check that the backend endpoint is properly implemented
-- Verify authentication token is valid
-
-**"Database connection" Errors:**
-- Check PostgreSQL connection string in `.env`
-- Ensure database server is running
-- Verify network connectivity to database
-
-### Best Practices
-- Always use TypeScript interfaces for type safety
-- Keep backend models and frontend schemas in sync
-- Use the `apiClient` pattern for all database calls
-- Test API endpoints after schema changes
-- Use proper error handling in API operations
-- Implement proper authentication and authorization
-
-- Use the `connectionManager` via wrapper functions in `*-db.ts` files for all database calls from the renderer process.
-- Test database operations after schema changes
-- Use proper error handling in database operations
-- Delete old database during development when schema changes
+Project Conventions
+- Use TanStack Router for navigation
+- Use `apiClient` for backend calls
+- Respect multi-clinic scoping (`clinic_id`) and RBAC in UI and API usage

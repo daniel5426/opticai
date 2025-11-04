@@ -1,365 +1,461 @@
-import React, { useState, useEffect, useRef, memo } from 'react';
-import { Button } from '../components/ui/button';
-import { Textarea } from '../components/ui/textarea';
-import { Badge } from '../components/ui/badge';
-import { CustomModal } from '../components/ui/custom-modal';
+import React, { memo, useCallback, useEffect, useRef, useState } from 'react';
+import { AlertTriangle, CheckCircle, History, Paperclip, Plus, Send, StarsIcon, StopCircle, XCircle } from 'lucide-react';
 import { SiteHeader } from '../components/site-header';
+import { CustomModal } from '../components/ui/custom-modal';
 import { ChatsModal } from '../components/ChatsModal';
-import { User, Send, CheckCircle, XCircle, Clock, AlertTriangle, ArrowUp, ArrowDown, StopCircle, StarsIcon, MessageSquare, Plus, History } from 'lucide-react';
-import { useTranslation } from 'react-i18next';
+import { Button } from '../components/ui/button';
 import { cn } from '../lib/utils';
-import { Markdown } from '../components/markdown';
 import { apiClient } from '@/lib/api-client';
-interface MessagePart {
+import {
+  Conversation,
+  ConversationContent,
+  ConversationEmptyState,
+  ConversationScrollButton,
+} from '../components/ai-elements/conversation';
+import { Message, MessageAvatar, MessageContent } from '../components/ai-elements/message';
+import { Response } from '../components/ai-elements/response';
+import ShimmerText from '../components/kokonutui/shimmer-text';
+import { Task, TaskContent, TaskItem, TaskTrigger } from '../components/ai-elements/task';
+import {
+  PromptInputProvider,
+  PromptInput,
+  PromptInputTextarea,
+  PromptInputSubmit,
+  PromptInputFooter,
+  PromptInputSpeechButton,
+  PromptInputButton,
+  PromptInputAttachments,
+  PromptInputAttachment,
+  type PromptInputMessage,
+  usePromptInputAttachments,
+  usePromptInputController,
+} from '../components/ai-elements/prompt-input';
+import { Loader } from '../components/ai-elements/loader';
+
+type MessagePart = {
   type: 'text' | 'tool';
   content: string;
   toolName?: string;
   toolPhase?: 'start' | 'end';
-  timestamp: number;
-}
+  timestamp?: number;
+};
 
-interface ChatMessage {
+type AttachmentItem = {
   id: string;
-  type: 'user' | 'ai';
-  content: string;
-  parts?: MessagePart[];
+  filename: string;
+  url?: string;
+  mediaType?: string;
+};
+
+type ThreadMessageStatus = 'idle' | 'streaming' | 'complete' | 'error' | 'stopped';
+
+type ThreadMessage = {
+  id: string;
+  role: 'assistant' | 'user';
+  text: string;
+  parts: MessagePart[];
   currentTextPart?: string;
+  attachments: AttachmentItem[];
+  status: ThreadMessageStatus;
+  requiresConfirmation?: boolean;
   timestamp: Date;
-  data?: {
+};
+
+type ConfirmationState = {
+  open: boolean;
     action?: string;
     data?: any;
-    requiresConfirmation?: boolean;
-    streaming?: boolean;
-    lastChunk?: string;
-  };
-}
+  message?: string;
+};
 
-interface AIResponse {
-  success: boolean;
-  message: string;
-  data?: any;
-  error?: string;
-}
+type ChatComposerProps = {
+  onSubmit: (message: PromptInputMessage) => Promise<void>;
+  onStop: () => void;
+  isReady: boolean;
+  isStreaming: boolean;
+};
+
+
+const createId = (prefix: string) => `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+
+const ChatComposer = ({ onSubmit, onStop, isReady, isStreaming }: ChatComposerProps) => {
+  const attachments = usePromptInputAttachments();
+  const controller = usePromptInputController();
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+
+  const handleSubmit = useCallback(
+    async (payload: PromptInputMessage) => {
+      if (!isReady) return;
+      controller.textInput.setInput('');
+      attachments.clear();
+      await onSubmit(payload);
+    },
+    [isReady, onSubmit, controller, attachments]
+  );
+
+  return (
+    <div className="space-y-3" dir="rtl">
+      <PromptInputAttachments>
+        {(file) => (
+          <PromptInputAttachment
+            key={file.id}
+            data={file}
+            className="border focus:border-none border-dashed border-muted-foreground/20 bg-muted/30 text-xs text-muted-foreground"
+          />
+        )}
+      </PromptInputAttachments>
+      <PromptInput onSubmit={handleSubmit} className="rounded-3xl bg-muted/20 p-2">
+        <PromptInputTextarea
+          dir="rtl"
+          placeholder="כתוב הודעה..."
+          disabled={!isReady}
+          className="rounded-3xl bg-background px-4 text-base leading-relaxed"
+          onFocus={(event) => {
+            textareaRef.current = event.currentTarget;
+          }}
+        />
+        <PromptInputFooter className="px-2 pt-2">
+          <div className="flex items-center gap-2">
+            <PromptInputButton
+              aria-label="צרף מקור"
+              variant="ghost"
+              size="icon-sm"
+              disabled={!isReady && !isStreaming}
+              onClick={(event) => {
+                event.preventDefault();
+                attachments.openFileDialog();
+              }}
+            >
+              <Paperclip className="size-4" />
+            </PromptInputButton>
+            <PromptInputSpeechButton
+              textareaRef={textareaRef}
+              onTranscriptionChange={(value) => controller.textInput.setInput(value)}
+              disabled={!isReady}
+            />
+          </div>
+          <PromptInputSubmit
+            status={isStreaming ? 'streaming' : undefined}
+            disabled={!isReady && !isStreaming}
+            onClick={(event) => {
+              if (isStreaming) {
+                event.preventDefault();
+                onStop();
+              }
+            }}
+          >
+            {isStreaming ? <StopCircle className="size-4" /> : <Send className="size-4" />}
+          </PromptInputSubmit>
+        </PromptInputFooter>
+      </PromptInput>
+    </div>
+  );
+};
+
 
 export function AIAssistantPage() {
-  const { t } = useTranslation();
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [inputValue, setInputValue] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
+  const [messages, setMessages] = useState<ThreadMessage[]>([]);
   const [aiInitialized, setAiInitialized] = useState(false);
   const [initError, setInitError] = useState<string | null>(null);
-  const [lastMessageCount, setLastMessageCount] = useState(0);
-  const [confirmationModal, setConfirmationModal] = useState<{
-    open: boolean;
-    action?: string;
-    data?: any;
-    message?: string;
-  }>({ open: false });
-  
-  // Chat management state
   const [currentChatId, setCurrentChatId] = useState<number | null>(null);
   const [chatsModalOpen, setChatsModalOpen] = useState(false);
-  const [currentChatTitle, setCurrentChatTitle] = useState<string>('');
-  
-  const messagesContainerRef = useRef<HTMLDivElement>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const [isAtBottom, setIsAtBottom] = useState(true);
+  const [confirmationModal, setConfirmationModal] = useState<ConfirmationState>({ open: false });
+  const activeStreamRef = useRef<string | null>(null);
+  const [activeStreamId, setActiveStreamId] = useState<string | null>(null);
 
-  // Chat management functions
-  const generateChatTitle = (userMessage: string): string => {
-    const maxLength = 50;
-    if (userMessage.length <= maxLength) {
-      return userMessage;
-    }
-    return userMessage.substring(0, maxLength).trim() + '...';
-  };
+  const hasMessages = messages.length > 0;
+  const isStreaming = !!activeStreamId;
 
-  const createNewChat = async (firstUserMessage?: string): Promise<number | null> => {
+  const generateChatTitle = useCallback((text: string) => {
+    const trimmed = text.trim();
+    if (!trimmed) return 'שיחה חדשה';
+    return trimmed.length > 48 ? `${trimmed.slice(0, 48).trim()}...` : trimmed;
+  }, []);
+
+  const createNewChat = useCallback(async (firstMessage?: string) => {
     try {
-      const title = firstUserMessage ? generateChatTitle(firstUserMessage) : 'שיחה חדשה';
-      const resp = await apiClient.createChat(title);
-      const newChat = resp.data;
-      if (newChat?.id) {
-        setCurrentChatId(newChat.id);
-        setCurrentChatTitle(title);
-        return newChat.id;
+      const resp = await apiClient.createChat(generateChatTitle(firstMessage ?? ''));
+      const created = resp.data;
+      if (created?.id) {
+        setCurrentChatId(created.id);
+        return created.id;
       }
       return null;
     } catch (error) {
       console.error('Error creating new chat:', error);
       return null;
     }
-  };
+  }, [generateChatTitle]);
 
-  const loadChat = async (chatId: number) => {
+  const transformServerMessage = useCallback((raw: any): ThreadMessage | null => {
+    if (!raw || typeof raw.type !== 'string' || typeof raw.content !== 'string') return null;
+    const parsed = raw.data ? JSON.parse(raw.data) : {};
+    const parts = Array.isArray(parsed?.parts) ? parsed.parts : [];
+    const attachments = Array.isArray(parsed?.attachments)
+      ? parsed.attachments.map((file: any, index: number) => ({
+          id: file.id ?? createId(`attachment-${index}`),
+          filename: file.filename ?? `קובץ ${index + 1}`,
+          url: file.url,
+          mediaType: file.mediaType,
+        }))
+      : [];
+    return {
+      id: `${raw.type}-${raw.id}`,
+      role: raw.type === 'ai' ? 'assistant' : 'user',
+      text: raw.content,
+      parts,
+      currentTextPart: undefined,
+      attachments,
+      status: 'complete',
+      requiresConfirmation: Boolean(parsed?.requiresConfirmation),
+      timestamp: new Date(raw.timestamp),
+    };
+  }, []);
+
+  const loadChat = useCallback(async (chatId: number) => {
     try {
-      const chat = (await apiClient.getChat(chatId)).data;
       const chatMessages = (await apiClient.getChatMessages(chatId)).data;
-      
-      if (chat && chatMessages) {
+      const formatted = chatMessages
+        .map(transformServerMessage)
+        .filter((message): message is ThreadMessage => Boolean(message && message.text.trim()))
+        .sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
         setCurrentChatId(chatId);
-        setCurrentChatTitle(chat.title);
-        
-        const formattedMessages: ChatMessage[] = chatMessages
-          .filter((m: any) => m && typeof m.type === 'string' && typeof m.content === 'string' && m.content.trim().length > 0)
-          .map((msg: any) => {
-            const parsedData = msg.data ? JSON.parse(msg.data) : undefined;
-            return {
-              id: `${msg.type}-${msg.id}`,
-              type: msg.type,
-              content: msg.content,
-              parts: parsedData?.parts || [],
-              timestamp: new Date(msg.timestamp),
-              data: parsedData
-            };
-          });
-        
-        setMessages(formattedMessages);
-        setLastMessageCount(formattedMessages.length);
-      }
+      setMessages(formatted);
+      setChatsModalOpen(false);
     } catch (error) {
       console.error('Error loading chat:', error);
     }
-  };
+  }, [transformServerMessage]);
 
-  const saveMessageToChat = async (chatId: number, type: 'user' | 'ai', content: string, data?: any) => {
+  const saveMessageToChat = useCallback(async (chatId: number, role: 'user' | 'ai', content: string, data?: any) => {
     try {
-      const messageData = {
+      const payload = {
         chat_id: chatId,
-        type,
+        type: role,
         content,
-        data: data ? JSON.stringify(data) : undefined
+        data: data ? JSON.stringify(data) : undefined,
       };
-      
-      await apiClient.createChatMessage(messageData);
+      await apiClient.createChatMessage(payload);
     } catch (error) {
       console.error('Error saving message to chat:', error);
     }
-  };
+  }, []);
 
-  const startNewChat = () => {
+  const startNewChat = useCallback(() => {
+    activeStreamRef.current = null;
+    setActiveStreamId(null);
     setMessages([]);
     setCurrentChatId(null);
-    setCurrentChatTitle('');
-    setLastMessageCount(0);
-    setIsAtBottom(true);
     try {
       localStorage.removeItem('ai-user-memory');
     } catch {}
-  };
+  }, []);
 
-  const scrollToBottom = () => {
-    if (messagesContainerRef.current) {
-      messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
+  const initializeAI = useCallback(async () => {
+    try {
+      const result = await apiClient.aiInitialize();
+      if (!result.error) {
+        setAiInitialized(true);
+        setInitError(null);
+      } else {
+        setInitError(result.error || 'אירעה שגיאה באתחול העוזר');
+      }
+    } catch (error) {
+      setInitError(error instanceof Error ? error.message : 'אירעה שגיאה באתחול העוזר');
     }
-  };
-
-  const checkIfAtBottom = () => {
-    if (messagesContainerRef.current) {
-      const { scrollTop, scrollHeight, clientHeight } = messagesContainerRef.current;
-      const atBottom = scrollTop + clientHeight >= scrollHeight - 10;
-      setIsAtBottom(atBottom);
-    }
-  };
-
-  const adjustTextareaHeight = () => {
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
-      textareaRef.current.style.height = `${Math.max(96, Math.min(textareaRef.current.scrollHeight, 320))}px`;
-    }
-  };
-
-  useEffect(() => {
-    if (messages.length > lastMessageCount) {
-      scrollToBottom();
-    }
-  }, [messages.length]);
-
-  useEffect(() => {
-    if (isLoading) {
-      scrollToBottom();
-    }
-  }, [isLoading]);
+  }, []);
 
   useEffect(() => {
     initializeAI();
-    
-    // Cleanup function to remove listeners when component unmounts
-    return () => {};
+  }, [initializeAI]);
+
+  const handleStopStreaming = useCallback(() => {
+    if (!activeStreamRef.current) return;
+    const streamId = activeStreamRef.current;
+    activeStreamRef.current = null;
+    setActiveStreamId(null);
+    setMessages((prev) =>
+      prev.map((message) =>
+        message.id === streamId ? { ...message, status: 'stopped', currentTextPart: undefined } : message
+      )
+    );
   }, []);
 
-  const initializeAI = async () => {
-    try {
-      const result = await apiClient.aiInitialize();
-      if (!result.error) setAiInitialized(true);
-      else setInitError(result.error || 'Failed to initialize AI assistant');
-    } catch (error) {
-      setInitError(error instanceof Error ? error.message : 'Unknown error occurred');
-    }
-  };
 
-  const addMessage = (type: 'user' | 'ai', content: string, data?: any) => {
-    const newMessage: ChatMessage = {
-      id: `${type}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      type,
-      content,
-      timestamp: new Date(),
-      data,
-    };
-    setMessages(prev => {
-      setLastMessageCount(prev.length);
-      return [...prev, newMessage];
-    });
-  };
+  const handleSendMessage = useCallback(
+    async (payload: PromptInputMessage) => {
+      const text = (payload.text ?? '').trim();
+      const files = payload.files ?? [];
+      if (!text && files.length === 0) return;
+      if (!aiInitialized || activeStreamRef.current) return;
 
-  const handleSendMessage = async () => {
-    if (!inputValue.trim() || isLoading || !aiInitialized) return;
+      const attachments: AttachmentItem[] = files.map((file, index) => ({
+        id: createId(`file-${index}`),
+        filename: file.filename ?? `קובץ ${index + 1}`,
+        url: file.url,
+        mediaType: file.mediaType,
+      }));
 
-    const userMessage = inputValue.trim();
-    setInputValue('');
-    
-    // Add user message to UI immediately for instant feedback
-    addMessage('user', userMessage);
-    setIsLoading(true);
-    
-    // Prepare conversation history for AI (including the current user message)
-    const conversationHistory = messages.map(msg => ({
-      role: msg.type === 'user' ? 'user' : 'assistant',
-      content: msg.content
-    }));
-    
-    // Handle chat management
+      const userMessage: ThreadMessage = {
+        id: createId('user'),
+        role: 'user',
+        text,
+        parts: [],
+        currentTextPart: undefined,
+        attachments,
+        status: 'complete',
+        requiresConfirmation: false,
+        timestamp: new Date(),
+      };
+
+      setMessages((prev) => [...prev, userMessage]);
+
     let chatId = currentChatId;
-    if (!chatId) {
-      chatId = await createNewChat(userMessage);
       if (!chatId) {
-        console.error('Failed to create new chat');
-        setIsLoading(false);
+        chatId = await createNewChat(text);
+        if (!chatId) {
         return;
+        }
+        setCurrentChatId(chatId);
       }
-    }
 
-    // Save user message to database
-    await saveMessageToChat(chatId, 'user', userMessage);
+      await saveMessageToChat(chatId, 'user', userMessage.text, attachments.length ? { attachments } : undefined);
 
-    if (textareaRef.current) {
-      textareaRef.current.style.height = '96px';
-    }
+      const history = [...messages, userMessage].map((message) => ({
+        role: message.role === 'user' ? 'user' : 'assistant',
+        content: message.text,
+      }));
 
-    // Add a small delay to ensure user message is rendered before AI message
-    await new Promise(resolve => setTimeout(resolve, 10));
-
-    // Create a placeholder AI message for streaming with a unique ID
-    const aiMessageId = `ai-stream-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    const aiMessage: ChatMessage = {
-      id: aiMessageId,
-      type: 'ai',
-      content: '',
+      const assistantMessageId = createId('assistant');
+      const assistantMessage: ThreadMessage = {
+        id: assistantMessageId,
+        role: 'assistant',
+        text: '',
+        parts: [],
+        currentTextPart: undefined,
+        attachments: [],
+        status: 'streaming',
+        requiresConfirmation: false,
       timestamp: new Date(),
     };
     
-    setMessages(prev => {
-      setLastMessageCount(prev.length);
-      return [...prev, aiMessage];
-    });
+      activeStreamRef.current = assistantMessageId;
+      setActiveStreamId(assistantMessageId);
+      setMessages((prev) => [...prev, assistantMessage]);
 
     try {
       await apiClient.aiChatStream(
-        userMessage,
-        conversationHistory,
+          userMessage.text,
+          history,
         chatId,
-        (chunk, full, currentTextPartOrParts) => {
-          setMessages(prev => prev.map(msg => {
-            if (msg.id !== aiMessageId || msg.type !== 'ai') return msg;
-
-            const next = { ...msg, content: full, data: { ...(msg.data||{}), streaming: true, lastChunk: chunk } } as ChatMessage;
-            if (typeof currentTextPartOrParts === 'string') {
-              next.currentTextPart = currentTextPartOrParts;
-              return next;
-            }
-            const serverParts = currentTextPartOrParts || [];
-            // Preserve a pending currentTextPart by appending it after parts for rendering
-            next.parts = serverParts;
-            next.currentTextPart = undefined;
-            return next;
-          }));
+          (chunk, full, current) => {
+            if (activeStreamRef.current !== assistantMessageId) return;
+            setMessages((prev) =>
+              prev.map((message) => {
+                if (message.id !== assistantMessageId) return message;
+                if (typeof current === 'string') {
+                  return {
+                    ...message,
+                    text: full,
+                    currentTextPart: current,
+                    status: 'streaming',
+                  };
+                }
+                const serverParts = Array.isArray(current) ? current : message.parts;
+                return {
+                  ...message,
+                  text: full,
+                  parts: serverParts,
+                  currentTextPart: undefined,
+                  status: 'streaming',
+                };
+              })
+            );
         },
         async (full, parts) => {
-          setMessages(prev => prev.map(msg => {
-            if (msg.id !== aiMessageId || msg.type !== 'ai') return msg;
-            return {
-              ...msg,
-              content: full || '',
-              parts: parts || [],
-              currentTextPart: undefined,
-              data: { ...(msg.data || {}), streaming: false }
-            };
-          }));
-
+            activeStreamRef.current = null;
+            setActiveStreamId(null);
+            const finalParts = Array.isArray(parts) ? parts : [];
+            setMessages((prev) =>
+              prev.map((message) =>
+                message.id === assistantMessageId
+                  ? { ...message, text: full || '', parts: finalParts, currentTextPart: undefined, status: 'complete' }
+                  : message
+              )
+            );
           if (chatId) {
-            const messageData = {
-              chat_id: chatId,
-              type: 'ai',
-              content: full || '',
-              data: JSON.stringify({ parts: parts || [] })
-            };
-            await apiClient.createChatMessage(messageData);
-          }
-          setIsLoading(false);
-        },
-        (toolEvt) => {
-          setMessages(prev => prev.map(msg => {
-            if (msg.id !== aiMessageId || msg.type !== 'ai') return msg;
-            const updatedParts = [...(toolEvt.parts || [])];
-            return {
-              ...msg,
-              parts: updatedParts,
-              currentTextPart: toolEvt.phase === 'start' ? undefined : msg.currentTextPart,
-              data: { ...(msg.data || {}), toolEvent: true }
-            };
-          }));
+              await saveMessageToChat(chatId, 'ai', full || '', { parts: finalParts });
+            }
+          },
+          (toolEvent) => {
+            if (activeStreamRef.current !== assistantMessageId) return;
+            const toolParts = Array.isArray(toolEvent.parts) ? toolEvent.parts : [];
+            setMessages((prev) =>
+              prev.map((message) =>
+                message.id === assistantMessageId
+                  ? { ...message, parts: toolParts, currentTextPart: undefined, status: 'streaming' }
+                  : message
+              )
+            );
         }
       );
     } catch (error) {
-      setMessages(prev => prev.map(msg => msg.id === aiMessageId && msg.type === 'ai' ? { ...msg, content: 'מצטער, אירעה שגיאה בחיבור לשרת.' } : msg));
-      setIsLoading(false);
-    }
-  };
+        activeStreamRef.current = null;
+        setActiveStreamId(null);
+        setMessages((prev) =>
+          prev.map((message) =>
+            message.id === assistantMessageId
+              ? {
+                  ...message,
+                  text: 'מצטער, אירעה שגיאה בחיבור לשרת.',
+                  status: 'error',
+                  currentTextPart: undefined,
+                }
+              : message
+          )
+        );
+      }
+    },
+    [aiInitialized, createNewChat, currentChatId, messages, saveMessageToChat]
+  );
 
-  const handleConfirmAction = async () => {
+  const handleConfirmAction = useCallback(async () => {
     if (!confirmationModal.action || !confirmationModal.data) return;
-
     try {
       const result = await apiClient.aiExecuteAction(confirmationModal.action, confirmationModal.data);
       const serverMessage = (result as any)?.data?.message;
-      if (!result.error && serverMessage) addMessage('ai', serverMessage);
-      else addMessage('ai', `שגיאה בביצוע הפעולה: ${result.error}`);
+      if (!result.error && serverMessage) {
+        const message: ThreadMessage = {
+          id: createId('assistant'),
+          role: 'assistant',
+          text: serverMessage,
+          parts: [],
+          currentTextPart: undefined,
+          attachments: [],
+          status: 'complete',
+          requiresConfirmation: false,
+          timestamp: new Date(),
+        };
+        setMessages((prev) => [...prev, message]);
+      }
     } catch (error) {
-      addMessage('ai', 'שגיאה בביצוע הפעולה.');
+      console.error('Error executing action', error);
     } finally {
       setConfirmationModal({ open: false });
     }
-  };
-
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSendMessage();
-    }
-  };
+  }, [confirmationModal]);
 
   if (initError) {
     return (
       <>
         <SiteHeader title="העוזר החכם" />
-        <div className="flex flex-col flex-1 p-4 lg:p-6 gap-6 overflow-auto pb-16" dir="rtl" style={{scrollbarWidth: 'none'}}>
-          <div className="flex flex-col items-center justify-center flex-1">
-            <AlertTriangle className="h-16 w-16 text-red-500 mb-4" />
-            <h2 className="text-xl font-semibold mb-2">שגיאה באתחול העוזר החכם</h2>
-            <p className="text-muted-foreground text-center mb-4">{initError}</p>
-            <Button onClick={initializeAI}>נסה שוב</Button>
+        <div className="flex flex-1 flex-col items-center justify-center gap-4 p-8" dir="rtl" style={{ scrollbarWidth: 'none' }}>
+          <AlertTriangle className="h-16 w-16 text-red-500" />
+          <div className="space-y-2 text-center">
+            <h2 className="text-xl font-semibold">שגיאה באתחול העוזר החכם</h2>
+            <p className="text-muted-foreground max-w-md">{initError}</p>
           </div>
+          <Button onClick={initializeAI}>נסה שוב</Button>
         </div>
       </>
     );
@@ -369,302 +465,150 @@ export function AIAssistantPage() {
     return (
       <>
         <SiteHeader title="העוזר החכם" />
+        <div className="flex flex-1 items-center justify-center" dir="rtl" style={{ scrollbarWidth: 'none' }}>
+          <Loader size={32} />
+        </div>
       </>
     );
   }
 
-  const Greeting = () => (
-    <div className="flex items-center justify-center flex-1">
-      <div className="text-center space-y-6">
-        <div>
-          <h1 className="text-2xl font-semibold mb-2">ברוכים הבאים לעוזר החכם</h1>
-          <p className="text-muted-foreground">
-            איך אני יכול לעזור לך היום עם ניהול המרפאה?
-          </p>
-        </div>
-      </div>
-    </div>
-  );
-
-  const ThinkingMessage = () => (
-    <div className={cn("w-full mx-auto max-w-2xl group/message")}>
-      <div className="flex gap-4 w-full">
-        {/* AI Avatar - on the left */}
-        <div className="size-8 flex items-center rounded-full justify-center ring-1 shrink-0 ring-border bg-background">
-          <StarsIcon className="size-4" />
-        </div>
-
-        <div className="flex flex-col gap-4 w-full">
-          <div className="flex flex-col gap-4">
-            <div className="prose prose-sm max-w-none dark:prose-invert">
-              <p className="whitespace-pre-wrap leading-relaxed m-0 text-muted-foreground animate-pulse">
-                חושב
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-
-  const MessageComponent = memo(({ message, index, isNew }: { message: ChatMessage; index: number; isNew?: boolean }) => {
-    const isUser = message.type === 'user';
-    
-    return (
-      <div 
-        className={cn(
-          "w-full mx-auto max-w-2xl group/message",
-        )}
-        data-role={message.type}
-        style={isNew ? {
-          animationDelay: `${index * 100}ms`
-        } : undefined}
-      >
-        <div className={cn(
-          "flex gap-4 w-full",
-          {
-            "flex-row-reverse": isUser
-          }
-        )}>
-          {/* AI Avatar - on the left */}
-          {!isUser && (
-            <div className="size-8 flex items-center rounded-full justify-center ring-1 shrink-0 ring-border bg-background">
-              <StarsIcon className="size-4" />
-            </div>
-          )}
-
-          {/* User Avatar - on the right */}
-
-          <div className={cn(
-            "flex flex-col gap-4",
-            {
-              "w-fit items-end": isUser,
-              "w-full": !isUser
-            }
-          )}>
-            <div className={cn(
-              "flex flex-col gap-4",
-              {
-                "bg-primary text-primary-foreground px-4 py-3 rounded-2xl w-fit": isUser
-              }
-            )}>
-              <div className="prose prose-sm max-w-none dark:prose-invert">
-                {isUser ? (
-                  <p className="whitespace-pre-wrap leading-relaxed m-0">
-                    {message.content}
-                  </p>
-                ) : message.parts && message.parts.length > 0 ? (
-                  <div className="space-y-2">
-                    {message.parts.map((part, index) => (
-                      <div key={index}>
-                        {part.type === 'text' ? (
-                          <Markdown>{part.content}</Markdown>
-                        ) : (
-                          <div className={cn(
-                            "bg-muted/50 border rounded-md p-2 text-xs text-muted-foreground flex items-center gap-2",
-                            part.toolPhase === 'start' ? 'animate-pulse' : ''
-                          )} dir="rtl">
-                            {part.toolPhase === 'start' && (
-                              <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
-                            )}
-                            {part.content}
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                    {/* Show current streaming text part if available */}
-                    {message.currentTextPart && (
-                      <div>
-                        <Markdown>{message.currentTextPart}</Markdown>
-                      </div>
-                    )}
-                  </div>
-                ) : message.currentTextPart ? (
-                  <Markdown>{message.currentTextPart}</Markdown>
-                ) : (
-                  <Markdown>{message.content}</Markdown>
-                )}
-              </div>
-
-              {message.data?.requiresConfirmation && (
-                <div className="mt-2">
-                  <Badge variant="outline" className="text-xs">
-                    <Clock className="h-3 w-3 mr-1" />
-                    מחכה לאישור
-                  </Badge>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  });
-
   return (
-    <div className="flex flex-col h-full bg-background relative" style={{scrollbarWidth: 'none'}}>
+    <PromptInputProvider>
+      <div className="relative flex h-full flex-col bg-background" dir="rtl" style={{ scrollbarWidth: 'none' }}>
       <SiteHeader title="העוזר החכם" />
-      
-      {/* Floating Chat Management Buttons */}
-      <div className="absolute top-16 right-4 z-50 flex items-center gap-2" dir="rtl">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => setChatsModalOpen(true)}
-          className="shadow-lg"
-        >
+        <div className="absolute top-16 right-4 z-40 flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => setChatsModalOpen(true)}>
           <History className="h-4 w-4" />
         </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={startNewChat}
-          className="shadow-lg"
-        >
+          <Button variant="outline" size="sm" onClick={startNewChat}>
           <Plus className="h-4 w-4" />
         </Button>
       </div>
-      
-      {/* Messages Container */}
-      <div 
-        ref={messagesContainerRef}
-        className="flex flex-col min-w-0 gap-6 flex-1 overflow-y-auto pt-4 pb-38"
-        style={{scrollbarWidth: 'none'}}
-        onScroll={checkIfAtBottom}
-      >
-        {messages.length === 0 && <Greeting />}
-
-        {messages
-          .filter((message, index) => {
-            // Hide only if last AI message truly has nothing to show
-            if (
-              isLoading &&
-              message.type === 'ai' &&
-              index === messages.length - 1 &&
-              message.content === '' &&
-              (!message.parts || message.parts.length === 0) &&
-              !message.currentTextPart
-            ) {
-              return false;
-            }
-            return true;
-          })
-          .map((message, index) => (
-            <MessageComponent 
-              key={message.id} 
-              message={message} 
-              index={index} 
-              isNew={index >= lastMessageCount}
-            />
-          ))}
-
-        {isLoading && messages.length > 0 && (() => {
-          const last = messages[messages.length - 1];
-          return last.type === 'ai' && last.content === '' && (!last.parts || last.parts.length === 0) && !last.currentTextPart;
-        })() && (
-          <ThinkingMessage />
-        )}
-
-        <div ref={messagesEndRef} className="shrink-0 min-w-[24px] min-h-[24px]" />
-      </div>
-
-      {/* Scroll to Bottom Button */}
-      {!isAtBottom && (
-        <div className="absolute left-1/2 bottom-44 -translate-x-1/2 z-50">
-          <Button
-            className="rounded-full shadow-lg"
-            size="icon"
-            variant="outline"
-            onClick={scrollToBottom}
-          >
-            <ArrowDown className="h-4 w-4" />
-          </Button>
-        </div>
-      )}
-
-      {/* Input Area - Fixed within the content area */}
-      <div className="absolute bottom-9 left-0 right-0 bg-background p-4 pb-6 border-border/5">
-        <div className=" mx-auto max-w-2xl">
-          <div className="relative">
-            <Textarea
-              ref={textareaRef}
-              placeholder="שלח הודעה..."
-              value={inputValue}
-              onChange={(e) => {
-                setInputValue(e.target.value);
-                adjustTextareaHeight();
-              }}
-              onKeyDown={handleKeyPress}
-              className={cn(
-                "min-h-[68px] h-24 focus-visible:ring-0 shadow-sm  max-h-[520px] overflow-hidden resize-none rounded-3xl text-base bg-muted border-1  pb-12 pr-4 pl-12",
-              )}
-              style={{ direction: 'rtl' }}
-              rows={1}
-              disabled={isLoading || !aiInitialized}
-            />
-
-            <div className="absolute bottom-2 left-2 flex items-center">
-              {isLoading ? (
-                <Button
-                  className="rounded-full w-8 h-8 p-0"
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => setIsLoading(false)}
-                >
-                  <StopCircle className="h-4 w-4" />
-                </Button>
-              ) : (
-                <Button
-                  className="rounded-full w-8 h-8 p-0"
-                  size="sm"
-                  onClick={handleSendMessage}
-                  disabled={!inputValue.trim() || isLoading || !aiInitialized}
-                >
-                  <ArrowUp className="h-4 w-4" />
-                </Button>
-              )}
+        <Conversation className="flex-1" style={{ scrollbarWidth: 'none' }}>
+          <ConversationContent className="flex flex-col items-center gap-4 px-4 pb-44 pt-6">
+            <div className="w-full max-w-2xl">
+            {!hasMessages && (
+              <ConversationEmptyState
+                icon={<StarsIcon className="h-12 w-12 text-muted-foreground" />}
+                title="ברוכים הבאים לעוזר החכם"
+                description="איך אפשר לעזור היום בניהול המרפאה?"
+              />
+            )}
+            {messages.map((message) => (
+              <div key={message.id} className="mx-auto w-full max-w-3xl py-4">
+                {message.role === 'user' ? (
+                  <div className="flex w-full flex-col items-end gap-1">
+                    <div className="rounded-3xl bg-primary px-5 py-2.5 text-primary-foreground">
+                      <Response>{message.text}</Response>
+                    </div>
+                    {message.attachments.length > 0 && (
+                      <div className="mt-1 flex flex-wrap gap-2">
+                        {message.attachments.map((file) => (
+                          <a
+                            key={file.id}
+                            href={file.url || '#'}
+                            target={file.url ? '_blank' : undefined}
+                            rel={file.url ? 'noreferrer' : undefined}
+                            download={file.filename}
+                            className={cn(
+                              'rounded-full border border-muted-foreground/40 bg-muted/20 px-3 py-1 text-xs text-muted-foreground transition',
+                              file.url ? 'hover:bg-muted' : 'pointer-events-none opacity-50'
+                            )}
+                          >
+                            {file.filename}
+                          </a>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="flex w-full gap-3">
+                    <MessageAvatar 
+                      name="עוזר חכם" 
+                      src="https://github.com/openai.png"
+                      className="size-8 shrink-0"
+                    />
+                    <div className="flex-1 pt-1">
+                      {message.status === 'streaming' && !message.text && !message.currentTextPart ? (
+                        <ShimmerText text="מחשב תשובה..." className="text-sm font-normal" />
+                      ) : (
+                        <>
+                          <div className="text-foreground">
+                            {message.parts.length > 0 ? (
+                              message.parts.map((part, index) => (
+                                <div key={`${message.id}-part-${index}`} className="mb-2">
+                                  {part.type === 'text' ? (
+                                    <Response>{part.content}</Response>
+                                  ) : (
+                                    <Task>
+                                      <TaskTrigger title={part.toolName || 'Tool'} />
+                                      <TaskContent>
+                                        <TaskItem>{part.content}</TaskItem>
+                                      </TaskContent>
+                                    </Task>
+                                  )}
+                                </div>
+                              ))
+                            ) : (
+                              <Response>{message.currentTextPart || message.text}</Response>
+                            )}
+                          </div>
+                          {message.attachments.length > 0 && (
+                            <div className="mt-2 flex flex-wrap gap-2">
+                              {message.attachments.map((file) => (
+                                <a
+                                  key={file.id}
+                                  href={file.url || '#'}
+                                  target={file.url ? '_blank' : undefined}
+                                  rel={file.url ? 'noreferrer' : undefined}
+                                  download={file.filename}
+                                  className={cn(
+                                    'rounded-full border border-muted-foreground/40 bg-muted/20 px-3 py-1 text-xs text-muted-foreground transition',
+                                    file.url ? 'hover:bg-muted' : 'pointer-events-none opacity-50'
+                                  )}
+                                >
+                                  {file.filename}
+                                </a>
+                              ))}
+                            </div>
+                          )}
+                          {message.status === 'error' && (
+                            <div className="mt-2 text-xs text-destructive">אירעה שגיאה בזמן עיבוד התשובה</div>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
             </div>
+          </ConversationContent>
+          <ConversationScrollButton />
+        </Conversation>
+        <div className=" border-border bg-background px-4 py-4">
+          <div className="mx-auto max-w-2xl">
+            <ChatComposer onSubmit={handleSendMessage} onStop={handleStopStreaming} isReady={aiInitialized} isStreaming={isStreaming} />
+            <p className="mt-3 text-center text-xs text-muted-foreground">העוזר החכם יכול לטעות, הקפידו לאמת מידע חשוב.</p>
           </div>
-          
-          <p className="text-xs text-muted-foreground mt-3 text-center" dir="rtl">
-            העוזר החכם יכול לטעות. אנא בדקו מידע חשוב.
-          </p>
         </div>
-      </div>
-
-      <CustomModal
-        isOpen={confirmationModal.open}
-        onClose={() => setConfirmationModal({ open: false })}
-        title="אישור פעולה"
-      >
+        <CustomModal isOpen={confirmationModal.open} onClose={() => setConfirmationModal({ open: false })} title="אישור פעולה">
         <div className="space-y-4">
-          <p className="text-sm text-muted-foreground">
-            {confirmationModal.message}
-          </p>
-          
-          <div className="flex gap-2 justify-end">
-            <Button
-              variant="outline"
-              onClick={() => setConfirmationModal({ open: false })}
-            >
-              <XCircle className="h-4 w-4 mr-2" />
+            <p className="text-sm text-muted-foreground">{confirmationModal.message}</p>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setConfirmationModal({ open: false })}>
+                <XCircle className="mr-2 size-4" />
               ביטול
             </Button>
-            <Button
-              onClick={handleConfirmAction}
-            >
-              <CheckCircle className="h-4 w-4 mr-2" />
+              <Button onClick={handleConfirmAction}>
+                <CheckCircle className="mr-2 size-4" />
               אישור
             </Button>
           </div>
         </div>
       </CustomModal>
-
-      <ChatsModal
-        isOpen={chatsModalOpen}
-        onClose={() => setChatsModalOpen(false)}
-        onSelectChat={loadChat}
-      />
+        <ChatsModal isOpen={chatsModalOpen} onClose={() => setChatsModalOpen(false)} onSelectChat={loadChat} />
     </div>
+    </PromptInputProvider>
   );
 } 

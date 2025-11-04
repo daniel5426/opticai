@@ -87,6 +87,7 @@ import ContactOrderTab from "@/components/orders/ContactOrderTab";
 import { docxGenerator } from "@/lib/docx-generator";
 import { OrderToDocxMapper } from "@/lib/order-to-docx-mapper";
 import { UnsavedChangesDialog } from "@/components/unsaved-changes-dialog";
+import { useNavigationGuard } from "@/contexts/NavigationGuardContext";
 
 interface OrderDetailPageProps {
   mode?: "view" | "edit" | "new";
@@ -381,6 +382,7 @@ export default function OrderDetailPage({
 
   const formRef = useRef<HTMLFormElement>(null);
   const navigate = useNavigate();
+  const { registerGuard } = useNavigationGuard();
 
   const blockerState = useBlocker(
     {
@@ -436,6 +438,11 @@ export default function OrderDetailPage({
     pendingNavigationRef.current = null;
     blockerResetRef.current?.();
   }, []);
+
+  useEffect(() => {
+    registerGuard(handleNavigationAttempt);
+    return () => registerGuard(null);
+  }, [handleNavigationAttempt, registerGuard]);
 
   const handleTabChange = (value: string) => {
     if (clientId && value !== "orders") {

@@ -1,7 +1,6 @@
 "use client"
 
 import React from "react"
-import { Link } from "@tanstack/react-router"
 import {
   type Icon,
 } from "@tabler/icons-react"
@@ -13,6 +12,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
+import { GuardedRouterLink } from "@/components/GuardedRouterLink"
 
 export function NavDocuments({
   items,
@@ -30,10 +30,10 @@ export function NavDocuments({
         {items.map((item) => (
           <SidebarMenuItem key={item.name}>
             <SidebarMenuButton asChild>
-              <Link to={item.url}>
+              <GuardedRouterLink to={item.url}>
                 <item.icon />
                 <span>{item.name}</span>
-              </Link>
+              </GuardedRouterLink>
             </SidebarMenuButton>
           </SidebarMenuItem>
         ))}

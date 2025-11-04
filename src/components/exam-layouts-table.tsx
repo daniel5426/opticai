@@ -14,6 +14,7 @@ import { Plus, Star, Trash2 } from "lucide-react";
 import { ExamLayout } from "@/lib/db/schema-interface";
 import { toast } from "sonner";
 import { deleteExamLayout, updateExamLayout } from "@/lib/db/exam-layouts-db";
+import { CustomModal } from "@/components/ui/custom-modal";
 
 interface ExamLayoutsTableProps {
   data: ExamLayout[];
@@ -24,6 +25,9 @@ export function ExamLayoutsTable({ data, onRefresh }: ExamLayoutsTableProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [localData, setLocalData] = useState<ExamLayout[]>(data);
   const [isProcessing, setIsProcessing] = useState<{[key: number]: boolean}>({});
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [layoutToDelete, setLayoutToDelete] = useState<ExamLayout | null>(null);
   const navigate = useNavigate();
 
   // Update local data when props change
@@ -99,51 +103,45 @@ export function ExamLayoutsTable({ data, onRefresh }: ExamLayoutsTableProps) {
     }
   };
 
-  const handleDeleteLayout = async (layoutId: number | undefined, event: React.MouseEvent) => {
-    event.stopPropagation(); // Prevent row click from triggering
+  const handleDeleteLayout = (layoutId: number | undefined, event: React.MouseEvent) => {
+    event.stopPropagation();
     if (!layoutId) return;
 
-    // Prevent multiple clicks
     if (isProcessing[layoutId]) return;
 
-    const layoutToDelete = localData.find(layout => layout.id === layoutId)
-    if (!layoutToDelete) return
+    const layout = localData.find(l => l.id === layoutId);
+    if (!layout) return;
     
     if (localData.length <= 1) {
-      toast.error("לא ניתן למחוק את הפריסה האחרונה. חייבת להיות לפחות פריסה אחת")
-      return
+      toast.error("לא ניתן למחוק את הפריסה האחרונה. חייבת להיות לפחות פריסה אחת");
+      return;
     }
-    setIsProcessing(prev => ({ ...prev, [layoutId]: true }));
+
+    setLayoutToDelete(layout);
+    setIsDeleteModalOpen(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!layoutToDelete || !layoutToDelete.id) return;
+
+    const layoutId = layoutToDelete.id;
+    setIsDeleting(true);
 
     try {
-      // Optimistically update UI first
-      const updatedLayouts = localData.filter(layout => layout.id !== layoutId);
-      setLocalData(updatedLayouts);
-
-      // Then delete from database
       const success = await deleteExamLayout(layoutId);
       if (success) {
         toast.success("הפריסה הוסרה בהצלחה");
-        
-        // Trigger refresh in parent component without causing a flicker
         onRefresh();
-        
-        // Clear processing state
-        setTimeout(() => {
-          setIsProcessing(prev => ({ ...prev, [layoutId]: false }));
-        }, 300);
       } else {
         toast.error("שגיאה בהסרת הפריסה");
-        // Revert optimistic update
-        setLocalData(data);
-        setIsProcessing(prev => ({ ...prev, [layoutId]: false }));
       }
     } catch (error) {
       console.error("Error deactivating layout:", error);
       toast.error("שגיאה בהסרת הפריסה");
-      // Revert optimistic update
-      setLocalData(data);
-      setIsProcessing(prev => ({ ...prev, [layoutId]: false }));
+    } finally {
+      setIsDeleting(false);
+      setLayoutToDelete(null);
+      setIsDeleteModalOpen(false);
     }
   };
 
@@ -241,6 +239,19 @@ export function ExamLayoutsTable({ data, onRefresh }: ExamLayoutsTableProps) {
           </TableBody>
         </Table>
       </div>
+
+      <CustomModal
+        isOpen={isDeleteModalOpen}
+        onClose={() => !isDeleting && setIsDeleteModalOpen(false)}
+        title="מחיקת פריסה"
+        description={layoutToDelete ? `האם אתה בטוח שברצונך למחוק את הפריסה "${layoutToDelete.name}"? פעולה זו אינה הפיכה.` : "האם אתה בטוח שברצונך למחוק פריסה זו? פעולה זו אינה הפיכה."}
+        onConfirm={handleDeleteConfirm}
+        confirmText="מחק"
+        className="text-center"
+        cancelText="בטל"
+        showCloseButton={false}
+        isLoading={isDeleting}
+      />
     </div>
   );
 } 

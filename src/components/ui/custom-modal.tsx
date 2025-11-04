@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react'
-import { X } from 'lucide-react'
+import { X, Loader2 } from 'lucide-react'
 import { Button } from './button'
 
 interface CustomModalProps {
@@ -15,9 +15,10 @@ interface CustomModalProps {
   confirmText?: string
   cancelText?: string
   showCloseButton?: boolean
+  isLoading?: boolean
 }
 
-export function CustomModal({ isOpen, onClose, title, subtitle, description, children, className = '', width = 'max-w-lg', onConfirm, confirmText = 'אישור', cancelText = 'ביטול', showCloseButton = true }: CustomModalProps) {
+export function CustomModal({ isOpen, onClose, title, subtitle, description, children, className = '', width = 'max-w-lg', onConfirm, confirmText = 'אישור', cancelText = 'ביטול', showCloseButton = true, isLoading = false }: CustomModalProps) {
   const modalRef = useRef<HTMLDivElement>(null)
   const overlayRef = useRef<HTMLDivElement>(null)
 
@@ -126,11 +127,15 @@ export function CustomModal({ isOpen, onClose, title, subtitle, description, chi
 
         {onConfirm && (
           <div className="flex justify-center p-4 " dir="rtl">
-            <Button variant="outline" onClick={onClose} className="ml-2">
+            <Button variant="outline" onClick={onClose} className="ml-2" disabled={isLoading}>
               {cancelText}
             </Button>
-            <Button onClick={onConfirm}>
-              {confirmText}
+            <Button onClick={onConfirm} disabled={isLoading}>
+              {isLoading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                confirmText
+              )}
             </Button>
           </div>
         )}

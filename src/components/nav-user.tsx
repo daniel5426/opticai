@@ -11,7 +11,7 @@ import {
   IconPlayerStop,
   IconX,
 } from "@tabler/icons-react"
-import { Link, useNavigate } from "@tanstack/react-router"
+import { useNavigate } from "@tanstack/react-router"
 
 import {
   Avatar,
@@ -44,6 +44,7 @@ import {
   updateWorkShift 
 } from "@/lib/db/work-shifts-db"
 import { toast } from "sonner"
+import { GuardedRouterLink } from "@/components/GuardedRouterLink"
 
 export function NavUser({
   currentUser,
@@ -324,10 +325,10 @@ export function NavUser({
                   <IconUserCircle className="mr-2" />
                 </DropdownMenuItem>
                 <DropdownMenuItem className="flex justify-between items-center" dir="rtl" asChild>
-                  <Link to="/settings" onClick={() => navigate({ to: '/settings' })}>
+                  <GuardedRouterLink to="/settings">
                     <span>הגדרות</span>
                     <IconSettings className="mr-2" />
-                  </Link>
+                  </GuardedRouterLink>
                 </DropdownMenuItem>
               </DropdownMenuGroup>
               <DropdownMenuSeparator />
