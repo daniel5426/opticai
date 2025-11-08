@@ -92,7 +92,7 @@ export function AboutTab() {
       const result = await window.electronAPI.downloadUpdate();
 
       if (result.success) {
-        toast.success('העדכון הורד בהצלחה! לוחץ על "התקן עדכון" כדי להתקין');
+        toast.success('העדכון הורד בהצלחה! האפליקציה תציג הודעה כאשר העדכון מוכן להתקנה');
       } else {
         toast.error(`שגיאה בהורדת עדכון: ${result.error}`);
       }
@@ -107,7 +107,14 @@ export function AboutTab() {
   const handleInstallUpdate = async () => {
     try {
       toast.info('מתקין עדכון... האפליקציה תאותחל מחדש');
-      await window.electronAPI.installUpdate();
+
+      const result = await window.electronAPI.installUpdate();
+      if (result && result.success) {
+        // Success - the app should quit and restart with the update
+        // This toast might not show since the app is quitting
+      } else {
+        toast.error(result?.error || 'העדכון לא מוכן להתקנה. נא להוריד את העדכון תחילה.');
+      }
     } catch (error) {
       console.error('Error installing update:', error);
       toast.error('שגיאה בהתקנת עדכון');

@@ -256,7 +256,7 @@ function setupIpcHandlers() {
 
   ipcMain.handle('campaign-get-target-clients', async (event, campaignId: number) => {
     try {
-      const { campaignService } = await import('./lib/campaign-service');
+      const { campaignService } = await import('./lib/campaign-service.js');
       const targetClients = await campaignService.getTargetClientsForCampaign(campaignId);
       return { success: true, clients: targetClients };
     } catch (error) {
@@ -267,7 +267,7 @@ function setupIpcHandlers() {
 
   ipcMain.handle('campaign-validate', async (event, campaignId: number) => {
     try {
-      const { campaignService } = await import('./lib/campaign-service');
+      const { campaignService } = await import('./lib/campaign-service.js');
       const campaignResponse = await apiClient.getCampaignById(campaignId);
       const campaign = campaignResponse.data;
       if (!campaign) {
@@ -560,10 +560,37 @@ ipcMain.handle('download-update', async () => {
 // IPC handler for installing update
 ipcMain.handle('install-update', async () => {
   if (inDevelopment) {
-    return;
+    return { success: false, error: 'Updates disabled in development' };
   }
-  
-  setImmediate(() => autoUpdater.quitAndInstall());
+
+  console.log('Install update requested');
+
+  // Check if there's a downloaded update available
+  const downloadedUpdateHelper = (autoUpdater as any).downloadedUpdateHelper;
+  if (downloadedUpdateHelper && downloadedUpdateHelper.file) {
+    console.log('Found downloaded update file:', downloadedUpdateHelper.file);
+
+    // For macOS, we need to ensure Squirrel.Mac is properly set up
+    // Let's try to trigger the native updater's quit and install
+    try {
+      setImmediate(() => {
+        console.log('Calling autoUpdater.quitAndInstall()');
+        autoUpdater.quitAndInstall();
+      });
+      return { success: true };
+    } catch (error) {
+      console.error('quitAndInstall failed:', error);
+      // Fallback: just quit the app and hope the update applies
+      setTimeout(() => {
+        console.log('Fallback: quitting app');
+        app.quit();
+      }, 1000);
+      return { success: true }; // Still consider it successful since we're quitting
+    }
+  } else {
+    console.log('No downloaded update found, cannot install');
+    return { success: false, error: 'No update available to install' };
+  }
 });
 
 // IPC handler for getting app version

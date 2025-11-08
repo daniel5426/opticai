@@ -16,6 +16,16 @@ git push origin main && git push origin --tags
 # 3. Wait ~15 minutes, then publish on GitHub!
 ```
 
+for server:
+git push heroku main --force
+
+Run the subdirectory buildpack in front of the Python one and point it at backend/:
+heroku buildpacks:clear -a prysm-backend
+heroku buildpacks:add -a prysm-backend -i 1 https://github.com/timanovsky/subdir-heroku-buildpack
+heroku buildpacks:add -a prysm-backend -i 2 heroku/python
+heroku config:set -a prysm-backend PROJECT_PATH=backend
+
+
 ## What Happens Automatically
 
 1. ✅ **GitHub Actions builds** for all platforms:

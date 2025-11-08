@@ -88,7 +88,7 @@ export interface ElectronAPI {
   // Update operations
   checkForUpdates: () => Promise<{ available: boolean; version?: string; currentVersion?: string; error?: string; message?: string }>;
   downloadUpdate: () => Promise<{ success: boolean; error?: string }>;
-  installUpdate: () => Promise<void>;
+  installUpdate: () => Promise<{ success: boolean; error?: string }>;
   getAppVersion: () => Promise<string>;
 }
 
