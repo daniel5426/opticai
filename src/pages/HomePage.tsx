@@ -6,7 +6,6 @@ import { Loader2 } from "lucide-react"
 import { createAppointment, updateAppointment, deleteAppointment } from "@/lib/db/appointments-db"
 import { getClientById } from "@/lib/db/clients-db"
 import { getDashboardHome } from "@/lib/db/dashboard-db"
-import { applyThemeColorsFromUserData } from "@/helpers/theme_helpers"
 import { Appointment, Client, Settings, User } from "@/lib/db/schema-interface"
 import {
   format,
@@ -53,7 +52,6 @@ export default function HomePage() {
   const [clients, setClients] = useState<Client[]>([])
   const [settings, setSettings] = useState<Settings | null>(null)
   const [loading, setLoading] = useState(true)
-  const [themeLoading, setThemeLoading] = useState(false)
   const { currentUser, currentClinic } = useUser()
 
   const [users, setUsers] = useState<User[]>([])
@@ -109,13 +107,6 @@ export default function HomePage() {
         loadedStartRef.current = startDate
         loadedEndRef.current = endDate
         loadedClinicIdRef.current = currentClinic.id
-      }
-
-      // Apply theme colors synchronously using already loaded user data
-      if (currentUser) {
-        setThemeLoading(true)
-        applyThemeColorsFromUserData(currentUser)
-        setThemeLoading(false)
       }
     } catch (error) {
       console.error('Error loading dashboard data:', error)
@@ -636,15 +627,6 @@ export default function HomePage() {
     <>
       <SiteHeader title={ "לוח זמנים"} />
       <div className="flex flex-col bg-muted/50 flex-1 gap-6" dir="rtl" style={{ scrollbarWidth: 'none' }}>
-        {themeLoading && (
-          <div className="absolute top-4 right-4 z-50">
-            <div className="bg-background/80 backdrop-blur-sm rounded-md px-3 py-2 text-sm">
-              <Loader2 className="h-4 w-4 animate-spin inline mr-2" />
-              טוען עיצוב...
-            </div>
-          </div>
-        )}
-
         {/* Calendar Header */}
         <CalendarHeader
           currentDate={currentDate}

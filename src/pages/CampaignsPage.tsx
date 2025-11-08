@@ -675,7 +675,7 @@ export default function CampaignsPage() {
 
   const checkEmailSettingsConfigured = async (): Promise<boolean> => {
     try {
-      const settingsResponse = await apiClient.getSettings();
+      const settingsResponse = await apiClient.getSettings(currentClinic?.id);
       const settings = settingsResponse.data;
       return !!(settings && settings.email_username && settings.email_password);
     } catch {

@@ -382,7 +382,7 @@ export default function SettingsPage() {
   const handleTestEmailConnection = async () => {
     try {
       toast.info('בודק חיבור אימייל...')
-      const result = await window.electronAPI.emailTestConnection()
+      const result = await window.electronAPI.emailTestConnection(currentClinic?.id)
       if (result) {
         toast.success('חיבור האימייל תקין!')
       } else {

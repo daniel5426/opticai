@@ -122,7 +122,7 @@ export class CampaignScheduler {
       const targetClients = await campaignService.getFilteredClients(campaign);
       console.log(`Found ${targetClients.length} target clients for campaign ${campaign.id}`);
 
-      const settingsResponse = await apiClient.getSettings();
+      const settingsResponse = await apiClient.getSettings(campaign.clinic_id);
       const settings = settingsResponse.data;
       if (!settings) {
         console.error('Settings not found, cannot send emails');
@@ -137,7 +137,7 @@ export class CampaignScheduler {
       for (const client of targetClients) {
         try {
           if (campaign.email_enabled && client.email && client.email.trim() !== '') {
-            await emailService.loadConfigFromSettings();
+            await emailService.loadConfigFromSettings(campaign.clinic_id);
             const emailResult = await emailService.sendCampaignEmail(
               client,
               { name: campaign.name, email_content: campaign.email_content },
@@ -256,7 +256,7 @@ export class CampaignScheduler {
       const targetClients = await campaignService.getFilteredClients(campaign);
       const limitedClients = targetClients.slice(0, 3);
 
-      const settingsResponse = await apiClient.getSettings();
+      const settingsResponse = await apiClient.getSettings(campaign.clinic_id);
       const settings = settingsResponse.data;
       if (!settings) {
         return { success: false, message: 'Settings not found' };
@@ -268,7 +268,7 @@ export class CampaignScheduler {
       for (const client of limitedClients) {
         try {
           if (campaign.email_enabled && client.email && client.email.trim() !== '') {
-            await emailService.loadConfigFromSettings();
+            await emailService.loadConfigFromSettings(campaign.clinic_id);
             const emailResult = await emailService.sendCampaignEmail(
               client,
               { name: `[TEST] ${campaign.name}`, email_content: campaign.email_content },
@@ -345,7 +345,7 @@ export class CampaignScheduler {
       }
 
       const targetClients = await campaignService.getFilteredClients(campaign);
-      const settingsResponse = await apiClient.getSettings();
+      const settingsResponse = await apiClient.getSettings(campaign.clinic_id);
       const settings = settingsResponse.data;
       if (!settings) {
         return { success: false, message: 'Settings not found' };
@@ -359,7 +359,7 @@ export class CampaignScheduler {
       for (const client of targetClients) {
         try {
           if (campaign.email_enabled && client.email && client.email.trim() !== '') {
-            await emailService.loadConfigFromSettings();
+            await emailService.loadConfigFromSettings(campaign.clinic_id);
             const emailResult = await emailService.sendCampaignEmail(
               client,
               { name: campaign.name, email_content: campaign.email_content },

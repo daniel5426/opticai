@@ -318,7 +318,7 @@ export class CampaignService {
     
     // Check email settings if email is enabled
     if (campaign.email_enabled) {
-      const settingsResponse = await apiClient.getSettings();
+      const settingsResponse = await apiClient.getSettings(campaign.clinic_id);
       const settings = settingsResponse.data;
       if (!settings) {
         errors.push('Email settings not found');

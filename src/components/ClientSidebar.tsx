@@ -289,10 +289,6 @@ export function ClientSidebar() {
       setAiInfo(null)
       setIsGenerating(true)
       
-      try {
-        await apiClient.aiInitialize()
-      } catch (e) {}
-      
       // Check if AI states need update (only if client data was updated or forced)
       const needsAiUpdate = forceRegenerate || await checkIfAiStatesNeedUpdate(currentClient.id)
       if (mySeq !== requestSeqRef.current) return

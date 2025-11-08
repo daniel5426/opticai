@@ -144,7 +144,7 @@ class Settings(Base):
     __tablename__ = "settings"
     
     id = Column(Integer, primary_key=True, index=True)
-    clinic_id = Column(Integer, ForeignKey("clinics.id"))
+    clinic_id = Column(Integer, ForeignKey("clinics.id"), nullable=False)
     clinic_name = Column(String)
     clinic_position = Column(String)
     clinic_email = Column(String)

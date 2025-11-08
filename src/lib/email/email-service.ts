@@ -39,9 +39,9 @@ export class EmailService {
     }
   }
 
-  async loadConfigFromSettings() {
+  async loadConfigFromSettings(clinicId?: number) {
     try {
-      const settingsResponse = await apiClient.getSettings();
+      const settingsResponse = await apiClient.getSettings(clinicId);
       const settings = settingsResponse.data;
       
       if (!settings || !settings.email_username || !settings.email_password) {
@@ -88,8 +88,8 @@ export class EmailService {
     }
   }
 
-  async updateFromSettings() {
-    await this.loadConfigFromSettings();
+  async updateFromSettings(clinicId?: number) {
+    await this.loadConfigFromSettings(clinicId);
   }
 
   async testConnection(): Promise<boolean> {

@@ -1,5 +1,6 @@
 "use client";
 
+import React from "react";
 import { Button } from "@/components/ui/button";
 import {
   Command,
@@ -697,9 +698,7 @@ export const PromptInput = ({
           result
             .then(() => {
               clear();
-              if (usingProvider) {
-                controller.textInput.clear();
-              }
+              // Don't clear text input for async operations (like AI chat)
             })
             .catch(() => {
               // Don't clear on error - user may want to retry

@@ -16,3 +16,4 @@ langgraph>=0.2.22,<0.3.0
 langchain-openai>=0.2.3,<0.3.0
 orjson==3.10.7
 requests>=2.32.3
+rapidfuzz>=3.0.0

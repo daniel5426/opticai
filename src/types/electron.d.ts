@@ -38,7 +38,7 @@ export interface ElectronAPI {
   createChatMessage: (messageData: Omit<ChatMessage, 'id' | 'timestamp'>) => Promise<ChatMessage | null>;
 
   // Email operations
-  emailTestConnection: () => Promise<boolean>;
+  emailTestConnection: (clinicId?: number) => Promise<boolean>;
   emailSendTestReminder: (appointmentId: number) => Promise<boolean>;
   emailSchedulerStatus: () => Promise<{ isRunning: boolean; nextRun: string | null }>;
   emailSchedulerRestart: () => Promise<boolean>;

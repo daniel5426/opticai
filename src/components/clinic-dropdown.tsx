@@ -97,20 +97,19 @@ export function ClinicDropdown({
 
     try {
       // For CEO users switching to a clinic, set up the clinic session properly
+      // AuthService.setClinicSession handles navigation automatically
       if (isRoleAtLeast(currentUser?.role_level, ROLE_LEVELS.ceo)) {
         authService.setClinicSession(clinic, currentUser);
-        // Navigate immediately without setTimeout - blocking is bad
-        navigate({ to: "/dashboard" });
       } else {
         setCurrentClinic(clinic);
-        // Navigate immediately
-        navigate({ to: "/dashboard" });
       }
     } catch (error) {
       console.error('ClinicDropdown: Error in handleClinicSelect:', error);
       toast.error("שגיאה בהחלפת מרפאה");
+      // Log full error for debugging
+      console.error('Full error details:', error);
     }
-  }, [isInControlCenter, currentClinic?.id, currentUser, setCurrentClinic, navigate]);
+  }, [isInControlCenter, currentClinic?.id, currentUser, setCurrentClinic]);
 
   const handleControlCenterClick = useCallback(() => {
     const companyId = effectiveCompanyId;

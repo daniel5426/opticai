@@ -9,24 +9,15 @@ import { OctahedronLoader } from "@/components/ui/octahedron-loader";
 import { authService, AuthState } from "@/lib/auth/AuthService";
 import { useUser } from "@/contexts/UserContext";
 import { Progress } from "@/components/ui/progress";
-import { ArrowRight, ArrowLeft, Building2, MapPin, Check, AlertTriangle } from "lucide-react";
+import { ArrowRight, ArrowLeft, Building2, MapPin, Check } from "lucide-react";
 import { WelcomeComponent } from "@/components/WelcomeComponent";
 import { ClinicEntrance } from "@/components/ClinicEntrance";
 import loginBanner from "@/assets/images/login-banner.jpeg";
-
-// Get the API base URL without the /api/v1 suffix for health checks
-const getHealthCheckUrl = () => {
-  const apiUrl = (import.meta as any).env?.VITE_API_URL || 'http://localhost:8001/api/v1';
-  // Remove /api/v1 suffix if present
-  return apiUrl.replace(/\/api\/v1$/, '');
-};
 
 export default function ControlCenterPage() {
   const [loading, setLoading] = useState(false);
   const [isRegisterMode, setIsRegisterMode] = useState(false);
   const { authState } = useUser();
-  const [serverDown, setServerDown] = useState(false);
-  const [checkingServer, setCheckingServer] = useState(true);
 
   // Login form
   const [loginForm, setLoginForm] = useState({
@@ -71,34 +62,6 @@ export default function ControlCenterPage() {
     const setupData = await authService.getSetupData();
     if (setupData?.email) {
       setClinicData((prev) => ({ ...prev, email: setupData.email }));
-    }
-  };
-
-  useEffect(() => {
-    const check = async () => {
-      try {
-        const baseUrl = getHealthCheckUrl();
-        const res = await fetch(`${baseUrl}/health`, { cache: "no-store" });
-        setServerDown(!res.ok);
-      } catch {
-        setServerDown(true);
-      } finally {
-        setCheckingServer(false);
-      }
-    };
-    check();
-  }, []);
-
-  const handleRetryServer = async () => {
-    setCheckingServer(true);
-    try {
-      const baseUrl = getHealthCheckUrl();
-      const res = await fetch(`${baseUrl}/health`, { cache: "no-store" });
-      setServerDown(!res.ok);
-    } catch {
-      setServerDown(true);
-    } finally {
-      setCheckingServer(false);
     }
   };
 
@@ -232,31 +195,6 @@ export default function ControlCenterPage() {
   // ============================================================================
   // RENDER
   // ============================================================================
-
-  if (serverDown) {
-    return (
-      <div
-        className="bg-muted flex min-h-svh flex-col items-center justify-center p-6 md:p-10"
-        dir="rtl"
-        style={{ scrollbarWidth: "none" }}
-      >
-        <div className={cn("w-full max-w-sm md:max-w-3xl")}>          
-          <Card className="overflow-hidden p-0">
-            <CardContent className="flex h-[360px] flex-col items-center justify-center gap-4 p-8 text-center">
-              <AlertTriangle className="h-10 w-10 text-yellow-500" />
-              <h1 className="text-2xl font-bold">הפלטפורמה אינה זמינה כרגע</h1>
-              <p className="text-muted-foreground">אנחנו מקווים לחזור לפעילות ממש בקרוב</p>
-              <div className="mt-2">
-                <Button onClick={handleRetryServer} disabled={checkingServer} className="bg-general-primary hover:bg-general-primary/80">
-                  {checkingServer ? "בודק..." : "נסה שוב"}
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-    );
-  }
 
   if (authState === AuthState.LOADING) {
     return (

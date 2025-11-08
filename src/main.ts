@@ -151,9 +151,9 @@ function setupIpcHandlers() {
   // Removed AI IPC handlers; AI moved to backend
 
   // Email operations
-  ipcMain.handle('email-test-connection', async () => {
+  ipcMain.handle('email-test-connection', async (event, clinicId?: number) => {
     try {
-      await emailService.updateFromSettings();
+      await emailService.updateFromSettings(clinicId);
       return await emailService.testConnection();
     } catch (error) {
       console.error('Error testing email connection:', error);
@@ -175,13 +175,13 @@ function setupIpcHandlers() {
         return false;
       }
 
-      const settingsResponse = await apiClient.getSettings();
+      const settingsResponse = await apiClient.getSettings(appointment.clinic_id);
       const settings = settingsResponse.data;
       if (!settings) {
         return false;
       }
 
-      await emailService.updateFromSettings();
+      await emailService.updateFromSettings(appointment.clinic_id);
       return await emailService.sendAppointmentReminder(appointment, client, settings);
     } catch (error) {
       console.error('Error sending test reminder:', error);

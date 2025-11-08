@@ -13,7 +13,7 @@ export default function ContactLensCreatePage() {
   const handleCancel = () => {
     navigate({ to: "/clients/$clientId", params: { clientId }, search: { tab: 'contact-lenses' } })
   }
-
+ 
   return (
     <ExamDetailPage
       mode="new"

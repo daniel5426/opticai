@@ -137,6 +137,13 @@ export function ClientDetailsTab({
     }
   }, [families, familySearchTerm])
 
+  React.useEffect(() => {
+    if (isNewMode && !formData.file_creation_date) {
+      const today = new Date().toISOString().split('T')[0]
+      handleSelectChange(today, 'file_creation_date')
+    }
+  }, [isNewMode, formData.file_creation_date])
+
   const loadFamilies = async () => {
     try {
       const familiesData = await getAllFamilies()

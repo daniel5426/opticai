@@ -1,6 +1,8 @@
 import React, { memo, useCallback, useEffect, useRef, useState } from 'react';
-import { AlertTriangle, CheckCircle, History, Paperclip, Plus, Send, StarsIcon, StopCircle, XCircle } from 'lucide-react';
+import { AlertTriangle, CheckCircle, CheckCircle2, History, Loader2, Paperclip, Plus, SearchIcon, Send, StopCircle, X, XCircle } from 'lucide-react';
 import { SiteHeader } from '../components/site-header';
+// @ts-ignore-next-line
+import prysmLogo from '../assets/images/prysm-logo.png';
 import { CustomModal } from '../components/ui/custom-modal';
 import { ChatsModal } from '../components/ChatsModal';
 import { Button } from '../components/ui/button';
@@ -30,13 +32,17 @@ import {
   usePromptInputAttachments,
   usePromptInputController,
 } from '../components/ai-elements/prompt-input';
-import { Loader } from '../components/ai-elements/loader';
+
 
 type MessagePart = {
-  type: 'text' | 'tool';
+  type: 'text' | 'tool' | 'progress';
   content: string;
+  toolAction?: string;
   toolName?: string;
-  toolPhase?: 'start' | 'end';
+  result?: string;
+  toolPhase?: 'start' | 'progress' | 'end' | 'error';
+  progressIndex?: number;
+  progressTotal?: number;
   timestamp?: number;
 };
 
@@ -155,8 +161,6 @@ const ChatComposer = ({ onSubmit, onStop, isReady, isStreaming }: ChatComposerPr
 
 export function AIAssistantPage() {
   const [messages, setMessages] = useState<ThreadMessage[]>([]);
-  const [aiInitialized, setAiInitialized] = useState(false);
-  const [initError, setInitError] = useState<string | null>(null);
   const [currentChatId, setCurrentChatId] = useState<number | null>(null);
   const [chatsModalOpen, setChatsModalOpen] = useState(false);
   const [confirmationModal, setConfirmationModal] = useState<ConfirmationState>({ open: false });
@@ -251,24 +255,6 @@ export function AIAssistantPage() {
     } catch {}
   }, []);
 
-  const initializeAI = useCallback(async () => {
-    try {
-      const result = await apiClient.aiInitialize();
-      if (!result.error) {
-        setAiInitialized(true);
-        setInitError(null);
-      } else {
-        setInitError(result.error || 'אירעה שגיאה באתחול העוזר');
-      }
-    } catch (error) {
-      setInitError(error instanceof Error ? error.message : 'אירעה שגיאה באתחול העוזר');
-    }
-  }, []);
-
-  useEffect(() => {
-    initializeAI();
-  }, [initializeAI]);
-
   const handleStopStreaming = useCallback(() => {
     if (!activeStreamRef.current) return;
     const streamId = activeStreamRef.current;
@@ -287,7 +273,7 @@ export function AIAssistantPage() {
       const text = (payload.text ?? '').trim();
       const files = payload.files ?? [];
       if (!text && files.length === 0) return;
-      if (!aiInitialized || activeStreamRef.current) return;
+      if (activeStreamRef.current) return;
 
       const attachments: AttachmentItem[] = files.map((file, index) => ({
         id: createId(`file-${index}`),
@@ -416,7 +402,7 @@ export function AIAssistantPage() {
         );
       }
     },
-    [aiInitialized, createNewChat, currentChatId, messages, saveMessageToChat]
+    [createNewChat, currentChatId, messages, saveMessageToChat]
   );
 
   const handleConfirmAction = useCallback(async () => {
@@ -445,33 +431,6 @@ export function AIAssistantPage() {
     }
   }, [confirmationModal]);
 
-  if (initError) {
-    return (
-      <>
-        <SiteHeader title="העוזר החכם" />
-        <div className="flex flex-1 flex-col items-center justify-center gap-4 p-8" dir="rtl" style={{ scrollbarWidth: 'none' }}>
-          <AlertTriangle className="h-16 w-16 text-red-500" />
-          <div className="space-y-2 text-center">
-            <h2 className="text-xl font-semibold">שגיאה באתחול העוזר החכם</h2>
-            <p className="text-muted-foreground max-w-md">{initError}</p>
-          </div>
-          <Button onClick={initializeAI}>נסה שוב</Button>
-        </div>
-      </>
-    );
-  }
-
-  if (!aiInitialized) {
-    return (
-      <>
-        <SiteHeader title="העוזר החכם" />
-        <div className="flex flex-1 items-center justify-center" dir="rtl" style={{ scrollbarWidth: 'none' }}>
-          <Loader size={32} />
-        </div>
-      </>
-    );
-  }
-
   return (
     <PromptInputProvider>
       <div className="relative flex h-full flex-col bg-background" dir="rtl" style={{ scrollbarWidth: 'none' }}>
@@ -485,14 +444,18 @@ export function AIAssistantPage() {
         </Button>
       </div>
         <Conversation className="flex-1" style={{ scrollbarWidth: 'none' }}>
-          <ConversationContent className="flex flex-col items-center gap-4 px-4 pb-44 pt-6">
+          <ConversationContent className="flex flex-col items-center gap-4 px-4 pt-6">
             <div className="w-full max-w-2xl">
             {!hasMessages && (
               <ConversationEmptyState
-                icon={<StarsIcon className="h-12 w-12 text-muted-foreground" />}
-                title="ברוכים הבאים לעוזר החכם"
-                description="איך אפשר לעזור היום בניהול המרפאה?"
-              />
+                className="justify-center min-h-[60vh]"
+              >
+                <img src={prysmLogo} alt="Prysm Logo" className="h-30 w-24 mb-4" />
+                <div className="space-y-2">
+                  <h3 className="font-medium text-2xl">ברוכים הבאים לעוזר החכם שלך</h3>
+                  <p className="text-muted-foreground text-lg">איך אפשר לעזור היום בניהול המרפאה?</p>
+                </div>
+              </ConversationEmptyState>
             )}
             {messages.map((message) => (
               <div key={message.id} className="mx-auto w-full max-w-3xl py-4">
@@ -525,12 +488,12 @@ export function AIAssistantPage() {
                   <div className="flex w-full gap-3">
                     <MessageAvatar 
                       name="עוזר חכם" 
-                      src="https://github.com/openai.png"
-                      className="size-8 shrink-0"
+                      src={prysmLogo}
+                      className=" w-[22px] h-7 border-none ring-0"
                     />
                     <div className="flex-1 pt-1">
-                      {message.status === 'streaming' && !message.text && !message.currentTextPart ? (
-                        <ShimmerText text="מחשב תשובה..." className="text-sm font-normal" />
+                      {message.status === 'streaming' && !message.text && !message.currentTextPart && message.parts.length === 0 ? (
+                        <ShimmerText text="מחשב תשובה..." className="font-normal text-base" />
                       ) : (
                         <>
                           <div className="text-foreground">
@@ -539,11 +502,44 @@ export function AIAssistantPage() {
                                 <div key={`${message.id}-part-${index}`} className="mb-2">
                                   {part.type === 'text' ? (
                                     <Response>{part.content}</Response>
+                                  ) : part.type === 'progress' ? (
+                                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                      {part.toolPhase === 'progress' ? (
+                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                      ) : part.toolPhase === 'end' ? (
+                                        <CheckCircle2 className="h-4 w-4 text-green-500" />
+                                      ) : (
+                                        <X className="h-4 w-4 text-red-500" />
+                                      )}
+                                      <span>
+                                        {part.content}
+                                        {part.progressTotal && part.progressIndex !== undefined && (
+                                          <span className="mr-2 text-xs">
+                                            ({part.progressIndex}/{part.progressTotal})
+                                          </span>
+                                        )}
+                                      </span>
+                                    </div>
                                   ) : (
                                     <Task>
-                                      <TaskTrigger title={part.toolName || 'Tool'} />
+                                      <TaskTrigger 
+                                        title={(part.toolAction && typeof part.toolAction === 'string' ? part.toolAction : part.content) || 'Tool'}
+                                        icon={
+                                          part.toolPhase === 'start' ? (
+                                            <Loader2 className="h-4 w-4 animate-spin" />
+                                          ) : part.toolPhase === 'end' ? (
+                                            <CheckCircle2 className="h-4 w-4 text-green-500" />
+                                          ) : part.toolPhase === 'error' ? (
+                                            <X className="h-4 w-4 text-red-500" />
+                                          ) : (
+                                            <SearchIcon className="h-4 w-4" />
+                                          )
+                                        }
+                                      />
                                       <TaskContent>
-                                        <TaskItem>{part.content}</TaskItem>
+                                        <TaskItem>
+                                          <span>{part.result || part.content}</span>
+                                        </TaskItem>
                                       </TaskContent>
                                     </Task>
                                   )}
@@ -586,9 +582,9 @@ export function AIAssistantPage() {
           </ConversationContent>
           <ConversationScrollButton />
         </Conversation>
-        <div className=" border-border bg-background px-4 py-4">
+        <div className=" border-border bg-background pb-16 px-4 py-4">
           <div className="mx-auto max-w-2xl">
-            <ChatComposer onSubmit={handleSendMessage} onStop={handleStopStreaming} isReady={aiInitialized} isStreaming={isStreaming} />
+            <ChatComposer onSubmit={handleSendMessage} onStop={handleStopStreaming} isReady={true} isStreaming={isStreaming} />
             <p className="mt-3 text-center text-xs text-muted-foreground">העוזר החכם יכול לטעות, הקפידו לאמת מידע חשוב.</p>
           </div>
         </div>

@@ -153,6 +153,12 @@ class ApiClient {
       const data = await response.json();
       return { data };
     } catch (error) {
+      // Dispatch network error event for ServerStatusContext
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('api:network-error', { 
+          detail: { isNetworkError: true, error } 
+        }));
+      }
       return { error: error instanceof Error ? error.message : 'Network error' };
     }
   }
@@ -1181,8 +1187,8 @@ class ApiClient {
   }
 
   // Settings
-  async getSettings(clinicId?: number) {
-    const url = clinicId ? `/settings/clinic/${clinicId}` : '/settings';
+  async getSettings(clinicId: number) {
+    const url = `/settings/clinic/${clinicId}`;
     return this.request<Settings>(url);
   }
 
@@ -1575,12 +1581,6 @@ class ApiClient {
   }
 
   // AI operations
-  async aiInitialize() {
-    return this.request('/ai/initialize', {
-      method: 'POST',
-    });
-  }
-
   async aiChat(message: string, conversationHistory: any[], chatId?: number) {
     return this.request('/ai/chat', {
       method: 'POST',

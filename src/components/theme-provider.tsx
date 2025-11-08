@@ -92,6 +92,7 @@ export function ThemeProvider({
     root.classList.add(actualTheme)
     
     // Apply company theme colors immediately (synchronous from cache)
+    // This ensures sidebar colors update instantly when theme changes
     applyCompanyThemeColors()
   }, [theme, isInitialized])
 

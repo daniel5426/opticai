@@ -4,6 +4,7 @@ import React from "react"
 import {
   type Icon,
 } from "@tabler/icons-react"
+import { useLocation } from "@tanstack/react-router"
 
 import {
   SidebarGroup,
@@ -23,20 +24,40 @@ export function NavDocuments({
     icon: Icon
   }[]
 }) {
+  const location = useLocation()
+  
+  const normalizePath = (path: string) => {
+    if (!path || path === "/") return "/"
+    return path.replace(/\/+$/, "")
+  }
+  
+  const isRouteActive = (url: string) => {
+    const normalizedTarget = normalizePath(url)
+    const currentPath = normalizePath(location.pathname)
+    
+    if (normalizedTarget === "/") {
+      return currentPath === "/"
+    }
+    return currentPath === normalizedTarget || currentPath.startsWith(`${normalizedTarget}/`)
+  }
+  
   return (
     <SidebarGroup className="group-data-[collapsible=icon]:hidden">
       <SidebarGroupLabel>פרטים</SidebarGroupLabel>
       <SidebarMenu>
-        {items.map((item) => (
-          <SidebarMenuItem key={item.name}>
-            <SidebarMenuButton asChild>
-              <GuardedRouterLink to={item.url}>
-                <item.icon />
-                <span>{item.name}</span>
-              </GuardedRouterLink>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        ))}
+        {items.map((item) => {
+          const isActive = isRouteActive(item.url)
+          return (
+            <SidebarMenuItem key={item.name}>
+              <SidebarMenuButton asChild isActive={!!isActive}>
+                <GuardedRouterLink to={item.url}>
+                  <item.icon />
+                  <span>{item.name}</span>
+                </GuardedRouterLink>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          )
+        })}
       </SidebarMenu>
     </SidebarGroup>
   )

@@ -35,51 +35,71 @@ export function UserProvider({ children }: UserProviderProps) {
   const [isLoading, setIsLoading] = useState(true)
   const [clinicRefreshTrigger, setClinicRefreshTrigger] = useState(0)
 
+  const isInitialLoginRef = React.useRef(true)
+  const previousAuthStateRef = React.useRef<AuthState>(AuthState.LOADING)
+
   useEffect(() => {
     // Subscribe to auth state changes
     const unsubscribe = authService.subscribe(async (state: AuthState, session: AuthSession | null) => {
       console.log('[UserContext] Auth state changed:', state, 'Session:', !!session)
       
+      const wasLoading = previousAuthStateRef.current === AuthState.LOADING
+      const isAuthenticated = state === AuthState.AUTHENTICATED
+      const isInitialLogin = isInitialLoginRef.current && wasLoading && isAuthenticated && !!session?.user
+      
+      previousAuthStateRef.current = state
       setAuthState(state)
       setIsLoading(state === AuthState.LOADING)
 
-      // Update user and clinic from session
+      // Update state IMMEDIATELY - no blocking on async operations
       if (session?.user) {
-        // Load company and cache theme colors
-        try {
-          if (session.clinic?.company_id) {
-            const companyResponse = await apiClient.getCompany(session.clinic.company_id)
-            if (companyResponse.data) {
-              cacheCompanyThemeColors(companyResponse.data)
-            }
-          } else {
-            // Try to get company from localStorage (for control center users)
-            const storedCompany = localStorage.getItem('controlCenterCompany')
-            if (storedCompany) {
-              try {
-                const company = JSON.parse(storedCompany)
-                cacheCompanyThemeColors(company)
-              } catch (e) {
-                console.error('[UserContext] Failed to parse stored company:', e)
-              }
-            }
-          }
-        } catch (error) {
-          console.error('[UserContext] Failed to load company for theme colors:', error)
-        }
-        
-        // Apply user theme
-        try {
-          await applyUserThemeComplete(session.user.id!, session.user)
-        } catch (error) {
-          console.error('[UserContext] Failed to apply theme:', error)
-        }
-        
         setCurrentUser(session.user)
         setCurrentClinic(session.clinic || null)
+        
+        // Then do async work in background (fire-and-forget, non-blocking)
+        Promise.resolve().then(async () => {
+          // Load company and cache theme colors
+          try {
+            if (session.clinic?.company_id) {
+              const companyResponse = await apiClient.getCompany(session.clinic.company_id)
+              if (companyResponse.data) {
+                cacheCompanyThemeColors(companyResponse.data)
+              }
+            } else {
+              // Try to get company from localStorage (for control center users)
+              const storedCompany = localStorage.getItem('controlCenterCompany')
+              if (storedCompany) {
+                try {
+                  const company = JSON.parse(storedCompany)
+                  cacheCompanyThemeColors(company)
+                } catch (e) {
+                  console.error('[UserContext] Failed to parse stored company:', e)
+                }
+              }
+            }
+          } catch (error) {
+            console.error('[UserContext] Failed to load company for theme colors:', error)
+          }
+          
+          // ONLY apply user theme on initial login, not on clinic navigation
+          // ThemeProvider manages theme state after initial load
+          if (isInitialLogin) {
+            try {
+              await applyUserThemeComplete(session.user.id!, session.user)
+              isInitialLoginRef.current = false
+            } catch (error) {
+              console.error('[UserContext] Failed to apply theme:', error)
+              isInitialLoginRef.current = false
+            }
+          }
+        })
       } else {
         setCurrentUser(null)
         setCurrentClinic(session?.clinic || null)
+        // Reset initial login flag on logout
+        if (state === AuthState.UNAUTHENTICATED) {
+          isInitialLoginRef.current = true
+        }
       }
     })
 

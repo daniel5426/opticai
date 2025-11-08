@@ -39,7 +39,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   createChatMessage: (messageData: any) => ipcRenderer.invoke('chat-create-message', messageData),
 
   // Email operations
-  emailTestConnection: () => ipcRenderer.invoke('email-test-connection'),
+  emailTestConnection: (clinicId?: number) => ipcRenderer.invoke('email-test-connection', clinicId),
   emailSendTestReminder: (appointmentId: number) => ipcRenderer.invoke('email-send-test-reminder', appointmentId),
   emailSchedulerStatus: () => ipcRenderer.invoke('email-scheduler-status'),
   emailSchedulerRestart: () => ipcRenderer.invoke('email-scheduler-restart'),

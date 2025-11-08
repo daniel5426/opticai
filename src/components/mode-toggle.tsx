@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { setTheme } from "@/helpers/theme_helpers"
 import { useUser } from "@/contexts/UserContext"
+import { useTheme } from "@/components/theme-provider"
 
 export function ModeToggle() {
   // Safely access user context (may not be available on some routes)
@@ -22,8 +23,25 @@ export function ModeToggle() {
     console.log('[ModeToggle] UserContext not available')
   }
 
+  // Get ThemeProvider's setTheme to update React state immediately
+  const { setTheme: setThemeProviderState } = useTheme()
+
   const handleSetTheme = (theme: "light" | "dark" | "system") => {
-    setTheme(theme, currentUser?.id, true)
+    // STEP 1: Update ThemeProvider state IMMEDIATELY
+    // This triggers ThemeProvider's useEffect which:
+    // - Updates the DOM class (.dark) instantly
+    // - Calls applyCompanyThemeColors() immediately
+    // - Sidebar CSS variables update instantly
+    setThemeProviderState(theme)
+
+    // STEP 2: Do async work in background (don't await - fire and forget)
+    // This handles:
+    // - Electron IPC theme sync
+    // - Database save
+    // But doesn't block the UI update
+    setTheme(theme, currentUser?.id, true).catch((error) => {
+      console.error('Error setting theme:', error)
+    })
   }
 
   return (
