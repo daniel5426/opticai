@@ -51,10 +51,14 @@ if (!inDevelopment) {
 }
 
 // Configure auto-updater
+console.log('Main: Configuring auto-updater');
 autoUpdater.autoDownload = false; // We'll prompt the user first
 autoUpdater.autoInstallOnAppQuit = true;
+console.log('Main: autoUpdater.autoDownload =', autoUpdater.autoDownload);
+console.log('Main: autoUpdater.autoInstallOnAppQuit =', autoUpdater.autoInstallOnAppQuit);
 
 // Set update server for GitHub releases
+console.log('Main: Setting up update server, inDevelopment =', inDevelopment);
 if (!inDevelopment) {
   try {
     const updateConfig: any = {
@@ -62,22 +66,26 @@ if (!inDevelopment) {
       owner: 'daniel5426',
       repo: 'opticai'
     };
-    
+
     // Add private repository configuration if token is available
     const ghToken = process.env.GH_TOKEN;
+    console.log('Main: GH_TOKEN available:', !!ghToken);
     if (ghToken) {
       updateConfig.private = true;
       updateConfig.token = ghToken;
-      console.log('Auto-updater configured for private GitHub repository');
+      console.log('Main: Auto-updater configured for private GitHub repository');
     } else {
-      console.log('Auto-updater configured for public GitHub repository');
+      console.log('Main: Auto-updater configured for public GitHub repository');
     }
-    
+
+    console.log('Main: Setting feed URL with config:', updateConfig);
     autoUpdater.setFeedURL(updateConfig);
-    console.log('Auto-updater configured for GitHub releases');
+    console.log('Main: Auto-updater configured for GitHub releases');
   } catch (error) {
-    console.error('Error setting up auto-updater:', error);
+    console.error('Main: Error setting up auto-updater:', error);
   }
+} else {
+  console.log('Main: Skipping auto-updater setup in development mode');
 }
 
 // Server Mode Variables - REMOVED (using FastAPI backend instead)

@@ -14,6 +14,7 @@ export function AboutTab() {
   const [lastChecked, setLastChecked] = useState<Date | null>(null);
 
   useEffect(() => {
+    console.log('AboutTab: Component mounted, loading version and checking for updates');
     loadCurrentVersion();
     checkForUpdates();
   }, []);
@@ -31,11 +32,14 @@ export function AboutTab() {
   const checkForUpdates = async (manual: boolean = false) => {
     try {
       setChecking(true);
+      console.log('AboutTab: Starting update check, manual:', manual);
       if (manual) {
         toast.info('בודק עדכונים...');
       }
 
+      console.log('AboutTab: Calling window.electronAPI.checkForUpdates()');
       const result = await window.electronAPI.checkForUpdates();
+      console.log('AboutTab: checkForUpdates result:', result);
       setLastChecked(new Date());
 
       if (result.currentVersion) {
@@ -86,10 +90,13 @@ export function AboutTab() {
 
   const handleDownloadUpdate = async () => {
     try {
+      console.log('AboutTab: Starting download update');
       setDownloading(true);
       toast.info('מוריד עדכון...');
 
+      console.log('AboutTab: Calling window.electronAPI.downloadUpdate()');
       const result = await window.electronAPI.downloadUpdate();
+      console.log('AboutTab: downloadUpdate result:', result);
 
       if (result.success) {
         toast.success('העדכון הורד בהצלחה! האפליקציה תציג הודעה כאשר העדכון מוכן להתקנה');
@@ -106,17 +113,23 @@ export function AboutTab() {
 
   const handleInstallUpdate = async () => {
     try {
+      console.log('AboutTab: Starting install update');
       toast.info('מתקין עדכון... האפליקציה תאותחל מחדש');
 
+      console.log('AboutTab: Calling window.electronAPI.installUpdate()');
       const result = await window.electronAPI.installUpdate();
+      console.log('AboutTab: installUpdate result:', result);
+
       if (result && result.success) {
         // Success - the app should quit and restart with the update
         // This toast might not show since the app is quitting
+        console.log('AboutTab: Install update successful, app should restart');
       } else {
+        console.error('AboutTab: Install update failed:', result?.error);
         toast.error(result?.error || 'העדכון לא מוכן להתקנה. נא להוריד את העדכון תחילה.');
       }
     } catch (error) {
-      console.error('Error installing update:', error);
+      console.error('AboutTab: Error installing update:', error);
       toast.error('שגיאה בהתקנת עדכון');
     }
   };
