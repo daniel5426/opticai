@@ -97,6 +97,7 @@ function createWindow() {
     return mainWindow;
   }
 
+  
   const preload = path.join(__dirname, "preload.js");
   mainWindow = new BrowserWindow({
     width: 1200,
