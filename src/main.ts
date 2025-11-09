@@ -113,15 +113,13 @@ function createWindow() {
   });
   registerListeners(mainWindow);
 
-  // Add keyboard shortcut for DevTools (development only)
-  if (inDevelopment) {
-    mainWindow.webContents.on('before-input-event', (event, input) => {
-      if (input.control && input.shift && input.key.toLowerCase() === 'i') {
-        mainWindow?.webContents.toggleDevTools();
-        event.preventDefault();
-      }
-    });
-  }
+  // Add keyboard shortcut for DevTools (both development and production)
+  mainWindow.webContents.on('before-input-event', (event, input) => {
+    if (input.control && input.shift && input.key.toLowerCase() === 'i') {
+      mainWindow?.webContents.toggleDevTools();
+      event.preventDefault();
+    }
+  });
 
   // Clean up the reference when window is closed
   mainWindow.on('closed', () => {
