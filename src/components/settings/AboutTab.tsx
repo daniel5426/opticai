@@ -29,6 +29,23 @@ export function AboutTab() {
     }
   };
 
+  const compareVersions = (current: string, latest: string): boolean => {
+    const currentParts = current.split('.').map(Number);
+    const latestParts = latest.split('.').map(Number);
+
+    for (let i = 0; i < Math.max(currentParts.length, latestParts.length); i++) {
+      const currentPart = currentParts[i] || 0;
+      const latestPart = latestParts[i] || 0;
+
+      if (latestPart > currentPart) {
+        return true;
+      } else if (latestPart < currentPart) {
+        return false;
+      }
+    }
+    return false;
+  };
+
   const checkForUpdates = async (manual: boolean = false) => {
     try {
       setChecking(true);
@@ -46,7 +63,7 @@ export function AboutTab() {
         setCurrentVersion(result.currentVersion);
       }
 
-      if (result.available && result.version) {
+      if (result.available && result.version && compareVersions(result.currentVersion || currentVersion, result.version)) {
         setUpdateAvailable(true);
         setLatestVersion(result.version);
         if (manual) {
