@@ -4,19 +4,79 @@ import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { IconDownload, IconRefresh, IconCheck, IconAlertCircle, IconInfoCircle } from '@tabler/icons-react';
 import { Badge } from '@/components/ui/badge';
+import { Progress } from '@/components/ui/progress';
+
+interface DownloadState {
+  isDownloading: boolean;
+  isDownloaded: boolean;
+  progress: number;
+  version?: string;
+  bytesPerSecond?: number;
+  transferred?: number;
+  total?: number;
+}
 
 export function AboutTab() {
   const [currentVersion, setCurrentVersion] = useState<string>('');
   const [latestVersion, setLatestVersion] = useState<string | null>(null);
   const [updateAvailable, setUpdateAvailable] = useState(false);
   const [checking, setChecking] = useState(false);
-  const [downloading, setDownloading] = useState(false);
   const [lastChecked, setLastChecked] = useState<Date | null>(null);
+  const [downloadState, setDownloadState] = useState<DownloadState>({
+    isDownloading: false,
+    isDownloaded: false,
+    progress: 0
+  });
 
   useEffect(() => {
     console.log('AboutTab: Component mounted, loading version and checking for updates');
     loadCurrentVersion();
     checkForUpdates();
+    
+    const cleanupProgress = window.electronAPI.onDownloadProgress((progress) => {
+      console.log('AboutTab: Download progress:', progress);
+      setDownloadState(prev => ({
+        ...prev,
+        isDownloading: true,
+        progress: Math.round(progress.percent),
+        bytesPerSecond: progress.bytesPerSecond,
+        transferred: progress.transferred,
+        total: progress.total
+      }));
+    });
+    
+    const cleanupDownloaded = window.electronAPI.onUpdateDownloaded((info) => {
+      console.log('AboutTab: Update downloaded:', info);
+      setDownloadState(prev => ({
+        ...prev,
+        isDownloading: false,
+        isDownloaded: true,
+        progress: 100,
+        version: info.version
+      }));
+      localStorage.setItem('downloaded-update', JSON.stringify({ version: info.version, timestamp: Date.now() }));
+      toast.success(`העדכון לגרסה ${info.version} הורד בהצלחה!`);
+    });
+    
+    const savedDownload = localStorage.getItem('downloaded-update');
+    if (savedDownload) {
+      try {
+        const parsed = JSON.parse(savedDownload);
+        setDownloadState(prev => ({
+          ...prev,
+          isDownloaded: true,
+          version: parsed.version,
+          progress: 100
+        }));
+      } catch (e) {
+        localStorage.removeItem('downloaded-update');
+      }
+    }
+    
+    return () => {
+      cleanupProgress();
+      cleanupDownloaded();
+    };
   }, []);
 
   const loadCurrentVersion = async () => {
@@ -66,7 +126,11 @@ export function AboutTab() {
       if (result.available && result.version && compareVersions(result.currentVersion || currentVersion, result.version)) {
         setUpdateAvailable(true);
         setLatestVersion(result.version);
-        if (manual) {
+        
+        const savedDownload = localStorage.getItem('downloaded-update');
+        const alreadyDownloaded = savedDownload && JSON.parse(savedDownload).version === result.version;
+        
+        if (manual && !alreadyDownloaded) {
           toast.success(`נמצאה גרסה חדשה: ${result.version}`);
         }
       } else {
@@ -108,23 +172,21 @@ export function AboutTab() {
   const handleDownloadUpdate = async () => {
     try {
       console.log('AboutTab: Starting download update');
-      setDownloading(true);
-      toast.info('מוריד עדכון...');
+      setDownloadState(prev => ({ ...prev, isDownloading: true, progress: 0 }));
+      toast.info('מתחיל הורדת עדכון...');
 
       console.log('AboutTab: Calling window.electronAPI.downloadUpdate()');
       const result = await window.electronAPI.downloadUpdate();
       console.log('AboutTab: downloadUpdate result:', result);
 
-      if (result.success) {
-        toast.success('העדכון הורד בהצלחה! האפליקציה תציג הודעה כאשר העדכון מוכן להתקנה');
-      } else {
+      if (!result.success) {
         toast.error(`שגיאה בהורדת עדכון: ${result.error}`);
+        setDownloadState(prev => ({ ...prev, isDownloading: false, progress: 0 }));
       }
     } catch (error) {
       console.error('Error downloading update:', error);
       toast.error('שגיאה בהורדת עדכון');
-    } finally {
-      setDownloading(false);
+      setDownloadState(prev => ({ ...prev, isDownloading: false, progress: 0 }));
     }
   };
 
@@ -138,9 +200,8 @@ export function AboutTab() {
       console.log('AboutTab: installUpdate result:', result);
 
       if (result && result.success) {
-        // Success - the app should quit and restart with the update
-        // This toast might not show since the app is quitting
         console.log('AboutTab: Install update successful, app should restart');
+        localStorage.removeItem('downloaded-update');
       } else {
         console.error('AboutTab: Install update failed:', result?.error);
         toast.error(result?.error || 'העדכון לא מוכן להתקנה. נא להוריד את העדכון תחילה.');
@@ -149,6 +210,18 @@ export function AboutTab() {
       console.error('AboutTab: Error installing update:', error);
       toast.error('שגיאה בהתקנת עדכון');
     }
+  };
+  
+  const formatBytes = (bytes: number): string => {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+  };
+  
+  const formatSpeed = (bytesPerSecond: number): string => {
+    return formatBytes(bytesPerSecond) + '/s';
   };
 
   return (
@@ -194,43 +267,75 @@ export function AboutTab() {
             </div>
           </div>
 
-          {/* Update Available Section */}
           {updateAvailable && latestVersion && (
             <div className="p-4 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
               <h4 className="text-sm font-medium text-blue-800 dark:text-blue-200 mb-3 text-right flex items-center gap-2 justify-end">
                 <IconAlertCircle className="h-4 w-4" />
-                עדכון חדש זמין
+                {downloadState.isDownloaded ? 'עדכון מוכן להתקנה' : 'עדכון חדש זמין'}
               </h4>
               <div className="text-sm text-blue-700 dark:text-blue-300 text-right mb-4" dir="rtl">
-                גרסה {latestVersion} זמינה להורדה. מומלץ לעדכן לגרסה האחרונה כדי ליהנות מתכונות חדשות ותיקוני באגים.
+                {downloadState.isDownloaded 
+                  ? `גרסה ${downloadState.version || latestVersion} הורדה בהצלחה ומוכנה להתקנה.`
+                  : `גרסה ${latestVersion} זמינה להורדה. מומלץ לעדכן לגרסה האחרונה כדי ליהנות מתכונות חדשות ותיקוני באגים.`
+                }
               </div>
-              <div className="flex gap-3 justify-end">
-                <Button
-                  onClick={handleInstallUpdate}
-                  variant="outline"
-                  size="sm"
-                  className="flex items-center gap-2"
-                >
-                  התקן עכשיו
-                </Button>
-                <Button
-                  onClick={handleDownloadUpdate}
-                  disabled={downloading}
-                  size="sm"
-                  className="flex items-center gap-2"
-                >
-                  {downloading ? (
-                    <>
-                      <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                      מוריד...
-                    </>
-                  ) : (
-                    <>
-                      <IconDownload className="h-4 w-4" />
-                      הורד עדכון
-                    </>
+              
+              {downloadState.isDownloading && (
+                <div className="mb-4 space-y-2">
+                  <div className="flex items-center justify-between text-xs text-blue-700 dark:text-blue-300">
+                    <span>{downloadState.progress}%</span>
+                    <span>מוריד עדכון...</span>
+                  </div>
+                  <Progress value={downloadState.progress} className="h-2" />
+                  {downloadState.bytesPerSecond && downloadState.transferred && downloadState.total && (
+                    <div className="flex items-center justify-between text-xs text-muted-foreground">
+                      <span>{formatSpeed(downloadState.bytesPerSecond)}</span>
+                      <span>{formatBytes(downloadState.transferred)} / {formatBytes(downloadState.total)}</span>
+                    </div>
                   )}
-                </Button>
+                </div>
+              )}
+              
+              <div className="flex gap-3 justify-end">
+                {downloadState.isDownloaded ? (
+                  <Button
+                    onClick={handleInstallUpdate}
+                    size="sm"
+                    className="flex items-center gap-2"
+                  >
+                    התקן והפעל מחדש
+                  </Button>
+                ) : (
+                  <>
+                    <Button
+                      onClick={handleInstallUpdate}
+                      variant="outline"
+                      size="sm"
+                      className="flex items-center gap-2"
+                      disabled={!downloadState.isDownloaded}
+                    >
+                      התקן עכשיו
+                    </Button>
+                    <Button
+                      onClick={handleDownloadUpdate}
+                      disabled={downloadState.isDownloading}
+                      size="sm"
+                      className="flex items-center gap-2"
+                    >
+                      {downloadState.isDownloading ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                          מוריד...
+                        </>
+                      ) : (
+                        <>
+                          <IconDownload className="h-4 w-4" />
+                          הורד עדכון
+                        </>
+                      )}
+                    </Button>
+                  </>
+                )}
               </div>
             </div>
           )}

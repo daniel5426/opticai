@@ -472,15 +472,33 @@ function setupAutoUpdater() {
     console.error('Error in auto-updater:', err);
   });
 
+  autoUpdater.on('before-quit-for-update' as any, () => {
+    console.log('autoUpdater before-quit-for-update event triggered');
+  });
+
   autoUpdater.on('download-progress', (progressObj) => {
     const logMessage = `Download speed: ${progressObj.bytesPerSecond} - Downloaded ${progressObj.percent}% (${progressObj.transferred}/${progressObj.total})`;
     console.log(logMessage);
+    
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('download-progress', {
+        percent: progressObj.percent,
+        transferred: progressObj.transferred,
+        total: progressObj.total,
+        bytesPerSecond: progressObj.bytesPerSecond
+      });
+    }
   });
 
   autoUpdater.on('update-downloaded', (info) => {
     console.log('Update downloaded:', info.version);
     
-    // Notify user that update is ready to install
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('update-downloaded', {
+        version: info.version
+      });
+    }
+    
     dialog.showMessageBox(mainWindow!, {
       type: 'info',
       title: 'עדכון מוכן',
@@ -491,8 +509,18 @@ function setupAutoUpdater() {
       cancelId: 1
     }).then((result) => {
       if (result.response === 0) {
-        // User chose to restart now
-        setImmediate(() => autoUpdater.quitAndInstall());
+        console.log('User confirmed immediate restart for update');
+        setImmediate(() => {
+          console.log('Invoking autoUpdater.quitAndInstall(false, true) from update-downloaded prompt');
+          try {
+            autoUpdater.quitAndInstall(false, true);
+            console.log('autoUpdater.quitAndInstall call returned without throwing');
+          } catch (error) {
+            console.error('autoUpdater.quitAndInstall threw inside update-downloaded prompt', error);
+          }
+        });
+      } else {
+        console.log('User chose to postpone restart after update download');
       }
     });
   });
@@ -564,38 +592,41 @@ ipcMain.handle('download-update', async () => {
   }
 });
 
-// IPC handler for installing update
 ipcMain.handle('install-update', async () => {
   if (inDevelopment) {
     return { success: false, error: 'Updates disabled in development' };
   }
 
   console.log('Install update requested');
+  console.log('Current platform:', process.platform);
+  console.log('autoUpdater.autoInstallOnAppQuit value:', autoUpdater.autoInstallOnAppQuit);
 
-  // Check if there's a downloaded update available
   const downloadedUpdateHelper = (autoUpdater as any).downloadedUpdateHelper;
   if (downloadedUpdateHelper && downloadedUpdateHelper.file) {
-    console.log('Found downloaded update file:', downloadedUpdateHelper.file);
+    console.log('Found downloaded update helper state:', {
+      file: downloadedUpdateHelper.file,
+      sha512: downloadedUpdateHelper.sha512,
+      version: downloadedUpdateHelper.version
+    });
 
-    // For macOS, we need to ensure Squirrel.Mac is properly set up
-    // Let's try to trigger the native updater's quit and install
     try {
+      console.log('Scheduling autoUpdater.quitAndInstall(false, true) via setImmediate');
       setImmediate(() => {
-        console.log('Calling autoUpdater.quitAndInstall()');
-        autoUpdater.quitAndInstall();
+        console.log('autoUpdater.quitAndInstall setImmediate callback executing');
+        try {
+          autoUpdater.quitAndInstall(false, true);
+          console.log('autoUpdater.quitAndInstall exited without throwing');
+        } catch (err) {
+          console.error('autoUpdater.quitAndInstall threw inside setImmediate', err);
+        }
       });
       return { success: true };
     } catch (error) {
       console.error('quitAndInstall failed:', error);
-      // Fallback: just quit the app and hope the update applies
-      setTimeout(() => {
-        console.log('Fallback: quitting app');
-        app.quit();
-      }, 1000);
-      return { success: true }; // Still consider it successful since we're quitting
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
     }
   } else {
-    console.log('No downloaded update found, cannot install');
+    console.log('No downloaded update found, cannot install. Helper contents:', downloadedUpdateHelper);
     return { success: false, error: 'No update available to install' };
   }
 });
@@ -624,6 +655,14 @@ app.whenReady().then(() => {
   createWindow();
   setupAutoUpdater();
   installExtensions(); // Install extensions after other setup
+});
+
+app.on('before-quit', () => {
+  console.log('App before-quit event triggered');
+});
+
+app.on('will-quit', () => {
+  console.log('App will-quit event triggered');
 });
 
 //osX only

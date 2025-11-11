@@ -221,7 +221,7 @@ class ExamLayoutInstance(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     exam_id = Column(Integer, ForeignKey("optical_exams.id", ondelete="CASCADE"), nullable=False)
-    layout_id = Column(Integer, ForeignKey("exam_layouts.id", ondelete="RESTRICT"), nullable=True)
+    layout_id = Column(Integer, ForeignKey("exam_layouts.id", ondelete="SET NULL"), nullable=True)
     is_active = Column(Boolean, default=False)
     order = Column(Integer, default=0)
     exam_data = Column(JSON, nullable=False, default={})

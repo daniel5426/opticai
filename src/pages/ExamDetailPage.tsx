@@ -736,10 +736,14 @@ export default function ExamDetailPage({
             }
           }
         } else {
-          let defaultLayouts = await getAllExamLayouts()
+          const availableLayoutsResponse = await apiClient.getExamLayouts(currentClinic?.id)
+          if (!availableLayoutsResponse.error) {
+            setAvailableLayouts(availableLayoutsResponse.data || [])
+          }
+          const availableLayoutsData = availableLayoutsResponse.error ? [] : (availableLayoutsResponse.data || [])
+          let defaultLayouts = await getAllExamLayouts(currentClinic?.id)
           if (defaultLayouts.length === 0) {
-            const res = await apiClient.getExamLayouts(currentClinic?.id)
-            const layoutsData = (res.data || []) as any[]
+            const layoutsData = availableLayoutsData as any[]
             defaultLayouts = layoutsData.filter(l => l.is_default)
             if (defaultLayouts.length === 0 && layoutsData.length > 0) defaultLayouts = [layoutsData[0] as any]
           }
