@@ -88,7 +88,8 @@ Code Guidelines
 - Prefer `class:` style bindings over ternaries when available
 - No TODOs/placeholders; fully implement requested functionality
 - If unsure or unknown, say so rather than guess
-- Dont write too long files, Be shure to be component oriented, oop.
+- Dont write too long files, Be shure to be component oriented.
+- In general in every type of code, write Object Oriented  Programing code.
 
 Environment Targets
 - React, Vite, Electron, TypeScript, TailwindCSS, HTML, CSS
