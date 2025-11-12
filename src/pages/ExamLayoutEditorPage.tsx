@@ -34,6 +34,7 @@ import { getExamLayoutById, createExamLayout, updateExamLayout } from "@/lib/db/
 import { examComponentRegistry } from "@/lib/exam-component-registry"
 import { Eye, EyeOff } from "lucide-react"
 import { useUser } from "@/contexts/UserContext"
+import { useRowWidthTracking } from "@/hooks/shared/useRowWidthTracking"
 
 interface CardRow {
   id: string
@@ -301,30 +302,9 @@ export default function ExamLayoutEditorPage() {
     { id: 'row-2', cards: [{ id: 'notes-1', type: 'notes' }] }
   ])
 
-  // Store custom widths for cards that have been manually resized
   const [customWidths, setCustomWidths] = useState<Record<string, Record<string, number>>>({})
 
-  // Track row widths for responsive fixedPx calculation
-  const [rowWidths, setRowWidths] = useState<Record<string, number>>({})
-  const rowRefs = useRef<Record<string, HTMLDivElement | null>>({})
-
-  useLayoutEffect(() => {
-    const observers: ResizeObserver[] = []
-    Object.entries(rowRefs.current).forEach(([rowId, el]) => {
-      if (el) {
-        const observer = new ResizeObserver(entries => {
-          for (const entry of entries) {
-            setRowWidths(prev => ({ ...prev, [rowId]: entry.contentRect.width }))
-          }
-        })
-        observer.observe(el)
-        observers.push(observer)
-      }
-    })
-    return () => {
-      observers.forEach(o => o.disconnect())
-    }
-  }, [cardRows])
+  const { rowWidths, rowRefs } = useRowWidthTracking(cardRows)
 
   const handleToggleEyeLabels = (rowIndex: number, cardId: string) => {
     setCardRows(prevRows =>

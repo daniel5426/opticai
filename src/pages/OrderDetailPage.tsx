@@ -87,7 +87,7 @@ import ContactOrderTab from "@/components/orders/ContactOrderTab";
 import { docxGenerator } from "@/lib/docx-generator";
 import { OrderToDocxMapper } from "@/lib/order-to-docx-mapper";
 import { UnsavedChangesDialog } from "@/components/unsaved-changes-dialog";
-import { useNavigationGuard } from "@/contexts/NavigationGuardContext";
+import { useUnsavedChanges } from "@/hooks/shared/useUnsavedChanges";
 
 interface OrderDetailPageProps {
   mode?: "view" | "edit" | "new";
@@ -179,14 +179,6 @@ export default function OrderDetailPage({
   const [orderIdForData, setOrderIdForData] = useState<number | null>(null);
 
   const isNewMode = mode === "new";
-  const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
-  const pendingNavigationRef = useRef<(() => void) | null>(null);
-  const baselineRef = useRef<string>("");
-  const baselineInitializedRef = useRef(false);
-  const allowNavigationRef = useRef(false);
-  const blockerProceedRef = useRef<(() => void) | null>(null);
-  const blockerResetRef = useRef<(() => void) | null>(null);
-  const [isSaveInFlight, setIsSaveInFlight] = useState(false);
   const [isEditing, setIsEditing] = useState(isNewMode);
   const [activeTab, setActiveTab] = useState("orders");
 
@@ -283,40 +275,22 @@ export default function OrderDetailPage({
     ],
   );
 
-  const checkDirty = useCallback(() => {
-    if (!baselineInitializedRef.current) return false;
-    if (!isEditing && !isNewMode) return false;
-    return getSerializedState() !== baselineRef.current;
-  }, [getSerializedState, isEditing, isNewMode]);
-
-  const hasUnsavedChanges = checkDirty();
-
-  const setBaseline = useCallback(
-    (override?: {
-      isContactMode: boolean;
-      formData: Order;
-      lensFormData: OrderLens;
-      frameFormData: Frame;
-      orderDetailsFormData: OrderDetails;
-      billingFormData: Billing;
-      finalPrescriptionFormData: FinalPrescriptionExam;
-      contactFormData: any;
-      contactLensExamData: any;
-      contactLensDetailsData: any;
-      keratoCLData: any;
-      schirmerData: any;
-      diametersData: any;
-      orderLineItems: OrderLineItem[];
-      deletedOrderLineItemIds: number[];
-    }) => {
-      const serialized = override
-        ? JSON.stringify(override)
-        : getSerializedState();
-      baselineRef.current = serialized;
-      baselineInitializedRef.current = true;
-    },
-    [getSerializedState],
-  );
+  const {
+    hasUnsavedChanges,
+    showUnsavedDialog,
+    isSaveInFlight,
+    setIsSaveInFlight,
+    handleNavigationAttempt,
+    handleUnsavedConfirm,
+    handleUnsavedCancel,
+    setBaseline,
+    baselineInitializedRef,
+    allowNavigationRef
+  } = useUnsavedChanges({
+    getSerializedState,
+    isEditing,
+    isNewMode
+  });
 
   const type: ExamComponentType = "final-prescription";
   const examFormData = { [type]: finalPrescriptionFormData };
@@ -382,67 +356,6 @@ export default function OrderDetailPage({
 
   const formRef = useRef<HTMLFormElement>(null);
   const navigate = useNavigate();
-  const { registerGuard } = useNavigationGuard();
-
-  const blockerState = useBlocker(
-    {
-      shouldBlockFn: () => hasUnsavedChanges && !allowNavigationRef.current,
-      withResolver: true,
-      disabled: !hasUnsavedChanges,
-      enableBeforeUnload: false,
-    },
-    hasUnsavedChanges,
-  );
-
-  useEffect(() => {
-    if (blockerState.status === "blocked") {
-      blockerProceedRef.current = blockerState.proceed ?? null;
-      blockerResetRef.current = blockerState.reset ?? null;
-      pendingNavigationRef.current = null;
-      setShowUnsavedDialog(true);
-    } else if (blockerState.status === "idle") {
-      blockerProceedRef.current = null;
-      blockerResetRef.current = null;
-    }
-  }, [blockerState.status, blockerState.proceed, blockerState.reset]);
-
-  const handleNavigationAttempt = useCallback(
-    (action: () => void) => {
-      if (checkDirty()) {
-        pendingNavigationRef.current = action;
-        setShowUnsavedDialog(true);
-        return;
-      }
-      action();
-    },
-    [checkDirty],
-  );
-
-  const handleUnsavedConfirm = useCallback(() => {
-    setShowUnsavedDialog(false);
-    allowNavigationRef.current = true;
-    const action = pendingNavigationRef.current;
-    pendingNavigationRef.current = null;
-    if (action) {
-      action();
-    } else {
-      blockerProceedRef.current?.();
-    }
-    setTimeout(() => {
-      allowNavigationRef.current = false;
-    }, 0);
-  }, []);
-
-  const handleUnsavedCancel = useCallback(() => {
-    setShowUnsavedDialog(false);
-    pendingNavigationRef.current = null;
-    blockerResetRef.current?.();
-  }, []);
-
-  useEffect(() => {
-    registerGuard(handleNavigationAttempt);
-    return () => registerGuard(null);
-  }, [handleNavigationAttempt, registerGuard]);
 
   const handleTabChange = (value: string) => {
     if (clientId && value !== "orders") {
@@ -557,24 +470,6 @@ export default function OrderDetailPage({
       setBaseline();
     }
   }, [loading, setBaseline]);
-
-  useEffect(() => {
-    if (!hasUnsavedChanges) return;
-    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
-      event.preventDefault();
-      event.returnValue = "";
-    };
-    window.addEventListener("beforeunload", handleBeforeUnload);
-    return () => {
-      window.removeEventListener("beforeunload", handleBeforeUnload);
-    };
-  }, [hasUnsavedChanges]);
-
-  useEffect(() => {
-    if (hasUnsavedChanges) return;
-    pendingNavigationRef.current = null;
-    setShowUnsavedDialog(false);
-  }, [hasUnsavedChanges]);
 
   useEffect(() => {
     if (order && Object.keys(order).length > 0) {
