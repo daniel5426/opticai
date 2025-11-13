@@ -859,6 +859,10 @@ export interface ExamLayout {
   layout_data: string; // JSON string of layout configuration with custom widths
   is_default?: boolean;
   is_active?: boolean;
+  sort_index?: number;
+  parent_layout_id?: number | null;
+  is_group?: boolean;
+  children?: ExamLayout[];
   created_at?: string;
   updated_at?: string;
 }

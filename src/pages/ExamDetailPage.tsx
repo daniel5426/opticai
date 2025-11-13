@@ -1,13 +1,16 @@
-import React, { useState, useRef, useEffect, useCallback, useLayoutEffect } from "react"
+import React, { useState, useRef, useEffect, useCallback, useLayoutEffect, useMemo } from "react"
 import { useParams, useNavigate, Link, useLocation, useBlocker } from "@tanstack/react-router"
+import { DndContext, DragEndEvent, DragOverEvent, DragOverlay, DragStartEvent, PointerSensor, useSensor, useSensors, closestCenter, rectIntersection, pointerWithin, CollisionDetection } from '@dnd-kit/core'
+import { SortableContext, arrayMove, horizontalListSortingStrategy, useSortable } from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import { SiteHeader } from "@/components/site-header"
 import { getClientById } from "@/lib/db/clients-db"
 import { getExamById, getExamWithLayouts, updateExam, createExam, getExamPageData } from "@/lib/db/exams-db"
 import { OpticalExam, Client, User, ExamLayout, ExamLayoutInstance, NotesExam } from "@/lib/db/schema-interface"
 import { getAllExamLayouts, getDefaultExamLayout, getDefaultExamLayouts, getExamLayoutInstancesByExamId, getActiveExamLayoutInstanceByExamId, setActiveExamLayoutInstance, addLayoutToExam, getExamLayoutById, deleteExamLayoutInstance, createExamLayoutInstance, updateExamLayoutInstance } from "@/lib/db/exam-layouts-db"
 import { Button } from "@/components/ui/button"
-import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu"
-import { ChevronDownIcon, PlusCircleIcon, X as XIcon, RefreshCw } from "lucide-react"
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuSubContent } from "@/components/ui/dropdown-menu"
+import { ChevronDownIcon, PlusCircleIcon, X as XIcon, RefreshCw, FolderTree } from "lucide-react"
 import { toast } from "sonner"
 import { useUser } from "@/contexts/UserContext"
 import { ExamCardRenderer, CardItem, DetailProps, calculateCardWidth, hasNoteCard, createDetailProps, getColumnCount, getMaxWidth } from "@/components/exam/ExamCardRenderer"
@@ -25,10 +28,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { UnsavedChangesDialog } from "@/components/unsaved-changes-dialog"
 import { useUnsavedChanges } from "@/hooks/shared/useUnsavedChanges"
 import { useRowWidthTracking } from "@/hooks/shared/useRowWidthTracking"
-import { useCoverTestTabs } from "@/hooks/exam/useCoverTestTabs"
-import { useExamFormState } from "@/hooks/exam/useExamFormState"
-import { sortKeysDeep } from "@/helpers/examDataUtils"
-import { FULL_DATA_NAME } from "@/helpers/fullDataPackingUtils"
+import { ExamDetailsCard } from "@/components/exam/ExamDetailsCard"
 
 interface ExamDetailPageProps {
   mode?: 'view' | 'edit' | 'new';
@@ -79,6 +79,45 @@ const pageConfig = {
   }
 };
 
+const flattenExamLayouts = (nodes: ExamLayout[]): ExamLayout[] => {
+  const list: ExamLayout[] = [];
+  nodes.forEach((node) => {
+    list.push(node);
+    if (node.children && node.children.length) {
+      list.push(...flattenExamLayouts(node.children as ExamLayout[]));
+    }
+  });
+  return list;
+};
+
+const sortKeysDeep = (value: any): any => {
+  if (Array.isArray(value)) {
+    return value
+      .map(sortKeysDeep)
+      .filter((item) => item !== undefined)
+  }
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    return Object.keys(value)
+      .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0))
+      .reduce((acc, key) => {
+        const child = sortKeysDeep(value[key])
+        if (child !== undefined) {
+          acc[key] = child
+        }
+        return acc
+      }, {} as Record<string, any>)
+  }
+  if (value === null) return null
+  if (typeof value === "string") {
+    const trimmed = value.trim()
+    return trimmed === "" ? undefined : trimmed
+  }
+  if (typeof value === "number" || typeof value === "boolean") {
+    return String(value)
+  }
+  return value
+}
+
 export default function ExamDetailPage({
   mode = 'view',
   clientId: propClientId,
@@ -87,6 +126,17 @@ export default function ExamDetailPage({
   onSave,
   onCancel
 }: ExamDetailPageProps = {}) {
+  const shallowEqual = (a: any, b: any) => {
+    if (a === b) return true
+    if (!a || !b) return false
+    const aKeys = Object.keys(a)
+    const bKeys = Object.keys(b)
+    if (aKeys.length !== bKeys.length) return false
+    for (const k of aKeys) {
+      if (a[k] !== b[k]) return false
+    }
+    return true
+  }
   const location = useLocation();
   const pageType = propPageType || (location.pathname.includes('/contact-lenses') ? 'contact-lens' : 'exam');
   const config = pageConfig[pageType];
@@ -132,7 +182,14 @@ export default function ExamDetailPage({
   const [availableLayouts, setAvailableLayouts] = useState<ExamLayout[]>([])
   const [activeInstanceId, setActiveInstanceId] = useState<number | null>(null)
   const [layoutTabs, setLayoutTabs] = useState<LayoutTab[]>([])
+  const [isAddingLayouts, setIsAddingLayouts] = useState(false)
+  const layoutTabsRef = useRef<LayoutTab[]>([])
+  const tempLayoutIdCounterRef = useRef(0)
   const { currentUser, currentClinic } = useUser()
+  
+  useEffect(() => {
+    layoutTabsRef.current = layoutTabs
+  }, [layoutTabs])
   
   // Unified state management for all exam components
   const [examComponentData, setExamComponentData] = useState<Record<string, any>>({})
@@ -166,15 +223,87 @@ export default function ExamDetailPage({
   ])
 
   const [customWidths, setCustomWidths] = useState<Record<string, Record<string, number>>>({})
+  const [activeCoverTestTabs, setActiveCoverTestTabs] = useState<Record<string, number>>({})
+  const [activeDragId, setActiveDragId] = useState<string | null>(null)
+  const [draggedTabWidth, setDraggedTabWidth] = useState<number | null>(null)
+  const [isRegeneratingFullData, setIsRegeneratingFullData] = useState(false)
+  const tabRefs = useRef<Record<string, HTMLElement | null>>({})
+  const lastOverIdRef = useRef<string | null>(null)
+  const flattenedAvailableLayouts = useMemo(() => flattenExamLayouts(availableLayouts), [availableLayouts])
+  const layoutMap = useMemo(() => {
+    const map = new Map<number, ExamLayout>()
+    flattenedAvailableLayouts.forEach((layout) => {
+      if (layout.id != null) {
+        map.set(layout.id, layout)
+      }
+    })
+    return map
+  }, [flattenedAvailableLayouts])
+  const childrenByParentId = useMemo(() => {
+    const map = new Map<number, ExamLayout[]>()
+    flattenedAvailableLayouts.forEach((layout) => {
+      if (layout.parent_layout_id == null || layout.id == null) return
+      const list = map.get(layout.parent_layout_id) ?? []
+      list.push(layout)
+      map.set(layout.parent_layout_id, list)
+    })
+    map.forEach((list) => {
+      list.sort((a, b) => {
+        const sortDiff = (a.sort_index ?? 0) - (b.sort_index ?? 0)
+        if (sortDiff !== 0) return sortDiff
+        return (a.id ?? 0) - (b.id ?? 0)
+      })
+    })
+    return map
+  }, [flattenedAvailableLayouts])
+  const isGroupLayout = useCallback((layout?: ExamLayout | null) => {
+    if (!layout) return false
+    if (layout.is_group) return true
+    if (Array.isArray(layout.children) && layout.children.length > 0) return true
+    if (layout.id != null) {
+      const children = childrenByParentId.get(layout.id) ?? []
+      if (children.length > 0) return true
+    }
+    return false
+  }, [childrenByParentId])
+  const leafLayouts = useMemo(() => flattenedAvailableLayouts.filter(layout => !isGroupLayout(layout)), [flattenedAvailableLayouts, isGroupLayout])
+  const collectDescendantLayouts = useCallback((groupId: number): ExamLayout[] => {
+    const collected: ExamLayout[] = []
+    const visit = (currentId: number) => {
+      const children = childrenByParentId.get(currentId) ?? []
+      children.forEach((child) => {
+        if (child.id == null) {
+          return
+        }
+        if (isGroupLayout(child)) {
+          visit(child.id)
+        } else {
+          collected.push(child)
+        }
+      })
+    }
+    visit(groupId)
+    return collected
+  }, [childrenByParentId, isGroupLayout])
+  const computedCoverTestTabs = React.useMemo(() => {
+    const map: Record<string, string[]> = {}
+    const coverCardIds: string[] = []
+    cardRows.forEach(row => {
+      row.cards.forEach(card => { if (card.type === 'cover-test') coverCardIds.push(card.id) })
+    })
+    coverCardIds.forEach(cardId => {
+      const keys = Object.keys(examFormData).filter(k => k.startsWith(`cover-test-${cardId}-`))
+      if (keys.length === 0) return
+      const pairs = keys.map(k => ({
+        tabId: k.replace(`cover-test-${cardId}-`, ''),
+        idx: Number((examFormData[k]?.tab_index ?? 0) as any) || 0
+      }))
+      pairs.sort((a, b) => a.idx - b.idx)
+      map[cardId] = pairs.map(p => p.tabId)
+    })
+    return map
+  }, [examFormData, JSON.stringify(cardRows)])
   const latestLoadIdRef = useRef(0)
-
-  const {
-    activeCoverTestTabs,
-    setActiveCoverTestTabs,
-    computedCoverTestTabs,
-    addCoverTestTab,
-    removeCoverTestTab
-  } = useCoverTestTabs(cardRows, examFormData, setExamFormData, activeInstanceId, loading)
 
   const getSerializedState = useCallback(() => JSON.stringify({
     formData: sortKeysDeep(formData),
@@ -336,6 +465,28 @@ export default function ExamDetailPage({
     setExamFormDataByInstance(prev => ({ ...prev, [instanceKey]: initialData }))
   }
 
+  const applyLayoutStructure = (layoutData?: string) => {
+    if (!layoutData) {
+      setCardRows([])
+      setCustomWidths({})
+      return
+    }
+    try {
+      const parsed = JSON.parse(layoutData)
+      if (Array.isArray(parsed)) {
+        setCardRows(parsed)
+        setCustomWidths({})
+      } else {
+        setCardRows(parsed.rows || [])
+        setCustomWidths(parsed.customWidths || {})
+      }
+    } catch (error) {
+      console.error('Error parsing layout structure:', error)
+      setCardRows([])
+      setCustomWidths({})
+    }
+  }
+
   // Load all exam component data for a layout instance
   const loadExamComponentData = async (layoutInstanceId: number, layoutData?: string, setCurrent: boolean = false) => {
     try {
@@ -414,16 +565,115 @@ export default function ExamDetailPage({
     }
   }
 
-  const { fieldHandlers } = useExamFormState(
-    cardRows,
-    examFormData,
-    setExamFormData,
-    examFormDataByInstance,
-    setExamFormDataByInstance,
-    activeInstanceId,
-    computedCoverTestTabs
-  )
-  
+  const normalizeFieldValue = (previous: any, rawValue: string) => {
+    const trimmed = typeof rawValue === "string" ? rawValue.trim() : rawValue
+    if (trimmed === "") {
+      if (previous === null) return null
+      return undefined
+    }
+    if (typeof previous === "number") {
+      const normalizedNumber = Number(String(trimmed).replace(",", "."))
+      return Number.isFinite(normalizedNumber) ? normalizedNumber : rawValue
+    }
+    if (typeof previous === "boolean") {
+      if (trimmed === "true" || trimmed === "1") return true
+      if (trimmed === "false" || trimmed === "0") return false
+      return rawValue
+    }
+    return trimmed
+  }
+
+  // Create field change handlers for all components
+  const createFieldHandlers = () => {
+    const handlers: Record<string, (field: string, value: string) => void> = {}
+    
+    examComponentRegistry.getAllTypes().forEach(type => {
+      handlers[type] = (field: string, value: string) => {
+        setExamFormData(prev => {
+          const prevComponent = prev[type] || {}
+          const prevValue = prevComponent[field]
+          const normalized = normalizeFieldValue(prevValue, value)
+          const nextComponent = { ...prevComponent }
+          if (nextComponent.layout_instance_id == null && activeInstanceId != null) {
+            nextComponent.layout_instance_id = activeInstanceId
+          }
+          if (normalized === undefined) {
+            delete nextComponent[field]
+          } else {
+            nextComponent[field] = normalized
+          }
+          return {
+            ...prev,
+            [type]: nextComponent
+          }
+        })
+      }
+    })
+
+    // Create field handlers for notes card instances
+    if (cardRows) {
+      cardRows.forEach(row => {
+        row.cards.forEach(card => {
+          if (card.type === 'notes') {
+            const key = `notes-${card.id}`
+            handlers[key] = (field: string, value: string) => {
+              setExamFormData(prev => {
+                const prevNote = prev[key] || {}
+                const normalized = normalizeFieldValue(prevNote[field], value)
+                const nextNote = { ...prevNote }
+                if (nextNote.layout_instance_id == null && activeInstanceId != null) {
+                  nextNote.layout_instance_id = activeInstanceId
+                }
+                if (normalized === undefined) {
+                  delete nextNote[field]
+                } else {
+                  nextNote[field] = normalized
+                }
+                return {
+                  ...prev,
+                  [key]: nextNote
+                }
+              })
+            }
+          }
+          if (card.type === 'cover-test') {
+            const cardId = card.id
+            const tabIds = computedCoverTestTabs[cardId] || []
+            tabIds.forEach(tabId => {
+              const key = `cover-test-${cardId}-${tabId}`
+              handlers[key] = (field, value) => {
+                setExamFormData(prev => {
+                  const tabIndex = (computedCoverTestTabs[cardId] || []).indexOf(tabId)
+                  const prevTab = prev[key] || {}
+                  const normalized = normalizeFieldValue(prevTab[field], value)
+                  const nextTab = {
+                    ...prevTab,
+                    card_instance_id: tabId,
+                    card_id: cardId,
+                    tab_index: tabIndex,
+                    layout_instance_id: prevTab.layout_instance_id ?? activeInstanceId
+                  }
+                  if (normalized === undefined) {
+                    delete nextTab[field]
+                  } else {
+                    nextTab[field] = normalized
+                  }
+                  return {
+                    ...prev,
+                    [key]: nextTab
+                  }
+                })
+              }
+            })
+          }
+        })
+      })
+    }
+    
+    return handlers
+  }
+
+  const fieldHandlers = createFieldHandlers()
   const toolboxActions = createToolboxActions(examFormData, fieldHandlers)
 
   const { currentClient, setActiveTab: setSidebarActiveTab } = useClientSidebar()
@@ -474,31 +724,35 @@ export default function ExamDetailPage({
                   setCardRows(parsedLayout.rows || [])
                   setCustomWidths(parsedLayout.customWidths || {})
                 }
-                if (chosen.layout && chosen.layout.layout_data) {
+
+                // Populate examFormDataByInstance for ALL instances from the page-data response
+                const initialFormDataByInstance: Record<number, any> = {}
+                instances.forEach((instanceData: any) => {
+                  if (instanceData.exam_data && typeof instanceData.exam_data === 'object') {
+                    initialFormDataByInstance[instanceData.instance.id] = instanceData.exam_data
+                  }
+                })
+                setExamFormDataByInstance(initialFormDataByInstance)
+
+                // Set the active instance data to the form
+                const activeExamData = initialFormDataByInstance[chosen.instance.id]
+                const chosenTab = layoutTabs.find(tab => tab.id === chosenInstId)
+
+                if (chosenTab && chosenTab.name === FULL_DATA_NAME) {
+                  // For Full Data, always rebuild aggregated data to ensure it's current
+                  const seedBucket = buildFullDataBucket(chosen.instance.id)
+                  setExamFormData(seedBucket)
+                  setExamFormDataByInstance(prev => ({ ...prev, [chosen.instance.id]: seedBucket }))
+                } else if (activeExamData && Object.keys(activeExamData).length > 0) {
+                  setExamFormData(activeExamData)
+                } else if (chosen.layout && chosen.layout.layout_data) {
+                  // Fallback for instances without exam_data
                   await loadExamComponentData(chosen.instance.id, layoutDataStr, true)
                 } else {
-                  const seedBucket = buildFullDataBucket(chosen.instance.id, layoutDataStr)
+                  const seedBucket = buildFullDataBucket(chosen.instance.id)
                   setExamFormData(seedBucket)
                   setExamFormDataByInstance(prev => ({ ...prev, [chosen.instance.id]: seedBucket }))
                 }
-                if (chosen.exam_data && typeof chosen.exam_data === 'object') {
-                  setExamFormData(chosen.exam_data)
-                  setExamFormDataByInstance(prev => ({ ...prev, [chosen.instance.id]: chosen.exam_data }))
-                }
-              }
-              const others = (instances || []).filter((e: any) => e?.instance?.id !== (chosen_active_instance_id))
-              if (others.length > 0) {
-                setTimeout(() => {
-                  const preloadPromises: Promise<void>[] = []
-                  others.forEach((e: any) => {
-                    const inst = e.instance
-                    const l = e.layout
-                    if (inst?.id && l && l.layout_data) {
-                      preloadPromises.push(loadExamComponentData(inst.id, l.layout_data))
-                    }
-                  })
-                  void Promise.all(preloadPromises)
-                }, 0)
               }
               if (Array.isArray(available_layouts)) {
                 setAvailableLayouts(available_layouts as any)
@@ -506,16 +760,13 @@ export default function ExamDetailPage({
             }
           }
         } else {
-          const availableLayoutsResponse = await apiClient.getExamLayouts(currentClinic?.id)
-          if (!availableLayoutsResponse.error) {
-            setAvailableLayouts(availableLayoutsResponse.data || [])
-          }
-          const availableLayoutsData = availableLayoutsResponse.error ? [] : (availableLayoutsResponse.data || [])
-          let defaultLayouts = (await getAllExamLayouts(currentClinic?.id)).filter(layout => layout.is_default)
-          if (defaultLayouts.length === 0) {
-            const layoutsData = availableLayoutsData as any[]
-            defaultLayouts = layoutsData.filter(l => l.is_default)
-            if (defaultLayouts.length === 0 && layoutsData.length > 0) defaultLayouts = [layoutsData[0] as any]
+          const layoutsTree = await getAllExamLayouts(currentClinic?.id)
+          setAvailableLayouts(layoutsTree as ExamLayout[])
+          const flattenedLayouts = flattenExamLayouts(layoutsTree as ExamLayout[])
+          const selectableLayouts = flattenedLayouts.filter(layout => !isGroupLayout(layout))
+          let defaultLayouts = selectableLayouts.filter(layout => layout.is_default)
+          if (defaultLayouts.length === 0 && selectableLayouts.length > 0) {
+            defaultLayouts = [selectableLayouts[0]]
           }
           if (defaultLayouts.length > 0) {
             const layoutTabsData: LayoutTab[] = []
@@ -577,6 +828,105 @@ export default function ExamDetailPage({
   useEffect(() => {
     if (exam) setFormData({ ...exam })
   }, [exam])
+
+  useEffect(() => {
+    if (activeInstanceId != null) {
+      const bucket = examFormDataByInstance[activeInstanceId]
+      if (!shallowEqual(bucket || {}, examFormData)) {
+        setExamFormData(bucket || {})
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeInstanceId])
+
+  useEffect(() => {
+    if (activeInstanceId != null) {
+      const currentBucket = examFormDataByInstance[activeInstanceId] || {}
+      if (!shallowEqual(currentBucket, examFormData)) {
+        setExamFormDataByInstance(prev => ({
+          ...prev,
+          [activeInstanceId]: examFormData
+        }))
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [examFormData])
+
+  // Ensure there is a first tab when none exist for a cover-test card
+  useEffect(() => {
+    if (loading) return
+    const coverCardIds: string[] = []
+    cardRows.forEach(row => row.cards.forEach(card => { if (card.type === 'cover-test') coverCardIds.push(card.id) }))
+    if (coverCardIds.length === 0) return
+    // Create the first tab lazily per card if no keys exist yet
+    let changed = false
+    const updates: Record<string, any> = {}
+    coverCardIds.forEach(cardId => {
+      const keys = Object.keys(examFormData).filter(k => k.startsWith(`cover-test-${cardId}-`))
+      if (keys.length === 0) {
+        const tabId = uuidv4()
+        const key = `cover-test-${cardId}-${tabId}`
+        updates[key] = {
+          card_instance_id: tabId,
+          card_id: cardId,
+          tab_index: 0,
+          layout_instance_id: activeInstanceId,
+          deviation_type: null,
+          deviation_direction: null,
+          fv_1: null,
+          fv_2: null,
+          nv_1: null,
+          nv_2: null
+        }
+        changed = true
+        setActiveCoverTestTabs(prev => ({ ...prev, [cardId]: 0 }))
+      }
+    })
+    if (changed) setExamFormData(prev => ({ ...prev, ...updates }))
+    // eslint-disable-next-line
+  }, [JSON.stringify(cardRows), activeInstanceId, loading])
+
+  // Tab management functions: derive tabs from data; we only add/remove by mutating examFormData
+  const addCoverTestTab = (cardId: string) => {
+    const newTabId = uuidv4()
+    const keyPrefix = `cover-test-${cardId}-`
+    const currentTabs = Object.keys(examFormData).filter(k => k.startsWith(keyPrefix))
+    const tabIndex = currentTabs.length
+    setExamFormData(formData => ({
+      ...formData,
+      [`${keyPrefix}${newTabId}`]: {
+        card_instance_id: newTabId,
+        card_id: cardId,
+        tab_index: tabIndex,
+        layout_instance_id: activeInstanceId,
+        deviation_type: null,
+        deviation_direction: null,
+        fv_1: null,
+        fv_2: null,
+        nv_1: null,
+        nv_2: null
+      }
+    }))
+    setActiveCoverTestTabs(prev => ({ ...prev, [cardId]: tabIndex }))
+  }
+  const removeCoverTestTab = (cardId: string, tabIdx: number) => {
+    const tabs = computedCoverTestTabs[cardId] || []
+    if (tabs.length <= 1) return
+    const toRemoveId = tabs[tabIdx]
+    const key = `cover-test-${cardId}-${toRemoveId}`
+    setExamFormData(prev => {
+      const updated = { ...prev }
+      delete updated[key]
+      // Recompute indices
+      const remaining = (computedCoverTestTabs[cardId] || []).filter((_, i) => i !== tabIdx)
+      remaining.forEach((tabId, idx) => {
+        const k = `cover-test-${cardId}-${tabId}`
+        if (updated[k]) updated[k] = { ...updated[k], tab_index: idx }
+      })
+      return updated
+    })
+    setActiveCoverTestTabs(prev => ({ ...prev, [cardId]: Math.max(0, Math.min(prev[cardId] || 0, (tabs.length - 2))) }))
+  }
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
@@ -751,110 +1101,151 @@ export default function ExamDetailPage({
       }
       const existingBucket = examFormDataByInstance[selectedTab.id]
       if (selectedTab.name === FULL_DATA_NAME && selectedTab.layout_data) {
-        const refreshedBucket = buildFullDataBucket(selectedTab.id, selectedTab.layout_data)
+        const refreshedBucket = buildFullDataBucket(selectedTab.id)
         setExamFormDataByInstance(prev => ({ ...prev, [selectedTab.id]: refreshedBucket }))
         setExamFormData(refreshedBucket)
       } else if (existingBucket && Object.keys(existingBucket).length > 0) {
         setExamFormData(existingBucket)
       }
       
-      // Load data and update database in parallel
-      const promises = []
-      
-      if (!isNewMode && selectedTab.name !== FULL_DATA_NAME && (!isEditing || !(existingBucket && Object.keys(existingBucket).length > 0))) {
-        promises.push((async () => {
-          await loadExamComponentData(selectedTab.id, selectedTab.layout_data)
-          if (loadId === latestLoadIdRef.current) {
-            const bucket = examFormDataByInstance[selectedTab.id]
-            if (bucket && Object.keys(bucket).length > 0) {
-              setExamFormData(bucket)
-            }
-          }
-        })())
-      }
-      
+      // Update database - no need to load data since it's already available
       if (exam && exam.id && !isNewMode) {
-        promises.push(setActiveExamLayoutInstance(exam.id, tabId))
+        await setActiveExamLayoutInstance(exam.id, tabId)
       }
-      
-      await Promise.all(promises)
     } catch (error) {
       console.error('Error changing layout tab:', error)
       toast.error('שגיאה בהחלפת לשונית פריסה')
     }
   }
 
-  const handleAddLayoutTab = async (layoutId: number) => {
-    const layoutToAdd = availableLayouts.find(layout => layout.id === layoutId)
-    if (!layoutToAdd) return
-    
-    if (layoutTabs.some(tab => tab.layout_id === layoutId)) {
-      toast.info(`הפריסה "${layoutToAdd.name}" כבר קיימת בלשוניות`)
-      handleLayoutTabChange(layoutTabs.find(tab => tab.layout_id === layoutId)?.id || 0)
-      return
+  const addLayoutNode = async (layout: ExamLayout, activate: boolean): Promise<{ added: boolean; existed: boolean }> => {
+    if (!layout.id) {
+      return { added: false, existed: false }
     }
-    
+    if (isGroupLayout(layout)) {
+      toast.error("לא ניתן להוסיף קבוצה בלשוניות")
+      return { added: false, existed: false }
+    }
+    toast.info(`הוספת פריסה "${layout.name || ''}"`)
+    const existingTab = layoutTabsRef.current.find(tab => tab.layout_id === layout.id)
+    if (existingTab) {
+      if (activate) {
+        await handleLayoutTabChange(existingTab.id)
+      }
+      return { added: false, existed: true }
+    }
     if (exam && exam.id && !isNewMode) {
-      const newLayoutInstance = await addLayoutToExam(exam.id, layoutId, true)
-      
-      if (newLayoutInstance) {
-        latestLoadIdRef.current++
-        const updatedTabs = layoutTabs.map(tab => ({ ...tab, isActive: false }))
-        
-      const newTab = {
-          id: newLayoutInstance.id || 0,
-          layout_id: layoutId,
-          name: layoutToAdd.name || '',
-          layout_data: layoutToAdd.layout_data || '',
-          isActive: true
-        }
-        
-        setLayoutTabs([...updatedTabs, newTab])
-        setActiveInstanceId(newLayoutInstance.id || null)
-        
-        const parsedLayout = JSON.parse(layoutToAdd.layout_data)
-        if (Array.isArray(parsedLayout)) {
-          setCardRows(parsedLayout)
-          setCustomWidths({})
-        } else {
-          setCardRows(parsedLayout.rows || [])
-          setCustomWidths(parsedLayout.customWidths || {})
-        }
-        
-        // Load data for the new layout instance
-        if (newLayoutInstance && newLayoutInstance.id) {
-          await loadExamComponentData(newLayoutInstance.id, layoutToAdd.layout_data);
-        }
-
-        toast.success(`פריסה "${layoutToAdd.name}" הוספה והוחלה`)
-      } else {
+      const newLayoutInstance = await addLayoutToExam(exam.id, layout.id, activate)
+      if (!newLayoutInstance) {
         toast.error('שגיאה בהוספת לשונית פריסה')
+        return { added: false, existed: false }
+      }
+      setLayoutTabs(prev => {
+        const base = activate ? prev.map(tab => ({ ...tab, isActive: false })) : prev
+        return [
+          ...base,
+          {
+            id: newLayoutInstance.id || 0,
+            layout_id: layout.id,
+            name: layout.name || '',
+            layout_data: layout.layout_data || '',
+            isActive: activate
+          }
+        ]
+      })
+      if (activate) {
+        setActiveInstanceId(newLayoutInstance.id || null)
+        applyLayoutStructure(layout.layout_data)
+        if (newLayoutInstance.id) {
+          await loadExamComponentData(newLayoutInstance.id, layout.layout_data)
+        }
       }
     } else {
-      const updatedTabs = layoutTabs.map(tab => ({ ...tab, isActive: false }))
-      
-      const newTab = {
-        id: -Date.now(),
-        layout_id: layoutId,
-        name: layoutToAdd.name || '',
-        layout_data: layoutToAdd.layout_data || '',
-        isActive: true
+      tempLayoutIdCounterRef.current += 1
+      const tempId = -Date.now() - tempLayoutIdCounterRef.current
+      setLayoutTabs(prev => {
+        const base = activate ? prev.map(tab => ({ ...tab, isActive: false })) : prev
+        return [
+          ...base,
+          {
+            id: tempId,
+            layout_id: layout.id,
+            name: layout.name || '',
+            layout_data: layout.layout_data || '',
+            isActive: activate
+          }
+        ]
+      })
+      initializeFormData(tempId, layout.layout_data)
+      if (activate) {
+        setActiveInstanceId(tempId)
+        applyLayoutStructure(layout.layout_data)
       }
-      
-      setLayoutTabs([...updatedTabs, newTab])
-      setActiveInstanceId(newTab.id)
-      
-      const parsedLayout = JSON.parse(layoutToAdd.layout_data)
-      if (Array.isArray(parsedLayout)) {
-        setCardRows(parsedLayout)
-        setCustomWidths({})
-      } else {
-        setCardRows(parsedLayout.rows || [])
-        setCustomWidths(parsedLayout.customWidths || {})
-      }
-      initializeFormData(newTab.id, layoutToAdd.layout_data)
-      toast.success(`פריסה "${layoutToAdd.name}" הוספה והוחלה`)
     }
+    return { added: true, existed: false }
+  }
+
+  const handleSelectLayoutOption = async (layoutId: number) => {
+    const targetLayout = layoutMap.get(layoutId)
+    if (!targetLayout) {
+      toast.error("הפריסה לא נמצאה")
+      return
+    }
+    setIsAddingLayouts(true)
+    try {
+      const groupLike = isGroupLayout(targetLayout)
+      if (groupLike && targetLayout.id != null) {
+        const descendants = collectDescendantLayouts(targetLayout.id).filter((layout) => !isGroupLayout(layout) && layout.id != null && layout.layout_data)
+        if (descendants.length === 0) {
+          toast.info(`לא נמצאו פריסות בקבוצה "${targetLayout.name}"`)
+          return
+        }
+        let addedCount = 0
+        let existingCount = 0
+        let activated = false
+        for (const layout of descendants) {
+          const result = await addLayoutNode(layout, !activated)
+          if (result.added) {
+            addedCount += 1
+            if (!activated) activated = true
+          } else if (result.existed) {
+            existingCount += 1
+            if (!activated) activated = true
+          }
+        }
+        if (addedCount > 0) {
+          toast.success(`נוספו ${addedCount} פריסות מקבוצה "${targetLayout.name}"`)
+        }
+        if (existingCount > 0) {
+          if (addedCount === 0) {
+            toast.info(`כל פריסות הקבוצה "${targetLayout.name}" כבר קיימות`)
+          } else {
+            toast.info(`${existingCount} פריסות כבר היו קיימות`)
+          }
+        }
+        return
+      } else {
+        if (!targetLayout.layout_data) {
+          toast.error("לא נמצאו נתונים עבור פריסה זו")
+          return
+        }
+        const result = await addLayoutNode(targetLayout, true)
+        if (result.added) {
+          toast.success(`פריסה "${targetLayout.name}" הוספה והוחלה`)
+        } else if (result.existed) {
+          toast.info(`הפריסה "${targetLayout.name}" כבר קיימת בלשוניות`)
+        }
+      }
+    } catch (error) {
+      console.error('Error selecting layout option:', error)
+      toast.error('שגיאה בהוספת פריסה')
+    } finally {
+      setIsAddingLayouts(false)
+    }
+  }
+
+  const handleAddLayoutTab = async (layoutId: number) => {
+    await handleSelectLayoutOption(layoutId)
   }
 
   const FULL_DATA_NAME = "Full data"
@@ -952,107 +1343,88 @@ export default function ExamDetailPage({
   }
 
   const ensureAllLayoutsLoaded = async (): Promise<void> => {
-    if (isNewMode) return
-    
-    const promises: Promise<void>[] = []
-    layoutTabs.forEach(tab => {
-      if (tab.id > 0 && tab.name !== FULL_DATA_NAME) {
-        const existingBucket = examFormDataByInstance[tab.id]
-        if (!existingBucket || Object.keys(existingBucket).length === 0) {
-          promises.push(loadExamComponentData(tab.id, tab.layout_data))
-        }
-      }
-    })
-    
-    if (promises.length > 0) {
-      await Promise.all(promises)
-      await new Promise(resolve => setTimeout(resolve, 50))
-    }
+    // All layout data is now loaded upfront from page-data response
+    // This function is kept for compatibility but no longer makes API calls
+    return Promise.resolve()
   }
 
-  const buildFullDataLayoutData = (): string | null => {
+  const getContributingInstanceIds = (excludeInstanceId?: number | string) => {
+    const excludedKey = excludeInstanceId == null ? null : String(excludeInstanceId)
+    return layoutTabs
+      .filter(tab => tab.name !== FULL_DATA_NAME && (excludedKey === null || String(tab.id) !== excludedKey))
+      .map(tab => String(tab.id))
+  }
+
+  const aggregateAllData = (allowedInstanceIds?: Array<number | string>): Record<string, any> => {
+    const allowed = allowedInstanceIds ? new Set(allowedInstanceIds.map(String)) : null
     const aggregated: Record<string, any> = {}
-    Object.values(examFormDataByInstance).forEach(bucket => {
+
+    Object.entries(examFormDataByInstance).forEach(([instanceKey, bucket]) => {
+      if (allowed && !allowed.has(instanceKey)) return
       Object.entries(bucket || {}).forEach(([key, val]) => {
-        if (val && typeof val === 'object') {
-          if (!aggregated[key]) aggregated[key] = val
+        if ((val as any)?.__deleted) return
+        if (val && typeof val === 'object' && isNonEmptyComponent(key, val)) {
+          aggregated[key] = val
         }
       })
     })
-    const cardDefs: { id: string; type: CardItem['type']; title?: string }[] = []
-    const addedNotesIds = new Set<string>()
-    const addedCoverIds = new Set<string>()
-    Object.entries(aggregated).forEach(([key, value]) => {
-      if (!isNonEmptyComponent(key, value)) return
-      if (key.startsWith('notes-')) {
-        const cardId = key.slice('notes-'.length) || `auto-${Date.now()}`
-        if (!addedNotesIds.has(cardId)) {
-          const title = (value as any)?.title
-          cardDefs.push({ id: cardId, type: 'notes', ...(title ? { title } : {}) })
-          addedNotesIds.add(cardId)
-        }
-        return
-      }
-      if (key.startsWith('cover-test-')) {
-        const rest = key.slice('cover-test-'.length)
-        const dash = rest.indexOf('-')
-        const cardId = dash >= 0 ? rest.slice(0, dash) : (rest || `auto-${Date.now()}`)
-        if (!addedCoverIds.has(cardId)) {
-          cardDefs.push({ id: cardId, type: 'cover-test' })
-          addedCoverIds.add(cardId)
-        }
-        return
-      }
-      const type = key as CardItem['type']
-      const cId = `${type}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
-      if (type === 'corneal-topography' && (value as any)?.title) {
-        cardDefs.push({ id: cId, type, title: (value as any).title })
-      } else {
-        cardDefs.push({ id: cId, type })
-      }
-    })
-    if (cardDefs.length === 0) return null
-    const rows = packCardsIntoRows(cardDefs)
-    const layout = { rows, customWidths: {} as Record<string, Record<string, number>> }
-    return JSON.stringify(layout)
-  }
 
-  const aggregateAllData = (): Record<string, any> => {
-    const aggregated: Record<string, any> = {}
-    Object.values(examFormDataByInstance).forEach(bucket => {
-      Object.entries(bucket || {}).forEach(([key, val]) => {
-        if (val && typeof val === 'object') {
-          if (!aggregated[key]) aggregated[key] = val
-        }
-      })
-    })
     return aggregated
   }
 
-  const buildFullDataBucket = (instanceId: number, layoutData: string): Record<string, any> => {
-    const aggregated = aggregateAllData()
+  const buildFullDataLayoutData = (): string | null => {
+    const aggregated = aggregateAllData(getContributingInstanceIds())
+    const entries = Object.entries(aggregated)
+    if (entries.length === 0) return null
+
+    const cardDefs: { id: string; type: CardItem['type']; title?: string }[] = []
+    const addedStandard = new Set<string>()
+    const addedCoverCards = new Set<string>()
+
+    entries.forEach(([key, value]) => {
+      if (key.startsWith('notes-')) {
+        if (addedStandard.has(key)) return
+        addedStandard.add(key)
+        const title = (value as any)?.title
+        cardDefs.push({ id: key, type: 'notes', ...(title ? { title } : {}) })
+        return
+      }
+
+      if (key.startsWith('cover-test-')) {
+        const suffix = key.slice('cover-test-'.length)
+        const dashIndex = suffix.indexOf('-')
+        const cardId = dashIndex >= 0 ? suffix.slice(0, dashIndex) : suffix
+        if (addedCoverCards.has(cardId)) return
+        addedCoverCards.add(cardId)
+        cardDefs.push({ id: cardId, type: 'cover-test' })
+        return
+      }
+
+      const type = key as CardItem['type']
+      if (addedStandard.has(type)) return
+      addedStandard.add(type)
+
+      if (type === 'corneal-topography' && (value as any)?.title) {
+        cardDefs.push({ id: key, type, title: (value as any).title })
+      } else {
+        cardDefs.push({ id: key, type })
+      }
+    })
+
+    if (cardDefs.length === 0) return null
+    const rows = packCardsIntoRows(cardDefs)
+    console.log(cardDefs)
+    console.log(rows)
+    const layout = { rows, customWidths: {} as Record<string, Record<string, number>> }
+    console.log(layout)
+    return JSON.stringify(layout)
+  }
+
+  const buildFullDataBucket = (instanceId: number): Record<string, any> => {
+    const aggregated = aggregateAllData(getContributingInstanceIds(instanceId))
     const bucket: Record<string, any> = {}
-    const allowedKeys = new Set<string>()
-    try {
-      const parsed = JSON.parse(layoutData)
-      const rows = Array.isArray(parsed) ? parsed : parsed.rows || []
-      rows.forEach((row: any) => {
-        row.cards?.forEach((card: any) => {
-          if (card.type === 'notes') {
-            allowedKeys.add(`notes-${card.id}`)
-          } else if (card.type === 'cover-test') {
-            const prefix = `cover-test-${card.id}-`
-            Object.keys(aggregated).forEach(k => {
-              if (k.startsWith(prefix)) allowedKeys.add(k)
-            })
-          } else {
-            allowedKeys.add(card.type)
-          }
-        })
-      })
-    } catch {}
+
     Object.entries(aggregated).forEach(([key, val]) => {
-      if (!allowedKeys.has(key)) return
       if (!isNonEmptyComponent(key, val)) return
       const clone = { ...(val as any) }
       clone.layout_instance_id = instanceId
@@ -1060,8 +1432,10 @@ export default function ExamDetailPage({
         const cardId = key.replace('notes-', '')
         clone.card_instance_id = cardId
       }
+      delete (clone as any).__deleted
       bucket[key] = clone
     })
+
     return bucket
   }
 
@@ -1073,9 +1447,7 @@ export default function ExamDetailPage({
       handleLayoutTabChange(existing.id)
       return
     }
-    
-    await ensureAllLayoutsLoaded()
-    
+
     const layoutData = buildFullDataLayoutData()
     if (!layoutData) {
       toast.info('אין נתונים להצגה בפריסת Full data')
@@ -1092,7 +1464,7 @@ export default function ExamDetailPage({
       setLayoutTabs([...updatedTabs, newTab])
       setActiveInstanceId(newInstance.id || null)
       // Seed the instance bucket with aggregated data
-      const seedBucket = buildFullDataBucket(newInstance.id!, layoutData)
+      const seedBucket = buildFullDataBucket(newInstance.id!)
       setExamFormDataByInstance(prev => ({ ...prev, [newInstance.id!]: seedBucket }))
       setExamFormData(seedBucket)
       try {
@@ -1122,7 +1494,7 @@ export default function ExamDetailPage({
           setCustomWidths(parsed.customWidths || {})
         }
       } catch {}
-      const seedBucket = buildFullDataBucket(tempId, layoutData)
+      const seedBucket = buildFullDataBucket(tempId)
       setExamFormData(seedBucket)
       setExamFormDataByInstance(prev => ({ ...prev, [tempId]: seedBucket }))
       toast.success('Full data הוחל לבדיקה')
@@ -1132,37 +1504,40 @@ export default function ExamDetailPage({
   const handleRegenerateFullData = async () => {
     const active = layoutTabs.find(t => t.isActive)
     if (!active || active.name !== FULL_DATA_NAME) return
-    
-    await ensureAllLayoutsLoaded()
-    
-    const layoutData = buildFullDataLayoutData()
-    if (!layoutData) {
-      toast.info('אין עדכונים לפריסת Full data')
-      return
-    }
-    if (exam && exam.id && !isNewMode && active.id > 0) {
-      await updateExamLayoutInstance({ id: active.id, exam_id: exam.id, layout_id: null as any, layout_data: layoutData } as any)
-      const seedBucket = buildFullDataBucket(active.id, layoutData)
-      setExamFormDataByInstance(prev => ({ ...prev, [active.id]: seedBucket }))
-      setExamFormData(seedBucket)
-    } else {
-      const seedBucket = buildFullDataBucket(active.id, layoutData)
-      setExamFormDataByInstance(prev => ({ ...prev, [active.id]: seedBucket }))
-      setExamFormData(seedBucket)
-    }
-    const newTabs = layoutTabs.map(t => t.id === active.id ? { ...t, layout_data: layoutData } : t)
-    setLayoutTabs(newTabs)
+
+    setIsRegeneratingFullData(true)
     try {
-      const parsed = JSON.parse(layoutData)
-      if (Array.isArray(parsed)) {
-        setCardRows(parsed)
-        setCustomWidths({})
-      } else {
-        setCardRows(parsed.rows || [])
-        setCustomWidths(parsed.customWidths || {})
+      const layoutData = buildFullDataLayoutData()
+      if (!layoutData) {
+        toast.info('אין עדכונים לפריסת Full data')
+        return
       }
-    } catch {}
-    toast.success('Full data רועננה')
+      if (exam && exam.id && !isNewMode && active.id > 0) {
+        await updateExamLayoutInstance({ id: active.id, exam_id: exam.id, layout_id: null as any, layout_data: layoutData } as any)
+        const seedBucket = buildFullDataBucket(active.id)
+        setExamFormDataByInstance(prev => ({ ...prev, [active.id]: seedBucket }))
+        setExamFormData(seedBucket)
+      } else {
+        const seedBucket = buildFullDataBucket(active.id)
+        setExamFormDataByInstance(prev => ({ ...prev, [active.id]: seedBucket }))
+        setExamFormData(seedBucket)
+      }
+      const newTabs = layoutTabs.map(t => t.id === active.id ? { ...t, layout_data: layoutData } : t)
+      setLayoutTabs(newTabs)
+      try {
+        const parsed = JSON.parse(layoutData)
+        if (Array.isArray(parsed)) {
+          setCardRows(parsed)
+          setCustomWidths({})
+        } else {
+          setCardRows(parsed.rows || [])
+          setCustomWidths(parsed.customWidths || {})
+        }
+      } catch {}
+      toast.success('Full data רועננה')
+    } finally {
+      setIsRegeneratingFullData(false)
+    }
   }
 
   const handleRemoveLayoutTab = async (tabId: number) => {
@@ -1245,6 +1620,132 @@ export default function ExamDetailPage({
     }
   }
 
+  // Drag and drop sensors and handlers for layout tabs
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    })
+  )
+
+  const handleDragStart = (event: DragStartEvent) => {
+    const id = event.active.id as string
+    setActiveDragId(id)
+    lastOverIdRef.current = id
+    const element = tabRefs.current[id]
+    if (element) {
+      setDraggedTabWidth(element.offsetWidth)
+    }
+  }
+
+  const customCollisionDetection: CollisionDetection = (args) => {
+    const pointerCollisions = pointerWithin(args)
+    
+    if (pointerCollisions.length > 0) {
+      return pointerCollisions
+    }
+    
+    const rectIntersections = rectIntersection(args)
+    return rectIntersections
+  }
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event
+
+    if (over && active.id !== over.id) {
+      const oldIndex = layoutTabs.findIndex((tab) => tab.id.toString() === active.id)
+      const newIndex = layoutTabs.findIndex((tab) => tab.id.toString() === over.id)
+
+      if (oldIndex !== -1 && newIndex !== -1) {
+        setLayoutTabs((tabs) => arrayMove(tabs, oldIndex, newIndex))
+      }
+    }
+
+    setActiveDragId(null)
+    setDraggedTabWidth(null)
+    lastOverIdRef.current = null
+  }
+
+  // Sortable tab component
+  const SortableTab = ({ tab, index, isRegeneratingFullData }: { tab: LayoutTab; index: number; isRegeneratingFullData: boolean }) => {
+    const {
+      attributes,
+      listeners,
+      setNodeRef,
+      transform,
+      transition,
+      isDragging,
+    } = useSortable({ 
+      id: tab.id.toString(),
+      transition: {
+        duration: 200,
+        easing: 'ease'
+      }
+    })
+
+    const setRefs = useCallback((node: HTMLDivElement | null) => {
+      tabRefs.current[tab.id.toString()] = node
+      setNodeRef(node)
+    }, [setNodeRef, tab.id])
+
+    const style = {
+      transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined,
+      transition,
+    }
+
+    return (
+      <div
+        ref={setRefs}
+        style={style}
+        {...attributes}
+        {...listeners}
+        className={`
+          group relative rounded-t-xl transition-all duration-200 cursor-pointer overflow-hidden select-none
+          ${tab.isActive
+            ? 'bg-primary text-primary-foreground shadow-md'
+            : 'hover:bg-muted text-foreground'}
+          ${isDragging ? 'opacity-0' : ''}
+        `}
+        onClick={() => handleLayoutTabChange(tab.id)}
+      >
+        {layoutTabs.length > 1 && isEditing && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              handleRemoveLayoutTab(tab.id);
+            }}
+            className="absolute top-1 right-1 rounded-full w-[14px] h-[14px] opacity-0 group-hover:opacity-100 transition-all duration-200 flex items-center justify-center hover:bg-red-500 hover:text-white z-10"
+            aria-label="הסר לשונית"
+          >
+            <XIcon className="h-2.5 w-2.5" />
+          </button>
+        )}
+        <span className="text-sm py-2 px-5 font-medium whitespace-nowrap flex items-center gap-2">
+          {tab.name}
+          {tab.isActive && tab.name === FULL_DATA_NAME && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                handleRegenerateFullData();
+              }}
+              className="rounded-full w-[18px] h-[18px] flex items-center justify-center hover:bg-primary-foreground/20"
+              aria-label="רענן Full data"
+              title="רענן"
+              disabled={isRegeneratingFullData}
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${isRegeneratingFullData ? 'animate-spin' : ''}`} />
+            </button>
+          )}
+        </span>
+      </div>
+    )
+  }
+
   // Build detail props dynamically
   const detailProps = createDetailProps(
     isEditing,
@@ -1304,6 +1805,140 @@ export default function ExamDetailPage({
       setExamFormData: setExamFormData,
     } as any
   )
+  const activeLayoutTab = layoutTabs.find(tab => tab.isActive)
+  const isFullDataActive = activeLayoutTab?.name === FULL_DATA_NAME
+  const detailPropsWithOverrides: DetailProps = {
+    ...detailProps,
+    isEditing: !isFullDataActive && detailProps.isEditing,
+    coverTestTabs: computedCoverTestTabs,
+    availableExamLayouts: availableLayouts,
+    onSelectLayout: handleSelectLayoutOption,
+    isLayoutSelectionLoading: isAddingLayouts
+  }
+
+  const renderLayoutMenuItems = (nodes: ExamLayout[]): React.ReactNode[] => {
+    return nodes.flatMap((node) => {
+      if (!node.id) {
+        return []
+      }
+      if (isGroupLayout(node)) {
+        return (
+          <DropdownMenuSub key={`group-${node.id}`}>
+            <DropdownMenuSubTrigger dir="rtl" className="flex items-center justify-between text-sm">
+              <span>{node.name}</span>
+              <FolderTree className="h-4 w-4 ml-2" />
+            </DropdownMenuSubTrigger>
+            <DropdownMenuSubContent className="min-w-[220px] text-right">
+              <DropdownMenuItem
+                onClick={() => handleSelectLayoutOption(node.id!)}
+                className="text-sm text-primary"
+              >
+                הוסף את כל הקבוצה
+              </DropdownMenuItem>
+              {renderLayoutMenuItems(node.children || [])}
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
+        )
+      }
+      return (
+        <DropdownMenuItem
+          key={`layout-${node.id}`}
+          dir="rtl"
+          className="text-sm"
+          onClick={() => handleSelectLayoutOption(node.id!)}
+        >
+          <PlusCircleIcon className="h-4 w-4 ml-2" />
+          {node.name}
+        </DropdownMenuItem>
+      )
+    })
+  }
+  const headerActions = (
+    <>
+      {!isNewMode && !isEditing && exam?.id && (
+        <Link
+          to="/clients/$clientId/orders/new"
+          params={{ clientId: String(clientId) }}
+          search={{ examId: String(exam.id) }}
+          onClick={(e) => {
+            if (!hasUnsavedChanges) return
+            e.preventDefault()
+            handleNavigationAttempt(() => {
+              navigate({
+                to: "/clients/$clientId/orders/new",
+                params: { clientId: String(clientId) },
+                search: { examId: String(exam.id) }
+              })
+            })
+          }}
+        >
+          <Button variant="outline" className="h-9 px-4">יצירת הזמנה</Button>
+        </Link>
+      )}
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            variant="outline"
+            className="h-9 px-4 flex items-center gap-1"
+            onClick={async () => {
+              if (leafLayouts.length === 0 && currentClinic?.id) {
+                const res = await apiClient.getExamLayouts(currentClinic.id)
+                if (!res.error) setAvailableLayouts((res.data || []) as ExamLayout[])
+              }
+            }}
+          >
+            <span>פריסות</span>
+            <ChevronDownIcon className="h-4 w-4" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-56">
+          <DropdownMenuItem dir="rtl" className="text-sm font-bold" disabled>
+            הוספת פריסה
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            dir="rtl"
+            className="text-sm"
+            onClick={(e) => {
+              e.preventDefault()
+              handleAddFullDataTab()
+            }}
+          >
+            <PlusCircleIcon className="h-4 w-4 mr-2" />
+            Full data
+          </DropdownMenuItem>
+          {leafLayouts.length === 0 ? (
+            <DropdownMenuItem disabled className="text-sm">
+              אין פריסות זמינות
+            </DropdownMenuItem>
+          ) : (
+            renderLayoutMenuItems(availableLayouts)
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
+      {isNewMode && onCancel && (
+        <Button
+          variant="outline"
+          className="h-9 px-4"
+          onClick={(e) => {
+            e.preventDefault()
+            handleNavigationAttempt(() => {
+              if (onCancel) onCancel()
+            })
+          }}
+        >
+          ביטול
+        </Button>
+      )}
+      <Button
+        variant={isEditing ? "outline" : "default"}
+        className="h-9 px-4"
+        onClick={handleEditButtonClick}
+        title={isFullDataActive ? "פריסת Full data היא לתצוגה בלבד" : undefined}
+      >
+        {isNewMode ? "שמור בדיקה" : isEditing ? "שמור שינויים" : "ערוך בדיקה"}
+      </Button>
+    </>
+  )
 
   if (loading || !currentClient) {
     return (
@@ -1322,9 +1957,9 @@ export default function ExamDetailPage({
                 <DropdownMenu >
                   <DropdownMenuTrigger asChild>
                     <Button variant="outline" className="flex items-center gap-1" onClick={async () => {
-                      if (availableLayouts.length === 0 && currentClinic?.id) {
+                      if (leafLayouts.length === 0 && currentClinic?.id) {
                         const res = await apiClient.getExamLayouts(currentClinic.id)
-                        if (!res.error) setAvailableLayouts((res.data || []) as any)
+                        if (!res.error) setAvailableLayouts((res.data || []) as ExamLayout[])
                       }
                     }}>
                       <span>פריסות</span>
@@ -1333,19 +1968,10 @@ export default function ExamDetailPage({
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-48">
                     <DropdownMenuItem dir="rtl" className="text-sm font-bold" disabled>הוספת פריסה</DropdownMenuItem>
-                    {availableLayouts.length === 0 ? (
-                      <DropdownMenuItem disabled className="text-sm">טוען...</DropdownMenuItem>
+                    {leafLayouts.length === 0 ? (
+                      <DropdownMenuItem disabled className="text-sm">אין פריסות זמינות</DropdownMenuItem>
                     ) : (
-                      availableLayouts.map((layout) => (
-                        <DropdownMenuItem dir="rtl"
-                          key={layout.id} 
-                          onClick={() => handleAddLayoutTab(layout.id || 0)}
-                          className="text-sm"
-                        >
-                          <PlusCircleIcon className="h-4 w-4 mr-2" />
-                          {layout.name}
-                        </DropdownMenuItem>
-                      ))
+                      renderLayoutMenuItems(availableLayouts)
                     )}
                   </DropdownMenuContent>
                 </DropdownMenu>
@@ -1409,142 +2035,64 @@ export default function ExamDetailPage({
       />
       <ClientSpaceLayout>
         <div className="flex flex-col flex-1 p-4  lg:p-5 mb-10 no-scrollbar" dir="rtl" style={{scrollbarWidth: 'none', msOverflowStyle: 'none'}}>
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-semibold">{isNewMode ? config.newTitle : config.detailTitle}</h2>
-            <div className="flex gap-2">
-              {!isNewMode && !isEditing && exam?.id && (
-                <Link
-                  to="/clients/$clientId/orders/new"
-                  params={{ clientId: String(clientId) }}
-                  search={{ examId: String(exam.id) }}
-                  onClick={(e) => {
-                    if (!hasUnsavedChanges) return
-                    e.preventDefault()
-                    handleNavigationAttempt(() => {
-                      navigate({
-                        to: "/clients/$clientId/orders/new",
-                        params: { clientId: String(clientId) },
-                        search: { examId: String(exam.id) }
-                      })
-                    })
-                  }}
-                >
-                  <Button variant="outline">יצירת הזמנה</Button>
-                </Link>
-              )}
-
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" className="flex items-center gap-1" onClick={async () => {
-                    if (availableLayouts.length === 0 && currentClinic?.id) {
-                      const res = await apiClient.getExamLayouts(currentClinic.id)
-                      if (!res.error) setAvailableLayouts((res.data || []) as any)
-                    }
-                  }}>
-                    <span>פריסות</span>
-                    <ChevronDownIcon className="h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-56">
-                  <DropdownMenuItem dir="rtl" className="text-sm font-bold" disabled>הוספת פריסה</DropdownMenuItem>
-                  <DropdownMenuItem dir="rtl"
-                    className="text-sm"
-                    onClick={(e) => {
-                        e.preventDefault();
-                        handleAddFullDataTab();
-                      }}
-                    >
-                      <PlusCircleIcon className="h-4 w-4 mr-2" />
-                      Full data
-                    </DropdownMenuItem>
-                    {availableLayouts
-                      .filter(layout => layout.name !== FULL_DATA_NAME)
-                      .map((layout) => (
-                        <DropdownMenuItem dir="rtl"
-                        key={layout.id} 
-                        onClick={() => handleAddLayoutTab(layout.id || 0)}
-                        className="text-sm"
-                      >
-                        <PlusCircleIcon className="h-4 w-4 mr-2" />
-                        {layout.name}
-                      </DropdownMenuItem>
-                    ))}
-                </DropdownMenuContent>
-              </DropdownMenu>
-
-              {isNewMode && onCancel && (
-                <Button
-                  variant="outline"
-                  onClick={(e) => {
-                    e.preventDefault()
-                    handleNavigationAttempt(() => {
-                      if (onCancel) onCancel()
-                    })
-                  }}
-                >
-                  ביטול
-                </Button>
-              )}
-              <Button
-                variant={isEditing ? "outline" : "default"}
-                onClick={handleEditButtonClick}
-                title={layoutTabs.find(t => t.isActive)?.name === FULL_DATA_NAME ? 'פריסת Full data היא לתצוגה בלבד' : undefined}
-              >
-                {isNewMode ? "שמור בדיקה" : (isEditing ? "שמור שינויים" : "ערוך בדיקה")}
-              </Button>
-            </div>
+          <div className="mb-4">
+            <ExamDetailsCard mode="detail" detailProps={detailPropsWithOverrides} actions={headerActions} />
           </div>
 
           {/* Layout Tabs */}
           {layoutTabs.length > 0 && (
             <div className="">
-              <div className="flex flex-wrap items-center gap-2">
-                {layoutTabs.map((tab) => (
-                  <div 
-                    key={tab.id}
-                    className={`
-                      group relative rounded-t-xl transition-all duration-200 cursor-pointer overflow-hidden
-                      ${tab.isActive 
-                        ? 'bg-primary text-primary-foreground shadow-md' 
-                        : 'hover:bg-muted text-foreground'}
-                    `}
-                    onClick={() => handleLayoutTabChange(tab.id)}
-                  >
-                    {layoutTabs.length > 1 && isEditing && (
-                      <button 
-                        type="button"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          handleRemoveLayoutTab(tab.id);
-                        }}
-                        className="absolute top-1 right-1 rounded-full w-[14px] h-[14px] opacity-0 group-hover:opacity-100 transition-all duration-200 flex items-center justify-center hover:bg-red-500 hover:text-white z-10"
-                        aria-label="הסר לשונית"
-                      >
-                        <XIcon className="h-2.5 w-2.5" />
-                      </button>
-                    )}
-                    <span className="text-sm py-2 px-5 font-medium whitespace-nowrap flex items-center gap-2">
-                      {tab.name}
-                      {tab.isActive && tab.name === FULL_DATA_NAME && (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            handleRegenerateFullData();
-                          }}
-                          className="rounded-full w-[18px] h-[18px] flex items-center justify-center hover:bg-primary-foreground/20"
-                          aria-label="רענן Full data"
-                          title="רענן"
-                        >
-                          <RefreshCw className="h-3.5 w-3.5" />
-                        </button>
-                      )}
-                    </span>
+              <DndContext
+                sensors={sensors}
+                collisionDetection={customCollisionDetection}
+                onDragStart={handleDragStart}
+                onDragEnd={handleDragEnd}
+              >
+                <SortableContext
+                  items={layoutTabs.map(tab => tab.id.toString())}
+                >
+                  <div className="flex flex-wrap items-center gap-2">
+                    {layoutTabs.map((tab, index) => (
+                      <SortableTab key={tab.id} tab={tab} index={index} isRegeneratingFullData={isRegeneratingFullData} />
+                    ))}
                   </div>
-                ))}
-              </div>
+                </SortableContext>
+                <DragOverlay>
+                  {activeDragId ? (
+                    <div className="group relative rounded-t-xl bg-primary text-primary-foreground shadow-md overflow-hidden select-none z-50">
+                      {(() => {
+                        const draggedTab = layoutTabs.find(tab => tab.id.toString() === activeDragId)
+                        return draggedTab ? (
+                          <>
+                            {layoutTabs.length > 1 && isEditing && (
+                              <button
+                                type="button"
+                                className="absolute top-1 right-1 rounded-full w-[14px] h-[14px] opacity-0 group-hover:opacity-100 transition-all duration-200 flex items-center justify-center hover:bg-red-500 hover:text-white z-10"
+                                aria-label="הסר לשונית"
+                              >
+                                <XIcon className="h-2.5 w-2.5" />
+                              </button>
+                            )}
+                            <span className="text-sm py-2 px-5 font-medium whitespace-nowrap flex items-center gap-2">
+                              {draggedTab.name}
+                              {draggedTab.isActive && draggedTab.name === FULL_DATA_NAME && (
+                                <button
+                                  type="button"
+                                  className="rounded-full w-[18px] h-[18px] flex items-center justify-center hover:bg-primary-foreground/20"
+                                  aria-label="רענן Full data"
+                                  title="רענן"
+                                >
+                                  <RefreshCw className="h-3.5 w-3.5" />
+                                </button>
+                              )}
+                            </span>
+                          </>
+                        ) : null
+                      })()}
+                    </div>
+                  ) : null}
+                </DragOverlay>
+              </DndContext>
             </div>
           )}
 
@@ -1571,13 +2119,9 @@ export default function ExamDetailPage({
                             <ExamCardRenderer
                               item={item}
                               rowCards={row.cards}
-                              isEditing={isEditing && layoutTabs.find(t => t.isActive)?.name !== FULL_DATA_NAME}
+                              isEditing={isEditing && !isFullDataActive}
                               mode="detail"
-                              detailProps={{
-                                ...detailProps,
-                                isEditing: (layoutTabs.find(t => t.isActive)?.name !== FULL_DATA_NAME) && (detailProps as any)?.isEditing,
-                                coverTestTabs: computedCoverTestTabs,
-                              }}
+                              detailProps={detailPropsWithOverrides}
                               hideEyeLabels={cardIndex > 0}
                               matchHeight={hasNoteCard(row.cards) && row.cards.length > 1}
                               currentRowIndex={rowIndex}

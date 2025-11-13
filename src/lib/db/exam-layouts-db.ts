@@ -3,21 +3,12 @@ import { apiClient } from '../api-client';
 
 export async function getAllExamLayouts(clinicId?: number): Promise<ExamLayout[]> {
   try {
-    if (clinicId) {
-      const response = await apiClient.getExamLayouts();
-      if (response.error) {
-        console.error('Error getting exam layouts by clinic:', response.error);
-        return [];
-      }
-      return (response.data || []).filter(layout => layout.clinic_id === clinicId);
-    } else {
-      const response = await apiClient.getExamLayouts();
-      if (response.error) {
-        console.error('Error getting all exam layouts:', response.error);
-        return [];
-      }
-      return response.data || [];
+    const response = await apiClient.getExamLayouts(clinicId);
+    if (response.error) {
+      console.error('Error getting exam layouts:', response.error);
+      return [];
     }
+    return response.data || [];
   } catch (error) {
     console.error('Error getting exam layouts:', error);
     return [];
@@ -26,21 +17,12 @@ export async function getAllExamLayouts(clinicId?: number): Promise<ExamLayout[]
 
 export async function getExamLayoutsByClinicId(clinicId?: number): Promise<ExamLayout[]> {
   try {
-    if (clinicId) {
-      const response = await apiClient.getExamLayouts();
-      if (response.error) {
-        console.error('Error getting exam layouts by clinic:', response.error);
-        return [];
-      }
-      return (response.data || []).filter(layout => layout.clinic_id === clinicId);
-    } else {
-      const response = await apiClient.getExamLayouts();
-      if (response.error) {
-        console.error('Error getting all exam layouts:', response.error);
-        return [];
-      }
-      return response.data || [];
+    const response = await apiClient.getExamLayouts(clinicId);
+    if (response.error) {
+      console.error('Error getting exam layouts by clinic:', response.error);
+      return [];
     }
+    return response.data || [];
   } catch (error) {
     console.error('Error getting exam layouts:', error);
     return [];
@@ -106,6 +88,48 @@ export async function deleteExamLayout(id: number): Promise<boolean> {
   } catch (error) {
     console.error('Error deleting exam layout:', error);
     return false;
+  }
+}
+
+export async function reorderExamLayouts(data: { clinic_id?: number; items: Array<{ id: number; sort_index: number; parent_layout_id?: number | null }> }): Promise<ExamLayout[]> {
+  try {
+    const response = await apiClient.reorderExamLayouts(data);
+    if (response.error) {
+      console.error('Error reordering exam layouts:', response.error);
+      return [];
+    }
+    return response.data || [];
+  } catch (error) {
+    console.error('Error reordering exam layouts:', error);
+    return [];
+  }
+}
+
+export async function createExamLayoutGroup(data: { clinic_id?: number; name: string; layout_ids: number[] }): Promise<ExamLayout | null> {
+  try {
+    const response = await apiClient.createExamLayoutGroup(data);
+    if (response.error) {
+      console.error('Error creating exam layout group:', response.error);
+      return null;
+    }
+    return response.data || null;
+  } catch (error) {
+    console.error('Error creating exam layout group:', error);
+    return null;
+  }
+}
+
+export async function bulkDeleteExamLayouts(data: { clinic_id?: number; layout_ids: number[] }): Promise<ExamLayout[]> {
+  try {
+    const response = await apiClient.bulkDeleteExamLayouts(data);
+    if (response.error) {
+      console.error('Error bulk deleting exam layouts:', response.error);
+      return [];
+    }
+    return response.data || [];
+  } catch (error) {
+    console.error('Error bulk deleting exam layouts:', error);
+    return [];
   }
 }
 

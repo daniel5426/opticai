@@ -651,6 +651,9 @@ class ExamLayoutBase(BaseModel):
     name: str
     layout_data: str
     is_default: bool = False
+    sort_index: Optional[int] = None
+    parent_layout_id: Optional[int] = None
+    is_group: bool = False
 
 class ExamLayoutCreate(ExamLayoutBase):
     pass
@@ -663,9 +666,30 @@ class ExamLayout(ExamLayoutBase):
     id: int
     created_at: datetime
     updated_at: Optional[datetime] = None
+    children: List["ExamLayout"] = []
     
     class Config:
         from_attributes = True
+
+ExamLayout.model_rebuild()
+
+class ExamLayoutReorderItem(BaseModel):
+    id: int
+    sort_index: int
+    parent_layout_id: Optional[int] = None
+
+class ExamLayoutReorderRequest(BaseModel):
+    clinic_id: Optional[int] = None
+    items: List[ExamLayoutReorderItem]
+
+class ExamLayoutGroupRequest(BaseModel):
+    name: str
+    clinic_id: Optional[int] = None
+    layout_ids: List[int]
+
+class ExamLayoutBulkDeleteRequest(BaseModel):
+    clinic_id: Optional[int] = None
+    layout_ids: List[int]
 
 class ExamDataBase(BaseModel):
     layout_instance_id: int

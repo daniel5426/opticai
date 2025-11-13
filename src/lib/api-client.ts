@@ -622,6 +622,27 @@ class ApiClient {
     });
   }
 
+  async reorderExamLayouts(data: { clinic_id?: number; items: Array<{ id: number; sort_index: number; parent_layout_id?: number | null }> }) {
+    return this.request<ExamLayout[]>('/exam-layouts/reorder', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async createExamLayoutGroup(data: { clinic_id?: number; name: string; layout_ids: number[] }) {
+    return this.request<ExamLayout>('/exam-layouts/groups', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async bulkDeleteExamLayouts(data: { clinic_id?: number; layout_ids: number[] }) {
+    return this.request<ExamLayout[]>('/exam-layouts/bulk-delete', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
   // Exam Layout Instances
   async getExamLayoutInstances(examId: number) {
     return this.request<ExamLayoutInstance[]>(`/exam-layouts/instances/exam/${examId}`);

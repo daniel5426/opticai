@@ -1,5 +1,5 @@
 from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text, Float, ForeignKey, Date, JSON, Index
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, backref
 from sqlalchemy.sql import func
 from database import Base
 
@@ -213,8 +213,16 @@ class ExamLayout(Base):
     layout_data = Column(Text, nullable=False)
     is_default = Column(Boolean, default=False)
     is_active = Column(Boolean, default=True)
+    sort_index = Column(Integer, nullable=False, default=0)
+    parent_layout_id = Column(Integer, ForeignKey("exam_layouts.id", ondelete="SET NULL"))
+    is_group = Column(Boolean, default=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    
+    children = relationship(
+        "ExamLayout",
+        backref=backref("parent", remote_side=[id])
+    )
 
 class ExamLayoutInstance(Base):
     __tablename__ = "exam_layout_instances"

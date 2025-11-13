@@ -1,0 +1,146 @@
+import React from "react"
+import { Card } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { DateInput } from "@/components/ui/date"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { UserSelect } from "@/components/ui/user-select"
+import { Button } from "@/components/ui/button"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { Plus, Loader2, FolderTree } from "lucide-react"
+import type { DetailProps } from "@/components/exam/ExamCardRenderer"
+import type { OpticalExam, ExamLayout } from "@/lib/db/schema-interface"
+
+type Exam = OpticalExam
+
+interface ExamDetailsCardProps {
+  mode: "editor" | "detail"
+  detailProps?: DetailProps
+  className?: string
+  actions?: React.ReactNode
+}
+
+export const ExamDetailsCard = ({ mode, detailProps, className, actions }: ExamDetailsCardProps) => {
+  const isEditing = mode === "editor" ? false : !!detailProps?.isEditing
+  const testNameValue =
+    mode === "editor"
+      ? "דוגמה"
+      : detailProps?.isNewMode
+      ? detailProps?.formData.test_name
+      : detailProps?.exam?.test_name || detailProps?.formData.test_name
+  const layoutOptions = detailProps?.availableExamLayouts ?? []
+  const renderLayoutMenuItems = (nodes: ExamLayout[]): React.ReactNode[] => {
+    return nodes.flatMap((node) => {
+      if (!node.id) {
+        return []
+      }
+      if (node.is_group) {
+        return (
+          <DropdownMenuSub key={`layout-group-${node.id}`}>
+            <DropdownMenuSubTrigger dir="rtl" className="flex items-center justify-between text-sm">
+              <span>{node.name}</span>
+              <FolderTree className="h-4 w-4 ml-2" />
+            </DropdownMenuSubTrigger>
+            <DropdownMenuSubContent className="min-w-[220px] text-right">
+              <DropdownMenuItem
+                onClick={() => detailProps?.onSelectLayout?.(node.id!)}
+                className="text-sm text-primary"
+              >
+                הוסף את כל הקבוצה
+              </DropdownMenuItem>
+              {renderLayoutMenuItems(node.children || [])}
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
+        )
+      }
+      return (
+        <DropdownMenuItem
+          key={`layout-${node.id}`}
+          dir="rtl"
+          className="text-sm"
+          onClick={() => detailProps?.onSelectLayout?.(node.id!)}
+        >
+          <Plus className="h-4 w-4 ml-2" />
+          {node.name}
+        </DropdownMenuItem>
+      )
+    })
+  }
+  const layoutSelectionDisabled =
+    !detailProps?.onSelectLayout || layoutOptions.length === 0 || detailProps?.isLayoutSelectionLoading
+  return (
+    <Card
+      className={`w-full shadow-none border border-border/60 rounded-xl px-4 py-3 bg-background ${className ?? ""}`}
+    >
+      <div
+        className="flex items-center gap-6 w-full whitespace-nowrap overflow-x-auto no-scrollbar text-sm"
+        dir="rtl"
+        style={{ scrollbarWidth: "none" }}
+      >
+        <div className="flex flex-col gap-1 min-w-[180px]">
+          <span className="text-xs font-medium text-muted-foreground">שם הבדיקה</span>
+          {mode === "editor" ? (
+            <span className="px-3 py-1 rounded-lg bg-accent/50 w-full text-center">{testNameValue}</span>
+          ) : (
+            <Input
+              type="text"
+              name="test_name"
+              value={detailProps?.formData.test_name || ""}
+              onChange={isEditing ? detailProps?.handleInputChange : undefined}
+              className="h-9 w-full text-sm"
+              readOnly={!isEditing}
+              disabled={!isEditing}
+            />
+          )}
+        </div>
+        <div className="flex flex-col gap-1 min-w-[150px]">
+          <span className="text-xs font-medium text-muted-foreground">תאריך בדיקה</span>
+          <DateInput
+            name="exam_date"
+            className="h-9 w-full"
+            value={mode === "editor" ? new Date().toISOString().split("T")[0] : detailProps?.formData.exam_date}
+            disabled={!isEditing}
+            onChange={detailProps?.handleInputChange || (() => {})}
+          />
+        </div>
+        <div className="flex flex-col gap-1 min-w-[160px]">
+          <span className="text-xs font-medium text-muted-foreground">בודק</span>
+          <UserSelect
+            value={mode === "editor" ? 0 : detailProps?.formData.user_id}
+            disabled={!isEditing && mode !== "editor"}
+            onValueChange={(userId) =>
+              mode === "editor"
+                ? () => {}
+                : detailProps?.setFormData((prev: Partial<Exam>) => ({ ...prev, user_id: userId }))
+            }
+          />
+        </div>
+        <div className="flex flex-col gap-1 min-w-[130px]">
+          <span className="text-xs font-medium text-muted-foreground">עין דומיננטית</span>
+          <Select
+            dir="rtl"
+            disabled={!isEditing && mode !== "editor"}
+            value={mode === "editor" ? "R" : detailProps?.formData.dominant_eye || ""}
+            onValueChange={(value) =>
+              mode === "editor" ? () => {} : detailProps?.handleSelectChange(value, "dominant_eye")
+            }
+          >
+            <SelectTrigger className="h-9 w-full" disabled={!isEditing && mode !== "editor"}>
+              <SelectValue placeholder="בחר עין" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="R" className="text-sm">
+                ימין
+              </SelectItem>
+              <SelectItem value="L" className="text-sm">
+                שמאל
+              </SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="flex-1" />
+        {actions ? <div className="flex items-center gap-2 min-w-fit">{actions}</div> : null}
+      </div>
+    </Card>
+  )
+}
+

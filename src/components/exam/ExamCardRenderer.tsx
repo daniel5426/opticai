@@ -25,14 +25,11 @@ import { KeratometerContactLensTab } from "@/components/exam/KeratometerContactL
 import { ContactLensExamTab } from "@/components/exam/ContactLensExamTab"
 import { ContactLensOrderTab } from "@/components/exam/ContactLensOrderTab"
 import { Edit3 } from "lucide-react"
-import { OpticalExam, OldRefractionExam, OldRefractionExtensionExam, ObjectiveExam, SubjectiveExam, AdditionExam, FinalSubjectiveExam, FinalPrescriptionExam, CompactPrescriptionExam, RetinoscopExam, RetinoscopDilationExam, UncorrectedVAExam, KeratometerExam, KeratometerFullExam, CornealTopographyExam, CoverTestExam, AnamnesisExam, NotesExam, SchirmerTestExam, OldRefExam, ContactLensDiameters, ContactLensDetails, KeratometerContactLens, ContactLensExam, ContactLensOrder, SensationVisionStabilityExam, FusionRangeExam, MaddoxRodExam, StereoTestExam, RGExam, OcularMotorAssessmentExam, DiopterAdjustmentPanel, OldContactLenses, OverRefraction } from "@/lib/db/schema-interface"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { UserSelect } from "@/components/ui/user-select"
+import { OpticalExam, OldRefractionExam, OldRefractionExtensionExam, ObjectiveExam, SubjectiveExam, AdditionExam, FinalSubjectiveExam, FinalPrescriptionExam, CompactPrescriptionExam, RetinoscopExam, RetinoscopDilationExam, UncorrectedVAExam, KeratometerExam, KeratometerFullExam, CornealTopographyExam, CoverTestExam, AnamnesisExam, NotesExam, SchirmerTestExam, OldRefExam, ContactLensDiameters, ContactLensDetails, KeratometerContactLens, ContactLensExam, ContactLensOrder, SensationVisionStabilityExam, FusionRangeExam, MaddoxRodExam, StereoTestExam, RGExam, OcularMotorAssessmentExam, DiopterAdjustmentPanel, OldContactLenses, OverRefraction, ExamLayout } from "@/lib/db/schema-interface"
 import { ExamToolbox, ToolboxActions } from "@/components/exam/ExamToolbox"
 import { ExamComponentType } from "@/lib/exam-field-mappings"
 import { examComponentRegistry } from "@/lib/exam-component-registry"
 import { toast } from "sonner"
-import { DateInput } from "@/components/ui/date"
 import { Textarea } from "@/components/ui/textarea"
 import { OldContactLensesTab } from "@/components/exam/OldContactLensesTab";
 import { OverRefractionTab } from "@/components/exam/OverRefractionTab";
@@ -44,6 +41,7 @@ import { StereoTestTab } from "@/components/exam/StereoTestTab"
 import { RGTab } from "@/components/exam/RGTab"
 import { OcularMotorAssessmentTab } from "@/components/exam/OcularMotorAssessmentTab"
 import { v4 as uuidv4 } from 'uuid';
+import { ExamDetailsCard } from "@/components/exam/ExamDetailsCard"
 
 // Renaming for consistency within the component props
 type Exam = OpticalExam;
@@ -86,6 +84,9 @@ export interface DetailProps {
   setCoverTestTabs?: React.Dispatch<React.SetStateAction<Record<string, string[]>>>; // New prop for setting cover test tabs
   activeCoverTestTabs?: Record<string, number>; // New prop for active cover test tabs
   setActiveCoverTestTabs?: React.Dispatch<React.SetStateAction<Record<string, number>>>; // New prop for setting active cover test tabs
+  availableExamLayouts?: ExamLayout[];
+  onSelectLayout?: (layoutId: number) => void | Promise<void>;
+  isLayoutSelectionLoading?: boolean;
 }
 
 // Helper functions to get data and handlers from registry
@@ -589,66 +590,7 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
 
   switch (item.type) {
     case 'exam-details':
-     return (
-          <Card className="w-full p-4 pt-3  shadow-md border-none ">
-            <div className="grid grid-cols-4 gap-x-3 gap-y-2 w-full" dir="rtl">
-              <div className="col-span-1">
-                <label className="font-semibold text-base">שם הבדיקה</label>
-                <div className="h-1"></div>
-                {mode === 'editor' ? (
-                  <div className="border h-9 px-3 rounded-md text-sm flex items-center bg-accent/50">דוגמה</div>
-                ) : detailProps?.isEditing ? (
-                  <Input
-                    type="text"
-                    name="test_name"
-                    value={detailProps.formData.test_name || ''}
-                    onChange={detailProps.handleInputChange}
-                    className="text-sm pt-1 bg-white"
-                  />
-                ) : (
-                  <div className="border h-9 px-3 rounded-md text-sm flex items-center bg-accent/50">{detailProps?.isNewMode ? detailProps.formData.test_name : detailProps?.exam?.test_name}</div>
-                )}
-              </div>
-              <div className="col-span-1">
-                <label className="font-semibold text-base">תאריך בדיקה</label>
-                <div className="h-1"></div>
-                <DateInput
-                  name="exam_date"
-                  className={`pl-20 h-9`}
-                  value={mode === 'editor' ? new Date().toISOString().split('T')[0] : detailProps?.formData.exam_date}
-                  disabled={mode === 'editor' ? true : !detailProps?.isEditing}
-                  onChange={detailProps?.handleInputChange || (() => {})}
-                />
-              </div>
-              <div className="col-span-1">
-                <label className="font-semibold text-base">בודק</label>
-                <div className="h-1"></div>
-                <UserSelect
-                  value={mode === 'editor' ? 0 : detailProps?.formData.user_id}
-                  disabled={mode === 'editor' ? false : !detailProps?.isEditing}
-                  onValueChange={(userId) => mode === 'editor' ? () => {} : detailProps?.setFormData((prev: Partial<Exam>) => ({ ...prev, user_id: userId }))}
-                />
-              </div>
-              <div className="col-span-1">
-                <label className="font-semibold text-base">עין דומיננטית</label>
-                <div className="h-1 w-full"></div>
-                <Select dir="rtl"
-                  disabled={mode === 'editor' ? false : !detailProps?.isEditing}
-                  value={ mode === 'editor' ? 'R' : detailProps?.formData.dominant_eye || ''}
-                  onValueChange={(value) => mode === 'editor' ? () => {} : detailProps?.handleSelectChange(value, 'dominant_eye')}
-                >
-                  <SelectTrigger disabled={mode === 'editor' ? false : !detailProps?.isEditing}>
-                    <SelectValue placeholder="בחר עין" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="R" className="text-sm">ימין</SelectItem>
-                    <SelectItem value="L" className="text-sm">שמאל</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          </Card>
-        )
+     return <ExamDetailsCard mode={mode} detailProps={detailProps} />
 
     case 'old-ref':
       return (
@@ -870,7 +812,9 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
       const hasTabs = coverTestTabs.length > 0
       const tabId = hasTabs ? (coverTestTabs[activeTab] || coverTestTabs[0]) : undefined
       const coverTestKey = tabId ? `cover-test-${item.id}-${tabId}` : undefined
-      const coverTestData = coverTestKey ? ((detailProps?.examFormData?.[coverTestKey] as CoverTestExam) || {}) : ({} as CoverTestExam)
+      const coverTestData: CoverTestExam = coverTestKey && detailProps?.examFormData?.[coverTestKey]
+        ? (detailProps.examFormData[coverTestKey] as CoverTestExam)
+        : { layout_instance_id: detailProps?.layoutInstanceId ?? 0 }
       const onCoverTestChange = (field: keyof CoverTestExam, value: string) => {
         if (!coverTestKey) return
         detailProps?.fieldHandlers?.[coverTestKey]?.(field, value)
