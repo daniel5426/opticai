@@ -30,7 +30,7 @@ export function ContactLensOrderTab({ contactLensOrder, onContactLensOrderChange
   }
 
   return (
-    <Card className="w-full dark:bg-card shadow-md pt-4 gap-2">
+    <Card className="w-full dark:bg-card examcard pt-4 gap-2">
       <CardHeader>
         <CardTitle className="text-center text-muted-foreground">פרטי הזמנת עדשות מגע</CardTitle>
       </CardHeader>

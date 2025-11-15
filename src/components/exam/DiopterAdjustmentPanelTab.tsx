@@ -260,7 +260,7 @@ export function DiopterAdjustmentPanelTab({
     )
   }
   return (
-    <Card className="w-full shadow-md pb-4 pt-3 border-none" style={{ direction: 'rtl' ,  width: 365}}>
+    <Card className="w-full examcard pb-4 pt-3" style={{ direction: 'rtl' ,  width: 365}}>
       <CardContent className="px-4 flex flex-row justify-center gap-4" style={{ scrollbarWidth: 'none', margin: '0 auto' }}>
         {renderEye('right')}
         {renderEye('left')}

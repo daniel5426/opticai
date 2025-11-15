@@ -25,7 +25,7 @@ export function MaddoxRodTab({
 }: MaddoxRodTabProps) {
   console.log(needsMiddleSpacer);
   return (
-    <Card className="w-full border-none pt-3 pb-4 shadow-md">
+    <Card className="w-full examcard pt-3 pb-4">
       <CardContent
         className="px-4"
         style={{ scrollbarWidth: "none", direction: "ltr" }}

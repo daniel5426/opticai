@@ -953,7 +953,7 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
       const notesTitle = mode === 'editor' ? (item.title || notesData.title || "הערות") : (notesData.title || item.title || "הערות")
 
       return (
-          <Card className={`w-full px-4 pt-3 pb-4 shadow-md border-none gap-2 ${matchHeight ? 'h-full flex flex-col' : ''}`} dir="rtl">
+          <Card className={`w-full px-4 pt-3 examcard pb-4 border gap-2 ${matchHeight ? 'h-full flex flex-col' : ''}`} dir="rtl">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-muted rounded-lg">
                   <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-foreground">

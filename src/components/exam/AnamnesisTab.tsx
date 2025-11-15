@@ -35,7 +35,7 @@ export function AnamnesisTab({
   };
 
   return (
-    <Card className="w-full shadow-md pb-8 pt-3 border-none" dir="rtl">
+    <Card className="w-full examcard pb-8 pt-3" dir="rtl">
       <CardContent className="px-4" style={{ scrollbarWidth: 'none' }}>
         <div className="text-center mb-4">
           <h3 className="font-medium text-muted-foreground">היסטוריה רפואית ואופטית (אנמנזה)</h3>

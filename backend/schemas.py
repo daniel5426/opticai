@@ -682,6 +682,14 @@ class ExamLayoutReorderRequest(BaseModel):
     clinic_id: Optional[int] = None
     items: List[ExamLayoutReorderItem]
 
+class ExamLayoutInstanceReorderItem(BaseModel):
+    id: int
+    order: int
+
+class ExamLayoutInstanceReorderRequest(BaseModel):
+    exam_id: int
+    items: List[ExamLayoutInstanceReorderItem]
+
 class ExamLayoutGroupRequest(BaseModel):
     name: str
     clinic_id: Optional[int] = None

@@ -87,7 +87,7 @@ export function CompactPrescriptionTab({
   };
 
   return (
-    <Card className="w-full shadow-md border-none pb-4 pt-3" dir="ltr">
+    <Card className="w-full examcard pb-4 pt-3" dir="ltr">
       <CardContent className="px-4" style={{scrollbarWidth: 'none'}}>
         <div className="space-y-3">
           <div className="text-center">

@@ -666,6 +666,16 @@ class ApiClient {
     });
   }
 
+  async reorderExamLayoutInstances(examId: number, items: { id: number; order: number }[]) {
+    return this.request<{ updated: number }>(`/exam-layouts/instances/reorder`, {
+      method: 'POST',
+      body: JSON.stringify({
+        exam_id: examId,
+        items,
+      }),
+    });
+  }
+
   async deleteExamLayoutInstance(id: number) {
     return this.request(`/exam-layouts/instances/${id}`, {
       method: 'DELETE',

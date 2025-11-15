@@ -8,6 +8,7 @@ from database import get_db
 from models import OpticalExam, User, Client
 from schemas import OpticalExam as OpticalExamSchema, OpticalExamCreate
 from auth import get_current_user
+from .exam_layouts import build_layout_tree
 
 router = APIRouter(prefix="/exams", tags=["exams"])
 
@@ -258,7 +259,12 @@ def get_exam_page_data(
     available_layouts_q = db.query(ExamLayout)
     if exam.clinic_id is not None:
         available_layouts_q = available_layouts_q.filter(or_(ExamLayout.clinic_id == exam.clinic_id, ExamLayout.clinic_id == None))
-    available_layouts = available_layouts_q.all()
+    available_layouts = (
+        available_layouts_q
+        .order_by(ExamLayout.sort_index.asc(), ExamLayout.id.asc())
+        .all()
+    )
+    available_layout_tree = build_layout_tree(available_layouts)
 
     # Trim payload to only fields used by the page
     result = {
@@ -285,13 +291,7 @@ def get_exam_page_data(
             for ei in enriched_instances
         ],
         "chosen_active_instance_id": getattr(active_instance, 'id', None),
-        "available_layouts": [
-            {
-                "id": l.id,
-                "name": l.name,
-                "layout_data": l.layout_data
-            } for l in available_layouts
-        ],
+        "available_layouts": available_layout_tree,
     }
     return result
 

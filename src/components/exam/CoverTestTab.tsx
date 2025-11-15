@@ -80,7 +80,7 @@ export function CoverTestTab({
     onCoverTestChange(field, value);
   };
   return (
-    <Card className="w-full border-none pt-3 pb-4 shadow-md">
+    <Card className="w-full examcard pt-3 pb-4">
       <CardContent className="px-4" style={{ scrollbarWidth: "none" }}>
         <div className="space-y-3">
           <div className="relative flex items-center" style={{ minHeight: 20 }}>

@@ -11,6 +11,7 @@ from schemas import (
     ExamLayoutReorderRequest,
     ExamLayoutGroupRequest,
     ExamLayoutBulkDeleteRequest,
+    ExamLayoutInstanceReorderRequest,
 )
 from auth import get_current_user
 
@@ -474,6 +475,47 @@ def create_exam_layout_instance(
         "order": instance.order,
         "created_at": instance.created_at,
         "updated_at": instance.updated_at
+    }
+
+@router.post("/instances/reorder")
+def reorder_exam_layout_instances(
+    request: ExamLayoutInstanceReorderRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    from models import OpticalExam
+
+    if not request.items:
+        return {"updated": 0}
+
+    exam = db.query(OpticalExam).filter(OpticalExam.id == request.exam_id).first()
+    if not exam:
+        raise HTTPException(status_code=404, detail="Exam not found")
+
+    if current_user.role_level < 4 and exam.clinic_id != current_user.clinic_id:
+        raise HTTPException(status_code=403, detail="Cannot reorder instances for exams in other clinics")
+
+    instance_ids = [item.id for item in request.items]
+    instances = (
+        db.query(ExamLayoutInstance)
+        .filter(ExamLayoutInstance.id.in_(instance_ids))
+        .all()
+    )
+    if len(instances) != len(instance_ids):
+        raise HTTPException(status_code=404, detail="One or more layout instances not found")
+
+    instance_map = {instance.id: instance for instance in instances}
+    order_map = {item.id: item.order for item in request.items}
+
+    for instance_id, instance in instance_map.items():
+        if instance.exam_id != request.exam_id:
+            raise HTTPException(status_code=400, detail="Layout instance does not belong to the specified exam")
+        instance.order = order_map.get(instance_id, instance.order)
+
+    db.commit()
+
+    return {
+        "updated": len(instances)
     }
 
 @router.get("/instances/{instance_id}")

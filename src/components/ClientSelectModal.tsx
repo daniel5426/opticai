@@ -144,7 +144,7 @@ export function ClientSelectModal({ triggerText, onClientSelect, triggerVariant 
             dir="rtl"
             autoFocus={false}
           />
-          <div ref={listRef} className="max-h-[300px] overflow-y-auto" style={{scrollbarWidth: 'none'}}>
+          <div ref={listRef} className="h-[300px] overflow-y-auto" style={{scrollbarWidth: 'none'}}>
             {loading ? (
               <div className="space-y-2 p-1">
                 {Array.from({ length: 6 }).map((_, i) => (
@@ -160,7 +160,7 @@ export function ClientSelectModal({ triggerText, onClientSelect, triggerVariant 
                 ))}
               </div>
             ) : clients.length === 0 ? (
-              <div className="flex justify-center items-center h-20">
+              <div className="flex justify-center items-center h-full">
                 <div className="text-gray-500">לא נמצאו לקוחות</div>
               </div>
             ) : (

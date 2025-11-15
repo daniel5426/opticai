@@ -211,6 +211,9 @@
   .draglayer button {
     -webkit-app-region: no-drag;
   }
+  .examcard {
+    @apply !shadow-none !border;
+  }
   button {
     @apply cursor-pointer;
   }
@@ -268,4 +271,19 @@
   width: 0;
   height: 0;
   display: none;
+}
+
+.__react-dnd-preview {
+  opacity: 0.5 !important;
+  pointer-events: none !important;
+}
+
+[data-rbd-placeholder-context-id],
+[data-rbd-drag-handle-dragging],
+.__react-dnd-preview ~ * {
+  opacity: 1;
+}
+
+[dir="ltr"] .__react-dnd-preview {
+  display: none !important;
 }

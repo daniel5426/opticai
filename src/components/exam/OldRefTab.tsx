@@ -15,7 +15,7 @@ export function OldRefTab({
   isEditing
 }: OldRefTabProps) {
   return (
-    <Card className="w-full p-4 pt-3 shadow-md border-none">
+    <Card className="w-full p-4 pt-3 examcard">
       <div className="grid grid-cols-3 gap-x-3 gap-y-2 w-full" dir="rtl">
         <div className="col-span-1">
           <label className="font-medium text-muted-foreground text-base">תפקיד</label>

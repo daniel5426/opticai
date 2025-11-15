@@ -4,11 +4,8 @@ import { Input } from "@/components/ui/input"
 import { DateInput } from "@/components/ui/date"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { UserSelect } from "@/components/ui/user-select"
-import { Button } from "@/components/ui/button"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { Plus, Loader2, FolderTree } from "lucide-react"
 import type { DetailProps } from "@/components/exam/ExamCardRenderer"
-import type { OpticalExam, ExamLayout } from "@/lib/db/schema-interface"
+import type { OpticalExam } from "@/lib/db/schema-interface"
 
 type Exam = OpticalExam
 
@@ -27,49 +24,9 @@ export const ExamDetailsCard = ({ mode, detailProps, className, actions }: ExamD
       : detailProps?.isNewMode
       ? detailProps?.formData.test_name
       : detailProps?.exam?.test_name || detailProps?.formData.test_name
-  const layoutOptions = detailProps?.availableExamLayouts ?? []
-  const renderLayoutMenuItems = (nodes: ExamLayout[]): React.ReactNode[] => {
-    return nodes.flatMap((node) => {
-      if (!node.id) {
-        return []
-      }
-      if (node.is_group) {
-        return (
-          <DropdownMenuSub key={`layout-group-${node.id}`}>
-            <DropdownMenuSubTrigger dir="rtl" className="flex items-center justify-between text-sm">
-              <span>{node.name}</span>
-              <FolderTree className="h-4 w-4 ml-2" />
-            </DropdownMenuSubTrigger>
-            <DropdownMenuSubContent className="min-w-[220px] text-right">
-              <DropdownMenuItem
-                onClick={() => detailProps?.onSelectLayout?.(node.id!)}
-                className="text-sm text-primary"
-              >
-                הוסף את כל הקבוצה
-              </DropdownMenuItem>
-              {renderLayoutMenuItems(node.children || [])}
-            </DropdownMenuSubContent>
-          </DropdownMenuSub>
-        )
-      }
-      return (
-        <DropdownMenuItem
-          key={`layout-${node.id}`}
-          dir="rtl"
-          className="text-sm"
-          onClick={() => detailProps?.onSelectLayout?.(node.id!)}
-        >
-          <Plus className="h-4 w-4 ml-2" />
-          {node.name}
-        </DropdownMenuItem>
-      )
-    })
-  }
-  const layoutSelectionDisabled =
-    !detailProps?.onSelectLayout || layoutOptions.length === 0 || detailProps?.isLayoutSelectionLoading
   return (
     <Card
-      className={`w-full shadow-none border border-border/60 rounded-xl px-4 py-3 bg-background ${className ?? ""}`}
+      className={`w-full examcard rounded-xl px-4 py-3 bg-background ${className ?? ""}`}
     >
       <div
         className="flex items-center gap-6 w-full whitespace-nowrap overflow-x-auto no-scrollbar text-sm"

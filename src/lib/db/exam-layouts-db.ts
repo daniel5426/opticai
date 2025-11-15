@@ -4,11 +4,11 @@ import { apiClient } from '../api-client';
 export async function getAllExamLayouts(clinicId?: number): Promise<ExamLayout[]> {
   try {
     const response = await apiClient.getExamLayouts(clinicId);
-    if (response.error) {
+      if (response.error) {
       console.error('Error getting exam layouts:', response.error);
-      return [];
-    }
-    return response.data || [];
+        return [];
+      }
+      return response.data || [];
   } catch (error) {
     console.error('Error getting exam layouts:', error);
     return [];
@@ -18,11 +18,11 @@ export async function getAllExamLayouts(clinicId?: number): Promise<ExamLayout[]
 export async function getExamLayoutsByClinicId(clinicId?: number): Promise<ExamLayout[]> {
   try {
     const response = await apiClient.getExamLayouts(clinicId);
-    if (response.error) {
-      console.error('Error getting exam layouts by clinic:', response.error);
-      return [];
-    }
-    return response.data || [];
+      if (response.error) {
+        console.error('Error getting exam layouts by clinic:', response.error);
+        return [];
+      }
+      return response.data || [];
   } catch (error) {
     console.error('Error getting exam layouts:', error);
     return [];
@@ -341,3 +341,17 @@ export async function addLayoutToExam(examId: number, layoutId: number, isActive
     return null;
   }
 } 
+
+export async function reorderExamLayoutInstances(examId: number, items: Array<{ id: number; order: number }>): Promise<boolean> {
+  try {
+    const response = await apiClient.reorderExamLayoutInstances(examId, items);
+    if (response.error) {
+      console.error('Error reordering exam layout instances:', response.error);
+      return false;
+    }
+    return true;
+  } catch (error) {
+    console.error('Error reordering exam layout instances:', error);
+    return false;
+  }
+}
