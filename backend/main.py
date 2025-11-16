@@ -63,6 +63,7 @@ app.include_router(control_center.router, prefix=config.settings.API_V1_STR)
 app.include_router(dashboard.router, prefix=config.settings.API_V1_STR)
 app.include_router(search.router, prefix=config.settings.API_V1_STR)
 
+
 @app.get("/health")
 async def health_check():
     return {"status": "healthy", "service": "OpticAI API"}
