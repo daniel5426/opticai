@@ -145,22 +145,18 @@ export function ExamsTable({ data, clientId, onExamDeleted, onExamDeleteFailed, 
         {clientId > 0 ? (
           defaultLayouts.length > 0 ? (
             <DropdownMenu open={isDropdownOpen} onOpenChange={setIsDropdownOpen}>
-              <DropdownMenuTrigger asChild>
+              <DropdownMenuTrigger dir="rtl" asChild>
                 <Button
-                  onMouseEnter={() => setIsDropdownOpen(true)}
-                  onMouseLeave={() => setIsDropdownOpen(false)}
                 >
-                  בדיקה חדשה
-                  <Plus className="h-4 w-4 mr-2" />
+                  <Plus className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent
-                onMouseEnter={() => setIsDropdownOpen(true)}
-                onMouseLeave={() => setIsDropdownOpen(false)}
-                align="end"
+                align="start"
               >
                 {defaultLayouts.map((layout) => (
                   <DropdownMenuItem
+                    dir="rtl"
                     key={layout.id}
                     onClick={() => {
                       navigate({
@@ -177,15 +173,9 @@ export function ExamsTable({ data, clientId, onExamDeleted, onExamDeleteFailed, 
               </DropdownMenuContent>
             </DropdownMenu>
           ) : (
-            <Link
-              to="/clients/$clientId/exams/new"
-              params={{ clientId: String(clientId) }}
-            >
               <Button>
-                בדיקה חדשה
-                <Plus className="h-4 w-4 mr-2" />
+                <Plus className="h-4 w-4" />
               </Button>
-            </Link>
           )
         ) : (
           <NewExamButtonWithoutClient
@@ -361,20 +351,16 @@ function NewExamButtonWithoutClient({
         <DropdownMenu open={isDropdownOpen} onOpenChange={setIsDropdownOpen}>
           <DropdownMenuTrigger asChild>
             <Button
-              onMouseEnter={() => setIsDropdownOpen(true)}
-              onMouseLeave={() => setIsDropdownOpen(false)}
             >
-              בדיקה חדשה
-              <Plus className="h-4 w-4 mr-2" />
+              <Plus className="h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent
-            onMouseEnter={() => setIsDropdownOpen(true)}
-            onMouseLeave={() => setIsDropdownOpen(false)}
-            align="end"
+            align="start"
           >
             {defaultLayouts.map((layout) => (
               <DropdownMenuItem
+                dir="rtl"
                 key={layout.id}
                 onClick={() => handleLayoutSelect(layout.id!)}
               >
@@ -396,11 +382,9 @@ function NewExamButtonWithoutClient({
   }
 
   return (
-    <ClientSelectModal
-      triggerText="בדיקה חדשה"
-      onClientSelect={(selectedClientId) => {
-        onClientSelect(selectedClientId);
-      }}
-    />
-  );
+    <Button
+    >
+      <Plus className="h-4 w-4" />
+    </Button>
+);
 }

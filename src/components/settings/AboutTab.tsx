@@ -31,6 +31,22 @@ export function AboutTab() {
   useEffect(() => {
     console.log('AboutTab: Component mounted, loading version and checking for updates');
     loadCurrentVersion();
+    
+    const savedDownload = localStorage.getItem('downloaded-update');
+    if (savedDownload) {
+      try {
+        const parsed = JSON.parse(savedDownload);
+        setDownloadState(prev => ({
+          ...prev,
+          isDownloaded: true,
+          version: parsed.version,
+          progress: 100
+        }));
+      } catch (e) {
+        localStorage.removeItem('downloaded-update');
+      }
+    }
+    
     checkForUpdates();
     
     const cleanupProgress = window.electronAPI.onDownloadProgress((progress) => {
@@ -57,21 +73,6 @@ export function AboutTab() {
       localStorage.setItem('downloaded-update', JSON.stringify({ version: info.version, timestamp: Date.now() }));
       toast.success(`העדכון לגרסה ${info.version} הורד בהצלחה!`);
     });
-    
-    const savedDownload = localStorage.getItem('downloaded-update');
-    if (savedDownload) {
-      try {
-        const parsed = JSON.parse(savedDownload);
-        setDownloadState(prev => ({
-          ...prev,
-          isDownloaded: true,
-          version: parsed.version,
-          progress: 100
-        }));
-      } catch (e) {
-        localStorage.removeItem('downloaded-update');
-      }
-    }
     
     return () => {
       cleanupProgress();
@@ -114,6 +115,9 @@ export function AboutTab() {
         toast.info('בודק עדכונים...');
       }
 
+      const savedDownload = localStorage.getItem('downloaded-update');
+      const alreadyDownloaded = savedDownload ? JSON.parse(savedDownload) : null;
+
       console.log('AboutTab: Calling window.electronAPI.checkForUpdates()');
       const result = await window.electronAPI.checkForUpdates();
       console.log('AboutTab: checkForUpdates result:', result);
@@ -127,10 +131,9 @@ export function AboutTab() {
         setUpdateAvailable(true);
         setLatestVersion(result.version);
         
-        const savedDownload = localStorage.getItem('downloaded-update');
-        const alreadyDownloaded = savedDownload && JSON.parse(savedDownload).version === result.version;
+        const isSameVersionDownloaded = alreadyDownloaded && alreadyDownloaded.version === result.version;
         
-        if (manual && !alreadyDownloaded) {
+        if (manual && !isSameVersionDownloaded && !downloadState.isDownloading) {
           toast.success(`נמצאה גרסה חדשה: ${result.version}`);
         }
       } else {
@@ -271,12 +274,18 @@ export function AboutTab() {
             <div className="p-4 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
               <h4 className="text-sm font-medium text-blue-800 dark:text-blue-200 mb-3 text-right flex items-center gap-2 justify-end">
                 <IconAlertCircle className="h-4 w-4" />
-                {downloadState.isDownloaded ? 'עדכון מוכן להתקנה' : 'עדכון חדש זמין'}
+                {downloadState.isDownloaded 
+                  ? 'עדכון מוכן להתקנה' 
+                  : downloadState.isDownloading 
+                    ? 'מוריד עדכון...' 
+                    : 'עדכון חדש זמין'}
               </h4>
               <div className="text-sm text-blue-700 dark:text-blue-300 text-right mb-4" dir="rtl">
                 {downloadState.isDownloaded 
                   ? `גרסה ${downloadState.version || latestVersion} הורדה בהצלחה ומוכנה להתקנה.`
-                  : `גרסה ${latestVersion} זמינה להורדה. מומלץ לעדכן לגרסה האחרונה כדי ליהנות מתכונות חדשות ותיקוני באגים.`
+                  : downloadState.isDownloading
+                    ? `מוריד גרסה ${latestVersion}...`
+                    : `גרסה ${latestVersion} זמינה להורדה. מומלץ לעדכן לגרסה האחרונה כדי ליהנות מתכונות חדשות ותיקוני באגים.`
                 }
               </div>
               

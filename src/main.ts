@@ -597,11 +597,14 @@ ipcMain.handle('install-update', async () => {
     return { success: false, error: 'Updates disabled in development' };
   }
 
-  console.log('Install update requested');
+  console.log('=== INSTALL UPDATE REQUESTED ===');
   console.log('Current platform:', process.platform);
+  console.log('Current arch:', process.arch);
   console.log('autoUpdater.autoInstallOnAppQuit value:', autoUpdater.autoInstallOnAppQuit);
 
   const downloadedUpdateHelper = (autoUpdater as any).downloadedUpdateHelper;
+  console.log('downloadedUpdateHelper exists:', !!downloadedUpdateHelper);
+  
   if (downloadedUpdateHelper && downloadedUpdateHelper.file) {
     console.log('Found downloaded update helper state:', {
       file: downloadedUpdateHelper.file,
@@ -610,23 +613,61 @@ ipcMain.handle('install-update', async () => {
     });
 
     try {
-      console.log('Scheduling autoUpdater.quitAndInstall(false, true) via setImmediate');
-      setImmediate(() => {
-        console.log('autoUpdater.quitAndInstall setImmediate callback executing');
-        try {
-          autoUpdater.quitAndInstall(false, true);
-          console.log('autoUpdater.quitAndInstall exited without throwing');
-        } catch (err) {
-          console.error('autoUpdater.quitAndInstall threw inside setImmediate', err);
-        }
-      });
+      console.log('Attempting to quit and install...');
+      
+      if (process.platform === 'darwin') {
+        console.log('macOS detected - forcing window close and quit');
+        setTimeout(() => {
+          console.log('setTimeout callback executing');
+          
+          const allWindows = BrowserWindow.getAllWindows();
+          console.log('Found', allWindows.length, 'windows to close');
+          
+          allWindows.forEach((win, index) => {
+            console.log(`Destroying window ${index + 1}`);
+            try {
+              win.removeAllListeners('close');
+              win.destroy();
+            } catch (err) {
+              console.error(`Error destroying window ${index + 1}:`, err);
+            }
+          });
+          
+          console.log('All windows destroyed, calling quitAndInstall');
+          try {
+            autoUpdater.quitAndInstall(false, true);
+            console.log('quitAndInstall called - waiting for quit');
+            
+            setTimeout(() => {
+              console.log('Still running after quitAndInstall - forcing app.exit(0)');
+              app.exit(0);
+            }, 3000);
+          } catch (err) {
+            console.error('quitAndInstall threw error:', err);
+            console.log('Forcing app.exit(0) due to error');
+            app.exit(0);
+          }
+        }, 100);
+      } else {
+        console.log('Non-macOS platform - using standard quit');
+        setImmediate(() => {
+          console.log('setImmediate callback executing');
+          try {
+            autoUpdater.quitAndInstall(false, true);
+            console.log('quitAndInstall returned');
+          } catch (err) {
+            console.error('quitAndInstall threw:', err);
+          }
+        });
+      }
+      
       return { success: true };
     } catch (error) {
-      console.error('quitAndInstall failed:', error);
+      console.error('quitAndInstall setup failed:', error);
       return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
     }
   } else {
-    console.log('No downloaded update found, cannot install. Helper contents:', downloadedUpdateHelper);
+    console.log('No downloaded update found. Helper contents:', downloadedUpdateHelper);
     return { success: false, error: 'No update available to install' };
   }
 });
@@ -657,18 +698,24 @@ app.whenReady().then(() => {
   installExtensions(); // Install extensions after other setup
 });
 
-app.on('before-quit', () => {
-  console.log('App before-quit event triggered');
+app.on('before-quit', (event) => {
+  console.log('=== APP BEFORE-QUIT EVENT TRIGGERED ===');
+  console.log('Event defaultPrevented:', event.defaultPrevented);
 });
 
-app.on('will-quit', () => {
-  console.log('App will-quit event triggered');
+app.on('will-quit', (event) => {
+  console.log('=== APP WILL-QUIT EVENT TRIGGERED ===');
+  console.log('Event defaultPrevented:', event.defaultPrevented);
 });
 
-//osX only
 app.on("window-all-closed", () => {
+  console.log('=== WINDOW-ALL-CLOSED EVENT ===');
+  console.log('Platform:', process.platform);
   if (process.platform !== "darwin") {
+    console.log('Non-macOS: calling app.quit()');
     app.quit();
+  } else {
+    console.log('macOS: keeping app running (standard macOS behavior)');
   }
 });
 
