@@ -12,6 +12,7 @@ import {
   Link,
   useLocation,
   useBlocker,
+  useSearch,
 } from "@tanstack/react-router";
 import Tabs, { Tab } from "@uiw/react-tabs-draggable";
 import { SiteHeader } from "@/components/site-header";
@@ -246,6 +247,18 @@ export default function ExamDetailPage({
   const clientId = propClientId || routeClientId;
   const examId = propExamId || routeExamId;
 
+  const isNewMode = mode === "new" || !examId;
+
+  let layoutIdFromSearch: string | undefined;
+  if (pageType === "exam" && isNewMode) {
+    try {
+      const search = useSearch({ from: "/clients/$clientId/exams/new", strict: false });
+      layoutIdFromSearch = (search as any)?.layoutId as string | undefined;
+    } catch {
+      layoutIdFromSearch = undefined;
+    }
+  }
+
   const [loading, setLoading] = useState(true);
   const [client, setClient] = useState<Client | null>(null);
   const [exam, setExam] = useState<OpticalExam | null>(null);
@@ -276,8 +289,6 @@ export default function ExamDetailPage({
     useState<ExamComponentType | null>(null);
 
   // Get the client data context to refresh exams after save
-
-  const isNewMode = mode === "new";
   const [isEditing, setIsEditing] = useState(isNewMode);
   const [activeTab, setActiveTab] = useState(config.sidebarTab);
 
@@ -918,44 +929,31 @@ export default function ExamDetailPage({
         } else {
           const layoutsTree = await getAllExamLayouts(currentClinic?.id);
           setAvailableLayouts(layoutsTree as ExamLayout[]);
-          const flattenedLayouts = flattenExamLayouts(
-            layoutsTree as ExamLayout[],
-          );
-          const selectableLayouts = flattenedLayouts.filter(
-            (layout) => !layout.is_group,
-          );
-          let defaultLayouts = selectableLayouts.filter(
-            (layout) => layout.is_default,
-          );
-          if (defaultLayouts.length === 0 && selectableLayouts.length > 0) {
-            defaultLayouts = [selectableLayouts[0]];
-          }
-          if (defaultLayouts.length > 0) {
-            const layoutTabsData: LayoutTab[] = [];
-            for (let i = 0; i < defaultLayouts.length; i++) {
-              const defaultLayout = defaultLayouts[i];
-              const tempInstanceId = -Date.now() - i;
-              if (i === 0) {
-                const parsedLayout = JSON.parse(defaultLayout.layout_data);
-                if (Array.isArray(parsedLayout)) {
-                  setCardRows(parsedLayout);
-                  setCustomWidths({});
-                } else {
-                  setCardRows(parsedLayout.rows || []);
-                  setCustomWidths(parsedLayout.customWidths || {});
-                }
-                setActiveInstanceId(tempInstanceId);
+          
+          if (layoutIdFromSearch) {
+            const selectedLayoutId = Number(layoutIdFromSearch);
+            const selectedLayout = await getExamLayoutById(selectedLayoutId);
+            
+            if (selectedLayout && !selectedLayout.is_group) {
+              const tempInstanceId = -Date.now();
+              const parsedLayout = JSON.parse(selectedLayout.layout_data || "[]");
+              if (Array.isArray(parsedLayout)) {
+                setCardRows(parsedLayout);
+                setCustomWidths({});
+              } else {
+                setCardRows(parsedLayout.rows || []);
+                setCustomWidths(parsedLayout.customWidths || {});
               }
-              initializeFormData(tempInstanceId, defaultLayout.layout_data);
-              layoutTabsData.push({
+              setActiveInstanceId(tempInstanceId);
+              initializeFormData(tempInstanceId, selectedLayout.layout_data || "");
+              setLayoutTabs([{
                 id: tempInstanceId,
-                layout_id: defaultLayout.id || 0,
-                name: defaultLayout.name || "",
-                layout_data: defaultLayout.layout_data || "",
-                isActive: i === 0,
-              });
+                layout_id: selectedLayout.id || 0,
+                name: selectedLayout.name || "",
+                layout_data: selectedLayout.layout_data || "",
+                isActive: true,
+              }]);
             }
-            setLayoutTabs(layoutTabsData);
           }
         }
       } catch (error) {
@@ -965,7 +963,7 @@ export default function ExamDetailPage({
       }
     };
     loadData();
-  }, [clientId, examId, isNewMode, config.dbType, currentClinic?.id]);
+  }, [clientId, examId, isNewMode, config.dbType, currentClinic?.id, layoutIdFromSearch]);
 
   useEffect(() => {
     if (!loading && !baselineInitializedRef.current) {

@@ -146,6 +146,9 @@ export const ExamDetailRoute = createRoute({
 export const ExamCreateRoute = createRoute({
   getParentRoute: () => RootRoute,
   path: "/clients/$clientId/exams/new",
+  validateSearch: (search: Record<string, unknown>) => ({
+    layoutId: typeof search.layoutId === "string" ? (search.layoutId as string) : undefined,
+  }),
   component: ExamCreatePage,
 });
 

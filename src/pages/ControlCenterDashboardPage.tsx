@@ -181,10 +181,6 @@ const ControlCenterDashboardPage: React.FC = () => {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <Button  variant="outline" className="bg-card shadow-md border-none dark:bg-card">
-              <Settings className="h-4 w-4 ml-2" />
-              הגדרות
-            </Button>
           </div>
         </div>
 

@@ -631,10 +631,18 @@ export function ClientDetailsTab({
                     <SelectValue placeholder="בחר קופת חולים" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="כללית">כללית</SelectItem>
-                    <SelectItem value="מכבי">מכבי</SelectItem>
-                    <SelectItem value="מאוחדת">מאוחדת</SelectItem>
-                    <SelectItem value="לאומית">לאומית</SelectItem>
+                    <SelectItem value="כללית רגיל">כללית רגיל</SelectItem>
+                    <SelectItem value="כללית מושלם זהב">כללית מושלם זהב</SelectItem>
+                    <SelectItem value="כללית מושלם פלטינום">כללית מושלם פלטינום</SelectItem>
+                    <SelectItem value="מכבי רגיל">מכבי רגיל</SelectItem>
+                    <SelectItem value="מכבי זהב">מכבי זהב</SelectItem>
+                    <SelectItem value="מכבי שלי">מכבי שלי</SelectItem>
+                    <SelectItem value="מאוחדת רגיל">מאוחדת רגיל</SelectItem>
+                    <SelectItem value="מאוחדת עדיף">מאוחדת עדיף</SelectItem>
+                    <SelectItem value="מאוחדת שיא">מאוחדת שיא</SelectItem>
+                    <SelectItem value="לאומית רגיל">לאומית רגיל</SelectItem>
+                    <SelectItem value="לאומית כסף">לאומית כסף</SelectItem>
+                    <SelectItem value="לאומית זהב">לאומית זהב</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

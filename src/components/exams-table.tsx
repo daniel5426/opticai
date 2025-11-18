@@ -10,16 +10,24 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Plus, Trash2 } from "lucide-react";
-import { OpticalExam, User, Client } from "@/lib/db/schema-interface";
+import { OpticalExam, User, Client, ExamLayout } from "@/lib/db/schema-interface";
 import { ClientSelectModal } from "@/components/ClientSelectModal";
 import { getAllUsers } from "@/lib/db/users-db";
 import { getAllClients } from "@/lib/db/clients-db";
 import { CustomModal } from "@/components/ui/custom-modal";
 import { deleteExam } from "@/lib/db/exams-db";
+import { getDefaultExamLayouts } from "@/lib/db/exam-layouts-db";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DateSearchHelper } from "@/lib/date-search-helper";
+import { useUser } from "@/contexts/UserContext";
 
 interface ExamWithNames extends OpticalExam {
   username?: string;
@@ -43,6 +51,21 @@ export function ExamsTable({ data, clientId, onExamDeleted, onExamDeleteFailed, 
   const navigate = useNavigate();
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [examToDelete, setExamToDelete] = useState<ExamWithNames | null>(null);
+  const [defaultLayouts, setDefaultLayouts] = useState<ExamLayout[]>([]);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const { currentClinic } = useUser();
+
+  useEffect(() => {
+    const fetchDefaultLayouts = async () => {
+      try {
+        const layouts = await getDefaultExamLayouts();
+        setDefaultLayouts(layouts.filter(layout => !layout.is_group));
+      } catch (error) {
+        console.error("Error fetching default layouts:", error);
+      }
+    };
+    fetchDefaultLayouts();
+  }, [currentClinic?.id]);
 
   const filteredData = React.useMemo(() => {
     if (externalSearch === undefined) {
@@ -120,21 +143,58 @@ export function ExamsTable({ data, clientId, onExamDeleted, onExamDeleteFailed, 
           />
         </div>
         {clientId > 0 ? (
-          <Link
-            to="/clients/$clientId/exams/new"
-            params={{ clientId: String(clientId) }}
-          >
-            <Button>בדיקה חדשה
-              <Plus className="h-4 w-4 mr-2" />
+          defaultLayouts.length > 0 ? (
+            <DropdownMenu open={isDropdownOpen} onOpenChange={setIsDropdownOpen}>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  onMouseEnter={() => setIsDropdownOpen(true)}
+                  onMouseLeave={() => setIsDropdownOpen(false)}
+                >
+                  בדיקה חדשה
+                  <Plus className="h-4 w-4 mr-2" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                onMouseEnter={() => setIsDropdownOpen(true)}
+                onMouseLeave={() => setIsDropdownOpen(false)}
+                align="end"
+              >
+                {defaultLayouts.map((layout) => (
+                  <DropdownMenuItem
+                    key={layout.id}
+                    onClick={() => {
+                      navigate({
+                        to: "/clients/$clientId/exams/new",
+                        params: { clientId: String(clientId) },
+                        search: { layoutId: String(layout.id) },
+                      });
+                      setIsDropdownOpen(false);
+                    }}
+                  >
+                    {layout.name}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : (
+            <Link
+              to="/clients/$clientId/exams/new"
+              params={{ clientId: String(clientId) }}
+            >
+              <Button>
+                בדיקה חדשה
+                <Plus className="h-4 w-4 mr-2" />
               </Button>
-          </Link>
+            </Link>
+          )
         ) : (
-          <ClientSelectModal
-            triggerText="בדיקה חדשה"
-            onClientSelect={(selectedClientId) => {
+          <NewExamButtonWithoutClient
+            defaultLayouts={defaultLayouts}
+            onClientSelect={(selectedClientId, layoutId) => {
               navigate({
                 to: "/clients/$clientId/exams/new",
                 params: { clientId: String(selectedClientId) },
+                search: layoutId ? { layoutId: String(layoutId) } : undefined,
               });
             }}
           />
@@ -269,5 +329,78 @@ export function ExamsTable({ data, clientId, onExamDeleted, onExamDeleteFailed, 
         showCloseButton={false}
       />
     </div>
+  );
+}
+
+function NewExamButtonWithoutClient({
+  defaultLayouts,
+  onClientSelect,
+}: {
+  defaultLayouts: ExamLayout[];
+  onClientSelect: (clientId: number, layoutId?: number) => void;
+}) {
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [isClientModalOpen, setIsClientModalOpen] = useState(false);
+  const [selectedLayoutId, setSelectedLayoutId] = useState<number | undefined>();
+
+  const handleLayoutSelect = (layoutId: number) => {
+    setSelectedLayoutId(layoutId);
+    setIsDropdownOpen(false);
+    setIsClientModalOpen(true);
+  };
+
+  const handleClientSelect = (clientId: number) => {
+    onClientSelect(clientId, selectedLayoutId);
+    setIsClientModalOpen(false);
+    setSelectedLayoutId(undefined);
+  };
+
+  if (defaultLayouts.length > 0) {
+    return (
+      <>
+        <DropdownMenu open={isDropdownOpen} onOpenChange={setIsDropdownOpen}>
+          <DropdownMenuTrigger asChild>
+            <Button
+              onMouseEnter={() => setIsDropdownOpen(true)}
+              onMouseLeave={() => setIsDropdownOpen(false)}
+            >
+              בדיקה חדשה
+              <Plus className="h-4 w-4 mr-2" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent
+            onMouseEnter={() => setIsDropdownOpen(true)}
+            onMouseLeave={() => setIsDropdownOpen(false)}
+            align="end"
+          >
+            {defaultLayouts.map((layout) => (
+              <DropdownMenuItem
+                key={layout.id}
+                onClick={() => handleLayoutSelect(layout.id!)}
+              >
+                {layout.name}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+        <ClientSelectModal
+          isOpen={isClientModalOpen}
+          onClose={() => {
+            setIsClientModalOpen(false);
+            setSelectedLayoutId(undefined);
+          }}
+          onClientSelect={handleClientSelect}
+        />
+      </>
+    );
+  }
+
+  return (
+    <ClientSelectModal
+      triggerText="בדיקה חדשה"
+      onClientSelect={(selectedClientId) => {
+        onClientSelect(selectedClientId);
+      }}
+    />
   );
 }
