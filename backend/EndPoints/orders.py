@@ -5,6 +5,7 @@ from database import get_db
 from models import Order, Client, User, Billing, OrderLineItem, ContactLensOrder
 from sqlalchemy import func
 from schemas import OrderCreate, OrderUpdate, Order as OrderSchema, BillingCreate, BillingUpdate, Billing as BillingSchema, OrderLineItemCreate, OrderLineItemUpdate, OrderLineItem as OrderLineItemSchema, ContactLensOrderCreate, ContactLensOrderUpdate, ContactLensOrder as ContactLensOrderSchema
+from utils.date_search import DateSearchHelper
 
 router = APIRouter(prefix="/orders", tags=["orders"])
 
@@ -21,34 +22,50 @@ def get_orders_paginated(
     from sqlalchemy import union_all, select
 
     like = f"%{search.strip()}%" if search else None
+    
+    parsed_date = DateSearchHelper.parse_date(search) if search else None
 
     order_filters = []
     if clinic_id:
         order_filters.append(Order.clinic_id == clinic_id)
     if like:
+        date_search_conditions = DateSearchHelper.build_date_search_conditions(
+            Order.order_date, search
+        )
+        
         order_filters.append(
             or_(
                 Order.type.ilike(like),
                 func.concat(Client.first_name, ' ', Client.last_name).ilike(like),
                 User.full_name.ilike(like),
                 User.username.ilike(like),
-                func.cast(Order.order_date, String).ilike(like),
+                *date_search_conditions,
             )
         )
+        
+        if parsed_date:
+            order_filters.append(Order.order_date == parsed_date)
 
     cl_filters = []
     if clinic_id:
         cl_filters.append(ContactLensOrder.clinic_id == clinic_id)
     if like:
+        date_search_conditions_cl = DateSearchHelper.build_date_search_conditions(
+            ContactLensOrder.order_date, search
+        )
+        
         cl_filters.append(
             or_(
                 ContactLensOrder.type.ilike(like),
                 func.concat(Client.first_name, ' ', Client.last_name).ilike(like),
                 User.full_name.ilike(like),
                 User.username.ilike(like),
-                func.cast(ContactLensOrder.order_date, String).ilike(like),
+                *date_search_conditions_cl,
             )
         )
+        
+        if parsed_date:
+            cl_filters.append(ContactLensOrder.order_date == parsed_date)
 
     orders_from = Order.__table__.outerjoin(User.__table__, Order.user_id == User.id).outerjoin(Client.__table__, Order.client_id == Client.id)
     orders_select = select(

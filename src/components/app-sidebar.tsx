@@ -171,11 +171,11 @@ export function AppSidebar({
   return (
     <Sidebar collapsible="offcanvas" {...props}>
       <SidebarHeader>
-        <SidebarMenu>
-          <SidebarMenuItem>
+        <SidebarMenu className="ring-0 border-0">
+          <SidebarMenuItem className="ring-0 border-0">
           <SidebarMenuButton
               asChild
-              className="data-[slot=sidebar-menu-button]:!p-1.5 !h-auto min-h-5 items-start"
+              className="data-[slot=sidebar-menu-button]:!p-1.5 !h-auto ring-0 border-0 min-h-5 items-start"
             >
               <div>
                 <ClinicDropdown

@@ -2,7 +2,7 @@ import { supabase } from '@/lib/supabaseClient'
 import { apiClient } from '@/lib/api-client'
 import { User, Company, Clinic } from '@/lib/db/schema-interface'
 import { ROLE_LEVELS, isRoleAtLeast } from '@/lib/role-levels'
-import { router } from '@/routes/router'
+import { router, routerHistory } from '@/routes/router'
 
 /**
  * Authentication State Machine
@@ -62,8 +62,41 @@ class AuthService {
     try {
       console.log('[Auth] Initializing...')
 
+      const supabaseUrl = (import.meta as any).env?.VITE_SUPABASE_URL || (globalThis as any)?.VITE_SUPABASE_URL
+      const supabaseAnonKey = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY || (globalThis as any)?.VITE_SUPABASE_ANON_KEY
+
+      if (!supabaseUrl || !supabaseAnonKey) {
+        console.warn('[Auth] Supabase not configured, skipping session check')
+        await this.restoreLocalSession()
+        this.setupAuthListener()
+        this.initialized = true
+        console.log('[Auth] Initialization complete, state:', this.state)
+        return
+      }
+
+      const getSessionWithTimeout = () => {
+        return Promise.race([
+          supabase.auth.getSession(),
+          new Promise<{ data: { session: any }, error: any }>((resolve) => {
+            setTimeout(() => {
+              console.warn('[Auth] getSession() timeout after 5s')
+              resolve({ data: { session: null }, error: { message: 'timeout' } })
+            }, 5000)
+          })
+        ])
+      }
+
       // Check Supabase session first
-      const { data: { session: supabaseSession } } = await supabase.auth.getSession()
+      const { data: { session: supabaseSession }, error } = await getSessionWithTimeout()
+      
+      if (error) {
+        console.warn('[Auth] Error getting Supabase session:', error)
+        await this.restoreLocalSession()
+        this.setupAuthListener()
+        this.initialized = true
+        console.log('[Auth] Initialization complete, state:', this.state)
+        return
+      }
       
       if (supabaseSession) {
         console.log('[Auth] Found Supabase session')
@@ -80,7 +113,9 @@ class AuthService {
       console.log('[Auth] Initialization complete, state:', this.state)
     } catch (error) {
       console.error('[Auth] Initialization failed:', error)
-      this.transitionTo(AuthState.UNAUTHENTICATED)
+      
+      await this.restoreLocalSession()
+      this.initialized = true
     }
   }
 
@@ -183,6 +218,8 @@ class AuthService {
 
   private async loadUserContext(user: User, isSupabaseAuth: boolean): Promise<void> {
     this.storeUser(user)
+    const lastContext = this.getStoredContext()
+    console.log('[Auth] loadUserContext: last context', lastContext)
 
     if (isRoleAtLeast(user.role_level, ROLE_LEVELS.ceo) && user.company_id) {
       // Load company for CEO
@@ -190,6 +227,17 @@ class AuthService {
       if (companyResponse.data) {
         const company = companyResponse.data as Company
         this.storeCompany(company)
+        
+        const storedClinic = this.getStoredClinic()
+        const shouldAttachClinic = lastContext !== 'control-center'
+        console.log('[Auth] loadUserContext: clinic attach?', { storedClinic: !!storedClinic, shouldAttachClinic })
+        
+        if (storedClinic && shouldAttachClinic) {
+          console.log('[Auth] CEO has stored clinic session:', storedClinic.name)
+          this.session = { user, company, clinic: storedClinic, isSupabaseAuth }
+          return
+        }
+        
         this.session = { user, company, isSupabaseAuth }
         return
       }
@@ -531,14 +579,27 @@ class AuthService {
       }
 
       const previousClinicId = this.session?.clinic?.id
+      const isClinicChange = previousClinicId !== clinic.id
+      const currentPath = window.location.pathname
+      const isOnControlCenter = currentPath.startsWith('/control-center')
+      
       this.session = newSession
 
-      // For CEOs, always force navigation when selecting a clinic
-      // This handles cases where they're switching from control center to clinic,
-      // or even if they're already "in" that clinic but coming from control center context
-      const forceNavigation = isRoleAtLeast(user.role_level, ROLE_LEVELS.ceo) && !!clinic
+      // Force navigation if:
+      // 1. Coming from Control Center to a clinic, OR
+      // 2. Switching between different clinics, OR  
+      // 3. CEO explicitly selecting a clinic (even if same ID, context may differ)
+      const forceNavigation = isRoleAtLeast(user.role_level, ROLE_LEVELS.ceo) && 
+                             (isOnControlCenter || isClinicChange || !!clinic)
 
-      console.log('[Auth] Clinic switch:', { previousClinicId, newClinicId: clinic.id, forceNavigation })
+      console.log('[Auth] Clinic switch:', { 
+        previousClinicId, 
+        newClinicId: clinic.id, 
+        currentPath,
+        isOnControlCenter,
+        isClinicChange,
+        forceNavigation 
+      })
 
       this.transitionTo(AuthState.AUTHENTICATED, forceNavigation)
     } else {
@@ -742,7 +803,7 @@ class AuthService {
     // Navigate after state update (synchronous)
     // Always navigate if forceNavigation is true, even in same state
     if (forceNavigation || newState !== AuthState.LOADING) {
-      this.navigate()
+      this.navigate(forceNavigation)
     }
   }
 
@@ -756,14 +817,14 @@ class AuthService {
     })
   }
 
-  private navigate(): void {
+  private navigate(forceNavigation = false): void {
     // Don't navigate if we're in a popup window (OAuth callback)
     if (window.opener) {
       console.log('[Auth] Skipping navigation - in popup window')
       return
     }
 
-    console.log('[Auth] Navigating for state:', this.state)
+    console.log('[Auth] Navigating for state:', this.state, forceNavigation ? '(forced)' : '')
 
     // Try to get current path from router first, fallback to window.location
     let currentPath = window.location.pathname
@@ -778,6 +839,20 @@ class AuthService {
     console.log('[Auth] Current path:', currentPath)
 
     try {
+      if (!forceNavigation) {
+        const storedPath = this.getStoredPath()
+        const storedContext = this.getStoredContext()
+        console.log('[Auth] Stored path/context:', { storedPath, storedContext, currentPath })
+        if (storedPath && this.shouldRestorePath(storedPath, currentPath)) {
+          console.log('[Auth] Restoring stored path:', storedPath)
+          if (this.restoreStoredPath(storedPath)) {
+            return
+          }
+        } else {
+          console.log('[Auth] Path restoration skipped')
+        }
+      }
+
       switch (this.state) {
         case AuthState.UNAUTHENTICATED:
           if (currentPath !== '/control-center') {
@@ -823,7 +898,29 @@ class AuthService {
                                    currentPath.startsWith('/worker-stats')
             const isComingFromControlCenter = currentPath.startsWith('/control-center')
             
-            if (!isOnClinicPage || isComingFromControlCenter) {
+            if (forceNavigation) {
+              console.log('[Auth] Navigating to clinic dashboard from:', currentPath, '(forced)')
+              
+              const clinicIdParam = this.session?.clinic?.id
+                ? this.session.clinic.id.toString()
+                : undefined
+              const refreshToken = Date.now().toString()
+
+              const navResult = router.navigate({
+                to: '/dashboard',
+                replace: true,
+                search: {
+                  clinicId: clinicIdParam,
+                  refresh: refreshToken
+                }
+              })
+
+              if (navResult && typeof navResult.then === 'function') {
+                navResult.catch((err: Error) => {
+                  console.error('[Auth] Forced dashboard navigation failed:', err)
+                })
+              }
+            } else if (!isOnClinicPage || isComingFromControlCenter) {
               console.log('[Auth] Navigating to clinic dashboard from:', currentPath)
               const navResult = router.navigate({ to: '/dashboard' })
               if (navResult && typeof navResult.then === 'function') {
@@ -836,8 +933,8 @@ class AuthService {
             }
           } else if (isRoleAtLeast(this.session?.user?.role_level, ROLE_LEVELS.ceo)) {
             // CEO context - go to control center dashboard
-            if (!currentPath.startsWith('/control-center/dashboard')) {
-              console.log('[Auth] Navigating to control center dashboard from:', currentPath)
+            if (forceNavigation || !currentPath.startsWith('/control-center/dashboard')) {
+              console.log('[Auth] Navigating to control center dashboard from:', currentPath, forceNavigation ? '(forced)' : '')
               const navResult = router.navigate({
                 to: '/control-center/dashboard',
                 search: {
@@ -946,6 +1043,59 @@ class AuthService {
     localStorage.setItem('controlCenterCompany', JSON.stringify(company))
   }
 
+  private getStoredPath(): string | null {
+    try {
+      return localStorage.getItem('lastAppPath')
+    } catch {
+      return null
+    }
+  }
+
+  private getStoredContext(): 'control-center' | 'clinic' | null {
+    try {
+      const value = localStorage.getItem('lastAppContext')
+      if (value === 'control-center' || value === 'clinic') {
+        return value
+      }
+      return null
+    } catch {
+      return null
+    }
+  }
+
+  private shouldRestorePath(storedPath: string, currentPath: string): boolean {
+    if (!storedPath || storedPath === currentPath) return false
+    if (storedPath === '/auth/callback') return false
+
+    const storedContext = this.getStoredContext()
+    if (!storedContext) return false
+
+    const isControlCenterPath = storedPath === '/' || storedPath.startsWith('/control-center')
+    const isClinicPath = !isControlCenterPath
+
+    if (storedContext === 'control-center') {
+      if (!isControlCenterPath) return false
+      return isRoleAtLeast(this.session?.user?.role_level, ROLE_LEVELS.ceo)
+    }
+
+    if (storedContext === 'clinic') {
+      if (!isClinicPath) return false
+      return !!this.session?.clinic
+    }
+
+    return false
+  }
+
+  private restoreStoredPath(path: string): boolean {
+    try {
+      routerHistory.replace(path)
+      return true
+    } catch (error) {
+      console.error('[Auth] Failed to restore stored path:', error)
+      return false
+    }
+  }
+
   private getPendingClinicUserId(): number | null {
     try {
       const stored = localStorage.getItem('pendingClinicUserId')
@@ -974,7 +1124,9 @@ class AuthService {
       'controlCenterCompany',
       'auth_token',
       'pendingClinicUserId',
-      'isClinicGoogleAuth'
+      'isClinicGoogleAuth',
+      'lastAppPath',
+      'lastAppContext'
     ]
     keys.forEach(key => localStorage.removeItem(key))
   }

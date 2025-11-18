@@ -15,6 +15,7 @@ import {
 import { useNavigate, useLocation } from "@tanstack/react-router";
 import { Clinic } from "@/lib/db/schema-interface";
 import { useUser } from "@/contexts/UserContext";
+import { useNavigationGuard } from "@/contexts/NavigationGuardContext";
 import { toast } from "sonner";
 import { cn } from "@/utils/tailwind";
 import { apiClient } from "@/lib/api-client";
@@ -39,6 +40,7 @@ export function ClinicDropdown({
   const [clinics, setClinics] = useState<Clinic[]>([]);
   const [loading, setLoading] = useState(false);
   const { currentUser, setCurrentClinic, clinicRefreshTrigger } = useUser();
+  const { runGuard, hasGuard } = useNavigationGuard();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -90,26 +92,29 @@ export function ClinicDropdown({
     loadData();
   }, [clinicRefreshTrigger, loadData]);
 
-  const handleClinicSelect = useCallback((clinic: Clinic) => {
-    if (!isInControlCenter && clinic.id === currentClinic?.id) {
-      return;
-    }
-
+  const executeClinicSwitch = useCallback((clinic: Clinic) => {
     try {
-      // For CEO users switching to a clinic, set up the clinic session properly
-      // AuthService.setClinicSession handles navigation automatically
       if (isRoleAtLeast(currentUser?.role_level, ROLE_LEVELS.ceo)) {
         authService.setClinicSession(clinic, currentUser);
       } else {
         setCurrentClinic(clinic);
       }
     } catch (error) {
-      console.error('ClinicDropdown: Error in handleClinicSelect:', error);
+      console.error("ClinicDropdown: Error in executeClinicSwitch:", error);
       toast.error("שגיאה בהחלפת מרפאה");
-      // Log full error for debugging
-      console.error('Full error details:', error);
     }
-  }, [isInControlCenter, currentClinic?.id, currentUser, setCurrentClinic]);
+  }, [currentUser, setCurrentClinic]);
+
+  const handleClinicSelect = useCallback((clinic: Clinic) => {
+    const runSwitch = () => executeClinicSwitch(clinic);
+
+    if (hasGuard()) {
+      runGuard(runSwitch);
+      return;
+    }
+
+    runSwitch();
+  }, [executeClinicSwitch, hasGuard, runGuard]);
 
   const handleControlCenterClick = useCallback(() => {
     const companyId = effectiveCompanyId;
@@ -154,7 +159,7 @@ export function ClinicDropdown({
       <DropdownMenuTrigger asChild>
         <Button
           variant="ghost"
-          className="flex ring-0 border-0 h-auto w-full max-w-full items-start gap-2 p-0 hover:bg-transparent data-[state=open]:bg-transparent whitespace-normal overflow-hidden"
+          className="flex ring-0 border-0 focus-visible:ring-0 focus-visible:border-0 focus-visible:outline-none h-auto w-full max-w-full items-start gap-2 p-0 hover:bg-transparent data-[state=open]:bg-transparent whitespace-normal overflow-hidden"
           type="button"
         >
           <div className="flex w-full max-w-full items-start gap-2 min-w-0 overflow-hidden">

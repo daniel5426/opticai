@@ -252,7 +252,7 @@ export default function WorkerStatsPage() {
           </div>
 
           {users.length === 0 ? (
-            <Card className="shadow-md border-none">
+            <Card className="">
               <CardContent className="flex items-center justify-center h-64">
                 <div className="text-center text-muted-foreground">
                   <p className="text-lg mb-2">אין עובדים במערכת</p>
@@ -268,7 +268,7 @@ export default function WorkerStatsPage() {
                   {users.map((user) => (
                     <TabsContent key={user.id} value={user.id!.toString()} className="space-y-6 mt-0">
                       {/* User Stats Overview */}
-                      <Card className="shadow-md border-none">
+                      <Card className="">
                         <CardHeader>
                           <div className="flex items-center justify-between">
                           <div className="flex items-center gap-4 justify-end mb-6">
@@ -349,7 +349,7 @@ export default function WorkerStatsPage() {
                       </Card>
 
                       {/* Day View */}
-                      <Card className="shadow-md border-none">
+                      <Card className="">
                         <CardHeader>
                           <div className="flex items-center justify-between">
                             <div className="flex items-center">

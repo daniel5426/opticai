@@ -46,7 +46,7 @@ import {
   reorderExamLayoutInstances,
 } from "@/lib/db/exam-layouts-db";
 import { Button } from "@/components/ui/button";
-import { X as XIcon, RefreshCw } from "lucide-react";
+import { X as XIcon, RefreshCw, Edit, Save } from "lucide-react";
 import { toast } from "sonner";
 import { useUser } from "@/contexts/UserContext";
 import {
@@ -1583,7 +1583,8 @@ export default function ExamDetailPage({
     await handleSelectLayoutOption(layoutId);
   };
 
-  const FULL_DATA_NAME = "Full data";
+  const FULL_DATA_NAME = "כל הנתונים";
+  const FULL_DATA_ICON = "/icons/box.png";
 
   const isMeaningfulValue = (v: any) => {
     if (v === null || v === undefined) return false;
@@ -2175,18 +2176,19 @@ export default function ExamDetailPage({
             });
           }}
         >
-          <Button variant="outline" className="h-9 px-4">
-            יצירת הזמנה
-          </Button>
         </Link>
       )}
-      <LayoutSelectorDropdown
+      {!isNewMode && (<><LayoutSelectorDropdown
         availableLayouts={availableLayouts}
         onSelectLayout={handleSelectLayoutOption}
         onAddFullData={handleAddFullDataTab}
         onRequestLayouts={handleRequestLayouts}
         isLoading={isAddingLayouts}
       />
+                <Button variant="outline" className="h-9 px-4">
+           הזמנה
+          </Button></>)}
+
       {isNewMode && onCancel && (
         <Button
           variant="outline"
@@ -2205,8 +2207,9 @@ export default function ExamDetailPage({
         variant={isEditing ? "outline" : "default"}
         className="h-9 px-4"
         onClick={handleEditButtonClick}
+        size="icon"
       >
-        {isNewMode ? "שמור בדיקה" : isEditing ? "שמור שינויים" : "ערוך בדיקה"}
+        {isNewMode || isEditing ? <Save size={18} /> : <Edit size={18} />}
       </Button>
     </>
   );
@@ -2228,33 +2231,31 @@ export default function ExamDetailPage({
           >
             
             <div className="mb-6">
-              <Card className="w-full examcard rounded-xl px-4 py-3 pt-4 bg-background">
+              <Card className="w-full examcard rounded-xl px-4 py-3 bg-background">
                 <div
-                  className="flex items-center gap-6 w-full whitespace-nowrap overflow-x-auto no-scrollbar"
+                  className="flex items-center gap-2 w-full whitespace-nowrap overflow-x-auto no-scrollbar"
                   dir="rtl"
                   style={{ scrollbarWidth: "none" }}
                 >
-                  <div className="flex flex-col gap-1 min-w-[180px]">
-                    <Skeleton className="h-3 w-20 rounded-full" />
+                  <div className="min-w-[100px] max-w-[180px] w-full flex-1 sm:w-[180px]">
                     <Skeleton className="h-9 w-full rounded-lg" />
                   </div>
-                  <div className="flex flex-col gap-1 min-w-[150px]">
-                    <Skeleton className="h-3 w-16 rounded-full" />
+              
+                  <div className="min-w-[80px] max-w-[120px] w-full flex-1 sm:w-[120px]">
                     <Skeleton className="h-9 w-full rounded-lg" />
                   </div>
-                  <div className="flex flex-col gap-1 min-w-[160px]">
-                    <Skeleton className="h-3 w-12 rounded-full" />
+                  
+                  <div className="flex flex-col min-w-[100px] max-w-[180px] w-full flex-1 sm:w-[180px]">
                     <Skeleton className="h-9 w-full rounded-lg" />
                   </div>
-                  <div className="flex flex-col gap-1 min-w-[130px]">
-                    <Skeleton className="h-3 w-14 rounded-full" />
+                  <div className="flex flex-col min-w-[80px] max-w-[120px] w-full flex-1 sm:w-[120px]">
                     <Skeleton className="h-9 w-full rounded-lg" />
                   </div>
                   <div className="flex-1" />
-                  <div className="flex items-center gap-2 min-w-fit">
-                    <Skeleton className="h-9 w-24 rounded-lg" />
-                    <Skeleton className="h-9 w-24 rounded-lg" />
-                    <Skeleton className="h-9 w-24 rounded-lg" />
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Skeleton className="h-9 min-w-[56px] w-1/3 max-w-[96px] rounded-lg" />
+                    <Skeleton className="h-9 min-w-[56px] w-1/3 max-w-[96px] rounded-lg" />
+                    <Skeleton className="h-9 min-w-[32px] w-1/5 max-w-[40px] rounded-lg" />
                   </div>
                 </div>
               </Card>
@@ -2357,7 +2358,19 @@ export default function ExamDetailPage({
                           fontWeight: "500",
                         }}
                       >
-                        {tab.name}
+                        {tab.name === FULL_DATA_NAME ? (
+                          <img
+                            src={FULL_DATA_ICON}
+                            alt={FULL_DATA_NAME}
+                            style={{
+                              width: "20px",
+                              height: "20px",
+                              objectFit: "contain",
+                            }}
+                          />
+                        ) : (
+                          tab.name
+                        )}
                       </Tab>
                     ))}
                   </Tabs>
@@ -2366,12 +2379,12 @@ export default function ExamDetailPage({
                   (() => {
                     const activeTab = layoutTabs.find((t) => t.isActive);
                     return (
-                      <>
+                      <div className="flex ml-2 items-center gap-2">
                         {activeTab && activeTab.name === FULL_DATA_NAME && (
                           <button
                             type="button"
                             onClick={handleRegenerateFullData}
-                            className="hover:bg-muted flex h-[24px] w-[24px] items-center justify-center rounded-full"
+                            className="hover:bg-muted  bg-card border border-border flex h-[27px] w-[27px] items-center justify-center rounded-lg"
                             aria-label="רענן Full data"
                             title="רענן"
                             disabled={isRegeneratingFullData}
@@ -2385,13 +2398,13 @@ export default function ExamDetailPage({
                           <button
                             type="button"
                             onClick={() => handleRemoveLayoutTab(activeTab.id)}
-                            className="flex h-[24px] w-[24px] items-center justify-center rounded-full hover:bg-red-500 hover:text-white"
+                            className="flex h-[24px] w-[24px] items-center justify-center rounded-md bg-red-500 text-white hover:bg-red-600"
                             aria-label="הסר לשונית"
                           >
                             <XIcon className="h-3.5 w-3.5" />
                           </button>
                         )}
-                      </>
+                      </div>
                     );
                   })()}
               </div>

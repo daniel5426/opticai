@@ -33,6 +33,7 @@ import type { Company, Clinic } from '@/lib/db/schema-interface';
 import { apiClient } from '@/lib/api-client';
 import { Skeleton } from '@/components/ui/skeleton';
 import { authService } from '@/lib/auth/AuthService';
+import { useNavigationGuard } from '@/contexts/NavigationGuardContext';
 
 interface ClinicModalProps {
   isOpen: boolean;
@@ -259,6 +260,7 @@ const ControlCenterClinicsPage: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingClinic, setEditingClinic] = useState<Clinic | undefined>(undefined);
   const { refreshClinics, currentUser } = useUser();
+  const { runGuard, hasGuard } = useNavigationGuard();
 
   const loadData = async () => {
     try {
@@ -588,8 +590,16 @@ const ControlCenterClinicsPage: React.FC = () => {
                         size="sm" 
                         className="w-full h-8 bg-gradient-to-r from-blue-50 to-green-50 hover:from-blue-100 hover:to-green-100 border-blue-200 text-blue-700 hover:text-blue-800 text-xs font-medium"
                         onClick={() => {
-                          if (currentUser) {
+                          if (!currentUser) return;
+                          
+                          const executeSwitch = () => {
                             authService.setClinicSession(clinic, currentUser);
+                          };
+                          
+                          if (hasGuard()) {
+                            runGuard(executeSwitch);
+                          } else {
+                            executeSwitch();
                           }
                         }}
                       >

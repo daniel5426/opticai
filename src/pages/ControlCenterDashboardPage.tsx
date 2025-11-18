@@ -192,7 +192,7 @@ const ControlCenterDashboardPage: React.FC = () => {
           
           {/* Stats Bar - First Row */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-            <Card className="bg-card border-none shadow-md">
+            <Card className="bg-card ">
               <CardHeader className="flex flex-row items-center mb-[-10px] justify-between space-y-0">
                 <CardTitle className="text-sm font-medium">סה"כ מרפאות</CardTitle>
                 <Building2 className="h-4 w-4 text-primary" />
@@ -214,7 +214,7 @@ const ControlCenterDashboardPage: React.FC = () => {
               </CardContent>
             </Card>
 
-            <Card className="bg-card border-none shadow-md">
+            <Card className="bg-card">
               <CardHeader className="flex flex-row items-center mb-[-10px] justify-between space-y-0">
                 <CardTitle className="text-sm font-medium">סה"כ משתמשים</CardTitle>
                 <Users className="h-4 w-4 text-secondary-foreground" />
@@ -236,7 +236,7 @@ const ControlCenterDashboardPage: React.FC = () => {
               </CardContent>
             </Card>
 
-            <Card className="bg-card border-none shadow-md">
+            <Card className="bg-card">
               <CardHeader className="flex flex-row items-center mb-[-10px] justify-between space-y-0">
                 <CardTitle className="text-sm font-medium">תורים החודש</CardTitle>
                 <Calendar className="h-4 w-4 text-primary" />
@@ -258,7 +258,7 @@ const ControlCenterDashboardPage: React.FC = () => {
               </CardContent>
             </Card>
 
-            <Card className="bg-card border-none shadow-md">
+            <Card className="bg-card">
               <CardHeader className="flex flex-row items-center mb-[-10px] justify-between space-y-0">
                 <CardTitle className="text-sm font-medium">הכנסות החודש</CardTitle>
                 <TrendingUp className="h-4 w-4 text-secondary-foreground" />
@@ -280,7 +280,7 @@ const ControlCenterDashboardPage: React.FC = () => {
               </CardContent>
             </Card>
 
-            <Card className="bg-card border-none shadow-md">
+            <Card className="bg-card">
               <CardHeader className="flex flex-row items-center mb-[-10px] justify-between space-y-0">
                 <CardTitle className="text-sm font-medium">AOV ממוצע</CardTitle>
                 <TrendingUp className="h-4 w-4 text-primary" />
@@ -302,7 +302,7 @@ const ControlCenterDashboardPage: React.FC = () => {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            <Card className="bg-card border-none shadow-md">
+            <Card className="bg-card">
               <CardHeader>
                 <CardTitle className="text-sm font-medium">הזמנות לפי סוג</CardTitle>
               </CardHeader>
@@ -369,7 +369,7 @@ const ControlCenterDashboardPage: React.FC = () => {
               </CardFooter>
             </Card>
 
-            <Card className="bg-card border-none shadow-md">
+            <Card className="bg-card">
               <CardHeader>
                 <CardTitle className="text-sm font-medium">תורים החודש לפי מרפאה</CardTitle>
               </CardHeader>
@@ -413,7 +413,7 @@ const ControlCenterDashboardPage: React.FC = () => {
               </CardFooter>
             </Card>
 
-            <Card className="bg-card border-none shadow-md">
+            <Card className="bg-card">
               <CardHeader>
                 <CardTitle className="text-sm font-medium">משתמשים ולקוחות לפי מרפאה</CardTitle>
               </CardHeader>
@@ -460,7 +460,7 @@ const ControlCenterDashboardPage: React.FC = () => {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            <Card className="bg-card border-none shadow-md">
+            <Card className="bg-card">
               <CardHeader>
                 <CardTitle className="text-sm font-medium">מוצרים מובילים (SKU)</CardTitle>
               </CardHeader>

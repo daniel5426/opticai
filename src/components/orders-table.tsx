@@ -23,6 +23,7 @@ import { getClientById } from "@/lib/db/clients-db"
 import { toast } from "sonner"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useUser } from "@/contexts/UserContext"
+import { DateSearchHelper } from "@/lib/date-search-helper"
 
 interface OrdersTableProps {
   data: Order[]
@@ -120,7 +121,30 @@ export function OrdersTable({ data, clientId, onOrderDeleted, onOrderDeleteFaile
     }
   };
 
-  const filteredData = data
+  const filteredData = React.useMemo(() => {
+    if (!externalSearch || clientId === 0) {
+      return data
+    }
+    
+    const searchLower = externalSearch.toLowerCase().trim()
+    if (!searchLower) {
+      return data
+    }
+
+    return data.filter((order) => {
+      const clientName = ((order as any).clientName || '').toLowerCase()
+      const username = ((order as any).username || '').toLowerCase()
+      const orderType = (order.type || '').toLowerCase()
+      
+      if (clientName.includes(searchLower) || 
+          username.includes(searchLower) || 
+          orderType.includes(searchLower)) {
+        return true
+      }
+      
+      return DateSearchHelper.matchesDate(searchLower, order.order_date)
+    })
+  }, [data, externalSearch, clientId])
 
   return (
     <div className="space-y-4 mb-10" style={{scrollbarWidth: 'none'}}>

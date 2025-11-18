@@ -200,6 +200,7 @@ export default function ControlCenterPage() {
     return (
       <div className="flex h-screen items-center justify-center">
         <OctahedronLoader size="3xl" />
+        control center loading
       </div>
     );
   }

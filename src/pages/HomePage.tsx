@@ -579,14 +579,14 @@ export default function HomePage() {
 
           <div className="flex gap-6 px-4 lg:px-6 flex-1">
             <div className="w-72 space-y-4">
-              <Card className="bg-card shadow-md border-none p-2 justify-center">
+              <Card className="bg-card  p-2 justify-center">
                 <CardContent className="p-0 justify-center">
                   <Skeleton className="w-full h-[350px]" />
                 </CardContent>
               </Card>
 
               <div className="grid gap-4 grid-cols-2">
-                <Card className="bg-card border-none shadow-md py-4">
+                <Card className="bg-card  py-4">
                   <CardHeader className="flex flex-row items-center mb-[-10px] justify-between space-y-0 ">
                     <Skeleton className="h-4 w-24" />
                     <Skeleton className="h-4 w-4 rounded-full" />
@@ -597,7 +597,7 @@ export default function HomePage() {
                   </CardContent>
                 </Card>
 
-                <Card className="bg-card border-none shadow-md py-4">
+                <Card className="bg-card  py-4">
                   <CardHeader className="flex flex-row items-center mb-[-10px] justify-between space-y-0 ">
                     <Skeleton className="h-4 w-24" />
                     <Skeleton className="h-4 w-4 rounded-full" />
@@ -611,7 +611,7 @@ export default function HomePage() {
             </div>
 
             <div className="flex-1 flex flex-col justify-end rounded-xl">
-              <Card className="bg-card rounded-t-xl shadow-md border-none p-0">
+              <Card className="bg-card rounded-t-xl  p-0">
                 <CardContent className="p-2 pt-2 rounded-xl">
                   <Skeleton className="w-full rounded-t-xl" style={{ height: 'calc(100vh - 200px)' }} />
                 </CardContent>
@@ -650,7 +650,7 @@ export default function HomePage() {
 
           {/* Main Calendar View */}
           <div className="flex-1 flex flex-col justify-end rounded-xl">
-            <Card className="bg-card rounded-t-xl shadow-md border-none p-0">
+            <Card className="bg-card rounded-t-xl  p-0">
               <CardContent className="p-0 pt-0 rounded-xl">
                 {view === 'month' ? (
                   <MonthView

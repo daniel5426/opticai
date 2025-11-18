@@ -17,7 +17,7 @@ import { NavigationGuardProvider } from "@/contexts/NavigationGuardContext";
 import { useUser } from "@/contexts/UserContext";
 import { ROLE_LEVELS, isRoleAtLeast } from "@/lib/role-levels";
 import { ClientSidebar } from "@/components/ClientSidebar";
-import { useLocation, useNavigate } from "@tanstack/react-router";
+import { useLocation, useNavigate, useRouterState } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { apiClient } from "@/lib/api-client";
 import Loader from "@/components/kokonutui/loader";
@@ -33,6 +33,7 @@ function BaseLayoutContent({ children }: { children: React.ReactNode }) {
   const [company, setCompany] = useState<any>(null);
   const navigate = useNavigate();
   const location = useLocation();
+  const routerLocation = useRouterState({ select: (state) => state.location });
 
   // Safe access to user context (handles HMR gracefully)
   let currentUser: User | null = null;
@@ -158,6 +159,53 @@ function BaseLayoutContent({ children }: { children: React.ReactNode }) {
 
   // Don't show loading screen on callback route (OAuth popup)
   const isCallbackRoute = location.pathname === "/auth/callback";
+
+  useEffect(() => {
+    if (!routerLocation?.pathname || routerLocation.pathname === "/auth/callback") {
+      return;
+    }
+
+    try {
+      const search =
+        typeof routerLocation.search === "string"
+          ? routerLocation.search
+          : (() => {
+              if (!routerLocation.search) return "";
+              const params = new URLSearchParams();
+              Object.entries(routerLocation.search as Record<string, unknown>).forEach(
+                ([key, value]) => {
+                  if (value === undefined || value === null) return;
+                  if (Array.isArray(value)) {
+                    value.forEach((entry) => params.append(key, String(entry)));
+                    return;
+                  }
+                  params.set(key, String(value));
+                },
+              );
+              const query = params.toString();
+              return query ? `?${query}` : "";
+            })();
+
+      const hash = typeof routerLocation.hash === "string" ? routerLocation.hash : "";
+
+      const pathWithSearch = `${routerLocation.pathname}${search}${hash}`;
+      localStorage.setItem("lastAppPath", pathWithSearch);
+
+      const isControlCenterContext =
+        routerLocation.pathname === "/" ||
+        routerLocation.pathname.startsWith("/control-center");
+      localStorage.setItem(
+        "lastAppContext",
+        isControlCenterContext ? "control-center" : "clinic",
+      );
+    } catch (error) {
+      console.error("[BaseLayout] Failed to persist path/context:", error);
+    }
+  }, [
+    routerLocation?.pathname,
+    routerLocation?.search,
+    routerLocation?.hash,
+  ]);
 
   // Show loading during auth initialization (except on callback route)
   if (isUserLoading && !isCallbackRoute) {

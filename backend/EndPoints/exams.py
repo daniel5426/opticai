@@ -9,6 +9,7 @@ from models import OpticalExam, User, Client
 from schemas import OpticalExam as OpticalExamSchema, OpticalExamCreate
 from auth import get_current_user
 from .exam_layouts import build_layout_tree
+from utils.date_search import DateSearchHelper
 
 router = APIRouter(prefix="/exams", tags=["exams"])
 
@@ -44,15 +45,24 @@ def get_enriched_exams(
     # Apply search
     if search:
         like = f"%{search.strip()}%"
-        base_query = base_query.filter(
-            or_(
-                func.concat(Client.first_name, ' ', Client.last_name).ilike(like),
-                User.username.ilike(like),
-                User.full_name.ilike(like),
-                OpticalExam.test_name.ilike(like),
-                OpticalExam.clinic.ilike(like),
-            )
+        search_conditions = [
+            func.concat(Client.first_name, ' ', Client.last_name).ilike(like),
+            User.username.ilike(like),
+            User.full_name.ilike(like),
+            OpticalExam.test_name.ilike(like),
+            OpticalExam.clinic.ilike(like),
+        ]
+        
+        date_search_conditions = DateSearchHelper.build_date_search_conditions(
+            OpticalExam.exam_date, search
         )
+        search_conditions.extend(date_search_conditions)
+        
+        parsed_date = DateSearchHelper.parse_date(search)
+        if parsed_date:
+            search_conditions.append(OpticalExam.exam_date == parsed_date)
+        
+        base_query = base_query.filter(or_(*search_conditions))
 
     # Count total before pagination
     total = base_query.count()

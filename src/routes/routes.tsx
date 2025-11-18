@@ -60,6 +60,10 @@ export const HomeRoute = createRoute({
 export const DashboardRoute = createRoute({
   getParentRoute: () => RootRoute,
   path: "/dashboard",
+  validateSearch: (search: Record<string, unknown>) => ({
+    clinicId: typeof search.clinicId === "string" ? (search.clinicId as string) : undefined,
+    refresh: typeof search.refresh === "string" ? (search.refresh as string) : undefined,
+  }),
   component: HomePage,
 });
 

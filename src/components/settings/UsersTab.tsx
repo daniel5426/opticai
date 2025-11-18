@@ -25,7 +25,7 @@ export function UsersTab({
 }: UsersTabProps) {
   return (
     <div className="space-y-6">
-      <Card className="shadow-md border-none">
+      <Card className="">
         <CardHeader>
           <div className="flex justify-between">
             <Button 

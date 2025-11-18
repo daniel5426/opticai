@@ -225,7 +225,7 @@ export function AboutTab() {
   };
 
   return (
-    <Card className="shadow-md border-none">
+    <Card className="">
       <CardHeader>
         <CardTitle className="text-right flex items-center gap-2 justify-end">
           <IconInfoCircle className="h-5 w-5" />

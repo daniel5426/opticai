@@ -120,7 +120,7 @@ export default function RegularOrderTab({
       style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
     >
       <div className="grid grid-cols-1 gap-4">
-        <Card className="w-full border-none p-4 shadow-md">
+        <Card className="w-full p-4">
           <div className="grid w-full grid-cols-4 gap-x-3 gap-y-2" dir="rtl">
             <div className="col-span-1">
               <label className="text-base font-semibold">תאריך הזמנה</label>
@@ -261,7 +261,7 @@ export default function RegularOrderTab({
                 <div className="flex-1">
                   <TabsContent value="prescription" className="mt-0 space-y-4">
                     <div className="grid grid-cols-2 gap-6">
-                      <Card className="border-none shadow-md">
+                      <Card className="">
                         <CardHeader>
                           <CardTitle className="text-base">פרטי עדשות</CardTitle>
                           <p className="text-muted-foreground text-sm">מידע על סוג העדשות, צבע, ציפוי וחומר</p>
@@ -348,7 +348,7 @@ export default function RegularOrderTab({
                         </CardContent>
                       </Card>
 
-                      <Card className="border-none shadow-md">
+                      <Card className="">
                         <CardHeader>
                           <CardTitle className="text-base">פרטי מסגרת</CardTitle>
                           <p className="text-muted-foreground text-sm">מידע על יצרן, דגם, מידות וספק המסגרת</p>
@@ -481,7 +481,7 @@ export default function RegularOrderTab({
                   </TabsContent>
 
                   <TabsContent value="order" className="mt-0 space-y-4">
-                    <Card className="border-none shadow-md">
+                    <Card className="">
                       <CardContent className="space-y-3">
                         <div className="grid grid-cols-5 gap-3">
                           <div>

@@ -4,6 +4,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSub, D
 import { ChevronDownIcon, PlusCircleIcon, Plus, FolderTree, Loader2 } from "lucide-react"
 import type { ExamLayout } from "@/lib/db/schema-interface"
 
+
 type LayoutSelectorDropdownProps = {
   availableLayouts: ExamLayout[]
   onSelectLayout: (layoutId: number) => void | Promise<void>
@@ -51,6 +52,8 @@ export const LayoutSelectorDropdown = ({
     }
   }
 
+  const FULL_DATA_ICON = "/icons/box.png";
+
   const renderNodes = (nodes: ExamLayout[]): React.ReactNode[] => {
     return nodes.flatMap(node => {
       if (!node.id) {
@@ -61,7 +64,6 @@ export const LayoutSelectorDropdown = ({
           <DropdownMenuSub key={`layout-group-${node.id}`}>
             <DropdownMenuSubTrigger dir="rtl" className="flex items-center justify-between text-sm">
               <span>{node.name}</span>
-              <FolderTree className="h-4 w-4 ml-2" />
             </DropdownMenuSubTrigger>
             <DropdownMenuSubContent className="min-w-[220px] text-right">
               <DropdownMenuItem
@@ -114,7 +116,9 @@ export const LayoutSelectorDropdown = ({
             onClick={onAddFullData}
             disabled={isLoading}
           >
-            Full data
+                        <img src={FULL_DATA_ICON} alt="כל הנתונים" style={{ width: "20px", height: "20px", objectFit: "contain" }} />
+
+            כל הנתונים
           </DropdownMenuItem>
         ) : null}
         {isLoading ? (

@@ -19,7 +19,7 @@ export function FieldDataTab({
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <Card className="shadow-md border-none h-fit max-h-[900px]">
+        <Card className="h-fit max-h-[900px]">
           <CardHeader>
             <CardTitle className="text-right">בחר טבלת נתונים</CardTitle>
             <p className="text-sm text-muted-foreground text-right">
@@ -57,7 +57,7 @@ export function FieldDataTab({
               onDelete={lookupTables[currentLookupTable as keyof typeof lookupTables].delete}
             />
           ) : (
-            <Card className="shadow-md border-none">
+            <Card className="">
               <CardContent className="flex items-center justify-center h-64">
                 <div className="text-center text-muted-foreground">
                   <p className="text-lg mb-2">בחר טבלת נתונים לעריכה</p>

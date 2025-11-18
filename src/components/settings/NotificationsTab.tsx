@@ -14,7 +14,7 @@ interface NotificationsTabProps {
 export function NotificationsTab({ localSettings, onInputChange }: NotificationsTabProps) {
   return (
     <div className="space-y-6">
-      <Card className="shadow-md border-none">
+        <Card className="">
         <CardHeader>
           <CardTitle className="text-right">התראות אימייל</CardTitle>
           <p className="text-sm text-muted-foreground text-right">הגדרות שליחת הזכרות ללקוחות</p>

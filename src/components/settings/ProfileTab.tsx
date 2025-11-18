@@ -12,7 +12,7 @@ interface ProfileTabProps {
 export function ProfileTab({ localClinic, onClinicChange }: ProfileTabProps) {
   return (
     <div className="space-y-6">
-      <Card className="shadow-md border-none">
+      <Card className="">
         <CardHeader>
           <CardTitle className="text-right">פרטים בסיסיים</CardTitle>
           <p className="text-sm text-muted-foreground text-right">מידע כללי על המרפאה והמנהל</p>
@@ -67,7 +67,7 @@ export function ProfileTab({ localClinic, onClinicChange }: ProfileTabProps) {
         </CardContent>
       </Card>
 
-      <Card className="shadow-md border-none">
+      <Card className="">
         <CardHeader>
           <CardTitle className="text-right">פרטי קשר וכתובת</CardTitle>
           <p className="text-sm text-muted-foreground text-right">דרכי יצירת קשר ומיקום המרפאה</p>

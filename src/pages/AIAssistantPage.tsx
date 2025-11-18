@@ -436,10 +436,10 @@ export function AIAssistantPage() {
       <div className="relative flex h-full flex-col bg-background" dir="rtl" style={{ scrollbarWidth: 'none' }}>
       <SiteHeader title="העוזר החכם" />
         <div className="absolute top-16 right-4 z-40 flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => setChatsModalOpen(true)}>
+          <Button variant="outline" className="examcard" size="sm" onClick={() => setChatsModalOpen(true)}>
           <History className="h-4 w-4" />
         </Button>
-          <Button variant="outline" size="sm" onClick={startNewChat}>
+          <Button variant="outline" className="examcard" size="sm" onClick={startNewChat}>
           <Plus className="h-4 w-4" />
         </Button>
       </div>

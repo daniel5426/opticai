@@ -19,6 +19,7 @@ import { CustomModal } from "@/components/ui/custom-modal";
 import { deleteExam } from "@/lib/db/exams-db";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
+import { DateSearchHelper } from "@/lib/date-search-helper";
 
 interface ExamWithNames extends OpticalExam {
   username?: string;
@@ -43,19 +44,44 @@ export function ExamsTable({ data, clientId, onExamDeleted, onExamDeleteFailed, 
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [examToDelete, setExamToDelete] = useState<ExamWithNames | null>(null);
 
-  // Filter data based on search query
-  const filteredData = externalSearch !== undefined ? data : data.filter((exam) => {
-    const searchableFields = [
-      exam.full_name || exam.username,
-      exam.clinic,
-      exam.test_name,
-      exam.exam_date,
-    ];
-    return searchableFields.some(
-      (field) =>
-        field && field.toLowerCase().includes(searchValue.toLowerCase()),
-    );
-  });
+  const filteredData = React.useMemo(() => {
+    if (externalSearch === undefined) {
+      return data.filter((exam) => {
+        const searchableFields = [
+          exam.full_name || exam.username,
+          exam.clinic,
+          exam.test_name,
+        ];
+        return searchableFields.some(
+          (field) =>
+            field && field.toLowerCase().includes(searchValue.toLowerCase()),
+        ) || DateSearchHelper.matchesDate(searchValue, exam.exam_date);
+      });
+    }
+    
+    if (!searchValue || clientId === 0) {
+      return data;
+    }
+    
+    const searchLower = searchValue.toLowerCase().trim();
+    if (!searchLower) {
+      return data;
+    }
+
+    return data.filter((exam) => {
+      const fullName = (exam.full_name || exam.username || '').toLowerCase();
+      const clinic = (exam.clinic || '').toLowerCase();
+      const testName = (exam.test_name || '').toLowerCase();
+      
+      if (fullName.includes(searchLower) || 
+          clinic.includes(searchLower) || 
+          testName.includes(searchLower)) {
+        return true;
+      }
+      
+      return DateSearchHelper.matchesDate(searchLower, exam.exam_date);
+    });
+  }, [data, searchValue, externalSearch, clientId]);
 
   const handleDeleteConfirm = async () => {
     if (examToDelete && examToDelete.id !== undefined) {

@@ -30,7 +30,7 @@ export function StatisticsSidebar({
   return (
     <div className="w-72 space-y-4">
       {/* Mini Calendar */}
-      <Card className="bg-card shadow-md border-none p-2 justify-center">
+      <Card className="bg-card p-2 justify-center">
         <CardContent className="p-0 justify-center">
           <Calendar
             mode="single"
@@ -82,7 +82,7 @@ export function StatisticsSidebar({
       </Card>
 
       <div className="grid gap-4 grid-cols-2">
-        <Card className="bg-card border-none shadow-md py-4">
+        <Card className="bg-card py-4">
           <CardHeader className="flex flex-row items-center mb-[-10px] justify-between space-y-0">
             <CardTitle className="text-sm font-medium">תורים היום</CardTitle>
             <CalendarDays className="h-4 w-4 text-primary" />
@@ -95,7 +95,7 @@ export function StatisticsSidebar({
           </CardContent>
         </Card>
 
-        <Card className="bg-card border-none shadow-md">
+        <Card className="bg-card">
           <CardHeader className="flex flex-row items-center mb-[-10px] justify-between space-y-0">
             <CardTitle className="text-sm font-medium">מקומות פנויים</CardTitle>
             <Clock className="h-4 w-4 text-secondary-foreground" />

@@ -134,7 +134,7 @@ export function PersonalProfileTab({
 
   return (
     <div className="space-y-6">
-      <Card className="shadow-md border-none">
+      <Card className="">
         <CardHeader>
           <CardTitle className="text-right">פרטים אישיים</CardTitle>
           <p className="text-sm text-muted-foreground text-right">תמונת פרופיל ופרטי יצירת קשר</p>
@@ -200,7 +200,7 @@ export function PersonalProfileTab({
         </CardContent>
       </Card>
 
-      <Card className="shadow-md border-none">
+      <Card className="">
         <CardHeader>
           <CardTitle className="text-right">חופשות</CardTitle>
           <p className="text-sm text-muted-foreground text-right">ניהול ימי חופשה</p>
@@ -252,7 +252,7 @@ export function PersonalProfileTab({
         </CardContent>
       </Card>
 
-      <Card className="shadow-md border-none">
+      <Card className="">
         <CardHeader>
           <CardTitle className="text-right">צבע אישי</CardTitle>
           <p className="text-sm text-muted-foreground text-right">צבע אישי לסימון התורים שלך ביומן</p>
@@ -283,7 +283,7 @@ export function PersonalProfileTab({
         </CardContent>
       </Card>
 
-      <Card className="shadow-md border-none">
+      <Card className="">
         <CardHeader>
           <CardTitle className="text-right flex items-center gap-2 justify-end">
             <IconCalendar className="h-5 w-5" />

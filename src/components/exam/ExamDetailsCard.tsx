@@ -29,18 +29,18 @@ export const ExamDetailsCard = ({ mode, detailProps, className, actions }: ExamD
       className={`w-full examcard rounded-xl px-4 py-3 bg-background ${className ?? ""}`}
     >
       <div
-        className="flex items-center gap-6 w-full whitespace-nowrap overflow-x-auto no-scrollbar text-sm"
+        className="flex items-center gap-2 w-full whitespace-nowrap overflow-x-auto no-scrollbar text-sm"
         dir="rtl"
         style={{ scrollbarWidth: "none" }}
       >
-        <div className="flex flex-col gap-1 min-w-[180px]">
-          <span className="text-xs font-medium text-muted-foreground">שם הבדיקה</span>
+        <div className="min-w-[80px]">
           {mode === "editor" ? (
             <span className="px-3 py-1 rounded-lg bg-accent/50 w-full text-center">{testNameValue}</span>
           ) : (
             <Input
               type="text"
               name="test_name"
+              placeholder="שם הבדיקה"
               value={detailProps?.formData.test_name || ""}
               onChange={isEditing ? detailProps?.handleInputChange : undefined}
               className="h-9 w-full text-sm"
@@ -49,18 +49,16 @@ export const ExamDetailsCard = ({ mode, detailProps, className, actions }: ExamD
             />
           )}
         </div>
-        <div className="flex flex-col gap-1 min-w-[150px]">
-          <span className="text-xs font-medium text-muted-foreground">תאריך בדיקה</span>
+        <div className="min-w-[20px] max-w-[130px]">
           <DateInput
             name="exam_date"
-            className="h-9 w-full"
+            className="h-9 w-full text-sm"
             value={mode === "editor" ? new Date().toISOString().split("T")[0] : detailProps?.formData.exam_date}
             disabled={!isEditing}
             onChange={detailProps?.handleInputChange || (() => {})}
           />
         </div>
-        <div className="flex flex-col gap-1 min-w-[160px]">
-          <span className="text-xs font-medium text-muted-foreground">בודק</span>
+        <div className="min-w-[60px]">
           <UserSelect
             value={mode === "editor" ? 0 : detailProps?.formData.user_id}
             disabled={!isEditing && mode !== "editor"}
@@ -71,8 +69,7 @@ export const ExamDetailsCard = ({ mode, detailProps, className, actions }: ExamD
             }
           />
         </div>
-        <div className="flex flex-col gap-1 min-w-[130px]">
-          <span className="text-xs font-medium text-muted-foreground">עין דומיננטית</span>
+        <div className="min-w-[30px]">
           <Select
             dir="rtl"
             disabled={!isEditing && mode !== "editor"}
@@ -82,7 +79,7 @@ export const ExamDetailsCard = ({ mode, detailProps, className, actions }: ExamD
             }
           >
             <SelectTrigger className="h-9 w-full" disabled={!isEditing && mode !== "editor"}>
-              <SelectValue placeholder="בחר עין" />
+              <SelectValue placeholder="עין דומיננטית" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="R" className="text-sm">

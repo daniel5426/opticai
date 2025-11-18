@@ -8,12 +8,14 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Textarea } from "@/components/ui/textarea"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Calendar } from "@/components/ui/calendar"
 import { getAllFamilies, getFamilyById, createFamily, addClientToFamily, removeClientFromFamily } from "@/lib/db/family-db"
 import { useUser } from "@/contexts/UserContext"
 import { SaveIcon, XIcon, ChevronDownIcon, CheckIcon } from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
 import israelCities from "@/utils/israel_cities.json"
 import { CityLookupInput } from "@/components/ui/city-lookup-input"
+import { DateInput } from "@/components/ui/date"
 
 // Custom label component
 function ModernLabel({ children }: { children: React.ReactNode }) {
@@ -24,55 +26,6 @@ function ModernLabel({ children }: { children: React.ReactNode }) {
   )
 }
 
-interface DateInputProps {
-  name: string;
-  value: string | undefined;
-  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
-  className?: string;
-  disabled?: boolean;
-}
-
-function DateInput({ name, value, onChange, className, disabled = false }: DateInputProps) {
-  const dateInputRef = React.useRef<HTMLInputElement>(null);
-  
-  const openDatePicker = () => {
-    if (dateInputRef.current && !disabled) {
-      dateInputRef.current.showPicker();
-    }
-  };
-
-  return (
-    <div className="relative dark:bg-card">
-      <div 
-        className={`text-right pr-10 h-9 rounded-lg px-3 py-2 border text-sm flex items-center ${disabled ? 'bg-accent/50 dark:bg-accent/50 cursor-default' : 'bg-card cursor-pointer hover:bg-background/80'} ${className || ''}`}
-        dir="rtl"
-        onClick={openDatePicker}
-      >
-        {value ? new Date(value).toLocaleDateString('he-IL') : (disabled ? '' : '')}
-      </div>
-      
-      <input
-        ref={dateInputRef}
-        type="date"
-        name={name}
-        value={value || ''}
-        onChange={onChange}
-        className="absolute dark:bg-card opacity-0 h-0 w-0 overflow-hidden"
-      />
-      
-      <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
-        <svg 
-          className="h-4 w-4 text-muted-foreground" 
-          fill="none" 
-          viewBox="0 0 24 24" 
-          stroke="currentColor"
-        >
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-        </svg>
-      </div>
-    </div>
-  );
-}
 
 interface ClientDetailsTabProps {
   client: Client;
@@ -349,7 +302,7 @@ export function ClientDetailsTab({
       <div className="space-y-6">
         
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="bg-card rounded-lg shadow-md p-6">
+          <div className="bg-card rounded-lg examcard p-6">
             <div className="flex items-center gap-3 mb-6" dir="rtl">
               <div className="p-2 bg-muted rounded-lg">
                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-foreground">
@@ -460,7 +413,7 @@ export function ClientDetailsTab({
             </div>
           </div>
 
-          <div className="bg-card rounded-lg shadow-md p-6">
+          <div className="bg-card rounded-lg examcard p-6">
             <div className="flex items-center gap-3 mb-6" dir="rtl">
               <div className="p-2 bg-muted rounded-lg">
                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-foreground">
@@ -585,7 +538,7 @@ export function ClientDetailsTab({
             </div>
           </div>
 
-          <div className="bg-card rounded-lg shadow-md p-6">
+          <div className="bg-card rounded-lg examcard p-6">
             <div className="flex items-center gap-3 mb-6" dir="rtl">
               <div className="p-2 bg-muted rounded-lg">
                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-foreground">
@@ -714,7 +667,7 @@ export function ClientDetailsTab({
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-23 gap-6 items-start">
-        <div className="lg:col-span-10 bg-card rounded-lg shadow-md p-5" dir="rtl">
+        <div className="lg:col-span-10 bg-card rounded-lg examcard p-5" dir="rtl">
             <div className="flex items-center gap-3 mb-4 justify-between">
               <div className="flex items-center gap-3">
               <div className="p-2 bg-muted rounded-lg">
@@ -888,7 +841,7 @@ export function ClientDetailsTab({
             </div>
           </div>
 
-          <div className="lg:col-span-9 bg-card rounded-lg shadow-md p-5" dir="rtl">
+          <div className="lg:col-span-9 bg-card rounded-lg examcard p-5" dir="rtl">
             <div className="flex items-center gap-3 mb-4">
               <div className="p-2 bg-muted rounded-lg">
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-foreground">
@@ -917,7 +870,7 @@ export function ClientDetailsTab({
             
             <div className="flex justify-center items-center">
               <div className="relative">
-                <div className="w-full h-full shadow-md rounded-lg bg-card overflow-hidden">
+                <div className="w-full h-full rounded-lg bg-card examcard overflow-hidden">
                   {formData.profile_picture ? (
                     <img 
                       src={formData.profile_picture} 

@@ -13,7 +13,7 @@ type NotesCardProps = {
 
 export function NotesCard({ title, value, onChange, disabled = false, placeholder = '', height = 'full' }: NotesCardProps) {
   return (
-    <Card className={`w-full px-4 pt-3 pb-4 shadow-md border-none gap-2`} dir="rtl">
+    <Card className={`w-full px-4 pt-3 pb-4 gap-2`} dir="rtl">
       <div className="flex items-center gap-3">
         <div className="p-2 bg-muted rounded-lg">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-foreground">

@@ -243,7 +243,7 @@ export const getColumnCount = (type: CardItem['type'], mode: 'editor' | 'detail'
     case 'fusion-range': return 5
     case 'maddox-rod': return 5
     case 'stereo-test': return 2
-    case 'rg': return 2
+    case 'rg': return 3
     case 'ocular-motor-assessment': return 3
     default: return 1
   }

@@ -402,7 +402,7 @@ export function ClientSidebar() {
   const transitionClass = mounted ? 'transition-all duration-300 ease-in-out' : ''
 
   return (
-    <Card className={`pt-0 my-5 shadow-md bg-card border-none overflow-hidden h-[calc(100vh-8.5rem)] relative ${displayWidth} ${transitionClass}`}>
+    <Card className={`pt-0 my-5  bg-card  overflow-hidden h-[calc(100vh-8.5rem)] relative ${displayWidth} ${transitionClass}`}>
       <div className="flex flex-col h-full" dir="rtl" style={{scrollbarWidth: 'none'}}>
         <div className="absolute top-2 left-2 z-1000">
           <Button

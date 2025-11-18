@@ -29,21 +29,21 @@ export function CalendarHeader({ currentDate, view, onNavigate, onToday, onViewC
   return (
     <div className="flex items-center justify-between p-4 lg:p-6 pb-0">
       <div className="flex items-center gap-4">
-        <Button variant="outline" onClick={onToday} className="bg-card shadow-md border-none dark:bg-card">
+        <Button variant="outline" onClick={onToday} className="bg-card examcard dark:bg-card">
           היום
         </Button>
         <div className="flex items-center gap-2">
-          <Button className="bg-card shadow-md border-none dark:bg-card" variant="outline" size="icon" onClick={() => onNavigate('prev')}>
+          <Button className="bg-card examcard border dark:bg-card" variant="outline" size="icon" onClick={() => onNavigate('prev')}>
             <ChevronRight className="h-4 w-4" />
           </Button>
-          <Button className="bg-card shadow-md border-none dark:bg-card" variant="outline" size="icon" onClick={() => onNavigate('next')}>
+          <Button className="bg-card examcard border dark:bg-card" variant="outline" size="icon" onClick={() => onNavigate('next')}>
             <ChevronLeft className="h-4 w-4" />
           </Button>
         </div>
         <h1 className="text-xl font-semibold">{getDisplayTitle()}</h1>
       </div>
 
-      <div className="flex items-center gap-2 bg-card shadow-md rounded-md">
+      <div className="flex items-center gap-2 bg-card examcard rounded-md">
         <div className="flex rounded-md">
           <Button
             variant={view === 'day' ? 'default' : 'ghost'}

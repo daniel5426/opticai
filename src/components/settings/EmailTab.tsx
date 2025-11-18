@@ -18,7 +18,7 @@ interface EmailTabProps {
 export function EmailTab({ localSettings, onInputChange, onTestConnection }: EmailTabProps) {
   return (
     <div className="space-y-6" dir="rtl">
-      <Card className="shadow-md border-none">
+      <Card className="">
         <CardHeader>
           <CardTitle className="text-right">הגדרות שרת אימייל</CardTitle>
           <p className="text-sm text-muted-foreground text-right">הגדר את פרטי שרת האימייל לשליחת תזכורות ללקוחות</p>
