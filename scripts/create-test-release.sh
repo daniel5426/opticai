@@ -17,6 +17,7 @@ if [ -z "$LAST_TAG" ]; then
     exit 1
 fi
 
+
 echo ""
 echo "Creating test release v$NEW_VERSION with files from $LAST_TAG..."
 echo ""
