@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input"
 import { Plus, Trash2, FileText } from "lucide-react"
 import { Order, User, Client } from "@/lib/db/schema-interface"
 import { ClientSelectModal } from "@/components/ClientSelectModal"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { docxGenerator } from "@/lib/docx-generator"
 import { OrderToDocxMapper } from "@/lib/order-to-docx-mapper"
 
@@ -40,6 +41,7 @@ export function OrdersTable({ data, clientId, onOrderDeleted, onOrderDeleteFaile
   const navigate = useNavigate()
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
   const [orderToDelete, setOrderToDelete] = useState<Order | null>(null)
+  const [selectedCategory, setSelectedCategory] = useState<string>("all")
 
 
 
@@ -127,11 +129,20 @@ export function OrdersTable({ data, clientId, onOrderDeleted, onOrderDeleteFaile
     }
     
     const searchLower = externalSearch.toLowerCase().trim()
-    if (!searchLower) {
+    if (!searchLower && selectedCategory === "all") {
       return data
     }
 
     return data.filter((order) => {
+      // Category filter
+      if (selectedCategory !== "all") {
+        const isContact = Boolean((order as any).__contact);
+        if (selectedCategory === "contact" && !isContact) return false;
+        if (selectedCategory === "regular" && isContact) return false;
+      }
+      
+      if (!searchLower) return true;
+
       const clientName = ((order as any).clientName || '').toLowerCase()
       const username = ((order as any).username || '').toLowerCase()
       const orderType = (order.type || '').toLowerCase()
@@ -156,6 +167,16 @@ export function OrdersTable({ data, clientId, onOrderDeleted, onOrderDeleteFaile
             onChange={(e) => onSearchChange?.(e.target.value)}
             className="w-[250px] bg-card dark:bg-card" dir="rtl"
           />
+           <Select value={selectedCategory} onValueChange={setSelectedCategory} dir="rtl">
+            <SelectTrigger className="w-[150px] bg-card">
+              <SelectValue placeholder="סוג" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">הכל</SelectItem>
+              <SelectItem value="regular">הזמנה רגילה</SelectItem>
+              <SelectItem value="contact">עדשות מגע</SelectItem>
+            </SelectContent>
+           </Select>
         </div>
         <div className="flex gap-2">
           {clientId > 0 ? (

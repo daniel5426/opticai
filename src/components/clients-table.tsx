@@ -3,6 +3,7 @@ import { useNavigate } from "@tanstack/react-router"
 import { Client } from "@/lib/db/schema-interface"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   Table,
   TableBody,
@@ -47,6 +48,7 @@ export function ClientsTable({
   pagination
 }: ClientsTableProps) {
   const [internalSearchQuery, setInternalSearchQuery] = React.useState("")
+  const [selectedGender, setSelectedGender] = React.useState<string>("all")
   const [isDeleteModalOpen, setIsDeleteModalOpen] = React.useState(false)
   const [clientToDelete, setClientToDelete] = React.useState<Client | null>(null)
   const navigate = useNavigate()
@@ -73,6 +75,10 @@ export function ClientsTable({
       }
     }
 
+    if (selectedGender !== "all") {
+      filtered = filtered.filter(client => client.gender === selectedGender)
+    }
+
     // Only apply local text filtering when using internal search.
     if (!isExternalSearch && searchQuery && filtered.length > 0) {
       filtered = filtered.filter((client) => {
@@ -92,7 +98,7 @@ export function ClientsTable({
     }
 
     return filtered
-  }, [data, searchQuery, selectedFamilyId, showFamilyColumn, isExternalSearch])
+  }, [data, searchQuery, selectedFamilyId, showFamilyColumn, isExternalSearch, selectedGender])
 
   const handleDeleteConfirm = async () => {
     if (clientToDelete && clientToDelete.id !== undefined) {
@@ -134,6 +140,16 @@ export function ClientsTable({
               className="w-[250px] bg-card dark:bg-card"
               dir="rtl"
             />
+            <Select value={selectedGender} onValueChange={setSelectedGender} dir="rtl">
+              <SelectTrigger className="w-[120px]">
+                <SelectValue placeholder="מגדר" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">הכל</SelectItem>
+                <SelectItem value="זכר">זכר</SelectItem>
+                <SelectItem value="נקבה">נקבה</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
           {!hideNewButton && (
             <Button onClick={() => navigate({ to: "/clients/new" })} dir="rtl">

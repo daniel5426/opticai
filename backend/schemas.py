@@ -127,17 +127,21 @@ class UserSelectItem(BaseModel):
 class FamilyBase(BaseModel):
     name: str
     notes: Optional[str] = None
+    company_id: Optional[int] = None
 
 class FamilyCreate(FamilyBase):
     clinic_id: int
+    company_id: int
 
 class FamilyUpdate(FamilyBase):
     name: Optional[str] = None
     clinic_id: Optional[int] = None
+    company_id: Optional[int] = None
 
 class Family(FamilyBase):
     id: int
     clinic_id: int
+    company_id: Optional[int] = None
     created_date: date
     
     class Config:

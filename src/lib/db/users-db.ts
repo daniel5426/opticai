@@ -17,7 +17,7 @@ export async function getAllUsers(clinicId?: number): Promise<User[]> {
 }
 
 export async function getPaginatedUsers(
-  options?: { limit?: number; offset?: number; order?: 'id_desc' | 'id_asc' | 'username_asc' | 'username_desc' | 'role_asc' | 'role_desc'; search?: string }
+  options?: { limit?: number; offset?: number; order?: 'id_desc' | 'id_asc' | 'username_asc' | 'username_desc' | 'role_asc' | 'role_desc'; search?: string; clinic_id?: number }
 ): Promise<{ items: User[]; total: number }> {
   try {
     const effectiveOptions = options ?? { limit: 25, offset: 0, order: 'id_desc' as const };

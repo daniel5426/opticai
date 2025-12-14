@@ -1,5 +1,5 @@
-import { GoogleTokens } from './google-oauth'
-import { Appointment, Client, User } from '../db/schema-interface'
+import { GoogleTokens } from './google-oauth.js'
+import { Appointment, Client, User } from '../db/schema-interface.js'
 
 export class GoogleCalendarSyncService {
   constructor() {

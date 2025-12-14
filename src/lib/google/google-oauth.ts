@@ -1,5 +1,5 @@
 import { BrowserWindow } from 'electron'
-import { GOOGLE_CONFIG } from './google-config'
+import { GOOGLE_CONFIG } from './google-config.js'
 
 export interface GoogleTokens {
   access_token: string

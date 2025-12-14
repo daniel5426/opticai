@@ -167,6 +167,7 @@ def get_users_paginated(
     offset: int = Query(0, ge=0, description="Items to skip"),
     order: Optional[str] = Query("id_desc", description="Sort order: id_desc|id_asc|username_asc|username_desc|role_asc|role_desc"),
     search: Optional[str] = Query(None, description="Search by name/email/phone/username"),
+    clinic_id: Optional[int] = Query(None, description="Filter by clinic ID"),
     db: Session = Depends(get_db),
     current_user: UserModel = Depends(get_current_user)
 ):
@@ -177,17 +178,27 @@ def get_users_paginated(
         base = db.query(User).join(Clinic, isouter=True).filter(
             or_(User.company_id == current_user.company_id, Clinic.company_id == current_user.company_id)
         )
+        if clinic_id:
+            base = base.filter(User.clinic_id == clinic_id)
     elif current_user.role_level >= MANAGER_LEVEL:
         # Clinic managers see users in their clinic and CEOs from their company
         if current_user.clinic_id:
             clinic = db.query(Clinic).filter(Clinic.id == current_user.clinic_id).first()
-            if clinic:
+            # If they request a specific clinic, ensure it's THEIR clinic or they are allowed (managers usually only their own)
+            target_clinic_id = clinic_id if clinic_id else current_user.clinic_id
+            
+            if target_clinic_id != current_user.clinic_id:
+                 # Managers can only see their own clinic
+                 base = db.query(User).filter(User.id == -1)
+            elif clinic:
                 base = db.query(User).filter(
                     or_(
                         User.clinic_id == current_user.clinic_id,
                         and_(User.role_level >= CEO_LEVEL, User.company_id == clinic.company_id)
                     )
                 )
+                if clinic_id: # Precise filtering if requested
+                     base = base.filter(User.clinic_id == clinic_id)
             else:
                 base = db.query(User).filter(User.clinic_id == current_user.clinic_id)
         else:
@@ -203,6 +214,8 @@ def get_users_paginated(
                         and_(User.role_level >= CEO_LEVEL, User.company_id == clinic.company_id)
                     )
                 )
+                if clinic_id:
+                    base = base.filter(User.clinic_id == clinic_id)
             else:
                 base = db.query(User).filter(User.clinic_id == current_user.clinic_id)
         else:

@@ -15,6 +15,7 @@ import { CustomModal } from "@/components/ui/custom-modal"
 import { deleteUser, updateUser } from "@/lib/db/users-db"
 import { toast } from "sonner"
 import { Badge } from "@/components/ui/badge"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { ROLE_LEVELS, getRoleBadgeVariant, getRoleLabel, isRoleAtLeast } from "@/lib/role-levels"
 
@@ -36,6 +37,8 @@ interface UsersTableProps {
   onEditUser?: (user: UserWithClinic) => void
   loading?: boolean
   pagination?: { page: number; pageSize: number; total: number; setPage: (p: number) => void }
+  companyId?: number
+  currentClinicId?: number
 }
 
 export function UsersTable({ 
@@ -51,11 +54,15 @@ export function UsersTable({
   onNewUser,
   onEditUser,
   loading = false,
-  pagination
+  pagination,
+  companyId,
+  currentClinicId
 }: UsersTableProps) {
   const [internalSearchQuery, setInternalSearchQuery] = React.useState("")
+  const [selectedRole, setSelectedRole] = React.useState<string>("all")
   const [isDeleteModalOpen, setIsDeleteModalOpen] = React.useState(false)
-  const [userToDelete, setUserToDelete] = React.useState<UserWithClinic | null>(null)
+  const [userToDelete, setUserToDelete] = React.useState<User | null>(null)
+  const [showCurrentClinicOnly, setShowCurrentClinicOnly] = React.useState(false)
 
   const searchQuery = externalSearchQuery !== undefined ? externalSearchQuery : internalSearchQuery
   const isExternalSearch = externalSearchQuery !== undefined
@@ -69,26 +76,25 @@ export function UsersTable({
   }
 
   const filteredData = React.useMemo(() => {
-    let filtered = data
-
-    if (!isExternalSearch && searchQuery && filtered.length > 0) {
-      filtered = filtered.filter((user) => {
-        const searchableFields = [
-          user.full_name || user.username,
-          user.email,
-          user.phone,
-          user.clinic_name,
-        ]
-
-        return searchableFields.some(
-          (field) =>
-            field && field.toLowerCase().includes(searchQuery.toLowerCase()),
-        )
-      })
+    let result = data;
+    
+    if (showCurrentClinicOnly && currentClinicId) {
+       result = result.filter(u => u.clinic_id === currentClinicId)
     }
 
-    return filtered
-  }, [data, searchQuery, isExternalSearch])
+    if (selectedRole !== "all") {
+      result = result.filter(u => u.role_level === Number(selectedRole))
+    }
+
+    if (!isExternalSearch && searchQuery) {
+      result = result.filter((user) =>
+        user.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        user.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        user.email?.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+    }
+    return result
+  }, [data, searchQuery, isExternalSearch, showCurrentClinicOnly, currentClinicId, selectedRole])
 
   const handleDeleteClick = (user: UserWithClinic) => {
     const ceoCount = data.filter(u => isRoleAtLeast(u.role_level, ROLE_LEVELS.ceo)).length
@@ -158,13 +164,36 @@ export function UsersTable({
               className="w-[250px] bg-card dark:bg-card"
               dir="rtl"
             />
+            {companyId && currentClinicId && (
+              <Button
+                variant={showCurrentClinicOnly ? "secondary" : "outline"}
+                onClick={() => setShowCurrentClinicOnly(!showCurrentClinicOnly)}
+                className="text-sm"
+              >
+                {showCurrentClinicOnly ? "מציג מרפאה נוכחית" : "הצג הכל"}
+              </Button>
+            )}
+            <Select value={selectedRole} onValueChange={setSelectedRole} dir="rtl">
+              <SelectTrigger className="w-[120px]">
+                <SelectValue placeholder="תפקיד" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">הכל</SelectItem>
+                <SelectItem value={String(ROLE_LEVELS.worker)}>עובד</SelectItem>
+                <SelectItem value={String(ROLE_LEVELS.manager)}>מנהל</SelectItem>
+                <SelectItem value={String(ROLE_LEVELS.ceo)}>מנכ״ל</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
-          {!hideNewButton && onNewUser && (
-            <Button onClick={onNewUser} dir="rtl">
-              משתמש חדש
-              <PlusIcon className="mr-2 h-4 w-4" />
-            </Button>
-          )}
+          <div className="flex items-center gap-2">
+            <h3 className="text-lg font-semibold">משתמשים</h3>
+            {!hideNewButton && onNewUser && (
+              <Button onClick={onNewUser} dir="rtl">
+                משתמש חדש
+                <PlusIcon className="mr-2 h-4 w-4" />
+              </Button>
+            )}
+          </div>
         </div>
       )}
 

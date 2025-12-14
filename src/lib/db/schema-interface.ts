@@ -87,6 +87,7 @@ export interface Client {
 
 export interface Family {
   id?: number;
+  company_id?: number; // Added for multi-clinic/company support
   clinic_id?: number; // Added for multi-clinic support
   name: string;
   created_date?: string;

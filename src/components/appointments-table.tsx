@@ -20,6 +20,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -138,6 +139,7 @@ export function AppointmentsTable({ data, clientId, onAppointmentChange, onAppoi
   const [appointmentToDelete, setAppointmentToDelete] = useState<Appointment | null>(null)
   const [users, setUsers] = useState<User[]>([])
   const [optimisticAppointments, setOptimisticAppointments] = useState<Appointment[]>([])
+  const [selectedExamType, setSelectedExamType] = useState<string>("all")
   const [isSavingNewClientAppointment, setIsSavingNewClientAppointment] = useState(false)
   
   const [appointmentFormData, setAppointmentFormData] = useState<Omit<Appointment, 'id'>>({
@@ -210,6 +212,19 @@ export function AppointmentsTable({ data, clientId, onAppointmentChange, onAppoi
     )
   })
 
+  // Filter by exam type locally
+  const finalFilteredData = React.useMemo(() => {
+    if (selectedExamType === "all") return filteredData;
+    return filteredData.filter(a => a.exam_name === selectedExamType);
+  }, [filteredData, selectedExamType]);
+
+  const uniqueExamTypes = React.useMemo(() => {
+    const types = new Set(allAppointments.map(a => a.exam_name).filter(Boolean));
+    return Array.from(types);
+  }, [allAppointments]);
+
+  const dataToRender = finalFilteredData;
+
   const resetAllForms = () => {
     setAppointmentFormData({
       client_id: clientId,
@@ -276,7 +291,7 @@ export function AppointmentsTable({ data, clientId, onAppointmentChange, onAppoi
     const handleOpenAppointmentModal = (e: CustomEvent) => {
       const appointmentId = e.detail?.appointmentId
       if (appointmentId) {
-        const appointment = data.find(a => a.id === appointmentId)
+        const appointment = dataToRender.find(a => a.id === appointmentId) || data.find(a => a.id === appointmentId)
         if (appointment) {
           openEditDialog(appointment)
         }
@@ -611,6 +626,17 @@ export function AppointmentsTable({ data, clientId, onAppointmentChange, onAppoi
             className="w-[250px] bg-card dark:bg-card" 
             dir="rtl"
           />
+           <Select value={selectedExamType} onValueChange={setSelectedExamType} dir="rtl">
+            <SelectTrigger className="w-[180px] bg-card">
+              <SelectValue placeholder="סוג בדיקה" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">כל הבדיקות</SelectItem>
+              {uniqueExamTypes.map(type => (
+                <SelectItem key={type} value={type || 'unknown'}>{type}</SelectItem>
+              ))}
+            </SelectContent>
+           </Select>
         </div>
         
         {clientId > 0 ? (

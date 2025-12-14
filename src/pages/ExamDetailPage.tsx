@@ -492,10 +492,12 @@ export default function ExamDetailPage({
   };
 
   // Initialize form data for all registered components
-  const initializeFormData = (instanceKey: number, layoutData?: string) => {
+  const createInitialFormDataBucket = (
+    instanceKey: number,
+    layoutData?: string,
+  ) => {
     const initialData: Record<string, any> = {};
 
-    // Parse layout data to get titles and card instances
     const layoutTitles: Record<string, string> = {};
     const cardInstances: Record<string, string[]> = {};
     if (layoutData) {
@@ -510,7 +512,6 @@ export default function ExamDetailPage({
             if (card.title) {
               layoutTitles[card.id] = card.title;
             }
-            // Collect card instances for each type
             if (!cardInstances[card.type]) {
               cardInstances[card.type] = [];
             }
@@ -525,18 +526,15 @@ export default function ExamDetailPage({
     examComponentRegistry.getAllTypes().forEach((type) => {
       const baseData: any = { layout_instance_id: instanceKey };
 
-      // For notes, create separate data for each card instance
       if (type === "notes" && cardInstances[type]) {
         cardInstances[type].forEach((cardId) => {
           const instanceData = { ...baseData, card_instance_id: cardId };
-          // Add title from layout if available for this specific card
           if (layoutTitles[cardId]) {
             instanceData.title = layoutTitles[cardId];
           }
           initialData[`${type}-${cardId}`] = instanceData;
         });
       } else {
-        // For other components, add title from layout if available
         if (
           type === "corneal-topography" &&
           cardInstances[type] &&
@@ -550,6 +548,12 @@ export default function ExamDetailPage({
         initialData[type] = baseData;
       }
     });
+
+    return initialData;
+  };
+
+  const initializeFormData = (instanceKey: number, layoutData?: string) => {
+    const initialData = createInitialFormDataBucket(instanceKey, layoutData);
 
     setExamFormData(initialData);
     setExamFormDataByInstance((prev) => ({
@@ -932,27 +936,50 @@ export default function ExamDetailPage({
           
           if (layoutIdFromSearch) {
             const selectedLayoutId = Number(layoutIdFromSearch);
-            const selectedLayout = await getExamLayoutById(selectedLayoutId);
-            
-            if (selectedLayout && !selectedLayout.is_group) {
-              const tempInstanceId = -Date.now();
-              const parsedLayout = JSON.parse(selectedLayout.layout_data || "[]");
-              if (Array.isArray(parsedLayout)) {
-                setCardRows(parsedLayout);
-                setCustomWidths({});
-              } else {
-                setCardRows(parsedLayout.rows || []);
-                setCustomWidths(parsedLayout.customWidths || {});
+            const flattened = flattenExamLayouts(layoutsTree as ExamLayout[]);
+            const map = new Map<number, ExamLayout>();
+            flattened.forEach((layout) => {
+              if (layout.id != null) map.set(layout.id, layout);
+            });
+            const fromTree = map.get(selectedLayoutId);
+            const selectedLayout = fromTree || (await getExamLayoutById(selectedLayoutId));
+
+            if (selectedLayout) {
+              const layoutsToOpen = selectedLayout.is_group
+                ? collectLeafLayouts(fromTree || selectedLayout).filter(
+                    (layout) => layout.id && !layout.is_group,
+                  )
+                : [selectedLayout];
+
+              if (layoutsToOpen.length > 0) {
+                const tempTabs: LayoutTab[] = [];
+                const buckets: Record<number | string, Record<string, any>> = {};
+                let activeTempId: number | null = null;
+
+                layoutsToOpen.forEach((layout, idx) => {
+                  const tempInstanceId = -Date.now() - idx;
+                  if (idx === 0) activeTempId = tempInstanceId;
+                  tempTabs.push({
+                    id: tempInstanceId,
+                    layout_id: layout.id || 0,
+                    name: layout.name || "",
+                    layout_data: layout.layout_data || "",
+                    isActive: idx === 0,
+                  });
+                  buckets[tempInstanceId] = createInitialFormDataBucket(
+                    tempInstanceId,
+                    layout.layout_data || "",
+                  );
+                });
+
+                applyLayoutStructure(layoutsToOpen[0].layout_data || "[]");
+                setLayoutTabs(tempTabs);
+                setActiveInstanceId(activeTempId);
+                setExamFormDataByInstance((prev) => ({ ...prev, ...buckets }));
+                if (activeTempId != null) {
+                  setExamFormData(buckets[activeTempId] || {});
+                }
               }
-              setActiveInstanceId(tempInstanceId);
-              initializeFormData(tempInstanceId, selectedLayout.layout_data || "");
-              setLayoutTabs([{
-                id: tempInstanceId,
-                layout_id: selectedLayout.id || 0,
-                name: selectedLayout.name || "",
-                layout_data: selectedLayout.layout_data || "",
-                isActive: true,
-              }]);
             }
           }
         }

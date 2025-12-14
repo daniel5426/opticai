@@ -469,7 +469,10 @@ function setupAutoUpdater() {
   });
 
   autoUpdater.on('error', (err) => {
-    console.error('Error in auto-updater:', err);
+    console.error('=== AUTO-UPDATER ERROR ===');
+    console.error('Error details:', err);
+    console.error('Error message:', err.message);
+    console.error('Error stack:', err.stack);
   });
 
   autoUpdater.on('before-quit-for-update' as any, () => {
@@ -491,7 +494,12 @@ function setupAutoUpdater() {
   });
 
   autoUpdater.on('update-downloaded', (info) => {
-    console.log('Update downloaded:', info.version);
+    console.log('=== UPDATE DOWNLOADED EVENT ===');
+    console.log('Update version:', info.version);
+    console.log('Update info:', JSON.stringify(info, null, 2));
+    
+    const downloadedUpdateHelper = (autoUpdater as any).downloadedUpdateHelper;
+    console.log('downloadedUpdateHelper in update-downloaded:', downloadedUpdateHelper);
     
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send('update-downloaded', {
@@ -600,12 +608,30 @@ ipcMain.handle('install-update', async () => {
   console.log('=== INSTALL UPDATE REQUESTED ===');
   console.log('Current platform:', process.platform);
   console.log('Current arch:', process.arch);
+  console.log('Current app version:', app.getVersion());
+  console.log('App path:', app.getPath('exe'));
+  console.log('App name:', app.getName());
   console.log('autoUpdater.autoInstallOnAppQuit value:', autoUpdater.autoInstallOnAppQuit);
 
   const downloadedUpdateHelper = (autoUpdater as any).downloadedUpdateHelper;
   console.log('downloadedUpdateHelper exists:', !!downloadedUpdateHelper);
+  console.log('downloadedUpdateHelper full object:', JSON.stringify(downloadedUpdateHelper, null, 2));
   
   if (downloadedUpdateHelper && downloadedUpdateHelper.file) {
+    const fs = require('fs');
+    const { shell } = require('electron');
+    const updateFileExists = fs.existsSync(downloadedUpdateHelper.file);
+    console.log('Update file path:', downloadedUpdateHelper.file);
+    console.log('Update file exists:', updateFileExists);
+    
+    if (updateFileExists) {
+      const stats = fs.statSync(downloadedUpdateHelper.file);
+      console.log('Update file size:', stats.size, 'bytes');
+    } else {
+      console.error('Update file does not exist at path:', downloadedUpdateHelper.file);
+      return { success: false, error: 'Update file not found' };
+    }
+
     console.log('Found downloaded update helper state:', {
       file: downloadedUpdateHelper.file,
       sha512: downloadedUpdateHelper.sha512,
@@ -616,9 +642,30 @@ ipcMain.handle('install-update', async () => {
       console.log('Attempting to quit and install...');
       
       if (process.platform === 'darwin') {
-        console.log('macOS detected - forcing window close and quit');
+        console.log('macOS detected - checking code signing status');
+        
+        const { execSync } = require('child_process');
+        let isSigned = false;
+        try {
+          const codesignCheck = execSync(`codesign -dv "${app.getPath('exe')}" 2>&1`, { encoding: 'utf-8' });
+          console.log('Code signing check result:', codesignCheck);
+          isSigned = !codesignCheck.includes('code object is not signed');
+        } catch (err) {
+          console.log('Code signing check failed (app may not be signed):', err);
+        }
+        
+        console.log('App is signed:', isSigned);
+        
+        if (!isSigned) {
+          console.log('WARNING: App is not code-signed - auto-update may not work properly');
+          console.log('Update file location:', downloadedUpdateHelper.file);
+          console.log('You may need to manually install the update');
+        }
+        
+        console.log('macOS detected - using quitAndInstall with forceRunAfter=true');
+        
         setTimeout(() => {
-          console.log('setTimeout callback executing');
+          console.log('setTimeout callback executing for macOS install');
           
           const allWindows = BrowserWindow.getAllWindows();
           console.log('Found', allWindows.length, 'windows to close');
@@ -633,17 +680,41 @@ ipcMain.handle('install-update', async () => {
             }
           });
           
-          console.log('All windows destroyed, calling quitAndInstall');
+          console.log('All windows destroyed, calling quitAndInstall(false, true)');
+          console.log('Parameters: isSilent=false, forceRunAfter=true');
+          
           try {
-            autoUpdater.quitAndInstall(false, true);
-            console.log('quitAndInstall called - waiting for quit');
+            const result = autoUpdater.quitAndInstall(false, true);
+            console.log('quitAndInstall returned:', result);
+            console.log('quitAndInstall called successfully - app should restart');
             
             setTimeout(() => {
-              console.log('Still running after quitAndInstall - forcing app.exit(0)');
+              console.log('WARNING: App still running after 3 seconds - quitAndInstall may have failed');
+              console.log('This might indicate the app is not properly signed/notarized');
+              if (!isSigned) {
+                console.log('App is unsigned - attempting to open update file location');
+                try {
+                  shell.showItemInFolder(downloadedUpdateHelper.file);
+                  const currentWindow = BrowserWindow.getFocusedWindow();
+                  if (currentWindow) {
+                    dialog.showMessageBox(currentWindow, {
+                      type: 'warning',
+                      title: 'עדכון ידני נדרש',
+                      message: 'האפליקציה לא חתומה, ולכן עדכון אוטומטי אינו זמין.',
+                      detail: `קובץ העדכון נמצא ב: ${downloadedUpdateHelper.file}\n\nאנא התקן את העדכון ידנית.`,
+                      buttons: ['אישור']
+                    });
+                  }
+                } catch (err) {
+                  console.error('Failed to show update file location:', err);
+                }
+              }
+              console.log('Forcing app.exit(0) as fallback');
               app.exit(0);
             }, 3000);
           } catch (err) {
             console.error('quitAndInstall threw error:', err);
+            console.error('Error details:', JSON.stringify(err, Object.getOwnPropertyNames(err)));
             console.log('Forcing app.exit(0) due to error');
             app.exit(0);
           }
@@ -692,10 +763,16 @@ async function installExtensions() {
 }
 
 app.whenReady().then(() => {
+  console.log('=== APP STARTUP ===');
+  console.log('App version:', app.getVersion());
+  console.log('Platform:', process.platform);
+  console.log('Arch:', process.arch);
+  console.log('App path:', app.getPath('exe'));
+  
   setupIpcHandlers();
   createWindow();
   setupAutoUpdater();
-  installExtensions(); // Install extensions after other setup
+  installExtensions();
 });
 
 app.on('before-quit', (event) => {

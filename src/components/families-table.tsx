@@ -28,6 +28,8 @@ interface FamiliesTableProps {
   hideSearch?: boolean
   loading?: boolean
   pagination?: { page: number; pageSize: number; total: number; setPage: (p: number) => void }
+  companyId?: number
+  currentClinicId?: number
 }
 
 export function FamiliesTable({ 
@@ -41,22 +43,43 @@ export function FamiliesTable({
   onSearchChange,
   hideSearch = false,
   loading = false,
-  pagination
+  pagination,
+  companyId,
+  currentClinicId
 }: FamiliesTableProps) {
   const [internalSearchQuery, setInternalSearchQuery] = React.useState("")
   const [isDeleteModalOpen, setIsDeleteModalOpen] = React.useState(false)
   const [familyToDelete, setFamilyToDelete] = React.useState<Family | null>(null)
   const [memberCounts, setMemberCounts] = React.useState<Record<number, number>>({})
+  const [showCurrentClinicOnly, setShowCurrentClinicOnly] = React.useState(false)
 
   const searchQuery = externalSearchQuery !== undefined ? externalSearchQuery : internalSearchQuery
   const isExternalSearch = externalSearchQuery !== undefined
 
+  // Effect to notify parent about filter change if needed, or handle locally if data is all-loaded
+  // But here 'data' is passed from parent. Parent normally handles fetching? 
+  // Wait, if pagination is used, parent fetches. If parent fetches, parent needs to know about this filter. 
+  // If the parent is just passing data (client-side filter), we do it here.
+  // Assuming 'data' contains what we need. If server-side pagination, 
+  // we might need a callback onClinicFilterChange. 
+  // For now, if 'data' is passed, we filter 'data' locally if it's client side,
+  // OR the parent should pass a callback.
+  // However, looking at the code, it seems 'data' is passed.
+  // If we are showing "All Company", 'data' has all company families.
+  // If we filter, we just filter 'data'.
+
   const filteredData = React.useMemo(() => {
-    if (!isExternalSearch && searchQuery) {
-      return data.filter((family) => family.name.toLowerCase().includes(searchQuery.toLowerCase()))
+    let result = data;
+
+    if (showCurrentClinicOnly && currentClinicId) {
+      result = result.filter(f => f.clinic_id === currentClinicId);
     }
-    return data
-  }, [data, searchQuery, isExternalSearch])
+
+    if (!isExternalSearch && searchQuery) {
+      result = result.filter((family) => family.name.toLowerCase().includes(searchQuery.toLowerCase()))
+    }
+    return result
+  }, [data, searchQuery, isExternalSearch, showCurrentClinicOnly, currentClinicId])
 
   const handleSearchChange = (value: string) => {
     if (onSearchChange) {
@@ -115,7 +138,18 @@ export function FamiliesTable({
             className="w-[250px] bg-card dark:bg-card"
             dir="rtl"
           />
-          <h3 className="text-lg font-semibold">משפחות</h3>
+          <div className="flex items-center gap-2">
+            {companyId && currentClinicId && (
+              <Button
+                variant={showCurrentClinicOnly ? "secondary" : "outline"}
+                onClick={() => setShowCurrentClinicOnly(!showCurrentClinicOnly)}
+                className="text-sm"
+              >
+                {showCurrentClinicOnly ? "מציג מרפאה נוכחית" : "הצג הכל"}
+              </Button>
+            )}
+            <h3 className="text-lg font-semibold">משפחות</h3>
+          </div>
         </div>
       )}
 

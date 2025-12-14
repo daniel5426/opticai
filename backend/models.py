@@ -82,6 +82,7 @@ class Family(Base):
     __tablename__ = "families"
     
     id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id"))
     clinic_id = Column(Integer, ForeignKey("clinics.id"))
     name = Column(String, nullable=False)
     created_date = Column(Date, server_default=func.current_date())
@@ -187,7 +188,7 @@ class MedicalLog(Base):
     id = Column(Integer, primary_key=True, index=True)
     client_id = Column(Integer, ForeignKey("clients.id", ondelete="CASCADE"), nullable=False)
     clinic_id = Column(Integer, ForeignKey("clinics.id"))
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="RESTRICT"))
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"))
     log_date = Column(Date)
     log = Column(Text)
 
@@ -198,7 +199,7 @@ class OpticalExam(Base):
     client_id = Column(Integer, ForeignKey("clients.id", ondelete="CASCADE"), nullable=False)
     clinic_id = Column(Integer, ForeignKey("clinics.id"))
     clinic = Column(String)
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="RESTRICT"))
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"))
     exam_date = Column(Date)
     test_name = Column(String)
     dominant_eye = Column(String)
@@ -280,7 +281,7 @@ class Order(Base):
     order_date = Column(Date)
     type = Column(String)
     dominant_eye = Column(String)
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="RESTRICT"))
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"))
     lens_id = Column(Integer)
     frame_id = Column(Integer)
     order_data = Column(JSON, nullable=False, default={})
@@ -295,7 +296,7 @@ class ContactLensOrder(Base):
     id = Column(Integer, primary_key=True, index=True)
     client_id = Column(Integer, ForeignKey("clients.id", ondelete="CASCADE"), nullable=False)
     clinic_id = Column(Integer, ForeignKey("clinics.id"))
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="RESTRICT"))
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"))
     order_date = Column(Date)
     type = Column(String)
 
@@ -343,7 +344,7 @@ class Referral(Base):
     id = Column(Integer, primary_key=True, index=True)
     client_id = Column(Integer, ForeignKey("clients.id", ondelete="CASCADE"), nullable=False)
     clinic_id = Column(Integer, ForeignKey("clinics.id"))
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="RESTRICT"))
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"))
     referral_notes = Column(Text, nullable=False)
     prescription_notes = Column(Text)
     date = Column(Date)
@@ -376,7 +377,7 @@ class Appointment(Base):
     id = Column(Integer, primary_key=True, index=True)
     client_id = Column(Integer, ForeignKey("clients.id", ondelete="CASCADE"), nullable=False)
     clinic_id = Column(Integer, ForeignKey("clinics.id"))
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="RESTRICT"))
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     date = Column(Date)
     time = Column(String)
     duration = Column(Integer, default=30)
@@ -395,7 +396,7 @@ class File(Base):
     file_size = Column(Integer)
     file_type = Column(String)
     upload_date = Column(DateTime(timezone=True), server_default=func.now())
-    uploaded_by = Column(Integer, ForeignKey("users.id", ondelete="RESTRICT"))
+    uploaded_by = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"))
     notes = Column(Text)
 
 class Chat(Base):
@@ -468,7 +469,7 @@ class CampaignClientExecution(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     campaign_id = Column(Integer, ForeignKey("campaigns.id"), nullable=False)
-    client_id = Column(Integer, ForeignKey("clients.id", ondelete="CASCADE"), nullable=False)
+    client_id = Column(Integer, ForeignKey("clients.id", ondelete="SET NULL"), nullable=False)
     executed_at = Column(DateTime(timezone=True), server_default=func.now())
 
 class LookupSupplier(Base):

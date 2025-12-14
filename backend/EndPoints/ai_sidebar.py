@@ -8,8 +8,9 @@ import re
 
 from database import get_db
 from auth import get_current_user
-from models import Client, OpticalExam, Appointment, Order, Referral, File, MedicalLog, User
+from models import Client, OpticalExam, Appointment, Order, Referral, File, MedicalLog, User, Campaign
 from config import settings
+from schemas import Campaign as CampaignSchema
 
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import SystemMessage, HumanMessage
@@ -491,10 +492,13 @@ def generate_part_state(
 
 
 @router.post("/create-campaign-from-prompt")
-def create_campaign_from_prompt(body: Dict[str, Any], current_user: User = Depends(get_current_user)):
+def create_campaign_from_prompt(body: Dict[str, Any], db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     prompt: str = body.get("prompt", "").strip()
+    clinic_id = body.get("clinic_id")
     if not prompt:
         raise HTTPException(status_code=422, detail="prompt is required")
+    if clinic_id is None:
+        raise HTTPException(status_code=422, detail="clinic_id is required")
     filter_fields = {
         "first_name": {"label": "שם פרטי", "type": "text", "category": "מידע אישי"},
         "last_name": {"label": "שם משפחה", "type": "text", "category": "מידע אישי"},
@@ -588,5 +592,36 @@ def create_campaign_from_prompt(body: Dict[str, Any], current_user: User = Depen
         for entry in data["filters"]:
             if "logic" in entry and entry["logic"] not in ("AND", "OR", None):
                 entry["logic"] = "AND"
-    return {"success": True, "data": data}
+        data["filters"] = json.dumps(data["filters"], ensure_ascii=False)
+    elif isinstance(data.get("filters"), dict):
+        data["filters"] = json.dumps(data["filters"], ensure_ascii=False)
+
+    if not isinstance(data.get("name"), str) or not data.get("name").strip():
+        data["name"] = prompt[:80]
+
+    campaign_payload = {
+        "clinic_id": clinic_id,
+        "name": data.get("name"),
+        "filters": data.get("filters"),
+        "email_enabled": bool(data.get("email_enabled", False)),
+        "email_content": data.get("email_content"),
+        "sms_enabled": bool(data.get("sms_enabled", False)),
+        "sms_content": data.get("sms_content"),
+        "active": bool(data.get("active", True)),
+        "active_since": None,
+        "mail_sent": False,
+        "sms_sent": False,
+        "emails_sent_count": 0,
+        "sms_sent_count": 0,
+        "cycle_type": data.get("cycle_type", "daily"),
+        "cycle_custom_days": data.get("cycle_custom_days"),
+        "last_executed": None,
+        "execute_once_per_client": bool(data.get("execute_once_per_client", False)),
+    }
+
+    db_campaign = Campaign(**campaign_payload)
+    db.add(db_campaign)
+    db.commit()
+    db.refresh(db_campaign)
+    return {"success": True, "data": CampaignSchema.model_validate(db_campaign).model_dump()}
 

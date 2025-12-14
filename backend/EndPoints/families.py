@@ -11,6 +11,7 @@ router = APIRouter(prefix="/families", tags=["families"])
 @router.get("/paginated")
 def get_families_paginated(
     clinic_id: Optional[int] = Query(None, description="Filter by clinic ID"),
+    company_id: Optional[int] = Query(None, description="Filter by company ID"),
     limit: int = Query(25, ge=1, le=100, description="Max items to return"),
     offset: int = Query(0, ge=0, description="Items to skip"),
     order: Optional[str] = Query("created_desc", description="Sort order: created_desc|created_asc|name_asc|name_desc|id_desc|id_asc"),
@@ -18,8 +19,15 @@ def get_families_paginated(
     db: Session = Depends(get_db)
 ):
     count_q = db.query(func.count(Family.id))
+    
+    # Filter by company_id if provided
+    if company_id:
+        count_q = count_q.filter(Family.company_id == company_id)
+        
+    # If clinic_id is provided, filter by it (AND logic)
     if clinic_id:
         count_q = count_q.filter(Family.clinic_id == clinic_id)
+        
     if search:
         like = f"%{search.strip()}%"
         count_q = count_q.filter(Family.name.ilike(like))
@@ -32,16 +40,21 @@ def get_families_paginated(
         Family.name,
         Family.created_date,
         Family.notes,
-        func.count(Client.id).label('member_count')
+        func.count(Client.id).label('member_count'),
+        Family.company_id
     ).outerjoin(Client, Client.family_id == Family.id)
+
+    if company_id:
+        base = base.filter(Family.company_id == company_id)
 
     if clinic_id:
         base = base.filter(Family.clinic_id == clinic_id)
+        
     if search:
         like = f"%{search.strip()}%"
         base = base.filter(Family.name.ilike(like))
 
-    base = base.group_by(Family.id, Family.clinic_id, Family.name, Family.created_date, Family.notes)
+    base = base.group_by(Family.id, Family.clinic_id, Family.name, Family.created_date, Family.notes, Family.company_id)
 
     if order == "created_desc":
         base = base.order_by(Family.created_date.desc().nulls_last())
@@ -92,6 +105,7 @@ def get_families_paginated(
             "notes": r[4],
             "member_count": len(clients),
             "clients": clients,
+            "company_id": r[6],
         })
 
     return {"items": items, "total": total}
@@ -114,9 +128,12 @@ def get_family(family_id: int, db: Session = Depends(get_db)):
 @router.get("/", response_model=List[FamilySchema])
 def get_all_families(
     clinic_id: Optional[int] = Query(None, description="Filter by clinic ID"),
+    company_id: Optional[int] = Query(None, description="Filter by company ID"),
     db: Session = Depends(get_db)
 ):
     query = db.query(Family)
+    if company_id:
+        query = query.filter(Family.company_id == company_id)
     if clinic_id:
         query = query.filter(Family.clinic_id == clinic_id)
     return query.all()

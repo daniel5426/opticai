@@ -414,26 +414,31 @@ class ApiClient {
   }
 
   // Families pagination
-  async getFamiliesPaginated(clinicId?: number, options?: { limit?: number; offset?: number; order?: 'created_desc' | 'created_asc' | 'name_asc' | 'name_desc' | 'id_desc' | 'id_asc'; search?: string }) {
+  async getFamiliesPaginated(clinicId?: number, options?: { limit?: number; offset?: number; order?: 'created_desc' | 'created_asc' | 'name_asc' | 'name_desc' | 'id_desc' | 'id_asc'; search?: string }, companyId?: number) {
     const params = new URLSearchParams();
     if (clinicId) params.append('clinic_id', clinicId.toString());
+    if (companyId) params.append('company_id', companyId.toString());
     if (options?.limit !== undefined) params.append('limit', String(options.limit));
     if (options?.offset !== undefined) params.append('offset', String(options.offset));
     if (options?.order) params.append('order', options.order);
     if (options?.search) params.append('search', options.search);
-    const qs = params.toString();
-    return this.request<{ items: (Family & { clients?: Client[] })[]; total: number }>(`/families/paginated${qs ? `?${qs}` : ''}`);
+    
+    return this.request<{ items: (Family & { clients?: Client[] })[]; total: number }>(
+      `/families/paginated?${params.toString()}`
+    );
   }
 
   // Users pagination
-  async getUsersPaginated(options?: { limit?: number; offset?: number; order?: 'id_desc' | 'id_asc' | 'username_asc' | 'username_desc' | 'role_asc' | 'role_desc'; search?: string }) {
+  async getUsersPaginated(options?: { limit?: number; offset?: number; order?: string; search?: string; clinic_id?: number }) {
     const params = new URLSearchParams();
     if (options?.limit !== undefined) params.append('limit', String(options.limit));
     if (options?.offset !== undefined) params.append('offset', String(options.offset));
     if (options?.order) params.append('order', options.order);
     if (options?.search) params.append('search', options.search);
+    if (options?.clinic_id) params.append('clinic_id', options.clinic_id.toString());
+    
     const qs = params.toString();
-    return this.request<{ items: any[]; total: number }>(`/users/paginated${qs ? `?${qs}` : ''}`);
+    return this.request<{ items: User[]; total: number }>(`/users/paginated${qs ? `?${qs}` : ''}`);
   }
 
   async getClient(id: number) {
@@ -1715,10 +1720,10 @@ class ApiClient {
     });
   }
 
-  async aiCreateCampaignFromPrompt(prompt: string) {
+  async aiCreateCampaignFromPrompt(prompt: string, clinicId?: number) {
     return this.request('/ai/create-campaign-from-prompt', {
       method: 'POST',
-      body: JSON.stringify({ prompt }),
+      body: JSON.stringify({ prompt, clinic_id: clinicId }),
     });
   }
 

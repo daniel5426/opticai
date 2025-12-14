@@ -531,7 +531,7 @@ export default function CampaignsPage() {
       } else {
         // Set created_at to now for immediate UI display
         const now = new Date().toISOString();
-        const result = await createCampaign({ ...data, created_at: now });
+        const result = await createCampaign({ ...data, created_at: now, clinic_id: currentClinic?.id });
         if (result) {
           setCampaigns([result, ...campaigns]);
           toast.success("קמפיין נוצר בהצלחה");
@@ -690,34 +690,16 @@ export default function CampaignsPage() {
     if (!aiInput.trim()) return;
     setAiLoading(true);
     try {
-      const result = await apiClient.aiCreateCampaignFromPrompt(aiInput.trim());
+      const result = await apiClient.aiCreateCampaignFromPrompt(aiInput.trim(), currentClinic?.id);
       const payload = (result as any).data || (result as any);
       if ((result as any).error || !payload?.data) {
         throw new Error((result as any).error || 'AI service error');
       }
-      const campaignObj = payload.data as Campaign;
-      
-      // Set defaults for missing fields that are not returned by the AI
-      const finalCampaign = {
-          ...campaignObj,
-          clinic_id: currentClinic?.id,
-          active: true,
-          mail_sent: false,
-          sms_sent: false,
-          emails_sent_count: 0,
-          sms_sent_count: 0,
-          created_at: new Date().toISOString(),
-      };
-
-      const created = await createCampaign(finalCampaign);
-      if (created) {
-        setAiSuccess("הקמפיין נוצר בהצלחה!");
-        setAiInput("");
-        setAiModalOpen(false);
-        loadCampaigns();
-      } else {
-        throw new Error("שגיאה ביצירת הקמפיין");
-      }
+      const createdCampaign = payload.data as Campaign;
+      setCampaigns([createdCampaign, ...campaigns]);
+      setAiSuccess("הקמפיין נוצר בהצלחה!");
+      setAiInput("");
+      setAiModalOpen(false);
     } catch (e: any) {
       setAiError(e.message || "שגיאה לא ידועה");
     } finally {

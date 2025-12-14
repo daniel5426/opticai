@@ -59,7 +59,7 @@ export function ExamsTable({ data, clientId, onExamDeleted, onExamDeleteFailed, 
     const fetchDefaultLayouts = async () => {
       try {
         const layouts = await getDefaultExamLayouts();
-        setDefaultLayouts(layouts.filter(layout => !layout.is_group));
+        setDefaultLayouts(layouts.filter(layout => layout.is_default));
       } catch (error) {
         console.error("Error fetching default layouts:", error);
       }
