@@ -2,11 +2,11 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from database import get_db
-from models import Referral, Client, User, ReferralEye
+from models import Referral, Client, User, ReferralEye, Clinic
 from sqlalchemy import func
 from schemas import ReferralCreate, ReferralUpdate, Referral as ReferralSchema
 from auth import get_current_user
-from security.scope import resolve_clinic_id
+from security.scope import resolve_company_id, assert_clinic_belongs_to_company
 
 router = APIRouter(prefix="/referrals", tags=["referrals"])
 
@@ -30,8 +30,11 @@ def get_referrals_paginated(
         .outerjoin(Client, Client.id == Referral.client_id)
         .outerjoin(User, User.id == Referral.user_id)
     )
-    target_clinic = resolve_clinic_id(db, current_user, clinic_id, require_for_ceo=True)
-    base = base.filter(Referral.clinic_id == target_clinic)
+    company_id = resolve_company_id(db, current_user)
+    base = base.join(Clinic, Clinic.id == Referral.clinic_id).filter(Clinic.company_id == company_id)
+    if clinic_id is not None:
+        assert_clinic_belongs_to_company(db, clinic_id, company_id)
+        base = base.filter(Referral.clinic_id == clinic_id)
     if search:
         like = f"%{search.strip()}%"
         base = base.filter(
@@ -90,8 +93,12 @@ def get_all_referrals(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    target_clinic = resolve_clinic_id(db, current_user, clinic_id, require_for_ceo=True)
-    return db.query(Referral).filter(Referral.clinic_id == target_clinic).all()
+    company_id = resolve_company_id(db, current_user)
+    query = db.query(Referral).join(Clinic, Clinic.id == Referral.clinic_id).filter(Clinic.company_id == company_id)
+    if clinic_id is not None:
+        assert_clinic_belongs_to_company(db, clinic_id, company_id)
+        query = query.filter(Referral.clinic_id == clinic_id)
+    return query.all()
 
 @router.get("/client/{client_id}", response_model=List[ReferralSchema])
 def get_referrals_by_client(client_id: int, db: Session = Depends(get_db)):

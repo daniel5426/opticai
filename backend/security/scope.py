@@ -28,6 +28,11 @@ def assert_clinic_belongs_to_company(db: Session, clinic_id: int, company_id: in
         raise HTTPException(status_code=403, detail="Access denied")
 
 
+def list_company_clinic_ids(db: Session, company_id: int) -> list[int]:
+    rows = db.query(Clinic.id).filter(Clinic.company_id == company_id).all()
+    return [r[0] for r in rows]
+
+
 def normalize_clinic_id_for_company(
     db: Session,
     current_user: User,

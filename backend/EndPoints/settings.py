@@ -11,7 +11,7 @@ from auth import verify_supabase_token
 import requests
 from utils.storage import upload_base64_image
 from auth import get_current_user
-from security.scope import resolve_clinic_id, assert_company_scope
+from security.scope import resolve_company_id, assert_company_scope, assert_clinic_belongs_to_company
 
 router = APIRouter(prefix="/settings", tags=["settings"])
 
@@ -44,19 +44,15 @@ def get_all_settings(
     current_user: User = Depends(get_current_user)
 ):
     query = db.query(Settings)
-    if current_user.role_level >= 4:
-        if current_user.company_id is None:
-            raise HTTPException(status_code=403, detail="Access denied")
-        if clinic_id is not None:
-            target_clinic = resolve_clinic_id(db, current_user, clinic_id, require_for_ceo=True)
-            return query.filter(Settings.clinic_id == target_clinic).all()
-        assert_company_scope(current_user, current_user.company_id)
-        clinic_ids = db.query(Clinic.id).filter(Clinic.company_id == current_user.company_id).all()
-        clinic_id_list = [c[0] for c in clinic_ids]
-        return query.filter(Settings.clinic_id.in_(clinic_id_list)).all()
-
-    target_clinic = resolve_clinic_id(db, current_user, clinic_id, require_for_ceo=False)
-    return query.filter(Settings.clinic_id == target_clinic).all()
+    company_id = resolve_company_id(db, current_user)
+    assert_company_scope(current_user, company_id)
+    clinic_ids = db.query(Clinic.id).filter(Clinic.company_id == company_id).all()
+    clinic_id_list = [c[0] for c in clinic_ids]
+    query = query.filter(Settings.clinic_id.in_(clinic_id_list))
+    if clinic_id is not None:
+        assert_clinic_belongs_to_company(db, clinic_id, company_id)
+        query = query.filter(Settings.clinic_id == clinic_id)
+    return query.all()
 
 @router.get("/{settings_id}", response_model=SettingsSchema)
 def get_settings(settings_id: int, db: Session = Depends(get_db)):

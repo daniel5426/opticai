@@ -6,7 +6,8 @@ from models import Campaign, CampaignClientExecution, Client
 from schemas import CampaignCreate, CampaignUpdate, Campaign as CampaignSchema
 from auth import get_current_user
 from models import User
-from security.scope import resolve_clinic_id
+from models import Clinic
+from security.scope import resolve_company_id, assert_clinic_belongs_to_company
 
 router = APIRouter(prefix="/campaigns", tags=["campaigns"])
 
@@ -31,8 +32,12 @@ def get_all_campaigns(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    target_clinic = resolve_clinic_id(db, current_user, clinic_id, require_for_ceo=True)
-    return db.query(Campaign).filter(Campaign.clinic_id == target_clinic).all()
+    company_id = resolve_company_id(db, current_user)
+    query = db.query(Campaign).join(Clinic, Clinic.id == Campaign.clinic_id).filter(Clinic.company_id == company_id)
+    if clinic_id is not None:
+        assert_clinic_belongs_to_company(db, clinic_id, company_id)
+        query = query.filter(Campaign.clinic_id == clinic_id)
+    return query.all()
 
 @router.put("/{campaign_id}", response_model=CampaignSchema)
 def update_campaign(campaign_id: int, campaign: CampaignUpdate, db: Session = Depends(get_db)):

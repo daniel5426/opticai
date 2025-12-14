@@ -7,7 +7,7 @@ from models import Family, Client
 from schemas import FamilyCreate, FamilyUpdate, Family as FamilySchema
 from auth import get_current_user
 from models import User
-from security.scope import resolve_clinic_id
+from security.scope import resolve_company_id, assert_clinic_belongs_to_company
 
 router = APIRouter(prefix="/families", tags=["families"])
 
@@ -22,15 +22,11 @@ def get_families_paginated(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    effective_company_id = current_user.company_id if current_user.role_level >= 4 else None
+    effective_company_id = resolve_company_id(db, current_user)
     effective_clinic_id = None
-    if current_user.role_level >= 4:
-        if effective_company_id is None:
-            raise HTTPException(status_code=403, detail="Access denied")
-        if clinic_id is not None:
-            effective_clinic_id = resolve_clinic_id(db, current_user, clinic_id, require_for_ceo=True)
-    else:
-        effective_clinic_id = resolve_clinic_id(db, current_user, clinic_id, require_for_ceo=False)
+    if clinic_id is not None:
+        assert_clinic_belongs_to_company(db, clinic_id, effective_company_id)
+        effective_clinic_id = clinic_id
 
     count_q = db.query(func.count(Family.id))
     
@@ -144,18 +140,12 @@ def get_all_families(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    query = db.query(Family)
-    if current_user.role_level >= 4:
-        if current_user.company_id is None:
-            raise HTTPException(status_code=403, detail="Access denied")
-        query = query.filter(Family.company_id == current_user.company_id)
-        if clinic_id is not None:
-            target_clinic = resolve_clinic_id(db, current_user, clinic_id, require_for_ceo=True)
-            query = query.filter(Family.clinic_id == target_clinic)
-        return query.all()
-
-    target_clinic = resolve_clinic_id(db, current_user, clinic_id, require_for_ceo=False)
-    return query.filter(Family.clinic_id == target_clinic).all()
+    effective_company_id = resolve_company_id(db, current_user)
+    query = db.query(Family).filter(Family.company_id == effective_company_id)
+    if clinic_id is not None:
+        assert_clinic_belongs_to_company(db, clinic_id, effective_company_id)
+        query = query.filter(Family.clinic_id == clinic_id)
+    return query.all()
 
 @router.put("/{family_id}", response_model=FamilySchema)
 def update_family(family_id: int, family: FamilyUpdate, db: Session = Depends(get_db)):

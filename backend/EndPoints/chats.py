@@ -6,7 +6,7 @@ from models import Chat, ChatMessage, Clinic
 from schemas import ChatCreate, ChatUpdate, Chat as ChatSchema
 from auth import get_current_user
 from models import User
-from security.scope import resolve_clinic_id
+from security.scope import resolve_company_id, assert_clinic_belongs_to_company
 
 router = APIRouter(prefix="/chats", tags=["chats"])
 
@@ -34,8 +34,11 @@ def get_all_chats(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    target_clinic = resolve_clinic_id(db, current_user, clinic_id, require_for_ceo=True)
-    query = db.query(Chat).filter(Chat.clinic_id == target_clinic)
+    company_id = resolve_company_id(db, current_user)
+    query = db.query(Chat).join(Clinic, Clinic.id == Chat.clinic_id).filter(Clinic.company_id == company_id)
+    if clinic_id is not None:
+        assert_clinic_belongs_to_company(db, clinic_id, company_id)
+        query = query.filter(Chat.clinic_id == clinic_id)
     
     # Apply search filter if provided
     if search:

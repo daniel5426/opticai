@@ -7,7 +7,8 @@ from sqlalchemy import func
 from schemas import OrderCreate, OrderUpdate, Order as OrderSchema, BillingCreate, BillingUpdate, Billing as BillingSchema, OrderLineItemCreate, OrderLineItemUpdate, OrderLineItem as OrderLineItemSchema, ContactLensOrderCreate, ContactLensOrderUpdate, ContactLensOrder as ContactLensOrderSchema
 from utils.date_search import DateSearchHelper
 from auth import get_current_user
-from security.scope import resolve_clinic_id
+from models import Clinic
+from security.scope import resolve_company_id, assert_clinic_belongs_to_company
 
 router = APIRouter(prefix="/orders", tags=["orders"])
 
@@ -28,8 +29,13 @@ def get_orders_paginated(
     
     parsed_date = DateSearchHelper.parse_date(search) if search else None
 
-    target_clinic = resolve_clinic_id(db, current_user, clinic_id, require_for_ceo=True)
-    order_filters = [Order.clinic_id == target_clinic]
+    company_id = resolve_company_id(db, current_user)
+    allowed_clinic_ids = [r[0] for r in db.query(Clinic.id).filter(Clinic.company_id == company_id).all()]
+    if clinic_id is not None:
+        assert_clinic_belongs_to_company(db, clinic_id, company_id)
+        allowed_clinic_ids = [clinic_id]
+
+    order_filters = [Order.clinic_id.in_(allowed_clinic_ids)]
     if like:
         date_search_conditions = DateSearchHelper.build_date_search_conditions(
             Order.order_date, search
@@ -48,7 +54,7 @@ def get_orders_paginated(
         if parsed_date:
             order_filters.append(Order.order_date == parsed_date)
 
-    cl_filters = [ContactLensOrder.clinic_id == target_clinic]
+    cl_filters = [ContactLensOrder.clinic_id.in_(allowed_clinic_ids)]
     if like:
         date_search_conditions_cl = DateSearchHelper.build_date_search_conditions(
             ContactLensOrder.order_date, search
@@ -152,8 +158,12 @@ def get_all_orders(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    target_clinic = resolve_clinic_id(db, current_user, clinic_id, require_for_ceo=True)
-    return db.query(Order).filter(Order.clinic_id == target_clinic).all()
+    company_id = resolve_company_id(db, current_user)
+    query = db.query(Order).join(Clinic, Clinic.id == Order.clinic_id).filter(Clinic.company_id == company_id)
+    if clinic_id is not None:
+        assert_clinic_belongs_to_company(db, clinic_id, company_id)
+        query = query.filter(Order.clinic_id == clinic_id)
+    return query.all()
 
 @router.get("/client/{client_id}", response_model=List[OrderSchema])
 def get_orders_by_client(client_id: int, db: Session = Depends(get_db)):
@@ -390,8 +400,12 @@ def get_all_contact_lens_orders(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    target_clinic = resolve_clinic_id(db, current_user, clinic_id, require_for_ceo=True)
-    return db.query(ContactLensOrder).filter(ContactLensOrder.clinic_id == target_clinic).all()
+    company_id = resolve_company_id(db, current_user)
+    query = db.query(ContactLensOrder).join(Clinic, Clinic.id == ContactLensOrder.clinic_id).filter(Clinic.company_id == company_id)
+    if clinic_id is not None:
+        assert_clinic_belongs_to_company(db, clinic_id, company_id)
+        query = query.filter(ContactLensOrder.clinic_id == clinic_id)
+    return query.all()
 
 @cl_router.get("/client/{client_id}", response_model=List[ContactLensOrderSchema])
 def get_contact_lens_orders_by_client(client_id: int, db: Session = Depends(get_db)):

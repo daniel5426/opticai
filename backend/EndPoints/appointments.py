@@ -7,7 +7,7 @@ from models import Appointment, Client, User, Clinic
 from schemas import AppointmentCreate, AppointmentUpdate, Appointment as AppointmentSchema
 from auth import get_current_user
 from sqlalchemy import func
-from security.scope import resolve_clinic_id
+from security.scope import resolve_company_id, assert_clinic_belongs_to_company, normalize_clinic_id_for_company
 
 
 CEO_LEVEL = 4
@@ -37,17 +37,14 @@ def create_appointment(
             if not user:
                 raise HTTPException(status_code=422, detail=f"User with id {appointment.user_id} not found")
         
-        # Set clinic_id if not provided
-        if not appointment.clinic_id:
-            appointment.clinic_id = current_user.clinic_id
+        appointment.clinic_id = normalize_clinic_id_for_company(db, current_user, appointment.clinic_id)
         
         # Set user_id if not provided
         if not appointment.user_id:
             appointment.user_id = current_user.id
         
-        # Apply role-based access control
-        if current_user.role_level < CEO_LEVEL and appointment.clinic_id != current_user.clinic_id:
-            raise HTTPException(status_code=403, detail="Can only create appointments in your clinic")
+        company_id = resolve_company_id(db, current_user)
+        assert_clinic_belongs_to_company(db, appointment.clinic_id, company_id)
         
         print(f"Creating appointment with final data: {appointment.dict()}")
         db_appointment = Appointment(**appointment.dict())
@@ -97,8 +94,11 @@ def get_appointments_paginated(
         .outerjoin(Client, Client.id == Appointment.client_id)
         .outerjoin(User, User.id == Appointment.user_id)
     )
-    target_clinic = resolve_clinic_id(db, current_user, clinic_id, require_for_ceo=True)
-    base = base.filter(Appointment.clinic_id == target_clinic)
+    company_id = resolve_company_id(db, current_user)
+    base = base.join(Clinic, Clinic.id == Appointment.clinic_id).filter(Clinic.company_id == company_id)
+    if clinic_id is not None:
+        assert_clinic_belongs_to_company(db, clinic_id, company_id)
+        base = base.filter(Appointment.clinic_id == clinic_id)
     if search:
         like = f"%{search.strip()}%"
         base = base.filter(
@@ -167,8 +167,11 @@ def get_all_appointments(
         .outerjoin(Client, Client.id == Appointment.client_id)
         .outerjoin(User, User.id == Appointment.user_id)
     )
-    target_clinic = resolve_clinic_id(db, current_user, clinic_id, require_for_ceo=True)
-    base = base.filter(Appointment.clinic_id == target_clinic)
+    company_id = resolve_company_id(db, current_user)
+    base = base.join(Clinic, Clinic.id == Appointment.clinic_id).filter(Clinic.company_id == company_id)
+    if clinic_id is not None:
+        assert_clinic_belongs_to_company(db, clinic_id, company_id)
+        base = base.filter(Appointment.clinic_id == clinic_id)
     rows = base.all()
     items = []
     for row in rows:

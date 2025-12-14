@@ -2,11 +2,11 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from database import get_db
-from models import MedicalLog, Client, User
+from models import MedicalLog, Client, User, Clinic
 from sqlalchemy import func
 from schemas import MedicalLogCreate, MedicalLogUpdate, MedicalLog as MedicalLogSchema
 from auth import get_current_user
-from security.scope import resolve_clinic_id
+from security.scope import resolve_company_id, assert_clinic_belongs_to_company
 
 router = APIRouter(prefix="/medical-logs", tags=["medical-logs"])
 
@@ -41,8 +41,12 @@ def get_all_medical_logs(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    target_clinic = resolve_clinic_id(db, current_user, clinic_id, require_for_ceo=True)
-    return db.query(MedicalLog).filter(MedicalLog.clinic_id == target_clinic).all()
+    company_id = resolve_company_id(db, current_user)
+    query = db.query(MedicalLog).join(Clinic, Clinic.id == MedicalLog.clinic_id).filter(Clinic.company_id == company_id)
+    if clinic_id is not None:
+        assert_clinic_belongs_to_company(db, clinic_id, company_id)
+        query = query.filter(MedicalLog.clinic_id == clinic_id)
+    return query.all()
 
 @router.get("/client/{client_id}", response_model=List[MedicalLogSchema])
 def get_medical_logs_by_client(client_id: int, db: Session = Depends(get_db)):
