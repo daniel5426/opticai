@@ -3,6 +3,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { VHCalculatorModal } from "@/components/ui/vh-calculator-modal"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { OldRefractionExam } from "@/lib/db/schema-interface"
 import { ChevronUp, ChevronDown } from "lucide-react"
 
@@ -25,6 +26,8 @@ export function OldRefractionTab({
 }: OldRefractionTabProps) {
   const [hoveredEye, setHoveredEye] = useState<"R" | "L" | null>(null);
 
+  const glassesTypeOptions = ["רחוק", "קרוב", "מולטיפוקל", "ביפוקל"];
+
   const columns = [
     { key: "sph", label: "SPH", step: "0.25" },
     { key: "cyl", label: "CYL", step: "0.25" },
@@ -33,6 +36,7 @@ export function OldRefractionTab({
     { key: "base", label: "BASE", step: "0.1" },
     { key: "va", label: "VA", step: "0.1" },
     { key: "ad", label: "ADD", step: "0.25" },
+    { key: "glasses_type", label: "TYPE" },
   ];
 
   const getFieldValue = (eye: "R" | "L" | "C", field: string) => {
@@ -72,7 +76,7 @@ export function OldRefractionTab({
             <h3 className="font-medium text-muted-foreground">Old Refraction</h3>
           </div>
           
-          <div className={`grid ${hideEyeLabels ? 'grid-cols-[repeat(7,1fr)]' : 'grid-cols-[20px_repeat(7,1fr)]'} gap-2 items-center`}>
+          <div className={`grid ${hideEyeLabels ? 'grid-cols-[repeat(8,1fr)]' : 'grid-cols-[20px_repeat(8,1fr)]'} gap-2 items-center`}>
             {!hideEyeLabels && <div></div>}
             {columns.map(({ key, label }) => (
               <div key={key} className="h-4 flex items-center justify-center">
@@ -95,7 +99,22 @@ export function OldRefractionTab({
             </div>}
             {columns.map(({ key, step, min, max }) => (
               <div key={`r-${key}`}>
-                {key === "va" ? (
+                {key === "glasses_type" ? (
+                  <Select
+                    value={getFieldValue("R", key)}
+                    onValueChange={(value) => handleChange("R", key, value)}
+                    disabled={!isEditing}
+                  >
+                    <SelectTrigger size="xs" className="h-8 text-xs w-full" disabled={!isEditing}>
+                      <SelectValue placeholder="" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {glassesTypeOptions.map((opt) => (
+                        <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : key === "va" ? (
                   <div className="relative">
                     <Input
                       type="number"
@@ -163,6 +182,7 @@ export function OldRefractionTab({
                   </div>
                 )
               }
+              if (key === "glasses_type") return <div key={`c-spacer-${key}`} />
               return <div key={`c-spacer-${key}`} />
             })}
             
@@ -179,7 +199,22 @@ export function OldRefractionTab({
             </div>}
             {columns.map(({ key, step, min, max }) => (
               <div key={`l-${key}`}>
-                {key === "va" ? (
+                {key === "glasses_type" ? (
+                  <Select
+                    value={getFieldValue("L", key)}
+                    onValueChange={(value) => handleChange("L", key, value)}
+                    disabled={!isEditing}
+                  >
+                    <SelectTrigger size="xs" className="h-8 text-xs w-full" disabled={!isEditing}>
+                      <SelectValue placeholder="" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {glassesTypeOptions.map((opt) => (
+                        <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : key === "va" ? (
                   <div className="relative">
                     <Input
                       type="number"

@@ -6,6 +6,8 @@ from models import Order, Client, User, Billing, OrderLineItem, ContactLensOrder
 from sqlalchemy import func
 from schemas import OrderCreate, OrderUpdate, Order as OrderSchema, BillingCreate, BillingUpdate, Billing as BillingSchema, OrderLineItemCreate, OrderLineItemUpdate, OrderLineItem as OrderLineItemSchema, ContactLensOrderCreate, ContactLensOrderUpdate, ContactLensOrder as ContactLensOrderSchema
 from utils.date_search import DateSearchHelper
+from auth import get_current_user
+from security.scope import resolve_clinic_id
 
 router = APIRouter(prefix="/orders", tags=["orders"])
 
@@ -16,7 +18,8 @@ def get_orders_paginated(
     offset: int = Query(0, ge=0, description="Items to skip"),
     order: Optional[str] = Query("date_desc", description="Sort order: date_desc|date_asc|id_desc|id_asc"),
     search: Optional[str] = Query(None, description="Search by type/examiner/client name/VA/PD/date"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     from sqlalchemy import or_, func, String, literal
     from sqlalchemy import union_all, select
@@ -25,9 +28,8 @@ def get_orders_paginated(
     
     parsed_date = DateSearchHelper.parse_date(search) if search else None
 
-    order_filters = []
-    if clinic_id:
-        order_filters.append(Order.clinic_id == clinic_id)
+    target_clinic = resolve_clinic_id(db, current_user, clinic_id, require_for_ceo=True)
+    order_filters = [Order.clinic_id == target_clinic]
     if like:
         date_search_conditions = DateSearchHelper.build_date_search_conditions(
             Order.order_date, search
@@ -46,9 +48,7 @@ def get_orders_paginated(
         if parsed_date:
             order_filters.append(Order.order_date == parsed_date)
 
-    cl_filters = []
-    if clinic_id:
-        cl_filters.append(ContactLensOrder.clinic_id == clinic_id)
+    cl_filters = [ContactLensOrder.clinic_id == target_clinic]
     if like:
         date_search_conditions_cl = DateSearchHelper.build_date_search_conditions(
             ContactLensOrder.order_date, search
@@ -149,12 +149,11 @@ def get_order(order_id: int, db: Session = Depends(get_db)):
 @router.get("/", response_model=List[OrderSchema])
 def get_all_orders(
     clinic_id: Optional[int] = Query(None, description="Filter by clinic ID"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
-    query = db.query(Order)
-    if clinic_id:
-        query = query.filter(Order.clinic_id == clinic_id)
-    return query.all()
+    target_clinic = resolve_clinic_id(db, current_user, clinic_id, require_for_ceo=True)
+    return db.query(Order).filter(Order.clinic_id == target_clinic).all()
 
 @router.get("/client/{client_id}", response_model=List[OrderSchema])
 def get_orders_by_client(client_id: int, db: Session = Depends(get_db)):
@@ -388,12 +387,11 @@ def get_contact_lens_order(order_id: int, db: Session = Depends(get_db)):
 @cl_router.get("/", response_model=List[ContactLensOrderSchema])
 def get_all_contact_lens_orders(
     clinic_id: Optional[int] = Query(None, description="Filter by clinic ID"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
-    query = db.query(ContactLensOrder)
-    if clinic_id:
-        query = query.filter(ContactLensOrder.clinic_id == clinic_id)
-    return query.all()
+    target_clinic = resolve_clinic_id(db, current_user, clinic_id, require_for_ceo=True)
+    return db.query(ContactLensOrder).filter(ContactLensOrder.clinic_id == target_clinic).all()
 
 @cl_router.get("/client/{client_id}", response_model=List[ContactLensOrderSchema])
 def get_contact_lens_orders_by_client(client_id: int, db: Session = Depends(get_db)):

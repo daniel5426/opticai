@@ -5,6 +5,9 @@ from typing import List, Optional
 from database import get_db
 from models import Family, Client
 from schemas import FamilyCreate, FamilyUpdate, Family as FamilySchema
+from auth import get_current_user
+from models import User
+from security.scope import resolve_clinic_id
 
 router = APIRouter(prefix="/families", tags=["families"])
 
@@ -16,17 +19,26 @@ def get_families_paginated(
     offset: int = Query(0, ge=0, description="Items to skip"),
     order: Optional[str] = Query("created_desc", description="Sort order: created_desc|created_asc|name_asc|name_desc|id_desc|id_asc"),
     search: Optional[str] = Query(None, description="Search by family name"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
+    effective_company_id = current_user.company_id if current_user.role_level >= 4 else None
+    effective_clinic_id = None
+    if current_user.role_level >= 4:
+        if effective_company_id is None:
+            raise HTTPException(status_code=403, detail="Access denied")
+        if clinic_id is not None:
+            effective_clinic_id = resolve_clinic_id(db, current_user, clinic_id, require_for_ceo=True)
+    else:
+        effective_clinic_id = resolve_clinic_id(db, current_user, clinic_id, require_for_ceo=False)
+
     count_q = db.query(func.count(Family.id))
     
-    # Filter by company_id if provided
-    if company_id:
-        count_q = count_q.filter(Family.company_id == company_id)
+    if effective_company_id is not None:
+        count_q = count_q.filter(Family.company_id == effective_company_id)
         
-    # If clinic_id is provided, filter by it (AND logic)
-    if clinic_id:
-        count_q = count_q.filter(Family.clinic_id == clinic_id)
+    if effective_clinic_id is not None:
+        count_q = count_q.filter(Family.clinic_id == effective_clinic_id)
         
     if search:
         like = f"%{search.strip()}%"
@@ -44,11 +56,11 @@ def get_families_paginated(
         Family.company_id
     ).outerjoin(Client, Client.family_id == Family.id)
 
-    if company_id:
-        base = base.filter(Family.company_id == company_id)
+    if effective_company_id is not None:
+        base = base.filter(Family.company_id == effective_company_id)
 
-    if clinic_id:
-        base = base.filter(Family.clinic_id == clinic_id)
+    if effective_clinic_id is not None:
+        base = base.filter(Family.clinic_id == effective_clinic_id)
         
     if search:
         like = f"%{search.strip()}%"
@@ -129,14 +141,21 @@ def get_family(family_id: int, db: Session = Depends(get_db)):
 def get_all_families(
     clinic_id: Optional[int] = Query(None, description="Filter by clinic ID"),
     company_id: Optional[int] = Query(None, description="Filter by company ID"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     query = db.query(Family)
-    if company_id:
-        query = query.filter(Family.company_id == company_id)
-    if clinic_id:
-        query = query.filter(Family.clinic_id == clinic_id)
-    return query.all()
+    if current_user.role_level >= 4:
+        if current_user.company_id is None:
+            raise HTTPException(status_code=403, detail="Access denied")
+        query = query.filter(Family.company_id == current_user.company_id)
+        if clinic_id is not None:
+            target_clinic = resolve_clinic_id(db, current_user, clinic_id, require_for_ceo=True)
+            query = query.filter(Family.clinic_id == target_clinic)
+        return query.all()
+
+    target_clinic = resolve_clinic_id(db, current_user, clinic_id, require_for_ceo=False)
+    return query.filter(Family.clinic_id == target_clinic).all()
 
 @router.put("/{family_id}", response_model=FamilySchema)
 def update_family(family_id: int, family: FamilyUpdate, db: Session = Depends(get_db)):

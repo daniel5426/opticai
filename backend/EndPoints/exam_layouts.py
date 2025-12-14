@@ -14,19 +14,9 @@ from schemas import (
     ExamLayoutInstanceReorderRequest,
 )
 from auth import get_current_user
+from security.scope import normalize_clinic_id_for_company, resolve_company_id, assert_clinic_belongs_to_company
 
 router = APIRouter(prefix="/exam-layouts", tags=["exam-layouts"])
-
-def resolve_target_clinic(current_user: User, clinic_id: Optional[int]) -> int:
-    if current_user.role_level >= 4:
-        if clinic_id is None:
-            raise HTTPException(status_code=400, detail="clinic_id is required")
-        return clinic_id
-    if current_user.clinic_id is None:
-        raise HTTPException(status_code=400, detail="User is not assigned to a clinic")
-    if clinic_id is not None and clinic_id != current_user.clinic_id:
-        raise HTTPException(status_code=403, detail="Access denied to clinic")
-    return current_user.clinic_id
 
 def build_layout_tree(layouts: List[ExamLayout]) -> List[dict]:
     layout_map = {layout.id: layout for layout in layouts}
@@ -78,7 +68,7 @@ def create_exam_layout(
     current_user: User = Depends(get_current_user)
 ):
     layout_data = layout.dict()
-    target_clinic = resolve_target_clinic(current_user, layout_data.get('clinic_id'))
+    target_clinic = normalize_clinic_id_for_company(db, current_user, layout_data.get('clinic_id'))
     layout_data['clinic_id'] = target_clinic
     parent_id = layout_data.get('parent_layout_id')
     parent_layout = None
@@ -130,13 +120,11 @@ def get_all_exam_layouts(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    query = db.query(ExamLayout)
-    
-    if current_user.role_level >= 4:
-        if clinic_id:
-            query = query.filter(ExamLayout.clinic_id == clinic_id)
-    else:
-        query = query.filter(ExamLayout.clinic_id == current_user.clinic_id)
+    company_id = resolve_company_id(db, current_user)
+    query = db.query(ExamLayout).join(Clinic, Clinic.id == ExamLayout.clinic_id).filter(Clinic.company_id == company_id)
+    if clinic_id is not None:
+        assert_clinic_belongs_to_company(db, clinic_id, company_id)
+        query = query.filter(ExamLayout.clinic_id == clinic_id)
     
     if type:
         query = query.filter(ExamLayout.type == type)
@@ -151,8 +139,8 @@ def get_exam_layouts_by_clinic(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    if current_user.role_level < 4 and current_user.clinic_id != clinic_id:
-        raise HTTPException(status_code=403, detail="Access denied to this clinic's layouts")
+    company_id = resolve_company_id(db, current_user)
+    assert_clinic_belongs_to_company(db, clinic_id, company_id)
     
     layouts = (
         db.query(ExamLayout)
@@ -232,7 +220,7 @@ def reorder_exam_layouts(
 ):
     if not request.items:
         raise HTTPException(status_code=400, detail="No layouts to reorder")
-    target_clinic = resolve_target_clinic(current_user, request.clinic_id)
+    target_clinic = normalize_clinic_id_for_company(db, current_user, request.clinic_id)
     layout_ids = [item.id for item in request.items]
     layouts = (
         db.query(ExamLayout)
@@ -293,7 +281,7 @@ def create_exam_layout_group(
         raise HTTPException(status_code=400, detail="Group name is required")
     if not request.layout_ids:
         raise HTTPException(status_code=400, detail="No layouts selected for grouping")
-    target_clinic = resolve_target_clinic(current_user, request.clinic_id)
+    target_clinic = normalize_clinic_id_for_company(db, current_user, request.clinic_id)
     layout_ids = list(dict.fromkeys(request.layout_ids))
     layouts = (
         db.query(ExamLayout)
@@ -338,7 +326,7 @@ def bulk_delete_exam_layouts(
 ):
     if not request.layout_ids:
         return []
-    target_clinic = resolve_target_clinic(current_user, request.clinic_id)
+    target_clinic = normalize_clinic_id_for_company(db, current_user, request.clinic_id)
     layout_ids = list(dict.fromkeys(request.layout_ids))
     layouts = (
         db.query(ExamLayout)

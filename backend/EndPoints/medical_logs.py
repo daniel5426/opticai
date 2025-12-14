@@ -5,6 +5,8 @@ from database import get_db
 from models import MedicalLog, Client, User
 from sqlalchemy import func
 from schemas import MedicalLogCreate, MedicalLogUpdate, MedicalLog as MedicalLogSchema
+from auth import get_current_user
+from security.scope import resolve_clinic_id
 
 router = APIRouter(prefix="/medical-logs", tags=["medical-logs"])
 
@@ -36,12 +38,11 @@ def get_medical_log(medical_log_id: int, db: Session = Depends(get_db)):
 @router.get("/", response_model=List[MedicalLogSchema])
 def get_all_medical_logs(
     clinic_id: Optional[int] = Query(None, description="Filter by clinic ID"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
-    query = db.query(MedicalLog)
-    if clinic_id:
-        query = query.filter(MedicalLog.clinic_id == clinic_id)
-    return query.all()
+    target_clinic = resolve_clinic_id(db, current_user, clinic_id, require_for_ceo=True)
+    return db.query(MedicalLog).filter(MedicalLog.clinic_id == target_clinic).all()
 
 @router.get("/client/{client_id}", response_model=List[MedicalLogSchema])
 def get_medical_logs_by_client(client_id: int, db: Session = Depends(get_db)):

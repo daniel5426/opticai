@@ -8,6 +8,8 @@ from schemas import FileCreate, FileUpdate, File as FileSchema
 from uuid import uuid4
 from supabase import create_client
 import config
+from auth import get_current_user
+from security.scope import resolve_clinic_id
 
 router = APIRouter(prefix="/files", tags=["files"])
 
@@ -80,7 +82,8 @@ def get_files_paginated(
     offset: int = Query(0, ge=0, description="Items to skip"),
     order: Optional[str] = Query("upload_date_desc", description="Sort order: upload_date_desc|upload_date_asc|id_desc|id_asc"),
     search: Optional[str] = Query(None, description="Search by file name/type/uploader/client name/notes"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     from sqlalchemy import or_, func
     base = (
@@ -90,8 +93,8 @@ def get_files_paginated(
         )
         .outerjoin(Client, Client.id == FileModel.client_id)
     )
-    if clinic_id:
-        base = base.filter(FileModel.clinic_id == clinic_id)
+    target_clinic = resolve_clinic_id(db, current_user, clinic_id, require_for_ceo=True)
+    base = base.filter(FileModel.clinic_id == target_clinic)
     if search:
         like = f"%{search.strip()}%"
         base = (
@@ -136,12 +139,11 @@ def get_file(file_id: int, db: Session = Depends(get_db)):
 @router.get("/", response_model=List[FileSchema])
 def get_all_files(
     clinic_id: Optional[int] = Query(None, description="Filter by clinic ID"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
-    query = db.query(FileModel)
-    if clinic_id:
-        query = query.filter(FileModel.clinic_id == clinic_id)
-    return query.all()
+    target_clinic = resolve_clinic_id(db, current_user, clinic_id, require_for_ceo=True)
+    return db.query(FileModel).filter(FileModel.clinic_id == target_clinic).all()
 
 @router.get("/client/{client_id}", response_model=List[FileSchema])
 def get_files_by_client(client_id: int, db: Session = Depends(get_db)):

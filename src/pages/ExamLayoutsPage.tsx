@@ -15,8 +15,12 @@ export default function ExamLayoutsPage() {
       if (layouts.length === 0) {
         setLoading(true);
       }
-      
-      const layoutsData = await getAllExamLayouts()
+
+      const storedClinic = typeof localStorage !== 'undefined' ? localStorage.getItem('selectedClinic') : null
+      const parsedClinic = storedClinic ? JSON.parse(storedClinic) : null
+      const clinicId = typeof parsedClinic?.id === 'number' ? parsedClinic.id : undefined
+
+      const layoutsData = await getAllExamLayouts(clinicId)
       
       // Use functional update to ensure we're working with the latest state
       setLayouts(layoutsData)

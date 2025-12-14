@@ -217,7 +217,7 @@ export const getColumnCount = (type: CardItem['type'], mode: 'editor' | 'detail'
     case 'old-refraction': return 7
     case 'old-refraction-extension': return 12
     case 'objective': return 4
-    case 'subjective': return 10
+    case 'subjective': return 8
     case 'final-subjective': return 11
     case 'final-prescription': return 11
     case 'compact-prescription': return 8

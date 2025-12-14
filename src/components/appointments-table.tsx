@@ -375,6 +375,21 @@ export function AppointmentsTable({ data, clientId, onAppointmentChange, onAppoi
           toast.error("שגיאה בעדכון התור")
         }
       } else {
+        const examinerName = (() => {
+          if (!appointmentFormData.user_id) return ''
+          const u = users.find(x => x.id === appointmentFormData.user_id)
+          return (u?.full_name || u?.username || '').trim()
+        })()
+
+        const clientFullName = (() => {
+          if (selectedClient?.first_name || selectedClient?.last_name) {
+            const first = selectedClient?.first_name?.trim() || ''
+            const last = selectedClient?.last_name?.trim() || ''
+            return `${first} ${last}`.trim()
+          }
+          return ''
+        })()
+
         // Optimistic create: add temporary appointment to the table immediately
         const tempId = -Date.now()
         const tempAppointment: Appointment = {
@@ -387,8 +402,26 @@ export function AppointmentsTable({ data, clientId, onAppointmentChange, onAppoi
           duration: appointmentFormData.duration,
           exam_name: appointmentFormData.exam_name,
           note: appointmentFormData.note,
+          examiner_name: examinerName,
+          client_full_name: clientFullName,
         } as Appointment
         setOptimisticAppointments(prev => [tempAppointment, ...prev])
+
+        if (!clientFullName && appointmentFormData.client_id) {
+          ;(async () => {
+            try {
+              const client = await getClientById(appointmentFormData.client_id)
+              if (client) {
+                const first = client.first_name?.trim() || ''
+                const last = client.last_name?.trim() || ''
+                const fullName = `${first} ${last}`.trim()
+                if (fullName) {
+                  setOptimisticAppointments(prev => prev.map(a => a.id === tempId ? { ...a, client_full_name: fullName } : a))
+                }
+              }
+            } catch {}
+          })()
+        }
 
         // Fire-and-forget the actual creation, then reconcile
         ;(async () => {
@@ -399,8 +432,12 @@ export function AppointmentsTable({ data, clientId, onAppointmentChange, onAppoi
             })
             if (result) {
               toast.success("התור נוצר בהצלחה")
-              // Replace temp with server result, avoid table reload
-              setOptimisticAppointments(prev => prev.map(a => a.id === tempId ? (result as Appointment) : a))
+              const merged: Appointment = {
+                ...(result as Appointment),
+                examiner_name: (result as Appointment).examiner_name || examinerName,
+                client_full_name: (result as Appointment).client_full_name || clientFullName,
+              }
+              setOptimisticAppointments(prev => prev.map(a => a.id === tempId ? merged : a))
             } else {
               setOptimisticAppointments(prev => prev.filter(a => a.id !== tempId))
               toast.error("שגיאה ביצירת התור")

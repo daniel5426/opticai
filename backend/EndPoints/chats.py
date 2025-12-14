@@ -4,6 +4,9 @@ from typing import List, Optional
 from database import get_db
 from models import Chat, ChatMessage, Clinic
 from schemas import ChatCreate, ChatUpdate, Chat as ChatSchema
+from auth import get_current_user
+from models import User
+from security.scope import resolve_clinic_id
 
 router = APIRouter(prefix="/chats", tags=["chats"])
 
@@ -28,11 +31,11 @@ def get_all_chats(
     search: Optional[str] = Query(None, description="Search term for chat titles"),
     limit: Optional[int] = Query(10, description="Number of chats to return"),
     offset: Optional[int] = Query(0, description="Number of chats to skip"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
-    query = db.query(Chat)
-    if clinic_id:
-        query = query.filter(Chat.clinic_id == clinic_id)
+    target_clinic = resolve_clinic_id(db, current_user, clinic_id, require_for_ceo=True)
+    query = db.query(Chat).filter(Chat.clinic_id == target_clinic)
     
     # Apply search filter if provided
     if search:

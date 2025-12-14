@@ -963,7 +963,7 @@ export default function ExamDetailPage({
                     id: tempInstanceId,
                     layout_id: layout.id || 0,
                     name: layout.name || "",
-                    layout_data: layout.layout_data || "",
+                    layout_data: layout.layout_data || "[]",
                     isActive: idx === 0,
                   });
                   buckets[tempInstanceId] = createInitialFormDataBucket(

@@ -7,6 +7,7 @@ from models import Appointment, Client, User, Clinic
 from schemas import AppointmentCreate, AppointmentUpdate, Appointment as AppointmentSchema
 from auth import get_current_user
 from sqlalchemy import func
+from security.scope import resolve_clinic_id
 
 
 CEO_LEVEL = 4
@@ -82,7 +83,8 @@ def get_appointments_paginated(
     offset: int = Query(0, ge=0, description="Items to skip"),
     order: Optional[str] = Query("date_desc", description="Sort order: date_desc|date_asc|id_desc|id_asc"),
     search: Optional[str] = Query(None, description="Search by date/time/exam_name/note or client name"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     from sqlalchemy import or_, func, String
     # Build base query with joins to include client and user names
@@ -95,8 +97,8 @@ def get_appointments_paginated(
         .outerjoin(Client, Client.id == Appointment.client_id)
         .outerjoin(User, User.id == Appointment.user_id)
     )
-    if clinic_id:
-        base = base.filter(Appointment.clinic_id == clinic_id)
+    target_clinic = resolve_clinic_id(db, current_user, clinic_id, require_for_ceo=True)
+    base = base.filter(Appointment.clinic_id == target_clinic)
     if search:
         like = f"%{search.strip()}%"
         base = base.filter(
@@ -153,7 +155,8 @@ def get_appointment(appointment_id: int, db: Session = Depends(get_db)):
 @router.get("/", response_model=List[AppointmentSchema])
 def get_all_appointments(
     clinic_id: Optional[int] = Query(None, description="Filter by clinic ID"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     base = (
         db.query(
@@ -164,8 +167,8 @@ def get_all_appointments(
         .outerjoin(Client, Client.id == Appointment.client_id)
         .outerjoin(User, User.id == Appointment.user_id)
     )
-    if clinic_id:
-        base = base.filter(Appointment.clinic_id == clinic_id)
+    target_clinic = resolve_clinic_id(db, current_user, clinic_id, require_for_ceo=True)
+    base = base.filter(Appointment.clinic_id == target_clinic)
     rows = base.all()
     items = []
     for row in rows:

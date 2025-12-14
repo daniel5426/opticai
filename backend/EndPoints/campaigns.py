@@ -4,6 +4,9 @@ from typing import List, Optional
 from database import get_db
 from models import Campaign, CampaignClientExecution, Client
 from schemas import CampaignCreate, CampaignUpdate, Campaign as CampaignSchema
+from auth import get_current_user
+from models import User
+from security.scope import resolve_clinic_id
 
 router = APIRouter(prefix="/campaigns", tags=["campaigns"])
 
@@ -25,12 +28,11 @@ def get_campaign(campaign_id: int, db: Session = Depends(get_db)):
 @router.get("/", response_model=List[CampaignSchema])
 def get_all_campaigns(
     clinic_id: Optional[int] = Query(None, description="Filter by clinic ID"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
-    query = db.query(Campaign)
-    if clinic_id:
-        query = query.filter(Campaign.clinic_id == clinic_id)
-    return query.all()
+    target_clinic = resolve_clinic_id(db, current_user, clinic_id, require_for_ceo=True)
+    return db.query(Campaign).filter(Campaign.clinic_id == target_clinic).all()
 
 @router.put("/{campaign_id}", response_model=CampaignSchema)
 def update_campaign(campaign_id: int, campaign: CampaignUpdate, db: Session = Depends(get_db)):

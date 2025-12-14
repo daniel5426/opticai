@@ -141,6 +141,8 @@ export interface OldRefractionExam {
   l_va?: number;
   r_ad?: number;
   l_ad?: number;
+  r_glasses_type?: string;
+  l_glasses_type?: string;
   comb_va?: number;
 }
 

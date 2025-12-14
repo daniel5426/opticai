@@ -27,8 +27,6 @@ export function SubjectiveTab({
   const [hoveredEye, setHoveredEye] = useState<"R" | "L" | null>(null);
   
   const columns = [
-    { key: "fa", label: "FA", step: "0.1" },
-    { key: "fa_tuning", label: "FA TUN", step: "0.1" },
     { key: "sph", label: "SPH", step: "0.25" },
     { key: "cyl", label: "CYL", step: "0.25" },
     { key: "ax", label: "AXIS", step: "1", min: "0", max: "180" },
@@ -76,7 +74,7 @@ export function SubjectiveTab({
             <h3 className="font-medium text-muted-foreground">Subjective</h3>
           </div>
           
-          <div className={`grid ${hideEyeLabels ? 'grid-cols-[repeat(10,1fr)]' : 'grid-cols-[20px_repeat(10,1fr)]'} gap-2 items-center`}>
+          <div className={`grid ${hideEyeLabels ? 'grid-cols-[repeat(8,1fr)]' : 'grid-cols-[20px_repeat(8,1fr)]'} gap-2 items-center`}>
             {!hideEyeLabels && <div></div>}
             {columns.map(({ key, label }) => (
               <div key={key} className="h-4 flex items-center justify-center">
@@ -129,19 +127,7 @@ export function SubjectiveTab({
             {!hideEyeLabels && <div className="flex items-center justify-center">
             </div>}
             {columns.map(({ key, step }) => {
-              if (key === "fa" || key === "fa_tuning") {
-                return (
-                  <Input
-                    key={`c-${key}`}
-                    type="number"
-                    step={step}
-                    value={getFieldValue("C", key)}
-                    onChange={(e) => handleChange("C", key, e.target.value)}
-                    disabled={!isEditing}
-                    className={`h-8 pr-1 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
-                  />
-                );
-              } else if (key === "cyl") {
+              if (key === "cyl") {
                 return (
                   <div key={`c-${key}`} className="flex justify-center">
                     <Button 

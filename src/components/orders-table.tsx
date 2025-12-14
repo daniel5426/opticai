@@ -155,7 +155,7 @@ export function OrdersTable({ data, clientId, onOrderDeleted, onOrderDeleteFaile
       
       return DateSearchHelper.matchesDate(searchLower, order.order_date)
     })
-  }, [data, externalSearch, clientId])
+  }, [data, externalSearch, clientId, selectedCategory])
 
   return (
     <div className="space-y-4 mb-10" style={{scrollbarWidth: 'none'}}>

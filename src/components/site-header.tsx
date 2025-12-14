@@ -237,15 +237,16 @@ export function SiteHeader({ title, backLink, parentTitle, parentLink, grandpare
                 </TabsTrigger>
                 <TabsTrigger 
                   className="data-[state=active]:text-foreground data-[state=active]:bg-accent data-[state=inactive]:text-muted-foreground data-[state=inactive]:bg-transparent flex-none whitespace-nowrap" 
-                  value="exams"
-                >
-                  בדיקות
-                </TabsTrigger>
-                <TabsTrigger 
-                  className="data-[state=active]:text-foreground data-[state=active]:bg-accent data-[state=inactive]:text-muted-foreground data-[state=inactive]:bg-transparent flex-none whitespace-nowrap" 
                   value="medical"
                 >
                   גליון רפואי
+                </TabsTrigger>
+
+                <TabsTrigger 
+                  className="data-[state=active]:text-foreground data-[state=active]:bg-accent data-[state=inactive]:text-muted-foreground data-[state=inactive]:bg-transparent flex-none whitespace-nowrap" 
+                  value="exams"
+                >
+                  בדיקות
                 </TabsTrigger>
                 <TabsTrigger 
                   className="data-[state=active]:text-foreground data-[state=active]:bg-accent data-[state=inactive]:text-muted-foreground data-[state=inactive]:bg-transparent flex-none whitespace-nowrap" 
