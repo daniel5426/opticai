@@ -95,6 +95,7 @@ class Client(Base):
     __tablename__ = "clients"
     
     id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False)
     clinic_id = Column(Integer, ForeignKey("clinics.id"))
     first_name = Column(String)
     last_name = Column(String)

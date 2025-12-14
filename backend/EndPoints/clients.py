@@ -89,6 +89,8 @@ def create_client(
     current_user: User = Depends(get_current_user)
 ):
     payload = client.dict()
+    company_id = resolve_company_id(db, current_user)
+    payload["company_id"] = company_id
     payload["clinic_id"] = normalize_clinic_id_for_company(db, current_user, payload.get("clinic_id"))
     if payload.get('profile_picture'):
         try:
