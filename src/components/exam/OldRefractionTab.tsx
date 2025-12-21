@@ -29,13 +29,13 @@ export function OldRefractionTab({
   const glassesTypeOptions = ["רחוק", "קרוב", "מולטיפוקל", "ביפוקל"];
 
   const columns = [
-    { key: "sph", label: "SPH", step: "0.25" },
-    { key: "cyl", label: "CYL", step: "0.25" },
+    { key: "sph", label: "SPH", step: "0.25", min: "-30", max: "30" },
+    { key: "cyl", label: "CYL", step: "0.25", min: "-30", max: "30" },
     { key: "ax", label: "AXIS", step: "1", min: "0", max: "180" },
-    { key: "pris", label: "PRIS", step: "0.5" },
-    { key: "base", label: "BASE", step: "0.1" },
+    { key: "pris", label: "PRIS", step: "0.25", min: "0", max: "50" },
+    { key: "base", label: "BASE", type: "select", options: ["B.IN", "B.OUT", "B.UP", "B.DOWN"] },
     { key: "va", label: "VA", step: "0.1" },
-    { key: "ad", label: "ADD", step: "0.25" },
+    { key: "ad", label: "ADD", step: "0.25", min: "0", max: "5" },
     { key: "glasses_type", label: "TYPE" },
   ];
 
@@ -97,7 +97,7 @@ export function OldRefractionTab({
                 {hoveredEye === "L" ? <ChevronDown size={16} /> : "R"}
               </span>
             </div>}
-            {columns.map(({ key, step, min, max }) => (
+            {columns.map(({ key, step, min, max, type, options }) => (
               <div key={`r-${key}`}>
                 {key === "glasses_type" ? (
                   <Select
@@ -112,6 +112,15 @@ export function OldRefractionTab({
                       {glassesTypeOptions.map((opt) => (
                         <SelectItem key={opt} value={opt}>{opt}</SelectItem>
                       ))}
+                    </SelectContent>
+                  </Select>
+                ) : key === "base" ? (
+                  <Select value={getFieldValue("R", key)} onValueChange={(value) => handleChange("R", key, value)} disabled={!isEditing}>
+                    <SelectTrigger size="xs" className="h-8 text-xs w-full" disabled={!isEditing}>
+                      <SelectValue placeholder="" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {options?.map(opt => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 ) : key === "va" ? (
@@ -197,7 +206,7 @@ export function OldRefractionTab({
                 {hoveredEye === "R" ? <ChevronUp size={16} /> : "L"}
               </span>
             </div>}
-            {columns.map(({ key, step, min, max }) => (
+            {columns.map(({ key, step, min, max, type, options }) => (
               <div key={`l-${key}`}>
                 {key === "glasses_type" ? (
                   <Select
@@ -212,6 +221,15 @@ export function OldRefractionTab({
                       {glassesTypeOptions.map((opt) => (
                         <SelectItem key={opt} value={opt}>{opt}</SelectItem>
                       ))}
+                    </SelectContent>
+                  </Select>
+                ) : key === "base" ? (
+                  <Select value={getFieldValue("L", key)} onValueChange={(value) => handleChange("L", key, value)} disabled={!isEditing}>
+                    <SelectTrigger size="xs" className="h-8 text-xs w-full" disabled={!isEditing}>
+                      <SelectValue placeholder="" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {options?.map(opt => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 ) : key === "va" ? (

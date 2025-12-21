@@ -22,13 +22,13 @@ export function FinalPrescriptionTab({
   const [hoveredEye, setHoveredEye] = useState<"R" | "L" | null>(null);
 
   const columns = [
-    { key: "sph", label: "SPH", step: "0.25" },
-    { key: "cyl", label: "CYL", step: "0.25" },
+    { key: "sph", label: "SPH", step: "0.25", min: "-30", max: "30" },
+    { key: "cyl", label: "CYL", step: "0.25", min: "-30", max: "30" },
     { key: "ax", label: "AXIS", step: "1", min: "0", max: "180" },
-    { key: "pris", label: "PRIS", step: "0.5" },
+    { key: "pris", label: "PRIS", step: "0.25", min: "0", max: "50" },
     { key: "base", label: "BASE", type: "select", options: ["IN", "OUT", "UP", "DOWN"] },
     { key: "va", label: "VA", step: "0.1", type: "va" },
-    { key: "ad", label: "ADD", step: "0.25" },
+    { key: "ad", label: "ADD", step: "0.25", min: "0", max: "5" },
     { key: "pd", label: "PD", step: "0.5" },
     { key: "high", label: "HIGH", step: "0.5" },
     { key: "diam", label: "DIAM", step: "1" },

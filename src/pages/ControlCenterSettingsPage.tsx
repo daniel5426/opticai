@@ -17,6 +17,7 @@ import { apiClient } from "@/lib/api-client"
 import { supabase } from "@/lib/supabaseClient"
 import { ImageInput } from "@/components/ui/image-input"
 import { AboutTab } from "@/components/settings/AboutTab"
+import { WhatsAppTab } from "@/components/settings/WhatsAppTab"
 import { ROLE_LEVELS, getRoleBadgeVariant, getRoleLabel, isRoleAtLeast } from "@/lib/role-levels"
 
 export default function ControlCenterSettingsPage() {
@@ -101,7 +102,10 @@ export default function ControlCenterSettingsPage() {
             address: companyData.address || '',
             logo_path: companyData.logo_path || '',
             primary_theme_color: companyData.primary_theme_color || '#2256aa',
-            secondary_theme_color: companyData.secondary_theme_color || '#cce9ff'
+            secondary_theme_color: companyData.secondary_theme_color || '#cce9ff',
+            whatsapp_access_token: companyData.whatsapp_access_token || '',
+            whatsapp_phone_number_id: companyData.whatsapp_phone_number_id || '',
+            whatsapp_verify_token: companyData.whatsapp_verify_token || ''
           })
           localStorage.setItem('controlCenterCompany', JSON.stringify(companyData))
         }
@@ -175,6 +179,9 @@ export default function ControlCenterSettingsPage() {
           logo_path: (localCompany.logo_path === '' ? null : localCompany.logo_path) as any,
           primary_theme_color: localCompany.primary_theme_color || undefined,
           secondary_theme_color: localCompany.secondary_theme_color || undefined,
+          whatsapp_access_token: localCompany.whatsapp_access_token || undefined,
+          whatsapp_phone_number_id: localCompany.whatsapp_phone_number_id || undefined,
+          whatsapp_verify_token: localCompany.whatsapp_verify_token || undefined,
         }
       }
       if (currentUser?.id) {
@@ -210,7 +217,10 @@ export default function ControlCenterSettingsPage() {
           address: data.company.address || '',
           logo_path: data.company.logo_path || '',
           primary_theme_color: data.company.primary_theme_color || '#2256aa',
-          secondary_theme_color: data.company.secondary_theme_color || '#cce9ff'
+          secondary_theme_color: data.company.secondary_theme_color || '#cce9ff',
+          whatsapp_access_token: data.company.whatsapp_access_token || '',
+          whatsapp_phone_number_id: data.company.whatsapp_phone_number_id || '',
+          whatsapp_verify_token: data.company.whatsapp_verify_token || ''
         })
         localStorage.setItem('controlCenterCompany', JSON.stringify(data.company))
         // Cache and apply new company theme colors
@@ -1206,11 +1216,19 @@ export default function ControlCenterSettingsPage() {
                   <TabsContent value="about" className="space-y-6 mt-0">
                     <AboutTab />
                   </TabsContent>
+
+                  <TabsContent value="whatsapp" className="space-y-6 mt-0">
+                    <WhatsAppTab 
+                      formData={localCompany}
+                      onChange={handleCompanyChange}
+                    />
+                  </TabsContent>
                 </div>
 
                 <div className="shrink-0">
                   <TabsList className="flex flex-col h-fit w-48 p-1">
                     <TabsTrigger value="company-profile" className="w-full justify-end text-right">פרופיל החברה</TabsTrigger>
+                    <TabsTrigger value="whatsapp" className="w-full justify-end text-right text-green-600 dark:text-green-500">הגדרות WhatsApp</TabsTrigger>
                     <TabsTrigger value="personal-profile" className="w-full justify-end text-right">פרופיל אישי</TabsTrigger>
                     {isRoleAtLeast(currentUser?.role_level, ROLE_LEVELS.ceo) && (
                       <TabsTrigger value="users" className="w-full justify-end text-right">ניהול משתמשים</TabsTrigger>

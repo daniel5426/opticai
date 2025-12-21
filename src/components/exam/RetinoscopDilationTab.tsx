@@ -5,6 +5,7 @@ import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { RetinoscopDilationExam } from "@/lib/db/schema-interface"
 import { ChevronUp, ChevronDown } from "lucide-react"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 interface RetinoscopDilationTabProps {
   retinoscopDilationData: RetinoscopDilationExam;
@@ -54,8 +55,29 @@ export function RetinoscopDilationTab({
     <Card className="w-full examcard pb-4 pt-3">
       <CardContent className="px-4 " style={{scrollbarWidth: 'none'}}>
         <div className="space-y-3">
-          <div className="text-center">
-            <h3 className="font-medium text-muted-foreground">Retinoscopy with dilation</h3>
+          <div className="flex justify-center mb-1">
+            <Tabs 
+              value={retinoscopDilationData.method || "retinoscopy"} 
+              onValueChange={(val) => onRetinoscopDilationChange("method", val)}
+              className="w-fit"
+            >
+              <TabsList className="h-8 p-1 bg-muted/50 border">
+                <TabsTrigger 
+                  value="retinoscopy" 
+                  disabled={!isEditing}
+                  className="h-6 text-[10px] px-3 data-[state=active]:bg-background"
+                >
+                  Retinoscopy + Dil
+                </TabsTrigger>
+                <TabsTrigger 
+                  value="auto_refractor" 
+                  disabled={!isEditing}
+                  className="h-6 text-[10px] px-3 data-[state=active]:bg-background"
+                >
+                  Auto Refractor
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
           </div>
           
           <div className={`grid ${hideEyeLabels ? 'grid-cols-[1fr_1fr_1fr_2fr]' : 'grid-cols-[20px_1fr_1fr_1fr_2fr]'} gap-2 items-center`}>

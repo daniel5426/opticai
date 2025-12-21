@@ -20,12 +20,12 @@ export function OverRefractionTab({
   const [hoveredEye, setHoveredEye] = useState<"R" | "L" | null>(null);
 
   const columns = [
-    { key: "sph", label: "SPH", step: "0.25", type: "number" },
-    { key: "cyl", label: "CYL", step: "0.25", type: "number" },
+    { key: "sph", label: "SPH", step: "0.25", type: "number", min: "-30", max: "30" },
+    { key: "cyl", label: "CYL", step: "0.25", type: "number", min: "-30", max: "30" },
     { key: "ax", label: "AXIS", step: "1", type: "number", min: "0", max: "180" },
     { key: "va", label: "VA", step: "0.1", type: "number" },
     { key: "j", label: "J", step: "0.1", type: "number" },
-    { key: "add", label: "ADD", step: "0.25", type: "number" },
+    { key: "add", label: "ADD", step: "0.25", type: "number", min: "0", max: "5" },
     { key: "florescent", label: "Fl. Time", type: "text", span: 2 },
     { key: "bio_m", label: "Bio. M.", type: "text", span: 2 },
   ];

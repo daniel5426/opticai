@@ -2,6 +2,7 @@ import React, { useState } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { VHCalculatorModal } from "@/components/ui/vh-calculator-modal"
 import { OpticalExam, SubjectiveExam } from "@/lib/db/schema-interface"
 import { ChevronUp, ChevronDown } from "lucide-react"
@@ -27,11 +28,11 @@ export function SubjectiveTab({
   const [hoveredEye, setHoveredEye] = useState<"R" | "L" | null>(null);
   
   const columns = [
-    { key: "sph", label: "SPH", step: "0.25" },
-    { key: "cyl", label: "CYL", step: "0.25" },
+    { key: "sph", label: "SPH", step: "0.25", min: "-30", max: "30" },
+    { key: "cyl", label: "CYL", step: "0.25", min: "-30", max: "30" },
     { key: "ax", label: "AXIS", step: "1", min: "0", max: "180" },
-    { key: "pris", label: "PRIS", step: "0.5" },
-    { key: "base", label: "BASE", step: "0.1" },
+    { key: "pris", label: "PRIS", step: "0.25", min: "0", max: "50" },
+    { key: "base", label: "BASE", type: "select", options: ["B.IN", "B.OUT", "B.UP", "B.DOWN"] },
     { key: "va", label: "VA", step: "0.1" },
     { key: "pd_close", label: "PD CLOSE", step: "0.5" },
     { key: "pd_far", label: "PD FAR", step: "0.5" }
@@ -95,9 +96,18 @@ export function SubjectiveTab({
                 {hoveredEye === "L" ? <ChevronDown size={16} /> : "R"}
               </span>
             </div>}
-            {columns.map(({ key, step, min, max }) => (
+            {columns.map(({ key, step, min, max, type, options }) => (
               <div key={`r-${key}`}>
-                {key === "va" ? (
+                {key === "base" ? (
+                  <Select value={getFieldValue("R", key)} onValueChange={(value) => handleChange("R", key, value)} disabled={!isEditing}>
+                    <SelectTrigger size="xs" className="h-8 text-xs w-full" disabled={!isEditing}>
+                      <SelectValue placeholder="" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {options?.map(opt => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                ) : key === "va" ? (
                   <div className="relative">
                     <Input
                       type="number"
@@ -190,9 +200,18 @@ export function SubjectiveTab({
                 {hoveredEye === "R" ? <ChevronUp size={16} /> : "L"}
               </span>
             </div>}
-            {columns.map(({ key, step, min, max }) => (
+            {columns.map(({ key, step, min, max, type, options }) => (
               <div key={`l-${key}`}>
-                {key === "va" ? (
+                {key === "base" ? (
+                  <Select value={getFieldValue("L", key)} onValueChange={(value) => handleChange("L", key, value)} disabled={!isEditing}>
+                    <SelectTrigger size="xs" className="h-8 text-xs w-full" disabled={!isEditing}>
+                      <SelectValue placeholder="" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {options?.map(opt => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                ) : key === "va" ? (
                   <div className="relative">
                     <Input
                       type="number"

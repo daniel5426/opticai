@@ -15,6 +15,10 @@ class CompanyBase(BaseModel):
     address: Optional[str] = None
     primary_theme_color: Optional[str] = None
     secondary_theme_color: Optional[str] = None
+    whatsapp_access_token: Optional[str] = None
+    whatsapp_phone_number_id: Optional[str] = None
+    whatsapp_business_account_id: Optional[str] = None
+    whatsapp_verify_token: Optional[str] = None
 
 class CompanyCreate(CompanyBase):
     pass
@@ -481,12 +485,17 @@ class CampaignBase(BaseModel):
     email_content: Optional[str] = None
     sms_enabled: bool = False
     sms_content: Optional[str] = None
+    whatsapp_enabled: bool = False
+    whatsapp_template_name: Optional[str] = None
+    whatsapp_content: Optional[str] = None
     active: bool = False
     active_since: Optional[datetime] = None
     mail_sent: bool = False
     sms_sent: bool = False
+    whatsapp_sent: bool = False
     emails_sent_count: int = 0
     sms_sent_count: int = 0
+    whatsapp_sent_count: int = 0
     cycle_type: str = "daily"
     cycle_custom_days: Optional[int] = None
     last_executed: Optional[datetime] = None
@@ -503,6 +512,24 @@ class Campaign(CampaignBase):
     id: int
     created_at: datetime
     
+    class Config:
+        from_attributes = True
+
+# Campaign Client Execution schemas
+class CampaignClientExecutionBase(BaseModel):
+    campaign_id: int
+    client_id: int
+    status: str = "success"
+    error_message: Optional[str] = None
+    channel: Optional[str] = None
+
+class CampaignClientExecutionCreate(CampaignClientExecutionBase):
+    pass
+
+class CampaignClientExecution(CampaignClientExecutionBase):
+    id: int
+    executed_at: datetime
+
     class Config:
         from_attributes = True
 

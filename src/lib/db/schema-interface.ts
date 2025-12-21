@@ -10,6 +10,10 @@ export interface Company {
   address: string;
   primary_theme_color?: string;
   secondary_theme_color?: string;
+  whatsapp_access_token?: string;
+  whatsapp_phone_number_id?: string;
+  whatsapp_business_account_id?: string;
+  whatsapp_verify_token?: string;
   created_at?: string;
   updated_at?: string;
 }
@@ -253,6 +257,7 @@ export interface RetinoscopExam {
   l_ax?: number;
   r_reflex?: string;
   l_reflex?: string;
+  method?: string;
 }
 
 export interface RetinoscopDilationExam {
@@ -266,6 +271,7 @@ export interface RetinoscopDilationExam {
   l_ax?: number;
   r_reflex?: string;
   l_reflex?: string;
+  method?: string;
 }
 
 export interface FinalSubjectiveExam {

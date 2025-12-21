@@ -527,10 +527,14 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
 
   const getExamData = (type: ExamComponentType, cardInstanceId?: string) => {
     if (mode === 'detail' && detailProps) {
-      if (type === 'notes' && cardInstanceId) {
-        const key = `${type}-${cardInstanceId}` as keyof typeof detailProps.examFormData
-        return detailProps.examFormData[key] || {}
+      // Prefer instance-specific data if available
+      if (cardInstanceId) {
+        const key = `${type}-${cardInstanceId}`
+        if (detailProps.examFormData[key]) {
+          return detailProps.examFormData[key]
+        }
       }
+      
       const data = getExamFormData(detailProps.examFormData, type)
       if (type === 'diopter-adjustment-panel') {
         console.log(`DiopterAdjustmentPanel: Getting exam data for ${type}:`, data)
@@ -576,10 +580,14 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
 
   const getChangeHandler = (type: ExamComponentType, cardInstanceId?: string) => {
     if (mode === 'detail' && detailProps) {
-      if (type === 'notes' && cardInstanceId) {
-        const key = `${type}-${cardInstanceId}` as keyof typeof detailProps.fieldHandlers
-        return detailProps.fieldHandlers[key] || (() => {})
+      // Prefer instance-specific handler if available
+      if (cardInstanceId) {
+        const key = `${type}-${cardInstanceId}`
+        if (detailProps.fieldHandlers[key]) {
+          return detailProps.fieldHandlers[key]
+        }
       }
+      
       return getFieldHandler(detailProps.fieldHandlers, type)
     }
     return () => {}
@@ -597,8 +605,8 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
         <div className={`relative h-full ${matchHeight ? 'flex flex-col' : ''}`}>
           {toolbox}
           <OldRefTab
-            oldRefData={getExamData('old-ref') as OldRefExam}
-            onOldRefChange={getChangeHandler('old-ref')}
+            oldRefData={getExamData('old-ref', item.id) as OldRefExam}
+            onOldRefChange={getChangeHandler('old-ref', item.id)}
             isEditing={mode === 'detail' ? detailProps!.isEditing : false}
           />
         </div>
@@ -609,8 +617,8 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
         <div className={`relative h-full ${matchHeight ? 'flex flex-col' : ''}`}>
           {toolbox}
           <OldRefractionTab
-            oldRefractionData={getExamData('old-refraction') as OldRefractionExam}
-            onOldRefractionChange={getChangeHandler('old-refraction')}
+            oldRefractionData={getExamData('old-refraction', item.id) as OldRefractionExam}
+            onOldRefractionChange={getChangeHandler('old-refraction', item.id)}
             isEditing={mode === 'detail' ? detailProps!.isEditing : false}
             onMultifocalClick={legacyHandlers.handleMultifocalOldRefraction || (() => {})}
             onVHConfirm={legacyHandlers.handleVHConfirmOldRefraction || (() => {})}
@@ -624,8 +632,8 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
         <div className={`relative h-full ${matchHeight ? 'flex flex-col' : ''}`}>
           {toolbox}
           <OldRefractionExtensionTab
-            oldRefractionExtensionData={getExamData('old-refraction-extension') as OldRefractionExtensionExam}
-            onOldRefractionExtensionChange={getChangeHandler('old-refraction-extension')}
+            oldRefractionExtensionData={getExamData('old-refraction-extension', item.id) as OldRefractionExtensionExam}
+            onOldRefractionExtensionChange={getChangeHandler('old-refraction-extension', item.id)}
             isEditing={mode === 'detail' ? detailProps!.isEditing : false}
             onMultifocalClick={legacyHandlers.handleMultifocalOldRefractionExtension || (() => {})}
             hideEyeLabels={finalHideEyeLabels}
@@ -638,8 +646,8 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
         <div className={`relative h-full ${matchHeight ? 'flex flex-col' : ''}`}>
           {toolbox}
           <ObjectiveTab
-            objectiveData={getExamData('objective') as ObjectiveExam}
-            onObjectiveChange={getChangeHandler('objective')}
+            objectiveData={getExamData('objective', item.id) as ObjectiveExam}
+            onObjectiveChange={getChangeHandler('objective', item.id)}
             isEditing={mode === 'detail' ? detailProps!.isEditing : false}
             hideEyeLabels={finalHideEyeLabels}
             needsMiddleSpacer={hasSiblingWithMiddleRow && componentsDontHaveMiddleRow.includes(item.type)}
@@ -652,8 +660,8 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
         <div className={`relative h-full ${matchHeight ? 'flex flex-col' : ''}`}>
           {toolbox}
           <SubjectiveTab
-            subjectiveData={getExamData('subjective') as SubjectiveExam}
-            onSubjectiveChange={getChangeHandler('subjective')}
+            subjectiveData={getExamData('subjective', item.id) as SubjectiveExam}
+            onSubjectiveChange={getChangeHandler('subjective', item.id)}
             isEditing={mode === 'detail' ? detailProps!.isEditing : false}
             onVHConfirm={(legacyHandlers as unknown as DetailProps).handleVHConfirm || (() => {})}
             onMultifocalClick={legacyHandlers.handleMultifocalSubjective || (() => {})}
@@ -667,8 +675,8 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
         <div className={`relative h-full ${matchHeight ? 'flex flex-col' : ''}`}>
           {toolbox}
           <FinalSubjectiveTab
-            finalSubjectiveData={getExamData('final-subjective') as FinalSubjectiveExam}
-            onFinalSubjectiveChange={getChangeHandler('final-subjective')}
+            finalSubjectiveData={getExamData('final-subjective', item.id) as FinalSubjectiveExam}
+            onFinalSubjectiveChange={getChangeHandler('final-subjective', item.id)}
             isEditing={mode === 'detail' ? detailProps!.isEditing : false}
             onVHConfirm={legacyHandlers.handleFinalSubjectiveVHConfirm || (() => {})}
             hideEyeLabels={finalHideEyeLabels}
@@ -681,8 +689,8 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
         <div className={`relative h-full ${matchHeight ? 'flex flex-col' : ''}`}>
           {toolbox}
           <FinalPrescriptionTab
-            finalPrescriptionData={getExamData('final-prescription') as FinalPrescriptionExam}
-            onFinalPrescriptionChange={getChangeHandler('final-prescription')}
+            finalPrescriptionData={getExamData('final-prescription', item.id) as FinalPrescriptionExam}
+            onFinalPrescriptionChange={getChangeHandler('final-prescription', item.id)}
             isEditing={mode === 'detail' ? detailProps!.isEditing : false}
             hideEyeLabels={finalHideEyeLabels}
           />
@@ -694,10 +702,10 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
         <div className={`relative h-full ${matchHeight ? 'flex flex-col' : ''}`}>
           {toolbox}
           <CompactPrescriptionTab
-            data={getExamData('compact-prescription') as CompactPrescriptionExam}
+            data={getExamData('compact-prescription', item.id) as CompactPrescriptionExam}
             isEditing={mode === 'detail' ? detailProps!.isEditing : false}
             hideEyeLabels={finalHideEyeLabels}
-            onChange={(field, value) => getChangeHandler('compact-prescription')(field as string, value)}
+            onChange={(field, value) => getChangeHandler('compact-prescription', item.id)(field as string, value)}
           />
         </div>
       )
@@ -707,8 +715,8 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
         <div className={`relative h-full ${matchHeight ? 'flex flex-col' : ''}`}>
           {toolbox}
           <AdditionTab
-            additionData={getExamData('addition') as AdditionExam}
-            onAdditionChange={getChangeHandler('addition')}
+            additionData={getExamData('addition', item.id) as AdditionExam}
+            onAdditionChange={getChangeHandler('addition', item.id)}
             isEditing={mode === 'detail' ? detailProps!.isEditing : false}
             hideEyeLabels={finalHideEyeLabels}
             needsMiddleSpacer={hasSiblingWithMiddleRow && componentsDontHaveMiddleRow.includes(item.type)}
@@ -721,8 +729,8 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
         <div className={`relative h-full ${matchHeight ? 'flex flex-col' : ''}`}>
           {toolbox}
           <RetinoscopTab
-            retinoscopData={getExamData('retinoscop') as RetinoscopExam}
-            onRetinoscopChange={getChangeHandler('retinoscop')}
+            retinoscopData={getExamData('retinoscop', item.id) as RetinoscopExam}
+            onRetinoscopChange={getChangeHandler('retinoscop', item.id)}
             isEditing={mode === 'detail' ? detailProps!.isEditing : false}
             hideEyeLabels={finalHideEyeLabels}
             needsMiddleSpacer={hasSiblingWithMiddleRow && componentsDontHaveMiddleRow.includes(item.type)}
@@ -735,8 +743,8 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
         <div className={`relative h-full ${matchHeight ? 'flex flex-col' : ''}`}>
           {toolbox}
           <RetinoscopDilationTab
-            retinoscopDilationData={getExamData('retinoscop-dilation') as RetinoscopDilationExam  }
-            onRetinoscopDilationChange={getChangeHandler('retinoscop-dilation')}
+            retinoscopDilationData={getExamData('retinoscop-dilation', item.id) as RetinoscopDilationExam  }
+            onRetinoscopDilationChange={getChangeHandler('retinoscop-dilation', item.id)}
             isEditing={mode === 'detail' ? detailProps!.isEditing : false}
             hideEyeLabels={finalHideEyeLabels}
             needsMiddleSpacer={hasSiblingWithMiddleRow && componentsDontHaveMiddleRow.includes(item.type)}
@@ -749,8 +757,8 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
         <div className={`relative h-full ${matchHeight ? 'flex flex-col' : ''}`}>
           {toolbox}
           <UncorrectedVATab
-            uncorrectedVaData={getExamData('uncorrected-va') as UncorrectedVAExam}
-            onUncorrectedVaChange={getChangeHandler('uncorrected-va')}
+            uncorrectedVaData={getExamData('uncorrected-va', item.id) as UncorrectedVAExam}
+            onUncorrectedVaChange={getChangeHandler('uncorrected-va', item.id)}
             isEditing={mode === 'detail' ? detailProps!.isEditing : false}
             hideEyeLabels={finalHideEyeLabels}
             needsMiddleSpacer={hasSiblingWithMiddleRow && componentsDontHaveMiddleRow.includes(item.type)}
@@ -763,8 +771,8 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
         <div className={`relative h-full ${matchHeight ? 'flex flex-col' : ''}`}>
           {toolbox}
           <KeratometerTab
-            keratometerData={getExamData('keratometer') as KeratometerExam}
-            onKeratometerChange={getChangeHandler('keratometer')}
+            keratometerData={getExamData('keratometer', item.id) as KeratometerExam}
+            onKeratometerChange={getChangeHandler('keratometer', item.id)}
             isEditing={mode === 'detail' ? detailProps!.isEditing : false}
             hideEyeLabels={finalHideEyeLabels}
             needsMiddleSpacer={hasSiblingWithMiddleRow && componentsDontHaveMiddleRow.includes(item.type)}
@@ -777,8 +785,8 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
         <div className={`relative h-full ${matchHeight ? 'flex flex-col' : ''}`}>
           {toolbox}
           <KeratometerFullTab
-            keratometerFullData={getExamData('keratometer-full') as KeratometerFullExam}
-            onKeratometerFullChange={getChangeHandler('keratometer-full') as (field: keyof KeratometerFullExam, value: string | boolean) => void}
+            keratometerFullData={getExamData('keratometer-full', item.id) as KeratometerFullExam}
+            onKeratometerFullChange={getChangeHandler('keratometer-full', item.id) as (field: keyof KeratometerFullExam, value: string | boolean) => void}
             isEditing={mode === 'detail' ? detailProps!.isEditing : false}
             hideEyeLabels={finalHideEyeLabels}
             needsMiddleSpacer={hasSiblingWithMiddleRow && componentsDontHaveMiddleRow.includes(item.type)}
@@ -792,10 +800,10 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
           {toolbox}
           <CornealTopographyTab
             cornealTopographyData={{
-              ...getExamData('corneal-topography') as CornealTopographyExam,
-              title: mode === 'editor' ? item.title : (getExamData('corneal-topography') as CornealTopographyExam).title
+              ...getExamData('corneal-topography', item.id) as CornealTopographyExam,
+              title: mode === 'editor' ? item.title : (getExamData('corneal-topography', item.id) as CornealTopographyExam).title
             }}
-            onCornealTopographyChange={getChangeHandler('corneal-topography')}
+            onCornealTopographyChange={getChangeHandler('corneal-topography', item.id)}
             isEditing={mode === 'detail' ? detailProps!.isEditing : false}
             hideEyeLabels={finalHideEyeLabels}
             needsMiddleSpacer={hasSiblingWithMiddleRow && componentsDontHaveMiddleRow.includes(item.type)}
@@ -911,8 +919,8 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
         <div className={`relative h-full ${matchHeight ? 'flex flex-col' : ''}`}> 
           {toolbox}
           <AnamnesisTab
-            anamnesisData={getExamData('anamnesis') as AnamnesisExam}
-            onAnamnesisChange={getChangeHandler('anamnesis') as (field: keyof AnamnesisExam, value: string | boolean) => void}
+            anamnesisData={getExamData('anamnesis', item.id) as AnamnesisExam}
+            onAnamnesisChange={getChangeHandler('anamnesis', item.id) as (field: keyof AnamnesisExam, value: string | boolean) => void}
             isEditing={mode === 'detail' ? detailProps!.isEditing : false}
           />
         </div>
@@ -923,8 +931,8 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
         <div className={`relative h-full ${matchHeight ? 'flex flex-col' : ''}`}>
           {toolbox}
           <SchirmerTestTab
-            schirmerTestData={getExamData('schirmer-test') as SchirmerTestExam}
-            onSchirmerTestChange={getChangeHandler('schirmer-test')}
+            schirmerTestData={getExamData('schirmer-test', item.id) as SchirmerTestExam}
+            onSchirmerTestChange={getChangeHandler('schirmer-test', item.id)}
             isEditing={mode === 'detail' ? detailProps!.isEditing : false}
             hideEyeLabels={finalHideEyeLabels}
             needsMiddleSpacer={hasSiblingWithMiddleRow && componentsDontHaveMiddleRow.includes(item.type)}
@@ -1008,8 +1016,8 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
         <div className={`relative h-full ${matchHeight ? 'flex flex-col' : ''}`}>
           {toolbox}
           <ContactLensDiametersTab
-            contactLensDiametersData={getExamData('contact-lens-diameters') as ContactLensDiameters}
-            onContactLensDiametersChange={getChangeHandler('contact-lens-diameters')}
+            contactLensDiametersData={getExamData('contact-lens-diameters', item.id) as ContactLensDiameters}
+            onContactLensDiametersChange={getChangeHandler('contact-lens-diameters', item.id)}
             isEditing={mode === 'detail' ? detailProps!.isEditing : false}
           />
         </div>
@@ -1020,8 +1028,8 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
         <div className={`relative h-full ${matchHeight ? 'flex flex-col' : ''}`}>
           {toolbox}
           <ContactLensDetailsTab
-            contactLensDetailsData={getExamData('contact-lens-details') as ContactLensDetails}
-            onContactLensDetailsChange={getChangeHandler('contact-lens-details')}
+            contactLensDetailsData={getExamData('contact-lens-details', item.id) as ContactLensDetails}
+            onContactLensDetailsChange={getChangeHandler('contact-lens-details', item.id)}
             isEditing={mode === 'detail' ? detailProps!.isEditing : false}
             hideEyeLabels={finalHideEyeLabels}
             needsMiddleSpacer={hasSiblingWithMiddleRow && componentsDontHaveMiddleRow.includes(item.type)}
@@ -1034,8 +1042,8 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
         <div className={`relative h-full ${matchHeight ? 'flex flex-col' : ''}`}>
           {toolbox}
           <KeratometerContactLensTab
-            keratometerContactLensData={getExamData('keratometer-contact-lens') as KeratometerContactLens}
-            onKeratometerContactLensChange={getChangeHandler('keratometer-contact-lens')}
+            keratometerContactLensData={getExamData('keratometer-contact-lens', item.id) as KeratometerContactLens}
+            onKeratometerContactLensChange={getChangeHandler('keratometer-contact-lens', item.id)}
             isEditing={mode === 'detail' ? detailProps!.isEditing : false}
             hideEyeLabels={finalHideEyeLabels}
             needsMiddleSpacer={hasSiblingWithMiddleRow && componentsDontHaveMiddleRow.includes(item.type)}
@@ -1048,8 +1056,8 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
         <div className={`relative h-full ${matchHeight ? 'flex flex-col' : ''}`}>
           {toolbox}
           <ContactLensExamTab
-            contactLensExamData={getExamData('contact-lens-exam') as ContactLensExam}
-            onContactLensExamChange={getChangeHandler('contact-lens-exam')}
+            contactLensExamData={getExamData('contact-lens-exam', item.id) as ContactLensExam}
+            onContactLensExamChange={getChangeHandler('contact-lens-exam', item.id)}
             isEditing={mode === 'detail' ? detailProps!.isEditing : false}
             hideEyeLabels={finalHideEyeLabels}
           />
@@ -1063,7 +1071,10 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
           <ContactLensOrderTab
             contactLensOrder={getExamData('contact-lens-order') as ContactLensOrder}
             onContactLensOrderChange={(field: any, value: any) => {
-              detailProps?.setExamFormData?.((prev: any) => ({ ...prev, ['contact-lens-order']: { ...prev['contact-lens-order'], [field]: value } }))
+              detailProps?.setExamFormData?.((prev: any) => {
+                const key = `contact-lens-order-${item.id}`;
+                return { ...prev, [key]: { ...(prev[key] || prev['contact-lens-order'] || {}), [field]: value } };
+              })
             }}
             isEditing={mode === 'detail' ? detailProps!.isEditing : false}
           />
@@ -1075,8 +1086,8 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
         <div className="relative">
           {toolbox}
           <ObservationTab
-            data={getExamData('sensation-vision-stability') as SensationVisionStabilityExam}
-            onChange={getChangeHandler('sensation-vision-stability')}
+            data={getExamData('sensation-vision-stability', item.id) as SensationVisionStabilityExam}
+            onChange={getChangeHandler('sensation-vision-stability', item.id)}
             isEditing={mode === 'detail' ? detailProps!.isEditing : false}
           />
         </div>
@@ -1085,8 +1096,8 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
     case 'diopter-adjustment-panel':
       return (
         <DiopterAdjustmentPanelTab
-          diopterData={getExamData('diopter-adjustment-panel') as DiopterAdjustmentPanel}
-          onDiopterChange={getChangeHandler('diopter-adjustment-panel')}
+          diopterData={getExamData('diopter-adjustment-panel', item.id) as DiopterAdjustmentPanel}
+          onDiopterChange={getChangeHandler('diopter-adjustment-panel', item.id)}
           isEditing={mode === 'detail' ? detailProps!.isEditing : false}
         />
       );
@@ -1097,7 +1108,7 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
           {toolbox}
           <FusionRangeTab
             fusionRangeData={(() => {
-              const data = getExamData('fusion-range') as FusionRangeExam;
+              const data = getExamData('fusion-range', item.id) as FusionRangeExam;
               // Convert numeric fields to strings for the component
               return {
                 ...data,
@@ -1111,7 +1122,7 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
                 nv_base_out_recovery: data.nv_base_out_recovery?.toString() || '',
               };
             })()}
-            onFusionRangeChange={getChangeHandler('fusion-range')}
+            onFusionRangeChange={getChangeHandler('fusion-range', item.id)}
             isEditing={mode === 'detail' ? detailProps!.isEditing : false}
             needsMiddleSpacer={hasSiblingWithMiddleRow && componentsDontHaveMiddleRow.includes(item.type)}
             hideEyeLabels={finalHideEyeLabels}
@@ -1124,8 +1135,8 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
         <div className="relative">
           {toolbox}
           <MaddoxRodTab
-            maddoxRodData={getExamData('maddox-rod') as MaddoxRodExam}
-            onMaddoxRodChange={getChangeHandler('maddox-rod')}
+            maddoxRodData={getExamData('maddox-rod', item.id) as MaddoxRodExam}
+            onMaddoxRodChange={getChangeHandler('maddox-rod', item.id)}
             isEditing={mode === 'detail' ? detailProps!.isEditing : false}
             needsMiddleSpacer={hasSiblingWithMiddleRow && componentsDontHaveMiddleRow.includes(item.type)}
           />
@@ -1137,8 +1148,8 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
         <div className="relative">
           {toolbox}
           <StereoTestTab
-            stereoTestData={getExamData('stereo-test') as StereoTestExam}
-            onStereoTestChange={getChangeHandler('stereo-test') as (field: keyof StereoTestExam, value: string | boolean | number) => void}
+            stereoTestData={getExamData('stereo-test', item.id) as StereoTestExam}
+            onStereoTestChange={getChangeHandler('stereo-test', item.id) as (field: keyof StereoTestExam, value: string | boolean | number) => void}
             isEditing={mode === 'detail' ? detailProps!.isEditing : false}
             needsMiddleSpacer={hasSiblingWithMiddleRow && componentsDontHaveMiddleRow.includes(item.type)}
           />
@@ -1150,8 +1161,8 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
         <div className="relative">
           {toolbox}
           <RGTab
-            rgData={getExamData('rg') as RGExam}
-            onRGChange={getChangeHandler('rg') as (field: keyof RGExam, value: string | null) => void}
+            rgData={getExamData('rg', item.id) as RGExam}
+            onRGChange={getChangeHandler('rg', item.id) as (field: keyof RGExam, value: string | null) => void}
             isEditing={mode === 'detail' ? detailProps!.isEditing : false}
             needsMiddleSpacer={hasSiblingWithMiddleRow && componentsDontHaveMiddleRow.includes(item.type)}
           />
@@ -1163,8 +1174,8 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
         <div className={`relative h-full ${matchHeight ? 'flex flex-col' : ''}`}> 
           {toolbox}
           <OldContactLensesTab
-            data={getExamData('old-contact-lenses') as OldContactLenses}
-            onChange={getChangeHandler('old-contact-lenses')}
+            data={getExamData('old-contact-lenses', item.id) as OldContactLenses}
+            onChange={getChangeHandler('old-contact-lenses', item.id)}
             isEditing={mode === 'detail' ? detailProps!.isEditing : false}
             hideEyeLabels={finalHideEyeLabels}
           />
@@ -1175,8 +1186,8 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
         <div className={`relative h-full ${matchHeight ? 'flex flex-col' : ''}`}> 
           {toolbox}
           <OverRefractionTab
-            data={getExamData('over-refraction') as OverRefraction}
-            onChange={getChangeHandler('over-refraction')}
+            data={getExamData('over-refraction', item.id) as OverRefraction}
+            onChange={getChangeHandler('over-refraction', item.id)}
             isEditing={mode === 'detail' ? detailProps!.isEditing : false}
             hideEyeLabels={finalHideEyeLabels}
           />
@@ -1188,8 +1199,8 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
         <div className="relative">
           {toolbox}
           <OcularMotorAssessmentTab
-            ocularMotorAssessmentData={getExamData('ocular-motor-assessment') as OcularMotorAssessmentExam}
-            onOcularMotorAssessmentChange={getChangeHandler('ocular-motor-assessment')}
+            ocularMotorAssessmentData={getExamData('ocular-motor-assessment', item.id) as OcularMotorAssessmentExam}
+            onOcularMotorAssessmentChange={getChangeHandler('ocular-motor-assessment', item.id)}
             isEditing={mode === 'detail' ? detailProps!.isEditing : false}
             needsMiddleSpacer={hasSiblingWithMiddleRow && componentsDontHaveMiddleRow.includes(item.type)}
           />

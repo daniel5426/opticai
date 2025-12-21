@@ -15,6 +15,13 @@ class Company(Base):
     address = Column(String)
     primary_theme_color = Column(String)
     secondary_theme_color = Column(String)
+    
+    # WhatsApp Settings
+    whatsapp_access_token = Column(String)
+    whatsapp_phone_number_id = Column(String)
+    whatsapp_business_account_id = Column(String)
+    whatsapp_verify_token = Column(String)
+
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     
@@ -178,6 +185,7 @@ class Settings(Base):
     email_username = Column(String)
     email_password = Column(String)
     email_from_name = Column(String)
+
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     
@@ -453,12 +461,17 @@ class Campaign(Base):
     email_content = Column(Text)
     sms_enabled = Column(Boolean, default=False)
     sms_content = Column(Text)
+    whatsapp_enabled = Column(Boolean, default=False)
+    whatsapp_template_name = Column(String)
+    whatsapp_content = Column(Text)
     active = Column(Boolean, default=False)
     active_since = Column(DateTime(timezone=True))
     mail_sent = Column(Boolean, default=False)
     sms_sent = Column(Boolean, default=False)
+    whatsapp_sent = Column(Boolean, default=False)
     emails_sent_count = Column(Integer, default=0)
     sms_sent_count = Column(Integer, default=0)
+    whatsapp_sent_count = Column(Integer, default=0)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     cycle_type = Column(String, default="daily")
     cycle_custom_days = Column(Integer)
@@ -472,6 +485,9 @@ class CampaignClientExecution(Base):
     campaign_id = Column(Integer, ForeignKey("campaigns.id"), nullable=False)
     client_id = Column(Integer, ForeignKey("clients.id", ondelete="SET NULL"), nullable=False)
     executed_at = Column(DateTime(timezone=True), server_default=func.now())
+    status = Column(String, default="success")  # success, failed
+    error_message = Column(Text)
+    channel = Column(String)  # email, sms, whatsapp
 
 class LookupSupplier(Base):
     __tablename__ = "lookup_supplier"

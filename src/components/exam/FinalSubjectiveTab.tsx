@@ -25,12 +25,12 @@ export function FinalSubjectiveTab({
   const [hoveredEye, setHoveredEye] = useState<"R" | "L" | null>(null);
 
   const columns = [
-    { key: "sph", label: "SPH", step: "0.25" },
-    { key: "cyl", label: "CYL", step: "0.25" },
+    { key: "sph", label: "SPH", step: "0.25", min: "-30", max: "30" },
+    { key: "cyl", label: "CYL", step: "0.25", min: "-30", max: "30" },
     { key: "ax", label: "AXIS", step: "1", min: "0", max: "180" },
-    { key: "pr_h", label: "PR.H", step: "0.5" },
+    { key: "pr_h", label: "PR.H", step: "0.25", min: "0", max: "50" },
     { key: "base_h", label: "BASE.H", type: "select", options: ["IN", "OUT"] },
-    { key: "pr_v", label: "PR.V", step: "0.5" },
+    { key: "pr_v", label: "PR.V", step: "0.25", min: "0", max: "50" },
     { key: "base_v", label: "BASE.V", type: "select", options: ["UP", "DOWN"] },
     { key: "va", label: "VA", step: "0.1", type: "va" },
     { key: "j", label: "J", step: "1" },

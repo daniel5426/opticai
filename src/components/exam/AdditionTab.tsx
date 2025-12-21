@@ -5,6 +5,7 @@ import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { AdditionExam } from "@/lib/db/schema-interface"
 import { ChevronUp, ChevronDown } from "lucide-react"
+import { NVJSelect } from "./shared/NVJSelect"
 
 interface AdditionTabProps {
   additionData: AdditionExam;
@@ -24,12 +25,12 @@ export function AdditionTab({
   const [hoveredEye, setHoveredEye] = useState<"R" | "L" | null>(null);
   
   const columns = [
-    { key: "fcc", label: "FCC", step: "0.25" },
-    { key: "read", label: "READ", step: "0.25" },
-    { key: "int", label: "INT", step: "0.25" },
-    { key: "bif", label: "BIF", step: "0.25" },
-    { key: "mul", label: "MUL", step: "0.25" },
-    { key: "j", label: "J", step: "1" },
+    { key: "fcc", label: "FCC", step: "0.25", min: "-7", max: "7" },
+    { key: "read", label: "READ", step: "0.25", min: "0", max: "5" },
+    { key: "int", label: "INT", step: "0.25", min: "0", max: "5" },
+    { key: "bif", label: "BIF", step: "0.25", min: "0", max: "5" },
+    { key: "mul", label: "MUL", step: "0.25", min: "0", max: "5" },
+    { key: "j", label: "J", type: "nvj" },
     { key: "iop", label: "IOP", step: "0.1" },
   ];
 
@@ -84,16 +85,25 @@ export function AdditionTab({
                 {hoveredEye === "L" ? <ChevronDown size={16} /> : "R"}
               </span>
             </div>}
-            {columns.map(({ key, step }) => (
-              <Input
-                key={`r-${key}`}
-                type="number"
-                step={step}
-                value={getFieldValue("R", key)}
-                onChange={(e) => handleChange("R", key, e.target.value)}
-                disabled={!isEditing}
-                className={`h-8 pr-1 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
-              />
+            {columns.map(({ key, step, type }) => (
+              key === "j" ? (
+                <NVJSelect
+                  key={`r-${key}`}
+                  value={getFieldValue("R", key)}
+                  onChange={(value) => handleChange("R", key, value)}
+                  disabled={!isEditing}
+                />
+              ) : (
+                <Input
+                  key={`r-${key}`}
+                  type="number"
+                  step={step}
+                  value={getFieldValue("R", key)}
+                  onChange={(e) => handleChange("R", key, e.target.value)}
+                  disabled={!isEditing}
+                  className={`h-8 pr-1 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
+                />
+              )
             ))}
             
             {needsMiddleSpacer && (
@@ -116,16 +126,25 @@ export function AdditionTab({
                 {hoveredEye === "R" ? <ChevronUp size={16} /> : "L"}
               </span>
             </div>}
-            {columns.map(({ key, step }) => (
-              <Input
-                key={`l-${key}`}
-                type="number"
-                step={step}
-                value={getFieldValue("L", key)}
-                onChange={(e) => handleChange("L", key, e.target.value)}
-                disabled={!isEditing}
-                className={`h-8 pr-1 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
-              />
+            {columns.map(({ key, step, type }) => (
+              key === "j" ? (
+                <NVJSelect
+                  key={`l-${key}`}
+                  value={getFieldValue("L", key)}
+                  onChange={(value) => handleChange("L", key, value)}
+                  disabled={!isEditing}
+                />
+              ) : (
+                <Input
+                  key={`l-${key}`}
+                  type="number"
+                  step={step}
+                  value={getFieldValue("L", key)}
+                  onChange={(e) => handleChange("L", key, e.target.value)}
+                  disabled={!isEditing}
+                  className={`h-8 pr-1 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
+                />
+              )
             ))}
           </div>
         </div>

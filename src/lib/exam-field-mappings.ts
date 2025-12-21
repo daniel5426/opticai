@@ -230,9 +230,9 @@ export class ExamFieldMapper {
       case 'addition':
         return ['r_fcc', 'r_read', 'r_int', 'r_bif', 'r_mul', 'r_j', 'r_iop', 'l_fcc', 'l_read', 'l_int', 'l_bif', 'l_mul', 'l_j', 'l_iop']
       case 'retinoscop':
-        return ['r_sph', 'r_cyl', 'r_ax', 'r_reflex', 'l_sph', 'l_cyl', 'l_ax', 'l_reflex']
+        return ['r_sph', 'r_cyl', 'r_ax', 'r_reflex', 'l_sph', 'l_cyl', 'l_ax', 'l_reflex', 'method']
       case 'retinoscop-dilation':
-        return ['r_sph', 'r_cyl', 'r_ax', 'r_reflex', 'l_sph', 'l_cyl', 'l_ax', 'l_reflex']
+        return ['r_sph', 'r_cyl', 'r_ax', 'r_reflex', 'l_sph', 'l_cyl', 'l_ax', 'l_reflex', 'method']
       case 'uncorrected-va':
         return ['r_fv', 'r_iv', 'r_nv_j', 'l_fv', 'l_iv', 'l_nv_j']
       case 'keratometer':

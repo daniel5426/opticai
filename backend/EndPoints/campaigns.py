@@ -110,4 +110,30 @@ def delete_campaign_client_executions(campaign_id: int, db: Session = Depends(ge
         db.delete(execution)
     
     db.commit()
-    return {"message": f"Deleted {len(executions)} campaign client executions"} 
+    return {"message": f"Deleted {len(executions)} campaign client executions"}
+
+from fastapi import BackgroundTasks
+from services.campaign_service import CampaignService
+
+@router.post("/{campaign_id}/execute")
+async def execute_campaign(
+    campaign_id: int, 
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    campaign = db.query(Campaign).filter(Campaign.id == campaign_id).first()
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+    
+    # Verify ownership
+    company_id = resolve_company_id(db, current_user)
+    clinic = db.query(Clinic).filter(Clinic.id == campaign.clinic_id).first()
+    if not clinic or clinic.company_id != company_id:
+        raise HTTPException(status_code=403, detail="Not authorized to execute this campaign")
+
+    service = CampaignService(db)
+    background_tasks.add_task(service.execute_campaign, campaign_id)
+    
+    return {"message": "Campaign execution started in background", "campaign_id": campaign_id}
+ 

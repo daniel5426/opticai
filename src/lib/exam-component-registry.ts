@@ -102,11 +102,21 @@ export class ExamComponentRegistry {
           } else if (key.startsWith('cover-test-')) {
             componentType = 'cover-test'
           } else {
-            componentType = key as ExamComponentType
+            // Check if it's a direct type or a type with a suffix (type-id)
+            if (this.components.has(key as ExamComponentType)) {
+              componentType = key as ExamComponentType
+            } else {
+              // Try to find if any registered type is a prefix followed by a hyphen
+              for (const type of this.components.keys()) {
+                if (key.startsWith(`${type}-`)) {
+                  componentType = type
+                  break
+                }
+              }
+            }
           }
           
-          const config = this.get(componentType)
-          if (config) {
+          if (componentType) {
             // Fix the layout_instance_id to match the correct instance
             const fixedData: any = { ...data }
             if ('layout_instance_id' in fixedData) {

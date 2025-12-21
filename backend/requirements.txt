@@ -10,10 +10,11 @@ supabase==2.6.0
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
 python-multipart==0.0.6
-asyncpg==0.29.0 
+asyncpg==0.29.0
 langchain>=0.3.0,<0.4.0
 langgraph>=0.2.22,<0.3.0
 langchain-openai>=0.2.3,<0.3.0
 orjson==3.10.7
 requests>=2.32.3
 rapidfuzz>=3.0.0
+google-genai>=0.3.0

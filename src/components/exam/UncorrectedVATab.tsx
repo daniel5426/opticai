@@ -3,6 +3,8 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { ChevronUp, ChevronDown } from "lucide-react"
 import { UncorrectedVAExam } from "@/lib/db/schema-interface"
+import { VASelect } from "./shared/VASelect"
+import { NVJSelect } from "./shared/NVJSelect"
 
 interface UncorrectedVATabProps {
   uncorrectedVaData: UncorrectedVAExam
@@ -22,9 +24,9 @@ export function UncorrectedVATab({
   const [hoveredEye, setHoveredEye] = useState<"R" | "L" | null>(null)
 
   const columns = [
-    { key: "fv", label: "FV", step: "0.1" },
+    { key: "fv", label: "FV", type: "va" },
     { key: "iv", label: "IV", step: "0.1" },
-    { key: "nv_j", label: "NV/J" }
+    { key: "nv_j", label: "NV/J", type: "nvj" }
   ]
 
   const getFieldValue = (eye: "R" | "L", field: string) => {
@@ -75,18 +77,23 @@ export function UncorrectedVATab({
                 </span>
               </div>
             )}
-            {columns.map(({ key, step }) => (
+            {columns.map(({ key, step, type }) => (
               key === "fv" ? (
-                <div key={`r-${key}`} className="relative">
-                  <Input
-                    type="number"
-                    step={step}
+                <div key={`r-${key}`}>
+                  <VASelect
                     value={getFieldValue("R", key)}
-                    onChange={(e) => handleChange("R", key, e.target.value)}
+                    onChange={(value) => handleChange("R", key, value)}
                     disabled={!isEditing}
-                    className={`h-8 pr-1 text-xs pl-6 disabled:opacity-100 disabled:cursor-default`}
+                    mode="meter"
                   />
-                  <span className="absolute left-2 top-[53%] transform -translate-y-1/2 text-[14px] text-gray-500 pointer-events-none">6/</span>
+                </div>
+              ) : key === "nv_j" ? (
+                <div key={`r-${key}`}>
+                  <NVJSelect
+                    value={getFieldValue("R", key)}
+                    onChange={(value) => handleChange("R", key, value)}
+                    disabled={!isEditing}
+                  />
                 </div>
               ) : (
                 <Input
@@ -122,18 +129,23 @@ export function UncorrectedVATab({
                 </span>
               </div>
             )}
-            {columns.map(({ key, step }) => (
+            {columns.map(({ key, step, type }) => (
               key === "fv" ? (
-                <div key={`l-${key}`} className="relative">
-                  <Input
-                    type="number"
-                    step={step}
+                <div key={`l-${key}`}>
+                  <VASelect
                     value={getFieldValue("L", key)}
-                    onChange={(e) => handleChange("L", key, e.target.value)}
+                    onChange={(value) => handleChange("L", key, value)}
                     disabled={!isEditing}
-                    className={`h-8 pr-1 text-xs pl-6 ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
+                    mode="meter"
                   />
-                  <span className="absolute left-2 top-[53%] transform -translate-y-1/2 text-[14px] text-gray-500 pointer-events-none">6/</span>
+                </div>
+              ) : key === "nv_j" ? (
+                <div key={`l-${key}`}>
+                  <NVJSelect
+                    value={getFieldValue("L", key)}
+                    onChange={(value) => handleChange("L", key, value)}
+                    disabled={!isEditing}
+                  />
                 </div>
               ) : (
                 <Input

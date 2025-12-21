@@ -3,6 +3,7 @@ import os
 import csv
 import json
 import re
+import uuid
 from datetime import datetime
 import time
 from typing import Dict, Optional, Any, List, Tuple, Iterator, Generator, Set
@@ -996,6 +997,10 @@ def build_exam_data_from_eye_tests(row: Dict[str, Any], expanded: Optional[Dict[
     for key, builder in builders:
         block = builder(row, expanded)
         if block:
+            instance_id = str(uuid.uuid4())
+            block["card_instance_id"] = instance_id
+            data[f"{key}-{instance_id}"] = block
+            # Fallback to type key for extra safety (load logic handles both)
             data[key] = block
     return data
 

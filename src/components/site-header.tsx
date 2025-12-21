@@ -1,12 +1,11 @@
 import React, { useState, useEffect } from "react"
 import { createPortal } from "react-dom"
-import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { SidebarTrigger, useSidebar } from "@/components/ui/sidebar"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Link, useLocation, useNavigate } from "@tanstack/react-router"
-import { ChevronLeft, User, Phone, IdCard, Calendar } from "lucide-react"
+import { User, Phone, IdCard, Calendar , Hash} from "lucide-react"
 import { Client } from "@/lib/db/schema-interface"
 import { useClientSidebar } from "@/contexts/ClientSidebarContext"
 
@@ -44,7 +43,8 @@ function ClientTooltip({ client }: { client: Client }) {
   const age = calculateAge(client.date_of_birth)
   
   return (
-    <div className="space-y-3 p-1" dir="rtl">
+    <div className="space-y-3 p-1" dir="rtl">   
+
       <div className="flex items-center gap-2 text-sm">
         <User className="h-4 w-4 text-muted-foreground" />
         <span className="font-medium">{client.gender || 'לא צוין'}</span>
@@ -180,8 +180,11 @@ export function SiteHeader({ title, backLink, parentTitle, parentLink, grandpare
                           onMouseLeave={() => setIsHovering(false)}
                         >
                           <div className="space-y-2">
-                            <div className="font-semibold text-base border-b pb-2 mb-3" dir="rtl">
+                            <div className="font-semibold flex items-center justify-between text-base border-b pb-2 mb-3" dir="rtl">
                               {displayName}
+                              <span className="text-sm text-muted-foreground flex items-center gap-1">
+                                {currentClient.id}
+                              </span>
                             </div>
                             <ClientTooltip client={currentClient} />
                           </div>

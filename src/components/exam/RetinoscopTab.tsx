@@ -5,6 +5,7 @@ import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { RetinoscopExam } from "@/lib/db/schema-interface"
 import { ChevronUp, ChevronDown } from "lucide-react"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 interface RetinoscopTabProps {
   retinoscopData: RetinoscopExam;
@@ -24,9 +25,9 @@ export function RetinoscopTab({
   const [hoveredEye, setHoveredEye] = useState<"R" | "L" | null>(null);
   
   const columns = [
-    { key: "sph", label: "SPH", step: "0.25", type: "number" },
-    { key: "cyl", label: "CYL", step: "0.25", type: "number" },
-    { key: "ax", label: "AX", step: "1", type: "number" },
+    { key: "sph", label: "SPH", step: "0.25", type: "number", min: "-30", max: "30" },
+    { key: "cyl", label: "CYL", step: "0.25", type: "number", min: "-30", max: "30" },
+    { key: "ax", label: "AX", step: "1", type: "number", min: "0", max: "180" },
     { key: "reflex", label: "REFLEX", step: "1", type: "text" },
   ];
 
@@ -54,8 +55,29 @@ export function RetinoscopTab({
     <Card className="w-full examcard pb-4 pt-3">
       <CardContent className="px-4 " style={{scrollbarWidth: 'none'}}>
         <div className="space-y-3">
-          <div className="text-center">
-            <h3 className="font-medium text-muted-foreground">Retinoscopy</h3>
+          <div className="flex justify-center mb-1">
+            <Tabs 
+              value={retinoscopData.method || "retinoscopy"} 
+              onValueChange={(val) => onRetinoscopChange("method", val)}
+              className="w-fit"
+            >
+              <TabsList className="h-8 p-1 bg-muted/50 border">
+                <TabsTrigger 
+                  value="retinoscopy" 
+                  disabled={!isEditing}
+                  className="h-6 text-[11px] px-3 data-[state=active]:bg-background"
+                >
+                  Retinoscopy
+                </TabsTrigger>
+                <TabsTrigger 
+                  value="auto_refractor" 
+                  disabled={!isEditing}
+                  className="h-6 text-[11px] px-3 data-[state=active]:bg-background"
+                >
+                  Auto Refractor
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
           </div>
           
           <div className={`grid ${hideEyeLabels ? 'grid-cols-[1fr_1fr_1fr_2fr]' : 'grid-cols-[20px_1fr_1fr_1fr_2fr]'} gap-2 items-center`}>

@@ -1,6 +1,7 @@
 import React, { useState } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button"
 import { ChevronUp, ChevronDown } from "lucide-react"
 import { KeratometerExam } from "@/lib/db/schema-interface"
 
@@ -20,10 +21,11 @@ export function KeratometerTab({
   needsMiddleSpacer = false
 }: KeratometerTabProps) {
   const [hoveredEye, setHoveredEye] = useState<"R" | "L" | null>(null)
+  const [unit, setUnit] = useState<"mm" | "D">("mm") // mm or Diopter
 
   const columns = [
-    { key: "k1", label: "K1", step: "0.01" },
-    { key: "k2", label: "K2", step: "0.01" },
+    { key: "k1", label: "K1", step: unit === "mm" ? "0.1" : "0.25", min: unit === "mm" ? "3.0" : "40.00", max: unit === "mm" ? "20.0" : "80.00" },
+    { key: "k2", label: "K2", step: unit === "mm" ? "0.1" : "0.25", min: unit === "mm" ? "3.0" : "40.00", max: unit === "mm" ? "20.0" : "80.00" },
     { key: "axis", label: "AX", step: "1", min: "0", max: "180" }
   ]
 
@@ -67,8 +69,28 @@ export function KeratometerTab({
     <Card className="w-full examcard pb-4 pt-3">
       <CardContent className="px-4" style={{ scrollbarWidth: 'none' }}>
         <div className="space-y-3">
-          <div className="text-center">
+          <div className="flex items-center justify-center gap-2">
             <h3 className="font-medium text-muted-foreground">Keratometer</h3>
+            <div className="flex gap-1 border rounded-md">
+              <Button
+                type="button"
+                variant={unit === "mm" ? "default" : "ghost"}
+                size="sm"
+                onClick={() => setUnit("mm")}
+                className="h-6 px-2 py-0 text-xs"
+              >
+                mm
+              </Button>
+              <Button
+                type="button"
+                variant={unit === "D" ? "default" : "ghost"}
+                size="sm"
+                onClick={() => setUnit("D")}
+                className="h-6 px-2 py-0 text-xs"
+              >
+                D
+              </Button>
+            </div>
           </div>
 
           <div className={`grid ${hideEyeLabels ? 'grid-cols-[2fr_1fr_2fr_1fr_2fr]' : 'grid-cols-[20px_2fr_1fr_2fr_1fr_2fr]'} gap-2 items-center`}>

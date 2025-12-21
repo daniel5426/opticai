@@ -1755,6 +1755,14 @@ class ApiClient {
       }),
     });
   }
+
+  // WhatsApp
+  async connectWhatsApp(companyId: number, accessToken: string) {
+    return this.request('/whatsapp/connect', {
+      method: 'POST',
+      body: JSON.stringify({ company_id: companyId, access_token: accessToken }),
+    });
+  }
 }
 
 export const apiClient = new ApiClient(); 

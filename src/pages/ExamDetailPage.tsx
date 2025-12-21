@@ -47,7 +47,7 @@ import {
   reorderExamLayoutInstances,
 } from "@/lib/db/exam-layouts-db";
 import { Button } from "@/components/ui/button";
-import { X as XIcon, RefreshCw, Edit, Save } from "lucide-react";
+import { X as XIcon, RefreshCw, Edit, Save, Combine } from "lucide-react";
 import { toast } from "sonner";
 import { useUser } from "@/contexts/UserContext";
 import {
@@ -406,16 +406,17 @@ export default function ExamDetailPage({
 
   const handleCopy = (card: CardItem) => {
     const cardType = card.type as ExamComponentType;
-    let cardData, key;
+    const cardId = card.id;
+    let cardData;
+
     if (cardType === "cover-test") {
-      const cardId = card.id;
       const activeTabIndex = activeCoverTestTabs[cardId];
       const activeTabId = computedCoverTestTabs[cardId]?.[activeTabIndex];
-      key = `cover-test-${cardId}-${activeTabId}`;
+      const key = `cover-test-${cardId}-${activeTabId}`;
       cardData = examFormData[key];
     } else {
-      cardData = examFormData[cardType];
-      key = undefined;
+      // Prefer instance-specific key, fallback to base type
+      cardData = examFormData[`${cardType}-${cardId}`] || examFormData[cardType];
     }
     if (!cardData) {
       toast.error("אין נתונים להעתקה");
@@ -438,20 +439,20 @@ export default function ExamDetailPage({
 
     const { type: sourceType, data: sourceData } = clipboardContent;
     const targetType = targetCard.type as ExamComponentType;
+    const targetCardId = targetCard.id;
     let targetData: any,
-      targetChangeHandler: ((field: string, value: string) => void) | undefined,
-      key: string | undefined;
+      targetChangeHandler: ((field: string, value: string) => void) | undefined;
+      
     if (targetType === "cover-test") {
-      const cardId = targetCard.id;
-      const activeTabIndex = activeCoverTestTabs[cardId];
-      const activeTabId = computedCoverTestTabs[cardId]?.[activeTabIndex];
-      key = `cover-test-${cardId}-${activeTabId}`;
+      const activeTabIndex = activeCoverTestTabs[targetCardId];
+      const activeTabId = computedCoverTestTabs[targetCardId]?.[activeTabIndex];
+      const key = `cover-test-${targetCardId}-${activeTabId}`;
       targetData = examFormData[key];
       targetChangeHandler = fieldHandlers[key];
     } else {
-      targetData = examFormData[targetType];
-      targetChangeHandler = fieldHandlers[targetType];
-      key = undefined;
+      const key = `${targetType}-${targetCardId}`;
+      targetData = examFormData[key] || examFormData[targetType];
+      targetChangeHandler = fieldHandlers[key] || fieldHandlers[targetType];
     }
     if (!targetData || !targetChangeHandler) {
       toast.error("לא ניתן להדביק לבלוק זה");
@@ -497,9 +498,8 @@ export default function ExamDetailPage({
     layoutData?: string,
   ) => {
     const initialData: Record<string, any> = {};
+    const baseDataByInstance: Record<string, any> = { layout_instance_id: instanceKey };
 
-    const layoutTitles: Record<string, string> = {};
-    const cardInstances: Record<string, string[]> = {};
     if (layoutData) {
       try {
         const parsedLayout = JSON.parse(layoutData);
@@ -509,13 +509,21 @@ export default function ExamDetailPage({
 
         rows.forEach((row: any) => {
           row.cards?.forEach((card: any) => {
+            const type = card.type as ExamComponentType;
+            const cardId = card.id;
+            const key = `${type}-${cardId}`;
+            
+            const instanceData: any = { ...baseDataByInstance, card_instance_id: cardId };
             if (card.title) {
-              layoutTitles[card.id] = card.title;
+              instanceData.title = card.title;
             }
-            if (!cardInstances[card.type]) {
-              cardInstances[card.type] = [];
+            initialData[key] = instanceData;
+            
+            // Also keep the simple 'type' key for the first instance of each type 
+            // to maintain some backward compatibility or for components that still expect it
+            if (!initialData[type]) {
+              initialData[type] = instanceData;
             }
-            cardInstances[card.type].push(card.id);
           });
         });
       } catch (error) {
@@ -523,29 +531,10 @@ export default function ExamDetailPage({
       }
     }
 
+    // Ensure all registered types at least have a base entry if not in layout
     examComponentRegistry.getAllTypes().forEach((type) => {
-      const baseData: any = { layout_instance_id: instanceKey };
-
-      if (type === "notes" && cardInstances[type]) {
-        cardInstances[type].forEach((cardId) => {
-          const instanceData = { ...baseData, card_instance_id: cardId };
-          if (layoutTitles[cardId]) {
-            instanceData.title = layoutTitles[cardId];
-          }
-          initialData[`${type}-${cardId}`] = instanceData;
-        });
-      } else {
-        if (
-          type === "corneal-topography" &&
-          cardInstances[type] &&
-          cardInstances[type].length > 0
-        ) {
-          const cardId = cardInstances[type][0];
-          if (layoutTitles[cardId]) {
-            baseData.title = layoutTitles[cardId];
-          }
-        }
-        initialData[type] = baseData;
+      if (!initialData[type]) {
+        initialData[type] = { layout_instance_id: instanceKey };
       }
     });
 
@@ -594,80 +583,75 @@ export default function ExamDetailPage({
       const data = await examComponentRegistry.loadAllData(layoutInstanceId);
       setExamComponentData(data);
 
-      // Parse layout data to get titles and card instances
+      const formData: Record<string, any> = {};
       const layoutTitles: Record<string, string> = {};
-      const cardInstances: Record<string, string[]> = {};
+      
       if (layoutData) {
         try {
           const parsedLayout = JSON.parse(layoutData);
-          const rows = Array.isArray(parsedLayout)
-            ? parsedLayout
-            : parsedLayout.rows || [];
+          const rows = Array.isArray(parsedLayout) ? parsedLayout : (parsedLayout.rows || []);
 
           rows.forEach((row: any) => {
             row.cards?.forEach((card: any) => {
-              if (card.title) {
-                layoutTitles[card.id] = card.title;
+              const type = card.type as ExamComponentType;
+              const cardId = card.id;
+              const key = `${type}-${cardId}`;
+              
+              layoutTitles[cardId] = card.title || "";
+
+              // Try to find data for this specific instance
+              let instanceData = data[key];
+              
+              // Fallback to type-only key if this is the first instance found for this type
+              // and no instance-specific data exists
+              if (!instanceData && !formData[type]) {
+                instanceData = data[type];
               }
-              // Collect card instances for each type
-              if (!cardInstances[card.type]) {
-                cardInstances[card.type] = [];
+
+              if (instanceData) {
+                formData[key] = {
+                  ...(instanceData as Record<string, any>),
+                  card_instance_id: cardId, // Ensure it has the correct ID
+                  layout_instance_id: layoutInstanceId
+                };
+                
+                // If it's the first instance, also set the base key
+                if (!formData[type]) {
+                  formData[type] = formData[key];
+                }
+              } else {
+                // Initialize with empty data if none found
+                const emptyData = { 
+                  layout_instance_id: layoutInstanceId,
+                  card_instance_id: cardId,
+                  title: card.title
+                };
+                formData[key] = emptyData;
+                if (!formData[type]) formData[type] = emptyData;
               }
-              cardInstances[card.type].push(card.id);
+
+              // Special handling for cover-test tabs
+              if (type === "cover-test") {
+                Object.keys(data).forEach((k) => {
+                  if (k.startsWith(`cover-test-${cardId}-`)) {
+                    formData[k] = (data as any)[k];
+                  }
+                });
+              }
             });
           });
         } catch (error) {
-          console.error("Error parsing layout data:", error);
+          console.error("Error parsing layout data in loadExamComponentData:", error);
         }
       }
 
-      // No explicit tab state; tabs are derived from keys in data
-
-      // Update form data with loaded data or empty data with layout_instance_id
-      const formData: Record<string, any> = {};
+      // Fill in any remaining registered types that aren't in the layout
       examComponentRegistry.getAllTypes().forEach((type) => {
-        if (type === "notes" && cardInstances[type]) {
-          // For notes, handle each card instance separately
-          cardInstances[type].forEach((cardId) => {
-            const existingData: any = data[`${type}-${cardId}`] || {
-              layout_instance_id: layoutInstanceId,
-              card_instance_id: cardId,
-            };
-
-            // Add title from layout if not already present in data
-            if (layoutTitles[cardId] && !existingData.title) {
-              existingData.title = layoutTitles[cardId];
-            }
-
-            formData[`${type}-${cardId}`] = existingData;
-          });
-        } else if (type === "cover-test" && cardInstances[type]) {
-          // For cover-test, include all tab keys found in loaded data for each card instance
-          cardInstances[type].forEach((cardId) => {
-            Object.keys(data).forEach((k) => {
-              if (k.startsWith(`cover-test-${cardId}-`)) {
-                formData[k] = (data as any)[k];
-              }
-            });
-          });
-        } else {
-          const existingData: any = data[type] || {
-            layout_instance_id: layoutInstanceId,
-          };
-          // Add title from layout if not already present in data
-          if (
-            type === "corneal-topography" &&
-            cardInstances[type] &&
-            cardInstances[type].length > 0
-          ) {
-            const cardId = cardInstances[type][0];
-            if (layoutTitles[cardId] && !existingData.title) {
-              existingData.title = layoutTitles[cardId];
-            }
-          }
-          formData[type] = existingData;
+        if (!formData[type]) {
+          formData[type] = data[type] || { layout_instance_id: layoutInstanceId };
         }
       });
+
       setExamFormDataByInstance((prev) => ({
         ...prev,
         [layoutInstanceId]: formData,
@@ -702,93 +686,75 @@ export default function ExamDetailPage({
   const createFieldHandlers = () => {
     const handlers: Record<string, (field: string, value: string) => void> = {};
 
-    examComponentRegistry.getAllTypes().forEach((type) => {
-      handlers[type] = (field: string, value: string) => {
+    const generateHandler = (key: string, baseType: string) => {
+      return (field: string, value: string) => {
         setExamFormData((prev) => {
-          const prevComponent = prev[type] || {};
-          const prevValue = prevComponent[field];
+          const prevEntry = prev[key] || prev[baseType] || {};
+          const prevValue = prevEntry[field];
           const normalized = normalizeFieldValue(prevValue, value);
-          const nextComponent = { ...prevComponent };
-          if (
-            nextComponent.layout_instance_id == null &&
-            activeInstanceId != null
-          ) {
-            nextComponent.layout_instance_id = activeInstanceId;
+          const nextEntry = { ...prevEntry };
+          
+          if (nextEntry.layout_instance_id == null && activeInstanceId != null) {
+            nextEntry.layout_instance_id = activeInstanceId;
           }
+          
           if (normalized === undefined) {
-            delete nextComponent[field];
+            delete nextEntry[field];
           } else {
-            nextComponent[field] = normalized;
+            nextEntry[field] = normalized;
           }
-          return {
-            ...prev,
-            [type]: nextComponent,
-          };
+          
+          const result = { ...prev, [key]: nextEntry };
+          // If this is an instance-specific key, also sync to the base type key
+          // if it's currently pointing to the same data or is empty
+          if (key !== baseType && (!prev[baseType] || prev[baseType].card_instance_id === nextEntry.card_instance_id)) {
+            result[baseType] = nextEntry;
+          }
+          return result;
         });
       };
+    };
+
+    // Register handlers for all base types
+    examComponentRegistry.getAllTypes().forEach((type) => {
+      handlers[type] = generateHandler(type, type);
     });
 
-    // Create field handlers for notes card instances
+    // Create field handlers for specific card instances in layout
     if (cardRows) {
       cardRows.forEach((row) => {
         row.cards.forEach((card) => {
-          if (card.type === "notes") {
-            const key = `notes-${card.id}`;
-            handlers[key] = (field: string, value: string) => {
-              setExamFormData((prev) => {
-                const prevNote = prev[key] || {};
-                const normalized = normalizeFieldValue(prevNote[field], value);
-                const nextNote = { ...prevNote };
-                if (
-                  nextNote.layout_instance_id == null &&
-                  activeInstanceId != null
-                ) {
-                  nextNote.layout_instance_id = activeInstanceId;
-                }
-                if (normalized === undefined) {
-                  delete nextNote[field];
-                } else {
-                  nextNote[field] = normalized;
-                }
-                return {
-                  ...prev,
-                  [key]: nextNote,
-                };
-              });
-            };
-          }
-          if (card.type === "cover-test") {
-            const cardId = card.id;
+          const type = card.type as ExamComponentType;
+          const cardId = card.id;
+          const key = `${type}-${cardId}`;
+          
+          if (type === "cover-test") {
             const tabIds = computedCoverTestTabs[cardId] || [];
             tabIds.forEach((tabId) => {
-              const key = `cover-test-${cardId}-${tabId}`;
-              handlers[key] = (field, value) => {
+              const coverKey = `cover-test-${cardId}-${tabId}`;
+              handlers[coverKey] = (field, value) => {
                 setExamFormData((prev) => {
-                  const tabIndex = (
-                    computedCoverTestTabs[cardId] || []
-                  ).indexOf(tabId);
-                  const prevTab = prev[key] || {};
+                  const tabIndex = (computedCoverTestTabs[cardId] || []).indexOf(tabId);
+                  const prevTab = prev[coverKey] || {};
                   const normalized = normalizeFieldValue(prevTab[field], value);
                   const nextTab = {
                     ...prevTab,
                     card_instance_id: tabId,
                     card_id: cardId,
                     tab_index: tabIndex,
-                    layout_instance_id:
-                      prevTab.layout_instance_id ?? activeInstanceId,
+                    layout_instance_id: prevTab.layout_instance_id ?? activeInstanceId,
                   };
                   if (normalized === undefined) {
                     delete nextTab[field];
                   } else {
                     nextTab[field] = normalized;
                   }
-                  return {
-                    ...prev,
-                    [key]: nextTab,
-                  };
+                  return { ...prev, [coverKey]: nextTab };
                 });
               };
             });
+          } else {
+            handlers[key] = generateHandler(key, type);
           }
         });
       });
@@ -1609,7 +1575,6 @@ export default function ExamDetailPage({
   };
 
   const FULL_DATA_NAME = "כל הנתונים";
-  const FULL_DATA_ICON = "/icons/box.png";
 
   const isMeaningfulValue = (v: any) => {
     if (v === null || v === undefined) return false;
@@ -1619,6 +1584,12 @@ export default function ExamDetailPage({
 
   const isNonEmptyComponent = (key: string, value: any) => {
     if (!value || typeof value !== "object") return false;
+
+    // Skip technical keys that aren't components
+    if (key === 'layout_instance_id' || key === 'id' || key === 'exam_id' || key === 'created_at' || key === 'updated_at') {
+      return false;
+    }
+
     const ignored = new Set([
       "id",
       "layout_instance_id",
@@ -1626,7 +1597,10 @@ export default function ExamDetailPage({
       "card_instance_id",
       "tab_index",
       "__deleted",
+      "source_layout_instance_id",
+      "title", // title alone isn't content for most things
     ]);
+
     const specialCover = [
       "deviation_type",
       "deviation_direction",
@@ -1635,13 +1609,20 @@ export default function ExamDetailPage({
       "nv_1",
       "nv_2",
     ];
-    const specialNotes = ["title", "note"];
+    
+    // Notes are special: they MUST have a note or a custom title to be meaningful
+    if (key.startsWith("notes-") || key === "notes") {
+      const v = value as any;
+      const hasNote = isMeaningfulValue(v.note);
+      const hasCustomTitle = isMeaningfulValue(v.title) && v.title !== "הערות" && v.title !== "Notes";
+      return hasNote || hasCustomTitle;
+    }
+
     if (key.startsWith("cover-test-")) {
       return specialCover.some((k) => isMeaningfulValue((value as any)[k]));
     }
-    if (key.startsWith("notes-")) {
-      return specialNotes.some((k) => isMeaningfulValue((value as any)[k]));
-    }
+
+    // For everything else, check if any non-ignored field has a value
     for (const [k, v] of Object.entries(value)) {
       if (ignored.has(k)) continue;
       if (isMeaningfulValue(v)) return true;
@@ -1757,12 +1738,34 @@ export default function ExamDetailPage({
       ? new Set(allowedInstanceIds.map(String))
       : null;
     const aggregated: Record<string, any> = {};
+    
+    // We'll track added instance IDs to avoid duplicates between type-id and type keys
+    const addedInstanceIds = new Set<string>();
+
     Object.entries(examFormDataByInstance).forEach(([instanceKey, bucket]) => {
       if (allowed && !allowed.has(instanceKey)) return;
-      Object.entries(bucket || {}).forEach(([key, val]) => {
-        if ((val as any)?.__deleted) return;
-        if (val && typeof val === "object" && isNonEmptyComponent(key, val)) {
+      
+      // Sort keys to process hyphenated keys (type-id) first
+      const keys = Object.keys(bucket || {}).sort((a, b) => {
+        const aHasHyphen = a.includes('-');
+        const bHasHyphen = b.includes('-');
+        if (aHasHyphen && !bHasHyphen) return -1;
+        if (!aHasHyphen && bHasHyphen) return 1;
+        return 0;
+      });
+
+      keys.forEach((key) => {
+        const val = bucket[key];
+        if (!val || typeof val !== "object" || (val as any)?.__deleted) return;
+        
+        const instanceId = (val as any)?.card_instance_id;
+        
+        // If we have an instance ID and we already added this instance via another key, skip
+        if (instanceId && addedInstanceIds.has(instanceId)) return;
+
+        if (isNonEmptyComponent(key, val)) {
           aggregated[key] = val;
+          if (instanceId) addedInstanceIds.add(instanceId);
         }
       });
     });
@@ -1781,32 +1784,40 @@ export default function ExamDetailPage({
     const addedCoverCards = new Set<string>();
 
     entries.forEach(([key, value]) => {
-      if (key.startsWith("notes-")) {
-        if (addedStandard.has(key)) return;
-        addedStandard.add(key);
-        const title = (value as any)?.title;
-        cardDefs.push({ id: key, type: "notes", ...(title ? { title } : {}) });
-        return;
-      }
+      let type: CardItem["type"] | null = null;
+      let cardId: string | null = null;
 
-      if (key.startsWith("cover-test-")) {
+      if (key.startsWith("notes-")) {
+        type = "notes";
+        cardId = key.replace("notes-", "");
+      } else if (key.startsWith("cover-test-")) {
         const suffix = key.slice("cover-test-".length);
         const dashIndex = suffix.indexOf("-");
-        const cardId = dashIndex >= 0 ? suffix.slice(0, dashIndex) : suffix;
-        if (addedCoverCards.has(cardId)) return;
-        addedCoverCards.add(cardId);
-        cardDefs.push({ id: cardId, type: "cover-test" });
+        const id = dashIndex >= 0 ? suffix.slice(0, dashIndex) : suffix;
+        if (addedCoverCards.has(id)) return;
+        addedCoverCards.add(id);
+        cardDefs.push({ id, type: "cover-test" });
         return;
+      } else {
+        // Find if key is type-id
+        for (const registeredType of examComponentRegistry.getAllTypes()) {
+          if (key === registeredType) {
+            type = registeredType as CardItem["type"];
+            // If it's a base key, only set cardId if it has an instance ID property
+            cardId = (value as any)?.card_instance_id || "";
+            break;
+          } else if (key.startsWith(`${registeredType}-`)) {
+            type = registeredType as CardItem["type"];
+            cardId = key.replace(`${registeredType}-`, "");
+            break;
+          }
+        }
       }
 
-      const type = key as CardItem["type"];
-      if (addedStandard.has(type)) return;
-      addedStandard.add(type);
-
-      if (type === "corneal-topography" && (value as any)?.title) {
-        cardDefs.push({ id: key, type, title: (value as any).title });
-      } else {
-        cardDefs.push({ id: key, type });
+      if (type && cardId && !addedStandard.has(`${type}-${cardId}`)) {
+        addedStandard.add(`${type}-${cardId}`);
+        const title = (value as any)?.title;
+        cardDefs.push({ id: cardId, type, ...(title ? { title } : {}) });
       }
     });
     if (cardDefs.length === 0) return null;
@@ -1823,20 +1834,34 @@ export default function ExamDetailPage({
     const bucket: Record<string, any> = {};
     const sources: Record<string, number | string | null> = {};
 
-    Object.entries(aggregated).forEach(([key, val]) => {
-      if (!isNonEmptyComponent(key, val)) return;
-      const sourceInstanceId = (val as any)?.layout_instance_id ?? null;
-      sources[key] = sourceInstanceId;
-      const clone = { ...(val as any) };
-      clone.source_layout_instance_id = sourceInstanceId;
-      clone.layout_instance_id = instanceId;
-      if (key.startsWith("notes-")) {
-        const cardId = key.replace("notes-", "");
-        clone.card_instance_id = cardId;
-      }
-      delete (clone as any).__deleted;
-      bucket[key] = clone;
-    });
+      Object.entries(aggregated).forEach(([key, val]) => {
+        if (!isNonEmptyComponent(key, val)) return;
+        const sourceInstanceId = (val as any)?.layout_instance_id ?? null;
+        sources[key] = sourceInstanceId;
+        const clone = { ...(val as any) };
+        clone.source_layout_instance_id = sourceInstanceId;
+        clone.layout_instance_id = instanceId;
+        
+        // Ensure card_instance_id is set so getExamData can find it using type-id key
+        if (!clone.card_instance_id) {
+          if (key.startsWith("notes-")) {
+            clone.card_instance_id = key.replace("notes-", "");
+          } else {
+             for (const type of examComponentRegistry.getAllTypes()) {
+              if (key.startsWith(`${type}-`)) {
+                clone.card_instance_id = key.replace(`${type}-`, "");
+                break;
+              }
+            }
+          }
+        }
+        
+        // Final fallback: if it's just 'type' key, leave it as is, 
+        // but it will be indexed in bucket under 'type'
+        
+        delete (clone as any).__deleted;
+        bucket[key] = clone;
+      });
 
     if (Object.keys(sources).length > 0) {
       fullDataSourcesRef.current[instanceId] = sources;
@@ -1858,7 +1883,7 @@ export default function ExamDetailPage({
 
     const layoutData = buildFullDataLayoutData();
     if (!layoutData) {
-      toast.info("אין נתונים להצגה בפריסת Full data");
+      toast.info("אין נתונים להצגה ");
       return;
     }
     if (exam && exam.id && !isNewMode) {
@@ -1870,7 +1895,7 @@ export default function ExamDetailPage({
         layout_data: layoutData,
       } as any);
       if (!newInstance || !newInstance.id) {
-        toast.error("שגיאה בהוספת פריסת Full data");
+        toast.error("שגיאה בהוספת פריסת הנתונים");
         return;
       }
       const updatedTabs = layoutTabs.map((t) => ({ ...t, isActive: false }));
@@ -1900,7 +1925,7 @@ export default function ExamDetailPage({
           setCustomWidths(parsed.customWidths || {});
         }
       } catch {}
-      toast.success("Full data הוחל לבדיקה");
+      toast.success("פריסת הנתונים הוספה לבדיקה");
     } else {
       const updatedTabs = layoutTabs.map((t) => ({ ...t, isActive: false }));
       const tempId = -Date.now();
@@ -1926,7 +1951,7 @@ export default function ExamDetailPage({
       const seedBucket = buildFullDataBucket(tempId);
       setExamFormData(seedBucket);
       setExamFormDataByInstance((prev) => ({ ...prev, [tempId]: seedBucket }));
-      toast.success("Full data הוחל לבדיקה");
+      toast.success("פריסת הנתונים הוספה לבדיקה");
     }
   };
 
@@ -1960,7 +1985,7 @@ export default function ExamDetailPage({
         );
         setCardRows([]);
         setCustomWidths({});
-        toast.info("אין נתונים להצגה בפריסת Full data");
+        toast.info("אין נתונים להצגה בפריסת הנתונים");
         return;
       }
       if (exam && exam.id && !isNewMode && active.id > 0) {
@@ -1998,7 +2023,7 @@ export default function ExamDetailPage({
           setCustomWidths(parsed.customWidths || {});
         }
       } catch {}
-      toast.success("Full data רועננה");
+      toast.success("פריסת הנתונים רועננה");
     } finally {
       setIsRegeneratingFullData(false);
     }
@@ -2377,22 +2402,14 @@ export default function ExamDetailPage({
                           color: tab.isActive
                             ? "hsl(var(--primary-foreground))"
                             : "hsl(var(--foreground))",
-                          padding: "6px 20px",
+                          padding: "6px 10px",
                           borderRadius: "8px",
                           fontSize: "14px",
                           fontWeight: "500",
                         }}
                       >
                         {tab.name === FULL_DATA_NAME ? (
-                          <img
-                            src={FULL_DATA_ICON}
-                            alt={FULL_DATA_NAME}
-                            style={{
-                              width: "20px",
-                              height: "20px",
-                              objectFit: "contain",
-                            }}
-                          />
+                          <Combine />
                         ) : (
                           tab.name
                         )}
@@ -2410,7 +2427,7 @@ export default function ExamDetailPage({
                             type="button"
                             onClick={handleRegenerateFullData}
                             className="hover:bg-muted  bg-card border border-border flex h-[27px] w-[27px] items-center justify-center rounded-lg"
-                            aria-label="רענן Full data"
+                            aria-label="רענן נתונים"
                             title="רענן"
                             disabled={isRegeneratingFullData}
                           >

@@ -40,4 +40,11 @@ class Settings:
     SUPABASE_JWT_SECRET: str = os.getenv("SUPABASE_JWT_SECRET", "")
     SUPABASE_BUCKET: str = os.getenv("SUPABASE_BUCKET", "opticai")
 
+    # WhatsApp
+    WHATSAPP_ACCESS_TOKEN: str = os.getenv("WHATSAPP_ACCESS_TOKEN", "")
+    WHATSAPP_PHONE_NUMBER_ID: str = os.getenv("WHATSAPP_PHONE_NUMBER_ID", "")
+    WHATSAPP_VERIFY_TOKEN: str = os.getenv("WHATSAPP_VERIFY_TOKEN", "opticai_verify_token")
+    FB_APP_ID: str = os.getenv("FB_APP_ID", "")
+    FB_APP_SECRET: str = os.getenv("FB_APP_SECRET", "")
+
 settings = Settings() 

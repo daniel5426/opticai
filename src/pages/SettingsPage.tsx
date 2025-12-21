@@ -23,6 +23,8 @@ import { UsersTab } from "@/components/settings/UsersTab"
 import { FieldDataTab } from "@/components/settings/FieldDataTab"
 import { PersonalProfileTab } from "@/components/settings/PersonalProfileTab"
 import { AboutTab } from "@/components/settings/AboutTab"
+import { WhatsAppTab } from "@/components/settings/WhatsAppTab"
+import { Company } from "@/lib/db/schema-interface"
 
 export default function SettingsPage() {
   const { settings, updateSettings: updateBaseSettings } = useSettings()
@@ -43,6 +45,8 @@ export default function SettingsPage() {
   const [currentLookupTable, setCurrentLookupTable] = useState<string | null>(null)
   const [lookupData, setLookupData] = useState<{[key: string]: any[]}>({})
   const [loadingLookup, setLoadingLookup] = useState(false)
+  const [company, setCompany] = useState<Company | null>(null)
+  const [localCompany, setLocalCompany] = useState<Partial<Company>>({})
 
   const loadLookupData = async (tableName: string) => {
     const tableKey = tableName as keyof typeof lookupTables
@@ -166,10 +170,33 @@ export default function SettingsPage() {
       }
     }
 
+
+    const loadCompany = async () => {
+      try {
+        if (currentUser && isRoleAtLeast(currentUser.role_level, ROLE_LEVELS.manager)) {
+          let companyId = currentClinic?.company_id
+          if (!companyId) {
+            const clinicResp = await apiClient.getClinic(currentClinic?.id || 0)
+            companyId = clinicResp.data?.company_id
+          }
+          if (companyId) {
+            const resp = await apiClient.getCompany(companyId)
+            if (resp.data) {
+              setCompany(resp.data)
+              setLocalCompany(resp.data)
+            }
+          }
+        }
+      } catch (e) {
+        console.error('Error loading company:', e)
+      }
+    }
+
     loadSettings()
     loadClinic()
     loadUsers()
     loadPersonalProfile()
+    loadCompany()
 
     return () => {
       if (colorUpdateTimeout) {
@@ -188,8 +215,11 @@ export default function SettingsPage() {
 
   const handleClinicChange = (field: keyof Clinic, value: any) => {
     const updated = { ...localClinic, [field]: value }
-    console.log(updated)
     setLocalClinic(updated)
+  }
+
+  const handleCompanyChange = (field: string, value: any) => {
+    setLocalCompany(prev => ({ ...prev, [field]: value }))
   }
 
   const handlePersonalProfileChange = (field: keyof User, value: any) => {
@@ -228,6 +258,14 @@ export default function SettingsPage() {
           clinic_website: localClinic.clinic_website || undefined,
           manager_name: localClinic.manager_name || undefined,
           license_number: localClinic.license_number || undefined,
+        }
+      }
+      if (company?.id && isRoleAtLeast(currentUser?.role_level, ROLE_LEVELS.manager)) {
+        payload.company_id = company.id
+        payload.company = {
+          whatsapp_access_token: localCompany.whatsapp_access_token,
+          whatsapp_phone_number_id: localCompany.whatsapp_phone_number_id,
+          whatsapp_verify_token: localCompany.whatsapp_verify_token,
         }
       }
       payload.settings = {
@@ -793,6 +831,15 @@ export default function SettingsPage() {
                     />
                   </TabsContent>
 
+                  {isRoleAtLeast(currentUser?.role_level, ROLE_LEVELS.manager) && (
+                    <TabsContent value="whatsapp" className="space-y-6 mt-0">
+                      <WhatsAppTab 
+                        formData={localCompany}
+                        onChange={handleCompanyChange}
+                      />
+                    </TabsContent>
+                  )}
+
                   <TabsContent value="personal-profile" className="space-y-6 mt-0">
                     <PersonalProfileTab 
                       personalProfile={personalProfile}
@@ -824,6 +871,9 @@ export default function SettingsPage() {
                     <TabsTrigger value="personal-profile" className="w-full justify-end text-right">פרופיל אישי</TabsTrigger>
                     {isRoleAtLeast(currentUser?.role_level, ROLE_LEVELS.manager) && (
                       <TabsTrigger value="users" className="w-full justify-end text-right">ניהול משתמשים</TabsTrigger>
+                    )}
+                    {isRoleAtLeast(currentUser?.role_level, ROLE_LEVELS.manager) && (
+                      <TabsTrigger value="whatsapp" className="w-full justify-end text-right text-green-600 dark:text-green-500">הגדרות WhatsApp</TabsTrigger>
                     )}
                     <TabsTrigger value="field-data" className="w-full justify-end text-right">ניהול נתוני שדות</TabsTrigger>
                     <TabsTrigger value="about" className="w-full justify-end text-right">אודות האפליקציה</TabsTrigger>

@@ -22,8 +22,8 @@ export function ObjectiveTab({
   const [hoveredEye, setHoveredEye] = useState<"R" | "L" | null>(null);
 
   const columns = [
-    { key: "sph", label: "SPH", step: "0.25" },
-    { key: "cyl", label: "CYL", step: "0.25" },
+    { key: "sph", label: "SPH", step: "0.25", min: "-30", max: "30" },
+    { key: "cyl", label: "CYL", step: "0.25", min: "-30", max: "30" },
     { key: "ax", label: "AXIS", step: "1", min: "0", max: "180" },
     { key: "se", label: "SE", step: "0.25" },
   ];
