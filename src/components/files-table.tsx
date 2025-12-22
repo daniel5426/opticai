@@ -42,7 +42,7 @@ interface FilesTableProps {
 }
 
 export function FilesTable({ data, clientId, onFileDeleted, onFileDeleteFailed, onFileUploaded, onClientSelectForUpload, loading, pagination, searchQuery: externalSearch, onSearchChange }: FilesTableProps) {
-  const { currentClinic } = useUser()
+  const { currentClinic, currentUser } = useUser()
   const [searchQuery, setSearchQuery] = useState("")
   const searchValue = externalSearch !== undefined ? externalSearch : searchQuery
   const [users, setUsers] = useState<User[]>([])
@@ -163,7 +163,7 @@ export function FilesTable({ data, clientId, onFileDeleted, onFileDeleteFailed, 
         const form = new FormData()
         form.append('client_id', String(targetClientId))
         if (currentClinic?.id) form.append('clinic_id', String(currentClinic.id))
-        form.append('uploaded_by', '1')
+        if (currentUser?.id) form.append('uploaded_by', String(currentUser.id))
         form.append('notes', '')
         form.append('upload', file, file.name)
 

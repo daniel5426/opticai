@@ -28,7 +28,8 @@ async def create_file(
     uploaded_by: Optional[int] = Form(None),
     notes: Optional[str] = Form(None),
     upload: UploadFile = FastAPIFile(...),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     try:
         sb = get_supabase_client()
@@ -60,7 +61,7 @@ async def create_file(
         file_path=public_url,
         file_size=len(file_bytes),
         file_type=upload.content_type,
-        uploaded_by=uploaded_by,
+        uploaded_by=uploaded_by or (current_user.id if current_user else None),
         notes=notes or "",
     )
     db.add(db_file)
