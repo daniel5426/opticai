@@ -41,8 +41,16 @@ const resolveInitialEntry = (): string => {
   if (typeof window === "undefined") return "/";
 
   try {
+    // CRITICAL: If the current browser URL is a callback, WE MUST USE IT.
+    // Otherwise the memory history will boot into the last saved app path
+    // and ignore the login tokens in the URL/Hash.
+    const currentPath = window.location.pathname;
+    if (currentPath === "/auth/callback" || currentPath === "/oauth/callback") {
+      return currentPath + window.location.search + window.location.hash;
+    }
+
     const storedPath = localStorage.getItem("lastAppPath");
-    if (storedPath && storedPath !== "/auth/callback") {
+    if (storedPath && storedPath !== "/auth/callback" && storedPath !== "/oauth/callback") {
       return storedPath;
     }
   } catch (error) {

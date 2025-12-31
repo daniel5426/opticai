@@ -81,6 +81,7 @@ import { useUnsavedChanges } from "@/hooks/shared/useUnsavedChanges";
 import { useRowWidthTracking } from "@/hooks/shared/useRowWidthTracking";
 import { ExamDetailsCard } from "@/components/exam/ExamDetailsCard";
 import { LayoutSelectorDropdown } from "@/components/exam/LayoutSelectorDropdown";
+import { UI_CONFIG } from "@/config/ui-config";
 
 interface ExamDetailPageProps {
   mode?: "view" | "edit" | "new";
@@ -295,18 +296,17 @@ export default function ExamDetailPage({
   const [formData, setFormData] = useState<Partial<OpticalExam>>(
     isNewMode
       ? {
-          client_id: Number(clientId),
-          exam_date: new Date().toISOString().split("T")[0],
-          test_name: "",
-          user_id: currentUser?.id,
-          dominant_eye: null,
-          type: config.dbType,
-        }
+        client_id: Number(clientId),
+        exam_date: new Date().toISOString().split("T")[0],
+        test_name: "",
+        user_id: currentUser?.id,
+        dominant_eye: null,
+        type: config.dbType,
+      }
       : {},
   );
 
   const [cardRows, setCardRows] = useState<CardRow[]>([
-    { id: "row-1", cards: [{ id: "exam-details-1", type: "exam-details" }] },
     {
       id: "row-2",
       cards: [{ id: "old-refraction-1", type: "old-refraction" }],
@@ -442,7 +442,7 @@ export default function ExamDetailPage({
     const targetCardId = targetCard.id;
     let targetData: any,
       targetChangeHandler: ((field: string, value: string) => void) | undefined;
-      
+
     if (targetType === "cover-test") {
       const activeTabIndex = activeCoverTestTabs[targetCardId];
       const activeTabId = computedCoverTestTabs[targetCardId]?.[activeTabIndex];
@@ -512,13 +512,13 @@ export default function ExamDetailPage({
             const type = card.type as ExamComponentType;
             const cardId = card.id;
             const key = `${type}-${cardId}`;
-            
+
             const instanceData: any = { ...baseDataByInstance, card_instance_id: cardId };
             if (card.title) {
               instanceData.title = card.title;
             }
             initialData[key] = instanceData;
-            
+
             // Also keep the simple 'type' key for the first instance of each type 
             // to maintain some backward compatibility or for components that still expect it
             if (!initialData[type]) {
@@ -585,7 +585,7 @@ export default function ExamDetailPage({
 
       const formData: Record<string, any> = {};
       const layoutTitles: Record<string, string> = {};
-      
+
       if (layoutData) {
         try {
           const parsedLayout = JSON.parse(layoutData);
@@ -596,12 +596,12 @@ export default function ExamDetailPage({
               const type = card.type as ExamComponentType;
               const cardId = card.id;
               const key = `${type}-${cardId}`;
-              
+
               layoutTitles[cardId] = card.title || "";
 
               // Try to find data for this specific instance
               let instanceData = data[key];
-              
+
               // Fallback to type-only key if this is the first instance found for this type
               // and no instance-specific data exists
               if (!instanceData && !formData[type]) {
@@ -614,14 +614,14 @@ export default function ExamDetailPage({
                   card_instance_id: cardId, // Ensure it has the correct ID
                   layout_instance_id: layoutInstanceId
                 };
-                
+
                 // If it's the first instance, also set the base key
                 if (!formData[type]) {
                   formData[type] = formData[key];
                 }
               } else {
                 // Initialize with empty data if none found
-                const emptyData = { 
+                const emptyData = {
                   layout_instance_id: layoutInstanceId,
                   card_instance_id: cardId,
                   title: card.title
@@ -693,17 +693,17 @@ export default function ExamDetailPage({
           const prevValue = prevEntry[field];
           const normalized = normalizeFieldValue(prevValue, value);
           const nextEntry = { ...prevEntry };
-          
+
           if (nextEntry.layout_instance_id == null && activeInstanceId != null) {
             nextEntry.layout_instance_id = activeInstanceId;
           }
-          
+
           if (normalized === undefined) {
             delete nextEntry[field];
           } else {
             nextEntry[field] = normalized;
           }
-          
+
           const result = { ...prev, [key]: nextEntry };
           // If this is an instance-specific key, also sync to the base type key
           // if it's currently pointing to the same data or is empty
@@ -727,7 +727,7 @@ export default function ExamDetailPage({
           const type = card.type as ExamComponentType;
           const cardId = card.id;
           const key = `${type}-${cardId}`;
-          
+
           if (type === "cover-test") {
             const tabIds = computedCoverTestTabs[cardId] || [];
             tabIds.forEach((tabId) => {
@@ -899,7 +899,7 @@ export default function ExamDetailPage({
         } else {
           const layoutsTree = await getAllExamLayouts(currentClinic?.id);
           setAvailableLayouts(layoutsTree as ExamLayout[]);
-          
+
           if (layoutIdFromSearch) {
             const selectedLayoutId = Number(layoutIdFromSearch);
             const flattened = flattenExamLayouts(layoutsTree as ExamLayout[]);
@@ -911,10 +911,15 @@ export default function ExamDetailPage({
             const selectedLayout = fromTree || (await getExamLayoutById(selectedLayoutId));
 
             if (selectedLayout) {
+              setFormData((prev) => ({
+                ...prev,
+                test_name: selectedLayout.name || prev.test_name,
+              }));
+
               const layoutsToOpen = selectedLayout.is_group
                 ? collectLeafLayouts(fromTree || selectedLayout).filter(
-                    (layout) => layout.id && !layout.is_group,
-                  )
+                  (layout) => layout.id && !layout.is_group,
+                )
                 : [selectedLayout];
 
               if (layoutsToOpen.length > 0) {
@@ -1609,7 +1614,7 @@ export default function ExamDetailPage({
       "nv_1",
       "nv_2",
     ];
-    
+
     // Notes are special: they MUST have a note or a custom title to be meaningful
     if (key.startsWith("notes-") || key === "notes") {
       const v = value as any;
@@ -1738,13 +1743,13 @@ export default function ExamDetailPage({
       ? new Set(allowedInstanceIds.map(String))
       : null;
     const aggregated: Record<string, any> = {};
-    
+
     // We'll track added instance IDs to avoid duplicates between type-id and type keys
     const addedInstanceIds = new Set<string>();
 
     Object.entries(examFormDataByInstance).forEach(([instanceKey, bucket]) => {
       if (allowed && !allowed.has(instanceKey)) return;
-      
+
       // Sort keys to process hyphenated keys (type-id) first
       const keys = Object.keys(bucket || {}).sort((a, b) => {
         const aHasHyphen = a.includes('-');
@@ -1757,9 +1762,9 @@ export default function ExamDetailPage({
       keys.forEach((key) => {
         const val = bucket[key];
         if (!val || typeof val !== "object" || (val as any)?.__deleted) return;
-        
+
         const instanceId = (val as any)?.card_instance_id;
-        
+
         // If we have an instance ID and we already added this instance via another key, skip
         if (instanceId && addedInstanceIds.has(instanceId)) return;
 
@@ -1834,34 +1839,34 @@ export default function ExamDetailPage({
     const bucket: Record<string, any> = {};
     const sources: Record<string, number | string | null> = {};
 
-      Object.entries(aggregated).forEach(([key, val]) => {
-        if (!isNonEmptyComponent(key, val)) return;
-        const sourceInstanceId = (val as any)?.layout_instance_id ?? null;
-        sources[key] = sourceInstanceId;
-        const clone = { ...(val as any) };
-        clone.source_layout_instance_id = sourceInstanceId;
-        clone.layout_instance_id = instanceId;
-        
-        // Ensure card_instance_id is set so getExamData can find it using type-id key
-        if (!clone.card_instance_id) {
-          if (key.startsWith("notes-")) {
-            clone.card_instance_id = key.replace("notes-", "");
-          } else {
-             for (const type of examComponentRegistry.getAllTypes()) {
-              if (key.startsWith(`${type}-`)) {
-                clone.card_instance_id = key.replace(`${type}-`, "");
-                break;
-              }
+    Object.entries(aggregated).forEach(([key, val]) => {
+      if (!isNonEmptyComponent(key, val)) return;
+      const sourceInstanceId = (val as any)?.layout_instance_id ?? null;
+      sources[key] = sourceInstanceId;
+      const clone = { ...(val as any) };
+      clone.source_layout_instance_id = sourceInstanceId;
+      clone.layout_instance_id = instanceId;
+
+      // Ensure card_instance_id is set so getExamData can find it using type-id key
+      if (!clone.card_instance_id) {
+        if (key.startsWith("notes-")) {
+          clone.card_instance_id = key.replace("notes-", "");
+        } else {
+          for (const type of examComponentRegistry.getAllTypes()) {
+            if (key.startsWith(`${type}-`)) {
+              clone.card_instance_id = key.replace(`${type}-`, "");
+              break;
             }
           }
         }
-        
-        // Final fallback: if it's just 'type' key, leave it as is, 
-        // but it will be indexed in bucket under 'type'
-        
-        delete (clone as any).__deleted;
-        bucket[key] = clone;
-      });
+      }
+
+      // Final fallback: if it's just 'type' key, leave it as is, 
+      // but it will be indexed in bucket under 'type'
+
+      delete (clone as any).__deleted;
+      bucket[key] = clone;
+    });
 
     if (Object.keys(sources).length > 0) {
       fullDataSourcesRef.current[instanceId] = sources;
@@ -1924,7 +1929,7 @@ export default function ExamDetailPage({
           setCardRows(parsed.rows || []);
           setCustomWidths(parsed.customWidths || {});
         }
-      } catch {}
+      } catch { }
       toast.success("פריסת הנתונים הוספה לבדיקה");
     } else {
       const updatedTabs = layoutTabs.map((t) => ({ ...t, isActive: false }));
@@ -1947,7 +1952,7 @@ export default function ExamDetailPage({
           setCardRows(parsed.rows || []);
           setCustomWidths(parsed.customWidths || {});
         }
-      } catch {}
+      } catch { }
       const seedBucket = buildFullDataBucket(tempId);
       setExamFormData(seedBucket);
       setExamFormDataByInstance((prev) => ({ ...prev, [tempId]: seedBucket }));
@@ -2022,7 +2027,7 @@ export default function ExamDetailPage({
           setCardRows(parsed.rows || []);
           setCustomWidths(parsed.customWidths || {});
         }
-      } catch {}
+      } catch { }
       toast.success("פריסת הנתונים רועננה");
     } finally {
       setIsRegeneratingFullData(false);
@@ -2123,11 +2128,11 @@ export default function ExamDetailPage({
     handleInputChange,
     handleSelectChange,
     setFormData,
-    (value: string) => {},
+    (value: string) => { },
     toolboxActions,
     cardRows.map((row) => row.cards),
     {
-      handleMultifocalOldRefraction: () => {},
+      handleMultifocalOldRefraction: () => { },
       handleVHConfirmOldRefraction: (
         rightPris: number,
         rightBase: number,
@@ -2156,7 +2161,7 @@ export default function ExamDetailPage({
           subjectiveHandler("l_base", leftBase.toString());
         }
       },
-      handleMultifocalSubjective: () => {},
+      handleMultifocalSubjective: () => { },
       handleFinalSubjectiveVHConfirm: (
         rightPrisH: number,
         rightBaseH: string,
@@ -2179,7 +2184,7 @@ export default function ExamDetailPage({
           finalSubjectiveHandler("l_base_v", leftBaseV);
         }
       },
-      handleMultifocalOldRefractionExtension: () => {},
+      handleMultifocalOldRefractionExtension: () => { },
       // Add tab management for cover-test
       coverTestTabs: computedCoverTestTabs as any,
       activeCoverTestTabs: activeCoverTestTabs as any,
@@ -2235,9 +2240,9 @@ export default function ExamDetailPage({
         onRequestLayouts={handleRequestLayouts}
         isLoading={isAddingLayouts}
       />
-                <Button variant="outline" className="h-9 px-4">
-           הזמנה
-          </Button></>)}
+        <Button variant="outline" className="h-9 px-4">
+          הזמנה
+        </Button></>)}
 
       {isNewMode && onCancel && (
         <Button
@@ -2267,7 +2272,7 @@ export default function ExamDetailPage({
   if (loading || !currentClient) {
     return (
       <>
-  
+
         <SiteHeader
           title="לקוחות"
           backLink="/clients"
@@ -2279,7 +2284,7 @@ export default function ExamDetailPage({
             dir="rtl"
             style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
           >
-            
+
             <div className="mb-6">
               <Card className="w-full examcard rounded-xl px-4 py-3 bg-background">
                 <div
@@ -2290,11 +2295,11 @@ export default function ExamDetailPage({
                   <div className="min-w-[100px] max-w-[180px] w-full flex-1 sm:w-[180px]">
                     <Skeleton className="h-9 w-full rounded-lg" />
                   </div>
-              
+
                   <div className="min-w-[80px] max-w-[120px] w-full flex-1 sm:w-[120px]">
                     <Skeleton className="h-9 w-full rounded-lg" />
                   </div>
-                  
+
                   <div className="flex flex-col min-w-[100px] max-w-[180px] w-full flex-1 sm:w-[180px]">
                     <Skeleton className="h-9 w-full rounded-lg" />
                   </div>
@@ -2359,7 +2364,11 @@ export default function ExamDetailPage({
         <div
           className="no-scrollbar mb-10 flex flex-1 flex-col p-4 lg:p-5"
           dir="rtl"
-          style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+          style={{
+            scrollbarWidth: "none",
+            msOverflowStyle: "none",
+            margin: "0 auto",
+          }}
         >
           <div className="mb-4">
             <ExamDetailsCard
@@ -2482,6 +2491,7 @@ export default function ExamDetailPage({
                           style={{
                             width: `${cardWidths[item.id]}%`,
                             minWidth: row.cards.length > 1 ? "200px" : "auto",
+                            transition: "width 0.2s ease-out",
                           }}
                         >
                           <ExamCardRenderer
@@ -2506,7 +2516,7 @@ export default function ExamDetailPage({
                                   activeCoverTestTabs[cardId];
                                 const activeTabId =
                                   computedCoverTestTabs[cardId]?.[
-                                    activeTabIndex
+                                  activeTabIndex
                                   ];
                                 if (activeTabId) {
                                   const key = `cover-test-${cardId}-${activeTabId}`;
@@ -2540,7 +2550,6 @@ export default function ExamDetailPage({
                                 .reverse();
                               for (const card of cardsToTheLeft) {
                                 if (
-                                  card.type !== "exam-details" &&
                                   card.type !== "notes"
                                 ) {
                                   const type = card.type as ExamComponentType;
@@ -2558,7 +2567,7 @@ export default function ExamDetailPage({
                                         activeCoverTestTabs[cardId];
                                       const activeTabId =
                                         computedCoverTestTabs[cardId]?.[
-                                          activeTabIndex
+                                        activeTabIndex
                                         ];
                                       sourceKey = `cover-test-${cardId}-${activeTabId}`;
                                     }
@@ -2568,7 +2577,7 @@ export default function ExamDetailPage({
                                         activeCoverTestTabs[cardId];
                                       const activeTabId =
                                         computedCoverTestTabs[cardId]?.[
-                                          activeTabIndex
+                                        activeTabIndex
                                         ];
                                       targetKey = `cover-test-${cardId}-${activeTabId}`;
                                     }
@@ -2589,7 +2598,6 @@ export default function ExamDetailPage({
                               );
                               for (const card of cardsToTheRight) {
                                 if (
-                                  card.type !== "exam-details" &&
                                   card.type !== "notes"
                                 ) {
                                   const type = card.type as ExamComponentType;
@@ -2607,7 +2615,7 @@ export default function ExamDetailPage({
                                         activeCoverTestTabs[cardId];
                                       const activeTabId =
                                         computedCoverTestTabs[cardId]?.[
-                                          activeTabIndex
+                                        activeTabIndex
                                         ];
                                       sourceKey = `cover-test-${cardId}-${activeTabId}`;
                                     }
@@ -2617,7 +2625,7 @@ export default function ExamDetailPage({
                                         activeCoverTestTabs[cardId];
                                       const activeTabId =
                                         computedCoverTestTabs[cardId]?.[
-                                          activeTabIndex
+                                        activeTabIndex
                                         ];
                                       targetKey = `cover-test-${cardId}-${activeTabId}`;
                                     }
@@ -2637,7 +2645,6 @@ export default function ExamDetailPage({
                               const belowRow = cardRows[rowIndex + 1].cards;
                               for (const card of belowRow) {
                                 if (
-                                  card.type !== "exam-details" &&
                                   card.type !== "notes"
                                 ) {
                                   const type = card.type as ExamComponentType;
@@ -2655,7 +2662,7 @@ export default function ExamDetailPage({
                                         activeCoverTestTabs[cardId];
                                       const activeTabId =
                                         computedCoverTestTabs[cardId]?.[
-                                          activeTabIndex
+                                        activeTabIndex
                                         ];
                                       sourceKey = `cover-test-${cardId}-${activeTabId}`;
                                     }
@@ -2665,7 +2672,7 @@ export default function ExamDetailPage({
                                         activeCoverTestTabs[cardId];
                                       const activeTabId =
                                         computedCoverTestTabs[cardId]?.[
-                                          activeTabIndex
+                                        activeTabIndex
                                         ];
                                       targetKey = `cover-test-${cardId}-${activeTabId}`;
                                     }

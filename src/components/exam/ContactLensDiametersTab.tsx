@@ -2,6 +2,7 @@ import React from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { ContactLensDiameters } from "@/lib/db/schema-interface"
+import { EXAM_FIELDS } from "./data/exam-field-definitions"
 
 interface ContactLensDiametersTabProps {
   contactLensDiametersData: ContactLensDiameters;
@@ -16,19 +17,17 @@ export function ContactLensDiametersTab({
 }: ContactLensDiametersTabProps) {
   
   const fields = [
-    { key: "pupil_diameter", label: "קוטר אישון", step: "0.1" },
-    { key: "corneal_diameter", label: "קוטר קרנית", step: "0.1" },
-    { key: "eyelid_aperture", label: "פתח עפעף", step: "0.1" }
+    { key: "pupil_diameter" as const, ...EXAM_FIELDS.PUPIL_DIAMETER },
+    { key: "corneal_diameter" as const, ...EXAM_FIELDS.CORNEAL_DIAMETER },
+    { key: "eyelid_aperture" as const, ...EXAM_FIELDS.EYELID_APERTURE }
   ];
 
-  const getFieldValue = (field: string) => {
-    const fieldKey = field as keyof ContactLensDiameters;
-    return contactLensDiametersData[fieldKey]?.toString() || "";
+  const getFieldValue = (field: keyof ContactLensDiameters) => {
+    return contactLensDiametersData[field]?.toString() || "";
   };
 
-  const handleChange = (field: string, value: string) => {
-    const fieldKey = field as keyof ContactLensDiameters;
-    onContactLensDiametersChange(fieldKey, value);
+  const handleChange = (field: keyof ContactLensDiameters, value: string) => {
+    onContactLensDiametersChange(field, value);
   };
 
   return (
@@ -40,59 +39,34 @@ export function ContactLensDiametersTab({
           </div>
           
           <div className="grid grid-cols-[2fr_auto] gap-2 gap-x-4 items-center">
-            {/* Header row - matches ContactLensExam spacing */}
+            {/* Header row */}
             <div className="h-4 flex items-center justify-center">
               <span className="text-xs font-medium text-muted-foreground">
-                Value
+                Value (mm)
               </span>
             </div>
             <div className="h-4 flex items-center justify-center">
             </div>
             
-            {/* First row - matches ContactLensExam R eye row */}
-            <Input
-              type="number"
-              step={fields[0].step}
-              value={getFieldValue(fields[0].key)}
-              onChange={(e) => handleChange(fields[0].key, e.target.value)}
-              disabled={!isEditing}
-              className={`h-8 pr-1 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
-            />
-            <div className="flex items-center justify-end">
-              <span className="text-xs font-medium text-muted-foreground">
-                {fields[0].label}
-              </span>
-            </div>
-            
-            {/* Second row - matches ContactLensExam middle row */}
-            <Input
-              type="number"
-              step={fields[1].step}
-              value={getFieldValue(fields[1].key)}
-              onChange={(e) => handleChange(fields[1].key, e.target.value)}
-              disabled={!isEditing}
-              className={`h-8 pr-1 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
-            />
-            <div className="flex items-center justify-end">
-              <span className="text-xs font-medium text-muted-foreground">
-                {fields[1].label}
-              </span>
-            </div>
-            
-            {/* Third row - matches ContactLensExam L eye row */}
-            <Input
-              type="number"
-              step={fields[2].step}
-              value={getFieldValue(fields[2].key)}
-              onChange={(e) => handleChange(fields[2].key, e.target.value)}
-              disabled={!isEditing}
-              className={`h-8 pr-1 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
-            />
-            <div className="flex items-center justify-end">
-              <span className="text-xs font-medium text-muted-foreground">
-                {fields[2].label}
-              </span>
-            </div>
+            {fields.map(field => (
+              <React.Fragment key={field.key}>
+                <Input
+                  type="number"
+                  step={field.step}
+                  min={field.min}
+                  max={field.max}
+                  value={getFieldValue(field.key)}
+                  onChange={(e) => handleChange(field.key, e.target.value)}
+                  disabled={!isEditing}
+                  className={`h-8 pr-1 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
+                />
+                <div className="flex items-center justify-end">
+                  <span className="text-xs font-medium text-muted-foreground">
+                    {field.label}
+                  </span>
+                </div>
+              </React.Fragment>
+            ))}
           </div>
         </div>
       </CardContent>

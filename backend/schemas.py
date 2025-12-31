@@ -86,6 +86,7 @@ class UserBase(BaseModel):
     google_access_token: Optional[str] = None
     google_refresh_token: Optional[str] = None
     google_calendar_sync_enabled: bool = False
+    va_format: Optional[str] = "meter"
     system_vacation_dates: Optional[List[str]] = None
     added_vacation_dates: Optional[List[str]] = None
 
@@ -99,6 +100,8 @@ class UserUpdate(UserBase):
     password: Optional[str] = None
     clinic_id: Optional[int] = None
     company_id: Optional[int] = None
+    va_format: Optional[str] = None
+
 
 class User(UserBase):
     id: int
@@ -181,6 +184,7 @@ class ClientBase(BaseModel):
     occupation: Optional[str] = None
     status: Optional[str] = None
     notes: Optional[str] = None
+    hidden_note: Optional[str] = None
     profile_picture: Optional[str] = None
     family_id: Optional[int] = None
     family_role: Optional[str] = None
@@ -685,6 +689,7 @@ class ExamLayoutBase(BaseModel):
     sort_index: Optional[int] = None
     parent_layout_id: Optional[int] = None
     is_group: bool = False
+    type: Optional[str] = None
 
 class ExamLayoutCreate(ExamLayoutBase):
     pass

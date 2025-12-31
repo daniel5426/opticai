@@ -1,6 +1,13 @@
 import React from "react";
-import { Card } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { LookupSelect } from "@/components/ui/lookup-select";
 import { UserSelect } from "@/components/ui/user-select";
 import { DateInput } from "@/components/ui/date";
@@ -55,77 +62,113 @@ export default function ContactOrderTab({
       style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
     >
       <div className="grid grid-cols-1 gap-4">
-        <Card className="w-full border-none p-4 shadow-md">
-          <div className="grid w-full grid-cols-3 gap-x-3 gap-y-2" dir="rtl">
-            <div className="col-span-1">
-              <label className="text-base font-semibold">תאריך הזמנה</label>
-              <div className="h-1"></div>
-              <DateInput
-                name="order_date"
-                className={`h-9 px-14 ${isEditing ? "bg-white" : "bg-accent/50"}`}
-                value={contactFormData.order_date}
-                onChange={(e) =>
-                  setContactFormData((prev: any) => ({ ...prev, order_date: e.target.value }))
-                }
-                disabled={!isEditing}
-              />
-            </div>
-            <div className="col-span-1">
-              <label className="text-base font-semibold">סוג הזמנה</label>
-              <div className="h-1"></div>
-              {isEditing ? (
-                <LookupSelect
-                  value={contactFormData.type || ""}
-                  onChange={(value) =>
-                    setContactFormData((prev: any) => ({ ...prev, type: value }))
-                  }
-                  lookupType="orderType"
-                  placeholder="בחר או הקלד סוג הזמנה..."
-                  className="h-9 bg-white"
-                />
-              ) : (
-                <div className="bg-accent/50 flex h-9 items-center rounded-md border px-3 text-sm">
-                  {contactFormData.type || "לא נבחר"}
+        {/* Two-column layout for the top section */}
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-4" dir="rtl">
+          <div className="lg:col-span-1">
+            <Card className="w-full h-full p-4 gap-2 shadow-md">
+              <CardHeader>
+                <CardTitle className="text-base text-semibold text-center">פרטי הזמנה</CardTitle>
+              </CardHeader>
+              <div className="flex flex-col gap-4 pt-0" dir="rtl">
+                <div>
+                  <label className="text-md text-semibold text-muted-foreground">תאריך הזמנה</label>
+                  <div className="h-1"></div>
+                  <DateInput
+                    name="order_date"
+                    className={`h-9 w-full ${isEditing ? "bg-white" : "bg-accent/50"}`}
+                    value={contactFormData.order_date}
+                    onChange={(e) =>
+                      setContactFormData((prev: any) => ({ ...prev, order_date: e.target.value }))
+                    }
+                    disabled={!isEditing}
+                  />
                 </div>
-              )}
-            </div>
-            <div className="col-span-1">
-              <label className="text-base font-semibold">בודק</label>
-              <div className="h-1"></div>
-              {isEditing ? (
-                <UserSelect
-                  value={contactFormData.user_id}
-                  onValueChange={(userId) =>
-                    setContactFormData((prev: any) => ({ ...prev, user_id: userId }))
-                  }
-                />
-              ) : (
-                <div className="bg-accent/50 flex h-9 items-center rounded-md border px-3 text-sm">
-                  {contactFormData.user_id
-                    ? users.find((u) => u.id === contactFormData.user_id)?.full_name ||
-                      users.find((u) => u.id === contactFormData.user_id)?.username ||
-                      "משתמש לא נמצא"
-                    : "לא נבחר בודק"}
+                <div>
+                  <label className="text-md text-semibold  text-muted-foreground">סוג הזמנה</label>
+                  <div className="h-1"></div>
+                  {isEditing ? (
+                    <LookupSelect
+                      value={contactFormData.type || ""}
+                      onChange={(value) =>
+                        setContactFormData((prev: any) => ({ ...prev, type: value }))
+                      }
+                      lookupType="orderType"
+                      placeholder="בחר או הקלד סוג הזמנה..."
+                      className="h-9 bg-white"
+                    />
+                  ) : (
+                    <div className="bg-accent/50 flex h-9 items-center rounded-md border px-3 text-sm">
+                      {contactFormData.type || "לא נבחר"}
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
-          </div>
-        </Card>
+                <div>
+                  <label className="text-md text-semibold text-muted-foreground">בודק</label>
+                  <div className="h-1"></div>
+                  {isEditing ? (
+                    <UserSelect
+                      value={contactFormData.user_id}
+                      onValueChange={(userId) =>
+                        setContactFormData((prev: any) => ({ ...prev, user_id: userId }))
+                      }
+                    />
+                  ) : (
+                    <div className="bg-accent/50 flex h-9 items-center rounded-md border px-3 text-sm">
+                      {contactFormData.user_id
+                        ? users.find((u) => u.id === contactFormData.user_id)?.full_name ||
+                        users.find((u) => u.id === contactFormData.user_id)?.username ||
+                        "משתמש לא נמצא"
+                        : "לא נבחר בודק"}
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <label className="text-md text-semibold text-muted-foreground">עין דומיננטית</label>
+                  <div className="h-1"></div>
+                  <Select
+                    dir="rtl"
+                    disabled={!isEditing}
+                    value={contactFormData.dominant_eye || ""}
+                    onValueChange={(value) =>
+                      setContactFormData((prev: any) => ({ ...prev, dominant_eye: value }))
+                    }
+                  >
+                    <SelectTrigger className={`h-9 w-full text-sm ${isEditing ? "bg-white" : "bg-accent/50"} disabled:cursor-default disabled:opacity-100`}>
+                      <SelectValue placeholder="בחר עין" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="R" className="text-sm">
+                        ימין
+                      </SelectItem>
+                      <SelectItem value="L" className="text-sm">
+                        שמאל
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
 
-        <ContactLensDetailsTab
-          contactLensDetailsData={contactLensDetailsData}
-          onContactLensDetailsChange={(field, value) =>
-            setContactLensDetailsData((prev: any) => ({ ...prev, [field]: value }))
-          }
-          isEditing={isEditing}
-        />
-        <ContactLensExamTab
-          contactLensExamData={contactLensExamData}
-          onContactLensExamChange={(field, value) =>
-            setContactLensExamData((prev: any) => ({ ...prev, [field]: value }))
-          }
-          isEditing={isEditing}
-        />
+            </Card>
+          </div>
+
+          <div className="lg:col-span-3 flex flex-col gap-4">
+            <ContactLensDetailsTab
+              contactLensDetailsData={contactLensDetailsData}
+              onContactLensDetailsChange={(field, value) =>
+                setContactLensDetailsData((prev: any) => ({ ...prev, [field]: value }))
+              }
+              isEditing={isEditing}
+            />
+            <ContactLensExamTab
+              contactLensExamData={contactLensExamData}
+              onContactLensExamChange={(field, value) =>
+                setContactLensExamData((prev: any) => ({ ...prev, [field]: value }))
+              }
+              isEditing={isEditing}
+            />
+          </div>
+
+        </div>
 
         <Tabs defaultValue="exam" className="w-full" dir="rtl" orientation="vertical">
           <div className="flex gap-6">

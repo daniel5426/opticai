@@ -17,6 +17,7 @@ export interface GoogleUserInfo {
 
 export class GoogleOAuthService {
   private oauth2Client: any
+  private static pendingAuth: { resolve: Function; reject: Function } | null = null
 
   constructor() {
     // Debug: Print the credentials being used
@@ -107,9 +108,64 @@ export class GoogleOAuthService {
 
       // Handle window closed
       authWindow.on('closed', () => {
+        if (GoogleOAuthService.pendingAuth === pending) {
+          GoogleOAuthService.pendingAuth = null
+        }
         reject(new Error('Authentication window was closed'))
       })
+
+      // Store pending auth to resolve it from outside if needed
+      const pending = {
+        resolve: async (code: string) => {
+          try {
+            const { tokens } = await this.oauth2Client.getToken(code)
+            this.oauth2Client.setCredentials(tokens)
+
+            const { google } = require('googleapis')
+            const oauth2 = google.oauth2({ version: 'v2', auth: this.oauth2Client })
+            const userInfoResponse = await oauth2.userinfo.get()
+            
+            const userInfo: GoogleUserInfo = {
+              email: userInfoResponse.data.email!,
+              name: userInfoResponse.data.name || undefined,
+              picture: userInfoResponse.data.picture || undefined
+            }
+
+            if (!authWindow.isDestroyed()) {
+              authWindow.close()
+            }
+            resolve({ tokens, userInfo })
+          } catch (error) {
+            if (!authWindow.isDestroyed()) {
+              authWindow.close()
+            }
+            reject(error)
+          } finally {
+            GoogleOAuthService.pendingAuth = null
+          }
+        },
+        reject: (error: Error) => {
+          if (!authWindow.isDestroyed()) {
+            authWindow.close()
+          }
+          reject(error)
+          GoogleOAuthService.pendingAuth = null
+        }
+      }
+
+      GoogleOAuthService.pendingAuth = pending
     })
+  }
+
+  /**
+   * Resolve a pending authentication with a code received from the renderer
+   */
+  static async resolvePendingAuth(code: string): Promise<boolean> {
+    if (this.pendingAuth) {
+      this.pendingAuth.resolve(code)
+      return true
+    }
+    return false
   }
 
   /**

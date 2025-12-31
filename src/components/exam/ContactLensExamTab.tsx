@@ -2,6 +2,7 @@ import React, { useState } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { ContactLensExam } from "@/lib/db/schema-interface"
+import { VASelect } from "./shared/VASelect"
 import { ChevronUp, ChevronDown } from "lucide-react"
 
 interface ContactLensExamTabProps {
@@ -92,17 +93,11 @@ export function ContactLensExamTab({
             {columns.map(({ key, step, min, max }) => (
               <div key={`r-${key}`}>
                 {key === "va" ? (
-                  <div className="relative">
-                    <Input
-                      type="number"
-                      step={step}
-                      value={getFieldValue("R", key)}
-                      onChange={(e) => handleChange("R", key, e.target.value)}
-                      disabled={!isEditing}
-                      className={`h-8 pr-1 text-xs pl-6 ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
-                    />
-                    <span className="absolute left-2 top-[53%] transform -translate-y-1/2 text-[14px] text-gray-500 pointer-events-none">6/</span>
-                  </div>
+                  <VASelect 
+                    value={getFieldValue("R", key)} 
+                    onChange={(val) => handleChange("R", key, val)} 
+                    disabled={!isEditing} 
+                  />
                 ) : (
                   <Input
                     type="number"
@@ -112,6 +107,7 @@ export function ContactLensExamTab({
                     value={getFieldValue("R", key)}
                     onChange={(e) => handleChange("R", key, e.target.value)}
                     disabled={!isEditing}
+                    showPlus={key === "sph" || key === "cyl"}
                     className={`h-8 pr-1 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
                   />
                 )}
@@ -123,16 +119,12 @@ export function ContactLensExamTab({
             {columns.map(({ key, step }) => {
               if (key === "va") {
                 return (
-                  <div key={`c-${key}`} className="relative">
-                    <Input
-                      type="number"
-                      step={step}
-                      value={getFieldValue("C", key)}
-                      onChange={(e) => handleChange("C", key, e.target.value)}
-                      disabled={!isEditing}
-                      className={`h-8 pr-1 text-xs pl-6 ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
+                  <div key={`c-${key}`}>
+                    <VASelect 
+                      value={getFieldValue("C", key)} 
+                      onChange={(val) => handleChange("C", key, val)} 
+                      disabled={!isEditing} 
                     />
-                    <span className="absolute left-2 top-[53%] transform -translate-y-1/2 text-[14px] text-gray-500 pointer-events-none">6/</span>
                   </div>
                 );
               } else {
@@ -154,17 +146,11 @@ export function ContactLensExamTab({
             {columns.map(({ key, step, min, max }) => (
               <div key={`l-${key}`}>
                 {key === "va" ? (
-                  <div className="relative">
-                    <Input
-                      type="number"
-                      step={step}
-                      value={getFieldValue("L", key)}
-                      onChange={(e) => handleChange("L", key, e.target.value)}
-                      disabled={!isEditing}
-                      className={`h-8 pr-1 text-xs pl-6 ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
-                    />
-                    <span className="absolute left-2 top-[53%] transform -translate-y-1/2 text-[14px] text-gray-500 pointer-events-none">6/</span>
-                  </div>
+                  <VASelect 
+                    value={getFieldValue("L", key)} 
+                    onChange={(val) => handleChange("L", key, val)} 
+                    disabled={!isEditing} 
+                  />
                 ) : (
                   <Input
                     type="number"
@@ -174,6 +160,7 @@ export function ContactLensExamTab({
                     value={getFieldValue("L", key)}
                     onChange={(e) => handleChange("L", key, e.target.value)}
                     disabled={!isEditing}
+                    showPlus={key === "sph" || key === "cyl"}
                     className={`h-8 pr-1 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
                   />
                 )}

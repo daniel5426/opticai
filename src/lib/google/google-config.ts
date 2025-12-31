@@ -14,8 +14,8 @@ export const GOOGLE_CONFIG: GoogleConfig = {
   get clientSecret() {
     return process.env.GOOGLE_DESKTOP_CLIENT_SECRET || 'your-desktop-client-secret';
   },
-  // Use loopback URI for desktop OAuth (works in both dev and prod)
-  redirectUri: 'http://127.0.0.1:3000/oauth/callback',
+  // Use Vite development port or production URL
+  redirectUri: 'http://localhost:5173/oauth/callback',
   scopes: [
     'https://www.googleapis.com/auth/calendar',
     'https://www.googleapis.com/auth/calendar.events',

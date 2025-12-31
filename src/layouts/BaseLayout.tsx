@@ -137,6 +137,7 @@ function BaseLayoutContent({ children }: { children: React.ReactNode }) {
     "/control-center",
     "/user-selection",
     "/auth/callback",
+    "/oauth/callback",
   ];
   const shouldShowSidebar =
     !noSidebarRoutes.some((route) => location.pathname.startsWith(route)) &&
@@ -158,10 +159,18 @@ function BaseLayoutContent({ children }: { children: React.ReactNode }) {
   );
 
   // Don't show loading screen on callback route (OAuth popup)
-  const isCallbackRoute = location.pathname === "/auth/callback";
+  // Use window.location directly for this check to be ultra-reliable during boot
+  const currentPath = typeof window !== 'undefined' ? window.location.pathname : location.pathname;
+  const isCallbackRoute = 
+    currentPath === "/auth/callback" || 
+    currentPath === "/oauth/callback";
 
   useEffect(() => {
-    if (!routerLocation?.pathname || routerLocation.pathname === "/auth/callback") {
+    if (
+      !routerLocation?.pathname || 
+      routerLocation.pathname === "/auth/callback" ||
+      routerLocation.pathname === "/oauth/callback"
+    ) {
       return;
     }
 

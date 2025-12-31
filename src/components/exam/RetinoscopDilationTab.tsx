@@ -65,14 +65,14 @@ export function RetinoscopDilationTab({
                 <TabsTrigger 
                   value="retinoscopy" 
                   disabled={!isEditing}
-                  className="h-6 text-[10px] px-3 data-[state=active]:bg-background"
+                  className="h-6 text-[11px] px-4 whitespace-nowrap data-[state=active]:bg-background"
                 >
                   Retinoscopy + Dil
                 </TabsTrigger>
                 <TabsTrigger 
                   value="auto_refractor" 
                   disabled={!isEditing}
-                  className="h-6 text-[10px] px-3 data-[state=active]:bg-background"
+                  className="h-6 text-[11px] px-4 whitespace-nowrap data-[state=active]:bg-background"
                 >
                   Auto Refractor
                 </TabsTrigger>
@@ -109,6 +109,7 @@ export function RetinoscopDilationTab({
                 value={getFieldValue("R", key)}
                 onChange={(e) => handleChange("R", key, e.target.value)}
                 disabled={!isEditing}
+                showPlus={key === "sph" || key === "cyl"}
                 className={`h-8 pr-1 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default ${key === 'reflex' ? 'col-span-1' : ''}`}
               />
             ))}
@@ -141,6 +142,7 @@ export function RetinoscopDilationTab({
                 value={getFieldValue("L", key)}
                 onChange={(e) => handleChange("L", key, e.target.value)}
                 disabled={!isEditing}
+                showPlus={key === "sph" || key === "cyl"}
                 className={`h-8 pr-1 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default ${key === 'reflex' ? 'col-span-1' : ''}`}
               />
             ))}

@@ -6,25 +6,26 @@ import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { toast } from "sonner"
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerTrigger } from "@/components/ui/drawer"
-import { 
-  DndContext, 
-  closestCenter, 
-  KeyboardSensor, 
-  PointerSensor, 
-  useSensor, 
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
   useSensors,
   DragOverlay,
   DragStartEvent,
   DragEndEvent,
   UniqueIdentifier
 } from "@dnd-kit/core"
-import { 
-  arrayMove, 
-  SortableContext, 
-  sortableKeyboardCoordinates, 
-  verticalListSortingStrategy 
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy
 } from "@dnd-kit/sortable"
-import { 
+import {
   useSortable
 } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
@@ -102,7 +103,7 @@ function AddComponentDrawer({ isEditing, onAddComponent }: AddComponentDrawerPro
       description: config?.name || type
     };
   });
-  
+
   // Add notes and anamnesis component which isn't in the registry
   const eyeComponents = [
     ...registeredComponents
@@ -155,8 +156,8 @@ function AddRowButton({ onAddRow, isEditing }: AddRowButtonProps) {
 
   return (
     <div className="flex justify-center py-4">
-      <Button 
-        variant="outline" 
+      <Button
+        variant="outline"
         className="w-full max-w-md border-2 border-dashed border-muted-foreground/25 hover:border-muted-foreground/50 bg-muted/10 hover:bg-muted/20"
         onClick={onAddRow}
       >
@@ -175,12 +176,13 @@ interface CardResizerProps {
   rightCardType: CardItem['type']
   isEditing: boolean
   cardCount: number
-  onResize: (rowId: string, leftCardId: string, rightCardId: string, leftWidth: number) => void
+  onResize: (rowId: string, leftCardId: string, rightCardId: string, leftWidth: number, pxPerCol: number) => void
   leftCardWidth: number
   rightCardWidth: number
+  pxPerCol: number
 }
 
-function CardResizer({ rowId, leftCardId, rightCardId, leftCardType, rightCardType, isEditing, cardCount, onResize, leftCardWidth, rightCardWidth }: CardResizerProps) {
+function CardResizer({ rowId, leftCardId, rightCardId, leftCardType, rightCardType, isEditing, cardCount, onResize, leftCardWidth, rightCardWidth, pxPerCol }: CardResizerProps) {
   const [isDragging, setIsDragging] = useState(false)
   const [isHovering, setIsHovering] = useState(false)
 
@@ -190,22 +192,26 @@ function CardResizer({ rowId, leftCardId, rightCardId, leftCardType, rightCardTy
     if (!isEditing) return
     e.preventDefault()
     e.stopPropagation()
-    
+
     const resizerElement = e.currentTarget as HTMLElement
     const leftCardElement = resizerElement.previousElementSibling as HTMLElement
     const rightCardElement = resizerElement.nextElementSibling as HTMLElement
     const cardsContainer = resizerElement.parentElement
     if (!cardsContainer || !leftCardElement || !rightCardElement) return
-        
+
     setIsDragging(true)
-    
+
     const startX = e.clientX
     const containerWidth = cardsContainer.getBoundingClientRect().width
     const startLeftWidth = leftCardElement.getBoundingClientRect().width
 
-    // Get max width constraints
-    const leftMaxWidth = getMaxWidth(leftCardType)
-    const rightMaxWidth = getMaxWidth(rightCardType)
+    // Get max width constraints (in pixels)
+    const leftMaxWidthPx = getMaxWidth(leftCardType, 'editor')
+    const rightMaxWidthPx = getMaxWidth(rightCardType, 'editor')
+
+    // Convert pixel constraints to percentages
+    const leftMaxWidthPercent = leftMaxWidthPx ? (leftMaxWidthPx / pxPerCol) * 100 : null
+    const rightMaxWidthPercent = rightMaxWidthPx ? (rightMaxWidthPx / pxPerCol) * 100 : null
 
     // Use logical widths from props
     const originalCombinedPercent = leftCardWidth + rightCardWidth
@@ -218,17 +224,9 @@ function CardResizer({ rowId, leftCardId, rightCardId, leftCardType, rightCardTy
       // Calculate constraints
       let minLeft = MIN_WIDTH
       let maxLeft = originalCombinedPercent - MIN_WIDTH
-      
-      // Apply max width constraints
-      if (leftMaxWidth) {
-        maxLeft = Math.min(maxLeft, leftMaxWidth)
-      }
-      if (rightMaxWidth) {
-        minLeft = Math.max(minLeft, originalCombinedPercent - rightMaxWidth)
-      }
 
       const clampedLeft = Math.max(minLeft, Math.min(newLeftPercent, maxLeft))
-      onResize(rowId, leftCardId, rightCardId, clampedLeft)
+      onResize(rowId, leftCardId, rightCardId, clampedLeft, pxPerCol)
     }
 
     const handleMouseUp = () => {
@@ -241,7 +239,7 @@ function CardResizer({ rowId, leftCardId, rightCardId, leftCardType, rightCardTy
 
     document.body.style.cursor = 'col-resize'
     document.body.style.userSelect = 'none'
-    
+
     document.addEventListener('mousemove', handleMouseMove)
     document.addEventListener('mouseup', handleMouseUp)
   }
@@ -249,7 +247,7 @@ function CardResizer({ rowId, leftCardId, rightCardId, leftCardType, rightCardTy
   if (!isEditing) return null
 
   return (
-    <div dir="ltr"  
+    <div dir="ltr"
       className={`flex mx-[-17px] items-center justify-center w-5 cursor-col-resize z-20 relative self-stretch hover:bg-gray-100/50 rounded-sm transition-colors duration-200`}
       onMouseDown={handleMouseDown}
       onMouseEnter={() => setIsHovering(true)}
@@ -264,11 +262,11 @@ function CardResizer({ rowId, leftCardId, rightCardId, leftCardType, rightCardTy
 export default function ExamLayoutEditorPage() {
   const navigate = useNavigate()
   const { currentClinic } = useUser()
-  
+
   // Handle both route cases safely
   let params: { layoutId?: string } = {}
   let search: { name?: string } = {}
-  
+
   try {
     // Try to get layoutId parameter if we're on the detail route
     const routeParams = useParams({ strict: false })
@@ -278,7 +276,7 @@ export default function ExamLayoutEditorPage() {
   } catch {
     // If we can't get params, we're likely on the /new route
   }
-  
+
   try {
     // Try to get search parameters if we're on the new route
     const routeSearch = useSearch({ strict: false })
@@ -286,7 +284,7 @@ export default function ExamLayoutEditorPage() {
   } catch {
     // If we can't get search, continue with empty search
   }
-  
+
   const isNewMode = !params.layoutId || params.layoutId === "new"
   const [loading, setLoading] = useState(!isNewMode)
   const [layoutName, setLayoutName] = useState(isNewMode ? (search.name || "פריסה חדשה") : "")
@@ -295,11 +293,10 @@ export default function ExamLayoutEditorPage() {
   const [isEditing, setIsEditing] = useState(true)
   const [activeId, setActiveId] = useState<UniqueIdentifier | null>(null)
   const [isDefault, setIsDefault] = useState(false)
+  const [layoutType, setLayoutType] = useState<string>("global")
   const [layoutClinicId, setLayoutClinicId] = useState<number | null>(currentClinic?.id ?? null)
-  
+
   const [cardRows, setCardRows] = useState<CardRow[]>([
-    { id: 'row-1', cards: [{ id: 'exam-details-1', type: 'exam-details' }] },
-    { id: 'row-2', cards: [{ id: 'notes-1', type: 'notes' }] }
   ])
 
   const [customWidths, setCustomWidths] = useState<Record<string, Record<string, number>>>({})
@@ -347,13 +344,14 @@ export default function ExamLayoutEditorPage() {
   useEffect(() => {
     const loadLayout = async () => {
       if (isNewMode || !params.layoutId) return
-      
+
       try {
         setLoading(true)
         const layout = await getExamLayoutById(Number(params.layoutId))
         if (layout) {
           setLayoutName(layout.name)
           setIsDefault(layout.is_default ?? false)
+          setLayoutType(layout.type || "global")
           setLayoutClinicId(layout.clinic_id ?? null)
           if (layout.layout_data) {
             const parsedLayout = JSON.parse(layout.layout_data)
@@ -377,51 +375,40 @@ export default function ExamLayoutEditorPage() {
     loadLayout()
   }, [params.layoutId, isNewMode])
 
-  const handleCardResize = (rowId: string, leftCardId: string, rightCardId: string, leftWidth: number) => {
+  const handleCardResize = (rowId: string, leftCardId: string, rightCardId: string, leftWidth: number, pxPerCol: number) => {
     setCustomWidths(prev => {
       const newWidths = { ...prev }
       if (!newWidths[rowId]) {
         newWidths[rowId] = {}
       }
-      
+
       // Find the row to get current card widths
       const row = cardRows.find(r => r.id === rowId)
       if (!row) return prev
-      
+
       // Calculate current widths for all cards
       const currentWidths = calculateCardWidth(row.cards, rowId, prev)
-      
+
       // Find the left and right cards to get their types
       const leftCard = row.cards.find(card => card.id === leftCardId)
       const rightCard = row.cards.find(card => card.id === rightCardId)
       if (!leftCard || !rightCard) return prev
-      
-      // Get max width constraints
-      const leftMaxWidth = getMaxWidth(leftCard.type)
-      const rightMaxWidth = getMaxWidth(rightCard.type)
-      
-      // Apply max width constraint to left card
-      const constrainedLeftWidth = leftMaxWidth ? Math.min(leftWidth, leftMaxWidth) : leftWidth
-      newWidths[rowId][leftCardId] = constrainedLeftWidth
-      
-      // Calculate the right card width as the remaining space from what these two cards originally had
+
       const leftIndex = row.cards.findIndex(card => card.id === leftCardId)
       const rightIndex = row.cards.findIndex(card => card.id === rightCardId)
-      
+
       if (leftIndex !== -1 && rightIndex !== -1) {
         // Get the original combined width of left and right cards
         const originalCombinedWidth = currentWidths[leftCardId] + currentWidths[rightCardId]
-        
+
+        // Use the new requested left width directly
+        newWidths[rowId][leftCardId] = leftWidth
+
         // Right card gets what's left from their combined original width
-        let rightWidth = originalCombinedWidth - constrainedLeftWidth
-        
-        // Apply max width constraint to right card
-        if (rightMaxWidth) {
-          rightWidth = Math.min(rightWidth, rightMaxWidth)
-        }
-        
+        let rightWidth = originalCombinedWidth - leftWidth
+
         newWidths[rowId][rightCardId] = Math.max(15, rightWidth) // Minimum 15% width
-        
+
         // Preserve widths of other cards by setting them as custom widths
         row.cards.forEach(card => {
           if (card.id !== leftCardId && card.id !== rightCardId) {
@@ -429,7 +416,7 @@ export default function ExamLayoutEditorPage() {
           }
         })
       }
-      
+
       return newWidths
     })
   }
@@ -449,7 +436,7 @@ export default function ExamLayoutEditorPage() {
 
     // Regular rules for other cards
     if (rowCards.some(card => card.type === newType)) return false
-    
+
     return rowCards.length < 3
   }
 
@@ -477,7 +464,7 @@ export default function ExamLayoutEditorPage() {
     setCardRows(prevRows => {
       const oldIndex = prevRows.findIndex(row => row.id === active.id)
       const newIndex = prevRows.findIndex(row => row.id === over.id)
-      
+
       return arrayMove(prevRows, oldIndex, newIndex)
     })
   }
@@ -492,7 +479,7 @@ export default function ExamLayoutEditorPage() {
     const newCardId = `${componentType}-${Date.now()}`
     const newCard = { id: newCardId, type: componentType }
 
-    setCardRows(prevRows => 
+    setCardRows(prevRows =>
       prevRows.map((row, index) => {
         if (index === rowIndex) {
           return { ...row, cards: [...row.cards, newCard] }
@@ -513,10 +500,10 @@ export default function ExamLayoutEditorPage() {
   const handleAddRow = () => {
     const newRowId = `row-${Date.now()}`
     const newRow: CardRow = {
-       id: newRowId,
+      id: newRowId,
       cards: []
     }
-    
+
     setCardRows(prevRows => [...prevRows, newRow])
     toast.success("שורה חדשה נוספה")
   }
@@ -545,7 +532,7 @@ export default function ExamLayoutEditorPage() {
       delete newWidths[targetRow.id]
       return newWidths
     })
-    
+
     toast.success(toastMessage)
   }
 
@@ -564,7 +551,8 @@ export default function ExamLayoutEditorPage() {
           rows: cardRows,
           customWidths: customWidths
         }),
-        is_default: isDefault
+        is_default: isDefault,
+        type: layoutType
       }
 
       let result
@@ -592,7 +580,7 @@ export default function ExamLayoutEditorPage() {
   if (loading) {
     return (
       <>
-        <SiteHeader 
+        <SiteHeader
           title={layoutName}
           parentTitle="פריסות בדיקה"
           parentLink="/exam-layouts"
@@ -605,7 +593,7 @@ export default function ExamLayoutEditorPage() {
 
   return (
     <>
-      <SiteHeader 
+      <SiteHeader
         title={layoutName}
         parentTitle="פריסות בדיקה"
         parentLink="/exam-layouts"
@@ -644,6 +632,19 @@ export default function ExamLayoutEditorPage() {
               )}
             </div>
 
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium">סוג:</span>
+              <Select value={layoutType} onValueChange={setLayoutType}>
+                <SelectTrigger className="w-[140px] h-9">
+                  <SelectValue placeholder="בחר סוג" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="global">כללי</SelectItem>
+                  <SelectItem value="glass" dir="rtl">משקפיים</SelectItem>
+                  <SelectItem value="contact lens" dir="rtl">עדשות מגע</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
           <div className="flex gap-2">
             <Button variant="outline" onClick={() => navigate({ to: "/exam-layouts" })}>
@@ -654,7 +655,7 @@ export default function ExamLayoutEditorPage() {
             </Button>
           </div>
         </div>
-        
+
         <div className="mb-4 p-4 bg-blue-50 rounded-lg border">
           <p className="text-sm text-blue-800">
             <strong>הוראות שימוש:</strong> גרור שורות לשינוי הסדר, השתמש בכפתור + להוספת רכיבים לשורות קיימות, לחץ על אייקון הפח להסרת רכיבים, גרור את אייקון הגרירה בין רכיבים לשינוי רוחב, והוסף שורות חדשות בכפתור למטה.
@@ -667,12 +668,12 @@ export default function ExamLayoutEditorPage() {
           onDragStart={handleDragStart}
           onDragEnd={handleDragEnd}
         >
-          <div className="space-y-4" style={{scrollbarWidth: 'none'}}>
+          <div className="space-y-4" style={{ scrollbarWidth: 'none' }}>
             <SortableContext items={cardRows.map(row => row.id)} strategy={verticalListSortingStrategy}>
               {cardRows.map((row, rowIndex) => {
                 const pxPerCol = rowWidths[row.id] || 1680
                 const cardWidths = calculateCardWidth(row.cards, row.id, customWidths, pxPerCol, 'editor')
-                
+
                 return (
                   <DraggableCard
                     key={row.id}
@@ -684,7 +685,7 @@ export default function ExamLayoutEditorPage() {
                       ref={el => { rowRefs.current[row.id] = el }}
                     >
                       <div className="flex-shrink-0">
-                        <AddComponentDrawer 
+                        <AddComponentDrawer
                           isEditing={isEditing}
                           onAddComponent={(componentType) => handleAddComponent(rowIndex, componentType)}
                         />
@@ -697,8 +698,8 @@ export default function ExamLayoutEditorPage() {
                         ) : (
                           row.cards.map((card, index) => (
                             <React.Fragment key={card.id}>
-                              <div 
-                                style={{ 
+                              <div
+                                style={{
                                   width: `${cardWidths[card.id]}%`,
                                   minWidth: row.cards.length > 1 ? '200px' : 'auto'
                                 }}
@@ -732,7 +733,7 @@ export default function ExamLayoutEditorPage() {
                                   onTitleChange={(title) => handleCardTitleChange(rowIndex, card.id, title)}
                                 />
                               </div>
-                              
+
                               {index < row.cards.length - 1 && (() => {
                                 const leftCard = row.cards[index];
                                 const rightCard = row.cards[index + 1];
@@ -753,6 +754,7 @@ export default function ExamLayoutEditorPage() {
                                       onResize={handleCardResize}
                                       leftCardWidth={leftCardWidth}
                                       rightCardWidth={rightCardWidth}
+                                      pxPerCol={pxPerCol}
                                     />
                                   )
                                 }
@@ -767,10 +769,10 @@ export default function ExamLayoutEditorPage() {
                 )
               })}
             </SortableContext>
-            
+
             <AddRowButton onAddRow={handleAddRow} isEditing={isEditing} />
           </div>
-          
+
           <DragOverlay>
             {activeId ? (
               <div className="w-full">
@@ -782,22 +784,22 @@ export default function ExamLayoutEditorPage() {
                   return (
                     <div className="flex gap-4 w-full">
                       <div className="flex-shrink-0">
-                        <AddComponentDrawer 
+                        <AddComponentDrawer
                           isEditing={isEditing}
                           onAddComponent={() => false}
                         />
                       </div>
                       <div className="flex gap-4 flex-1" dir="ltr">
                         {row.cards.map((card, index) => (
-                          <div 
+                          <div
                             key={card.id}
-                            style={{ 
+                            style={{
                               width: `${cardWidths[card.id]}%`,
                               minWidth: row.cards.length > 1 ? '200px' : 'auto'
                             }}
                             className="relative group/card"
                           >
-                            
+
                             <ExamCardRenderer
                               item={card}
                               rowCards={row.cards}

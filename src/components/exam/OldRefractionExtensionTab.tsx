@@ -7,6 +7,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { OldRefractionExtensionExam } from "@/lib/db/schema-interface"
 import { ChevronUp, ChevronDown } from "lucide-react"
 
+import { VASelect } from "./shared/VASelect"
+
 interface OldRefractionExtensionTabProps {
   oldRefractionExtensionData: OldRefractionExtensionExam;
   onOldRefractionExtensionChange: (field: keyof OldRefractionExtensionExam, value: string) => void;
@@ -98,19 +100,7 @@ export function OldRefractionExtensionTab({
     }
 
     if (key === "va") {
-      return (
-        <div className="relative">
-          <Input
-            type="number"
-            step={step}
-            value={value}
-            onChange={(e) => handleChange(eye, key, e.target.value)}
-            disabled={!isEditing}
-            className={`h-8 pr-1 text-xs pl-6 disabled:opacity-100 disabled:cursor-default`}
-          />
-          <span className="absolute left-2 top-[53%] transform -translate-y-1/2 text-[14px] text-gray-500 pointer-events-none">6/</span>
-        </div>
-      );
+      return <VASelect value={value} onChange={(val) => handleChange(eye, key, val)} disabled={!isEditing} />;
     }
 
     return (
@@ -122,6 +112,7 @@ export function OldRefractionExtensionTab({
         value={value}
         onChange={(e) => handleChange(eye, key, e.target.value)}
         disabled={!isEditing}
+        showPlus={key === "sph" || key === "cyl" || key === "ad"}
         className={`h-8 pr-1 text-xs disabled:opacity-100 disabled:cursor-default`}
       />
     );

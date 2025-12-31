@@ -42,6 +42,7 @@ import { RGTab } from "@/components/exam/RGTab"
 import { OcularMotorAssessmentTab } from "@/components/exam/OcularMotorAssessmentTab"
 import { v4 as uuidv4 } from 'uuid';
 import { ExamDetailsCard } from "@/components/exam/ExamDetailsCard"
+import { NotesCard } from "@/components/ui/notes-card"
 
 // Renaming for consistency within the component props
 type Exam = OpticalExam;
@@ -51,7 +52,7 @@ const componentsDontHaveMiddleRow: CardItem['type'][] = ['objective', 'addition'
 
 export interface CardItem {
   id: string
-  type: 'exam-details' | 'old-ref' | 'old-refraction' | 'old-refraction-extension' | 'objective' | 'subjective' | 'final-subjective' | 'final-prescription' | 'compact-prescription' | 'addition' | 'retinoscop' | 'retinoscop-dilation' | 'uncorrected-va' | 'keratometer' | 'keratometer-full' | 'corneal-topography' | 'cover-test' | 'notes' | 'anamnesis' | 'schirmer-test' | 'contact-lens-diameters' | 'contact-lens-details' | 'keratometer-contact-lens' | 'contact-lens-exam' | 'contact-lens-order' | 'sensation-vision-stability' | 'diopter-adjustment-panel' | 'fusion-range' | 'maddox-rod' | 'stereo-test' | 'rg' | 'ocular-motor-assessment' | 'old-contact-lenses' | 'over-refraction'
+  type: 'old-ref' | 'old-refraction' | 'old-refraction-extension' | 'objective' | 'subjective' | 'final-subjective' | 'final-prescription' | 'compact-prescription' | 'addition' | 'retinoscop' | 'retinoscop-dilation' | 'uncorrected-va' | 'keratometer' | 'keratometer-full' | 'corneal-topography' | 'cover-test' | 'notes' | 'anamnesis' | 'schirmer-test' | 'contact-lens-diameters' | 'contact-lens-details' | 'keratometer-contact-lens' | 'contact-lens-exam' | 'sensation-vision-stability' | 'diopter-adjustment-panel' | 'fusion-range' | 'maddox-rod' | 'stereo-test' | 'rg' | 'ocular-motor-assessment' | 'old-contact-lenses' | 'over-refraction'
   showEyeLabels?: boolean
   title?: string
 }
@@ -95,7 +96,7 @@ const getExamFormData = (examFormData: Record<string, unknown>, componentType: E
   if (data && typeof data === 'object' && data !== null && Object.keys(data).length > 0) {
     return data
   }
-  
+
   // Return properly typed empty objects
   switch (componentType) {
     case 'old-ref': return { layout_instance_id: 0 } as OldRefExam
@@ -121,7 +122,6 @@ const getExamFormData = (examFormData: Record<string, unknown>, componentType: E
     case 'contact-lens-details': return { layout_instance_id: 0 } as ContactLensDetails
     case 'keratometer-contact-lens': return { layout_instance_id: 0 } as KeratometerContactLens
     case 'contact-lens-exam': return { layout_instance_id: 0 } as ContactLensExam
-    case 'contact-lens-order': return { layout_instance_id: 0 } as ContactLensOrder
     case 'sensation-vision-stability': return { layout_instance_id: 0 } as SensationVisionStabilityExam
     case 'diopter-adjustment-panel': return { layout_instance_id: 0 } as DiopterAdjustmentPanel
     case 'fusion-range': return { layout_instance_id: 0 } as FusionRangeExam
@@ -140,7 +140,7 @@ const getFieldHandler = (fieldHandlers: Record<string, unknown>, componentType: 
   if (typeof handler === 'function') {
     return handler as (field: string, value: string | boolean | number | null) => void
   }
-  return (() => {}) as (field: string, value: string | boolean | number | null) => void
+  return (() => { }) as (field: string, value: string | boolean | number | null) => void
 }
 
 // Utility function to create DetailProps from registry data
@@ -212,9 +212,8 @@ export const getColumnCount = (type: CardItem['type'], mode: 'editor' | 'detail'
   switch (type) {
     case 'diopter-adjustment-panel':
       return { fixedPx: mode === 'editor' ? 389 : 369 }
-    case 'exam-details': return 5
     case 'old-ref': return 3
-    case 'old-refraction': return 7
+    case 'old-refraction': return 8
     case 'old-refraction-extension': return 12
     case 'objective': return 4
     case 'subjective': return 8
@@ -236,7 +235,6 @@ export const getColumnCount = (type: CardItem['type'], mode: 'editor' | 'detail'
     case 'contact-lens-details': return 8
     case 'keratometer-contact-lens': return 6
     case 'contact-lens-exam': return 9
-    case 'contact-lens-order': return 6
     case 'old-contact-lenses': return 10
     case 'over-refraction': return 8
     case 'sensation-vision-stability': return 5
@@ -244,30 +242,26 @@ export const getColumnCount = (type: CardItem['type'], mode: 'editor' | 'detail'
     case 'maddox-rod': return 5
     case 'stereo-test': return 2
     case 'rg': return 3
-    case 'ocular-motor-assessment': return 3
+    case 'ocular-motor-assessment': return 5
     default: return 1
   }
 }
 
-// Define maximum width constraints for specific card types (in percentage)
-export const getMaxWidth = (type: CardItem['type']): number | null => {
+// Define maximum width constraints for specific card types (in pixels)
+// Define maximum width constraints for specific card types (in pixels)
+export const getMaxWidth = (type: CardItem['type'], mode: 'editor' | 'detail' = 'detail'): number | null => {
   switch (type) {
-    case 'stereo-test': return 25
-    case 'rg': return 25
-    case 'schirmer-test': return 30
-    case 'uncorrected-va': return 35
-    case 'keratometer': return 35
-    case 'objective': return 40
-    case 'addition': return 45
-    case 'retinoscop': return 40
-    case 'retinoscop-dilation': return 40
-    case 'old-ref': return 35
-    case 'contact-lens-diameters': return 35
-    case 'maddox-rod': return 45
-    case 'fusion-range': return 45
-    case 'cover-test': return 50
-    case 'ocular-motor-assessment': return 35
-    default: return null // No max width constraint
+    case 'rg': return 290
+    case 'maddox-rod': return 756
+    case 'corneal-topography': return 1260
+    case 'keratometer': return 420
+    case 'notes': return 5000
+    case 'sensation-vision-stability': return 1000
+    case 'stereo-test': return 200
+    default: {
+      const col = getColumnCount(type, mode)
+      return typeof col === 'number' ? col * 95 : col.fixedPx
+    }
   }
 }
 
@@ -284,8 +278,16 @@ export const calculateCardWidth = (
   mode: 'editor' | 'detail' = 'detail'
 ): Record<string, number> => {
   if (cards.length === 1) {
-    const maxWidth = getMaxWidth(cards[0].type)
-    return { [cards[0].id]: maxWidth ? Math.min(100, maxWidth) : 100 }
+    const rowCustomWidths = customWidths[rowId]
+    if (rowCustomWidths && rowCustomWidths[cards[0].id] !== undefined) {
+      return { [cards[0].id]: rowCustomWidths[cards[0].id] }
+    }
+    const maxWidthPx = getMaxWidth(cards[0].type, mode)
+    if (maxWidthPx) {
+      const maxWidthPercent = (maxWidthPx / pxPerCol) * 100
+      return { [cards[0].id]: Math.min(100, maxWidthPercent) }
+    }
+    return { [cards[0].id]: 100 }
   }
 
   // Identify fixedPx and flexible cards
@@ -308,8 +310,9 @@ export const calculateCardWidth = (
     const percent = 100 / cards.length
     const widths: Record<string, number> = {}
     cards.forEach(card => {
-      const maxWidth = getMaxWidth(card.type)
-      widths[card.id] = maxWidth ? Math.min(percent, maxWidth) : percent
+      const maxWidthPx = getMaxWidth(card.type, mode)
+      const maxWidthPercent = maxWidthPx ? (maxWidthPx / pxPerCol) * 100 : null
+      widths[card.id] = maxWidthPercent ? Math.min(percent, maxWidthPercent) : percent
     })
     return widths
   }
@@ -321,8 +324,9 @@ export const calculateCardWidth = (
     const col = getColumnCount(card.type, mode)
     if (typeof col === 'object' && 'fixedPx' in col) {
       const percent = (col.fixedPx / pxPerCol) * 100
-      const maxWidth = getMaxWidth(card.type)
-      const finalPercent = maxWidth ? Math.min(percent, maxWidth) : percent
+      const maxWidthPx = getMaxWidth(card.type, mode)
+      const maxWidthPercent = maxWidthPx ? (maxWidthPx / pxPerCol) * 100 : null
+      const finalPercent = maxWidthPercent ? Math.min(percent, maxWidthPercent) : percent
       widths[card.id] = finalPercent
       usedPercent += finalPercent
     }
@@ -331,7 +335,7 @@ export const calculateCardWidth = (
   // For flexible cards, use customWidths if present, but scale to remaining percent
   const rowCustomWidths = customWidths[rowId]
   const flexiblePercents: Record<string, number> = {}
-  
+
   if (rowCustomWidths) {
     // Only use custom widths for flexible cards
     let totalCustom = 0
@@ -342,13 +346,19 @@ export const calculateCardWidth = (
     // First pass: identify constrained vs unconstrained cards
     flexibleCards.forEach(card => {
       const val = rowCustomWidths[card.id] ?? 0
-      const maxWidth = getMaxWidth(card.type)
-      
-      if (maxWidth && val > maxWidth) {
+      const maxWidthPx = getMaxWidth(card.type, mode)
+      const maxWidthPercent = maxWidthPx ? (maxWidthPx / pxPerCol) * 100 : null
+
+      // If we have a custom width, we respect it regardless of the default maxWidth
+      if (rowCustomWidths[card.id] !== undefined) {
+        unconstrainedCards.push(card)
+        flexiblePercents[card.id] = rowCustomWidths[card.id]
+        totalCustom += rowCustomWidths[card.id]
+      } else if (maxWidthPercent && val > maxWidthPercent) {
         // This card is constrained by max width
         constrainedCards.push(card)
-        flexiblePercents[card.id] = maxWidth
-        constrainedPercent += maxWidth
+        flexiblePercents[card.id] = maxWidthPercent
+        constrainedPercent += maxWidthPercent
       } else {
         // This card is not constrained
         unconstrainedCards.push(card)
@@ -364,8 +374,15 @@ export const calculateCardWidth = (
     // Apply scaling to unconstrained cards
     unconstrainedCards.forEach(card => {
       const scaledWidth = flexiblePercents[card.id] * scale
-      const maxWidth = getMaxWidth(card.type)
-      widths[card.id] = maxWidth ? Math.min(scaledWidth, maxWidth) : scaledWidth
+
+      // Only clamp if it wasn't a custom width
+      if (rowCustomWidths[card.id] !== undefined) {
+        widths[card.id] = scaledWidth
+      } else {
+        const maxWidthPx = getMaxWidth(card.type, mode)
+        const maxWidthPercent = maxWidthPx ? (maxWidthPx / pxPerCol) * 100 : null
+        widths[card.id] = maxWidthPercent ? Math.min(scaledWidth, maxWidthPercent) : scaledWidth
+      }
     })
 
     // Apply constrained widths
@@ -391,13 +408,14 @@ export const calculateCardWidth = (
       const col = getColumnCount(card.type, mode)
       const cols = typeof col === 'number' ? col : 1
       const initialPercent = (cols / (totalColsInitial || 1)) * remainingPercent
-      const maxWidth = getMaxWidth(card.type)
-      
-      if (maxWidth && initialPercent > maxWidth) {
+      const maxWidthPx = getMaxWidth(card.type, mode)
+      const maxWidthPercent = maxWidthPx ? (maxWidthPx / pxPerCol) * 100 : null
+
+      if (maxWidthPercent && initialPercent > maxWidthPercent) {
         // This card is constrained by max width
         constrainedCards.push(card)
-        constrainedPercent += maxWidth
-        widths[card.id] = maxWidth
+        constrainedPercent += maxWidthPercent
+        widths[card.id] = maxWidthPercent
       } else {
         // This card is not constrained
         unconstrainedCards.push(card)
@@ -411,20 +429,21 @@ export const calculateCardWidth = (
       const col = getColumnCount(card.type, mode)
       const cols = typeof col === 'number' ? col : 1
       const percent = (cols / (totalCols || 1)) * remainingForUnconstrained
-      const maxWidth = getMaxWidth(card.type)
-      widths[card.id] = maxWidth ? Math.min(percent, maxWidth) : percent
+      const maxWidthPx = getMaxWidth(card.type, mode)
+      const maxWidthPercent = maxWidthPx ? (maxWidthPx / pxPerCol) * 100 : null
+      widths[card.id] = maxWidthPercent ? Math.min(percent, maxWidthPercent) : percent
     })
   }
-  
+
   return widths
 }
 
-export const ExamCardRenderer: React.FC<RenderCardProps> = ({ 
-  item, 
-  rowCards, 
-  mode, 
-  hideEyeLabels = false, 
-  matchHeight = false, 
+export const ExamCardRenderer: React.FC<RenderCardProps> = ({
+  item,
+  rowCards,
+  mode,
+  hideEyeLabels = false,
+  matchHeight = false,
   detailProps,
   currentRowIndex = 0,
   currentCardIndex = 0,
@@ -459,12 +478,12 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
       currentRowIndex={currentRowIndex}
       currentCardIndex={currentCardIndex}
       clipboardSourceType={clipboardSourceType || null}
-      onClearData={onClearData || (() => {})}
-      onCopy={onCopy || (() => {})}
-      onPaste={onPaste || (() => {})}
-      onCopyLeft={onCopyLeft || (() => {})}
-      onCopyRight={onCopyRight || (() => {})}
-      onCopyBelow={onCopyBelow || (() => {})}
+      onClearData={onClearData || (() => { })}
+      onCopy={onCopy || (() => { })}
+      onPaste={onPaste || (() => { })}
+      onCopyLeft={onCopyLeft || (() => { })}
+      onCopyRight={onCopyRight || (() => { })}
+      onCopyBelow={onCopyBelow || (() => { })}
     />
   ) : null
 
@@ -534,7 +553,7 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
           return detailProps.examFormData[key]
         }
       }
-      
+
       const data = getExamFormData(detailProps.examFormData, type)
       if (type === 'diopter-adjustment-panel') {
         console.log(`DiopterAdjustmentPanel: Getting exam data for ${type}:`, data)
@@ -566,7 +585,6 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
       case 'contact-lens-details': return emptyContactLensDetailsData
       case 'keratometer-contact-lens': return emptyKeratometerContactLensData
       case 'contact-lens-exam': return emptyContactLensExamData
-      case 'contact-lens-order': return emptyContactLensOrderData
       case 'sensation-vision-stability': return emptySensationVisionStabilityExam
       case 'diopter-adjustment-panel': return emptyDiopterAdjustmentPanelData
       case 'fusion-range': return emptyFusionRangeData
@@ -587,19 +605,16 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
           return detailProps.fieldHandlers[key]
         }
       }
-      
+
       return getFieldHandler(detailProps.fieldHandlers, type)
     }
-    return () => {}
+    return () => { }
   }
 
   // Move hooks to top level
   const coverTestActiveTabsRef = React.useRef<Record<string, number>>({})
 
   switch (item.type) {
-    case 'exam-details':
-     return <ExamDetailsCard mode={mode} detailProps={detailProps} />
-
     case 'old-ref':
       return (
         <div className={`relative h-full ${matchHeight ? 'flex flex-col' : ''}`}>
@@ -620,8 +635,8 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
             oldRefractionData={getExamData('old-refraction', item.id) as OldRefractionExam}
             onOldRefractionChange={getChangeHandler('old-refraction', item.id)}
             isEditing={mode === 'detail' ? detailProps!.isEditing : false}
-            onMultifocalClick={legacyHandlers.handleMultifocalOldRefraction || (() => {})}
-            onVHConfirm={legacyHandlers.handleVHConfirmOldRefraction || (() => {})}
+            onMultifocalClick={legacyHandlers.handleMultifocalOldRefraction || (() => { })}
+            onVHConfirm={legacyHandlers.handleVHConfirmOldRefraction || (() => { })}
             hideEyeLabels={finalHideEyeLabels}
           />
         </div>
@@ -635,7 +650,7 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
             oldRefractionExtensionData={getExamData('old-refraction-extension', item.id) as OldRefractionExtensionExam}
             onOldRefractionExtensionChange={getChangeHandler('old-refraction-extension', item.id)}
             isEditing={mode === 'detail' ? detailProps!.isEditing : false}
-            onMultifocalClick={legacyHandlers.handleMultifocalOldRefractionExtension || (() => {})}
+            onMultifocalClick={legacyHandlers.handleMultifocalOldRefractionExtension || (() => { })}
             hideEyeLabels={finalHideEyeLabels}
           />
         </div>
@@ -663,8 +678,8 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
             subjectiveData={getExamData('subjective', item.id) as SubjectiveExam}
             onSubjectiveChange={getChangeHandler('subjective', item.id)}
             isEditing={mode === 'detail' ? detailProps!.isEditing : false}
-            onVHConfirm={(legacyHandlers as unknown as DetailProps).handleVHConfirm || (() => {})}
-            onMultifocalClick={legacyHandlers.handleMultifocalSubjective || (() => {})}
+            onVHConfirm={(legacyHandlers as unknown as DetailProps).handleVHConfirm || (() => { })}
+            onMultifocalClick={legacyHandlers.handleMultifocalSubjective || (() => { })}
             hideEyeLabels={finalHideEyeLabels}
           />
         </div>
@@ -678,7 +693,7 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
             finalSubjectiveData={getExamData('final-subjective', item.id) as FinalSubjectiveExam}
             onFinalSubjectiveChange={getChangeHandler('final-subjective', item.id)}
             isEditing={mode === 'detail' ? detailProps!.isEditing : false}
-            onVHConfirm={legacyHandlers.handleFinalSubjectiveVHConfirm || (() => {})}
+            onVHConfirm={legacyHandlers.handleFinalSubjectiveVHConfirm || (() => { })}
             hideEyeLabels={finalHideEyeLabels}
           />
         </div>
@@ -743,7 +758,7 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
         <div className={`relative h-full ${matchHeight ? 'flex flex-col' : ''}`}>
           {toolbox}
           <RetinoscopDilationTab
-            retinoscopDilationData={getExamData('retinoscop-dilation', item.id) as RetinoscopDilationExam  }
+            retinoscopDilationData={getExamData('retinoscop-dilation', item.id) as RetinoscopDilationExam}
             onRetinoscopDilationChange={getChangeHandler('retinoscop-dilation', item.id)}
             isEditing={mode === 'detail' ? detailProps!.isEditing : false}
             hideEyeLabels={finalHideEyeLabels}
@@ -837,7 +852,7 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
         const tabData = detailProps?.examFormData?.[key] as CoverTestExam
         if (tabData && tabData.id) {
         }
-        detailProps?.setExamFormData?.(prev  => {
+        detailProps?.setExamFormData?.(prev => {
           const newData = { ...prev }
           delete newData[key]
           return newData
@@ -916,7 +931,7 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
 
     case 'anamnesis':
       return (
-        <div className={`relative h-full ${matchHeight ? 'flex flex-col' : ''}`}> 
+        <div className={`relative h-full ${matchHeight ? 'flex flex-col' : ''}`}>
           {toolbox}
           <AnamnesisTab
             anamnesisData={getExamData('anamnesis', item.id) as AnamnesisExam}
@@ -960,54 +975,47 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
 
       const notesTitle = mode === 'editor' ? (item.title || notesData.title || "הערות") : (notesData.title || item.title || "הערות")
 
+
       return (
-          <Card className={`w-full px-4 pt-3 examcard pb-4 border gap-2 ${matchHeight ? 'h-full flex flex-col' : ''}`} dir="rtl">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-muted rounded-lg">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-foreground">
-                    <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path>
-                    <polyline points="14,2 14,8 20,8"></polyline>
-                    <line x1="16" y1="13" x2="8" y2="13"></line>
-                    <line x1="16" y1="17" x2="8" y2="17"></line>
-                    <polyline points="10,9 9,9 8,9"></polyline>
-                  </svg>
-                </div>
-                {isEditingNotesTitle && mode === 'editor' ? (
-                  <Input
-                    value={notesTitle}
-                    onChange={(e) => handleNotesTitleChange(e.target.value)}
-                    onBlur={() => setIsEditingNotesTitle(false)}
-                    onKeyDown={handleNotesKeyDown}
-                    className="text-base font-medium text-muted-foreground border-none bg-transparent px-1 w-fit"
-                    autoFocus
-                  />
-                ) : (
-                  <h3 
-                    className="text-base font-medium text-muted-foreground cursor-pointer flex items-center gap-2"
-                    onMouseEnter={() => setIsHoveringNotesTitle(true)}
-                    onMouseLeave={() => setIsHoveringNotesTitle(false)}
-                    onClick={() => mode === 'editor' && setIsEditingNotesTitle(true)}
-                  >
+        <div className={`relative h-full ${matchHeight ? 'flex flex-col' : ''}`}>
+          {toolbox}
+          <NotesCard
+            title={
+              isEditingNotesTitle && mode === 'editor' ? (
+                <Input
+                  value={notesTitle}
+                  onChange={(e) => handleNotesTitleChange(e.target.value)}
+                  onBlur={() => setIsEditingNotesTitle(false)}
+                  onKeyDown={handleNotesKeyDown}
+                  className="text-base font-medium text-muted-foreground border-none bg-transparent px-1 w-fit"
+                  autoFocus
+                />
+              ) : (
+                <div
+                  className=""
+                  onMouseEnter={() => setIsHoveringNotesTitle(true)}
+                  onMouseLeave={() => setIsHoveringNotesTitle(false)}
+                  onClick={() => mode === 'editor' && setIsEditingNotesTitle(true)}
+                >
+                  <h3 className="text-base font-medium text-muted-foreground">
                     {notesTitle}
-                    {isHoveringNotesTitle && mode === 'editor' && (
-                      <Edit3 
-                        size={14} 
-                        className="text-muted-foreground cursor-pointer hover:text-foreground transition-colors"
-                      />
-                    )}
                   </h3>
-                )}
-              </div>
-          <Textarea
-            name="notes"
-            disabled={!detailProps?.isEditing}
+                  {isHoveringNotesTitle && mode === 'editor' && (
+                    <Edit3
+                      size={14}
+                      className="text-muted-foreground cursor-pointer hover:text-foreground transition-colors"
+                    />
+                  )}
+                </div>
+              )
+            }
             value={notesData.note || ''}
-            onChange={(e) => onNotesChange('note', e.target.value)}
-            className={`text-sm w-full p-3 border rounded-lg disabled:opacity-100 disabled:cursor-default ${matchHeight ? 'flex-1' : 'min-h-[90px]'}`}
-            rows={matchHeight ? undefined : 4}
+            onChange={(value) => onNotesChange('note', value)}
+            disabled={!detailProps?.isEditing}
+            height={matchHeight ? 'full' : undefined}
             placeholder={detailProps?.isEditing ? "הערות..." : ""}
           />
-        </Card>
+        </div>
       )
     }
 
@@ -1060,23 +1068,6 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
             onContactLensExamChange={getChangeHandler('contact-lens-exam', item.id)}
             isEditing={mode === 'detail' ? detailProps!.isEditing : false}
             hideEyeLabels={finalHideEyeLabels}
-          />
-        </div>
-      )
-
-    case 'contact-lens-order':
-      return (
-        <div className={`relative h-full ${matchHeight ? 'flex flex-col' : ''}`}>
-          {toolbox}
-          <ContactLensOrderTab
-            contactLensOrder={getExamData('contact-lens-order') as ContactLensOrder}
-            onContactLensOrderChange={(field: any, value: any) => {
-              detailProps?.setExamFormData?.((prev: any) => {
-                const key = `contact-lens-order-${item.id}`;
-                return { ...prev, [key]: { ...(prev[key] || prev['contact-lens-order'] || {}), [field]: value } };
-              })
-            }}
-            isEditing={mode === 'detail' ? detailProps!.isEditing : false}
           />
         </div>
       )
@@ -1171,7 +1162,7 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
 
     case 'old-contact-lenses':
       return (
-        <div className={`relative h-full ${matchHeight ? 'flex flex-col' : ''}`}> 
+        <div className={`relative h-full ${matchHeight ? 'flex flex-col' : ''}`}>
           {toolbox}
           <OldContactLensesTab
             data={getExamData('old-contact-lenses', item.id) as OldContactLenses}
@@ -1183,7 +1174,7 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
       );
     case 'over-refraction':
       return (
-        <div className={`relative h-full ${matchHeight ? 'flex flex-col' : ''}`}> 
+        <div className={`relative h-full ${matchHeight ? 'flex flex-col' : ''}`}>
           {toolbox}
           <OverRefractionTab
             data={getExamData('over-refraction', item.id) as OverRefraction}

@@ -84,7 +84,6 @@ export function UncorrectedVATab({
                     value={getFieldValue("R", key)}
                     onChange={(value) => handleChange("R", key, value)}
                     disabled={!isEditing}
-                    mode="meter"
                   />
                 </div>
               ) : key === "nv_j" ? (
@@ -136,7 +135,6 @@ export function UncorrectedVATab({
                     value={getFieldValue("L", key)}
                     onChange={(value) => handleChange("L", key, value)}
                     disabled={!isEditing}
-                    mode="meter"
                   />
                 </div>
               ) : key === "nv_j" ? (

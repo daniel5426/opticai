@@ -3,6 +3,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { CompactPrescriptionExam } from "@/lib/db/schema-interface"
 import { ChevronUp, ChevronDown } from "lucide-react"
+import { VASelect } from "./shared/VASelect"
 
 interface CompactPrescriptionTabProps {
   data: CompactPrescriptionExam;
@@ -62,17 +63,7 @@ export function CompactPrescriptionTab({
   const renderInput = (eye: "R" | "L", { key, step, min, max, type }: (typeof columns)[number]) => {
     switch (type) {
       case "va":
-        return (
-          <div className="relative">
-            <Input
-              type="number" step={step} value={getFieldValue(eye, key)}
-              onChange={(e) => handleChange(eye, key, e.target.value)}
-              disabled={!isEditing}
-              className={`h-8 pr-1 text-xs pl-6 ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
-            />
-            <span className="absolute left-2 top-[53%] transform -translate-y-1/2 text-[14px] text-gray-500 pointer-events-none">6/</span>
-          </div>
-        );
+        return <VASelect value={getFieldValue(eye, key)} onChange={(val) => handleChange(eye, key, val)} disabled={!isEditing} />;
       default:
         return (
           <Input
@@ -80,6 +71,7 @@ export function CompactPrescriptionTab({
             value={getFieldValue(eye, key)}
             onChange={(e) => handleChange(eye, key, e.target.value)}
             disabled={!isEditing}
+            showPlus={key === "sph" || key === "cyl" || key === "ad"}
             className={`h-8 pr-1 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
           />
         );
@@ -122,14 +114,12 @@ export function CompactPrescriptionTab({
             {columns.map(({ key, step }) => {
               if (key === 'va') {
                 return (
-                  <div key="c-va-input" className="relative">
-                    <Input
-                      type="number" step={step} value={getFieldValue("C", "va")}
-                      onChange={(e) => handleChange("C", "va", e.target.value)}
+                  <div key="c-va-input">
+                    <VASelect
+                      value={getFieldValue("C", "va")}
+                      onChange={(val) => handleChange("C", "va", val)}
                       disabled={!isEditing}
-                      className={`h-8 text-xs pl-6 ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
                     />
-                    <span className="absolute left-2 top-[53%] transform -translate-y-1/2 text-[14px] text-gray-500 pointer-events-none">6/</span>
                   </div>
                 );
               }

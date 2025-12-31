@@ -37,6 +37,7 @@ def build_layout_tree(layouts: List[ExamLayout]) -> List[dict]:
             "sort_index": layout.sort_index,
             "parent_layout_id": layout.parent_layout_id,
             "is_group": layout.is_group,
+            "type": layout.type,
             "created_at": layout.created_at,
             "updated_at": layout.updated_at,
             "children": [serialize(child) for child in children]

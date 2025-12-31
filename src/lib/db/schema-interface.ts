@@ -72,6 +72,7 @@ export interface Client {
   occupation?: string;
   status?: string;
   notes?: string;
+  hidden_note?: string;
   profile_picture?: string;
   family_id?: number;
   family_role?: string;
@@ -147,6 +148,9 @@ export interface OldRefractionExam {
   l_ad?: number;
   r_glasses_type?: string;
   l_glasses_type?: string;
+  r_j?: number;
+  l_j?: number;
+  comb_j?: number;
   comb_va?: number;
 }
 
@@ -701,6 +705,7 @@ export interface User {
   google_access_token?: string;
   google_refresh_token?: string;
   google_calendar_sync_enabled?: boolean;
+  va_format?: 'meter' | 'decimal';
   system_vacation_dates?: string[];
   added_vacation_dates?: string[];
   created_at?: string;
@@ -871,6 +876,7 @@ export interface ExamLayout {
   sort_index?: number;
   parent_layout_id?: number | null;
   is_group?: boolean;
+  type?: string;
   children?: ExamLayout[];
   created_at?: string;
   updated_at?: string;

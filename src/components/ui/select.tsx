@@ -4,6 +4,7 @@ import * as React from "react"
 import * as SelectPrimitive from "@radix-ui/react-select"
 import { CheckIcon, ChevronDownIcon, ChevronUpIcon } from "lucide-react"
 
+import { UI_CONFIG } from "@/config/ui-config"
 import { cn } from "@/utils/tailwind"
 
 function Select({
@@ -28,25 +29,35 @@ function SelectTrigger({
   className,
   size = "default",
   children,
+  noBorder = false,
+  hideIcon = false,
   ...props
 }: React.ComponentProps<typeof SelectPrimitive.Trigger> & {
   size?: "sm" | "default" | "xs"
+  hideIcon?: boolean
+  noBorder?: boolean
 }) {
+  if (props.disabled && UI_CONFIG.noBorderOnDisabled) {
+    noBorder = true;
+  }
   return (
     <SelectPrimitive.Trigger
       data-slot="select-trigger"
       data-size={size}
       dir="rtl"
       className={cn(`${props.disabled ? "bg-accent/50 dark:bg-accent/50" : "bg-card dark:bg-card"}`,
-        `border-input ${props.disabled ? "bg-accent/50 dark:bg-accent/50" : "bg-card dark:bg-card"}  m-0 disabled:opacity-100 disabled:cursor-default w-full data-[placeholder]:text-muted-foreground [&_svg:not([class*='text-'])]:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive  flex items-center justify-between gap-2 rounded-md border  px-3 py-2 text-sm whitespace-nowrap  transition-[color] outline-none focus-visible:ring-[3px] data-[size=default]:h-9 data-[size=sm]:h-8 *:data-[slot=select-value]:line-clamp-1 *:data-[slot=select-value]:flex *:data-[slot=select-value]:items-center *:data-[slot=select-value]:gap-2 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4`,
+        ` ${props.disabled ? "bg-accent/50 dark:bg-accent/50 " : "bg-card dark:bg-card"}  m-0 disabled:opacity-100 disabled:cursor-default w-full data-[placeholder]:text-muted-foreground [&_svg:not([class*='text-'])]:text-muted-foreground  aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40  flex items-center justify-between gap-2 rounded-md  pl-1 pr-2 py-2 text-sm whitespace-nowrap  transition-[color] outline-none focus-visible:ring-[3px] data-[size=default]:h-9 data-[size=sm]:h-8 *:data-[slot=select-value]:line-clamp-1 *:data-[slot=select-value]:flex *:data-[slot=select-value]:items-center *:data-[slot=select-value]:gap-2 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4`,
+        noBorder ? "" : "border border-input aria-invalid:border-destructive focus-visible:border-ring focus-visible:ring-ring/50",
         className
       )}
       {...props}
     >
       {children}
-      <SelectPrimitive.Icon asChild>
-        <ChevronDownIcon className="size-4 opacity-50" />
-      </SelectPrimitive.Icon>
+      {!hideIcon && (
+        <SelectPrimitive.Icon asChild>
+          <ChevronDownIcon className="size-3 opacity-50" />
+        </SelectPrimitive.Icon>
+      )}
     </SelectPrimitive.Trigger>
   )
 }
@@ -65,7 +76,7 @@ function SelectContent({
         className={cn(
           "bg-popover text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 relative z-50 max-h-(--radix-select-content-available-height) min-w-[8rem] origin-(--radix-select-content-transform-origin) overflow-x-hidden overflow-y-auto rounded-md border shadow-md",
           position === "popper" &&
-            "data-[side=bottom]:translate-y-1 data-[side=left]:-translate-x-1 data-[side=right]:translate-x-1 data-[side=top]:-translate-y-1",
+          "data-[side=bottom]:translate-y-1 data-[side=left]:-translate-x-1 data-[side=right]:translate-x-1 data-[side=top]:-translate-y-1",
           className
         )}
         position={position}
@@ -76,7 +87,7 @@ function SelectContent({
           className={cn(
             "p-1",
             position === "popper" &&
-              "h-[var(--radix-select-trigger-height)] w-full min-w-[var(--radix-select-trigger-width)] scroll-my-1"
+            "h-[var(--radix-select-trigger-height)] w-full min-w-[var(--radix-select-trigger-width)] scroll-my-1"
           )}
         >
           {children}

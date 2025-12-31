@@ -83,10 +83,10 @@ export const ExamDetailsCard = ({ mode, detailProps, className, actions }: ExamD
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="R" className="text-sm">
-                ימין
+                עין ימין
               </SelectItem>
               <SelectItem value="L" className="text-sm">
-                שמאל
+                עין שמאל
               </SelectItem>
             </SelectContent>
           </Select>

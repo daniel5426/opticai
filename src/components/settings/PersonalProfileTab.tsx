@@ -7,10 +7,23 @@ import { Badge } from "@/components/ui/badge"
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { ImageInput } from "@/components/ui/image-input"
-import { IconPlus, IconX, IconCalendar, IconBrandGoogle } from "@tabler/icons-react"
+import { IconPlus, IconX, IconCalendar, IconBrandGoogle, IconAdjustmentsHorizontal } from "@tabler/icons-react"
 import type { DateRange } from "react-day-picker"
 import { User } from "@/lib/db/schema-interface"
 import { Switch } from "@/components/ui/switch"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { cn } from "@/lib/utils"
+
+const PRESET_COLORS = [
+  '#2563eb', // כחול
+  '#7c3aed', // סגול
+  '#db2777', // ורוד
+  '#dc2626', // אדום
+  '#ea580c', // כתום
+  '#16a34a', // ירוק
+  '#0891b2', // טורקיז
+  '#4b5563'  // אפור
+]
 
 interface PersonalProfileTabProps {
   personalProfile: Partial<User>
@@ -154,7 +167,7 @@ export function PersonalProfileTab({
                 <Label className="text-sm font-medium">תמונת פרופיל</Label>
               </div>
             </div>
-            
+
             <div className="flex-1 space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
@@ -211,7 +224,7 @@ export function PersonalProfileTab({
             <VacationSection
               label="חופשה מערכתית"
               description="ימי חופשה מוגדרים על ידי המערכת"
-            dates={normalizeDates(personalProfile.system_vacation_dates)}
+              dates={normalizeDates(personalProfile.system_vacation_dates)}
               open={openSystemVacation}
               onOpenChange={setOpenSystemVacation}
               range={systemVacationRange}
@@ -231,7 +244,7 @@ export function PersonalProfileTab({
             <VacationSection
               label="חופשה נוספת"
               description="ימי חופשה שנוספו"
-            dates={normalizeDates(personalProfile.added_vacation_dates)}
+              dates={normalizeDates(personalProfile.added_vacation_dates)}
               open={openAddedVacation}
               onOpenChange={setOpenAddedVacation}
               range={addedVacationRange}
@@ -258,27 +271,103 @@ export function PersonalProfileTab({
           <p className="text-sm text-muted-foreground text-right">צבע אישי לסימון התורים שלך ביומן</p>
         </CardHeader>
         <CardContent>
-          <div className="space-y-2">
-            <Label className="text-right block text-sm font-medium">צבע לתורים ביומן</Label>
-            <div className="flex items-center gap-4">
-              <Input
-                type="color"
-                value={personalProfile.primary_theme_color}
-                onChange={(e) => onProfileChange('primary_theme_color', e.target.value)}
-                className="w-16 h-12 p-1 rounded shadow-sm"
-              />
-              <div className="flex-1">
-                <Input
-                  value={personalProfile.primary_theme_color}
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4" dir="rtl">
+            <div className="flex flex-wrap items-center gap-2 flex-1">
+              <Label className="text-sm font-medium ml-2 shrink-0">בחר צבע:</Label>
+              {PRESET_COLORS.map((color) => (
+                <button
+                  key={color}
+                  type="button"
+                  className={cn(
+                    "w-8 h-8 rounded-full border-2 transition-all hover:scale-110 active:scale-95 shadow-sm relative",
+                    personalProfile.primary_theme_color === color
+                      ? "border-primary ring-2 ring-primary/20 ring-offset-2"
+                      : "border-transparent hover:border-muted-foreground/30"
+                  )}
+                  style={{ backgroundColor: color }}
+                  onClick={() => onProfileChange('primary_theme_color', color)}
+                  title={color}
+                >
+                  {personalProfile.primary_theme_color === color && (
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <div className="w-1.5 h-1.5 rounded-full bg-white shadow-sm" />
+                    </div>
+                  )}
+                </button>
+              ))}
+
+              <div className="relative group shrink-0">
+                <input
+                  type="color"
+                  value={personalProfile.primary_theme_color || '#000000'}
                   onChange={(e) => onProfileChange('primary_theme_color', e.target.value)}
-                  className="font-mono text-center shadow-sm h-9"
-                  dir="ltr"
+                  className="absolute inset-0 opacity-0 w-8 h-8 cursor-pointer p-0 z-10"
                 />
+                <div
+                  className={cn(
+                    "w-8 h-8 rounded-full border-2 border-dashed flex items-center justify-center bg-background transition-all group-hover:border-primary group-hover:scale-110 shadow-sm",
+                    !PRESET_COLORS.includes(personalProfile.primary_theme_color || '') && personalProfile.primary_theme_color
+                      ? "border-primary ring-2 ring-primary/20 ring-offset-2"
+                      : "border-muted-foreground/30"
+                  )}
+                  style={!PRESET_COLORS.includes(personalProfile.primary_theme_color || '') && personalProfile.primary_theme_color ? { backgroundColor: personalProfile.primary_theme_color } : {}}
+                >
+                  {!PRESET_COLORS.includes(personalProfile.primary_theme_color || '') && personalProfile.primary_theme_color ? (
+                    <div className="w-1.5 h-1.5 rounded-full bg-white shadow-sm" />
+                  ) : (
+                    <IconPlus className="h-3 w-3 text-muted-foreground" />
+                  )}
+                </div>
               </div>
             </div>
-            <p className="text-xs text-muted-foreground text-right mt-2">
-              הצבע הזה ישמש לסימון התורים שלך באפליקציה וביומן Google Calendar
-            </p>
+
+            <div className="flex items-center gap-2 shrink-0" dir="ltr">
+              <Input
+                value={personalProfile.primary_theme_color}
+                onChange={(e) => onProfileChange('primary_theme_color', e.target.value)}
+                className="font-mono text-center shadow-sm h-9 w-28 uppercase"
+                placeholder="#000000"
+              />
+              <div
+                className="w-9 h-9 rounded-lg shadow-inner border border-border flex-shrink-0"
+                style={{ backgroundColor: personalProfile.primary_theme_color }}
+              />
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground text-right mt-4">
+            הצבע הזה ישמש לסימון התורים שלך באפליקציה וביומן Google Calendar
+          </p>
+        </CardContent>
+      </Card>
+
+      <Card className="">
+        <CardHeader>
+          <CardTitle className="text-right flex items-center gap-2 justify-end">
+            <IconAdjustmentsHorizontal className="h-5 w-5" />
+            העדפות בדיקה
+          </CardTitle>
+          <p className="text-sm text-muted-foreground text-right">הגדרות תצוגה עבור בדיקות אופטומטריה</p>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            <div className="flex flex-col gap-2 items-end">
+              <Label className="text-right text-sm font-medium">שיטת הצגת חדות ראייה (VA)</Label>
+              <Select
+                value={personalProfile.va_format || "meter"}
+                onValueChange={(val) => onProfileChange('va_format', val)}
+              >
+                <SelectTrigger className="w-[200px] h-9" dir="rtl">
+                  <SelectValue placeholder="בחר שיטה" />
+                </SelectTrigger>
+                <SelectContent align="end">
+                  <SelectItem value="meter" className="text-right">Meter (6/6)</SelectItem>
+                  <SelectItem value="decimal" className="text-right">Decimal (1.0)</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground text-right mt-1">
+                בחירה זו תקבע כיצד יוצגו ערכי חדות הראייה בכל טבלאות הבדיקה.
+              </p>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -381,7 +470,7 @@ function VacationSection({
           </PopoverContent>
         </Popover>
       </div>
-      <div className="flex flex-wrap gap-2" style={{scrollbarWidth: 'none'}}>
+      <div className="flex flex-wrap gap-2" style={{ scrollbarWidth: 'none' }}>
         {compressDates(dates).map((rg, idx) => (
           <span key={idx} className="relative group">
             <Badge variant="secondary" className="px-2 py-1">
@@ -446,7 +535,7 @@ function GoogleCalendarConnected({
             </div>
           </div>
         </div>
-        
+
         <div className="text-right">
           <div className="flex items-center gap-2 text-green-700 dark:text-green-300">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -459,7 +548,7 @@ function GoogleCalendarConnected({
           </div>
         </div>
       </div>
-      
+
       <div className="p-4 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
         <h4 className="text-sm font-medium text-blue-800 dark:text-blue-200 mb-2 text-right">מידע על הסנכרון</h4>
         <ul className="text-xs text-blue-700 dark:text-blue-300 text-right space-y-1" dir="rtl">
@@ -496,7 +585,7 @@ function GoogleCalendarDisconnected({
           )}
           {loading ? 'מתחבר...' : 'חבר חשבון Google (עם גישה ליומן)'}
         </Button>
-        
+
         <div className="text-right">
           <div className="font-medium text-gray-700 dark:text-gray-300">לא מחובר ל-Google Calendar</div>
           <div className="text-sm text-muted-foreground mt-1">
@@ -504,7 +593,7 @@ function GoogleCalendarDisconnected({
           </div>
         </div>
       </div>
-      
+
       <div className="p-4 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
         <h4 className="text-sm font-medium text-blue-800 dark:text-blue-200 mb-2 text-right">יתרונות החיבור ל-Google Calendar</h4>
         <ul className="text-xs text-blue-700 dark:text-blue-300 text-right space-y-1" dir="rtl">

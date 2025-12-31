@@ -29,7 +29,6 @@ import {
 } from './db/schema-interface'
 
 export type ExamComponentType =
-  | 'exam-details'
   | 'old-ref'
   | 'old-refraction'
   | 'old-refraction-extension'
@@ -65,7 +64,6 @@ export type ExamComponentType =
   | 'ocular-motor-assessment';
 
 export const fullExamsList: ExamComponentType[] = [
-  'exam-details',
   'old-ref',
   'old-refraction',
   'old-refraction-extension',
@@ -102,7 +100,6 @@ export const fullExamsList: ExamComponentType[] = [
 ];
 
 export const examComponentTypeToExamFields: Record<ExamComponentType, ExamComponentType[]> = {
-  'exam-details': [],
   'old-ref': [],
   'old-refraction': [],
   'old-refraction-extension': [],
@@ -150,7 +147,6 @@ export interface ComponentFieldMappings {
 
 export class ExamFieldMapper {
   private static defaultMaps: Record<ExamComponentType, ExamComponentType[]> = {
-    'exam-details': [],
     'old-ref': [],
     'old-refraction': fullExamsList,
     'old-refraction-extension': fullExamsList,
@@ -209,8 +205,6 @@ export class ExamFieldMapper {
 
   private static getFieldNames(componentType: ExamComponentType): string[] {
     switch (componentType) {
-      case 'exam-details':
-        return ['exam_date', 'test_name', 'clinic', 'user_id', 'dominant_eye']
       case 'old-ref':
         return ['role', 'source', 'contacts']
       case 'old-refraction':

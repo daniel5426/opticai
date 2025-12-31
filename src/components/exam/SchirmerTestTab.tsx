@@ -3,6 +3,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { ChevronUp, ChevronDown } from "lucide-react"
 import { SchirmerTestExam } from "@/lib/db/schema-interface"
+import { EXAM_FIELDS } from "./data/exam-field-definitions"
 
 interface SchirmerTestTabProps {
   schirmerTestData: SchirmerTestExam
@@ -23,7 +24,7 @@ export function SchirmerTestTab({
 
   const columns = [
     { key: "mm", label: "mm", step: "0.1" },
-    { key: "but", label: "BUT", step: "0.1" }
+    { key: "but", ...EXAM_FIELDS.BUT }
   ]
 
   const getFieldValue = (eye: "R" | "L", field: string) => {
@@ -45,6 +46,30 @@ export function SchirmerTestTab({
       onSchirmerTestChange(toField, value)
     })
   }
+
+  const renderInput = (eye: "R" | "L", col: any) => {
+    const { key, step, min, unit } = col;
+    const value = getFieldValue(eye, key);
+
+    return (
+      <div className="relative">
+        <Input
+          type="number"
+          step={step}
+          min={min}
+          value={value}
+          onChange={(e) => handleChange(eye, key, e.target.value)}
+          disabled={!isEditing}
+          className={`h-8 pr-1 text-xs ${unit ? "pr-8" : ""} ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
+        />
+        {unit && value && (
+          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground pointer-events-none">
+            {unit}
+          </span>
+        )}
+      </div>
+    );
+  };
 
   return (
     <Card className="w-full examcard pb-4 pt-3">
@@ -74,17 +99,7 @@ export function SchirmerTestTab({
                 </span>
               </div>
             )}
-            {columns.map(({ key, step }) => (
-              <Input
-                key={`r-${key}`}
-                type="number"
-                step={step}
-                value={getFieldValue("R", key)}
-                onChange={(e) => handleChange("R", key, e.target.value)}
-                disabled={!isEditing}
-                className={`h-8 pr-1 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
-              />
-            ))}
+            {columns.map(col => <React.Fragment key={`r-${col.key}`}>{renderInput("R", col)}</React.Fragment>)}
 
             {needsMiddleSpacer && (
               <>
@@ -107,17 +122,7 @@ export function SchirmerTestTab({
                 </span>
               </div>
             )}
-            {columns.map(({ key, step }) => (
-              <Input
-                key={`l-${key}`}
-                type="number"
-                step={step}
-                value={getFieldValue("L", key)}
-                onChange={(e) => handleChange("L", key, e.target.value)}
-                disabled={!isEditing}
-                className={`h-8 pr-1 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
-              />
-            ))}
+            {columns.map(col => <React.Fragment key={`l-${col.key}`}>{renderInput("L", col)}</React.Fragment>)}
           </div>
         </div>
       </CardContent>

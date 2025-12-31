@@ -196,6 +196,12 @@ function SortableRow({
   };
   const isGroup = Boolean(item.node.is_group);
   const showDefaultToggle = item.parentId === null;
+
+  const typeMap: Record<string, string> = {
+    "global": "כללי",
+    "glass": "משקפיים",
+    "contact lens": "עדשות מגע",
+  };
   return (
     <TableRow
       ref={setNodeRef}
@@ -253,6 +259,9 @@ function SortableRow({
           ) : null}
 
         </div>
+      </TableCell>
+      <TableCell className="text-right">
+        {item.node.type ? typeMap[item.node.type] || item.node.type : "—"}
       </TableCell>
       <TableCell className="text-right">
         {item.parentId !== null ? (
@@ -476,7 +485,7 @@ export function ExamLayoutsTable({ data, onRefresh }: ExamLayoutsTableProps) {
       }
       const newDefaultStatus = !node.is_default;
       if (!newDefaultStatus) {
-      const defaults = flattenedAll.filter((item) => item.node.is_default);
+        const defaults = flattenedAll.filter((item) => item.node.is_default);
         if (defaults.length <= 1) {
           toast.error("חייב להיות לפחות פריסת ברירת מחדל אחת");
           setIsProcessing((prev) => ({ ...prev, [layoutId]: false }));
@@ -620,7 +629,7 @@ export function ExamLayoutsTable({ data, onRefresh }: ExamLayoutsTableProps) {
                 disabled={selectedIds.size < 2}
                 className="bg-primary text-primary-foreground"
               >
-                                צור קבוצה
+                צור קבוצה
 
               </Button>
             </>
@@ -639,29 +648,30 @@ export function ExamLayoutsTable({ data, onRefresh }: ExamLayoutsTableProps) {
                 <TableHead className="w-12">
                   <div className="flex items-center justify-center">
                     <Checkbox
-                    checked={
-                      flattenedDisplay.length > 0 && flattenedDisplay.every((item) => selectedIds.has(item.node.id!))
-                        ? true
-                        : flattenedDisplay.some((item) => selectedIds.has(item.node.id!))
-                        ? "indeterminate"
-                        : false
-                    }
-                    onCheckedChange={(checked) => {
-                      const allVisibleIds = flattenedDisplay.map((item) => item.node.id!);
-                      if (checked === true) {
-                        setSelectedIds((prev) => new Set([...prev, ...allVisibleIds]));
-                      } else {
-                        setSelectedIds((prev) => {
-                          const next = new Set(prev);
-                          allVisibleIds.forEach((id) => next.delete(id));
-                          return next;
-                        });
+                      checked={
+                        flattenedDisplay.length > 0 && flattenedDisplay.every((item) => selectedIds.has(item.node.id!))
+                          ? true
+                          : flattenedDisplay.some((item) => selectedIds.has(item.node.id!))
+                            ? "indeterminate"
+                            : false
                       }
-                    }}
-                  />
+                      onCheckedChange={(checked) => {
+                        const allVisibleIds = flattenedDisplay.map((item) => item.node.id!);
+                        if (checked === true) {
+                          setSelectedIds((prev) => new Set([...prev, ...allVisibleIds]));
+                        } else {
+                          setSelectedIds((prev) => {
+                            const next = new Set(prev);
+                            allVisibleIds.forEach((id) => next.delete(id));
+                            return next;
+                          });
+                        }
+                      }}
+                    />
                   </div>
                 </TableHead>
                 <TableHead className="text-right">שם הפריסה</TableHead>
+                <TableHead className="text-right">סוג</TableHead>
                 <TableHead className="text-right">ברירת מחדל</TableHead>
                 <TableHead className="text-right">תאריך יצירה</TableHead>
                 <TableHead className="text-right">עדכון אחרון</TableHead>
@@ -709,9 +719,8 @@ export function ExamLayoutsTable({ data, onRefresh }: ExamLayoutsTableProps) {
                               disabled={isProcessing[item.node.id || 0]}
                             >
                               <Star
-                                className={`h-5 w-5 transition-colors ${
-                                  item.node.is_default ? "fill-yellow-400 text-yellow-400" : "text-gray-400"
-                                }`}
+                                className={`h-5 w-5 transition-colors ${item.node.is_default ? "fill-yellow-400 text-yellow-400" : "text-gray-400"
+                                  }`}
                               />
                             </Button>
                           );

@@ -16,9 +16,10 @@ interface CustomModalProps {
   cancelText?: string
   showCloseButton?: boolean
   isLoading?: boolean
+  headerContent?: React.ReactNode
 }
 
-export function CustomModal({ isOpen, onClose, title, subtitle, description, children, className = '', width = 'max-w-lg', onConfirm, confirmText = 'אישור', cancelText = 'ביטול', showCloseButton = true, isLoading = false }: CustomModalProps) {
+export function CustomModal({ isOpen, onClose, title, subtitle, description, children, className = '', width = 'max-w-lg', onConfirm, confirmText = 'אישור', cancelText = 'ביטול', showCloseButton = true, isLoading = false, headerContent }: CustomModalProps) {
   const modalRef = useRef<HTMLDivElement>(null)
   const overlayRef = useRef<HTMLDivElement>(null)
 
@@ -26,7 +27,7 @@ export function CustomModal({ isOpen, onClose, title, subtitle, description, chi
     if (isOpen) {
       // Prevent body scroll
       document.body.style.overflow = 'hidden'
-      
+
       // Focus the modal
       setTimeout(() => {
         modalRef.current?.focus()
@@ -34,11 +35,11 @@ export function CustomModal({ isOpen, onClose, title, subtitle, description, chi
     } else {
       // Restore body scroll
       document.body.style.overflow = ''
-      
+
       // Force focus back to body and ensure interactivity
       document.body.focus()
       document.body.style.pointerEvents = ''
-      
+
       // Dispatch a click to ensure the page is responsive
       setTimeout(() => {
         document.body.dispatchEvent(new MouseEvent('click', { bubbles: true }))
@@ -87,41 +88,50 @@ export function CustomModal({ isOpen, onClose, title, subtitle, description, chi
     >
       <div
         ref={modalRef}
-        className={`bg-card rounded-lg shadow-lg w-1/2 ${width} max-h-[90vh] overflow-auto ${className}`}
+        className={`bg-card rounded-lg shadow-lg w-1/2 ${width} max-h-[90vh] overflow-hidden flex flex-col ${className}`}
         onClick={(e) => e.stopPropagation()}
         tabIndex={-1}
-        style={{ scrollbarWidth: 'none' }}
       >
         {/* Header */}
-        <div className="flex items-center justify-between p-4 ">
-          <div className=" flex-1" dir="rtl">
-            <h2 className="text-lg font-semibold">
-              {title}
-            </h2>
+        <div className="flex items-center justify-between py-2 px-4 flex-shrink-0 border-b" dir="rtl">
+          {/* Right side: Subtitle */}
+          <div className="flex-1 text-right">
             {subtitle && (
-              <p className="text-sm text-muted-foreground mt-1">
+              <p className="text-sm text-muted-foreground">
                 {subtitle}
               </p>
             )}
           </div>
-          {showCloseButton && 
-          (<Button
-            variant="ghost"
-            size="sm"
-            onClick={onClose}
-            className="h-8 w-8 p-0 ml-2"
-          >
-            <X className="h-4 w-4" />
-          </Button>)}
+
+          {/* Center: Title */}
+          <div className="flex-1 text-center">
+            <h2 className="text-base font-medium">
+              {title}
+            </h2>
+          </div>
+
+          {/* Left side: Header content + close button */}
+          <div className="flex-1 flex items-center justify-end gap-2">
+            {headerContent}
+            {showCloseButton &&
+              (<Button
+                variant="ghost"
+                size="sm"
+                onClick={onClose}
+                className="h-8 w-8 p-0"
+              >
+                <X className="h-4 w-4" />
+              </Button>)}
+          </div>
         </div>
-        
+
         {/* Content */}
-        <div className="px-6 p-3" dir="rtl">
-        <div className="space-y-4">
+        <div className="px-6 p-3 overflow-y-auto flex-1" dir="rtl">
+          <div className="space-y-4">
 
-          {description && <p className="text-sm text-muted-foreground mb-4">{description}</p>}
+            {description && <p className="text-sm text-muted-foreground mb-4">{description}</p>}
 
-          {children}
+            {children}
           </div>
         </div>
 

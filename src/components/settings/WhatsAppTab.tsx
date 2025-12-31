@@ -33,7 +33,7 @@ export function WhatsAppTab({ formData, onChange }: WhatsAppTabProps) {
 
   useEffect(() => {
     // Load Facebook SDK
-    const fbAppId = (import.meta as any).env?.VITE_FB_APP_ID || '1177651030438171' // Fallback or defined in env
+    const fbAppId = process.env?.VITE_FB_APP_ID || '1177651030438171' // Fallback or defined in env
 
     if (!window.FB) {
       window.fbAsyncInit = function() {
@@ -137,18 +137,18 @@ export function WhatsAppTab({ formData, onChange }: WhatsAppTabProps) {
                 הדרך הרשמית והמהירה ביותר לחבר את המרפאה ל-WhatsApp
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-6 text-right pb-8">
-              <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4 border border-slate-100 dark:border-slate-800">
+            <CardContent className="space-y-6 text-right pb-8" dir="rtl">
+              <div dir="rtl" className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4 border border-slate-100 dark:border-slate-800">
                 <ul className="space-y-3 text-sm">
-                  <li className="flex items-center gap-3 justify-end">
+                  <li className="flex items-center gap-3 ">
                     <span>ללא צורך במפתחים או בהגדרות מורכבות</span>
                     <IconCheck size={16} className="text-green-500 shrink-0" />
                   </li>
-                  <li className="flex items-center gap-3 justify-end">
+                  <li className="flex items-center gap-3 ">
                     <span>תהליך אימות רשמי מול Meta</span>
                     <IconCheck size={16} className="text-green-500 shrink-0" />
                   </li>
-                  <li className="flex items-center gap-3 justify-end">
+                  <li className="flex items-center gap-3 ">
                     <span>שליטה מלאה על מספר הטלפון והחשבון העסקי</span>
                     <IconCheck size={16} className="text-green-500 shrink-0" />
                   </li>
@@ -195,7 +195,7 @@ export function WhatsAppTab({ formData, onChange }: WhatsAppTabProps) {
         <div className="md:col-span-2 space-y-4">
           <Card className="border shadow-sm text-right">
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-bold flex items-center justify-end gap-2">
+              <CardTitle className="text-sm font-bold flex items-center gap-2">
                 איך זה עובד?
                 <IconInfoCircle size={16} className="text-blue-500" />
               </CardTitle>
@@ -222,7 +222,7 @@ export function WhatsAppTab({ formData, onChange }: WhatsAppTabProps) {
 
           <Card className="border shadow-sm text-right bg-amber-50/30 border-amber-100 dark:bg-amber-900/10 dark:border-amber-900/30">
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-bold flex items-center justify-end gap-2 text-amber-700 dark:text-amber-500">
+              <CardTitle className="text-sm font-bold flex items-center gap-2 text-amber-700 dark:text-amber-500">
                 שים לב
                 <IconAlertCircle size={16} />
               </CardTitle>

@@ -43,7 +43,9 @@ class AuthService {
     // Don't initialize AuthService in popup windows (OAuth callbacks)
     // Check both window.opener and current path to detect popup/callback context
     const isPopup = window.opener !== null
-    const isCallbackRoute = window.location.pathname === '/auth/callback'
+    const isCallbackRoute = 
+      window.location.pathname === '/auth/callback' || 
+      window.location.pathname === '/oauth/callback'
     
     if (isPopup || isCallbackRoute) {
       console.log('[Auth] Skipping initialization - popup/callback context:', { isPopup, isCallbackRoute })

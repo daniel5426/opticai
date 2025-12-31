@@ -101,19 +101,14 @@ export function ContactLensDetailsTab({
             {columns.map(({ key, step }) => (
               <React.Fragment key={`r-${key}`}>
                 {isLookupField(key) ? (
-                  isEditing ? (
                     <LookupSelect
+                      disabled={!isEditing}
                       value={getFieldValue("R", key)}
                       onChange={(value) => handleChange("R", key, value)}
                       lookupType={getLookupType(key)}
                       placeholder=""
                       className="h-8 text-xs bg-white"
                     />
-                  ) : (
-                    <div className="bg-accent/50 flex h-8 items-center rounded-md border px-2 text-xs">
-                      {getFieldValue("R", key) || ""}
-                    </div>
-                  )
                 ) : (
                   <Input
                     type={getInputType(key)}

@@ -30,6 +30,7 @@ import AllExamsPage from "@/pages/AllExamsPage";
 import AllOrdersPage from "@/pages/AllOrdersPage";
 import AllUsersPage from "@/pages/AllUsersPage";
 import AuthCallbackPage from "@/pages/AuthCallbackPage";
+import GoogleAuthCallbackPage from "@/pages/GoogleAuthCallbackPage";
 
 
 // TODO: Steps to add a new route:
@@ -278,6 +279,12 @@ export const AuthCallbackRoute = createRoute({
   component: AuthCallbackPage,
 });
 
+export const GoogleAuthCallbackRoute = createRoute({
+  getParentRoute: () => RootRoute,
+  path: "/oauth/callback",
+  component: GoogleAuthCallbackPage,
+});
+
 export const rootTree = RootRoute.addChildren([
   HomeRoute,
   DashboardRoute,
@@ -313,4 +320,5 @@ export const rootTree = RootRoute.addChildren([
   WorkerStatsRoute,
   CampaignsRoute,
   AuthCallbackRoute,
+  GoogleAuthCallbackRoute,
 ]);

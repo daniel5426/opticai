@@ -35,7 +35,6 @@ export function OctahedronLoader({ size = 'md', text }: LoadingCircleProps) {
       </div>
       {text && (
         <p className={`mt-4 text-gray-600 ${textSizes[size]}`}>
-          {text}
         </p>
       )}
     </div>

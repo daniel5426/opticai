@@ -28,6 +28,8 @@ import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DateSearchHelper } from "@/lib/date-search-helper";
 import { useUser } from "@/contexts/UserContext";
+import { Eye } from "lucide-react";
+import { ExamPreviewModal } from "@/components/exam/ExamPreviewModal";
 
 interface ExamWithNames extends OpticalExam {
   username?: string;
@@ -54,6 +56,8 @@ export function ExamsTable({ data, clientId, onExamDeleted, onExamDeleteFailed, 
   const [defaultLayouts, setDefaultLayouts] = useState<ExamLayout[]>([]);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const { currentClinic } = useUser();
+  const [previewExamId, setPreviewExamId] = useState<number | null>(null);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
   useEffect(() => {
     const fetchDefaultLayouts = async () => {
@@ -81,11 +85,11 @@ export function ExamsTable({ data, clientId, onExamDeleted, onExamDeleteFailed, 
         ) || DateSearchHelper.matchesDate(searchValue, exam.exam_date);
       });
     }
-    
+
     if (!searchValue || clientId === 0) {
       return data;
     }
-    
+
     const searchLower = searchValue.toLowerCase().trim();
     if (!searchLower) {
       return data;
@@ -95,13 +99,13 @@ export function ExamsTable({ data, clientId, onExamDeleted, onExamDeleteFailed, 
       const fullName = (exam.full_name || exam.username || '').toLowerCase();
       const clinic = (exam.clinic || '').toLowerCase();
       const testName = (exam.test_name || '').toLowerCase();
-      
-      if (fullName.includes(searchLower) || 
-          clinic.includes(searchLower) || 
-          testName.includes(searchLower)) {
+
+      if (fullName.includes(searchLower) ||
+        clinic.includes(searchLower) ||
+        testName.includes(searchLower)) {
         return true;
       }
-      
+
       return DateSearchHelper.matchesDate(searchLower, exam.exam_date);
     });
   }, [data, searchValue, externalSearch, clientId]);
@@ -131,7 +135,7 @@ export function ExamsTable({ data, clientId, onExamDeleted, onExamDeleteFailed, 
   };
 
   return (
-    <div className="space-y-4 mb-10" dir="rtl" style={{scrollbarWidth: 'none'}}>
+    <div className="space-y-4 mb-10" dir="rtl" style={{ scrollbarWidth: 'none' }}>
       <div className="flex items-center justify-between">
         <div className="flex gap-2">
           <Input
@@ -173,9 +177,9 @@ export function ExamsTable({ data, clientId, onExamDeleted, onExamDeleteFailed, 
               </DropdownMenuContent>
             </DropdownMenu>
           ) : (
-              <Button>
-                <Plus className="h-4 w-4" />
-              </Button>
+            <Button>
+              <Plus className="h-4 w-4" />
+            </Button>
           )
         ) : (
           <NewExamButtonWithoutClient
@@ -193,96 +197,103 @@ export function ExamsTable({ data, clientId, onExamDeleted, onExamDeleteFailed, 
       </div>
 
       <div className="rounded-md bg-card">
-        
-          <Table dir="rtl" containerClassName="max-h-[70vh] overflow-y-auto overscroll-contain" containerStyle={{ scrollbarWidth: 'none' }}>
-            <TableHeader className="sticky top-0 z-0 bg-card">
-              <TableRow>
-                <TableHead className="text-right">תאריך בדיקה</TableHead>
-                <TableHead className="text-right">סוג בדיקה</TableHead>
-                {clientId === 0 && <TableHead className="text-right">לקוח</TableHead>}
-                <TableHead className="text-right">סניף</TableHead>
-                <TableHead className="text-right">בודק</TableHead>
-                <TableHead className="w-[50px] text-right"></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {loading ? (
-                Array.from({ length: 14 }).map((_, i) => (
-                  <TableRow
-                    key={i}
-                    className="cursor-pointer"
-                  >
-                    <TableCell>
-                      <Skeleton className="w-[70%] h-4 my-2" />
-                    </TableCell>
-                    <TableCell>
-                      <Skeleton className="w-[70%] h-4 my-2" />
-                    </TableCell>
-                    <TableCell>
-                      <Skeleton className="w-[70%] h-4 my-2" />
-                    </TableCell>
-                    <TableCell>
-                      <Skeleton className="w-[70%] h-4 my-2" />
-                    </TableCell>
-                    <TableCell>
-                      <Skeleton className="w-[70%] h-4 my-2" />
-                    </TableCell>
-                  </TableRow>
-                ))
-              ) : filteredData.length > 0 ? (
-                filteredData.map((exam) => (
-                  <TableRow
-                    key={exam.id}
-                    className="cursor-pointer"
-                    onClick={() => {
-                      navigate({
-                        to: "/clients/$clientId/exams/$examId",
-                        params: {
-                          clientId: String(exam.client_id),
-                          examId: String(exam.id),
-                        },
-                      });
-                    }}
-                  >
-                    <TableCell>
-                      {exam.exam_date
-                        ? new Date(exam.exam_date).toLocaleDateString("he-IL")
-                        : ""}
-                    </TableCell>
-                    <TableCell>{exam.test_name}</TableCell>
-                    {clientId === 0 && (
-                      <TableCell className="cursor-pointer text-blue-600 hover:underline"
-                        onClick={e => {
-                          e.stopPropagation();
-                          if (exam.client_id) {
-                            navigate({ to: "/clients/$clientId", params: { clientId: String(exam.client_id) }, search: { tab: 'exams' } })
-                          }
-                        }}
-                      >{exam.clientName}</TableCell>
-                    )}
-                    <TableCell>{exam.clinic}</TableCell>
-                    <TableCell>{exam.full_name || exam.username}</TableCell>
-                    <TableCell>
-                      <Button variant="ghost" className="h-8 w-8 p-0" onClick={(e) => {
-                        e.stopPropagation();
-                        setExamToDelete(exam);
-                        setIsDeleteModalOpen(true);
-                      }} title="מחיקה">
-                        <Trash2 className="h-4 w-4 text-red-600" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))
-              ) : (
-                <TableRow>
-                  <TableCell colSpan={clientId === 0 ? 6 : 5} className="h-24 text-center">
-                    לא נמצאו בדיקות לתצוגה
+
+        <Table dir="rtl" containerClassName="max-h-[70vh] overflow-y-auto overscroll-contain" containerStyle={{ scrollbarWidth: 'none' }}>
+          <TableHeader className="sticky top-0 z-0 bg-card">
+            <TableRow>
+              <TableHead className="text-right">תאריך בדיקה</TableHead>
+              <TableHead className="text-right">סוג בדיקה</TableHead>
+              {clientId === 0 && <TableHead className="text-right">לקוח</TableHead>}
+              <TableHead className="text-right">סניף</TableHead>
+              <TableHead className="text-right">בודק</TableHead>
+              <TableHead className="w-[50px] text-right"></TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {loading ? (
+              Array.from({ length: 14 }).map((_, i) => (
+                <TableRow
+                  key={i}
+                  className="cursor-pointer"
+                >
+                  <TableCell>
+                    <Skeleton className="w-[70%] h-4 my-2" />
+                  </TableCell>
+                  <TableCell>
+                    <Skeleton className="w-[70%] h-4 my-2" />
+                  </TableCell>
+                  <TableCell>
+                    <Skeleton className="w-[70%] h-4 my-2" />
+                  </TableCell>
+                  <TableCell>
+                    <Skeleton className="w-[70%] h-4 my-2" />
+                  </TableCell>
+                  <TableCell>
+                    <Skeleton className="w-[70%] h-4 my-2" />
                   </TableCell>
                 </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        
+              ))
+            ) : filteredData.length > 0 ? (
+              filteredData.map((exam) => (
+                <TableRow
+                  key={exam.id}
+                  className="cursor-pointer"
+                  onClick={() => {
+                    navigate({
+                      to: "/clients/$clientId/exams/$examId",
+                      params: {
+                        clientId: String(exam.client_id),
+                        examId: String(exam.id),
+                      },
+                    });
+                  }}
+                >
+                  <TableCell>
+                    {exam.exam_date
+                      ? new Date(exam.exam_date).toLocaleDateString("he-IL")
+                      : ""}
+                  </TableCell>
+                  <TableCell>{exam.test_name}</TableCell>
+                  {clientId === 0 && (
+                    <TableCell className="cursor-pointer text-blue-600 hover:underline"
+                      onClick={e => {
+                        e.stopPropagation();
+                        if (exam.client_id) {
+                          navigate({ to: "/clients/$clientId", params: { clientId: String(exam.client_id) }, search: { tab: 'exams' } })
+                        }
+                      }}
+                    >{exam.clientName}</TableCell>
+                  )}
+                  <TableCell>{exam.clinic}</TableCell>
+                  <TableCell>{exam.full_name || exam.username}</TableCell>
+                  <TableCell>
+                    <Button variant="ghost" className="h-8 w-8 p-0" onClick={(e) => {
+                      e.stopPropagation();
+                      setExamToDelete(exam);
+                      setIsDeleteModalOpen(true);
+                    }} title="מחיקה">
+                      <Trash2 className="h-4 w-4 text-red-600" />
+                    </Button>
+                    <Button variant="ghost" className="h-8 w-8 p-0" onClick={(e) => {
+                      e.stopPropagation();
+                      setPreviewExamId(exam.id || null);
+                      setIsPreviewOpen(true);
+                    }} title="צפייה מהירה">
+                      <Eye className="h-4 w-4 text-muted-foreground" />
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))
+            ) : (
+              <TableRow>
+                <TableCell colSpan={clientId === 0 ? 6 : 5} className="h-24 text-center">
+                  לא נמצאו בדיקות לתצוגה
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+
       </div>
 
       {pagination && (
@@ -317,6 +328,12 @@ export function ExamsTable({ data, clientId, onExamDeleted, onExamDeleteFailed, 
         className="text-center"
         cancelText="בטל"
         showCloseButton={false}
+      />
+
+      <ExamPreviewModal
+        isOpen={isPreviewOpen}
+        onClose={() => setIsPreviewOpen(false)}
+        examId={previewExamId}
       />
     </div>
   );
@@ -386,5 +403,5 @@ function NewExamButtonWithoutClient({
     >
       <Plus className="h-4 w-4" />
     </Button>
-);
+  );
 }

@@ -34,7 +34,7 @@ export function StereoTestTab({ stereoTestData, onStereoTestChange, isEditing, n
               onValueChange={(value) => onStereoTestChange('fly_result', value === 'pass')}
               disabled={!isEditing}
             >
-              <SelectTrigger size="xs" className={`h-8 pr-4 text-center ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}>
+              <SelectTrigger size="xs" disabled={!isEditing} className={`h-8 pr-4 text-center disabled:opacity-100 disabled:cursor-default`}>
                 <SelectValue className={`h-8 pr-3 text-center justify-center`} placeholder="בחר" />
               </SelectTrigger>
               <SelectContent>

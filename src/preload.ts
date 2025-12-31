@@ -54,6 +54,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Google OAuth and Calendar operations
   googleOAuthAuthenticate: () => ipcRenderer.invoke('google-oauth-authenticate'),
+  googleOAuthCodeReceived: (code: string) => ipcRenderer.invoke('google-oauth-code-received', code),
   googleOAuthRefreshToken: (refreshToken: string) => ipcRenderer.invoke('google-oauth-refresh-token', refreshToken),
   googleOAuthValidateTokens: (tokens: any) => ipcRenderer.invoke('google-oauth-validate-tokens', tokens),
   googleCalendarCreateEvent: (tokens: any, appointment: any, client?: any) => ipcRenderer.invoke('google-calendar-create-event', tokens, appointment, client),

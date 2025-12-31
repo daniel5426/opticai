@@ -54,6 +54,21 @@ export default function App() {
     // Then sync theme mode settings
     syncThemeWithLocal();
     updateAppLanguage(i18n);
+
+    // Listen for Google OAuth codes from other tabs (system browser redirect)
+    const channel = new BroadcastChannel('google-oauth-channel');
+    channel.onmessage = (event) => {
+      if (event.data.type === 'GOOGLE_AUTH_CODE' && event.data.code) {
+        console.log('[App] Received Google OAuth code via BroadcastChannel');
+        if (window.electronAPI && (window.electronAPI as any).googleOAuthCodeReceived) {
+          (window.electronAPI as any).googleOAuthCodeReceived(event.data.code);
+        }
+      }
+    };
+
+    return () => {
+      channel.close();
+    };
   }, [i18n]);
 
   return (

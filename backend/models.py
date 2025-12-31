@@ -78,6 +78,7 @@ class User(Base):
     google_access_token = Column(String)
     google_refresh_token = Column(String)
     google_calendar_sync_enabled = Column(Boolean, default=False)
+    va_format = Column(String, default="meter") # "meter" or "decimal"
     system_vacation_dates = Column(JSON, default=list)
     added_vacation_dates = Column(JSON, default=list)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -133,6 +134,7 @@ class Client(Base):
     occupation = Column(String)
     status = Column(String)
     notes = Column(Text)
+    hidden_note = Column(Text)
     profile_picture = Column(String)
     family_id = Column(Integer, ForeignKey("families.id"))
     family_role = Column(String)
@@ -226,6 +228,7 @@ class ExamLayout(Base):
     sort_index = Column(Integer, nullable=False, default=0)
     parent_layout_id = Column(Integer, ForeignKey("exam_layouts.id", ondelete="SET NULL"))
     is_group = Column(Boolean, default=False)
+    type = Column(String, nullable=True) # "contact lens", "glass", "global"
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     

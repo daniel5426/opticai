@@ -51,7 +51,7 @@ import { useUser } from "@/contexts/UserContext"
 const getNavData = (currentUser?: User) => ({
   navMain: [
     {
-      title: "דשבורד",
+      title: "יומן",
       url: "/dashboard",
       icon: IconDashboard,
     },

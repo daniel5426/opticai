@@ -44,8 +44,8 @@ export function AnamnesisTab({
         <div className="grid grid-cols-[3fr_1fr] gap-x-8" style={{ scrollbarWidth: 'none' }}>
 
           {/* Right Column for Text Inputs */}
-          <div className="grid grid-cols-1 gap-y-4">
-            <div className="flex items-center space-x-1 rtl:space-x-reverse">
+          <div className="grid w-full grid-cols-1 gap-y-4">
+            <div className="flex w-full items-center space-x-1 rtl:space-x-reverse">
               <Label htmlFor="medications" className="text-sm font-semibold min-w-[90px]">תרופות</Label>
               <Input
                 id="medications"
@@ -57,7 +57,7 @@ export function AnamnesisTab({
               />
             </div>
 
-            <div className="flex items-center space-x-1 rtl:space-x-reverse">
+            <div className="flex w-full items-center space-x-1 rtl:space-x-reverse">
               <Label htmlFor="allergies" className="text-sm font-semibold min-w-[90px]">אלרגיות</Label>
               <Input
                 id="allergies"
@@ -69,7 +69,7 @@ export function AnamnesisTab({
               />
             </div>
 
-            <div className="flex items-center space-x-1 rtl:space-x-reverse">
+            <div className="flex w-full items-center space-x-1 rtl:space-x-reverse">
               <Label htmlFor="family_history" className="text-sm font-semibold min-w-[160px]">היסטוריה משפחתית</Label>
               <Input
                 id="family_history"
@@ -81,7 +81,7 @@ export function AnamnesisTab({
               />
             </div>
 
-            <div className="flex items-center space-x-1 rtl:space-x-reverse">
+            <div className="flex w-full items-center space-x-1 rtl:space-x-reverse">
               <Label htmlFor="previous_treatments" className="text-sm font-semibold min-w-[130px]">טיפולים קודמים</Label>
               <Input
                 id="previous_treatments"
@@ -93,7 +93,7 @@ export function AnamnesisTab({
               />
             </div>
 
-            <div className="flex items-center space-x-1 rtl:space-x-reverse">
+            <div className="flex w-full items-center space-x-1 rtl:space-x-reverse">
               <Label htmlFor="lazy_eye" className="text-sm font-semibold min-w-[90px]">עין עצלה</Label>
               <Input
                 id="lazy_eye"

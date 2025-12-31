@@ -16,6 +16,15 @@ import { Skeleton } from "@/components/ui/skeleton"
 import israelCities from "@/utils/israel_cities.json"
 import { CityLookupInput } from "@/components/ui/city-lookup-input"
 import { DateInput } from "@/components/ui/date"
+import { NotesCard } from "@/components/ui/notes-card"
+
+
+const HEALTH_FUNDS: Record<string, string[]> = {
+  "כללית": ["רגיל", "מושלם זהב", "מושלם פלטינום"],
+  "מכבי": ["רגיל", "זהב", "שלי"],
+  "מאוחדת": ["רגיל", "עדיף", "שיא"],
+  "לאומית": ["רגיל", "כסף", "זהב"]
+};
 
 // Custom label component
 function ModernLabel({ children }: { children: React.ReactNode }) {
@@ -41,13 +50,13 @@ interface ClientDetailsTabProps {
   onClientUpdate?: (client: Client) => void;
 }
 
-export function ClientDetailsTab({ 
-  client, 
-  formData, 
-  isEditing, 
+export function ClientDetailsTab({
+  client,
+  formData,
+  isEditing,
   mode = 'view',
   isLoading = false,
-  handleInputChange, 
+  handleInputChange,
   handleSelectChange,
   formRef,
   setIsEditing,
@@ -188,11 +197,11 @@ export function ClientDetailsTab({
 
   if (isLoading) {
     return (
-      <div className="no-scrollbar space-y-6" style={{scrollbarWidth: 'none', msOverflowStyle: 'none'}}>
-                <div className="flex justify-between items-center mb-4">
-          <Button 
+      <div className="no-scrollbar space-y-6" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+        <div className="flex justify-between items-center mb-4">
+          <Button
             type="button"
-            variant={isEditing ? "outline" : "default"} 
+            variant={isEditing ? "outline" : "default"}
           >
             {isEditing ? "שמור שינויים" : "ערוך פרטים"}
           </Button>
@@ -286,12 +295,12 @@ export function ClientDetailsTab({
   }
 
   return (
-    <form ref={formRef} className="no-scrollbar" style={{containerType: 'inline-size', scrollbarWidth: 'none', msOverflowStyle: 'none'}}>
+    <form ref={formRef} className="no-scrollbar" style={{ containerType: 'inline-size', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
       {mode === 'view' && setIsEditing && handleSave && (
         <div className="flex justify-between items-center mb-4">
-          <Button 
+          <Button
             type="button"
-            variant={isEditing ? "outline" : "default"} 
+            variant={isEditing ? "outline" : "default"}
             onClick={() => isEditing ? handleSave() : setIsEditing(true)}
           >
             {isEditing ? "שמור שינויים" : "ערוך פרטים"}
@@ -300,119 +309,8 @@ export function ClientDetailsTab({
         </div>
       )}
       <div className="space-y-6">
-        
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="bg-card rounded-lg examcard p-6">
-            <div className="flex items-center gap-3 mb-6" dir="rtl">
-              <div className="p-2 bg-muted rounded-lg">
-                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-foreground">
-                  <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
-                </svg>
-              </div>
-              <h3 className="text-lg font-semibold">פרטי התקשרות</h3>
-            </div>
-            <div className="grid grid-cols-1 @[900px]:grid-cols-2 gap-4" dir="rtl">
-              <div className="space-y-2">
-                <ModernLabel>עיר</ModernLabel>
-                <CityLookupInput
-                  value={formData.address_city || ''}
-                  onChange={(v) => handleSelectChange(v, 'address_city')}
-                  placeholder={showEditableFields ? "בחר או הקלד..." : ''}
-                  className="h-9"
-                  disabled={!showEditableFields}
-                  dir="rtl"
-                />
-              </div>
-              <div className="space-y-2">
-                <ModernLabel>רחוב</ModernLabel>
-                <Input 
-                  type="text"
-                  name="address_street"
-                  value={formData.address_street || ''}
-                  onChange={handleInputChange}
-                  disabled={!showEditableFields}
-                  className={`text-sm h-9 disabled:opacity-100 disabled:cursor-default`}
-                  placeholder={showEditableFields ? "הכנס רחוב" : ""}
-                />
-              </div>
-              <div className="space-y-2">
-                <ModernLabel>מספר</ModernLabel>
-                <Input 
-                  type="text"
-                  name="address_number"
-                  value={formData.address_number || ''}
-                  onChange={handleInputChange}
-                  disabled={!showEditableFields}
-                  className={`text-sm h-9 disabled:opacity-100 disabled:cursor-default`}
-                  placeholder={showEditableFields ? "הכנס מספר" : ""}
-                />
-              </div>
-              <div className="space-y-2">
-                <ModernLabel>מיקוד</ModernLabel>
-                <Input 
-                  type="text"
-                  name="postal_code"
-                  value={formData.postal_code || ''}
-                  onChange={handleInputChange}
-                  disabled={!showEditableFields}
-                  className={`text-sm h-9 disabled:opacity-100 disabled:cursor-default`}
-                  placeholder={showEditableFields ? "הכנס מיקוד" : ""}
-                />
-              </div>
-              <div className="space-y-2">
-                <ModernLabel>טלפון נייד</ModernLabel>
-                <Input 
-                  type="tel"
-                  name="phone_mobile"
-                  value={formData.phone_mobile || ''}
-                  onChange={handleInputChange}
-                  disabled={!showEditableFields}
-                  className={`text-sm h-9 text-right disabled:opacity-100 disabled:cursor-default`}
-                  dir="rtl"
-                  placeholder={showEditableFields ? "הכנס טלפון נייד" : ""}
-                />
-              </div>
-              <div className="space-y-2">
-                <ModernLabel>טלפון בית</ModernLabel>
-                <Input 
-                  type="tel"
-                  name="phone_home"
-                  value={formData.phone_home || ''}
-                  onChange={handleInputChange}
-                  disabled={!showEditableFields}
-                  className={`text-sm h-9 text-right disabled:opacity-100 disabled:cursor-default`}
-                  dir="rtl"
-                  placeholder={showEditableFields ? "הכנס טלפון בית" : ""}
-                />
-              </div>
-              <div className="space-y-2">
-                <ModernLabel>טלפון עבודה</ModernLabel>
-                <Input 
-                  type="tel"
-                  name="phone_work"
-                  value={formData.phone_work || ''}
-                  onChange={handleInputChange}
-                  disabled={!showEditableFields}
-                  className={`text-sm h-9 text-right disabled:opacity-100 disabled:cursor-default`}
-                  dir="rtl"
-                  placeholder={showEditableFields ? "הכנס טלפון עבודה" : ""}
-                />
-              </div>
-              <div className="space-y-2">
-                <ModernLabel>אימייל</ModernLabel>
-                <Input 
-                  type="email"
-                  name="email"
-                  value={formData.email || ''}
-                  onChange={handleInputChange}
-                  disabled={!showEditableFields}
-                  className={`text-sm h-9 disabled:opacity-100 disabled:cursor-default`}
-                  placeholder={showEditableFields ? "הכנס אימייל" : ""}
-                />
-              </div>
-            </div>
-          </div>
 
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="bg-card rounded-lg examcard p-6">
             <div className="flex items-center gap-3 mb-6" dir="rtl">
               <div className="p-2 bg-muted rounded-lg">
@@ -453,7 +351,7 @@ export function ClientDetailsTab({
               </div>
               <div className="space-y-2">
                 <ModernLabel>מחירון</ModernLabel>
-                <Input 
+                <Input
                   type="text"
                   name="price_list"
                   value={formData.price_list || ''}
@@ -465,7 +363,7 @@ export function ClientDetailsTab({
               </div>
               <div className="space-y-2">
                 <ModernLabel>הנחה באחוזים</ModernLabel>
-                <Input 
+                <Input
                   type="number"
                   name="discount_percent"
                   value={formData.discount_percent || ''}
@@ -477,7 +375,7 @@ export function ClientDetailsTab({
               </div>
               <div className="space-y-2">
                 <ModernLabel>קבוצת מיון</ModernLabel>
-                <Input 
+                <Input
                   type="text"
                   name="sorting_group"
                   value={formData.sorting_group || ''}
@@ -489,7 +387,7 @@ export function ClientDetailsTab({
               </div>
               <div className="space-y-2">
                 <ModernLabel>גורם מפנה</ModernLabel>
-                <Input 
+                <Input
                   type="text"
                   name="referring_party"
                   value={formData.referring_party || ''}
@@ -503,9 +401,9 @@ export function ClientDetailsTab({
                 <div className="grid grid-cols-1 @[400px]:grid-cols-2 gap-3">
                   <div>
                     <ModernLabel>צ'ק חסום</ModernLabel>
-                    <Select 
+                    <Select
                       disabled={!showEditableFields}
-                      value={formData.blocked_checks ? 'true' : 'false'} 
+                      value={formData.blocked_checks ? 'true' : 'false'}
                       onValueChange={(value) => handleSelectChange(value === 'true' ? true : false, 'blocked_checks')}
                     >
                       <SelectTrigger dir="rtl" disabled={!showEditableFields}>
@@ -519,9 +417,9 @@ export function ClientDetailsTab({
                   </div>
                   <div>
                     <ModernLabel>אשראי חסום</ModernLabel>
-                    <Select 
+                    <Select
                       disabled={!showEditableFields}
-                      value={formData.blocked_credit ? 'true' : 'false'} 
+                      value={formData.blocked_credit ? 'true' : 'false'}
                       onValueChange={(value) => handleSelectChange(value === 'true' ? true : false, 'blocked_credit')}
                     >
                       <SelectTrigger dir="rtl" disabled={!showEditableFields}>
@@ -542,6 +440,118 @@ export function ClientDetailsTab({
             <div className="flex items-center gap-3 mb-6" dir="rtl">
               <div className="p-2 bg-muted rounded-lg">
                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-foreground">
+                  <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+                </svg>
+              </div>
+              <h3 className="text-lg font-semibold">פרטי התקשרות</h3>
+            </div>
+            <div className="grid grid-cols-1 @[900px]:grid-cols-2 gap-4" dir="rtl">
+              <div className="space-y-2">
+                <ModernLabel>עיר</ModernLabel>
+                <CityLookupInput
+                  value={formData.address_city || ''}
+                  onChange={(v) => handleSelectChange(v, 'address_city')}
+                  placeholder={showEditableFields ? "בחר או הקלד..." : ''}
+                  className="h-9"
+                  disabled={!showEditableFields}
+                  dir="rtl"
+                />
+              </div>
+              <div className="space-y-2">
+                <ModernLabel>רחוב</ModernLabel>
+                <Input
+                  type="text"
+                  name="address_street"
+                  value={formData.address_street || ''}
+                  onChange={handleInputChange}
+                  disabled={!showEditableFields}
+                  className={`text-sm h-9 disabled:opacity-100 disabled:cursor-default`}
+                  placeholder={showEditableFields ? "הכנס רחוב" : ""}
+                />
+              </div>
+              <div className="space-y-2">
+                <ModernLabel>מיקוד</ModernLabel>
+                <Input
+                  type="text"
+                  name="postal_code"
+                  value={formData.postal_code || ''}
+                  onChange={handleInputChange}
+                  disabled={!showEditableFields}
+                  className={`text-sm h-9 disabled:opacity-100 disabled:cursor-default`}
+                  placeholder={showEditableFields ? "הכנס מיקוד" : ""}
+                />
+              </div>
+              <div className="space-y-2">
+                <ModernLabel>טלפון נייד</ModernLabel>
+                <Input
+                  type="tel"
+                  name="phone_mobile"
+                  value={formData.phone_mobile || ''}
+                  onChange={handleInputChange}
+                  disabled={!showEditableFields}
+                  className={`text-sm h-9 text-right disabled:opacity-100 disabled:cursor-default`}
+                  dir="rtl"
+                  placeholder={showEditableFields ? "הכנס טלפון נייד" : ""}
+                />
+              </div>
+              <div className="space-y-2">
+                <ModernLabel>טלפון בית</ModernLabel>
+                <Input
+                  type="tel"
+                  name="phone_home"
+                  value={formData.phone_home || ''}
+                  onChange={handleInputChange}
+                  disabled={!showEditableFields}
+                  className={`text-sm h-9 text-right disabled:opacity-100 disabled:cursor-default`}
+                  dir="rtl"
+                  placeholder={showEditableFields ? "הכנס טלפון בית" : ""}
+                />
+              </div>
+              <div className="space-y-2">
+                <ModernLabel>טלפון עבודה</ModernLabel>
+                <Input
+                  type="tel"
+                  name="phone_work"
+                  value={formData.phone_work || ''}
+                  onChange={handleInputChange}
+                  disabled={!showEditableFields}
+                  className={`text-sm h-9 text-right disabled:opacity-100 disabled:cursor-default`}
+                  dir="rtl"
+                  placeholder={showEditableFields ? "הכנס טלפון עבודה" : ""}
+                />
+              </div>
+              <div className="space-y-2">
+                <ModernLabel>טלפון נוסף</ModernLabel>
+                <Input
+                  type="text"
+                  name="address_number"
+                  value={formData.address_number || ''}
+                  onChange={handleInputChange}
+                  disabled={!showEditableFields}
+                  className={`text-sm h-9 disabled:opacity-100 disabled:cursor-default`}
+                  placeholder={showEditableFields ? "הכנס מספר" : ""}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <ModernLabel>אימייל</ModernLabel>
+                <Input
+                  type="email"
+                  name="email"
+                  value={formData.email || ''}
+                  onChange={handleInputChange}
+                  disabled={!showEditableFields}
+                  className={`text-sm h-9 disabled:opacity-100 disabled:cursor-default`}
+                  placeholder={showEditableFields ? "הכנס אימייל" : ""}
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-card rounded-lg examcard p-6">
+            <div className="flex items-center gap-3 mb-6" dir="rtl">
+              <div className="p-2 bg-muted rounded-lg">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-foreground">
                   <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
                   <circle cx="12" cy="7" r="4"></circle>
                 </svg>
@@ -549,12 +559,12 @@ export function ClientDetailsTab({
               <h3 className="text-lg font-semibold">פרטים אישיים</h3>
             </div>
             <div className="grid grid-cols-1 @[900px]:grid-cols-2 gap-4" dir="rtl">
-            <div className="space-y-2">
+              <div className="space-y-2">
                 <ModernLabel>
                   שם משפחה
                   {isNewMode && <span className="text-red-500 mr-1">*</span>}
                 </ModernLabel>
-                <Input 
+                <Input
                   type="text"
                   name="last_name"
                   value={formData.last_name || ''}
@@ -571,7 +581,7 @@ export function ClientDetailsTab({
                   שם פרטי
                   {isNewMode && <span className="text-red-500 mr-1">*</span>}
                 </ModernLabel>
-                <Input 
+                <Input
                   type="text"
                   name="first_name"
                   value={formData.first_name || ''}
@@ -586,10 +596,10 @@ export function ClientDetailsTab({
                 <ModernLabel>מגדר</ModernLabel>
                 <Select dir="rtl"
                   disabled={!showEditableFields}
-                  value={formData.gender || ''} 
+                  value={formData.gender || ''}
                   onValueChange={(value) => handleSelectChange(value, 'gender')}
                 >
-                  <SelectTrigger  disabled={!showEditableFields}>
+                  <SelectTrigger disabled={!showEditableFields}>
                     <SelectValue placeholder="בחר מגדר" />
                   </SelectTrigger>
                   <SelectContent>
@@ -601,7 +611,7 @@ export function ClientDetailsTab({
               </div>
               <div className="space-y-2">
                 <ModernLabel>תעודת זהות</ModernLabel>
-                <Input 
+                <Input
                   type="text"
                   name="national_id"
                   value={formData.national_id || ''}
@@ -624,31 +634,25 @@ export function ClientDetailsTab({
                 <ModernLabel>קופת חולים</ModernLabel>
                 <Select dir="rtl"
                   disabled={!showEditableFields}
-                  value={formData.health_fund || ''} 
-                  onValueChange={(value) => handleSelectChange(value, 'health_fund')}
+                  value={formData.health_fund || ''}
+                  onValueChange={(value) => {
+                    handleSelectChange(value, 'health_fund');
+                    if (formData.status) handleSelectChange('', 'status');
+                  }}
                 >
-                  <SelectTrigger  disabled={!showEditableFields}>
+                  <SelectTrigger disabled={!showEditableFields}>
                     <SelectValue placeholder="בחר קופת חולים" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="כללית רגיל">כללית רגיל</SelectItem>
-                    <SelectItem value="כללית מושלם זהב">כללית מושלם זהב</SelectItem>
-                    <SelectItem value="כללית מושלם פלטינום">כללית מושלם פלטינום</SelectItem>
-                    <SelectItem value="מכבי רגיל">מכבי רגיל</SelectItem>
-                    <SelectItem value="מכבי זהב">מכבי זהב</SelectItem>
-                    <SelectItem value="מכבי שלי">מכבי שלי</SelectItem>
-                    <SelectItem value="מאוחדת רגיל">מאוחדת רגיל</SelectItem>
-                    <SelectItem value="מאוחדת עדיף">מאוחדת עדיף</SelectItem>
-                    <SelectItem value="מאוחדת שיא">מאוחדת שיא</SelectItem>
-                    <SelectItem value="לאומית רגיל">לאומית רגיל</SelectItem>
-                    <SelectItem value="לאומית כסף">לאומית כסף</SelectItem>
-                    <SelectItem value="לאומית זהב">לאומית זהב</SelectItem>
+                    {Object.keys(HEALTH_FUNDS).map(fund => (
+                      <SelectItem key={fund} value={fund}>{fund}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-2">
                 <ModernLabel>תעסוקה</ModernLabel>
-                <Input 
+                <Input
                   type="text"
                   name="occupation"
                   value={formData.occupation || ''}
@@ -660,40 +664,45 @@ export function ClientDetailsTab({
               </div>
               <div className="space-y-2">
                 <ModernLabel>סטטוס</ModernLabel>
-                <Input 
-                  type="text"
-                  name="status"
+                <Select dir="rtl"
+                  disabled={!showEditableFields || !formData.health_fund}
                   value={formData.status || ''}
-                  onChange={handleInputChange}
-                  disabled={!showEditableFields}
-                  className={`text-sm h-9 disabled:opacity-100 disabled:cursor-default`}
-                  placeholder={showEditableFields ? "הכנס סטטוס" : ""}
-                />
+                  onValueChange={(value) => handleSelectChange(value, 'status')}
+                >
+                  <SelectTrigger disabled={!showEditableFields || !formData.health_fund}>
+                    <SelectValue placeholder={formData.health_fund ? "בחר סטטוס" : "בחר קופת חולים תחילה"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(HEALTH_FUNDS[formData.health_fund || ''] || []).map(plan => (
+                      <SelectItem key={plan} value={plan}>{plan}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
           </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-23 gap-6 items-start">
-        <div className="lg:col-span-10 bg-card rounded-lg examcard p-5" dir="rtl">
+          <div className="lg:col-span-10 bg-card rounded-lg examcard p-5" dir="rtl">
             <div className="flex items-center gap-3 mb-4 justify-between">
               <div className="flex items-center gap-3">
-              <div className="p-2 bg-muted rounded-lg">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-foreground">
-                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-                  <circle cx="9" cy="7" r="4"></circle>
-                  <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
-                  <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
-                </svg>
-              </div>
-              <h3 className="text-base font-medium text-muted-foreground">משפחה</h3>
+                <div className="p-2 bg-muted rounded-lg">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-foreground">
+                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                    <circle cx="9" cy="7" r="4"></circle>
+                    <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                    <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                  </svg>
+                </div>
+                <h3 className="text-base font-medium text-muted-foreground">משפחה</h3>
               </div>
               {showEditableFields && (
-                <Button 
-                  type="button" 
-                  variant="outline" 
+                <Button
+                  type="button"
+                  variant="outline"
                   className="bg-card "
-                  size="sm" 
+                  size="sm"
                   onClick={() => setIsCreatingFamily(true)}
                 >
                   +
@@ -730,7 +739,7 @@ export function ClientDetailsTab({
                             dir="rtl"
                           />
                         </div>
-                        <div className="max-h-60 overflow-y-auto" style={{scrollbarWidth: 'none'}}>
+                        <div className="max-h-60 overflow-y-auto" style={{ scrollbarWidth: 'none' }}>
                           <div dir="rtl"
                             className="flex cursor-default items-center gap-2 rounded-sm py-1.5 pr-8 pl-2 text-sm hover:bg-accent hover:text-accent-foreground"
                             onClick={() => handleFamilyChange('none')}
@@ -763,13 +772,13 @@ export function ClientDetailsTab({
                     </Popover>
                   </div>
                 </div>
-                
+
                 {formData.family_id && (
                   <div className="space-y-2">
                     <ModernLabel>תפקיד במשפחה</ModernLabel>
-                    <Select 
+                    <Select
                       disabled={!showEditableFields}
-                      value={formData.family_role || ''} 
+                      value={formData.family_role || ''}
                       onValueChange={handleRoleChange}
                     >
                       <SelectTrigger dir="rtl" disabled={!showEditableFields}>
@@ -791,7 +800,7 @@ export function ClientDetailsTab({
                   <div className="grid grid-cols-1 @[600px]:grid-cols-6 gap-3 items-end">
                     <div className="col-span-1 @[600px]:col-span-3 space-y-2">
                       <ModernLabel>שם משפחה חדשה</ModernLabel>
-                      <Input 
+                      <Input
                         value={newFamilyName}
                         onChange={(e) => setNewFamilyName(e.target.value)}
                         placeholder="הכנס שם משפחה"
@@ -800,8 +809,8 @@ export function ClientDetailsTab({
                     </div>
                     <div className="col-span-1 @[600px]:col-span-2 space-y-2">
                       <ModernLabel>תפקיד במשפחה</ModernLabel>
-                      <Select 
-                        value={newFamilyRole} 
+                      <Select
+                        value={newFamilyRole}
                         onValueChange={setNewFamilyRole}
                       >
                         <SelectTrigger dir="rtl">
@@ -815,27 +824,27 @@ export function ClientDetailsTab({
                         </SelectContent>
                       </Select>
                     </div>
-                                         <div className="flex gap-1 items-center">
-                       <button 
-                         type="button" 
-                         className="p-1 hover:bg-muted rounded-sm transition-colors"
-                         onClick={() => {
-                           setIsCreatingFamily(false)
-                           setNewFamilyName('')
-                           setNewFamilyRole('אחר')
-                         }}
-                       >
-                         <XIcon className="w-4 h-4 text-muted-foreground hover:text-foreground" />
-                       </button>
-                       <button 
-                         type="button" 
-                         className="p-1 hover:bg-muted rounded-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                         onClick={handleCreateFamily}
-                         disabled={!newFamilyName.trim()}
-                       >
-                         <SaveIcon className="w-4 h-4 text-muted-foreground hover:text-foreground" />
-                       </button>
-                     </div>
+                    <div className="flex gap-1 items-center">
+                      <button
+                        type="button"
+                        className="p-1 hover:bg-muted rounded-sm transition-colors"
+                        onClick={() => {
+                          setIsCreatingFamily(false)
+                          setNewFamilyName('')
+                          setNewFamilyRole('אחר')
+                        }}
+                      >
+                        <XIcon className="w-4 h-4 text-muted-foreground hover:text-foreground" />
+                      </button>
+                      <button
+                        type="button"
+                        className="p-1 hover:bg-muted rounded-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        onClick={handleCreateFamily}
+                        disabled={!newFamilyName.trim()}
+                      >
+                        <SaveIcon className="w-4 h-4 text-muted-foreground hover:text-foreground" />
+                      </button>
+                    </div>
                   </div>
                 </div>
               )}
@@ -849,50 +858,39 @@ export function ClientDetailsTab({
             </div>
           </div>
 
-          <div className="lg:col-span-9 bg-card rounded-lg examcard p-5" dir="rtl">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="p-2 bg-muted rounded-lg">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-foreground">
-                  <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path>
-                  <polyline points="14,2 14,8 20,8"></polyline>
-                  <line x1="16" y1="13" x2="8" y2="13"></line>
-                  <line x1="16" y1="17" x2="8" y2="17"></line>
-                  <polyline points="10,9 9,9 8,9"></polyline>
-                </svg>
-              </div>
-              <h3 className="text-base font-medium text-muted-foreground">הערות</h3>
-            </div>
-            <Textarea
-              name="notes"
-              disabled={!showEditableFields}
+
+          <div className="lg:col-span-9">
+            <NotesCard
+              title="הערות"
               value={formData.notes || ''}
-              onChange={handleInputChange}
-              className={`text-sm w-full p-3 border rounded-lg disabled:opacity-100 disabled:cursor-default min-h-[55px]`}
-              style={{scrollbarWidth: 'none'}}
-              rows={3}
+              onChange={(value) => handleSelectChange(value, 'notes')}
+              hiddenValue={formData.hidden_note || ''}
+              onHiddenChange={(value) => handleSelectChange(value, 'hidden_note')}
+              disabled={!showEditableFields}
+              height="107px"
               placeholder={showEditableFields ? "הכנס הערות כלליות על הלקוח..." : ""}
             />
           </div>
 
           <div className="lg:col-span-4 bg-transparent rounded-lg flex justify-center items-center ">
-            
+
             <div className="flex justify-center items-center">
               <div className="relative">
                 <div className="w-full h-full rounded-lg bg-card examcard overflow-hidden">
                   {formData.profile_picture ? (
-                    <img 
-                      src={formData.profile_picture} 
-                      alt="תמונת פרופיל" 
+                    <img
+                      src={formData.profile_picture}
+                      alt="תמונת פרופיל"
                       className="w-full h-full object-cover rounded-lg"
                     />
                   ) : (
                     <div className="w-44 h-44 items-center rounded-lg content-center">
                       <div className="flex flex-col items-center justify-center">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-muted-foreground m-auto self-center justify-center">
-                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-                        <circle cx="12" cy="7" r="4"></circle>
-                      </svg>
-                      <div className="text-sm text-muted-foreground mt-2">תמונת הלקוח</div>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-muted-foreground m-auto self-center justify-center">
+                          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                          <circle cx="12" cy="7" r="4"></circle>
+                        </svg>
+                        <div className="text-sm text-muted-foreground mt-2">תמונת הלקוח</div>
                       </div>
                     </div>
                   )}
@@ -905,7 +903,7 @@ export function ClientDetailsTab({
                         <polyline points="17,8 12,3 7,8"></polyline>
                         <line x1="12" y1="3" x2="12" y2="15"></line>
                       </svg>
-                      <input 
+                      <input
                         type="file"
                         accept="image/*"
                         className="hidden"
@@ -945,7 +943,7 @@ export function ClientDetailsTab({
         </div>
 
       </div>
-      
+
     </form>
   )
 } 

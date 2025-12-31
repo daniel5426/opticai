@@ -299,6 +299,16 @@ function setupIpcHandlers() {
     }
   });
 
+  ipcMain.handle('google-oauth-code-received', async (event, code: string) => {
+    try {
+      console.log('Main: Received Google OAuth code from renderer');
+      return await GoogleOAuthService.resolvePendingAuth(code);
+    } catch (error) {
+      console.error('Error handling received Google OAuth code:', error);
+      return false;
+    }
+  });
+
   ipcMain.handle('google-oauth-refresh-token', async (event, refreshToken: string) => {
     try {
       const oauthService = new GoogleOAuthService();

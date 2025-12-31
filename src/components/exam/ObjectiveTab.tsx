@@ -87,6 +87,7 @@ export function ObjectiveTab({
                 value={getFieldValue("R", key)}
                 onChange={(e) => handleChange("R", key, e.target.value)}
                 disabled={!isEditing}
+                showPlus={key === "sph" || key === "cyl"}
                 className={`h-8 pr-1 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
               />
             ))}
@@ -121,6 +122,7 @@ export function ObjectiveTab({
                 value={getFieldValue("L", key)}
                 onChange={(e) => handleChange("L", key, e.target.value)}
                 disabled={!isEditing}
+                showPlus={key === "sph" || key === "cyl"}
                 className={`h-8 pr-1 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
               />
             ))}

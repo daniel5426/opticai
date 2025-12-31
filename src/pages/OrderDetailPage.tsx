@@ -88,6 +88,7 @@ import { docxGenerator } from "@/lib/docx-generator";
 import { OrderToDocxMapper } from "@/lib/order-to-docx-mapper";
 import { UnsavedChangesDialog } from "@/components/unsaved-changes-dialog";
 import { useUnsavedChanges } from "@/hooks/shared/useUnsavedChanges";
+import { UI_CONFIG } from "@/config/ui-config";
 
 interface OrderDetailPageProps {
   mode?: "view" | "edit" | "new";
@@ -636,52 +637,52 @@ export default function OrderDetailPage({
 
         const mergedOrderData: any = isNewMode
           ? {
-              client_id: Number(clientId),
-              clinic_id: currentClinic?.id,
-              order_date: contactFormData.order_date,
-              type: contactFormData.type,
-              user_id: contactFormData.user_id,
-              notes: contactFormData.notes,
-              supplier_notes: contactFormData.supplier_notes,
-              order_data: {
-                ...(hasDetails
-                  ? { "contact-lens-details": { ...contactLensDetailsData } }
-                  : {}),
-                ...(hasExam
-                  ? { "contact-lens-exam": { ...contactLensExamData } }
-                  : {}),
-                ...(hasKerato
-                  ? { "keratometer-contact-lens": { ...keratoCLData } }
-                  : {}),
-                ...(hasSchirmer
-                  ? { "schirmer-test": { ...schirmerData } }
-                  : {}),
-                ...(hasDiam
-                  ? { "contact-lens-diameters": { ...diametersData } }
-                  : {}),
-              },
-            }
+            client_id: Number(clientId),
+            clinic_id: currentClinic?.id,
+            order_date: contactFormData.order_date,
+            type: contactFormData.type,
+            user_id: contactFormData.user_id,
+            notes: contactFormData.notes,
+            supplier_notes: contactFormData.supplier_notes,
+            order_data: {
+              ...(hasDetails
+                ? { "contact-lens-details": { ...contactLensDetailsData } }
+                : {}),
+              ...(hasExam
+                ? { "contact-lens-exam": { ...contactLensExamData } }
+                : {}),
+              ...(hasKerato
+                ? { "keratometer-contact-lens": { ...keratoCLData } }
+                : {}),
+              ...(hasSchirmer
+                ? { "schirmer-test": { ...schirmerData } }
+                : {}),
+              ...(hasDiam
+                ? { "contact-lens-diameters": { ...diametersData } }
+                : {}),
+            },
+          }
           : {
-              ...(contactFormData as any),
-              order_data: {
-                ...((contactFormData as any)?.order_data || {}),
-                ...(hasDetails
-                  ? { "contact-lens-details": { ...contactLensDetailsData } }
-                  : {}),
-                ...(hasExam
-                  ? { "contact-lens-exam": { ...contactLensExamData } }
-                  : {}),
-                ...(hasKerato
-                  ? { "keratometer-contact-lens": { ...keratoCLData } }
-                  : {}),
-                ...(hasSchirmer
-                  ? { "schirmer-test": { ...schirmerData } }
-                  : {}),
-                ...(hasDiam
-                  ? { "contact-lens-diameters": { ...diametersData } }
-                  : {}),
-              },
-            };
+            ...(contactFormData as any),
+            order_data: {
+              ...((contactFormData as any)?.order_data || {}),
+              ...(hasDetails
+                ? { "contact-lens-details": { ...contactLensDetailsData } }
+                : {}),
+              ...(hasExam
+                ? { "contact-lens-exam": { ...contactLensExamData } }
+                : {}),
+              ...(hasKerato
+                ? { "keratometer-contact-lens": { ...keratoCLData } }
+                : {}),
+              ...(hasSchirmer
+                ? { "schirmer-test": { ...schirmerData } }
+                : {}),
+              ...(hasDiam
+                ? { "contact-lens-diameters": { ...diametersData } }
+                : {}),
+            },
+          };
 
         const hasBillingData = Object.values(billingFormData).some(
           (value) => value !== undefined && value !== null && value !== "",
@@ -815,43 +816,43 @@ export default function OrderDetailPage({
       );
       const mergedOrderData = isNewMode
         ? {
-            client_id: Number(clientId),
-            clinic_id: currentClinic?.id,
-            order_date: formData.order_date,
-            type: formData.type,
-            dominant_eye: formData.dominant_eye,
-            user_id: formData.user_id,
-            comb_va: formData.comb_va,
-            comb_high: formData.comb_high,
-            comb_pd: formData.comb_pd,
-            order_data: {
-              ...(hasFinalPrescriptionData
-                ? { "final-prescription": { ...finalPrescriptionFormData } }
-                : {}),
-              lens: { ...lensFormData },
-              frame: { ...frameFormData },
-              details: { ...orderDetailsFormData },
-            },
-          }
+          client_id: Number(clientId),
+          clinic_id: currentClinic?.id,
+          order_date: formData.order_date,
+          type: formData.type,
+          dominant_eye: formData.dominant_eye,
+          user_id: formData.user_id,
+          comb_va: formData.comb_va,
+          comb_high: formData.comb_high,
+          comb_pd: formData.comb_pd,
+          order_data: {
+            ...(hasFinalPrescriptionData
+              ? { "final-prescription": { ...finalPrescriptionFormData } }
+              : {}),
+            lens: { ...lensFormData },
+            frame: { ...frameFormData },
+            details: { ...orderDetailsFormData },
+          },
+        }
         : {
-            ...(formData as Order),
-            order_date: formData.order_date,
-            type: formData.type,
-            dominant_eye: formData.dominant_eye,
-            user_id: formData.user_id,
-            comb_va: formData.comb_va,
-            comb_high: formData.comb_high,
-            comb_pd: formData.comb_pd,
-            order_data: {
-              ...((order as any)?.order_data || {}),
-              ...(hasFinalPrescriptionData
-                ? { "final-prescription": { ...finalPrescriptionFormData } }
-                : {}),
-              lens: { ...lensFormData },
-              frame: { ...frameFormData },
-              details: { ...orderDetailsFormData },
-            },
-          };
+          ...(formData as Order),
+          order_date: formData.order_date,
+          type: formData.type,
+          dominant_eye: formData.dominant_eye,
+          user_id: formData.user_id,
+          comb_va: formData.comb_va,
+          comb_high: formData.comb_high,
+          comb_pd: formData.comb_pd,
+          order_data: {
+            ...((order as any)?.order_data || {}),
+            ...(hasFinalPrescriptionData
+              ? { "final-prescription": { ...finalPrescriptionFormData } }
+              : {}),
+            lens: { ...lensFormData },
+            frame: { ...frameFormData },
+            details: { ...orderDetailsFormData },
+          },
+        };
 
       const hasBillingData = Object.values(billingFormData).some(
         (value) => value !== undefined && value !== null && value !== "",
@@ -1002,11 +1003,11 @@ export default function OrderDetailPage({
     try {
       const orderToExport = isContactMode ? contactFormData : formData;
       const userData = users.find((u) => u.id === orderToExport.user_id);
-      
+
       // Use currentClient if available, otherwise it should already be loaded from context
       // For safety, we're using currentClient which should have full data
       const clientData = currentClient;
-      
+
       const templateData = OrderToDocxMapper.mapOrderToTemplateData(
         orderToExport,
         clientData,
@@ -1016,7 +1017,7 @@ export default function OrderDetailPage({
       );
 
       // Use different templates based on order type
-      const templatePath = isContactMode 
+      const templatePath = isContactMode
         ? "/templates/template.docx"
         : "/templates/template_regular_order.docx";
 
@@ -1190,7 +1191,12 @@ export default function OrderDetailPage({
         <div
           className="no-scrollbar mb-10 flex flex-1 flex-col p-4 lg:p-6"
           dir="rtl"
-          style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+          style={{
+            scrollbarWidth: "none",
+            msOverflowStyle: "none",
+            maxWidth: UI_CONFIG.pageMaxWidth,
+            margin: "0 auto",
+          }}
         >
           <Tabs
             defaultValue={isContactMode ? "contact" : "order"}
@@ -1253,16 +1259,16 @@ export default function OrderDetailPage({
               <TabsContent value="order" className="space-y-4">
                 <RegularOrderTab
                   formRef={formRef}
-                          isEditing={isEditing}
+                  isEditing={isEditing}
                   users={users}
                   formData={formData}
                   setFormData={setFormData}
                   onSelectChange={handleSelectChange}
                   finalPrescriptionData={finalPrescriptionFormData}
                   onFinalPrescriptionChange={handleFinalPrescriptionChange}
-                          currentCard={currentCard}
-                          allRows={allRows}
-                          clipboardSourceType={clipboardSourceType}
+                  currentCard={currentCard}
+                  allRows={allRows}
+                  clipboardSourceType={clipboardSourceType}
                   onToolboxClearData={() => toolboxActions.clearData(type)}
                   onToolboxCopy={handleCopy}
                   onToolboxPaste={handlePaste}
@@ -1282,7 +1288,7 @@ export default function OrderDetailPage({
               <TabsContent value="contact" className="space-y-4">
                 <ContactOrderTab
                   formRef={formRef}
-                      isEditing={isEditing}
+                  isEditing={isEditing}
                   users={users}
                   contactFormData={contactFormData}
                   setContactFormData={setContactFormData}

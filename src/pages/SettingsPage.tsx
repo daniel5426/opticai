@@ -103,7 +103,8 @@ export default function SettingsPage() {
     secondary_theme_color: '#cce9ff',
     theme_preference: 'system',//8b5cf6, 3b82f6
     system_vacation_dates: [],
-    added_vacation_dates: []
+    added_vacation_dates: [],
+    va_format: 'meter'
   })
   const [profileColorUpdateTimeout, setProfileColorUpdateTimeout] = useState<NodeJS.Timeout | null>(null)
 
@@ -165,7 +166,8 @@ export default function SettingsPage() {
           secondary_theme_color: currentUser.secondary_theme_color || '#cce9ff',
           theme_preference: currentUser.theme_preference || 'system',
           system_vacation_dates: currentUser.system_vacation_dates || [],
-          added_vacation_dates: currentUser.added_vacation_dates || []
+          added_vacation_dates: currentUser.added_vacation_dates || [],
+          va_format: currentUser.va_format || 'meter'
         })
       }
     }
@@ -284,6 +286,7 @@ export default function SettingsPage() {
           theme_preference: personalProfile.theme_preference,
           system_vacation_dates: personalProfile.system_vacation_dates,
           added_vacation_dates: personalProfile.added_vacation_dates,
+          va_format: personalProfile.va_format,
         }
       }
 
@@ -332,7 +335,8 @@ export default function SettingsPage() {
             : (personalProfile.system_vacation_dates as string[] || []),
           added_vacation_dates: updatedUser.added_vacation_dates !== undefined && updatedUser.added_vacation_dates !== null
             ? normalizeDates(updatedUser.added_vacation_dates)
-            : (personalProfile.added_vacation_dates as string[] || [])
+            : (personalProfile.added_vacation_dates as string[] || []),
+          va_format: updatedUser.va_format ?? personalProfile.va_format ?? 'meter'
         }
         
         setPersonalProfile(newProfile)
