@@ -12,6 +12,8 @@ interface CompactPrescriptionTabProps {
   hideEyeLabels?: boolean;
 }
 
+import { FastInput } from "./shared/OptimizedInputs"
+
 export function CompactPrescriptionTab({
   data,
   onChange,
@@ -66,10 +68,10 @@ export function CompactPrescriptionTab({
         return <VASelect value={getFieldValue(eye, key)} onChange={(val) => handleChange(eye, key, val)} disabled={!isEditing} />;
       default:
         return (
-          <Input
+          <FastInput
             type="number" step={step} min={min} max={max}
             value={getFieldValue(eye, key)}
-            onChange={(e) => handleChange(eye, key, e.target.value)}
+            onChange={(val) => handleChange(eye, key, val)}
             disabled={!isEditing}
             showPlus={key === "sph" || key === "cyl" || key === "ad"}
             className={`h-8 pr-1 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
@@ -80,12 +82,12 @@ export function CompactPrescriptionTab({
 
   return (
     <Card className="w-full examcard pb-4 pt-3" dir="ltr">
-      <CardContent className="px-4" style={{scrollbarWidth: 'none'}}>
+      <CardContent className="px-4" style={{ scrollbarWidth: 'none' }}>
         <div className="space-y-3">
           <div className="text-center">
             <h3 className="font-medium text-muted-foreground">מרשם קומפקטי</h3>
           </div>
-          
+
           <div className={`grid ${hideEyeLabels ? 'grid-cols-[repeat(8,1fr)]' : 'grid-cols-[20px_repeat(8,1fr)]'} gap-2 items-center`}>
             {!hideEyeLabels && <div></div>}
             {columns.map(({ key, label }) => (
@@ -95,9 +97,9 @@ export function CompactPrescriptionTab({
                 </span>
               </div>
             ))}
-            
+
             {!hideEyeLabels && <div className="flex items-center justify-center">
-              <span 
+              <span
                 className="text-base font-medium cursor-pointer hover:bg-accent rounded-full px-2"
                 onMouseEnter={() => setHoveredEye("R")}
                 onMouseLeave={() => setHoveredEye(null)}
@@ -108,7 +110,7 @@ export function CompactPrescriptionTab({
               </span>
             </div>}
             {columns.map(col => <div key={`r-${col.key}`}>{renderInput("R", col)}</div>)}
-            
+
             {!hideEyeLabels && <div className="flex items-center justify-center h-8">
             </div>}
             {columns.map(({ key, step }) => {
@@ -125,9 +127,9 @@ export function CompactPrescriptionTab({
               }
               if (key === 'pd') {
                 return (
-                  <Input
+                  <FastInput
                     key={`c-${key}`} type="number" step={step} value={getFieldValue("C", key)}
-                    onChange={(e) => handleChange("C", key, e.target.value)}
+                    onChange={(val) => handleChange("C", key, val)}
                     disabled={!isEditing}
                     className={`h-8 pr-1 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
                   />
@@ -135,9 +137,9 @@ export function CompactPrescriptionTab({
               }
               return <div key={`c-spacer-${key}`} />;
             })}
-            
+
             {!hideEyeLabels && <div className="flex items-center justify-center">
-              <span 
+              <span
                 className="text-base font-medium cursor-pointer hover:bg-accent rounded-full px-2"
                 onMouseEnter={() => setHoveredEye("L")}
                 onMouseLeave={() => setHoveredEye(null)}
@@ -153,4 +155,4 @@ export function CompactPrescriptionTab({
       </CardContent>
     </Card>
   );
-} 
+}

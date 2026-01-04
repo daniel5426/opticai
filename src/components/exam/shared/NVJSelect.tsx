@@ -1,30 +1,28 @@
-import React from "react"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import React, { memo } from "react"
 import { NV_J_VALUES } from "../data/exam-constants"
+import { FastSelect } from "./OptimizedInputs"
 
 interface NVJSelectProps {
   value: string
-  onChange: (value: string) => void
+  onChange?: (value: string) => void
   disabled?: boolean
   className?: string
 }
 
-export function NVJSelect({ 
-  value, 
-  onChange, 
-  disabled = false, 
+export const NVJSelect = memo(function NVJSelect({
+  value,
+  onChange,
+  disabled = false,
   className = ""
 }: NVJSelectProps) {
   return (
-    <Select value={value} onValueChange={onChange} disabled={disabled}>
-      <SelectTrigger size="xs" className={`h-8 text-xs w-full ${className}`} disabled={disabled}>
-        <SelectValue placeholder="" />
-      </SelectTrigger>
-      <SelectContent>
-        {NV_J_VALUES.map(opt => (
-          <SelectItem key={opt} value={opt}>{opt}</SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
+    <FastSelect
+      value={value}
+      onChange={onChange}
+      disabled={disabled}
+      options={NV_J_VALUES}
+      size="xs"
+      triggerClassName={`h-8 text-xs w-full ${className}`}
+    />
   )
-}
+})

@@ -1,15 +1,18 @@
-import React, { useState } from "react"
+import React, { useState, useRef } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { VHCalculatorModal } from "@/components/ui/vh-calculator-modal"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { OldRefractionExam } from "@/lib/db/schema-interface"
-import { ChevronUp, ChevronDown, AlertCircle } from "lucide-react"
+import { ChevronUp, ChevronDown, Plus, MoreVertical } from "lucide-react"
 import { EXAM_FIELDS, formatValueWithSign } from "./data/exam-field-definitions"
 import { VASelect } from "./shared/VASelect"
 import { NVJSelect } from "./shared/NVJSelect"
 import { cn } from "@/utils/tailwind"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+
+import { FastInput, FastSelect } from "./shared/OptimizedInputs"
 
 interface OldRefractionTabProps {
   oldRefractionData: OldRefractionExam;
@@ -18,6 +21,14 @@ interface OldRefractionTabProps {
   onMultifocalClick: () => void;
   onVHConfirm: (rightPris: number, rightBase: number, leftPris: number, leftBase: number) => void;
   hideEyeLabels?: boolean;
+  tabCount: number;
+  activeTab: number;
+  onTabChange: (tabIdx: number) => void;
+  onAddTab: (type: string) => void;
+  onDeleteTab?: (tabIdx: number) => void;
+  onDuplicateTab?: (tabIdx: number) => void;
+  onUpdateType?: (tabIdx: number, newType: string) => void;
+  allTabsData?: OldRefractionExam[];
 }
 
 export function OldRefractionTab({
@@ -26,9 +37,18 @@ export function OldRefractionTab({
   isEditing,
   onMultifocalClick,
   onVHConfirm,
-  hideEyeLabels = false
+  hideEyeLabels = false,
+  tabCount,
+  activeTab,
+  onTabChange,
+  onAddTab,
+  onDeleteTab,
+  onDuplicateTab,
+  onUpdateType,
+  allTabsData = []
 }: OldRefractionTabProps) {
   const [hoveredEye, setHoveredEye] = useState<"R" | "L" | null>(null);
+  const [dropdownTabIdx, setDropdownTabIdx] = useState<number | null>(null);
 
   const glassesTypeOptions = ["רחוק", "קרוב", "מולטיפוקל", "ביפוקל"];
 
@@ -86,14 +106,14 @@ export function OldRefractionTab({
 
     if (type === "select") {
       return (
-        <Select value={value} onValueChange={(val) => handleChange(eye, key, val)} disabled={!isEditing}>
-          <SelectTrigger size="xs" className="h-8 text-xs w-full disabled:opacity-100" disabled={!isEditing}>
-            <SelectValue placeholder="" />
-          </SelectTrigger>
-          <SelectContent>
-            {options?.map((opt: string) => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
-          </SelectContent>
-        </Select>
+        <FastSelect
+          value={value}
+          onChange={(val) => handleChange(eye, key, val)}
+          disabled={!isEditing}
+          options={options || []}
+          size="xs"
+          triggerClassName="h-8 text-xs w-full disabled:opacity-100"
+        />
       );
     }
 
@@ -109,13 +129,13 @@ export function OldRefractionTab({
 
     return (
       <div className="relative">
-        <Input
+        <FastInput
           type="number"
           step={step}
           min={min}
           max={max}
           value={value}
-          onChange={(e) => handleChange(eye, key, e.target.value)}
+          onChange={(val) => handleChange(eye, key, val)}
           disabled={!isEditing}
           showPlus={requireSign}
           className={cn(
@@ -124,7 +144,7 @@ export function OldRefractionTab({
           )}
         />
         {isAxisMissing && (
-          <div className="absolute -top-6 left-1/2 -translate-x-1/2 bg-destructive text-destructive-foreground text-[10px] px-1 rounded shadow-sm whitespace-nowrap z-10">
+          <div dir="rtl" className="absolute -top-6 left-1/2 -translate-x-1/2 bg-destructive text-destructive-foreground text-[10px] px-1 rounded shadow-sm whitespace-nowrap z-10">
             חסר Axis
           </div>
         )}
@@ -132,35 +152,110 @@ export function OldRefractionTab({
     );
   };
 
+
+  const handleTabClick = (idx: number) => {
+    onTabChange(idx);
+    setDropdownTabIdx(null);
+  };
+
+  const handleTabContextMenu = (idx: number, e: React.MouseEvent) => {
+    e.preventDefault();
+    if (isEditing) {
+      setDropdownTabIdx(idx);
+    }
+  };
+
   return (
     <Card className="w-full examcard pb-4 pt-3">
-      <CardContent className="px-4" style={{scrollbarWidth: 'none'}}>
+      <CardContent className="px-4" style={{ scrollbarWidth: 'none' }}>
         <div className="space-y-3">
-          <div className="flex items-center justify-between px-2">
-            <div className="flex items-center gap-2">
-              <Select
-                value={oldRefractionData.r_glasses_type || ""}
-                onValueChange={(value) => {
-                  onOldRefractionChange("r_glasses_type", value);
-                  onOldRefractionChange("l_glasses_type", value);
-                }}
-                disabled={!isEditing}
-              >
-                <SelectTrigger size="xs" className="h-6 text-xs w-[90px] disabled:opacity-100" disabled={!isEditing}>
-                  <SelectValue placeholder="בחר סוג" />
-                </SelectTrigger>
-                <SelectContent>
-                  {glassesTypeOptions.map((opt) => (
-                    <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+          <div className="relative flex items-center" style={{ minHeight: 24 }}>
+            {/* Tab bar: absolutely positioned to the left (same as CoverTest) */}
+            <div
+              className="absolute bg-accent left-0 rounded-md flex items-center justify-start gap-0"
+              style={{ direction: "rtl" }}
+            >
+              {Array.from({ length: tabCount }).map((_, idx) => tabCount - 1 - idx).map((revIdx) => {
+                const tabData = allTabsData[revIdx];
+                const currentType = tabData?.r_glasses_type;
+                const typeLabel = currentType || (revIdx + 1).toString();
+                const otherTypes = glassesTypeOptions.filter(t => t !== currentType);
+
+                return (
+                  <DropdownMenu key={revIdx} open={dropdownTabIdx === revIdx} onOpenChange={open => { if (!open) setDropdownTabIdx(null); }} dir="rtl">
+                    <DropdownMenuTrigger asChild>
+                      <button
+                        type="button"
+                        className={`rounded border-none px-2 text-xs font-bold transition-all duration-150 ${activeTab === revIdx ? "bg-secondary text-primary" : "bg-transparent text-muted-foreground hover:bg-accent"}`}
+                        onClick={() => handleTabClick(revIdx)}
+                        onContextMenu={e => handleTabContextMenu(revIdx, e)}
+                        style={{ outline: "none" }}
+                      >
+                        {typeLabel}
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="center" sideOffset={4} style={{ zIndex: 1000 }}>
+                      <DropdownMenuItem
+                        onClick={() => { if (isEditing && tabCount > 1 && onDeleteTab) { onDeleteTab(revIdx); setDropdownTabIdx(null); } }}
+                        className={`text-destructive ${(tabCount <= 1 || !isEditing) ? 'opacity-50 pointer-events-none' : ''}`}
+                        disabled={tabCount <= 1 || !isEditing}
+                      >מחק</DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => { if (isEditing && onDuplicateTab) { onDuplicateTab(revIdx); setDropdownTabIdx(null); } }}
+                        disabled={!isEditing}
+                      >שכפל</DropdownMenuItem>
+                      {otherTypes.length > 0 && isEditing && (
+                        <>
+                          <div className="h-px bg-muted my-1" />
+                          <div className="px-2 py-1 text-[10px] text-muted-foreground font-medium text-right">שנה סוג ל:</div>
+                          {otherTypes.map(type => (
+                            <DropdownMenuItem key={type} onClick={() => { onUpdateType?.(revIdx, type); setDropdownTabIdx(null); }}>
+                              {type}
+                            </DropdownMenuItem>
+                          ))}
+                        </>
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                );
+              })}
+              <DropdownMenu dir="rtl">
+                <DropdownMenuTrigger asChild>
+                  <button
+                    type="button"
+                    className="bg-transparent hover:bg-accent flex items-center justify-center rounded-full border-none p-1"
+                    disabled={!isEditing || tabCount >= 5}
+                    style={{
+                      outline: "none",
+                      opacity: isEditing && tabCount < 5 ? 1 : 0.5,
+                      pointerEvents: isEditing && tabCount < 5 ? "auto" : "none",
+                      transition: "opacity 0.2s",
+                    }}
+                    title="הוסף טאב"
+                  >
+                    <Plus size={16} />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="center" sideOffset={4} style={{ zIndex: 1000 }}>
+                  <div className="px-2 py-1 text-[10px] text-muted-foreground font-medium text-right">בחר סוג רפרקציה:</div>
+                  {glassesTypeOptions.map((type) => (
+                    <DropdownMenuItem
+                      key={type}
+                      onClick={() => onAddTab(type)}
+                    >
+                      {type}
+                    </DropdownMenuItem>
                   ))}
-                </SelectContent>
-              </Select>
-              <span dir="rtl" className="text-xs font-medium text-muted-foreground whitespace-nowrap">סוג:</span>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
-            <h3 className="font-medium text-muted-foreground">Old Refraction</h3>
-            <div className="w-[100px]"></div> {/* Spacer */}
+
+            {/* Title: centered */}
+            <div className="flex-1 text-center">
+              <h3 className="font-medium text-muted-foreground">Old Refraction</h3>
+            </div>
           </div>
-          
+
           <div className={`grid ${hideEyeLabels ? 'grid-cols-[repeat(8,1fr)]' : 'grid-cols-[20px_repeat(8,1fr)]'} gap-2 items-center`}>
             {!hideEyeLabels && <div></div>}
             {mainColumns.map(({ key, label }) => (
@@ -170,9 +265,9 @@ export function OldRefractionTab({
                 </span>
               </div>
             ))}
-            
+
             {!hideEyeLabels && <div className="flex items-center justify-center">
-              <span 
+              <span
                 className="text-base font-medium cursor-pointer hover:bg-accent rounded-full px-2"
                 onMouseEnter={() => setHoveredEye("R")}
                 onMouseLeave={() => setHoveredEye(null)}
@@ -187,14 +282,14 @@ export function OldRefractionTab({
                 {renderField("R", col)}
               </div>
             ))}
-            
+
             {!hideEyeLabels && <div className="flex items-center justify-center h-8">
             </div>}
             {mainColumns.map(({ key }) => {
               if (key === 'cyl') {
                 return (
                   <div key="c-mul-button" className="flex justify-center">
-                    <Button 
+                    <Button
                       type="button" variant="outline" size="sm" className="h-8 text-xs px-2"
                       disabled={!isEditing} onClick={onMultifocalClick}
                     >
@@ -219,9 +314,9 @@ export function OldRefractionTab({
               }
               return <div key={`c-spacer-${key}`} />
             })}
-            
+
             {!hideEyeLabels && <div className="flex items-center justify-center">
-              <span 
+              <span
                 className="text-base font-medium cursor-pointer hover:bg-accent rounded-full px-2"
                 onMouseEnter={() => setHoveredEye("L")}
                 onMouseLeave={() => setHoveredEye(null)}
@@ -241,4 +336,4 @@ export function OldRefractionTab({
       </CardContent>
     </Card>
   );
-} 
+}

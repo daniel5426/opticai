@@ -81,6 +81,7 @@ class User(Base):
     va_format = Column(String, default="meter") # "meter" or "decimal"
     system_vacation_dates = Column(JSON, default=list)
     added_vacation_dates = Column(JSON, default=list)
+    sync_subjective_to_final_subjective = Column(Boolean, default=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     

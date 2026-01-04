@@ -24,6 +24,8 @@ interface ContactLensOrderTabProps {
   isEditing: boolean
 }
 
+import { FastInput } from "./shared/OptimizedInputs"
+
 export function ContactLensOrderTab({ contactLensOrder, onContactLensOrderChange, isEditing }: ContactLensOrderTabProps) {
   const handleFieldChange = (field: keyof ContactLensOrderFields, value: string) => {
     onContactLensOrderChange(field, value)
@@ -41,11 +43,11 @@ export function ContactLensOrderTab({ contactLensOrder, onContactLensOrderChange
             <Label htmlFor="supply_in_clinic_id" className="text-right block text-muted-foreground ">
               מסופק בסניף
             </Label>
-            <Input
+            <FastInput
               id="supply_in_clinic_id"
               type="number"
-              value={contactLensOrder.supply_in_clinic_id ?? ''}
-              onChange={(e) => handleFieldChange('supply_in_clinic_id', e.target.value)}
+              value={String(contactLensOrder.supply_in_clinic_id ?? '')}
+              onChange={(val) => handleFieldChange('supply_in_clinic_id', val)}
               className="text-right"
               disabled={!isEditing}
               dir="rtl"
@@ -57,10 +59,10 @@ export function ContactLensOrderTab({ contactLensOrder, onContactLensOrderChange
             <Label htmlFor="order_status" className="text-right block text-muted-foreground ">
               סטטוס הזמנה
             </Label>
-            <Input
+            <FastInput
               id="order_status"
               value={contactLensOrder.order_status || ''}
-              onChange={(e) => handleFieldChange('order_status', e.target.value)}
+              onChange={(val) => handleFieldChange('order_status', val)}
               className="text-right"
               dir="rtl"
               disabled={!isEditing}
@@ -89,10 +91,10 @@ export function ContactLensOrderTab({ contactLensOrder, onContactLensOrderChange
                 <Label htmlFor="deliverer" className="text-right block text-muted-foreground ">
                   שליח
                 </Label>
-                <Input
+                <FastInput
                   id="deliverer"
                   value={contactLensOrder.deliverer || ''}
-                  onChange={(e) => handleFieldChange('deliverer', e.target.value)}
+                  onChange={(val) => handleFieldChange('deliverer', val)}
                   className="text-right"
                   dir="rtl"
                   disabled={!isEditing}
@@ -102,11 +104,11 @@ export function ContactLensOrderTab({ contactLensOrder, onContactLensOrderChange
                 <Label htmlFor="approval_date" className="text-right block text-muted-foreground ">
                   תאריך אישור
                 </Label>
-                <Input
+                <FastInput
                   id="approval_date"
                   type="date"
                   value={contactLensOrder.approval_date || ''}
-                  onChange={(e) => handleFieldChange('approval_date', e.target.value)}
+                  onChange={(val) => handleFieldChange('approval_date', val)}
                   className="text-right text-sm"
                   dir="rtl"
                   disabled={!isEditing}
@@ -122,11 +124,11 @@ export function ContactLensOrderTab({ contactLensOrder, onContactLensOrderChange
                 <Label htmlFor="delivery_date" className="text-right block text-muted-foreground ">
                   תאריך משלוח
                 </Label>
-                <Input
+                <FastInput
                   id="delivery_date"
                   type="date"
                   value={contactLensOrder.delivery_date || ''}
-                  onChange={(e) => handleFieldChange('delivery_date', e.target.value)}
+                  onChange={(val) => handleFieldChange('delivery_date', val)}
                   className="text-right text-sm"
                   dir="rtl"
                   disabled={!isEditing}
@@ -136,11 +138,11 @@ export function ContactLensOrderTab({ contactLensOrder, onContactLensOrderChange
                 <Label htmlFor="guaranteed_date" className="text-right block text-muted-foreground ">
                   תאריך מובטח
                 </Label>
-                <Input
+                <FastInput
                   id="guaranteed_date"
                   type="date"
                   value={contactLensOrder.guaranteed_date || ''}
-                  onChange={(e) => handleFieldChange('guaranteed_date', e.target.value)}
+                  onChange={(val) => handleFieldChange('guaranteed_date', val)}
                   className="text-right text-sm"
                   dir="rtl"
                   disabled={!isEditing}
@@ -154,17 +156,18 @@ export function ContactLensOrderTab({ contactLensOrder, onContactLensOrderChange
             <Label htmlFor="priority" className="text-right block text-muted-foreground ">
               עדיפות
             </Label>
-            <Input
+            <FastInput
               id="priority"
               value={contactLensOrder.priority || ''}
-              onChange={(e) => handleFieldChange('priority', e.target.value)}
+              onChange={(val) => handleFieldChange('priority', val)}
               className="text-right"
               dir="rtl"
               disabled={!isEditing}
             />
           </div>
 
-          
+
+
 
           {/* Cleaning Solution - Lookup */}
           <div className="space-y-2">
@@ -193,7 +196,7 @@ export function ContactLensOrderTab({ contactLensOrder, onContactLensOrderChange
               placeholder="בחר תמיסת חיטוי"
               className="text-right"
               disabled={!isEditing}
-              />
+            />
           </div>
 
           {/* Rinsing Solution - Lookup */}

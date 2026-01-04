@@ -12,6 +12,8 @@ interface ContactLensExamTabProps {
   hideEyeLabels?: boolean;
 }
 
+import { FastInput } from "./shared/OptimizedInputs"
+
 export function ContactLensExamTab({
   contactLensExamData,
   onContactLensExamChange,
@@ -19,7 +21,7 @@ export function ContactLensExamTab({
   hideEyeLabels = false
 }: ContactLensExamTabProps) {
   const [hoveredEye, setHoveredEye] = useState<"R" | "L" | null>(null);
-  
+
   const columns = [
     { key: "bc", label: "BC", step: "0.01" },
     { key: "oz", label: "OZ", step: "0.1" },
@@ -63,12 +65,12 @@ export function ContactLensExamTab({
 
   return (
     <Card className="w-full examcard pb-4 pt-3" dir="ltr">
-      <CardContent className="px-4" style={{scrollbarWidth: 'none'}}>
+      <CardContent className="px-4" style={{ scrollbarWidth: 'none' }}>
         <div className="space-y-3">
           <div className="text-center">
             <h3 className="font-medium text-muted-foreground">Contact Lens Exam</h3>
           </div>
-          
+
           <div className={`grid ${hideEyeLabels ? 'grid-cols-[repeat(9,1fr)]' : 'grid-cols-[20px_repeat(9,1fr)]'} gap-2 items-center`}>
             {!hideEyeLabels && <div></div>}
             {columns.map(({ key, label }) => (
@@ -78,9 +80,9 @@ export function ContactLensExamTab({
                 </span>
               </div>
             ))}
-            
+
             {!hideEyeLabels && <div className="flex items-center justify-center">
-              <span 
+              <span
                 className="text-base font-medium cursor-pointer hover:bg-accent rounded-full px-2"
                 onMouseEnter={() => setHoveredEye("R")}
                 onMouseLeave={() => setHoveredEye(null)}
@@ -93,19 +95,19 @@ export function ContactLensExamTab({
             {columns.map(({ key, step, min, max }) => (
               <div key={`r-${key}`}>
                 {key === "va" ? (
-                  <VASelect 
-                    value={getFieldValue("R", key)} 
-                    onChange={(val) => handleChange("R", key, val)} 
-                    disabled={!isEditing} 
+                  <VASelect
+                    value={getFieldValue("R", key)}
+                    onChange={(val) => handleChange("R", key, val)}
+                    disabled={!isEditing}
                   />
                 ) : (
-                  <Input
+                  <FastInput
                     type="number"
                     step={step}
                     min={min}
                     max={max}
                     value={getFieldValue("R", key)}
-                    onChange={(e) => handleChange("R", key, e.target.value)}
+                    onChange={(val) => handleChange("R", key, val)}
                     disabled={!isEditing}
                     showPlus={key === "sph" || key === "cyl"}
                     className={`h-8 pr-1 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
@@ -113,17 +115,17 @@ export function ContactLensExamTab({
                 )}
               </div>
             ))}
-            
+
             {!hideEyeLabels && <div className="flex items-center justify-center">
             </div>}
             {columns.map(({ key, step }) => {
               if (key === "va") {
                 return (
                   <div key={`c-${key}`}>
-                    <VASelect 
-                      value={getFieldValue("C", key)} 
-                      onChange={(val) => handleChange("C", key, val)} 
-                      disabled={!isEditing} 
+                    <VASelect
+                      value={getFieldValue("C", key)}
+                      onChange={(val) => handleChange("C", key, val)}
+                      disabled={!isEditing}
                     />
                   </div>
                 );
@@ -131,9 +133,9 @@ export function ContactLensExamTab({
                 return <div key={`c-${key}`}></div>;
               }
             })}
-            
+
             {!hideEyeLabels && <div className="flex items-center justify-center">
-              <span 
+              <span
                 className="text-base font-medium cursor-pointer hover:bg-accent rounded-full px-2"
                 onMouseEnter={() => setHoveredEye("L")}
                 onMouseLeave={() => setHoveredEye(null)}
@@ -146,19 +148,19 @@ export function ContactLensExamTab({
             {columns.map(({ key, step, min, max }) => (
               <div key={`l-${key}`}>
                 {key === "va" ? (
-                  <VASelect 
-                    value={getFieldValue("L", key)} 
-                    onChange={(val) => handleChange("L", key, val)} 
-                    disabled={!isEditing} 
+                  <VASelect
+                    value={getFieldValue("L", key)}
+                    onChange={(val) => handleChange("L", key, val)}
+                    disabled={!isEditing}
                   />
                 ) : (
-                  <Input
+                  <FastInput
                     type="number"
                     step={step}
                     min={min}
                     max={max}
                     value={getFieldValue("L", key)}
-                    onChange={(e) => handleChange("L", key, e.target.value)}
+                    onChange={(val) => handleChange("L", key, val)}
                     disabled={!isEditing}
                     showPlus={key === "sph" || key === "cyl"}
                     className={`h-8 pr-1 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}

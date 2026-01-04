@@ -11,6 +11,8 @@ interface OcularMotorAssessmentTabProps {
   needsMiddleSpacer?: boolean;
 }
 
+import { FastInput } from "./shared/OptimizedInputs"
+
 export const OcularMotorAssessmentTab: React.FC<OcularMotorAssessmentTabProps> = ({
   ocularMotorAssessmentData,
   onOcularMotorAssessmentChange,
@@ -26,11 +28,11 @@ export const OcularMotorAssessmentTab: React.FC<OcularMotorAssessmentTabProps> =
             <label className="font-medium text-muted-foreground text-base">Ocular Mot</label>
           </div>
           <div className="h-1"></div>
-          <Input
+          <FastInput
             type="text"
             name="ocular_motility"
             value={ocularMotorAssessmentData.ocular_motility || ''}
-            onChange={(e) => onOcularMotorAssessmentChange('ocular_motility', e.target.value)}
+            onChange={(val) => onOcularMotorAssessmentChange('ocular_motility', val)}
             disabled={!isEditing}
             className={`text-sm pt-1 ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
           />
@@ -41,21 +43,21 @@ export const OcularMotorAssessmentTab: React.FC<OcularMotorAssessmentTabProps> =
           </div>
           <div className="h-1"></div>
           <div className="flex gap-1 w-full">
-            <Input
+            <FastInput
               type="number"
               name="acc_od"
-              value={ocularMotorAssessmentData.acc_od || ''}
-              onChange={(e) => onOcularMotorAssessmentChange('acc_od', e.target.value)}
+              value={String(ocularMotorAssessmentData.acc_od || '')}
+              onChange={(val) => onOcularMotorAssessmentChange('acc_od', val)}
               disabled={!isEditing}
               className={`text-sm ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
               placeholder="OD"
             />
             <div className="flex items-center text-sm text-muted-foreground">/</div>
-            <Input
+            <FastInput
               type="number"
               name="acc_os"
-              value={ocularMotorAssessmentData.acc_os || ''}
-              onChange={(e) => onOcularMotorAssessmentChange('acc_os', e.target.value)}
+              value={String(ocularMotorAssessmentData.acc_os || '')}
+              onChange={(val) => onOcularMotorAssessmentChange('acc_os', val)}
               disabled={!isEditing}
               className={`text-sm ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
               placeholder="OS"
@@ -68,20 +70,20 @@ export const OcularMotorAssessmentTab: React.FC<OcularMotorAssessmentTabProps> =
           </div>
           <div className="h-1"></div>
           <div className="flex gap-1 w-full">
-            <Input
+            <FastInput
               type="number"
               name="npc_break"
-              value={ocularMotorAssessmentData.npc_break || ''}
-              onChange={(e) => onOcularMotorAssessmentChange('npc_break', e.target.value)}
+              value={String(ocularMotorAssessmentData.npc_break || '')}
+              onChange={(val) => onOcularMotorAssessmentChange('npc_break', val)}
               disabled={!isEditing}
               className={`text-sm ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
               placeholder="Break"
             />
-            <Input
+            <FastInput
               type="number"
               name="npc_recovery"
-              value={ocularMotorAssessmentData.npc_recovery || ''}
-              onChange={(e) => onOcularMotorAssessmentChange('npc_recovery', e.target.value)}
+              value={String(ocularMotorAssessmentData.npc_recovery || '')}
+              onChange={(val) => onOcularMotorAssessmentChange('npc_recovery', val)}
               disabled={!isEditing}
               className={`text-sm ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
               placeholder="Recovery"
@@ -91,4 +93,4 @@ export const OcularMotorAssessmentTab: React.FC<OcularMotorAssessmentTabProps> =
       </div>
     </Card>
   )
-} 
+}

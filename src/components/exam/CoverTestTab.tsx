@@ -26,6 +26,8 @@ interface CoverTestTabProps {
   onDuplicateTab?: (tabIdx: number) => void
 }
 
+import { FastInput } from "./shared/OptimizedInputs"
+
 export function CoverTestTab({
   coverTestData,
   onCoverTestChange,
@@ -107,8 +109,8 @@ export function CoverTestTab({
                     </button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="center" sideOffset={4} style={{ zIndex: 1000 }}>
-                    <DropdownMenuItem 
-                      onClick={() => { if (tabCount > 1 && onDeleteTab) { onDeleteTab(revIdx); setDropdownTabIdx(null); } }} 
+                    <DropdownMenuItem
+                      onClick={() => { if (tabCount > 1 && onDeleteTab) { onDeleteTab(revIdx); setDropdownTabIdx(null); } }}
                       className={`text-destructive ${tabCount <= 1 ? 'opacity-50 pointer-events-none' : ''}`}
                       disabled={tabCount <= 1}
                     >מחק</DropdownMenuItem>
@@ -180,11 +182,11 @@ export function CoverTestTab({
             </Select>
 
             <div className="relative w-full">
-              <Input
+              <FastInput
                 type="number"
                 step="0.25"
                 value={coverTestData.fv_1?.toString() || ""}
-                onChange={(e) => handleChange("fv_1", e.target.value)}
+                onChange={(val) => handleChange("fv_1", val)}
                 disabled={!isEditing}
                 className={`h-8 w-full text-xs ${isEditing ? "bg-white" : "bg-accent/50"} disabled:cursor-default disabled:opacity-100 ${isPhoria ? "pr-7" : "pr-1"}`}
               />
@@ -197,11 +199,11 @@ export function CoverTestTab({
             </div>
 
             <div className="relative w-full">
-              <Input
+              <FastInput
                 type="number"
                 step="0.25"
                 value={coverTestData.nv_1?.toString() || ""}
-                onChange={(e) => handleChange("nv_1", e.target.value)}
+                onChange={(val) => handleChange("nv_1", val)}
                 disabled={!isEditing}
                 className={`h-8 w-full text-xs ${isEditing ? "bg-white" : "bg-accent/50"} disabled:cursor-default disabled:opacity-100 ${isPhoria ? "pr-7" : "pr-1"}`}
               />
@@ -245,20 +247,20 @@ export function CoverTestTab({
               </SelectContent>
             </Select>
 
-            <Input
+            <FastInput
               type="number"
               step="0.25"
               value={coverTestData.fv_2?.toString() || ""}
-              onChange={(e) => handleChange("fv_2", e.target.value)}
+              onChange={(val) => handleChange("fv_2", val)}
               disabled={!isEditing}
               className={`h-8 pr-1 text-xs ${isEditing ? "bg-white" : "bg-accent/50"} disabled:cursor-default disabled:opacity-100`}
             />
 
-            <Input
+            <FastInput
               type="number"
               step="0.25"
               value={coverTestData.nv_2?.toString() || ""}
-              onChange={(e) => handleChange("nv_2", e.target.value)}
+              onChange={(val) => handleChange("nv_2", val)}
               disabled={!isEditing}
               className={`h-8 pr-1 text-xs ${isEditing ? "bg-white" : "bg-accent/50"} disabled:cursor-default disabled:opacity-100`}
             />
@@ -268,3 +270,4 @@ export function CoverTestTab({
     </Card>
   );
 }
+

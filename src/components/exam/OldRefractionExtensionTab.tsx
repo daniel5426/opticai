@@ -17,6 +17,8 @@ interface OldRefractionExtensionTabProps {
   hideEyeLabels?: boolean;
 }
 
+import { FastInput } from "./shared/OptimizedInputs"
+
 export function OldRefractionExtensionTab({
   oldRefractionExtensionData,
   onOldRefractionExtensionChange,
@@ -82,8 +84,8 @@ export function OldRefractionExtensionTab({
 
     if (isSelect && (key === "base_h" || key === "base_v")) {
       return (
-        <Select 
-          value={value} 
+        <Select
+          value={value}
           onValueChange={(newValue) => handleChange(eye, key, newValue)}
           disabled={!isEditing}
         >
@@ -104,13 +106,13 @@ export function OldRefractionExtensionTab({
     }
 
     return (
-      <Input
+      <FastInput
         type="number"
         step={step}
         min={min}
         max={max}
         value={value}
-        onChange={(e) => handleChange(eye, key, e.target.value)}
+        onChange={(val) => handleChange(eye, key, val)}
         disabled={!isEditing}
         showPlus={key === "sph" || key === "cyl" || key === "ad"}
         className={`h-8 pr-1 text-xs disabled:opacity-100 disabled:cursor-default`}
@@ -120,12 +122,12 @@ export function OldRefractionExtensionTab({
 
   return (
     <Card className="w-full examcard pb-4 pt-3">
-      <CardContent className="px-4" style={{scrollbarWidth: 'none'}}>
+      <CardContent className="px-4" style={{ scrollbarWidth: 'none' }}>
         <div className="space-y-3">
           <div className="text-center">
             <h3 className="font-medium text-muted-foreground">Old Refraction E</h3>
           </div>
-          
+
           <div className={`grid ${hideEyeLabels ? 'grid-cols-[repeat(12,1fr)]' : 'grid-cols-[20px_repeat(12,1fr)]'} gap-2 items-center`}>
             {!hideEyeLabels && <div></div>}
             {columns.map(({ key, label }) => (
@@ -135,9 +137,9 @@ export function OldRefractionExtensionTab({
                 </span>
               </div>
             ))}
-            
+
             {!hideEyeLabels && <div className="flex items-center justify-center">
-              <span 
+              <span
                 className="text-base font-medium cursor-pointer hover:bg-accent rounded-full px-2"
                 onMouseEnter={() => setHoveredEye("R")}
                 onMouseLeave={() => setHoveredEye(null)}
@@ -152,7 +154,7 @@ export function OldRefractionExtensionTab({
                 {renderField("R", column)}
               </div>
             ))}
-            
+
             {!hideEyeLabels && <div className="flex items-center justify-center h-8">
             </div>}
             {columns.map((column) => {
@@ -160,10 +162,10 @@ export function OldRefractionExtensionTab({
               if (key === 'cyl') {
                 return (
                   <div key="c-mul-button" className="flex justify-center">
-                    <Button 
+                    <Button
                       type="button"
-                      variant="outline" 
-                      size="sm" 
+                      variant="outline"
+                      size="sm"
                       className={`h-8 text-xs px-2`}
                       disabled={!isEditing}
                       onClick={onMultifocalClick}
@@ -182,9 +184,9 @@ export function OldRefractionExtensionTab({
               }
               return <div key={`c-spacer-${key}`} />
             })}
-            
+
             {!hideEyeLabels && <div className="flex items-center justify-center">
-              <span 
+              <span
                 className="text-base font-medium cursor-pointer hover:bg-accent rounded-full px-2"
                 onMouseEnter={() => setHoveredEye("L")}
                 onMouseLeave={() => setHoveredEye(null)}
@@ -204,4 +206,4 @@ export function OldRefractionExtensionTab({
       </CardContent>
     </Card>
   );
-} 
+}

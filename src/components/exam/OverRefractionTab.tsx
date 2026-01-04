@@ -12,6 +12,8 @@ interface OverRefractionTabProps {
   hideEyeLabels?: boolean;
 }
 
+import { FastInput } from "./shared/OptimizedInputs"
+
 export function OverRefractionTab({
   data,
   onChange,
@@ -79,9 +81,8 @@ export function OverRefractionTab({
             {columns.map(({ key, label, span }) => (
               <div
                 key={key}
-                className={`${
-                  span ? `col-span-${span}` : ''
-                } h-4 flex items-center justify-center`}
+                className={`${span ? `col-span-${span}` : ''
+                  } h-4 flex items-center justify-center`}
               >
                 <span className="text-xs font-medium text-muted-foreground">
                   {label}
@@ -105,19 +106,19 @@ export function OverRefractionTab({
             {columns.map(({ key, step, type, min, max, span }) => (
               <div key={`r-${key}`} className={`${span ? `col-span-${span}` : ''}`}>
                 {key === "va" ? (
-                  <VASelect 
-                    value={getFieldValue("R", key)} 
-                    onChange={(val) => handleChange("R", key, val)} 
-                    disabled={!isEditing} 
+                  <VASelect
+                    value={getFieldValue("R", key)}
+                    onChange={(val) => handleChange("R", key, val)}
+                    disabled={!isEditing}
                   />
                 ) : (
-                  <Input
-                    type={type}
+                  <FastInput
+                    type={type as any}
                     step={step}
                     min={min}
                     max={max}
                     value={getFieldValue("R", key)}
-                    onChange={(e) => handleChange("R", key, e.target.value)}
+                    onChange={(val) => handleChange("R", key, val)}
                     disabled={!isEditing}
                     showPlus={key === "sph" || key === "cyl" || key === "add"}
                     className={`h-8 pr-1 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
@@ -131,24 +132,24 @@ export function OverRefractionTab({
               if (key === "va") {
                 return (
                   <div key={`c-${key}`} className={`${span ? `col-span-${span}` : ''}`}>
-                    <VASelect 
-                      value={getFieldValue("C", key)} 
-                      onChange={(val) => handleChange("C", key, val)} 
-                      disabled={!isEditing} 
+                    <VASelect
+                      value={getFieldValue("C", key)}
+                      onChange={(val) => handleChange("C", key, val)}
+                      disabled={!isEditing}
                     />
                   </div>
                 );
               } else if (key === "j") {
                 return (
                   <div key={`c-${key}`} className={`${span ? `col-span-${span}` : ''}`}>
-                  <Input
-                    type={type}
-                    step={step}
-                    value={getFieldValue("C", key)}
-                    onChange={(e) => handleChange("C", key, e.target.value)}
-                    disabled={!isEditing}
-                    className={`h-8 pr-1 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
-                  />
+                    <FastInput
+                      type={type as any}
+                      step={step}
+                      value={getFieldValue("C", key)}
+                      onChange={(val) => handleChange("C", key, val)}
+                      disabled={!isEditing}
+                      className={`h-8 pr-1 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
+                    />
                   </div>
                 );
               } else {
@@ -172,19 +173,19 @@ export function OverRefractionTab({
             {columns.map(({ key, step, type, min, max, span }) => (
               <div key={`l-${key}`} className={`${span ? `col-span-${span}` : ''}`}>
                 {key === "va" ? (
-                  <VASelect 
-                    value={getFieldValue("L", key)} 
-                    onChange={(val) => handleChange("L", key, val)} 
-                    disabled={!isEditing} 
+                  <VASelect
+                    value={getFieldValue("L", key)}
+                    onChange={(val) => handleChange("L", key, val)}
+                    disabled={!isEditing}
                   />
                 ) : (
-                  <Input
-                    type={type}
+                  <FastInput
+                    type={type as any}
                     step={step}
                     min={min}
                     max={max}
                     value={getFieldValue("L", key)}
-                    onChange={(e) => handleChange("L", key, e.target.value)}
+                    onChange={(val) => handleChange("L", key, val)}
                     disabled={!isEditing}
                     showPlus={key === "sph" || key === "cyl" || key === "add"}
                     className={`h-8 pr-1 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
@@ -197,4 +198,4 @@ export function OverRefractionTab({
       </CardContent>
     </Card>
   );
-} 
+}

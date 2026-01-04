@@ -34,16 +34,16 @@ export default function SettingsPage() {
   const [saveSuccess, setSaveSuccess] = useState(false)
   const [colorUpdateTimeout, setColorUpdateTimeout] = useState<NodeJS.Timeout | null>(null)
   const [emailError, setEmailError] = useState<string | null>(null)
-  
+
   // User management state
   const [users, setUsers] = useState<User[]>([])
   const [usersLoading, setUsersLoading] = useState(false)
   const [showUserModal, setShowUserModal] = useState(false)
   const [editingUser, setEditingUser] = useState<User | null>(null)
-  
+
   // Field data management state
   const [currentLookupTable, setCurrentLookupTable] = useState<string | null>(null)
-  const [lookupData, setLookupData] = useState<{[key: string]: any[]}>({})
+  const [lookupData, setLookupData] = useState<{ [key: string]: any[] }>({})
   const [loadingLookup, setLoadingLookup] = useState(false)
   const [company, setCompany] = useState<Company | null>(null)
   const [localCompany, setLocalCompany] = useState<Partial<Company>>({})
@@ -51,7 +51,7 @@ export default function SettingsPage() {
   const loadLookupData = async (tableName: string) => {
     const tableKey = tableName as keyof typeof lookupTables
     if (!lookupTables[tableKey]) return
-    
+
     try {
       setLoadingLookup(true)
       const data = await lookupTables[tableKey].getAll()
@@ -104,7 +104,8 @@ export default function SettingsPage() {
     theme_preference: 'system',//8b5cf6, 3b82f6
     system_vacation_dates: [],
     added_vacation_dates: [],
-    va_format: 'meter'
+    va_format: 'meter',
+    sync_subjective_to_final_subjective: false
   })
   const [profileColorUpdateTimeout, setProfileColorUpdateTimeout] = useState<NodeJS.Timeout | null>(null)
 
@@ -167,7 +168,8 @@ export default function SettingsPage() {
           theme_preference: currentUser.theme_preference || 'system',
           system_vacation_dates: currentUser.system_vacation_dates || [],
           added_vacation_dates: currentUser.added_vacation_dates || [],
-          va_format: currentUser.va_format || 'meter'
+          va_format: currentUser.va_format || 'meter',
+          sync_subjective_to_final_subjective: currentUser.sync_subjective_to_final_subjective || false
         })
       }
     }
@@ -230,7 +232,7 @@ export default function SettingsPage() {
     if (field === 'email' && emailError) {
       setEmailError(null)
     }
-    
+
     // Note: primary_theme_color is now only used for appointment coloring, not for app theme
     // App theme colors come from company settings
   }
@@ -287,6 +289,7 @@ export default function SettingsPage() {
           system_vacation_dates: personalProfile.system_vacation_dates,
           added_vacation_dates: personalProfile.added_vacation_dates,
           va_format: personalProfile.va_format,
+          sync_subjective_to_final_subjective: personalProfile.sync_subjective_to_final_subjective,
         }
       }
 
@@ -308,7 +311,7 @@ export default function SettingsPage() {
       }
       if (data?.user) {
         const updatedUser = data.user as User
-        
+
         const normalizeDates = (v: any): string[] => {
           if (Array.isArray(v)) return v as string[]
           if (typeof v === 'string') {
@@ -321,7 +324,7 @@ export default function SettingsPage() {
           }
           return []
         }
-        
+
         const newProfile = {
           full_name: updatedUser.full_name ?? personalProfile.full_name ?? '',
           email: updatedUser.email ?? personalProfile.email ?? '',
@@ -336,11 +339,12 @@ export default function SettingsPage() {
           added_vacation_dates: updatedUser.added_vacation_dates !== undefined && updatedUser.added_vacation_dates !== null
             ? normalizeDates(updatedUser.added_vacation_dates)
             : (personalProfile.added_vacation_dates as string[] || []),
-          va_format: updatedUser.va_format ?? personalProfile.va_format ?? 'meter'
+          va_format: updatedUser.va_format ?? personalProfile.va_format ?? 'meter',
+          sync_subjective_to_final_subjective: updatedUser.sync_subjective_to_final_subjective ?? personalProfile.sync_subjective_to_final_subjective ?? false
         }
-        
+
         setPersonalProfile(newProfile)
-        
+
         const emailChanged = (currentUser?.email || '').trim() !== (updatedUser.email || '').trim()
         await setCurrentUser(updatedUser, true)
         // Reflect changes immediately in users list (if present)
@@ -389,7 +393,7 @@ export default function SettingsPage() {
       toast.error('אין לך הרשאה לערוך משתמש זה')
       return
     }
-    
+
     setEditingUser(user)
     setShowUserModal(true)
   }
@@ -399,12 +403,12 @@ export default function SettingsPage() {
       toast.error('אין לך הרשאה למחוק משתמשים')
       return
     }
-    
+
     if (userId === currentUser?.id) {
       toast.error('לא ניתן למחוק את המשתמש הנוכחי')
       return
     }
-    
+
     if (window.confirm('האם אתה בטוח שברצונך למחוק את המשתמש?')) {
       try {
         const success = await deleteUser(userId)
@@ -443,15 +447,15 @@ export default function SettingsPage() {
     try {
       setGoogleCalendarLoading(true)
       toast.info('מתחבר לחשבון Google...')
-      
+
       // Use real Google OAuth flow
       const result = await window.electronAPI.googleOAuthAuthenticate()
-      
+
       if (result.success === false) {
         toast.error(`שגיאה בחיבור לחשבון Google: ${result.error}`)
         return
       }
-      
+
       if (result.tokens && result.userInfo) {
         // Update user with Google account info
         const updatedUser = await updateUser({
@@ -489,7 +493,7 @@ export default function SettingsPage() {
 
     try {
       setGoogleCalendarLoading(true)
-      
+
       // Update user to remove Google account info
       const updatedUser = await updateUser({
         ...currentUser,
@@ -524,7 +528,7 @@ export default function SettingsPage() {
     try {
       setGoogleCalendarSyncing(true)
       toast.info('מסנכרן תורים עם Google Calendar...')
-      
+
       // Try to get tokens from user database first
       let tokens = {
         access_token: currentUser.google_access_token,
@@ -533,7 +537,7 @@ export default function SettingsPage() {
         token_type: 'Bearer',
         expiry_date: Date.now() + 3600000 // 1 hour from now
       }
-      
+
       // If tokens are not in database, try to get them from Supabase session
       if (!tokens.access_token || !tokens.refresh_token) {
         console.log('Google tokens not found in database, trying Supabase session...')
@@ -543,7 +547,7 @@ export default function SettingsPage() {
             // Try to get provider tokens first (these are the actual Google tokens)
             const providerToken = (sessionData.session as any).provider_token
             const providerRefreshToken = (sessionData.session as any).provider_refresh_token
-            
+
             if (providerToken && providerRefreshToken) {
               console.log('Using Google provider tokens for calendar sync')
               tokens = {
@@ -563,7 +567,7 @@ export default function SettingsPage() {
                 expiry_date: sessionData.session.expires_at || Date.now() + 3600000
               }
             }
-            
+
             // Also update the user's tokens in the database for future use
             try {
               const updatedUser = await updateUser({
@@ -588,14 +592,14 @@ export default function SettingsPage() {
           return
         }
       }
-      
+
       // Validate token format - Google OAuth tokens should start with 'ya29.' or similar
       const isLikelyGoogleToken = tokens.access_token && (
-        tokens.access_token.startsWith('ya29.') || 
+        tokens.access_token.startsWith('ya29.') ||
         tokens.access_token.startsWith('1/') ||
         !tokens.access_token.includes('.') // JWT tokens contain dots
       )
-      
+
       console.log('🔍 Calendar Sync Debug - Final Tokens Being Used:', {
         has_access_token: !!tokens.access_token,
         has_refresh_token: !!tokens.refresh_token,
@@ -605,21 +609,21 @@ export default function SettingsPage() {
         likely_google_token: isLikelyGoogleToken,
         token_format: tokens.access_token ? (tokens.access_token.includes('.') ? 'JWT-like' : 'OAuth-like') : 'none'
       })
-      
+
       if (!isLikelyGoogleToken && tokens.access_token) {
         console.log('⚠️ Warning: Token does not appear to be a Google OAuth token - using manual Google OAuth flow')
         toast.info('נדרשת הרשאה ליומן Google - מתחיל תהליך הרשאה...')
-        
+
         // For calendar access, we need real Google OAuth tokens, not Supabase JWT tokens
         // Redirect to manual Google OAuth flow
         try {
           const result = await window.electronAPI.googleOAuthAuthenticate()
-          
+
           if (result.success === false) {
             toast.error(`שגיאה בחיבור לחשבון Google: ${result.error}`)
             return
           }
-          
+
           if (result.tokens && result.userInfo) {
             // Update user with proper Google OAuth tokens
             const updatedUser = await updateUser({
@@ -630,7 +634,7 @@ export default function SettingsPage() {
 
             if (updatedUser) {
               await setCurrentUser(updatedUser, true) // Skip navigation when just updating tokens
-              
+
               // Use the new proper Google tokens
               tokens = {
                 access_token: result.tokens.access_token,
@@ -639,7 +643,7 @@ export default function SettingsPage() {
                 token_type: 'Bearer',
                 expiry_date: result.tokens.expiry_date || Date.now() + 3600000
               }
-              
+
               console.log('✅ Updated to use proper Google OAuth tokens for calendar access')
               toast.success('הרשאות Google Calendar עודכנו בהצלחה!')
             } else {
@@ -660,7 +664,7 @@ export default function SettingsPage() {
       // Get user's appointments from database
       const appointmentsResponse = await apiClient.getAppointmentsByUser(currentUser.id)
       const appointments = appointmentsResponse.data || []
-      
+
       // Prepare appointments with client data for sync
       const appointmentsWithClients = await Promise.all(
         appointments.map(async (appointment: any) => {
@@ -669,10 +673,10 @@ export default function SettingsPage() {
           return { appointment, client }
         })
       )
-      
+
       // Sync appointments to Google Calendar
       const syncResult = await window.electronAPI.googleCalendarSyncAppointments(tokens, appointmentsWithClients)
-      
+
       if (syncResult.success > 0) {
         toast.success(`${syncResult.success} תורים סונכרנו בהצלחה עם Google Calendar!`)
 
@@ -742,8 +746,8 @@ export default function SettingsPage() {
               <p className="text-muted-foreground">נהל את פרטי המרפאה והגדרות המערכת</p>
             </div>
             <div className="flex items-center gap-3 pt-6 pl-1">
-              <Button 
-                onClick={handleSave} 
+              <Button
+                onClick={handleSave}
                 disabled={saving}
                 size="lg"
                 className="px-8 shadow-md w-[140px] h-10 relative"
@@ -757,20 +761,20 @@ export default function SettingsPage() {
                   </div>
                 </div>
               </Button>
-              
+
               {saveSuccess && (
                 <div className="flex items-center text-green-600 animate-fade-in">
-                  <svg 
-                    className="w-5 h-5" 
-                    fill="none" 
-                    stroke="currentColor" 
+                  <svg
+                    className="w-5 h-5"
+                    fill="none"
+                    stroke="currentColor"
                     viewBox="0 0 24 24"
                   >
-                    <path 
-                      strokeLinecap="round" 
-                      strokeLinejoin="round" 
-                      strokeWidth={2} 
-                      d="M5 13l4 4L19 7" 
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M5 13l4 4L19 7"
                     />
                   </svg>
                 </div>
@@ -785,30 +789,30 @@ export default function SettingsPage() {
             <Tabs defaultValue="personal-profile" className="h-full flex" orientation="vertical">
               <div className="flex h-full gap-6 p-6">
                 {/* Scrollable Content Area */}
-                <div className="flex-1 overflow-y-auto pr-2 pb-8" style={{scrollbarWidth: 'none'}}>
+                <div className="flex-1 overflow-y-auto pr-2 pb-8" style={{ scrollbarWidth: 'none' }}>
                   <TabsContent value="profile" className="space-y-6 mt-0">
-                    <ProfileTab 
+                    <ProfileTab
                       localClinic={localClinic}
                       onClinicChange={handleClinicChange}
                     />
                   </TabsContent>
 
                   <TabsContent value="preferences" className="space-y-6 mt-0">
-                    <PreferencesTab 
+                    <PreferencesTab
                       localSettings={localSettings}
                       onInputChange={handleInputChange}
                     />
                   </TabsContent>
 
                   <TabsContent value="notifications" className="space-y-6 mt-0">
-                    <NotificationsTab 
+                    <NotificationsTab
                       localSettings={localSettings}
                       onInputChange={handleInputChange}
                     />
                   </TabsContent>
 
                   <TabsContent value="email" className="space-y-6 mt-0">
-                    <EmailTab 
+                    <EmailTab
                       localSettings={localSettings}
                       onInputChange={handleInputChange}
                       onTestConnection={handleTestEmailConnection}
@@ -816,7 +820,7 @@ export default function SettingsPage() {
                   </TabsContent>
 
                   <TabsContent value="users" className="space-y-6 mt-0">
-                    <UsersTab 
+                    <UsersTab
                       users={users}
                       currentUser={currentUser}
                       usersLoading={usersLoading}
@@ -825,19 +829,19 @@ export default function SettingsPage() {
                       onDeleteUser={handleUserDelete}
                     />
                   </TabsContent>
-                  
+
                   <TabsContent value="field-data" className="space-y-6 mt-0">
-                    <FieldDataTab 
+                    <FieldDataTab
                       currentLookupTable={currentLookupTable}
                       lookupData={lookupData}
                       onSelectTable={selectLookupTable}
-                            onRefresh={refreshLookupData}
+                      onRefresh={refreshLookupData}
                     />
                   </TabsContent>
 
                   {isRoleAtLeast(currentUser?.role_level, ROLE_LEVELS.manager) && (
                     <TabsContent value="whatsapp" className="space-y-6 mt-0">
-                      <WhatsAppTab 
+                      <WhatsAppTab
                         formData={localCompany}
                         onChange={handleCompanyChange}
                       />
@@ -845,7 +849,7 @@ export default function SettingsPage() {
                   )}
 
                   <TabsContent value="personal-profile" className="space-y-6 mt-0">
-                    <PersonalProfileTab 
+                    <PersonalProfileTab
                       personalProfile={personalProfile}
                       currentUser={currentUser}
                       emailError={emailError}
@@ -902,6 +906,6 @@ export default function SettingsPage() {
           setUsers(prev => prev.map(u => u.id === updatedUser.id ? updatedUser : u))
         }}
       />
-      </>
-    )
+    </>
+  )
 } 

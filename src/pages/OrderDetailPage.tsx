@@ -89,6 +89,8 @@ import { OrderToDocxMapper } from "@/lib/order-to-docx-mapper";
 import { UnsavedChangesDialog } from "@/components/unsaved-changes-dialog";
 import { useUnsavedChanges } from "@/hooks/shared/useUnsavedChanges";
 import { UI_CONFIG } from "@/config/ui-config";
+import { inputSyncManager } from "@/components/exam/shared/OptimizedInputs";
+import { flushSync } from "react-dom";
 
 interface OrderDetailPageProps {
   mode?: "view" | "edit" | "new";
@@ -237,6 +239,36 @@ export default function OrderDetailPage({
         ? ({ order_id: 0 } as FinalPrescriptionExam)
         : ({} as FinalPrescriptionExam),
     );
+
+  // Use refs to ensure handleSave (which is a stable callback) can access the 
+  // MOST RECENT data even after calling inputSyncManager.flush().
+  const formDataRef = useRef(formData);
+  const lensFormDataRef = useRef(lensFormData);
+  const frameFormDataRef = useRef(frameFormData);
+  const orderDetailsFormDataRef = useRef(orderDetailsFormData);
+  const billingFormDataRef = useRef(billingFormData);
+  const finalPrescriptionFormDataRef = useRef(finalPrescriptionFormData);
+  const contactFormDataRef = useRef(contactFormData);
+  const contactLensExamDataRef = useRef(contactLensExamData);
+  const contactLensDetailsDataRef = useRef(contactLensDetailsData);
+  const keratoCLDataRef = useRef(keratoCLData);
+  const schirmerDataRef = useRef(schirmerData);
+  const diametersDataRef = useRef(diametersData);
+  const orderLineItemsRef = useRef(orderLineItems);
+
+  useEffect(() => { formDataRef.current = formData; }, [formData]);
+  useEffect(() => { lensFormDataRef.current = lensFormData; }, [lensFormData]);
+  useEffect(() => { frameFormDataRef.current = frameFormData; }, [frameFormData]);
+  useEffect(() => { orderDetailsFormDataRef.current = orderDetailsFormData; }, [orderDetailsFormData]);
+  useEffect(() => { billingFormDataRef.current = billingFormData; }, [billingFormData]);
+  useEffect(() => { finalPrescriptionFormDataRef.current = finalPrescriptionFormData; }, [finalPrescriptionFormData]);
+  useEffect(() => { contactFormDataRef.current = contactFormData; }, [contactFormData]);
+  useEffect(() => { contactLensExamDataRef.current = contactLensExamData; }, [contactLensExamData]);
+  useEffect(() => { contactLensDetailsDataRef.current = contactLensDetailsData; }, [contactLensDetailsData]);
+  useEffect(() => { keratoCLDataRef.current = keratoCLData; }, [keratoCLData]);
+  useEffect(() => { schirmerDataRef.current = schirmerData; }, [schirmerData]);
+  useEffect(() => { diametersDataRef.current = diametersData; }, [diametersData]);
+  useEffect(() => { orderLineItemsRef.current = orderLineItems; }, [orderLineItems]);
 
   const getSerializedState = useCallback(
     () =>
@@ -569,8 +601,6 @@ export default function OrderDetailPage({
       "l_ax",
       "r_pris",
       "l_pris",
-      "r_va",
-      "l_va",
       "r_ad",
       "l_ad",
       "r_pd",
@@ -579,7 +609,6 @@ export default function OrderDetailPage({
       "l_high",
       "r_diam",
       "l_diam",
-      "comb_va",
       "comb_pd",
       "comb_high",
     ];
@@ -603,12 +632,32 @@ export default function OrderDetailPage({
 
   const handleSave = async () => {
     console.log("Starting save process...");
+
+    // Flush any pending updates from optimized components
+    inputSyncManager.flush();
+
+    // After flush, we MUST read from the refs because the local state variables 
+    // still hold the "old" values from the previous render.
+    const currentFormData = formDataRef.current;
+    const currentLensFormData = lensFormDataRef.current;
+    const currentFrameFormData = frameFormDataRef.current;
+    const currentOrderDetailsFormData = orderDetailsFormDataRef.current;
+    const currentBillingFormData = billingFormDataRef.current;
+    const currentFinalPrescriptionFormData = finalPrescriptionFormDataRef.current;
+    const currentContactFormData = contactFormDataRef.current;
+    const currentContactLensExamData = contactLensExamDataRef.current;
+    const currentContactLensDetailsData = contactLensDetailsDataRef.current;
+    const currentKeratoCLData = keratoCLDataRef.current;
+    const currentSchirmerData = schirmerDataRef.current;
+    const currentDiametersData = diametersDataRef.current;
+    const currentOrderLineItems = orderLineItemsRef.current;
+
     if (!isContactMode) {
-      if (!formData.type) {
+      if (!currentFormData.type) {
         toast.error("אנא בחר סוג הזמנה");
         return;
       }
-    } else if (!contactFormData.type) {
+    } else if (!currentContactFormData.type) {
       toast.error("אנא בחר סוג הזמנה");
       return;
     }
@@ -619,19 +668,19 @@ export default function OrderDetailPage({
 
     try {
       if (isContactMode) {
-        const hasExam = Object.values(contactLensExamData || {}).some(
+        const hasExam = Object.values(currentContactLensExamData || {}).some(
           (v) => v !== undefined && v !== null && v !== "",
         );
-        const hasKerato = Object.values(keratoCLData || {}).some(
+        const hasKerato = Object.values(currentKeratoCLData || {}).some(
           (v) => v !== undefined && v !== null && v !== "",
         );
-        const hasSchirmer = Object.values(schirmerData || {}).some(
+        const hasSchirmer = Object.values(currentSchirmerData || {}).some(
           (v) => v !== undefined && v !== null && v !== "",
         );
-        const hasDiam = Object.values(diametersData || {}).some(
+        const hasDiam = Object.values(currentDiametersData || {}).some(
           (v) => v !== undefined && v !== null && v !== "",
         );
-        const hasDetails = Object.values(contactLensDetailsData || {}).some(
+        const hasDetails = Object.values(currentContactLensDetailsData || {}).some(
           (v) => v !== undefined && v !== null && v !== "",
         );
 
@@ -639,59 +688,59 @@ export default function OrderDetailPage({
           ? {
             client_id: Number(clientId),
             clinic_id: currentClinic?.id,
-            order_date: contactFormData.order_date,
-            type: contactFormData.type,
-            user_id: contactFormData.user_id,
-            notes: contactFormData.notes,
-            supplier_notes: contactFormData.supplier_notes,
+            order_date: currentContactFormData.order_date,
+            type: currentContactFormData.type,
+            user_id: currentContactFormData.user_id,
+            notes: currentContactFormData.notes,
+            supplier_notes: currentContactFormData.supplier_notes,
             order_data: {
               ...(hasDetails
-                ? { "contact-lens-details": { ...contactLensDetailsData } }
+                ? { "contact-lens-details": { ...currentContactLensDetailsData } }
                 : {}),
               ...(hasExam
-                ? { "contact-lens-exam": { ...contactLensExamData } }
+                ? { "contact-lens-exam": { ...currentContactLensExamData } }
                 : {}),
               ...(hasKerato
-                ? { "keratometer-contact-lens": { ...keratoCLData } }
+                ? { "keratometer-contact-lens": { ...currentKeratoCLData } }
                 : {}),
               ...(hasSchirmer
-                ? { "schirmer-test": { ...schirmerData } }
+                ? { "schirmer-test": { ...currentSchirmerData } }
                 : {}),
               ...(hasDiam
-                ? { "contact-lens-diameters": { ...diametersData } }
+                ? { "contact-lens-diameters": { ...currentDiametersData } }
                 : {}),
             },
           }
           : {
-            ...(contactFormData as any),
+            ...(currentContactFormData as any),
             order_data: {
-              ...((contactFormData as any)?.order_data || {}),
+              ...((currentContactFormData as any)?.order_data || {}),
               ...(hasDetails
-                ? { "contact-lens-details": { ...contactLensDetailsData } }
+                ? { "contact-lens-details": { ...currentContactLensDetailsData } }
                 : {}),
               ...(hasExam
-                ? { "contact-lens-exam": { ...contactLensExamData } }
+                ? { "contact-lens-exam": { ...currentContactLensExamData } }
                 : {}),
               ...(hasKerato
-                ? { "keratometer-contact-lens": { ...keratoCLData } }
+                ? { "keratometer-contact-lens": { ...currentKeratoCLData } }
                 : {}),
               ...(hasSchirmer
-                ? { "schirmer-test": { ...schirmerData } }
+                ? { "schirmer-test": { ...currentSchirmerData } }
                 : {}),
               ...(hasDiam
-                ? { "contact-lens-diameters": { ...diametersData } }
+                ? { "contact-lens-diameters": { ...currentDiametersData } }
                 : {}),
             },
           };
 
-        const hasBillingData = Object.values(billingFormData).some(
+        const hasBillingData = Object.values(currentBillingFormData).some(
           (value) => value !== undefined && value !== null && value !== "",
         );
-        const shouldCreateBilling = hasBillingData || orderLineItems.length > 0;
+        const shouldCreateBilling = hasBillingData || currentOrderLineItems.length > 0;
         const payload: any = {
           order: mergedOrderData,
-          billing: shouldCreateBilling ? { ...billingFormData } : null,
-          line_items: orderLineItems.map(({ id, billings_id, ...rest }) => {
+          billing: shouldCreateBilling ? { ...currentBillingFormData } : null,
+          line_items: currentOrderLineItems.map(({ id, billings_id, ...rest }) => {
             if (!id || id <= 0) {
               return { ...rest } as any;
             }
@@ -772,12 +821,12 @@ export default function OrderDetailPage({
 
           setBaseline({
             isContactMode,
-            formData,
-            lensFormData,
-            frameFormData,
-            orderDetailsFormData,
+            formData: currentFormData,
+            lensFormData: currentLensFormData,
+            frameFormData: currentFrameFormData,
+            orderDetailsFormData: currentOrderDetailsFormData,
             billingFormData: nextBillingFormData,
-            finalPrescriptionFormData,
+            finalPrescriptionFormData: currentFinalPrescriptionFormData,
             contactFormData: nextContactFormData,
             contactLensExamData: nextContactLensExamData,
             contactLensDetailsData: nextContactLensDetailsData,
@@ -809,7 +858,7 @@ export default function OrderDetailPage({
       }
 
       const hasFinalPrescriptionData = Object.values(
-        finalPrescriptionFormData,
+        currentFinalPrescriptionFormData,
       ).some(
         (value) =>
           value !== undefined && value !== null && value !== "" && value !== 0,
@@ -818,50 +867,50 @@ export default function OrderDetailPage({
         ? {
           client_id: Number(clientId),
           clinic_id: currentClinic?.id,
-          order_date: formData.order_date,
-          type: formData.type,
-          dominant_eye: formData.dominant_eye,
-          user_id: formData.user_id,
-          comb_va: formData.comb_va,
-          comb_high: formData.comb_high,
-          comb_pd: formData.comb_pd,
+          order_date: currentFormData.order_date,
+          type: currentFormData.type,
+          dominant_eye: currentFormData.dominant_eye,
+          user_id: currentFormData.user_id,
+          comb_va: currentFormData.comb_va,
+          comb_high: currentFormData.comb_high,
+          comb_pd: currentFormData.comb_pd,
           order_data: {
             ...(hasFinalPrescriptionData
-              ? { "final-prescription": { ...finalPrescriptionFormData } }
+              ? { "final-prescription": { ...currentFinalPrescriptionFormData } }
               : {}),
-            lens: { ...lensFormData },
-            frame: { ...frameFormData },
-            details: { ...orderDetailsFormData },
+            lens: { ...currentLensFormData },
+            frame: { ...currentFrameFormData },
+            details: { ...currentOrderDetailsFormData },
           },
         }
         : {
-          ...(formData as Order),
-          order_date: formData.order_date,
-          type: formData.type,
-          dominant_eye: formData.dominant_eye,
-          user_id: formData.user_id,
-          comb_va: formData.comb_va,
-          comb_high: formData.comb_high,
-          comb_pd: formData.comb_pd,
+          ...(currentFormData as Order),
+          order_date: currentFormData.order_date,
+          type: currentFormData.type,
+          dominant_eye: currentFormData.dominant_eye,
+          user_id: currentFormData.user_id,
+          comb_va: currentFormData.comb_va,
+          comb_high: currentFormData.comb_high,
+          comb_pd: currentFormData.comb_pd,
           order_data: {
             ...((order as any)?.order_data || {}),
             ...(hasFinalPrescriptionData
-              ? { "final-prescription": { ...finalPrescriptionFormData } }
+              ? { "final-prescription": { ...currentFinalPrescriptionFormData } }
               : {}),
-            lens: { ...lensFormData },
-            frame: { ...frameFormData },
-            details: { ...orderDetailsFormData },
+            lens: { ...currentLensFormData },
+            frame: { ...currentFrameFormData },
+            details: { ...currentOrderDetailsFormData },
           },
         };
 
-      const hasBillingData = Object.values(billingFormData).some(
+      const hasBillingData = Object.values(currentBillingFormData).some(
         (value) => value !== undefined && value !== null && value !== "",
       );
-      const shouldCreateBilling = hasBillingData || orderLineItems.length > 0;
+      const shouldCreateBilling = hasBillingData || currentOrderLineItems.length > 0;
       const payload: any = {
         order: mergedOrderData,
-        billing: shouldCreateBilling ? { ...billingFormData } : null,
-        line_items: orderLineItems.map(({ id, billings_id, ...rest }) => {
+        billing: shouldCreateBilling ? { ...currentBillingFormData } : null,
+        line_items: currentOrderLineItems.map(({ id, billings_id, ...rest }) => {
           if (!id || id <= 0) {
             return { ...rest } as any;
           }
@@ -893,44 +942,63 @@ export default function OrderDetailPage({
         console.log("Updated billing:", updatedBilling);
         console.log("Updated line items:", updatedLineItems);
         console.log("Updated line items length:", updatedLineItems.length);
-        setOrder(updatedOrder);
-        setFormData((prev) => ({ ...prev, ...updatedOrder }));
+
+        // Merge server response with local state to prevent rollback/data loss
+        // We trust the server for IDs and system fields, but we trust local state (formData)
+        // for the content fields we just edited, in case the server response is stale.
         const od = (updatedOrder as any).order_data || {};
+
+        const nextLensFormData = {
+          ...(od.lens || {}), // Server base
+          ...currentLensFormData,    // Local overrides
+          order_id: updatedOrder.id! // Enforce ID
+        } as OrderLens;
+
+        const nextFrameFormData = {
+          ...(od.frame || {}),
+          ...currentFrameFormData,
+          order_id: updatedOrder.id!
+        } as Frame;
+
+        const nextOrderDetailsFormData = {
+          ...(od.details || {}),
+          ...currentOrderDetailsFormData,
+          order_id: updatedOrder.id!
+        } as OrderDetails;
+
         const fp2 = od["final-prescription"];
-        if (fp2) {
-          setFinalPrescription(fp2 as FinalPrescriptionExam);
-          setFinalPrescriptionFormData({ ...(fp2 as FinalPrescriptionExam) });
+        const nextFinalPrescriptionFormData = {
+          ...(fp2 as FinalPrescriptionExam || {}),
+          ...currentFinalPrescriptionFormData
+        } as FinalPrescriptionExam;
+
+        const nextOrderData = {
+          ...od,
+          lens: nextLensFormData,
+          frame: nextFrameFormData,
+          details: nextOrderDetailsFormData,
+          "final-prescription": nextFinalPrescriptionFormData
+        };
+
+        const nextFormData = {
+          ...updatedOrder,
+          ...currentFormData, // Local overrides
+          id: updatedOrder.id!,
+          order_data: nextOrderData
+        } as Order;
+
+        setOrder(nextFormData);
+        setFormData(nextFormData);
+
+        setLensFormData(nextLensFormData);
+        setFrameFormData(nextFrameFormData);
+        setOrderDetailsFormData(nextOrderDetailsFormData);
+
+        if (fp2 || Object.keys(currentFinalPrescriptionFormData).length > 0) {
+          setFinalPrescription(nextFinalPrescriptionFormData);
+          setFinalPrescriptionFormData(nextFinalPrescriptionFormData);
         }
-        if (Object.prototype.hasOwnProperty.call(od, "lens")) {
-          setLensFormData({ order_id: updatedOrder.id!, ...(od.lens || {}) });
-        } else {
-          setLensFormData((prev) => ({
-            ...prev,
-            order_id: updatedOrder.id!,
-          }));
-        }
-        if (Object.prototype.hasOwnProperty.call(od, "frame")) {
-          setFrameFormData({
-            order_id: updatedOrder.id!,
-            ...(od.frame || {}),
-          });
-        } else {
-          setFrameFormData((prev) => ({
-            ...prev,
-            order_id: updatedOrder.id!,
-          }));
-        }
-        if (Object.prototype.hasOwnProperty.call(od, "details")) {
-          setOrderDetailsFormData({
-            order_id: updatedOrder.id!,
-            ...(od.details || {}),
-          });
-        } else {
-          setOrderDetailsFormData((prev) => ({
-            ...prev,
-            order_id: updatedOrder.id!,
-          }));
-        }
+
         if (updatedBilling) {
           setBilling(updatedBilling as any);
           setBillingFormData((prev) => ({
@@ -942,22 +1010,9 @@ export default function OrderDetailPage({
         setOrderLineItems(updatedLineItems);
         setDeletedOrderLineItemIds([]);
 
-        const nextFormData = { ...formData, ...updatedOrder } as Order;
-        const nextLensFormData = Object.prototype.hasOwnProperty.call(od, "lens")
-          ? ({ order_id: updatedOrder.id!, ...(od.lens || {}) } as OrderLens)
-          : ({ ...lensFormData, order_id: updatedOrder.id! } as OrderLens);
-        const nextFrameFormData = Object.prototype.hasOwnProperty.call(od, "frame")
-          ? ({ order_id: updatedOrder.id!, ...(od.frame || {}) } as Frame)
-          : ({ ...frameFormData, order_id: updatedOrder.id! } as Frame);
-        const nextOrderDetailsFormData = Object.prototype.hasOwnProperty.call(od, "details")
-          ? ({ order_id: updatedOrder.id!, ...(od.details || {}) } as OrderDetails)
-          : ({ ...orderDetailsFormData, order_id: updatedOrder.id! } as OrderDetails);
         const nextBillingFormData = updatedBilling
           ? { ...billingFormData, ...(updatedBilling as any) }
           : billingFormData;
-        const nextFinalPrescriptionFormData = fp2
-          ? ({ ...(fp2 as FinalPrescriptionExam) } as FinalPrescriptionExam)
-          : finalPrescriptionFormData;
 
         setBaseline({
           isContactMode,

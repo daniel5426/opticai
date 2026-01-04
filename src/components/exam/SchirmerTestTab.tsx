@@ -13,6 +13,8 @@ interface SchirmerTestTabProps {
   needsMiddleSpacer?: boolean
 }
 
+import { FastInput } from "./shared/OptimizedInputs"
+
 export function SchirmerTestTab({
   schirmerTestData,
   onSchirmerTestChange,
@@ -53,12 +55,12 @@ export function SchirmerTestTab({
 
     return (
       <div className="relative">
-        <Input
+        <FastInput
           type="number"
           step={step}
           min={min}
           value={value}
-          onChange={(e) => handleChange(eye, key, e.target.value)}
+          onChange={(val) => handleChange(eye, key, val)}
           disabled={!isEditing}
           className={`h-8 pr-1 text-xs ${unit ? "pr-8" : ""} ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
         />
@@ -70,6 +72,7 @@ export function SchirmerTestTab({
       </div>
     );
   };
+
 
   return (
     <Card className="w-full examcard pb-4 pt-3">

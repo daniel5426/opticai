@@ -126,6 +126,7 @@ Below are the payload shapes for each component key. All payloads include `layou
   - `medications?, allergies?, family_history?, previous_treatments?` (strings)
   - `lazy_eye?` (string)
   - `contact_lens_wear?` (boolean)
+  - `contact_lens_type?` (string)
   - `started_wearing_since?, stopped_wearing_since?, additional_notes?` (strings)
 
 - schirmer-test (SchirmerTestExam)

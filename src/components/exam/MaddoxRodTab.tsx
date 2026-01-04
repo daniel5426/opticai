@@ -17,6 +17,8 @@ const columns = [
   { key: "c_l_v", label: "L" },
 ];
 
+import { FastInput } from "./shared/OptimizedInputs"
+
 export function MaddoxRodTab({
   maddoxRodData,
   onMaddoxRodChange,
@@ -61,15 +63,15 @@ export function MaddoxRodTab({
             ))}
             <div></div>
             {columns.slice(0, 2).map((col) => (
-              <Input
+              <FastInput
                 key={col.key}
                 type="number"
                 step="0.25"
-                value={maddoxRodData[col.key as keyof MaddoxRodExam] || ""}
-                onChange={(e) =>
+                value={String(maddoxRodData[col.key as keyof MaddoxRodExam] || "")}
+                onChange={(val) =>
                   onMaddoxRodChange(
                     col.key as keyof MaddoxRodExam,
-                    e.target.value,
+                    val,
                   )
                 }
                 disabled={!isEditing}
@@ -78,15 +80,15 @@ export function MaddoxRodTab({
             ))}
             <div className="bg-border w-px h-8"></div>
             {columns.slice(2, 4).map((col) => (
-              <Input
+              <FastInput
                 key={col.key}
                 type="number"
                 step="0.25"
-                value={maddoxRodData[col.key as keyof MaddoxRodExam] || ""}
-                onChange={(e) =>
+                value={String(maddoxRodData[col.key as keyof MaddoxRodExam] || "")}
+                onChange={(val) =>
                   onMaddoxRodChange(
                     col.key as keyof MaddoxRodExam,
-                    e.target.value,
+                    val,
                   )
                 }
                 disabled={!isEditing}
@@ -112,12 +114,12 @@ export function MaddoxRodTab({
             {columns.slice(0, 2).map((col) => {
               const wcKey = col.key.replace("c_", "wc_") as keyof MaddoxRodExam;
               return (
-                <Input
+                <FastInput
                   key={col.key + "-wc"}
                   type="number"
                   step="0.25"
-                  value={maddoxRodData[wcKey] || ""}
-                  onChange={(e) => onMaddoxRodChange(wcKey, e.target.value)}
+                  value={String(maddoxRodData[wcKey] || "")}
+                  onChange={(val) => onMaddoxRodChange(wcKey, val)}
                   disabled={!isEditing}
                   className={`h-8 pr-1 text-xs ${isEditing ? "bg-white" : "bg-accent/50"} disabled:cursor-default disabled:opacity-100`}
                 />
@@ -127,12 +129,12 @@ export function MaddoxRodTab({
             {columns.slice(2, 4).map((col) => {
               const wcKey = col.key.replace("c_", "wc_") as keyof MaddoxRodExam;
               return (
-                <Input
+                <FastInput
                   key={col.key + "-wc"}
                   type="number"
                   step="0.25"
-                  value={maddoxRodData[wcKey] || ""}
-                  onChange={(e) => onMaddoxRodChange(wcKey, e.target.value)}
+                  value={String(maddoxRodData[wcKey] || "")}
+                  onChange={(val) => onMaddoxRodChange(wcKey, val)}
                   disabled={!isEditing}
                   className={`h-8 pr-1 text-xs ${isEditing ? "bg-white" : "bg-accent/50"} disabled:cursor-default disabled:opacity-100`}
                 />
@@ -147,3 +149,4 @@ export function MaddoxRodTab({
     </Card>
   );
 }
+

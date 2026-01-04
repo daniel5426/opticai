@@ -368,6 +368,22 @@ export function PersonalProfileTab({
                 בחירה זו תקבע כיצד יוצגו ערכי חדות הראייה בכל טבלאות הבדיקה.
               </p>
             </div>
+
+            <div className="flex flex-col gap-2 items-end border-t pt-4">
+              <div className="flex items-center justify-end gap-2">
+                <Label htmlFor="sync-subjective" className="text-right text-sm font-medium cursor-pointer">
+                  חבר אוטומטית בין בדיקה סובייקטיבית למרשם סופי
+                </Label>
+                <Switch
+                  id="sync-subjective"
+                  checked={personalProfile.sync_subjective_to_final_subjective || false}
+                  onCheckedChange={(checked) => onProfileChange('sync_subjective_to_final_subjective', checked)}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground text-right w-full">
+                כאשר אפשרות זו פעילה, שינויים בבדיקה הסובייקטיבית יעודכנו אוטומטית במרשם הסופי באותו המפגש.
+              </p>
+            </div>
           </div>
         </CardContent>
       </Card>

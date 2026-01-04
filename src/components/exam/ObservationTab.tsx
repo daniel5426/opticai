@@ -18,6 +18,8 @@ const fieldLabels = [
   { key: "recommendations", label: "המלצות" },
 ]
 
+import { FastInput } from "./shared/OptimizedInputs"
+
 export function ObservationTab({ data, onChange, isEditing }: ObservationTabProps) {
   const handleInput = (field: keyof SensationVisionStabilityExam, value: string) => {
     onChange(field, value)
@@ -36,17 +38,17 @@ export function ObservationTab({ data, onChange, isEditing }: ObservationTabProp
           {fieldLabels.map(({ key, label }) => (
             <React.Fragment key={key}>
               <Label className="text-sm font-medium text-right ">{label}</Label>
-              <Input
+              <FastInput
                 name={`r_${key}`}
-                value={data[`r_${key}` as keyof SensationVisionStabilityExam] || ''}
-                onChange={e => handleInput(`r_${key}` as keyof SensationVisionStabilityExam, e.target.value)}
+                value={data[`r_${key}` as keyof SensationVisionStabilityExam]?.toString() || ''}
+                onChange={val => handleInput(`r_${key}` as keyof SensationVisionStabilityExam, val)}
                 disabled={!isEditing}
                 className={`h-9 pr-2 text-sm flex-1 ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
               />
-              <Input
+              <FastInput
                 name={`l_${key}`}
-                value={data[`l_${key}` as keyof SensationVisionStabilityExam] || ''}
-                onChange={e => handleInput(`l_${key}` as keyof SensationVisionStabilityExam, e.target.value)}
+                value={data[`l_${key}` as keyof SensationVisionStabilityExam]?.toString() || ''}
+                onChange={val => handleInput(`l_${key}` as keyof SensationVisionStabilityExam, val)}
                 disabled={!isEditing}
                 className={`h-9 pr-2 text-sm flex-1 ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
               />
@@ -56,4 +58,4 @@ export function ObservationTab({ data, onChange, isEditing }: ObservationTabProp
       </CardContent>
     </Card>
   )
-} 
+}

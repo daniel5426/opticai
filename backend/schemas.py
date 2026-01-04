@@ -89,6 +89,7 @@ class UserBase(BaseModel):
     va_format: Optional[str] = "meter"
     system_vacation_dates: Optional[List[str]] = None
     added_vacation_dates: Optional[List[str]] = None
+    sync_subjective_to_final_subjective: bool = False
 
 class UserCreate(UserBase):
     password: Optional[str] = None
@@ -101,6 +102,7 @@ class UserUpdate(UserBase):
     clinic_id: Optional[int] = None
     company_id: Optional[int] = None
     va_format: Optional[str] = None
+    sync_subjective_to_final_subjective: Optional[bool] = None
 
 
 class User(UserBase):

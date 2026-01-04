@@ -13,7 +13,7 @@ interface ServerStatusContextType {
 const ServerStatusContext = createContext<ServerStatusContextType | undefined>(undefined);
 
 const getHealthCheckUrl = () => {
-  const apiUrl = (import.meta as any).env?.VITE_API_URL || 'http://localhost:8001/api/v1';
+  const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8001/api/v1';
   return apiUrl.replace(/\/api\/v1$/, '');
 };
 
@@ -29,7 +29,7 @@ export function ServerStatusProvider({ children }: ServerStatusProviderProps) {
     setIsChecking(true);
     try {
       const baseUrl = getHealthCheckUrl();
-      const res = await fetch(`${baseUrl}/health`, { 
+      const res = await fetch(`${baseUrl}/health`, {
         cache: 'no-store',
         signal: AbortSignal.timeout(5000) // 5 second timeout
       });
@@ -83,9 +83,9 @@ export function ServerStatusProvider({ children }: ServerStatusProviderProps) {
                 <h1 className="text-2xl font-bold">הפלטפורמה אינה זמינה כרגע</h1>
                 <p className="text-muted-foreground">אנחנו מקווים לחזור לפעילות ממש בקרוב</p>
                 <div className="mt-2">
-                  <Button 
-                    onClick={checkServerHealth} 
-                    disabled={isChecking} 
+                  <Button
+                    onClick={checkServerHealth}
+                    disabled={isChecking}
                     className="bg-general-primary hover:bg-general-primary/80"
                   >
                     {isChecking ? 'בודק...' : 'נסה שוב'}

@@ -13,6 +13,8 @@ interface ContactLensDetailsTabProps {
   needsMiddleSpacer?: boolean;
 }
 
+import { FastInput } from "./shared/OptimizedInputs"
+
 export function ContactLensDetailsTab({
   contactLensDetailsData,
   onContactLensDetailsChange,
@@ -21,7 +23,7 @@ export function ContactLensDetailsTab({
   needsMiddleSpacer = false
 }: ContactLensDetailsTabProps) {
   const [hoveredEye, setHoveredEye] = useState<"R" | "L" | null>(null);
-  
+
   const columns = [
     { key: "type", label: "TYPE", step: "1", lookupType: "contactLensType" },
     { key: "model", label: "MODEL", step: "1", lookupType: "contactLensModel" },
@@ -71,12 +73,12 @@ export function ContactLensDetailsTab({
 
   return (
     <Card className="w-full examcard pb-4 pt-3" dir="ltr">
-      <CardContent className="px-4" style={{scrollbarWidth: 'none'}}>
+      <CardContent className="px-4" style={{ scrollbarWidth: 'none' }}>
         <div className="space-y-3">
           <div className="text-center">
             <h3 className="font-medium text-muted-foreground">Contact Lens Details</h3>
           </div>
-          
+
           <div className={`grid ${hideEyeLabels ? 'grid-cols-[repeat(8,1fr)]' : 'grid-cols-[20px_repeat(8,1fr)]'} gap-2 items-center`}>
             {!hideEyeLabels && <div></div>}
             {columns.map(({ key, label }) => (
@@ -86,9 +88,9 @@ export function ContactLensDetailsTab({
                 </span>
               </div>
             ))}
-            
+
             {!hideEyeLabels && <div className="flex items-center justify-center">
-              <span 
+              <span
                 className="text-base font-medium cursor-pointer hover:bg-accent rounded-full px-2"
                 onMouseEnter={() => setHoveredEye("R")}
                 onMouseLeave={() => setHoveredEye(null)}
@@ -101,27 +103,27 @@ export function ContactLensDetailsTab({
             {columns.map(({ key, step }) => (
               <React.Fragment key={`r-${key}`}>
                 {isLookupField(key) ? (
-                    <LookupSelect
-                      disabled={!isEditing}
-                      value={getFieldValue("R", key)}
-                      onChange={(value) => handleChange("R", key, value)}
-                      lookupType={getLookupType(key)}
-                      placeholder=""
-                      className="h-8 text-xs bg-white"
-                    />
+                  <LookupSelect
+                    disabled={!isEditing}
+                    value={getFieldValue("R", key)}
+                    onChange={(value) => handleChange("R", key, value)}
+                    lookupType={getLookupType(key)}
+                    placeholder=""
+                    className="h-8 text-xs bg-white"
+                  />
                 ) : (
-                  <Input
-                    type={getInputType(key)}
+                  <FastInput
+                    type={getInputType(key) as any}
                     step={getInputType(key) === "number" ? step : undefined}
                     value={getFieldValue("R", key)}
-                    onChange={(e) => handleChange("R", key, e.target.value)}
+                    onChange={(val) => handleChange("R", key, val)}
                     disabled={!isEditing}
                     className={`h-8 pr-1 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
                   />
                 )}
               </React.Fragment>
             ))}
-            
+
             {needsMiddleSpacer && (
               <>
                 {!hideEyeLabels && <div className="h-8" />}
@@ -130,9 +132,9 @@ export function ContactLensDetailsTab({
                 ))}
               </>
             )}
-            
+
             {!hideEyeLabels && <div className="flex items-center justify-center">
-              <span 
+              <span
                 className="text-base font-medium cursor-pointer hover:bg-accent rounded-full px-2"
                 onMouseEnter={() => setHoveredEye("L")}
                 onMouseLeave={() => setHoveredEye(null)}
@@ -159,11 +161,11 @@ export function ContactLensDetailsTab({
                     </div>
                   )
                 ) : (
-                  <Input
-                    type={getInputType(key)}
+                  <FastInput
+                    type={getInputType(key) as any}
                     step={getInputType(key) === "number" ? step : undefined}
                     value={getFieldValue("L", key)}
-                    onChange={(e) => handleChange("L", key, e.target.value)}
+                    onChange={(val) => handleChange("L", key, val)}
                     disabled={!isEditing}
                     className={`h-8 pr-1 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
                   />

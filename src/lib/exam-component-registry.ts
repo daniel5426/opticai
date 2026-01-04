@@ -138,6 +138,25 @@ export class ExamComponentRegistry {
                 }
               }
             }
+            if (componentType === 'old-refraction') {
+              if (fixedData && typeof fixedData === 'object') {
+                if (fixedData.__deleted) {
+                  continue
+                }
+                const meaningfulFields = [
+                  'r_sph', 'r_cyl', 'r_ax', 'r_pris', 'r_base', 'r_va', 'r_ad', 'r_j',
+                  'l_sph', 'l_cyl', 'l_ax', 'l_pris', 'l_base', 'l_va', 'l_ad', 'l_j',
+                  'comb_va', 'comb_j'
+                ]
+                const hasContent = meaningfulFields.some(f => {
+                  const v = (fixedData as any)[f]
+                  return v !== undefined && v !== null && String(v).trim() !== ''
+                })
+                if (!hasContent) {
+                  continue
+                }
+              }
+            }
             if (componentType === 'diopter-adjustment-panel') {
               console.log(`DiopterAdjustmentPanel: Saving data for key ${key}:`, fixedData)
             }

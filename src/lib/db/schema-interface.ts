@@ -323,8 +323,8 @@ export interface FinalPrescriptionExam {
   l_pris?: number;
   r_base?: string;
   l_base?: string;
-  r_va?: number;
-  l_va?: number;
+  r_va?: string | number;
+  l_va?: string | number;
   r_ad?: number;
   l_ad?: number;
   r_pd?: number;
@@ -333,7 +333,7 @@ export interface FinalPrescriptionExam {
   l_high?: number;
   r_diam?: number;
   l_diam?: number;
-  comb_va?: number;
+  comb_va?: string | number;
   comb_pd?: number;
   comb_high?: number;
 }
@@ -708,6 +708,7 @@ export interface User {
   va_format?: 'meter' | 'decimal';
   system_vacation_dates?: string[];
   added_vacation_dates?: string[];
+  sync_subjective_to_final_subjective?: boolean;
   created_at?: string;
   updated_at?: string;
 }
@@ -953,6 +954,7 @@ export interface AnamnesisExam {
   contact_lens_wear?: boolean;
   started_wearing_since?: string;
   stopped_wearing_since?: string;
+  contact_lens_type?: string;
   additional_notes?: string;
 }
 

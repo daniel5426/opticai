@@ -13,6 +13,8 @@ interface KeratometerFullTabProps {
   needsMiddleSpacer?: boolean
 }
 
+import { FastInput } from "./shared/OptimizedInputs"
+
 export function KeratometerFullTab({
   keratometerFullData,
   onKeratometerFullChange,
@@ -63,7 +65,7 @@ export function KeratometerFullTab({
 
   const renderInputRow = (eye: "R" | "L") => {
     const components: React.ReactNode[] = []
-    
+
     columns.forEach(({ key, step, type }, idx) => {
       if (type === "checkbox") {
         components.push(
@@ -78,12 +80,12 @@ export function KeratometerFullTab({
         )
       } else {
         components.push(
-          <Input
+          <FastInput
             key={`${eye}-${key}`}
             type="number"
             step={step}
             value={getFieldValue(eye, key)}
-            onChange={(e) => handleChange(eye, key, e.target.value)}
+            onChange={(val) => handleChange(eye, key, val)}
             disabled={!isEditing}
             className={`h-8 pr-1 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
           />
@@ -126,11 +128,11 @@ export function KeratometerFullTab({
 
             {!hideEyeLabels && (
               <div className="flex items-center justify-center">
-                <span className="text-base font-medium cursor-pointer hover:bg-accent rounded-full px-2" 
-                      onMouseEnter={() => setHoveredEye('R')} 
-                      onMouseLeave={() => setHoveredEye(null)} 
-                      onClick={() => copyFromOtherEye('L')}>
-                  {hoveredEye === 'L' ? <ChevronDown size={16}/> : 'R'}
+                <span className="text-base font-medium cursor-pointer hover:bg-accent rounded-full px-2"
+                  onMouseEnter={() => setHoveredEye('R')}
+                  onMouseLeave={() => setHoveredEye(null)}
+                  onClick={() => copyFromOtherEye('L')}>
+                  {hoveredEye === 'L' ? <ChevronDown size={16} /> : 'R'}
                 </span>
               </div>
             )}
@@ -145,11 +147,11 @@ export function KeratometerFullTab({
 
             {!hideEyeLabels && (
               <div className="flex items-center justify-center">
-                <span className="text-base font-medium cursor-pointer hover:bg-accent rounded-full px-2" 
-                      onMouseEnter={() => setHoveredEye('L')} 
-                      onMouseLeave={() => setHoveredEye(null)} 
-                      onClick={() => copyFromOtherEye('R')}>
-                  {hoveredEye === 'R' ? <ChevronUp size={16}/> : 'L'}
+                <span className="text-base font-medium cursor-pointer hover:bg-accent rounded-full px-2"
+                  onMouseEnter={() => setHoveredEye('L')}
+                  onMouseLeave={() => setHoveredEye(null)}
+                  onClick={() => copyFromOtherEye('R')}>
+                  {hoveredEye === 'R' ? <ChevronUp size={16} /> : 'L'}
                 </span>
               </div>
             )}
@@ -159,4 +161,4 @@ export function KeratometerFullTab({
       </CardContent>
     </Card>
   )
-} 
+}

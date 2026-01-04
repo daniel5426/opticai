@@ -2,7 +2,7 @@ import { supabase } from '@/lib/supabaseClient'
 import { apiClient } from '@/lib/api-client'
 import { User, Company, Clinic } from '@/lib/db/schema-interface'
 import { ROLE_LEVELS, isRoleAtLeast } from '@/lib/role-levels'
-import { router, routerHistory } from '@/routes/router'
+
 
 /**
  * Authentication State Machine
@@ -38,6 +38,8 @@ class AuthService {
   private session: AuthSession | null = null
   private listeners: StateChangeListener[] = []
   private initialized = false
+  private router: any = null
+  private routerHistory: any = null
 
   constructor() {
     // Don't initialize AuthService in popup windows (OAuth callbacks)
@@ -831,8 +833,8 @@ class AuthService {
     // Try to get current path from router first, fallback to window.location
     let currentPath = window.location.pathname
     try {
-      if (router?.state?.location?.pathname) {
-        currentPath = router.state.location.pathname
+      if (this.router?.state?.location?.pathname) {
+        currentPath = this.router.state.location.pathname
       }
     } catch (error) {
       console.log('[Auth] Could not get path from router, using window.location')
@@ -857,9 +859,9 @@ class AuthService {
 
       switch (this.state) {
         case AuthState.UNAUTHENTICATED:
-          if (currentPath !== '/control-center') {
+          if (currentPath !== '/control-center' && this.router) {
             console.log('[Auth] Navigating to control center from:', currentPath)
-            const navResult = router.navigate({ 
+            const navResult = this.router.navigate({ 
               to: '/control-center',
               replace: true  // Replace history instead of push
             })
@@ -874,9 +876,9 @@ class AuthService {
           break
 
         case AuthState.CLINIC_SELECTED:
-          if (currentPath !== '/user-selection') {
+          if (currentPath !== '/user-selection' && this.router) {
             console.log('[Auth] Navigating to user selection from:', currentPath)
-            router.navigate({ 
+            this.router.navigate({ 
               to: '/user-selection',
               replace: true
             })
@@ -900,7 +902,7 @@ class AuthService {
                                    currentPath.startsWith('/worker-stats')
             const isComingFromControlCenter = currentPath.startsWith('/control-center')
             
-            if (forceNavigation) {
+            if (forceNavigation && this.router) {
               console.log('[Auth] Navigating to clinic dashboard from:', currentPath, '(forced)')
               
               const clinicIdParam = this.session?.clinic?.id
@@ -908,7 +910,7 @@ class AuthService {
                 : undefined
               const refreshToken = Date.now().toString()
 
-              const navResult = router.navigate({
+              const navResult = this.router.navigate({
                 to: '/dashboard',
                 replace: true,
                 search: {
@@ -922,9 +924,9 @@ class AuthService {
                   console.error('[Auth] Forced dashboard navigation failed:', err)
                 })
               }
-            } else if (!isOnClinicPage || isComingFromControlCenter) {
+            } else if ((!isOnClinicPage || isComingFromControlCenter) && this.router) {
               console.log('[Auth] Navigating to clinic dashboard from:', currentPath)
-              const navResult = router.navigate({ to: '/dashboard' })
+              const navResult = this.router.navigate({ to: '/dashboard' })
               if (navResult && typeof navResult.then === 'function') {
                 navResult.catch((err: Error) => {
                   console.error('[Auth] Dashboard navigation failed:', err)
@@ -935,9 +937,9 @@ class AuthService {
             }
           } else if (isRoleAtLeast(this.session?.user?.role_level, ROLE_LEVELS.ceo)) {
             // CEO context - go to control center dashboard
-            if (forceNavigation || !currentPath.startsWith('/control-center/dashboard')) {
+            if ((forceNavigation || !currentPath.startsWith('/control-center/dashboard')) && this.router) {
               console.log('[Auth] Navigating to control center dashboard from:', currentPath, forceNavigation ? '(forced)' : '')
-              const navResult = router.navigate({
+              const navResult = this.router.navigate({
                 to: '/control-center/dashboard',
                 search: {
                   companyId: this.session.company?.id?.toString() || '',
@@ -957,9 +959,9 @@ class AuthService {
           break
 
         case AuthState.SETUP_REQUIRED:
-          if (currentPath !== '/control-center') {
+          if (currentPath !== '/control-center' && this.router) {
             console.log('[Auth] Navigating to control center for setup from:', currentPath)
-            router.navigate({ to: '/control-center' })
+            this.router.navigate({ to: '/control-center' })
           }
           break
       }
@@ -1090,8 +1092,11 @@ class AuthService {
 
   private restoreStoredPath(path: string): boolean {
     try {
-      routerHistory.replace(path)
-      return true
+      if (this.routerHistory) {
+        this.routerHistory.replace(path)
+        return true
+      }
+      return false
     } catch (error) {
       console.error('[Auth] Failed to restore stored path:', error)
       return false
@@ -1131,6 +1136,10 @@ class AuthService {
       'lastAppContext'
     ]
     keys.forEach(key => localStorage.removeItem(key))
+  }
+  public setRouter(router: any, history: any) {
+    this.router = router
+    this.routerHistory = history
   }
 }
 

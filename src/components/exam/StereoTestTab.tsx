@@ -16,6 +16,8 @@ interface StereoTestTabProps {
   needsMiddleSpacer?: boolean
 }
 
+import { FastInput } from "./shared/OptimizedInputs"
+
 export function StereoTestTab({ stereoTestData, onStereoTestChange, isEditing, needsMiddleSpacer = false }: StereoTestTabProps) {
   return (
     <Card className="w-full examcard pb-4 pt-3" >
@@ -27,7 +29,7 @@ export function StereoTestTab({ stereoTestData, onStereoTestChange, isEditing, n
           <div className="grid grid-cols-[50px_1fr] gap-2 items-center rtl">
             <div></div>
             <div className="text-center text-xs h-[16px] font-medium text-muted-foreground"></div>
-            
+
             <div className="text-sm text-muted-foreground font-medium text-right">Fly</div>
             <Select
               value={stereoTestData.fly_result === true ? "pass" : stereoTestData.fly_result === false ? "fail" : ""}
@@ -52,19 +54,19 @@ export function StereoTestTab({ stereoTestData, onStereoTestChange, isEditing, n
 
             <div className="text-sm text-muted-foreground font-medium text-right">Circle</div>
             <div className="flex items-center gap-1">
-              <Input
+              <FastInput
                 type="number"
-                value={stereoTestData.circle_score || ""}
-                onChange={e => onStereoTestChange('circle_score', parseInt(e.target.value) || 0)}
+                value={String(stereoTestData.circle_score || "")}
+                onChange={val => onStereoTestChange('circle_score', parseInt(val) || 0)}
                 disabled={!isEditing}
                 className={`h-8 pr-1 text-xs flex-1 ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
                 placeholder="0"
               />
               <span className="text-xs text-muted-foreground">/</span>
-              <Input
+              <FastInput
                 type="number"
-                value={stereoTestData.circle_max || ""}
-                onChange={e => onStereoTestChange('circle_max', parseInt(e.target.value) || 0)}
+                value={String(stereoTestData.circle_max || "")}
+                onChange={val => onStereoTestChange('circle_max', parseInt(val) || 0)}
                 disabled={!isEditing}
                 className={`h-8 pr-1 text-xs flex-1 ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
                 placeholder="3"
@@ -75,4 +77,4 @@ export function StereoTestTab({ stereoTestData, onStereoTestChange, isEditing, n
       </CardContent>
     </Card>
   )
-} 
+}

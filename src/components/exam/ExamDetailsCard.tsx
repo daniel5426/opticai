@@ -16,14 +16,16 @@ interface ExamDetailsCardProps {
   actions?: React.ReactNode
 }
 
+import { FastInput } from "./shared/OptimizedInputs"
+
 export const ExamDetailsCard = ({ mode, detailProps, className, actions }: ExamDetailsCardProps) => {
   const isEditing = mode === "editor" ? false : !!detailProps?.isEditing
   const testNameValue =
     mode === "editor"
       ? "דוגמה"
       : detailProps?.isNewMode
-      ? detailProps?.formData.test_name
-      : detailProps?.exam?.test_name || detailProps?.formData.test_name
+        ? detailProps?.formData.test_name
+        : detailProps?.exam?.test_name || detailProps?.formData.test_name
   return (
     <Card
       className={`w-full examcard rounded-xl px-4 py-3 bg-background ${className ?? ""}`}
@@ -37,12 +39,12 @@ export const ExamDetailsCard = ({ mode, detailProps, className, actions }: ExamD
           {mode === "editor" ? (
             <span className="px-3 py-1 rounded-lg bg-accent/50 w-full text-center">{testNameValue}</span>
           ) : (
-            <Input
+            <FastInput
               type="text"
               name="test_name"
               placeholder="שם הבדיקה"
               value={detailProps?.formData.test_name || ""}
-              onChange={isEditing ? detailProps?.handleInputChange : undefined}
+              onChange={isEditing ? (val) => detailProps?.handleInputChange({ target: { name: 'test_name', value: val } } as any) : undefined}
               className="h-9 w-full text-sm"
               readOnly={!isEditing}
               disabled={!isEditing}
@@ -55,7 +57,7 @@ export const ExamDetailsCard = ({ mode, detailProps, className, actions }: ExamD
             className="h-9 w-full text-sm"
             value={mode === "editor" ? new Date().toISOString().split("T")[0] : detailProps?.formData.exam_date}
             disabled={!isEditing}
-            onChange={detailProps?.handleInputChange || (() => {})}
+            onChange={detailProps?.handleInputChange || (() => { })}
           />
         </div>
         <div className="min-w-[60px]">
@@ -64,7 +66,7 @@ export const ExamDetailsCard = ({ mode, detailProps, className, actions }: ExamD
             disabled={!isEditing && mode !== "editor"}
             onValueChange={(userId) =>
               mode === "editor"
-                ? () => {}
+                ? () => { }
                 : detailProps?.setFormData((prev: Partial<Exam>) => ({ ...prev, user_id: userId }))
             }
           />
@@ -75,7 +77,7 @@ export const ExamDetailsCard = ({ mode, detailProps, className, actions }: ExamD
             disabled={!isEditing && mode !== "editor"}
             value={mode === "editor" ? "R" : detailProps?.formData.dominant_eye || ""}
             onValueChange={(value) =>
-              mode === "editor" ? () => {} : detailProps?.handleSelectChange(value, "dominant_eye")
+              mode === "editor" ? () => { } : detailProps?.handleSelectChange(value, "dominant_eye")
             }
           >
             <SelectTrigger className="h-9 w-full" disabled={!isEditing && mode !== "editor"}>
@@ -97,4 +99,5 @@ export const ExamDetailsCard = ({ mode, detailProps, className, actions }: ExamD
     </Card>
   )
 }
+
 

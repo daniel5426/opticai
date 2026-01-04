@@ -45,13 +45,13 @@ export function ExamToolbox({
 
   const canCopyLeft = () => {
     const currentRow = allRows[currentRowIndex]
-    
+
     // Get all available component types to the left of current card
     const cardsToTheLeft = currentRow.slice(0, currentCardIndex)
     const availableComponentsToTheLeft = cardsToTheLeft
       .filter(card => card.type !== 'notes')
       .map(card => card.type as ExamComponentType)
-    
+
     // Check if there are any compatible targets
     const compatibleTargets = ExamFieldMapper.getAvailableTargets(currentCard.type as ExamComponentType, availableComponentsToTheLeft)
     return compatibleTargets.length > 0
@@ -59,13 +59,13 @@ export function ExamToolbox({
 
   const canCopyRight = () => {
     const currentRow = allRows[currentRowIndex]
-    
+
     // Get all available component types to the right of current card
     const cardsToTheRight = currentRow.slice(currentCardIndex + 1)
     const availableComponentsToTheRight = cardsToTheRight
       .filter(card => card.type !== 'notes')
       .map(card => card.type as ExamComponentType)
-    
+
     // Check if there are any compatible targets
     const compatibleTargets = ExamFieldMapper.getAvailableTargets(currentCard.type as ExamComponentType, availableComponentsToTheRight)
     return compatibleTargets.length > 0
@@ -73,14 +73,14 @@ export function ExamToolbox({
 
   const canCopyBelow = () => {
     if (currentRowIndex >= allRows.length - 1) return false
-    
+
     const belowRow = allRows[currentRowIndex + 1]
-    
+
     // Get all available component types in the below row
     const availableComponentsInBelowRow = belowRow
       .filter(card => card.type !== 'notes')
       .map(card => card.type as ExamComponentType)
-    
+
     // Check if there are any compatible targets
     const compatibleTargets = ExamFieldMapper.getAvailableTargets(currentCard.type as ExamComponentType, availableComponentsInBelowRow)
     return compatibleTargets.length > 0
@@ -99,19 +99,16 @@ export function ExamToolbox({
   const hasAnyAction = canCopyLeft() || canCopyRight() || canCopyBelow() || canPaste()
 
   return (
-    <div 
-      className="absolute top-2 right-2 z-30" dir="ltr"
-      onMouseLeave={() => setIsExpanded(false)}
-    >
-      <div className={`flex items-center gap-1 transition-all duration-300 ease-out ${
-        isExpanded ? 'bg-white rounded-lg shadow-lg border p-1' : ''
-      }`}>
-        
-        <div className={`transition-all duration-300 ease-out ${
-          isExpanded ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-2 pointer-events-none'
-        }`}>
+    <div className="absolute top-2 right-2 z-30 pointer-events-none" dir="ltr">
+      <div
+        className={`flex items-center transition-all duration-300 ease-out pointer-events-auto ${isExpanded ? 'bg-white rounded-lg shadow-lg border p-1 gap-1' : 'gap-0'
+          }`}
+        onMouseLeave={() => setIsExpanded(false)}
+      >
+        <div className={`transition-all duration-300 ease-out overflow-hidden ${isExpanded ? 'opacity-100 translate-x-0 max-w-xs' : 'opacity-0 translate-x-2 pointer-events-none max-w-0'
+          }`}>
           <div className="flex items-center gap-1">
-            
+
             {canCopyLeft() && (
               <Button
                 type="button"
@@ -150,7 +147,7 @@ export function ExamToolbox({
                 <ArrowRight className="h-3.5 w-3.5" />
               </Button>
             )}
-            
+
             {canPaste() && (
               <Button
                 type="button"
@@ -189,22 +186,20 @@ export function ExamToolbox({
             )}
           </div>
         </div>
-        
+
         <Button
           type="button"
           variant="ghost"
           size="sm"
           onMouseEnter={() => setIsExpanded(true)}
-          className={`h-7 w-7 p-0 transition-all duration-300 ease-out ${
-            isExpanded 
-              ? 'hover:bg-gray-100 text-gray-600 hover:text-gray-800' 
+          className={`h-7 w-7 p-0 transition-all duration-300 ease-out ${isExpanded
+              ? 'hover:bg-gray-100 text-gray-600 hover:text-gray-800'
               : 'hover:bg-gray-100 text-gray-500 hover:text-gray-700 opacity-60 hover:opacity-100'
-          }`}
+            }`}
           title="כלים"
         >
-          <Settings className={`h-3.5 w-3.5 transition-transform duration-300 ease-out ${
-            isExpanded ? 'rotate-90' : ''
-          }`} />
+          <Settings className={`h-3.5 w-3.5 transition-transform duration-300 ease-out ${isExpanded ? 'rotate-90' : ''
+            }`} />
         </Button>
       </div>
     </div>
@@ -222,7 +217,7 @@ export function createToolboxActions(
   examFormData: Record<string, any>,
   fieldHandlers: Record<string, (field: string, value: any) => void>
 ): ToolboxActions {
-  
+
   const getDataByType = (componentType: ExamComponentType, key?: string) => {
     if (key) return examFormData[key] || null
     return examFormData[componentType] || null

@@ -1,0 +1,26 @@
+export const pageConfig = {
+  exam: {
+    dbType: "exam" as "exam" | "opticlens",
+    sidebarTab: "exams",
+    paramName: "examId",
+    newTitle: "בדיקה חדשה",
+    detailTitle: "פרטי בדיקה",
+    headerInfo: (id: string) => `בדיקה מס' ${id}`,
+    saveSuccessNew: "בדיקה חדשה נוצרה בהצלחה",
+    saveSuccessUpdate: "פרטי הבדיקה עודכנו בהצלחה",
+    saveErrorNew: "לא הצלחנו ליצור את הבדיקה",
+    saveErrorNewData: "לא הצלחנו ליצור את נתוני הבדיקה",
+  },
+  "contact-lens": {
+    dbType: "opticlens" as "exam" | "opticlens",
+    sidebarTab: "contact-lenses",
+    paramName: "contactLensId",
+    newTitle: "עדשות מגע חדשות",
+    detailTitle: "פרטי עדשות מגע",
+    headerInfo: (id: string) => `עדשות מגע מס' ${id}`,
+    saveSuccessNew: "עדשות מגע חדשות נוצרו בהצלחה",
+    saveSuccessUpdate: "פרטי העדשות מגע עודכנו בהצלחה",
+    saveErrorNew: "לא הצלחנו ליצור את העדשות מגע",
+    saveErrorNewData: "לא הצלחנו ליצור את נתוני העדשות מגע",
+  },
+};

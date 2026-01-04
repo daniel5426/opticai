@@ -1,12 +1,21 @@
 import React from "react"
 import { Card, CardContent } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Checkbox } from "@/components/ui/checkbox"
 import { Switch } from "@/components/ui/switch"
 import { DateInput } from "@/components/ui/date"
+import { LookupSelect } from "@/components/ui/lookup-select"
 import { AnamnesisExam } from "@/lib/db/schema-interface"
+import { Maximize2 } from "lucide-react"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
+
+import { FastTextarea } from "./shared/OptimizedInputs"
 
 interface AnamnesisTabProps {
   anamnesisData: AnamnesisExam;
@@ -14,16 +23,11 @@ interface AnamnesisTabProps {
   isEditing: boolean;
 }
 
-export function AnamnesisTab({
+export const AnamnesisTab = React.memo(function AnamnesisTab({
   anamnesisData,
   onAnamnesisChange,
   isEditing,
 }: AnamnesisTabProps) {
-
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target;
-    onAnamnesisChange(name as keyof AnamnesisExam, value);
-  };
 
   const handleCheckboxChange = (field: keyof AnamnesisExam, checked: boolean | string) => {
     const booleanValue = checked === true;
@@ -34,74 +38,83 @@ export function AnamnesisTab({
     onAnamnesisChange(field, date);
   };
 
+  const handleLookupChange = (field: keyof AnamnesisExam, value: string) => {
+    onAnamnesisChange(field, value);
+  };
+
   return (
     <Card className="w-full examcard pb-8 pt-3" dir="rtl">
       <CardContent className="px-4" style={{ scrollbarWidth: 'none' }}>
         <div className="text-center mb-4">
           <h3 className="font-medium text-muted-foreground">היסטוריה רפואית ואופטית (אנמנזה)</h3>
         </div>
-        
+
         <div className="grid grid-cols-[3fr_1fr] gap-x-8" style={{ scrollbarWidth: 'none' }}>
 
           {/* Right Column for Text Inputs */}
           <div className="grid w-full grid-cols-1 gap-y-4">
-            <div className="flex w-full items-center space-x-1 rtl:space-x-reverse">
-              <Label htmlFor="medications" className="text-sm font-semibold min-w-[90px]">תרופות</Label>
-              <Input
+            <div className="flex flex-col w-full space-y-1">
+              <Label htmlFor="medications" className="text-sm font-semibold">תרופות</Label>
+              <FastTextarea
                 id="medications"
                 name="medications"
                 value={anamnesisData.medications || ''}
-                onChange={handleInputChange}
+                onChange={(val) => onAnamnesisChange('medications', val)}
                 disabled={!isEditing}
-                className={`h-9 pr-2 text-sm flex-1 ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
+                showMaximize
+                label="תרופות"
               />
             </div>
 
-            <div className="flex w-full items-center space-x-1 rtl:space-x-reverse">
-              <Label htmlFor="allergies" className="text-sm font-semibold min-w-[90px]">אלרגיות</Label>
-              <Input
+            <div className="flex flex-col w-full space-y-1">
+              <Label htmlFor="allergies" className="text-sm font-semibold">אלרגיות</Label>
+              <FastTextarea
                 id="allergies"
                 name="allergies"
                 value={anamnesisData.allergies || ''}
-                onChange={handleInputChange}
+                onChange={(val) => onAnamnesisChange('allergies', val)}
                 disabled={!isEditing}
-                className={`h-9 pr-2 text-sm flex-1 ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
+                showMaximize
+                label="אלרגיות"
               />
             </div>
 
-            <div className="flex w-full items-center space-x-1 rtl:space-x-reverse">
-              <Label htmlFor="family_history" className="text-sm font-semibold min-w-[160px]">היסטוריה משפחתית</Label>
-              <Input
+            <div className="flex flex-col w-full space-y-1">
+              <Label htmlFor="family_history" className="text-sm font-semibold">היסטוריה משפחתית</Label>
+              <FastTextarea
                 id="family_history"
                 name="family_history"
                 value={anamnesisData.family_history || ''}
-                onChange={handleInputChange}
+                onChange={(val) => onAnamnesisChange('family_history', val)}
                 disabled={!isEditing}
-                className={`h-9 pr-2 text-sm flex-1 ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
+                showMaximize
+                label="היסטוריה משפחתית"
               />
             </div>
 
-            <div className="flex w-full items-center space-x-1 rtl:space-x-reverse">
-              <Label htmlFor="previous_treatments" className="text-sm font-semibold min-w-[130px]">טיפולים קודמים</Label>
-              <Input
+            <div className="flex flex-col w-full space-y-1">
+              <Label htmlFor="previous_treatments" className="text-sm font-semibold">טיפולים קודמים</Label>
+              <FastTextarea
                 id="previous_treatments"
                 name="previous_treatments"
                 value={anamnesisData.previous_treatments || ''}
-                onChange={handleInputChange}
+                onChange={(val) => onAnamnesisChange('previous_treatments', val)}
                 disabled={!isEditing}
-                className={`h-9 pr-2 text-sm flex-1 ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
+                showMaximize
+                label="טיפולים קודמים"
               />
             </div>
 
-            <div className="flex w-full items-center space-x-1 rtl:space-x-reverse">
-              <Label htmlFor="lazy_eye" className="text-sm font-semibold min-w-[90px]">עין עצלה</Label>
-              <Input
+            <div className="flex flex-col w-full space-y-1">
+              <Label htmlFor="lazy_eye" className="text-sm font-semibold">עין עצלה</Label>
+              <FastTextarea
                 id="lazy_eye"
                 name="lazy_eye"
                 value={anamnesisData.lazy_eye || ''}
-                onChange={handleInputChange}
+                onChange={(val) => onAnamnesisChange('lazy_eye', val)}
                 disabled={!isEditing}
-                className={`h-9 pr-2 text-sm flex-1 ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
+                showMaximize
+                label="עין עצלה"
               />
             </div>
           </div>
@@ -131,6 +144,17 @@ export function AnamnesisTab({
                     disabled={!isEditing}
                   />
                 </div>
+                <div className="flex flex-col space-y-2 bg-background w-full">
+                  <Label htmlFor="contact_lens_type" className="text-sm font-semibold text-center">סוג עדשות מגע</Label>
+                  <LookupSelect
+                    value={anamnesisData.contact_lens_type || ''}
+                    onChange={(val) => handleLookupChange('contact_lens_type', val)}
+                    lookupType="contactLensType"
+                    disabled={!isEditing}
+                    className="h-9"
+                    placeholder="בחר סוג..."
+                  />
+                </div>
                 <div className="flex flex-col space-y-2 w-full">
                   <Label htmlFor="stopped_wearing_since" className="text-sm font-semibold text-center">הפסיק להרכיב מאז</Label>
                   <DateInput
@@ -148,4 +172,4 @@ export function AnamnesisTab({
       </CardContent>
     </Card>
   );
-} 
+});

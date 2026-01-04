@@ -10,12 +10,14 @@ interface ContactLensDiametersTabProps {
   isEditing: boolean;
 }
 
+import { FastInput } from "./shared/OptimizedInputs"
+
 export function ContactLensDiametersTab({
   contactLensDiametersData,
   onContactLensDiametersChange,
   isEditing
 }: ContactLensDiametersTabProps) {
-  
+
   const fields = [
     { key: "pupil_diameter" as const, ...EXAM_FIELDS.PUPIL_DIAMETER },
     { key: "corneal_diameter" as const, ...EXAM_FIELDS.CORNEAL_DIAMETER },
@@ -32,12 +34,12 @@ export function ContactLensDiametersTab({
 
   return (
     <Card className="w-full examcard pb-4 pt-3">
-      <CardContent className="px-4" style={{scrollbarWidth: 'none'}}>
+      <CardContent className="px-4" style={{ scrollbarWidth: 'none' }}>
         <div className="space-y-3">
           <div className="text-center">
             <h3 className="font-medium text-muted-foreground">Diameters</h3>
           </div>
-          
+
           <div className="grid grid-cols-[2fr_auto] gap-2 gap-x-4 items-center">
             {/* Header row */}
             <div className="h-4 flex items-center justify-center">
@@ -47,16 +49,16 @@ export function ContactLensDiametersTab({
             </div>
             <div className="h-4 flex items-center justify-center">
             </div>
-            
+
             {fields.map(field => (
               <React.Fragment key={field.key}>
-                <Input
+                <FastInput
                   type="number"
                   step={field.step}
                   min={field.min}
                   max={field.max}
                   value={getFieldValue(field.key)}
-                  onChange={(e) => handleChange(field.key, e.target.value)}
+                  onChange={(val) => handleChange(field.key, val)}
                   disabled={!isEditing}
                   className={`h-8 pr-1 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
                 />

@@ -15,6 +15,8 @@ interface RetinoscopDilationTabProps {
   needsMiddleSpacer?: boolean;
 }
 
+import { FastInput } from "./shared/OptimizedInputs"
+
 export function RetinoscopDilationTab({
   retinoscopDilationData,
   onRetinoscopDilationChange,
@@ -23,7 +25,7 @@ export function RetinoscopDilationTab({
   needsMiddleSpacer = false
 }: RetinoscopDilationTabProps) {
   const [hoveredEye, setHoveredEye] = useState<"R" | "L" | null>(null);
-  
+
   const columns = [
     { key: "sph", label: "SPH", step: "0.25", type: "number" },
     { key: "cyl", label: "CYL", step: "0.25", type: "number" },
@@ -53,24 +55,24 @@ export function RetinoscopDilationTab({
 
   return (
     <Card className="w-full examcard pb-4 pt-3">
-      <CardContent className="px-4 " style={{scrollbarWidth: 'none'}}>
+      <CardContent className="px-4 " style={{ scrollbarWidth: 'none' }}>
         <div className="space-y-3">
           <div className="flex justify-center mb-1">
-            <Tabs 
-              value={retinoscopDilationData.method || "retinoscopy"} 
+            <Tabs
+              value={retinoscopDilationData.method || "retinoscopy"}
               onValueChange={(val) => onRetinoscopDilationChange("method", val)}
               className="w-fit"
             >
               <TabsList className="h-8 p-1 bg-muted/50 border">
-                <TabsTrigger 
-                  value="retinoscopy" 
+                <TabsTrigger
+                  value="retinoscopy"
                   disabled={!isEditing}
                   className="h-6 text-[11px] px-4 whitespace-nowrap data-[state=active]:bg-background"
                 >
                   Retinoscopy + Dil
                 </TabsTrigger>
-                <TabsTrigger 
-                  value="auto_refractor" 
+                <TabsTrigger
+                  value="auto_refractor"
                   disabled={!isEditing}
                   className="h-6 text-[11px] px-4 whitespace-nowrap data-[state=active]:bg-background"
                 >
@@ -79,7 +81,7 @@ export function RetinoscopDilationTab({
               </TabsList>
             </Tabs>
           </div>
-          
+
           <div className={`grid ${hideEyeLabels ? 'grid-cols-[1fr_1fr_1fr_2fr]' : 'grid-cols-[20px_1fr_1fr_1fr_2fr]'} gap-2 items-center`}>
             {!hideEyeLabels && <div></div>}
             {columns.map(({ key, label }) => (
@@ -89,9 +91,9 @@ export function RetinoscopDilationTab({
                 </span>
               </div>
             ))}
-            
+
             {!hideEyeLabels && <div className="flex items-center justify-center">
-              <span 
+              <span
                 className="text-base font-medium cursor-pointer hover:bg-accent rounded-full px-2"
                 onMouseEnter={() => setHoveredEye("R")}
                 onMouseLeave={() => setHoveredEye(null)}
@@ -102,18 +104,18 @@ export function RetinoscopDilationTab({
               </span>
             </div>}
             {columns.map(({ key, step, type }) => (
-              <Input
+              <FastInput
                 key={`r-${key}`}
-                type={type}
+                type={type as any}
                 step={type === "number" ? step : undefined}
                 value={getFieldValue("R", key)}
-                onChange={(e) => handleChange("R", key, e.target.value)}
+                onChange={(val) => handleChange("R", key, val)}
                 disabled={!isEditing}
                 showPlus={key === "sph" || key === "cyl"}
                 className={`h-8 pr-1 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default ${key === 'reflex' ? 'col-span-1' : ''}`}
               />
             ))}
-            
+
             {needsMiddleSpacer && (
               <>
                 {!hideEyeLabels && <div className="h-8" />}
@@ -122,9 +124,9 @@ export function RetinoscopDilationTab({
                 ))}
               </>
             )}
-            
+
             {!hideEyeLabels && <div className="flex items-center justify-center">
-              <span 
+              <span
                 className="text-base font-medium cursor-pointer hover:bg-accent rounded-full px-2"
                 onMouseEnter={() => setHoveredEye("L")}
                 onMouseLeave={() => setHoveredEye(null)}
@@ -135,12 +137,12 @@ export function RetinoscopDilationTab({
               </span>
             </div>}
             {columns.map(({ key, step, type }) => (
-              <Input
+              <FastInput
                 key={`l-${key}`}
-                type={type}
+                type={type as any}
                 step={type === "number" ? step : undefined}
                 value={getFieldValue("L", key)}
-                onChange={(e) => handleChange("L", key, e.target.value)}
+                onChange={(val) => handleChange("L", key, val)}
                 disabled={!isEditing}
                 showPlus={key === "sph" || key === "cyl"}
                 className={`h-8 pr-1 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default ${key === 'reflex' ? 'col-span-1' : ''}`}
@@ -151,4 +153,4 @@ export function RetinoscopDilationTab({
       </CardContent>
     </Card>
   );
-} 
+}

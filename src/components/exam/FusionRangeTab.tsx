@@ -28,7 +28,9 @@ const columns = [
   { key: "nv_base_in_recovery", label: "R (NV)" },
 ]
 
-export function FusionRangeTab({ fusionRangeData, onFusionRangeChange, isEditing , needsMiddleSpacer = false, hideEyeLabels = false}: FusionRangeTabProps) {
+import { FastInput } from "./shared/OptimizedInputs"
+
+export function FusionRangeTab({ fusionRangeData, onFusionRangeChange, isEditing, needsMiddleSpacer = false, hideEyeLabels = false }: FusionRangeTabProps) {
   return (
     <Card className="w-full examcard pb-4 pt-3" >
       <CardContent className="px-4" style={{ scrollbarWidth: 'none', direction: 'ltr' }}>
@@ -43,11 +45,11 @@ export function FusionRangeTab({ fusionRangeData, onFusionRangeChange, isEditing
             ))}
             <div className="text-sm font-medium text-right">Base In</div>
             {columns.map(col => (
-              <Input
+              <FastInput
                 key={col.key + '-in'}
                 type="text"
                 value={fusionRangeData[col.key as keyof FusionRangeData] || ""}
-                onChange={e => onFusionRangeChange(col.key as keyof FusionRangeData, e.target.value)}
+                onChange={val => onFusionRangeChange(col.key as keyof FusionRangeData, val)}
                 disabled={!isEditing}
                 className={`h-8 pr-1 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
               />
@@ -65,11 +67,11 @@ export function FusionRangeTab({ fusionRangeData, onFusionRangeChange, isEditing
             {columns.map(col => {
               const outKey = col.key.replace('in', 'out') as keyof FusionRangeData
               return (
-                <Input
+                <FastInput
                   key={col.key + '-out'}
                   type="text"
                   value={fusionRangeData[outKey] || ""}
-                  onChange={e => onFusionRangeChange(outKey, e.target.value)}
+                  onChange={val => onFusionRangeChange(outKey, val)}
                   disabled={!isEditing}
                   className={`h-8 pr-1 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
                 />
@@ -80,4 +82,4 @@ export function FusionRangeTab({ fusionRangeData, onFusionRangeChange, isEditing
       </CardContent>
     </Card>
   )
-} 
+}

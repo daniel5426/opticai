@@ -16,6 +16,10 @@ interface ExamPreviewModalProps {
     isOpen: boolean;
     onClose: () => void;
     examId: number | null;
+    onNext?: () => void;
+    onPrev?: () => void;
+    hasNext?: boolean;
+    hasPrev?: boolean;
 }
 
 interface LayoutTab {
@@ -33,7 +37,18 @@ interface CardRow {
 
 const FULL_DATA_NAME = "כל הנתונים";
 
-export function ExamPreviewModal({ isOpen, onClose, examId }: ExamPreviewModalProps) {
+import { ChevronLeft, ChevronRight } from "lucide-react";
+import { Button } from "@/components/ui/button";
+
+export function ExamPreviewModal({
+    isOpen,
+    onClose,
+    examId,
+    onNext,
+    onPrev,
+    hasNext,
+    hasPrev
+}: ExamPreviewModalProps) {
     const [loading, setLoading] = useState(false);
     const [examData, setExamData] = useState<any>(null);
     const [activeInstanceId, setActiveInstanceId] = useState<number | null>(null);
@@ -57,6 +72,20 @@ export function ExamPreviewModal({ isOpen, onClose, examId }: ExamPreviewModalPr
             setActiveInstanceId(null);
         }
     }, [isOpen, examId]);
+
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (!isOpen) return;
+            if (e.key === "ArrowLeft" && hasNext) {
+                onNext?.();
+            } else if (e.key === "ArrowRight" && hasPrev) {
+                onPrev?.();
+            }
+        };
+
+        window.addEventListener("keydown", handleKeyDown);
+        return () => window.removeEventListener("keydown", handleKeyDown);
+    }, [isOpen, hasNext, hasPrev, onNext, onPrev]);
 
     const loadData = async (id: number) => {
         setLoading(true);
@@ -121,45 +150,69 @@ export function ExamPreviewModal({ isOpen, onClose, examId }: ExamPreviewModalPr
         setExamFormData(examFormDataByInstance[id] || {});
     };
 
-    const headerTabs = useMemo(() => (
-        layoutTabs.length > 0 ? (
-            <div dir="ltr" className="mr-auto" style={{ position: "relative" }}>
-                <Tabs
-                    activeKey={activeInstanceId?.toString() || ""}
-                    style={{
-                        gap: 6,
-                        position: "relative",
-                        backgroundColor: "hsl(var(--card))",
-                        padding: "4px",
-                        borderRadius: "8px",
-                    }}
-                    onTabClick={(id) => handleLayoutTabChange(Number(id))}
+    const headerContent = useMemo(() => (
+        <div className="flex items-center gap-4">
+            {layoutTabs.length > 0 && (
+                <div dir="ltr" className="" style={{ position: "relative" }}>
+                    <Tabs
+                        activeKey={activeInstanceId?.toString() || ""}
+                        style={{
+                            gap: 6,
+                            position: "relative",
+                            backgroundColor: "hsl(var(--card))",
+                            padding: "4px",
+                            borderRadius: "8px",
+                        }}
+                        onTabClick={(id) => handleLayoutTabChange(Number(id))}
+                    >
+                        {layoutTabs.map((tab) => (
+                            <Tab
+                                key={tab.id}
+                                id={tab.id.toString()}
+                                style={{
+                                    backgroundColor: tab.isActive
+                                        ? "hsl(var(--primary))"
+                                        : "hsl(var(--card))",
+                                    color: tab.isActive
+                                        ? "hsl(var(--primary-foreground))"
+                                        : "hsl(var(--foreground))",
+                                    padding: "4px 12px",
+                                    borderRadius: "6px",
+                                    fontSize: "13px",
+                                    fontWeight: "500",
+                                    cursor: "pointer",
+                                }}
+                            >
+                                {tab.name === FULL_DATA_NAME ? <Combine size={16} /> : tab.name}
+                            </Tab>
+                        ))}
+                    </Tabs>
+                </div>
+            )}
+            <div className="flex items-center gap-1">
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    disabled={!hasPrev}
+                    onClick={onPrev}
+                    title="הקודם"
+                    className="h-8 w-8"
                 >
-                    {layoutTabs.map((tab) => (
-                        <Tab
-                            key={tab.id}
-                            id={tab.id.toString()}
-                            style={{
-                                backgroundColor: tab.isActive
-                                    ? "hsl(var(--primary))"
-                                    : "hsl(var(--card))",
-                                color: tab.isActive
-                                    ? "hsl(var(--primary-foreground))"
-                                    : "hsl(var(--foreground))",
-                                padding: "4px 12px",
-                                borderRadius: "6px",
-                                fontSize: "13px",
-                                fontWeight: "500",
-                                cursor: "pointer",
-                            }}
-                        >
-                            {tab.name === FULL_DATA_NAME ? <Combine size={16} /> : tab.name}
-                        </Tab>
-                    ))}
-                </Tabs>
+                    <ChevronRight className="h-4 w-4" />
+                </Button>
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    disabled={!hasNext}
+                    onClick={onNext}
+                    title="הבא"
+                    className="h-8 w-8"
+                >
+                    <ChevronLeft className="h-4 w-4" />
+                </Button>
             </div>
-        ) : null
-    ), [layoutTabs, activeInstanceId]);
+        </div>
+    ), [layoutTabs, activeInstanceId, onNext, onPrev, hasNext, hasPrev]);
 
     return (
         <CustomModal
@@ -169,7 +222,7 @@ export function ExamPreviewModal({ isOpen, onClose, examId }: ExamPreviewModalPr
             subtitle={examData ? `${new Date(examData.exam_date).toLocaleDateString('he-IL')}${examData.dominant_eye ? ` · עין דומיננטית: ${examData.dominant_eye === 'R' ? 'ימין' : 'שמאל'}` : ''}` : undefined}
             width="!w-[95vw] max-w-[95vw]"
             className="h-[85vh]"
-            headerContent={headerTabs}
+            headerContent={headerContent}
         >
             {loading ? (
                 <div className="flex flex-col items-center justify-center py-20 gap-4">

@@ -14,6 +14,8 @@ interface UncorrectedVATabProps {
   needsMiddleSpacer?: boolean
 }
 
+import { FastInput } from "./shared/OptimizedInputs"
+
 export function UncorrectedVATab({
   uncorrectedVaData,
   onUncorrectedVaChange,
@@ -77,7 +79,7 @@ export function UncorrectedVATab({
                 </span>
               </div>
             )}
-            {columns.map(({ key, step, type }) => (
+            {columns.map(({ key, step }) => (
               key === "fv" ? (
                 <div key={`r-${key}`}>
                   <VASelect
@@ -95,12 +97,12 @@ export function UncorrectedVATab({
                   />
                 </div>
               ) : (
-                <Input
+                <FastInput
                   key={`r-${key}`}
                   type="number"
                   step={step}
                   value={getFieldValue("R", key)}
-                  onChange={(e) => handleChange("R", key, e.target.value)}
+                  onChange={(val) => handleChange("R", key, val)}
                   disabled={!isEditing}
                   className={`h-8 pr-1 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
                 />
@@ -128,7 +130,7 @@ export function UncorrectedVATab({
                 </span>
               </div>
             )}
-            {columns.map(({ key, step, type }) => (
+            {columns.map(({ key, step }) => (
               key === "fv" ? (
                 <div key={`l-${key}`}>
                   <VASelect
@@ -146,12 +148,12 @@ export function UncorrectedVATab({
                   />
                 </div>
               ) : (
-                <Input
+                <FastInput
                   key={`l-${key}`}
                   type="number"
                   step={step}
                   value={getFieldValue("L", key)}
-                  onChange={(e) => handleChange("L", key, e.target.value)}
+                  onChange={(val) => handleChange("L", key, val)}
                   disabled={!isEditing}
                   className={`h-8 pr-1 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
                 />
@@ -162,4 +164,4 @@ export function UncorrectedVATab({
       </CardContent>
     </Card>
   )
-} 
+}

@@ -1,15 +1,18 @@
-import React from "react"
+import React, { useRef, useEffect, useState, memo, useCallback } from "react"
 import { UI_CONFIG } from "@/config/ui-config"
 import { cn } from "@/utils/tailwind"
 import { VA_METER_VALUES, VA_DECIMAL_VALUES } from "../data/exam-constants"
 import { useUser } from "@/contexts/UserContext"
+import { inputSyncManager } from "./OptimizedInputs"
+import { flushSync } from 'react-dom'
 
 interface VASelectProps {
   value: string
-  onChange: (value: string) => void
+  onChange?: (value: string) => void
   disabled?: boolean
   className?: string
 }
+
 
 const VA_CONVERSION_MAP: Record<string, string> = {
   // Meter to Decimal
@@ -59,65 +62,150 @@ export function convertVA(value: string, targetMode: "meter" | "decimal"): strin
   }
 }
 
-export function VASelect({
+export const VASelect = memo(function VASelect({
   value,
   onChange,
   disabled = false,
   className = ""
 }: VASelectProps) {
   const { currentUser } = useUser()
-  const mode = currentUser?.va_format as "meter" | "decimal" || "meter"
+  const mode = (currentUser?.va_format as "meter" | "decimal") || "meter"
 
-  // Translate incoming value to current mode
-  const translatedValue = convertVA(value, mode);
+  const inputRef = useRef<HTMLInputElement>(null)
+  const lastSentValueRef = useRef(value)
+  const [modifier, setModifier] = useState("")
+  const modifierRef = useRef("")
 
-  // Parse value: "6/6+1" -> base="6/6", modifier="+1"
-  const val = translatedValue || ""
-  const modifierMatch = val.match(/([\+\-]\d+)$/)
-  const modifier = modifierMatch ? modifierMatch[1] : ""
-  const baseValue = modifier ? val.replace(modifier, "") : val
+  const getComponents = useCallback((val: string) => {
+    const translated = convertVA(val, mode) || ""
+    const modMatch = translated.match(/([\+\-]\d+)$/)
+    const mod = modMatch ? modMatch[1] : ""
+    const baseStr = mod ? translated.replace(mod, "") : translated
+    const disp = mode === "meter" ? baseStr.replace("6/", "") : baseStr
+    return { disp, mod, baseStr }
+  }, [mode])
 
-  // denominator for meter, or the whole string for decimal
-  const displayValue = mode === "meter" ? baseValue.replace("6/", "") : baseValue
+  // Sync internal state with external value and mode changes
+  useEffect(() => {
+    const { disp, mod } = getComponents(value)
+    if (inputRef.current && inputRef.current.value !== disp) {
+      inputRef.current.value = disp
+    }
+    setModifier(mod)
+    modifierRef.current = mod
+    lastSentValueRef.current = value
+  }, [value, mode, getComponents])
 
-  const options = mode === "meter" ? VA_METER_VALUES : VA_DECIMAL_VALUES
+  const handleSync = useCallback((forceVal?: string, forceMod?: string) => {
+    if (!inputRef.current) return
+    const currentDisp = forceVal !== undefined ? forceVal : inputRef.current.value.trim()
+    const currentMod = forceMod !== undefined ? forceMod : modifierRef.current
+
+    if (!currentDisp) {
+      if (lastSentValueRef.current !== "") {
+        if (typeof onChange === 'function') {
+          flushSync(() => {
+            onChange("")
+          });
+        }
+        lastSentValueRef.current = ""
+      }
+      inputSyncManager.unregister(handleSync)
+      return
+    }
+
+    let base = currentDisp.replace(/[\+\-]\d+$/, "")
+    if (mode === "meter" && !base.startsWith("6/")) {
+      base = `6/${base}`
+    }
+
+    const newVal = `${base}${currentMod}`
+    if (newVal !== lastSentValueRef.current) {
+      if (typeof onChange === 'function') {
+        flushSync(() => {
+          onChange(newVal)
+        });
+      }
+      lastSentValueRef.current = newVal
+    }
+    inputSyncManager.unregister(handleSync)
+  }, [mode, onChange])
+
+  useEffect(() => {
+    if (disabled) return
+    let timer: NodeJS.Timeout
+
+    const onInput = () => {
+      inputSyncManager.register(handleSync)
+      if (timer) clearTimeout(timer)
+      timer = setTimeout(() => handleSync(), 1000)
+    }
+
+    const onBlur = () => {
+      if (timer) clearTimeout(timer)
+
+      const element = inputRef.current
+      if (element && (!element.value || isNaN(parseFloat(element.value)))) {
+        const defaultValue = mode === 'meter' ? '6' : '1.0'
+        const base = mode === 'meter' ? `6/${defaultValue}` : defaultValue
+        const newVal = `${base}${modifierRef.current}`
+        if (newVal !== lastSentValueRef.current) {
+          if (typeof onChange === 'function') {
+            flushSync(() => {
+              onChange(newVal)
+            });
+          }
+          lastSentValueRef.current = newVal
+        }
+        inputSyncManager.unregister(handleSync)
+      } else {
+        handleSync()
+      }
+    }
+
+    const element = inputRef.current
+    if (element) {
+      element.addEventListener('input', onInput)
+      element.addEventListener('blur', onBlur)
+    }
+
+    return () => {
+      if (element) {
+        element.removeEventListener('input', onInput)
+        element.removeEventListener('blur', onBlur)
+      }
+      if (timer) clearTimeout(timer)
+    }
+  }, [mode, onChange, handleSync, disabled])
 
   const handleModifierClick = (e: React.MouseEvent) => {
     e.preventDefault()
     if (disabled) return
 
-    const modifiers = ["", "+1", "+2", "+3", "-1", "-2", "-3"]
-    const currentIndex = modifiers.indexOf(modifier)
-    const nextIndex = (currentIndex + 1) % modifiers.length
-    onChange(`${baseValue}${modifiers[nextIndex]}`)
-  }
+    const modifiersList = ["", "+1", "+2", "+3", "-1", "-2", "-3"]
+    const currentIndex = modifiersList.indexOf(modifierRef.current)
+    const nextIndex = (currentIndex + 1) % modifiersList.length
+    const nextModifier = modifiersList[nextIndex]
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    let inputVal = e.target.value.trim();
-    if (!inputVal) {
-      onChange("");
-      return;
-    }
-
-    // Strip manual modifiers to keep them in the dedicated button
-    let base = inputVal.replace(/[\+\-]\d+$/, "");
-
-    if (mode === "meter") {
-      // If they type just the number, add 6/
-      if (!base.startsWith("6/")) {
-        base = `6/${base}`;
-      }
-      onChange(`${base}${modifier}`);
-    } else {
-      onChange(`${base}${modifier}`);
-    }
+    setModifier(nextModifier)
+    modifierRef.current = nextModifier
+    handleSync(undefined, nextModifier)
   }
 
   const stepBase = (direction: 'up' | 'down') => {
-    const currentNum = parseFloat(displayValue)
+    if (disabled || !inputRef.current) return
+
+    const currentDispValue = inputRef.current.value
+    const currentNum = parseFloat(currentDispValue)
+    const options = mode === "meter" ? VA_METER_VALUES : VA_DECIMAL_VALUES
+
     if (isNaN(currentNum)) {
       const defaultValue = mode === 'meter' ? '6' : '1.0'
-      onChange(`${mode === 'meter' ? '6/' : ''}${defaultValue}${modifier}`)
+      const base = mode === 'meter' ? `6/${defaultValue}` : defaultValue
+      const newVal = `${base}${modifierRef.current}`
+      if (typeof onChange === 'function') {
+        onChange(newVal)
+      }
       return
     }
 
@@ -125,16 +213,12 @@ export function VASelect({
 
     let nextVal: number | undefined
     if (mode === "meter") {
-      // "Up" means better vision -> smaller denominator.
-      // "Down" means worse vision -> larger denominator.
       if (direction === 'up') {
         nextVal = numericOptions.filter(v => v < currentNum).sort((a, b) => b - a)[0]
       } else {
         nextVal = numericOptions.filter(v => v > currentNum).sort((a, b) => a - b)[0]
       }
     } else {
-      // "Up" means better vision -> larger decimal.
-      // "Down" means worse vision -> smaller decimal.
       if (direction === 'up') {
         nextVal = numericOptions.filter(v => v > currentNum).sort((a, b) => a - b)[0]
       } else {
@@ -145,7 +229,14 @@ export function VASelect({
     if (nextVal !== undefined) {
       const targetString = options.find(opt => parseFloat(opt.replace("6/", "")) === nextVal)
       if (targetString) {
-        onChange(`${targetString}${modifier}`)
+        const newVal = `${targetString}${modifierRef.current}`
+        if (inputRef.current) {
+          inputRef.current.value = mode === "meter" ? targetString.replace("6/", "") : targetString
+        }
+        if (typeof onChange === 'function') {
+          onChange(newVal)
+        }
+        lastSentValueRef.current = newVal
       }
     }
   }
@@ -159,10 +250,14 @@ export function VASelect({
       stepBase('down')
     }
   }
+
   let noBorder = false;
   if (disabled && UI_CONFIG.noBorderOnDisabled) {
     noBorder = true;
   }
+
+  const { disp: currentDisp } = getComponents(value)
+
   return (
     <div
       className={cn(
@@ -180,16 +275,10 @@ export function VASelect({
       )}
 
       <input
-        value={displayValue}
-        onChange={handleInputChange}
+        ref={inputRef}
+        defaultValue={currentDisp}
         onKeyDown={handleKeyDown}
         onFocus={(e) => e.target.select()}
-        onBlur={(e) => {
-          if (!e.target.value || isNaN(parseFloat(e.target.value))) {
-            const defaultValue = mode === 'meter' ? '6' : '1.0'
-            onChange(`${mode === 'meter' ? '6/' : ''}${defaultValue}${modifier}`)
-          }
-        }}
         disabled={disabled}
         autoComplete="off"
         size={1}
@@ -215,4 +304,4 @@ export function VASelect({
       </button>
     </div>
   )
-}
+})

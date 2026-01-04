@@ -15,6 +15,8 @@ interface CornealTopographyTabProps {
   onTitleChange?: (title: string) => void
 }
 
+import { FastTextarea, FastInput } from "./shared/OptimizedInputs"
+
 export function CornealTopographyTab({
   cornealTopographyData,
   onCornealTopographyChange,
@@ -57,15 +59,14 @@ export function CornealTopographyTab({
 
   const renderNoteField = (eye: "R" | "L") => {
     const fieldValue = cornealTopographyData[`${eye.toLowerCase()}_note` as keyof CornealTopographyExam]?.toString() || ""
-    
+
     return (
-      <Textarea
+      <FastTextarea
         value={fieldValue}
-        onChange={(e) => handleChange(eye, e.target.value)}
+        onChange={(val) => handleChange(eye, val)}
         disabled={!isEditing}
         className={`min-h-[64px] text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default resize-none`}
         placeholder={isEditing ? "הערות..." : ""}
-        style={{ scrollbarWidth: 'none' }}
       />
     )
   }
@@ -86,7 +87,7 @@ export function CornealTopographyTab({
               />
             ) : (
               <div className="flex items-center justify-center gap-2">
-                <h3 
+                <h3
                   className="font-medium text-muted-foreground cursor-pointer"
                   onMouseEnter={() => setIsHoveringTitle(true)}
                   onMouseLeave={() => setIsHoveringTitle(false)}
@@ -95,8 +96,8 @@ export function CornealTopographyTab({
                   {cornealTopographyData.title || "Corneal Topography"}
                 </h3>
                 {isHoveringTitle && isEditorMode && (
-                  <Edit3 
-                    size={14} 
+                  <Edit3
+                    size={14}
                     className="text-muted-foreground cursor-pointer hover:text-foreground transition-colors"
                   />
                 )}
@@ -107,7 +108,7 @@ export function CornealTopographyTab({
           <div className={`grid ${hideEyeLabels ? 'grid-cols-1' : 'grid-cols-[20px_1fr]'} gap-2 items-start`}>
             {!hideEyeLabels && (
               <div className="flex items-center justify-center">
-                <span className="text-base font-medium cursor-pointer hover:bg-accent rounded-full px-2" onMouseEnter={() => setHoveredEye('R')} onMouseLeave={() => setHoveredEye(null)} onClick={() => copyFromOtherEye('L')}>{hoveredEye === 'L' ? <ChevronDown size={16}/> : 'R'}</span>
+                <span className="text-base font-medium cursor-pointer hover:bg-accent rounded-full px-2" onMouseEnter={() => setHoveredEye('R')} onMouseLeave={() => setHoveredEye(null)} onClick={() => copyFromOtherEye('L')}>{hoveredEye === 'L' ? <ChevronDown size={16} /> : 'R'}</span>
               </div>
             )}
             {renderNoteField('R')}
@@ -115,7 +116,7 @@ export function CornealTopographyTab({
 
             {!hideEyeLabels && (
               <div className="flex items-center justify-center">
-                <span className="text-base font-medium cursor-pointer hover:bg-accent rounded-full px-2" onMouseEnter={() => setHoveredEye('L')} onMouseLeave={() => setHoveredEye(null)} onClick={() => copyFromOtherEye('R')}>{hoveredEye === 'R' ? <ChevronUp size={16}/> : 'L'}</span>
+                <span className="text-base font-medium cursor-pointer hover:bg-accent rounded-full px-2" onMouseEnter={() => setHoveredEye('L')} onMouseLeave={() => setHoveredEye(null)} onClick={() => copyFromOtherEye('R')}>{hoveredEye === 'R' ? <ChevronUp size={16} /> : 'L'}</span>
               </div>
             )}
             {renderNoteField('L')}
@@ -124,4 +125,4 @@ export function CornealTopographyTab({
       </CardContent>
     </Card>
   )
-} 
+}

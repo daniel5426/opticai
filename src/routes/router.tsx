@@ -72,8 +72,8 @@ const history = createMemoryHistory({
 });
 
 // Create router with error handlers
-export const router = createRouter({ 
-  routeTree: rootTree, 
+export const router = createRouter({
+  routeTree: rootTree,
   history: history,
   defaultErrorComponent: ({ error }) => {
     console.error('Router error:', error);
@@ -81,7 +81,7 @@ export const router = createRouter({
       <div style={{ padding: '20px', textAlign: 'center' }}>
         <h2>Navigation Error</h2>
         <p>There was a problem loading this page.</p>
-        <button 
+        <button
           onClick={() => window.location.reload()}
           style={{ padding: '8px 16px', marginTop: '16px', cursor: 'pointer' }}
         >
@@ -107,3 +107,7 @@ if (typeof window !== 'undefined') {
 }
 
 export const routerHistory = history;
+
+// Inject router into authService to avoid circular dependency issues
+import { authService } from "@/lib/auth/AuthService";
+authService.setRouter(router, routerHistory);

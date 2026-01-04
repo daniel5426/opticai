@@ -2,10 +2,10 @@
   "compilerOptions": {
     "jsx": "react",
     "target": "ESNext",
-    "module": "NodeNext",
+    "module": "ESNext",
     "lib": ["dom", "ESNext"],
     "experimentalDecorators": true,
-    "composite": true,
+    "composite": false,
     "declaration": true,
     "forceConsistentCasingInFileNames": true,
     "allowJs": false,
@@ -18,7 +18,7 @@
       "@/*": ["./src/*"]
     },
     "outDir": "dist",
-    "moduleResolution": "nodenext",
+    "moduleResolution": "Bundler",
     "resolveJsonModule": true,
     "typeRoots": ["./node_modules/@types", "./src/types"]
   },

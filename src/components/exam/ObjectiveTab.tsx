@@ -4,6 +4,8 @@ import { Input } from "@/components/ui/input"
 import { ObjectiveExam } from "@/lib/db/schema-interface"
 import { ChevronUp, ChevronDown } from "lucide-react"
 
+import { FastInput } from "./shared/OptimizedInputs"
+
 interface ObjectiveTabProps {
   objectiveData: ObjectiveExam;
   onObjectiveChange: (field: keyof ObjectiveExam, value: string) => void;
@@ -50,12 +52,12 @@ export function ObjectiveTab({
 
   return (
     <Card className="w-full examcard pb-4 pt-3">
-      <CardContent className="px-4" style={{scrollbarWidth: 'none'}}>
+      <CardContent className="px-4" style={{ scrollbarWidth: 'none' }}>
         <div className="space-y-3">
           <div className="text-center">
             <h3 className="font-medium text-muted-foreground">Objective</h3>
           </div>
-          
+
           <div className={`grid ${hideEyeLabels ? 'grid-cols-[repeat(4,1fr)]' : 'grid-cols-[20px_repeat(4,1fr)]'} gap-2 items-center`}>
             {!hideEyeLabels && <div></div>}
             {columns.map(({ key, label }) => (
@@ -65,9 +67,9 @@ export function ObjectiveTab({
                 </span>
               </div>
             ))}
-            
+
             {!hideEyeLabels && <div className="flex items-center justify-center">
-              <span 
+              <span
                 className="text-base font-medium cursor-pointer hover:bg-accent rounded-full px-2"
                 onMouseEnter={() => setHoveredEye("R")}
                 onMouseLeave={() => setHoveredEye(null)}
@@ -78,14 +80,14 @@ export function ObjectiveTab({
               </span>
             </div>}
             {columns.map(({ key, step, min, max }) => (
-              <Input
+              <FastInput
                 key={`r-${key}`}
                 type="number"
                 step={step}
                 min={min}
                 max={max}
                 value={getFieldValue("R", key)}
-                onChange={(e) => handleChange("R", key, e.target.value)}
+                onChange={(val) => handleChange("R", key, val)}
                 disabled={!isEditing}
                 showPlus={key === "sph" || key === "cyl"}
                 className={`h-8 pr-1 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
@@ -100,9 +102,9 @@ export function ObjectiveTab({
                 ))}
               </>
             )}
-            
+
             {!hideEyeLabels && <div className="flex items-center justify-center">
-              <span 
+              <span
                 className="text-base font-medium cursor-pointer hover:bg-accent rounded-full px-2"
                 onMouseEnter={() => setHoveredEye("L")}
                 onMouseLeave={() => setHoveredEye(null)}
@@ -113,14 +115,14 @@ export function ObjectiveTab({
               </span>
             </div>}
             {columns.map(({ key, step, min, max }) => (
-              <Input
+              <FastInput
                 key={`l-${key}`}
                 type="number"
                 step={step}
                 min={min}
                 max={max}
                 value={getFieldValue("L", key)}
-                onChange={(e) => handleChange("L", key, e.target.value)}
+                onChange={(val) => handleChange("L", key, val)}
                 disabled={!isEditing}
                 showPlus={key === "sph" || key === "cyl"}
                 className={`h-8 pr-1 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
@@ -131,4 +133,4 @@ export function ObjectiveTab({
       </CardContent>
     </Card>
   );
-} 
+}

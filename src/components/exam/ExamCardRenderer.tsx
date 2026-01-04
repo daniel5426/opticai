@@ -85,6 +85,13 @@ export interface DetailProps {
   setCoverTestTabs?: React.Dispatch<React.SetStateAction<Record<string, string[]>>>; // New prop for setting cover test tabs
   activeCoverTestTabs?: Record<string, number>; // New prop for active cover test tabs
   setActiveCoverTestTabs?: React.Dispatch<React.SetStateAction<Record<string, number>>>; // New prop for setting active cover test tabs
+  oldRefractionTabs?: Record<string, string[]>;
+  activeOldRefractionTabs?: Record<string, number>;
+  setActiveOldRefractionTabs?: React.Dispatch<React.SetStateAction<Record<string, number>>>;
+  addOldRefractionTab?: (cardId: string, type: string) => void;
+  removeOldRefractionTab?: (cardId: string, tabIdx: number) => void;
+  duplicateOldRefractionTab?: (cardId: string, tabIdx: number) => void;
+  updateOldRefractionTabType?: (cardId: string, tabIdx: number, newType: string) => void;
   availableExamLayouts?: ExamLayout[];
   onSelectLayout?: (layoutId: number) => void | Promise<void>;
   isLayoutSelectionLoading?: boolean;
@@ -165,6 +172,20 @@ export const createDetailProps = (
     handleMultifocalSubjective?: () => void;
     handleFinalSubjectiveVHConfirm?: (rightPrisH: number, rightBaseH: string, rightPrisV: number, rightBaseV: string, leftPrisH: number, leftBaseH: string, leftPrisV: number, leftBaseV: string) => void;
     handleMultifocalOldRefractionExtension?: () => void;
+  },
+  tabProps?: {
+    coverTestTabs?: Record<string, string[]>;
+    addCoverTestTab?: (cardId: string) => void;
+    setCoverTestTabs?: React.Dispatch<React.SetStateAction<Record<string, string[]>>>;
+    activeCoverTestTabs?: Record<string, number>;
+    setActiveCoverTestTabs?: React.Dispatch<React.SetStateAction<Record<string, number>>>;
+    oldRefractionTabs?: Record<string, string[]>;
+    addOldRefractionTab?: (cardId: string, type: string) => void;
+    removeOldRefractionTab?: (cardId: string, tabIdx: number) => void;
+    duplicateOldRefractionTab?: (cardId: string, tabIdx: number) => void;
+    updateOldRefractionTabType?: (cardId: string, tabIdx: number, newType: string) => void;
+    activeOldRefractionTabs?: Record<string, number>;
+    setActiveOldRefractionTabs?: React.Dispatch<React.SetStateAction<Record<string, number>>>;
   }
 ): DetailProps => {
   return {
@@ -180,7 +201,8 @@ export const createDetailProps = (
     handleNotesChange,
     toolboxActions,
     allRows,
-    ...legacyHandlers
+    ...legacyHandlers,
+    ...tabProps
   }
 }
 
@@ -627,20 +649,50 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
         </div>
       )
 
-    case 'old-refraction':
+    case 'old-refraction': {
+      const oldRefTabs = detailProps?.oldRefractionTabs?.[item.id] || []
+      const activeTab = detailProps?.activeOldRefractionTabs?.[item.id] ?? 0
+      const setActiveTab = (idx: number) => { detailProps?.setActiveOldRefractionTabs?.({ ...detailProps.activeOldRefractionTabs, [item.id]: idx }); forceUpdate(); }
+      const hasTabs = oldRefTabs.length > 0
+      const tabId = hasTabs ? (oldRefTabs[activeTab] || oldRefTabs[0]) : undefined
+      const oldRefKey = tabId ? `old-refraction-${item.id}-${tabId}` : undefined
+
+      const oldRefData: OldRefractionExam = oldRefKey && detailProps?.examFormData?.[oldRefKey]
+        ? (detailProps.examFormData[oldRefKey] as OldRefractionExam)
+        : { layout_instance_id: detailProps?.layoutInstanceId ?? 0 }
+
+      const allTabsData = oldRefTabs.map(tid => {
+        const k = `old-refraction-${item.id}-${tid}`
+        return (detailProps?.examFormData?.[k] as OldRefractionExam) || { layout_instance_id: detailProps?.layoutInstanceId ?? 0 }
+      })
+
+      const onOldRefChange = (field: keyof OldRefractionExam, value: string) => {
+        if (!oldRefKey) return
+        detailProps?.fieldHandlers?.[oldRefKey]?.(field, value)
+      }
+
       return (
         <div className={`relative h-full ${matchHeight ? 'flex flex-col' : ''}`}>
           {toolbox}
           <OldRefractionTab
-            oldRefractionData={getExamData('old-refraction', item.id) as OldRefractionExam}
-            onOldRefractionChange={getChangeHandler('old-refraction', item.id)}
+            oldRefractionData={oldRefData}
+            onOldRefractionChange={onOldRefChange}
             isEditing={mode === 'detail' ? detailProps!.isEditing : false}
             onMultifocalClick={legacyHandlers.handleMultifocalOldRefraction || (() => { })}
             onVHConfirm={legacyHandlers.handleVHConfirmOldRefraction || (() => { })}
             hideEyeLabels={finalHideEyeLabels}
+            tabCount={oldRefTabs.length}
+            activeTab={activeTab}
+            onTabChange={(idx) => setActiveTab(idx)}
+            onAddTab={(type) => detailProps?.addOldRefractionTab?.(item.id, type)}
+            onDeleteTab={(idx) => detailProps?.removeOldRefractionTab?.(item.id, idx)}
+            onDuplicateTab={(idx) => detailProps?.duplicateOldRefractionTab?.(item.id, idx)}
+            onUpdateType={(idx, type) => detailProps?.updateOldRefractionTabType?.(item.id, idx, type)}
+            allTabsData={allTabsData}
           />
         </div>
       )
+    }
 
     case 'old-refraction-extension':
       return (

@@ -1,6 +1,7 @@
 import React from 'react'
 import { Card } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
+import { FastTextarea } from '../exam/shared/OptimizedInputs'
 import { Maximize2, FileText, Lock } from 'lucide-react'
 import {
   Dialog,
@@ -75,13 +76,14 @@ export function NotesCard({
               </DialogTitle>
             </DialogHeader>
             <div className="mt-4 relative" dir="rtl">
-              <Textarea
+              <FastTextarea
                 disabled={disabled}
                 value={currentDisplayValue || ''}
                 noBorder={true}
-                onChange={(e) => handleCurrentChange(e.target.value)}
-                className={`min-h-[500px] text-base p-4 ${isShowingHidden ? 'bg-transparent text-zinc-100 placeholder:text-zinc-700' : ''}`}
+                onChange={handleCurrentChange}
+                className={`min-h-[500px] text-base p-4 ${isShowingHidden ? 'bg-transparent text-zinc-100 placeholder:text-zinc-700 focus-visible:ring-0 focus-visible:ring-offset-0 border-none resize-none' : 'focus-visible:ring-0 focus-visible:ring-offset-0 border-none resize-none'}`}
                 placeholder={disabled ? '' : placeholder}
+                showMaximize={false}
               />
               {/* Secret Toggle in Modal */}
               {onHiddenChange && (
@@ -101,17 +103,17 @@ export function NotesCard({
         <h3 className={`text-base font-medium transition-colors ${isShowingHidden ? 'text-zinc-400' : 'text-muted-foreground'}`}>{isShowingHidden ? 'הערה נסתרת' : title}</h3>
       </div>
 
-      <Textarea
+      <FastTextarea
         disabled={disabled}
         value={currentDisplayValue || ''}
-        onChange={(e) => handleCurrentChange(e.target.value)}
-        className={`text-sm w-full p-3 rounded-lg disabled:opacity-100 disabled:cursor-default min-h-[90px] transition-all duration-500 relative z-10 ${isShowingHidden
+        onChange={handleCurrentChange}
+        className={`text-sm w-full p-3 rounded-lg disabled:opacity-100 disabled:cursor-default min-h-[90px] transition-all duration-500 relative z-10 resize-none ${isShowingHidden
           ? 'bg-zinc-800/50 border-zinc-700 text-zinc-100 placeholder:text-zinc-500'
           : disabled ? 'bg-accent/50' : ''
           } ${height === 'full' ? 'h-full flex-1' : height ? `h-[${height}]` : ''
           }`}
-        rows={height === 'full' ? undefined : 4}
         placeholder={disabled ? '' : placeholder}
+        showMaximize={false}
       />
 
       {/* Secret Icon */}

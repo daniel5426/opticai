@@ -10,6 +10,8 @@ import { EXAM_FIELDS, formatValueWithSign } from "./data/exam-field-definitions"
 import { VASelect } from "./shared/VASelect"
 import { NVJSelect } from "./shared/NVJSelect"
 
+import { FastInput, FastSelect } from "./shared/OptimizedInputs"
+
 interface FinalSubjectiveTabProps {
   finalSubjectiveData: FinalSubjectiveExam;
   onFinalSubjectiveChange: (field: keyof FinalSubjectiveExam, value: string) => void;
@@ -34,7 +36,7 @@ export function FinalSubjectiveTab({
   // maybe they want the UI to just have 1 prism row if they don't use both?
   // I'll stick to a clean mapping: 
   // If user picks IN/OUT, it goes to base_h. If UP/DOWN, it goes to base_v.
-  
+
   const columns = [
     { key: "sph", ...EXAM_FIELDS.SPH },
     { key: "cyl", ...EXAM_FIELDS.CYL },
@@ -52,7 +54,7 @@ export function FinalSubjectiveTab({
       const field = `comb_${key}` as keyof FinalSubjectiveExam;
       return finalSubjectiveData[field]?.toString() || "";
     }
-    
+
     if (key === "pris") {
       // Logic: if there's a vertical prism, show it. Otherwise show horizontal.
       // This is a bit ambiguous if both exist.
@@ -60,7 +62,7 @@ export function FinalSubjectiveTab({
       const hVal = finalSubjectiveData[`${eye.toLowerCase()}_pr_h` as keyof FinalSubjectiveExam];
       return (vVal || hVal || "").toString();
     }
-    
+
     if (key === "base") {
       const vBase = finalSubjectiveData[`${eye.toLowerCase()}_base_v` as keyof FinalSubjectiveExam];
       const hBase = finalSubjectiveData[`${eye.toLowerCase()}_base_h` as keyof FinalSubjectiveExam];
@@ -93,12 +95,12 @@ export function FinalSubjectiveTab({
       const otherPrisKey = `${eye.toLowerCase()}_pr_${isVertical ? 'h' : 'v'}` as keyof FinalSubjectiveExam;
       const targetBaseKey = `${eye.toLowerCase()}_base_${isVertical ? 'v' : 'h'}` as keyof FinalSubjectiveExam;
       const otherBaseKey = `${eye.toLowerCase()}_base_${isVertical ? 'h' : 'v'}` as keyof FinalSubjectiveExam;
-      
+
       // Move prism value to the correct field tracker
       const currentPris = getFieldValue(eye, "pris");
       onFinalSubjectiveChange(targetBaseKey, value);
       onFinalSubjectiveChange(targetPrisKey, currentPris);
-      
+
       // Clear the other one if needed? 
       // User said "don't care about compatibility", so I'll clear it to avoid ambiguity.
       onFinalSubjectiveChange(otherBaseKey, "");
@@ -121,24 +123,24 @@ export function FinalSubjectiveTab({
         return <NVJSelect value={value} onChange={(val) => handleChange(eye, key, val)} disabled={!isEditing} />;
       case "select":
         return (
-          <Select value={value} onValueChange={(val) => handleChange(eye, key, val)} disabled={!isEditing}>
-            <SelectTrigger size="xs" className="h-8 text-xs w-full disabled:opacity-100" disabled={!isEditing}>
-              <SelectValue placeholder="" />
-            </SelectTrigger>
-            <SelectContent>
-              {options?.map((opt: string) => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
-            </SelectContent>
-          </Select>
+          <FastSelect
+            value={value}
+            onChange={(val) => handleChange(eye, key, val)}
+            disabled={!isEditing}
+            options={options || []}
+            size="xs"
+            triggerClassName="h-8 text-xs w-full disabled:opacity-100"
+          />
         );
       default:
         return (
-          <Input
+          <FastInput
             type="number"
             step={step}
             min={min}
             max={max}
             value={value}
-            onChange={(e) => handleChange(eye, key, e.target.value)}
+            onChange={(val) => handleChange(eye, key, val)}
             disabled={!isEditing}
             showPlus={requireSign}
             className={`h-8 pr-1 text-xs disabled:opacity-100 disabled:cursor-default`}
@@ -158,12 +160,12 @@ export function FinalSubjectiveTab({
 
   return (
     <Card className="w-full examcard pb-4 pt-3">
-      <CardContent className="px-4" style={{scrollbarWidth: 'none'}}>
+      <CardContent className="px-4" style={{ scrollbarWidth: 'none' }}>
         <div className="space-y-3">
           <div className="text-center">
             <h3 className="font-medium text-muted-foreground">Final Subjective</h3>
           </div>
-          
+
           <div className={`grid ${hideEyeLabels ? 'grid-cols-[repeat(9,1fr)]' : 'grid-cols-[20px_repeat(9,1fr)]'} gap-2 items-center`}>
             {!hideEyeLabels && <div></div>}
             {columns.map(({ key, label }) => (
@@ -173,10 +175,10 @@ export function FinalSubjectiveTab({
                 </span>
               </div>
             ))}
-            
+
             {!hideEyeLabels && (
               <div className="flex items-center justify-center">
-                <span 
+                <span
                   className="text-base font-medium cursor-pointer hover:bg-accent rounded-full px-2"
                   onMouseEnter={() => setHoveredEye("R")}
                   onMouseLeave={() => setHoveredEye(null)}
@@ -187,14 +189,14 @@ export function FinalSubjectiveTab({
               </div>
             )}
             {columns.map(col => <div key={`r-${col.key}`}>{renderInput("R", col)}</div>)}
-            
+
             {!hideEyeLabels && <div className="flex items-center justify-center h-8"></div>}
             {columns.map((col) => {
               const { key } = col;
               if (key === 'pris') {
                 return (
                   <div key="c-vh-calculator" className="flex justify-center">
-                    <VHCalculatorModal onConfirm={() => {}} onRawConfirm={onVHConfirm} disabled={!isEditing} />
+                    <VHCalculatorModal onConfirm={() => { }} onRawConfirm={onVHConfirm} disabled={!isEditing} />
                   </div>
                 );
               }
@@ -207,10 +209,10 @@ export function FinalSubjectiveTab({
               }
               return <div key={`c-spacer-${key}`} />;
             })}
-            
+
             {!hideEyeLabels && (
               <div className="flex items-center justify-center">
-                <span 
+                <span
                   className="text-base font-medium cursor-pointer hover:bg-accent rounded-full px-2"
                   onMouseEnter={() => setHoveredEye("L")}
                   onMouseLeave={() => setHoveredEye(null)}
@@ -226,4 +228,4 @@ export function FinalSubjectiveTab({
       </CardContent>
     </Card>
   );
-} 
+}

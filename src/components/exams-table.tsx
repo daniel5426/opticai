@@ -334,6 +334,26 @@ export function ExamsTable({ data, clientId, onExamDeleted, onExamDeleteFailed, 
         isOpen={isPreviewOpen}
         onClose={() => setIsPreviewOpen(false)}
         examId={previewExamId}
+        onNext={() => {
+          const index = filteredData.findIndex(e => e.id === previewExamId);
+          if (index < filteredData.length - 1) {
+            setPreviewExamId(filteredData[index + 1].id || null);
+          }
+        }}
+        onPrev={() => {
+          const index = filteredData.findIndex(e => e.id === previewExamId);
+          if (index > 0) {
+            setPreviewExamId(filteredData[index - 1].id || null);
+          }
+        }}
+        hasNext={(() => {
+          const index = filteredData.findIndex(e => e.id === previewExamId);
+          return index !== -1 && index < filteredData.length - 1;
+        })()}
+        hasPrev={(() => {
+          const index = filteredData.findIndex(e => e.id === previewExamId);
+          return index > 0;
+        })()}
       />
     </div>
   );

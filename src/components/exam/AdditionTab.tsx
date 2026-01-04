@@ -7,6 +7,8 @@ import { AdditionExam } from "@/lib/db/schema-interface"
 import { ChevronUp, ChevronDown } from "lucide-react"
 import { NVJSelect } from "./shared/NVJSelect"
 
+import { FastInput } from "./shared/OptimizedInputs"
+
 interface AdditionTabProps {
   additionData: AdditionExam;
   onAdditionChange: (field: keyof AdditionExam, value: string) => void;
@@ -23,7 +25,7 @@ export function AdditionTab({
   needsMiddleSpacer = false
 }: AdditionTabProps) {
   const [hoveredEye, setHoveredEye] = useState<"R" | "L" | null>(null);
-  
+
   const columns = [
     { key: "fcc", label: "FCC", step: "0.25", min: "-7", max: "7" },
     { key: "read", label: "READ", step: "0.25", min: "0", max: "5" },
@@ -58,12 +60,12 @@ export function AdditionTab({
 
   return (
     <Card className="w-full pb-4 examcard pt-3 border">
-      <CardContent className="px-4 " style={{scrollbarWidth: 'none'}}>
+      <CardContent className="px-4 " style={{ scrollbarWidth: 'none' }}>
         <div className="space-y-3">
           <div className="text-center">
             <h3 className="font-medium text-muted-foreground">Addition</h3>
           </div>
-          
+
           <div className={`grid ${hideEyeLabels ? 'grid-cols-[repeat(7,1fr)]' : 'grid-cols-[20px_repeat(7,1fr)]'} gap-2 items-center`}>
             {!hideEyeLabels && <div></div>}
             {columns.map(({ key, label }) => (
@@ -73,9 +75,9 @@ export function AdditionTab({
                 </span>
               </div>
             ))}
-            
+
             {!hideEyeLabels && <div className="flex items-center justify-center">
-              <span 
+              <span
                 className="text-base font-medium cursor-pointer hover:bg-accent rounded-full px-2"
                 onMouseEnter={() => setHoveredEye("R")}
                 onMouseLeave={() => setHoveredEye(null)}
@@ -94,18 +96,18 @@ export function AdditionTab({
                   disabled={!isEditing}
                 />
               ) : (
-                <Input
+                <FastInput
                   key={`r-${key}`}
                   type="number"
                   step={step}
                   value={getFieldValue("R", key)}
-                  onChange={(e) => handleChange("R", key, e.target.value)}
+                  onChange={(val) => handleChange("R", key, val)}
                   disabled={!isEditing}
                   className={`h-8 pr-1 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
                 />
               )
             ))}
-            
+
             {needsMiddleSpacer && (
               <>
                 {!hideEyeLabels && <div className="h-8" />}
@@ -114,9 +116,9 @@ export function AdditionTab({
                 ))}
               </>
             )}
-            
+
             {!hideEyeLabels && <div className="flex items-center justify-center">
-              <span 
+              <span
                 className="text-base font-medium cursor-pointer hover:bg-accent rounded-full px-2"
                 onMouseEnter={() => setHoveredEye("L")}
                 onMouseLeave={() => setHoveredEye(null)}
@@ -135,12 +137,12 @@ export function AdditionTab({
                   disabled={!isEditing}
                 />
               ) : (
-                <Input
+                <FastInput
                   key={`l-${key}`}
                   type="number"
                   step={step}
                   value={getFieldValue("L", key)}
-                  onChange={(e) => handleChange("L", key, e.target.value)}
+                  onChange={(val) => handleChange("L", key, val)}
                   disabled={!isEditing}
                   className={`h-8 pr-1 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
                 />
@@ -151,4 +153,4 @@ export function AdditionTab({
       </CardContent>
     </Card>
   );
-} 
+}

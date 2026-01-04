@@ -6,26 +6,36 @@ import { updateAppLanguage } from "./helpers/language_helpers";
 import { router } from "@/routes/router";
 import { RouterProvider } from "@tanstack/react-router";
 import { UserProvider } from "./contexts/UserContext";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 1000 * 60 * 5, // 5 minutes
+      gcTime: 1000 * 60 * 30, // 30 minutes
+    },
+  },
+});
 
 // Simple error boundary component
 class ErrorBoundary extends React.Component<{ children: ReactNode }> {
   state = { hasError: false, error: null };
-  
+
   static getDerivedStateFromError(error: unknown) {
     return { hasError: true, error };
   }
-  
+
   componentDidCatch(error: unknown, info: unknown) {
     console.error("App error:", error, info);
   }
-  
+
   render() {
     if (this.state.hasError) {
       return (
         <div style={{ padding: "20px", textAlign: "center" }}>
           <h2>Something went wrong</h2>
           <p>The application encountered an error. Please try refreshing.</p>
-          <button 
+          <button
             onClick={() => window.location.reload()}
             style={{ padding: "8px 16px", marginTop: "16px", cursor: "pointer" }}
           >
@@ -73,9 +83,13 @@ export default function App() {
 
   return (
     <ErrorBoundary>
-      <Suspense fallback={<Loading />}>
-        <RouterProvider router={router} />
-      </Suspense>
+      <QueryClientProvider client={queryClient}>
+        <UserProvider>
+          <Suspense fallback={<Loading />}>
+            <RouterProvider router={router} />
+          </Suspense>
+        </UserProvider>
+      </QueryClientProvider>
     </ErrorBoundary>
   );
 }

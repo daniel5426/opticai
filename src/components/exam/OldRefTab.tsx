@@ -9,6 +9,8 @@ interface OldRefTabProps {
   isEditing: boolean;
 }
 
+import { FastInput } from "./shared/OptimizedInputs"
+
 export function OldRefTab({
   oldRefData,
   onOldRefChange,
@@ -21,11 +23,11 @@ export function OldRefTab({
           <label className="font-medium text-muted-foreground text-base">תפקיד</label>
           <div className="h-1"></div>
           {isEditing ? (
-            <Input
+            <FastInput
               type="text"
               name="role"
               value={oldRefData.role || ''}
-              onChange={(e) => onOldRefChange('role', e.target.value)}
+              onChange={(val) => onOldRefChange('role', val)}
               className="text-sm pt-1 bg-white"
             />
           ) : (
@@ -36,11 +38,11 @@ export function OldRefTab({
           <label className="font-medium text-muted-foreground text-base">מקור</label>
           <div className="h-1"></div>
           {isEditing ? (
-            <Input
+            <FastInput
               type="text"
               name="source"
               value={oldRefData.source || ''}
-              onChange={(e) => onOldRefChange('source', e.target.value)}
+              onChange={(val) => onOldRefChange('source', val)}
               className="text-sm bg-white"
             />
           ) : (
@@ -51,11 +53,11 @@ export function OldRefTab({
           <label className="font-medium text-muted-foreground text-base">עדשות</label>
           <div className="h-1"></div>
           {isEditing ? (
-            <Input
+            <FastInput
               type="text"
               name="contacts"
               value={oldRefData.contacts || ''}
-              onChange={(e) => onOldRefChange('contacts', e.target.value)}
+              onChange={(val) => onOldRefChange('contacts', val)}
               className="text-sm bg-white"
             />
           ) : (
@@ -65,4 +67,4 @@ export function OldRefTab({
       </div>
     </Card>
   )
-} 
+}

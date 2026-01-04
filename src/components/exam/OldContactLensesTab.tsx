@@ -11,6 +11,8 @@ interface OldContactLensesTabProps {
   hideEyeLabels?: boolean;
 }
 
+import { FastInput } from "./shared/OptimizedInputs"
+
 export function OldContactLensesTab({ data, onChange, isEditing, hideEyeLabels = false }: OldContactLensesTabProps) {
   const [hoveredEye, setHoveredEye] = useState<"R" | "L" | null>(null)
   const columns = [
@@ -53,7 +55,7 @@ export function OldContactLensesTab({ data, onChange, isEditing, hideEyeLabels =
   }
   return (
     <Card className="w-full examcard pb-4 pt-3">
-      <CardContent className="px-4" style={{scrollbarWidth: 'none'}}>
+      <CardContent className="px-4" style={{ scrollbarWidth: 'none' }}>
         <div className="space-y-3">
           <div className="text-center">
             <h3 className="font-medium text-muted-foreground">Old Contact Lenses</h3>
@@ -78,13 +80,13 @@ export function OldContactLensesTab({ data, onChange, isEditing, hideEyeLabels =
             </div>}
             {columns.map(({ key, step, min, max }) => (
               <div key={`r-${key}`}>
-                <Input
+                <FastInput
                   type={step ? "number" : "text"}
                   step={step}
                   min={min}
                   max={max}
                   value={getFieldValue("R", key)}
-                  onChange={e => handleChange("R", key, e.target.value)}
+                  onChange={val => handleChange("R", key, val)}
                   disabled={!isEditing}
                   showPlus={key === "sph" || key === "cyl"}
                   className={`h-8 pr-1 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
@@ -96,11 +98,11 @@ export function OldContactLensesTab({ data, onChange, isEditing, hideEyeLabels =
             {columns.map(({ key, step }) => (
               <div key={`c-${key}`}>
                 {key === "va" || key === "j" ? (
-                  <Input
+                  <FastInput
                     type="number"
                     step={step}
                     value={getFieldValue("C", key)}
-                    onChange={(e) => handleChange("C", key, e.target.value)}
+                    onChange={(val) => handleChange("C", key, val)}
                     disabled={!isEditing}
                     className={`h-8 pr-1 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
                   />
@@ -122,13 +124,13 @@ export function OldContactLensesTab({ data, onChange, isEditing, hideEyeLabels =
             </div>}
             {columns.map(({ key, step, min, max }) => (
               <div key={`l-${key}`}>
-                <Input
+                <FastInput
                   type={step ? "number" : "text"}
                   step={step}
                   min={min}
                   max={max}
                   value={getFieldValue("L", key)}
-                  onChange={e => handleChange("L", key, e.target.value)}
+                  onChange={val => handleChange("L", key, val)}
                   disabled={!isEditing}
                   showPlus={key === "sph" || key === "cyl"}
                   className={`h-8 pr-1 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
@@ -140,4 +142,4 @@ export function OldContactLensesTab({ data, onChange, isEditing, hideEyeLabels =
       </CardContent>
     </Card>
   )
-} 
+}

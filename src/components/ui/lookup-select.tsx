@@ -1,10 +1,12 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { Input } from './input'
 import { Button } from './button'
 import { Card } from './card'
 import { IconChevronDown, IconPlus, IconCheck } from '@tabler/icons-react'
 import { toast } from 'sonner'
-import * as lookupDb from '@/lib/db/lookup-db'
+import { useLookupData } from '@/hooks/useLookupData'
+import { inputSyncManager } from '@/components/exam/shared/OptimizedInputs'
+import { flushSync } from 'react-dom'
 
 interface LookupItem {
   id?: number
@@ -22,7 +24,7 @@ interface LookupSelectProps {
   dir?: 'rtl' | 'ltr'
 }
 
-export function LookupSelect({
+export const LookupSelect = React.memo(function LookupSelect({
   value = '',
   onChange,
   placeholder = 'בחר או הקלד...',
@@ -33,120 +35,64 @@ export function LookupSelect({
 }: LookupSelectProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [inputValue, setInputValue] = useState(value)
-  const [options, setOptions] = useState<LookupItem[]>([])
-  const [filteredOptions, setFilteredOptions] = useState<LookupItem[]>([])
-  const [loading, setLoading] = useState(false)
-  const [creating, setCreating] = useState(false)
+  const lastPropValueRef = useRef(value)
+  const inputValueRef = useRef(value)
   const containerRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  const getLookupFunctions = (type: string) => {
-    const lookupMap: { [key: string]: any } = {
-      supplier: {
-        getAll: lookupDb.getAllLookupSuppliers,
-        create: lookupDb.createLookupSupplier
-      },
-      clinic: {
-        getAll: lookupDb.getAllLookupClinics,
-        create: lookupDb.createLookupClinic
-      },
-      orderType: {
-        getAll: lookupDb.getAllLookupOrderTypes,
-        create: lookupDb.createLookupOrderType
-      },
-      referralType: {
-        getAll: lookupDb.getAllLookupReferralTypes,
-        create: lookupDb.createLookupReferralType
-      },
-      lensModel: {
-        getAll: lookupDb.getAllLookupLensModels,
-        create: lookupDb.createLookupLensModel
-      },
-      color: {
-        getAll: lookupDb.getAllLookupColors,
-        create: lookupDb.createLookupColor
-      },
-      material: {
-        getAll: lookupDb.getAllLookupMaterials,
-        create: lookupDb.createLookupMaterial
-      },
-      coating: {
-        getAll: lookupDb.getAllLookupCoatings,
-        create: lookupDb.createLookupCoating
-      },
-      manufacturer: {
-        getAll: lookupDb.getAllLookupManufacturers,
-        create: lookupDb.createLookupManufacturer
-      },
-      frameModel: {
-        getAll: lookupDb.getAllLookupFrameModels,
-        create: lookupDb.createLookupFrameModel
-      },
-      contactLensType: {
-        getAll: lookupDb.getAllLookupContactLensTypes,
-        create: lookupDb.createLookupContactLensType
-      },
-      contactEyeLensType: {
-        getAll: lookupDb.getAllLookupContactEyeLensTypes,
-        create: lookupDb.createLookupContactEyeLensType
-      },
-      contactEyeMaterial: {
-        getAll: lookupDb.getAllLookupContactEyeMaterials,
-        create: lookupDb.createLookupContactEyeMaterial
-      },
-      contactLensModel: {
-        getAll: lookupDb.getAllLookupContactLensModels,
-        create: lookupDb.createLookupContactLensModel
-      },
-      cleaningSolution: {
-        getAll: lookupDb.getAllLookupCleaningSolutions,
-        create: lookupDb.createLookupCleaningSolution
-      },
-      disinfectionSolution: {
-        getAll: lookupDb.getAllLookupDisinfectionSolutions,
-        create: lookupDb.createLookupDisinfectionSolution
-      },
-      rinsingSolution: {
-        getAll: lookupDb.getAllLookupRinsingSolutions,
-        create: lookupDb.createLookupRinsingSolution
-      },
-      manufacturingLab: {
-        getAll: lookupDb.getAllLookupManufacturingLabs,
-        create: lookupDb.createLookupManufacturingLab
-      },
-      advisor: {
-        getAll: lookupDb.getAllLookupAdvisors,
-        create: lookupDb.createLookupAdvisor
-      }
-    }
-    return lookupMap[type] || null
-  }
-
-  const loadOptions = async () => {
-    const functions = getLookupFunctions(lookupType)
-    if (!functions?.getAll) return
-
-    try {
-      setLoading(true)
-      const data = await functions.getAll()
-      setOptions(data || [])
-      setFilteredOptions(data || [])
-    } catch (error) {
-      console.error(`Error loading ${lookupType} options:`, error)
-      setOptions([])
-      setFilteredOptions([])
-    } finally {
-      setLoading(false)
-    }
-  }
-
+  // Keep ref in sync for the sync manager
   useEffect(() => {
-    loadOptions()
-  }, [lookupType])
+    inputValueRef.current = inputValue
+  }, [inputValue])
 
+  const {
+    data: options,
+    loading,
+    createItem,
+    isCreating: creating
+  } = useLookupData(lookupType)
+
+  const [filteredOptions, setFilteredOptions] = useState<LookupItem[]>([])
+
+  // Only sync if the prop actually changes from the outside
   useEffect(() => {
-    setInputValue(value)
+    if (value !== lastPropValueRef.current) {
+      setInputValue(value)
+      inputValueRef.current = value
+      lastPropValueRef.current = value
+    }
   }, [value])
+
+  const handleSync = useCallback(() => {
+    const val = inputValueRef.current;
+    if (typeof onChange === 'function' && val !== lastPropValueRef.current) {
+      flushSync(() => {
+        onChange(val)
+      })
+      lastPropValueRef.current = val
+    }
+    inputSyncManager.unregister(handleSync)
+  }, [onChange])
+
+  // Debounce the parent update
+  useEffect(() => {
+    if (inputValue === lastPropValueRef.current) return
+
+    inputSyncManager.register(handleSync)
+    const timer = setTimeout(handleSync, 1000)
+
+    return () => {
+      clearTimeout(timer)
+      // We don't unregister here because the manager needs to be able to flush it
+    }
+  }, [inputValue, handleSync])
+
+  // Cleanup/Sync on unmount
+  useEffect(() => {
+    return () => {
+      handleSync()
+    }
+  }, [handleSync])
 
   useEffect(() => {
     if (!inputValue.trim()) {
@@ -173,28 +119,25 @@ export function LookupSelect({
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newValue = e.target.value
     setInputValue(newValue)
-    onChange(newValue)
     setIsOpen(true)
   }
 
   const handleOptionSelect = (option: LookupItem) => {
     setInputValue(option.name)
-    onChange(option.name)
+    lastPropValueRef.current = option.name
+    if (typeof onChange === 'function') {
+      onChange(option.name)
+    }
     setIsOpen(false)
   }
+
 
   const handleCreateNew = async () => {
     if (!inputValue.trim()) return
 
-    const functions = getLookupFunctions(lookupType)
-    if (!functions?.create) return
-
     try {
-      setCreating(true)
-      const newItem = await functions.create({ name: inputValue.trim() })
+      const newItem = await createItem(inputValue.trim())
       if (newItem) {
-        setOptions(prev => [...prev, newItem])
-        setFilteredOptions(prev => [...prev, newItem])
         setInputValue(newItem.name)
         onChange(newItem.name)
         setIsOpen(false)
@@ -205,12 +148,10 @@ export function LookupSelect({
     } catch (error) {
       console.error('Error creating new item:', error)
       toast.error('שגיאה ביצירת פריט חדש')
-    } finally {
-      setCreating(false)
     }
   }
 
-  const exactMatch = filteredOptions.find(option => 
+  const exactMatch = filteredOptions.find(option =>
     option.name.toLowerCase() === inputValue.toLowerCase()
   )
 
@@ -226,23 +167,23 @@ export function LookupSelect({
           onFocus={() => setIsOpen(true)}
           placeholder={placeholder}
           disabled={disabled}
-          className={`text-right pl-10 ${!disabled ? 'bg-card' : 'bg-accent/50 dark:bg-accent/50'} disabled:opacity-100 disabled:cursor-default ${dir === 'rtl' ? 'text-right' : 'text-left'}`}
+          className={`text-right pl-5 ${!disabled ? 'bg-card' : 'bg-accent/50 dark:bg-accent/50'} disabled:opacity-100 disabled:cursor-default ${dir === 'rtl' ? 'text-right' : 'text-left'}`}
           dir={dir}
         />
         <Button
           type="button"
           variant="ghost"
           size="icon"
-          className="absolute left-0 top-0 h-full px-3 hover:bg-transparent"
+          className="absolute w-7 left-0 top-0 h-full px-1 hover:bg-transparent"
           onClick={() => setIsOpen(!isOpen)}
           disabled={disabled}
         >
-          <IconChevronDown className={`h-4 w-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+          <IconChevronDown size={6} className={`transition-transform size-[14px] text-muted-foreground ${isOpen ? 'rotate-180' : ''}`} />
         </Button>
       </div>
 
       {isOpen && (
-        <Card className="absolute gap-1 z-50 w-full mt-1 p-1 shadow-lg border max-h-60 overflow-auto" style={{scrollbarWidth: 'none'}}>
+        <Card className="absolute gap-1 z-50 w-full mt-1 p-1 shadow-lg border max-h-60 overflow-auto" style={{ scrollbarWidth: 'none' }}>
           {loading ? (
             <div className="px-2 py-1 text-center text-muted-foreground">טוען...</div>
           ) : (
@@ -265,7 +206,7 @@ export function LookupSelect({
                       <span className="text-right flex-1">{option.name}</span>
                     </div>
                   ))}
-                  
+
                   {showCreateOption && (
                     <div
                       className="flex items-center justify-between px-2 py-1 cursor-pointer hover:bg-accent rounded-sm border-t"
@@ -290,4 +231,4 @@ export function LookupSelect({
       )}
     </div>
   )
-} 
+})

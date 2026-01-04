@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { lookupTables } from '@/lib/db/lookup-db'
 
 interface LookupItem {
@@ -11,68 +11,53 @@ interface UseLookupDataResult {
   data: LookupItem[]
   loading: boolean
   error: string | null
-  refresh: () => Promise<void>
+  refresh: () => void
   createItem: (name: string) => Promise<LookupItem | null>
+  isCreating: boolean
 }
 
 export function useLookupData(tableName: string): UseLookupDataResult {
-  const [data, setData] = useState<LookupItem[]>([])
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
+  const queryClient = useQueryClient()
   const table = lookupTables[tableName as keyof typeof lookupTables]
 
-  const loadData = async () => {
-    if (!table) {
-      setError('טבלה לא נמצאה')
-      return
-    }
+  const {
+    data = [],
+    isLoading,
+    isError,
+    refetch
+  } = useQuery({
+    queryKey: ['lookup', tableName],
+    queryFn: async () => {
+      if (!table) throw new Error('טבלה לא נמצאה')
+      return (await table.getAll()) || []
+    },
+    enabled: !!table
+  })
 
-    try {
-      setLoading(true)
-      setError(null)
-      const items = await table.getAll()
-      setData(items || [])
-    } catch (err) {
-      console.error(`Error loading ${tableName} data:`, err)
-      setError('שגיאה בטעינת הנתונים')
-      setData([])
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const createItem = async (name: string): Promise<LookupItem | null> => {
-    if (!table) return null
-
-    try {
+  const mutation = useMutation({
+    mutationFn: async (name: string) => {
+      if (!table) throw new Error('טבלה לא נמצאה')
       const newItem = await table.create({ name: name.trim() })
-      if (newItem) {
-        setData(prev => [...prev, newItem])
-        return newItem
-      }
-      return null
-    } catch (err) {
-      console.error(`Error creating ${tableName} item:`, err)
-      return null
+      if (!newItem) throw new Error('שגיאה ביצירת פריט')
+      return newItem
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['lookup', tableName] })
     }
-  }
-
-  useEffect(() => {
-    loadData()
-  }, [tableName])
+  })
 
   return {
     data,
-    loading,
-    error,
-    refresh: loadData,
-    createItem
+    loading: isLoading,
+    error: isError ? 'שגיאה בטעינת הנתונים' : null,
+    refresh: () => refetch(),
+    createItem: (name: string) => mutation.mutateAsync(name),
+    isCreating: mutation.isPending
   }
 }
 
 export function useLookupOptions(tableName: string) {
-  const { data, loading, error, refresh, createItem } = useLookupData(tableName)
+  const { data, loading, error, refresh, createItem, isCreating } = useLookupData(tableName)
   
   const options = data.map(item => ({
     value: item.name,
@@ -85,6 +70,7 @@ export function useLookupOptions(tableName: string) {
     loading,
     error,
     refresh,
-    createItem
+    createItem,
+    isCreating
   }
-} 
+}

@@ -4,10 +4,11 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { VHCalculatorModal } from "@/components/ui/vh-calculator-modal"
-import { OpticalExam, SubjectiveExam } from "@/lib/db/schema-interface"
+import { SubjectiveExam } from "@/lib/db/schema-interface"
 import { VASelect } from "./shared/VASelect"
 import { ChevronUp, ChevronDown } from "lucide-react"
-import { toast } from "sonner"
+
+import { FastInput, FastSelect } from "./shared/OptimizedInputs"
 
 interface SubjectiveTabProps {
   subjectiveData: SubjectiveExam;
@@ -18,7 +19,7 @@ interface SubjectiveTabProps {
   hideEyeLabels?: boolean;
 }
 
-export function SubjectiveTab({
+export const SubjectiveTab = React.memo(function SubjectiveTab({
   subjectiveData,
   onSubjectiveChange,
   isEditing,
@@ -27,7 +28,7 @@ export function SubjectiveTab({
   hideEyeLabels = false
 }: SubjectiveTabProps) {
   const [hoveredEye, setHoveredEye] = useState<"R" | "L" | null>(null);
-  
+
   const columns = [
     { key: "sph", label: "SPH", step: "0.25", min: "-30", max: "30" },
     { key: "cyl", label: "CYL", step: "0.25", min: "-30", max: "30" },
@@ -70,12 +71,12 @@ export function SubjectiveTab({
 
   return (
     <Card className="w-full examcard pb-4 pt-3">
-      <CardContent className="px-4" style={{scrollbarWidth: 'none'}}>
+      <CardContent className="px-4" style={{ scrollbarWidth: 'none' }}>
         <div className="space-y-3">
           <div className="text-center">
             <h3 className="font-medium text-muted-foreground">Subjective</h3>
           </div>
-          
+
           <div className={`grid ${hideEyeLabels ? 'grid-cols-[repeat(8,1fr)]' : 'grid-cols-[20px_repeat(8,1fr)]'} gap-2 items-center`}>
             {!hideEyeLabels && <div></div>}
             {columns.map(({ key, label }) => (
@@ -85,9 +86,9 @@ export function SubjectiveTab({
                 </span>
               </div>
             ))}
-            
+
             {!hideEyeLabels && <div className="flex items-center justify-center">
-              <span 
+              <span
                 className="text-base font-medium cursor-pointer hover:bg-accent rounded-full px-2"
                 onMouseEnter={() => setHoveredEye("R")}
                 onMouseLeave={() => setHoveredEye(null)}
@@ -97,31 +98,31 @@ export function SubjectiveTab({
                 {hoveredEye === "L" ? <ChevronDown size={16} /> : "R"}
               </span>
             </div>}
-            {columns.map(({ key, step, min, max, type, options }) => (
+            {columns.map(({ key, step, min, max, options }) => (
               <div key={`r-${key}`}>
                 {key === "base" ? (
-                  <Select value={getFieldValue("R", key)} onValueChange={(value) => handleChange("R", key, value)} disabled={!isEditing}>
-                    <SelectTrigger size="xs" className="h-8 text-xs w-full" disabled={!isEditing}>
-                      <SelectValue placeholder="" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {options?.map(opt => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
+                  <FastSelect
+                    value={getFieldValue("R", key)}
+                    onChange={(value) => handleChange("R", key, value)}
+                    disabled={!isEditing}
+                    options={options || []}
+                    size="xs"
+                    triggerClassName="h-8 text-xs w-full"
+                  />
                 ) : key === "va" ? (
-                  <VASelect 
-                    value={getFieldValue("R", key)} 
-                    onChange={(val) => handleChange("R", key, val)} 
-                    disabled={!isEditing} 
+                  <VASelect
+                    value={getFieldValue("R", key)}
+                    onChange={(val) => handleChange("R", key, val)}
+                    disabled={!isEditing}
                   />
                 ) : (
-                  <Input
+                  <FastInput
                     type="number"
                     step={step}
                     min={min}
                     max={max}
                     value={getFieldValue("R", key)}
-                    onChange={(e) => handleChange("R", key, e.target.value)}
+                    onChange={(val) => handleChange("R", key, val)}
                     disabled={!isEditing}
                     showPlus={key === "sph" || key === "cyl"}
                     className={`h-8 pr-1 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
@@ -129,17 +130,17 @@ export function SubjectiveTab({
                 )}
               </div>
             ))}
-            
-            {!hideEyeLabels && <div className="flex items-center justify-center">
+
+            {!hideEyeLabels && <div className="flex items-center justify-center h-8">
             </div>}
             {columns.map(({ key, step }) => {
               if (key === "cyl") {
                 return (
                   <div key={`c-${key}`} className="flex justify-center">
-                    <Button 
+                    <Button
                       type="button"
-                      variant="outline" 
-                      size="sm" 
+                      variant="outline"
+                      size="sm"
                       className={`h-8 text-xs px-2 ${!isEditing ? 'bg-accent/50' : 'bg-white'}`}
                       disabled={!isEditing}
                       onClick={onMultifocalClick}
@@ -157,21 +158,21 @@ export function SubjectiveTab({
               } else if (key === "va") {
                 return (
                   <div key={`c-${key}`}>
-                    <VASelect 
-                      value={getFieldValue("C", key)} 
-                      onChange={(val) => handleChange("C", key, val)} 
-                      disabled={!isEditing} 
+                    <VASelect
+                      value={getFieldValue("C", key)}
+                      onChange={(val) => handleChange("C", key, val)}
+                      disabled={!isEditing}
                     />
                   </div>
                 );
               } else if (key === "pd_close" || key === "pd_far") {
                 return (
-                  <Input
+                  <FastInput
                     key={`c-${key}`}
                     type="number"
                     step={step}
                     value={getFieldValue("C", key)}
-                    onChange={(e) => handleChange("C", key, e.target.value)}
+                    onChange={(val) => handleChange("C", key, val)}
                     disabled={!isEditing}
                     className={`h-8 pr-1 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
                   />
@@ -180,9 +181,9 @@ export function SubjectiveTab({
                 return <div key={`c-${key}`}></div>;
               }
             })}
-            
+
             {!hideEyeLabels && <div className="flex items-center justify-center">
-              <span 
+              <span
                 className="text-base font-medium cursor-pointer hover:bg-accent rounded-full px-2"
                 onMouseEnter={() => setHoveredEye("L")}
                 onMouseLeave={() => setHoveredEye(null)}
@@ -192,31 +193,31 @@ export function SubjectiveTab({
                 {hoveredEye === "R" ? <ChevronUp size={16} /> : "L"}
               </span>
             </div>}
-            {columns.map(({ key, step, min, max, type, options }) => (
+            {columns.map(({ key, step, min, max, options }) => (
               <div key={`l-${key}`}>
                 {key === "base" ? (
-                  <Select value={getFieldValue("L", key)} onValueChange={(value) => handleChange("L", key, value)} disabled={!isEditing}>
-                    <SelectTrigger size="xs" className="h-8 text-xs w-full" disabled={!isEditing}>
-                      <SelectValue placeholder="" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {options?.map(opt => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
+                  <FastSelect
+                    value={getFieldValue("L", key)}
+                    onChange={(value) => handleChange("L", key, value)}
+                    disabled={!isEditing}
+                    options={options || []}
+                    size="xs"
+                    triggerClassName="h-8 text-xs w-full"
+                  />
                 ) : key === "va" ? (
-                  <VASelect 
-                    value={getFieldValue("L", key)} 
-                    onChange={(val) => handleChange("L", key, val)} 
-                    disabled={!isEditing} 
+                  <VASelect
+                    value={getFieldValue("L", key)}
+                    onChange={(val) => handleChange("L", key, val)}
+                    disabled={!isEditing}
                   />
                 ) : (
-                  <Input
+                  <FastInput
                     type="number"
                     step={step}
                     min={min}
                     max={max}
                     value={getFieldValue("L", key)}
-                    onChange={(e) => handleChange("L", key, e.target.value)}
+                    onChange={(val) => handleChange("L", key, val)}
                     disabled={!isEditing}
                     showPlus={key === "sph" || key === "cyl"}
                     className={`h-8 pr-1 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
@@ -229,4 +230,4 @@ export function SubjectiveTab({
       </CardContent>
     </Card>
   );
-} 
+});
