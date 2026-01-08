@@ -1,7 +1,7 @@
 {
   "name": "opticai",
   "productName": "Prysm",
-  "version": "1.0.33",
+  "version": "1.0.34",
   "description": "Multi-clinic management system for optical clinics",
   "main": "dist-electron/main.js",
   "private": true,
