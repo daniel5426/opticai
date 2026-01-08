@@ -281,7 +281,7 @@ examComponentRegistry.register('old-refraction-extension', {
 })
 
 examComponentRegistry.register('anamnesis', {
-  name: 'אנמנזה',
+  name: 'היסטוריה רפואית ואופטית (אנמנזה)',
   component: () => import('../components/exam/AnamnesisTab'),
   order: 17
 })
