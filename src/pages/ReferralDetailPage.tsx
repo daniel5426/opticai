@@ -1,12 +1,12 @@
-import React, { useState, useEffect } from "react"
+import React, { useState, useEffect, useRef, useLayoutEffect, useCallback } from "react"
+import { Loader2, Save, Edit } from "lucide-react"
 import { useParams, useNavigate, useLocation } from "@tanstack/react-router"
 import { SiteHeader } from "@/components/site-header"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Card, CardContent } from "@/components/ui/card"
+import { Card } from "@/components/ui/card"
 import { Referral, Client } from "@/lib/db/schema-interface"
 import {
   getReferralById,
@@ -25,6 +25,8 @@ import { ClientSpaceLayout } from "@/layouts/ClientSpaceLayout"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useClientSidebar } from "@/contexts/ClientSidebarContext"
 import { useUser } from "@/contexts/UserContext"
+import { inputSyncManager } from "@/components/exam/shared/OptimizedInputs"
+import { NotesCard } from "@/components/ui/notes-card"
 
 export default function ReferralDetailPage() {
   const location = useLocation()
@@ -52,7 +54,14 @@ export default function ReferralDetailPage() {
     date: '',
     type: '',
     urgency_level: '',
-    recipient: ''
+    recipient: '',
+    referral_data: {
+      'clinical-findings': {
+        r_iop: '',
+        l_iop: '',
+        clinical_impression: ''
+      }
+    }
   })
 
   const [compactPrescription, setCompactPrescription] = useState<CompactPrescriptionExam | null>(null)
@@ -61,9 +70,15 @@ export default function ReferralDetailPage() {
   })
 
   const type: ExamComponentType = 'compact-prescription'
-  const examFormData = { [type]: compactPrescriptionFormData }
+  const compactPrescriptionFormDataRef = useRef(compactPrescriptionFormData)
+  useLayoutEffect(() => {
+    compactPrescriptionFormDataRef.current = compactPrescriptionFormData
+  }, [compactPrescriptionFormData])
+
+  const getExamFormData = useCallback(() => ({ [type]: compactPrescriptionFormDataRef.current }), [type])
+
   const fieldHandlers = { [type]: (field: string, value: string) => handleCompactPrescriptionChange(field as keyof CompactPrescriptionExam, value) }
-  const toolboxActions = createToolboxActions(examFormData, fieldHandlers)
+  const toolboxActions = createToolboxActions(getExamFormData, fieldHandlers)
   const [clipboardSourceType, setClipboardSourceType] = useState<ExamComponentType | null>(null)
 
   useEffect(() => {
@@ -74,12 +89,14 @@ export default function ReferralDetailPage() {
   const allRows = [[currentCard]]
 
   const handleCopy = () => {
-    copyToClipboard(type, compactPrescriptionFormData)
+    inputSyncManager.flush();
+    copyToClipboard(type, compactPrescriptionFormDataRef.current)
     setClipboardSourceType(type)
-    toast.success("נתוני המרשם הועתקו")
+    toast.success("נתוני הממרשם הועתקו")
   }
 
   const handlePaste = () => {
+    inputSyncManager.flush();
     const clipboardContent = pasteFromClipboard()
     if (!clipboardContent) {
       toast.error("אין נתונים בלוח ההעתקה")
@@ -94,7 +111,7 @@ export default function ReferralDetailPage() {
       return
     }
 
-    const copiedData = ExamFieldMapper.copyData(sourceData as any, compactPrescriptionFormData as any, sourceType, type)
+    const copiedData = ExamFieldMapper.copyData(sourceData as any, compactPrescriptionFormDataRef.current as any, sourceType, type)
 
     Object.entries(copiedData).forEach(([key, value]) => {
       if (key !== 'id' && value !== undefined) {
@@ -105,7 +122,7 @@ export default function ReferralDetailPage() {
     toast.success("נתונים הודבקו בהצלחה")
   }
 
-  
+
 
   const { currentClient } = useClientSidebar()
 
@@ -154,7 +171,18 @@ export default function ReferralDetailPage() {
             setCompactPrescriptionFormData((prev: CompactPrescriptionExam) => ({ ...prev, referral_id: Number(referralId) }))
           }
 
-          
+          // Ensure referral_data has the expected structure
+          setFormData(prev => ({
+            ...prev,
+            referral_data: {
+              ...prev.referral_data,
+              'clinical-findings': {
+                r_iop: (prev.referral_data as any)?.['clinical-findings']?.r_iop || '',
+                l_iop: (prev.referral_data as any)?.['clinical-findings']?.l_iop || '',
+                clinical_impression: (prev.referral_data as any)?.['clinical-findings']?.clinical_impression || ''
+              }
+            }
+          }))
         }
       } catch (error) {
         console.error('Error loading referral:', error)
@@ -176,6 +204,19 @@ export default function ReferralDetailPage() {
     setCompactPrescriptionFormData(prev => ({ ...prev, [field]: value }))
   }
 
+  const handleClinicalFindingsChange = (field: string, value: string) => {
+    setFormData(prev => ({
+      ...prev,
+      referral_data: {
+        ...(prev.referral_data || {}),
+        'clinical-findings': {
+          ...((prev.referral_data as any)?.['clinical-findings'] || {}),
+          [field]: value
+        }
+      }
+    }))
+  }
+
   const handleTabChange = (value: string) => {
     const clientId = isNewReferral ? clientIdFromRoute : formData.client_id?.toString()
     if (clientId && value !== 'referrals') {
@@ -187,82 +228,62 @@ export default function ReferralDetailPage() {
     }
   }
 
+  const [isSaveInFlight, setIsSaveInFlight] = useState(false)
+
   const handleSave = async () => {
+    if (isSaveInFlight) return;
+
     try {
+      setIsSaveInFlight(true);
+
+      // Flush any pending updates from optimized components
+      inputSyncManager.flush();
+
+      // Prepare the referral_data by merging current clinical findings with current prescription form data
+      const finalReferralData = {
+        ...(formData.referral_data || {}),
+        'compact-prescription': { ...compactPrescriptionFormData }
+      }
+
+      const basePayload = {
+        ...formData,
+        referral_data: finalReferralData,
+        date: formData.date && formData.date.trim() !== '' ? formData.date : undefined,
+      }
+
       if (isNewReferral) {
-        // Optimistic UI update for new referral
-        setIsEditing(false)
-        toast.success("ההפניה נשמרה בהצלחה")
-        if (clientIdFromRoute) {
-          navigate({ to: `/clients/${clientIdFromRoute}`, search: { tab: 'referrals' } })
+        const createPayload = {
+          ...basePayload,
+          clinic_id: currentClinic?.id,
         }
 
-        // Background server work
-        ;(async () => {
-          try {
-            const createPayload = {
-              ...formData,
-              clinic_id: currentClinic?.id,
-              date: formData.date && formData.date.trim() !== '' ? formData.date : undefined,
-            }
-            const created = await createReferral(createPayload as any)
-            if (created && created.id) {
-              // Save compact prescription data in background
-              const compactPrescriptionToSave = { ...compactPrescriptionFormData, referral_id: created.id! }
-              const hasCP = Object.values(compactPrescriptionFormData).some(v => v !== undefined && v !== null && v !== '' && v !== 0)
-              if (hasCP) {
-                const merged = {
-                  ...((created as any)?.referral_data || {}),
-                  'compact-prescription': { ...compactPrescriptionToSave }
-                }
-                await updateReferral({ ...(created as Referral), referral_data: merged })
-              }
-            } else {
-              toast.error("לא הצלחנו ליצור את ההפניה")
-              // Re-enable editing on error
-              setIsEditing(true)
-            }
-          } catch (error) {
-            console.error('Background referral creation error:', error)
-            toast.error("שמירת ההפניה נכשלה ברקע")
-            // Re-enable editing on error
-            setIsEditing(true)
+        const created = await createReferral(createPayload as any)
+
+        if (created && created.id) {
+          toast.success("ההפניה נשמרה בהצלחה")
+          setIsEditing(false)
+          if (clientIdFromRoute) {
+            navigate({ to: `/clients/${clientIdFromRoute}`, search: { tab: 'referrals' } })
           }
-        })()
+        } else {
+          toast.error("לא הצלחנו ליצור את ההפניה")
+        }
       } else {
-        // Optimistic UI update for existing referral
-        setIsEditing(false)
-        toast.success("ההפניה נשמרה בהצלחה")
-
-        const updatePayload = {
-          ...formData,
-          date: formData.date && formData.date.trim() !== '' ? formData.date : undefined,
+        const savedReferral = await updateReferral(basePayload as any)
+        if (savedReferral) {
+          setFormData(savedReferral)
+          toast.success("ההפניה נשמרה בהצלחה")
+          setIsEditing(false)
+        } else {
+          toast.error("שגיאה בשמירת ההפניה")
         }
-
-        // Update formData optimistically with the current values
-        setFormData(prev => ({ ...prev, ...updatePayload }))
-
-        // Background server work
-        ;(async () => {
-          try {
-            const savedReferral = await updateReferral(updatePayload as any)
-            if (savedReferral) {
-              setFormData(savedReferral)
-            } else {
-              toast.error("שגיאה בשמירת ההפניה")
-              setIsEditing(true)
-            }
-          } catch (error) {
-            console.error('Background referral update error:', error)
-            toast.error("שגיאה בשמירת ההפניה")
-            setIsEditing(true)
-          }
-        })()
       }
     } catch (error) {
       console.error('Error in handleSave:', error)
       toast.error("שגיאה בשמירת ההפניה")
       setIsEditing(true)
+    } finally {
+      setIsSaveInFlight(false);
     }
   }
 
@@ -298,7 +319,7 @@ export default function ReferralDetailPage() {
           }}
         />
         <ClientSpaceLayout>
-          <div className="flex flex-col flex-1 p-4 lg:p-6 mb-10 no-scrollbar" dir="rtl" style={{scrollbarWidth: 'none', msOverflowStyle: 'none'}}>
+          <div className="flex flex-col flex-1 p-4 lg:p-6 mb-10 no-scrollbar" dir="rtl" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
             <div className="flex justify-between items-center mb-10">
               <div></div>
               <div className="flex gap-2">
@@ -365,16 +386,16 @@ export default function ReferralDetailPage() {
 
   return (
     <>
-        <SiteHeader
-          title="לקוחות"
-          backLink="/clients"
-          clientBackLink={currentClient?.id ? `/clients/${currentClient.id}` : "/clients"}
-          examInfo={isNewReferral ? "הפניה חדשה" : `הפניה מס' ${referralId}`}
-          tabs={{
-            activeTab,
-            onTabChange: handleTabChange
-          }}
-        />
+      <SiteHeader
+        title="לקוחות"
+        backLink="/clients"
+        clientBackLink={currentClient?.id ? `/clients/${currentClient.id}` : "/clients"}
+        examInfo={isNewReferral ? "הפניה חדשה" : `הפניה מס' ${referralId}`}
+        tabs={{
+          activeTab,
+          onTabChange: handleTabChange
+        }}
+      />
       <ClientSpaceLayout>
         <div className="flex flex-col flex-1 p-4 lg:p-6" dir="rtl" style={{ scrollbarWidth: 'none' }}>
           <div className="space-y-6">
@@ -391,13 +412,21 @@ export default function ReferralDetailPage() {
                 <Button
                   variant={isEditing ? "outline" : "default"}
                   onClick={handleEditButtonClick}
+                  disabled={isSaveInFlight}
+                  className="h-9 px-4"
                 >
-                  {isNewReferral ? "שמור הפניה" : (isEditing ? "שמור שינויים" : "ערוך הפניה")}
+                  {isSaveInFlight ? (
+                    <Loader2 className="h-[18px] w-[18px] animate-spin" />
+                  ) : isNewReferral || isEditing ? (
+                    <Save size={18} />
+                  ) : (
+                    <Edit size={18} />
+                  )}
                 </Button>
               </div>
             </div>
 
-            <Card className="w-full p-4 pt-3 shadow-md border-none">
+            <Card className="w-full p-4 pt-3 shadow-md">
               <div className="grid grid-cols-4 gap-x-3 gap-y-2 w-full" dir="rtl">
                 <div className="col-span-1">
                   <label className="font-semibold text-base">תאריך</label>
@@ -456,79 +485,99 @@ export default function ReferralDetailPage() {
               </div>
             </Card>
 
-            <div className="relative h-full">
-              {isEditing && (
-                <ExamToolbox
-                  isEditing={isEditing}
-                  mode='detail'
-                  currentCard={currentCard}
-                  allRows={allRows}
-                  currentRowIndex={0}
-                  currentCardIndex={0}
-                  clipboardSourceType={clipboardSourceType}
-                  onClearData={() => toolboxActions.clearData(type)}
-                  onCopy={handleCopy}
-                  onPaste={handlePaste}
-                  onCopyLeft={() => {}}
-                  onCopyRight={() => {}}
-                  onCopyBelow={() => {}}
-                  showClear={true}
-                />
-              )}
-              <CompactPrescriptionTab
-                data={compactPrescriptionFormData}
-                onChange={(field, value) => handleCompactPrescriptionChange(field as keyof CompactPrescriptionExam, value)}
-                isEditing={isEditing}
-              />
-            </div>
+            <div className="grid grid-cols-1 lg:grid-cols-9 gap-6 items-stretch relative">
+              <div className="lg:col-span-6 flex flex-col gap-6">
+                <Card className="w-full p-4 pt-3 gap-4 shadow-md">
+                  <div className="flex items-center gap-2">
+                    <div className="p-1.5 bg-muted rounded-md">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-foreground">
+                        <path d="M22 12h-4l-3 9L9 3l-3 9H2"></path>
+                      </svg>
+                    </div>
+                    <h3 className="text-base font-semibold">ממצאים קליניים</h3>
+                  </div>
+                  <div className="grid grid-cols-9 gap-x-4 gap-y-2 w-full" dir="rtl">
+                    <div className="col-span-7">
+                      <label className="text-sm font-medium justify-center text-muted-foreground">הערכה קלינית / אבחנה משוערת</label>
+                      <div className="h-1"></div>
+                      <Input
+                        value={(formData.referral_data as any)?.['clinical-findings']?.clinical_impression || ''}
+                        onChange={(e) => handleClinicalFindingsChange('clinical_impression', e.target.value)}
+                        placeholder="למשל: חשד לגלאוקומה, קטרקט..."
+                        disabled={!isEditing}
+                        className={`h-9 text-sm ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
+                      />
+                    </div>
+                    <div className="col-span-1">
+                      <label className="text-sm font-medium block w-full text-center text-muted-foreground">R-IOP</label>
+                      <div className="h-1"></div>
+                      <Input
+                        type="number"
+                        dir="ltr"
+                        min={0}
+                        max={70}
+                        value={(formData.referral_data as any)?.['clinical-findings']?.r_iop || ''}
+                        onChange={(e) => handleClinicalFindingsChange('r_iop', e.target.value)}
+                        suffix="mmHg"
+                        disabled={!isEditing}
+                        className={`h-9 text-sm ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
+                      />
+                    </div>
+                    <div className="col-span-1">
+                      <label className="text-sm font-medium block w-full text-center text-muted-foreground">L-IOP</label>
+                      <div className="h-1"></div>
+                      <Input
+                        dir="ltr"
+                        type="number"
+                        min={0}
+                        max={70}
+                        value={(formData.referral_data as any)?.['clinical-findings']?.l_iop || ''}
+                        onChange={(e) => handleClinicalFindingsChange('l_iop', e.target.value)}
+                        suffix="mmHg"
+                        disabled={!isEditing}
+                        className={`h-9 text-sm ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
+                      />
+                    </div>
+                  </div>
+                </Card>
 
-            <div className="grid grid-cols-2 gap-4 items-start">
-              <Card className="px-4 pt-3 pb-4 shadow-md border-none gap-2" dir="rtl">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-muted rounded-lg">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-foreground">
-                      <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path>
-                      <polyline points="14,2 14,8 20,8"></polyline>
-                      <line x1="16" y1="13" x2="8" y2="13"></line>
-                      <line x1="16" y1="17" x2="8" y2="17"></line>
-                      <polyline points="10,9 9,9 8,9"></polyline>
-                    </svg>
-                  </div>
-                  <h3 className="text-base font-medium text-muted-foreground">הערות</h3>
+                <div className="relative">
+                  <CompactPrescriptionTab
+                    data={compactPrescriptionFormData}
+                    onChange={(field, value) => handleCompactPrescriptionChange(field as keyof CompactPrescriptionExam, value)}
+                    isEditing={isEditing}
+                  />
+                  {isEditing && (
+                    <ExamToolbox
+                      isEditing={isEditing}
+                      mode='detail'
+                      currentCard={currentCard}
+                      allRows={allRows}
+                      currentRowIndex={0}
+                      currentCardIndex={0}
+                      clipboardSourceType={clipboardSourceType}
+                      onClearData={() => toolboxActions.clearData(type)}
+                      onCopy={handleCopy}
+                      onPaste={handlePaste}
+                      onCopyLeft={() => { }}
+                      onCopyRight={() => { }}
+                      onCopyBelow={() => { }}
+                      showClear={true}
+                    />
+                  )}
                 </div>
-                <textarea
-                  name="referral_notes"
-                  disabled={!isEditing}
+              </div>
+
+              <div className="lg:col-span-3">
+                <NotesCard
+                  title="הערות"
                   value={formData.referral_notes || ''}
-                  onChange={handleInputChange}
-                  className={`text-sm w-full p-3 border rounded-lg ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default min-h-[90px]`}
-                  rows={4}
-                  placeholder="הערות להפניה..."
-                />
-              </Card>
-              <Card className="px-4 pt-3 pb-4 shadow-md border-none gap-2" dir="rtl">
-              <div className="flex items-center gap-3">
-                  <div className="p-2 bg-muted rounded-lg">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-foreground">
-                      <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path>
-                      <polyline points="14,2 14,8 20,8"></polyline>
-                      <line x1="16" y1="13" x2="8" y2="13"></line>
-                      <line x1="16" y1="17" x2="8" y2="17"></line>
-                      <polyline points="10,9 9,9 8,9"></polyline>
-                    </svg>
-                  </div>
-                  <h3 className="text-base font-medium text-muted-foreground">הערות מרשם</h3>
-                </div>
-                <textarea
-                  name="prescription_notes"
+                  onChange={(value) => setFormData(prev => ({ ...prev, referral_notes: value }))}
                   disabled={!isEditing}
-                  value={formData.prescription_notes || ''}
-                  onChange={handleInputChange}
-                  className={`text-sm w-full p-3 border rounded-lg ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default min-h-[90px]`}
-                  rows={4}
-                  placeholder="הערות למרשם..."
+                  placeholder="הערות להפניה..."
+                  height="293px"
                 />
-              </Card>
+              </div>
             </div>
           </div>
         </div>

@@ -126,7 +126,7 @@ function AIInformationSection({
     referral: 'הפניות',
     contact_lens: 'עדשות מגע',
     appointment: 'תורים',
-    file: 'קבצים',
+    file: 'מסמכים',
     medical: 'רפואי'
   }
   

@@ -178,7 +178,7 @@ export function FilesTable({ data, clientId, onFileDeleted, onFileDeleteFailed, 
       onFileUploaded?.()
     } catch (error) {
       console.error('Error uploading files:', error)
-      toast.error("שגיאה בהעלאת קבצים")
+      toast.error("שגיאה בהעלאת המסמך")
     } finally {
       setIsUploading(false)
     }
@@ -282,7 +282,7 @@ export function FilesTable({ data, clientId, onFileDeleted, onFileDeleteFailed, 
         <div className="absolute inset-0 bg-blue-500/20 border-2 border-dashed border-blue-500 flex items-center justify-center z-10 rounded-md">
           <div className="bg-white dark:bg-gray-800 p-8 rounded-lg shadow-lg text-center">
             <Upload className="h-16 w-16 mx-auto mb-4 text-blue-500" />
-            <p className="text-2xl font-medium">שחרר כדי להעלות קבצים</p>
+            <p className="text-2xl font-medium">שחרר כדי להעלות מסמכים</p>
             {clientId === 0 && <p className="text-lg text-muted-foreground mt-2">תתבקש לבחור לקוח</p>}
           </div>
         </div>
@@ -291,7 +291,7 @@ export function FilesTable({ data, clientId, onFileDeleted, onFileDeleteFailed, 
       <div className="flex justify-between items-center" dir="rtl">
         <div className="flex gap-2">
           <Input
-            placeholder="חיפוש קבצים..."
+            placeholder="חיפוש מסמכים..."
             value={searchValue}
             onChange={(e) => (onSearchChange ? onSearchChange(e.target.value) : setSearchQuery(e.target.value))}
             className="w-[250px] bg-card dark:bg-card" dir="rtl"
@@ -410,7 +410,7 @@ export function FilesTable({ data, clientId, onFileDeleted, onFileDeleteFailed, 
             ) : (
               <TableRow>
                 <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
-                  לא נמצאו קבצים.
+                  לא נמצאו מסמכים.
                 </TableCell>
               </TableRow>
             )}

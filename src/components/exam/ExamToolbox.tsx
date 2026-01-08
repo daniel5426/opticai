@@ -1,8 +1,9 @@
 import React, { useState } from "react"
 import { Button } from "@/components/ui/button"
-import { Settings, X, ArrowRight, ArrowDown, ArrowLeft, Copy, ClipboardPaste } from "lucide-react"
+import { Settings, X, ArrowRight, ArrowDown, ArrowLeft, Copy, ClipboardPaste, History } from "lucide-react"
 import { ExamFieldMapper, ExamComponentType, ExamDataType } from "@/lib/exam-field-mappings"
 import { CardItem } from "./ExamCardRenderer"
+import { inputSyncManager } from "./shared/OptimizedInputs"
 
 interface ExamToolboxProps {
   isEditing: boolean
@@ -19,6 +20,7 @@ interface ExamToolboxProps {
   onCopyRight: () => void
   onCopyBelow: () => void
   showClear?: boolean
+  onShowOrdersHistory?: () => void
 }
 
 export function ExamToolbox({
@@ -35,7 +37,8 @@ export function ExamToolbox({
   onCopyLeft,
   onCopyRight,
   onCopyBelow,
-  showClear
+  showClear,
+  onShowOrdersHistory
 }: ExamToolboxProps) {
   const [isExpanded, setIsExpanded] = useState(false)
 
@@ -109,6 +112,19 @@ export function ExamToolbox({
           }`}>
           <div className="flex items-center gap-1">
 
+            {onShowOrdersHistory && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={onShowOrdersHistory}
+                className="h-7 w-7 p-0 hover:bg-orange-100 text-orange-600 hover:text-orange-800"
+                title="היסטוריית הזמנות"
+              >
+                <History className="h-3.5 w-3.5" />
+              </Button>
+            )}
+
             {canCopyLeft() && (
               <Button
                 type="button"
@@ -157,7 +173,7 @@ export function ExamToolbox({
                 className="h-7 w-7 p-0 hover:bg-yellow-100 text-yellow-600 hover:text-yellow-800"
                 title="הדבק"
               >
-                <ClipboardPaste className="h-3.5 w-3.w" />
+                <ClipboardPaste className="h-3.5 w-3.5" />
               </Button>
             )}
 
@@ -193,8 +209,8 @@ export function ExamToolbox({
           size="sm"
           onMouseEnter={() => setIsExpanded(true)}
           className={`h-7 w-7 p-0 transition-all duration-300 ease-out ${isExpanded
-              ? 'hover:bg-gray-100 text-gray-600 hover:text-gray-800'
-              : 'hover:bg-gray-100 text-gray-500 hover:text-gray-700 opacity-60 hover:opacity-100'
+            ? 'hover:bg-gray-100 text-gray-600 hover:text-gray-800'
+            : 'hover:bg-gray-100 text-gray-500 hover:text-gray-700 opacity-60 hover:opacity-100'
             }`}
           title="כלים"
         >
@@ -214,21 +230,23 @@ export interface ToolboxActions {
 }
 
 export function createToolboxActions(
-  examFormData: Record<string, any>,
+  getExamFormData: () => Record<string, any>,
   fieldHandlers: Record<string, (field: string, value: any) => void>
 ): ToolboxActions {
 
   const getDataByType = (componentType: ExamComponentType, key?: string) => {
-    if (key) return examFormData[key] || null
+    const examFormData = getExamFormData()
+    if (key && examFormData[key]) return examFormData[key]
     return examFormData[componentType] || null
   }
 
   const getChangeHandlerByType = (componentType: ExamComponentType, key?: string) => {
-    if (key) return fieldHandlers[key] || null
+    if (key && fieldHandlers[key]) return fieldHandlers[key]
     return fieldHandlers[componentType] || null
   }
 
   const clearData = (componentType: ExamComponentType, key?: string) => {
+    inputSyncManager.flush();
     const data = getDataByType(componentType, key)
     const changeHandler = getChangeHandlerByType(componentType, key)
     if (!data || !changeHandler) return
@@ -241,10 +259,11 @@ export function createToolboxActions(
   }
 
   const copyToLeft = (sourceType: ExamComponentType, targetType: ExamComponentType, sourceKey?: string, targetKey?: string) => {
+    inputSyncManager.flush();
     const sourceData = getDataByType(sourceType, sourceKey)
-    const targetData = getDataByType(targetType, targetKey)
+    const targetData = getDataByType(targetType, targetKey) || { layout_instance_id: 0 }
     const targetChangeHandler = getChangeHandlerByType(targetType, targetKey)
-    if (!sourceData || !targetData || !targetChangeHandler) return
+    if (!sourceData || !targetChangeHandler) return
     const copiedData = ExamFieldMapper.copyData(sourceData, targetData, sourceType, targetType)
     Object.entries(copiedData).forEach(([key, value]) => {
       if (key !== 'id' && key !== 'layout_instance_id' && value !== undefined) {
@@ -254,6 +273,7 @@ export function createToolboxActions(
   }
 
   const copyToRight = (sourceType: ExamComponentType, targetType: ExamComponentType, sourceKey?: string, targetKey?: string) => {
+    inputSyncManager.flush();
     const sourceData = getDataByType(sourceType, sourceKey)
     const targetData = getDataByType(targetType, targetKey)
     const targetChangeHandler = getChangeHandlerByType(targetType, targetKey)

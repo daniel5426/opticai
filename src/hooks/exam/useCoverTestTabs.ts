@@ -39,7 +39,14 @@ export function useCoverTestTabs({
       map[cardId] = pairs.map((p) => p.tabId);
     });
     return map;
-  }, [examFormData, JSON.stringify(cardRows)]);
+  }, [
+    Object.keys(examFormData)
+      .filter(k => k.startsWith('cover-test-'))
+      .sort()
+      .map(k => `${k}:${(examFormData[k] as any)?.tab_index}`)
+      .join('|'),
+    JSON.stringify(cardRows)
+  ]);
 
   // Track active tab index for each cover test card
   const [activeCoverTestTabs, setActiveCoverTestTabs] = useState<

@@ -33,8 +33,14 @@ export function NotesCard({
   height = 'full',
 }: NotesCardProps) {
   const [isShowingHidden, setIsShowingHidden] = React.useState(false)
+  const [dialogOpen, setDialogOpen] = React.useState(false)
+  const [dialogIsShowingHidden, setDialogIsShowingHidden] = React.useState(false)
+  const [dialogRegularValue, setDialogRegularValue] = React.useState(value)
+  const [dialogHiddenValue, setDialogHiddenValue] = React.useState(hiddenValue)
 
   const currentDisplayValue = isShowingHidden ? hiddenValue : value
+  const dialogDisplayValue = dialogIsShowingHidden ? dialogHiddenValue : dialogRegularValue
+  
   const handleCurrentChange = (val: string) => {
     if (isShowingHidden) {
       onHiddenChange?.(val)
@@ -43,7 +49,25 @@ export function NotesCard({
     }
   }
 
+  const handleDialogChange = (val: string) => {
+    if (dialogIsShowingHidden) {
+      setDialogHiddenValue(val)
+      onHiddenChange?.(val)
+    } else {
+      setDialogRegularValue(val)
+      onChange(val)
+    }
+  }
+
   const hasHiddenContent = hiddenValue && hiddenValue.length > 0
+
+  React.useEffect(() => {
+    if (dialogOpen) {
+      setDialogIsShowingHidden(isShowingHidden)
+      setDialogRegularValue(value)
+      setDialogHiddenValue(hiddenValue)
+    }
+  }, [dialogOpen, isShowingHidden, value, hiddenValue])
 
   return (
     <Card
@@ -61,7 +85,7 @@ export function NotesCard({
       />
 
       <div className="flex items-center gap-3 relative z-10">
-        <Dialog>
+        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
             <div className={`p-2 rounded-lg cursor-pointer group/expand transition-colors ${isShowingHidden ? 'bg-zinc-800 hover:bg-zinc-700' : 'bg-muted hover:bg-accent'
               }`}>
@@ -69,19 +93,19 @@ export function NotesCard({
               <Maximize2 className={`h-4 w-4 hidden group-hover/expand:block ${isShowingHidden ? 'text-zinc-100' : 'text-foreground'}`} />
             </div>
           </DialogTrigger>
-          <DialogContent className={`max-w-4xl sm:max-w-[800px] ${isShowingHidden ? 'bg-zinc-900 border-zinc-800 text-zinc-100' : ''}`}>
+          <DialogContent className={`max-w-4xl sm:max-w-[800px] ${dialogIsShowingHidden ? 'bg-zinc-900 border-zinc-800 text-zinc-100' : ''}`}>
             <DialogHeader>
-              <DialogTitle className={`text-right ${isShowingHidden ? 'text-zinc-100' : ''}`}>
-                {isShowingHidden ? <span className="">הערה נסתרת</span> : title}
+              <DialogTitle className={`text-right ${dialogIsShowingHidden ? 'text-zinc-100' : ''}`}>
+                {dialogIsShowingHidden ? <span className="">הערה נסתרת</span> : title}
               </DialogTitle>
             </DialogHeader>
             <div className="mt-4 relative" dir="rtl">
               <FastTextarea
                 disabled={disabled}
-                value={currentDisplayValue || ''}
+                value={dialogDisplayValue || ''}
                 noBorder={true}
-                onChange={handleCurrentChange}
-                className={`min-h-[500px] text-base p-4 ${isShowingHidden ? 'bg-transparent text-zinc-100 placeholder:text-zinc-700 focus-visible:ring-0 focus-visible:ring-offset-0 border-none resize-none' : 'focus-visible:ring-0 focus-visible:ring-offset-0 border-none resize-none'}`}
+                onChange={handleDialogChange}
+                className={`min-h-[500px] text-base p-4 ${dialogIsShowingHidden ? 'bg-transparent text-zinc-100 placeholder:text-zinc-700 focus-visible:ring-0 focus-visible:ring-offset-0 border-none resize-none' : 'focus-visible:ring-0 focus-visible:ring-offset-0 border-none resize-none'}`}
                 placeholder={disabled ? '' : placeholder}
                 showMaximize={false}
               />
@@ -89,11 +113,11 @@ export function NotesCard({
               {onHiddenChange && (
                 <div className="absolute bottom-4 left-4 z-20">
                   <div
-                    onClick={() => setIsShowingHidden(!isShowingHidden)}
-                    className={`p-2 rounded-full cursor-pointer transition-all duration-300 ${isShowingHidden ? 'bg-zinc-800 hover:bg-zinc-700' : 'bg-muted hover:bg-accent'
+                    onClick={() => setDialogIsShowingHidden(!dialogIsShowingHidden)}
+                    className={`p-2 rounded-full cursor-pointer transition-all duration-300 ${dialogIsShowingHidden ? 'bg-zinc-800 hover:bg-zinc-700' : 'bg-muted hover:bg-accent'
                       }`}
                   >
-                    <Lock className={`h-4 w-4 ${isShowingHidden ? 'text-blue-400' : 'text-muted-foreground'}`} />
+                    <Lock className={`h-4 w-4 ${dialogIsShowingHidden ? 'text-blue-400' : 'text-muted-foreground'}`} />
                   </div>
                 </div>
               )}
@@ -107,11 +131,14 @@ export function NotesCard({
         disabled={disabled}
         value={currentDisplayValue || ''}
         onChange={handleCurrentChange}
+        isSecret={isShowingHidden}
+        style={height && height !== 'full' ? { height } : undefined}
         className={`text-sm w-full p-3 rounded-lg disabled:opacity-100 disabled:cursor-default min-h-[90px] transition-all duration-500 relative z-10 resize-none ${isShowingHidden
-          ? 'bg-zinc-800/50 border-zinc-700 text-zinc-100 placeholder:text-zinc-500'
-          : disabled ? 'bg-accent/50' : ''
-          } ${height === 'full' ? 'h-full flex-1' : height ? `h-[${height}]` : ''
-          }`}
+          ? disabled 
+            ? 'bg-zinc-700/80 border-zinc-800 text-zinc-100 placeholder:text-zinc-600'
+            : 'bg-zinc-800/50 border-zinc-700 text-zinc-100 placeholder:text-zinc-500'
+          : ''
+          } ${height === 'full' ? 'h-full flex-1' : ''}`}
         placeholder={disabled ? '' : placeholder}
         showMaximize={false}
       />

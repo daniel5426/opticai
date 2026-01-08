@@ -4,6 +4,7 @@ import React, {
   useEffect,
   useCallback,
   useMemo,
+  useLayoutEffect,
 } from "react";
 import {
   useParams,
@@ -14,6 +15,7 @@ import {
 } from "@tanstack/react-router";
 import { SiteHeader } from "@/components/site-header";
 import { getExamPageData } from "@/lib/db/exams-db";
+import { getOrdersByClientId } from "@/lib/db/orders-db";
 import {
   OpticalExam,
   Client,
@@ -21,7 +23,7 @@ import {
 } from "@/lib/db/schema-interface";
 import { getAllExamLayouts, getExamLayoutById } from "@/lib/db/exam-layouts-db";
 import { Button } from "@/components/ui/button";
-import { Edit, Save } from "lucide-react";
+import { Edit, Save, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useUser } from "@/contexts/UserContext";
 import { createDetailProps, DetailProps } from "@/components/exam/ExamCardRenderer";
@@ -142,6 +144,7 @@ export default function ExamDetailPage({
   const tempLayoutIdCounterRef = useRef(0);
   const latestLoadIdRef = useRef(0);
   const { currentUser, currentClinic } = useUser();
+  const autoImportAttemptedRef = useRef(false);
 
   useEffect(() => {
     layoutTabsRef.current = layoutTabs;
@@ -449,7 +452,7 @@ export default function ExamDetailPage({
   });
 
   // Create field handlers
-  const createFieldHandlers = () => {
+  const fieldHandlers = useMemo(() => {
     const handlers: Record<string, (field: string, value: string) => void> = {};
 
     const generateHandler = (key: string, baseType: string) => {
@@ -481,7 +484,8 @@ export default function ExamDetailPage({
               const context: SyncContext = {
                 userSettings: currentUser as any,
                 activeInstanceData: result, // result is the new active state
-                otherInstancesData: examFormDataByInstance,
+                otherInstancesData: examFormDataByInstance, // Accessing state from closure might be stale if not in dep array?
+                // Actually examFormDataByInstance is state.
                 activeInstanceId: activeInstanceId
               };
 
@@ -507,24 +511,10 @@ export default function ExamDetailPage({
                     result[compKey] = { ...result[compKey], ...fields };
                   });
                 } else {
-                  // If update is for OTHER instance, we must defer update to `examFormDataByInstance`
-                  // Note: Updating state inside setState callback is risky but we need to ensure consistency.
-                  // To avoid side-effects in render, we use a timeout or assume `setExamFormDataByInstance` is safe to call?
-                  // No, let's update it.
-                  // But `examFormDataByInstance` update requires `setExamFormDataByInstance`.
-                  // We cannot call it synchronously here if we are inside `setExamFormData`.
-
-                  // WORKAROUND: We will trigger the update to other instances via a side effect?
-                  // Or simply update `examFormDataByInstance` separately?
-
-                  // Actually, we can assume cross-instance sync is rare enough (only when layout inst changed?).
-                  // Wait, the REQUIREMENT is to sync even if in another instance.
-
-                  // Let's call a helper outside. But we are inside the callback.
-                  // We'll queue the external update.
+                  // Queue external update
                   setTimeout(() => {
-                    setExamFormDataByInstance(prev => {
-                      const next = { ...prev };
+                    setExamFormDataByInstance(prevInstance => {
+                      const next = { ...prevInstance };
                       if (!next[instanceIdNum]) next[instanceIdNum] = {};
 
                       Object.entries(components).forEach(([compKey, fields]) => {
@@ -616,10 +606,25 @@ export default function ExamDetailPage({
     }
 
     return handlers;
-  };
+  }, [
+    activeInstanceId,
+    currentUser,
+    syncManager,
+    cardRows,
+    computedCoverTestTabs,
+    computedOldRefractionTabs,
+    examFormDataByInstance // Dependencies that are used inside closure
+  ]);
 
-  const fieldHandlers = createFieldHandlers();
-  const toolboxActions = createToolboxActions(examFormData, fieldHandlers);
+  const examFormDataRef = useRef(examFormData);
+  useLayoutEffect(() => {
+    examFormDataRef.current = examFormData;
+  }, [examFormData]);
+
+  const getExamFormData = useCallback(() => examFormDataRef.current, []);
+
+  // const fieldHandlers = createFieldHandlers(); (removed)
+  const toolboxActions = useMemo(() => createToolboxActions(getExamFormData, fieldHandlers), [getExamFormData, fieldHandlers]);
 
   // Clipboard hook
   const {
@@ -628,10 +633,12 @@ export default function ExamDetailPage({
     handleCopy,
     handlePaste,
   } = useExamClipboard({
-    examFormData,
+    getExamFormData,
     fieldHandlers,
     activeCoverTestTabs,
     computedCoverTestTabs,
+    activeOldRefractionTabs,
+    computedOldRefractionTabs,
   });
 
   // Layout tabs hook
@@ -698,6 +705,131 @@ export default function ExamDetailPage({
 
   const { currentClient, setActiveTab: setSidebarActiveTab } =
     useClientSidebar();
+
+  // Auto-import order data to old refraction
+  useEffect(() => {
+    const performAutoImport = async () => {
+      if (
+        !isNewMode ||
+        !clientId ||
+        !currentUser?.import_order_to_old_refraction_default ||
+        !activeInstanceId ||
+        autoImportAttemptedRef.current
+      )
+        return;
+
+      const hasOldRefraction = Object.keys(computedOldRefractionTabs).length > 0;
+      if (!hasOldRefraction) return;
+
+      autoImportAttemptedRef.current = true;
+
+      try {
+        const orders = await getOrdersByClientId(Number(clientId));
+        if (!orders || orders.length === 0) return;
+
+        const sortedOrders = orders.sort((a, b) => {
+          const dateA = a.order_date ? new Date(a.order_date).getTime() : 0;
+          const dateB = b.order_date ? new Date(b.order_date).getTime() : 0;
+          return dateB - dateA;
+        });
+
+        const latestOrder = sortedOrders[0];
+        if (!latestOrder.order_data) return;
+
+        const isContact =
+          latestOrder.type === "עדשות מגע" || (latestOrder as any).__contact;
+        const orderData = latestOrder.order_data as Record<string, any>;
+
+        let sourceData: any = {};
+        if (isContact) {
+          sourceData = orderData["contact-lens-exam"] || {};
+        } else {
+          sourceData = orderData["final-prescription"] || {};
+        }
+
+        setExamFormData((prev) => {
+          const nextState = { ...prev };
+          let changed = false;
+
+          Object.keys(computedOldRefractionTabs).forEach((cardId) => {
+            // Find existing tabs in PREV state to ensure we target the correct one
+            const prefix = `old-refraction-${cardId}-`;
+            const tabKeys = Object.keys(prev).filter((k) =>
+              k.startsWith(prefix),
+            );
+
+            if (tabKeys.length === 0) return;
+
+            // Sort by tab_index to find the first/default tab
+            tabKeys.sort((a, b) => {
+              const idxA = prev[a]?.tab_index ?? 0;
+              const idxB = prev[b]?.tab_index ?? 0;
+              return idxA - idxB;
+            });
+
+            const targetKey = tabKeys[0];
+            const prevTab = prev[targetKey] || {};
+            const nextTab = { ...prevTab };
+
+            if (nextTab.layout_instance_id == null) {
+              nextTab.layout_instance_id = activeInstanceId;
+            }
+
+            const updateFieldRaw = (key: string, value: any) => {
+              if (value !== undefined && value !== null) {
+                nextTab[key] = String(value);
+                changed = true;
+              }
+            };
+
+            ["r_sph", "l_sph", "r_cyl", "l_cyl", "r_ax", "l_ax"].forEach(
+              (key) => {
+                updateFieldRaw(key, sourceData[key]);
+              },
+            );
+
+            if (!isContact) {
+              ["r_pris", "l_pris", "r_base", "l_base"].forEach((key) => {
+                updateFieldRaw(key, sourceData[key]);
+              });
+            }
+
+            if (isContact) {
+              if (sourceData["r_read_ad"] !== undefined)
+                updateFieldRaw("r_ad", sourceData["r_read_ad"]);
+              if (sourceData["l_read_ad"] !== undefined)
+                updateFieldRaw("l_ad", sourceData["l_read_ad"]);
+            } else {
+              ["r_ad", "l_ad"].forEach((key) => {
+                updateFieldRaw(key, sourceData[key]);
+              });
+            }
+
+            if (changed) {
+              nextState[targetKey] = nextTab;
+            }
+          });
+
+          if (changed) {
+            return nextState;
+          }
+          return prev;
+        });
+      } catch (error) {
+        console.error("Failed to auto-import order data", error);
+      }
+    };
+
+    performAutoImport();
+  }, [
+    isNewMode,
+    clientId,
+    currentUser,
+    activeInstanceId,
+    computedOldRefractionTabs,
+    activeOldRefractionTabs,
+  ]);
+
 
   // Effects
   useEffect(() => {
@@ -1072,7 +1204,7 @@ export default function ExamDetailPage({
   };
 
   // Build detail props
-  const detailProps = createDetailProps(
+  const detailProps = useMemo(() => createDetailProps(
     isEditing,
     isNewMode,
     exam,
@@ -1154,7 +1286,9 @@ export default function ExamDetailPage({
       layoutInstanceId: activeInstanceId,
       setExamFormData: setExamFormData,
     } as any,
-  );
+  ), [
+    isEditing, isNewMode, exam, formData, examFormData, fieldHandlers, toolboxActions, cardRows, computedCoverTestTabs, activeCoverTestTabs, computedOldRefractionTabs, activeOldRefractionTabs, activeInstanceId
+  ]);
 
   const detailPropsWithOverrides: DetailProps = {
     ...detailProps,
@@ -1225,9 +1359,15 @@ export default function ExamDetailPage({
         variant={isEditing ? "outline" : "default"}
         className="h-9 px-4"
         onClick={handleEditButtonClick}
-        size="icon"
+        disabled={isSaveInFlight}
       >
-        {isNewMode || isEditing ? <Save size={18} /> : <Edit size={18} />}
+        {isSaveInFlight ? (
+          <Loader2 className="h-[18px] w-[18px] animate-spin" />
+        ) : isNewMode || isEditing ? (
+          <Save size={18} />
+        ) : (
+          <Edit size={18} />
+        )}
       </Button>
     </>
   );
@@ -1253,12 +1393,12 @@ export default function ExamDetailPage({
       />
       <ClientSpaceLayout>
         <div
-          className="no-scrollbar mb-10 flex flex-1 flex-col p-4 lg:p-5"
+          className="no-scrollbar flex flex-1 flex-col p-4 lg:p-5"
           dir="rtl"
           style={{
             scrollbarWidth: "none",
             msOverflowStyle: "none",
-            margin: "0 auto",
+            margin: "0",
           }}
         >
           <div className="mb-4">
@@ -1281,7 +1421,7 @@ export default function ExamDetailPage({
             onRemoveTab={handleRemoveLayoutTab}
           />
 
-          <form ref={formRef} className="pt-4">
+          <form ref={formRef} className="pt-4 pb-14">
             <ExamLayoutRenderer
               cardRows={cardRows}
               customWidths={customWidths}

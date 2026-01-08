@@ -105,7 +105,8 @@ export default function SettingsPage() {
     system_vacation_dates: [],
     added_vacation_dates: [],
     va_format: 'meter',
-    sync_subjective_to_final_subjective: false
+    sync_subjective_to_final_subjective: false,
+    import_order_to_old_refraction_default: false
   })
   const [profileColorUpdateTimeout, setProfileColorUpdateTimeout] = useState<NodeJS.Timeout | null>(null)
 
@@ -169,7 +170,8 @@ export default function SettingsPage() {
           system_vacation_dates: currentUser.system_vacation_dates || [],
           added_vacation_dates: currentUser.added_vacation_dates || [],
           va_format: currentUser.va_format || 'meter',
-          sync_subjective_to_final_subjective: currentUser.sync_subjective_to_final_subjective || false
+          sync_subjective_to_final_subjective: currentUser.sync_subjective_to_final_subjective || false,
+          import_order_to_old_refraction_default: currentUser.import_order_to_old_refraction_default || false
         })
       }
     }
@@ -290,6 +292,7 @@ export default function SettingsPage() {
           added_vacation_dates: personalProfile.added_vacation_dates,
           va_format: personalProfile.va_format,
           sync_subjective_to_final_subjective: personalProfile.sync_subjective_to_final_subjective,
+          import_order_to_old_refraction_default: personalProfile.import_order_to_old_refraction_default
         }
       }
 
@@ -340,7 +343,8 @@ export default function SettingsPage() {
             ? normalizeDates(updatedUser.added_vacation_dates)
             : (personalProfile.added_vacation_dates as string[] || []),
           va_format: updatedUser.va_format ?? personalProfile.va_format ?? 'meter',
-          sync_subjective_to_final_subjective: updatedUser.sync_subjective_to_final_subjective ?? personalProfile.sync_subjective_to_final_subjective ?? false
+          sync_subjective_to_final_subjective: updatedUser.sync_subjective_to_final_subjective ?? personalProfile.sync_subjective_to_final_subjective ?? false,
+          import_order_to_old_refraction_default: updatedUser.import_order_to_old_refraction_default ?? personalProfile.import_order_to_old_refraction_default ?? false
         }
 
         setPersonalProfile(newProfile)
@@ -834,6 +838,7 @@ export default function SettingsPage() {
                     <FieldDataTab
                       currentLookupTable={currentLookupTable}
                       lookupData={lookupData}
+                      isLoading={loadingLookup}
                       onSelectTable={selectLookupTable}
                       onRefresh={refreshLookupData}
                     />

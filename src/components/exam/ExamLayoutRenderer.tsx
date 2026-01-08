@@ -19,7 +19,7 @@ interface ExamLayoutRendererProps {
     clipboardContentType: ExamComponentType | null;
     activeCoverTestTabs: Record<string, number>;
     computedCoverTestTabs: Record<string, string[]>;
-    activeOldRefractionTabs: Record<string, number>;
+    activeOldRefractionTabs: Record<string, string>;
     computedOldRefractionTabs: Record<string, string[]>;
     examFormData: Record<string, any>;
     setExamFormData: React.Dispatch<React.SetStateAction<Record<string, any>>>;
@@ -51,6 +51,18 @@ export function ExamLayoutRenderer({
     onCopy,
     onPaste,
 }: ExamLayoutRendererProps) {
+    const getCardKey = (card: CardItem) => {
+        if (card.type === "cover-test") {
+            const activeTabIndex = activeCoverTestTabs[card.id] ?? 0;
+            const activeTabId = computedCoverTestTabs[card.id]?.[activeTabIndex];
+            return activeTabId ? `cover-test-${card.id}-${activeTabId}` : undefined;
+        } else if (card.type === "old-refraction") {
+            const activeTabId = activeOldRefractionTabs[card.id] || computedOldRefractionTabs[card.id]?.[0];
+            return activeTabId ? `old-refraction-${card.id}-${activeTabId}` : undefined;
+        }
+        return `${card.type}-${card.id}`;
+    };
+
     return (
         <div
             className="no-scrollbar space-y-4"
@@ -99,48 +111,35 @@ export function ExamLayoutRenderer({
                                         onCopy={() => onCopy(item)}
                                         onPaste={() => onPaste(item)}
                                         onClearData={() => {
-                                            if (item.type === "cover-test") {
-                                                const cardId = item.id;
-                                                const activeTabIndex = activeCoverTestTabs[cardId];
-                                                const activeTabId =
-                                                    computedCoverTestTabs[cardId]?.[activeTabIndex];
-                                                if (activeTabId) {
-                                                    const key = `cover-test-${cardId}-${activeTabId}`;
+                                            const key = getCardKey(item);
+                                            if (item.type === "cover-test" && key) {
+                                                setExamFormData((prev) => ({
+                                                    ...prev,
+                                                    [key]: {
+                                                        ...prev[key],
+                                                        deviation_type: "",
+                                                        deviation_direction: "",
+                                                        fv_1: "",
+                                                        fv_2: "",
+                                                        nv_1: "",
+                                                        nv_2: "",
+                                                        __deleted: true,
+                                                    },
+                                                }));
+                                            } else if (item.type === "old-refraction" && key) {
+                                                const currentData = examFormData[key];
+                                                if (currentData) {
+                                                    const cleared = ExamFieldMapper.clearData(currentData, "old-refraction");
                                                     setExamFormData((prev) => ({
                                                         ...prev,
-                                                        [key]: {
-                                                            ...prev[key],
-                                                            deviation_type: "",
-                                                            deviation_direction: "",
-                                                            fv_1: "",
-                                                            fv_2: "",
-                                                            nv_1: "",
-                                                            nv_2: "",
-                                                            __deleted: true,
-                                                        },
+                                                        [key]: { ...prev[key], ...cleared },
                                                     }));
-                                                    toolboxActions.clearData(
-                                                        item.type as ExamComponentType,
-                                                        key,
-                                                    );
                                                 }
-                                            } else if (item.type === "old-refraction") {
-                                                const cardId = item.id;
-                                                const activeTabIndex = activeOldRefractionTabs[cardId];
-                                                const activeTabId =
-                                                    computedOldRefractionTabs[cardId]?.[activeTabIndex];
-                                                if (activeTabId) {
-                                                    const key = `old-refraction-${cardId}-${activeTabId}`;
-                                                    toolboxActions.clearData(
-                                                        item.type as ExamComponentType,
-                                                        key,
-                                                    );
-                                                }
-                                            } else {
-                                                toolboxActions.clearData(item.type as ExamComponentType);
                                             }
+                                            toolboxActions.clearData(item.type as ExamComponentType, key);
                                         }}
                                         onCopyLeft={() => {
+                                            const sourceKey = getCardKey(item);
                                             const cardsToTheLeft = row.cards
                                                 .slice(0, cardIndex)
                                                 .reverse();
@@ -153,33 +152,7 @@ export function ExamLayoutRenderer({
                                                             [type],
                                                         );
                                                     if (available.length > 0) {
-                                                        let sourceKey, targetKey;
-                                                        if (item.type === "cover-test") {
-                                                            const cardId = item.id;
-                                                            const activeTabIndex = activeCoverTestTabs[cardId];
-                                                            const activeTabId =
-                                                                computedCoverTestTabs[cardId]?.[activeTabIndex];
-                                                            sourceKey = `cover-test-${cardId}-${activeTabId}`;
-                                                        } else if (item.type === "old-refraction") {
-                                                            const cardId = item.id;
-                                                            const activeTabIndex = activeOldRefractionTabs[cardId];
-                                                            const activeTabId =
-                                                                computedOldRefractionTabs[cardId]?.[activeTabIndex];
-                                                            sourceKey = `old-refraction-${cardId}-${activeTabId}`;
-                                                        }
-                                                        if (card.type === "cover-test") {
-                                                            const cardId = card.id;
-                                                            const activeTabIndex = activeCoverTestTabs[cardId];
-                                                            const activeTabId =
-                                                                computedCoverTestTabs[cardId]?.[activeTabIndex];
-                                                            targetKey = `cover-test-${cardId}-${activeTabId}`;
-                                                        } else if (card.type === "old-refraction") {
-                                                            const cardId = card.id;
-                                                            const activeTabIndex = activeOldRefractionTabs[cardId];
-                                                            const activeTabId =
-                                                                computedOldRefractionTabs[cardId]?.[activeTabIndex];
-                                                            targetKey = `old-refraction-${cardId}-${activeTabId}`;
-                                                        }
+                                                        const targetKey = getCardKey(card);
                                                         toolboxActions.copyToLeft(
                                                             item.type as ExamComponentType,
                                                             type,
@@ -192,6 +165,7 @@ export function ExamLayoutRenderer({
                                             }
                                         }}
                                         onCopyRight={() => {
+                                            const sourceKey = getCardKey(item);
                                             const cardsToTheRight = row.cards.slice(cardIndex + 1);
                                             for (const card of cardsToTheRight) {
                                                 if (card.type !== "notes") {
@@ -202,33 +176,7 @@ export function ExamLayoutRenderer({
                                                             [type],
                                                         );
                                                     if (available.length > 0) {
-                                                        let sourceKey, targetKey;
-                                                        if (item.type === "cover-test") {
-                                                            const cardId = item.id;
-                                                            const activeTabIndex = activeCoverTestTabs[cardId];
-                                                            const activeTabId =
-                                                                computedCoverTestTabs[cardId]?.[activeTabIndex];
-                                                            sourceKey = `cover-test-${cardId}-${activeTabId}`;
-                                                        } else if (item.type === "old-refraction") {
-                                                            const cardId = item.id;
-                                                            const activeTabIndex = activeOldRefractionTabs[cardId];
-                                                            const activeTabId =
-                                                                computedOldRefractionTabs[cardId]?.[activeTabIndex];
-                                                            sourceKey = `old-refraction-${cardId}-${activeTabId}`;
-                                                        }
-                                                        if (card.type === "cover-test") {
-                                                            const cardId = card.id;
-                                                            const activeTabIndex = activeCoverTestTabs[cardId];
-                                                            const activeTabId =
-                                                                computedCoverTestTabs[cardId]?.[activeTabIndex];
-                                                            targetKey = `cover-test-${cardId}-${activeTabId}`;
-                                                        } else if (card.type === "old-refraction") {
-                                                            const cardId = card.id;
-                                                            const activeTabIndex = activeOldRefractionTabs[cardId];
-                                                            const activeTabId =
-                                                                computedOldRefractionTabs[cardId]?.[activeTabIndex];
-                                                            targetKey = `old-refraction-${cardId}-${activeTabId}`;
-                                                        }
+                                                        const targetKey = getCardKey(card);
                                                         toolboxActions.copyToRight(
                                                             item.type as ExamComponentType,
                                                             type,
@@ -241,6 +189,7 @@ export function ExamLayoutRenderer({
                                             }
                                         }}
                                         onCopyBelow={() => {
+                                            const sourceKey = getCardKey(item);
                                             if (rowIndex >= cardRows.length - 1) return;
                                             const belowRow = cardRows[rowIndex + 1].cards;
                                             for (const card of belowRow) {
@@ -252,33 +201,7 @@ export function ExamLayoutRenderer({
                                                             [type],
                                                         );
                                                     if (available.length > 0) {
-                                                        let sourceKey, targetKey;
-                                                        if (item.type === "cover-test") {
-                                                            const cardId = item.id;
-                                                            const activeTabIndex = activeCoverTestTabs[cardId];
-                                                            const activeTabId =
-                                                                computedCoverTestTabs[cardId]?.[activeTabIndex];
-                                                            sourceKey = `cover-test-${cardId}-${activeTabId}`;
-                                                        } else if (item.type === "old-refraction") {
-                                                            const cardId = item.id;
-                                                            const activeTabIndex = activeOldRefractionTabs[cardId];
-                                                            const activeTabId =
-                                                                computedOldRefractionTabs[cardId]?.[activeTabIndex];
-                                                            sourceKey = `old-refraction-${cardId}-${activeTabId}`;
-                                                        }
-                                                        if (card.type === "cover-test") {
-                                                            const cardId = card.id;
-                                                            const activeTabIndex = activeCoverTestTabs[cardId];
-                                                            const activeTabId =
-                                                                computedCoverTestTabs[cardId]?.[activeTabIndex];
-                                                            targetKey = `cover-test-${cardId}-${activeTabId}`;
-                                                        } else if (card.type === "old-refraction") {
-                                                            const cardId = card.id;
-                                                            const activeTabIndex = activeOldRefractionTabs[cardId];
-                                                            const activeTabId =
-                                                                computedOldRefractionTabs[cardId]?.[activeTabIndex];
-                                                            targetKey = `old-refraction-${cardId}-${activeTabId}`;
-                                                        }
+                                                        const targetKey = getCardKey(card);
                                                         toolboxActions.copyToBelow(
                                                             item.type as ExamComponentType,
                                                             type,

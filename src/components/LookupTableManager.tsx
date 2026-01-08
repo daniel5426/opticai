@@ -18,6 +18,7 @@ interface LookupTableManagerProps {
   tableName: string
   displayName: string
   items: LookupItem[]
+  isLoading?: boolean
   onRefresh: () => void
   onCreate: (data: Omit<LookupItem, 'id'>) => Promise<LookupItem | null>
   onUpdate: (data: LookupItem) => Promise<LookupItem | null>
@@ -28,6 +29,7 @@ export function LookupTableManager({
   tableName,
   displayName,
   items,
+  isLoading = false,
   onRefresh,
   onCreate,
   onUpdate,
@@ -113,17 +115,25 @@ export function LookupTableManager({
             </Button>
             <div className="text-right">
               <CardTitle className="text-right">{displayName}</CardTitle>
-              <p className="text-sm text-muted-foreground text-right">
-                {items.length} פריטים
-              </p>
+              <div className="flex items-center justify-end gap-2 h-5">
+                
+                  <p className="text-sm text-muted-foreground text-right">
+                    {items.length} פריטים
+                  </p>
+              </div>
             </div>
           </div>
         </CardHeader>
         <CardContent>
-          <div className="rounded-md border" style={{scrollbarWidth: 'none'}}>
+          <div className="rounded-md border-none min-h-[200px] relative" style={{scrollbarWidth: 'none'}}>
+            {isLoading ? (
+              <div className="absolute inset-0 border-none flex items-center justify-center bg-background/50 z-10">
+                <div className="w-8 h-8 border-4 border-primary rounded-full animate-spin"></div>
+              </div>
+            ) : null}
             <Table>
               <TableBody>
-                {items.length === 0 ? (
+                {!isLoading && items.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={2} className="text-center py-8 text-muted-foreground">
                       אין פריטים

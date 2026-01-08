@@ -99,11 +99,12 @@ export function AdditionTab({
                 <FastInput
                   key={`r-${key}`}
                   type="number"
+                  showPlus={true}
                   step={step}
                   value={getFieldValue("R", key)}
                   onChange={(val) => handleChange("R", key, val)}
                   disabled={!isEditing}
-                  className={`h-8 pr-1 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
+                  className={`h-8 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
                 />
               )
             ))}
@@ -144,7 +145,7 @@ export function AdditionTab({
                   value={getFieldValue("L", key)}
                   onChange={(val) => handleChange("L", key, val)}
                   disabled={!isEditing}
-                  className={`h-8 pr-1 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
+                  className={`h-8 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
                 />
               )
             ))}

@@ -88,7 +88,7 @@ export function CoverTestTab({
           <div className="relative flex items-center" style={{ minHeight: 20 }}>
             {/* Tab bar: absolutely positioned to the right (RTL) */}
             <div
-              className="absolute bg-accent left-0 rounded-md flex items-center justify-start gap-0"
+              className="absolute bg-accent left-0 pr-1 rounded-md flex items-center justify-start gap-0"
               onMouseEnter={() => setIsHoveringTabs(true)}
               onMouseLeave={() => setIsHoveringTabs(false)}
               style={{ direction: "rtl" }}

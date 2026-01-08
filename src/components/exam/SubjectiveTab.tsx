@@ -1,14 +1,13 @@
 import React, { useState } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { VHCalculatorModal } from "@/components/ui/vh-calculator-modal"
 import { SubjectiveExam } from "@/lib/db/schema-interface"
 import { VASelect } from "./shared/VASelect"
 import { ChevronUp, ChevronDown } from "lucide-react"
 
 import { FastInput, FastSelect } from "./shared/OptimizedInputs"
+import { PD_MIN } from "./data/exam-constants"
 
 interface SubjectiveTabProps {
   subjectiveData: SubjectiveExam;
@@ -36,8 +35,8 @@ export const SubjectiveTab = React.memo(function SubjectiveTab({
     { key: "pris", label: "PRIS", step: "0.25", min: "0", max: "50" },
     { key: "base", label: "BASE", type: "select", options: ["B.IN", "B.OUT", "B.UP", "B.DOWN"] },
     { key: "va", label: "VA", step: "0.1" },
-    { key: "pd_close", label: "PD CLOSE", step: "0.5" },
-    { key: "pd_far", label: "PD FAR", step: "0.5" }
+    { key: "pd_far", label: "PD FAR", step: "0.5", min: "15" },
+    { key: "pd_close", label: "PD CLOSE", step: "0.5", min: "15" }
   ];
 
   const getFieldValue = (eye: "R" | "L" | "C", field: string) => {
@@ -124,8 +123,9 @@ export const SubjectiveTab = React.memo(function SubjectiveTab({
                     value={getFieldValue("R", key)}
                     onChange={(val) => handleChange("R", key, val)}
                     disabled={!isEditing}
-                    showPlus={key === "sph" || key === "cyl"}
-                    className={`h-8 pr-1 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
+                    showPlus={true}
+                    suffix={key === "pd_far" || key === "pd_close" ? "mm" : undefined}
+                    className={`h-8 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
                   />
                 )}
               </div>
@@ -133,7 +133,7 @@ export const SubjectiveTab = React.memo(function SubjectiveTab({
 
             {!hideEyeLabels && <div className="flex items-center justify-center h-8">
             </div>}
-            {columns.map(({ key, step }) => {
+            {columns.map(({ key, step, min }) => {
               if (key === "cyl") {
                 return (
                   <div key={`c-${key}`} className="flex justify-center">
@@ -171,10 +171,12 @@ export const SubjectiveTab = React.memo(function SubjectiveTab({
                     key={`c-${key}`}
                     type="number"
                     step={step}
+                    min={min}
                     value={getFieldValue("C", key)}
                     onChange={(val) => handleChange("C", key, val)}
                     disabled={!isEditing}
-                    className={`h-8 pr-1 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
+                    suffix="mm"
+                    className={`h-8 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
                   />
                 );
               } else {
@@ -220,7 +222,8 @@ export const SubjectiveTab = React.memo(function SubjectiveTab({
                     onChange={(val) => handleChange("L", key, val)}
                     disabled={!isEditing}
                     showPlus={key === "sph" || key === "cyl"}
-                    className={`h-8 pr-1 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
+                    suffix={key === "pd_far" || key === "pd_close" ? "mm" : undefined}
+                    className={`h-8 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
                   />
                 )}
               </div>

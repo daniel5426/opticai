@@ -6,9 +6,9 @@ import { Client } from "@/lib/db/schema-interface"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
 import { toast } from "sonner"
-import { 
-  ClientDetailsTab, 
-  ClientExamsTab, 
+import {
+  ClientDetailsTab,
+  ClientExamsTab,
   ClientOrdersTab,
   ClientMedicalRecordTab,
   ClientReferralTab,
@@ -21,13 +21,13 @@ import { useClientSidebar } from "@/contexts/ClientSidebarContext"
 
 export default function ClientDetailPage() {
   const { clientId } = useParams({ from: "/clients/$clientId" })
-  
+
   // Get search params to check for tab parameter
   let initialTab = 'details'
   try {
     const searchParams = useSearch({ from: "/clients/$clientId" })
     const urlTab = (searchParams as any)?.tab
-    
+
     if (urlTab) {
       // If URL specifies a tab, use it
       initialTab = urlTab
@@ -40,7 +40,7 @@ export default function ClientDetailPage() {
     // Fallback to URL search params or localStorage
     const urlSearchParams = new URLSearchParams(window.location.search)
     const urlTab = urlSearchParams.get('tab')
-    
+
     if (urlTab) {
       initialTab = urlTab
     } else {
@@ -48,7 +48,7 @@ export default function ClientDetailPage() {
       initialTab = rememberedTab || 'details'
     }
   }
-  
+
   const { currentClient, updateCurrentClient, setActiveTab: setSidebarActiveTab } = useClientSidebar()
   const [isEditing, setIsEditing] = useState(false)
   const [formData, setFormData] = useState<Client>({} as Client)
@@ -56,7 +56,7 @@ export default function ClientDetailPage() {
   const [refreshKey, setRefreshKey] = useState(0)
   const formRef = useRef<HTMLFormElement>(null)
   const isDetailsLoading = !currentClient || !currentClient.id
-  
+
   useEffect(() => {
     if (currentClient && (!formData.id || formData.id !== currentClient.id)) {
       setFormData({ ...currentClient })
@@ -64,16 +64,16 @@ export default function ClientDetailPage() {
   }, [currentClient, formData.id])
 
   useEffect(() => {
-    // Refresh orders data when switching to orders tab
-    if (activeTab === 'orders') {
+    // Refresh orders and referrals data when switching to those tabs
+    if (activeTab === 'orders' || activeTab === 'referrals') {
       setRefreshKey(prev => prev + 1)
     }
-    
+
     // Save current tab to localStorage for this client
     if (clientId && activeTab) {
       localStorage.setItem(`client-${clientId}-last-tab`, activeTab)
     }
-    
+
     // Update the sidebar context with the active tab
     setSidebarActiveTab(activeTab)
   }, [activeTab, clientId, setSidebarActiveTab])
@@ -85,15 +85,15 @@ export default function ClientDetailPage() {
 
   const handleSelectChange = (value: string | boolean, name: string) => {
     let processedValue: any = value
-    
+
     // Convert family_id to number if it's a string
     if (name === 'family_id' && typeof value === 'string') {
       processedValue = value === '' ? null : parseInt(value, 10)
     }
-    
+
     setFormData(prev => ({ ...prev, [name]: processedValue }))
   }
-  
+
   const handleSave = async () => {
     if (!formRef.current) return
     const prev = { ...formData }
@@ -117,14 +117,14 @@ export default function ClientDetailPage() {
       toast.error("לא הצלחנו לשמור את השינויים")
     })
   }
-  
-  
 
-  
+
+
+
   return (
     <ClientDataProvider clientId={Number(clientId)}>
-      <SiteHeader 
-        title="לקוחות" 
+      <SiteHeader
+        title="לקוחות"
         backLink="/clients"
         tabs={{
           activeTab,
@@ -132,14 +132,14 @@ export default function ClientDetailPage() {
         }}
       />
       <ClientSpaceLayout>
-        <div className="flex flex-col flex-1 p-2 lg:p-5 mb-30" dir="rtl" style={{scrollbarWidth: 'none', msOverflowStyle: 'none'}}>
-          <Tabs 
+        <div className="flex flex-col flex-1 p-2 lg:p-5 mb-30" dir="rtl" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+          <Tabs
             value={activeTab}
             className="w-full"
             onValueChange={(value) => setActiveTab(value)}
           >
             <TabsContent value="details">
-              <ClientDetailsTab 
+              <ClientDetailsTab
                 client={currentClient || {} as Client}
                 formData={formData}
                 isEditing={isEditing}
@@ -152,32 +152,32 @@ export default function ClientDetailPage() {
                 onClientUpdate={updateCurrentClient}
               />
             </TabsContent>
-            
+
             <TabsContent value="exams">
               <ClientExamsTab />
             </TabsContent>
-            
+
             <TabsContent value="medical">
               <ClientMedicalRecordTab />
             </TabsContent>
-            
+
             <TabsContent value="orders">
               <ClientOrdersTab key={refreshKey} />
             </TabsContent>
-            
-            
+
+
             <TabsContent value="referrals">
-              <ClientReferralTab />
+              <ClientReferralTab key={refreshKey} />
             </TabsContent>
-            
+
             <TabsContent value="appointments">
               <ClientAppointmentsTab />
             </TabsContent>
-            
+
             <TabsContent value="files">
               <ClientFilesTab />
             </TabsContent>
-            
+
           </Tabs>
         </div>
       </ClientSpaceLayout>

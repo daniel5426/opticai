@@ -90,6 +90,8 @@ class UserBase(BaseModel):
     system_vacation_dates: Optional[List[str]] = None
     added_vacation_dates: Optional[List[str]] = None
     sync_subjective_to_final_subjective: bool = False
+    import_order_to_old_refraction_default: bool = False
+    auth_provider: Optional[str] = "email"
 
 class UserCreate(UserBase):
     password: Optional[str] = None
@@ -97,12 +99,15 @@ class UserCreate(UserBase):
 
 class UserUpdate(UserBase):
     username: Optional[str] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
     role_level: Optional[int] = None
     password: Optional[str] = None
     clinic_id: Optional[int] = None
     company_id: Optional[int] = None
     va_format: Optional[str] = None
     sync_subjective_to_final_subjective: Optional[bool] = None
+    auth_provider: Optional[str] = None
 
 
 class User(UserBase):
@@ -131,6 +136,9 @@ class UserSelectItem(BaseModel):
     username: str
     role_level: int
     clinic_id: Optional[int] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    auth_provider: Optional[str] = None
     is_active: bool
 
 class FamilyBase(BaseModel):

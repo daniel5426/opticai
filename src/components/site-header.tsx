@@ -273,7 +273,7 @@ export function SiteHeader({ title, backLink, parentTitle, parentLink, grandpare
                   className="data-[state=active]:text-foreground data-[state=active]:bg-accent data-[state=inactive]:text-muted-foreground data-[state=inactive]:bg-transparent flex-none whitespace-nowrap" 
                   value="files"
                 >
-                  קבצים
+                  מסמכים
                 </TabsTrigger>
               </TabsList>
             </Tabs>

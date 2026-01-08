@@ -8,6 +8,8 @@ from schemas import UserCreate, UserUpdate, User as UserSchema, UserPublic, User
 from auth import get_current_user, get_password_hash
 from models import User as UserModel
 from utils.storage import upload_base64_image
+from utils.supabase_auth import update_supabase_auth_email
+from fastapi import Request
 
 
 CEO_LEVEL = 4
@@ -80,6 +82,13 @@ def create_user_public(
             up['profile_picture'] = upload_base64_image(up['profile_picture'], f"users/public/profile")
         except Exception:
             pass
+    
+    # Set auth_provider based on google_account_connected for new users
+    if up.get('google_account_connected'):
+        up['auth_provider'] = 'google'
+    else:
+        up['auth_provider'] = 'email'
+
     db_user = User(
         **up,
         password=hashed_password
@@ -331,6 +340,9 @@ def get_users_for_select(
             username=u.username,
             role_level=u.role_level,
             clinic_id=u.clinic_id,
+            email=u.email,
+            phone=u.phone,
+            auth_provider=u.auth_provider,
             is_active=u.is_active
         ))
     return result
@@ -393,6 +405,7 @@ def get_user_by_username_public(
         "system_vacation_dates": user.system_vacation_dates,
         "added_vacation_dates": user.added_vacation_dates,
         "va_format": user.va_format,
+        "auth_provider": user.auth_provider,
         "has_password": bool(user.password and user.password.strip()),
         "created_at": user.created_at,
         "updated_at": user.updated_at,
@@ -426,6 +439,7 @@ def get_user_by_email_public(
         "system_vacation_dates": user.system_vacation_dates,
         "added_vacation_dates": user.added_vacation_dates,
         "va_format": user.va_format,
+        "auth_provider": user.auth_provider,
         "has_password": bool(user.password and user.password.strip()),
         "created_at": user.created_at,
         "updated_at": user.updated_at,
@@ -500,6 +514,7 @@ def get_users_by_clinic_public(
             "system_vacation_dates": user.system_vacation_dates,
             "added_vacation_dates": user.added_vacation_dates,
             "va_format": user.va_format,
+            "auth_provider": user.auth_provider,
             "has_password": bool(user.password and user.password.strip()),
             "created_at": user.created_at,
             "updated_at": user.updated_at,
@@ -539,6 +554,7 @@ def get_users_by_company(
 def update_user(
     user_id: int,
     user: UserUpdate,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: UserModel = Depends(get_current_user)
 ):
@@ -570,10 +586,15 @@ def update_user(
         existing_user = db.query(User).filter(User.username == update_data["username"]).first()
         if existing_user and existing_user.id != db_user.id:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Username already exists")
+    
     if "email" in update_data and update_data["email"] and update_data["email"] != db_user.email:
-        existing_email_user = db.query(User).filter(User.email == update_data["email"]).first()
-        if existing_email_user and existing_email_user.id != db_user.id:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email already exists")
+        new_email = update_data["email"]
+        old_email = db_user.email
+        
+        # Sync email change to Supabase Auth
+        auth_header = request.headers.get("authorization") or request.headers.get("Authorization")
+        update_supabase_auth_email(old_email, new_email, db, auth_header, user_id)
+
     if "password" in update_data:
         if update_data["password"] is None:
             # Remove password (set to None)

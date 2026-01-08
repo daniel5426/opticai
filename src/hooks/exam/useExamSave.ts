@@ -201,18 +201,6 @@ export function useExamSave({
         }, 0);
       } else {
         const prevExam = exam;
-        const optimisticExam = {
-          ...(exam || {}),
-          ...(currentFormData as OpticalExam),
-        } as OpticalExam;
-        setIsEditing(false);
-        if (optimisticExam) {
-          setExam(optimisticExam);
-          setFormData({ ...optimisticExam });
-        }
-        const localExamData = { ...currentExamFormData };
-        toast.success(config.saveSuccessUpdate);
-
         try {
           const updatedExam = await updateExam(currentFormData as OpticalExam);
 
@@ -233,16 +221,21 @@ export function useExamSave({
           if (updatedExam) {
             setExam(updatedExam);
             setFormData({ ...updatedExam });
+            const localExamData = { ...currentExamFormData };
             if (onSave) onSave(updatedExam, ...Object.values(localExamData));
             setBaseline({
               formData: { ...updatedExam },
               examFormData: currentExamFormData,
               examFormDataByInstance: currentExamFormDataByInstance,
             });
+            
+            toast.success(config.saveSuccessUpdate);
+            setIsEditing(false);
           } else {
             throw new Error("update failed");
           }
         } catch (error) {
+          console.error("Save error:", error);
           toast.error("לא הצלחנו לשמור את השינויים");
           setIsEditing(true);
           if (prevExam) {

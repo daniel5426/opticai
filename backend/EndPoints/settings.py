@@ -12,6 +12,7 @@ import requests
 from utils.storage import upload_base64_image
 from auth import get_current_user
 from security.scope import resolve_company_id, assert_company_scope, assert_clinic_belongs_to_company
+from utils.supabase_auth import update_supabase_auth_email
 
 router = APIRouter(prefix="/settings", tags=["settings"])
 
@@ -168,128 +169,8 @@ def save_all(payload: SaveAllRequest, db: Session = Depends(get_db), request: Re
                     pass
             new_email = update_fields.get("email")
             old_email = db_user.email
-            if new_email and old_email and new_email != old_email:
-                # App-level uniqueness guard in our DB (case-insensitive)
-                existing_email_user = (
-                    db.query(User)
-                    .filter(func.lower(User.email) == (new_email or '').lower())
-                    .first()
-                )
-                if existing_email_user and existing_email_user.id != db_user.id:
-                    raise HTTPException(status_code=400, detail="EMAIL_ALREADY_REGISTERED")
-                supabase_url = app_settings.SUPABASE_URL.rstrip("/") if app_settings.SUPABASE_URL else None
-                # Use service role if provided; fall back to SUPABASE_KEY for backward compatibility
-                supabase_key = app_settings.SUPABASE_SERVICE_ROLE_KEY or app_settings.SUPABASE_KEY or None
-                if not supabase_url or not supabase_key:
-                    raise HTTPException(status_code=500, detail="Supabase is not configured on the backend")
-                admin_headers = {
-                    "apikey": supabase_key,
-                    "Authorization": f"Bearer {supabase_key}",
-                    "Content-Type": "application/json",
-                }
-                # Try updating by Supabase user id from the current JWT when editing self
-                try:
-                    if request is not None:
-                        auth_header = request.headers.get("authorization") or request.headers.get("Authorization")
-                    else:
-                        auth_header = None
-                    if auth_header and auth_header.lower().startswith("bearer "):
-                        token = auth_header.split(" ", 1)[1]
-                        t_payload = verify_supabase_token(token)
-                        supabase_user_id_from_token = t_payload.get("sub") or t_payload.get("user", {}).get("id")
-                        token_email = t_payload.get("email") or t_payload.get("user_metadata", {}).get("email")
-                        # Only if the token user matches the DB user being updated
-                        if supabase_user_id_from_token and token_email and token_email.lower() == (old_email or '').lower():
-                            pr = requests.put(
-                                f"{supabase_url}/auth/v1/admin/users/{supabase_user_id_from_token}",
-                                json={"email": new_email, "email_confirm": True},
-                                headers=admin_headers,
-                                timeout=10,
-                            )
-                            if not pr.ok:
-                                # Detect email conflict (includes Postgres 23505 wrapped as 500)
-                                conflict = False
-                                try:
-                                    j = pr.json()
-                                    if str(j.get('code')) == '23505':
-                                        conflict = True
-                                    if isinstance(j, dict) and 'message' in j and 'duplicate key' in str(j['message']).lower():
-                                        conflict = True
-                                    if isinstance(j, dict) and 'detail' in j and 'already exists' in str(j['detail']).lower():
-                                        conflict = True
-                                except Exception:
-                                    pass
-                                if pr.status_code in (400, 409, 422) or conflict or ('duplicate key' in (pr.text or '').lower() or 'already exists' in (pr.text or '').lower()):
-                                    raise HTTPException(status_code=400, detail="EMAIL_ALREADY_REGISTERED")
-                                print(f"WARN: Supabase email update via token id failed: {pr.status_code} {pr.text}")
-                            else:
-                                # success via token id; skip lookup path
-                                supabase_user_id_found_via_token = True
-                        else:
-                            supabase_user_id_found_via_token = False
-                    else:
-                        supabase_user_id_found_via_token = False
-                except HTTPException:
-                    # propagate validation/conflict to abort save
-                    raise
-                except Exception as e:
-                    supabase_user_id_found_via_token = False
-                    print(f"WARN: Failed to parse/verify token for Supabase id: {e}")
-
-                # Find Supabase user; try old email, then new email; scan with pagination as fallback
-                def find_user_id_by_email(email: str) -> str | None:
-                    try:
-                        base_url = f"{supabase_url}/auth/v1/admin/users"
-                        # direct filter
-                        r = requests.get(base_url, params={"email": email}, headers=admin_headers, timeout=10)
-                        if r.ok:
-                            arr = r.json() or []
-                            if isinstance(arr, list) and arr:
-                                return arr[0].get("id")
-                        # paginated scan
-                        page = 1
-                        per_page = 200
-                        for _ in range(5):  # scan up to 1000 users
-                            r2 = requests.get(base_url, params={"page": page, "per_page": per_page}, headers=admin_headers, timeout=10)
-                            if not r2.ok:
-                                break
-                            arr2 = r2.json() or []
-                            if not isinstance(arr2, list) or not arr2:
-                                break
-                            for u in arr2:
-                                if (u.get("email") or "").lower() == email.lower():
-                                    return u.get("id")
-                            if len(arr2) < per_page:
-                                break
-                            page += 1
-                    except Exception:
-                        return None
-                    return None
-
-                if not locals().get('supabase_user_id_found_via_token'):
-                    supabase_user_id = find_user_id_by_email(old_email) or find_user_id_by_email(new_email)
-                    if supabase_user_id:
-                        patch_resp = requests.put(
-                            f"{supabase_url}/auth/v1/admin/users/{supabase_user_id}",
-                            json={"email": new_email, "email_confirm": True},
-                            headers=admin_headers,
-                            timeout=10,
-                        )
-                        if patch_resp.status_code >= 400:
-                            conflict = False
-                            try:
-                                j2 = patch_resp.json()
-                                if str(j2.get('code')) == '23505':
-                                    conflict = True
-                                if isinstance(j2, dict) and 'message' in j2 and 'duplicate key' in str(j2['message']).lower():
-                                    conflict = True
-                                if isinstance(j2, dict) and 'detail' in j2 and 'already exists' in str(j2['detail']).lower():
-                                    conflict = True
-                            except Exception:
-                                pass
-                            if patch_resp.status_code in (400, 409, 422) or conflict or ('duplicate key' in (patch_resp.text or '').lower() or 'already exists' in (patch_resp.text or '').lower()):
-                                raise HTTPException(status_code=400, detail="EMAIL_ALREADY_REGISTERED")
-                            print(f"WARN: Failed to update Supabase email: {patch_resp.status_code} {patch_resp.text}")
+            auth_header = request.headers.get("authorization") or request.headers.get("Authorization")
+            update_supabase_auth_email(old_email, new_email, db, auth_header, payload.user_id)
 
             for field, value in update_fields.items():
                 setattr(db_user, field, value)

@@ -82,23 +82,18 @@ export function KeratometerTab({
 
   const renderInputRow = (eye: "R" | "L") => (
     columns.map(({ key, step, min, max }) => (
-      <div key={`${eye}-${key}`} className="relative flex items-center">
-        <FastInput
-          type="number"
-          step={step}
-          min={min}
-          max={max}
-          value={getFieldValue(eye, key)}
-          onChange={(val) => handleChange(eye, key, val)}
-          disabled={!isEditing}
-          className={`h-8 pr-6 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
-        />
-        {(key === "k1" || key === "k2") && (
-          <span className="absolute right-1 text-[10px] text-muted-foreground font-medium pointer-events-none">
-            {unit}
-          </span>
-        )}
-      </div>
+      <FastInput
+        key={`${eye}-${key}`}
+        type="number"
+        step={step}
+        min={min}
+        max={max}
+        value={getFieldValue(eye, key)}
+        onChange={(val) => handleChange(eye, key, val)}
+        disabled={!isEditing}
+        suffix={(key === "k1" || key === "k2") ? unit : undefined}
+        className={`h-8 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
+      />
     ))
   )
 

@@ -261,6 +261,12 @@ export interface RetinoscopExam {
   l_ax?: number;
   r_reflex?: string;
   l_reflex?: string;
+  r_pd_far?: number;
+  l_pd_far?: number;
+  comb_pd_far?: number;
+  r_pd_close?: number;
+  l_pd_close?: number;
+  comb_pd_close?: number;
   method?: string;
 }
 
@@ -275,6 +281,12 @@ export interface RetinoscopDilationExam {
   l_ax?: number;
   r_reflex?: string;
   l_reflex?: string;
+  r_pd_far?: number;
+  l_pd_far?: number;
+  comb_pd_far?: number;
+  r_pd_close?: number;
+  l_pd_close?: number;
+  comb_pd_close?: number;
   method?: string;
 }
 
@@ -709,6 +721,8 @@ export interface User {
   system_vacation_dates?: string[];
   added_vacation_dates?: string[];
   sync_subjective_to_final_subjective?: boolean;
+  import_order_to_old_refraction_default?: boolean;
+  auth_provider?: 'email' | 'google';
   created_at?: string;
   updated_at?: string;
 }

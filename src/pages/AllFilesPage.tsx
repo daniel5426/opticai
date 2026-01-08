@@ -62,7 +62,7 @@ export default function AllFilesPage() {
 
   return (
     <>
-      <SiteHeader title="קבצים" />
+      <SiteHeader title="מסמכים" />
       <div 
         className="flex flex-col flex-1 p-4 lg:p-6 overflow-auto" 
         dir="rtl" 

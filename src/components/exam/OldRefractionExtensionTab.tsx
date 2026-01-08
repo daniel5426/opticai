@@ -8,6 +8,7 @@ import { OldRefractionExtensionExam } from "@/lib/db/schema-interface"
 import { ChevronUp, ChevronDown } from "lucide-react"
 
 import { VASelect } from "./shared/VASelect"
+import { PD_MIN } from "./data/exam-constants"
 
 interface OldRefractionExtensionTabProps {
   oldRefractionExtensionData: OldRefractionExtensionExam;
@@ -39,8 +40,8 @@ export function OldRefractionExtensionTab({
     { key: "va", label: "VA", step: "0.1" },
     { key: "ad", label: "ADD", step: "0.25" },
     { key: "j", label: "J", step: "1", min: "1", max: "30" },
-    { key: "pd_far", label: "PD.FAR", step: "0.5" },
-    { key: "pd_close", label: "PD.CLOSE", step: "0.5" },
+    { key: "pd_far", label: "PD.FAR", step: "0.5", min: PD_MIN },
+    { key: "pd_close", label: "PD.CLOSE", step: "0.5", min: PD_MIN },
   ];
 
   const baseOptions = ["IN", "OUT", "UP", "DOWN"];

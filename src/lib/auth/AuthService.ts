@@ -426,6 +426,19 @@ class AuthService {
       }
 
       const user = userResponse.data as User
+      
+      // Update auth_provider to google since they just successfully logged in via Google
+      if (user.auth_provider !== 'google') {
+        try {
+          const updated = await apiClient.updateUser(user.id!, { ...user, auth_provider: 'google' })
+          if (updated.data) {
+            user.auth_provider = 'google'
+          }
+        } catch (e) {
+          console.warn('[Auth] Failed to update auth_provider to google:', e)
+        }
+      }
+
       const clinic = this.getStoredClinic()
 
       if (!clinic) {

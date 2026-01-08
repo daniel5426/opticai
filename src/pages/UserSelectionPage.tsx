@@ -162,7 +162,7 @@ export default function UserSelectionPage() {
       if (selectedUser.has_password && password) {
         handlePasswordLogin()
       } else if (!selectedUser.has_password) {
-        if (selectedUser.google_account_connected) {
+        if (selectedUser.auth_provider === 'google') {
           handleGoogleLogin()
         } else {
           handlePasswordlessLogin()
@@ -429,7 +429,7 @@ function UserLoginPanel({
       </div>
 
       <Card className="w-full max-w-sm p-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
-        {user.google_account_connected && !user.has_password ? (
+        {user.auth_provider === 'google' ? (
           <div className="text-center space-y-4" dir="rtl">
             <p className="text-slate-600 dark:text-slate-400">
               התחברות עם Google עבור משתמש זה

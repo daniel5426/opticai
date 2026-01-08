@@ -191,7 +191,13 @@ export function PersonalProfileTab({
                     placeholder="example@email.com"
                     className={`text-right h-9 ${emailError ? 'border-red-500' : ''}`}
                     dir="rtl"
+                    disabled={currentUser?.auth_provider === 'google'}
                   />
+                  {currentUser?.auth_provider === 'google' && (
+                    <p className="text-xs text-muted-foreground text-right mt-1">
+                      לא ניתן לשנות אימייל למשתמש המחובר דרך Google
+                    </p>
+                  )}
                   {emailError && (
                     <div className="text-xs text-red-600 text-right">{emailError}</div>
                   )}
@@ -382,6 +388,22 @@ export function PersonalProfileTab({
               </div>
               <p className="text-xs text-muted-foreground text-right w-full">
                 כאשר אפשרות זו פעילה, שינויים בבדיקה הסובייקטיבית יעודכנו אוטומטית במרשם הסופי באותו המפגש.
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-2 items-end border-t pt-4">
+              <div className="flex items-center justify-end gap-2">
+                <Label htmlFor="import-order-to-old-refraction" className="text-right text-sm font-medium cursor-pointer">
+                  ייבא אוטומטית נתוני הזמנה אחרונה למרשם ישן
+                </Label>
+                <Switch
+                  id="import-order-to-old-refraction"
+                  checked={personalProfile.import_order_to_old_refraction_default || false}
+                  onCheckedChange={(checked) => onProfileChange('import_order_to_old_refraction_default', checked)}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground text-right w-full">
+                כאשר אפשרות זו פעילה, בעת פתיחת בדיקה חדשה, נתוני ההזמנה האחרונה של הלקוח ייטענו אוטומטית לתוך כרטיס המרשם הישן.
               </p>
             </div>
           </div>

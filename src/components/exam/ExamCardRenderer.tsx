@@ -43,6 +43,8 @@ import { OcularMotorAssessmentTab } from "@/components/exam/OcularMotorAssessmen
 import { v4 as uuidv4 } from 'uuid';
 import { ExamDetailsCard } from "@/components/exam/ExamDetailsCard"
 import { NotesCard } from "@/components/ui/notes-card"
+import { OrdersHistoryModal } from "@/components/exam/OrdersHistoryModal"
+import { Order } from "@/lib/db/schema-interface"
 
 // Renaming for consistency within the component props
 type Exam = OpticalExam;
@@ -86,8 +88,8 @@ export interface DetailProps {
   activeCoverTestTabs?: Record<string, number>; // New prop for active cover test tabs
   setActiveCoverTestTabs?: React.Dispatch<React.SetStateAction<Record<string, number>>>; // New prop for setting active cover test tabs
   oldRefractionTabs?: Record<string, string[]>;
-  activeOldRefractionTabs?: Record<string, number>;
-  setActiveOldRefractionTabs?: React.Dispatch<React.SetStateAction<Record<string, number>>>;
+  activeOldRefractionTabs?: Record<string, string>;
+  setActiveOldRefractionTabs?: React.Dispatch<React.SetStateAction<Record<string, string>>>;
   addOldRefractionTab?: (cardId: string, type: string) => void;
   removeOldRefractionTab?: (cardId: string, tabIdx: number) => void;
   duplicateOldRefractionTab?: (cardId: string, tabIdx: number) => void;
@@ -184,8 +186,8 @@ export const createDetailProps = (
     removeOldRefractionTab?: (cardId: string, tabIdx: number) => void;
     duplicateOldRefractionTab?: (cardId: string, tabIdx: number) => void;
     updateOldRefractionTabType?: (cardId: string, tabIdx: number, newType: string) => void;
-    activeOldRefractionTabs?: Record<string, number>;
-    setActiveOldRefractionTabs?: React.Dispatch<React.SetStateAction<Record<string, number>>>;
+    activeOldRefractionTabs?: Record<string, string>;
+    setActiveOldRefractionTabs?: React.Dispatch<React.SetStateAction<Record<string, string>>>;
   }
 ): DetailProps => {
   return {
@@ -243,8 +245,8 @@ export const getColumnCount = (type: CardItem['type'], mode: 'editor' | 'detail'
     case 'final-prescription': return 11
     case 'compact-prescription': return 8
     case 'addition': return 7
-    case 'retinoscop': return 4
-    case 'retinoscop-dilation': return 4
+    case 'retinoscop': return 6
+    case 'retinoscop-dilation': return 6
     case 'uncorrected-va': return 3
     case 'keratometer': return 3
     case 'keratometer-full': return 9
@@ -481,7 +483,81 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
   // Move hooks to the very top, before any logic or early returns
   const [isEditingNotesTitle, setIsEditingNotesTitle] = useState(false)
   const [isHoveringNotesTitle, setIsHoveringNotesTitle] = useState(false)
+  const [isOrdersHistoryOpen, setIsOrdersHistoryOpen] = useState(false)
   const [, forceUpdate] = React.useReducer(x => x + 1, 0)
+
+  const handleSelectOrder = (order: Order) => {
+    setIsOrdersHistoryOpen(false);
+    if (!order.order_data || item.type !== 'old-refraction') return;
+
+    // Identify target tab
+    const oldRefTabs = detailProps?.oldRefractionTabs?.[item.id] || [];
+    const activeTabId = detailProps?.activeOldRefractionTabs?.[item.id] || (oldRefTabs.length > 0 ? oldRefTabs[0] : undefined);
+
+    const tabId = activeTabId;
+    const targetKey = tabId ? `old-refraction-${item.id}-${tabId}` : undefined;
+
+    if (!targetKey) return;
+
+    const handler = detailProps?.fieldHandlers?.[targetKey];
+    const setFormData = detailProps?.setExamFormData;
+
+    if (!setFormData) {
+      toast.error("Error: Could not access form data setter");
+      return;
+    }
+
+    const isContact = order.type === 'עדשות מגע' || (order as any).__contact;
+    const orderData = order.order_data || {};
+
+    let sourceData: any = {};
+    if (isContact) {
+      sourceData = orderData['contact-lens-exam'] || {};
+    } else {
+      sourceData = orderData['final-prescription'] || {};
+    }
+
+    // Perform bulk update
+    setFormData(prev => {
+      const prevTab = (prev[targetKey] as any) || {};
+      const nextTab = { ...prevTab };
+
+      // Ensure layout_instance_id is set
+      if (nextTab.layout_instance_id == null && detailProps?.layoutInstanceId != null) {
+        nextTab.layout_instance_id = detailProps.layoutInstanceId;
+      }
+
+      const updateFieldRaw = (key: string, value: any) => {
+        if (value !== undefined && value !== null) {
+          nextTab[key] = String(value);
+        }
+      };
+
+      // Map fields
+      ['r_sph', 'l_sph', 'r_cyl', 'l_cyl', 'r_ax', 'l_ax'].forEach(key => {
+        updateFieldRaw(key, sourceData[key]);
+      });
+
+      if (!isContact) {
+        ['r_pris', 'l_pris', 'r_base', 'l_base'].forEach(key => {
+          updateFieldRaw(key, sourceData[key]);
+        });
+      }
+
+      if (isContact) {
+        if (sourceData['r_read_ad'] !== undefined) updateFieldRaw('r_ad', sourceData['r_read_ad']);
+        if (sourceData['l_read_ad'] !== undefined) updateFieldRaw('l_ad', sourceData['l_read_ad']);
+      } else {
+        ['r_ad', 'l_ad'].forEach(key => {
+          updateFieldRaw(key, sourceData[key]);
+        });
+      }
+
+      return { ...prev, [targetKey]: nextTab };
+    });
+
+    toast.success("Exam data imported from order");
+  };
 
   if (mode === 'detail' && !detailProps) {
     console.error("detailProps are required for 'detail' mode.")
@@ -506,6 +582,7 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
       onCopyLeft={onCopyLeft || (() => { })}
       onCopyRight={onCopyRight || (() => { })}
       onCopyBelow={onCopyBelow || (() => { })}
+      onShowOrdersHistory={item.type === 'old-refraction' ? () => setIsOrdersHistoryOpen(true) : undefined}
     />
   ) : null
 
@@ -651,10 +728,23 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
 
     case 'old-refraction': {
       const oldRefTabs = detailProps?.oldRefractionTabs?.[item.id] || []
-      const activeTab = detailProps?.activeOldRefractionTabs?.[item.id] ?? 0
-      const setActiveTab = (idx: number) => { detailProps?.setActiveOldRefractionTabs?.({ ...detailProps.activeOldRefractionTabs, [item.id]: idx }); forceUpdate(); }
+      // Get active tabId directly (not index)
+      const activeTabId = detailProps?.activeOldRefractionTabs?.[item.id] || (oldRefTabs.length > 0 ? oldRefTabs[0] : undefined)
+      // Derive the index for display purposes
+      const activeTabIndex = activeTabId ? oldRefTabs.indexOf(activeTabId) : 0
+      const displayActiveTab = activeTabIndex >= 0 ? activeTabIndex : 0
+
+      // When user clicks a tab, store the tabId directly
+      const setActiveTab = (idx: number) => {
+        const newTabId = oldRefTabs[idx]
+        if (newTabId) {
+          detailProps?.setActiveOldRefractionTabs?.({ ...detailProps.activeOldRefractionTabs, [item.id]: newTabId });
+          forceUpdate();
+        }
+      }
+
       const hasTabs = oldRefTabs.length > 0
-      const tabId = hasTabs ? (oldRefTabs[activeTab] || oldRefTabs[0]) : undefined
+      const tabId = activeTabId
       const oldRefKey = tabId ? `old-refraction-${item.id}-${tabId}` : undefined
 
       const oldRefData: OldRefractionExam = oldRefKey && detailProps?.examFormData?.[oldRefKey]
@@ -675,6 +765,7 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
         <div className={`relative h-full ${matchHeight ? 'flex flex-col' : ''}`}>
           {toolbox}
           <OldRefractionTab
+            key={`tab-${tabId}`}
             oldRefractionData={oldRefData}
             onOldRefractionChange={onOldRefChange}
             isEditing={mode === 'detail' ? detailProps!.isEditing : false}
@@ -682,7 +773,7 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
             onVHConfirm={legacyHandlers.handleVHConfirmOldRefraction || (() => { })}
             hideEyeLabels={finalHideEyeLabels}
             tabCount={oldRefTabs.length}
-            activeTab={activeTab}
+            activeTab={displayActiveTab}
             onTabChange={(idx) => setActiveTab(idx)}
             onAddTab={(type) => detailProps?.addOldRefractionTab?.(item.id, type)}
             onDeleteTab={(idx) => detailProps?.removeOldRefractionTab?.(item.id, idx)}
@@ -690,6 +781,14 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
             onUpdateType={(idx, type) => detailProps?.updateOldRefractionTabType?.(item.id, idx, type)}
             allTabsData={allTabsData}
           />
+          {isOrdersHistoryOpen && (
+            <OrdersHistoryModal
+              isOpen={isOrdersHistoryOpen}
+              onClose={() => setIsOrdersHistoryOpen(false)}
+              clientId={detailProps?.exam?.client_id || detailProps?.formData?.client_id || 0}
+              onSelectOrder={handleSelectOrder}
+            />
+          )}
         </div>
       )
     }
@@ -965,6 +1064,7 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
         <div className={`relative h-full ${matchHeight ? 'flex flex-col' : ''}`}>
           {toolbox}
           <CoverTestTab
+            key={`tab-${tabId}`}
             coverTestData={coverTestData}
             onCoverTestChange={onCoverTestChange}
             isEditing={mode === 'detail' ? detailProps!.isEditing : false}
@@ -1030,7 +1130,6 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
 
       return (
         <div className={`relative h-full ${matchHeight ? 'flex flex-col' : ''}`}>
-          {toolbox}
           <NotesCard
             title={
               isEditingNotesTitle && mode === 'editor' ? (

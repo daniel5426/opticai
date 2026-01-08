@@ -1,3 +1,5 @@
+import { PD_MIN } from "./exam-constants";
+
 export interface FieldConfig {
   label: string;
   step: string;

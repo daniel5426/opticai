@@ -103,7 +103,21 @@ export function useOptimizedInput<T extends HTMLInputElement | HTMLTextAreaEleme
 
         const onInput = (e: Event) => {
             const target = e.target as T;
-            localValueRef.current = target.value;
+            let val = target.value;
+
+            // Strictly enforce min if it's a number input and min is provided
+            if (target instanceof HTMLInputElement && target.type === "number" && target.min !== "") {
+                const minVal = parseFloat(target.min);
+                const currentVal = parseFloat(val);
+                // Only clamp if the value is a valid number and less than min.
+                // We allow empty string or partial typing (like just a minus sign)
+                if (!isNaN(minVal) && !isNaN(currentVal) && currentVal < minVal) {
+                    val = target.min;
+                    target.value = val;
+                }
+            }
+
+            localValueRef.current = val;
 
             inputSyncManager.register(handleSync);
             if (timer) clearTimeout(timer);
@@ -221,17 +235,19 @@ interface FastInputProps extends Omit<React.ComponentProps<typeof Input>, 'value
     value: string;
     onChange?: (value: string) => void;
     debounceMs?: number;
+    suffix?: string;
 }
 
 export const FastInput = memo(function FastInput({
     value,
     onChange,
     debounceMs = 1500,
+    suffix,
+    showPlus,
     ...props
 }: FastInputProps) {
     const { inputRef } = useOptimizedInput<HTMLInputElement>(value, onChange, debounceMs);
-
-    return <Input {...props} ref={inputRef} defaultValue={value} />;
+    return <Input {...props} ref={inputRef} defaultValue={value} suffix={suffix} showPlus={showPlus} />;
 });
 
 interface FastTextareaProps extends Omit<React.ComponentProps<typeof Textarea>, 'value' | 'onChange'> {
@@ -240,6 +256,7 @@ interface FastTextareaProps extends Omit<React.ComponentProps<typeof Textarea>, 
     debounceMs?: number;
     label?: string; // Used for the dialog title
     showMaximize?: boolean;
+    isSecret?: boolean;
 }
 
 export const FastTextarea = memo(function FastTextarea({
@@ -248,6 +265,7 @@ export const FastTextarea = memo(function FastTextarea({
     debounceMs = 2000,
     label,
     showMaximize = false,
+    isSecret = false,
     className,
     ...props
 }: FastTextareaProps) {
@@ -285,7 +303,7 @@ export const FastTextarea = memo(function FastTextarea({
             <TextareaMirror
                 ref={mirrorRef}
                 className={cn(
-                    "col-start-1 row-start-1 bg-transparent invisible whitespace-pre-wrap min-h-[40px] px-2 py-2 text-sm pointer-events-none border border-transparent",
+                    "col-start-1 row-start-1 bg-transparent invisible whitespace-pre-wrap break-words min-h-[40px] px-2 py-2 text-sm pointer-events-none border border-transparent",
                     showMaximize && "pl-10",
                     className
                 )}
@@ -297,7 +315,9 @@ export const FastTextarea = memo(function FastTextarea({
                 ref={textareaRef}
                 defaultValue={value}
                 className={cn(
-                    "col-start-1 row-start-1 w-full h-full min-h-[40px] px-2 py-2 text-sm resize-none overflow-hidden bg-white disabled:bg-accent/50 disabled:opacity-100 disabled:cursor-default",
+                    "col-start-1 row-start-1 w-full max-w-full h-full min-h-[40px] px-2 py-2 text-sm resize-none overflow-hidden break-words bg-white",
+                    !isSecret && "disabled:bg-accent/50",
+                    "disabled:opacity-100 disabled:cursor-default",
                     showMaximize && "pl-10",
                     className
                 )}

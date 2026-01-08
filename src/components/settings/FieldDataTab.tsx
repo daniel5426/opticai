@@ -6,6 +6,7 @@ import { lookupTables } from "@/lib/db/lookup-db"
 interface FieldDataTabProps {
   currentLookupTable: string | null
   lookupData: { [key: string]: any[] }
+  isLoading: boolean
   onSelectTable: (tableName: string) => void
   onRefresh: () => void
 }
@@ -13,6 +14,7 @@ interface FieldDataTabProps {
 export function FieldDataTab({ 
   currentLookupTable, 
   lookupData, 
+  isLoading,
   onSelectTable, 
   onRefresh 
 }: FieldDataTabProps) {
@@ -31,13 +33,16 @@ export function FieldDataTab({
               {Object.entries(lookupTables).map(([key, table]) => (
                 <div
                   key={key}
-                  className={`px-3 rounded text-sm cursor-pointer text-right transition-colors ${
+                  className={`px-3 rounded text-sm cursor-pointer text-right transition-colors flex items-center justify-end gap-2 ${
                     currentLookupTable === key 
                       ? 'bg-primary text-primary-foreground' 
                       : 'hover:bg-muted/50'
                   }`}
                   onClick={() => onSelectTable(key)}
                 >
+                  {currentLookupTable === key && isLoading && (
+                    <div className="w-3 h-3 border border-primary-foreground border-t-transparent rounded-full animate-spin"></div>
+                  )}
                   {table.displayName}
                 </div>
               ))}
@@ -51,6 +56,7 @@ export function FieldDataTab({
               tableName={currentLookupTable}
               displayName={lookupTables[currentLookupTable as keyof typeof lookupTables].displayName}
               items={lookupData[currentLookupTable] || []}
+              isLoading={isLoading}
               onRefresh={onRefresh}
               onCreate={lookupTables[currentLookupTable as keyof typeof lookupTables].create}
               onUpdate={lookupTables[currentLookupTable as keyof typeof lookupTables].update}

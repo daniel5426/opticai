@@ -6,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { FinalPrescriptionExam } from "@/lib/db/schema-interface"
 import { ChevronUp, ChevronDown } from "lucide-react"
 import { VASelect } from "./shared/VASelect"
+import { PD_MIN } from "./data/exam-constants"
 
 import { FastInput, FastSelect } from "./shared/OptimizedInputs"
 
@@ -32,7 +33,7 @@ export function FinalPrescriptionTab({
     { key: "base", label: "BASE", type: "select", options: ["IN", "OUT", "UP", "DOWN"] },
     { key: "va", label: "VA", step: "0.1", type: "va" },
     { key: "ad", label: "ADD", step: "0.25", min: "0", max: "5" },
-    { key: "pd", label: "PD", step: "0.5" },
+    { key: "pd", label: "PD", step: "0.5", min: PD_MIN },
     { key: "high", label: "HIGH", step: "0.5" },
     { key: "diam", label: "DIAM", step: "1" },
   ];

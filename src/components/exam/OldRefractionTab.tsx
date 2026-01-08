@@ -172,7 +172,7 @@ export function OldRefractionTab({
           <div className="relative flex items-center" style={{ minHeight: 24 }}>
             {/* Tab bar: absolutely positioned to the left (same as CoverTest) */}
             <div
-              className="absolute bg-accent left-0 rounded-md flex items-center justify-start gap-0"
+              className="absolute bg-accent left-0 pr-1 rounded-md flex items-center justify-start gap-0"
               style={{ direction: "rtl" }}
             >
               {Array.from({ length: tabCount }).map((_, idx) => tabCount - 1 - idx).map((revIdx) => {

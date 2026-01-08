@@ -115,7 +115,7 @@ const getNavData = (currentUser?: User) => ({
       icon: IconCalendar,
     },
     {
-      name: "קבצים",
+      name: "מסמכים",
       url: "/files",
       icon: IconFiles,
     },

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { RetinoscopDilationExam } from "@/lib/db/schema-interface"
 import { ChevronUp, ChevronDown } from "lucide-react"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { PD_MIN } from "./data/exam-constants"
 
 interface RetinoscopDilationTabProps {
   retinoscopDilationData: RetinoscopDilationExam;
@@ -27,20 +28,31 @@ export function RetinoscopDilationTab({
   const [hoveredEye, setHoveredEye] = useState<"R" | "L" | null>(null);
 
   const columns = [
-    { key: "sph", label: "SPH", step: "0.25", type: "number" },
-    { key: "cyl", label: "CYL", step: "0.25", type: "number" },
-    { key: "ax", label: "AX", step: "1", type: "number" },
+    { key: "sph", label: "SPH", step: "0.25", type: "number", min: "-30", max: "30" },
+    { key: "cyl", label: "CYL", step: "0.25", type: "number", min: "-30", max: "30" },
+    { key: "ax", label: "AX", step: "1", type: "number", min: "0", max: "180" },
     { key: "reflex", label: "REFLEX", step: "1", type: "text" },
+    { key: "pd_far", label: "PD FAR", step: "0.5", type: "number", min: "15" },
+    { key: "pd_close", label: "PD CLOSE", step: "0.5", type: "number", min: "15" },
   ];
 
-  const getFieldValue = (eye: "R" | "L", field: string) => {
+  const getFieldValue = (eye: "R" | "L" | "C", field: string) => {
+    if (eye === "C") {
+      const combField = `comb_${field}` as keyof RetinoscopDilationExam;
+      return retinoscopDilationData[combField]?.toString() || "";
+    }
     const eyeField = `${eye.toLowerCase()}_${field}` as keyof RetinoscopDilationExam;
     return retinoscopDilationData[eyeField]?.toString() || "";
   };
 
-  const handleChange = (eye: "R" | "L", field: string, value: string) => {
-    const eyeField = `${eye.toLowerCase()}_${field}` as keyof RetinoscopDilationExam;
-    onRetinoscopDilationChange(eyeField, value);
+  const handleChange = (eye: "R" | "L" | "C", field: string, value: string) => {
+    if (eye === "C") {
+      const combField = `comb_${field}` as keyof RetinoscopDilationExam;
+      onRetinoscopDilationChange(combField, value);
+    } else {
+      const eyeField = `${eye.toLowerCase()}_${field}` as keyof RetinoscopDilationExam;
+      onRetinoscopDilationChange(eyeField, value);
+    }
   };
 
   const copyFromOtherEye = (fromEye: "R" | "L") => {
@@ -82,7 +94,7 @@ export function RetinoscopDilationTab({
             </Tabs>
           </div>
 
-          <div className={`grid ${hideEyeLabels ? 'grid-cols-[1fr_1fr_1fr_2fr]' : 'grid-cols-[20px_1fr_1fr_1fr_2fr]'} gap-2 items-center`}>
+          <div className={`grid ${hideEyeLabels ? 'grid-cols-[1fr_1fr_1fr_2fr_1fr_1fr]' : 'grid-cols-[20px_1fr_1fr_1fr_2fr_1fr_1fr]'} gap-2 items-center`}>
             {!hideEyeLabels && <div></div>}
             {columns.map(({ key, label }) => (
               <div key={key} className={`h-4 flex items-center justify-center ${key === 'reflex' ? 'col-span-1' : ''}`}>
@@ -103,27 +115,44 @@ export function RetinoscopDilationTab({
                 {hoveredEye === "L" ? <ChevronDown size={16} /> : "R"}
               </span>
             </div>}
-            {columns.map(({ key, step, type }) => (
+            {columns.map(({ key, step, type, min, max }) => (
               <FastInput
                 key={`r-${key}`}
                 type={type as any}
                 step={type === "number" ? step : undefined}
+                min={min}
+                max={max}
                 value={getFieldValue("R", key)}
                 onChange={(val) => handleChange("R", key, val)}
                 disabled={!isEditing}
                 showPlus={key === "sph" || key === "cyl"}
-                className={`h-8 pr-1 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default ${key === 'reflex' ? 'col-span-1' : ''}`}
+                suffix={key === "pd_far" || key === "pd_close" ? "mm" : undefined}
+                className={`h-8 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default ${key === 'reflex' ? 'col-span-1' : ''}`}
               />
             ))}
 
-            {needsMiddleSpacer && (
-              <>
-                {!hideEyeLabels && <div className="h-8" />}
-                {columns.map(({ key }) => (
-                  <div key={`spacer-${key}`} className={`h-8 ${key === 'reflex' ? 'col-span-1' : ''}`} />
-                ))}
-              </>
-            )}
+            {!hideEyeLabels && <div className="flex items-center justify-center h-8">
+            </div>}
+            {columns.map(({ key, step, type, min, max }) => {
+              if (key === "pd_far" || key === "pd_close") {
+                return (
+                  <FastInput
+                    key={`c-${key}`}
+                    type={type as any}
+                    step={step}
+                    min={min}
+                    max={max}
+                    value={getFieldValue("C", key)}
+                    onChange={(val) => handleChange("C", key, val)}
+                    disabled={!isEditing}
+                    suffix="mm"
+                    className={`h-8 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
+                  />
+                );
+              } else {
+                return <div key={`c-${key}`} className={`h-8 ${key === 'reflex' ? 'col-span-1' : ''}`} />;
+              }
+            })}
 
             {!hideEyeLabels && <div className="flex items-center justify-center">
               <span
@@ -136,16 +165,19 @@ export function RetinoscopDilationTab({
                 {hoveredEye === "R" ? <ChevronUp size={16} /> : "L"}
               </span>
             </div>}
-            {columns.map(({ key, step, type }) => (
+            {columns.map(({ key, step, type, min, max }) => (
               <FastInput
                 key={`l-${key}`}
                 type={type as any}
                 step={type === "number" ? step : undefined}
+                min={min}
+                max={max}
                 value={getFieldValue("L", key)}
                 onChange={(val) => handleChange("L", key, val)}
                 disabled={!isEditing}
                 showPlus={key === "sph" || key === "cyl"}
-                className={`h-8 pr-1 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default ${key === 'reflex' ? 'col-span-1' : ''}`}
+                suffix={key === "pd_far" || key === "pd_close" ? "mm" : undefined}
+                className={`h-8 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default ${key === 'reflex' ? 'col-span-1' : ''}`}
               />
             ))}
           </div>

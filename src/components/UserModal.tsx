@@ -48,6 +48,7 @@ export function UserModal({
   })
   const [isSaving, setIsSaving] = useState(false)
   const [usernameError, setUsernameError] = useState('')
+  const [emailError, setEmailError] = useState('')
 
   useEffect(() => {
     if (editingUser) {
@@ -74,6 +75,7 @@ export function UserModal({
       })
     }
     setUsernameError('')
+    setEmailError('')
   }, [editingUser, defaultClinicId, isOpen])
 
   const handleUserFormChange = async (field: string, value: any) => {
@@ -90,6 +92,9 @@ export function UserModal({
     setUserForm(prev => ({ ...prev, [field]: value }))
     if (field === 'username') {
       setUsernameError('')
+    }
+    if (field === 'email') {
+      setEmailError('')
     }
   }
 
@@ -204,6 +209,8 @@ export function UserModal({
       // Check if it's a username already exists error
       if (errorMessage.includes('Username already exists') || errorMessage.includes('already exists')) {
         setUsernameError('שם המשתמש כבר קיים במערכת')
+      } else if (errorMessage.includes('Email already exists') || errorMessage.includes('EMAIL_ALREADY_REGISTERED')) {
+        setEmailError('האימייל הזה כבר נמצא בשימוש במערכת')
       } else {
         toast.error(errorMessage)
       }
@@ -251,15 +258,26 @@ export function UserModal({
           
           <div className="space-y-2">
             <Label htmlFor="email" className="text-right block">אימייל</Label>
+            {emailError && (
+              <div className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2 text-right">
+                {emailError}
+              </div>
+            )}
             <Input
               id="email"
               type="email"
               value={userForm.email}
               onChange={(e) => handleUserFormChange('email', e.target.value)}
               placeholder="example@email.com"
-              className="text-right"
+              className={`text-right ${emailError ? 'border-destructive focus-visible:ring-destructive' : ''}`}
               dir="rtl"
+              disabled={editingUser?.auth_provider === 'google'}
             />
+            {editingUser?.auth_provider === 'google' && (
+              <p className="text-xs text-muted-foreground text-right mt-1">
+                לא ניתן לשנות אימייל למשתמש המחובר דרך Google
+              </p>
+            )}
           </div>
           
           <div className="grid grid-cols-2 gap-4">

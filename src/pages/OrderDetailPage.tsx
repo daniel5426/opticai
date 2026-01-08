@@ -65,7 +65,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { FileText } from "lucide-react";
+import { FileText, Loader2, Save, Edit } from "lucide-react";
 import { BillingTab } from "@/components/BillingTab";
 import { useUser } from "@/contexts/UserContext";
 import { getAllUsers } from "@/lib/db/users-db";
@@ -270,6 +270,9 @@ export default function OrderDetailPage({
   useEffect(() => { diametersDataRef.current = diametersData; }, [diametersData]);
   useEffect(() => { orderLineItemsRef.current = orderLineItems; }, [orderLineItems]);
 
+  const type: ExamComponentType = "final-prescription";
+  const getExamFormData = useCallback(() => ({ [type]: finalPrescriptionFormDataRef.current }), [type]);
+
   const getSerializedState = useCallback(
     () =>
       JSON.stringify({
@@ -325,8 +328,6 @@ export default function OrderDetailPage({
     isNewMode
   });
 
-  const type: ExamComponentType = "final-prescription";
-  const examFormData = { [type]: finalPrescriptionFormData };
   const fieldHandlers = {
     [type]: (field: string, value: string) =>
       handleFinalPrescriptionChange(
@@ -334,7 +335,7 @@ export default function OrderDetailPage({
         value,
       ),
   };
-  const toolboxActions = createToolboxActions(examFormData, fieldHandlers);
+  const toolboxActions = createToolboxActions(getExamFormData, fieldHandlers);
   const [clipboardSourceType, setClipboardSourceType] =
     useState<ExamComponentType | null>(null);
 
@@ -346,12 +347,14 @@ export default function OrderDetailPage({
   const allRows = [[currentCard]];
 
   const handleCopy = () => {
-    copyToClipboard(type, finalPrescriptionFormData);
+    inputSyncManager.flush();
+    copyToClipboard(type, finalPrescriptionFormDataRef.current);
     setClipboardSourceType(type);
     toast.success("נתוני המרשם הועתקו");
   };
 
   const handlePaste = () => {
+    inputSyncManager.flush();
     const clipboardContent = pasteFromClipboard();
     if (!clipboardContent) {
       toast.error("אין נתונים בלוח ההעתקה");
@@ -370,7 +373,7 @@ export default function OrderDetailPage({
 
     const copiedData = ExamFieldMapper.copyData(
       sourceData as Record<string, unknown>,
-      finalPrescriptionFormData as Record<string, unknown>,
+      finalPrescriptionFormDataRef.current as Record<string, unknown>,
       sourceType,
       type,
     );
@@ -753,10 +756,6 @@ export default function OrderDetailPage({
         );
         console.log("Contact order line items count:", orderLineItems.length);
         console.log("Contact should create billing:", shouldCreateBilling);
-        setIsEditing(false);
-        toast.success(
-          isNewMode ? "הזמנה נשמרה בהצלחה" : "פרטי ההזמנה עודכנו בהצלחה",
-        );
         try {
           const upsertResult = await upsertContactLensOrderFull(payload);
           if (!upsertResult || !upsertResult.order) {
@@ -764,6 +763,11 @@ export default function OrderDetailPage({
             setIsEditing(true);
             return;
           }
+
+          toast.success(
+            isNewMode ? "הזמנה נשמרה בהצלחה" : "פרטי ההזמנה עודכנו בהצלחה",
+          );
+          setIsEditing(false);
           const updatedOrder = upsertResult.order as any;
           const updatedBilling = upsertResult.billing as any | undefined;
           const updatedLineItems =
@@ -923,10 +927,6 @@ export default function OrderDetailPage({
       console.log("Should create billing:", shouldCreateBilling);
       console.log("Billing form data:", billingFormData);
 
-      setIsEditing(false);
-      toast.success(
-        isNewMode ? "הזמנה נשמרה בהצלחה" : "פרטי ההזמנה עודכנו בהצלחה",
-      );
       try {
         const upsertResult = await upsertOrderFull(payload);
         console.log("Regular order upsert result:", upsertResult);
@@ -935,6 +935,11 @@ export default function OrderDetailPage({
           setIsEditing(true);
           return;
         }
+
+        toast.success(
+          isNewMode ? "הזמנה נשמרה בהצלחה" : "פרטי ההזמנה עודכנו בהצלחה",
+        );
+        setIsEditing(false);
         const updatedOrder = upsertResult.order as Order;
         const updatedBilling = upsertResult.billing as Billing | undefined;
         const updatedLineItems =
@@ -1293,6 +1298,8 @@ export default function OrderDetailPage({
                 )}
                 <Button
                   variant={isEditing ? "outline" : "default"}
+                  disabled={isSaveInFlight}
+                  className="h-9 px-4"
                   onClick={() => {
                     if (isNewMode || isEditing) {
                       handleSave();
@@ -1301,11 +1308,13 @@ export default function OrderDetailPage({
                     }
                   }}
                 >
-                  {isNewMode
-                    ? "שמור הזמנה"
-                    : isEditing
-                      ? "שמור שינויים"
-                      : "ערוך הזמנה"}
+                  {isSaveInFlight ? (
+                    <Loader2 className="h-[18px] w-[18px] animate-spin" />
+                  ) : isNewMode || isEditing ? (
+                    <Save size={18} />
+                  ) : (
+                    <Edit size={18} />
+                  )}
                 </Button>
               </div>
             </div>

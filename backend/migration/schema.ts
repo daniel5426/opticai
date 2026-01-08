@@ -209,6 +209,12 @@ export interface RetinoscopExam {
   l_ax?: number;
   r_reflex?: string;
   l_reflex?: string;
+  r_pd_far?: number;
+  l_pd_far?: number;
+  comb_pd_far?: number;
+  r_pd_close?: number;
+  l_pd_close?: number;
+  comb_pd_close?: number;
 }
 
 export interface RetinoscopDilationExam {
@@ -222,6 +228,12 @@ export interface RetinoscopDilationExam {
   l_ax?: number;
   r_reflex?: string;
   l_reflex?: string;
+  r_pd_far?: number;
+  l_pd_far?: number;
+  comb_pd_far?: number;
+  r_pd_close?: number;
+  l_pd_close?: number;
+  comb_pd_close?: number;
 }
 
 export interface FinalSubjectiveExam {

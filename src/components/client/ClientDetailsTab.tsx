@@ -867,7 +867,7 @@ export function ClientDetailsTab({
               hiddenValue={formData.hidden_note || ''}
               onHiddenChange={(value) => handleSelectChange(value, 'hidden_note')}
               disabled={!showEditableFields}
-              height="107px"
+              height="108px"
               placeholder={showEditableFields ? "הכנס הערות כלליות על הלקוח..." : ""}
             />
           </div>

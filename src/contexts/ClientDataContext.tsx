@@ -258,6 +258,8 @@ export function ClientDataProvider({ children, clientId }: { children: React.Rea
     refreshFiles()
   }, [clientId, refreshContactLenses, refreshExams, refreshOrders, refreshMedicalLogs, refreshReferrals, refreshAppointments, refreshFiles])
 
+
+
   const value = useMemo(() => ({
     contactLenses,
     exams,

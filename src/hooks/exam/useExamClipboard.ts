@@ -2,39 +2,49 @@ import { useState, useCallback } from "react";
 import { toast } from "sonner";
 import { CardItem } from "@/components/exam/ExamCardRenderer";
 import { ExamComponentType } from "@/lib/exam-field-mappings";
-import {
-  copyToClipboard,
-  pasteFromClipboard,
-  getClipboardContentType,
-} from "@/lib/exam-clipboard";
+import { copyToClipboard, pasteFromClipboard, getClipboardContentType } from "@/lib/exam-clipboard";
 import { ExamFieldMapper } from "@/lib/exam-field-mappings";
+import { inputSyncManager } from "@/components/exam/shared/OptimizedInputs";
 
 interface UseExamClipboardParams {
-  examFormData: Record<string, any>;
+  getExamFormData: () => Record<string, any>;
   fieldHandlers: Record<string, (field: string, value: string) => void>;
   activeCoverTestTabs: Record<string, number>;
   computedCoverTestTabs: Record<string, string[]>;
+  activeOldRefractionTabs: Record<string, string>;
+  computedOldRefractionTabs: Record<string, string[]>;
 }
 
 export function useExamClipboard({
-  examFormData,
+  getExamFormData,
   fieldHandlers,
   activeCoverTestTabs,
   computedCoverTestTabs,
+  activeOldRefractionTabs,
+  computedOldRefractionTabs,
 }: UseExamClipboardParams) {
   const [clipboardContentType, setClipboardContentType] =
     useState<ExamComponentType | null>(getClipboardContentType());
 
   const handleCopy = useCallback(
     (card: CardItem) => {
+      // Flush any pending updates from optimized components before copying
+      inputSyncManager.flush();
+      
+      const examFormData = getExamFormData();
       const cardType = card.type as ExamComponentType;
       const cardId = card.id;
       let cardData;
 
       if (cardType === "cover-test") {
-        const activeTabIndex = activeCoverTestTabs[cardId];
+        const activeTabIndex = activeCoverTestTabs[cardId] ?? 0;
         const activeTabId = computedCoverTestTabs[cardId]?.[activeTabIndex];
         const key = `cover-test-${cardId}-${activeTabId}`;
+        cardData = examFormData[key];
+      } else if (cardType === "old-refraction") {
+        // activeOldRefractionTabs now stores tabId directly
+        const activeTabId = activeOldRefractionTabs[cardId] || computedOldRefractionTabs[cardId]?.[0];
+        const key = `old-refraction-${cardId}-${activeTabId}`;
         cardData = examFormData[key];
       } else {
         // Prefer instance-specific key, fallback to base type
@@ -51,11 +61,15 @@ export function useExamClipboard({
         duration: 2000,
       });
     },
-    [examFormData, activeCoverTestTabs, computedCoverTestTabs],
+    [getExamFormData, activeCoverTestTabs, computedCoverTestTabs, activeOldRefractionTabs, computedOldRefractionTabs],
   );
 
   const handlePaste = useCallback(
     (targetCard: CardItem) => {
+      // Flush any pending updates from optimized components before pasting
+      inputSyncManager.flush();
+
+      const examFormData = getExamFormData();
       const clipboardContent = pasteFromClipboard();
       if (!clipboardContent) {
         toast.error("אין מידע בלוח ההעתקה");
@@ -69,9 +83,15 @@ export function useExamClipboard({
         targetChangeHandler: ((field: string, value: string) => void) | undefined;
 
       if (targetType === "cover-test") {
-        const activeTabIndex = activeCoverTestTabs[targetCardId];
+        const activeTabIndex = activeCoverTestTabs[targetCardId] ?? 0;
         const activeTabId = computedCoverTestTabs[targetCardId]?.[activeTabIndex];
         const key = `cover-test-${targetCardId}-${activeTabId}`;
+        targetData = examFormData[key];
+        targetChangeHandler = fieldHandlers[key];
+      } else if (targetType === "old-refraction") {
+        // activeOldRefractionTabs now stores tabId directly
+        const activeTabId = activeOldRefractionTabs[targetCardId] || computedOldRefractionTabs[targetCardId]?.[0];
+        const key = `old-refraction-${targetCardId}-${activeTabId}`;
         targetData = examFormData[key];
         targetChangeHandler = fieldHandlers[key];
       } else {
@@ -87,7 +107,7 @@ export function useExamClipboard({
         sourceType === targetType ||
         ExamFieldMapper.getAvailableTargets(sourceType, [targetType]).includes(
           targetType,
-        );
+         );
       if (!isCompatible) {
         toast.error("העתקה לא נתמכת", {
           description: `לא ניתן להעתיק מ'${sourceType}' ל'${targetType}'.`,
@@ -115,7 +135,7 @@ export function useExamClipboard({
         duration: 2000,
       });
     },
-    [examFormData, fieldHandlers, activeCoverTestTabs, computedCoverTestTabs],
+    [getExamFormData, fieldHandlers, activeCoverTestTabs, computedCoverTestTabs, activeOldRefractionTabs, computedOldRefractionTabs],
   );
 
   return {

@@ -36,14 +36,24 @@ export const LookupSelect = React.memo(function LookupSelect({
   const [isOpen, setIsOpen] = useState(false)
   const [inputValue, setInputValue] = useState(value)
   const lastPropValueRef = useRef(value)
+  const lastSentValueRef = useRef(value)
   const inputValueRef = useRef(value)
   const containerRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null)
 
-  // Keep ref in sync for the sync manager
-  useEffect(() => {
-    inputValueRef.current = inputValue
-  }, [inputValue])
+  const updateValueInternal = useCallback((val: string) => {
+    setInputValue(val)
+    inputValueRef.current = val
+  }, [])
+
+  // Derived state pattern to sync with props
+  if (value !== lastPropValueRef.current) {
+    lastPropValueRef.current = value
+    lastSentValueRef.current = value
+    setInputValue(value)
+    inputValueRef.current = value
+  }
 
   const {
     data: options,
@@ -54,36 +64,31 @@ export const LookupSelect = React.memo(function LookupSelect({
 
   const [filteredOptions, setFilteredOptions] = useState<LookupItem[]>([])
 
-  // Only sync if the prop actually changes from the outside
-  useEffect(() => {
-    if (value !== lastPropValueRef.current) {
-      setInputValue(value)
-      inputValueRef.current = value
-      lastPropValueRef.current = value
-    }
-  }, [value])
-
   const handleSync = useCallback(() => {
     const val = inputValueRef.current;
-    if (typeof onChange === 'function' && val !== lastPropValueRef.current) {
+    if (typeof onChange === 'function' && val !== lastSentValueRef.current) {
       flushSync(() => {
         onChange(val)
       })
-      lastPropValueRef.current = val
+      lastSentValueRef.current = val
     }
     inputSyncManager.unregister(handleSync)
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current)
+      debounceTimerRef.current = null
+    }
   }, [onChange])
 
   // Debounce the parent update
   useEffect(() => {
-    if (inputValue === lastPropValueRef.current) return
+    if (inputValue === lastSentValueRef.current) return
 
     inputSyncManager.register(handleSync)
-    const timer = setTimeout(handleSync, 1000)
+    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current)
+    debounceTimerRef.current = setTimeout(handleSync, 1000)
 
     return () => {
-      clearTimeout(timer)
-      // We don't unregister here because the manager needs to be able to flush it
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current)
     }
   }, [inputValue, handleSync])
 
@@ -118,15 +123,24 @@ export const LookupSelect = React.memo(function LookupSelect({
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newValue = e.target.value
-    setInputValue(newValue)
+    updateValueInternal(newValue)
     setIsOpen(true)
   }
 
   const handleOptionSelect = (option: LookupItem) => {
-    setInputValue(option.name)
-    lastPropValueRef.current = option.name
+    updateValueInternal(option.name)
+    lastSentValueRef.current = option.name
+    
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current)
+      debounceTimerRef.current = null
+    }
+    inputSyncManager.unregister(handleSync)
+
     if (typeof onChange === 'function') {
-      onChange(option.name)
+      flushSync(() => {
+        onChange(option.name)
+      })
     }
     setIsOpen(false)
   }
@@ -138,8 +152,18 @@ export const LookupSelect = React.memo(function LookupSelect({
     try {
       const newItem = await createItem(inputValue.trim())
       if (newItem) {
-        setInputValue(newItem.name)
-        onChange(newItem.name)
+        updateValueInternal(newItem.name)
+        lastSentValueRef.current = newItem.name
+        
+        if (debounceTimerRef.current) {
+          clearTimeout(debounceTimerRef.current)
+          debounceTimerRef.current = null
+        }
+        inputSyncManager.unregister(handleSync)
+
+        flushSync(() => {
+          onChange(newItem.name)
+        })
         setIsOpen(false)
         toast.success('פריט חדש נוצר בהצלחה')
       } else {
@@ -196,7 +220,11 @@ export const LookupSelect = React.memo(function LookupSelect({
                     <div
                       key={option.id}
                       className="flex gap-1 items-center px-2 py-1 cursor-pointer hover:bg-accent rounded-sm"
-                      onClick={() => handleOptionSelect(option)}
+                      onMouseDown={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        handleOptionSelect(option)
+                      }}
                     >
                       <div className="flex items-center">
                         {option.name === inputValue && (
@@ -210,7 +238,11 @@ export const LookupSelect = React.memo(function LookupSelect({
                   {showCreateOption && (
                     <div
                       className="flex items-center justify-between px-2 py-1 cursor-pointer hover:bg-accent rounded-sm border-t"
-                      onClick={handleCreateNew}
+                      onMouseDown={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        handleCreateNew()
+                      }}
                     >
                       <div className="flex items-center">
                         <IconPlus className="h-4 w-4 text-green-600 ml-1" />

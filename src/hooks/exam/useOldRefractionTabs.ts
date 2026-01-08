@@ -21,16 +21,20 @@ export function useOldRefractionTabs({
   const computedOldRefractionTabs = useMemo(() => {
     const map: Record<string, string[]> = {};
     const oldRefractionCardIds: string[] = [];
+    
+    // Efficiently gather card IDs
     cardRows.forEach((row) => {
       row.cards.forEach((card) => {
         if (card.type === "old-refraction") oldRefractionCardIds.push(card.id);
       });
     });
+
     oldRefractionCardIds.forEach((cardId) => {
       const keys = Object.keys(examFormData).filter((k) =>
         k.startsWith(`old-refraction-${cardId}-`),
       );
       if (keys.length === 0) return;
+      
       const pairs = keys.map((k) => ({
         tabId: k.replace(`old-refraction-${cardId}-`, ""),
         idx: Number((examFormData[k]?.tab_index ?? 0) as any) || 0,
@@ -39,11 +43,29 @@ export function useOldRefractionTabs({
       map[cardId] = pairs.map((p) => p.tabId);
     });
     return map;
-  }, [examFormData, JSON.stringify(cardRows)]);
+    // We only want to recompute if the keys or indices change.
+    // However, examFormData changes on every edit.
+    // Ideally we should use a custom comparison or ref, but for now let's keep it simple
+    // and rely on the fact that if this returns a new object, we need to make sure downstream
+    // consumers (like createFieldHandlers) are memoized correctly or handle it.
+    // IMPROVEMENT: We can use JSON.stringify on the relevant subset of data, but that's expensive.
+    // Better: Trust that the memoization in ExamDetailPage will handle the handlers.
+    // But wait, if this returns a new object, the memo in ExamDetailPage will re-run.
+    // So we MUST stabilize this output.
+  }, [
+    // We need a stable representation of the tabs structure.
+    // Construct a string key: cardId:tabId:index|...
+    Object.keys(examFormData)
+        .filter(k => k.startsWith('old-refraction-'))
+        .sort()
+        .map(k => `${k}:${(examFormData[k] as any)?.tab_index}`)
+        .join('|'),
+    JSON.stringify(cardRows)
+  ]);
 
-  // Track active tab index for each old refraction card
+  // Track active tabId for each old refraction card (storing UUID directly, not index)
   const [activeOldRefractionTabs, setActiveOldRefractionTabs] = useState<
-    Record<string, number>
+    Record<string, string>
   >({});
 
   // Initialize first tab for old-refraction cards if none exist
@@ -75,7 +97,7 @@ export function useOldRefractionTabs({
           l_glasses_type: "רחוק",
         };
         changed = true;
-        setActiveOldRefractionTabs((prev) => ({ ...prev, [cardId]: 0 }));
+        setActiveOldRefractionTabs((prev) => ({ ...prev, [cardId]: tabId }));
       }
     });
     if (changed) setExamFormData((prev) => ({ ...prev, ...updates }));
@@ -101,7 +123,7 @@ export function useOldRefractionTabs({
           l_glasses_type: type,
         },
       }));
-      setActiveOldRefractionTabs((prev) => ({ ...prev, [cardId]: tabIndex }));
+      setActiveOldRefractionTabs((prev) => ({ ...prev, [cardId]: newTabId }));
     },
     [examFormData, activeInstanceId, setExamFormData],
   );
@@ -145,9 +167,11 @@ export function useOldRefractionTabs({
         });
         return updated;
       });
+      // After deletion, set active to the first remaining tab
+      const remaining = tabs.filter((_, i) => i !== tabIdx);
       setActiveOldRefractionTabs((prev) => ({
         ...prev,
-        [cardId]: Math.max(0, Math.min(prev[cardId] || 0, tabs.length - 2)),
+        [cardId]: remaining[0] || "",
       }));
     },
     [computedOldRefractionTabs, setExamFormData],
@@ -174,7 +198,7 @@ export function useOldRefractionTabs({
           tab_index: tabIndex,
         },
       }));
-      setActiveOldRefractionTabs((prev) => ({ ...prev, [cardId]: tabIndex }));
+      setActiveOldRefractionTabs((prev) => ({ ...prev, [cardId]: newTabId }));
     },
     [computedOldRefractionTabs, examFormData, setExamFormData],
   );

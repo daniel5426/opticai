@@ -52,13 +52,16 @@ export const BASE_VALUES = [
 // Field Configuration Types
 export type FieldType = 'number' | 'select' | 'text';
 
+// PD Rules
+export const PD_MIN = "0";
+
 export interface FieldConfig {
   key: string;
   label: string;
   type?: FieldType;
   step?: string;
-  min?: number;
-  max?: number;
+  min?: string | number;
+  max?: string | number;
   options?: readonly string[];
   allowNegative?: boolean;
   allowPositive?: boolean;

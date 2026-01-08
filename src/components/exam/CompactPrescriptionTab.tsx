@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input"
 import { CompactPrescriptionExam } from "@/lib/db/schema-interface"
 import { ChevronUp, ChevronDown } from "lucide-react"
 import { VASelect } from "./shared/VASelect"
+import { PD_MIN } from "./data/exam-constants"
 
 interface CompactPrescriptionTabProps {
   data: CompactPrescriptionExam;
@@ -30,7 +31,7 @@ export function CompactPrescriptionTab({
     { key: "base", label: "BASE", step: "0.1" },
     { key: "va", label: "VA", step: "0.1", type: "va" },
     { key: "ad", label: "ADD", step: "0.25" },
-    { key: "pd", label: "PD", step: "0.5" },
+    { key: "pd", label: "PD", step: "0.5", min: PD_MIN },
   ];
 
   const getFieldValue = (eye: "R" | "L" | "C", field: string) => {
