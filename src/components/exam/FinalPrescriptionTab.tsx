@@ -115,7 +115,7 @@ export function FinalPrescriptionTab({
             onChange={(val) => handleChange(eye, key, val)}
             disabled={!isEditing}
             debounceMs={key === "pd" ? 0 : undefined}
-            className={`h-8 pr-1 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
+            className={`h-8 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
           />
         );
     }
@@ -178,7 +178,7 @@ export function FinalPrescriptionTab({
                     onChange={(val) => handleChange("C", key, val)}
                     disabled={!isEditing}
                     debounceMs={0}
-                    className={`h-8 pr-1 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
+                    className={`h-8 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
                   />
                 );
               }
