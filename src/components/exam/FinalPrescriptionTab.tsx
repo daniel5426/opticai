@@ -1,14 +1,11 @@
-import React, { useState } from "react"
+import React, { useState, useRef } from "react"
 import { Card, CardContent } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { FinalPrescriptionExam } from "@/lib/db/schema-interface"
 import { ChevronUp, ChevronDown } from "lucide-react"
+import { EXAM_FIELDS } from "./data/exam-field-definitions"
+import { BASE_VALUES_SIMPLE, PDCalculationUtils } from "./data/exam-constants"
 import { VASelect } from "./shared/VASelect"
-import { PD_MIN } from "./data/exam-constants"
-
-import { FastInput, FastSelect } from "./shared/OptimizedInputs"
+import { FastInput, FastSelect, inputSyncManager } from "./shared/OptimizedInputs"
 
 interface FinalPrescriptionTabProps {
   finalPrescriptionData: FinalPrescriptionExam;
@@ -25,17 +22,18 @@ export function FinalPrescriptionTab({
 }: FinalPrescriptionTabProps) {
   const [hoveredEye, setHoveredEye] = useState<"R" | "L" | null>(null);
 
+  const dataRef = useRef(finalPrescriptionData);
+  dataRef.current = finalPrescriptionData;
+
   const columns = [
-    { key: "sph", label: "SPH", step: "0.25", min: "-30", max: "30" },
-    { key: "cyl", label: "CYL", step: "0.25", min: "-30", max: "30" },
-    { key: "ax", label: "AXIS", step: "1", min: "0", max: "180" },
-    { key: "pris", label: "PRIS", step: "0.25", min: "0", max: "50" },
-    { key: "base", label: "BASE", type: "select", options: ["IN", "OUT", "UP", "DOWN"] },
-    { key: "va", label: "VA", step: "0.1", type: "va" },
-    { key: "ad", label: "ADD", step: "0.25", min: "0", max: "5" },
-    { key: "pd", label: "PD", step: "0.5", min: PD_MIN },
-    { key: "high", label: "HIGH", step: "0.5" },
-    { key: "diam", label: "DIAM", step: "1" },
+    { key: "sph", ...EXAM_FIELDS.SPH },
+    { key: "cyl", ...EXAM_FIELDS.CYL },
+    { key: "ax", ...EXAM_FIELDS.AXIS },
+    { key: "pris", ...EXAM_FIELDS.PRISM },
+    { key: "base", ...EXAM_FIELDS.BASE, type: "select", options: BASE_VALUES_SIMPLE },
+    { key: "va", ...EXAM_FIELDS.VA, type: "va" },
+    { key: "ad", ...EXAM_FIELDS.ADD },
+    { key: "pd", ...EXAM_FIELDS.PD_FAR },
   ];
 
   const getFieldValue = (eye: "R" | "L" | "C", field: string) => {
@@ -48,6 +46,19 @@ export function FinalPrescriptionTab({
   };
 
   const handleChange = (eye: "R" | "L" | "C", field: string, value: string) => {
+    if (field === "pd") {
+      PDCalculationUtils.handlePDChange({
+        eye,
+        field,
+        value,
+        data: finalPrescriptionData,
+        onChange: onFinalPrescriptionChange,
+        getRValue: (data, f) => parseFloat(data[`r_${f}` as keyof FinalPrescriptionExam]?.toString() || "0") || 0,
+        getLValue: (data, f) => parseFloat(data[`l_${f}` as keyof FinalPrescriptionExam]?.toString() || "0") || 0
+      });
+      return;
+    }
+
     if (eye === "C") {
       const combField = `comb_${field}` as keyof FinalPrescriptionExam;
       onFinalPrescriptionChange(combField, value);
@@ -58,16 +69,28 @@ export function FinalPrescriptionTab({
   };
 
   const copyFromOtherEye = (fromEye: "R" | "L") => {
+    inputSyncManager.flush();
+    const latestData = dataRef.current;
+
     const toEye = fromEye === "R" ? "L" : "R";
     columns.forEach(({ key }) => {
-      const fromField = `${fromEye.toLowerCase()}_${key}` as keyof FinalPrescriptionExam;
-      const toField = `${toEye.toLowerCase()}_${key}` as keyof FinalPrescriptionExam;
-      const value = finalPrescriptionData[fromField]?.toString() || "";
-      onFinalPrescriptionChange(toField, value);
+      const getLatestVal = (e: "R" | "L" | "C", f: string) => {
+        if (e === "C") {
+          const combField = `comb_${f}` as keyof FinalPrescriptionExam;
+          return latestData[combField]?.toString() || "";
+        }
+        const eyeField = `${e.toLowerCase()}_${f}` as keyof FinalPrescriptionExam;
+        return latestData[eyeField]?.toString() || "";
+      };
+      const value = getLatestVal(fromEye, key);
+      handleChange(toEye, key, value);
     });
   };
 
-  const renderInput = (eye: "R" | "L", { key, step, min, max, type, options }: (typeof columns)[number]) => {
+  const renderInput = (eye: "R" | "L", col: (typeof columns)[number]) => {
+    const { key, step, ...colProps } = col;
+    const type = (col as any).type as string | undefined;
+    const options = (col as any).options as readonly string[] | undefined;
     switch (type) {
       case "va":
         return <VASelect value={getFieldValue(eye, key)} onChange={(val) => handleChange(eye, key, val)} disabled={!isEditing} />;
@@ -80,16 +103,18 @@ export function FinalPrescriptionTab({
             options={options || []}
             size="xs"
             triggerClassName="h-8 text-xs w-full"
+            center={col.center}
           />
         );
       default:
         return (
           <FastInput
-            type="number" step={step} min={min} max={max}
+            {...colProps}
+            type="number" step={step}
             value={getFieldValue(eye, key)}
             onChange={(val) => handleChange(eye, key, val)}
             disabled={!isEditing}
-            showPlus={key === "sph" || key === "cyl" || key === "ad"}
+            debounceMs={key === "pd" ? 0 : undefined}
             className={`h-8 pr-1 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
           />
         );
@@ -104,7 +129,7 @@ export function FinalPrescriptionTab({
             <h3 className="font-medium text-muted-foreground">מרשם סופי</h3>
           </div>
 
-          <div className={`grid ${hideEyeLabels ? 'grid-cols-[repeat(10,1fr)]' : 'grid-cols-[20px_repeat(10,1fr)]'} gap-2 items-center`}>
+          <div className={`grid ${hideEyeLabels ? 'grid-cols-[repeat(8,1fr)]' : 'grid-cols-[20px_repeat(8,1fr)]'} gap-2 items-center`}>
             {!hideEyeLabels && <div></div>}
             {columns.map(({ key, label }) => (
               <div key={key} className="h-4 flex items-center justify-center">
@@ -129,7 +154,7 @@ export function FinalPrescriptionTab({
 
             {!hideEyeLabels && <div className="flex items-center justify-center h-8">
             </div>}
-            {columns.map(({ key, step }) => {
+            {columns.map(({ key, step, ...colProps }) => {
               if (key === 'va') {
                 return (
                   <div key="c-va-input">
@@ -141,12 +166,18 @@ export function FinalPrescriptionTab({
                   </div>
                 );
               }
-              if (key === 'pd' || key === 'high') {
+              if (key === 'pd') {
+                const pdCombProps = EXAM_FIELDS.PD_COMB;
                 return (
                   <FastInput
-                    key={`c-${key}`} type="number" step={step} value={getFieldValue("C", key)}
+                    {...pdCombProps}
+                    key={`c-${key}`}
+                    type="number"
+                    step={step}
+                    value={getFieldValue("C", key)}
                     onChange={(val) => handleChange("C", key, val)}
                     disabled={!isEditing}
+                    debounceMs={0}
                     className={`h-8 pr-1 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
                   />
                 );

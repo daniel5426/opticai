@@ -1,8 +1,9 @@
-import React, { useState } from "react"
+import React, { useState, useRef } from "react"
 import { Card, CardContent } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
 import { KeratometerContactLens } from "@/lib/db/schema-interface"
 import { ChevronUp, ChevronDown } from "lucide-react"
+import { EXAM_FIELDS } from "./data/exam-field-definitions"
+import { FastInput, inputSyncManager } from "./shared/OptimizedInputs"
 
 interface KeratometerContactLensTabProps {
   keratometerContactLensData: KeratometerContactLens;
@@ -11,8 +12,6 @@ interface KeratometerContactLensTabProps {
   hideEyeLabels?: boolean;
   needsMiddleSpacer?: boolean;
 }
-
-import { FastInput } from "./shared/OptimizedInputs"
 
 export function KeratometerContactLensTab({
   keratometerContactLensData,
@@ -23,12 +22,15 @@ export function KeratometerContactLensTab({
 }: KeratometerContactLensTabProps) {
   const [hoveredEye, setHoveredEye] = useState<"R" | "L" | null>(null);
 
+  const dataRef = useRef(keratometerContactLensData);
+  dataRef.current = keratometerContactLensData;
+
   const columns = [
     { key: "rh", label: "RH", step: "0.01" },
     { key: "rv", label: "RV", step: "0.01" },
     { key: "avg", label: "AVG", step: "0.01" },
     { key: "cyl", label: "CYL", step: "0.01" },
-    { key: "ax", label: "AXIS", step: "1", min: "0", max: "180" },
+    { key: "ax", ...EXAM_FIELDS.AXIS },
     { key: "ecc", label: "ECC", step: "0.01" },
   ];
 
@@ -43,12 +45,17 @@ export function KeratometerContactLensTab({
   };
 
   const copyFromOtherEye = (fromEye: "R" | "L") => {
+    inputSyncManager.flush();
+    const latestData = dataRef.current;
+
     const toEye = fromEye === "R" ? "L" : "R";
     columns.forEach(({ key }) => {
-      const fromField = `${fromEye.toLowerCase()}_${key}` as keyof KeratometerContactLens;
-      const toField = `${toEye.toLowerCase()}_${key}` as keyof KeratometerContactLens;
-      const value = keratometerContactLensData[fromField]?.toString() || "";
-      onKeratometerContactLensChange(toField, value);
+      const getLatestVal = (e: "R" | "L", f: string) => {
+        const eyeField = `${e.toLowerCase()}_${f}` as keyof KeratometerContactLens;
+        return latestData[eyeField]?.toString() || "";
+      };
+      const value = getLatestVal(fromEye, key);
+      onKeratometerContactLensChange(`${toEye.toLowerCase()}_${key}` as keyof KeratometerContactLens, value);
     });
   };
 
@@ -81,8 +88,9 @@ export function KeratometerContactLensTab({
                 {hoveredEye === "L" ? <ChevronDown size={16} /> : "R"}
               </span>
             </div>}
-            {columns.map(({ key, step, min, max }) => (
+            {columns.map(({ key, step, min, max, ...colProps }) => (
               <FastInput
+                {...colProps}
                 key={`r-${key}`}
                 type="number"
                 step={step}
@@ -115,8 +123,9 @@ export function KeratometerContactLensTab({
                 {hoveredEye === "R" ? <ChevronUp size={16} /> : "L"}
               </span>
             </div>}
-            {columns.map(({ key, step, min, max }) => (
+            {columns.map(({ key, step, min, max, ...colProps }) => (
               <FastInput
+                {...colProps}
                 key={`l-${key}`}
                 type="number"
                 step={step}

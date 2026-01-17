@@ -1,10 +1,9 @@
-import React, { useState } from "react"
+import React, { useState, useRef } from "react"
 import { Card, CardContent } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Button } from "@/components/ui/button"
 import { ChevronUp, ChevronDown } from "lucide-react"
 import { KeratometerExam } from "@/lib/db/schema-interface"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { FastInput, inputSyncManager } from "./shared/OptimizedInputs"
 
 interface KeratometerTabProps {
   keratometerData: KeratometerExam
@@ -13,8 +12,6 @@ interface KeratometerTabProps {
   hideEyeLabels?: boolean
   needsMiddleSpacer?: boolean
 }
-
-import { FastInput } from "./shared/OptimizedInputs"
 
 export function KeratometerTab({
   keratometerData,
@@ -26,10 +23,13 @@ export function KeratometerTab({
   const [hoveredEye, setHoveredEye] = useState<"R" | "L" | null>(null)
   const [unit, setUnit] = useState<"mm" | "D">("mm") // mm or Diopter
 
+  const dataRef = useRef(keratometerData);
+  dataRef.current = keratometerData;
+
   const columns = [
     { key: "k1", label: "K1", step: unit === "mm" ? "0.1" : "0.25", min: unit === "mm" ? "3.0" : "40.00", max: unit === "mm" ? "20.0" : "80.00" },
-    { key: "k2", label: "K2", step: unit === "mm" ? "0.1" : "0.25", min: unit === "mm" ? "3.0" : "40.00", max: unit === "mm" ? "20.0" : "80.00" },
-    { key: "axis", label: "AX", step: "1", min: "0", max: "180" }
+    { key: "k2", label: "K2", labelHe: "K2", step: unit === "mm" ? "0.1" : "0.25", min: unit === "mm" ? "3.0" : "40.00", max: unit === "mm" ? "20.0" : "80.00" },
+    { key: "axis", label: "AX", labelHe: "אקסיס", step: "1", min: "0", max: "180" }
   ]
 
   const convertValue = (val: string, from: "mm" | "D") => {
@@ -71,11 +71,14 @@ export function KeratometerTab({
   }
 
   const copyFromOtherEye = (fromEye: "R" | "L") => {
+    inputSyncManager.flush();
+    const latestData = dataRef.current;
+
     const toEye = fromEye === "R" ? "L" : "R"
     columns.forEach(({ key }) => {
       const fromField = `${fromEye.toLowerCase()}_${key}` as keyof KeratometerExam
       const toField = `${toEye.toLowerCase()}_${key}` as keyof KeratometerExam
-      const value = keratometerData[fromField]?.toString() || ""
+      const value = latestData[fromField]?.toString() || ""
       onKeratometerChange(toField, value)
     })
   }

@@ -1,13 +1,7 @@
 import React from "react"
 import { Card, CardContent } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-
-interface StereoTestData {
-  fly_result?: boolean
-  circle_score?: number
-  circle_max?: number
-}
+import { StereoTestData } from "@/lib/db/schema-interface"
+import { FastInput, FastSelect } from "./shared/OptimizedInputs"
 
 interface StereoTestTabProps {
   stereoTestData: StereoTestData
@@ -15,8 +9,6 @@ interface StereoTestTabProps {
   isEditing: boolean
   needsMiddleSpacer?: boolean
 }
-
-import { FastInput } from "./shared/OptimizedInputs"
 
 export function StereoTestTab({ stereoTestData, onStereoTestChange, isEditing, needsMiddleSpacer = false }: StereoTestTabProps) {
   return (
@@ -31,19 +23,14 @@ export function StereoTestTab({ stereoTestData, onStereoTestChange, isEditing, n
             <div className="text-center text-xs h-[16px] font-medium text-muted-foreground"></div>
 
             <div className="text-sm text-muted-foreground font-medium text-right">Fly</div>
-            <Select
+            <FastSelect
               value={stereoTestData.fly_result === true ? "pass" : stereoTestData.fly_result === false ? "fail" : ""}
-              onValueChange={(value) => onStereoTestChange('fly_result', value === 'pass')}
+              onChange={(value) => onStereoTestChange('fly_result', value === 'pass')}
               disabled={!isEditing}
-            >
-              <SelectTrigger size="xs" disabled={!isEditing} className={`h-8 pr-4 text-center disabled:opacity-100 disabled:cursor-default`}>
-                <SelectValue className={`h-8 pr-3 text-center justify-center`} placeholder="בחר" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="pass">עבר</SelectItem>
-                <SelectItem value="fail">נכשל</SelectItem>
-              </SelectContent>
-            </Select>
+              options={["pass", "fail"]}
+              size="xs"
+              triggerClassName={`h-8 pr-4 text-center disabled:opacity-100 disabled:cursor-default`}
+            />
 
             {needsMiddleSpacer && (
               <>

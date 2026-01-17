@@ -26,26 +26,30 @@ export function ExamLoadingState({ activeTab, onTabChange }: ExamLoadingStatePro
                     <div className="mb-6">
                         <Card className="w-full examcard rounded-xl px-4 py-3 bg-background">
                             <div
-                                className="flex items-center gap-2 w-full whitespace-nowrap overflow-x-auto no-scrollbar"
+                                className="flex items-end gap-2 w-full whitespace-nowrap overflow-x-auto no-scrollbar"
                                 dir="rtl"
                                 style={{ scrollbarWidth: "none" }}
                             >
-                                <div className="min-w-[100px] max-w-[180px] w-full flex-1 sm:w-[180px]">
+                                <div className="min-w-[100px] max-w-[180px] w-full flex-1 sm:w-[180px] flex flex-col gap-1">
+                                    <Skeleton className="h-3 w-16 rounded" />
                                     <Skeleton className="h-9 w-full rounded-lg" />
                                 </div>
 
-                                <div className="min-w-[80px] max-w-[120px] w-full flex-1 sm:w-[120px]">
+                                <div className="min-w-[80px] max-w-[120px] w-full flex-1 sm:w-[120px] flex flex-col gap-1">
+                                    <Skeleton className="h-3 w-12 rounded" />
                                     <Skeleton className="h-9 w-full rounded-lg" />
                                 </div>
 
-                                <div className="flex flex-col min-w-[100px] max-w-[180px] w-full flex-1 sm:w-[180px]">
+                                <div className="flex flex-col min-w-[100px] max-w-[180px] w-full flex-1 sm:w-[180px] gap-1">
+                                    <Skeleton className="h-3 w-10 rounded" />
                                     <Skeleton className="h-9 w-full rounded-lg" />
                                 </div>
-                                <div className="flex flex-col min-w-[80px] max-w-[120px] w-full flex-1 sm:w-[120px]">
+                                <div className="flex flex-col min-w-[80px] max-w-[120px] w-full flex-1 sm:w-[120px] gap-1">
+                                    <Skeleton className="h-3 w-20 rounded" />
                                     <Skeleton className="h-9 w-full rounded-lg" />
                                 </div>
                                 <div className="flex-1" />
-                                <div className="flex items-center gap-2 min-w-0">
+                                <div className="flex items-center gap-2 min-w-0 self-center">
                                     <Skeleton className="h-9 min-w-[56px] w-1/3 max-w-[96px] rounded-lg" />
                                     <Skeleton className="h-9 min-w-[56px] w-1/3 max-w-[96px] rounded-lg" />
                                     <Skeleton className="h-9 min-w-[32px] w-1/5 max-w-[40px] rounded-lg" />

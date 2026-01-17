@@ -1,16 +1,14 @@
-import React, { useState } from "react"
+import React, { useState, useRef } from "react"
 import { Card, CardContent } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { VHCalculatorModal } from "@/components/ui/vh-calculator-modal"
 import { FinalSubjectiveExam } from "@/lib/db/schema-interface"
 import { ChevronUp, ChevronDown } from "lucide-react"
-import { EXAM_FIELDS, formatValueWithSign } from "./data/exam-field-definitions"
+import { EXAM_FIELDS } from "./data/exam-field-definitions"
+import { BASE_VALUES_SIMPLE } from "./data/exam-constants"
 import { VASelect } from "./shared/VASelect"
 import { NVJSelect } from "./shared/NVJSelect"
-
-import { FastInput, FastSelect } from "./shared/OptimizedInputs"
+import { FastInput, FastSelect, inputSyncManager } from "./shared/OptimizedInputs"
+import { PDCalculationUtils } from "./data/exam-constants"
 
 interface FinalSubjectiveTabProps {
   finalSubjectiveData: FinalSubjectiveExam;
@@ -29,22 +27,17 @@ export function FinalSubjectiveTab({
 }: FinalSubjectiveTabProps) {
   const [hoveredEye, setHoveredEye] = useState<"R" | "L" | null>(null);
 
-  // Unified Prism/Base logic:
-  // We use the underlying schema fields but show a unified UI.
-  // Actually, since there could be both H and V, 
-  // but the user wants "Base" with 4 options, 
-  // maybe they want the UI to just have 1 prism row if they don't use both?
-  // I'll stick to a clean mapping: 
-  // If user picks IN/OUT, it goes to base_h. If UP/DOWN, it goes to base_v.
+  const dataRef = useRef(finalSubjectiveData);
+  dataRef.current = finalSubjectiveData;
 
   const columns = [
     { key: "sph", ...EXAM_FIELDS.SPH },
     { key: "cyl", ...EXAM_FIELDS.CYL },
     { key: "ax", ...EXAM_FIELDS.AXIS },
-    { key: "pris", label: "PRISM", ...EXAM_FIELDS.PRISM },
-    { key: "base", label: "BASE", type: "select", options: ["IN", "OUT", "UP", "DOWN"] },
-    { key: "va", label: "VA", type: "va" },
-    { key: "j", label: "NV/J", type: "j" },
+    { key: "pris", ...EXAM_FIELDS.PRISM },
+    { key: "base", ...EXAM_FIELDS.BASE, type: "select", options: BASE_VALUES_SIMPLE },
+    { key: "va", ...EXAM_FIELDS.VA, type: "va" },
+    { key: "j", ...EXAM_FIELDS.J, type: "j" },
     { key: "pd_far", ...EXAM_FIELDS.PD_FAR },
     { key: "pd_close", ...EXAM_FIELDS.PD_NEAR },
   ];
@@ -56,8 +49,6 @@ export function FinalSubjectiveTab({
     }
 
     if (key === "pris") {
-      // Logic: if there's a vertical prism, show it. Otherwise show horizontal.
-      // This is a bit ambiguous if both exist.
       const vVal = finalSubjectiveData[`${eye.toLowerCase()}_pr_v` as keyof FinalSubjectiveExam];
       const hVal = finalSubjectiveData[`${eye.toLowerCase()}_pr_h` as keyof FinalSubjectiveExam];
       return (vVal || hVal || "").toString();
@@ -74,6 +65,19 @@ export function FinalSubjectiveTab({
   };
 
   const handleChange = (eye: "R" | "L" | "C", key: string, value: string) => {
+    if (key === "pd_far" || key === "pd_close") {
+      PDCalculationUtils.handlePDChange({
+        eye,
+        field: key,
+        value,
+        data: finalSubjectiveData,
+        onChange: onFinalSubjectiveChange,
+        getRValue: (data, f) => parseFloat(data[`r_${f}` as keyof FinalSubjectiveExam]?.toString() || "0") || 0,
+        getLValue: (data, f) => parseFloat(data[`l_${f}` as keyof FinalSubjectiveExam]?.toString() || "0") || 0
+      });
+      return;
+    }
+
     if (eye === "C") {
       const field = `comb_${key}` as keyof FinalSubjectiveExam;
       onFinalSubjectiveChange(field, value);
@@ -81,7 +85,6 @@ export function FinalSubjectiveTab({
     }
 
     if (key === "pris") {
-      // Determine if we should update H or V based on the current base
       const currentBase = getFieldValue(eye, "base");
       const isVertical = ["UP", "DOWN"].includes(currentBase);
       const field = `${eye.toLowerCase()}_pr_${isVertical ? 'v' : 'h'}` as keyof FinalSubjectiveExam;
@@ -96,13 +99,10 @@ export function FinalSubjectiveTab({
       const targetBaseKey = `${eye.toLowerCase()}_base_${isVertical ? 'v' : 'h'}` as keyof FinalSubjectiveExam;
       const otherBaseKey = `${eye.toLowerCase()}_base_${isVertical ? 'h' : 'v'}` as keyof FinalSubjectiveExam;
 
-      // Move prism value to the correct field tracker
       const currentPris = getFieldValue(eye, "pris");
       onFinalSubjectiveChange(targetBaseKey, value);
       onFinalSubjectiveChange(targetPrisKey, currentPris);
 
-      // Clear the other one if needed? 
-      // User said "don't care about compatibility", so I'll clear it to avoid ambiguity.
       onFinalSubjectiveChange(otherBaseKey, "");
       onFinalSubjectiveChange(otherPrisKey, "");
       return;
@@ -113,7 +113,7 @@ export function FinalSubjectiveTab({
   };
 
   const renderInput = (eye: "R" | "L" | "C", col: any) => {
-    const { key, step, min, max, type, options, requireSign } = col;
+    const { key, type, options, ...inputProps } = col;
     const value = getFieldValue(eye, key);
 
     switch (type) {
@@ -130,30 +130,60 @@ export function FinalSubjectiveTab({
             options={options || []}
             size="xs"
             triggerClassName="h-8 text-xs w-full disabled:opacity-100"
+            center={col.center}
           />
         );
-      default:
+      default: {
+        const pdProps = (eye === "C" && (key === "pd_far" || key === "pd_close"))
+          ? EXAM_FIELDS.PD_COMB
+          : inputProps;
+
         return (
           <FastInput
+            {...pdProps}
             type="number"
-            step={step}
-            min={min}
-            max={max}
             value={value}
             onChange={(val) => handleChange(eye, key, val)}
             disabled={!isEditing}
-            showPlus={requireSign}
-            className={`h-8 pr-1 text-xs disabled:opacity-100 disabled:cursor-default`}
+            debounceMs={key === "pd_far" || key === "pd_close" ? 0 : undefined}
+            className={`h-8 text-xs disabled:opacity-100 disabled:cursor-default`}
           />
         );
+      }
     }
   };
 
   const copyFromOtherEye = (fromEye: "R" | "L") => {
+    inputSyncManager.flush();
+    const latestData = dataRef.current;
+
     const toEye = fromEye === "R" ? "L" : "R";
     columns.forEach(({ key }) => {
-      if (key === "va" || key === "j" || key.startsWith("pd_")) return;
-      const val = getFieldValue(fromEye, key);
+      if (key === "va" || key === "j") return;
+
+      const getLatestVal = (e: "R" | "L" | "C", f: string): string => {
+        if (e === "C") {
+          const field = `comb_${f}` as keyof FinalSubjectiveExam;
+          return latestData[field]?.toString() || "";
+        }
+
+        if (f === "pris") {
+          const vVal = latestData[`${e.toLowerCase()}_pr_v` as keyof FinalSubjectiveExam];
+          const hVal = latestData[`${e.toLowerCase()}_pr_h` as keyof FinalSubjectiveExam];
+          return (vVal || hVal || "").toString();
+        }
+
+        if (f === "base") {
+          const vBase = latestData[`${e.toLowerCase()}_base_v` as keyof FinalSubjectiveExam];
+          const hBase = latestData[`${e.toLowerCase()}_base_h` as keyof FinalSubjectiveExam];
+          return (vBase || hBase || "").toString();
+        }
+
+        const field = `${e.toLowerCase()}_${f}` as keyof FinalSubjectiveExam;
+        return latestData[field]?.toString() || "";
+      };
+
+      const val = getLatestVal(fromEye, key);
       handleChange(toEye, key, val);
     });
   };

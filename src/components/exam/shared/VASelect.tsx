@@ -75,6 +75,7 @@ export const VASelect = memo(function VASelect({
   const lastSentValueRef = useRef(value)
   const [modifier, setModifier] = useState("")
   const modifierRef = useRef("")
+  const [inputWidth, setInputWidth] = useState<string>("auto")
 
   const getComponents = useCallback((val: string) => {
     const translated = convertVA(val, mode) || ""
@@ -90,6 +91,13 @@ export const VASelect = memo(function VASelect({
     const { disp, mod } = getComponents(value)
     if (inputRef.current && inputRef.current.value !== disp) {
       inputRef.current.value = disp
+    }
+    if (mode === "meter" && disp) {
+      setInputWidth(`${Math.max(2, disp.length)}ch`)
+    } else if (mode === "meter") {
+      setInputWidth("2ch")
+    } else {
+      setInputWidth("100%")
     }
     setModifier(mod)
     modifierRef.current = mod
@@ -136,6 +144,10 @@ export const VASelect = memo(function VASelect({
     let timer: NodeJS.Timeout
 
     const onInput = () => {
+      if (inputRef.current && mode === "meter") {
+        const val = inputRef.current.value
+        setInputWidth(`${Math.max(2, val.length)}ch`)
+      }
       inputSyncManager.register(handleSync)
       if (timer) clearTimeout(timer)
       timer = setTimeout(() => handleSync(), 1000)
@@ -268,26 +280,27 @@ export const VASelect = memo(function VASelect({
         className
       )}
     >
-      {mode === "meter" && (
-        <span className="absolute left-1 top-1/2 -translate-y-1/2 text-[13px] text-muted-foreground select-none font-medium pointer-events-none z-10">
-          6/
-        </span>
-      )}
-
-      <input
-        ref={inputRef}
-        defaultValue={currentDisp}
-        onKeyDown={handleKeyDown}
-        onFocus={(e) => e.target.select()}
-        disabled={disabled}
-        autoComplete="off"
-        size={1}
-        className={cn(
-          "flex-1 bg-transparent border-none focus:outline-none text-sm h-full min-w-0 disabled:cursor-default",
-          mode === "meter" ? "pl-5" : "pl-1.5",
-          "pr-4"
+      <div className="flex-1 flex items-center justify-center pr-5 relative min-w-0">
+        {mode === "meter" && (
+          <span className="text-[13px] text-muted-foreground select-none font-medium pointer-events-none z-10 whitespace-nowrap">
+            6/
+          </span>
         )}
-      />
+        <input
+          ref={inputRef}
+          defaultValue={currentDisp}
+          onKeyDown={handleKeyDown}
+          onFocus={(e) => e.target.select()}
+          disabled={disabled}
+          autoComplete="off"
+          size={1}
+          className={cn(
+            "bg-transparent border-none focus:outline-none text-sm h-full disabled:cursor-default text-center",
+            mode === "meter" ? "" : "w-full"
+          )}
+          style={mode === "meter" ? { width: inputWidth } : undefined}
+        />
+      </div>
 
       <button
         type="button"
@@ -295,9 +308,9 @@ export const VASelect = memo(function VASelect({
         disabled={disabled}
         tabIndex={-1}
         className={cn(
-          "absolute px-1 right-0 top-0 w-5 h-full text-[10px] font-bold flex items-center justify-center transition-all border-none focus:outline-none z-10",
-          modifier ? "text-primary bg-primary/5" : "text-muted-foreground/0 group-hover:text-muted-foreground/30",
-          !disabled && "hover:bg-accent/40"
+          "absolute rounded-tr-md rounded-br-md px-1 right-0 top-0 w-5 h-full text-[10px] font-bold flex items-center justify-center transition-all border-none focus:outline-none",
+          modifier ? "text-primary bg-primary/5" : "text-muted-foreground/30",
+          !disabled && "hover:text-accent-foreground hover:bg-accent"
         )}
       >
         {modifier || "±"}

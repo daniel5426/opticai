@@ -1,4 +1,4 @@
-import React, { useState } from "react"
+import React, { useState, useRef } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { VHCalculatorModal } from "@/components/ui/vh-calculator-modal"
@@ -6,8 +6,9 @@ import { SubjectiveExam } from "@/lib/db/schema-interface"
 import { VASelect } from "./shared/VASelect"
 import { ChevronUp, ChevronDown } from "lucide-react"
 
-import { FastInput, FastSelect } from "./shared/OptimizedInputs"
-import { PD_MIN } from "./data/exam-constants"
+import { FastInput, FastSelect, inputSyncManager } from "./shared/OptimizedInputs"
+import { EXAM_FIELDS } from "./data/exam-field-definitions"
+import { BASE_VALUES, PDCalculationUtils } from "./data/exam-constants"
 
 interface SubjectiveTabProps {
   subjectiveData: SubjectiveExam;
@@ -28,15 +29,18 @@ export const SubjectiveTab = React.memo(function SubjectiveTab({
 }: SubjectiveTabProps) {
   const [hoveredEye, setHoveredEye] = useState<"R" | "L" | null>(null);
 
+  const dataRef = useRef(subjectiveData);
+  dataRef.current = subjectiveData;
+
   const columns = [
-    { key: "sph", label: "SPH", step: "0.25", min: "-30", max: "30" },
-    { key: "cyl", label: "CYL", step: "0.25", min: "-30", max: "30" },
-    { key: "ax", label: "AXIS", step: "1", min: "0", max: "180" },
-    { key: "pris", label: "PRIS", step: "0.25", min: "0", max: "50" },
-    { key: "base", label: "BASE", type: "select", options: ["B.IN", "B.OUT", "B.UP", "B.DOWN"] },
-    { key: "va", label: "VA", step: "0.1" },
-    { key: "pd_far", label: "PD FAR", step: "0.5", min: "15" },
-    { key: "pd_close", label: "PD CLOSE", step: "0.5", min: "15" }
+    { key: "sph", ...EXAM_FIELDS.SPH },
+    { key: "cyl", ...EXAM_FIELDS.CYL },
+    { key: "ax", ...EXAM_FIELDS.AXIS },
+    { key: "pris", ...EXAM_FIELDS.PRISM },
+    { key: "base", ...EXAM_FIELDS.BASE, type: "select", options: BASE_VALUES },
+    { key: "va", ...EXAM_FIELDS.VA },
+    { key: "pd_far", ...EXAM_FIELDS.PD_FAR },
+    { key: "pd_close", ...EXAM_FIELDS.PD_NEAR }
   ];
 
   const getFieldValue = (eye: "R" | "L" | "C", field: string) => {
@@ -49,6 +53,19 @@ export const SubjectiveTab = React.memo(function SubjectiveTab({
   };
 
   const handleChange = (eye: "R" | "L" | "C", field: string, value: string) => {
+    if (field === "pd_far" || field === "pd_close") {
+      PDCalculationUtils.handlePDChange({
+        eye,
+        field,
+        value,
+        data: subjectiveData,
+        onChange: onSubjectiveChange,
+        getRValue: (data, f) => parseFloat(data[`r_${f}` as keyof SubjectiveExam]?.toString() || "0") || 0,
+        getLValue: (data, f) => parseFloat(data[`l_${f}` as keyof SubjectiveExam]?.toString() || "0") || 0
+      });
+      return;
+    }
+
     if (eye === "C") {
       const combField = `comb_${field}` as keyof SubjectiveExam;
       onSubjectiveChange(combField, value);
@@ -59,12 +76,19 @@ export const SubjectiveTab = React.memo(function SubjectiveTab({
   };
 
   const copyFromOtherEye = (fromEye: "R" | "L") => {
+    inputSyncManager.flush();
+    const latestData = dataRef.current;
+
     const toEye = fromEye === "R" ? "L" : "R";
     columns.forEach(({ key }) => {
-      const fromField = `${fromEye.toLowerCase()}_${key}` as keyof SubjectiveExam;
-      const toField = `${toEye.toLowerCase()}_${key}` as keyof SubjectiveExam;
-      const value = subjectiveData[fromField]?.toString() || "";
-      onSubjectiveChange(toField, value);
+      // Use getFieldValue with latestData instead of props
+      const getLatestVal = (e: "R" | "L" | "C", f: string) => {
+        const eyeField = `${e.toLowerCase()}_${f}` as keyof SubjectiveExam;
+        return latestData[eyeField]?.toString() || "";
+      };
+
+      const value = getLatestVal(fromEye, key);
+      handleChange(toEye, key, value);
     });
   };
 
@@ -97,16 +121,17 @@ export const SubjectiveTab = React.memo(function SubjectiveTab({
                 {hoveredEye === "L" ? <ChevronDown size={16} /> : "R"}
               </span>
             </div>}
-            {columns.map(({ key, step, min, max, options }) => (
+            {columns.map(({ key, ...colProps }) => (
               <div key={`r-${key}`}>
                 {key === "base" ? (
                   <FastSelect
                     value={getFieldValue("R", key)}
                     onChange={(value) => handleChange("R", key, value)}
                     disabled={!isEditing}
-                    options={options || []}
+                    options={(colProps as any).options || []}
                     size="xs"
                     triggerClassName="h-8 text-xs w-full"
+                    center={(colProps as any).center}
                   />
                 ) : key === "va" ? (
                   <VASelect
@@ -116,15 +141,12 @@ export const SubjectiveTab = React.memo(function SubjectiveTab({
                   />
                 ) : (
                   <FastInput
+                    {...colProps}
                     type="number"
-                    step={step}
-                    min={min}
-                    max={max}
                     value={getFieldValue("R", key)}
                     onChange={(val) => handleChange("R", key, val)}
                     disabled={!isEditing}
-                    showPlus={true}
-                    suffix={key === "pd_far" || key === "pd_close" ? "mm" : undefined}
+                    debounceMs={key === "pd_far" || key === "pd_close" ? 0 : undefined}
                     className={`h-8 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
                   />
                 )}
@@ -133,7 +155,7 @@ export const SubjectiveTab = React.memo(function SubjectiveTab({
 
             {!hideEyeLabels && <div className="flex items-center justify-center h-8">
             </div>}
-            {columns.map(({ key, step, min }) => {
+            {columns.map(({ key }) => {
               if (key === "cyl") {
                 return (
                   <div key={`c-${key}`} className="flex justify-center">
@@ -166,16 +188,16 @@ export const SubjectiveTab = React.memo(function SubjectiveTab({
                   </div>
                 );
               } else if (key === "pd_close" || key === "pd_far") {
+                const pdCombProps = EXAM_FIELDS.PD_COMB;
                 return (
                   <FastInput
+                    {...pdCombProps}
                     key={`c-${key}`}
                     type="number"
-                    step={step}
-                    min={min}
                     value={getFieldValue("C", key)}
                     onChange={(val) => handleChange("C", key, val)}
                     disabled={!isEditing}
-                    suffix="mm"
+                    debounceMs={0}
                     className={`h-8 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
                   />
                 );
@@ -195,16 +217,17 @@ export const SubjectiveTab = React.memo(function SubjectiveTab({
                 {hoveredEye === "R" ? <ChevronUp size={16} /> : "L"}
               </span>
             </div>}
-            {columns.map(({ key, step, min, max, options }) => (
+            {columns.map(({ key, ...colProps }) => (
               <div key={`l-${key}`}>
                 {key === "base" ? (
                   <FastSelect
                     value={getFieldValue("L", key)}
                     onChange={(value) => handleChange("L", key, value)}
                     disabled={!isEditing}
-                    options={options || []}
+                    options={(colProps as any).options || []}
                     size="xs"
                     triggerClassName="h-8 text-xs w-full"
+                    center={(colProps as any).center}
                   />
                 ) : key === "va" ? (
                   <VASelect
@@ -214,15 +237,12 @@ export const SubjectiveTab = React.memo(function SubjectiveTab({
                   />
                 ) : (
                   <FastInput
+                    {...colProps}
                     type="number"
-                    step={step}
-                    min={min}
-                    max={max}
                     value={getFieldValue("L", key)}
                     onChange={(val) => handleChange("L", key, val)}
                     disabled={!isEditing}
-                    showPlus={key === "sph" || key === "cyl"}
-                    suffix={key === "pd_far" || key === "pd_close" ? "mm" : undefined}
+                    debounceMs={key === "pd_far" || key === "pd_close" ? 0 : undefined}
                     className={`h-8 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
                   />
                 )}

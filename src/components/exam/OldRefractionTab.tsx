@@ -1,18 +1,16 @@
-import React, { useState, useRef } from "react"
+import React, { useState, useRef, useEffect } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { VHCalculatorModal } from "@/components/ui/vh-calculator-modal"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { OldRefractionExam } from "@/lib/db/schema-interface"
-import { ChevronUp, ChevronDown, Plus, MoreVertical } from "lucide-react"
-import { EXAM_FIELDS, formatValueWithSign } from "./data/exam-field-definitions"
+import { ChevronUp, ChevronDown, Plus } from "lucide-react"
+import { EXAM_FIELDS } from "./data/exam-field-definitions"
+import { BASE_VALUES } from "./data/exam-constants"
 import { VASelect } from "./shared/VASelect"
 import { NVJSelect } from "./shared/NVJSelect"
 import { cn } from "@/utils/tailwind"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-
-import { FastInput, FastSelect } from "./shared/OptimizedInputs"
+import { FastInput, FastSelect, inputSyncManager } from "./shared/OptimizedInputs"
 
 interface OldRefractionTabProps {
   oldRefractionData: OldRefractionExam;
@@ -31,7 +29,7 @@ interface OldRefractionTabProps {
   allTabsData?: OldRefractionExam[];
 }
 
-export function OldRefractionTab({
+export const OldRefractionTab = React.memo(function OldRefractionTab({
   oldRefractionData,
   onOldRefractionChange,
   isEditing,
@@ -50,6 +48,9 @@ export function OldRefractionTab({
   const [hoveredEye, setHoveredEye] = useState<"R" | "L" | null>(null);
   const [dropdownTabIdx, setDropdownTabIdx] = useState<number | null>(null);
 
+  const dataRef = useRef(oldRefractionData);
+  dataRef.current = oldRefractionData;
+
   const glassesTypeOptions = ["רחוק", "קרוב", "מולטיפוקל", "ביפוקל"];
 
   const mainColumns = [
@@ -57,20 +58,20 @@ export function OldRefractionTab({
     { key: "cyl", ...EXAM_FIELDS.CYL },
     { key: "ax", ...EXAM_FIELDS.AXIS },
     { key: "pris", ...EXAM_FIELDS.PRISM },
-    { key: "base", label: "BASE", type: "select", options: ["B.IN", "B.OUT", "B.UP", "B.DOWN"] },
-    { key: "va", label: "VA", type: "va" },
+    { key: "base", ...EXAM_FIELDS.BASE, type: "select", options: BASE_VALUES },
+    { key: "va", ...EXAM_FIELDS.VA, type: "va" },
     { key: "ad", ...EXAM_FIELDS.ADD },
-    { key: "j", label: "NV/J", type: "j" },
+    { key: "j", ...EXAM_FIELDS.J, type: "j" },
   ];
 
-  const getFieldValue = (eye: "R" | "L" | "C", field: string) => {
+  const getFieldValue = (eye: "R" | "L" | "C", field: string, data = oldRefractionData) => {
     if (eye === "C") {
-      if (field === "va") return oldRefractionData.comb_va?.toString() || "";
-      if (field === "j") return oldRefractionData.comb_j?.toString() || "";
+      if (field === "va") return data.comb_va?.toString() || "";
+      if (field === "j") return data.comb_j?.toString() || "";
       return "";
     }
     const eyeField = `${eye.toLowerCase()}_${field}` as keyof OldRefractionExam;
-    return oldRefractionData[eyeField]?.toString() || "";
+    return data[eyeField]?.toString() || "";
   };
 
   const handleChange = (eye: "R" | "L" | "C", field: string, value: string) => {
@@ -84,24 +85,38 @@ export function OldRefractionTab({
   };
 
   const copyFromOtherEye = (fromEye: "R" | "L") => {
+    inputSyncManager.flush();
+    const latestData = dataRef.current;
+
     const toEye = fromEye === "R" ? "L" : "R";
     mainColumns.forEach(({ key }) => {
-      if (key === "va" || key === "j") return;
-      const fromField = `${fromEye.toLowerCase()}_${key}` as keyof OldRefractionExam;
-      const toField = `${toEye.toLowerCase()}_${key}` as keyof OldRefractionExam;
-      const value = oldRefractionData[fromField]?.toString() || "";
-      onOldRefractionChange(toField, value);
+      const value = getFieldValue(fromEye, key, latestData);
+      handleChange(toEye, key, value);
     });
   };
 
+  const [liveValues, setLiveValues] = useState<{ [key: string]: string }>({});
+
+  useEffect(() => {
+    setLiveValues({});
+  }, [oldRefractionData, activeTab]);
+
+  const handleLiveValueChange = (eye: "R" | "L", field: string, val: string) => {
+    setLiveValues(prev => ({ ...prev, [`${eye}_${field}`]: val }));
+  };
+
+  const getLiveValue = (eye: "R" | "L", field: string) => {
+    return liveValues[`${eye}_${field}`] !== undefined ? liveValues[`${eye}_${field}`] : getFieldValue(eye, field);
+  };
+
   const checkAxisMissing = (eye: "R" | "L") => {
-    const cyl = getFieldValue(eye, "cyl");
-    const ax = getFieldValue(eye, "ax");
+    const cyl = getLiveValue(eye, "cyl");
+    const ax = getLiveValue(eye, "ax");
     return cyl && cyl !== "0" && cyl !== "0.00" && !ax;
   };
 
   const renderField = (eye: "R" | "L" | "C", col: any) => {
-    const { key, step, min, max, type, options, requireSign } = col;
+    const { key, type, options, ...inputProps } = col;
     const value = getFieldValue(eye, key);
 
     if (type === "select") {
@@ -113,6 +128,7 @@ export function OldRefractionTab({
           options={options || []}
           size="xs"
           triggerClassName="h-8 text-xs w-full disabled:opacity-100"
+          center={col.center}
         />
       );
     }
@@ -130,14 +146,16 @@ export function OldRefractionTab({
     return (
       <div className="relative">
         <FastInput
+          {...inputProps}
           type="number"
-          step={step}
-          min={min}
-          max={max}
           value={value}
           onChange={(val) => handleChange(eye, key, val)}
+          onInput={(val) => {
+            if (eye !== "C" && (key === "cyl" || key === "ax")) {
+              handleLiveValueChange(eye, key, val);
+            }
+          }}
           disabled={!isEditing}
-          showPlus={requireSign}
           className={cn(
             "h-8 pr-1 text-xs disabled:opacity-100 disabled:cursor-default",
             isAxisMissing && "border-destructive ring-1 ring-destructive"
@@ -336,4 +354,4 @@ export function OldRefractionTab({
       </CardContent>
     </Card>
   );
-}
+});

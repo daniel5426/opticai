@@ -1,9 +1,9 @@
-import React, { useState } from "react"
+import React, { useState, useRef } from "react"
 import { Card, CardContent } from "@/components/ui/card"
-import { Textarea } from "@/components/ui/textarea"
 import { Input } from "@/components/ui/input"
 import { ChevronUp, ChevronDown, Edit3 } from "lucide-react"
 import { CornealTopographyExam } from "@/lib/db/schema-interface"
+import { FastTextarea, FastInput, inputSyncManager } from "./shared/OptimizedInputs"
 
 interface CornealTopographyTabProps {
   cornealTopographyData: CornealTopographyExam
@@ -14,8 +14,6 @@ interface CornealTopographyTabProps {
   isEditorMode?: boolean
   onTitleChange?: (title: string) => void
 }
-
-import { FastTextarea, FastInput } from "./shared/OptimizedInputs"
 
 export function CornealTopographyTab({
   cornealTopographyData,
@@ -30,16 +28,22 @@ export function CornealTopographyTab({
   const [isEditingTitle, setIsEditingTitle] = useState(false)
   const [isHoveringTitle, setIsHoveringTitle] = useState(false)
 
+  const dataRef = useRef(cornealTopographyData);
+  dataRef.current = cornealTopographyData;
+
   const handleChange = (eye: "R" | "L", value: string) => {
     const field = `${eye.toLowerCase()}_note` as keyof CornealTopographyExam
     onCornealTopographyChange(field, value)
   }
 
   const copyFromOtherEye = (fromEye: "R" | "L") => {
+    inputSyncManager.flush();
+    const latestData = dataRef.current;
+
     const toEye = fromEye === "R" ? "L" : "R"
     const fromField = `${fromEye.toLowerCase()}_note` as keyof CornealTopographyExam
     const toField = `${toEye.toLowerCase()}_note` as keyof CornealTopographyExam
-    const value = cornealTopographyData[fromField]?.toString() || ""
+    const value = latestData[fromField]?.toString() || ""
     onCornealTopographyChange(toField, value)
   }
 
@@ -62,6 +66,7 @@ export function CornealTopographyTab({
 
     return (
       <FastTextarea
+        dir="rtl"
         value={fieldValue}
         onChange={(val) => handleChange(eye, val)}
         disabled={!isEditing}

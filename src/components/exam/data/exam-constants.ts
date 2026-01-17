@@ -49,11 +49,21 @@ export const BASE_VALUES = [
   'B.DOWN'
 ] as const;
 
+export const BASE_VALUES_SIMPLE = [
+  'IN',
+  'OUT',
+  'UP',
+  'DOWN'
+] as const;
+
 // Field Configuration Types
 export type FieldType = 'number' | 'select' | 'text';
 
 // PD Rules
-export const PD_MIN = "0";
+export const PD_EYE_MIN = 15;
+export const PD_EYE_MAX = 45;
+export const PD_COMB_MIN = 30;
+export const PD_COMB_MAX = 90;
 
 export interface FieldConfig {
   key: string;
@@ -65,7 +75,7 @@ export interface FieldConfig {
   options?: readonly string[];
   allowNegative?: boolean;
   allowPositive?: boolean;
-  requireSign?: boolean; // Always show +/- sign
+  showPlus?: boolean; // Always show +/- sign
   suffix?: string; // e.g., "△" for prism
   format?: 'decimal' | 'integer'; // Force decimal format (x.xx)
 }
@@ -110,5 +120,71 @@ export const ExamFieldUtils = {
   addSuffix: (value: string, suffix?: string): string => {
     if (!suffix || !value) return value;
     return `${value}${suffix}`;
+  }
+};
+
+export interface PDCalculationParams<T> {
+  eye: "R" | "L" | "C";
+  field: string;
+  value: string;
+  data: T;
+  onChange: (field: keyof T, value: string) => void;
+  getRValue: (data: T, field: string) => number;
+  getLValue: (data: T, field: string) => number;
+}
+
+export const PDCalculationUtils = {
+  handlePDChange: <T extends Record<string, any>>({
+    eye,
+    field,
+    value,
+    data,
+    onChange,
+    getRValue,
+    getLValue
+  }: PDCalculationParams<T>): void => {
+    if (field !== "pd_far" && field !== "pd_close" && field !== "pd") {
+      return;
+    }
+
+    const combField = `comb_${field}` as keyof T;
+    const rField = `r_${field}` as keyof T;
+    const lField = `l_${field}` as keyof T;
+
+    if (eye === "C") {
+      // Update combined field first
+      onChange(combField, value);
+
+      // Calculate half value for eyes
+      const numValue = parseFloat(value);
+      if (isNaN(numValue) || value === "" || numValue === 0) {
+        // If combined is cleared, clear eyes too
+        onChange(rField, "");
+        onChange(lField, "");
+      } else {
+        const halfValue = (numValue / 2).toFixed(1);
+        onChange(rField, halfValue);
+        onChange(lField, halfValue);
+      }
+    } else {
+      const eyeField = `${eye.toLowerCase()}_${field}` as keyof T;
+      
+      // Update the changed eye first
+      onChange(eyeField, value);
+
+      const numValue = parseFloat(value);
+      const otherEyeVal = eye === "R" ? getLValue(data, field) : getRValue(data, field);
+
+      if ((isNaN(numValue) || value === "") && (otherEyeVal === 0 || !otherEyeVal)) {
+        // Both eyes empty -> clear combined
+        onChange(combField, "");
+      } else {
+        // Calculate sum
+        const val1 = isNaN(numValue) ? 0 : numValue;
+        const val2 = otherEyeVal || 0;
+        const sum = (val1 + val2).toFixed(1);
+        onChange(combField, sum);
+      }
+    }
   }
 };

@@ -104,12 +104,7 @@ export function UserSelect({ value, onValueChange, placeholder = "בחר משת�
       <SelectContent>
         {users.map((user) => (
           <SelectItem key={user.id} value={user.id!.toString()}>
-            <div className="flex items-center gap-2">
-              <span>{user.full_name || user.username}</span>
-              <span className="text-xs text-muted-foreground">
-                ({getRoleLabel(user.role_level)})
-              </span>
-            </div>
+            {user.full_name || user.username}
           </SelectItem>
         ))}
       </SelectContent>

@@ -1,10 +1,10 @@
-import React, { useState } from "react"
+import React, { useState, useRef } from "react"
 import { Card, CardContent } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
 import { ChevronUp, ChevronDown } from "lucide-react"
 import { UncorrectedVAExam } from "@/lib/db/schema-interface"
 import { VASelect } from "./shared/VASelect"
 import { NVJSelect } from "./shared/NVJSelect"
+import { FastInput, inputSyncManager } from "./shared/OptimizedInputs"
 
 interface UncorrectedVATabProps {
   uncorrectedVaData: UncorrectedVAExam
@@ -14,8 +14,6 @@ interface UncorrectedVATabProps {
   needsMiddleSpacer?: boolean
 }
 
-import { FastInput } from "./shared/OptimizedInputs"
-
 export function UncorrectedVATab({
   uncorrectedVaData,
   onUncorrectedVaChange,
@@ -24,6 +22,9 @@ export function UncorrectedVATab({
   needsMiddleSpacer = false
 }: UncorrectedVATabProps) {
   const [hoveredEye, setHoveredEye] = useState<"R" | "L" | null>(null)
+
+  const dataRef = useRef(uncorrectedVaData);
+  dataRef.current = uncorrectedVaData;
 
   const columns = [
     { key: "fv", label: "FV", type: "va" },
@@ -42,11 +43,14 @@ export function UncorrectedVATab({
   }
 
   const copyFromOtherEye = (fromEye: "R" | "L") => {
+    inputSyncManager.flush();
+    const latestData = dataRef.current;
+
     const toEye = fromEye === "R" ? "L" : "R"
     columns.forEach(({ key }) => {
       const fromField = `${fromEye.toLowerCase()}_${key}` as keyof UncorrectedVAExam
       const toField = `${toEye.toLowerCase()}_${key}` as keyof UncorrectedVAExam
-      const value = uncorrectedVaData[fromField]?.toString() || ""
+      const value = latestData[fromField]?.toString() || ""
       onUncorrectedVaChange(toField, value)
     })
   }

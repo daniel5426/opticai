@@ -1,10 +1,11 @@
-import React, { useState } from "react"
+import React, { useState, useRef } from "react"
 import { Card, CardContent } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
 import { CompactPrescriptionExam } from "@/lib/db/schema-interface"
 import { ChevronUp, ChevronDown } from "lucide-react"
 import { VASelect } from "./shared/VASelect"
-import { PD_MIN } from "./data/exam-constants"
+import { EXAM_FIELDS } from "./data/exam-field-definitions"
+import { BASE_VALUES_SIMPLE, PDCalculationUtils } from "./data/exam-constants"
+import { FastInput, FastSelect, inputSyncManager } from "./shared/OptimizedInputs"
 
 interface CompactPrescriptionTabProps {
   data: CompactPrescriptionExam;
@@ -12,8 +13,6 @@ interface CompactPrescriptionTabProps {
   isEditing?: boolean;
   hideEyeLabels?: boolean;
 }
-
-import { FastInput } from "./shared/OptimizedInputs"
 
 export function CompactPrescriptionTab({
   data,
@@ -23,15 +22,18 @@ export function CompactPrescriptionTab({
 }: CompactPrescriptionTabProps) {
   const [hoveredEye, setHoveredEye] = useState<"R" | "L" | null>(null);
 
+  const dataRef = useRef(data);
+  dataRef.current = data;
+
   const columns = [
-    { key: "sph", label: "SPH", step: "0.25" },
-    { key: "cyl", label: "CYL", step: "0.25" },
-    { key: "ax", label: "AXIS", step: "1", min: "0", max: "180" },
-    { key: "pris", label: "PRIS", step: "0.5" },
-    { key: "base", label: "BASE", step: "0.1" },
-    { key: "va", label: "VA", step: "0.1", type: "va" },
-    { key: "ad", label: "ADD", step: "0.25" },
-    { key: "pd", label: "PD", step: "0.5", min: PD_MIN },
+    { key: "sph", ...EXAM_FIELDS.SPH },
+    { key: "cyl", ...EXAM_FIELDS.CYL },
+    { key: "ax", ...EXAM_FIELDS.AXIS },
+    { key: "pris", ...EXAM_FIELDS.PRISM },
+    { key: "base", ...EXAM_FIELDS.BASE, type: "select", options: BASE_VALUES_SIMPLE },
+    { key: "va", ...EXAM_FIELDS.VA, type: "va" },
+    { key: "ad", ...EXAM_FIELDS.ADD },
+    { key: "pd", ...EXAM_FIELDS.PD_FAR },
   ];
 
   const getFieldValue = (eye: "R" | "L" | "C", field: string) => {
@@ -44,6 +46,19 @@ export function CompactPrescriptionTab({
   };
 
   const handleChange = (eye: "R" | "L" | "C", field: string, value: string) => {
+    if (field === "pd") {
+      PDCalculationUtils.handlePDChange({
+        eye,
+        field,
+        value,
+        data,
+        onChange,
+        getRValue: (d, f) => parseFloat(d[`r_${f}` as keyof CompactPrescriptionExam]?.toString() || "0") || 0,
+        getLValue: (d, f) => parseFloat(d[`l_${f}` as keyof CompactPrescriptionExam]?.toString() || "0") || 0
+      });
+      return;
+    }
+
     if (eye === "C") {
       const combField = `comb_${field}` as keyof CompactPrescriptionExam;
       onChange(combField, value);
@@ -54,27 +69,51 @@ export function CompactPrescriptionTab({
   };
 
   const copyFromOtherEye = (fromEye: "R" | "L") => {
+    inputSyncManager.flush();
+    const latestData = dataRef.current;
+
     const toEye = fromEye === "R" ? "L" : "R";
     columns.forEach(({ key }) => {
-      const fromField = `${fromEye.toLowerCase()}_${key}` as keyof CompactPrescriptionExam;
-      const toField = `${toEye.toLowerCase()}_${key}` as keyof CompactPrescriptionExam;
-      const value = data[fromField]?.toString() || "";
-      onChange(toField, value);
+      const getLatestVal = (e: "R" | "L" | "C", f: string) => {
+        if (e === "C") {
+          const combField = `comb_${f}` as keyof CompactPrescriptionExam;
+          return latestData[combField]?.toString() || "";
+        }
+        const eyeField = `${e.toLowerCase()}_${f}` as keyof CompactPrescriptionExam;
+        return latestData[eyeField]?.toString() || "";
+      };
+      const value = getLatestVal(fromEye, key);
+      handleChange(toEye, key, value);
     });
   };
 
-  const renderInput = (eye: "R" | "L", { key, step, min, max, type }: (typeof columns)[number]) => {
+  const renderInput = (eye: "R" | "L", col: (typeof columns)[number]) => {
+    const { key, step, ...colProps } = col;
+    const type = (col as any).type as string | undefined;
+    const options = (col as any).options as readonly string[] | undefined;
     switch (type) {
       case "va":
         return <VASelect value={getFieldValue(eye, key)} onChange={(val) => handleChange(eye, key, val)} disabled={!isEditing} />;
+      case "select":
+        return (
+          <FastSelect
+            value={getFieldValue(eye, key)}
+            onChange={(value) => handleChange(eye, key, value)}
+            disabled={!isEditing}
+            options={options || []}
+            size="xs"
+            triggerClassName="h-8 text-xs w-full"
+            center={col.center}
+          />
+        );
       default:
         return (
           <FastInput
-            type="number" step={step} min={min} max={max}
+            {...colProps}
             value={getFieldValue(eye, key)}
             onChange={(val) => handleChange(eye, key, val)}
             disabled={!isEditing}
-            showPlus={key === "sph" || key === "cyl" || key === "ad"}
+            debounceMs={key === "pd" ? 0 : undefined}
             className={`h-8 pr-1 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
           />
         );
@@ -127,11 +166,17 @@ export function CompactPrescriptionTab({
                 );
               }
               if (key === 'pd') {
+                const pdCombProps = EXAM_FIELDS.PD_COMB;
                 return (
                   <FastInput
-                    key={`c-${key}`} type="number" step={step} value={getFieldValue("C", key)}
+                    {...pdCombProps}
+                    key={`c-${key}`}
+                    type="number"
+                    step={step}
+                    value={getFieldValue("C", key)}
                     onChange={(val) => handleChange("C", key, val)}
                     disabled={!isEditing}
+                    debounceMs={0}
                     className={`h-8 pr-1 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
                   />
                 );

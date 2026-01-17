@@ -44,11 +44,27 @@ export function useOptimizedInput<T extends HTMLInputElement | HTMLTextAreaEleme
     value: string,
     onChange?: (val: string) => void,
     debounceMs: number = 1500,
-    onBlurOverride?: () => void
+    onBlurOverride?: () => void,
+    onInput?: (val: string) => void
 ) {
     const inputRef = useRef<T>(null);
     const lastSentValueRef = useRef(value);
     const localValueRef = useRef(value);
+    const onChangeRef = useRef(onChange);
+    const onBlurOverrideRef = useRef(onBlurOverride);
+    const onInputRef = useRef(onInput);
+
+    useEffect(() => {
+        onChangeRef.current = onChange;
+    }, [onChange]);
+
+    useEffect(() => {
+        onBlurOverrideRef.current = onBlurOverride;
+    }, [onBlurOverride]);
+
+    useEffect(() => {
+        onInputRef.current = onInput;
+    }, [onInput]);
 
     // Sync with prop if it changes externally
     useEffect(() => {
@@ -58,24 +74,15 @@ export function useOptimizedInput<T extends HTMLInputElement | HTMLTextAreaEleme
 
         if (inputRef.current && value !== inputRef.current.value) {
             // Only update DOM if significantly different to avoid cursor jumps
-            // But for safety against "empty string" bugs, we trust the prop if it differs
-            if (value !== inputRef.current.value) {
-                const isDirty = inputRef.current.value !== lastSentValueRef.current;
+            if (value.trim() !== inputRef.current.value.trim()) {
+                inputRef.current.value = value;
+                lastSentValueRef.current = value;
 
-                // If the user hasn't typed anything pending, safe to update
-                // Or if the value is just different.
-                // The original logic checked trims. Let's stick to the core need: data consistency.
-
-                if (value.trim() !== inputRef.current.value.trim()) {
-                    inputRef.current.value = value;
-                    lastSentValueRef.current = value;
-
-                    // Custom logic for auto-resizing textareas if needed
-                    if (inputRef.current instanceof HTMLTextAreaElement) {
-                        const mirror = inputRef.current.parentElement?.querySelector('[aria-hidden="true"]');
-                        if (mirror instanceof HTMLElement) {
-                            mirror.textContent = value + " ";
-                        }
+                // Custom logic for auto-resizing textareas if needed
+                if (inputRef.current instanceof HTMLTextAreaElement) {
+                    const mirror = inputRef.current.parentElement?.querySelector('[aria-hidden="true"]');
+                    if (mirror instanceof HTMLElement) {
+                        mirror.textContent = value + " ";
                     }
                 }
             }
@@ -90,10 +97,10 @@ export function useOptimizedInput<T extends HTMLInputElement | HTMLTextAreaEleme
             const currentVal = inputRef.current ? inputRef.current.value : localValueRef.current;
 
             if (currentVal !== lastSentValueRef.current) {
-                if (typeof onChange === 'function') {
+                if (typeof onChangeRef.current === 'function') {
                     // Use flushSync to ensure the parent state update is processed immediately
                     flushSync(() => {
-                        onChange!(currentVal);
+                        onChangeRef.current!(currentVal);
                     });
                 }
                 lastSentValueRef.current = currentVal;
@@ -101,7 +108,7 @@ export function useOptimizedInput<T extends HTMLInputElement | HTMLTextAreaEleme
             inputSyncManager.unregister(handleSync);
         };
 
-        const onInput = (e: Event) => {
+        const onInputInternal = (e: Event) => {
             const target = e.target as T;
             let val = target.value;
 
@@ -109,8 +116,6 @@ export function useOptimizedInput<T extends HTMLInputElement | HTMLTextAreaEleme
             if (target instanceof HTMLInputElement && target.type === "number" && target.min !== "") {
                 const minVal = parseFloat(target.min);
                 const currentVal = parseFloat(val);
-                // Only clamp if the value is a valid number and less than min.
-                // We allow empty string or partial typing (like just a minus sign)
                 if (!isNaN(minVal) && !isNaN(currentVal) && currentVal < minVal) {
                     val = target.min;
                     target.value = val;
@@ -119,6 +124,11 @@ export function useOptimizedInput<T extends HTMLInputElement | HTMLTextAreaEleme
 
             localValueRef.current = val;
 
+            // Call the immediate onInput if provided
+            if (onInputRef.current) {
+                onInputRef.current(val);
+            }
+
             inputSyncManager.register(handleSync);
             if (timer) clearTimeout(timer);
             timer = setTimeout(handleSync, debounceMs);
@@ -126,24 +136,25 @@ export function useOptimizedInput<T extends HTMLInputElement | HTMLTextAreaEleme
 
         const element = inputRef.current;
         if (element) {
-            element.addEventListener('input', onInput);
+            element.addEventListener('input', onInputInternal);
             element.addEventListener('blur', () => {
-                // Ensure we capture latest value on blur before syncing
                 if (inputRef.current) localValueRef.current = inputRef.current.value;
                 handleSync();
-                if (onBlurOverride) onBlurOverride();
+                if (onBlurOverrideRef.current) onBlurOverrideRef.current();
             });
         }
 
         return () => {
             if (element) {
-                element.removeEventListener('input', onInput);
-                element.removeEventListener('blur', handleSync);
+                element.removeEventListener('input', onInputInternal);
             }
             if (timer) clearTimeout(timer);
-            handleSync();
+            // Only call handleSync on unmount if we have a pending update
+            if (localValueRef.current !== lastSentValueRef.current) {
+                handleSync();
+            }
         };
-    }, [onChange, debounceMs, onBlurOverride]);
+    }, [debounceMs]);
 
     return { inputRef, lastSentValueRef };
 }
@@ -160,6 +171,11 @@ export function useOptimizedSelect(
     const lastPropValueRef = useRef(value);
     const localValueRef = useRef(value);
     const timerRef = useRef<NodeJS.Timeout | null>(null);
+    const onChangeRef = useRef(onChange);
+
+    useEffect(() => {
+        onChangeRef.current = onChange;
+    }, [onChange]);
 
     // Keep ref in sync for the sync manager
     useEffect(() => {
@@ -177,14 +193,14 @@ export function useOptimizedSelect(
 
     const handleSync = useCallback(() => {
         const val = localValueRef.current;
-        if (typeof onChange === 'function' && val !== lastPropValueRef.current) {
+        if (typeof onChangeRef.current === 'function' && val !== lastPropValueRef.current) {
             flushSync(() => {
-                onChange(val);
+                onChangeRef.current!(val);
             });
             lastPropValueRef.current = val;
         }
         inputSyncManager.unregister(handleSync);
-    }, [onChange]);
+    }, []);
 
     const handleValueChange = useCallback((val: string) => {
         setLocalValue(val);
@@ -231,28 +247,33 @@ const TextareaMirror = memo(React.forwardRef<HTMLDivElement, { className?: strin
     }
 ));
 
-interface FastInputProps extends Omit<React.ComponentProps<typeof Input>, 'value' | 'onChange'> {
+interface FastInputProps extends Omit<React.ComponentProps<typeof Input>, 'value' | 'onChange' | 'onInput'> {
     value: string;
     onChange?: (value: string) => void;
+    onInput?: (value: string) => void;
     debounceMs?: number;
     suffix?: string;
+    prefix?: string;
 }
 
 export const FastInput = memo(function FastInput({
     value,
     onChange,
+    onInput,
     debounceMs = 1500,
     suffix,
     showPlus,
+    prefix,
     ...props
 }: FastInputProps) {
-    const { inputRef } = useOptimizedInput<HTMLInputElement>(value, onChange, debounceMs);
-    return <Input {...props} ref={inputRef} defaultValue={value} suffix={suffix} showPlus={showPlus} />;
+    const { inputRef } = useOptimizedInput<HTMLInputElement>(value, onChange, debounceMs, undefined, onInput);
+    return <Input dir="rtl" {...props} ref={inputRef} defaultValue={value} suffix={suffix} showPlus={showPlus} prefix={prefix} />;
 });
 
-interface FastTextareaProps extends Omit<React.ComponentProps<typeof Textarea>, 'value' | 'onChange'> {
+interface FastTextareaProps extends Omit<React.ComponentProps<typeof Textarea>, 'value' | 'onChange' | 'onInput'> {
     value: string;
     onChange?: (value: string) => void;
+    onInput?: (value: string) => void;
     debounceMs?: number;
     label?: string; // Used for the dialog title
     showMaximize?: boolean;
@@ -262,6 +283,7 @@ interface FastTextareaProps extends Omit<React.ComponentProps<typeof Textarea>, 
 export const FastTextarea = memo(function FastTextarea({
     value,
     onChange,
+    onInput,
     debounceMs = 2000,
     label,
     showMaximize = false,
@@ -270,7 +292,7 @@ export const FastTextarea = memo(function FastTextarea({
     ...props
 }: FastTextareaProps) {
     const mirrorRef = useRef<HTMLDivElement>(null);
-    const { inputRef: textareaRef } = useOptimizedInput<HTMLTextAreaElement>(value, onChange, debounceMs);
+    const { inputRef: textareaRef } = useOptimizedInput<HTMLTextAreaElement>(value, onChange, debounceMs, undefined, onInput);
     const [initialValue] = useState(value); // Capture initial value once to stabilize mirror
 
 
@@ -367,6 +389,7 @@ interface FastSelectProps extends Omit<React.ComponentProps<typeof Select>, 'val
     options: readonly string[] | readonly { value: string; label: string }[];
     triggerClassName?: string;
     size?: "default" | "sm" | "xs";
+    center?: boolean;
 }
 
 
@@ -378,13 +401,14 @@ export const FastSelect = memo(function FastSelect({
     options,
     triggerClassName,
     size = "default",
+    center,
     ...props
 }: FastSelectProps) {
     const { localValue, handleValueChange } = useOptimizedSelect(value, onChange, debounceMs);
 
     return (
         <Select {...props} value={localValue} onValueChange={handleValueChange}>
-            <SelectTrigger disabled={props.disabled} size={size} className={triggerClassName}>
+            <SelectTrigger disabled={props.disabled} size={size} className={triggerClassName} centered={center}>
                 <SelectValue placeholder={placeholder} />
             </SelectTrigger>
             <SelectContent>
@@ -401,4 +425,3 @@ export const FastSelect = memo(function FastSelect({
         </Select>
     );
 });
-

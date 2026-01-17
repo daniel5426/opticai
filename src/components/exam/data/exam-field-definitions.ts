@@ -1,64 +1,89 @@
-import { PD_MIN } from "./exam-constants";
+import { PD_EYE_MIN, PD_EYE_MAX, PD_COMB_MIN, PD_COMB_MAX } from "./exam-constants";
 
 export interface FieldConfig {
   label: string;
   step: string;
+  type?: string;
   min?: number;
   max?: number;
-  requireSign?: boolean;
+  showPlus?: boolean;
   suffix?: string;
   unit?: string;
+  center?: boolean;
 }
 
 export const EXAM_FIELDS = {
   SPH: {
     label: "SPH",
     step: "0.25",
+    type: "number",
     min: -30,
     max: 30,
-    requireSign: true,
+    showPlus: true,
   } as FieldConfig,
   CYL: {
     label: "CYL",
     step: "0.25",
+    type: "number",
     min: -30,
     max: 30,
-    requireSign: true,
+    showPlus: true,
   } as FieldConfig,
   AXIS: {
     label: "AXIS",
     step: "1",
+    type: "number",
     min: 0,
     max: 180,
+    showPlus: false,
   } as FieldConfig,
   ADD: {
     label: "ADD",
     step: "0.25",
+    type: "number",
     min: 0,
     max: 5,
-    requireSign: true,
+    showPlus: true,
   } as FieldConfig,
   PRISM: {
     label: "PRISM",
     step: "0.25",
+    type: "number",
     min: 0,
     max: 50,
+    showPlus: false,
   } as FieldConfig,
   PD_FAR: {
     label: "PD FAR",
     step: "0.5",
-    min: 35,
-    max: 85,
+    type: "number",
+    min: PD_EYE_MIN,
+    max: PD_EYE_MAX,
+    showPlus: false,
+    suffix: "mm",
   } as FieldConfig,
   PD_NEAR: {
     label: "PD NEAR",
     step: "0.5",
-    min: 35,
-    max: 85,
+    type: "number",
+    min: PD_EYE_MIN,
+    max: PD_EYE_MAX,
+    showPlus: false,
+    suffix: "mm",
+  } as FieldConfig,
+  PD_COMB: {
+    label: "PD",
+    step: "0.5",
+    type: "number",
+    min: PD_COMB_MIN,
+    max: PD_COMB_MAX,
+    showPlus: false,
+    suffix: "mm",
   } as FieldConfig,
   PUPIL_DIAMETER: {
     label: "קוטר אישון",
     step: "0.1",
+    type: "number",
     min: 0,
     max: 12,
     unit: "mm",
@@ -66,6 +91,7 @@ export const EXAM_FIELDS = {
   CORNEAL_DIAMETER: {
     label: "קוטר קרנית",
     step: "0.1",
+    type: "number",
     min: 9,
     max: 18,
     unit: "mm",
@@ -73,6 +99,7 @@ export const EXAM_FIELDS = {
   EYELID_APERTURE: {
     label: "מפתח עפעף",
     step: "0.1",
+    type: "number",
     min: 0,
     max: 30,
     unit: "mm",
@@ -80,8 +107,128 @@ export const EXAM_FIELDS = {
   BUT: {
     label: "BUT",
     step: "0.1",
+    type: "number",
     min: 0,
     unit: "sec",
+  } as FieldConfig,
+  FCC: {
+    label: "FCC",
+    step: "0.25",
+    type: "number",
+    min: -7,
+    max: 7,
+    showPlus: false,
+  } as FieldConfig,
+  BASE: {
+    label: "BASE",
+    step: "0.1",
+    type: "number",
+    showPlus: false,
+    center: true,
+  } as FieldConfig,
+  BC: {
+    label: "BC",
+    step: "0.01",
+    type: "number",
+    min: 0,
+    max: 12,
+    showPlus: false,
+  } as FieldConfig,
+  OZ: {
+    label: "OZ",
+    step: "0.1",
+    type: "number",
+    min: 0,
+    max: 12,
+    showPlus: false,
+  } as FieldConfig,
+  DIAM: {
+    label: "DIAM",
+    step: "0.1",
+    type: "number",
+    min: 0,
+    max: 20,
+    showPlus: false,
+  } as FieldConfig,
+  READ: {
+    label: "READ",
+    step: "0.25",
+    type: "number",
+    min: 0,
+    max: 5,
+    showPlus: true,
+  } as FieldConfig,
+  INT: {
+    label: "INT",
+    step: "0.25",
+    type: "number",
+    min: 0,
+    max: 5,
+    showPlus: true,
+  } as FieldConfig,
+  BIF: {
+    label: "BIF",
+    step: "0.25",
+    type: "number",
+    min: 0,
+    max: 5,
+    showPlus: true,
+  } as FieldConfig,
+  MUL: {
+    label: "MUL",
+    step: "0.25",
+    type: "number",
+    min: 0,
+    max: 5,
+    showPlus: true,
+  } as FieldConfig,
+  IOP: {
+    label: "IOP",
+    step: "0.1",
+    type: "number",
+    min: 0,
+    max: 60,
+    showPlus: false,
+  } as FieldConfig,
+  SE: {
+    label: "SE",
+    step: "0.25",
+    type: "number",
+    showPlus: true,
+  } as FieldConfig,
+  VA: {
+    label: "VA",
+    step: "0.1",
+    type: "number",
+    showPlus: false,
+  } as FieldConfig,
+  J: {
+    label: "J",
+    step: "1",
+    type: "number",
+    showPlus: false,
+    center: true,
+  } as FieldConfig,
+  HIGH: {
+    label: "HIGH",
+    step: "0.5",
+    type: "number",
+    showPlus: false,
+  } as FieldConfig,
+  MM: {
+    label: "MM",
+    min: 0,
+    step: "0.1",
+    type: "number",
+    showPlus: false,
+  } as FieldConfig,
+  READ_AD: {
+    label: "READ AD",
+    step: "0.25",
+    type: "number",
+    min: 0,
+    max: 5,
+    showPlus: true,
   } as FieldConfig,
 };
 

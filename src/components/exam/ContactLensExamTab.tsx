@@ -1,9 +1,11 @@
-import React, { useState } from "react"
+import React, { useState, useRef } from "react"
 import { Card, CardContent } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
 import { ContactLensExam } from "@/lib/db/schema-interface"
 import { VASelect } from "./shared/VASelect"
+import { NVJSelect } from "./shared/NVJSelect"
 import { ChevronUp, ChevronDown } from "lucide-react"
+import { EXAM_FIELDS } from "./data/exam-field-definitions"
+import { FastInput, inputSyncManager } from "./shared/OptimizedInputs"
 
 interface ContactLensExamTabProps {
   contactLensExamData: ContactLensExam;
@@ -11,8 +13,6 @@ interface ContactLensExamTabProps {
   isEditing: boolean;
   hideEyeLabels?: boolean;
 }
-
-import { FastInput } from "./shared/OptimizedInputs"
 
 export function ContactLensExamTab({
   contactLensExamData,
@@ -22,16 +22,19 @@ export function ContactLensExamTab({
 }: ContactLensExamTabProps) {
   const [hoveredEye, setHoveredEye] = useState<"R" | "L" | null>(null);
 
+  const dataRef = useRef(contactLensExamData);
+  dataRef.current = contactLensExamData;
+
   const columns = [
-    { key: "bc", label: "BC", step: "0.01" },
-    { key: "oz", label: "OZ", step: "0.1" },
-    { key: "diam", label: "DIAM", step: "0.1" },
-    { key: "sph", label: "SPH", step: "0.25" },
-    { key: "cyl", label: "CYL", step: "0.25" },
-    { key: "ax", label: "AXIS", step: "1", min: "0", max: "180" },
-    { key: "read_ad", label: "READ AD", step: "0.25" },
-    { key: "va", label: "VA", step: "0.1" },
-    { key: "j", label: "J", step: "1" }
+    { key: "bc", ...EXAM_FIELDS.BC },
+    { key: "oz", ...EXAM_FIELDS.OZ },
+    { key: "diam", ...EXAM_FIELDS.DIAM },
+    { key: "sph", ...EXAM_FIELDS.SPH },
+    { key: "cyl", ...EXAM_FIELDS.CYL },
+    { key: "ax", ...EXAM_FIELDS.AXIS },
+    { key: "read_ad", ...EXAM_FIELDS.READ_AD },
+    { key: "va", ...EXAM_FIELDS.VA },
+    { key: "j", ...EXAM_FIELDS.J, type: "j" }
   ];
 
   const getFieldValue = (eye: "R" | "L" | "C", field: string) => {
@@ -54,12 +57,17 @@ export function ContactLensExamTab({
   };
 
   const copyFromOtherEye = (fromEye: "R" | "L") => {
+    inputSyncManager.flush();
+    const latestData = dataRef.current;
+
     const toEye = fromEye === "R" ? "L" : "R";
     columns.forEach(({ key }) => {
-      const fromField = `${fromEye.toLowerCase()}_${key}` as keyof ContactLensExam;
-      const toField = `${toEye.toLowerCase()}_${key}` as keyof ContactLensExam;
-      const value = contactLensExamData[fromField]?.toString() || "";
-      onContactLensExamChange(toField, value);
+      const getLatestVal = (e: "R" | "L", f: string) => {
+        const eyeField = `${e.toLowerCase()}_${f}` as keyof ContactLensExam;
+        return latestData[eyeField]?.toString() || "";
+      };
+      const value = getLatestVal(fromEye, key);
+      onContactLensExamChange(`${toEye.toLowerCase()}_${key}` as keyof ContactLensExam, value);
     });
   };
 
@@ -92,16 +100,23 @@ export function ContactLensExamTab({
                 {hoveredEye === "L" ? <ChevronDown size={16} /> : "R"}
               </span>
             </div>}
-            {columns.map(({ key, step, min, max }) => (
+            {columns.map(({ key, type, step, min, max, ...colProps }) => (
               <div key={`r-${key}`}>
-                {key === "va" ? (
+                {type === "va" ? (
                   <VASelect
+                    value={getFieldValue("R", key)}
+                    onChange={(val) => handleChange("R", key, val)}
+                    disabled={!isEditing}
+                  />
+                ) : type === "j" ? (
+                  <NVJSelect
                     value={getFieldValue("R", key)}
                     onChange={(val) => handleChange("R", key, val)}
                     disabled={!isEditing}
                   />
                 ) : (
                   <FastInput
+                    {...colProps}
                     type="number"
                     step={step}
                     min={min}
@@ -109,7 +124,7 @@ export function ContactLensExamTab({
                     value={getFieldValue("R", key)}
                     onChange={(val) => handleChange("R", key, val)}
                     disabled={!isEditing}
-                    showPlus={key === "sph" || key === "cyl"}
+                    prefix={key === "read_ad" ? "dd" : undefined}
                     className={`h-8 pr-1 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
                   />
                 )}
@@ -118,11 +133,21 @@ export function ContactLensExamTab({
 
             {!hideEyeLabels && <div className="flex items-center justify-center">
             </div>}
-            {columns.map(({ key, step }) => {
-              if (key === "va") {
+            {columns.map(({ key, type }) => {
+              if (type === "va") {
                 return (
                   <div key={`c-${key}`}>
                     <VASelect
+                      value={getFieldValue("C", key)}
+                      onChange={(val) => handleChange("C", key, val)}
+                      disabled={!isEditing}
+                    />
+                  </div>
+                );
+              } else if (type === "j") {
+                return (
+                  <div key={`c-${key}`}>
+                    <NVJSelect
                       value={getFieldValue("C", key)}
                       onChange={(val) => handleChange("C", key, val)}
                       disabled={!isEditing}
@@ -145,16 +170,23 @@ export function ContactLensExamTab({
                 {hoveredEye === "R" ? <ChevronUp size={16} /> : "L"}
               </span>
             </div>}
-            {columns.map(({ key, step, min, max }) => (
+            {columns.map(({ key, type, step, min, max, ...colProps }) => (
               <div key={`l-${key}`}>
-                {key === "va" ? (
+                {type === "va" ? (
                   <VASelect
+                    value={getFieldValue("L", key)}
+                    onChange={(val) => handleChange("L", key, val)}
+                    disabled={!isEditing}
+                  />
+                ) : type === "j" ? (
+                  <NVJSelect
                     value={getFieldValue("L", key)}
                     onChange={(val) => handleChange("L", key, val)}
                     disabled={!isEditing}
                   />
                 ) : (
                   <FastInput
+                    {...colProps}
                     type="number"
                     step={step}
                     min={min}
@@ -162,7 +194,7 @@ export function ContactLensExamTab({
                     value={getFieldValue("L", key)}
                     onChange={(val) => handleChange("L", key, val)}
                     disabled={!isEditing}
-                    showPlus={key === "sph" || key === "cyl"}
+                    prefix={key === "read_ad" ? "dd" : undefined}
                     className={`h-8 pr-1 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
                   />
                 )}

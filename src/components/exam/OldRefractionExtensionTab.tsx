@@ -1,14 +1,13 @@
-import React, { useState } from "react"
+import React, { useState, useRef } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { OldRefractionExtensionExam } from "@/lib/db/schema-interface"
 import { ChevronUp, ChevronDown } from "lucide-react"
 
 import { VASelect } from "./shared/VASelect"
-import { PD_MIN } from "./data/exam-constants"
+import { EXAM_FIELDS } from "./data/exam-field-definitions"
+import { BASE_VALUES_SIMPLE, PDCalculationUtils } from "./data/exam-constants"
+import { FastInput, FastSelect, inputSyncManager } from "./shared/OptimizedInputs"
 
 interface OldRefractionExtensionTabProps {
   oldRefractionExtensionData: OldRefractionExtensionExam;
@@ -17,8 +16,6 @@ interface OldRefractionExtensionTabProps {
   onMultifocalClick: () => void;
   hideEyeLabels?: boolean;
 }
-
-import { FastInput } from "./shared/OptimizedInputs"
 
 export function OldRefractionExtensionTab({
   oldRefractionExtensionData,
@@ -29,39 +26,53 @@ export function OldRefractionExtensionTab({
 }: OldRefractionExtensionTabProps) {
   const [hoveredEye, setHoveredEye] = useState<"R" | "L" | null>(null);
 
+  const dataRef = useRef(oldRefractionExtensionData);
+  dataRef.current = oldRefractionExtensionData;
+
   const columns = [
-    { key: "sph", label: "SPH", step: "0.25" },
-    { key: "cyl", label: "CYL", step: "0.25" },
-    { key: "ax", label: "AXIS", step: "1", min: "0", max: "180" },
-    { key: "pr_h", label: "PR.H", step: "0.5" },
-    { key: "base_h", label: "BASE.H", isSelect: true },
-    { key: "pr_v", label: "PR.V", step: "0.5" },
-    { key: "base_v", label: "BASE.V", isSelect: true },
-    { key: "va", label: "VA", step: "0.1" },
-    { key: "ad", label: "ADD", step: "0.25" },
-    { key: "j", label: "J", step: "1", min: "1", max: "30" },
-    { key: "pd_far", label: "PD.FAR", step: "0.5", min: PD_MIN },
-    { key: "pd_close", label: "PD.CLOSE", step: "0.5", min: PD_MIN },
+    { key: "sph", ...EXAM_FIELDS.SPH },
+    { key: "cyl", ...EXAM_FIELDS.CYL },
+    { key: "ax", ...EXAM_FIELDS.AXIS },
+    { key: "pr_h", label: "PR.H", ...EXAM_FIELDS.PRISM },
+    { key: "base_h", label: "BASE.H", ...EXAM_FIELDS.BASE, isSelect: true },
+    { key: "pr_v", label: "PR.V", ...EXAM_FIELDS.PRISM },
+    { key: "base_v", label: "BASE.V", ...EXAM_FIELDS.BASE, isSelect: true },
+    { key: "va", ...EXAM_FIELDS.VA },
+    { key: "ad", ...EXAM_FIELDS.ADD },
+    { key: "j", ...EXAM_FIELDS.J },
+    { key: "pd_far", ...EXAM_FIELDS.PD_FAR },
+    { key: "pd_close", ...EXAM_FIELDS.PD_NEAR },
   ];
 
-  const baseOptions = ["IN", "OUT", "UP", "DOWN"];
+  const baseOptions = BASE_VALUES_SIMPLE;
 
-  const getFieldValue = (eye: "R" | "L" | "C", field: string) => {
+  const getFieldValue = (eye: "R" | "L" | "C", field: string, data = oldRefractionExtensionData) => {
     if (eye === "C") {
-      if (field === "va") return oldRefractionExtensionData.comb_va?.toString() || "";
-      if (field === "pd_far") return oldRefractionExtensionData.comb_pd_far?.toString() || "";
-      if (field === "pd_close") return oldRefractionExtensionData.comb_pd_close?.toString() || "";
+      if (field === "va") return data.comb_va?.toString() || "";
+      if (field === "pd_far") return data.comb_pd_far?.toString() || "";
+      if (field === "pd_close") return data.comb_pd_close?.toString() || "";
       return "";
     }
     const eyeField = `${eye.toLowerCase()}_${field}` as keyof OldRefractionExtensionExam;
-    return oldRefractionExtensionData[eyeField]?.toString() || "";
+    return data[eyeField]?.toString() || "";
   };
 
   const handleChange = (eye: "R" | "L" | "C", field: string, value: string) => {
+    if (field === "pd_far" || field === "pd_close") {
+      PDCalculationUtils.handlePDChange({
+        eye,
+        field,
+        value,
+        data: oldRefractionExtensionData,
+        onChange: onOldRefractionExtensionChange,
+        getRValue: (data, f) => parseFloat(data[`r_${f}` as keyof OldRefractionExtensionExam]?.toString() || "0") || 0,
+        getLValue: (data, f) => parseFloat(data[`l_${f}` as keyof OldRefractionExtensionExam]?.toString() || "0") || 0
+      });
+      return;
+    }
+
     if (eye === "C") {
       if (field === "va") onOldRefractionExtensionChange("comb_va", value);
-      if (field === "pd_far") onOldRefractionExtensionChange("comb_pd_far", value);
-      if (field === "pd_close") onOldRefractionExtensionChange("comb_pd_close", value);
     } else {
       const eyeField = `${eye.toLowerCase()}_${field}` as keyof OldRefractionExtensionExam;
       onOldRefractionExtensionChange(eyeField, value);
@@ -69,36 +80,31 @@ export function OldRefractionExtensionTab({
   };
 
   const copyFromOtherEye = (fromEye: "R" | "L") => {
+    inputSyncManager.flush();
+    const latestData = dataRef.current;
+
     const toEye = fromEye === "R" ? "L" : "R";
     columns.forEach(({ key }) => {
-      if (key === "va" || key === "pd_far" || key === "pd_close") return;
-      const fromField = `${fromEye.toLowerCase()}_${key}` as keyof OldRefractionExtensionExam;
-      const toField = `${toEye.toLowerCase()}_${key}` as keyof OldRefractionExtensionExam;
-      const value = oldRefractionExtensionData[fromField]?.toString() || "";
-      onOldRefractionExtensionChange(toField, value);
+      const value = getFieldValue(fromEye, key, latestData);
+      handleChange(toEye, key, value);
     });
   };
 
   const renderField = (eye: "R" | "L" | "C", column: any) => {
-    const { key, step, min, max, isSelect } = column;
+    const { key, step, min, max, isSelect, ...colProps } = column;
     const value = getFieldValue(eye, key);
 
     if (isSelect && (key === "base_h" || key === "base_v")) {
       return (
-        <Select
+        <FastSelect
           value={value}
-          onValueChange={(newValue) => handleChange(eye, key, newValue)}
+          onChange={(newValue) => handleChange(eye, key, newValue)}
           disabled={!isEditing}
-        >
-          <SelectTrigger size="xs" className={`h-8 text-xs w-full min-w-[60px]`} disabled={!isEditing}>
-            <SelectValue placeholder="" />
-          </SelectTrigger>
-          <SelectContent>
-            {baseOptions.map(option => (
-              <SelectItem key={option} value={option}>{option}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          options={baseOptions}
+          size="xs"
+          triggerClassName="h-8 text-xs w-full"
+          center={column.center}
+        />
       );
     }
 
@@ -106,17 +112,19 @@ export function OldRefractionExtensionTab({
       return <VASelect value={value} onChange={(val) => handleChange(eye, key, val)} disabled={!isEditing} />;
     }
 
+    const finalProps = (eye === "C" && (key === "pd_far" || key === "pd_close"))
+      ? { ...EXAM_FIELDS.PD_COMB }
+      : { step, min, max, ...colProps };
+
     return (
       <FastInput
+        {...finalProps}
         type="number"
-        step={step}
-        min={min}
-        max={max}
         value={value}
         onChange={(val) => handleChange(eye, key, val)}
         disabled={!isEditing}
-        showPlus={key === "sph" || key === "cyl" || key === "ad"}
-        className={`h-8 pr-1 text-xs disabled:opacity-100 disabled:cursor-default`}
+        debounceMs={key === "pd_far" || key === "pd_close" ? 0 : undefined}
+        className={`h-8 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
       />
     );
   };

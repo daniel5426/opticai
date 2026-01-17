@@ -1,9 +1,9 @@
-import React, { useState } from "react"
+import React, { useState, useRef } from "react"
 import { Card, CardContent } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
 import { LookupSelect } from "@/components/ui/lookup-select"
 import { ContactLensDetails } from "@/lib/db/schema-interface"
 import { ChevronUp, ChevronDown } from "lucide-react"
+import { FastInput, inputSyncManager } from "./shared/OptimizedInputs"
 
 interface ContactLensDetailsTabProps {
   contactLensDetailsData: ContactLensDetails;
@@ -12,8 +12,6 @@ interface ContactLensDetailsTabProps {
   hideEyeLabels?: boolean;
   needsMiddleSpacer?: boolean;
 }
-
-import { FastInput } from "./shared/OptimizedInputs"
 
 export function ContactLensDetailsTab({
   contactLensDetailsData,
@@ -24,14 +22,17 @@ export function ContactLensDetailsTab({
 }: ContactLensDetailsTabProps) {
   const [hoveredEye, setHoveredEye] = useState<"R" | "L" | null>(null);
 
+  const dataRef = useRef(contactLensDetailsData);
+  dataRef.current = contactLensDetailsData;
+
   const columns = [
     { key: "type", label: "TYPE", step: "1", lookupType: "contactLensType" },
     { key: "model", label: "MODEL", step: "1", lookupType: "contactLensModel" },
     { key: "supplier", label: "SUPPLIER", step: "1", lookupType: "supplier" },
     { key: "material", label: "MATERIAL", step: "1", lookupType: "contactEyeMaterial" },
     { key: "color", label: "COLOR", step: "1", lookupType: "color" },
-    { key: "quantity", label: "QTY", step: "1" },
-    { key: "order_quantity", label: "ORDER QTY", step: "1" },
+    { key: "quantity", label: "QTY", step: "1", min: "0" },
+    { key: "order_quantity", label: "ORDER QTY", step: "1", min: "0" },
     { key: "dx", label: "DX", step: "0.25" },
   ];
 
@@ -46,12 +47,17 @@ export function ContactLensDetailsTab({
   };
 
   const copyFromOtherEye = (fromEye: "R" | "L") => {
+    inputSyncManager.flush();
+    const latestData = dataRef.current;
+
     const toEye = fromEye === "R" ? "L" : "R";
     columns.forEach(({ key }) => {
-      const fromField = `${fromEye.toLowerCase()}_${key}` as keyof ContactLensDetails;
-      const toField = `${toEye.toLowerCase()}_${key}` as keyof ContactLensDetails;
-      const value = contactLensDetailsData[fromField]?.toString() || "";
-      onContactLensDetailsChange(toField, value);
+      const getLatestVal = (e: "R" | "L", f: string) => {
+        const eyeField = `${e.toLowerCase()}_${f}` as keyof ContactLensDetails;
+        return latestData[eyeField]?.toString() || "";
+      };
+      const value = getLatestVal(fromEye, key);
+      onContactLensDetailsChange(`${toEye.toLowerCase()}_${key}` as keyof ContactLensDetails, value);
     });
   };
 
@@ -100,7 +106,7 @@ export function ContactLensDetailsTab({
                 {hoveredEye === "L" ? <ChevronDown size={16} /> : "R"}
               </span>
             </div>}
-            {columns.map(({ key, step }) => (
+            {columns.map(({ key, step, min }) => (
               <React.Fragment key={`r-${key}`}>
                 {isLookupField(key) ? (
                   <LookupSelect
@@ -115,6 +121,7 @@ export function ContactLensDetailsTab({
                   <FastInput
                     type={getInputType(key) as any}
                     step={getInputType(key) === "number" ? step : undefined}
+                    min={getInputType(key) === "number" ? min : undefined}
                     value={getFieldValue("R", key)}
                     onChange={(val) => handleChange("R", key, val)}
                     disabled={!isEditing}
@@ -144,7 +151,7 @@ export function ContactLensDetailsTab({
                 {hoveredEye === "R" ? <ChevronUp size={16} /> : "L"}
               </span>
             </div>}
-            {columns.map(({ key, step }) => (
+            {columns.map(({ key, step, min }) => (
               <React.Fragment key={`l-${key}`}>
                 {isLookupField(key) ? (
                   isEditing ? (
@@ -164,6 +171,7 @@ export function ContactLensDetailsTab({
                   <FastInput
                     type={getInputType(key) as any}
                     step={getInputType(key) === "number" ? step : undefined}
+                    min={getInputType(key) === "number" ? min : undefined}
                     value={getFieldValue("L", key)}
                     onChange={(val) => handleChange("L", key, val)}
                     disabled={!isEditing}

@@ -1,12 +1,11 @@
-import React, { useState } from "react"
+import React, { useState, useRef } from "react"
 import { Card, CardContent } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Button } from "@/components/ui/button"
 import { RetinoscopExam } from "@/lib/db/schema-interface"
 import { ChevronUp, ChevronDown } from "lucide-react"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { PD_MIN } from "./data/exam-constants"
+import { EXAM_FIELDS } from "./data/exam-field-definitions"
+import { PDCalculationUtils } from "./data/exam-constants"
+import { FastInput, inputSyncManager } from "./shared/OptimizedInputs"
 
 interface RetinoscopTabProps {
   retinoscopData: RetinoscopExam;
@@ -15,8 +14,6 @@ interface RetinoscopTabProps {
   hideEyeLabels?: boolean;
   needsMiddleSpacer?: boolean;
 }
-
-import { FastInput } from "./shared/OptimizedInputs"
 
 export function RetinoscopTab({
   retinoscopData,
@@ -27,13 +24,16 @@ export function RetinoscopTab({
 }: RetinoscopTabProps) {
   const [hoveredEye, setHoveredEye] = useState<"R" | "L" | null>(null);
 
+  const dataRef = useRef(retinoscopData);
+  dataRef.current = retinoscopData;
+
   const columns = [
-    { key: "sph", label: "SPH", step: "0.25", type: "number", min: "-30", max: "30" },
-    { key: "cyl", label: "CYL", step: "0.25", type: "number", min: "-30", max: "30" },
-    { key: "ax", label: "AX", step: "1", type: "number", min: "0", max: "180" },
+    { key: "sph", ...EXAM_FIELDS.SPH, type: "number" },
+    { key: "cyl", ...EXAM_FIELDS.CYL, type: "number" },
+    { key: "ax", ...EXAM_FIELDS.AXIS, label: "AX", type: "number" },
     { key: "reflex", label: "REFLEX", step: "1", type: "text" },
-    { key: "pd_far", label: "PD FAR", step: "0.5", type: "number", min: "15" },
-    { key: "pd_close", label: "PD CLOSE", step: "0.5", type: "number", min: "15" },
+    { key: "pd_far", ...EXAM_FIELDS.PD_FAR, type: "number" },
+    { key: "pd_close", ...EXAM_FIELDS.PD_NEAR, label: "PD CLOSE", type: "number" },
   ];
 
   const getFieldValue = (eye: "R" | "L" | "C", field: string) => {
@@ -46,6 +46,21 @@ export function RetinoscopTab({
   };
 
   const handleChange = (eye: "R" | "L" | "C", field: string, value: string) => {
+    // Note: handlePDChange uses the data prop. To be safe, we could use dataRef here too,
+    // but usually handleChange is called from the UI and we want it to update state.
+    if (field === "pd_far" || field === "pd_close") {
+      PDCalculationUtils.handlePDChange({
+        eye,
+        field,
+        value,
+        data: retinoscopData,
+        onChange: onRetinoscopChange,
+        getRValue: (data, f) => parseFloat(data[`r_${f}` as keyof RetinoscopExam]?.toString() || "0") || 0,
+        getLValue: (data, f) => parseFloat(data[`l_${f}` as keyof RetinoscopExam]?.toString() || "0") || 0
+      });
+      return;
+    }
+
     if (eye === "C") {
       const combField = `comb_${field}` as keyof RetinoscopExam;
       onRetinoscopChange(combField, value);
@@ -56,12 +71,22 @@ export function RetinoscopTab({
   };
 
   const copyFromOtherEye = (fromEye: "R" | "L") => {
+    inputSyncManager.flush();
+    const latestData = dataRef.current;
+
     const toEye = fromEye === "R" ? "L" : "R";
     columns.forEach(({ key }) => {
-      const fromField = `${fromEye.toLowerCase()}_${key}` as keyof RetinoscopExam;
-      const toField = `${toEye.toLowerCase()}_${key}` as keyof RetinoscopExam;
-      const value = retinoscopData[fromField]?.toString() || "";
-      onRetinoscopChange(toField, value);
+      const getLatestVal = (e: "R" | "L" | "C", f: string) => {
+        if (e === "C") {
+          const combField = `comb_${f}` as keyof RetinoscopExam;
+          return latestData[combField]?.toString() || "";
+        }
+        const eyeField = `${e.toLowerCase()}_${f}` as keyof RetinoscopExam;
+        return latestData[eyeField]?.toString() || "";
+      };
+
+      const value = getLatestVal(fromEye, key);
+      handleChange(toEye, key, value);
     });
   };
 
@@ -115,37 +140,35 @@ export function RetinoscopTab({
                 {hoveredEye === "L" ? <ChevronDown size={16} /> : "R"}
               </span>
             </div>}
-            {columns.map(({ key, step, type, min, max }) => (
+            {columns.map(({ key, step, type, ...colProps }) => (
               <FastInput
+                {...colProps}
                 key={`r-${key}`}
                 type={type as any}
                 step={type === "number" ? step : undefined}
-                min={min}
-                max={max}
                 value={getFieldValue("R", key)}
                 onChange={(val) => handleChange("R", key, val)}
                 disabled={!isEditing}
-                showPlus={key === "sph" || key === "cyl"}
-                suffix={key === "pd_far" || key === "pd_close" ? "mm" : undefined}
+                debounceMs={key === "pd_far" || key === "pd_close" ? 0 : undefined}
                 className={`h-8 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default ${key === 'reflex' ? 'col-span-1' : ''}`}
               />
             ))}
 
             {!hideEyeLabels && <div className="flex items-center justify-center h-8">
             </div>}
-            {columns.map(({ key, step, type, min, max }) => {
+            {columns.map(({ key, step, type, ...colProps }) => {
               if (key === "pd_far" || key === "pd_close") {
+                const pdCombProps = EXAM_FIELDS.PD_COMB;
                 return (
                   <FastInput
+                    {...pdCombProps}
                     key={`c-${key}`}
                     type={type as any}
                     step={step}
-                    min={min}
-                    max={max}
                     value={getFieldValue("C", key)}
                     onChange={(val) => handleChange("C", key, val)}
                     disabled={!isEditing}
-                    suffix="mm"
+                    debounceMs={0}
                     className={`h-8 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
                   />
                 );
@@ -165,18 +188,16 @@ export function RetinoscopTab({
                 {hoveredEye === "R" ? <ChevronUp size={16} /> : "L"}
               </span>
             </div>}
-            {columns.map(({ key, step, type, min, max }) => (
+            {columns.map(({ key, step, type, ...colProps }) => (
               <FastInput
+                {...colProps}
                 key={`l-${key}`}
                 type={type as any}
                 step={type === "number" ? step : undefined}
-                min={min}
-                max={max}
                 value={getFieldValue("L", key)}
                 onChange={(val) => handleChange("L", key, val)}
                 disabled={!isEditing}
-                showPlus={key === "sph" || key === "cyl"}
-                suffix={key === "pd_far" || key === "pd_close" ? "mm" : undefined}
+                debounceMs={key === "pd_far" || key === "pd_close" ? 0 : undefined}
                 className={`h-8 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default ${key === 'reflex' ? 'col-span-1' : ''}`}
               />
             ))}

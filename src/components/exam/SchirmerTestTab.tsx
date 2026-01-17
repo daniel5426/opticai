@@ -1,9 +1,9 @@
-import React, { useState } from "react"
+import React, { useState, useRef } from "react"
 import { Card, CardContent } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
 import { ChevronUp, ChevronDown } from "lucide-react"
 import { SchirmerTestExam } from "@/lib/db/schema-interface"
 import { EXAM_FIELDS } from "./data/exam-field-definitions"
+import { FastInput, inputSyncManager } from "./shared/OptimizedInputs"
 
 interface SchirmerTestTabProps {
   schirmerTestData: SchirmerTestExam
@@ -12,8 +12,6 @@ interface SchirmerTestTabProps {
   hideEyeLabels?: boolean
   needsMiddleSpacer?: boolean
 }
-
-import { FastInput } from "./shared/OptimizedInputs"
 
 export function SchirmerTestTab({
   schirmerTestData,
@@ -24,8 +22,11 @@ export function SchirmerTestTab({
 }: SchirmerTestTabProps) {
   const [hoveredEye, setHoveredEye] = useState<"R" | "L" | null>(null)
 
+  const dataRef = useRef(schirmerTestData);
+  dataRef.current = schirmerTestData;
+
   const columns = [
-    { key: "mm", label: "mm", step: "0.1" },
+    { key: "mm", ...EXAM_FIELDS.MM },
     { key: "but", ...EXAM_FIELDS.BUT }
   ]
 
@@ -40,36 +41,35 @@ export function SchirmerTestTab({
   }
 
   const copyFromOtherEye = (fromEye: "R" | "L") => {
+    inputSyncManager.flush();
+    const latestData = dataRef.current;
+
     const toEye = fromEye === "R" ? "L" : "R"
     columns.forEach(({ key }) => {
-      const fromField = `${fromEye.toLowerCase()}_${key}` as keyof SchirmerTestExam
-      const toField = `${toEye.toLowerCase()}_${key}` as keyof SchirmerTestExam
-      const value = schirmerTestData[fromField]?.toString() || ""
-      onSchirmerTestChange(toField, value)
+      const getLatestVal = (e: "R" | "L", f: string) => {
+        const eyeField = `${e.toLowerCase()}_${f}` as keyof SchirmerTestExam;
+        return latestData[eyeField]?.toString() || "";
+      };
+      const value = getLatestVal(fromEye, key);
+      onSchirmerTestChange(`${toEye.toLowerCase()}_${key}` as keyof SchirmerTestExam, value);
     })
   }
 
   const renderInput = (eye: "R" | "L", col: any) => {
-    const { key, step, min, unit } = col;
+    const { key, step, min, unit, suffix } = col;
     const value = getFieldValue(eye, key);
 
     return (
-      <div className="relative">
-        <FastInput
-          type="number"
-          step={step}
-          min={min}
-          value={value}
-          onChange={(val) => handleChange(eye, key, val)}
-          disabled={!isEditing}
-          className={`h-8 pr-1 text-xs ${unit ? "pr-8" : ""} ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
-        />
-        {unit && value && (
-          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground pointer-events-none">
-            {unit}
-          </span>
-        )}
-      </div>
+      <FastInput
+        type="number"
+        step={step}
+        min={min}
+        value={value}
+        onChange={(val) => handleChange(eye, key, val)}
+        disabled={!isEditing}
+        suffix={unit || suffix}
+        className="h-8 text-xs"
+      />
     );
   };
 

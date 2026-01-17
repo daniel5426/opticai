@@ -1,8 +1,8 @@
 import React from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { RGExam } from "@/lib/db/schema-interface"
+import { FastSelect } from "./shared/OptimizedInputs"
 
 interface RGTabProps {
   rgData: RGExam;
@@ -48,20 +48,15 @@ export function RGTab({ rgData, onRGChange, isEditing, needsMiddleSpacer = false
                 דיכוי
               </label>
             </div>
-            
-            <Select
+
+            <FastSelect
               value={rgData.suppressed_eye || ""}
-              onValueChange={(value) => handleSuppressedEyeChange(value as "R" | "G" | null)}
+              onChange={(value) => handleSuppressedEyeChange(value as "R" | "G" | null)}
               disabled={!isEditing || rgData.rg_status !== "suppression"}
-            >
-              <SelectTrigger size="xs" className={`h-8 pr-4 text-center ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}>
-                <SelectValue className="h-8 pr-3 text-center justify-center" placeholder="בחר" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="R">R</SelectItem>
-                <SelectItem value="G">G</SelectItem>
-              </SelectContent>
-            </Select>
+              options={["R", "G"]}
+              size="xs"
+              triggerClassName={`h-8 pr-4 text-center ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
+            />
 
             {needsMiddleSpacer && (
               <>

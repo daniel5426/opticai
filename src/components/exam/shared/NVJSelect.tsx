@@ -1,5 +1,6 @@
 import React, { memo } from "react"
 import { NV_J_VALUES } from "../data/exam-constants"
+import { EXAM_FIELDS } from "../data/exam-field-definitions"
 import { FastSelect } from "./OptimizedInputs"
 
 interface NVJSelectProps {
@@ -23,6 +24,7 @@ export const NVJSelect = memo(function NVJSelect({
       options={NV_J_VALUES}
       size="xs"
       triggerClassName={`h-8 text-xs w-full ${className}`}
+      center={EXAM_FIELDS.J.center}
     />
   )
 })

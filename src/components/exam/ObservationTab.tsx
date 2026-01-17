@@ -1,8 +1,8 @@
-import React from "react"
+import React, { useState, useRef } from "react"
 import { Card, CardContent } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { SensationVisionStabilityExam } from "@/lib/db/schema-interface"
+import { FastInput, inputSyncManager } from "./shared/OptimizedInputs"
 
 interface ObservationTabProps {
   data: SensationVisionStabilityExam
@@ -18,9 +18,10 @@ const fieldLabels = [
   { key: "recommendations", label: "המלצות" },
 ]
 
-import { FastInput } from "./shared/OptimizedInputs"
-
 export function ObservationTab({ data, onChange, isEditing }: ObservationTabProps) {
+  const dataRef = useRef(data);
+  dataRef.current = data;
+
   const handleInput = (field: keyof SensationVisionStabilityExam, value: string) => {
     onChange(field, value)
   }

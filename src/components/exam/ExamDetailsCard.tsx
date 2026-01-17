@@ -31,11 +31,12 @@ export const ExamDetailsCard = ({ mode, detailProps, className, actions }: ExamD
       className={`w-full examcard rounded-xl px-4 py-3 bg-background ${className ?? ""}`}
     >
       <div
-        className="flex items-center gap-2 w-full whitespace-nowrap overflow-x-auto no-scrollbar text-sm"
+        className="flex items-end gap-2 w-full whitespace-nowrap overflow-x-auto no-scrollbar text-sm"
         dir="rtl"
         style={{ scrollbarWidth: "none" }}
       >
-        <div className="min-w-[80px]">
+        <div className="min-w-[80px] flex flex-col gap-1">
+          <label className="text-xs text-muted-foreground">שם הבדיקה</label>
           {mode === "editor" ? (
             <span className="px-3 py-1 rounded-lg bg-accent/50 w-full text-center">{testNameValue}</span>
           ) : (
@@ -51,7 +52,8 @@ export const ExamDetailsCard = ({ mode, detailProps, className, actions }: ExamD
             />
           )}
         </div>
-        <div className="min-w-[20px] max-w-[130px]">
+        <div className="min-w-[20px] max-w-[130px] flex flex-col gap-1">
+          <label className="text-xs text-muted-foreground">תאריך</label>
           <DateInput
             name="exam_date"
             className="h-9 w-full text-sm"
@@ -60,7 +62,8 @@ export const ExamDetailsCard = ({ mode, detailProps, className, actions }: ExamD
             onChange={detailProps?.handleInputChange || (() => { })}
           />
         </div>
-        <div className="min-w-[60px]">
+        <div className="min-w-[60px] flex flex-col gap-1">
+          <label className="text-xs text-muted-foreground">מטפל</label>
           <UserSelect
             value={mode === "editor" ? 0 : detailProps?.formData.user_id}
             disabled={!isEditing && mode !== "editor"}
@@ -71,7 +74,8 @@ export const ExamDetailsCard = ({ mode, detailProps, className, actions }: ExamD
             }
           />
         </div>
-        <div className="min-w-[30px]">
+        <div className="min-w-[30px] flex flex-col gap-1">
+          <label className="text-xs text-muted-foreground">עין דומיננטית</label>
           <Select
             dir="rtl"
             disabled={!isEditing && mode !== "editor"}
@@ -94,7 +98,7 @@ export const ExamDetailsCard = ({ mode, detailProps, className, actions }: ExamD
           </Select>
         </div>
         <div className="flex-1" />
-        {actions ? <div className="flex items-center gap-2 min-w-fit">{actions}</div> : null}
+        {actions ? <div className="flex items-center gap-2 min-w-fit self-center">{actions}</div> : null}
       </div>
     </Card>
   )

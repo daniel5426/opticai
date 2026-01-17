@@ -1,8 +1,10 @@
-import React, { useState } from "react"
+import React, { useState, useRef } from "react"
 import { Card, CardContent } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
 import { OldContactLenses } from "@/lib/db/schema-interface"
 import { ChevronUp, ChevronDown } from "lucide-react"
+import { EXAM_FIELDS } from "./data/exam-field-definitions"
+import { NVJSelect } from "./shared/NVJSelect"
+import { FastInput, inputSyncManager } from "./shared/OptimizedInputs"
 
 interface OldContactLensesTabProps {
   data: OldContactLenses;
@@ -11,21 +13,23 @@ interface OldContactLensesTabProps {
   hideEyeLabels?: boolean;
 }
 
-import { FastInput } from "./shared/OptimizedInputs"
-
 export function OldContactLensesTab({ data, onChange, isEditing, hideEyeLabels = false }: OldContactLensesTabProps) {
   const [hoveredEye, setHoveredEye] = useState<"R" | "L" | null>(null)
+
+  const dataRef = useRef(data);
+  dataRef.current = data;
+
   const columns = [
     { key: "lens_type", label: "סוג עדשה" },
     { key: "model", label: "מודל" },
     { key: "supplier", label: "ספק" },
-    { key: "bc", label: "BC", step: "0.01" },
-    { key: "diam", label: "DIAM", step: "0.01" },
-    { key: "sph", label: "SPH", step: "0.25" },
-    { key: "cyl", label: "CYL", step: "0.25" },
-    { key: "ax", label: "AXIS", step: "1", min: "0", max: "180" },
-    { key: "va", label: "VA", step: "0.1" },
-    { key: "j", label: "J", step: "0.1" }
+    { key: "bc", ...EXAM_FIELDS.BC },
+    { key: "diam", ...EXAM_FIELDS.DIAM },
+    { key: "sph", ...EXAM_FIELDS.SPH },
+    { key: "cyl", ...EXAM_FIELDS.CYL },
+    { key: "ax", ...EXAM_FIELDS.AXIS },
+    { key: "va", ...EXAM_FIELDS.VA },
+    { key: "j", ...EXAM_FIELDS.J, type: "j" }
   ]
   const getFieldValue = (eye: "R" | "L" | "C", field: string) => {
     if (eye === "C") {
@@ -45,14 +49,20 @@ export function OldContactLensesTab({ data, onChange, isEditing, hideEyeLabels =
     }
   }
   const copyFromOtherEye = (fromEye: "R" | "L") => {
+    inputSyncManager.flush();
+    const latestData = dataRef.current;
+
     const toEye = fromEye === "R" ? "L" : "R"
     columns.forEach(({ key }) => {
-      const fromField = `${fromEye.toLowerCase()}_${key}` as keyof OldContactLenses
-      const toField = `${toEye.toLowerCase()}_${key}` as keyof OldContactLenses
-      const value = data[fromField]?.toString() || ""
-      onChange(toField, value)
+      const getLatestVal = (e: "R" | "L", f: string) => {
+        const eyeField = `${e.toLowerCase()}_${f}` as keyof OldContactLenses
+        return latestData[eyeField]?.toString() || ""
+      };
+      const value = getLatestVal(fromEye, key);
+      onChange(`${toEye.toLowerCase()}_${key}` as keyof OldContactLenses, value)
     })
   }
+
   return (
     <Card className="w-full examcard pb-4 pt-3">
       <CardContent className="px-4" style={{ scrollbarWidth: 'none' }}>
@@ -78,39 +88,56 @@ export function OldContactLensesTab({ data, onChange, isEditing, hideEyeLabels =
                 {hoveredEye === "L" ? <ChevronDown size={16} /> : "R"}
               </span>
             </div>}
-            {columns.map(({ key, step, min, max }) => (
-              <div key={`r-${key}`}>
-                <FastInput
-                  type={step ? "number" : "text"}
-                  step={step}
-                  min={min}
-                  max={max}
-                  value={getFieldValue("R", key)}
-                  onChange={val => handleChange("R", key, val)}
-                  disabled={!isEditing}
-                  showPlus={key === "sph" || key === "cyl"}
-                  className={`h-8 pr-1 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
-                />
-              </div>
-            ))}
+            {columns.map((col) => {
+              const { key, ...colProps } = col;
+              const type = 'type' in col ? col.type : undefined;
+              return (
+                <div key={`r-${key}`}>
+                  {type === "j" ? (
+                    <NVJSelect
+                      value={getFieldValue("R", key)}
+                      onChange={(val) => handleChange("R", key, val)}
+                      disabled={!isEditing}
+                    />
+                  ) : (
+                    <FastInput
+                      {...colProps}
+                      value={getFieldValue("R", key)}
+                      onChange={val => handleChange("R", key, val)}
+                      disabled={!isEditing}
+                      className={`h-8 pr-1 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
+                    />
+                  )}
+                </div>
+              );
+            })}
             {!hideEyeLabels && <div className="flex items-center justify-center">
             </div>}
-            {columns.map(({ key, step }) => (
-              <div key={`c-${key}`}>
-                {key === "va" || key === "j" ? (
-                  <FastInput
-                    type="number"
-                    step={step}
-                    value={getFieldValue("C", key)}
-                    onChange={(val) => handleChange("C", key, val)}
-                    disabled={!isEditing}
-                    className={`h-8 pr-1 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
-                  />
-                ) : (
-                  <div></div>
-                )}
-              </div>
-            ))}
+            {columns.map((col) => {
+              const { key } = col;
+              const type = 'type' in col ? col.type : undefined;
+              return (
+                <div key={`c-${key}`}>
+                  {type === "j" ? (
+                    <NVJSelect
+                      value={getFieldValue("C", key)}
+                      onChange={(val) => handleChange("C", key, val)}
+                      disabled={!isEditing}
+                    />
+                  ) : key === "va" ? (
+                    <FastInput
+                      type="number"
+                      value={getFieldValue("C", key)}
+                      onChange={(val) => handleChange("C", key, val)}
+                      disabled={!isEditing}
+                      className={`h-8 pr-1 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
+                    />
+                  ) : (
+                    <div></div>
+                  )}
+                </div>
+              );
+            })}
             {!hideEyeLabels && <div className="flex items-center justify-center">
               <span
                 className="text-base font-medium cursor-pointer hover:bg-accent rounded-full px-2"
@@ -122,21 +149,29 @@ export function OldContactLensesTab({ data, onChange, isEditing, hideEyeLabels =
                 {hoveredEye === "R" ? <ChevronUp size={16} /> : "L"}
               </span>
             </div>}
-            {columns.map(({ key, step, min, max }) => (
-              <div key={`l-${key}`}>
-                <FastInput
-                  type={step ? "number" : "text"}
-                  step={step}
-                  min={min}
-                  max={max}
-                  value={getFieldValue("L", key)}
-                  onChange={val => handleChange("L", key, val)}
-                  disabled={!isEditing}
-                  showPlus={key === "sph" || key === "cyl"}
-                  className={`h-8 pr-1 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
-                />
-              </div>
-            ))}
+            {columns.map((col) => {
+              const { key, ...colProps } = col;
+              const type = 'type' in col ? col.type : undefined;
+              return (
+                <div key={`l-${key}`}>
+                  {type === "j" ? (
+                    <NVJSelect
+                      value={getFieldValue("L", key)}
+                      onChange={(val) => handleChange("L", key, val)}
+                      disabled={!isEditing}
+                    />
+                  ) : (
+                    <FastInput
+                      {...colProps}
+                      value={getFieldValue("L", key)}
+                      onChange={val => handleChange("L", key, val)}
+                      disabled={!isEditing}
+                      className={`h-8 pr-1 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
+                    />
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
       </CardContent>

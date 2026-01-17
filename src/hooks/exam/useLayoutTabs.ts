@@ -667,51 +667,66 @@ export function useLayoutTabs({
       const tabToRemove = layoutTabs[tabIndex];
       const isActive = tabToRemove.isActive;
 
+      // Optimistic update: Calculate next state immediately
+      const updatedTabs = [...layoutTabs];
+      updatedTabs.splice(tabIndex, 1);
+      
+      let newActiveTabId: number | null = null;
+
+      if (isActive && updatedTabs.length > 0) {
+        const newActiveIndex = Math.min(tabIndex, updatedTabs.length - 1);
+        updatedTabs[newActiveIndex].isActive = true;
+        newActiveTabId = updatedTabs[newActiveIndex].id;
+
+        setActiveInstanceId(newActiveTabId);
+
+        try {
+          const newActiveTab = updatedTabs[newActiveIndex];
+          const parsedLayout = JSON.parse(newActiveTab.layout_data);
+          if (Array.isArray(parsedLayout)) {
+            setCardRows(parsedLayout);
+            setCustomWidths({});
+          } else {
+            setCardRows(parsedLayout.rows || []);
+            setCustomWidths(parsedLayout.customWidths || {});
+          }
+        } catch (error) {
+          console.error("Error applying layout after tab removal:", error);
+        }
+      }
+
+      // Update the tabs state immediately
+      setLayoutTabs(updatedTabs);
+      toast.success("לשונית הפריסה הוסרה");
+
+      // Perform API calls in the background
       try {
-        if (exam && exam.id && !isNewMode && tabId > 0) {
-          const success = await deleteExamLayoutInstance(tabId);
-          if (!success) {
-            toast.error("שגיאה במחיקת פריסה");
-            return;
-          }
+        if (exam && exam.id && !isNewMode) {
+          // Chain the operations to avoid server-side concurrency issues (StaleDataError)
+          // where set-active tries to update a row that is being deleted
+          const deletePromise = tabId > 0 
+            ? deleteExamLayoutInstance(tabId) 
+            : Promise.resolve(true);
+
+          deletePromise
+            .then((success) => {
+              if (tabId > 0 && !success) {
+                console.error("Failed to delete layout instance from DB");
+                toast.error("שגיאה במחיקת פריסה מהשרת");
+              }
+              
+              if (isActive && newActiveTabId !== null) {
+                // Return this promise so it can be caught by the chain if needed, 
+                // though we mainly just want it to execute sequentially
+                return setActiveExamLayoutInstance(exam.id, newActiveTabId);
+              }
+            })
+            .catch((err) => {
+              console.error("Error in background layout updates:", err);
+            });
         }
-
-        const updatedTabs = [...layoutTabs];
-        updatedTabs.splice(tabIndex, 1);
-
-        if (isActive && updatedTabs.length > 0) {
-          const newActiveIndex = Math.min(tabIndex, updatedTabs.length - 1);
-          updatedTabs[newActiveIndex].isActive = true;
-
-          if (exam && exam.id && !isNewMode) {
-            await setActiveExamLayoutInstance(
-              exam.id,
-              updatedTabs[newActiveIndex].id,
-            );
-          }
-
-          setActiveInstanceId(updatedTabs[newActiveIndex].id);
-
-          try {
-            const newActiveTab = updatedTabs[newActiveIndex];
-            const parsedLayout = JSON.parse(newActiveTab.layout_data);
-            if (Array.isArray(parsedLayout)) {
-              setCardRows(parsedLayout);
-              setCustomWidths({});
-            } else {
-              setCardRows(parsedLayout.rows || []);
-              setCustomWidths(parsedLayout.customWidths || {});
-            }
-          } catch (error) {
-            console.error("Error applying layout after tab removal:", error);
-          }
-        }
-
-        setLayoutTabs(updatedTabs);
-        toast.success("לשונית הפריסה הוסרה");
       } catch (error) {
-        console.error("Error removing layout tab:", error);
-        toast.error("שגיאה במחיקת לשונית פריסה");
+        console.error("Error in background layout removal API calls:", error);
       }
     },
     [

@@ -1,7 +1,7 @@
 import React from "react";
 import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { MaddoxRodExam } from "@/lib/db/schema-interface";
+import { FastInput } from "./shared/OptimizedInputs"
 
 interface MaddoxRodTabProps {
   maddoxRodData: MaddoxRodExam;
@@ -17,15 +17,12 @@ const columns = [
   { key: "c_l_v", label: "L" },
 ];
 
-import { FastInput } from "./shared/OptimizedInputs"
-
 export function MaddoxRodTab({
   maddoxRodData,
   onMaddoxRodChange,
   isEditing,
   needsMiddleSpacer = true,
 }: MaddoxRodTabProps) {
-  console.log(needsMiddleSpacer);
   return (
     <Card className="w-full examcard pt-3 pb-4">
       <CardContent
@@ -149,4 +146,3 @@ export function MaddoxRodTab({
     </Card>
   );
 }
-

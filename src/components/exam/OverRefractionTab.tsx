@@ -1,9 +1,10 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { OverRefraction } from "@/lib/db/schema-interface";
 import { VASelect } from "./shared/VASelect";
 import { ChevronUp, ChevronDown } from "lucide-react";
+import { EXAM_FIELDS } from "./data/exam-field-definitions";
+import { FastInput, inputSyncManager } from "./shared/OptimizedInputs"
 
 interface OverRefractionTabProps {
   data: OverRefraction;
@@ -11,8 +12,6 @@ interface OverRefractionTabProps {
   isEditing: boolean;
   hideEyeLabels?: boolean;
 }
-
-import { FastInput } from "./shared/OptimizedInputs"
 
 export function OverRefractionTab({
   data,
@@ -22,13 +21,16 @@ export function OverRefractionTab({
 }: OverRefractionTabProps) {
   const [hoveredEye, setHoveredEye] = useState<"R" | "L" | null>(null);
 
+  const dataRef = useRef(data);
+  dataRef.current = data;
+
   const columns = [
-    { key: "sph", label: "SPH", step: "0.25", type: "number", min: "-30", max: "30" },
-    { key: "cyl", label: "CYL", step: "0.25", type: "number", min: "-30", max: "30" },
-    { key: "ax", label: "AXIS", step: "1", type: "number", min: "0", max: "180" },
-    { key: "va", label: "VA", step: "0.1", type: "number" },
-    { key: "j", label: "J", step: "0.1", type: "number" },
-    { key: "add", label: "ADD", step: "0.25", type: "number", min: "0", max: "5" },
+    { key: "sph", ...EXAM_FIELDS.SPH },
+    { key: "cyl", ...EXAM_FIELDS.CYL },
+    { key: "ax", ...EXAM_FIELDS.AXIS },
+    { key: "va", ...EXAM_FIELDS.VA, type: "number" },
+    { key: "j", ...EXAM_FIELDS.J, type: "number" },
+    { key: "add", ...EXAM_FIELDS.ADD },
     { key: "florescent", label: "Fl. Time", type: "text", span: 2 },
     { key: "bio_m", label: "Bio. M.", type: "text", span: 2 },
   ];
@@ -54,16 +56,21 @@ export function OverRefractionTab({
   };
 
   const copyFromOtherEye = (fromEye: "R" | "L") => {
+    inputSyncManager.flush();
+    const latestData = dataRef.current;
+
     const toEye = fromEye === "R" ? "L" : "R";
     columns.forEach(({ key }) => {
-      const fromField = `${fromEye.toLowerCase()}_${key}` as keyof OverRefraction;
-      const toField = `${toEye.toLowerCase()}_${key}` as keyof OverRefraction;
-      const value = data[fromField]?.toString() || "";
-      onChange(toField, value);
+      const getLatestVal = (e: "R" | "L", f: string) => {
+        const eyeField = `${e.toLowerCase()}_${f}` as keyof OverRefraction;
+        return latestData[eyeField]?.toString() || "";
+      };
+      const value = getLatestVal(fromEye, key);
+      onChange(`${toEye.toLowerCase()}_${key}` as keyof OverRefraction, value);
     });
     // Also copy comb_va and comb_j
-    if (data.comb_va !== undefined) onChange("comb_va", data.comb_va.toString());
-    if (data.comb_j !== undefined) onChange("comb_j", data.comb_j.toString());
+    if (latestData.comb_va !== undefined) onChange("comb_va", latestData.comb_va.toString());
+    if (latestData.comb_j !== undefined) onChange("comb_j", latestData.comb_j.toString());
   };
 
   const gridCols = `${hideEyeLabels ? 'grid-cols-[repeat(10,1fr)]' : 'grid-cols-[20px_repeat(10,1fr)]'}`;
@@ -103,7 +110,7 @@ export function OverRefractionTab({
                 </span>
               </div>
             )}
-            {columns.map(({ key, step, type, min, max, span }) => (
+            {columns.map(({ key, type, span, ...colProps }) => (
               <div key={`r-${key}`} className={`${span ? `col-span-${span}` : ''}`}>
                 {key === "va" ? (
                   <VASelect
@@ -113,14 +120,11 @@ export function OverRefractionTab({
                   />
                 ) : (
                   <FastInput
+                    {...colProps}
                     type={type as any}
-                    step={step}
-                    min={min}
-                    max={max}
                     value={getFieldValue("R", key)}
                     onChange={(val) => handleChange("R", key, val)}
                     disabled={!isEditing}
-                    showPlus={key === "sph" || key === "cyl" || key === "add"}
                     className={`h-8 pr-1 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
                   />
                 )}
@@ -128,7 +132,7 @@ export function OverRefractionTab({
             ))}
 
             {!hideEyeLabels && <div className="flex items-center justify-center"></div>}
-            {columns.map(({ key, step, type, span }) => {
+            {columns.map(({ key, type, span }) => {
               if (key === "va") {
                 return (
                   <div key={`c-${key}`} className={`${span ? `col-span-${span}` : ''}`}>
@@ -144,7 +148,6 @@ export function OverRefractionTab({
                   <div key={`c-${key}`} className={`${span ? `col-span-${span}` : ''}`}>
                     <FastInput
                       type={type as any}
-                      step={step}
                       value={getFieldValue("C", key)}
                       onChange={(val) => handleChange("C", key, val)}
                       disabled={!isEditing}
@@ -170,7 +173,7 @@ export function OverRefractionTab({
                 </span>
               </div>
             )}
-            {columns.map(({ key, step, type, min, max, span }) => (
+            {columns.map(({ key, type, span, ...colProps }) => (
               <div key={`l-${key}`} className={`${span ? `col-span-${span}` : ''}`}>
                 {key === "va" ? (
                   <VASelect
@@ -180,14 +183,11 @@ export function OverRefractionTab({
                   />
                 ) : (
                   <FastInput
+                    {...colProps}
                     type={type as any}
-                    step={step}
-                    min={min}
-                    max={max}
                     value={getFieldValue("L", key)}
                     onChange={(val) => handleChange("L", key, val)}
                     disabled={!isEditing}
-                    showPlus={key === "sph" || key === "cyl" || key === "add"}
                     className={`h-8 pr-1 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
                   />
                 )}

@@ -1,10 +1,10 @@
-import React, { useState } from "react"
+import React, { useState, useRef } from "react"
 import { Card, CardContent } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
 import { ObjectiveExam } from "@/lib/db/schema-interface"
 import { ChevronUp, ChevronDown } from "lucide-react"
 
-import { FastInput } from "./shared/OptimizedInputs"
+import { EXAM_FIELDS } from "./data/exam-field-definitions"
+import { FastInput, inputSyncManager } from "./shared/OptimizedInputs"
 
 interface ObjectiveTabProps {
   objectiveData: ObjectiveExam;
@@ -23,11 +23,14 @@ export function ObjectiveTab({
 }: ObjectiveTabProps) {
   const [hoveredEye, setHoveredEye] = useState<"R" | "L" | null>(null);
 
+  const dataRef = useRef(objectiveData);
+  dataRef.current = objectiveData;
+
   const columns = [
-    { key: "sph", label: "SPH", step: "0.25", min: "-30", max: "30" },
-    { key: "cyl", label: "CYL", step: "0.25", min: "-30", max: "30" },
-    { key: "ax", label: "AXIS", step: "1", min: "0", max: "180" },
-    { key: "se", label: "SE", step: "0.25" },
+    { key: "sph", ...EXAM_FIELDS.SPH },
+    { key: "cyl", ...EXAM_FIELDS.CYL },
+    { key: "ax", ...EXAM_FIELDS.AXIS },
+    { key: "se", ...EXAM_FIELDS.SE },
   ];
 
   const getFieldValue = (eye: "R" | "L", field: string) => {
@@ -41,11 +44,14 @@ export function ObjectiveTab({
   };
 
   const copyFromOtherEye = (fromEye: "R" | "L") => {
+    inputSyncManager.flush();
+    const latestData = dataRef.current;
+
     const toEye = fromEye === "R" ? "L" : "R";
     columns.forEach(({ key }) => {
       const fromField = `${fromEye.toLowerCase()}_${key}` as keyof ObjectiveExam;
       const toField = `${toEye.toLowerCase()}_${key}` as keyof ObjectiveExam;
-      const value = objectiveData[fromField]?.toString() || "";
+      const value = latestData[fromField]?.toString() || "";
       onObjectiveChange(toField, value);
     });
   };
@@ -79,17 +85,14 @@ export function ObjectiveTab({
                 {hoveredEye === "L" ? <ChevronDown size={16} /> : "R"}
               </span>
             </div>}
-            {columns.map(({ key, step, min, max }) => (
+            {columns.map(({ key, ...inputProps }) => (
               <FastInput
+                {...inputProps}
                 key={`r-${key}`}
                 type="number"
-                step={step}
-                min={min}
-                max={max}
                 value={getFieldValue("R", key)}
                 onChange={(val) => handleChange("R", key, val)}
                 disabled={!isEditing}
-                showPlus={key === "sph" || key === "cyl"}
                 className={`h-8 pr-1 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
               />
             ))}
@@ -114,17 +117,14 @@ export function ObjectiveTab({
                 {hoveredEye === "R" ? <ChevronUp size={16} /> : "L"}
               </span>
             </div>}
-            {columns.map(({ key, step, min, max }) => (
+            {columns.map(({ key, ...inputProps }) => (
               <FastInput
+                {...inputProps}
                 key={`l-${key}`}
                 type="number"
-                step={step}
-                min={min}
-                max={max}
                 value={getFieldValue("L", key)}
                 onChange={(val) => handleChange("L", key, val)}
                 disabled={!isEditing}
-                showPlus={key === "sph" || key === "cyl"}
                 className={`h-8 pr-1 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
               />
             ))}

@@ -242,9 +242,9 @@ export const getColumnCount = (type: CardItem['type'], mode: 'editor' | 'detail'
     case 'objective': return 4
     case 'subjective': return 8
     case 'final-subjective': return 11
-    case 'final-prescription': return 11
+    case 'final-prescription': return 9
     case 'compact-prescription': return 8
-    case 'addition': return 7
+    case 'addition': return 6
     case 'retinoscop': return 6
     case 'retinoscop-dilation': return 6
     case 'uncorrected-va': return 3
@@ -284,7 +284,7 @@ export const getMaxWidth = (type: CardItem['type'], mode: 'editor' | 'detail' = 
     case 'stereo-test': return 200
     default: {
       const col = getColumnCount(type, mode)
-      return typeof col === 'number' ? col * 95 : col.fixedPx
+      return typeof col === 'number' ? col * 90 : col.fixedPx
     }
   }
 }
@@ -556,7 +556,7 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
       return { ...prev, [targetKey]: nextTab };
     });
 
-    toast.success("Exam data imported from order");
+    toast.success("נתוני הבדיקה נמשכו מההזמנה");
   };
 
   if (mode === 'detail' && !detailProps) {

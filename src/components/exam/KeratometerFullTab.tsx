@@ -1,9 +1,9 @@
-import React, { useState } from "react"
+import React, { useState, useRef } from "react"
 import { Card, CardContent } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ChevronUp, ChevronDown } from "lucide-react"
 import { KeratometerFullExam } from "@/lib/db/schema-interface"
+import { FastInput, inputSyncManager } from "./shared/OptimizedInputs"
 
 interface KeratometerFullTabProps {
   keratometerFullData: KeratometerFullExam
@@ -13,8 +13,6 @@ interface KeratometerFullTabProps {
   needsMiddleSpacer?: boolean
 }
 
-import { FastInput } from "./shared/OptimizedInputs"
-
 export function KeratometerFullTab({
   keratometerFullData,
   onKeratometerFullChange,
@@ -23,6 +21,9 @@ export function KeratometerFullTab({
   needsMiddleSpacer = false
 }: KeratometerFullTabProps) {
   const [hoveredEye, setHoveredEye] = useState<"R" | "L" | null>(null)
+
+  const dataRef = useRef(keratometerFullData);
+  dataRef.current = keratometerFullData;
 
   const columns = [
     { key: "dpt_k1", label: "DPT K1", step: "0.01" },
@@ -50,11 +51,14 @@ export function KeratometerFullTab({
   }
 
   const copyFromOtherEye = (fromEye: "R" | "L") => {
+    inputSyncManager.flush();
+    const latestData = dataRef.current;
+
     const toEye = fromEye === "R" ? "L" : "R"
     columns.forEach(({ key }) => {
       const fromField = `${fromEye.toLowerCase()}_${key}` as keyof KeratometerFullExam
       const toField = `${toEye.toLowerCase()}_${key}` as keyof KeratometerFullExam
-      const value = keratometerFullData[fromField]
+      const value = latestData[fromField]
       if (key === "astig") {
         onKeratometerFullChange(toField, Boolean(value))
       } else {

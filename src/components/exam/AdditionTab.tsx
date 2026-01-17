@@ -1,13 +1,10 @@
-import React, { useState } from "react"
+import React, { useState, useRef } from "react"
 import { Card, CardContent } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Button } from "@/components/ui/button"
 import { AdditionExam } from "@/lib/db/schema-interface"
 import { ChevronUp, ChevronDown } from "lucide-react"
 import { NVJSelect } from "./shared/NVJSelect"
-
-import { FastInput } from "./shared/OptimizedInputs"
+import { EXAM_FIELDS } from "./data/exam-field-definitions"
+import { FastInput, inputSyncManager } from "./shared/OptimizedInputs"
 
 interface AdditionTabProps {
   additionData: AdditionExam;
@@ -26,14 +23,16 @@ export function AdditionTab({
 }: AdditionTabProps) {
   const [hoveredEye, setHoveredEye] = useState<"R" | "L" | null>(null);
 
+  const dataRef = useRef(additionData);
+  dataRef.current = additionData;
+
   const columns = [
-    { key: "fcc", label: "FCC", step: "0.25", min: "-7", max: "7" },
-    { key: "read", label: "READ", step: "0.25", min: "0", max: "5" },
-    { key: "int", label: "INT", step: "0.25", min: "0", max: "5" },
-    { key: "bif", label: "BIF", step: "0.25", min: "0", max: "5" },
-    { key: "mul", label: "MUL", step: "0.25", min: "0", max: "5" },
-    { key: "j", label: "J", type: "nvj" },
-    { key: "iop", label: "IOP", step: "0.1" },
+    { key: "fcc", ...EXAM_FIELDS.FCC },
+    { key: "read", ...EXAM_FIELDS.READ },
+    { key: "int", ...EXAM_FIELDS.INT },
+    { key: "bif", ...EXAM_FIELDS.BIF },
+    { key: "mul", ...EXAM_FIELDS.MUL },
+    { key: "j", ...EXAM_FIELDS.J, type: "nvj" },
   ];
 
   const getFieldValue = (eye: "R" | "L", field: string) => {
@@ -47,16 +46,17 @@ export function AdditionTab({
   };
 
   const copyFromOtherEye = (fromEye: "R" | "L") => {
+    inputSyncManager.flush();
+    const latestData = dataRef.current;
+
     const toEye = fromEye === "R" ? "L" : "R";
     columns.forEach(({ key }) => {
       const fromField = `${fromEye.toLowerCase()}_${key}` as keyof AdditionExam;
       const toField = `${toEye.toLowerCase()}_${key}` as keyof AdditionExam;
-      const value = additionData[fromField]?.toString() || "";
+      const value = latestData[fromField]?.toString() || "";
       onAdditionChange(toField, value);
     });
   };
-
-
 
   return (
     <Card className="w-full pb-4 examcard pt-3 border">
@@ -66,7 +66,7 @@ export function AdditionTab({
             <h3 className="font-medium text-muted-foreground">Addition</h3>
           </div>
 
-          <div className={`grid ${hideEyeLabels ? 'grid-cols-[repeat(7,1fr)]' : 'grid-cols-[20px_repeat(7,1fr)]'} gap-2 items-center`}>
+          <div className={`grid ${hideEyeLabels ? 'grid-cols-[repeat(6,1fr)]' : 'grid-cols-[20px_repeat(6,1fr)]'} gap-2 items-center`}>
             {!hideEyeLabels && <div></div>}
             {columns.map(({ key, label }) => (
               <div key={key} className="h-4 flex items-center justify-center">
@@ -87,7 +87,7 @@ export function AdditionTab({
                 {hoveredEye === "L" ? <ChevronDown size={16} /> : "R"}
               </span>
             </div>}
-            {columns.map(({ key, step, type }) => (
+            {columns.map(({ key, step }) => (
               key === "j" ? (
                 <NVJSelect
                   key={`r-${key}`}
@@ -129,7 +129,7 @@ export function AdditionTab({
                 {hoveredEye === "R" ? <ChevronUp size={16} /> : "L"}
               </span>
             </div>}
-            {columns.map(({ key, step, type }) => (
+            {columns.map(({ key, step }) => (
               key === "j" ? (
                 <NVJSelect
                   key={`l-${key}`}
