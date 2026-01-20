@@ -184,11 +184,6 @@ export const examComponentRegistry = new ExamComponentRegistry()
 
 // Register all exam components with UI configuration only
 // Note: Components will be imported dynamically when needed
-examComponentRegistry.register('old-ref', {
-  name: 'רפרנס ישן',
-  component: () => import('../components/exam/OldRefTab'),
-  order: 1
-})
 
 examComponentRegistry.register('old-refraction', {
   name: 'רפרקציה ישנה',

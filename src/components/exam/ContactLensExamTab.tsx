@@ -6,6 +6,10 @@ import { NVJSelect } from "./shared/NVJSelect"
 import { ChevronUp, ChevronDown } from "lucide-react"
 import { EXAM_FIELDS } from "./data/exam-field-definitions"
 import { FastInput, inputSyncManager } from "./shared/OptimizedInputs"
+import { usePrescriptionLogic } from "./shared/usePrescriptionLogic"
+import { CylTitle } from "./shared/CylTitle"
+import { useAxisWarning } from "./shared/useAxisWarning"
+import { AxisWarningInput } from "./shared/AxisWarningInput"
 
 interface ContactLensExamTabProps {
   contactLensExamData: ContactLensExam;
@@ -22,8 +26,20 @@ export function ContactLensExamTab({
 }: ContactLensExamTabProps) {
   const [hoveredEye, setHoveredEye] = useState<"R" | "L" | null>(null);
 
+  const { fieldWarnings, handleAxisChange } = useAxisWarning(
+    contactLensExamData,
+    onContactLensExamChange,
+    isEditing
+  );
+
   const dataRef = useRef(contactLensExamData);
   dataRef.current = contactLensExamData;
+
+  const { handleManualTranspose } = usePrescriptionLogic(
+    contactLensExamData,
+    onContactLensExamChange,
+    isEditing
+  );
 
   const columns = [
     { key: "bc", ...EXAM_FIELDS.BC },
@@ -47,7 +63,9 @@ export function ContactLensExamTab({
   };
 
   const handleChange = (eye: "R" | "L" | "C", field: string, value: string) => {
-    if (eye === "C") {
+    if (eye !== "C" && (field === "cyl" || field === "ax")) {
+      handleAxisChange(eye as "R" | "L", field as "cyl" | "ax", value);
+    } else if (eye === "C") {
       const combField = `comb_${field}` as keyof ContactLensExam;
       onContactLensExamChange(combField, value);
     } else {
@@ -83,9 +101,13 @@ export function ContactLensExamTab({
             {!hideEyeLabels && <div></div>}
             {columns.map(({ key, label }) => (
               <div key={key} className="h-4 flex items-center justify-center">
-                <span className="text-xs font-medium text-muted-foreground">
-                  {label}
-                </span>
+                {key === "cyl" ? (
+                  <CylTitle onTranspose={handleManualTranspose} disabled={!isEditing} />
+                ) : (
+                  <span className="text-xs font-medium text-muted-foreground">
+                    {label}
+                  </span>
+                )}
               </div>
             ))}
 
@@ -102,7 +124,19 @@ export function ContactLensExamTab({
             </div>}
             {columns.map(({ key, type, step, min, max, ...colProps }) => (
               <div key={`r-${key}`}>
-                {type === "va" ? (
+                {(key === 'cyl' || key === 'ax') ? (
+                  <AxisWarningInput
+                    {...colProps}
+                    eye="R"
+                    field={key as "cyl" | "ax"}
+                    value={getFieldValue("R", key)}
+                    missingAxis={fieldWarnings.R.missingAxis}
+                    missingCyl={fieldWarnings.R.missingCyl}
+                    isEditing={isEditing}
+                    onValueChange={handleAxisChange}
+                    className={isEditing ? 'bg-white' : 'bg-accent/50'}
+                  />
+                ) : type === "va" ? (
                   <VASelect
                     value={getFieldValue("R", key)}
                     onChange={(val) => handleChange("R", key, val)}
@@ -172,7 +206,19 @@ export function ContactLensExamTab({
             </div>}
             {columns.map(({ key, type, step, min, max, ...colProps }) => (
               <div key={`l-${key}`}>
-                {type === "va" ? (
+                {(key === 'cyl' || key === 'ax') ? (
+                  <AxisWarningInput
+                    {...colProps}
+                    eye="L"
+                    field={key as "cyl" | "ax"}
+                    value={getFieldValue("L", key)}
+                    missingAxis={fieldWarnings.L.missingAxis}
+                    missingCyl={fieldWarnings.L.missingCyl}
+                    isEditing={isEditing}
+                    onValueChange={handleAxisChange}
+                    className={isEditing ? 'bg-white' : 'bg-accent/50'}
+                  />
+                ) : type === "va" ? (
                   <VASelect
                     value={getFieldValue("L", key)}
                     onChange={(val) => handleChange("L", key, val)}

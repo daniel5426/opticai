@@ -4,57 +4,184 @@ import { cn } from "@/utils/tailwind"
 import { ChevronUp, ChevronDown } from "lucide-react"
 
 interface InputProps extends React.ComponentProps<"input"> {
+  /** Show + sign for positive numbers. Only works with type="number" */
   showPlus?: boolean
   noBorder?: boolean
   suffix?: string
   prefix?: string
+  center?: boolean
+}
+
+/**
+ * Formats a numeric value with an optional + sign for positive numbers.
+ * Returns empty string for empty/invalid input.
+ */
+function formatSignedNumber(value: string | number, showPlus: boolean, precision?: number): string {
+  if (value === "" || value === undefined || value === null) return ""
+
+  const num = typeof value === "string" ? parseFloat(value) : value
+  if (isNaN(num)) return typeof value === "string" ? value : ""
+
+  // Determine precision from the value itself if not specified
+  const strVal = value.toString()
+  const decimalPart = strVal.split(".")[1]
+  const valuePrecision = decimalPart?.length ?? 0
+  const finalPrecision = precision ?? valuePrecision
+
+  const formatted = finalPrecision > 0 ? num.toFixed(finalPrecision) : num.toString()
+
+  if (showPlus && num > 0) {
+    return `+${formatted}`
+  }
+  return formatted
+}
+
+/**
+ * Parses a signed number string, stripping the + sign if present.
+ * Returns the numeric value or NaN if invalid.
+ */
+function parseSignedNumber(value: string): number {
+  // Remove leading + sign for parsing
+  const cleaned = value.replace(/^\+/, "")
+  return parseFloat(cleaned)
+}
+
+/**
+ * Validates and cleans input for signed number fields.
+ * Allows: digits, one decimal point, and one leading +/- sign.
+ */
+function cleanSignedNumberInput(value: string): string {
+  // Allow empty
+  if (!value) return ""
+
+  // Only allow: digits, one decimal point, and leading +/- sign
+  let result = value.replace(/[^\d.+-]/g, "")
+
+  // Extract sign (must be at start)
+  const signMatch = result.match(/^[+-]/)
+  const sign = signMatch ? signMatch[0] : ""
+  const rest = signMatch ? result.substring(1) : result
+
+  // Remove any additional + or - signs from the rest
+  let cleaned = rest.replace(/[+-]/g, "")
+
+  // Ensure only one decimal point
+  const parts = cleaned.split(".")
+  cleaned = parts[0] + (parts.length > 1 ? "." + parts.slice(1).join("") : "")
+
+  return sign + cleaned
 }
 
 const Input = React.forwardRef<HTMLInputElement, InputProps>(
-  ({ className, noBorder, type, showPlus, suffix, prefix, ...props }, ref) => {
+  ({ className, noBorder, type, showPlus, suffix, prefix, center, dir, ...props }, ref) => {
     const internalRef = React.useRef<HTMLInputElement>(null)
     React.useImperativeHandle(ref, () => internalRef.current!)
 
-    const [localValue, setLocalValue] = React.useState((props.value ?? props.defaultValue ?? "").toString())
+    // For signed numbers, we use type="text" with inputMode="decimal"
+    // This gives us full control over the displayed value including the + sign
+    const isSignedNumber = type === "number" && showPlus
+    const effectiveType = isSignedNumber ? "text" : type
+    const inputMode = isSignedNumber ? "decimal" : props.inputMode
 
+    // Logic for direction:
+    // If it's a number (native or signed text), or has numeric decimal input mode, default to LTR.
+    // Otherwise default to RTL for standard text strings.
+    // An explicitly provided 'dir' prop always wins.
+    const isNumeric = type === "number" || isSignedNumber || inputMode === "decimal" || inputMode === "numeric"
+    const effectiveDir = dir ?? (isNumeric ? "ltr" : "rtl")
+
+    // Get precision from step prop (e.g., step="0.25" = 2 decimals)
+    const stepPrecision = React.useMemo(() => {
+      if (!props.step) return 2
+      const stepStr = props.step.toString()
+      const decimal = stepStr.split(".")[1]
+      return decimal?.length ?? 0
+    }, [props.step])
+
+    // Helper to safely extract value (handles readonly string[] from React's types)
+    const extractValue = (val: string | number | readonly string[] | undefined): string | number => {
+      if (val === undefined || val === null) return ""
+      if (typeof val === "string") return val
+      if (typeof val === "number") return val
+      // Fallback for arrays (readonly string[])
+      return val[0] ?? ""
+    }
+
+    // Format the initial/controlled value
+    const formatValue = React.useCallback((val: string | number) => {
+      if (!isSignedNumber) return (val ?? "").toString()
+      return formatSignedNumber(val, true, undefined) // Don't force precision while typing
+    }, [isSignedNumber])
+
+    const initialValue = extractValue(props.value ?? props.defaultValue)
+    const [localValue, setLocalValue] = React.useState(() => formatValue(initialValue))
+
+    // Sync with controlled value changes
     React.useEffect(() => {
-      setLocalValue((props.value ?? props.defaultValue ?? "").toString())
-    }, [props.value, props.defaultValue])
+      const newVal = extractValue(props.value ?? props.defaultValue)
+      const currentNumeric = parseSignedNumber(localValue)
+      const newNumeric = typeof newVal === "string" ? parseSignedNumber(newVal) : newVal
 
-    const numValue = parseFloat(localValue)
-    const hasPlus = showPlus && type === "number" && !isNaN(numValue) && numValue > 0
-
-    // We reserve space for the prefix if one is explicitly provided OR if showPlus is active
-    // This ensures the number doesn't jump horizontally when its sign changes.
-    const reservePrefixSpace = prefix !== undefined || (showPlus && type === "number")
-    const hasPrefix = prefix !== undefined || hasPlus
-    const prefixText = prefix !== undefined ? prefix : (hasPlus ? "+" : "")
+      // Only update if the numeric value actually changed (to avoid cursor jumps while typing)
+      if (currentNumeric !== newNumeric || (newVal === "" && localValue !== "")) {
+        setLocalValue(formatValue(newVal))
+      }
+    }, [props.value, props.defaultValue, formatValue])
 
     if (props.disabled && UI_CONFIG.noBorderOnDisabled) {
       noBorder = true
     }
 
-    const timerRef = React.useRef<any>(null)
-    const intervalRef = React.useRef<any>(null)
+    const timerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
+    const intervalRef = React.useRef<ReturnType<typeof setInterval> | null>(null)
 
     const stopStep = () => {
       if (timerRef.current) clearTimeout(timerRef.current)
       if (intervalRef.current) clearInterval(intervalRef.current)
     }
 
-    const handleStep = (increment: boolean) => {
+    const handleStep = React.useCallback((increment: boolean) => {
       const input = internalRef.current
-      if (input && !props.disabled) {
-        if (increment) input.stepUp()
-        else input.stepDown()
+      if (!input || props.disabled) return
 
-        setLocalValue(input.value)
+      if (isSignedNumber) {
+        // For signed numbers, manually calculate the step
+        const currentVal = parseSignedNumber(input.value) || 0
+        const step = parseFloat(props.step as string) || 0.25
+        let newVal = increment ? currentVal + step : currentVal - step
 
-        // Trigger both input and change events to ensure all frameworks/listeners catch it
-        input.dispatchEvent(new Event('input', { bubbles: true }))
-        input.dispatchEvent(new Event('change', { bubbles: true }))
+        // Apply min/max constraints
+        if (props.min !== undefined) {
+          newVal = Math.max(newVal, parseFloat(props.min as string))
+        }
+        if (props.max !== undefined) {
+          newVal = Math.min(newVal, parseFloat(props.max as string))
+        }
+
+        // Format with sign and proper precision
+        const formatted = formatSignedNumber(newVal, true, stepPrecision)
+        input.value = formatted
+        setLocalValue(formatted)
+      } else {
+        // Use native stepUp/stepDown for regular number inputs
+        try {
+          if (increment) input.stepUp()
+          else input.stepDown()
+          setLocalValue(input.value)
+        } catch {
+          // Fallback for types that don't support stepUp/stepDown
+          const currentVal = parseFloat(input.value) || 0
+          const step = parseFloat(props.step as string) || 1
+          const newVal = increment ? currentVal + step : currentVal - step
+          input.value = newVal.toString()
+          setLocalValue(input.value)
+        }
       }
-    }
+
+      // Trigger both input and change events
+      input.dispatchEvent(new Event('input', { bubbles: true }))
+      input.dispatchEvent(new Event('change', { bubbles: true }))
+    }, [isSignedNumber, props.disabled, props.step, props.min, props.max, stepPrecision])
 
     const startStep = (increment: boolean) => {
       handleStep(increment)
@@ -68,55 +195,66 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
 
     const showButtons = type === "number" && !props.disabled
 
-    // For number inputs with a prefix, use centered flex overlay approach
-    // This ensures the prefix and value appear centered together
-    // For suffix-only inputs, use absolute positioning to avoid cursor gap issues
-    const useFlexOverlay = hasPrefix && type === "number"
-
     return (
-      <div className={cn("group w-full flex items-center", (hasPrefix || suffix || showButtons) ? "relative" : "")}>
-        {/* For non-number inputs or inputs without prefix, use absolute positioning */}
-        {hasPrefix && !useFlexOverlay && (
+      <div dir={effectiveDir} className={cn("group w-full flex items-center", (prefix || suffix || showButtons) ? "relative" : "")}>
+        {prefix && (
           <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none z-10 font-medium">
-            {prefixText}
+            {prefix}
           </span>
-        )}
-        {/* Centered prefix + value overlay for number inputs with prefix */}
-        {useFlexOverlay && (
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10 gap-0.5">
-            <span className="text-xs text-muted-foreground font-medium">
-              {prefixText}
-            </span>
-            <span className="text-base md:text-sm text-foreground">{localValue}</span>
-          </div>
         )}
         <input
           ref={internalRef}
-          type={type}
+          type={effectiveType}
+          inputMode={inputMode}
+          dir={effectiveDir}
           data-slot="input"
           className={cn(
             `${props.disabled ? "bg-accent/50 dark:bg-accent/50" : "bg-card dark:bg-card"}`,
-            type === "number" ? "text-center" : (props.dir === "rtl" ? "text-right" : "text-left"),
+            type === "number" || center ? "text-center" : (effectiveDir === "rtl" ? "text-right" : "text-left"),
             `disabled:opacity-100 disabled:cursor-default file:text-foreground placeholder:text-muted-foreground selection:bg-primary selection:text-primary-foreground ${noBorder ? "border-none" : "border-input border"} flex h-9 w-full min-w-0 rounded-md py-1 text-base transition-[color] outline-none file:inline-flex file:h-7 file:border-0 file:bg-transparent file:text-sm file:font-medium md:text-sm`,
             "focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[1px]",
             "aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive",
             "[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none",
-            // For flex overlay mode, make the input text transparent so only overlay shows
-            useFlexOverlay ? "text-transparent caret-foreground selection:bg-primary px-3" : (reservePrefixSpace ? "pl-3" : "pl-1"),
-            (suffix && !useFlexOverlay) ? "pr-6" : (!useFlexOverlay ? "pr-3" : ""),
+            prefix ? "pl-5.5" : "px-1",
+            suffix ? "pr-5.5" : "",
             className
           )}
-          {...props}
+          {...(() => {
+            const { value, defaultValue, ...rest } = props;
+            return rest;
+          })()}
+          value={localValue}
           onInput={(e) => {
-            setLocalValue(e.currentTarget.value)
+            let val = e.currentTarget.value
+
+            if (isSignedNumber) {
+              val = cleanSignedNumberInput(val)
+              e.currentTarget.value = val // Force the cleaned value back
+            }
+
+            setLocalValue(val)
             props.onInput?.(e)
           }}
           onChange={(e) => {
-            setLocalValue(e.currentTarget.value)
             props.onChange?.(e)
           }}
+          onBlur={(e) => {
+            // Format on blur for signed numbers
+            if (isSignedNumber && localValue !== "") {
+              const num = parseSignedNumber(localValue)
+              if (!isNaN(num)) {
+                const formatted = formatSignedNumber(num, true, stepPrecision)
+                setLocalValue(formatted)
+                if (internalRef.current) {
+                  internalRef.current.value = formatted
+                  internalRef.current.dispatchEvent(new Event('change', { bubbles: true }))
+                }
+              }
+            }
+            props.onBlur?.(e)
+          }}
         />
-        {suffix && !useFlexOverlay && (
+        {suffix && (
           <span className={cn(
             "absolute top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground pointer-events-none z-10 font-medium",
             "right-1"

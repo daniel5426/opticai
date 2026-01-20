@@ -79,6 +79,7 @@ class User(Base):
     google_refresh_token = Column(String)
     google_calendar_sync_enabled = Column(Boolean, default=False)
     va_format = Column(String, default="meter") # "meter" or "decimal"
+    cyl_format = Column(String, default="minus") # "minus" or "plus"
     system_vacation_dates = Column(JSON, default=list)
     added_vacation_dates = Column(JSON, default=list)
     sync_subjective_to_final_subjective = Column(Boolean, default=False)

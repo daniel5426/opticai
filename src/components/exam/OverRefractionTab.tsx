@@ -5,6 +5,10 @@ import { VASelect } from "./shared/VASelect";
 import { ChevronUp, ChevronDown } from "lucide-react";
 import { EXAM_FIELDS } from "./data/exam-field-definitions";
 import { FastInput, inputSyncManager } from "./shared/OptimizedInputs"
+import { usePrescriptionLogic } from "./shared/usePrescriptionLogic"
+import { CylTitle } from "./shared/CylTitle"
+import { useAxisWarning } from "./shared/useAxisWarning"
+import { AxisWarningInput } from "./shared/AxisWarningInput"
 
 interface OverRefractionTabProps {
   data: OverRefraction;
@@ -21,8 +25,20 @@ export function OverRefractionTab({
 }: OverRefractionTabProps) {
   const [hoveredEye, setHoveredEye] = useState<"R" | "L" | null>(null);
 
+  const { fieldWarnings, handleAxisChange } = useAxisWarning(
+    data,
+    onChange,
+    isEditing
+  );
+
   const dataRef = useRef(data);
   dataRef.current = data;
+
+  const { handleManualTranspose } = usePrescriptionLogic(
+    data,
+    onChange,
+    isEditing
+  );
 
   const columns = [
     { key: "sph", ...EXAM_FIELDS.SPH },
@@ -46,13 +62,15 @@ export function OverRefractionTab({
   };
 
   const handleChange = (eye: "R" | "L" | "C", field: string, value: string) => {
-    if (eye === "C") {
+    if (eye !== "C" && (field === "cyl" || field === "ax")) {
+      handleAxisChange(eye as "R" | "L", field as "cyl" | "ax", value);
+    } else if (eye === "C") {
       if (field === "va") onChange("comb_va", value);
       if (field === "j") onChange("comb_j", value);
-      return;
+    } else {
+      const eyeField = `${eye.toLowerCase()}_${field}` as keyof OverRefraction;
+      onChange(eyeField, value);
     }
-    const eyeField = `${eye.toLowerCase()}_${field}` as keyof OverRefraction;
-    onChange(eyeField, value);
   };
 
   const copyFromOtherEye = (fromEye: "R" | "L") => {
@@ -91,9 +109,13 @@ export function OverRefractionTab({
                 className={`${span ? `col-span-${span}` : ''
                   } h-4 flex items-center justify-center`}
               >
-                <span className="text-xs font-medium text-muted-foreground">
-                  {label}
-                </span>
+                {key === "cyl" ? (
+                  <CylTitle onTranspose={handleManualTranspose} disabled={!isEditing} />
+                ) : (
+                  <span className="text-xs font-medium text-muted-foreground">
+                    {label}
+                  </span>
+                )}
               </div>
             ))}
 
@@ -112,7 +134,19 @@ export function OverRefractionTab({
             )}
             {columns.map(({ key, type, span, ...colProps }) => (
               <div key={`r-${key}`} className={`${span ? `col-span-${span}` : ''}`}>
-                {key === "va" ? (
+                {(key === 'cyl' || key === 'ax') ? (
+                  <AxisWarningInput
+                    {...colProps}
+                    eye="R"
+                    field={key as "cyl" | "ax"}
+                    value={getFieldValue("R", key)}
+                    missingAxis={fieldWarnings.R.missingAxis}
+                    missingCyl={fieldWarnings.R.missingCyl}
+                    isEditing={isEditing}
+                    onValueChange={handleAxisChange}
+                    className={isEditing ? 'bg-white' : 'bg-accent/50'}
+                  />
+                ) : key === "va" ? (
                   <VASelect
                     value={getFieldValue("R", key)}
                     onChange={(val) => handleChange("R", key, val)}
@@ -175,7 +209,19 @@ export function OverRefractionTab({
             )}
             {columns.map(({ key, type, span, ...colProps }) => (
               <div key={`l-${key}`} className={`${span ? `col-span-${span}` : ''}`}>
-                {key === "va" ? (
+                {(key === 'cyl' || key === 'ax') ? (
+                  <AxisWarningInput
+                    {...colProps}
+                    eye="L"
+                    field={key as "cyl" | "ax"}
+                    value={getFieldValue("L", key)}
+                    missingAxis={fieldWarnings.L.missingAxis}
+                    missingCyl={fieldWarnings.L.missingCyl}
+                    isEditing={isEditing}
+                    onValueChange={handleAxisChange}
+                    className={isEditing ? 'bg-white' : 'bg-accent/50'}
+                  />
+                ) : key === "va" ? (
                   <VASelect
                     value={getFieldValue("L", key)}
                     onChange={(val) => handleChange("L", key, val)}

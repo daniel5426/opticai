@@ -462,7 +462,7 @@ export const calculateCardWidth = (
   return widths
 }
 
-export const ExamCardRenderer: React.FC<RenderCardProps> = ({
+export const ExamCardRenderer = React.memo<RenderCardProps>(({
   item,
   rowCards,
   mode,
@@ -1350,6 +1350,73 @@ export const ExamCardRenderer: React.FC<RenderCardProps> = ({
       );
 
     default:
-      return null
+      return null;
   }
-}
+}, (prev, next) => {
+  // 1. Basic prop checks
+  if (prev.isEditing !== next.isEditing) return false;
+  if (prev.mode !== next.mode) return false;
+  if (prev.item.id !== next.item.id) return false;
+  if (prev.item.type !== next.item.type) return false;
+  if (prev.item.title !== next.item.title) return false;
+  if (prev.item.showEyeLabels !== next.item.showEyeLabels) return false;
+  if (prev.hideEyeLabels !== next.hideEyeLabels) return false;
+  if (prev.matchHeight !== next.matchHeight) return false;
+  if (prev.clipboardSourceType !== next.clipboardSourceType) return false;
+  if (prev.currentRowIndex !== next.currentRowIndex) return false;
+  if (prev.currentCardIndex !== next.currentCardIndex) return false;
+
+  // 2. Data check (The most important part)
+  if (next.mode === 'detail' && prev.detailProps && next.detailProps) {
+    const prevData = prev.detailProps.examFormData;
+    const nextData = next.detailProps.examFormData;
+    const type = next.item.type;
+    const id = next.item.id;
+
+    // Check specific tab data for multi-tab components
+    if (type === 'old-refraction') {
+      const prevTabs = prev.detailProps.oldRefractionTabs?.[id] || [];
+      const nextTabs = next.detailProps.oldRefractionTabs?.[id] || [];
+      if (prevTabs.length !== nextTabs.length) return false;
+
+      const prevActiveId = prev.detailProps.activeOldRefractionTabs?.[id];
+      const nextActiveId = next.detailProps.activeOldRefractionTabs?.[id];
+      if (prevActiveId !== nextActiveId) return false;
+
+      // Check current tab data
+      if (nextActiveId) {
+        const key = `old-refraction-${id}-${nextActiveId}`;
+        if (prevData[key] !== nextData[key]) return false;
+      }
+      return true;
+    }
+
+    if (type === 'cover-test') {
+      const prevTabs = prev.detailProps.coverTestTabs?.[id] || [];
+      const nextTabs = next.detailProps.coverTestTabs?.[id] || [];
+      if (prevTabs.length !== nextTabs.length) return false;
+
+      const prevActiveIdx = prev.detailProps.activeCoverTestTabs?.[id];
+      const nextActiveIdx = next.detailProps.activeCoverTestTabs?.[id];
+      if (prevActiveIdx !== nextActiveIdx) return false;
+
+      if (nextActiveIdx !== undefined) {
+        const tabId = nextTabs[nextActiveIdx];
+        if (tabId) {
+          const key = `cover-test-${id}-${tabId}`;
+          if (prevData[key] !== nextData[key]) return false;
+        }
+      }
+      return true;
+    }
+
+    // Default: Check the data for this component type + ID
+    const key = `${type}-${id}`;
+    if (prevData[key] !== nextData[key]) return false;
+
+    // Also check the generic type key (some components use it as fallback)
+    if (prevData[type] !== nextData[type]) return false;
+  }
+
+  return true;
+});

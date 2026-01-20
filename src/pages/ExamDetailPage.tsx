@@ -451,6 +451,17 @@ export default function ExamDetailPage({
     loading,
   });
 
+  const examFormDataByInstanceRef = useRef(examFormDataByInstance);
+  const activeInstanceIdRef = useRef(activeInstanceId);
+
+  useEffect(() => {
+    examFormDataByInstanceRef.current = examFormDataByInstance;
+  }, [examFormDataByInstance]);
+
+  useEffect(() => {
+    activeInstanceIdRef.current = activeInstanceId;
+  }, [activeInstanceId]);
+
   // Create field handlers
   const fieldHandlers = useMemo(() => {
     const handlers: Record<string, (field: string, value: string) => void> = {};
@@ -463,8 +474,10 @@ export default function ExamDetailPage({
           const normalized = normalizeFieldValue(prevValue, value);
           const nextEntry = { ...prevEntry };
 
-          if (nextEntry.layout_instance_id == null && activeInstanceId != null) {
-            nextEntry.layout_instance_id = activeInstanceId;
+          const currentActiveInstanceId = activeInstanceIdRef.current;
+
+          if (nextEntry.layout_instance_id == null && currentActiveInstanceId != null) {
+            nextEntry.layout_instance_id = currentActiveInstanceId;
           }
 
           if (normalized === undefined) {
@@ -484,9 +497,8 @@ export default function ExamDetailPage({
               const context: SyncContext = {
                 userSettings: currentUser as any,
                 activeInstanceData: result, // result is the new active state
-                otherInstancesData: examFormDataByInstance, // Accessing state from closure might be stale if not in dep array?
-                // Actually examFormDataByInstance is state.
-                activeInstanceId: activeInstanceId
+                otherInstancesData: examFormDataByInstanceRef.current,
+                activeInstanceId: activeInstanceIdRef.current
               };
 
               const change = {
@@ -494,7 +506,7 @@ export default function ExamDetailPage({
                 fieldName: field,
                 newValue: normalized,
                 instanceId: key,
-                layoutInstanceId: activeInstanceId || 0
+                layoutInstanceId: activeInstanceIdRef.current || 0
               };
 
               // Process sync rules
@@ -505,9 +517,9 @@ export default function ExamDetailPage({
                 const instanceIdNum = Number(instId);
 
                 // If update is for ACTIVE instance, merge into `result`
-                if (instanceIdNum === activeInstanceId) {
+                if (instanceIdNum === activeInstanceIdRef.current) {
                   Object.entries(components).forEach(([compKey, fields]) => {
-                    if (!result[compKey]) result[compKey] = { layout_instance_id: activeInstanceId };
+                    if (!result[compKey]) result[compKey] = { layout_instance_id: activeInstanceIdRef.current };
                     result[compKey] = { ...result[compKey], ...fields };
                   });
                 } else {
@@ -607,13 +619,11 @@ export default function ExamDetailPage({
 
     return handlers;
   }, [
-    activeInstanceId,
     currentUser,
     syncManager,
     cardRows,
     computedCoverTestTabs,
-    computedOldRefractionTabs,
-    examFormDataByInstance // Dependencies that are used inside closure
+    computedOldRefractionTabs
   ]);
 
   const examFormDataRef = useRef(examFormData);

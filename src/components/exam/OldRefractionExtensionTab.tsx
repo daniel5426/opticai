@@ -8,6 +8,8 @@ import { VASelect } from "./shared/VASelect"
 import { EXAM_FIELDS } from "./data/exam-field-definitions"
 import { BASE_VALUES_SIMPLE, PDCalculationUtils } from "./data/exam-constants"
 import { FastInput, FastSelect, inputSyncManager } from "./shared/OptimizedInputs"
+import { usePrescriptionLogic } from "./shared/usePrescriptionLogic"
+import { CylTitle } from "./shared/CylTitle"
 
 interface OldRefractionExtensionTabProps {
   oldRefractionExtensionData: OldRefractionExtensionExam;
@@ -28,6 +30,12 @@ export function OldRefractionExtensionTab({
 
   const dataRef = useRef(oldRefractionExtensionData);
   dataRef.current = oldRefractionExtensionData;
+
+  const { handleManualTranspose } = usePrescriptionLogic(
+    oldRefractionExtensionData,
+    onOldRefractionExtensionChange,
+    isEditing
+  );
 
   const columns = [
     { key: "sph", ...EXAM_FIELDS.SPH },
@@ -141,9 +149,13 @@ export function OldRefractionExtensionTab({
             {!hideEyeLabels && <div></div>}
             {columns.map(({ key, label }) => (
               <div key={key} className="h-4 flex items-center justify-center">
-                <span className="text-xs font-medium text-muted-foreground">
-                  {label}
-                </span>
+                {key === "cyl" ? (
+                  <CylTitle onTranspose={handleManualTranspose} disabled={!isEditing} />
+                ) : (
+                  <span className="text-xs font-medium text-muted-foreground">
+                    {label}
+                  </span>
+                )}
               </div>
             ))}
 

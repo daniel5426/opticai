@@ -11,6 +11,11 @@ import { NVJSelect } from "./shared/NVJSelect"
 import { cn } from "@/utils/tailwind"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { FastInput, FastSelect, inputSyncManager } from "./shared/OptimizedInputs"
+import { usePrescriptionLogic } from "./shared/usePrescriptionLogic"
+import { CylTitle } from "./shared/CylTitle"
+import { Input } from "@/components/ui/input"
+import { useAxisWarning } from "./shared/useAxisWarning"
+import { AxisWarningInput } from "./shared/AxisWarningInput"
 
 interface OldRefractionTabProps {
   oldRefractionData: OldRefractionExam;
@@ -48,8 +53,23 @@ export const OldRefractionTab = React.memo(function OldRefractionTab({
   const [hoveredEye, setHoveredEye] = useState<"R" | "L" | null>(null);
   const [dropdownTabIdx, setDropdownTabIdx] = useState<number | null>(null);
 
+  const { fieldWarnings, handleAxisChange } = useAxisWarning(
+    oldRefractionData,
+    onOldRefractionChange,
+    isEditing
+  );
+
+  const latestValuesRef = useRef(oldRefractionData);
+  latestValuesRef.current = oldRefractionData;
+
   const dataRef = useRef(oldRefractionData);
   dataRef.current = oldRefractionData;
+
+  const { handleManualTranspose } = usePrescriptionLogic(
+    oldRefractionData,
+    onOldRefractionChange,
+    isEditing
+  );
 
   const glassesTypeOptions = ["רחוק", "קרוב", "מולטיפוקל", "ביפוקל"];
 
@@ -75,6 +95,12 @@ export const OldRefractionTab = React.memo(function OldRefractionTab({
   };
 
   const handleChange = (eye: "R" | "L" | "C", field: string, value: string) => {
+    if (eye !== "C" && (field === "cyl" || field === "ax")) {
+      handleAxisChange(eye as "R" | "L", field as "cyl" | "ax", value);
+      return;
+    }
+
+    // 2. Propagate Change
     if (eye === "C") {
       const combField = `comb_${field}` as keyof OldRefractionExam;
       onOldRefractionChange(combField, value);
@@ -95,25 +121,6 @@ export const OldRefractionTab = React.memo(function OldRefractionTab({
     });
   };
 
-  const [liveValues, setLiveValues] = useState<{ [key: string]: string }>({});
-
-  useEffect(() => {
-    setLiveValues({});
-  }, [oldRefractionData, activeTab]);
-
-  const handleLiveValueChange = (eye: "R" | "L", field: string, val: string) => {
-    setLiveValues(prev => ({ ...prev, [`${eye}_${field}`]: val }));
-  };
-
-  const getLiveValue = (eye: "R" | "L", field: string) => {
-    return liveValues[`${eye}_${field}`] !== undefined ? liveValues[`${eye}_${field}`] : getFieldValue(eye, field);
-  };
-
-  const checkAxisMissing = (eye: "R" | "L") => {
-    const cyl = getLiveValue(eye, "cyl");
-    const ax = getLiveValue(eye, "ax");
-    return cyl && cyl !== "0" && cyl !== "0.00" && !ax;
-  };
 
   const renderField = (eye: "R" | "L" | "C", col: any) => {
     const { key, type, options, ...inputProps } = col;
@@ -141,8 +148,24 @@ export const OldRefractionTab = React.memo(function OldRefractionTab({
       return <NVJSelect value={value} onChange={(val) => handleChange(eye, key, val)} disabled={!isEditing} />;
     }
 
-    const isAxisMissing = (eye === "R" || eye === "L") && key === "ax" && checkAxisMissing(eye);
+    // For CYL and AXIS, use AxisWarningInput
+    if ((key === 'cyl' || key === 'ax') && eye !== 'C') {
+      const eyeWarnings = fieldWarnings[eye as "R" | "L"];
+      return (
+        <AxisWarningInput
+          {...inputProps}
+          eye={eye as "R" | "L"}
+          field={key as "cyl" | "ax"}
+          value={value}
+          missingAxis={eyeWarnings.missingAxis}
+          missingCyl={eyeWarnings.missingCyl}
+          isEditing={isEditing}
+          onValueChange={handleAxisChange}
+        />
+      );
+    }
 
+    // For other fields, keep FastInput for performance
     return (
       <div className="relative">
         <FastInput
@@ -150,22 +173,9 @@ export const OldRefractionTab = React.memo(function OldRefractionTab({
           type="number"
           value={value}
           onChange={(val) => handleChange(eye, key, val)}
-          onInput={(val) => {
-            if (eye !== "C" && (key === "cyl" || key === "ax")) {
-              handleLiveValueChange(eye, key, val);
-            }
-          }}
           disabled={!isEditing}
-          className={cn(
-            "h-8 pr-1 text-xs disabled:opacity-100 disabled:cursor-default",
-            isAxisMissing && "border-destructive ring-1 ring-destructive"
-          )}
+          className="h-8 text-xs disabled:opacity-100 disabled:cursor-default"
         />
-        {isAxisMissing && (
-          <div dir="rtl" className="absolute -top-6 left-1/2 -translate-x-1/2 bg-destructive text-destructive-foreground text-[10px] px-1 rounded shadow-sm whitespace-nowrap z-10">
-            חסר Axis
-          </div>
-        )}
       </div>
     );
   };
@@ -278,9 +288,13 @@ export const OldRefractionTab = React.memo(function OldRefractionTab({
             {!hideEyeLabels && <div></div>}
             {mainColumns.map(({ key, label }) => (
               <div key={key} className="h-4 flex items-center justify-center">
-                <span className="text-xs font-medium text-muted-foreground">
-                  {label}
-                </span>
+                {key === "cyl" ? (
+                  <CylTitle onTranspose={handleManualTranspose} disabled={!isEditing} />
+                ) : (
+                  <span className="text-xs font-medium text-muted-foreground">
+                    {label}
+                  </span>
+                )}
               </div>
             ))}
 

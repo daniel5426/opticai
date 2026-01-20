@@ -489,8 +489,7 @@ export function ClientDetailsTab({
                   value={formData.phone_mobile || ''}
                   onChange={handleInputChange}
                   disabled={!showEditableFields}
-                  className={`text-sm h-9 text-right disabled:opacity-100 disabled:cursor-default`}
-                  dir="rtl"
+                  className={`text-sm h-9 disabled:opacity-100 disabled:cursor-default`}
                   placeholder={showEditableFields ? "הכנס טלפון נייד" : ""}
                 />
               </div>
@@ -502,8 +501,7 @@ export function ClientDetailsTab({
                   value={formData.phone_home || ''}
                   onChange={handleInputChange}
                   disabled={!showEditableFields}
-                  className={`text-sm h-9 text-right disabled:opacity-100 disabled:cursor-default`}
-                  dir="rtl"
+                  className={`text-sm h-9 disabled:opacity-100 disabled:cursor-default`}
                   placeholder={showEditableFields ? "הכנס טלפון בית" : ""}
                 />
               </div>
@@ -515,8 +513,7 @@ export function ClientDetailsTab({
                   value={formData.phone_work || ''}
                   onChange={handleInputChange}
                   disabled={!showEditableFields}
-                  className={`text-sm h-9 text-right disabled:opacity-100 disabled:cursor-default`}
-                  dir="rtl"
+                  className={`text-sm h-9 disabled:opacity-100 disabled:cursor-default`}
                   placeholder={showEditableFields ? "הכנס טלפון עבודה" : ""}
                 />
               </div>
@@ -735,8 +732,7 @@ export function ClientDetailsTab({
                             placeholder="חפש משפחה..."
                             value={familySearchTerm}
                             onChange={(e) => setFamilySearchTerm(e.target.value)}
-                            className="text-right"
-                            dir="rtl"
+                            className=""
                           />
                         </div>
                         <div className="max-h-60 overflow-y-auto" style={{ scrollbarWidth: 'none' }}>

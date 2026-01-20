@@ -718,6 +718,7 @@ export interface User {
   google_refresh_token?: string;
   google_calendar_sync_enabled?: boolean;
   va_format?: 'meter' | 'decimal';
+  cyl_format?: 'minus' | 'plus';
   system_vacation_dates?: string[];
   added_vacation_dates?: string[];
   sync_subjective_to_final_subjective?: boolean;

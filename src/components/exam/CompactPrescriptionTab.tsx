@@ -6,6 +6,10 @@ import { VASelect } from "./shared/VASelect"
 import { EXAM_FIELDS } from "./data/exam-field-definitions"
 import { BASE_VALUES_SIMPLE, PDCalculationUtils } from "./data/exam-constants"
 import { FastInput, FastSelect, inputSyncManager } from "./shared/OptimizedInputs"
+import { usePrescriptionLogic } from "./shared/usePrescriptionLogic"
+import { CylTitle } from "./shared/CylTitle"
+import { useAxisWarning } from "./shared/useAxisWarning"
+import { AxisWarningInput } from "./shared/AxisWarningInput"
 
 interface CompactPrescriptionTabProps {
   data: CompactPrescriptionExam;
@@ -22,8 +26,24 @@ export function CompactPrescriptionTab({
 }: CompactPrescriptionTabProps) {
   const [hoveredEye, setHoveredEye] = useState<"R" | "L" | null>(null);
 
+  const { fieldWarnings, handleAxisChange } = useAxisWarning(
+    data,
+    onChange,
+    isEditing,
+    {
+      R: { cyl: "r_cyl", ax: "r_ax" },
+      L: { cyl: "l_cyl", ax: "l_ax" },
+    }
+  );
+
   const dataRef = useRef(data);
   dataRef.current = data;
+
+  const { handleManualTranspose } = usePrescriptionLogic(
+    data,
+    onChange,
+    isEditing
+  );
 
   const columns = [
     { key: "sph", ...EXAM_FIELDS.SPH },
@@ -59,7 +79,9 @@ export function CompactPrescriptionTab({
       return;
     }
 
-    if (eye === "C") {
+    if (eye !== "C" && (field === "cyl" || field === "ax")) {
+      handleAxisChange(eye as "R" | "L", field as "cyl" | "ax", value);
+    } else if (eye === "C") {
       const combField = `comb_${field}` as keyof CompactPrescriptionExam;
       onChange(combField, value);
     } else {
@@ -107,6 +129,21 @@ export function CompactPrescriptionTab({
           />
         );
       default:
+        if (key === "cyl" || key === "ax") {
+          return (
+            <AxisWarningInput
+              {...colProps}
+              eye={eye as "R" | "L"}
+              field={key as "cyl" | "ax"}
+              value={getFieldValue(eye as "R" | "L", key)}
+              missingAxis={fieldWarnings[eye as "R" | "L"].missingAxis}
+              missingCyl={fieldWarnings[eye as "R" | "L"].missingCyl}
+              isEditing={isEditing}
+              onValueChange={handleAxisChange}
+              className={isEditing ? 'bg-white' : 'bg-accent/50'}
+            />
+          );
+        }
         return (
           <FastInput
             {...colProps}
@@ -114,7 +151,7 @@ export function CompactPrescriptionTab({
             onChange={(val) => handleChange(eye, key, val)}
             disabled={!isEditing}
             debounceMs={key === "pd" ? 0 : undefined}
-            className={`h-8 pr-1 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
+            className={`h-8 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
           />
         );
     }
@@ -132,9 +169,13 @@ export function CompactPrescriptionTab({
             {!hideEyeLabels && <div></div>}
             {columns.map(({ key, label }) => (
               <div key={key} className="h-4 flex items-center justify-center">
-                <span className="text-xs font-medium text-muted-foreground text-center">
-                  {label}
-                </span>
+                {key === "cyl" ? (
+                  <CylTitle onTranspose={handleManualTranspose} disabled={!isEditing} />
+                ) : (
+                  <span className="text-xs font-medium text-muted-foreground text-center">
+                    {label}
+                  </span>
+                )}
               </div>
             ))}
 
@@ -177,7 +218,7 @@ export function CompactPrescriptionTab({
                     onChange={(val) => handleChange("C", key, val)}
                     disabled={!isEditing}
                     debounceMs={0}
-                    className={`h-8 pr-1 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
+                    className={`h-8 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
                   />
                 );
               }

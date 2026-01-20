@@ -141,8 +141,7 @@ export function CityLookupInput({
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
           disabled={disabled}
-          className={`text-right pl-10 ${!disabled ? 'bg-card' : 'bg-accent/50 dark:bg-accent/50'} disabled:opacity-100 disabled:cursor-default ${dir === 'rtl' ? 'text-right' : 'text-left'}`}
-          dir={dir}
+          className={`text-right pl-10 ${!disabled ? 'bg-card' : 'bg-accent/50 dark:bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
         />
         <Button
           type="button"
@@ -157,7 +156,7 @@ export function CityLookupInput({
       </div>
 
       {isOpen && (
-        <Card ref={listRef} className="absolute gap-1 z-50 w-full mt-1 p-1 shadow-lg border max-h-60 overflow-auto" style={{scrollbarWidth: 'none'}}>
+        <Card ref={listRef} className="absolute gap-1 z-50 w-full mt-1 p-1 shadow-lg border max-h-60 overflow-auto" style={{ scrollbarWidth: 'none' }}>
           {filteredOptions.length === 0 ? (
             <div className="px-2 py-0.5 text-center text-muted-foreground">אין תוצאות</div>
           ) : (

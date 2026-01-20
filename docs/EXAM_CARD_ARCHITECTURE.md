@@ -66,6 +66,12 @@ To maintain high performance in a large form with many fields, OpticAI uses spec
     - **Sync Management**: The `inputSyncManager` ensures that any pending changes are flushed before save or navigation.
     - **Direct DOM Updates**: Uses refs and `defaultValue` to avoid React render cycles for every keystroke.
 
+### Hybrid Responsiveness Pattern (Direct Input)
+For fields with critical inter-dependencies (like **Cylinder/Axis** validation), we use a specialized "Hybrid Responsiveness" pattern.
+- **Why**: `FastInput` debouncing is too slow for real-time validation warnings.
+- **How**: Uses standard `Input` components with optimistic local state for immediate UI feedback + direct prop control for data stability.
+- **Reference**: See [Missing Axis Warning Design](../docs/feature_designs/MISSING_AXIS_WARNING.md) for full implementation details.
+
 ### Shared UI Components
 - **`VASelect`**: A specialized component for Visual Acuity that handles both Meter (6/6) and Decimal (1.0) formats, including easy stepping with arrow keys and +/- modifiers.
 - **RTL Support**: All components are designed for Hebrew (RTL), with specific layout adjustments for eye-specific labels (Right/Left).

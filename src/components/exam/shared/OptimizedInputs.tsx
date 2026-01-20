@@ -254,6 +254,7 @@ interface FastInputProps extends Omit<React.ComponentProps<typeof Input>, 'value
     debounceMs?: number;
     suffix?: string;
     prefix?: string;
+    center?: boolean;
 }
 
 export const FastInput = memo(function FastInput({
@@ -264,10 +265,11 @@ export const FastInput = memo(function FastInput({
     suffix,
     showPlus,
     prefix,
+    center,
     ...props
 }: FastInputProps) {
     const { inputRef } = useOptimizedInput<HTMLInputElement>(value, onChange, debounceMs, undefined, onInput);
-    return <Input dir="rtl" {...props} ref={inputRef} defaultValue={value} suffix={suffix} showPlus={showPlus} prefix={prefix} />;
+    return <Input {...props} ref={inputRef} defaultValue={value} suffix={suffix} showPlus={showPlus} prefix={prefix} center={center} />;
 });
 
 interface FastTextareaProps extends Omit<React.ComponentProps<typeof Textarea>, 'value' | 'onChange' | 'onInput'> {

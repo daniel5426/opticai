@@ -43,10 +43,10 @@ export const NV_J_VALUES = [
 
 // Base Values (בסיס)
 export const BASE_VALUES = [
-  'B.IN',
-  'B.OUT',
-  'B.UP',
-  'B.DOWN'
+  'IN',
+  'OUT',
+  'UP',
+  'DOWN'
 ] as const;
 
 export const BASE_VALUES_SIMPLE = [
@@ -186,5 +186,32 @@ export const PDCalculationUtils = {
         onChange(combField, sum);
       }
     }
+  }
+};
+
+export const SECalculationUtils = {
+  handleSEChange: <T extends Record<string, any>>({
+    eye,
+    field,
+    value,
+    data,
+    onChange,
+    calculateSE
+  }: {
+    eye: "R" | "L";
+    field: string;
+    value: string;
+    data: T;
+    onChange: (field: keyof T, value: string) => void;
+    calculateSE: (sph: any, cyl: any) => string;
+  }): void => {
+    if (field !== "sph" && field !== "cyl") return;
+
+    const eyePrefix = eye.toLowerCase();
+    const sph = field === "sph" ? value : data[`${eyePrefix}_sph`];
+    const cyl = field === "cyl" ? value : data[`${eyePrefix}_cyl`];
+
+    const se = calculateSE(sph, cyl);
+    onChange(`${eyePrefix}_se` as keyof T, se);
   }
 };

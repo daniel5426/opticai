@@ -1,11 +1,11 @@
 import React from "react"
 import { Card, CardContent } from "@/components/ui/card"
-import { StereoTestData } from "@/lib/db/schema-interface"
+import { StereoTestExam } from "@/lib/db/schema-interface"
 import { FastInput, FastSelect } from "./shared/OptimizedInputs"
 
 interface StereoTestTabProps {
-  stereoTestData: StereoTestData
-  onStereoTestChange: (field: keyof StereoTestData, value: string | boolean | number) => void
+  stereoTestData: StereoTestExam
+  onStereoTestChange: (field: keyof StereoTestExam, value: string | boolean | number) => void
   isEditing: boolean
   needsMiddleSpacer?: boolean
 }
@@ -46,7 +46,7 @@ export function StereoTestTab({ stereoTestData, onStereoTestChange, isEditing, n
                 value={String(stereoTestData.circle_score || "")}
                 onChange={val => onStereoTestChange('circle_score', parseInt(val) || 0)}
                 disabled={!isEditing}
-                className={`h-8 pr-1 text-xs flex-1 ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
+                className={`h-8 text-xs flex-1 ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
                 placeholder="0"
               />
               <span className="text-xs text-muted-foreground">/</span>
@@ -55,7 +55,7 @@ export function StereoTestTab({ stereoTestData, onStereoTestChange, isEditing, n
                 value={String(stereoTestData.circle_max || "")}
                 onChange={val => onStereoTestChange('circle_max', parseInt(val) || 0)}
                 disabled={!isEditing}
-                className={`h-8 pr-1 text-xs flex-1 ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
+                className={`h-8 text-xs flex-1 ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
                 placeholder="3"
               />
             </div>

@@ -376,6 +376,25 @@ export function PersonalProfileTab({
             </div>
 
             <div className="flex flex-col gap-2 items-end border-t pt-4">
+              <Label className="text-right text-sm font-medium">שיטת הצגת צילינדר (CYL)</Label>
+              <Select
+                value={personalProfile.cyl_format || "minus"}
+                onValueChange={(val) => onProfileChange('cyl_format', val)}
+              >
+                <SelectTrigger className="w-[200px] h-9" dir="rtl">
+                  <SelectValue placeholder="בחר שיטה" />
+                </SelectTrigger>
+                <SelectContent align="end">
+                  <SelectItem value="minus" className="text-right">Minus Cylinder (-)</SelectItem>
+                  <SelectItem value="plus" className="text-right">Plus Cylinder (+)</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground text-right mt-1">
+                בחירה זו תקבע את פורמט ברירת המחדל של הצילינדר. המערכת תבצע המרה (Transposition) אוטומטית במידת הצורך.
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-2 items-end border-t pt-4">
               <div className="flex items-center justify-end gap-2">
                 <Label htmlFor="sync-subjective" className="text-right text-sm font-medium cursor-pointer">
                   חבר אוטומטית בין בדיקה סובייקטיבית למרשם סופי

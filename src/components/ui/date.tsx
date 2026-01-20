@@ -176,13 +176,13 @@ export function DateInput({
 
   const selectedDate = value
     ? (() => {
-        try {
-          const date = new Date(value);
-          return !isNaN(date.getTime()) ? date : undefined;
-        } catch {
-          return undefined;
-        }
-      })()
+      try {
+        const date = new Date(value);
+        return !isNaN(date.getTime()) ? date : undefined;
+      } catch {
+        return undefined;
+      }
+    })()
     : undefined;
 
   return (
@@ -196,7 +196,6 @@ export function DateInput({
           onChange={handleTextChange}
           onBlur={handleTextBlur}
           disabled={disabled}
-          dir="rtl"
           style={{ scrollbarWidth: "none" }}
           className={`h-9 pr-10 text-sm ${disabled ? "bg-accent/50" : "bg-white"} disabled:cursor-default disabled:opacity-100 ${className || ""}`}
           placeholder=""

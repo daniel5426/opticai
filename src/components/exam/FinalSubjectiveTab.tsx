@@ -9,6 +9,10 @@ import { VASelect } from "./shared/VASelect"
 import { NVJSelect } from "./shared/NVJSelect"
 import { FastInput, FastSelect, inputSyncManager } from "./shared/OptimizedInputs"
 import { PDCalculationUtils } from "./data/exam-constants"
+import { usePrescriptionLogic } from "./shared/usePrescriptionLogic"
+import { CylTitle } from "./shared/CylTitle"
+import { useAxisWarning } from "./shared/useAxisWarning"
+import { AxisWarningInput } from "./shared/AxisWarningInput"
 
 interface FinalSubjectiveTabProps {
   finalSubjectiveData: FinalSubjectiveExam;
@@ -27,8 +31,20 @@ export function FinalSubjectiveTab({
 }: FinalSubjectiveTabProps) {
   const [hoveredEye, setHoveredEye] = useState<"R" | "L" | null>(null);
 
+  const { fieldWarnings, handleAxisChange } = useAxisWarning(
+    finalSubjectiveData,
+    onFinalSubjectiveChange,
+    isEditing
+  );
+
   const dataRef = useRef(finalSubjectiveData);
   dataRef.current = finalSubjectiveData;
+
+  const { handleManualTranspose } = usePrescriptionLogic(
+    finalSubjectiveData,
+    onFinalSubjectiveChange,
+    isEditing
+  );
 
   const columns = [
     { key: "sph", ...EXAM_FIELDS.SPH },
@@ -108,6 +124,11 @@ export function FinalSubjectiveTab({
       return;
     }
 
+    if (key === "cyl" || key === "ax") {
+      handleAxisChange(eye as "R" | "L", key as "cyl" | "ax", value);
+      return;
+    }
+
     const field = `${eye.toLowerCase()}_${key}` as keyof FinalSubjectiveExam;
     onFinalSubjectiveChange(field, value);
   };
@@ -137,6 +158,22 @@ export function FinalSubjectiveTab({
         const pdProps = (eye === "C" && (key === "pd_far" || key === "pd_close"))
           ? EXAM_FIELDS.PD_COMB
           : inputProps;
+
+        if ((key === 'cyl' || key === 'ax') && eye !== 'C') {
+          const eyeWarnings = fieldWarnings[eye as "R" | "L"];
+          return (
+            <AxisWarningInput
+              {...pdProps}
+              eye={eye as "R" | "L"}
+              field={key as "cyl" | "ax"}
+              value={value}
+              missingAxis={eyeWarnings.missingAxis}
+              missingCyl={eyeWarnings.missingCyl}
+              isEditing={isEditing}
+              onValueChange={handleAxisChange}
+            />
+          );
+        }
 
         return (
           <FastInput
@@ -200,9 +237,13 @@ export function FinalSubjectiveTab({
             {!hideEyeLabels && <div></div>}
             {columns.map(({ key, label }) => (
               <div key={key} className="h-4 flex items-center justify-center text-center">
-                <span className="text-xs font-medium text-muted-foreground">
-                  {label}
-                </span>
+                {key === "cyl" ? (
+                  <CylTitle onTranspose={handleManualTranspose} disabled={!isEditing} />
+                ) : (
+                  <span className="text-xs font-medium text-muted-foreground">
+                    {label}
+                  </span>
+                )}
               </div>
             ))}
 
