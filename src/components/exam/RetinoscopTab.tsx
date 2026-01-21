@@ -49,7 +49,7 @@ export function RetinoscopTab({
     { key: "ax", ...EXAM_FIELDS.AXIS, label: "AX", type: "number" },
     { key: "reflex", label: "REFLEX", step: "1", type: "text" },
     { key: "pd_far", ...EXAM_FIELDS.PD_FAR, type: "number" },
-    { key: "pd_close", ...EXAM_FIELDS.PD_NEAR, label: "PD CLOSE", type: "number" },
+    { key: "pd_close", ...EXAM_FIELDS.PD_NEAR, label: "PD NEAR", type: "number" },
   ];
 
   const getFieldValue = (eye: "R" | "L" | "C", field: string) => {

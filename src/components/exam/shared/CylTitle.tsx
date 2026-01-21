@@ -24,9 +24,8 @@ export function CylTitle({ onTranspose, className, disabled }: CylTitleProps) {
                     }}
                     disabled={disabled}
                     className={cn(
-                        "p-0.5 rounded-sm hover:bg-accent text-muted-foreground/30 hover:text-primary transition-all flex items-center justify-center",
-                        "opacity-0 group-hover/cyl:opacity-100", // Subtle: only shows on hover
-                        disabled && "cursor-not-allowed opacity-0"
+                        "p-0.5 rounded-sm hover:bg-accent text-muted-foreground/50 hover:text-primary transition-all flex items-center justify-center",
+                        disabled && "cursor-not-allowed opacity-50"
                     )}
                     title="Transpose Sign (Sph/Cyl/Ax)"
                 >

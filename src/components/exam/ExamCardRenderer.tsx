@@ -256,10 +256,10 @@ export const getColumnCount = (type: CardItem['type'], mode: 'editor' | 'detail'
     case 'anamnesis': return 11
     case 'schirmer-test': return 2
     case 'contact-lens-diameters': return 2
-    case 'contact-lens-details': return 8
+    case 'contact-lens-details': return 13
     case 'keratometer-contact-lens': return 6
     case 'contact-lens-exam': return 9
-    case 'old-contact-lenses': return 10
+    case 'old-contact-lenses': return 13
     case 'over-refraction': return 8
     case 'sensation-vision-stability': return 5
     case 'fusion-range': return 5

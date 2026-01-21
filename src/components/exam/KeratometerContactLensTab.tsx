@@ -8,6 +8,7 @@ import { usePrescriptionLogic } from "./shared/usePrescriptionLogic"
 import { CylTitle } from "./shared/CylTitle"
 import { useAxisWarning } from "./shared/useAxisWarning"
 import { AxisWarningInput } from "./shared/AxisWarningInput"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 interface KeratometerContactLensTabProps {
   keratometerContactLensData: KeratometerContactLens;
@@ -25,6 +26,7 @@ export function KeratometerContactLensTab({
   needsMiddleSpacer = false
 }: KeratometerContactLensTabProps) {
   const [hoveredEye, setHoveredEye] = useState<"R" | "L" | null>(null);
+  const [unit, setUnit] = useState<"mm" | "D">("mm")
 
   const { fieldWarnings, handleAxisChange } = useAxisWarning(
     keratometerContactLensData,
@@ -41,9 +43,49 @@ export function KeratometerContactLensTab({
     isEditing
   );
 
+  const convertValue = (val: string, from: "mm" | "D") => {
+    const num = parseFloat(val)
+    if (isNaN(num)) return ""
+    const result = 337.5 / num
+    return result.toFixed(2)
+  }
+
+  const handleUnitChange = (newUnit: string) => {
+    const nextUnit = newUnit as "mm" | "D"
+    if (nextUnit === unit) return
+
+    // Convert current values for rv and rh
+    const fieldsToConvert = ["rh", "rv"]
+    const eyes = ["r", "l"] as const
+
+    eyes.forEach(eye => {
+      fieldsToConvert.forEach(field => {
+        const eyeField = `${eye}_${field}` as keyof KeratometerContactLens
+        const val = keratometerContactLensData[eyeField]?.toString() || ""
+        if (val) {
+          onKeratometerContactLensChange(eyeField, convertValue(val, unit))
+        }
+      })
+    })
+
+    setUnit(nextUnit)
+  }
+
   const columns = [
-    { key: "rh", label: "RH", step: "0.01" },
-    { key: "rv", label: "RV", step: "0.01" },
+    {
+      key: "rh",
+      label: "RH",
+      step: "0.01",
+      min: unit === "mm" ? "3.0" : "40.00",
+      max: unit === "mm" ? "20.0" : "80.00"
+    },
+    {
+      key: "rv",
+      label: "RV",
+      step: "0.01",
+      min: unit === "mm" ? "3.0" : "40.00",
+      max: unit === "mm" ? "20.0" : "80.00"
+    },
     { key: "avg", label: "AVG", step: "0.01" },
     { key: "cyl", label: "CYL", step: "0.01" },
     { key: "ax", ...EXAM_FIELDS.AXIS },
@@ -83,8 +125,35 @@ export function KeratometerContactLensTab({
     <Card className="w-full examcard pb-4 pt-3">
       <CardContent className="px-4" style={{ scrollbarWidth: 'none' }}>
         <div className="space-y-3">
-          <div className="text-center">
-            <h3 className="font-medium text-muted-foreground">Keratometer Contact Lens</h3>
+          <div className="flex items-center justify-between mb-1">
+            <div className="flex-1">
+              <Tabs
+                value={unit}
+                onValueChange={handleUnitChange}
+                className="w-fit"
+              >
+                <TabsList className="h-7 p-1 bg-muted/50 border">
+                  <TabsTrigger
+                    value="mm"
+                    className="h-5 text-[10px] px-3 data-[state=active]:bg-background"
+                  >
+                    mm
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="D"
+                    className="h-5 text-[10px] px-3 data-[state=active]:bg-background"
+                  >
+                    D
+                  </TabsTrigger>
+                </TabsList>
+              </Tabs>
+            </div>
+
+            <h3 className="font-medium text-muted-foreground absolute left-1/2 -translate-x-1/2">
+              Keratometer Contact Lens
+            </h3>
+
+            <div className="flex-1" /> {/* Spacer for symmetry */}
           </div>
 
           <div className={`grid ${hideEyeLabels ? 'grid-cols-[repeat(6,1fr)]' : 'grid-cols-[20px_repeat(6,1fr)]'} gap-2 items-center`}>
@@ -140,7 +209,8 @@ export function KeratometerContactLensTab({
                   value={getFieldValue("R", key)}
                   onChange={(val) => handleChange("R", key, val)}
                   disabled={!isEditing}
-                  className={`h-8 pr-1 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
+                  suffix={(key === "rh" || key === "rv") ? unit : undefined}
+                  className={`h-8 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
                 />
               );
             })}
@@ -193,7 +263,8 @@ export function KeratometerContactLensTab({
                   value={getFieldValue("L", key)}
                   onChange={(val) => handleChange("L", key, val)}
                   disabled={!isEditing}
-                  className={`h-8 pr-1 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
+                  suffix={(key === "rh" || key === "rv") ? unit : undefined}
+                  className={`h-8 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
                 />
               );
             })}

@@ -2,6 +2,7 @@ import React, { useState, useRef } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { OverRefraction } from "@/lib/db/schema-interface";
 import { VASelect } from "./shared/VASelect";
+import { NVJSelect } from "./shared/NVJSelect";
 import { ChevronUp, ChevronDown } from "lucide-react";
 import { EXAM_FIELDS } from "./data/exam-field-definitions";
 import { FastInput, inputSyncManager } from "./shared/OptimizedInputs"
@@ -45,7 +46,7 @@ export function OverRefractionTab({
     { key: "cyl", ...EXAM_FIELDS.CYL },
     { key: "ax", ...EXAM_FIELDS.AXIS },
     { key: "va", ...EXAM_FIELDS.VA, type: "number" },
-    { key: "j", ...EXAM_FIELDS.J, type: "number" },
+    { key: "j", ...EXAM_FIELDS.J, type: "j" },
     { key: "add", ...EXAM_FIELDS.ADD },
     { key: "florescent", label: "Fl. Time", type: "text", span: 2 },
     { key: "bio_m", label: "Bio. M.", type: "text", span: 2 },
@@ -152,6 +153,12 @@ export function OverRefractionTab({
                     onChange={(val) => handleChange("R", key, val)}
                     disabled={!isEditing}
                   />
+                ) : type === "j" ? (
+                  <NVJSelect
+                    value={getFieldValue("R", key)}
+                    onChange={(val) => handleChange("R", key, val)}
+                    disabled={!isEditing}
+                  />
                 ) : (
                   <FastInput
                     {...colProps}
@@ -177,15 +184,13 @@ export function OverRefractionTab({
                     />
                   </div>
                 );
-              } else if (key === "j") {
+              } else if (key === "j" || type === "j") {
                 return (
                   <div key={`c-${key}`} className={`${span ? `col-span-${span}` : ''}`}>
-                    <FastInput
-                      type={type as any}
+                    <NVJSelect
                       value={getFieldValue("C", key)}
                       onChange={(val) => handleChange("C", key, val)}
                       disabled={!isEditing}
-                      className={`h-8 pr-1 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
                     />
                   </div>
                 );
@@ -223,6 +228,12 @@ export function OverRefractionTab({
                   />
                 ) : key === "va" ? (
                   <VASelect
+                    value={getFieldValue("L", key)}
+                    onChange={(val) => handleChange("L", key, val)}
+                    disabled={!isEditing}
+                  />
+                ) : type === "j" ? (
+                  <NVJSelect
                     value={getFieldValue("L", key)}
                     onChange={(val) => handleChange("L", key, val)}
                     disabled={!isEditing}

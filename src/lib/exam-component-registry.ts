@@ -221,12 +221,6 @@ examComponentRegistry.register('final-prescription', {
   order: 7
 })
 
-examComponentRegistry.register('compact-prescription', {
-  name: 'מרשם קומפקטי',
-  component: () => import('../components/exam/CompactPrescriptionTab'),
-  order: 8
-})
-
 examComponentRegistry.register('retinoscop', {
   name: 'רטינוסקופ',
   component: () => import('../components/exam/RetinoscopTab'),

@@ -229,9 +229,30 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
 
             if (isSignedNumber) {
               val = cleanSignedNumberInput(val)
-              e.currentTarget.value = val // Force the cleaned value back
             }
 
+            // Enforce min/max if the input has them defined
+            const minAttr = props.min;
+            const maxAttr = props.max;
+            if (minAttr !== undefined || maxAttr !== undefined) {
+              const currentVal = parseFloat(val);
+              if (!isNaN(currentVal)) {
+                if (minAttr !== undefined) {
+                  const minVal = parseFloat(minAttr as string);
+                  if (!isNaN(minVal) && currentVal < minVal) {
+                    val = minAttr.toString();
+                  }
+                }
+                if (maxAttr !== undefined) {
+                  const maxVal = parseFloat(maxAttr as string);
+                  if (!isNaN(maxVal) && currentVal > maxVal) {
+                    val = maxAttr.toString();
+                  }
+                }
+              }
+            }
+
+            e.currentTarget.value = val // Force the cleaned/clipped value back
             setLocalValue(val)
             props.onInput?.(e)
           }}

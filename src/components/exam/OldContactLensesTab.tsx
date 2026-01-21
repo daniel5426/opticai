@@ -3,6 +3,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { OldContactLenses } from "@/lib/db/schema-interface"
 import { ChevronUp, ChevronDown } from "lucide-react"
 import { EXAM_FIELDS } from "./data/exam-field-definitions"
+import { VASelect } from "./shared/VASelect"
 import { NVJSelect } from "./shared/NVJSelect"
 import { FastInput, inputSyncManager } from "./shared/OptimizedInputs"
 import { usePrescriptionLogic } from "./shared/usePrescriptionLogic"
@@ -44,7 +45,7 @@ export function OldContactLensesTab({ data, onChange, isEditing, hideEyeLabels =
     { key: "sph", ...EXAM_FIELDS.SPH },
     { key: "cyl", ...EXAM_FIELDS.CYL },
     { key: "ax", ...EXAM_FIELDS.AXIS },
-    { key: "va", ...EXAM_FIELDS.VA },
+    { key: "va", ...EXAM_FIELDS.VA, type: "va" },
     { key: "j", ...EXAM_FIELDS.J, type: "j" }
   ]
   const getFieldValue = (eye: "R" | "L" | "C", field: string) => {
@@ -88,7 +89,7 @@ export function OldContactLensesTab({ data, onChange, isEditing, hideEyeLabels =
           <div className="text-center">
             <h3 className="font-medium text-muted-foreground">Old Contact Lenses</h3>
           </div>
-          <div className={`grid ${hideEyeLabels ? 'grid-cols-[repeat(10,1fr)]' : 'grid-cols-[20px_repeat(10,1fr)]'} gap-2 items-center`}>
+          <div className={`grid ${hideEyeLabels ? 'grid-cols-[2fr_2fr_2fr_1fr_1fr_1fr_1fr_1fr_1fr_1fr]' : 'grid-cols-[20px_2fr_2fr_2fr_1fr_1fr_1fr_1fr_1fr_1fr_1fr]'} gap-2 items-center`}>
             {!hideEyeLabels && <div></div>}
             {columns.map(({ key, label }) => (
               <div key={key} className="h-4 flex items-center justify-center">
@@ -124,8 +125,15 @@ export function OldContactLensesTab({ data, onChange, isEditing, hideEyeLabels =
                       missingAxis={fieldWarnings.R.missingAxis}
                       missingCyl={fieldWarnings.R.missingCyl}
                       isEditing={isEditing}
+
                       onValueChange={handleAxisChange}
                       className={isEditing ? 'bg-white' : 'bg-accent/50'}
+                    />
+                  ) : type === "va" ? (
+                    <VASelect
+                      value={getFieldValue("R", key)}
+                      onChange={(val) => handleChange("R", key, val)}
+                      disabled={!isEditing}
                     />
                   ) : type === "j" ? (
                     <NVJSelect
@@ -139,6 +147,7 @@ export function OldContactLensesTab({ data, onChange, isEditing, hideEyeLabels =
                       value={getFieldValue("R", key)}
                       onChange={val => handleChange("R", key, val)}
                       disabled={!isEditing}
+                      suffix={key === "diam" ? "mm" : undefined}
                       className={`h-8 pr-1 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
                     />
                   )}
@@ -158,13 +167,11 @@ export function OldContactLensesTab({ data, onChange, isEditing, hideEyeLabels =
                       onChange={(val) => handleChange("C", key, val)}
                       disabled={!isEditing}
                     />
-                  ) : key === "va" ? (
-                    <FastInput
-                      type="number"
+                  ) : type === "va" ? (
+                    <VASelect
                       value={getFieldValue("C", key)}
                       onChange={(val) => handleChange("C", key, val)}
                       disabled={!isEditing}
-                      className={`h-8 pr-1 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
                     />
                   ) : (
                     <div></div>
@@ -200,6 +207,12 @@ export function OldContactLensesTab({ data, onChange, isEditing, hideEyeLabels =
                       onValueChange={handleAxisChange}
                       className={isEditing ? 'bg-white' : 'bg-accent/50'}
                     />
+                  ) : type === "va" ? (
+                    <VASelect
+                      value={getFieldValue("L", key)}
+                      onChange={(val) => handleChange("L", key, val)}
+                      disabled={!isEditing}
+                    />
                   ) : type === "j" ? (
                     <NVJSelect
                       value={getFieldValue("L", key)}
@@ -212,6 +225,7 @@ export function OldContactLensesTab({ data, onChange, isEditing, hideEyeLabels =
                       value={getFieldValue("L", key)}
                       onChange={val => handleChange("L", key, val)}
                       disabled={!isEditing}
+                      suffix={key === "diam" ? "mm" : undefined}
                       className={`h-8 pr-1 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
                     />
                   )}

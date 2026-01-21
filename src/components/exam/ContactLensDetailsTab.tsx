@@ -26,13 +26,13 @@ export function ContactLensDetailsTab({
   dataRef.current = contactLensDetailsData;
 
   const columns = [
-    { key: "type", label: "TYPE", step: "1", lookupType: "contactLensType" },
-    { key: "model", label: "MODEL", step: "1", lookupType: "contactLensModel" },
-    { key: "supplier", label: "SUPPLIER", step: "1", lookupType: "supplier" },
-    { key: "material", label: "MATERIAL", step: "1", lookupType: "contactEyeMaterial" },
-    { key: "color", label: "COLOR", step: "1", lookupType: "color" },
-    { key: "quantity", label: "QTY", step: "1", min: "0" },
-    { key: "order_quantity", label: "ORDER QTY", step: "1", min: "0" },
+    { key: "type", label: "סוג", step: "1", lookupType: "contactLensType" },
+    { key: "model", label: "דגם", step: "1", lookupType: "contactLensModel" },
+    { key: "supplier", label: "ספק", step: "1", lookupType: "supplier" },
+    { key: "material", label: "חומר", step: "1", lookupType: "contactEyeMaterial" },
+    { key: "color", label: "צבע", step: "1", lookupType: "color" },
+    { key: "quantity", label: "כמות", step: "1", min: "0" },
+    { key: "order_quantity", label: "להזמין", step: "1", min: "0" },
     { key: "dx", label: "DX", step: "0.25" },
   ];
 
@@ -85,7 +85,7 @@ export function ContactLensDetailsTab({
             <h3 className="font-medium text-muted-foreground">Contact Lens Details</h3>
           </div>
 
-          <div className={`grid ${hideEyeLabels ? 'grid-cols-[repeat(8,1fr)]' : 'grid-cols-[20px_repeat(8,1fr)]'} gap-2 items-center`}>
+          <div className={`grid ${hideEyeLabels ? 'grid-cols-[2fr_2fr_2fr_2fr_2fr_1fr_1fr_1fr]' : 'grid-cols-[20px_2fr_2fr_2fr_2fr_2fr_1fr_1fr_1fr]'} gap-2 items-center`}>
             {!hideEyeLabels && <div></div>}
             {columns.map(({ key, label }) => (
               <div key={key} className="h-4 flex items-center justify-center">

@@ -10,6 +10,7 @@ import { BASE_VALUES_SIMPLE, PDCalculationUtils } from "./data/exam-constants"
 import { FastInput, FastSelect, inputSyncManager } from "./shared/OptimizedInputs"
 import { usePrescriptionLogic } from "./shared/usePrescriptionLogic"
 import { CylTitle } from "./shared/CylTitle"
+import { NVJSelect } from "./shared/NVJSelect"
 
 interface OldRefractionExtensionTabProps {
   oldRefractionExtensionData: OldRefractionExtensionExam;
@@ -123,6 +124,18 @@ export function OldRefractionExtensionTab({
     const finalProps = (eye === "C" && (key === "pd_far" || key === "pd_close"))
       ? { ...EXAM_FIELDS.PD_COMB }
       : { step, min, max, ...colProps };
+
+    if (key === "j") {
+      return (
+        <React.Suspense fallback={<FastInput {...finalProps} disabled />}>
+          <NVJSelect
+            value={value}
+            onChange={(val) => handleChange(eye, key, val)}
+            disabled={!isEditing}
+          />
+        </React.Suspense>
+      );
+    }
 
     return (
       <FastInput

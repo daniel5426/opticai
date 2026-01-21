@@ -112,13 +112,31 @@ export function useOptimizedInput<T extends HTMLInputElement | HTMLTextAreaEleme
             const target = e.target as T;
             let val = target.value;
 
-            // Strictly enforce min if it's a number input and min is provided
-            if (target instanceof HTMLInputElement && target.type === "number" && target.min !== "") {
-                const minVal = parseFloat(target.min);
+            // Enforce min/max if the input has them defined, regardless of type
+            // This handles standard number inputs AND signed number inputs (which use type="text")
+            if (target instanceof HTMLInputElement) {
                 const currentVal = parseFloat(val);
-                if (!isNaN(minVal) && !isNaN(currentVal) && currentVal < minVal) {
-                    val = target.min;
-                    target.value = val;
+
+                if (!isNaN(currentVal)) {
+                    // Check min
+                    const minAttr = target.getAttribute("min");
+                    if (minAttr !== null && minAttr !== "") {
+                        const minVal = parseFloat(minAttr);
+                        if (!isNaN(minVal) && currentVal < minVal) {
+                            val = minAttr; // Use the attribute string directly to preserve format preference if possible
+                            target.value = val;
+                        }
+                    }
+
+                    // Check max
+                    const maxAttr = target.getAttribute("max");
+                    if (maxAttr !== null && maxAttr !== "") {
+                        const maxVal = parseFloat(maxAttr);
+                        if (!isNaN(maxVal) && currentVal > maxVal) {
+                            val = maxAttr;
+                            target.value = val;
+                        }
+                    }
                 }
             }
 

@@ -49,7 +49,7 @@ export function ContactLensExamTab({
     { key: "cyl", ...EXAM_FIELDS.CYL },
     { key: "ax", ...EXAM_FIELDS.AXIS },
     { key: "read_ad", ...EXAM_FIELDS.READ_AD },
-    { key: "va", ...EXAM_FIELDS.VA },
+    { key: "va", ...EXAM_FIELDS.VA, type: "va" },
     { key: "j", ...EXAM_FIELDS.J, type: "j" }
   ];
 
@@ -158,7 +158,7 @@ export function ContactLensExamTab({
                     value={getFieldValue("R", key)}
                     onChange={(val) => handleChange("R", key, val)}
                     disabled={!isEditing}
-                    prefix={key === "read_ad" ? "dd" : undefined}
+                    suffix={key === "diam" ? "mm" : undefined}
                     className={`h-8 pr-1 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
                   />
                 )}
@@ -240,7 +240,7 @@ export function ContactLensExamTab({
                     value={getFieldValue("L", key)}
                     onChange={(val) => handleChange("L", key, val)}
                     disabled={!isEditing}
-                    prefix={key === "read_ad" ? "dd" : undefined}
+                    suffix={key === "diam" ? "mm" : undefined}
                     className={`h-8 pr-1 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
                   />
                 )}

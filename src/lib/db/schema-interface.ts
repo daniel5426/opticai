@@ -248,6 +248,7 @@ export interface AdditionExam {
   l_j?: number;
   r_iop?: number;
   l_iop?: number;
+  comb_j?: number;
 }
 
 export interface RetinoscopExam {

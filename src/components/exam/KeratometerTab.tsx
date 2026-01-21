@@ -27,8 +27,8 @@ export function KeratometerTab({
   dataRef.current = keratometerData;
 
   const columns = [
-    { key: "k1", label: "K1", step: unit === "mm" ? "0.1" : "0.25", min: unit === "mm" ? "3.0" : "40.00", max: unit === "mm" ? "20.0" : "80.00" },
-    { key: "k2", label: "K2", labelHe: "K2", step: unit === "mm" ? "0.1" : "0.25", min: unit === "mm" ? "3.0" : "40.00", max: unit === "mm" ? "20.0" : "80.00" },
+    { key: "k1", label: "K1", step: "0.1", min: unit === "mm" ? "3.0" : "40.00", max: unit === "mm" ? "20.0" : "80.00" },
+    { key: "k2", label: "K2", labelHe: "K2", step: "0.1", min: unit === "mm" ? "3.0" : "40.00", max: unit === "mm" ? "20.0" : "80.00" },
     { key: "axis", label: "AX", labelHe: "אקסיס", step: "1", min: "0", max: "180" }
   ]
 

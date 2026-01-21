@@ -87,7 +87,7 @@ export function AdditionTab({
                 {hoveredEye === "L" ? <ChevronDown size={16} /> : "R"}
               </span>
             </div>}
-            {columns.map(({ key, step }) => (
+            {columns.map(({ key, type, ...fieldProps }) => (
               key === "j" ? (
                 <NVJSelect
                   key={`r-${key}`}
@@ -100,7 +100,7 @@ export function AdditionTab({
                   key={`r-${key}`}
                   type="number"
                   showPlus={true}
-                  step={step}
+                  {...fieldProps}
                   value={getFieldValue("R", key)}
                   onChange={(val) => handleChange("R", key, val)}
                   disabled={!isEditing}
@@ -109,14 +109,20 @@ export function AdditionTab({
               )
             ))}
 
-            {needsMiddleSpacer && (
-              <>
-                {!hideEyeLabels && <div className="h-8" />}
-                {columns.map(({ key }) => (
-                  <div key={`spacer-${key}`} className="h-8" />
-                ))}
-              </>
-            )}
+            {!hideEyeLabels && <div className="h-8" />}
+            {columns.map(({ key }) => {
+              if (key === "j") {
+                return (
+                  <NVJSelect
+                    key={`c-${key}`}
+                    value={additionData.comb_j?.toString() || ""}
+                    onChange={(value) => onAdditionChange("comb_j", value)}
+                    disabled={!isEditing}
+                  />
+                );
+              }
+              return <div key={`spacer-${key}`} className="h-8" />;
+            })}
 
             {!hideEyeLabels && <div className="flex items-center justify-center">
               <span
@@ -129,7 +135,7 @@ export function AdditionTab({
                 {hoveredEye === "R" ? <ChevronUp size={16} /> : "L"}
               </span>
             </div>}
-            {columns.map(({ key, step }) => (
+            {columns.map(({ key, type, ...fieldProps }) => (
               key === "j" ? (
                 <NVJSelect
                   key={`l-${key}`}
@@ -141,7 +147,8 @@ export function AdditionTab({
                 <FastInput
                   key={`l-${key}`}
                   type="number"
-                  step={step}
+                  showPlus={true}
+                  {...fieldProps}
                   value={getFieldValue("L", key)}
                   onChange={(val) => handleChange("L", key, val)}
                   disabled={!isEditing}
