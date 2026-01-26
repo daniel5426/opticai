@@ -3,12 +3,11 @@ import { Card, CardContent } from "@/components/ui/card"
 import { VHCalculatorModal } from "@/components/ui/vh-calculator-modal"
 import { FinalSubjectiveExam } from "@/lib/db/schema-interface"
 import { ChevronUp, ChevronDown } from "lucide-react"
-import { EXAM_FIELDS } from "./data/exam-field-definitions"
-import { BASE_VALUES_SIMPLE } from "./data/exam-constants"
+import { EXAM_FIELDS, PDFieldConfigProvider } from "./data/exam-field-definitions"
+import { BASE_VALUES_SIMPLE, PDCalculationUtils } from "./data/exam-constants"
 import { VASelect } from "./shared/VASelect"
 import { NVJSelect } from "./shared/NVJSelect"
 import { FastInput, FastSelect, inputSyncManager } from "./shared/OptimizedInputs"
-import { PDCalculationUtils } from "./data/exam-constants"
 import { usePrescriptionLogic } from "./shared/usePrescriptionLogic"
 import { CylTitle } from "./shared/CylTitle"
 import { useAxisWarning } from "./shared/useAxisWarning"
@@ -179,6 +178,7 @@ export function FinalSubjectiveTab({
         return (
           <FastInput
             {...pdProps}
+            max={key === "pd_close" ? PDFieldConfigProvider.getNearConfig(getFieldValue(eye, "pd_far")).max : (pdProps as any).max}
             type="number"
             value={value}
             onChange={(val) => handleChange(eye, key, val)}

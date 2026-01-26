@@ -151,6 +151,23 @@ export interface PDCalculationParams<T> {
 }
 
 export const PDCalculationUtils = {
+  /**
+   * Validation rule: pd_near must be greater than or equal to pd_far
+   */
+  validatePD: (field: string, value: string, farValue: string | number | undefined): string => {
+    if (field !== "pd_close" && field !== "pd_near") return value;
+    
+    const numValue = parseFloat(value);
+    const numFar = typeof farValue === 'string' ? parseFloat(farValue) : farValue;
+    
+    if (isNaN(numValue) || isNaN(numFar as number)) return value;
+    
+    if (numValue > (numFar as number)) {
+      return (numFar as number).toString();
+    }
+    return value;
+  },
+
   handlePDChange: <T extends Record<string, any>>({
     eye,
     field,
@@ -164,17 +181,27 @@ export const PDCalculationUtils = {
       return;
     }
 
+    // Apply validation if it's a near field
+    let finalValue = value;
+    if (field === "pd_close") {
+      const farField = "pd_far";
+      const farVal = eye === "C" 
+        ? data[`comb_${farField}`] 
+        : data[`${eye.toLowerCase()}_${farField}`];
+      finalValue = PDCalculationUtils.validatePD(field, value, farVal);
+    }
+
     const combField = `comb_${field}` as keyof T;
     const rField = `r_${field}` as keyof T;
     const lField = `l_${field}` as keyof T;
 
     if (eye === "C") {
       // Update combined field first
-      onChange(combField, value);
+      onChange(combField, finalValue);
 
       // Calculate half value for eyes
-      const numValue = parseFloat(value);
-      if (isNaN(numValue) || value === "" || numValue === 0) {
+      const numValue = parseFloat(finalValue);
+      if (isNaN(numValue) || finalValue === "" || numValue === 0) {
         // If combined is cleared, clear eyes too
         onChange(rField, "");
         onChange(lField, "");
@@ -187,12 +214,12 @@ export const PDCalculationUtils = {
       const eyeField = `${eye.toLowerCase()}_${field}` as keyof T;
       
       // Update the changed eye first
-      onChange(eyeField, value);
+      onChange(eyeField, finalValue);
 
-      const numValue = parseFloat(value);
+      const numValue = parseFloat(finalValue);
       const otherEyeVal = eye === "R" ? getLValue(data, field) : getRValue(data, field);
 
-      if ((isNaN(numValue) || value === "") && (otherEyeVal === 0 || !otherEyeVal)) {
+      if ((isNaN(numValue) || finalValue === "") && (otherEyeVal === 0 || !otherEyeVal)) {
         // Both eyes empty -> clear combined
         onChange(combField, "");
       } else {
@@ -222,11 +249,12 @@ export const SECalculationUtils = {
     onChange: (field: keyof T, value: string) => void;
     calculateSE: (sph: any, cyl: any) => string;
   }): void => {
-    if (field !== "sph" && field !== "cyl") return;
+    if (field !== "sph" && field !== "cyl" && field !== "ax") return;
 
     const eyePrefix = eye.toLowerCase();
     const sph = field === "sph" ? value : data[`${eyePrefix}_sph`];
     const cyl = field === "cyl" ? value : data[`${eyePrefix}_cyl`];
+    const ax = field === "ax" ? value : data[`${eyePrefix}_ax`];
 
     const se = calculateSE(sph, cyl);
     onChange(`${eyePrefix}_se` as keyof T, se);

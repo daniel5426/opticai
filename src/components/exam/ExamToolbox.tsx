@@ -251,9 +251,9 @@ export function createToolboxActions(
     const changeHandler = getChangeHandlerByType(componentType, key)
     if (!data || !changeHandler) return
     const clearedData = ExamFieldMapper.clearData(data, componentType)
-    Object.keys(clearedData).forEach(field => {
+    Object.entries(clearedData).forEach(([field, value]) => {
       if (field !== 'id' && field !== 'layout_instance_id') {
-        changeHandler(field, '')
+        changeHandler(field, value)
       }
     })
   }

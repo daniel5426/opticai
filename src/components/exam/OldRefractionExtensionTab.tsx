@@ -5,7 +5,7 @@ import { OldRefractionExtensionExam } from "@/lib/db/schema-interface"
 import { ChevronUp, ChevronDown } from "lucide-react"
 
 import { VASelect } from "./shared/VASelect"
-import { EXAM_FIELDS } from "./data/exam-field-definitions"
+import { EXAM_FIELDS, PDFieldConfigProvider } from "./data/exam-field-definitions"
 import { BASE_VALUES_SIMPLE, PDCalculationUtils } from "./data/exam-constants"
 import { FastInput, FastSelect, inputSyncManager } from "./shared/OptimizedInputs"
 import { usePrescriptionLogic } from "./shared/usePrescriptionLogic"
@@ -140,6 +140,7 @@ export function OldRefractionExtensionTab({
     return (
       <FastInput
         {...finalProps}
+        max={key === "pd_close" ? PDFieldConfigProvider.getNearConfig(getFieldValue(eye, "pd_far")).max : finalProps.max}
         type="number"
         value={value}
         onChange={(val) => handleChange(eye, key, val)}

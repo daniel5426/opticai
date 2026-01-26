@@ -17,7 +17,9 @@ import {
   LookupDisinfectionSolution,
   LookupRinsingSolution,
   LookupManufacturingLab,
-  LookupAdvisor
+  LookupAdvisor,
+  LookupVAMeter,
+  LookupVADecimal
 } from './schema-interface';
 import { apiClient } from '../api-client';
 
@@ -405,6 +407,40 @@ export async function deleteLookupAdvisor(id: number): Promise<boolean> {
   return deleteLookupItem('advisors', id);
 }
 
+// VA Meter functions
+export async function getAllLookupVAMeters(): Promise<LookupVAMeter[]> {
+  return getLookupItems<LookupVAMeter>('va-meter');
+}
+
+export async function createLookupVAMeter(data: Omit<LookupVAMeter, 'id'>): Promise<LookupVAMeter | null> {
+  return createLookupItem<LookupVAMeter>('va-meter', data);
+}
+
+export async function updateLookupVAMeter(data: LookupVAMeter): Promise<LookupVAMeter | null> {
+  return updateLookupItem<LookupVAMeter>('va-meter', data);
+}
+
+export async function deleteLookupVAMeter(id: number): Promise<boolean> {
+  return deleteLookupItem('va-meter', id);
+}
+
+// VA Decimal functions
+export async function getAllLookupVADecimals(): Promise<LookupVADecimal[]> {
+  return getLookupItems<LookupVADecimal>('va-decimal');
+}
+
+export async function createLookupVADecimal(data: Omit<LookupVADecimal, 'id'>): Promise<LookupVADecimal | null> {
+  return createLookupItem<LookupVADecimal>('va-decimal', data);
+}
+
+export async function updateLookupVADecimal(data: LookupVADecimal): Promise<LookupVADecimal | null> {
+  return updateLookupItem<LookupVADecimal>('va-decimal', data);
+}
+
+export async function deleteLookupVADecimal(id: number): Promise<boolean> {
+  return deleteLookupItem('va-decimal', id);
+}
+
 export const lookupTables = {
   supplier: {
     getAll: getAllLookupSuppliers,
@@ -538,5 +574,19 @@ export const lookupTables = {
     update: updateLookupAdvisor,
     delete: deleteLookupAdvisor,
     displayName: 'יועצים'
+  },
+  vaMeter: {
+    getAll: getAllLookupVAMeters,
+    create: createLookupVAMeter,
+    update: updateLookupVAMeter,
+    delete: deleteLookupVAMeter,
+    displayName: 'חדות ראייה - מטר'
+  },
+  vaDecimal: {
+    getAll: getAllLookupVADecimals,
+    create: createLookupVADecimal,
+    update: updateLookupVADecimal,
+    delete: deleteLookupVADecimal,
+    displayName: 'חדות ראייה - דצימלי'
   }
 } 

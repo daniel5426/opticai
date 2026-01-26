@@ -44,7 +44,7 @@ export const StretchSelect = memo(function StretchSelect({
                 "flex items-center group h-8 border border-input rounded-md transition-shadow relative bg-background min-w-0",
                 !disabled ? "bg-white" : "bg-accent/50",
                 disabled && UI_CONFIG.noBorderOnDisabled ? "border-none" : "",
-                "focus-within:border-ring focus-within:ring-ring/50 focus-within:ring-[1px]",
+                "focus-within:border-ring ring-0 outline-none",
                 className
             )}
         >
@@ -53,6 +53,16 @@ export const StretchSelect = memo(function StretchSelect({
                     value={localValue}
                     onValueChange={handleValueChange}
                     disabled={disabled}
+                    onOpenChange={(open) => {
+                        if (!open) {
+                            setTimeout(() => {
+                                if (document.activeElement instanceof HTMLElement && 
+                                    document.activeElement.getAttribute('data-slot') === 'select-trigger') {
+                                    document.activeElement.blur();
+                                }
+                            }, 0);
+                        }
+                    }}
                 >
                     <SelectTrigger
                         className="border-none focus:ring-0 focus:ring-offset-0 h-full w-full bg-transparent shadow-none px-0"
@@ -504,16 +514,31 @@ export const FastSelect = memo(function FastSelect({
     const { localValue, handleValueChange } = useOptimizedSelect(value, onChange, debounceMs);
 
     return (
-        <Select {...props} value={localValue} onValueChange={handleValueChange}>
+        <Select 
+            {...props} 
+            value={localValue} 
+            onValueChange={handleValueChange}
+            onOpenChange={(open) => {
+                if (!open) {
+                    // Force blur on the active element if it's a select trigger to prevent persistent focus ring
+                    setTimeout(() => {
+                        if (document.activeElement instanceof HTMLElement && 
+                            document.activeElement.getAttribute('data-slot') === 'select-trigger') {
+                            document.activeElement.blur();
+                        }
+                    }, 0);
+                }
+            }}
+        >
             <SelectTrigger disabled={props.disabled} size={size} className={triggerClassName} centered={center}>
                 <SelectValue placeholder={placeholder} />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="min-w-16 w-fit justify-center items-center">
                 {options.map((opt) => {
                     const val = typeof opt === 'string' ? opt : opt.value;
                     const label = typeof opt === 'string' ? opt : opt.label;
                     return (
-                        <SelectItem key={val} value={val}>
+                        <SelectItem key={val} value={val} className="justify-center">
                             {label}
                         </SelectItem>
                     );

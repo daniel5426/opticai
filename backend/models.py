@@ -629,6 +629,20 @@ class LookupAdvisor(Base):
     name = Column(String, nullable=False, unique=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now()) 
 
+class LookupVAMeter(Base):
+    __tablename__ = "lookup_va_meter"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, nullable=False, unique=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+class LookupVADecimal(Base):
+    __tablename__ = "lookup_va_decimal"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, nullable=False, unique=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
 
 # Indexes to speed up common client list queries
 Index('ix_clients_clinic_id', Client.clinic_id)

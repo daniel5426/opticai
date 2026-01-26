@@ -3,6 +3,7 @@ import { UI_CONFIG } from "@/config/ui-config"
 import { cn } from "@/utils/tailwind"
 import { VA_METER_VALUES, VA_DECIMAL_VALUES } from "../data/exam-constants"
 import { useUser } from "@/contexts/UserContext"
+import { useLookupData } from "@/hooks/useLookupData"
 import { inputSyncManager } from "./OptimizedInputs"
 import { flushSync } from 'react-dom'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -89,6 +90,9 @@ export const VASelect = memo(function VASelect({
   const { currentUser } = useUser()
   const mode = (currentUser?.va_format as "meter" | "decimal") || "meter"
 
+  const lookupType = mode === "meter" ? "vaMeter" : "vaDecimal"
+  const { data: lookupData, loading: isLoadingLookup } = useLookupData(lookupType)
+
   const [modifier, setModifier] = useState("")
   const modifierRef = useRef("")
 
@@ -110,7 +114,11 @@ export const VASelect = memo(function VASelect({
     setLocalBase(currentBase)
   }, [currentBase])
 
-  const options: readonly string[] = mode === "meter" ? VA_METER_VALUES : VA_DECIMAL_VALUES
+  const dynamicOptions = lookupData.map(item => item.name)
+  const options: readonly string[] = dynamicOptions.length > 0 
+    ? dynamicOptions 
+    : (mode === "meter" ? VA_METER_VALUES : VA_DECIMAL_VALUES)
+    
   const selectValue = options.includes(localBase) ? localBase : ""
 
   useEffect(() => {
@@ -146,22 +154,41 @@ export const VASelect = memo(function VASelect({
 
   return (
     <div
+      data-slot="va-select"
       className={cn(
         "flex items-center w-full group h-8 border border-input rounded-md transition-shadow relative bg-background min-w-0",
         !disabled ? "bg-white" : "bg-accent/50",
         disabled && UI_CONFIG.noBorderOnDisabled ? "border-none" : "",
-        "focus-within:border-ring focus-within:ring-ring/50 focus-within:ring-[1px]",
+        "focus-within:border-ring focus-within:ring-ring/30 focus-within:ring-[1px] outline-none",
         className
       )}
     >
-      <div className="flex-1 flex items-center justify-center pr-5 relative min-w-0 h-full">
+      <div  className="flex-1 flex items-center justify-center pr-5 relative min-w-0 h-full">
         <Select
           key={`${mode}`} // Only force re-render on mode change, not every value change
           value={selectValue}
           onValueChange={handleValueChange}
-          disabled={disabled}
+          disabled={disabled || isLoadingLookup}
+          onOpenChange={(open) => {
+            const container = document.querySelector('[data-slot="va-select"]:hover') || 
+                              document.activeElement?.closest('[data-slot="va-select"]');
+            
+            if (open && container) {
+              container.classList.add('border-ring', 'ring-ring/1', 'ring-[1px]');
+            } else if (!open) {
+              const allContainers = document.querySelectorAll('[data-slot="va-select"]');
+              allContainers.forEach(c => c.classList.remove('border-ring', 'ring-ring/1', 'ring-[1px]'));
+              
+              setTimeout(() => {
+                if (document.activeElement instanceof HTMLElement && 
+                    document.activeElement.getAttribute('data-slot') === 'select-trigger') {
+                  document.activeElement.blur();
+                }
+              }, 0);
+            }
+          }}
         >
-          <SelectTrigger
+          <SelectTrigger dir="ltr"
             className="border-none focus:ring-0 focus:ring-offset-0 h-full w-full bg-transparent shadow-none px-2"
             size="sm"
             centered
@@ -170,7 +197,7 @@ export const VASelect = memo(function VASelect({
           </SelectTrigger>
           <SelectContent className="min-w-16 w-fit">
             {options.map((opt) => (
-              <SelectItem key={opt} value={opt} className="justify-center">
+              <SelectItem key={opt} value={opt} dir="ltr" className="justify-center">
                 {opt}
               </SelectItem>
             ))}

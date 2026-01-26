@@ -34,6 +34,15 @@ app.add_middleware(GZipMiddleware, minimum_size=1024)
 
 Base.metadata.create_all(bind=engine)
 
+# Seed initial data
+from database import get_db
+from utils.seed_data import seed_va_values
+db = next(get_db())
+try:
+    seed_va_values(db)
+finally:
+    db.close()
+
 app.include_router(auth.router, prefix=config.settings.API_V1_STR)
 app.include_router(companies.router, prefix=config.settings.API_V1_STR)
 app.include_router(clinics.router, prefix=config.settings.API_V1_STR)

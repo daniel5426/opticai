@@ -218,7 +218,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
             `${props.disabled ? "bg-accent/50 dark:bg-accent/50" : "bg-card dark:bg-card"}`,
             type === "number" || center ? "text-center" : (effectiveDir === "rtl" ? "text-right" : "text-left"),
             `disabled:opacity-100 disabled:cursor-default file:text-foreground placeholder:text-muted-foreground selection:bg-primary selection:text-primary-foreground ${noBorder ? "border-none" : "border-input border"} flex h-9 w-full min-w-0 rounded-md py-1 text-base transition-[color] outline-none file:inline-flex file:h-7 file:border-0 file:bg-transparent file:text-sm file:font-medium md:text-sm`,
-            "focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[1px]",
+            "focus-visible:outline-none focus-visible:border-ring ring-0 outline-none",
             "aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive",
             "[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none",
             prefix ? "pl-5.5" : "px-1",
@@ -243,6 +243,18 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
           }}
           onChange={(e) => {
             props.onChange?.(e)
+          }}
+          onKeyDown={(e) => {
+            if (isNumericInput) {
+              if (e.key === "ArrowUp") {
+                e.preventDefault()
+                handleStep(true)
+              } else if (e.key === "ArrowDown") {
+                e.preventDefault()
+                handleStep(false)
+              }
+            }
+            props.onKeyDown?.(e)
           }}
           onBlur={(e) => {
             // Enforce min/max and format on blur

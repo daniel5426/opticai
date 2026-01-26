@@ -7,7 +7,7 @@ import { VASelect } from "./shared/VASelect"
 import { ChevronUp, ChevronDown } from "lucide-react"
 
 import { FastInput, FastSelect, inputSyncManager } from "./shared/OptimizedInputs"
-import { EXAM_FIELDS } from "./data/exam-field-definitions"
+import { EXAM_FIELDS, PDFieldConfigProvider } from "./data/exam-field-definitions"
 import { BASE_VALUES, PDCalculationUtils } from "./data/exam-constants"
 import { usePrescriptionLogic } from "./shared/usePrescriptionLogic"
 import { CylTitle } from "./shared/CylTitle"
@@ -177,6 +177,7 @@ export const SubjectiveTab = React.memo(function SubjectiveTab({
                 ) : (
                   <FastInput
                     {...colProps}
+                    max={key === "pd_close" ? PDFieldConfigProvider.getNearConfig(getFieldValue("R", "pd_far")).max : colProps.max}
                     type="number"
                     value={getFieldValue("R", key)}
                     onChange={(val) => handleChange("R", key, val)}
@@ -227,6 +228,7 @@ export const SubjectiveTab = React.memo(function SubjectiveTab({
                 return (
                   <FastInput
                     {...pdCombProps}
+                    max={key === "pd_close" ? PDFieldConfigProvider.getNearConfig(getFieldValue("C", "pd_far")).max : pdCombProps.max}
                     key={`c-${key}`}
                     type="number"
                     value={getFieldValue("C", key)}
@@ -286,6 +288,7 @@ export const SubjectiveTab = React.memo(function SubjectiveTab({
                 ) : (
                   <FastInput
                     {...colProps}
+                    max={key === "pd_close" ? PDFieldConfigProvider.getNearConfig(getFieldValue("L", "pd_far")).max : colProps.max}
                     type="number"
                     value={getFieldValue("L", key)}
                     onChange={(val) => handleChange("L", key, val)}

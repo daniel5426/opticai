@@ -65,7 +65,7 @@ export function ObjectiveTab({
     }
 
     // Auto-calculate SE
-    if (field === "sph" || field === "cyl") {
+    if (field === "sph" || field === "cyl" || field === "ax") {
       SECalculationUtils.handleSEChange({
         eye,
         field,
@@ -136,7 +136,7 @@ export function ObjectiveTab({
                     missingAxis={eyeWarnings.missingAxis}
                     missingCyl={eyeWarnings.missingCyl}
                     isEditing={isEditing}
-                    onValueChange={handleAxisChange}
+                    onValueChange={(eye, field, val) => handleChange(eye, field, val)}
                     onBlur={(eye, field, val) => handleAxisBlur(eye, field, val, (inputProps as any).min, (inputProps as any).max)}
                     className={isEditing ? 'bg-white' : 'bg-accent/50'}
                   />
@@ -189,7 +189,7 @@ export function ObjectiveTab({
                     missingAxis={eyeWarnings.missingAxis}
                     missingCyl={eyeWarnings.missingCyl}
                     isEditing={isEditing}
-                    onValueChange={handleAxisChange}
+                    onValueChange={(eye, field, val) => handleChange(eye, field, val)}
                     onBlur={(eye, field, val) => handleAxisBlur(eye, field, val, (inputProps as any).min, (inputProps as any).max)}
                     className={isEditing ? 'bg-white' : 'bg-accent/50'}
                   />

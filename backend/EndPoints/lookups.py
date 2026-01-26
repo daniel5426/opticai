@@ -6,9 +6,9 @@ from models import (
     LookupSupplier, LookupClinic, LookupOrderType, LookupReferralType,
     LookupLensModel, LookupColor, LookupMaterial, LookupCoating,
     LookupManufacturer, LookupFrameModel, LookupContactLensType,
-    LookupContactEyeLensType, LookupContactEyeMaterial, LookupContactLensModel,
+    LookupContactEyeLensType,     LookupContactEyeMaterial, LookupContactLensModel,
     LookupCleaningSolution, LookupDisinfectionSolution, LookupRinsingSolution,
-    LookupManufacturingLab, LookupAdvisor
+    LookupManufacturingLab, LookupAdvisor, LookupVAMeter, LookupVADecimal
 )
 from pydantic import BaseModel
 
@@ -34,7 +34,9 @@ LOOKUP_MODELS = {
     'disinfection-solutions': LookupDisinfectionSolution,
     'rinsing-solutions': LookupRinsingSolution,
     'manufacturing-labs': LookupManufacturingLab,
-    'advisors': LookupAdvisor
+    'advisors': LookupAdvisor,
+    'va-meter': LookupVAMeter,
+    'va-decimal': LookupVADecimal
 }
 
 class LookupCreate(BaseModel):

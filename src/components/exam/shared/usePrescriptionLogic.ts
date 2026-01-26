@@ -46,7 +46,12 @@ export function usePrescriptionLogic<T>(
 
   // Handle automatic transposition on mount/load
   useEffect(() => {
-    if (!isEditing || hasAutoTransposed.current || !currentUser) return;
+    if (!isEditing) {
+      hasAutoTransposed.current = false;
+      return;
+    }
+
+    if (hasAutoTransposed.current || !currentUser) return;
 
     let needsTransposition = false;
     
@@ -62,9 +67,11 @@ export function usePrescriptionLogic<T>(
     if (needsTransposition) {
       // Small delay to ensure state is ready if needed, or just execute
       fields.forEach(transposeRow);
-      hasAutoTransposed.current = true;
     }
-  }, [currentUser, preferredNotation, fields, transposeRow, isEditing]); // Intentionally omitting 'data' to only run on initial load
+    
+    // Mark as checked to prevent auto-transposition during active editing
+    hasAutoTransposed.current = true;
+  }, [currentUser, preferredNotation, fields, transposeRow, isEditing]); // Intentionally omitting 'data' to only run on initial load or when isEditing changes
 
   return {
     handleManualTranspose,

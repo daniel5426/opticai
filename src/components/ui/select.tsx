@@ -8,9 +8,10 @@ import { UI_CONFIG } from "@/config/ui-config"
 import { cn } from "@/utils/tailwind"
 
 function Select({
+  onOpenChange,
   ...props
 }: React.ComponentProps<typeof SelectPrimitive.Root>) {
-  return <SelectPrimitive.Root data-slot="select" {...props} />
+  return <SelectPrimitive.Root data-slot="select" onOpenChange={onOpenChange} {...props} />
 }
 
 function SelectGroup({
@@ -48,10 +49,10 @@ function SelectTrigger({
       data-size={size}
       dir="rtl"
       className={cn(`${props.disabled ? "bg-accent/50 dark:bg-accent/50" : "bg-card dark:bg-card"}`,
-        ` ${props.disabled ? "bg-accent/50 dark:bg-accent/50 " : "bg-card dark:bg-card"}  m-0 disabled:opacity-100 disabled:cursor-default w-full data-[placeholder]:text-muted-foreground [&_svg:not([class*='text-'])]:text-muted-foreground  aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40  flex items-center gap-2 rounded-md py-2 text-sm whitespace-nowrap  transition-[color] outline-none focus-visible:ring-[3px] data-[size=default]:h-9 data-[size=sm]:h-8 *:data-[slot=select-value]:line-clamp-1 *:data-[slot=select-value]:flex *:data-[slot=select-value]:items-center *:data-[slot=select-value]:gap-2 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 relative`,
+        "m-0 disabled:opacity-100 disabled:cursor-default w-full data-[placeholder]:text-muted-foreground [&_svg:not([class*='text-'])]:text-muted-foreground aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 flex items-center gap-2 rounded-md py-2 text-sm whitespace-nowrap transition-[color] outline-none data-[size=default]:h-9 data-[size=sm]:h-8 *:data-[slot=select-value]:line-clamp-1 *:data-[slot=select-value]:flex *:data-[slot=select-value]:items-center *:data-[slot=select-value]:gap-2 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 relative",
         centered ? "justify-center pl-5 pr-2" : "justify-between pl-1 pr-2",
         centered && "*:data-[slot=select-value]:justify-center",
-        noBorder ? "" : "border border-input aria-invalid:border-destructive focus-visible:border-ring focus-visible:ring-ring/50",
+        noBorder ? "" : "border border-input aria-invalid:border-destructive data-[state=open]:border-ring ring-0 outline-none focus:outline-none focus:border-ring",
         className
       )}
       {...props}

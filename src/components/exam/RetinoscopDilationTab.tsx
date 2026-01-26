@@ -3,7 +3,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { RetinoscopDilationExam } from "@/lib/db/schema-interface"
 import { ChevronUp, ChevronDown } from "lucide-react"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { EXAM_FIELDS } from "./data/exam-field-definitions"
+import { EXAM_FIELDS, PDFieldConfigProvider } from "./data/exam-field-definitions"
 import { PDCalculationUtils } from "./data/exam-constants"
 import { FastInput, inputSyncManager } from "./shared/OptimizedInputs"
 import { usePrescriptionLogic } from "./shared/usePrescriptionLogic"
@@ -181,6 +181,7 @@ export function RetinoscopDilationTab({
               return (
                 <FastInput
                   {...colProps}
+                  max={key === "pd_close" ? PDFieldConfigProvider.getNearConfig(getFieldValue("R", "pd_far")).max : colProps.max}
                   key={`r-${key}`}
                   type={type as any}
                   step={type === "number" ? step : undefined}
@@ -201,6 +202,7 @@ export function RetinoscopDilationTab({
                 return (
                   <FastInput
                     {...pdCombProps}
+                    max={key === "pd_close" ? PDFieldConfigProvider.getNearConfig(getFieldValue("C", "pd_far")).max : pdCombProps.max}
                     key={`c-${key}`}
                     type={type as any}
                     step={step}
@@ -248,6 +250,7 @@ export function RetinoscopDilationTab({
               return (
                 <FastInput
                   {...colProps}
+                  max={key === "pd_close" ? PDFieldConfigProvider.getNearConfig(getFieldValue("L", "pd_far")).max : colProps.max}
                   key={`l-${key}`}
                   type={type as any}
                   step={type === "number" ? step : undefined}

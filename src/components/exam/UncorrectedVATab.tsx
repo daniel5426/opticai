@@ -5,6 +5,7 @@ import { UncorrectedVAExam } from "@/lib/db/schema-interface"
 import { VASelect } from "./shared/VASelect"
 import { NVJSelect } from "./shared/NVJSelect"
 import { FastInput, inputSyncManager } from "./shared/OptimizedInputs"
+import { EXAM_FIELDS } from "./data/exam-field-definitions"
 
 interface UncorrectedVATabProps {
   uncorrectedVaData: UncorrectedVAExam
@@ -27,9 +28,9 @@ export function UncorrectedVATab({
   dataRef.current = uncorrectedVaData;
 
   const columns = [
-    { key: "fv", label: "FV", type: "va" },
-    { key: "iv", label: "IV", step: "0.1" },
-    { key: "nv_j", label: "NV/J", type: "nvj" }
+    { key: "fv", ...EXAM_FIELDS.FV },
+    { key: "iv", ...EXAM_FIELDS.IV },
+    { key: "nv_j", ...EXAM_FIELDS.NV_J }
   ]
 
   const getFieldValue = (eye: "R" | "L", field: string) => {
@@ -83,8 +84,8 @@ export function UncorrectedVATab({
                 </span>
               </div>
             )}
-            {columns.map(({ key, step }) => (
-              key === "fv" ? (
+            {columns.map(({ key, type, step }) => (
+              type === "va" ? (
                 <div key={`r-${key}`}>
                   <VASelect
                     value={getFieldValue("R", key)}
@@ -92,8 +93,8 @@ export function UncorrectedVATab({
                     disabled={!isEditing}
                   />
                 </div>
-              ) : key === "nv_j" ? (
-                <div key={`r-${key}`}>
+              ) : type === "nvj" ? (
+                <div key={`r-${key}`} className="">
                   <NVJSelect
                     value={getFieldValue("R", key)}
                     onChange={(value) => handleChange("R", key, value)}
@@ -134,8 +135,8 @@ export function UncorrectedVATab({
                 </span>
               </div>
             )}
-            {columns.map(({ key, step }) => (
-              key === "fv" ? (
+            {columns.map(({ key, type, step }) => (
+              type === "va" ? (
                 <div key={`l-${key}`}>
                   <VASelect
                     value={getFieldValue("L", key)}
@@ -143,7 +144,7 @@ export function UncorrectedVATab({
                     disabled={!isEditing}
                   />
                 </div>
-              ) : key === "nv_j" ? (
+              ) : type === "nvj" ? (
                 <div key={`l-${key}`}>
                   <NVJSelect
                     value={getFieldValue("L", key)}

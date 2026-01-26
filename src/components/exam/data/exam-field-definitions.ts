@@ -119,7 +119,7 @@ export const EXAM_FIELDS = {
     type: "number",
     min: -7,
     max: 5,
-    showPlus: false,
+    showPlus: true,
   } as FieldConfig,
   BASE: {
     label: "BASE",
@@ -204,6 +204,18 @@ export const EXAM_FIELDS = {
     step: "0.1",
     type: "number",
     showPlus: false,
+  } as FieldConfig,
+  FV: {
+    label: "FV",
+    type: "va",
+  } as FieldConfig,
+  IV: {
+    label: "IV",
+    type: "nvj",
+  } as FieldConfig,
+  NV_J: {
+    label: "NV/J",
+    type: "nvj",
   } as FieldConfig,
   J: {
     label: "J",
@@ -315,6 +327,28 @@ export const EXAM_FIELDS = {
     step: "1",
   } as FieldConfig,
 };
+
+/**
+ * Shared logic for PD field configurations with dynamic restrictions.
+ */
+export class PDFieldConfigProvider {
+  /**
+   * Returns the config for PD Near field, restricted to be at least the value of PD Far.
+   */
+  static getNearConfig(farValue: string | number | undefined): FieldConfig {
+    const numFar = typeof farValue === 'string' ? parseFloat(farValue) : farValue;
+    const baseConfig = EXAM_FIELDS.PD_NEAR;
+    
+    if (numFar !== undefined && !isNaN(numFar)) {
+      return {
+        ...baseConfig,
+        max: numFar
+      };
+    }
+    
+    return baseConfig;
+  }
+}
 
 export const formatValueWithSign = (value: string | number | undefined): string => {
   if (value === undefined || value === "" || value === null) return "";

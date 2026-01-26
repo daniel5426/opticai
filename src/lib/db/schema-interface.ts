@@ -869,6 +869,18 @@ export interface LookupAdvisor {
   created_at?: string;
 }
 
+export interface LookupVAMeter {
+  id?: number;
+  name: string;
+  created_at?: string;
+}
+
+export interface LookupVADecimal {
+  id?: number;
+  name: string;
+  created_at?: string;
+}
+
 export interface File {
   id?: number;
   client_id: number;

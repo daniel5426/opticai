@@ -208,7 +208,7 @@ export class ExamFieldMapper {
       case 'old-ref':
         return ['role', 'source', 'contacts']
       case 'old-refraction':
-        return ['r_sph', 'r_cyl', 'r_ax', 'r_pris', 'r_base', 'r_va', 'r_ad', 'l_sph', 'l_cyl', 'l_ax', 'l_pris', 'l_base', 'l_va', 'l_ad', 'comb_va']
+        return ['r_sph', 'r_cyl', 'r_ax', 'r_pris', 'r_base', 'r_va', 'r_ad', 'l_sph', 'l_cyl', 'l_ax', 'l_pris', 'l_base', 'l_va', 'l_ad', 'comb_va', 'r_j', 'l_j', 'comb_j']
       case 'old-refraction-extension':
         return ['r_sph', 'r_cyl', 'r_ax', 'r_pr_h', 'r_base_h', 'r_pr_v', 'r_base_v', 'r_va', 'r_ad', 'r_j', 'r_pd_far', 'r_pd_close', 'l_sph', 'l_cyl', 'l_ax', 'l_pr_h', 'l_base_h', 'l_pr_v', 'l_base_v', 'l_va', 'l_ad', 'l_j', 'l_pd_far', 'l_pd_close', 'comb_va', 'comb_pd_far', 'comb_pd_close']
       case 'objective':
@@ -352,7 +352,7 @@ export class ExamFieldMapper {
   }
 
   static clearData(data: Record<string, unknown>, componentType: ExamComponentType): Record<string, unknown> {
-    const clearedData: Record<string, unknown> = { ...data }
+    const clearedData: Record<string, unknown> = {}
 
     this.getFieldNames(componentType).forEach(key => {
       clearedData[key as keyof Record<string, unknown>] = '' as unknown as string
