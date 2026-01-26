@@ -5,7 +5,7 @@ import { ChevronUp, ChevronDown } from "lucide-react"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { EXAM_FIELDS } from "./data/exam-field-definitions"
 import { PDCalculationUtils } from "./data/exam-constants"
-import { FastInput, inputSyncManager } from "./shared/OptimizedInputs"
+import { FastInput, FastSelect, inputSyncManager } from "./shared/OptimizedInputs"
 import { usePrescriptionLogic } from "./shared/usePrescriptionLogic"
 import { CylTitle } from "./shared/CylTitle"
 import { useAxisWarning } from "./shared/useAxisWarning"
@@ -28,7 +28,7 @@ export function RetinoscopTab({
 }: RetinoscopTabProps) {
   const [hoveredEye, setHoveredEye] = useState<"R" | "L" | null>(null);
 
-  const { fieldWarnings, handleAxisChange } = useAxisWarning(
+  const { fieldWarnings, handleAxisChange, handleAxisBlur } = useAxisWarning(
     retinoscopData,
     onRetinoscopChange,
     isEditing
@@ -47,7 +47,7 @@ export function RetinoscopTab({
     { key: "sph", ...EXAM_FIELDS.SPH, type: "number" },
     { key: "cyl", ...EXAM_FIELDS.CYL, type: "number" },
     { key: "ax", ...EXAM_FIELDS.AXIS, label: "AX", type: "number" },
-    { key: "reflex", label: "REFLEX", step: "1", type: "text" },
+    { key: "reflex", label: "REFLEX", type: "select", options: ["Normal", "Opacity", "Scissor"] },
     { key: "pd_far", ...EXAM_FIELDS.PD_FAR, type: "number" },
     { key: "pd_close", ...EXAM_FIELDS.PD_NEAR, label: "PD NEAR", type: "number" },
   ];
@@ -162,7 +162,11 @@ export function RetinoscopTab({
                 {hoveredEye === "L" ? <ChevronDown size={16} /> : "R"}
               </span>
             </div>}
-            {columns.map(({ key, step, type, ...colProps }) => {
+            {columns.map((col) => {
+              const { key, type } = col;
+              const colProps = col as any;
+              const step = colProps.step;
+
               if ((key === 'cyl' || key === 'ax')) {
                 const eyeWarnings = fieldWarnings.R;
                 return (
@@ -176,7 +180,22 @@ export function RetinoscopTab({
                     missingCyl={eyeWarnings.missingCyl}
                     isEditing={isEditing}
                     onValueChange={handleAxisChange}
+                    onBlur={(eye, field, val) => handleAxisBlur(eye, field, val, colProps.min, colProps.max)}
                     className={isEditing ? 'bg-white' : 'bg-accent/50'}
+                  />
+                );
+              }
+              if (key === 'reflex') {
+                return (
+                  <FastSelect
+                    {...colProps}
+                    key={`r-${key}`}
+                    options={colProps.options}
+                    value={getFieldValue("R", key)}
+                    onChange={(val) => handleChange("R", key, val)}
+                    disabled={!isEditing}
+                    size="xs"
+                    triggerClassName={`h-8 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default col-span-1`}
                   />
                 );
               }
@@ -197,7 +216,9 @@ export function RetinoscopTab({
 
             {!hideEyeLabels && <div className="flex items-center justify-center h-8">
             </div>}
-            {columns.map(({ key, step, type, ...colProps }) => {
+            {columns.map((col) => {
+              const { key, type } = col;
+
               if (key === "pd_far" || key === "pd_close") {
                 const pdCombProps = EXAM_FIELDS.PD_COMB;
                 return (
@@ -205,7 +226,6 @@ export function RetinoscopTab({
                     {...pdCombProps}
                     key={`c-${key}`}
                     type={type as any}
-                    step={step}
                     value={getFieldValue("C", key)}
                     onChange={(val) => handleChange("C", key, val)}
                     disabled={!isEditing}
@@ -229,7 +249,10 @@ export function RetinoscopTab({
                 {hoveredEye === "R" ? <ChevronUp size={16} /> : "L"}
               </span>
             </div>}
-            {columns.map(({ key, step, type, ...colProps }) => {
+            {columns.map((col) => {
+              const { key, type } = col;
+              const colProps = col as any;
+
               if ((key === 'cyl' || key === 'ax')) {
                 const eyeWarnings = fieldWarnings.L;
                 return (
@@ -243,7 +266,22 @@ export function RetinoscopTab({
                     missingCyl={eyeWarnings.missingCyl}
                     isEditing={isEditing}
                     onValueChange={handleAxisChange}
+                    onBlur={(eye, field, val) => handleAxisBlur(eye, field, val, colProps.min, colProps.max)}
                     className={isEditing ? 'bg-white' : 'bg-accent/50'}
+                  />
+                );
+              }
+              if (key === 'reflex') {
+                return (
+                  <FastSelect
+                    {...colProps}
+                    key={`l-${key}`}
+                    options={colProps.options}
+                    value={getFieldValue("L", key)}
+                    onChange={(val) => handleChange("L", key, val)}
+                    disabled={!isEditing}
+                    size="xs"
+                    triggerClassName={`h-8 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default col-span-1`}
                   />
                 );
               }
@@ -252,7 +290,6 @@ export function RetinoscopTab({
                   {...colProps}
                   key={`l-${key}`}
                   type={type as any}
-                  step={type === "number" ? step : undefined}
                   value={getFieldValue("L", key)}
                   onChange={(val) => handleChange("L", key, val)}
                   disabled={!isEditing}

@@ -241,8 +241,8 @@ export const getColumnCount = (type: CardItem['type'], mode: 'editor' | 'detail'
     case 'old-refraction-extension': return 12
     case 'objective': return 4
     case 'subjective': return 8
-    case 'final-subjective': return 11
-    case 'final-prescription': return 9
+    case 'final-subjective': return 9
+    case 'final-prescription': return 8
     case 'compact-prescription': return 8
     case 'addition': return 6
     case 'retinoscop': return 6
@@ -251,7 +251,7 @@ export const getColumnCount = (type: CardItem['type'], mode: 'editor' | 'detail'
     case 'keratometer': return 3
     case 'keratometer-full': return 9
     case 'corneal-topography': return 1
-    case 'cover-test': return 5
+    case 'cover-test': return 3
     case 'notes': return 5
     case 'anamnesis': return 11
     case 'schirmer-test': return 2

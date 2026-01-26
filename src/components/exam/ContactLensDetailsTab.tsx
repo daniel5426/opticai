@@ -4,6 +4,7 @@ import { LookupSelect } from "@/components/ui/lookup-select"
 import { ContactLensDetails } from "@/lib/db/schema-interface"
 import { ChevronUp, ChevronDown } from "lucide-react"
 import { FastInput, inputSyncManager } from "./shared/OptimizedInputs"
+import { EXAM_FIELDS } from "./data/exam-field-definitions"
 
 interface ContactLensDetailsTabProps {
   contactLensDetailsData: ContactLensDetails;
@@ -26,14 +27,14 @@ export function ContactLensDetailsTab({
   dataRef.current = contactLensDetailsData;
 
   const columns = [
-    { key: "type", label: "סוג", step: "1", lookupType: "contactLensType" },
-    { key: "model", label: "דגם", step: "1", lookupType: "contactLensModel" },
-    { key: "supplier", label: "ספק", step: "1", lookupType: "supplier" },
-    { key: "material", label: "חומר", step: "1", lookupType: "contactEyeMaterial" },
-    { key: "color", label: "צבע", step: "1", lookupType: "color" },
-    { key: "quantity", label: "כמות", step: "1", min: "0" },
-    { key: "order_quantity", label: "להזמין", step: "1", min: "0" },
-    { key: "dx", label: "DX", step: "0.25" },
+    { key: "type", config: EXAM_FIELDS.CONTACT_LENS_TYPE },
+    { key: "model", config: EXAM_FIELDS.CONTACT_LENS_MODEL },
+    { key: "supplier", config: EXAM_FIELDS.CONTACT_LENS_SUPPLIER },
+    { key: "material", config: EXAM_FIELDS.CONTACT_LENS_MATERIAL },
+    { key: "color", config: EXAM_FIELDS.CONTACT_LENS_COLOR },
+    { key: "quantity", config: EXAM_FIELDS.CONTACT_LENS_QUANTITY },
+    { key: "order_quantity", config: EXAM_FIELDS.CONTACT_LENS_ORDER_QUANTITY },
+    { key: "dx", config: EXAM_FIELDS.CONTACT_LENS_DX },
   ];
 
   const getFieldValue = (eye: "R" | "L", field: string) => {
@@ -61,22 +62,6 @@ export function ContactLensDetailsTab({
     });
   };
 
-  const getInputType = (key: string) => {
-    if (key === "dx" || key === "quantity" || key === "order_quantity") {
-      return "number";
-    }
-    return "text";
-  };
-
-  const isLookupField = (key: string) => {
-    return ["type", "model", "supplier", "material", "color"].includes(key);
-  };
-
-  const getLookupType = (key: string) => {
-    const column = columns.find(col => col.key === key);
-    return column?.lookupType || "";
-  };
-
   return (
     <Card className="w-full examcard pb-4 pt-3" dir="ltr">
       <CardContent className="px-4" style={{ scrollbarWidth: 'none' }}>
@@ -87,10 +72,10 @@ export function ContactLensDetailsTab({
 
           <div className={`grid ${hideEyeLabels ? 'grid-cols-[2fr_2fr_2fr_2fr_2fr_1fr_1fr_1fr]' : 'grid-cols-[20px_2fr_2fr_2fr_2fr_2fr_1fr_1fr_1fr]'} gap-2 items-center`}>
             {!hideEyeLabels && <div></div>}
-            {columns.map(({ key, label }) => (
+            {columns.map(({ key, config }) => (
               <div key={key} className="h-4 flex items-center justify-center">
                 <span className="text-xs font-medium text-muted-foreground">
-                  {label}
+                  {config.label}
                 </span>
               </div>
             ))}
@@ -106,22 +91,23 @@ export function ContactLensDetailsTab({
                 {hoveredEye === "L" ? <ChevronDown size={16} /> : "R"}
               </span>
             </div>}
-            {columns.map(({ key, step, min }) => (
+            {columns.map(({ key, config }) => (
               <React.Fragment key={`r-${key}`}>
-                {isLookupField(key) ? (
+                {config.lookupType ? (
                   <LookupSelect
                     disabled={!isEditing}
                     value={getFieldValue("R", key)}
                     onChange={(value) => handleChange("R", key, value)}
-                    lookupType={getLookupType(key)}
+                    lookupType={config.lookupType}
                     placeholder=""
                     className="h-8 text-xs bg-white"
                   />
                 ) : (
                   <FastInput
-                    type={getInputType(key) as any}
-                    step={getInputType(key) === "number" ? step : undefined}
-                    min={getInputType(key) === "number" ? min : undefined}
+                    type={config.type as any}
+                    step={config.step}
+                    min={config.min}
+                    max={config.max}
                     value={getFieldValue("R", key)}
                     onChange={(val) => handleChange("R", key, val)}
                     disabled={!isEditing}
@@ -151,14 +137,14 @@ export function ContactLensDetailsTab({
                 {hoveredEye === "R" ? <ChevronUp size={16} /> : "L"}
               </span>
             </div>}
-            {columns.map(({ key, step, min }) => (
+            {columns.map(({ key, config }) => (
               <React.Fragment key={`l-${key}`}>
-                {isLookupField(key) ? (
+                {config.lookupType ? (
                   isEditing ? (
                     <LookupSelect
                       value={getFieldValue("L", key)}
                       onChange={(value) => handleChange("L", key, value)}
-                      lookupType={getLookupType(key)}
+                      lookupType={config.lookupType}
                       placeholder=""
                       className="h-8 text-xs bg-white"
                     />
@@ -169,9 +155,10 @@ export function ContactLensDetailsTab({
                   )
                 ) : (
                   <FastInput
-                    type={getInputType(key) as any}
-                    step={getInputType(key) === "number" ? step : undefined}
-                    min={getInputType(key) === "number" ? min : undefined}
+                    type={config.type as any}
+                    step={config.step}
+                    min={config.min}
+                    max={config.max}
                     value={getFieldValue("L", key)}
                     onChange={(val) => handleChange("L", key, val)}
                     disabled={!isEditing}

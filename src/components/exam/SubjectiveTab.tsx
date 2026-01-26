@@ -33,7 +33,7 @@ export const SubjectiveTab = React.memo(function SubjectiveTab({
 }: SubjectiveTabProps) {
   const [hoveredEye, setHoveredEye] = useState<"R" | "L" | null>(null);
 
-  const { fieldWarnings, handleAxisChange } = useAxisWarning(
+  const { fieldWarnings, handleAxisChange, handleAxisBlur } = useAxisWarning(
     subjectiveData,
     onSubjectiveChange,
     isEditing
@@ -155,6 +155,7 @@ export const SubjectiveTab = React.memo(function SubjectiveTab({
                     missingCyl={fieldWarnings.R.missingCyl}
                     isEditing={isEditing}
                     onValueChange={handleAxisChange}
+                    onBlur={(eye, field, val) => handleAxisBlur(eye, field, val, (colProps as any).min, (colProps as any).max)}
                     className={isEditing ? 'bg-white' : 'bg-accent/50'}
                   />
                 ) : key === "base" ? (
@@ -263,6 +264,7 @@ export const SubjectiveTab = React.memo(function SubjectiveTab({
                     missingCyl={fieldWarnings.L.missingCyl}
                     isEditing={isEditing}
                     onValueChange={handleAxisChange}
+                    onBlur={(eye, field, val) => handleAxisBlur(eye, field, val, (colProps as any).min, (colProps as any).max)}
                     className={isEditing ? 'bg-white' : 'bg-accent/50'}
                   />
                 ) : key === "base" ? (

@@ -2,7 +2,7 @@ import { PD_EYE_MIN, PD_EYE_MAX, PD_COMB_MIN, PD_COMB_MAX } from "./exam-constan
 
 export interface FieldConfig {
   label: string;
-  step: string;
+  step?: string;
   type?: string;
   min?: number;
   max?: number;
@@ -10,6 +10,8 @@ export interface FieldConfig {
   suffix?: string;
   unit?: string;
   center?: boolean;
+  lookupType?: string;
+  options?: string[];
 }
 
 export const EXAM_FIELDS = {
@@ -148,6 +150,7 @@ export const EXAM_FIELDS = {
     type: "number",
     min: 0,
     max: 20,
+    suffix: "mm",
     showPlus: false,
   } as FieldConfig,
   READ: {
@@ -229,6 +232,87 @@ export const EXAM_FIELDS = {
     min: 0,
     max: 5,
     showPlus: true,
+  } as FieldConfig,
+  CONTACT_LENS_TYPE: {
+    label: "סוג",
+    type: "text",
+    lookupType: "contactLensType",
+  } as FieldConfig,
+  CONTACT_LENS_MODEL: {
+    label: "דגם",
+    type: "text",
+    lookupType: "contactLensModel",
+  } as FieldConfig,
+  CONTACT_LENS_SUPPLIER: {
+    label: "ספק",
+    type: "text",
+    lookupType: "supplier",
+  } as FieldConfig,
+  CONTACT_LENS_MATERIAL: {
+    label: "חומר",
+    type: "text",
+    lookupType: "contactEyeMaterial",
+  } as FieldConfig,
+  CONTACT_LENS_COLOR: {
+    label: "צבע",
+    type: "text",
+    lookupType: "color",
+  } as FieldConfig,
+  CONTACT_LENS_QUANTITY: {
+    label: "כמות",
+    type: "number",
+    step: "1",
+    min: 0,
+  } as FieldConfig,
+  CONTACT_LENS_ORDER_QUANTITY: {
+    label: "להזמין",
+    type: "number",
+    step: "1",
+    min: 0,
+  } as FieldConfig,
+  CONTACT_LENS_DX: {
+    label: "DX",
+    type: "number",
+    step: "1",
+    min: 83,
+    max: 180,
+    showPlus: false,
+  } as FieldConfig,
+  FL_TIME: {
+    label: "Fl. Time",
+    type: "number",
+    step: "1",
+    min: 0,
+    max: 30,
+    suffix: 'sec',
+  } as FieldConfig,
+  BIO_M: {
+    label: "Bio. M.",
+    type: "select",
+    options: [
+      "Grade 0 (Clear)",
+      "Grade 1 (Trace)",
+      "Grade 2 (Mild)",
+      "Grade 3 (Moderate)",
+      "Grade 4 (Severe)",
+      "Staining",
+      "Neovascularization",
+      "GPC / Papillae",
+      "Edema",
+      "Infiltrates",
+    ],
+  } as FieldConfig,
+  STEREO_FLY: {
+    label: "Fly",
+    type: "select",
+    options: ["pass", "fail"],
+  } as FieldConfig,
+  STEREO_CIRCLE: {
+    label: "Circle",
+    type: "number",
+    min: 0,
+    max: 10,
+    step: "1",
   } as FieldConfig,
 };
 

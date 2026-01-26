@@ -5,11 +5,12 @@ import { VASelect } from "./shared/VASelect";
 import { NVJSelect } from "./shared/NVJSelect";
 import { ChevronUp, ChevronDown } from "lucide-react";
 import { EXAM_FIELDS } from "./data/exam-field-definitions";
-import { FastInput, inputSyncManager } from "./shared/OptimizedInputs"
+import { FastInput, inputSyncManager, StretchSelect } from "./shared/OptimizedInputs"
 import { usePrescriptionLogic } from "./shared/usePrescriptionLogic"
 import { CylTitle } from "./shared/CylTitle"
 import { useAxisWarning } from "./shared/useAxisWarning"
 import { AxisWarningInput } from "./shared/AxisWarningInput"
+import { cn } from "@/utils/tailwind"
 
 interface OverRefractionTabProps {
   data: OverRefraction;
@@ -26,7 +27,7 @@ export function OverRefractionTab({
 }: OverRefractionTabProps) {
   const [hoveredEye, setHoveredEye] = useState<"R" | "L" | null>(null);
 
-  const { fieldWarnings, handleAxisChange } = useAxisWarning(
+  const { fieldWarnings, handleAxisChange, handleAxisBlur } = useAxisWarning(
     data,
     onChange,
     isEditing
@@ -42,14 +43,14 @@ export function OverRefractionTab({
   );
 
   const columns = [
-    { key: "sph", ...EXAM_FIELDS.SPH },
-    { key: "cyl", ...EXAM_FIELDS.CYL },
-    { key: "ax", ...EXAM_FIELDS.AXIS },
-    { key: "va", ...EXAM_FIELDS.VA, type: "number" },
-    { key: "j", ...EXAM_FIELDS.J, type: "j" },
-    { key: "add", ...EXAM_FIELDS.ADD },
-    { key: "florescent", label: "Fl. Time", type: "text", span: 2 },
-    { key: "bio_m", label: "Bio. M.", type: "text", span: 2 },
+    { key: "sph", config: EXAM_FIELDS.SPH },
+    { key: "cyl", config: EXAM_FIELDS.CYL },
+    { key: "ax", config: EXAM_FIELDS.AXIS },
+    { key: "va", config: EXAM_FIELDS.VA, flex: 1.5 },
+    { key: "j", config: EXAM_FIELDS.J },
+    { key: "add", config: EXAM_FIELDS.ADD },
+    { key: "florescent", config: EXAM_FIELDS.FL_TIME },
+    { key: "bio_m", config: EXAM_FIELDS.BIO_M, flex: 3 },
   ];
 
   const getFieldValue = (eye: "R" | "L" | "C", field: string) => {
@@ -92,8 +93,6 @@ export function OverRefractionTab({
     if (latestData.comb_j !== undefined) onChange("comb_j", latestData.comb_j.toString());
   };
 
-  const gridCols = `${hideEyeLabels ? 'grid-cols-[repeat(10,1fr)]' : 'grid-cols-[20px_repeat(10,1fr)]'}`;
-
   return (
     <Card className="w-full examcard pb-4 pt-3">
       <CardContent className="px-4" style={{ scrollbarWidth: 'none' }}>
@@ -102,154 +101,207 @@ export function OverRefractionTab({
             <h3 className="font-medium text-muted-foreground">Over Refraction</h3>
           </div>
 
-          <div className={`grid ${gridCols} gap-2 items-center`}>
-            {!hideEyeLabels && <div></div>}
-            {columns.map(({ key, label, span }) => (
-              <div
-                key={key}
-                className={`${span ? `col-span-${span}` : ''
-                  } h-4 flex items-center justify-center`}
-              >
-                {key === "cyl" ? (
-                  <CylTitle onTranspose={handleManualTranspose} disabled={!isEditing} />
-                ) : (
-                  <span className="text-xs font-medium text-muted-foreground">
-                    {label}
+          <div className="space-y-2">
+            {/* Header Row */}
+            <div className="flex gap-2 items-center">
+              {!hideEyeLabels && <div className="w-[20px]"></div>}
+              {columns.map(({ key, config, flex }) => (
+                <div
+                  key={key}
+                  style={{ flex: flex || 1 }}
+                  className="h-4 flex items-center justify-center min-w-0"
+                >
+                  {key === "cyl" ? (
+                    <CylTitle onTranspose={handleManualTranspose} disabled={!isEditing} />
+                  ) : (
+                    <span className="text-xs font-medium text-muted-foreground truncate">
+                      {config.label}
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {/* Right Eye Row */}
+            <div className="flex gap-2 items-center">
+              {!hideEyeLabels && (
+                <div className="w-[20px] flex items-center justify-center">
+                  <span
+                    className="text-base font-medium cursor-pointer hover:bg-accent rounded-full px-2"
+                    onMouseEnter={() => setHoveredEye("R")}
+                    onMouseLeave={() => setHoveredEye(null)}
+                    onClick={() => copyFromOtherEye("L")}
+                    title="Click to copy from L eye"
+                  >
+                    {hoveredEye === "L" ? <ChevronDown size={16} /> : "R"}
                   </span>
-                )}
-              </div>
-            ))}
-
-            {!hideEyeLabels && (
-              <div className="flex items-center justify-center">
-                <span
-                  className="text-base font-medium cursor-pointer hover:bg-accent rounded-full px-2"
-                  onMouseEnter={() => setHoveredEye("R")}
-                  onMouseLeave={() => setHoveredEye(null)}
-                  onClick={() => copyFromOtherEye("L")}
-                  title="Click to copy from L eye"
-                >
-                  {hoveredEye === "L" ? <ChevronDown size={16} /> : "R"}
-                </span>
-              </div>
-            )}
-            {columns.map(({ key, type, span, ...colProps }) => (
-              <div key={`r-${key}`} className={`${span ? `col-span-${span}` : ''}`}>
-                {(key === 'cyl' || key === 'ax') ? (
-                  <AxisWarningInput
-                    {...colProps}
-                    eye="R"
-                    field={key as "cyl" | "ax"}
-                    value={getFieldValue("R", key)}
-                    missingAxis={fieldWarnings.R.missingAxis}
-                    missingCyl={fieldWarnings.R.missingCyl}
-                    isEditing={isEditing}
-                    onValueChange={handleAxisChange}
-                    className={isEditing ? 'bg-white' : 'bg-accent/50'}
-                  />
-                ) : key === "va" ? (
-                  <VASelect
-                    value={getFieldValue("R", key)}
-                    onChange={(val) => handleChange("R", key, val)}
-                    disabled={!isEditing}
-                  />
-                ) : type === "j" ? (
-                  <NVJSelect
-                    value={getFieldValue("R", key)}
-                    onChange={(val) => handleChange("R", key, val)}
-                    disabled={!isEditing}
-                  />
-                ) : (
-                  <FastInput
-                    {...colProps}
-                    type={type as any}
-                    value={getFieldValue("R", key)}
-                    onChange={(val) => handleChange("R", key, val)}
-                    disabled={!isEditing}
-                    className={`h-8 pr-1 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
-                  />
-                )}
-              </div>
-            ))}
-
-            {!hideEyeLabels && <div className="flex items-center justify-center"></div>}
-            {columns.map(({ key, type, span }) => {
-              if (key === "va") {
-                return (
-                  <div key={`c-${key}`} className={`${span ? `col-span-${span}` : ''}`}>
+                </div>
+              )}
+              {columns.map(({ key, config, flex }) => (
+                <div key={`r-${key}`} style={{ flex: flex || 1 }} className="min-w-0">
+                  {(key === 'cyl' || key === 'ax') ? (
+                    <AxisWarningInput
+                      step={config.step}
+                      min={config.min}
+                      max={config.max}
+                      eye="R"
+                      field={key as "cyl" | "ax"}
+                      value={getFieldValue("R", key)}
+                      missingAxis={fieldWarnings.R.missingAxis}
+                      missingCyl={fieldWarnings.R.missingCyl}
+                      isEditing={isEditing}
+                      onValueChange={handleAxisChange}
+                      onBlur={(eye, field, val) => handleAxisBlur(eye, field, val, config.min, config.max)}
+                      className={isEditing ? 'bg-white' : 'bg-accent/50'}
+                    />
+                  ) : key === "va" ? (
                     <VASelect
-                      value={getFieldValue("C", key)}
-                      onChange={(val) => handleChange("C", key, val)}
+                      value={getFieldValue("R", key)}
+                      onChange={(val) => handleChange("R", key, val)}
                       disabled={!isEditing}
                     />
-                  </div>
-                );
-              } else if (key === "j" || type === "j") {
-                return (
-                  <div key={`c-${key}`} className={`${span ? `col-span-${span}` : ''}`}>
+                  ) : key === "j" ? (
                     <NVJSelect
-                      value={getFieldValue("C", key)}
-                      onChange={(val) => handleChange("C", key, val)}
+                      value={getFieldValue("R", key)}
+                      onChange={(val) => handleChange("R", key, val)}
                       disabled={!isEditing}
                     />
+                  ) : config.type === "select" ? (
+                    <StretchSelect
+                      value={getFieldValue("R", key)}
+                      onChange={(val) => handleChange("R", key, val)}
+                      disabled={!isEditing}
+                      options={config.options || []}
+                      centered={true}
+                    />
+                  ) : (
+                    <FastInput
+                      type={config.type as any}
+                      step={config.step}
+                      min={config.min}
+                      max={config.max}
+                      suffix={config.suffix}
+                      value={getFieldValue("R", key)}
+                      onChange={(val) => handleChange("R", key, val)}
+                      disabled={!isEditing}
+                      className={`h-8 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
+                    />
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {/* Combined Row */}
+            <div className="flex gap-2 items-center">
+              {!hideEyeLabels && <div className="w-[20px]"></div>}
+              {columns.map(({ key, config, flex }) => {
+                const content = (() => {
+                  if (key === "va") {
+                    return (
+                      <VASelect
+                        value={getFieldValue("C", key)}
+                        onChange={(val) => handleChange("C", key, val)}
+                        disabled={!isEditing}
+                      />
+                    );
+                  } else if (key === "j") {
+                    return (
+                      <NVJSelect
+                        value={getFieldValue("C", key)}
+                        onChange={(val) => handleChange("C", key, val)}
+                        disabled={!isEditing}
+                      />
+                    );
+                  } else if (key === "bio_m") {
+                    return (
+                      <StretchSelect
+                        value={getFieldValue("C", key)}
+                        onChange={(val) => handleChange("C", key, val)}
+                        disabled={!isEditing}
+                        options={config.options || []}
+                        centered={true}
+                      />
+                    );
+                  }
+                  return null;
+                })();
+
+                return (
+                  <div key={`c-${key}`} style={{ flex: flex || 1 }} className="min-w-0 h-8">
+                    {content}
                   </div>
                 );
-              } else {
-                return <div key={`c-${key}`} className={`${span ? `col-span-${span}` : ''}`}></div>;
-              }
-            })}
+              })}
+            </div>
 
-            {!hideEyeLabels && (
-              <div className="flex items-center justify-center">
-                <span
-                  className="text-base font-medium cursor-pointer hover:bg-accent rounded-full px-2"
-                  onMouseEnter={() => setHoveredEye("L")}
-                  onMouseLeave={() => setHoveredEye(null)}
-                  onClick={() => copyFromOtherEye("R")}
-                  title="Click to copy from R eye"
-                >
-                  {hoveredEye === "R" ? <ChevronUp size={16} /> : "L"}
-                </span>
-              </div>
-            )}
-            {columns.map(({ key, type, span, ...colProps }) => (
-              <div key={`l-${key}`} className={`${span ? `col-span-${span}` : ''}`}>
-                {(key === 'cyl' || key === 'ax') ? (
-                  <AxisWarningInput
-                    {...colProps}
-                    eye="L"
-                    field={key as "cyl" | "ax"}
-                    value={getFieldValue("L", key)}
-                    missingAxis={fieldWarnings.L.missingAxis}
-                    missingCyl={fieldWarnings.L.missingCyl}
-                    isEditing={isEditing}
-                    onValueChange={handleAxisChange}
-                    className={isEditing ? 'bg-white' : 'bg-accent/50'}
-                  />
-                ) : key === "va" ? (
-                  <VASelect
-                    value={getFieldValue("L", key)}
-                    onChange={(val) => handleChange("L", key, val)}
-                    disabled={!isEditing}
-                  />
-                ) : type === "j" ? (
-                  <NVJSelect
-                    value={getFieldValue("L", key)}
-                    onChange={(val) => handleChange("L", key, val)}
-                    disabled={!isEditing}
-                  />
-                ) : (
-                  <FastInput
-                    {...colProps}
-                    type={type as any}
-                    value={getFieldValue("L", key)}
-                    onChange={(val) => handleChange("L", key, val)}
-                    disabled={!isEditing}
-                    className={`h-8 pr-1 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
-                  />
-                )}
-              </div>
-            ))}
+            {/* Left Eye Row */}
+            <div className="flex gap-2 items-center">
+              {!hideEyeLabels && (
+                <div className="w-[20px] flex items-center justify-center">
+                  <span
+                    className="text-base font-medium cursor-pointer hover:bg-accent rounded-full px-2"
+                    onMouseEnter={() => setHoveredEye("L")}
+                    onMouseLeave={() => setHoveredEye(null)}
+                    onClick={() => copyFromOtherEye("R")}
+                    title="Click to copy from R eye"
+                  >
+                    {hoveredEye === "R" ? <ChevronUp size={16} /> : "L"}
+                  </span>
+                </div>
+              )}
+              {columns.map(({ key, config, flex }) => (
+                <div key={`l-${key}`} style={{ flex: flex || 1 }} className="min-w-0">
+                  {(key === 'cyl' || key === 'ax') ? (
+                    <AxisWarningInput
+                      step={config.step}
+                      min={config.min}
+                      max={config.max}
+                      eye="L"
+                      field={key as "cyl" | "ax"}
+                      value={getFieldValue("L", key)}
+                      missingAxis={fieldWarnings.L.missingAxis}
+                      missingCyl={fieldWarnings.L.missingCyl}
+                      isEditing={isEditing}
+                      onValueChange={handleAxisChange}
+                      onBlur={(eye, field, val) => handleAxisBlur(eye, field, val, config.min, config.max)}
+                      className={isEditing ? 'bg-white' : 'bg-accent/50'}
+                    />
+                  ) : key === "va" ? (
+                    <VASelect
+                      value={getFieldValue("L", key)}
+                      onChange={(val) => handleChange("L", key, val)}
+                      disabled={!isEditing}
+                    />
+                  ) : key === "j" ? (
+                    <NVJSelect
+                      value={getFieldValue("L", key)}
+                      onChange={(val) => handleChange("L", key, val)}
+                      disabled={!isEditing}
+                    />
+                  ) : config.type === "select" ? (
+                    <StretchSelect
+                      value={getFieldValue("L", key)}
+                      onChange={(val) => handleChange("L", key, val)}
+                      disabled={!isEditing}
+                      options={config.options || []}
+                      centered={true}
+                    />
+                  ) : (
+                    <FastInput
+                      type={config.type as any}
+                      step={config.step}
+                      min={config.min}
+                      max={config.max}
+                      value={getFieldValue("L", key)}
+                      onChange={(val) => handleChange("L", key, val)}
+                      disabled={!isEditing}
+                      suffix={config.suffix}
+                      className={`h-8 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
+                    />
+                  )}
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </CardContent>

@@ -29,7 +29,7 @@ export function ObjectiveTab({
 }: ObjectiveTabProps) {
   const [hoveredEye, setHoveredEye] = useState<"R" | "L" | null>(null);
 
-  const { fieldWarnings, handleAxisChange } = useAxisWarning(
+  const { fieldWarnings, handleAxisChange, handleAxisBlur } = useAxisWarning(
     objectiveData,
     onObjectiveChange,
     isEditing
@@ -137,6 +137,7 @@ export function ObjectiveTab({
                     missingCyl={eyeWarnings.missingCyl}
                     isEditing={isEditing}
                     onValueChange={handleAxisChange}
+                    onBlur={(eye, field, val) => handleAxisBlur(eye, field, val, (inputProps as any).min, (inputProps as any).max)}
                     className={isEditing ? 'bg-white' : 'bg-accent/50'}
                   />
                 );
@@ -189,6 +190,7 @@ export function ObjectiveTab({
                     missingCyl={eyeWarnings.missingCyl}
                     isEditing={isEditing}
                     onValueChange={handleAxisChange}
+                    onBlur={(eye, field, val) => handleAxisBlur(eye, field, val, (inputProps as any).min, (inputProps as any).max)}
                     className={isEditing ? 'bg-white' : 'bg-accent/50'}
                   />
                 );

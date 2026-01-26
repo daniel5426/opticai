@@ -5,6 +5,7 @@ import { VA_METER_VALUES, VA_DECIMAL_VALUES } from "../data/exam-constants"
 import { useUser } from "@/contexts/UserContext"
 import { inputSyncManager } from "./OptimizedInputs"
 import { flushSync } from 'react-dom'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 interface VASelectProps {
   value: string
@@ -16,26 +17,43 @@ interface VASelectProps {
 
 const VA_CONVERSION_MAP: Record<string, string> = {
   // Meter to Decimal
-  "6/6": "1.0",
-  "6/7.5": "0.8",
-  "6/9": "0.7",
-  "6/10": "0.6",
-  "6/12": "0.5",
-  "6/15": "0.4",
-  "6/18": "0.3",
-  "6/24": "0.25",
-  "6/60": "0.1",
-  "6/120": "0.05",
+  "6/190": "-0.3",
+  "6/150": "-0.2",
+  "6/120": "-0.1",
+  "6/96": "0.0",
+  "6/75": "0.1",
+  "6/60": "0.2",
+  "6/48": "0.3",
+  "6/38": "0.4",
+  "6/30": "0.5",
+  "6/24": "0.6",
+  "6/18": "0.7",
+  "6/15": "0.8",
+  "6/12": "0.9",
+  "6/9": "1.0",
+  "6/7.5": "1.1",
+  "6/6": "1.2",
+  "6/4.5": "1.3",
+  "6/3": "1.5",
   // Decimal to Meter
-  "1.0": "6/6",
-  "0.8": "6/7.5",
-  "0.7": "6/9",
-  "0.6": "6/10",
-  "0.5": "6/12",
-  "0.4": "6/15",
-  "0.3": "6/18",
-  "0.2": "6/30",
-  "0.1": "6/60",
+  "-0.3": "6/190",
+  "-0.2": "6/150",
+  "-0.1": "6/120",
+  "0.0": "6/96",
+  "0.1": "6/75",
+  "0.2": "6/60",
+  "0.3": "6/48",
+  "0.4": "6/38",
+  "0.5": "6/30",
+  "0.6": "6/24",
+  "0.7": "6/18",
+  "0.8": "6/15",
+  "0.9": "6/12",
+  "1.0": "6/9",
+  "1.1": "6/7.5",
+  "1.2": "6/6",
+  "1.3": "6/4.5",
+  "1.5": "6/3",
 };
 
 export function convertVA(value: string, targetMode: "meter" | "decimal"): string {
@@ -71,124 +89,43 @@ export const VASelect = memo(function VASelect({
   const { currentUser } = useUser()
   const mode = (currentUser?.va_format as "meter" | "decimal") || "meter"
 
-  const inputRef = useRef<HTMLInputElement>(null)
-  const lastSentValueRef = useRef(value)
   const [modifier, setModifier] = useState("")
   const modifierRef = useRef("")
-  const [inputWidth, setInputWidth] = useState<string>("auto")
 
   const getComponents = useCallback((val: string) => {
     const translated = convertVA(val, mode) || ""
     const modMatch = translated.match(/([\+\-]\d+)$/)
     const mod = modMatch ? modMatch[1] : ""
     const baseStr = mod ? translated.replace(mod, "") : translated
-    const disp = mode === "meter" ? baseStr.replace("6/", "") : baseStr
-    return { disp, mod, baseStr }
+    return { baseStr, mod }
   }, [mode])
 
-  // Sync internal state with external value and mode changes
+  const { baseStr: currentBase, mod: currentMod } = getComponents(value)
+
+  // Local state for immediate UI feedback
+  const [localBase, setLocalBase] = useState(currentBase)
+
+  // Sync local state when external value changes
   useEffect(() => {
-    const { disp, mod } = getComponents(value)
-    if (inputRef.current && inputRef.current.value !== disp) {
-      inputRef.current.value = disp
-    }
-    if (mode === "meter" && disp) {
-      setInputWidth(`${Math.max(2, disp.length)}ch`)
-    } else if (mode === "meter") {
-      setInputWidth("2ch")
-    } else {
-      setInputWidth("100%")
-    }
-    setModifier(mod)
-    modifierRef.current = mod
-    lastSentValueRef.current = value
-  }, [value, mode, getComponents])
+    setLocalBase(currentBase)
+  }, [currentBase])
 
-  const handleSync = useCallback((forceVal?: string, forceMod?: string) => {
-    if (!inputRef.current) return
-    const currentDisp = forceVal !== undefined ? forceVal : inputRef.current.value.trim()
-    const currentMod = forceMod !== undefined ? forceMod : modifierRef.current
-
-    if (!currentDisp) {
-      if (lastSentValueRef.current !== "") {
-        if (typeof onChange === 'function') {
-          flushSync(() => {
-            onChange("")
-          });
-        }
-        lastSentValueRef.current = ""
-      }
-      inputSyncManager.unregister(handleSync)
-      return
-    }
-
-    let base = currentDisp.replace(/[\+\-]\d+$/, "")
-    if (mode === "meter" && !base.startsWith("6/")) {
-      base = `6/${base}`
-    }
-
-    const newVal = `${base}${currentMod}`
-    if (newVal !== lastSentValueRef.current) {
-      if (typeof onChange === 'function') {
-        flushSync(() => {
-          onChange(newVal)
-        });
-      }
-      lastSentValueRef.current = newVal
-    }
-    inputSyncManager.unregister(handleSync)
-  }, [mode, onChange])
+  const options: readonly string[] = mode === "meter" ? VA_METER_VALUES : VA_DECIMAL_VALUES
+  const selectValue = options.includes(localBase) ? localBase : ""
 
   useEffect(() => {
+    setModifier(currentMod)
+    modifierRef.current = currentMod
+  }, [currentMod])
+
+  const handleValueChange = (newBase: string) => {
     if (disabled) return
-    let timer: NodeJS.Timeout
-
-    const onInput = () => {
-      if (inputRef.current && mode === "meter") {
-        const val = inputRef.current.value
-        setInputWidth(`${Math.max(2, val.length)}ch`)
-      }
-      inputSyncManager.register(handleSync)
-      if (timer) clearTimeout(timer)
-      timer = setTimeout(() => handleSync(), 1000)
+    setLocalBase(newBase) // Update UI immediately
+    const newVal = `${newBase}${modifierRef.current}`
+    if (onChange) {
+      onChange(newVal)
     }
-
-    const onBlur = () => {
-      if (timer) clearTimeout(timer)
-
-      const element = inputRef.current
-      if (element && (!element.value || isNaN(parseFloat(element.value)))) {
-        const defaultValue = mode === 'meter' ? '6' : '1.0'
-        const base = mode === 'meter' ? `6/${defaultValue}` : defaultValue
-        const newVal = `${base}${modifierRef.current}`
-        if (newVal !== lastSentValueRef.current) {
-          if (typeof onChange === 'function') {
-            flushSync(() => {
-              onChange(newVal)
-            });
-          }
-          lastSentValueRef.current = newVal
-        }
-        inputSyncManager.unregister(handleSync)
-      } else {
-        handleSync()
-      }
-    }
-
-    const element = inputRef.current
-    if (element) {
-      element.addEventListener('input', onInput)
-      element.addEventListener('blur', onBlur)
-    }
-
-    return () => {
-      if (element) {
-        element.removeEventListener('input', onInput)
-        element.removeEventListener('blur', onBlur)
-      }
-      if (timer) clearTimeout(timer)
-    }
-  }, [mode, onChange, handleSync, disabled])
+  }
 
   const handleModifierClick = (e: React.MouseEvent) => {
     e.preventDefault()
@@ -201,105 +138,44 @@ export const VASelect = memo(function VASelect({
 
     setModifier(nextModifier)
     modifierRef.current = nextModifier
-    handleSync(undefined, nextModifier)
-  }
-
-  const stepBase = (direction: 'up' | 'down') => {
-    if (disabled || !inputRef.current) return
-
-    const currentDispValue = inputRef.current.value
-    const currentNum = parseFloat(currentDispValue)
-    const options = mode === "meter" ? VA_METER_VALUES : VA_DECIMAL_VALUES
-
-    if (isNaN(currentNum)) {
-      const defaultValue = mode === 'meter' ? '6' : '1.0'
-      const base = mode === 'meter' ? `6/${defaultValue}` : defaultValue
-      const newVal = `${base}${modifierRef.current}`
-      if (typeof onChange === 'function') {
-        onChange(newVal)
-      }
-      return
-    }
-
-    const numericOptions = options.map(opt => parseFloat(opt.replace("6/", "")))
-
-    let nextVal: number | undefined
-    if (mode === "meter") {
-      if (direction === 'up') {
-        nextVal = numericOptions.filter(v => v < currentNum).sort((a, b) => b - a)[0]
-      } else {
-        nextVal = numericOptions.filter(v => v > currentNum).sort((a, b) => a - b)[0]
-      }
-    } else {
-      if (direction === 'up') {
-        nextVal = numericOptions.filter(v => v > currentNum).sort((a, b) => a - b)[0]
-      } else {
-        nextVal = numericOptions.filter(v => v < currentNum).sort((a, b) => b - a)[0]
-      }
-    }
-
-    if (nextVal !== undefined) {
-      const targetString = options.find(opt => parseFloat(opt.replace("6/", "")) === nextVal)
-      if (targetString) {
-        const newVal = `${targetString}${modifierRef.current}`
-        if (inputRef.current) {
-          inputRef.current.value = mode === "meter" ? targetString.replace("6/", "") : targetString
-        }
-        if (typeof onChange === 'function') {
-          onChange(newVal)
-        }
-        lastSentValueRef.current = newVal
-      }
+    
+    if (onChange) {
+      onChange(`${localBase}${nextModifier}`)
     }
   }
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "ArrowUp") {
-      e.preventDefault()
-      stepBase('up')
-    } else if (e.key === "ArrowDown") {
-      e.preventDefault()
-      stepBase('down')
-    }
-  }
-
-  let noBorder = false;
-  if (disabled && UI_CONFIG.noBorderOnDisabled) {
-    noBorder = true;
-  }
-
-  const { disp: currentDisp } = getComponents(value)
 
   return (
     <div
       className={cn(
         "flex items-center w-full group h-8 border border-input rounded-md transition-shadow relative bg-background min-w-0",
         !disabled ? "bg-white" : "bg-accent/50",
-        noBorder ? "border-none" : "",
+        disabled && UI_CONFIG.noBorderOnDisabled ? "border-none" : "",
         "focus-within:border-ring focus-within:ring-ring/50 focus-within:ring-[1px]",
         className
       )}
     >
-      <div className="flex-1 flex items-center justify-center pr-5 relative min-w-0">
-        {mode === "meter" && (
-          <span className="text-[13px] text-muted-foreground select-none font-medium pointer-events-none z-10 whitespace-nowrap">
-            6/
-          </span>
-        )}
-        <input
-          ref={inputRef}
-          defaultValue={currentDisp}
-          onKeyDown={handleKeyDown}
-          onFocus={(e) => e.target.select()}
+      <div className="flex-1 flex items-center justify-center pr-5 relative min-w-0 h-full">
+        <Select
+          key={`${mode}`} // Only force re-render on mode change, not every value change
+          value={selectValue}
+          onValueChange={handleValueChange}
           disabled={disabled}
-          autoComplete="off"
-          size={1}
-          className={cn(
-            "bg-transparent border-none focus:outline-none text-sm h-full disabled:cursor-default text-center",
-            mode === "meter" ? "" : "w-full"
-          )}
-          style={mode === "meter" ? { width: inputWidth } : undefined}
-        />
+        >
+          <SelectTrigger
+            className="border-none focus:ring-0 focus:ring-offset-0 h-full w-full bg-transparent shadow-none px-2"
+            size="sm"
+            centered
+          >
+            <SelectValue placeholder="" />
+          </SelectTrigger>
+          <SelectContent className="min-w-16 w-fit">
+            {options.map((opt) => (
+              <SelectItem key={opt} value={opt} className="justify-center">
+                {opt}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       <button

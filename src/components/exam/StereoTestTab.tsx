@@ -2,6 +2,7 @@ import React from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { StereoTestExam } from "@/lib/db/schema-interface"
 import { FastInput, FastSelect } from "./shared/OptimizedInputs"
+import { EXAM_FIELDS } from "./data/exam-field-definitions"
 
 interface StereoTestTabProps {
   stereoTestData: StereoTestExam
@@ -22,12 +23,12 @@ export function StereoTestTab({ stereoTestData, onStereoTestChange, isEditing, n
             <div></div>
             <div className="text-center text-xs h-[16px] font-medium text-muted-foreground"></div>
 
-            <div className="text-sm text-muted-foreground font-medium text-right">Fly</div>
+            <div className="text-sm text-muted-foreground font-medium text-right">{EXAM_FIELDS.STEREO_FLY.label}</div>
             <FastSelect
               value={stereoTestData.fly_result === true ? "pass" : stereoTestData.fly_result === false ? "fail" : ""}
               onChange={(value) => onStereoTestChange('fly_result', value === 'pass')}
               disabled={!isEditing}
-              options={["pass", "fail"]}
+              options={EXAM_FIELDS.STEREO_FLY.options || []}
               size="xs"
               triggerClassName={`h-8 pr-4 text-center disabled:opacity-100 disabled:cursor-default`}
             />
@@ -39,10 +40,13 @@ export function StereoTestTab({ stereoTestData, onStereoTestChange, isEditing, n
               </>
             )}
 
-            <div className="text-sm text-muted-foreground font-medium text-right">Circle</div>
+            <div className="text-sm text-muted-foreground font-medium text-right">{EXAM_FIELDS.STEREO_CIRCLE.label}</div>
             <div className="flex items-center gap-1">
               <FastInput
                 type="number"
+                min={EXAM_FIELDS.STEREO_CIRCLE.min}
+                max={EXAM_FIELDS.STEREO_CIRCLE.max}
+                step={EXAM_FIELDS.STEREO_CIRCLE.step}
                 value={String(stereoTestData.circle_score || "")}
                 onChange={val => onStereoTestChange('circle_score', parseInt(val) || 0)}
                 disabled={!isEditing}
@@ -52,6 +56,9 @@ export function StereoTestTab({ stereoTestData, onStereoTestChange, isEditing, n
               <span className="text-xs text-muted-foreground">/</span>
               <FastInput
                 type="number"
+                min={EXAM_FIELDS.STEREO_CIRCLE.min}
+                max={EXAM_FIELDS.STEREO_CIRCLE.max}
+                step={EXAM_FIELDS.STEREO_CIRCLE.step}
                 value={String(stereoTestData.circle_max || "")}
                 onChange={val => onStereoTestChange('circle_max', parseInt(val) || 0)}
                 disabled={!isEditing}

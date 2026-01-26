@@ -31,7 +31,7 @@ export function FinalSubjectiveTab({
 }: FinalSubjectiveTabProps) {
   const [hoveredEye, setHoveredEye] = useState<"R" | "L" | null>(null);
 
-  const { fieldWarnings, handleAxisChange } = useAxisWarning(
+  const { fieldWarnings, handleAxisChange, handleAxisBlur } = useAxisWarning(
     finalSubjectiveData,
     onFinalSubjectiveChange,
     isEditing
@@ -171,6 +171,7 @@ export function FinalSubjectiveTab({
               missingCyl={eyeWarnings.missingCyl}
               isEditing={isEditing}
               onValueChange={handleAxisChange}
+              onBlur={(eye, field, val) => handleAxisBlur(eye, field, val, (pdProps as any).min, (pdProps as any).max)}
             />
           );
         }

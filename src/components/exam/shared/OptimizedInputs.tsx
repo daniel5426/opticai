@@ -12,6 +12,67 @@ import {
 } from "@/components/ui/dialog";
 import { cn } from "@/utils/tailwind";
 import { flushSync } from 'react-dom';
+import { UI_CONFIG } from '@/config/ui-config';
+
+/**
+ * A select component that adjusts its width based on the selected value.
+ */
+export const StretchSelect = memo(function StretchSelect({
+    value,
+    onChange,
+    options,
+    disabled = false,
+    className = "",
+    placeholder = "",
+    size = "sm",
+    centered = true
+}: {
+    value: string;
+    onChange?: (value: string) => void;
+    options: readonly string[];
+    disabled?: boolean;
+    className?: string;
+    placeholder?: string;
+    size?: "default" | "sm" | "xs";
+    centered?: boolean;
+}) {
+    const { localValue, handleValueChange } = useOptimizedSelect(value, onChange);
+
+    return (
+        <div
+            className={cn(
+                "flex items-center group h-8 border border-input rounded-md transition-shadow relative bg-background min-w-0",
+                !disabled ? "bg-white" : "bg-accent/50",
+                disabled && UI_CONFIG.noBorderOnDisabled ? "border-none" : "",
+                "focus-within:border-ring focus-within:ring-ring/50 focus-within:ring-[1px]",
+                className
+            )}
+        >
+            <div className="flex-1 flex items-center justify-center relative min-w-0 h-full">
+                <Select
+                    value={localValue}
+                    onValueChange={handleValueChange}
+                    disabled={disabled}
+                >
+                    <SelectTrigger
+                        className="border-none focus:ring-0 focus:ring-offset-0 h-full w-full bg-transparent shadow-none px-0"
+                        size="sm"
+                        centered={centered}
+                    >
+                        <SelectValue placeholder={placeholder} />
+                    </SelectTrigger>
+                    <SelectContent className="min-w-16 w-fit">
+                        {options.map((opt) => (
+                            <SelectItem key={opt} value={opt} className={cn(centered && "justify-center")}>
+                                {opt}
+                            </SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+            </div>
+        </div>
+    );
+});
 
 /**
  * Simple manager to track and flush pending updates from optimized components.
@@ -68,13 +129,28 @@ export function useOptimizedInput<T extends HTMLInputElement | HTMLTextAreaEleme
 
     // Sync with prop if it changes externally
     useEffect(() => {
-        if (value !== localValueRef.current) {
+        const normalizedProp = value?.toString().trim() || "";
+        const normalizedLocal = localValueRef.current?.toString().trim() || "";
+
+        if (normalizedProp !== normalizedLocal) {
             localValueRef.current = value;
         }
 
-        if (inputRef.current && value !== inputRef.current.value) {
-            // Only update DOM if significantly different to avoid cursor jumps
-            if (value.trim() !== inputRef.current.value.trim()) {
+        if (inputRef.current) {
+            const normalizedDOM = inputRef.current.value?.toString().trim() || "";
+            
+            if (normalizedProp !== normalizedDOM) {
+                // Special case for numbers: don't overwrite "1." with "1" if they are numerically identical.
+                // This prevents the dot from disappearing while the user is typing a decimal.
+                const propNum = parseFloat(normalizedProp);
+                const domNum = parseFloat(normalizedDOM);
+                
+                if (!isNaN(propNum) && !isNaN(domNum) && propNum === domNum) {
+                    if (normalizedDOM.includes('.') && !normalizedProp.includes('.')) {
+                        return;
+                    }
+                }
+
                 inputRef.current.value = value;
                 lastSentValueRef.current = value;
 
@@ -112,34 +188,6 @@ export function useOptimizedInput<T extends HTMLInputElement | HTMLTextAreaEleme
             const target = e.target as T;
             let val = target.value;
 
-            // Enforce min/max if the input has them defined, regardless of type
-            // This handles standard number inputs AND signed number inputs (which use type="text")
-            if (target instanceof HTMLInputElement) {
-                const currentVal = parseFloat(val);
-
-                if (!isNaN(currentVal)) {
-                    // Check min
-                    const minAttr = target.getAttribute("min");
-                    if (minAttr !== null && minAttr !== "") {
-                        const minVal = parseFloat(minAttr);
-                        if (!isNaN(minVal) && currentVal < minVal) {
-                            val = minAttr; // Use the attribute string directly to preserve format preference if possible
-                            target.value = val;
-                        }
-                    }
-
-                    // Check max
-                    const maxAttr = target.getAttribute("max");
-                    if (maxAttr !== null && maxAttr !== "") {
-                        const maxVal = parseFloat(maxAttr);
-                        if (!isNaN(maxVal) && currentVal > maxVal) {
-                            val = maxAttr;
-                            target.value = val;
-                        }
-                    }
-                }
-            }
-
             localValueRef.current = val;
 
             // Call the immediate onInput if provided
@@ -156,7 +204,36 @@ export function useOptimizedInput<T extends HTMLInputElement | HTMLTextAreaEleme
         if (element) {
             element.addEventListener('input', onInputInternal);
             element.addEventListener('blur', () => {
-                if (inputRef.current) localValueRef.current = inputRef.current.value;
+                const target = inputRef.current;
+                if (!target) return;
+
+                let val = target.value;
+
+                // Enforce min/max on blur
+                if (target instanceof HTMLInputElement) {
+                    const currentVal = parseFloat(val);
+                    if (!isNaN(currentVal)) {
+                        const minAttr = target.getAttribute("min");
+                        if (minAttr !== null && minAttr !== "") {
+                            const minVal = parseFloat(minAttr);
+                            if (!isNaN(minVal) && currentVal < minVal) {
+                                val = minAttr;
+                                target.value = val;
+                            }
+                        }
+
+                        const maxAttr = target.getAttribute("max");
+                        if (maxAttr !== null && maxAttr !== "") {
+                            const maxVal = parseFloat(maxAttr);
+                            if (!isNaN(maxVal) && currentVal > maxVal) {
+                                val = maxAttr;
+                                target.value = val;
+                            }
+                        }
+                    }
+                }
+
+                localValueRef.current = val;
                 handleSync();
                 if (onBlurOverrideRef.current) onBlurOverrideRef.current();
             });

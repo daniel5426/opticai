@@ -28,7 +28,7 @@ export function KeratometerContactLensTab({
   const [hoveredEye, setHoveredEye] = useState<"R" | "L" | null>(null);
   const [unit, setUnit] = useState<"mm" | "D">("mm")
 
-  const { fieldWarnings, handleAxisChange } = useAxisWarning(
+  const { fieldWarnings, handleAxisChange, handleAxisBlur } = useAxisWarning(
     keratometerContactLensData,
     onKeratometerContactLensChange,
     isEditing
@@ -194,6 +194,7 @@ export function KeratometerContactLensTab({
                     missingCyl={fieldWarnings.R.missingCyl}
                     isEditing={isEditing}
                     onValueChange={handleAxisChange}
+                    onBlur={(eye, field, val) => handleAxisBlur(eye, field, val, (colProps as any).min, (colProps as any).max)}
                     className={isEditing ? 'bg-white' : 'bg-accent/50'}
                   />
                 );
@@ -248,6 +249,7 @@ export function KeratometerContactLensTab({
                     missingCyl={fieldWarnings.L.missingCyl}
                     isEditing={isEditing}
                     onValueChange={handleAxisChange}
+                    onBlur={(eye, field, val) => handleAxisBlur(eye, field, val, (colProps as any).min, (colProps as any).max)}
                     className={isEditing ? 'bg-white' : 'bg-accent/50'}
                   />
                 );

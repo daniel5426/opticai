@@ -77,17 +77,17 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
     const internalRef = React.useRef<HTMLInputElement>(null)
     React.useImperativeHandle(ref, () => internalRef.current!)
 
-    // For signed numbers, we use type="text" with inputMode="decimal"
-    // This gives us full control over the displayed value including the + sign
-    const isSignedNumber = type === "number" && showPlus
-    const effectiveType = isSignedNumber ? "text" : type
-    const inputMode = isSignedNumber ? "decimal" : props.inputMode
+    // For numeric inputs, we use type="text" with inputMode="decimal"
+    // This gives us full control over the displayed value including trailing dots and the + sign
+    const isNumericInput = type === "number"
+    const effectiveType = isNumericInput ? "text" : type
+    const inputMode = isNumericInput ? "decimal" : props.inputMode
 
     // Logic for direction:
     // If it's a number (native or signed text), or has numeric decimal input mode, default to LTR.
     // Otherwise default to RTL for standard text strings.
     // An explicitly provided 'dir' prop always wins.
-    const isNumeric = type === "number" || isSignedNumber || inputMode === "decimal" || inputMode === "numeric"
+    const isNumeric = isNumericInput || inputMode === "decimal" || inputMode === "numeric"
     const effectiveDir = dir ?? (isNumeric ? "ltr" : "rtl")
 
     // Get precision from step prop (e.g., step="0.25" = 2 decimals)
@@ -109,9 +109,9 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
 
     // Format the initial/controlled value
     const formatValue = React.useCallback((val: string | number) => {
-      if (!isSignedNumber) return (val ?? "").toString()
-      return formatSignedNumber(val, true, undefined) // Don't force precision while typing
-    }, [isSignedNumber])
+      if (!isNumericInput) return (val ?? "").toString()
+      return formatSignedNumber(val, !!showPlus, undefined) // Don't force precision while typing
+    }, [isNumericInput, showPlus])
 
     const initialValue = extractValue(props.value ?? props.defaultValue)
     const [localValue, setLocalValue] = React.useState(() => formatValue(initialValue))
@@ -144,11 +144,12 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
       const input = internalRef.current
       if (!input || props.disabled) return
 
-      if (isSignedNumber) {
-        // For signed numbers, manually calculate the step
+      let newVal: number;
+      if (isNumericInput) {
+        // For numeric inputs, manually calculate the step to support signed formatting and trailing dots
         const currentVal = parseSignedNumber(input.value) || 0
         const step = parseFloat(props.step as string) || 0.25
-        let newVal = increment ? currentVal + step : currentVal - step
+        newVal = increment ? currentVal + step : currentVal - step
 
         // Apply min/max constraints
         if (props.min !== undefined) {
@@ -159,8 +160,11 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
         }
 
         // Format with sign and proper precision
-        const formatted = formatSignedNumber(newVal, true, stepPrecision)
-        input.value = formatted
+        const formatted = formatSignedNumber(newVal, !!showPlus, stepPrecision)
+        
+        // Use native setter to ensure React's onChange is triggered
+        const nativeValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")?.set
+        nativeValueSetter?.call(input, formatted)
         setLocalValue(formatted)
       } else {
         // Use native stepUp/stepDown for regular number inputs
@@ -172,8 +176,10 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
           // Fallback for types that don't support stepUp/stepDown
           const currentVal = parseFloat(input.value) || 0
           const step = parseFloat(props.step as string) || 1
-          const newVal = increment ? currentVal + step : currentVal - step
-          input.value = newVal.toString()
+          newVal = increment ? currentVal + step : currentVal - step
+          
+          const nativeValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")?.set
+          nativeValueSetter?.call(input, newVal.toString())
           setLocalValue(input.value)
         }
       }
@@ -181,7 +187,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
       // Trigger both input and change events
       input.dispatchEvent(new Event('input', { bubbles: true }))
       input.dispatchEvent(new Event('change', { bubbles: true }))
-    }, [isSignedNumber, props.disabled, props.step, props.min, props.max, stepPrecision])
+    }, [isNumericInput, showPlus, props.disabled, props.step, props.min, props.max, stepPrecision])
 
     const startStep = (increment: boolean) => {
       handleStep(increment)
@@ -227,32 +233,11 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
           onInput={(e) => {
             let val = e.currentTarget.value
 
-            if (isSignedNumber) {
+            if (isNumericInput) {
               val = cleanSignedNumberInput(val)
             }
 
-            // Enforce min/max if the input has them defined
-            const minAttr = props.min;
-            const maxAttr = props.max;
-            if (minAttr !== undefined || maxAttr !== undefined) {
-              const currentVal = parseFloat(val);
-              if (!isNaN(currentVal)) {
-                if (minAttr !== undefined) {
-                  const minVal = parseFloat(minAttr as string);
-                  if (!isNaN(minVal) && currentVal < minVal) {
-                    val = minAttr.toString();
-                  }
-                }
-                if (maxAttr !== undefined) {
-                  const maxVal = parseFloat(maxAttr as string);
-                  if (!isNaN(maxVal) && currentVal > maxVal) {
-                    val = maxAttr.toString();
-                  }
-                }
-              }
-            }
-
-            e.currentTarget.value = val // Force the cleaned/clipped value back
+            e.currentTarget.value = val 
             setLocalValue(val)
             props.onInput?.(e)
           }}
@@ -260,15 +245,35 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
             props.onChange?.(e)
           }}
           onBlur={(e) => {
-            // Format on blur for signed numbers
-            if (isSignedNumber && localValue !== "") {
-              const num = parseSignedNumber(localValue)
+            // Enforce min/max and format on blur
+            let val = localValue
+            if (val !== "") {
+              const num = parseSignedNumber(val)
               if (!isNaN(num)) {
-                const formatted = formatSignedNumber(num, true, stepPrecision)
-                setLocalValue(formatted)
-                if (internalRef.current) {
-                  internalRef.current.value = formatted
-                  internalRef.current.dispatchEvent(new Event('change', { bubbles: true }))
+                let clampedNum = num
+                if (props.min !== undefined) {
+                  const minVal = parseFloat(props.min as string)
+                  if (!isNaN(minVal)) clampedNum = Math.max(clampedNum, minVal)
+                }
+                if (props.max !== undefined) {
+                  const maxVal = parseFloat(props.max as string)
+                  if (!isNaN(maxVal)) clampedNum = Math.min(clampedNum, maxVal)
+                }
+
+                const finalValue = isNumericInput 
+                  ? formatSignedNumber(clampedNum, !!showPlus, stepPrecision)
+                  : clampedNum.toString()
+
+                if (finalValue !== val) {
+                  setLocalValue(finalValue)
+                  if (internalRef.current) {
+                    const el = internalRef.current
+                    const nativeValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")?.set
+                    nativeValueSetter?.call(el, finalValue)
+                    // Trigger events so React sees the change
+                    el.dispatchEvent(new Event('input', { bubbles: true }))
+                    el.dispatchEvent(new Event('change', { bubbles: true }))
+                  }
                 }
               }
             }
@@ -284,12 +289,13 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
           </span>
         )}
         {showButtons && (
-          <div className="absolute right-[1px] top-[1px] bottom-[1px] flex flex-col border-l border-input opacity-0 group-hover:opacity-100 transition-opacity bg-card rounded-r-md overflow-hidden z-20 w-3">
+          <div className="absolute right-px top-px bottom-px flex flex-col border-l border-input opacity-0 group-hover:opacity-100 transition-opacity bg-card rounded-r-md overflow-hidden z-20 w-3">
             <button
               type="button"
               tabIndex={-1}
               onMouseDown={(e) => {
                 e.preventDefault()
+                internalRef.current?.focus()
                 startStep(true)
               }}
               onMouseUp={stopStep}
@@ -303,6 +309,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
               tabIndex={-1}
               onMouseDown={(e) => {
                 e.preventDefault()
+                internalRef.current?.focus()
                 startStep(false)
               }}
               onMouseUp={stopStep}

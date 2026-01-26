@@ -26,7 +26,7 @@ export function FinalPrescriptionTab({
 }: FinalPrescriptionTabProps) {
   const [hoveredEye, setHoveredEye] = useState<"R" | "L" | null>(null);
 
-  const { fieldWarnings, handleAxisChange } = useAxisWarning(
+  const { fieldWarnings, handleAxisChange, handleAxisBlur } = useAxisWarning(
     finalPrescriptionData,
     onFinalPrescriptionChange,
     isEditing,
@@ -140,6 +140,7 @@ export function FinalPrescriptionTab({
               missingCyl={fieldWarnings[eye as "R" | "L"].missingCyl}
               isEditing={isEditing}
               onValueChange={handleAxisChange}
+              onBlur={(eye, field, val) => handleAxisBlur(eye, field, val, colProps.min, colProps.max)}
               className={isEditing ? 'bg-white' : 'bg-accent/50'}
             />
           );

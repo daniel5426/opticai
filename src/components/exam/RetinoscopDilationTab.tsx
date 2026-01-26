@@ -28,7 +28,7 @@ export function RetinoscopDilationTab({
 }: RetinoscopDilationTabProps) {
   const [hoveredEye, setHoveredEye] = useState<"R" | "L" | null>(null);
 
-  const { fieldWarnings, handleAxisChange } = useAxisWarning(
+  const { fieldWarnings, handleAxisChange, handleAxisBlur } = useAxisWarning(
     retinoscopDilationData,
     onRetinoscopDilationChange,
     isEditing
@@ -161,7 +161,7 @@ export function RetinoscopDilationTab({
               </span>
             </div>}
             {columns.map(({ key, step, type, ...colProps }) => {
-              if (key === 'cyl' || key === 'ax') {
+                if (key === 'cyl' || key === 'ax') {
                 return (
                   <AxisWarningInput
                     {...colProps}
@@ -173,6 +173,7 @@ export function RetinoscopDilationTab({
                     missingCyl={fieldWarnings.R.missingCyl}
                     isEditing={isEditing}
                     onValueChange={handleAxisChange}
+                    onBlur={(eye, field, val) => handleAxisBlur(eye, field, val, (colProps as any).min, (colProps as any).max)}
                     className={isEditing ? 'bg-white' : 'bg-accent/50'}
                   />
                 );
@@ -239,6 +240,7 @@ export function RetinoscopDilationTab({
                     missingCyl={fieldWarnings.L.missingCyl}
                     isEditing={isEditing}
                     onValueChange={handleAxisChange}
+                    onBlur={(eye, field, val) => handleAxisBlur(eye, field, val, (colProps as any).min, (colProps as any).max)}
                     className={isEditing ? 'bg-white' : 'bg-accent/50'}
                   />
                 );

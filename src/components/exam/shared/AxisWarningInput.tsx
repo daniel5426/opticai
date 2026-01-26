@@ -2,13 +2,15 @@ import React from "react";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/utils/tailwind";
 
-interface AxisWarningInputProps extends Omit<React.ComponentProps<typeof Input>, "onChange" | "onInput"> {
+interface AxisWarningInputProps extends Omit<React.ComponentProps<typeof Input>, "onChange" | "onInput" | "onBlur"> {
     eye: "R" | "L";
     field: "cyl" | "ax";
     missingAxis: boolean;
     missingCyl: boolean;
     isEditing: boolean;
     onValueChange: (eye: "R" | "L", field: "cyl" | "ax", value: string) => void;
+    onBlur?: (eye: "R" | "L", field: "cyl" | "ax", value: string) => void;
+    onNativeBlur?: React.FocusEventHandler<HTMLInputElement>;
 }
 
 export const AxisWarningInput = React.memo(function AxisWarningInput({
@@ -18,6 +20,8 @@ export const AxisWarningInput = React.memo(function AxisWarningInput({
     missingCyl,
     isEditing,
     onValueChange,
+    onBlur,
+    onNativeBlur,
     className,
     value,
     ...props
@@ -35,6 +39,10 @@ export const AxisWarningInput = React.memo(function AxisWarningInput({
                 value={value}
                 onChange={(e) => onValueChange(eye, field, e.target.value)}
                 onInput={(e) => onValueChange(eye, field, e.currentTarget.value)}
+                onBlur={(e) => {
+                    onBlur?.(eye, field, e.target.value);
+                    onNativeBlur?.(e);
+                }}
                 disabled={!isEditing}
                 className={cn(
                     "h-8 text-xs disabled:opacity-100 disabled:cursor-default",

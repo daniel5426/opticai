@@ -21,7 +21,7 @@ interface OldContactLensesTabProps {
 export function OldContactLensesTab({ data, onChange, isEditing, hideEyeLabels = false }: OldContactLensesTabProps) {
   const [hoveredEye, setHoveredEye] = useState<"R" | "L" | null>(null)
 
-  const { fieldWarnings, handleAxisChange } = useAxisWarning(
+  const { fieldWarnings, handleAxisChange, handleAxisBlur } = useAxisWarning(
     data,
     onChange,
     isEditing
@@ -125,8 +125,8 @@ export function OldContactLensesTab({ data, onChange, isEditing, hideEyeLabels =
                       missingAxis={fieldWarnings.R.missingAxis}
                       missingCyl={fieldWarnings.R.missingCyl}
                       isEditing={isEditing}
-
                       onValueChange={handleAxisChange}
+                      onBlur={(eye, field, val) => handleAxisBlur(eye, field, val, (colProps as any).min, (colProps as any).max)}
                       className={isEditing ? 'bg-white' : 'bg-accent/50'}
                     />
                   ) : type === "va" ? (
@@ -147,8 +147,8 @@ export function OldContactLensesTab({ data, onChange, isEditing, hideEyeLabels =
                       value={getFieldValue("R", key)}
                       onChange={val => handleChange("R", key, val)}
                       disabled={!isEditing}
-                      suffix={key === "diam" ? "mm" : undefined}
-                      className={`h-8 pr-1 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
+                      suffix={colProps.suffix}
+                      className={`h-8 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
                     />
                   )}
                 </div>
@@ -205,6 +205,7 @@ export function OldContactLensesTab({ data, onChange, isEditing, hideEyeLabels =
                       missingCyl={fieldWarnings.L.missingCyl}
                       isEditing={isEditing}
                       onValueChange={handleAxisChange}
+                      onBlur={(eye, field, val) => handleAxisBlur(eye, field, val, (colProps as any).min, (colProps as any).max)}
                       className={isEditing ? 'bg-white' : 'bg-accent/50'}
                     />
                   ) : type === "va" ? (
@@ -225,8 +226,8 @@ export function OldContactLensesTab({ data, onChange, isEditing, hideEyeLabels =
                       value={getFieldValue("L", key)}
                       onChange={val => handleChange("L", key, val)}
                       disabled={!isEditing}
-                      suffix={key === "diam" ? "mm" : undefined}
-                      className={`h-8 pr-1 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
+                      suffix={colProps.suffix}
+                      className={`h-8 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
                     />
                   )}
                 </div>

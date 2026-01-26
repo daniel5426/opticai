@@ -53,7 +53,7 @@ export const OldRefractionTab = React.memo(function OldRefractionTab({
   const [hoveredEye, setHoveredEye] = useState<"R" | "L" | null>(null);
   const [dropdownTabIdx, setDropdownTabIdx] = useState<number | null>(null);
 
-  const { fieldWarnings, handleAxisChange } = useAxisWarning(
+  const { fieldWarnings, handleAxisChange, handleAxisBlur } = useAxisWarning(
     oldRefractionData,
     onOldRefractionChange,
     isEditing
@@ -161,6 +161,7 @@ export const OldRefractionTab = React.memo(function OldRefractionTab({
           missingCyl={eyeWarnings.missingCyl}
           isEditing={isEditing}
           onValueChange={handleAxisChange}
+          onBlur={(eye, field, val) => handleAxisBlur(eye, field, val, (inputProps as any).min, (inputProps as any).max)}
         />
       );
     }
