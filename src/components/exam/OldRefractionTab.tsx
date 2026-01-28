@@ -319,18 +319,6 @@ export const OldRefractionTab = React.memo(function OldRefractionTab({
             {!hideEyeLabels && <div className="flex items-center justify-center h-8">
             </div>}
             {mainColumns.map(({ key }) => {
-              if (key === 'cyl') {
-                return (
-                  <div key="c-mul-button" className="flex justify-center">
-                    <Button
-                      type="button" variant="outline" size="sm" className="h-8 text-xs px-2"
-                      disabled={!isEditing} onClick={onMultifocalClick}
-                    >
-                      MUL
-                    </Button>
-                  </div>
-                )
-              }
               if (key === 'pris') {
                 return (
                   <div key="c-vh-calculator" className="flex justify-center">

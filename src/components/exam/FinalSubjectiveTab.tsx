@@ -85,7 +85,7 @@ export function FinalSubjectiveTab({
         eye,
         field: key,
         value,
-        data: finalSubjectiveData,
+        data: dataRef.current,
         onChange: onFinalSubjectiveChange,
         getRValue: (data, f) => parseFloat(data[`r_${f}` as keyof FinalSubjectiveExam]?.toString() || "0") || 0,
         getLValue: (data, f) => parseFloat(data[`l_${f}` as keyof FinalSubjectiveExam]?.toString() || "0") || 0

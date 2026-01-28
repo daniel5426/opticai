@@ -70,7 +70,7 @@ export function ObjectiveTab({
         eye,
         field,
         value,
-        data: objectiveData,
+        data: dataRef.current,
         onChange: onObjectiveChange,
         calculateSE
       });

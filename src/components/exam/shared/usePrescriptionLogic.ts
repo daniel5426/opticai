@@ -36,7 +36,11 @@ export function usePrescriptionLogic<T>(
     // Update all three fields
     onChange(row.sph, transposed.sph as string);
     onChange(row.cyl, transposed.cyl as string);
-    onChange(row.ax, transposed.ax as string);
+    
+    // Only update axis if it was not empty
+    if (currentRx.ax !== undefined && currentRx.ax !== "" && currentRx.ax !== null) {
+      onChange(row.ax, transposed.ax as string);
+    }
   }, [data, onChange]);
 
   const handleManualTranspose = useCallback(() => {

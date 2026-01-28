@@ -65,7 +65,7 @@ export function VHCalculatorModal({ onConfirm, onRawConfirm, disabled = false }:
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm" className={`h-8 text-xs px-2`} type="button" disabled={disabled}>
+        <Button variant="outline" size="sm" className={`h-8 shadow-none text-xs px-2`} type="button" disabled={disabled}>
           V + H
         </Button>
       </DialogTrigger>

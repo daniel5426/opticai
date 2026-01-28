@@ -67,7 +67,7 @@ export function RetinoscopDilationTab({
         eye,
         field,
         value,
-        data: retinoscopDilationData,
+        data: dataRef.current,
         onChange: onRetinoscopDilationChange,
         getRValue: (data, f) => parseFloat(data[`r_${f}` as keyof RetinoscopDilationExam]?.toString() || "0") || 0,
         getLValue: (data, f) => parseFloat(data[`l_${f}` as keyof RetinoscopDilationExam]?.toString() || "0") || 0

@@ -74,7 +74,7 @@ export const SubjectiveTab = React.memo(function SubjectiveTab({
         eye,
         field,
         value,
-        data: subjectiveData,
+        data: dataRef.current,
         onChange: onSubjectiveChange,
         getRValue: (data, f) => parseFloat(data[`r_${f}` as keyof SubjectiveExam]?.toString() || "0") || 0,
         getLValue: (data, f) => parseFloat(data[`l_${f}` as keyof SubjectiveExam]?.toString() || "0") || 0
@@ -192,22 +192,7 @@ export const SubjectiveTab = React.memo(function SubjectiveTab({
             {!hideEyeLabels && <div className="flex items-center justify-center h-8">
             </div>}
             {columns.map(({ key }) => {
-              if (key === "cyl") {
-                return (
-                  <div key={`c-${key}`} className="flex justify-center">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className={`h-8 text-xs px-2 ${!isEditing ? 'bg-accent/50' : 'bg-white'}`}
-                      disabled={!isEditing}
-                      onClick={onMultifocalClick}
-                    >
-                      MUL
-                    </Button>
-                  </div>
-                );
-              } else if (key === "pris") {
+              if (key === "pris") {
                 return (
                   <div key={`c-${key}`} className="flex justify-center">
                     <VHCalculatorModal onConfirm={onVHConfirm} disabled={!isEditing} />

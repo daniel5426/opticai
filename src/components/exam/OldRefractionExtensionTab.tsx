@@ -72,7 +72,7 @@ export function OldRefractionExtensionTab({
         eye,
         field,
         value,
-        data: oldRefractionExtensionData,
+        data: dataRef.current,
         onChange: onOldRefractionExtensionChange,
         getRValue: (data, f) => parseFloat(data[`r_${f}` as keyof OldRefractionExtensionExam]?.toString() || "0") || 0,
         getLValue: (data, f) => parseFloat(data[`l_${f}` as keyof OldRefractionExtensionExam]?.toString() || "0") || 0
@@ -194,22 +194,6 @@ export function OldRefractionExtensionTab({
             </div>}
             {columns.map((column) => {
               const { key } = column;
-              if (key === 'cyl') {
-                return (
-                  <div key="c-mul-button" className="flex justify-center">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className={`h-8 text-xs px-2`}
-                      disabled={!isEditing}
-                      onClick={onMultifocalClick}
-                    >
-                      MUL
-                    </Button>
-                  </div>
-                )
-              }
               if (key === 'va' || key === 'pd_far' || key === 'pd_close') {
                 return (
                   <div key={`c-${key}-input`}>

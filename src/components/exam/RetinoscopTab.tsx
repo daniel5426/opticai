@@ -69,7 +69,7 @@ export function RetinoscopTab({
         eye,
         field,
         value,
-        data: retinoscopData,
+        data: dataRef.current,
         onChange: onRetinoscopChange,
         getRValue: (data, f) => parseFloat(data[`r_${f}` as keyof RetinoscopExam]?.toString() || "0") || 0,
         getLValue: (data, f) => parseFloat(data[`l_${f}` as keyof RetinoscopExam]?.toString() || "0") || 0

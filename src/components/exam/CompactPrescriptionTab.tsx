@@ -71,7 +71,7 @@ export function CompactPrescriptionTab({
         eye,
         field,
         value,
-        data,
+        data: dataRef.current,
         onChange,
         getRValue: (d, f) => parseFloat(d[`r_${f}` as keyof CompactPrescriptionExam]?.toString() || "0") || 0,
         getLValue: (d, f) => parseFloat(d[`l_${f}` as keyof CompactPrescriptionExam]?.toString() || "0") || 0
