@@ -33,7 +33,6 @@ export function ContactLensDetailsTab({
     { key: "material", config: EXAM_FIELDS.CONTACT_LENS_MATERIAL },
     { key: "color", config: EXAM_FIELDS.CONTACT_LENS_COLOR },
     { key: "quantity", config: EXAM_FIELDS.CONTACT_LENS_QUANTITY },
-    { key: "order_quantity", config: EXAM_FIELDS.CONTACT_LENS_ORDER_QUANTITY },
     { key: "dx", config: EXAM_FIELDS.CONTACT_LENS_DX },
   ];
 
@@ -67,10 +66,10 @@ export function ContactLensDetailsTab({
       <CardContent className="px-4" style={{ scrollbarWidth: 'none' }}>
         <div className="space-y-3">
           <div className="text-center">
-            <h3 className="font-medium text-muted-foreground">Contact Lens Details</h3>
+            <h3 className="font-medium text-muted-foreground">פרטי הזמנת עדשות מגע</h3>
           </div>
 
-          <div className={`grid ${hideEyeLabels ? 'grid-cols-[2fr_2fr_2fr_2fr_2fr_1fr_1fr_1fr]' : 'grid-cols-[20px_2fr_2fr_2fr_2fr_2fr_1fr_1fr_1fr]'} gap-2 items-center`}>
+          <div className={`grid ${hideEyeLabels ? 'grid-cols-[2fr_2fr_2fr_2fr_2fr_1fr_1fr]' : 'grid-cols-[20px_2fr_2fr_2fr_2fr_2fr_1fr_1fr]'} gap-2 items-center`}>
             {!hideEyeLabels && <div></div>}
             {columns.map(({ key, config }) => (
               <div key={key} className="h-4 flex items-center justify-center">
@@ -101,6 +100,7 @@ export function ContactLensDetailsTab({
                     lookupType={config.lookupType}
                     placeholder=""
                     className="h-8 text-xs bg-white"
+                    center={true}
                   />
                 ) : (
                   <FastInput
@@ -147,6 +147,7 @@ export function ContactLensDetailsTab({
                       lookupType={config.lookupType}
                       placeholder=""
                       className="h-8 text-xs bg-white"
+                      center={true}
                     />
                   ) : (
                     <div className="bg-accent/50 flex h-8 items-center rounded-md border px-2 text-xs">

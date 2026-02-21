@@ -11,6 +11,7 @@ import { FastInput, FastSelect, inputSyncManager } from "./shared/OptimizedInput
 import { usePrescriptionLogic } from "./shared/usePrescriptionLogic"
 import { CylTitle } from "./shared/CylTitle"
 import { NVJSelect } from "./shared/NVJSelect"
+import { ToggleTextNumberInput } from "./shared/ToggleTextNumberInput"
 
 interface OldRefractionExtensionTabProps {
   oldRefractionExtensionData: OldRefractionExtensionExam;
@@ -134,6 +135,26 @@ export function OldRefractionExtensionTab({
             disabled={!isEditing}
           />
         </React.Suspense>
+      );
+    }
+
+    if (key === "sph" && eye !== "C") {
+      return (
+        <ToggleTextNumberInput
+          value={value}
+          onChange={(val) => handleChange(eye, key, val)}
+          disabled={!isEditing}
+          textOptions={column.textOptions}
+          textValueAliases={column.textValueAliases}
+          numericProps={{
+            step,
+            min,
+            max,
+            showPlus: column.showPlus,
+            suffix: column.suffix,
+            className: `h-8 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`
+          }}
+        />
       );
     }
 

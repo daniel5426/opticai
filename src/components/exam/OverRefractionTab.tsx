@@ -10,7 +10,7 @@ import { usePrescriptionLogic } from "./shared/usePrescriptionLogic"
 import { CylTitle } from "./shared/CylTitle"
 import { useAxisWarning } from "./shared/useAxisWarning"
 import { AxisWarningInput } from "./shared/AxisWarningInput"
-import { cn } from "@/utils/tailwind"
+import { ToggleTextNumberInput } from "./shared/ToggleTextNumberInput"
 
 interface OverRefractionTabProps {
   data: OverRefraction;
@@ -47,8 +47,8 @@ export function OverRefractionTab({
     { key: "cyl", config: EXAM_FIELDS.CYL },
     { key: "ax", config: EXAM_FIELDS.AXIS },
     { key: "va", config: EXAM_FIELDS.VA, flex: 1.5 },
-    { key: "j", config: EXAM_FIELDS.J },
     { key: "add", config: EXAM_FIELDS.ADD },
+    { key: "j", config: EXAM_FIELDS.J },
     { key: "florescent", config: EXAM_FIELDS.FL_TIME },
     { key: "bio_m", config: EXAM_FIELDS.BIO_M, flex: 3 },
   ];
@@ -154,6 +154,22 @@ export function OverRefractionTab({
                       onBlur={(eye, field, val) => handleAxisBlur(eye, field, val, config.min, config.max)}
                       className={isEditing ? 'bg-white' : 'bg-accent/50'}
                     />
+                  ) : key === "sph" ? (
+                    <ToggleTextNumberInput
+                      value={getFieldValue("R", key)}
+                      onChange={(val) => handleChange("R", key, val)}
+                      disabled={!isEditing}
+                      textOptions={config.textOptions}
+                      textValueAliases={config.textValueAliases}
+                      numericProps={{
+                        step: config.step,
+                        min: config.min,
+                        max: config.max,
+                        showPlus: config.showPlus,
+                        suffix: config.suffix,
+                        className: `h-8 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`
+                      }}
+                    />
                   ) : key === "va" ? (
                     <VASelect
                       value={getFieldValue("R", key)}
@@ -181,6 +197,7 @@ export function OverRefractionTab({
                       min={config.min}
                       max={config.max}
                       suffix={config.suffix}
+                      showPlus={config.showPlus}
                       value={getFieldValue("R", key)}
                       onChange={(val) => handleChange("R", key, val)}
                       disabled={!isEditing}
@@ -265,6 +282,22 @@ export function OverRefractionTab({
                       onValueChange={handleAxisChange}
                       onBlur={(eye, field, val) => handleAxisBlur(eye, field, val, config.min, config.max)}
                       className={isEditing ? 'bg-white' : 'bg-accent/50'}
+                    />
+                  ) : key === "sph" ? (
+                    <ToggleTextNumberInput
+                      value={getFieldValue("L", key)}
+                      onChange={(val) => handleChange("L", key, val)}
+                      disabled={!isEditing}
+                      textOptions={config.textOptions}
+                      textValueAliases={config.textValueAliases}
+                      numericProps={{
+                        step: config.step,
+                        min: config.min,
+                        max: config.max,
+                        showPlus: config.showPlus,
+                        suffix: config.suffix,
+                        className: `h-8 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`
+                      }}
                     />
                   ) : key === "va" ? (
                     <VASelect

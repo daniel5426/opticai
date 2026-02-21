@@ -72,13 +72,13 @@ export function ContactLensOrderTab({ contactLensOrder, onContactLensOrderChange
           {/* Advisor - Lookup */}
           <div className="space-y-2">
             <Label htmlFor="advisor" className="text-right block text-muted-foreground ">
-              יועץ
+              שם המוכר
             </Label>
             <LookupSelect
               lookupType="advisor"
               value={contactLensOrder.advisor || ''}
               onChange={(value) => handleFieldChange('advisor', value)}
-              placeholder="בחר יועץ"
+              placeholder="בחירת מוכר"
               className="text-right"
               disabled={!isEditing}
             />

@@ -147,16 +147,20 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
       let newVal: number;
       if (isNumericInput) {
         // For numeric inputs, manually calculate the step to support signed formatting and trailing dots
-        const currentVal = parseSignedNumber(input.value) || 0
+        const rawValue = input.value
+        const parsed = parseSignedNumber(rawValue)
         const step = parseFloat(props.step as string) || 0.25
-        newVal = increment ? currentVal + step : currentVal - step
+        const minValue = props.min !== undefined ? parseFloat(props.min as string) : undefined
+        const hasValue = rawValue !== "" && !isNaN(parsed)
 
-        // Apply min/max constraints
-        if (props.min !== undefined) {
-          newVal = Math.max(newVal, parseFloat(props.min as string))
-        }
-        if (props.max !== undefined) {
-          newVal = Math.min(newVal, parseFloat(props.max as string))
+        if (!hasValue) {
+          if (minValue !== undefined && !isNaN(minValue)) {
+            newVal = minValue
+          } else {
+            newVal = 0
+          }
+        } else {
+          newVal = increment ? parsed + step : parsed - step
         }
 
         // Format with sign and proper precision
@@ -201,6 +205,18 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
 
     const showButtons = type === "number" && !props.disabled
 
+    const numericValue = isNumericInput ? parseSignedNumber(localValue) : NaN
+    const minValue = props.min !== undefined ? parseFloat(props.min as string) : undefined
+    const rawMaxValue = props.max !== undefined ? parseFloat(props.max as string) : undefined
+    const maxValue = (minValue !== undefined && rawMaxValue !== undefined && !isNaN(minValue) && !isNaN(rawMaxValue) && rawMaxValue < minValue)
+      ? undefined
+      : rawMaxValue
+    const isOutOfRange = isNumericInput
+      && !isNaN(numericValue)
+      && ((minValue !== undefined && !isNaN(minValue) && numericValue < minValue)
+        || (maxValue !== undefined && !isNaN(maxValue) && numericValue > maxValue))
+    const ariaInvalid = props["aria-invalid"] ?? isOutOfRange
+
     return (
       <div dir={effectiveDir} className={cn("group w-full flex items-center", (prefix || suffix || showButtons) ? "relative" : "")}>
         {prefix && (
@@ -229,6 +245,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
             const { value, defaultValue, ...rest } = props;
             return rest;
           })()}
+          aria-invalid={ariaInvalid}
           value={localValue}
           onInput={(e) => {
             let val = e.currentTarget.value
@@ -240,6 +257,12 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
             e.currentTarget.value = val 
             setLocalValue(val)
             props.onInput?.(e)
+          }}
+          onFocus={(e) => {
+            if (isNumericInput) {
+              e.currentTarget.select()
+            }
+            props.onFocus?.(e)
           }}
           onChange={(e) => {
             props.onChange?.(e)
@@ -257,24 +280,13 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
             props.onKeyDown?.(e)
           }}
           onBlur={(e) => {
-            // Enforce min/max and format on blur
             let val = localValue
             if (val !== "") {
               const num = parseSignedNumber(val)
               if (!isNaN(num)) {
-                let clampedNum = num
-                if (props.min !== undefined) {
-                  const minVal = parseFloat(props.min as string)
-                  if (!isNaN(minVal)) clampedNum = Math.max(clampedNum, minVal)
-                }
-                if (props.max !== undefined) {
-                  const maxVal = parseFloat(props.max as string)
-                  if (!isNaN(maxVal)) clampedNum = Math.min(clampedNum, maxVal)
-                }
-
                 const finalValue = isNumericInput 
-                  ? formatSignedNumber(clampedNum, !!showPlus, stepPrecision)
-                  : clampedNum.toString()
+                  ? formatSignedNumber(num, !!showPlus, stepPrecision)
+                  : num.toString()
 
                 if (finalValue !== val) {
                   setLocalValue(finalValue)

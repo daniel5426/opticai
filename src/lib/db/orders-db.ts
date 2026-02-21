@@ -30,6 +30,18 @@ export async function getOrdersByClientId(clientId: number): Promise<Order[]> {
   }
 }
 
+export async function getLatestOrderByClientId(clientId: number): Promise<Order | undefined> {
+  const orders = await getOrdersByClientId(clientId);
+  if (orders.length === 0) return undefined;
+
+  // Sort by date descending
+  return orders.sort((a, b) => {
+    const dateA = a.order_date ? new Date(a.order_date).getTime() : 0;
+    const dateB = b.order_date ? new Date(b.order_date).getTime() : 0;
+    return dateB - dateA;
+  })[0];
+}
+
 export async function getAllOrders(clinicId?: number): Promise<Order[]> {
   try {
     const [oRes, clRes] = await Promise.all([

@@ -12,6 +12,9 @@ export interface FieldConfig {
   center?: boolean;
   lookupType?: string;
   options?: string[];
+  textOptions?: string[];
+  textValueAliases?: Record<string, string>;
+  displayAliases?: Record<string, string>;
 }
 
 export const EXAM_FIELDS = {
@@ -22,6 +25,8 @@ export const EXAM_FIELDS = {
     min: -30,
     max: 30,
     showPlus: true,
+    textOptions: ["Plano", "Ambliyopya", "Balance"],
+    textValueAliases: { Plano: "0" },
   } as FieldConfig,
   CYL: {
     label: "CYL",
@@ -78,7 +83,7 @@ export const EXAM_FIELDS = {
     step: "0.5",
     type: "number",
     min: PD_COMB_MIN,
-    max: 80,
+    max: PD_COMB_MAX,
     showPlus: false,
     suffix: "mm",
   } as FieldConfig,
@@ -95,7 +100,7 @@ export const EXAM_FIELDS = {
     step: "0.1",
     type: "number",
     min: 9,
-    max: 18,
+    max: 24,
     unit: "mm",
   } as FieldConfig,
   EYELID_APERTURE: {
@@ -136,6 +141,16 @@ export const EXAM_FIELDS = {
     max: 12,
     showPlus: false,
   } as FieldConfig,
+  CONTACT_LENS_BC: {
+    label: "BC",
+    step: "0.1",
+    type: "number",
+    min: 7.5,
+    max: 10.0,
+    suffix: "mm",
+    showPlus: false,
+    textOptions: ["flat", "steep"],
+  } as FieldConfig,
   OZ: {
     label: "OZ",
     step: "0.1",
@@ -144,12 +159,30 @@ export const EXAM_FIELDS = {
     max: 12,
     showPlus: false,
   } as FieldConfig,
+  CONTACT_LENS_OZ: {
+    label: "OZ",
+    step: "0.1",
+    type: "number",
+    min: 5.0,
+    max: 12.0,
+    suffix: "mm",
+    showPlus: false,
+  } as FieldConfig,
   DIAM: {
     label: "DIAM",
     step: "0.1",
     type: "number",
     min: 0,
     max: 20,
+    suffix: "mm",
+    showPlus: false,
+  } as FieldConfig,
+  CONTACT_LENS_DIAM: {
+    label: "DIAM",
+    step: "0.1",
+    type: "number",
+    min: 8.0,
+    max: 18.0,
     suffix: "mm",
     showPlus: false,
   } as FieldConfig,

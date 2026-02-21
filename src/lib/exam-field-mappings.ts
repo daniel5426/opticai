@@ -255,7 +255,7 @@ export class ExamFieldMapper {
       case 'contact-lens-exam':
         return ['r_bc', 'r_oz', 'r_diam', 'r_sph', 'r_cyl', 'r_ax', 'r_read_ad', 'r_dd', 'r_va', 'r_j', 'l_bc', 'l_oz', 'l_diam', 'l_sph', 'l_cyl', 'l_ax', 'l_read_ad', 'l_dd', 'l_va', 'l_j', 'comb_va']
       case 'contact-lens-order':
-        return ['contact_lens_id', 'branch', 'supply_in_branch', 'order_status', 'advisor', 'deliverer', 'delivery_date', 'priority', 'guaranteed_date', 'approval_date', 'cleaning_solution', 'disinfection_solution', 'rinsing_solution']
+        return ['contact_lens_id', 'clinic_id', 'supply_in_clinic_id', 'order_status', 'advisor', 'deliverer', 'delivery_date', 'priority', 'guaranteed_date', 'approval_date', 'cleaning_solution', 'disinfection_solution', 'rinsing_solution']
       case 'over-refraction':
         return [
           'r_sph', 'r_cyl', 'r_ax', 'r_va', 'r_j', 'r_add', 'r_florescent', 'r_bio_m',

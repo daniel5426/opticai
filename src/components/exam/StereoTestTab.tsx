@@ -12,6 +12,28 @@ interface StereoTestTabProps {
 }
 
 export function StereoTestTab({ stereoTestData, onStereoTestChange, isEditing, needsMiddleSpacer = false }: StereoTestTabProps) {
+  const handleCircleScoreChange = (value: string) => {
+    const nextScore = parseInt(value) || 0
+    const maxScore = Number(stereoTestData.circle_max || 0)
+    const finalScore = maxScore > 0 && nextScore > maxScore ? maxScore : nextScore
+    onStereoTestChange('circle_score', finalScore)
+  }
+
+  const handleCircleMaxChange = (value: string) => {
+    const nextMax = parseInt(value) || 0
+    onStereoTestChange('circle_max', nextMax)
+    const currentScore = Number(stereoTestData.circle_score || 0)
+    if (currentScore > nextMax) {
+      onStereoTestChange('circle_score', nextMax)
+    }
+  }
+
+  const circleScoreMax = () => {
+    const maxScore = Number(stereoTestData.circle_max || 0)
+    if (!maxScore) return EXAM_FIELDS.STEREO_CIRCLE.max
+    return Math.min(EXAM_FIELDS.STEREO_CIRCLE.max, maxScore)
+  }
+
   return (
     <Card className="w-full examcard pb-4 pt-3" >
       <CardContent className="px-4" style={{ scrollbarWidth: 'none', direction: 'ltr' }}>
@@ -45,10 +67,10 @@ export function StereoTestTab({ stereoTestData, onStereoTestChange, isEditing, n
               <FastInput
                 type="number"
                 min={EXAM_FIELDS.STEREO_CIRCLE.min}
-                max={EXAM_FIELDS.STEREO_CIRCLE.max}
+                max={circleScoreMax()}
                 step={EXAM_FIELDS.STEREO_CIRCLE.step}
                 value={String(stereoTestData.circle_score || "")}
-                onChange={val => onStereoTestChange('circle_score', parseInt(val) || 0)}
+                onChange={handleCircleScoreChange}
                 disabled={!isEditing}
                 className={`h-8 text-xs flex-1 ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
                 placeholder="0"
@@ -60,7 +82,7 @@ export function StereoTestTab({ stereoTestData, onStereoTestChange, isEditing, n
                 max={EXAM_FIELDS.STEREO_CIRCLE.max}
                 step={EXAM_FIELDS.STEREO_CIRCLE.step}
                 value={String(stereoTestData.circle_max || "")}
-                onChange={val => onStereoTestChange('circle_max', parseInt(val) || 0)}
+                onChange={handleCircleMaxChange}
                 disabled={!isEditing}
                 className={`h-8 text-xs flex-1 ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
                 placeholder="3"

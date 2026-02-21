@@ -30,7 +30,7 @@ class Settings:
     
     # Server
     HOST: str = "0.0.0.0"
-    PORT: int = 8001
+    PORT: int = 8000
 
     # Supabase
     SUPABASE_URL: str = os.getenv("SUPABASE_URL", "")

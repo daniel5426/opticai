@@ -10,6 +10,7 @@ import { usePrescriptionLogic } from "./shared/usePrescriptionLogic"
 import { CylTitle } from "./shared/CylTitle"
 import { useAxisWarning } from "./shared/useAxisWarning"
 import { AxisWarningInput } from "./shared/AxisWarningInput"
+import { ToggleTextNumberInput } from "./shared/ToggleTextNumberInput"
 
 interface RetinoscopTabProps {
   retinoscopData: RetinoscopExam;
@@ -47,7 +48,7 @@ export function RetinoscopTab({
     { key: "sph", ...EXAM_FIELDS.SPH, type: "number" },
     { key: "cyl", ...EXAM_FIELDS.CYL, type: "number" },
     { key: "ax", ...EXAM_FIELDS.AXIS, label: "AX", type: "number" },
-    { key: "reflex", label: "REFLEX", type: "select", options: ["Normal", "Opacity", "Scissor"] },
+    { key: "reflex", label: "REFLEX", type: "select", options: ["Normal", "Opacity", "Scissors"], center: true },
     { key: "pd_far", ...EXAM_FIELDS.PD_FAR, type: "number" },
     { key: "pd_close", ...EXAM_FIELDS.PD_NEAR, label: "PD NEAR", type: "number" },
   ];
@@ -185,6 +186,27 @@ export function RetinoscopTab({
                   />
                 );
               }
+              if (key === "sph") {
+                return (
+                  <ToggleTextNumberInput
+                    key={`r-${key}`}
+                    value={getFieldValue("R", key)}
+                    onChange={(val) => handleChange("R", key, val)}
+                    disabled={!isEditing}
+                    textOptions={colProps.textOptions}
+                    textValueAliases={colProps.textValueAliases}
+                    numericProps={{
+                      step: colProps.step,
+                      min: colProps.min,
+                      max: colProps.max,
+                      showPlus: colProps.showPlus,
+                      suffix: colProps.suffix,
+                      debounceMs: key === "pd_far" || key === "pd_close" ? 0 : undefined,
+                      className: `h-8 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default ${key === 'reflex' ? 'col-span-1' : ''}`
+                    }}
+                  />
+                );
+              }
               if (key === 'reflex') {
                 return (
                   <FastSelect
@@ -196,6 +218,7 @@ export function RetinoscopTab({
                     disabled={!isEditing}
                     size="xs"
                     triggerClassName={`h-8 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default col-span-1`}
+                    center={true}
                   />
                 );
               }
@@ -270,6 +293,27 @@ export function RetinoscopTab({
                     onValueChange={handleAxisChange}
                     onBlur={(eye, field, val) => handleAxisBlur(eye, field, val, colProps.min, colProps.max)}
                     className={isEditing ? 'bg-white' : 'bg-accent/50'}
+                  />
+                );
+              }
+              if (key === "sph") {
+                return (
+                  <ToggleTextNumberInput
+                    key={`l-${key}`}
+                    value={getFieldValue("L", key)}
+                    onChange={(val) => handleChange("L", key, val)}
+                    disabled={!isEditing}
+                    textOptions={colProps.textOptions}
+                    textValueAliases={colProps.textValueAliases}
+                    numericProps={{
+                      step: colProps.step,
+                      min: colProps.min,
+                      max: colProps.max,
+                      showPlus: colProps.showPlus,
+                      suffix: colProps.suffix,
+                      debounceMs: key === "pd_far" || key === "pd_close" ? 0 : undefined,
+                      className: `h-8 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default ${key === 'reflex' ? 'col-span-1' : ''}`
+                    }}
                   />
                 );
               }

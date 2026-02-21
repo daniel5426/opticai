@@ -11,6 +11,7 @@ import { CylTitle } from "./shared/CylTitle"
 import { calculateSE } from "@/utils/optometry-utils"
 import { useAxisWarning } from "./shared/useAxisWarning"
 import { AxisWarningInput } from "./shared/AxisWarningInput"
+import { ToggleTextNumberInput } from "./shared/ToggleTextNumberInput"
 
 interface ObjectiveTabProps {
   objectiveData: ObjectiveExam;
@@ -142,6 +143,27 @@ export function ObjectiveTab({
                   />
                 );
               }
+              if (key === "sph") {
+                return (
+                  <ToggleTextNumberInput
+                    key={`r-${key}`}
+                    value={getFieldValue("R", key)}
+                    onChange={(val) => handleChange("R", key, val)}
+                    disabled={!isEditing}
+                    textOptions={(inputProps as any).textOptions}
+                    textValueAliases={(inputProps as any).textValueAliases}
+                    numericProps={{
+                      step: (inputProps as any).step,
+                      min: (inputProps as any).min,
+                      max: (inputProps as any).max,
+                      showPlus: (inputProps as any).showPlus,
+                      suffix: (inputProps as any).suffix,
+                      debounceMs: key === "sph" || key === "cyl" ? 0 : undefined,
+                      className: `h-8 pr-1 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`
+                    }}
+                  />
+                );
+              }
               return (
                 <FastInput
                   {...inputProps}
@@ -192,6 +214,27 @@ export function ObjectiveTab({
                     onValueChange={(eye, field, val) => handleChange(eye, field, val)}
                     onBlur={(eye, field, val) => handleAxisBlur(eye, field, val, (inputProps as any).min, (inputProps as any).max)}
                     className={isEditing ? 'bg-white' : 'bg-accent/50'}
+                  />
+                );
+              }
+              if (key === "sph") {
+                return (
+                  <ToggleTextNumberInput
+                    key={`l-${key}`}
+                    value={getFieldValue("L", key)}
+                    onChange={(val) => handleChange("L", key, val)}
+                    disabled={!isEditing}
+                    textOptions={(inputProps as any).textOptions}
+                    textValueAliases={(inputProps as any).textValueAliases}
+                    numericProps={{
+                      step: (inputProps as any).step,
+                      min: (inputProps as any).min,
+                      max: (inputProps as any).max,
+                      showPlus: (inputProps as any).showPlus,
+                      suffix: (inputProps as any).suffix,
+                      debounceMs: key === "sph" || key === "cyl" ? 0 : undefined,
+                      className: `h-8 pr-1 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`
+                    }}
                   />
                 );
               }

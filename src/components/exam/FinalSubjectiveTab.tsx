@@ -12,6 +12,7 @@ import { usePrescriptionLogic } from "./shared/usePrescriptionLogic"
 import { CylTitle } from "./shared/CylTitle"
 import { useAxisWarning } from "./shared/useAxisWarning"
 import { AxisWarningInput } from "./shared/AxisWarningInput"
+import { ToggleTextNumberInput } from "./shared/ToggleTextNumberInput"
 
 interface FinalSubjectiveTabProps {
   finalSubjectiveData: FinalSubjectiveExam;
@@ -157,6 +158,26 @@ export function FinalSubjectiveTab({
         const pdProps = (eye === "C" && (key === "pd_far" || key === "pd_close"))
           ? EXAM_FIELDS.PD_COMB
           : inputProps;
+
+        if (key === "sph" && eye !== "C") {
+          return (
+            <ToggleTextNumberInput
+              value={value}
+              onChange={(val) => handleChange(eye, key, val)}
+              disabled={!isEditing}
+              textOptions={(pdProps as any).textOptions}
+              textValueAliases={(pdProps as any).textValueAliases}
+              numericProps={{
+                step: (pdProps as any).step,
+                min: (pdProps as any).min,
+                max: (pdProps as any).max,
+                showPlus: (pdProps as any).showPlus,
+                suffix: (pdProps as any).suffix,
+                className: "h-8 text-xs disabled:opacity-100 disabled:cursor-default"
+              }}
+            />
+          );
+        }
 
         if ((key === 'cyl' || key === 'ax') && eye !== 'C') {
           const eyeWarnings = fieldWarnings[eye as "R" | "L"];

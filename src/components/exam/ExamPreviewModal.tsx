@@ -105,7 +105,7 @@ export function ExamPreviewModal({
 
                 setLayoutTabs(tabs);
 
-                const dataByInstance: Record<number, any> = {};
+                const dataByInstance: Record<number, Record<string, any>> = {};
                 instances.forEach((inst: any) => {
                     dataByInstance[inst.instance.id] = inst.exam_data || {};
                 });

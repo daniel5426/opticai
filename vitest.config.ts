@@ -25,7 +25,7 @@ export default defineConfig({
     env: {
       VITE_SUPABASE_URL: "https://test.supabase.co",
       VITE_SUPABASE_ANON_KEY: "test-key",
-      VITE_API_URL: "http://localhost:8001/api/v1",
+      VITE_API_URL: "http://localhost:8000/api/v1",
     },
   },
 });

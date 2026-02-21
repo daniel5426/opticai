@@ -219,30 +219,6 @@ export function useOptimizedInput<T extends HTMLInputElement | HTMLTextAreaEleme
 
                 let val = target.value;
 
-                // Enforce min/max on blur
-                if (target instanceof HTMLInputElement) {
-                    const currentVal = parseFloat(val);
-                    if (!isNaN(currentVal)) {
-                        const minAttr = target.getAttribute("min");
-                        if (minAttr !== null && minAttr !== "") {
-                            const minVal = parseFloat(minAttr);
-                            if (!isNaN(minVal) && currentVal < minVal) {
-                                val = minAttr;
-                                target.value = val;
-                            }
-                        }
-
-                        const maxAttr = target.getAttribute("max");
-                        if (maxAttr !== null && maxAttr !== "") {
-                            const maxVal = parseFloat(maxAttr);
-                            if (!isNaN(maxVal) && currentVal > maxVal) {
-                                val = maxAttr;
-                                target.value = val;
-                            }
-                        }
-                    }
-                }
-
                 localValueRef.current = val;
                 handleSync();
                 if (onBlurOverrideRef.current) onBlurOverrideRef.current();
@@ -530,8 +506,8 @@ export const FastSelect = memo(function FastSelect({
                 }
             }}
         >
-            <SelectTrigger disabled={props.disabled} size={size} className={triggerClassName} centered={center}>
-                <SelectValue placeholder={placeholder} />
+            <SelectTrigger disabled={props.disabled} size={size} className={triggerClassName + " text-center" } centered={center}>
+                <SelectValue placeholder={placeholder} className="center-value self-center justify-center" />
             </SelectTrigger>
             <SelectContent className="min-w-16 w-fit justify-center items-center">
                 {options.map((opt) => {

@@ -186,6 +186,9 @@ export function KeratometerContactLensTab({
                 return (
                   <AxisWarningInput
                     {...colProps}
+                    step={step}
+                    min={min}
+                    max={max}
                     key={`r-${key}`}
                     eye="R"
                     field={key as "cyl" | "ax"}
@@ -241,6 +244,9 @@ export function KeratometerContactLensTab({
                 return (
                   <AxisWarningInput
                     {...colProps}
+                    step={step}
+                    min={min}
+                    max={max}
                     key={`l-${key}`}
                     eye="L"
                     field={key as "cyl" | "ax"}

@@ -13,6 +13,7 @@ import { usePrescriptionLogic } from "./shared/usePrescriptionLogic"
 import { CylTitle } from "./shared/CylTitle"
 import { useAxisWarning } from "./shared/useAxisWarning"
 import { AxisWarningInput } from "./shared/AxisWarningInput"
+import { ToggleTextNumberInput } from "./shared/ToggleTextNumberInput"
 
 interface SubjectiveTabProps {
   subjectiveData: SubjectiveExam;
@@ -158,6 +159,22 @@ export const SubjectiveTab = React.memo(function SubjectiveTab({
                     onBlur={(eye, field, val) => handleAxisBlur(eye, field, val, (colProps as any).min, (colProps as any).max)}
                     className={isEditing ? 'bg-white' : 'bg-accent/50'}
                   />
+                ) : key === "sph" ? (
+                  <ToggleTextNumberInput
+                    value={getFieldValue("R", key)}
+                    onChange={(val) => handleChange("R", key, val)}
+                    disabled={!isEditing}
+                    textOptions={(colProps as any).textOptions}
+                    textValueAliases={(colProps as any).textValueAliases}
+                    numericProps={{
+                      step: (colProps as any).step,
+                      min: (colProps as any).min,
+                      max: (colProps as any).max,
+                      showPlus: (colProps as any).showPlus,
+                      suffix: (colProps as any).suffix,
+                      className: `h-8 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`
+                    }}
+                  />
                 ) : key === "base" ? (
                   <FastSelect
                     value={getFieldValue("R", key)}
@@ -253,6 +270,22 @@ export const SubjectiveTab = React.memo(function SubjectiveTab({
                     onValueChange={handleAxisChange}
                     onBlur={(eye, field, val) => handleAxisBlur(eye, field, val, (colProps as any).min, (colProps as any).max)}
                     className={isEditing ? 'bg-white' : 'bg-accent/50'}
+                  />
+                ) : key === "sph" ? (
+                  <ToggleTextNumberInput
+                    value={getFieldValue("L", key)}
+                    onChange={(val) => handleChange("L", key, val)}
+                    disabled={!isEditing}
+                    textOptions={(colProps as any).textOptions}
+                    textValueAliases={(colProps as any).textValueAliases}
+                    numericProps={{
+                      step: (colProps as any).step,
+                      min: (colProps as any).min,
+                      max: (colProps as any).max,
+                      showPlus: (colProps as any).showPlus,
+                      suffix: (colProps as any).suffix,
+                      className: `h-8 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`
+                    }}
                   />
                 ) : key === "base" ? (
                   <FastSelect

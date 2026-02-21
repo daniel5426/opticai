@@ -2,14 +2,14 @@ import React, { useState, useRef } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { FinalPrescriptionExam } from "@/lib/db/schema-interface"
 import { ChevronUp, ChevronDown } from "lucide-react"
-import { EXAM_FIELDS } from "./data/exam-field-definitions"
+import { EXAM_FIELDS, PDFieldConfigProvider } from "./data/exam-field-definitions"
 import { BASE_VALUES_SIMPLE, PDCalculationUtils } from "./data/exam-constants"
-import { VASelect } from "./shared/VASelect"
 import { FastInput, FastSelect, inputSyncManager } from "./shared/OptimizedInputs"
 import { usePrescriptionLogic } from "./shared/usePrescriptionLogic"
 import { CylTitle } from "./shared/CylTitle"
 import { useAxisWarning } from "./shared/useAxisWarning"
 import { AxisWarningInput } from "./shared/AxisWarningInput"
+import { ToggleTextNumberInput } from "./shared/ToggleTextNumberInput"
 
 interface FinalPrescriptionTabProps {
   finalPrescriptionData: FinalPrescriptionExam;
@@ -51,9 +51,9 @@ export function FinalPrescriptionTab({
     { key: "ax", ...EXAM_FIELDS.AXIS },
     { key: "pris", ...EXAM_FIELDS.PRISM },
     { key: "base", ...EXAM_FIELDS.BASE, type: "select", options: BASE_VALUES_SIMPLE },
-    { key: "va", ...EXAM_FIELDS.VA, type: "va" },
     { key: "ad", ...EXAM_FIELDS.ADD },
     { key: "pd", ...EXAM_FIELDS.PD_FAR },
+    { key: "pd_close", ...EXAM_FIELDS.PD_NEAR },
   ];
 
   const getFieldValue = (eye: "R" | "L" | "C", field: string) => {
@@ -66,7 +66,7 @@ export function FinalPrescriptionTab({
   };
 
   const handleChange = (eye: "R" | "L" | "C", field: string, value: string) => {
-    if (field === "pd") {
+    if (field === "pd" || field === "pd_close") {
       PDCalculationUtils.handlePDChange({
         eye,
         field,
@@ -114,8 +114,6 @@ export function FinalPrescriptionTab({
     const type = (col as any).type as string | undefined;
     const options = (col as any).options as readonly string[] | undefined;
     switch (type) {
-      case "va":
-        return <VASelect value={getFieldValue(eye, key)} onChange={(val) => handleChange(eye, key, val)} disabled={!isEditing} />;
       case "select":
         return (
           <FastSelect
@@ -133,6 +131,7 @@ export function FinalPrescriptionTab({
           return (
             <AxisWarningInput
               {...colProps}
+              step={step}
               eye={eye as "R" | "L"}
               field={key as "cyl" | "ax"}
               value={getFieldValue(eye as "R" | "L", key)}
@@ -145,14 +144,34 @@ export function FinalPrescriptionTab({
             />
           );
         }
+        if (key === "sph") {
+          return (
+            <ToggleTextNumberInput
+              value={getFieldValue(eye, key)}
+              onChange={(val) => handleChange(eye, key, val)}
+              disabled={!isEditing}
+              textOptions={colProps.textOptions}
+              textValueAliases={colProps.textValueAliases}
+              numericProps={{
+                step,
+                min: colProps.min,
+                max: colProps.max,
+                showPlus: colProps.showPlus,
+                suffix: colProps.suffix,
+                className: `h-8 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`
+              }}
+            />
+          );
+        }
         return (
           <FastInput
             {...colProps}
+            max={key === "pd_close" ? PDFieldConfigProvider.getNearConfig(getFieldValue(eye, "pd")).max : colProps.max}
             type="number" step={step}
             value={getFieldValue(eye, key)}
             onChange={(val) => handleChange(eye, key, val)}
             disabled={!isEditing}
-            debounceMs={key === "pd" ? 0 : undefined}
+            debounceMs={key === "pd" || key === "pd_close" ? 0 : undefined}
             className={`h-8 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
           />
         );
@@ -197,18 +216,7 @@ export function FinalPrescriptionTab({
             {!hideEyeLabels && <div className="flex items-center justify-center h-8">
             </div>}
             {columns.map(({ key, step, ...colProps }) => {
-              if (key === 'va') {
-                return (
-                  <div key="c-va-input">
-                    <VASelect
-                      value={getFieldValue("C", "va")}
-                      onChange={(val) => handleChange("C", "va", val)}
-                      disabled={!isEditing}
-                    />
-                  </div>
-                );
-              }
-              if (key === 'pd') {
+              if (key === 'pd' || key === 'pd_close') {
                 const pdCombProps = EXAM_FIELDS.PD_COMB;
                 return (
                   <FastInput
@@ -219,6 +227,7 @@ export function FinalPrescriptionTab({
                     value={getFieldValue("C", key)}
                     onChange={(val) => handleChange("C", key, val)}
                     disabled={!isEditing}
+                    max={key === "pd_close" ? PDFieldConfigProvider.getNearConfig(getFieldValue("C", "pd")).max : pdCombProps.max}
                     debounceMs={0}
                     className={`h-8 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
                   />

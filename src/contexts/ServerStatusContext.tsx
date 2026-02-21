@@ -13,7 +13,7 @@ interface ServerStatusContextType {
 const ServerStatusContext = createContext<ServerStatusContextType | undefined>(undefined);
 
 const getHealthCheckUrl = () => {
-  const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8001/api/v1';
+  const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
   return apiUrl.replace(/\/api\/v1$/, '');
 };
 

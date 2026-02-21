@@ -10,6 +10,7 @@ import { usePrescriptionLogic } from "./shared/usePrescriptionLogic"
 import { CylTitle } from "./shared/CylTitle"
 import { useAxisWarning } from "./shared/useAxisWarning"
 import { AxisWarningInput } from "./shared/AxisWarningInput"
+import { ToggleTextNumberInput } from "./shared/ToggleTextNumberInput"
 
 interface RetinoscopDilationTabProps {
   retinoscopDilationData: RetinoscopDilationExam;
@@ -178,6 +179,27 @@ export function RetinoscopDilationTab({
                   />
                 );
               }
+              if (key === "sph") {
+                return (
+                  <ToggleTextNumberInput
+                    key={`r-${key}`}
+                    value={getFieldValue("R", key)}
+                    onChange={(val) => handleChange("R", key, val)}
+                    disabled={!isEditing}
+                    textOptions={colProps.textOptions}
+                    textValueAliases={colProps.textValueAliases}
+                    numericProps={{
+                      step,
+                      min: colProps.min,
+                      max: colProps.max,
+                      showPlus: colProps.showPlus,
+                      suffix: colProps.suffix,
+                      debounceMs: key === "pd_far" || key === "pd_close" ? 0 : undefined,
+                      className: `h-8 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default ${key === 'reflex' ? 'col-span-1' : ''}`
+                    }}
+                  />
+                );
+              }
               return (
                 <FastInput
                   {...colProps}
@@ -244,6 +266,27 @@ export function RetinoscopDilationTab({
                     onValueChange={handleAxisChange}
                     onBlur={(eye, field, val) => handleAxisBlur(eye, field, val, (colProps as any).min, (colProps as any).max)}
                     className={isEditing ? 'bg-white' : 'bg-accent/50'}
+                  />
+                );
+              }
+              if (key === "sph") {
+                return (
+                  <ToggleTextNumberInput
+                    key={`l-${key}`}
+                    value={getFieldValue("L", key)}
+                    onChange={(val) => handleChange("L", key, val)}
+                    disabled={!isEditing}
+                    textOptions={colProps.textOptions}
+                    textValueAliases={colProps.textValueAliases}
+                    numericProps={{
+                      step,
+                      min: colProps.min,
+                      max: colProps.max,
+                      showPlus: colProps.showPlus,
+                      suffix: colProps.suffix,
+                      debounceMs: key === "pd_far" || key === "pd_close" ? 0 : undefined,
+                      className: `h-8 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default ${key === 'reflex' ? 'col-span-1' : ''}`
+                    }}
                   />
                 );
               }

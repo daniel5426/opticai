@@ -2,6 +2,7 @@ import React from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { MaddoxRodExam } from "@/lib/db/schema-interface";
 import { FastInput } from "./shared/OptimizedInputs"
+import { Triangle } from "lucide-react";
 
 interface MaddoxRodTabProps {
   maddoxRodData: MaddoxRodExam;
@@ -59,41 +60,41 @@ export function MaddoxRodTab({
               </div>
             ))}
             <div></div>
-            {columns.slice(0, 2).map((col) => (
-              <FastInput
-                key={col.key}
-                type="number"
-                step="0.25"
-                value={String(maddoxRodData[col.key as keyof MaddoxRodExam] || "")}
-                onChange={(val) =>
-                  onMaddoxRodChange(
-                    col.key as keyof MaddoxRodExam,
-                    val,
-                  )
-                }
-                disabled={!isEditing}
-                className={`h-8 pr-1 text-xs ${isEditing ? "bg-white" : "bg-accent/50"} disabled:cursor-default disabled:opacity-100`}
-              />
-            ))}
+            {columns.slice(0, 2).map((col) => {
+              const wcKey = col.key.replace("c_", "wc_") as keyof MaddoxRodExam;
+              return (
+                <div key={col.key + "-wc"} className="relative">
+                  <FastInput
+                    type="number"
+                    step="0.25"
+                    value={String(maddoxRodData[wcKey] || "")}
+                    onChange={(val) => onMaddoxRodChange(wcKey, val)}
+                    disabled={!isEditing}
+                    className={`h-8 pr-7 text-xs ${isEditing ? "bg-white" : "bg-accent/50"} disabled:cursor-default disabled:opacity-100`}
+                  />
+                  <Triangle size={16} className="text-muted-foreground absolute top-1/2 right-2 -translate-y-1/2" />
+                </div>
+              );
+            })}
             <div className="bg-border w-px h-8"></div>
-            {columns.slice(2, 4).map((col) => (
-              <FastInput
-                key={col.key}
-                type="number"
-                step="0.25"
-                value={String(maddoxRodData[col.key as keyof MaddoxRodExam] || "")}
-                onChange={(val) =>
-                  onMaddoxRodChange(
-                    col.key as keyof MaddoxRodExam,
-                    val,
-                  )
-                }
-                disabled={!isEditing}
-                className={`h-8 pr-1 text-xs ${isEditing ? "bg-white" : "bg-accent/50"} disabled:cursor-default disabled:opacity-100`}
-              />
-            ))}
+            {columns.slice(2, 4).map((col) => {
+              const wcKey = col.key.replace("c_", "wc_") as keyof MaddoxRodExam;
+              return (
+                <div key={col.key + "-wc"} className="relative">
+                  <FastInput
+                    type="number"
+                    step="0.25"
+                    value={String(maddoxRodData[wcKey] || "")}
+                    onChange={(val) => onMaddoxRodChange(wcKey, val)}
+                    disabled={!isEditing}
+                    className={`h-8 pr-7 text-xs ${isEditing ? "bg-white" : "bg-accent/50"} disabled:cursor-default disabled:opacity-100`}
+                  />
+                  <Triangle size={16} className="text-muted-foreground absolute top-1/2 right-2 -translate-y-1/2" />
+                </div>
+              );
+            })}
             <div className="text-right text-sm text-muted-foreground">
-              עם תיקון
+              בלי תיקון
             </div>
             {needsMiddleSpacer && (
               <>
@@ -108,37 +109,45 @@ export function MaddoxRodTab({
               </>
             )}
 
-            {columns.slice(0, 2).map((col) => {
-              const wcKey = col.key.replace("c_", "wc_") as keyof MaddoxRodExam;
-              return (
+            {columns.slice(0, 2).map((col) => (
+              <div key={col.key} className="relative">
                 <FastInput
-                  key={col.key + "-wc"}
                   type="number"
                   step="0.25"
-                  value={String(maddoxRodData[wcKey] || "")}
-                  onChange={(val) => onMaddoxRodChange(wcKey, val)}
+                  value={String(maddoxRodData[col.key as keyof MaddoxRodExam] || "")}
+                  onChange={(val) =>
+                    onMaddoxRodChange(
+                      col.key as keyof MaddoxRodExam,
+                      val,
+                    )
+                  }
                   disabled={!isEditing}
-                  className={`h-8 pr-1 text-xs ${isEditing ? "bg-white" : "bg-accent/50"} disabled:cursor-default disabled:opacity-100`}
+                  className={`h-8 pr-7 text-xs ${isEditing ? "bg-white" : "bg-accent/50"} disabled:cursor-default disabled:opacity-100`}
                 />
-              );
-            })}
+                <Triangle size={16} className="text-muted-foreground absolute top-1/2 right-2 -translate-y-1/2" />
+              </div>
+            ))}
             <div className="bg-border w-px h-8"></div>
-            {columns.slice(2, 4).map((col) => {
-              const wcKey = col.key.replace("c_", "wc_") as keyof MaddoxRodExam;
-              return (
+            {columns.slice(2, 4).map((col) => (
+              <div key={col.key} className="relative">
                 <FastInput
-                  key={col.key + "-wc"}
                   type="number"
                   step="0.25"
-                  value={String(maddoxRodData[wcKey] || "")}
-                  onChange={(val) => onMaddoxRodChange(wcKey, val)}
+                  value={String(maddoxRodData[col.key as keyof MaddoxRodExam] || "")}
+                  onChange={(val) =>
+                    onMaddoxRodChange(
+                      col.key as keyof MaddoxRodExam,
+                      val,
+                    )
+                  }
                   disabled={!isEditing}
-                  className={`h-8 pr-1 text-xs ${isEditing ? "bg-white" : "bg-accent/50"} disabled:cursor-default disabled:opacity-100`}
+                  className={`h-8 pr-7 text-xs ${isEditing ? "bg-white" : "bg-accent/50"} disabled:cursor-default disabled:opacity-100`}
                 />
-              );
-            })}
+                <Triangle size={16} className="text-muted-foreground absolute top-1/2 right-2 -translate-y-1/2" />
+              </div>
+            ))}
             <div className="text-right text-sm text-muted-foreground">
-              בלי תיקון
+              עם תיקון
             </div>
           </div>
         </div>

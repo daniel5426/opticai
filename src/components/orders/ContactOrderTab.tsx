@@ -1,6 +1,6 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+
 import {
   Select,
   SelectContent,
@@ -14,11 +14,17 @@ import { DateInput } from "@/components/ui/date";
 import { NotesCard } from "@/components/ui/notes-card";
 import { ContactLensDetailsTab } from "@/components/exam/ContactLensDetailsTab";
 import { ContactLensExamTab } from "@/components/exam/ContactLensExamTab";
-import { KeratometerContactLensTab } from "@/components/exam/KeratometerContactLensTab";
-import { SchirmerTestTab } from "@/components/exam/SchirmerTestTab";
-import { ContactLensDiametersTab } from "@/components/exam/ContactLensDiametersTab";
 import { ContactLensOrderTab } from "@/components/exam/ContactLensOrderTab";
+import { ExamToolbox } from "@/components/exam/ExamToolbox";
 import { User } from "@/lib/db/schema-interface";
+import { ExamComponentType, ExamFieldMapper } from "@/lib/exam-field-mappings";
+import {
+  copyToClipboard,
+  getClipboardContentType,
+  pasteFromClipboard,
+} from "@/lib/exam-clipboard";
+import { inputSyncManager } from "@/components/exam/shared/OptimizedInputs";
+import { toast } from "sonner";
 
 interface ContactOrderTabProps {
   formRef: React.RefObject<HTMLFormElement | null>;
@@ -30,12 +36,6 @@ interface ContactOrderTabProps {
   setContactLensDetailsData: React.Dispatch<React.SetStateAction<any>>;
   contactLensExamData: any;
   setContactLensExamData: React.Dispatch<React.SetStateAction<any>>;
-  keratoCLData: any;
-  setKeratoCLData: React.Dispatch<React.SetStateAction<any>>;
-  schirmerData: any;
-  setSchirmerData: React.Dispatch<React.SetStateAction<any>>;
-  diametersData: any;
-  setDiametersData: React.Dispatch<React.SetStateAction<any>>;
 }
 
 export default function ContactOrderTab({
@@ -48,13 +48,113 @@ export default function ContactOrderTab({
   setContactLensDetailsData,
   contactLensExamData,
   setContactLensExamData,
-  keratoCLData,
-  setKeratoCLData,
-  schirmerData,
-  setSchirmerData,
-  diametersData,
-  setDiametersData,
 }: ContactOrderTabProps) {
+  const [clipboardSourceType, setClipboardSourceType] =
+    useState<ExamComponentType | null>(null);
+
+  useEffect(() => {
+    setClipboardSourceType(getClipboardContentType());
+  }, []);
+
+  const contactLensExamCard = {
+    id: "contact-lens-exam-order",
+    type: "contact-lens-exam" as ExamComponentType,
+  };
+  const contactLensDetailsCard = {
+    id: "contact-lens-details-order",
+    type: "contact-lens-details" as ExamComponentType,
+  };
+
+  const applyToContactLensExam = (nextData: Record<string, unknown>) => {
+    setContactLensExamData((prev: any) => {
+      const updated = { ...prev };
+      Object.entries(nextData).forEach(([key, value]) => {
+        if (key !== "id" && key !== "layout_instance_id" && value !== undefined) {
+          updated[key] = value;
+        }
+      });
+      return updated;
+    });
+  };
+
+  const applyToContactLensDetails = (nextData: Record<string, unknown>) => {
+    setContactLensDetailsData((prev: any) => {
+      const updated = { ...prev };
+      Object.entries(nextData).forEach(([key, value]) => {
+        if (key !== "id" && key !== "layout_instance_id" && value !== undefined) {
+          updated[key] = value;
+        }
+      });
+      return updated;
+    });
+  };
+
+  const handleToolboxClear = (targetType: ExamComponentType) => {
+    inputSyncManager.flush();
+    if (targetType === "contact-lens-exam") {
+      applyToContactLensExam(
+        ExamFieldMapper.clearData(contactLensExamData, targetType) as Record<string, unknown>,
+      );
+      return;
+    }
+    applyToContactLensDetails(
+      ExamFieldMapper.clearData(contactLensDetailsData, targetType) as Record<string, unknown>,
+    );
+  };
+
+  const handleToolboxCopy = (sourceType: ExamComponentType) => {
+    inputSyncManager.flush();
+    const sourceData =
+      sourceType === "contact-lens-exam"
+        ? contactLensExamData
+        : contactLensDetailsData;
+    copyToClipboard(sourceType, sourceData);
+    setClipboardSourceType(sourceType);
+    toast.success("נתונים הועתקו");
+  };
+
+  const handleToolboxPaste = (targetType: ExamComponentType) => {
+    inputSyncManager.flush();
+    const clipboardContent = pasteFromClipboard();
+    if (!clipboardContent) {
+      toast.error("אין נתונים בלוח ההעתקה");
+      return;
+    }
+
+    const { type: sourceType, data: sourceData } = clipboardContent;
+    const isCompatible =
+      sourceType === targetType ||
+      ExamFieldMapper.getAvailableTargets(sourceType, [targetType]).includes(
+        targetType,
+      );
+
+    if (!isCompatible) {
+      toast.error("נתונים לא תואמים");
+      return;
+    }
+
+    const targetData =
+      targetType === "contact-lens-exam"
+        ? contactLensExamData
+        : contactLensDetailsData;
+
+    const copiedData = ExamFieldMapper.copyData(
+      sourceData as Record<string, unknown>,
+      targetData as Record<string, unknown>,
+      sourceType,
+      targetType,
+    );
+
+    if (targetType === "contact-lens-exam") {
+      applyToContactLensExam(copiedData);
+    } else {
+      applyToContactLensDetails(copiedData);
+    }
+
+    setClipboardSourceType(sourceType);
+    toast.success("נתונים הודבקו בהצלחה");
+  };
+
   return (
     <form
       ref={formRef}
@@ -152,116 +252,91 @@ export default function ContactOrderTab({
           </div>
 
           <div className="lg:col-span-3 flex flex-col gap-4">
-            <ContactLensDetailsTab
-              contactLensDetailsData={contactLensDetailsData}
-              onContactLensDetailsChange={(field, value) =>
-                setContactLensDetailsData((prev: any) => ({ ...prev, [field]: value }))
-              }
-              isEditing={isEditing}
-            />
-            <ContactLensExamTab
-              contactLensExamData={contactLensExamData}
-              onContactLensExamChange={(field, value) =>
-                setContactLensExamData((prev: any) => ({ ...prev, [field]: value }))
-              }
-              isEditing={isEditing}
-            />
+            <div className="relative">
+              <ExamToolbox
+                isEditing={isEditing}
+                mode="detail"
+                currentCard={contactLensExamCard as any}
+                allRows={[[contactLensExamCard as any]]}
+                currentRowIndex={0}
+                currentCardIndex={0}
+                clipboardSourceType={clipboardSourceType}
+                onClearData={() => handleToolboxClear("contact-lens-exam")}
+                onCopy={() => handleToolboxCopy("contact-lens-exam")}
+                onPaste={() => handleToolboxPaste("contact-lens-exam")}
+                onCopyLeft={() => { }}
+                onCopyRight={() => { }}
+                onCopyBelow={() => { }}
+              />
+              <ContactLensExamTab
+                contactLensExamData={contactLensExamData}
+                onContactLensExamChange={(field, value) =>
+                  setContactLensExamData((prev: any) => ({ ...prev, [field]: value }))
+                }
+                isEditing={isEditing}
+              />
+            </div>
+
+            <div className="relative">
+              <ExamToolbox
+                isEditing={isEditing}
+                mode="detail"
+                currentCard={contactLensDetailsCard as any}
+                allRows={[[contactLensDetailsCard as any]]}
+                currentRowIndex={0}
+                currentCardIndex={0}
+                clipboardSourceType={clipboardSourceType}
+                onClearData={() => handleToolboxClear("contact-lens-details")}
+                onCopy={() => handleToolboxCopy("contact-lens-details")}
+                onPaste={() => handleToolboxPaste("contact-lens-details")}
+                onCopyLeft={() => { }}
+                onCopyRight={() => { }}
+                onCopyBelow={() => { }}
+              />
+              <ContactLensDetailsTab
+                contactLensDetailsData={contactLensDetailsData}
+                onContactLensDetailsChange={(field, value) =>
+                  setContactLensDetailsData((prev: any) => ({ ...prev, [field]: value }))
+                }
+                isEditing={isEditing}
+              />
+            </div>
           </div>
 
         </div>
 
-        <Tabs defaultValue="exam" className="w-full" dir="rtl" orientation="vertical">
-          <div className="flex gap-6">
-            <TabsList className="dark:bg-card/50 flex h-fit w-28 flex-col bg-cyan-800/10 p-1">
-              <TabsTrigger value="exam" className="w-full justify-end text-right">
-                <div className="w-full text-right">
-                  <span className="font-medium">בדיקות</span>
-                </div>
-              </TabsTrigger>
-              <TabsTrigger value="details" className="w-full justify-end text-right">
-                <div className="w-full text-right">
-                  <span className="font-medium">פרטים</span>
-                </div>
-              </TabsTrigger>
-              <TabsTrigger value="notes" className="w-full justify-end text-right">
-                <div className="w-full text-right">
-                  <span className="font-medium">הערות</span>
-                </div>
-              </TabsTrigger>
-            </TabsList>
-            <div className="flex-1">
-              <TabsContent value="exam" className="mt-0 space-y-4">
-                <div className="grid grid-cols-1 gap-4 lg:grid-cols-9" dir="ltr">
-                  <div className="col-span-5">
-                    <KeratometerContactLensTab
-                      keratometerContactLensData={keratoCLData}
-                      onKeratometerContactLensChange={(field, value) =>
-                        setKeratoCLData((prev: any) => ({ ...prev, [field]: value }))
-                      }
-                      isEditing={isEditing}
-                      needsMiddleSpacer={true}
-                    />
-                  </div>
-                  <div className="col-span-2">
-                    <SchirmerTestTab
-                      schirmerTestData={schirmerData}
-                      onSchirmerTestChange={(field, value) =>
-                        setSchirmerData((prev: any) => ({ ...prev, [field]: value }))
-                      }
-                      isEditing={isEditing}
-                      needsMiddleSpacer={true}
-                      hideEyeLabels={true}
-                    />
-                  </div>
-                  <div className="col-span-2">
-                    <ContactLensDiametersTab
-                      contactLensDiametersData={diametersData}
-                      onContactLensDiametersChange={(field, value) =>
-                        setDiametersData((prev: any) => ({ ...prev, [field]: value }))
-                      }
-                      isEditing={isEditing}
-                    />
-                  </div>
-                </div>
-              </TabsContent>
+        <div className="w-full" dir="rtl">
+          <ContactLensOrderTab
+            contactLensOrder={contactFormData}
+            onContactLensOrderChange={(field: any, value: any) =>
+              setContactFormData((prev: any) => ({ ...prev, [field]: value }))
+            }
+            isEditing={isEditing}
+          />
+        </div>
 
-              <TabsContent value="details" className="mt-0 space-y-4">
-                <ContactLensOrderTab
-                  contactLensOrder={contactFormData}
-                  onContactLensOrderChange={(field: any, value: any) =>
-                    setContactFormData((prev: any) => ({ ...prev, [field]: value }))
-                  }
-                  isEditing={isEditing}
-                />
-              </TabsContent>
-              <TabsContent value="notes" className="mt-0 space-y-4">
-                <div className="grid grid-cols-2 gap-6">
-                  <NotesCard
-                    title="הערות"
-                    value={contactFormData.notes || ""}
-                    onChange={(value) =>
-                      setContactFormData((prev: any) => ({ ...prev, notes: value }))
-                    }
-                    disabled={!isEditing}
-                    placeholder="הערות..."
-                  />
-                  <NotesCard
-                    title="הערות לספק"
-                    value={contactFormData.supplier_notes || ""}
-                    onChange={(value) =>
-                      setContactFormData((prev: any) => ({ ...prev, supplier_notes: value }))
-                    }
-                    disabled={!isEditing}
-                    placeholder="הערות לספק..."
-                  />
-                </div>
-              </TabsContent>
-            </div>
-          </div>
-        </Tabs>
+        <div className="grid grid-cols-2 gap-6">
+          <NotesCard
+            title="הערות"
+            value={contactFormData.notes || ""}
+            onChange={(value) =>
+              setContactFormData((prev: any) => ({ ...prev, notes: value }))
+            }
+            disabled={!isEditing}
+            placeholder="הערות..."
+          />
+          <NotesCard
+            title="הערות לספק"
+            value={contactFormData.supplier_notes || ""}
+            onChange={(value) =>
+              setContactFormData((prev: any) => ({ ...prev, supplier_notes: value }))
+            }
+            disabled={!isEditing}
+            placeholder="הערות לספק..."
+          />
+        </div>
       </div>
     </form>
   );
 }
-
 

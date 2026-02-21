@@ -96,4 +96,26 @@ async def database_health_check():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host=config.settings.HOST, port=config.settings.PORT)
+    import socket
+
+    def is_port_in_use(port: int) -> bool:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            try:
+                s.bind(('0.0.0.0', port))
+                return False
+            except socket.error:
+                return True
+
+    port = config.settings.PORT
+    # Try 8000 first if the default is 8000 or if we want to be proactive
+    # The user specifically mentioned 8000 being taken, so let's try 8000 then 8001
+    primary_port = 8000
+    fallback_port = 8001
+    
+    if not is_port_in_use(primary_port):
+        port = primary_port
+    else:
+        print(f"Port {primary_port} is busy, trying {fallback_port}...")
+        port = fallback_port
+
+    uvicorn.run(app, host=config.settings.HOST, port=port)

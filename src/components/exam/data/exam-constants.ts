@@ -152,19 +152,9 @@ export interface PDCalculationParams<T> {
 
 export const PDCalculationUtils = {
   /**
-   * Validation rule: pd_near must be greater than or equal to pd_far
+   * Keep PD input as-is; range warnings are handled in the UI.
    */
-  validatePD: (field: string, value: string, farValue: string | number | undefined): string => {
-    if (field !== "pd_close" && field !== "pd_near") return value;
-    
-    const numValue = parseFloat(value);
-    const numFar = typeof farValue === 'string' ? parseFloat(farValue) : farValue;
-    
-    if (isNaN(numValue) || isNaN(numFar as number)) return value;
-    
-    if (numValue > (numFar as number)) {
-      return (numFar as number).toString();
-    }
+  validatePD: (_field: string, value: string, _farValue: string | number | undefined): string => {
     return value;
   },
 

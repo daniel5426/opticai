@@ -10,6 +10,7 @@ import { usePrescriptionLogic } from "./shared/usePrescriptionLogic"
 import { CylTitle } from "./shared/CylTitle"
 import { useAxisWarning } from "./shared/useAxisWarning"
 import { AxisWarningInput } from "./shared/AxisWarningInput"
+import { ToggleTextNumberInput } from "./shared/ToggleTextNumberInput"
 
 interface CompactPrescriptionTabProps {
   data: CompactPrescriptionExam;
@@ -133,6 +134,7 @@ export function CompactPrescriptionTab({
           return (
             <AxisWarningInput
               {...colProps}
+              step={step}
               eye={eye as "R" | "L"}
               field={key as "cyl" | "ax"}
               value={getFieldValue(eye as "R" | "L", key)}
@@ -142,6 +144,25 @@ export function CompactPrescriptionTab({
               onValueChange={handleAxisChange}
               onBlur={(eye, field, val) => handleAxisBlur(eye, field, val, colProps.min, colProps.max)}
               className={isEditing ? 'bg-white' : 'bg-accent/50'}
+            />
+          );
+        }
+        if (key === "sph") {
+          return (
+            <ToggleTextNumberInput
+              value={getFieldValue(eye, key)}
+              onChange={(val) => handleChange(eye, key, val)}
+              disabled={!isEditing}
+              textOptions={colProps.textOptions}
+              textValueAliases={colProps.textValueAliases}
+              numericProps={{
+                step,
+                min: colProps.min,
+                max: colProps.max,
+                showPlus: colProps.showPlus,
+                suffix: colProps.suffix,
+                className: `h-8 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`
+              }}
             />
           );
         }

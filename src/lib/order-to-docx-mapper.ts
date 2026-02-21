@@ -4,6 +4,18 @@ import { Order, User, Client, Billing } from "./db/schema-interface";
  * Maps an Order object to the DOCX template data format
  */
 export class OrderToDocxMapper {
+  private static resolveClinicLabel(order: any, details?: any): string {
+    return (
+      details?.delivery_location ||
+      (details?.delivery_clinic_id
+        ? `#${String(details.delivery_clinic_id)}`
+        : "") ||
+      order?.clinic_name ||
+      order?.clinic?.name ||
+      (order?.clinic_id ? String(order.clinic_id) : "")
+    );
+  }
+
   /**
    * Convert order data to template format
    * Returns different data based on order type (contact lens vs regular)
@@ -13,13 +25,20 @@ export class OrderToDocxMapper {
     client?: Client | any,
     user?: User,
     billing?: Billing | null,
-    orderLineItems?: any[]
+    orderLineItems?: any[],
   ): Record<string, any> {
     // Determine if this is a contact lens order
-    const isContactOrder = order.type === "עדשות מגע" || Boolean(order.__contact);
-    
+    const isContactOrder =
+      order.type === "עדשות מגע" || Boolean(order.__contact);
+
     if (isContactOrder) {
-      return this.mapContactLensOrder(order, client, user, billing, orderLineItems);
+      return this.mapContactLensOrder(
+        order,
+        client,
+        user,
+        billing,
+        orderLineItems,
+      );
     } else {
       return this.mapRegularOrder(order, client, user, billing, orderLineItems);
     }
@@ -33,7 +52,7 @@ export class OrderToDocxMapper {
     client?: Client | any,
     user?: User,
     billing?: Billing | null,
-    orderLineItems?: any[]
+    orderLineItems?: any[],
   ): Record<string, any> {
     // Get order_data if it exists
     const orderData = order.order_data || {};
@@ -54,9 +73,11 @@ export class OrderToDocxMapper {
       envelope_number: `EN-${new Date().getFullYear()}-${order.id || ""}`,
 
       // Customer info
-      customer_name: client ? `${client.first_name || ""} ${client.last_name || ""}`.trim() : "",
+      customer_name: client
+        ? `${client.first_name || ""} ${client.last_name || ""}`.trim()
+        : "",
       customer_id: client?.id || "",
-      customer_address: client 
+      customer_address: client
         ? `${client.address_street || ""} ${client.address_number || ""}, ${client.address_city || ""}`.trim()
         : "",
       phone_home: client?.phone_home || "",
@@ -67,7 +88,7 @@ export class OrderToDocxMapper {
       order_priority: order.priority || "רגילה",
       exam_date: formatDate(order.order_date),
       optician_name: user?.username || "",
-      branch_name: order.branch || "",
+      branch_name: this.resolveClinicLabel(order),
       treatment_type: order.type || "",
       consultant_name: order.advisor || "",
 
@@ -112,19 +133,20 @@ export class OrderToDocxMapper {
       // Additional fields
       date_promised: formatDate(order.guaranteed_date),
       notes: order.notes || "",
-      
+
       // Financial info
-      total_price: billing?.total_after_discount 
+      total_price: billing?.total_after_discount
         ? `${billing.total_after_discount.toFixed(2)} ש"ח`
         : "",
-      amount_paid: billing?.prepayment_amount 
+      amount_paid: billing?.prepayment_amount
         ? `${billing.prepayment_amount.toFixed(2)} ש"ח`
         : "",
-      balance_due: billing?.total_after_discount && billing?.prepayment_amount
-        ? `${(billing.total_after_discount - billing.prepayment_amount).toFixed(2)} ש"ח`
-        : billing?.total_after_discount
-          ? `${billing.total_after_discount.toFixed(2)} ש"ח`
-          : "",
+      balance_due:
+        billing?.total_after_discount && billing?.prepayment_amount
+          ? `${(billing.total_after_discount - billing.prepayment_amount).toFixed(2)} ש"ח`
+          : billing?.total_after_discount
+            ? `${billing.total_after_discount.toFixed(2)} ש"ח`
+            : "",
     };
 
     return templateData;
@@ -138,13 +160,21 @@ export class OrderToDocxMapper {
     client?: Client | any,
     user?: User,
     billing?: Billing | null,
-    orderLineItems?: any[]
+    orderLineItems?: any[],
   ): Record<string, any> {
     // Get order_data
     const orderData = order.order_data || {};
     const finalPrescription = orderData["final-prescription"] || {};
-    const lens = orderData.lens || {};
-    const frame = orderData.frame || {};
+    const lensFrameTabs = Array.isArray(orderData.lens_frame_tabs)
+      ? orderData.lens_frame_tabs
+      : [];
+    const activeLensFrameTabId = orderData.active_lens_frame_tab_id;
+    const activeLensFrameTab =
+      lensFrameTabs.find((tab: any) => tab?.id === activeLensFrameTabId) ||
+      lensFrameTabs[0] ||
+      null;
+    const lens = activeLensFrameTab?.lens || {};
+    const frame = activeLensFrameTab?.frame || {};
     const details = orderData.details || {};
 
     // Format date helper
@@ -165,20 +195,22 @@ export class OrderToDocxMapper {
       // Order info
       order_number: order.id?.toString() || "",
       envelope_number: `ENV-${new Date().getFullYear()}-${order.id || ""}`,
-      
+
       // Customer info
-      customer_name: client ? `${client.first_name || ""} ${client.last_name || ""}`.trim() : "",
+      customer_name: client
+        ? `${client.first_name || ""} ${client.last_name || ""}`.trim()
+        : "",
       customer_id: client?.id || "",
-      customer_address: client 
+      customer_address: client
         ? `${client.address_street || ""} ${client.address_number || ""}, ${client.address_city || ""}`.trim()
         : "",
       phone_home: client?.phone_home || "",
       phone_work: client?.phone_work || "",
       phone_mobile: client?.phone_mobile || "",
-      
+
       // Order details
       approval_date: formatDate(details.approval_date),
-      branch_name: details.branch || "",
+      branch_name: this.resolveClinicLabel(order, details),
       optician_name: user?.username || "",
 
       // Prescription - Right eye
@@ -246,19 +278,20 @@ export class OrderToDocxMapper {
       // Other fields
       consultant: details.advisor || "",
       date_promised: formatDate(details.promised_date),
-      
+
       // Financial info
-      total_price: billing?.total_after_discount 
+      total_price: billing?.total_after_discount
         ? `${billing.total_after_discount.toFixed(2)} ש"ח`
         : "",
-      received: billing?.prepayment_amount 
+      received: billing?.prepayment_amount
         ? `${billing.prepayment_amount.toFixed(2)} ש"ח`
         : "",
-      balance: billing?.total_after_discount && billing?.prepayment_amount
-        ? `${(billing.total_after_discount - billing.prepayment_amount).toFixed(2)} ש"ח`
-        : billing?.total_after_discount
-          ? `${billing.total_after_discount.toFixed(2)} ש"ח`
-          : "",
+      balance:
+        billing?.total_after_discount && billing?.prepayment_amount
+          ? `${(billing.total_after_discount - billing.prepayment_amount).toFixed(2)} ש"ח`
+          : billing?.total_after_discount
+            ? `${billing.total_after_discount.toFixed(2)} ש"ח`
+            : "",
 
       // Notes
       notes: order.notes || details.notes || "",
@@ -287,4 +320,3 @@ export class OrderToDocxMapper {
     return num.toString().padStart(3, "0");
   }
 }
-

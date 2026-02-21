@@ -1,5 +1,6 @@
 import React, { useState, useRef } from "react"
 import { Card, CardContent } from "@/components/ui/card"
+import { LookupSelect } from "@/components/ui/lookup-select"
 import { OldContactLenses } from "@/lib/db/schema-interface"
 import { ChevronUp, ChevronDown } from "lucide-react"
 import { EXAM_FIELDS } from "./data/exam-field-definitions"
@@ -10,6 +11,7 @@ import { usePrescriptionLogic } from "./shared/usePrescriptionLogic"
 import { CylTitle } from "./shared/CylTitle"
 import { useAxisWarning } from "./shared/useAxisWarning"
 import { AxisWarningInput } from "./shared/AxisWarningInput"
+import { ToggleTextNumberInput } from "./shared/ToggleTextNumberInput"
 
 interface OldContactLensesTabProps {
   data: OldContactLenses;
@@ -38,7 +40,7 @@ export function OldContactLensesTab({ data, onChange, isEditing, hideEyeLabels =
 
   const columns = [
     { key: "lens_type", label: "סוג עדשה" },
-    { key: "model", label: "מודל" },
+    { key: "model", label: "דגם" },
     { key: "supplier", label: "ספק" },
     { key: "bc", ...EXAM_FIELDS.BC },
     { key: "diam", ...EXAM_FIELDS.DIAM },
@@ -48,6 +50,12 @@ export function OldContactLensesTab({ data, onChange, isEditing, hideEyeLabels =
     { key: "va", ...EXAM_FIELDS.VA, type: "va" },
     { key: "j", ...EXAM_FIELDS.J, type: "j" }
   ]
+
+  const lookupConfigByKey: Record<string, { lookupType?: string }> = {
+    lens_type: EXAM_FIELDS.CONTACT_LENS_TYPE,
+    model: EXAM_FIELDS.CONTACT_LENS_MODEL,
+    supplier: EXAM_FIELDS.CONTACT_LENS_SUPPLIER,
+  }
   const getFieldValue = (eye: "R" | "L" | "C", field: string) => {
     if (eye === "C") {
       const combField = `comb_${field}` as keyof OldContactLenses
@@ -114,6 +122,7 @@ export function OldContactLensesTab({ data, onChange, isEditing, hideEyeLabels =
             {columns.map((col) => {
               const { key, ...colProps } = col;
               const type = 'type' in col ? col.type : undefined;
+              const lookupConfig = lookupConfigByKey[key];
               return (
                 <div key={`r-${key}`}>
                   {(key === 'cyl' || key === 'ax') ? (
@@ -129,6 +138,22 @@ export function OldContactLensesTab({ data, onChange, isEditing, hideEyeLabels =
                       onBlur={(eye, field, val) => handleAxisBlur(eye, field, val, (colProps as any).min, (colProps as any).max)}
                       className={isEditing ? 'bg-white' : 'bg-accent/50'}
                     />
+                  ) : key === "sph" ? (
+                    <ToggleTextNumberInput
+                      value={getFieldValue("R", key)}
+                      onChange={(val) => handleChange("R", key, val)}
+                      disabled={!isEditing}
+                      textOptions={(colProps as any).textOptions}
+                      textValueAliases={(colProps as any).textValueAliases}
+                      numericProps={{
+                        step: (colProps as any).step,
+                        min: (colProps as any).min,
+                        max: (colProps as any).max,
+                        showPlus: (colProps as any).showPlus,
+                        suffix: (colProps as any).suffix,
+                        className: `h-8 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`
+                      }}
+                    />
                   ) : type === "va" ? (
                     <VASelect
                       value={getFieldValue("R", key)}
@@ -140,6 +165,16 @@ export function OldContactLensesTab({ data, onChange, isEditing, hideEyeLabels =
                       value={getFieldValue("R", key)}
                       onChange={(val) => handleChange("R", key, val)}
                       disabled={!isEditing}
+                    />
+                  ) : lookupConfig?.lookupType ? (
+                    <LookupSelect
+                      disabled={!isEditing}
+                      value={getFieldValue("R", key)}
+                      onChange={(value) => handleChange("R", key, value)}
+                      lookupType={lookupConfig.lookupType}
+                      placeholder=""
+                      className="h-8 text-xs bg-white"
+                      center={true}
                     />
                   ) : (
                     <FastInput
@@ -193,6 +228,7 @@ export function OldContactLensesTab({ data, onChange, isEditing, hideEyeLabels =
             {columns.map((col) => {
               const { key, ...colProps } = col;
               const type = 'type' in col ? col.type : undefined;
+              const lookupConfig = lookupConfigByKey[key];
               return (
                 <div key={`l-${key}`}>
                   {(key === 'cyl' || key === 'ax') ? (
@@ -208,6 +244,22 @@ export function OldContactLensesTab({ data, onChange, isEditing, hideEyeLabels =
                       onBlur={(eye, field, val) => handleAxisBlur(eye, field, val, (colProps as any).min, (colProps as any).max)}
                       className={isEditing ? 'bg-white' : 'bg-accent/50'}
                     />
+                  ) : key === "sph" ? (
+                    <ToggleTextNumberInput
+                      value={getFieldValue("L", key)}
+                      onChange={(val) => handleChange("L", key, val)}
+                      disabled={!isEditing}
+                      textOptions={(colProps as any).textOptions}
+                      textValueAliases={(colProps as any).textValueAliases}
+                      numericProps={{
+                        step: (colProps as any).step,
+                        min: (colProps as any).min,
+                        max: (colProps as any).max,
+                        showPlus: (colProps as any).showPlus,
+                        suffix: (colProps as any).suffix,
+                        className: `h-8 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`
+                      }}
+                    />
                   ) : type === "va" ? (
                     <VASelect
                       value={getFieldValue("L", key)}
@@ -220,6 +272,21 @@ export function OldContactLensesTab({ data, onChange, isEditing, hideEyeLabels =
                       onChange={(val) => handleChange("L", key, val)}
                       disabled={!isEditing}
                     />
+                  ) : lookupConfig?.lookupType ? (
+                    isEditing ? (
+                      <LookupSelect
+                        value={getFieldValue("L", key)}
+                        onChange={(value) => handleChange("L", key, value)}
+                        lookupType={lookupConfig.lookupType}
+                        placeholder=""
+                        className="h-8 text-xs bg-white"
+                        center={true}
+                      />
+                    ) : (
+                      <div className="bg-accent/50 flex h-8 items-center rounded-md border px-2 text-xs">
+                        {getFieldValue("L", key) || ""}
+                      </div>
+                    )
                   ) : (
                     <FastInput
                       {...colProps}

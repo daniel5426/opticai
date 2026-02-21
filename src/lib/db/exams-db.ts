@@ -21,6 +21,18 @@ export async function getExamsByClientId(clientId: number, type?: string): Promi
   }
 }
 
+export async function getLatestExamByClientId(clientId: number): Promise<OpticalExam | undefined> {
+  const exams = await getExamsByClientId(clientId);
+  if (exams.length === 0) return undefined;
+  
+  // Sort by date descending
+  return exams.sort((a, b) => {
+    const dateA = a.exam_date ? new Date(a.exam_date).getTime() : 0;
+    const dateB = b.exam_date ? new Date(b.exam_date).getTime() : 0;
+    return dateB - dateA;
+  })[0];
+}
+
 export async function getAllExams(type?: string, clinicId?: number): Promise<OpticalExam[]> {
   try {
     const response = await apiClient.getExams(type, clinicId);

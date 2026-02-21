@@ -20,6 +20,7 @@ interface LookupSelectProps {
   placeholder?: string
   lookupType: string
   className?: string
+  center?: boolean
   disabled?: boolean
   dir?: 'rtl' | 'ltr'
 }
@@ -29,6 +30,7 @@ export const LookupSelect = React.memo(function LookupSelect({
   onChange,
   placeholder = 'בחר או הקלד...',
   lookupType,
+  center = false,
   className = '',
   disabled = false,
   dir = 'rtl'
@@ -191,7 +193,7 @@ export const LookupSelect = React.memo(function LookupSelect({
           onFocus={() => setIsOpen(true)}
           placeholder={placeholder}
           disabled={disabled}
-          className={`text-right pl-5 ${!disabled ? 'bg-card' : 'bg-accent/50 dark:bg-accent/50'} disabled:opacity-100 disabled:cursor-default ${dir === 'rtl' ? 'text-right' : 'text-left'}`}
+          className={`text-right pl-5 ${!disabled ? 'bg-card' : 'bg-accent/50 dark:bg-accent/50'} disabled:opacity-100 disabled:cursor-default ${dir === 'rtl' ? 'text-right' : 'text-left'} ${center ? 'text-center' : ''}`}
           dir={dir}
         />
         <Button
@@ -250,7 +252,7 @@ export const LookupSelect = React.memo(function LookupSelect({
                           <div className="w-4 h-4 border-2 border-green-600 border-t-transparent rounded-full animate-spin ml-1" />
                         )}
                       </div>
-                      <span className="text-right flex-1 text-green-600">
+                      <span dir="rtl" className="text-right flex-1 text-green-600">
                         צור "{inputValue}"
                       </span>
                     </div>

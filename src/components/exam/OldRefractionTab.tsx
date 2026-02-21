@@ -1,28 +1,45 @@
-import React, { useState, useRef, useEffect } from "react"
-import { Card, CardContent } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { VHCalculatorModal } from "@/components/ui/vh-calculator-modal"
-import { OldRefractionExam } from "@/lib/db/schema-interface"
-import { ChevronUp, ChevronDown, Plus } from "lucide-react"
-import { EXAM_FIELDS } from "./data/exam-field-definitions"
-import { BASE_VALUES } from "./data/exam-constants"
-import { VASelect } from "./shared/VASelect"
-import { NVJSelect } from "./shared/NVJSelect"
-import { cn } from "@/utils/tailwind"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { FastInput, FastSelect, inputSyncManager } from "./shared/OptimizedInputs"
-import { usePrescriptionLogic } from "./shared/usePrescriptionLogic"
-import { CylTitle } from "./shared/CylTitle"
-import { Input } from "@/components/ui/input"
-import { useAxisWarning } from "./shared/useAxisWarning"
-import { AxisWarningInput } from "./shared/AxisWarningInput"
+import React, { useState, useRef, useEffect } from "react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { VHCalculatorModal } from "@/components/ui/vh-calculator-modal";
+import { OldRefractionExam } from "@/lib/db/schema-interface";
+import { ChevronUp, ChevronDown, Plus } from "lucide-react";
+import { EXAM_FIELDS } from "./data/exam-field-definitions";
+import { BASE_VALUES } from "./data/exam-constants";
+import { VASelect } from "./shared/VASelect";
+import { NVJSelect } from "./shared/NVJSelect";
+import { cn } from "@/utils/tailwind";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  FastInput,
+  FastSelect,
+  inputSyncManager,
+} from "./shared/OptimizedInputs";
+import { usePrescriptionLogic } from "./shared/usePrescriptionLogic";
+import { CylTitle } from "./shared/CylTitle";
+import { useAxisWarning } from "./shared/useAxisWarning";
+import { AxisWarningInput } from "./shared/AxisWarningInput";
+import { ToggleTextNumberInput } from "./shared/ToggleTextNumberInput";
 
 interface OldRefractionTabProps {
   oldRefractionData: OldRefractionExam;
-  onOldRefractionChange: (field: keyof OldRefractionExam, value: string) => void;
+  onOldRefractionChange: (
+    field: keyof OldRefractionExam,
+    value: string,
+  ) => void;
   isEditing: boolean;
   onMultifocalClick: () => void;
-  onVHConfirm: (rightPris: number, rightBase: number, leftPris: number, leftBase: number) => void;
+  onVHConfirm: (
+    rightPris: number,
+    rightBase: number,
+    leftPris: number,
+    leftBase: number,
+  ) => void;
   hideEyeLabels?: boolean;
   tabCount: number;
   activeTab: number;
@@ -48,15 +65,18 @@ export const OldRefractionTab = React.memo(function OldRefractionTab({
   onDeleteTab,
   onDuplicateTab,
   onUpdateType,
-  allTabsData = []
+  allTabsData = [],
 }: OldRefractionTabProps) {
   const [hoveredEye, setHoveredEye] = useState<"R" | "L" | null>(null);
   const [dropdownTabIdx, setDropdownTabIdx] = useState<number | null>(null);
+  const [optimisticFieldValues, setOptimisticFieldValues] = useState<
+    Record<string, string>
+  >({});
 
   const { fieldWarnings, handleAxisChange, handleAxisBlur } = useAxisWarning(
     oldRefractionData,
     onOldRefractionChange,
-    isEditing
+    isEditing,
   );
 
   const latestValuesRef = useRef(oldRefractionData);
@@ -68,8 +88,13 @@ export const OldRefractionTab = React.memo(function OldRefractionTab({
   const { handleManualTranspose } = usePrescriptionLogic(
     oldRefractionData,
     onOldRefractionChange,
-    isEditing
+    isEditing,
   );
+
+  const handleTranspose = React.useCallback(() => {
+    inputSyncManager.flush();
+    handleManualTranspose();
+  }, [handleManualTranspose]);
 
   const glassesTypeOptions = ["רחוק", "קרוב", "מולטיפוקל", "ביפוקל"];
 
@@ -84,28 +109,67 @@ export const OldRefractionTab = React.memo(function OldRefractionTab({
     { key: "j", ...EXAM_FIELDS.J, type: "j" },
   ];
 
-  const getFieldValue = (eye: "R" | "L" | "C", field: string, data = oldRefractionData) => {
+  const getStorageFieldKey = (eye: "R" | "L" | "C", field: string) => {
     if (eye === "C") {
-      if (field === "va") return data.comb_va?.toString() || "";
-      if (field === "j") return data.comb_j?.toString() || "";
+      if (field === "va" || field === "j") return `comb_${field}`;
       return "";
     }
-    const eyeField = `${eye.toLowerCase()}_${field}` as keyof OldRefractionExam;
-    return data[eyeField]?.toString() || "";
+    return `${eye.toLowerCase()}_${field}`;
+  };
+
+  useEffect(() => {
+    setOptimisticFieldValues((prev) => {
+      const keys = Object.keys(prev);
+      if (keys.length === 0) return prev;
+
+      let changed = false;
+      const next = { ...prev };
+
+      keys.forEach((key) => {
+        const persisted =
+          (oldRefractionData as Record<string, unknown>)[key]?.toString() || "";
+        if (persisted === prev[key]) {
+          delete next[key];
+          changed = true;
+        }
+      });
+
+      return changed ? next : prev;
+    });
+  }, [oldRefractionData]);
+
+  const getFieldValue = (
+    eye: "R" | "L" | "C",
+    field: string,
+    data = oldRefractionData,
+  ) => {
+    const storageKey = getStorageFieldKey(eye, field);
+    if (!storageKey) return "";
+
+    if (optimisticFieldValues[storageKey] !== undefined) {
+      return optimisticFieldValues[storageKey];
+    }
+
+    return (data as Record<string, unknown>)[storageKey]?.toString() || "";
   };
 
   const handleChange = (eye: "R" | "L" | "C", field: string, value: string) => {
+    const storageKey = getStorageFieldKey(eye, field);
+    if (storageKey) {
+      setOptimisticFieldValues((prev) => ({ ...prev, [storageKey]: value }));
+    }
+
     if (eye !== "C" && (field === "cyl" || field === "ax")) {
       handleAxisChange(eye as "R" | "L", field as "cyl" | "ax", value);
       return;
     }
 
-    // 2. Propagate Change
     if (eye === "C") {
       const combField = `comb_${field}` as keyof OldRefractionExam;
       onOldRefractionChange(combField, value);
     } else {
-      const eyeField = `${eye.toLowerCase()}_${field}` as keyof OldRefractionExam;
+      const eyeField =
+        `${eye.toLowerCase()}_${field}` as keyof OldRefractionExam;
       onOldRefractionChange(eyeField, value);
     }
   };
@@ -120,7 +184,6 @@ export const OldRefractionTab = React.memo(function OldRefractionTab({
       handleChange(toEye, key, value);
     });
   };
-
 
   const renderField = (eye: "R" | "L" | "C", col: any) => {
     const { key, type, options, ...inputProps } = col;
@@ -141,15 +204,27 @@ export const OldRefractionTab = React.memo(function OldRefractionTab({
     }
 
     if (type === "va") {
-      return <VASelect value={value} onChange={(val) => handleChange(eye, key, val)} disabled={!isEditing} />;
+      return (
+        <VASelect
+          value={value}
+          onChange={(val) => handleChange(eye, key, val)}
+          disabled={!isEditing}
+        />
+      );
     }
 
     if (type === "j") {
-      return <NVJSelect value={value} onChange={(val) => handleChange(eye, key, val)} disabled={!isEditing} />;
+      return (
+        <NVJSelect
+          value={value}
+          onChange={(val) => handleChange(eye, key, val)}
+          disabled={!isEditing}
+        />
+      );
     }
 
     // For CYL and AXIS, use AxisWarningInput
-    if ((key === 'cyl' || key === 'ax') && eye !== 'C') {
+    if ((key === "cyl" || key === "ax") && eye !== "C") {
       const eyeWarnings = fieldWarnings[eye as "R" | "L"];
       return (
         <AxisWarningInput
@@ -161,7 +236,37 @@ export const OldRefractionTab = React.memo(function OldRefractionTab({
           missingCyl={eyeWarnings.missingCyl}
           isEditing={isEditing}
           onValueChange={handleAxisChange}
-          onBlur={(eye, field, val) => handleAxisBlur(eye, field, val, (inputProps as any).min, (inputProps as any).max)}
+          onBlur={(eye, field, val) =>
+            handleAxisBlur(
+              eye,
+              field,
+              val,
+              (inputProps as any).min,
+              (inputProps as any).max,
+            )
+          }
+        />
+      );
+    }
+
+    if (key === "sph" && eye !== "C") {
+      return (
+        <ToggleTextNumberInput
+          value={value}
+          onChange={(val) => handleChange(eye, key, val)}
+          disabled={!isEditing}
+          textOptions={(inputProps as any).textOptions}
+          textValueAliases={(inputProps as any).textValueAliases}
+          numericProps={{
+            step: (inputProps as any).step,
+            min: (inputProps as any).min,
+            max: (inputProps as any).max,
+            showPlus: (inputProps as any).showPlus,
+            suffix: (inputProps as any).suffix,
+            debounceMs: 0,
+            className:
+              "h-8 text-xs disabled:opacity-100 disabled:cursor-default",
+          }}
         />
       );
     }
@@ -175,12 +280,11 @@ export const OldRefractionTab = React.memo(function OldRefractionTab({
           value={value}
           onChange={(val) => handleChange(eye, key, val)}
           disabled={!isEditing}
-          className="h-8 text-xs disabled:opacity-100 disabled:cursor-default"
+          className="h-8 text-xs disabled:cursor-default disabled:opacity-100"
         />
       </div>
     );
   };
-
 
   const handleTabClick = (idx: number) => {
     onTabChange(idx);
@@ -195,69 +299,108 @@ export const OldRefractionTab = React.memo(function OldRefractionTab({
   };
 
   return (
-    <Card className="w-full examcard pb-4 pt-3">
-      <CardContent className="px-4" style={{ scrollbarWidth: 'none' }}>
+    <Card className="examcard w-full pt-3 pb-4">
+      <CardContent className="px-4" style={{ scrollbarWidth: "none" }}>
         <div className="space-y-3">
           <div className="relative flex items-center" style={{ minHeight: 24 }}>
             {/* Tab bar: absolutely positioned to the left (same as CoverTest) */}
             <div
-              className="absolute bg-accent left-0 pr-1 rounded-md flex items-center justify-start gap-0"
+              className="bg-accent absolute left-0 flex items-center justify-start gap-0 rounded-md pr-1"
               style={{ direction: "rtl" }}
             >
-              {Array.from({ length: tabCount }).map((_, idx) => tabCount - 1 - idx).map((revIdx) => {
-                const tabData = allTabsData[revIdx];
-                const currentType = tabData?.r_glasses_type;
-                const typeLabel = currentType || (revIdx + 1).toString();
-                const otherTypes = glassesTypeOptions.filter(t => t !== currentType);
+              {Array.from({ length: tabCount })
+                .map((_, idx) => tabCount - 1 - idx)
+                .map((revIdx) => {
+                  const tabData = allTabsData[revIdx];
+                  const currentType = tabData?.r_glasses_type;
+                  const typeLabel = currentType || (revIdx + 1).toString();
+                  const otherTypes = glassesTypeOptions.filter(
+                    (t) => t !== currentType,
+                  );
 
-                return (
-                  <DropdownMenu key={revIdx} open={dropdownTabIdx === revIdx} onOpenChange={open => { if (!open) setDropdownTabIdx(null); }} dir="rtl">
-                    <DropdownMenuTrigger asChild>
-                      <button
-                        type="button"
-                        className={`rounded border-none px-2 text-xs font-bold transition-all duration-150 ${activeTab === revIdx ? "bg-secondary text-primary" : "bg-transparent text-muted-foreground hover:bg-accent"}`}
-                        onClick={() => handleTabClick(revIdx)}
-                        onContextMenu={e => handleTabContextMenu(revIdx, e)}
-                        style={{ outline: "none" }}
+                  return (
+                    <DropdownMenu
+                      key={revIdx}
+                      open={dropdownTabIdx === revIdx}
+                      onOpenChange={(open) => {
+                        if (!open) setDropdownTabIdx(null);
+                      }}
+                      dir="rtl"
+                      modal={false}
+                    >
+                      <DropdownMenuTrigger asChild>
+                        <button
+                          type="button"
+                          className={`rounded border-none px-2 text-xs font-bold transition-all duration-150 ${activeTab === revIdx ? "bg-secondary text-primary" : "text-muted-foreground hover:bg-accent bg-transparent"}`}
+                          onClick={() => handleTabClick(revIdx)}
+                          onContextMenu={(e) => handleTabContextMenu(revIdx, e)}
+                          style={{ outline: "none" }}
+                        >
+                          {typeLabel}
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent
+                        align="center"
+                        sideOffset={4}
+                        style={{ zIndex: 1000 }}
                       >
-                        {typeLabel}
-                      </button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="center" sideOffset={4} style={{ zIndex: 1000 }}>
-                      <DropdownMenuItem
-                        onClick={() => { if (isEditing && tabCount > 1 && onDeleteTab) { onDeleteTab(revIdx); setDropdownTabIdx(null); } }}
-                        className={`text-destructive ${(tabCount <= 1 || !isEditing) ? 'opacity-50 pointer-events-none' : ''}`}
-                        disabled={tabCount <= 1 || !isEditing}
-                      >מחק</DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={() => { if (isEditing && onDuplicateTab) { onDuplicateTab(revIdx); setDropdownTabIdx(null); } }}
-                        disabled={!isEditing}
-                      >שכפל</DropdownMenuItem>
-                      {otherTypes.length > 0 && isEditing && (
-                        <>
-                          <div className="h-px bg-muted my-1" />
-                          <div className="px-2 py-1 text-[10px] text-muted-foreground font-medium text-right">שנה סוג ל:</div>
-                          {otherTypes.map(type => (
-                            <DropdownMenuItem key={type} onClick={() => { onUpdateType?.(revIdx, type); setDropdownTabIdx(null); }}>
-                              {type}
-                            </DropdownMenuItem>
-                          ))}
-                        </>
-                      )}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                );
-              })}
-              <DropdownMenu dir="rtl">
+                        <DropdownMenuItem
+                          onClick={() => {
+                            if (isEditing && tabCount > 1 && onDeleteTab) {
+                              onDeleteTab(revIdx);
+                              setDropdownTabIdx(null);
+                            }
+                          }}
+                          className={`text-destructive ${tabCount <= 1 || !isEditing ? "pointer-events-none opacity-50" : ""}`}
+                          disabled={tabCount <= 1 || !isEditing}
+                        >
+                          מחק
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => {
+                            if (isEditing && onDuplicateTab) {
+                              onDuplicateTab(revIdx);
+                              setDropdownTabIdx(null);
+                            }
+                          }}
+                          disabled={!isEditing}
+                        >
+                          שכפל
+                        </DropdownMenuItem>
+                        {otherTypes.length > 0 && isEditing && (
+                          <>
+                            <div className="bg-muted my-1 h-px" />
+                            <div className="text-muted-foreground px-2 py-1 text-right text-[10px] font-medium">
+                              שנה סוג ל:
+                            </div>
+                            {otherTypes.map((type) => (
+                              <DropdownMenuItem
+                                key={type}
+                                onClick={() => {
+                                  onUpdateType?.(revIdx, type);
+                                  setDropdownTabIdx(null);
+                                }}
+                              >
+                                {type}
+                              </DropdownMenuItem>
+                            ))}
+                          </>
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  );
+                })}
+              <DropdownMenu dir="rtl" modal={false}>
                 <DropdownMenuTrigger asChild>
                   <button
                     type="button"
-                    className="bg-transparent hover:bg-accent flex items-center justify-center rounded-full border-none p-1"
+                    className="hover:bg-accent flex items-center justify-center rounded-full border-none bg-transparent p-1"
                     disabled={!isEditing || tabCount >= 5}
                     style={{
                       outline: "none",
                       opacity: isEditing && tabCount < 5 ? 1 : 0.5,
-                      pointerEvents: isEditing && tabCount < 5 ? "auto" : "none",
+                      pointerEvents:
+                        isEditing && tabCount < 5 ? "auto" : "none",
                       transition: "opacity 0.2s",
                     }}
                     title="הוסף טאב"
@@ -265,13 +408,16 @@ export const OldRefractionTab = React.memo(function OldRefractionTab({
                     <Plus size={16} />
                   </button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="center" sideOffset={4} style={{ zIndex: 1000 }}>
-                  <div className="px-2 py-1 text-[10px] text-muted-foreground font-medium text-right">בחר סוג רפרקציה:</div>
+                <DropdownMenuContent
+                  align="center"
+                  sideOffset={4}
+                  style={{ zIndex: 1000 }}
+                >
+                  <div className="text-muted-foreground px-2 py-1 text-right text-[10px] font-medium">
+                    בחר סוג רפרקציה:
+                  </div>
                   {glassesTypeOptions.map((type) => (
-                    <DropdownMenuItem
-                      key={type}
-                      onClick={() => onAddTab(type)}
-                    >
+                    <DropdownMenuItem key={type} onClick={() => onAddTab(type)}>
                       {type}
                     </DropdownMenuItem>
                   ))}
@@ -281,76 +427,87 @@ export const OldRefractionTab = React.memo(function OldRefractionTab({
 
             {/* Title: centered */}
             <div className="flex-1 text-center">
-              <h3 className="font-medium text-muted-foreground">Old Refraction</h3>
+              <h3 className="text-muted-foreground font-medium">
+                Old Refraction
+              </h3>
             </div>
           </div>
 
-          <div className={`grid ${hideEyeLabels ? 'grid-cols-[repeat(8,1fr)]' : 'grid-cols-[20px_repeat(8,1fr)]'} gap-2 items-center`}>
+          <div
+            className={`grid ${hideEyeLabels ? "grid-cols-[repeat(8,1fr)]" : "grid-cols-[20px_repeat(8,1fr)]"} items-center gap-2`}
+          >
             {!hideEyeLabels && <div></div>}
             {mainColumns.map(({ key, label }) => (
-              <div key={key} className="h-4 flex items-center justify-center">
+              <div key={key} className="flex h-4 items-center justify-center">
                 {key === "cyl" ? (
-                  <CylTitle onTranspose={handleManualTranspose} disabled={!isEditing} />
+                  <CylTitle
+                    onTranspose={handleTranspose}
+                    disabled={!isEditing}
+                  />
                 ) : (
-                  <span className="text-xs font-medium text-muted-foreground">
+                  <span className="text-muted-foreground text-xs font-medium">
                     {label}
                   </span>
                 )}
               </div>
             ))}
 
-            {!hideEyeLabels && <div className="flex items-center justify-center">
-              <span
-                className="text-base font-medium cursor-pointer hover:bg-accent rounded-full px-2"
-                onMouseEnter={() => setHoveredEye("R")}
-                onMouseLeave={() => setHoveredEye(null)}
-                onClick={() => copyFromOtherEye("L")}
-                title="Click to copy from L eye"
-              >
-                {hoveredEye === "L" ? <ChevronDown size={16} /> : "R"}
-              </span>
-            </div>}
-            {mainColumns.map((col) => (
-              <div key={`r-${col.key}`}>
-                {renderField("R", col)}
+            {!hideEyeLabels && (
+              <div className="flex items-center justify-center">
+                <span
+                  className="hover:bg-accent cursor-pointer rounded-full px-2 text-base font-medium"
+                  onMouseEnter={() => setHoveredEye("R")}
+                  onMouseLeave={() => setHoveredEye(null)}
+                  onClick={() => copyFromOtherEye("L")}
+                  title="Click to copy from L eye"
+                >
+                  {hoveredEye === "L" ? <ChevronDown size={16} /> : "R"}
+                </span>
               </div>
+            )}
+            {mainColumns.map((col) => (
+              <div key={`r-${col.key}`}>{renderField("R", col)}</div>
             ))}
 
-            {!hideEyeLabels && <div className="flex items-center justify-center h-8">
-            </div>}
+            {!hideEyeLabels && (
+              <div className="flex h-8 items-center justify-center"></div>
+            )}
             {mainColumns.map(({ key }) => {
-              if (key === 'pris') {
+              if (key === "pris") {
                 return (
                   <div key="c-vh-calculator" className="flex justify-center">
-                    <VHCalculatorModal onConfirm={onVHConfirm} disabled={!isEditing} />
+                    <VHCalculatorModal
+                      onConfirm={onVHConfirm}
+                      disabled={!isEditing}
+                    />
                   </div>
-                )
+                );
               }
-              if (key === 'va' || key === 'j') {
+              if (key === "va" || key === "j") {
                 return (
                   <div key={`c-${key}-input`}>
-                    {renderField("C", { key, type: key === 'va' ? 'va' : 'j' })}
+                    {renderField("C", { key, type: key === "va" ? "va" : "j" })}
                   </div>
-                )
+                );
               }
-              return <div key={`c-spacer-${key}`} />
+              return <div key={`c-spacer-${key}`} />;
             })}
 
-            {!hideEyeLabels && <div className="flex items-center justify-center">
-              <span
-                className="text-base font-medium cursor-pointer hover:bg-accent rounded-full px-2"
-                onMouseEnter={() => setHoveredEye("L")}
-                onMouseLeave={() => setHoveredEye(null)}
-                onClick={() => copyFromOtherEye("R")}
-                title="Click to copy from R eye"
-              >
-                {hoveredEye === "R" ? <ChevronUp size={16} /> : "L"}
-              </span>
-            </div>}
-            {mainColumns.map((col) => (
-              <div key={`l-${col.key}`}>
-                {renderField("L", col)}
+            {!hideEyeLabels && (
+              <div className="flex items-center justify-center">
+                <span
+                  className="hover:bg-accent cursor-pointer rounded-full px-2 text-base font-medium"
+                  onMouseEnter={() => setHoveredEye("L")}
+                  onMouseLeave={() => setHoveredEye(null)}
+                  onClick={() => copyFromOtherEye("R")}
+                  title="Click to copy from R eye"
+                >
+                  {hoveredEye === "R" ? <ChevronUp size={16} /> : "L"}
+                </span>
               </div>
+            )}
+            {mainColumns.map((col) => (
+              <div key={`l-${col.key}`}>{renderField("L", col)}</div>
             ))}
           </div>
         </div>

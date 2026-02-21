@@ -90,24 +90,15 @@ export function useAxisWarning<T>(
     onChange(targetField, value);
   }, [fieldMapping, checkWarningsInData, onChange]);
 
-  const handleAxisBlur = useCallback((eye: "R" | "L", field: "cyl" | "ax", value: string, min?: number, max?: number) => {
+  const handleAxisBlur = useCallback((eye: "R" | "L", field: "cyl" | "ax", value: string, _min?: number, _max?: number) => {
     const mapping = fieldMapping[eye];
     const targetField = mapping[field];
-
     if (value === "") return;
-
     const num = parseFloat(value);
     if (isNaN(num)) return;
-
-    let clampedNum = num;
-    if (min !== undefined) clampedNum = Math.max(clampedNum, min);
-    if (max !== undefined) clampedNum = Math.min(clampedNum, max);
-
-    if (clampedNum !== num) {
-      flushSync(() => {
-        onChange(targetField, clampedNum.toString());
-      });
-    }
+    flushSync(() => {
+      onChange(targetField, value);
+    });
   }, [fieldMapping, onChange]);
 
   return {

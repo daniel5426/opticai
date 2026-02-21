@@ -623,9 +623,9 @@ export interface ContactLensExam {
 
 export interface ContactLensOrder {
   id?: number;
-  layout_instance_id: number;
-  branch?: string;
-  supply_in_branch?: string;
+  layout_instance_id?: number;
+  clinic_id?: number;
+  supply_in_clinic_id?: number;
   order_status?: string;
   advisor?: string;
   deliverer?: string;
@@ -1131,4 +1131,3 @@ export interface OcularMotorAssessmentExam {
   npc_break?: number;
   npc_recovery?: number;
 }
-
