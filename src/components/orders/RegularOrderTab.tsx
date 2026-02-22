@@ -30,6 +30,7 @@ import {
 import { Plus } from "lucide-react";
 import { useUser } from "@/contexts/UserContext";
 import { apiClient } from "@/lib/api-client";
+import { ORDER_STATUS_OPTIONS } from "@/lib/order-status";
 
 type OrderLens = {
   order_id: number;
@@ -974,13 +975,8 @@ export default function RegularOrderTab({
                             <Input
                               name="bag_number"
                               value={orderDetailsFormData.bag_number || ""}
-                              onChange={(e) =>
-                                setOrderDetailsFormData((prev) => ({
-                                  ...prev,
-                                  bag_number: e.target.value,
-                                }))
-                              }
-                              disabled={!isEditing}
+                              readOnly
+                              disabled
                               className={`mt-1.5 ${isEditing ? "bg-white" : "bg-accent/50"} disabled:cursor-default disabled:opacity-100`}
                             />
                           </div>
@@ -1138,36 +1134,15 @@ export default function RegularOrderTab({
                                 <SelectValue placeholder="בחר סטטוס" />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem
-                                  value="נשלח לייצור"
-                                  className="text-sm"
-                                >
-                                  נשלח לייצור
-                                </SelectItem>
-                                <SelectItem
-                                  value="ממתין לאיסוף לקוח"
-                                  className="text-sm"
-                                >
-                                  ממתין לאיסוף לקוח
-                                </SelectItem>
-                                <SelectItem
-                                  value="ממתין לעדשות"
-                                  className="text-sm"
-                                >
-                                  ממתין לעדשות
-                                </SelectItem>
-                                <SelectItem
-                                  value="ממתין למסגור"
-                                  className="text-sm"
-                                >
-                                  ממתין למסגור
-                                </SelectItem>
-                                <SelectItem
-                                  value="ממתין למשלוח חזרה לחנות"
-                                  className="text-sm"
-                                >
-                                  ממתין למשלוח חזרה לחנות
-                                </SelectItem>
+                                {ORDER_STATUS_OPTIONS.map((status) => (
+                                  <SelectItem
+                                    key={status}
+                                    value={status}
+                                    className="text-sm"
+                                  >
+                                    {status}
+                                  </SelectItem>
+                                ))}
                               </SelectContent>
                             </Select>
                           </div>

@@ -26,7 +26,14 @@ import { Eye } from "lucide-react"
 import { OrderPreviewModal } from "./orders/OrderPreviewModal"
 import { ExamCardPreviewModal } from "./exam/ExamCardPreviewModal"
 import { getLatestExamByClientId } from "@/lib/db/exams-db"
-import { getLatestOrderByClientId, getOrdersByClientId } from "@/lib/db/orders-db"
+import {
+  getLatestOrderByClientId,
+  getOrdersByClientId,
+  saveOrderData,
+  updateContactLensOrder,
+} from "@/lib/db/orders-db"
+import { ORDER_STATUS_OPTIONS } from "@/lib/order-status"
+import { Badge } from "@/components/ui/badge"
 
 import { CustomModal } from "@/components/ui/custom-modal"
 import { deleteOrder, deleteContactLensOrder } from "@/lib/db/orders-db"
@@ -65,6 +72,8 @@ export function OrdersTable({ data, clientId, onOrderDeleted, onOrderDeleteFaile
   const [pendingSelection, setPendingSelection] = useState<{ type: 'contact' | 'regular' } | null>(null)
   const [isCardPreviewOpen, setIsCardPreviewOpen] = useState(false)
   const [cardPreviewType, setCardPreviewType] = useState<'final-prescription' | 'contact-lens-exam'>('final-prescription')
+  const [statusOverrides, setStatusOverrides] = useState<Record<number, string>>({})
+  const [savingStatusIds, setSavingStatusIds] = useState<Record<number, boolean>>({})
 
   useEffect(() => {
     if (clientId > 0) {
@@ -261,6 +270,52 @@ export function OrdersTable({ data, clientId, onOrderDeleted, onOrderDeleteFaile
     })
   }, [data, externalSearch, clientId, selectedCategory])
 
+  const getOrderStatus = React.useCallback((order: Order) => {
+    if (!order.id) return "";
+    if (statusOverrides[order.id] !== undefined) return statusOverrides[order.id];
+    return (
+      (order as any).order_status ||
+      (order as any)?.order_data?.details?.order_status ||
+      ""
+    );
+  }, [statusOverrides]);
+
+  const handleStatusChange = async (order: Order, nextStatus: string) => {
+    if (!order.id) return;
+    const orderId = order.id;
+    const previousStatus = getOrderStatus(order);
+
+    setStatusOverrides((prev) => ({ ...prev, [orderId]: nextStatus }));
+    setSavingStatusIds((prev) => ({ ...prev, [orderId]: true }));
+
+    try {
+      if ((order as any).__contact) {
+        const updated = await updateContactLensOrder({
+          ...(order as any),
+          order_status: nextStatus,
+        });
+        if (!updated) throw new Error("contact update failed");
+      } else {
+        const orderData = (order as any).order_data || {};
+        const details = orderData.details || {};
+        const saved = await saveOrderData(orderId, {
+          ...orderData,
+          details: {
+            ...details,
+            order_status: nextStatus,
+          },
+        });
+        if (!saved) throw new Error("order data save failed");
+      }
+      toast.success("סטטוס הזמנה עודכן");
+    } catch (error) {
+      setStatusOverrides((prev) => ({ ...prev, [orderId]: previousStatus }));
+      toast.error("שגיאה בעדכון סטטוס הזמנה");
+    } finally {
+      setSavingStatusIds((prev) => ({ ...prev, [orderId]: false }));
+    }
+  };
+
   return (
     <div className="space-y-4 mb-10" style={{ scrollbarWidth: 'none' }}>
       <div className="flex justify-between items-center" dir="rtl">
@@ -425,6 +480,30 @@ export function OrdersTable({ data, clientId, onOrderDeleted, onOrderDeleteFaile
         onClose={() => setIsPreviewOrderOpen(false)}
         orderId={previewOrderId}
         isContact={previewOrderIsContact}
+        onNext={() => {
+          const index = filteredData.findIndex((o) => o.id === previewOrderId);
+          if (index !== -1 && index < filteredData.length - 1) {
+            const nextOrder = filteredData[index + 1];
+            setPreviewOrderId(nextOrder.id || null);
+            setPreviewOrderIsContact(Boolean((nextOrder as any).__contact));
+          }
+        }}
+        onPrev={() => {
+          const index = filteredData.findIndex((o) => o.id === previewOrderId);
+          if (index > 0) {
+            const prevOrder = filteredData[index - 1];
+            setPreviewOrderId(prevOrder.id || null);
+            setPreviewOrderIsContact(Boolean((prevOrder as any).__contact));
+          }
+        }}
+        hasNext={(() => {
+          const index = filteredData.findIndex((o) => o.id === previewOrderId);
+          return index !== -1 && index < filteredData.length - 1;
+        })()}
+        hasPrev={(() => {
+          const index = filteredData.findIndex((o) => o.id === previewOrderId);
+          return index > 0;
+        })()}
       />
 
       <div className="rounded-md bg-card">
@@ -438,6 +517,7 @@ export function OrdersTable({ data, clientId, onOrderDeleted, onOrderDeleteFaile
               <TableHead className="text-right">בודק</TableHead>
               <TableHead className="text-right">VA</TableHead>
               <TableHead className="text-right">PD</TableHead>
+              <TableHead className="text-right">סטטוס</TableHead>
               <TableHead className="w-[80px] text-right"></TableHead>
             </TableRow>
           </TableHeader>
@@ -464,6 +544,9 @@ export function OrdersTable({ data, clientId, onOrderDeleted, onOrderDeleteFaile
                   </TableCell>
                   <TableCell>
                     <Skeleton className="w-[70%] h-4 my-2 " />
+                  </TableCell>
+                  <TableCell>
+                    <Skeleton className="w-[70%] h-4 my-2" />
                   </TableCell>
                   <TableCell>
                     <Skeleton className="w-[70%] h-4 my-2" />
@@ -507,7 +590,51 @@ export function OrdersTable({ data, clientId, onOrderDeleted, onOrderDeleteFaile
                     <TableCell>{order.comb_va ? `6/${order.comb_va}` : ''}</TableCell>
                     <TableCell>{order.comb_pd}</TableCell>
                     <TableCell>
+                      <DropdownMenu dir="rtl">
+                        <DropdownMenuTrigger asChild>
+                          <button
+                            type="button"
+                            className="cursor-pointer"
+                            onClick={(e) => e.stopPropagation()}
+                            disabled={!!savingStatusIds[order.id || -1]}
+                          >
+                            <Badge variant="outline" className="hover:bg-accent/70">
+                              {savingStatusIds[order.id || -1]
+                                ? "שומר..."
+                                : getOrderStatus(order) || "ללא סטטוס"}
+                            </Badge>
+                          </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          {ORDER_STATUS_OPTIONS.filter((status) => status !== getOrderStatus(order)).map((status) => (
+                            <DropdownMenuItem
+                              key={status}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleStatusChange(order, status);
+                              }}
+                            >
+                              {status}
+                            </DropdownMenuItem>
+                          ))}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                    <TableCell>
                       <div className="flex gap-1">
+                        <Button
+                          variant="ghost"
+                          className="h-8 w-8 p-0"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setPreviewOrderId(order.id || null);
+                            setPreviewOrderIsContact(Boolean((order as any).__contact));
+                            setIsPreviewOrderOpen(true);
+                          }}
+                          title="צפייה מהירה"
+                        >
+                          <Eye className="h-4 w-4 text-muted-foreground" />
+                        </Button>
                         <Button
                           variant="ghost"
                           className="h-8 w-8 p-0"
@@ -539,7 +666,7 @@ export function OrdersTable({ data, clientId, onOrderDeleted, onOrderDeleteFaile
             ) : (
               <TableRow>
                 <TableCell
-                  colSpan={clientId === 0 ? 7 : 6}
+                  colSpan={clientId === 0 ? 9 : 8}
                   className="h-24 text-center text-muted-foreground"
                 >
                   לא נמצאו הזמנות לתצוגה

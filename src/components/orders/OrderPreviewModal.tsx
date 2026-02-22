@@ -8,7 +8,20 @@ import {
 } from "@/components/exam/ExamCardRenderer";
 import { Loader2, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
+
+const formatValue = (value: unknown) => {
+    if (value === undefined || value === null || value === "") return "—";
+    return String(value);
+};
+
+function PreviewField({ label, value }: { label: string; value: unknown }) {
+    return (
+        <div className="rounded-md border bg-card p-2">
+            <div className="text-xs text-muted-foreground">{label}</div>
+            <div className="text-sm font-medium">{formatValue(value)}</div>
+        </div>
+    );
+}
 
 interface OrderPreviewModalProps {
     isOpen: boolean;
@@ -130,6 +143,7 @@ export function OrderPreviewModal({
 
         if (isContact) {
             const clExamData = orderDataObj["contact-lens-exam"] || {};
+            const clDetailsData = orderDataObj["contact-lens-details"] || {};
             return (
                 <div className="space-y-4">
                     <ExamCardRenderer
@@ -152,10 +166,51 @@ export function OrderPreviewModal({
                         }}
                         hideEyeLabels={false}
                     />
+                    <div className="rounded-md border bg-accent/20 p-4">
+                        <h3 className="mb-3 text-sm font-semibold">פרטי עדשות מגע</h3>
+                        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                            <div className="space-y-2">
+                                <div className="text-xs text-muted-foreground">עין ימין</div>
+                                <div className="grid grid-cols-2 gap-2">
+                                    <PreviewField label="סוג" value={clDetailsData.r_type} />
+                                    <PreviewField label="דגם" value={clDetailsData.r_model} />
+                                    <PreviewField label="ספק" value={clDetailsData.r_supplier} />
+                                    <PreviewField label="חומר" value={clDetailsData.r_material} />
+                                    <PreviewField label="צבע" value={clDetailsData.r_color} />
+                                    <PreviewField label="כמות" value={clDetailsData.r_quantity} />
+                                </div>
+                            </div>
+                            <div className="space-y-2">
+                                <div className="text-xs text-muted-foreground">עין שמאל</div>
+                                <div className="grid grid-cols-2 gap-2">
+                                    <PreviewField label="סוג" value={clDetailsData.l_type} />
+                                    <PreviewField label="דגם" value={clDetailsData.l_model} />
+                                    <PreviewField label="ספק" value={clDetailsData.l_supplier} />
+                                    <PreviewField label="חומר" value={clDetailsData.l_material} />
+                                    <PreviewField label="צבע" value={clDetailsData.l_color} />
+                                    <PreviewField label="כמות" value={clDetailsData.l_quantity} />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             );
         } else {
             const fpData = orderDataObj["final-prescription"] || {};
+            const lensFrameTabs = Array.isArray(orderDataObj.lens_frame_tabs)
+                ? orderDataObj.lens_frame_tabs
+                : [];
+            const activeTabId = orderDataObj.active_lens_frame_tab_id;
+            const activeTab =
+                lensFrameTabs.find((tab: any) => tab?.id === activeTabId) ||
+                lensFrameTabs[0] ||
+                {
+                    type: "",
+                    lens: orderDataObj.lens || {},
+                    frame: orderDataObj.frame || {},
+                };
+            const lens = activeTab?.lens || {};
+            const frame = activeTab?.frame || {};
             return (
                 <div className="space-y-4">
                     <ExamCardRenderer
@@ -178,6 +233,33 @@ export function OrderPreviewModal({
                         }}
                         hideEyeLabels={false}
                     />
+                    <div className="rounded-md border bg-accent/20 p-4">
+                        <h3 className="mb-3 text-sm font-semibold">פרטי עדשה</h3>
+                        <div className="mb-2 text-xs text-muted-foreground">
+                            סוג עדשות: <span className="font-medium text-foreground">{formatValue(activeTab?.type)}</span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
+                            <PreviewField label="דגם ימין" value={lens.right_model} />
+                            <PreviewField label="דגם שמאל" value={lens.left_model} />
+                            <PreviewField label="ספק" value={lens.supplier} />
+                            <PreviewField label="חומר" value={lens.material} />
+                            <PreviewField label="צבע" value={lens.color} />
+                            <PreviewField label="ציפוי" value={lens.coating} />
+                        </div>
+                    </div>
+                    <div className="rounded-md border bg-accent/20 p-4">
+                        <h3 className="mb-3 text-sm font-semibold">פרטי מסגרת</h3>
+                        <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
+                            <PreviewField label="דגם" value={frame.model} />
+                            <PreviewField label="יצרן" value={frame.manufacturer} />
+                            <PreviewField label="ספק" value={frame.supplier || frame.supplied_by} />
+                            <PreviewField label="צבע" value={frame.color} />
+                            <PreviewField label="גשר" value={frame.bridge} />
+                            <PreviewField label="רוחב" value={frame.width} />
+                            <PreviewField label="גובה" value={frame.height} />
+                            <PreviewField label="אורך זרוע" value={frame.length} />
+                        </div>
+                    </div>
                 </div>
             );
         }

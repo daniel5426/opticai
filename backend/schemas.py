@@ -356,6 +356,7 @@ class OrderUpdate(OrderBase):
 
 class Order(OrderBase):
     id: int
+    order_status: Optional[str] = None
     
     class Config:
         from_attributes = True

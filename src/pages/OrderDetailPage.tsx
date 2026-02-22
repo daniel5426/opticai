@@ -12,6 +12,7 @@ import {
   upsertOrderFull,
   upsertContactLensOrderFull,
   getContactLensOrderById,
+  getAllOrders,
 } from "@/lib/db/orders-db";
 import {
   getBillingByOrderId,
@@ -154,6 +155,19 @@ const normalizeOrderDetails = (
     ...(next as OrderDetails),
     order_id: orderId || Number(next.order_id) || 0,
   };
+};
+
+const getNextBagNumber = (orders: Order[]): string => {
+  const maxBagNumber = orders.reduce((max, order) => {
+    const details = (order as any)?.order_data?.details;
+    const raw = details?.bag_number;
+    if (raw === undefined || raw === null || raw === "") return max;
+    const parsed = parseInt(String(raw), 10);
+    if (Number.isNaN(parsed)) return max;
+    return Math.max(max, parsed);
+  }, 0);
+
+  return String(maxBagNumber + 1);
 };
 
 export default function OrderDetailPage({
@@ -716,6 +730,15 @@ export default function OrderDetailPage({
           }
           toast.info("נתונים יובאו בהצלחה");
         }
+
+        if (isNewMode && !isContactMode) {
+          const allOrders = await getAllOrders(currentClinic?.id);
+          const nextBagNumber = getNextBagNumber(allOrders);
+          setOrderDetailsFormData((prev) => ({
+            ...prev,
+            bag_number: nextBagNumber,
+          }));
+        }
       } catch (error) {
         console.error("Error loading data:", error);
       } finally {
@@ -724,7 +747,7 @@ export default function OrderDetailPage({
     };
 
     loadData();
-  }, [clientId, orderId, examId]);
+  }, [clientId, orderId, examId, currentClinic?.id, isNewMode, isContactMode]);
 
   useEffect(() => {
     if (!loading && !baselineInitializedRef.current) {

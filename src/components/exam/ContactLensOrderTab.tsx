@@ -3,6 +3,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { LookupSelect } from "@/components/ui/lookup-select"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { ORDER_STATUS_OPTIONS } from "@/lib/order-status"
 
 type ContactLensOrderFields = {
   supply_in_clinic_id?: number
@@ -59,14 +61,23 @@ export function ContactLensOrderTab({ contactLensOrder, onContactLensOrderChange
             <Label htmlFor="order_status" className="text-right block text-muted-foreground ">
               סטטוס הזמנה
             </Label>
-            <FastInput
-              id="order_status"
-              value={contactLensOrder.order_status || ''}
-              onChange={(val) => handleFieldChange('order_status', val)}
-              className="text-right"
+            <Select
               dir="rtl"
+              value={contactLensOrder.order_status || ""}
+              onValueChange={(value) => handleFieldChange('order_status', value)}
               disabled={!isEditing}
-            />
+            >
+              <SelectTrigger className="text-right">
+                <SelectValue placeholder="בחר סטטוס" />
+              </SelectTrigger>
+              <SelectContent>
+                {ORDER_STATUS_OPTIONS.map((status) => (
+                  <SelectItem key={status} value={status}>
+                    {status}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           {/* Advisor - Lookup */}

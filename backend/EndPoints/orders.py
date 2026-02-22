@@ -81,6 +81,7 @@ def get_orders_paginated(
         Order.order_date.label('order_date'),
         Order.type.label('type'),
         Order.user_id.label('user_id'),
+        func.json_extract_path_text(Order.order_data, 'details', 'order_status').label('order_status'),
         literal(None).label('comb_va'),
         literal(None).label('comb_pd'),
         literal(False).label('__contact'),
@@ -98,6 +99,7 @@ def get_orders_paginated(
         ContactLensOrder.order_date.label('order_date'),
         ContactLensOrder.type.label('type'),
         ContactLensOrder.user_id.label('user_id'),
+        ContactLensOrder.order_status.label('order_status'),
         literal(None).label('comb_va'),
         literal(None).label('comb_pd'),
         literal(True).label('__contact'),
@@ -163,11 +165,18 @@ def get_all_orders(
     if clinic_id is not None:
         assert_clinic_belongs_to_company(db, clinic_id, company_id)
         query = query.filter(Order.clinic_id == clinic_id)
-    return query.all()
+    orders = query.all()
+    for order in orders:
+        details = ((order.order_data or {}).get("details") or {}) if isinstance(order.order_data, dict) else {}
+        setattr(order, "order_status", details.get("order_status"))
+    return orders
 
 @router.get("/client/{client_id}", response_model=List[OrderSchema])
 def get_orders_by_client(client_id: int, db: Session = Depends(get_db)):
     orders = db.query(Order).filter(Order.client_id == client_id).all()
+    for order in orders:
+        details = ((order.order_data or {}).get("details") or {}) if isinstance(order.order_data, dict) else {}
+        setattr(order, "order_status", details.get("order_status"))
     return orders
 
 @router.put("/{order_id}", response_model=OrderSchema)

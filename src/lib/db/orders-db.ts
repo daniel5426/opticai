@@ -9,6 +9,10 @@ export async function getOrdersByClientId(clientId: number): Promise<Order[]> {
       apiClient.getContactLensOrdersByClient(clientId)
     ]);
     const orders: Order[] = (oRes.data || []) as Order[];
+    const normalizedOrders: Order[] = orders.map((o: any) => ({
+      ...o,
+      order_status: o?.order_status || o?.order_data?.details?.order_status || "",
+    }));
     const contactLensOrders = (clRes.data || []) as unknown as ContactLensOrder[];
     const normalizedContactOrders: Order[] = contactLensOrders.map((cl: any) => ({
       id: cl.id,
@@ -17,13 +21,14 @@ export async function getOrdersByClientId(clientId: number): Promise<Order[]> {
       order_date: cl.order_date,
       type: cl.type || 'עדשות מגע',
       user_id: cl.user_id,
+      order_status: cl.order_status,
       order_data: cl.order_data,
       comb_va: undefined,
       comb_high: undefined,
       comb_pd: undefined,
       __contact: true,
     } as any));
-    return [...orders, ...normalizedContactOrders];
+    return [...normalizedOrders, ...normalizedContactOrders];
   } catch (error) {
     console.error('Error getting orders by client:', error);
     return [];
@@ -49,6 +54,10 @@ export async function getAllOrders(clinicId?: number): Promise<Order[]> {
       apiClient.getContactLensOrders(clinicId)
     ]);
     const orders: Order[] = (oRes.data || []) as Order[];
+    const normalizedOrders: Order[] = orders.map((o: any) => ({
+      ...o,
+      order_status: o?.order_status || o?.order_data?.details?.order_status || "",
+    }));
     const contactLensOrders = (clRes.data || []) as unknown as ContactLensOrder[];
     const normalizedContactOrders: Order[] = contactLensOrders.map((cl: any) => ({
       id: cl.id,
@@ -57,13 +66,14 @@ export async function getAllOrders(clinicId?: number): Promise<Order[]> {
       order_date: cl.order_date,
       type: cl.type || 'עדשות מגע',
       user_id: cl.user_id,
+      order_status: cl.order_status,
       order_data: cl.order_data,
       comb_va: undefined,
       comb_high: undefined,
       comb_pd: undefined,
       __contact: true,
     } as any));
-    return [...orders, ...normalizedContactOrders];
+    return [...normalizedOrders, ...normalizedContactOrders];
   } catch (error) {
     console.error('Error getting all orders:', error);
     return [];
@@ -201,6 +211,54 @@ export async function upsertContactLensOrderFull(payload: any): Promise<any | nu
   } catch (error) {
     console.error('Error upserting contact lens order full:', error);
     return null;
+  }
+}
+
+export async function updateContactLensOrder(order: any): Promise<any | null> {
+  try {
+    if (!order?.id) {
+      console.error('Error updating contact lens order: No order ID provided');
+      return null;
+    }
+    const response = await apiClient.updateContactLensOrder(order.id, order);
+    if ((response as any).error) {
+      console.error('Error updating contact lens order:', (response as any).error);
+      return null;
+    }
+    return (response as any).data || null;
+  } catch (error) {
+    console.error('Error updating contact lens order:', error);
+    return null;
+  }
+}
+
+export async function saveOrderDetailsComponent(
+  orderId: number,
+  details: Record<string, any>,
+): Promise<boolean> {
+  try {
+    const response = await apiClient.saveOrderComponentData(
+      orderId,
+      'details',
+      details,
+    );
+    return !(response as any)?.error;
+  } catch (error) {
+    console.error('Error saving order details component:', error);
+    return false;
+  }
+}
+
+export async function saveOrderData(
+  orderId: number,
+  data: Record<string, any>,
+): Promise<boolean> {
+  try {
+    const response = await apiClient.saveOrderData(orderId, data);
+    return !(response as any)?.error;
+  } catch (error) {
+    console.error('Error saving order data:', error);
+    return false;
   }
 }
 
