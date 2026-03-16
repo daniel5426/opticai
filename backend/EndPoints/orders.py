@@ -289,6 +289,11 @@ async def save_order_component_data(order_id: int, component_type: str, request:
     db.refresh(order)
     return {"success": True}
 
+def filter_model_data(model, data: Dict[str, Any]) -> Dict[str, Any]:
+    """Filter dictionary keys to only include those that are valid columns for the given SQLAlchemy model."""
+    columns = {c.name for c in model.__table__.columns}
+    return {k: v for k, v in data.items() if k in columns}
+
 # Combined create/update with billing and line items
 @router.post("/upsert-full")
 def upsert_order_full(payload: Dict[str, Any], db: Session = Depends(get_db)):
@@ -300,36 +305,46 @@ def upsert_order_full(payload: Dict[str, Any], db: Session = Depends(get_db)):
         raise HTTPException(status_code=422, detail="order payload missing or invalid")
 
     order_id = order_data.get("id")
+    filtered_order_data = filter_model_data(Order, order_data)
+    
     if order_id:
         db_order = db.query(Order).filter(Order.id == order_id).first()
         if not db_order:
             raise HTTPException(status_code=404, detail="Order not found")
-        for k, v in {**order_data}.items():
+        for k, v in filtered_order_data.items():
             if k == "id":
                 continue
             setattr(db_order, k, v)
         db.commit()
         db.refresh(db_order)
     else:
-        db_order = Order(**order_data)
+        db_order = Order(**filtered_order_data)
         db.add(db_order)
         db.commit()
         db.refresh(db_order)
 
     billing_result = None
     if isinstance(billing_data, dict):
+        filtered_billing_data = filter_model_data(Billing, billing_data)
+        db_billing = None
+        
+        # Try to find existing billing
         if billing_data.get("id"):
             db_billing = db.query(Billing).filter(Billing.id == billing_data["id"]).first()
-            if not db_billing:
-                raise HTTPException(status_code=404, detail="Billing not found")
-            for k, v in {**billing_data}.items():
-                if k == "id" or k == "line_items":
+        else:
+            db_billing = db.query(Billing).filter(Billing.order_id == db_order.id).first()
+            
+        if db_billing:
+            # Update existing billing
+            for k, v in filtered_billing_data.items():
+                if k == "id" or k == "order_id" or k == "contact_lens_id" or k == "line_items":
                     continue
                 setattr(db_billing, k, v)
             db.commit()
             db.refresh(db_billing)
         else:
-            to_create = {**billing_data, "order_id": db_order.id}
+            # Create new billing
+            to_create = {**filtered_billing_data, "order_id": db_order.id}
             db_billing = Billing(**to_create)
             db.add(db_billing)
             db.commit()
@@ -342,23 +357,28 @@ def upsert_order_full(payload: Dict[str, Any], db: Session = Depends(get_db)):
             for item in line_items:
                 if not isinstance(item, dict):
                     continue
+                
+                filtered_item_data = filter_model_data(OrderLineItem, item)
+                
                 if item.get("id"):
                     li = existing.get(item["id"])
                     if not li:
                         continue
-                    for k, v in item.items():
+                    for k, v in filtered_item_data.items():
                         if k == "id":
                             continue
                         setattr(li, k, v)
                     sent_ids.add(item["id"])
                 else:
-                    db_item = OrderLineItem(**{**item, "billings_id": db_billing.id})
+                    db_item = OrderLineItem(**{**filtered_item_data, "billings_id": db_billing.id})
                     db.add(db_item)
             # delete items not present in payload
             for existing_id, li in existing.items():
                 if existing_id not in sent_ids:
                     db.delete(li)
             db.commit()
+            print(f"Saved {len(line_items)} line items for order {db_order.id}")
+
 
     try:
         if db_order.client_id:
@@ -467,36 +487,46 @@ def upsert_contact_lens_order_full(payload: Dict[str, Any], db: Session = Depend
         raise HTTPException(status_code=422, detail="order payload missing or invalid")
 
     order_id = order_data.get("id")
+    filtered_order_data = filter_model_data(ContactLensOrder, order_data)
+
     if order_id:
         db_order = db.query(ContactLensOrder).filter(ContactLensOrder.id == order_id).first()
         if not db_order:
             raise HTTPException(status_code=404, detail="Contact lens order not found")
-        for k, v in {**order_data}.items():
+        for k, v in filtered_order_data.items():
             if k == "id":
                 continue
             setattr(db_order, k, v)
         db.commit()
         db.refresh(db_order)
     else:
-        db_order = ContactLensOrder(**order_data)
+        db_order = ContactLensOrder(**filtered_order_data)
         db.add(db_order)
         db.commit()
         db.refresh(db_order)
 
     billing_result = None
     if isinstance(billing_data, dict):
+        filtered_billing_data = filter_model_data(Billing, billing_data)
+        db_billing = None
+        
+        # Try to find existing billing
         if billing_data.get("id"):
             db_billing = db.query(Billing).filter(Billing.id == billing_data["id"]).first()
-            if not db_billing:
-                raise HTTPException(status_code=404, detail="Billing not found")
-            for k, v in {**billing_data}.items():
-                if k == "id" or k == "line_items":
+        else:
+            db_billing = db.query(Billing).filter(Billing.contact_lens_id == db_order.id).first()
+            
+        if db_billing:
+            # Update existing billing
+            for k, v in filtered_billing_data.items():
+                if k == "id" or k == "order_id" or k == "contact_lens_id" or k == "line_items":
                     continue
                 setattr(db_billing, k, v)
             db.commit()
             db.refresh(db_billing)
         else:
-            to_create = {**billing_data, "contact_lens_id": db_order.id}
+            # Create new billing
+            to_create = {**filtered_billing_data, "contact_lens_id": db_order.id}
             db_billing = Billing(**to_create)
             db.add(db_billing)
             db.commit()
@@ -509,22 +539,28 @@ def upsert_contact_lens_order_full(payload: Dict[str, Any], db: Session = Depend
             for item in line_items:
                 if not isinstance(item, dict):
                     continue
+                
+                filtered_item_data = filter_model_data(OrderLineItem, item)
+                
                 if item.get("id"):
                     li = existing.get(item["id"]) 
                     if not li:
                         continue
-                    for k, v in item.items():
+                    for k, v in filtered_item_data.items():
                         if k == "id":
                             continue
                         setattr(li, k, v)
                     sent_ids.add(item["id"])
                 else:
-                    db_item = OrderLineItem(**{**item, "billings_id": db_billing.id})
+                    db_item = OrderLineItem(**{**filtered_item_data, "billings_id": db_billing.id})
                     db.add(db_item)
+            # delete items not present in payload
             for existing_id, li in existing.items():
                 if existing_id not in sent_ids:
                     db.delete(li)
             db.commit()
+            print(f"Saved {len(line_items)} line items for contact lens order {db_order.id}")
+
 
     try:
         if db_order.client_id:

@@ -9,7 +9,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LookupSelect } from "@/components/ui/lookup-select";
 import { DateInput } from "@/components/ui/date";
 import { ExamToolbox } from "@/components/exam/ExamToolbox";
@@ -40,6 +39,8 @@ type OrderLens = {
   coating?: string;
   material?: string;
   supplier?: string;
+  manufacturer?: string;
+  width?: string;
 };
 
 type Frame = {
@@ -393,863 +394,834 @@ export default function RegularOrderTab({
 
         <div className="flex gap-6">
           <div className="flex-1">
-            <Tabs
-              defaultValue="prescription"
-              className="w-full"
-              dir="rtl"
-              orientation="vertical"
-            >
-              <div className="flex gap-6">
-                <TabsList className="dark:bg-card/50 flex h-fit w-28 flex-col bg-cyan-800/10 p-1">
-                  <TabsTrigger
-                    value="prescription"
-                    className="w-full justify-end text-right"
-                  >
-                    <div className="w-full text-right">
-                      <div className="flex items-center justify-start gap-1">
-                        <span className="font-medium">מרשם</span>
-                      </div>
-                    </div>
-                  </TabsTrigger>
-                  <TabsTrigger
-                    value="order"
-                    className="w-full justify-end text-right"
-                  >
-                    <div className="w-full text-right">
-                      <div className="flex items-center justify-start gap-1">
-                        <span className="font-medium">הזמנה</span>
-                      </div>
-                    </div>
-                  </TabsTrigger>
-
-                </TabsList>
-
-                <div className="flex-1">
-                  <TabsContent value="prescription" className="mt-0 space-y-4">
-                    <Card className="pt-4">
-                      <CardContent className="space-y-4 ">
-                        <div className="grid grid-cols-[1fr_auto_1fr] items-start gap-6">
-                          <div>
-                            <CardHeader className="px-0 pt-0 pb-3">
-                              <div className="flex items-start justify-between gap-3">
-                                <div>
-                                  <CardTitle className="text-base">
-                                    פרטי עדשות
-                                  </CardTitle>
-                                  <p className="text-muted-foreground text-sm">
-                                    מידע על מותג, דגם, צבע ורוחב העדשה
-                                  </p>
-                                </div>
-                              </div>
-                            </CardHeader>
-                            <div className="grid grid-cols-2 gap-3">
-                              <div className="space-y-3">
-                                <div>
-                                  <Label className="text-sm">שם מותג</Label>
-                                  <LookupSelect
-                                    value={activeLens.supplier || ""}
-                                    onChange={(value) =>
-                                      onLensFieldChange(
-                                        activeLensFrameTab,
-                                        "supplier",
-                                        value,
-                                      )
-                                    }
-                                    lookupType="supplier"
-                                    placeholder="בחר או הקלד שם מותג..."
-                                    disabled={!isEditing}
-                                    className="mt-1.5"
-                                  />
-                                </div>
-                                <div>
-                                  <Label className="text-sm">דגם</Label>
-                                  <LookupSelect
-                                    value={activeLens.right_model || ""}
-                                    onChange={(value) =>
-                                      onLensFieldChange(
-                                        activeLensFrameTab,
-                                        "right_model",
-                                        value,
-                                      )
-                                    }
-                                    lookupType="lensModel"
-                                    placeholder="בחר או הקלד דגם עדשה..."
-                                    disabled={!isEditing}
-                                    className="mt-1.5"
-                                  />
-                                </div>
-                                <div>
-                                  <Label className="text-sm">צבע</Label>
-                                  <LookupSelect
-                                    value={activeLens.color || ""}
-                                    onChange={(value) =>
-                                      onLensFieldChange(
-                                        activeLensFrameTab,
-                                        "color",
-                                        value,
-                                      )
-                                    }
-                                    lookupType="color"
-                                    placeholder="בחר או הקלד צבע..."
-                                    disabled={!isEditing}
-                                    className="mt-1.5"
-                                  />
-                                </div>
-                                <div>
-                                  <Label className="text-sm">רוחב</Label>
-                                  <Input
-                                    name="lens_width"
-                                    type="text"
-                                    value={activeLens.material || ""}
-                                    onChange={(e) =>
-                                      onLensFieldChange(
-                                        activeLensFrameTab,
-                                        "material",
-                                        e.target.value,
-                                      )
-                                    }
-                                    disabled={!isEditing}
-                                    className={`mt-1.5 ${isEditing ? "bg-white" : "bg-accent/50"} disabled:cursor-default disabled:opacity-100`}
-                                  />
-                                </div>
-                              </div>
-                              <div className="space-y-3">
-                                <div>
-                                  <Label className="text-sm">דגם עדשה שמאל</Label>
-                                  <LookupSelect
-                                    value={activeLens.left_model || ""}
-                                    onChange={(value) =>
-                                      onLensFieldChange(
-                                        activeLensFrameTab,
-                                        "left_model",
-                                        value,
-                                      )
-                                    }
-                                    lookupType="lensModel"
-                                    placeholder="בחר או הקלד דגם עדשה..."
-                                    disabled={!isEditing}
-                                    className="mt-1.5"
-                                  />
-                                </div>
-                                <div>
-                                  <Label className="text-sm">ציפוי</Label>
-                                  <LookupSelect
-                                    value={activeLens.coating || ""}
-                                    onChange={(value) =>
-                                      onLensFieldChange(
-                                        activeLensFrameTab,
-                                        "coating",
-                                        value,
-                                      )
-                                    }
-                                    lookupType="coating"
-                                    placeholder="בחר או הקלד ציפוי..."
-                                    disabled={!isEditing}
-                                    className="mt-1.5"
-                                  />
-                                </div>
-                                <div>
-                                  <Label className="text-sm">חומר</Label>
-                                  <LookupSelect
-                                    value={activeLens.material || ""}
-                                    onChange={(value) =>
-                                      onLensFieldChange(
-                                        activeLensFrameTab,
-                                        "material",
-                                        value,
-                                      )
-                                    }
-                                    lookupType="material"
-                                    placeholder="בחר או הקלד חומר..."
-                                    disabled={!isEditing}
-                                    className="mt-1.5"
-                                  />
-                                </div>
-                                <div>
-                                  <Label className="text-sm">ספק</Label>
-                                  <LookupSelect
-                                    value={activeLens.supplier || ""}
-                                    onChange={(value) =>
-                                      onLensFieldChange(
-                                        activeLensFrameTab,
-                                        "supplier",
-                                        value,
-                                      )
-                                    }
-                                    lookupType="supplier"
-                                    placeholder="בחר או הקלד ספק..."
-                                    disabled={!isEditing}
-                                    className="mt-1.5"
-                                  />
-                                </div>
-                              </div>
+            <div className="flex flex-col gap-6">
+              <div className="w-full space-y-4">
+                <Card className="pt-4">
+                  <CardContent className="space-y-4 ">
+                    <div className="grid grid-cols-[1fr_auto_1fr] items-start gap-6">
+                      <div>
+                        <CardHeader className="px-0 pt-0 pb-3">
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <CardTitle className="text-base">
+                                פרטי עדשות
+                              </CardTitle>
+                              <p className="text-muted-foreground text-sm">
+                                מידע על מותג, דגם, צבע ורוחב העדשה
+                              </p>
                             </div>
                           </div>
+                        </CardHeader>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="space-y-3">
+                            <div>
+                              <Label className="text-sm">שם מותג</Label>
+                              <LookupSelect
+                                value={activeLens.manufacturer || ""}
+                                onChange={(value) =>
+                                  onLensFieldChange(
+                                    activeLensFrameTab,
+                                    "manufacturer",
+                                    value,
+                                  )
+                                }
+                                lookupType="manufacturer"
+                                placeholder="בחר או הקלד שם מותג..."
+                                disabled={!isEditing}
+                                className="mt-1.5"
+                              />
+                            </div>
+                            <div>
+                              <Label className="text-sm">דגם</Label>
+                              <LookupSelect
+                                value={activeLens.right_model || ""}
+                                onChange={(value) =>
+                                  onLensFieldChange(
+                                    activeLensFrameTab,
+                                    "right_model",
+                                    value,
+                                  )
+                                }
+                                lookupType="lensModel"
+                                placeholder="בחר או הקלד דגם עדשה..."
+                                disabled={!isEditing}
+                                className="mt-1.5"
+                              />
+                            </div>
+                            <div>
+                              <Label className="text-sm">צבע</Label>
+                              <LookupSelect
+                                value={activeLens.color || ""}
+                                onChange={(value) =>
+                                  onLensFieldChange(
+                                    activeLensFrameTab,
+                                    "color",
+                                    value,
+                                  )
+                                }
+                                lookupType="color"
+                                placeholder="בחר או הקלד צבע..."
+                                disabled={!isEditing}
+                                className="mt-1.5"
+                              />
+                            </div>
+                            <div className="mt-1.5">
+                              <Label className="text-sm">רוחב</Label>
+                              <Input
+                                name="lens_width"
+                                type="text"
+                                value={activeLens.width || ""}
+                                onChange={(e) =>
+                                  onLensFieldChange(
+                                    activeLensFrameTab,
+                                    "width",
+                                    e.target.value,
+                                  )
+                                }
+                                disabled={!isEditing}
+                                className={` ${isEditing ? "bg-white" : "bg-accent/50"} disabled:cursor-default disabled:opacity-100`}
+                              />
+                            </div>
+                          </div>
+                          <div className="space-y-3">
+                            <div>
+                              <Label className="text-sm">דגם עדשה שמאל</Label>
+                              <LookupSelect
+                                value={activeLens.left_model || ""}
+                                onChange={(value) =>
+                                  onLensFieldChange(
+                                    activeLensFrameTab,
+                                    "left_model",
+                                    value,
+                                  )
+                                }
+                                lookupType="lensModel"
+                                placeholder="בחר או הקלד דגם עדשה..."
+                                disabled={!isEditing}
+                                className="mt-1.5"
+                              />
+                            </div>
+                            <div>
+                              <Label className="text-sm">ציפוי</Label>
+                              <LookupSelect
+                                value={activeLens.coating || ""}
+                                onChange={(value) =>
+                                  onLensFieldChange(
+                                    activeLensFrameTab,
+                                    "coating",
+                                    value,
+                                  )
+                                }
+                                lookupType="coating"
+                                placeholder="בחר או הקלד ציפוי..."
+                                disabled={!isEditing}
+                                className="mt-1.5"
+                              />
+                            </div>
+                            <div>
+                              <Label className="text-sm">חומר</Label>
+                              <LookupSelect
+                                value={activeLens.material || ""}
+                                onChange={(value) =>
+                                  onLensFieldChange(
+                                    activeLensFrameTab,
+                                    "material",
+                                    value,
+                                  )
+                                }
+                                lookupType="material"
+                                placeholder="בחר או הקלד חומר..."
+                                disabled={!isEditing}
+                                className="mt-1.5"
+                              />
+                            </div>
+                            <div>
+                              <Label className="text-sm">ספק</Label>
+                              <LookupSelect
+                                value={activeLens.supplier || ""}
+                                onChange={(value) =>
+                                  onLensFieldChange(
+                                    activeLensFrameTab,
+                                    "supplier",
+                                    value,
+                                  )
+                                }
+                                lookupType="supplier"
+                                placeholder="בחר או הקלד ספק..."
+                                disabled={!isEditing}
+                                className="mt-1.5"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
 
-                          <div className="bg-border w-px self-stretch" />
+                      <div className="bg-border w-px self-stretch" />
 
-                          <div>
-                            <CardHeader className="px-0 pt-0 pb-3">
-                              <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <CardHeader className="px-0 pt-0 pb-3">
+                          <div className="flex items-start justify-between gap-3">
 
-                                <div>
-                                  <CardTitle className="text-base">
-                                    פרטי מסגרת
-                                  </CardTitle>
-                                  <p className="text-muted-foreground text-sm">
-                                    מידע על ספק, מותג, דגם, גודל וצבע המסגרת
-                                  </p>
-                                </div>
-                                <div
-                                  className="bg-accent flex items-center justify-start gap-0 rounded-md pr-1"
-                                  style={{ direction: "rtl" }}
-                                >
-                                  {Array.from({ length: tabCount })
-                                    .map((_, idx) => tabCount - 1 - idx)
-                                    .map((revIdx) => {
-                                      const tabData = lensFrameTabs[revIdx];
-                                      const currentType = tabData?.type;
-                                      const typeLabel =
-                                        currentType || (revIdx + 1).toString();
-                                      const otherTypes =
-                                        glassesTypeOptions.filter(
-                                          (t) => t !== currentType,
-                                        );
+                            <div>
+                              <CardTitle className="text-base">
+                                פרטי מסגרת
+                              </CardTitle>
+                              <p className="text-muted-foreground text-sm">
+                                מידע על ספק, מותג, דגם, גודל וצבע המסגרת
+                              </p>
+                            </div>
+                            <div
+                              className="bg-accent flex items-center justify-start gap-0 rounded-md pr-1"
+                              style={{ direction: "rtl" }}
+                            >
+                              {Array.from({ length: tabCount })
+                                .map((_, idx) => tabCount - 1 - idx)
+                                .map((revIdx) => {
+                                  const tabData = lensFrameTabs[revIdx];
+                                  const currentType = tabData?.type;
+                                  const typeLabel =
+                                    currentType || (revIdx + 1).toString();
+                                  const otherTypes =
+                                    glassesTypeOptions.filter(
+                                      (t) => t !== currentType,
+                                    );
 
-                                      return (
-                                        <DropdownMenu
-                                          key={tabData?.id || revIdx}
-                                          open={dropdownTabIdx === revIdx}
-                                          onOpenChange={(open) => {
-                                            if (!open) setDropdownTabIdx(null);
-                                          }}
-                                          dir="rtl"
-                                          modal={false}
-                                        >
-                                          <DropdownMenuTrigger asChild>
-                                            <button
-                                              type="button"
-                                              className={`rounded border-none px-2 text-xs font-bold transition-all duration-150 ${activeLensFrameTab === revIdx ? "bg-secondary text-primary" : "text-muted-foreground hover:bg-accent bg-transparent"}`}
-                                              onClick={() =>
-                                                handleTabClick(revIdx)
-                                              }
-                                              onContextMenu={(e) =>
-                                                handleTabContextMenu(revIdx, e)
-                                              }
-                                              style={{ outline: "none" }}
-                                            >
-                                              {typeLabel}
-                                            </button>
-                                          </DropdownMenuTrigger>
-                                          <DropdownMenuContent
-                                            align="center"
-                                            sideOffset={4}
-                                            style={{ zIndex: 1000 }}
-                                          >
-                                            <DropdownMenuItem
-                                              onClick={() => {
-                                                if (isEditing && tabCount > 1) {
-                                                  onDeleteLensFrameTab(revIdx);
-                                                  setDropdownTabIdx(null);
-                                                }
-                                              }}
-                                              className={`text-destructive ${tabCount <= 1 || !isEditing ? "pointer-events-none opacity-50" : ""}`}
-                                              disabled={
-                                                tabCount <= 1 || !isEditing
-                                              }
-                                            >
-                                              מחק
-                                            </DropdownMenuItem>
-                                            <DropdownMenuItem
-                                              onClick={() => {
-                                                if (isEditing) {
-                                                  onDuplicateLensFrameTab(
-                                                    revIdx,
-                                                  );
-                                                  setDropdownTabIdx(null);
-                                                }
-                                              }}
-                                              disabled={!isEditing}
-                                            >
-                                              שכפל
-                                            </DropdownMenuItem>
-                                            {otherTypes.length > 0 &&
-                                              isEditing && (
-                                                <>
-                                                  <div className="bg-muted my-1 h-px" />
-                                                  <div className="text-muted-foreground px-2 py-1 text-right text-[10px] font-medium">
-                                                    שנה סוג ל:
-                                                  </div>
-                                                  {otherTypes.map((type) => (
-                                                    <DropdownMenuItem
-                                                      key={type}
-                                                      onClick={() => {
-                                                        onUpdateLensFrameTabType(
-                                                          revIdx,
-                                                          type,
-                                                        );
-                                                        setDropdownTabIdx(null);
-                                                      }}
-                                                    >
-                                                      {type}
-                                                    </DropdownMenuItem>
-                                                  ))}
-                                                </>
-                                              )}
-                                          </DropdownMenuContent>
-                                        </DropdownMenu>
-                                      );
-                                    })}
-                                  <DropdownMenu dir="rtl" modal={false}>
-                                    <DropdownMenuTrigger asChild>
-                                      <button
-                                        type="button"
-                                        className="hover:bg-accent flex items-center justify-center rounded-full border-none bg-transparent p-1"
-                                        disabled={!isEditing || tabCount >= 4}
-                                        style={{
-                                          outline: "none",
-                                          opacity:
-                                            isEditing && tabCount < 4 ? 1 : 0.5,
-                                          pointerEvents:
-                                            isEditing && tabCount < 4
-                                              ? "auto"
-                                              : "none",
-                                          transition: "opacity 0.2s",
-                                        }}
-                                        title="הוסף טאב"
-                                      >
-                                        <Plus size={16} />
-                                      </button>
-                                    </DropdownMenuTrigger>
-                                    <DropdownMenuContent
-                                      align="center"
-                                      sideOffset={4}
-                                      style={{ zIndex: 1000 }}
+                                  return (
+                                    <DropdownMenu
+                                      key={tabData?.id || revIdx}
+                                      open={dropdownTabIdx === revIdx}
+                                      onOpenChange={(open) => {
+                                        if (!open) setDropdownTabIdx(null);
+                                      }}
+                                      dir="rtl"
+                                      modal={false}
                                     >
-                                      <div className="text-muted-foreground px-2 py-1 text-right text-[10px] font-medium">
-                                        בחר סוג זוג:
-                                      </div>
-                                      {glassesTypeOptions.map((type) => (
-                                        <DropdownMenuItem
-                                          key={type}
+                                      <DropdownMenuTrigger asChild>
+                                        <button
+                                          type="button"
+                                          className={`rounded border-none px-2 text-xs font-bold transition-all duration-150 ${activeLensFrameTab === revIdx ? "bg-secondary text-primary" : "text-muted-foreground hover:bg-accent bg-transparent"}`}
                                           onClick={() =>
-                                            onAddLensFrameTab(type)
+                                            handleTabClick(revIdx)
+                                          }
+                                          onContextMenu={(e) =>
+                                            handleTabContextMenu(revIdx, e)
+                                          }
+                                          style={{ outline: "none" }}
+                                        >
+                                          {typeLabel}
+                                        </button>
+                                      </DropdownMenuTrigger>
+                                      <DropdownMenuContent
+                                        align="center"
+                                        sideOffset={4}
+                                        style={{ zIndex: 1000 }}
+                                      >
+                                        <DropdownMenuItem
+                                          onClick={() => {
+                                            if (isEditing && tabCount > 1) {
+                                              onDeleteLensFrameTab(revIdx);
+                                              setDropdownTabIdx(null);
+                                            }
+                                          }}
+                                          className={`text-destructive ${tabCount <= 1 || !isEditing ? "pointer-events-none opacity-50" : ""}`}
+                                          disabled={
+                                            tabCount <= 1 || !isEditing
                                           }
                                         >
-                                          {type}
+                                          מחק
                                         </DropdownMenuItem>
-                                      ))}
-                                    </DropdownMenuContent>
-                                  </DropdownMenu>
-                                </div>
-                              </div>
-                            </CardHeader>
-                            <div className="space-y-3">
-                              <div className="grid grid-cols-2 gap-3">
-                                <div>
-                                  <Label className="text-sm">שם ספק</Label>
-                                  <LookupSelect
-                                    value={activeFrame.supplier || ""}
-                                    onChange={(value) =>
-                                      onFrameFieldChange(
-                                        activeLensFrameTab,
-                                        "supplier",
-                                        value,
-                                      )
-                                    }
-                                    lookupType="supplier"
-                                    placeholder="בחר או הקלד ספק..."
-                                    disabled={!isEditing}
-                                    className="mt-1.5"
-                                  />
-                                </div>
-                                <div>
-                                  <Label className="text-sm">מותג</Label>
-                                  <LookupSelect
-                                    value={activeFrame.manufacturer || ""}
-                                    onChange={(value) =>
-                                      onFrameFieldChange(
-                                        activeLensFrameTab,
-                                        "manufacturer",
-                                        value,
-                                      )
-                                    }
-                                    lookupType="manufacturer"
-                                    placeholder="בחר או הקלד מותג..."
-                                    disabled={!isEditing}
-                                    className="mt-1.5"
-                                  />
-                                </div>
-                              </div>
-
-                              <div className="grid grid-cols-2 gap-3">
-                                <div>
-                                  <Label className="text-sm">דגם</Label>
-                                  <LookupSelect
-                                    value={activeFrame.model || ""}
-                                    onChange={(value) =>
-                                      onFrameFieldChange(
-                                        activeLensFrameTab,
-                                        "model",
-                                        value,
-                                      )
-                                    }
-                                    lookupType="frameModel"
-                                    placeholder="בחר או הקלד דגם מסגרת..."
-                                    disabled={!isEditing}
-                                    className="mt-1.5"
-                                  />
-                                </div>
-                                <div>
-                                  <Label className="text-sm">גודל</Label>
-                                  <Input
-                                    name="frame_size"
-                                    type="number"
-                                    value={activeFrame.width || ""}
-                                    onChange={(e) =>
-                                      onFrameFieldChange(
-                                        activeLensFrameTab,
-                                        "width",
-                                        e.target.value,
-                                      )
-                                    }
-                                    disabled={!isEditing}
-                                    className={`mt-1.5 ${isEditing ? "bg-white" : "bg-accent/50"} disabled:cursor-default disabled:opacity-100`}
-                                  />
-                                </div>
-                              </div>
-
-                              <div className="grid grid-cols-2 gap-3">
-                                <div>
-                                  <Label className="text-sm">צבע</Label>
-                                  <LookupSelect
-                                    value={activeFrame.color || ""}
-                                    onChange={(value) =>
-                                      onFrameFieldChange(
-                                        activeLensFrameTab,
-                                        "color",
-                                        value,
-                                      )
-                                    }
-                                    lookupType="color"
-                                    placeholder="בחר או הקלד צבע..."
-                                    disabled={!isEditing}
-                                    className="mt-1.5"
-                                  />
-                                </div>
-                                <div>
-                                  <Label className="text-sm">סופק על ידי</Label>
-                                  <Select
-                                    dir="rtl"
-                                    disabled={!isEditing}
-                                    value={activeFrame.supplied_by || "חנות"}
-                                    onValueChange={(value) =>
-                                      onFrameFieldChange(
-                                        activeLensFrameTab,
-                                        "supplied_by",
-                                        value,
-                                      )
-                                    }
+                                        <DropdownMenuItem
+                                          onClick={() => {
+                                            if (isEditing) {
+                                              onDuplicateLensFrameTab(
+                                                revIdx,
+                                              );
+                                              setDropdownTabIdx(null);
+                                            }
+                                          }}
+                                          disabled={!isEditing}
+                                        >
+                                          שכפל
+                                        </DropdownMenuItem>
+                                        {otherTypes.length > 0 &&
+                                          isEditing && (
+                                            <>
+                                              <div className="bg-muted my-1 h-px" />
+                                              <div className="text-muted-foreground px-2 py-1 text-right text-[10px] font-medium">
+                                                שנה סוג ל:
+                                              </div>
+                                              {otherTypes.map((type) => (
+                                                <DropdownMenuItem
+                                                  key={type}
+                                                  onClick={() => {
+                                                    onUpdateLensFrameTabType(
+                                                      revIdx,
+                                                      type,
+                                                    );
+                                                    setDropdownTabIdx(null);
+                                                  }}
+                                                >
+                                                  {type}
+                                                </DropdownMenuItem>
+                                              ))}
+                                            </>
+                                          )}
+                                      </DropdownMenuContent>
+                                    </DropdownMenu>
+                                  );
+                                })}
+                              <DropdownMenu dir="rtl" modal={false}>
+                                <DropdownMenuTrigger asChild>
+                                  <button
+                                    type="button"
+                                    className="hover:bg-accent flex items-center justify-center rounded-full border-none bg-transparent p-1"
+                                    disabled={!isEditing || tabCount >= 4}
+                                    style={{
+                                      outline: "none",
+                                      opacity:
+                                        isEditing && tabCount < 4 ? 1 : 0.5,
+                                      pointerEvents:
+                                        isEditing && tabCount < 4
+                                          ? "auto"
+                                          : "none",
+                                      transition: "opacity 0.2s",
+                                    }}
+                                    title="הוסף טאב"
                                   >
-                                    <SelectTrigger
-                                      className={`mt-1.5 ${isEditing ? "bg-white" : "bg-accent/50"} disabled:cursor-default disabled:opacity-100`}
+                                    <Plus size={16} />
+                                  </button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent
+                                  align="center"
+                                  sideOffset={4}
+                                  style={{ zIndex: 1000 }}
+                                >
+                                  <div className="text-muted-foreground px-2 py-1 text-right text-[10px] font-medium">
+                                    בחר סוג זוג:
+                                  </div>
+                                  {glassesTypeOptions.map((type) => (
+                                    <DropdownMenuItem
+                                      key={type}
+                                      onClick={() =>
+                                        onAddLensFrameTab(type)
+                                      }
                                     >
-                                      <SelectValue placeholder="בחר" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      <SelectItem
-                                        value="חנות"
-                                        className="text-sm"
-                                      >
-                                        חנות
-                                      </SelectItem>
-                                      <SelectItem
-                                        value="לקוח"
-                                        className="text-sm"
-                                      >
-                                        לקוח
-                                      </SelectItem>
-                                    </SelectContent>
-                                  </Select>
-                                </div>
-                              </div>
+                                      {type}
+                                    </DropdownMenuItem>
+                                  ))}
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </div>
+                          </div>
+                        </CardHeader>
+                        <div className="space-y-3">
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <Label className="text-sm">שם ספק</Label>
+                              <LookupSelect
+                                value={activeFrame.supplier || ""}
+                                onChange={(value) =>
+                                  onFrameFieldChange(
+                                    activeLensFrameTab,
+                                    "supplier",
+                                    value,
+                                  )
+                                }
+                                lookupType="supplier"
+                                placeholder="בחר או הקלד ספק..."
+                                disabled={!isEditing}
+                                className="mt-1.5"
+                              />
+                            </div>
+                            <div>
+                              <Label className="text-sm">מותג</Label>
+                              <LookupSelect
+                                value={activeFrame.manufacturer || ""}
+                                onChange={(value) =>
+                                  onFrameFieldChange(
+                                    activeLensFrameTab,
+                                    "manufacturer",
+                                    value,
+                                  )
+                                }
+                                lookupType="manufacturer"
+                                placeholder="בחר או הקלד מותג..."
+                                disabled={!isEditing}
+                                className="mt-1.5"
+                              />
+                            </div>
+                          </div>
 
-                              <div className="grid grid-cols-4 gap-3">
-                                <div>
-                                  <Label className="text-sm">גשר</Label>
-                                  <Input
-                                    name="bridge"
-                                    type="number"
-                                    value={activeFrame.bridge || ""}
-                                    onChange={(e) =>
-                                      onFrameFieldChange(
-                                        activeLensFrameTab,
-                                        "bridge",
-                                        e.target.value,
-                                      )
-                                    }
-                                    disabled={!isEditing}
-                                    className={`mt-1.5 ${isEditing ? "bg-white" : "bg-accent/50"} disabled:cursor-default disabled:opacity-100`}
-                                  />
-                                </div>
-                                <div>
-                                  <Label className="text-sm">רוחב</Label>
-                                  <Input
-                                    name="width"
-                                    type="number"
-                                    value={activeFrame.width || ""}
-                                    onChange={(e) =>
-                                      onFrameFieldChange(
-                                        activeLensFrameTab,
-                                        "width",
-                                        e.target.value,
-                                      )
-                                    }
-                                    disabled={!isEditing}
-                                    className={`mt-1.5 ${isEditing ? "bg-white" : "bg-accent/50"} disabled:cursor-default disabled:opacity-100`}
-                                  />
-                                </div>
-                                <div>
-                                  <Label className="text-sm">גובה</Label>
-                                  <Input
-                                    name="height"
-                                    type="number"
-                                    value={activeFrame.height || ""}
-                                    onChange={(e) =>
-                                      onFrameFieldChange(
-                                        activeLensFrameTab,
-                                        "height",
-                                        e.target.value,
-                                      )
-                                    }
-                                    disabled={!isEditing}
-                                    className={`mt-1.5 ${isEditing ? "bg-white" : "bg-accent/50"} disabled:cursor-default disabled:opacity-100`}
-                                  />
-                                </div>
-                                <div>
-                                  <Label className="text-sm">אורך זרוע</Label>
-                                  <Input
-                                    name="length"
-                                    type="number"
-                                    value={activeFrame.length || ""}
-                                    onChange={(e) =>
-                                      onFrameFieldChange(
-                                        activeLensFrameTab,
-                                        "length",
-                                        e.target.value,
-                                      )
-                                    }
-                                    disabled={!isEditing}
-                                    className={`mt-1.5 ${isEditing ? "bg-white" : "bg-accent/50"} disabled:cursor-default disabled:opacity-100`}
-                                  />
-                                </div>
-                              </div>
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <Label className="text-sm">דגם</Label>
+                              <LookupSelect
+                                value={activeFrame.model || ""}
+                                onChange={(value) =>
+                                  onFrameFieldChange(
+                                    activeLensFrameTab,
+                                    "model",
+                                    value,
+                                  )
+                                }
+                                lookupType="frameModel"
+                                placeholder="בחר או הקלד דגם מסגרת..."
+                                disabled={!isEditing}
+                                className="mt-1.5"
+                              />
+                            </div>
+                            <div>
+                              <Label className="text-sm pb-1.5">גודל</Label>
+                              <Input
+                                name="frame_size"
+                                type="number"
+                                value={activeFrame.width || ""}
+                                onChange={(e) =>
+                                  onFrameFieldChange(
+                                    activeLensFrameTab,
+                                    "width",
+                                    e.target.value,
+                                  )
+                                }
+                                disabled={!isEditing}
+                                className={`${isEditing ? "bg-white" : "bg-accent/50"} disabled:cursor-default disabled:opacity-100`}
+                              />
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <Label className="text-sm">צבע</Label>
+                              <LookupSelect
+                                value={activeFrame.color || ""}
+                                onChange={(value) =>
+                                  onFrameFieldChange(
+                                    activeLensFrameTab,
+                                    "color",
+                                    value,
+                                  )
+                                }
+                                lookupType="color"
+                                placeholder="בחר או הקלד צבע..."
+                                disabled={!isEditing}
+                                className="mt-1.5"
+                              />
+                            </div>
+                            <div>
+                              <Label className="text-sm">סופק על ידי</Label>
+                              <Select
+                                dir="rtl"
+                                disabled={!isEditing}
+                                value={activeFrame.supplied_by || "חנות"}
+                                onValueChange={(value) =>
+                                  onFrameFieldChange(
+                                    activeLensFrameTab,
+                                    "supplied_by",
+                                    value,
+                                  )
+                                }
+                              >
+                                <SelectTrigger
+                                  className={`mt-1.5 ${isEditing ? "bg-white" : "bg-accent/50"} disabled:cursor-default disabled:opacity-100`}
+                                >
+                                  <SelectValue placeholder="בחר" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem
+                                    value="חנות"
+                                    className="text-sm"
+                                  >
+                                    חנות
+                                  </SelectItem>
+                                  <SelectItem
+                                    value="לקוח"
+                                    className="text-sm"
+                                  >
+                                    לקוח
+                                  </SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-4 gap-3">
+                            <div>
+                              <Label className="text-sm pb-1.5">גשר</Label>
+                              <Input
+                                name="bridge"
+                                type="number"
+                                value={activeFrame.bridge || ""}
+                                onChange={(e) =>
+                                  onFrameFieldChange(
+                                    activeLensFrameTab,
+                                    "bridge",
+                                    e.target.value,
+                                  )
+                                }
+                                disabled={!isEditing}
+                                className={`${isEditing ? "bg-white" : "bg-accent/50"} disabled:cursor-default disabled:opacity-100`}
+                              />
+                            </div>
+                            <div>
+                              <Label className="text-sm pb-1.5">רוחב</Label>
+                              <Input
+                                name="width"
+                                type="number"
+                                value={activeFrame.width || ""}
+                                onChange={(e) =>
+                                  onFrameFieldChange(
+                                    activeLensFrameTab,
+                                    "width",
+                                    e.target.value,
+                                  )
+                                }
+                                disabled={!isEditing}
+                                className={`${isEditing ? "bg-white" : "bg-accent/50"} disabled:cursor-default disabled:opacity-100`}
+                              />
+                            </div>
+                            <div>
+                              <Label className="text-sm pb-1.5">גובה</Label>
+                              <Input
+                                name="height"
+                                type="number"
+                                value={activeFrame.height || ""}
+                                onChange={(e) =>
+                                  onFrameFieldChange(
+                                    activeLensFrameTab,
+                                    "height",
+                                    e.target.value,
+                                  )
+                                }
+                                disabled={!isEditing}
+                                className={`${isEditing ? "bg-white" : "bg-accent/50"} disabled:cursor-default disabled:opacity-100`}
+                              />
+                            </div>
+                            <div>
+                              <Label className="text-sm pb-1.5">אורך זרוע</Label>
+                              <Input
+                                name="length"
+                                type="number"
+                                value={activeFrame.length || ""}
+                                onChange={(e) =>
+                                  onFrameFieldChange(
+                                    activeLensFrameTab,
+                                    "length",
+                                    e.target.value,
+                                  )
+                                }
+                                disabled={!isEditing}
+                                className={`${isEditing ? "bg-white" : "bg-accent/50"} disabled:cursor-default disabled:opacity-100`}
+                              />
                             </div>
                           </div>
                         </div>
-                      </CardContent>
-                    </Card>
-                  </TabsContent>
-
-                  <TabsContent value="order" className="mt-0 space-y-4">
-                    <Card className="">
-                      <CardContent className="space-y-3">
-                        <div className="grid grid-cols-4 gap-3">
-                          <div>
-                            <Label className="text-sm">סטטוס ספק</Label>
-                            <Input
-                              name="supplier_status"
-                              value={orderDetailsFormData.supplier_status || ""}
-                              onChange={(e) =>
-                                setOrderDetailsFormData((prev) => ({
-                                  ...prev,
-                                  supplier_status: e.target.value,
-                                }))
-                              }
-                              disabled={!isEditing}
-                              className={`mt-1.5 ${isEditing ? "bg-white" : "bg-accent/50"} disabled:cursor-default disabled:opacity-100`}
-                            />
-                          </div>
-                          <div>
-                            <Label className="text-sm">מספר שקית</Label>
-                            <Input
-                              name="bag_number"
-                              value={orderDetailsFormData.bag_number || ""}
-                              readOnly
-                              disabled
-                              className={`mt-1.5 ${isEditing ? "bg-white" : "bg-accent/50"} disabled:cursor-default disabled:opacity-100`}
-                            />
-                          </div>
-                          <div>
-                            <Label className="text-sm">שם המוכר</Label>
-                            <LookupSelect
-                              value={orderDetailsFormData.advisor || ""}
-                              onChange={(value) =>
-                                setOrderDetailsFormData((prev) => ({
-                                  ...prev,
-                                  advisor: value,
-                                }))
-                              }
-                              lookupType="advisor"
-                              placeholder="בחר או הקלד שם המוכר..."
-                              disabled={!isEditing}
-                              className={`mt-1.5 ${isEditing ? "bg-white" : "bg-accent/50"} disabled:cursor-default disabled:opacity-100`}
-                            />
-                          </div>
-                          <div>
-                            <Label className="text-sm">מוסר</Label>
-                            <Input
-                              name="delivered_by"
-                              value={orderDetailsFormData.delivered_by || ""}
-                              onChange={(e) =>
-                                setOrderDetailsFormData((prev) => ({
-                                  ...prev,
-                                  delivered_by: e.target.value,
-                                }))
-                              }
-                              disabled={!isEditing}
-                              className={`mt-1.5 ${isEditing ? "bg-white" : "bg-accent/50"} disabled:cursor-default disabled:opacity-100`}
-                            />
-                          </div>
-                        </div>
-
-                        <div className="grid grid-cols-5 gap-3">
-                          <div>
-                            <Label className="text-sm">טכני</Label>
-                            <Input
-                              name="technician"
-                              value={orderDetailsFormData.technician || ""}
-                              onChange={(e) =>
-                                setOrderDetailsFormData((prev) => ({
-                                  ...prev,
-                                  technician: e.target.value,
-                                }))
-                              }
-                              disabled={!isEditing}
-                              className={`mt-1.5 ${isEditing ? "bg-white" : "bg-accent/50"} disabled:cursor-default disabled:opacity-100`}
-                            />
-                          </div>
-                          <div>
-                            <Label className="text-sm">אספקה בסניף</Label>
-                            <Select
-                              dir="rtl"
-                              disabled={
-                                !isEditing ||
-                                isLoadingCompanyClinics ||
-                                companyClinics.length === 0
-                              }
-                              value={
-                                orderDetailsFormData.delivery_clinic_id
-                                  ? String(
-                                      orderDetailsFormData.delivery_clinic_id,
-                                    )
-                                  : ""
-                              }
-                              onValueChange={(value) =>
-                                setOrderDetailsFormData((prev) => ({
-                                  ...prev,
-                                  delivery_clinic_id: Number(value),
-                                  delivery_location:
-                                    companyClinics.find(
-                                      (clinic) =>
-                                        String(clinic.id) === String(value),
-                                    )?.name || prev.delivery_location,
-                                }))
-                              }
-                            >
-                              <SelectTrigger
-                                className={`mt-1.5 h-9 w-full ${isEditing ? "bg-white" : "bg-accent/50"} disabled:cursor-default disabled:opacity-100`}
-                              >
-                                <SelectValue
-                                  placeholder={
-                                    isLoadingCompanyClinics
-                                      ? "טוען סניפים..."
-                                      : "בחר סניף"
-                                  }
-                                />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {orderDetailsFormData.delivery_clinic_id &&
-                                  !companyClinics.some(
-                                    (clinic) =>
-                                      clinic.id ===
-                                      orderDetailsFormData.delivery_clinic_id,
-                                  ) && (
-                                    <SelectItem
-                                      value={String(
-                                        orderDetailsFormData.delivery_clinic_id,
-                                      )}
-                                      className="text-sm"
-                                    >
-                                      {orderDetailsFormData.delivery_location ||
-                                        `סניף #${orderDetailsFormData.delivery_clinic_id}`}
-                                    </SelectItem>
-                                  )}
-                                {companyClinics.map((clinic) => (
-                                  <SelectItem
-                                    key={clinic.id ?? clinic.name}
-                                    value={String(clinic.id)}
-                                    className="text-sm"
-                                  >
-                                    {clinic.name}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          <div>
-                            <Label className="text-sm">מעבדה מייצרת</Label>
-                            <LookupSelect
-                              value={
-                                orderDetailsFormData.manufacturing_lab || ""
-                              }
-                              onChange={(value) =>
-                                setOrderDetailsFormData((prev) => ({
-                                  ...prev,
-                                  manufacturing_lab: value,
-                                }))
-                              }
-                              lookupType="manufacturingLab"
-                              placeholder="בחר או הקלד מעבדה..."
-                              disabled={!isEditing}
-                              className="mt-1.5"
-                            />
-                          </div>
-                          <div>
-                            <Label className="text-sm">סטטוס הזמנה</Label>
-                            <Select
-                              dir="rtl"
-                              disabled={!isEditing}
-                              value={orderDetailsFormData.order_status || ""}
-                              onValueChange={(value) =>
-                                setOrderDetailsFormData((prev) => ({
-                                  ...prev,
-                                  order_status: value,
-                                }))
-                              }
-                            >
-                              <SelectTrigger
-                                className={`mt-1.5 h-9 w-full ${isEditing ? "bg-white" : "bg-accent/50"} disabled:cursor-default disabled:opacity-100`}
-                              >
-                                <SelectValue placeholder="בחר סטטוס" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {ORDER_STATUS_OPTIONS.map((status) => (
-                                  <SelectItem
-                                    key={status}
-                                    value={status}
-                                    className="text-sm"
-                                  >
-                                    {status}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          <div>
-                            <Label className="text-sm">עדיפות</Label>
-                            <Select
-                              dir="rtl"
-                              disabled={!isEditing}
-                              value={orderDetailsFormData.priority || ""}
-                              onValueChange={(value) =>
-                                setOrderDetailsFormData((prev) => ({
-                                  ...prev,
-                                  priority: value,
-                                }))
-                              }
-                            >
-                              <SelectTrigger
-                                className={`mt-1.5 h-9 w-full ${isEditing ? "bg-white" : "bg-accent/50"} disabled:cursor-default disabled:opacity-100`}
-                              >
-                                <SelectValue placeholder="בחר עדיפות" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="רגיל" className="text-sm">
-                                  רגיל
-                                </SelectItem>
-                                <SelectItem value="דחוף" className="text-sm">
-                                  דחוף
-                                </SelectItem>
-                                <SelectItem value="מיידי" className="text-sm">
-                                  מיידי
-                                </SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        </div>
-
-                        <div className="grid grid-cols-5 gap-3">
-                          <div>
-                            <Label className="text-sm">נמסר בתאריך</Label>
-                            <DateInput
-                              name="delivered_at"
-                              value={orderDetailsFormData.delivered_at}
-                              onChange={(e) =>
-                                setOrderDetailsFormData((prev) => ({
-                                  ...prev,
-                                  delivered_at: e.target.value,
-                                }))
-                              }
-                              disabled={!isEditing}
-                              className={`mt-1.5 ${isEditing ? "bg-white" : "bg-accent/50"} disabled:cursor-default disabled:opacity-100`}
-                            />
-                          </div>
-                          <div>
-                            <Label className="text-sm">תאריך תום אחריות</Label>
-                            <DateInput
-                              name="warranty_expiration"
-                              value={orderDetailsFormData.warranty_expiration}
-                              onChange={(e) =>
-                                setOrderDetailsFormData((prev) => ({
-                                  ...prev,
-                                  warranty_expiration: e.target.value,
-                                }))
-                              }
-                              disabled={!isEditing}
-                              className={`mt-1.5 ${isEditing ? "bg-white" : "bg-accent/50"} disabled:cursor-default disabled:opacity-100`}
-                            />
-                          </div>
-                          <div>
-                            <Label className="text-sm">הובטח לתאריך</Label>
-                            <DateInput
-                              name="promised_date"
-                              value={orderDetailsFormData.promised_date}
-                              onChange={(e) =>
-                                setOrderDetailsFormData((prev) => ({
-                                  ...prev,
-                                  promised_date: e.target.value,
-                                }))
-                              }
-                              disabled={!isEditing}
-                              className={`mt-1.5 ${isEditing ? "bg-white" : "bg-accent/50"} disabled:cursor-default disabled:opacity-100`}
-                            />
-                          </div>
-                          <div>
-                            <Label className="text-sm">תאריך אישור</Label>
-                            <DateInput
-                              name="approval_date"
-                              value={orderDetailsFormData.approval_date}
-                              onChange={(e) =>
-                                setOrderDetailsFormData((prev) => ({
-                                  ...prev,
-                                  approval_date: e.target.value,
-                                }))
-                              }
-                              disabled={!isEditing}
-                              className={`mt-1.5 ${isEditing ? "bg-white" : "bg-accent/50"} disabled:cursor-default disabled:opacity-100`}
-                            />
-                          </div>
-                          <div></div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </TabsContent>
-
-
-                </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
               </div>
-            </Tabs>
+
+              <div className="w-full space-y-4">
+                <Card className="">
+                  <CardContent className="space-y-3">
+                    {/* Row 1: Order Management – status, priority, bag number */}
+                    <div className="grid grid-cols-3 gap-3">
+                      <div>
+                        <Label className="text-sm">סטטוס הזמנה</Label>
+                        <Select
+                          dir="rtl"
+                          disabled={!isEditing}
+                          value={orderDetailsFormData.order_status || ""}
+                          onValueChange={(value) =>
+                            setOrderDetailsFormData((prev) => ({
+                              ...prev,
+                              order_status: value,
+                            }))
+                          }
+                        >
+                          <SelectTrigger
+                            className={`mt-1.5 h-9 w-full ${isEditing ? "bg-white" : "bg-accent/50"} disabled:cursor-default disabled:opacity-100`}
+                          >
+                            <SelectValue placeholder="בחר סטטוס" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {ORDER_STATUS_OPTIONS.map((status) => (
+                              <SelectItem
+                                key={status}
+                                value={status}
+                                className="text-sm"
+                              >
+                                {status}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label className="text-sm">עדיפות</Label>
+                        <Select
+                          dir="rtl"
+                          disabled={!isEditing}
+                          value={orderDetailsFormData.priority || ""}
+                          onValueChange={(value) =>
+                            setOrderDetailsFormData((prev) => ({
+                              ...prev,
+                              priority: value,
+                            }))
+                          }
+                        >
+                          <SelectTrigger
+                            className={`mt-1.5 h-9 w-full ${isEditing ? "bg-white" : "bg-accent/50"} disabled:cursor-default disabled:opacity-100`}
+                          >
+                            <SelectValue placeholder="בחר עדיפות" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="רגיל" className="text-sm">
+                              רגיל
+                            </SelectItem>
+                            <SelectItem value="דחוף" className="text-sm">
+                              דחוף
+                            </SelectItem>
+                            <SelectItem value="מיידי" className="text-sm">
+                              מיידי
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label className="text-sm">מספר שקית</Label>
+                        <Input
+                          name="bag_number"
+                          value={orderDetailsFormData.bag_number || ""}
+                          readOnly
+                          disabled
+                          className={`mt-1.5 ${isEditing ? "bg-white" : "bg-accent/50"} disabled:cursor-default disabled:opacity-100`}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Row 2: People – advisor, technician, delivered by */}
+                    <div className="grid grid-cols-3 gap-3">
+                      <div>
+                        <Label className="text-sm">שם המוכר</Label>
+                        <LookupSelect
+                          value={orderDetailsFormData.advisor || ""}
+                          onChange={(value) =>
+                            setOrderDetailsFormData((prev) => ({
+                              ...prev,
+                              advisor: value,
+                            }))
+                          }
+                          lookupType="advisor"
+                          placeholder="בחר או הקלד שם המוכר..."
+                          disabled={!isEditing}
+                          className={`mt-1.5 ${isEditing ? "bg-white" : "bg-accent/50"} disabled:cursor-default disabled:opacity-100`}
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-sm">טכני</Label>
+                        <Input
+                          name="technician"
+                          value={orderDetailsFormData.technician || ""}
+                          onChange={(e) =>
+                            setOrderDetailsFormData((prev) => ({
+                              ...prev,
+                              technician: e.target.value,
+                            }))
+                          }
+                          disabled={!isEditing}
+                          className={`mt-1.5 ${isEditing ? "bg-white" : "bg-accent/50"} disabled:cursor-default disabled:opacity-100`}
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-sm">מוסר</Label>
+                        <Input
+                          name="delivered_by"
+                          value={orderDetailsFormData.delivered_by || ""}
+                          onChange={(e) =>
+                            setOrderDetailsFormData((prev) => ({
+                              ...prev,
+                              delivered_by: e.target.value,
+                            }))
+                          }
+                          disabled={!isEditing}
+                          className={`mt-1.5 ${isEditing ? "bg-white" : "bg-accent/50"} disabled:cursor-default disabled:opacity-100`}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Row 3: Production & Logistics – lab, supplier status, delivery branch */}
+                    <div className="grid grid-cols-3 gap-3">
+                      <div>
+                        <Label className="text-sm">מעבדה מייצרת</Label>
+                        <LookupSelect
+                          value={
+                            orderDetailsFormData.manufacturing_lab || ""
+                          }
+                          onChange={(value) =>
+                            setOrderDetailsFormData((prev) => ({
+                              ...prev,
+                              manufacturing_lab: value,
+                            }))
+                          }
+                          lookupType="manufacturingLab"
+                          placeholder="בחר או הקלד מעבדה..."
+                          disabled={!isEditing}
+                          className={`mt-1.5 ${isEditing ? "bg-white" : "bg-accent/50"} disabled:cursor-default disabled:opacity-100`}
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-sm">סטטוס ספק</Label>
+                        <Input
+                          name="supplier_status"
+                          value={orderDetailsFormData.supplier_status || ""}
+                          onChange={(e) =>
+                            setOrderDetailsFormData((prev) => ({
+                              ...prev,
+                              supplier_status: e.target.value,
+                            }))
+                          }
+                          disabled={!isEditing}
+                          className={`mt-1.5 ${isEditing ? "bg-white" : "bg-accent/50"} disabled:cursor-default disabled:opacity-100`}
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-sm">אספקה בסניף</Label>
+                        <Select
+                          dir="rtl"
+                          disabled={
+                            !isEditing ||
+                            isLoadingCompanyClinics ||
+                            companyClinics.length === 0
+                          }
+                          value={
+                            orderDetailsFormData.delivery_clinic_id
+                              ? String(
+                                orderDetailsFormData.delivery_clinic_id,
+                              )
+                              : ""
+                          }
+                          onValueChange={(value) =>
+                            setOrderDetailsFormData((prev) => ({
+                              ...prev,
+                              delivery_clinic_id: Number(value),
+                              delivery_location:
+                                companyClinics.find(
+                                  (clinic) =>
+                                    String(clinic.id) === String(value),
+                                )?.name || prev.delivery_location,
+                            }))
+                          }
+                        >
+                          <SelectTrigger
+                            className={`mt-1.5 h-9 w-full ${isEditing ? "bg-white" : "bg-accent/50"} disabled:cursor-default disabled:opacity-100`}
+                          >
+                            <SelectValue
+                              placeholder={
+                                isLoadingCompanyClinics
+                                  ? "טוען סניפים..."
+                                  : "בחר סניף"
+                              }
+                            />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {orderDetailsFormData.delivery_clinic_id &&
+                              !companyClinics.some(
+                                (clinic) =>
+                                  clinic.id ===
+                                  orderDetailsFormData.delivery_clinic_id,
+                              ) && (
+                                <SelectItem
+                                  value={String(
+                                    orderDetailsFormData.delivery_clinic_id,
+                                  )}
+                                  className="text-sm"
+                                >
+                                  {orderDetailsFormData.delivery_location ||
+                                    `סניף #${orderDetailsFormData.delivery_clinic_id}`}
+                                </SelectItem>
+                              )}
+                            {companyClinics.map((clinic) => (
+                              <SelectItem
+                                key={clinic.id ?? clinic.name}
+                                value={String(clinic.id)}
+                                className="text-sm"
+                              >
+                                {clinic.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+
+                    {/* Row 4: Dates – approval, promised, delivered, warranty */}
+                    <div className="grid grid-cols-4 gap-3">
+                      <div>
+                        <Label className="text-sm">תאריך אישור</Label>
+                        <DateInput
+                          name="approval_date"
+                          value={orderDetailsFormData.approval_date}
+                          onChange={(e) =>
+                            setOrderDetailsFormData((prev) => ({
+                              ...prev,
+                              approval_date: e.target.value,
+                            }))
+                          }
+                          disabled={!isEditing}
+                          className={`mt-1.5 ${isEditing ? "bg-white" : "bg-accent/50"} disabled:cursor-default disabled:opacity-100`}
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-sm">הובטח לתאריך</Label>
+                        <DateInput
+                          name="promised_date"
+                          value={orderDetailsFormData.promised_date}
+                          onChange={(e) =>
+                            setOrderDetailsFormData((prev) => ({
+                              ...prev,
+                              promised_date: e.target.value,
+                            }))
+                          }
+                          disabled={!isEditing}
+                          className={`mt-1.5 ${isEditing ? "bg-white" : "bg-accent/50"} disabled:cursor-default disabled:opacity-100`}
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-sm">נמסר בתאריך</Label>
+                        <DateInput
+                          name="delivered_at"
+                          value={orderDetailsFormData.delivered_at}
+                          onChange={(e) =>
+                            setOrderDetailsFormData((prev) => ({
+                              ...prev,
+                              delivered_at: e.target.value,
+                            }))
+                          }
+                          disabled={!isEditing}
+                          className={`mt-1.5 ${isEditing ? "bg-white" : "bg-accent/50"} disabled:cursor-default disabled:opacity-100`}
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-sm">תאריך תום אחריות</Label>
+                        <DateInput
+                          name="warranty_expiration"
+                          value={orderDetailsFormData.warranty_expiration}
+                          onChange={(e) =>
+                            setOrderDetailsFormData((prev) => ({
+                              ...prev,
+                              warranty_expiration: e.target.value,
+                            }))
+                          }
+                          disabled={!isEditing}
+                          className={`mt-1.5 ${isEditing ? "bg-white" : "bg-accent/50"} disabled:cursor-default disabled:opacity-100`}
+                        />
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
           </div>
         </div>
 

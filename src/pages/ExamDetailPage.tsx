@@ -748,13 +748,25 @@ export default function ExamDetailPage({
 
         const isContact =
           latestOrder.type === "עדשות מגע" || (latestOrder as any).__contact;
-        const orderData = latestOrder.order_data as Record<string, any>;
+        let orderDataRaw = latestOrder.order_data || {};
+        if (typeof orderDataRaw === 'string') {
+          try { orderDataRaw = JSON.parse(orderDataRaw); } catch(e) {}
+        }
+        const orderData = orderDataRaw as Record<string, any>;
 
         let sourceData: any = {};
         if (isContact) {
-          sourceData = orderData["contact-lens-exam"] || {};
+          sourceData = (orderData["contact-lens-exam"] && Object.keys(orderData["contact-lens-exam"]).length > 0)
+            ? orderData["contact-lens-exam"]
+            : (orderData["final-prescription"] && Object.keys(orderData["final-prescription"]).length > 0)
+              ? orderData["final-prescription"]
+              : orderData;
         } else {
-          sourceData = orderData["final-prescription"] || {};
+          sourceData = (orderData["final-prescription"] && Object.keys(orderData["final-prescription"]).length > 0)
+            ? orderData["final-prescription"]
+            : (orderData["contact-lens-exam"] && Object.keys(orderData["contact-lens-exam"]).length > 0)
+              ? orderData["contact-lens-exam"]
+              : orderData;
         }
 
         setExamFormData((prev) => {

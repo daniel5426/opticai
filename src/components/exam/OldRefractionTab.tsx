@@ -69,18 +69,11 @@ export const OldRefractionTab = React.memo(function OldRefractionTab({
 }: OldRefractionTabProps) {
   const [hoveredEye, setHoveredEye] = useState<"R" | "L" | null>(null);
   const [dropdownTabIdx, setDropdownTabIdx] = useState<number | null>(null);
-  const [optimisticFieldValues, setOptimisticFieldValues] = useState<
-    Record<string, string>
-  >({});
-
   const { fieldWarnings, handleAxisChange, handleAxisBlur } = useAxisWarning(
     oldRefractionData,
     onOldRefractionChange,
     isEditing,
   );
-
-  const latestValuesRef = useRef(oldRefractionData);
-  latestValuesRef.current = oldRefractionData;
 
   const dataRef = useRef(oldRefractionData);
   dataRef.current = oldRefractionData;
@@ -117,27 +110,6 @@ export const OldRefractionTab = React.memo(function OldRefractionTab({
     return `${eye.toLowerCase()}_${field}`;
   };
 
-  useEffect(() => {
-    setOptimisticFieldValues((prev) => {
-      const keys = Object.keys(prev);
-      if (keys.length === 0) return prev;
-
-      let changed = false;
-      const next = { ...prev };
-
-      keys.forEach((key) => {
-        const persisted =
-          (oldRefractionData as Record<string, unknown>)[key]?.toString() || "";
-        if (persisted === prev[key]) {
-          delete next[key];
-          changed = true;
-        }
-      });
-
-      return changed ? next : prev;
-    });
-  }, [oldRefractionData]);
-
   const getFieldValue = (
     eye: "R" | "L" | "C",
     field: string,
@@ -146,19 +118,10 @@ export const OldRefractionTab = React.memo(function OldRefractionTab({
     const storageKey = getStorageFieldKey(eye, field);
     if (!storageKey) return "";
 
-    if (optimisticFieldValues[storageKey] !== undefined) {
-      return optimisticFieldValues[storageKey];
-    }
-
-    return (data as Record<string, unknown>)[storageKey]?.toString() || "";
+    return (data as any)[storageKey]?.toString() || "";
   };
 
   const handleChange = (eye: "R" | "L" | "C", field: string, value: string) => {
-    const storageKey = getStorageFieldKey(eye, field);
-    if (storageKey) {
-      setOptimisticFieldValues((prev) => ({ ...prev, [storageKey]: value }));
-    }
-
     if (eye !== "C" && (field === "cyl" || field === "ax")) {
       handleAxisChange(eye as "R" | "L", field as "cyl" | "ax", value);
       return;

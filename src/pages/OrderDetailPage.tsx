@@ -35,6 +35,8 @@ type OrderLens = {
   coating?: string;
   material?: string;
   supplier?: string;
+  manufacturer?: string;
+  width?: string;
 };
 
 type Frame = {
@@ -577,6 +579,12 @@ export default function OrderDetailPage({
             }
             const billingData = await getBillingByOrderId(Number(orderId));
             setBilling(billingData || null);
+            if (billingData) {
+              setBillingFormData((prev) => ({
+                ...prev,
+                ...billingData,
+              }));
+            }
             if (billingData && billingData.id) {
               const orderLineItemsData = await getOrderLineItemsByBillingId(
                 billingData.id,
@@ -612,6 +620,12 @@ export default function OrderDetailPage({
               Number(orderId),
             );
             setBilling(billingData || null);
+            if (billingData) {
+              setBillingFormData((prev) => ({
+                ...prev,
+                ...billingData,
+              }));
+            }
             if (billingData && billingData.id) {
               const orderLineItemsData = await getOrderLineItemsByBillingId(
                 billingData.id,
@@ -627,6 +641,7 @@ export default function OrderDetailPage({
               );
               setOrderLineItems([]);
             }
+            setIsEditing(false);
           }
         } else if (examId) {
           const examData = await getExamById(Number(examId));

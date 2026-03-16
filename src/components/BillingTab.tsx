@@ -27,18 +27,41 @@ export function BillingTab({
   handleDeleteOrderLineItem
 }: BillingTabProps) {
   const [editingLineId, setEditingLineId] = useState<number | null>(null);
-  const [newLineItem, setNewLineItem] = useState<Partial<OrderLineItem>>({});
-  const [isAddingNewLine, setIsAddingNewLine] = useState(false);
+
+  // Auto-calculate total from line items
+  React.useEffect(() => {
+    if (!isEditing) return;
+
+    const sum = orderLineItems.reduce((acc, item) => acc + (item.line_total || 0), 0);
+    if (Math.abs(sum - (billingFormData.total_before_discount || 0)) > 0.01) {
+      setBillingFormData(prev => {
+        const next = { ...prev, total_before_discount: sum };
+        // Recalculate after discount
+        if (next.discount_percent) {
+          const discountAmount = (sum * next.discount_percent) / 100;
+          next.discount_amount = Math.round(discountAmount * 100) / 100;
+          next.total_after_discount = sum - discountAmount;
+        } else if (next.discount_amount) {
+          next.total_after_discount = sum - next.discount_amount;
+          const discountPercent = (next.discount_amount / sum) * 100;
+          next.discount_percent = isNaN(discountPercent) ? undefined : Math.round(discountPercent * 100) / 100;
+        } else {
+          next.total_after_discount = sum;
+        }
+        return next;
+      });
+    }
+  }, [orderLineItems, isEditing]);
 
   const handleBillingInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
-    
+
     const numericFields = ['total_before_discount', 'discount_amount', 'discount_percent', 'total_after_discount', 'prepayment_amount', 'installment_count'];
     if (numericFields.includes(name)) {
       const numValue = parseFloat(value);
       setBillingFormData(prev => {
         const newData = { ...prev, [name]: value === '' || isNaN(numValue) ? undefined : numValue };
-        
+
         if (name === 'discount_amount' && newData.total_before_discount) {
           const discountPercent = (numValue / newData.total_before_discount) * 100;
           newData.discount_percent = isNaN(discountPercent) ? undefined : Math.round(discountPercent * 100) / 100;
@@ -58,7 +81,7 @@ export function BillingTab({
             newData.discount_percent = Math.round(discountPercent * 100) / 100;
           }
         }
-        
+
         return newData;
       });
     } else {
@@ -66,87 +89,53 @@ export function BillingTab({
     }
   };
 
-  const handleLineItemChange = (id: number | 'new', field: keyof OrderLineItem, value: string) => {
-    if (id === 'new') {
-      setNewLineItem(prev => {
-        const newItem = { ...prev };
+  const handleLineItemChange = (id: number, field: keyof OrderLineItem, value: string) => {
+    setOrderLineItems(prev => prev.map(item => {
+      if (item.id === id) {
+        const updatedItem = { ...item };
         const numericFields = ['price', 'quantity', 'discount'];
         if (numericFields.includes(field)) {
           const numValue = parseFloat(value);
-          (newItem as any)[field] = value === '' || isNaN(numValue) ? undefined : numValue;
+          (updatedItem as any)[field] = value === '' || isNaN(numValue) ? undefined : numValue;
         } else if (field === 'supplied') {
-          (newItem as any)[field] = value === 'true';
+          (updatedItem as any)[field] = value === 'true';
         } else {
-          (newItem as any)[field] = value;
+          (updatedItem as any)[field] = value;
         }
-        
+
         if (field === 'price' || field === 'quantity' || field === 'discount') {
-          const price = newItem.price || 0;
-          const quantity = newItem.quantity || 0;
-          const discount = newItem.discount || 0;
-          newItem.line_total = (price * quantity) - discount;
+          const price = updatedItem.price || 0;
+          const quantity = updatedItem.quantity || 0;
+          const discount = updatedItem.discount || 0;
+          updatedItem.line_total = (price * quantity) - discount;
         }
-        
-        return newItem;
-      });
-    } else {
-      setOrderLineItems(prev => prev.map(item => {
-        if (item.id === id) {
-          const updatedItem = { ...item };
-          const numericFields = ['price', 'quantity', 'discount'];
-          if (numericFields.includes(field)) {
-            const numValue = parseFloat(value);
-            (updatedItem as any)[field] = value === '' || isNaN(numValue) ? undefined : numValue;
-          } else if (field === 'supplied') {
-            (updatedItem as any)[field] = value === 'true';
-          } else {
-            (updatedItem as any)[field] = value;
-          }
-          
-          if (field === 'price' || field === 'quantity' || field === 'discount') {
-            const price = updatedItem.price || 0;
-            const quantity = updatedItem.quantity || 0;
-            const discount = updatedItem.discount || 0;
-            updatedItem.line_total = (price * quantity) - discount;
-          }
-          
-          return updatedItem;
-        }
-        return item;
-      }));
-    }
+
+        return updatedItem;
+      }
+      return item;
+    }));
   };
 
   const addNewLineItem = () => {
-    console.log("addNewLineItem called with:", newLineItem);
-    console.log("Current orderLineItems:", orderLineItems);
-    console.log("Description check:", newLineItem.description, newLineItem.description?.trim());
+    const tempId = -(Math.max(0, ...orderLineItems.map(item => Math.abs(item.id || 0))) + 1);
+    const itemToAdd: OrderLineItem = {
+      id: tempId,
+      billings_id: billingFormData.id || 0,
+      description: '',
+      sku: '',
+      price: 0,
+      quantity: 1,
+      discount: 0,
+      supplied_by: '',
+      supplied: false,
+      line_total: 0
+    };
     
-    if (newLineItem.description && newLineItem.description.trim() !== '') {
-      const tempId = -(Math.max(0, ...orderLineItems.map(item => Math.abs(item.id || 0))) + 1);
-      const itemToAdd: OrderLineItem = {
-        id: tempId,
-        billings_id: billingFormData.id || 0,
-        description: newLineItem.description,
-        sku: newLineItem.sku || '',
-        price: newLineItem.price || 0,
-        quantity: newLineItem.quantity || 1,
-        discount: newLineItem.discount || 0,
-        supplied_by: newLineItem.supplied_by || '',
-        supplied: newLineItem.supplied || false,
-        line_total: newLineItem.line_total || 0
-      };
-      console.log("Adding new line item:", itemToAdd);
-      setOrderLineItems(prev => {
-        const newItems = [...prev, itemToAdd];
-        console.log("New orderLineItems array:", newItems);
-        return newItems;
-      });
-      setNewLineItem({});
-      setIsAddingNewLine(false);
-    } else {
-      console.warn("Cannot add line item: description is missing or empty");
-    }
+    setOrderLineItems(prev => {
+      const newItems = [...prev, itemToAdd];
+      return newItems;
+    });
+    setEditingLineId(tempId);
   };
 
   const deleteLineItem = (id: number) => {
@@ -154,19 +143,18 @@ export function BillingTab({
   };
 
   return (
-    <div className="pt-4 pb-10" style={{scrollbarWidth: 'none', msOverflowStyle: 'none'}}>
+    <div className="pt-4 pb-10" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
 
       <Card className="shadow-md">
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-base">פריטי חיוב</CardTitle>
-          <Button 
-            variant="outline" 
-            size="sm" 
+          <Button
+            variant="outline"
+            size="sm"
             onClick={() => {
-              console.log("Plus button clicked, isEditing:", isEditing, "isAddingNewLine:", isAddingNewLine);
-              setIsAddingNewLine(true);
+              addNewLineItem();
             }}
-            disabled={!isEditing || isAddingNewLine}
+            disabled={!isEditing || editingLineId !== null}
             className="h-8"
           >
             <Plus className="h-4 w-4 ml-1" />
@@ -349,109 +337,6 @@ export function BillingTab({
                     </td>
                   </tr>
                 ))}
-                {isAddingNewLine && (
-                  <tr className="border-b rounded-md bg-gray-50">
-                    <td className="p-2">
-                      <Input
-                        value={newLineItem.description || ''}
-                        onChange={(e) => handleLineItemChange('new', 'description', e.target.value)}
-                        placeholder="תיאור"
-                        className="h-8 text-xs w-full"
-                      />
-                    </td>
-                    <td className="p-2">
-                      <Input
-                        value={newLineItem.sku || ''}
-                        onChange={(e) => handleLineItemChange('new', 'sku', e.target.value)}
-                        placeholder="SKU"
-                        className="h-8 text-xs w-full"
-                      />
-                    </td>
-                    <td className="p-2">
-                      <Input
-                        type="number"
-                        step="0.01"
-                        value={newLineItem.price || ''}
-                        onChange={(e) => handleLineItemChange('new', 'price', e.target.value)}
-                        placeholder="0.00"
-                        className="h-8 text-xs w-full"
-                      />
-                    </td>
-                    <td className="p-2">
-                      <Input
-                        type="number"
-                        value={newLineItem.quantity || ''}
-                        onChange={(e) => handleLineItemChange('new', 'quantity', e.target.value)}
-                        placeholder="1"
-                        className="h-8 text-xs w-full"
-                      />
-                    </td>
-                    <td className="p-2">
-                      <Input
-                        type="number"
-                        step="0.01"
-                        value={newLineItem.discount || ''}
-                        onChange={(e) => handleLineItemChange('new', 'discount', e.target.value)}
-                        placeholder="0.00"
-                        className="h-8 text-xs w-full"
-                      />
-                    </td>
-                    <td className="p-2">
-                      <Select
-                        value={newLineItem.supplied_by || ''}
-                        onValueChange={(value) => handleLineItemChange('new', 'supplied_by', value)}
-                      >
-                        <SelectTrigger className="h-8 text-xs w-full">
-                          <SelectValue placeholder="בחר" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="חנות" className="text-sm">חנות</SelectItem>
-                          <SelectItem value="לקוח" className="text-sm">לקוח</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </td>
-                    <td className="p-2">
-                      <Select
-                        value={newLineItem.supplied ? 'true' : 'false'}
-                        onValueChange={(value) => handleLineItemChange('new', 'supplied', value)}
-                      >
-                        <SelectTrigger className="h-8 text-xs w-full">
-                          <SelectValue placeholder="בחר" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="true" className="text-sm">כן</SelectItem>
-                          <SelectItem value="false" className="text-sm">לא</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </td>
-                    <td className="p-2">
-                      <span className="block w-full text-sm truncate">{newLineItem.line_total?.toFixed(2) || '0.00'}</span>
-                    </td>
-                    <td className="p-2">
-                      <div className="flex gap-1">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={addNewLineItem}
-                          className="h-6 w-6 p-0"
-                        >
-                          <Save className="h-3 w-3" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => {
-                            setIsAddingNewLine(false);
-                            setNewLineItem({});
-                          }}
-                          className="h-6 w-6 p-0"
-                        >
-                          <X className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                )}
               </tbody>
             </table>
           </div>
@@ -502,29 +387,29 @@ export function BillingTab({
               </div>
               <div>
                 <Label className="text-sm">הנחה (₪)</Label>
-                  <Input
-                    name="discount_amount"
-                    type="number"
-                    step="0.01"
-                    value={billingFormData.discount_amount || ''}
-                    onChange={handleBillingInputChange}
-                    disabled={!isEditing}
-                    className="flex-1"
-                    placeholder="0.00"
-                  />
+                <Input
+                  name="discount_amount"
+                  type="number"
+                  step="0.01"
+                  value={billingFormData.discount_amount || ''}
+                  onChange={handleBillingInputChange}
+                  disabled={!isEditing}
+                  className="flex-1"
+                  placeholder="0.00"
+                />
               </div>
               <div>
                 <Label className="text-sm">הנחה (%)</Label>
-                  <Input
-                    name="discount_percent"
-                    type="number"
-                    step="0.01"
-                    value={billingFormData.discount_percent || ''}
-                    onChange={handleBillingInputChange}
-                    disabled={!isEditing}
-                    className="flex-1"
-                    placeholder="0%"
-                  />
+                <Input
+                  name="discount_percent"
+                  type="number"
+                  step="0.01"
+                  value={billingFormData.discount_percent || ''}
+                  onChange={handleBillingInputChange}
+                  disabled={!isEditing}
+                  className="flex-1"
+                  placeholder="0%"
+                />
               </div>
 
               <div>
@@ -545,6 +430,7 @@ export function BillingTab({
         </Card>
         <div className="h-full col-span-2">
           <NotesCard
+            height="full"
             title="הערות"
             value={billingFormData.notes || ''}
             onChange={(value) => setBillingFormData(prev => ({ ...prev, notes: value }))}

@@ -109,7 +109,7 @@ export function ToggleTextNumberInput({
 
   const dynamicTextWidth =
     isShownAsText && textWidthPx !== null
-      ? Math.max(textWidthPx + 48, 72)
+      ? Math.max(textWidthPx + 32, 64)
       : null;
 
   const commitSelectChange = (label: string) => {
@@ -130,7 +130,7 @@ export function ToggleTextNumberInput({
   return (
     <div
       className={cn(
-        "relative h-8",
+        "relative h-8 transition-[width] duration-300 ease-in-out overflow-hidden rounded-md",
         isShownAsText ? "w-fit max-w-full" : "w-full",
         className,
       )}
@@ -169,7 +169,8 @@ export function ToggleTextNumberInput({
         }}
         disabled={disabled}
         className={cn(
-          isShownAsText ? "pr-0 pl-6 text-left font-medium" : "pr-1 pl-7",
+          "transition-all duration-300 ease-in-out",
+          isShownAsText ? "pr-1 pl-[18px] text-left font-medium" : "pr-1 pl-5",
           numericProps?.className,
         )}
       />
@@ -182,17 +183,21 @@ export function ToggleTextNumberInput({
       >
         <SelectTrigger
           className={cn(
-            "absolute top-0 left-0 z-10 max-h-8 w-5 rounded-tl-md rounded-bl-md border-none bg-transparent p-0 shadow-none focus:ring-0 focus:ring-offset-0",
+            "absolute top-0 left-0 z-10 max-h-full h-full w-[14px] rounded-tl-md rounded-bl-md border-none bg-transparent p-0 shadow-none focus:ring-0 focus:ring-offset-0 transition-colors duration-200 ease-in-out flex items-center justify-center",
             selectValue
-              ? "text-primary bg-primary/5"
-              : "text-muted-foreground/30",
-            !disabled && "hover:text-accent-foreground hover:bg-accent",
+              ? "text-primary bg-primary/5 hover:bg-primary/10"
+              : "text-muted-foreground/30 hover:bg-accent/50 hover:text-muted-foreground/50",
           )}
           hideIcon
           noBorder
           aria-label="Choose text preset"
         >
-          <ChevronDown size={8} />
+          <ChevronDown 
+            className={cn(
+              "size-2.5 transition-transform duration-300 ease-in-out",
+              open && "rotate-180"
+            )} 
+          />
         </SelectTrigger>
         <SelectContent className="w-fit min-w-16" sideOffset={4}>
           {textOptions.map((opt) => (

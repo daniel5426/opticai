@@ -71,7 +71,7 @@ export function NotesCard({
 
   return (
     <Card
-      className={`w-full px-4 pt-3 pb-4 gap-2 transition-all duration-500 ease-in-out relative overflow-hidden group/card ${isShowingHidden ? 'bg-zinc-900 text-zinc-100 border-zinc-800' : ''
+      className={`w-full px-4 ${height && height == 'full' ? 'h-full' : undefined} pt-3 pb-4 gap-2 transition-all duration-500 ease-in-out relative overflow-hidden group/card ${isShowingHidden ? 'bg-zinc-900 text-zinc-100 border-zinc-800' : ''
         }`}
       dir="rtl"
     >

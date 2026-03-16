@@ -81,6 +81,7 @@ import { ExamDetailsCard } from "@/components/exam/ExamDetailsCard";
 import { NotesCard } from "@/components/ui/notes-card";
 import { OrdersHistoryModal } from "@/components/exam/OrdersHistoryModal";
 import { Order } from "@/lib/db/schema-interface";
+import { inputSyncManager } from "./shared/OptimizedInputs";
 
 // Renaming for consistency within the component props
 type Exam = OpticalExam;
@@ -122,38 +123,38 @@ const componentsDontHaveMiddleRow: CardItem["type"][] = [
 export interface CardItem {
   id: string;
   type:
-    | "old-ref"
-    | "old-refraction"
-    | "old-refraction-extension"
-    | "objective"
-    | "subjective"
-    | "final-subjective"
-    | "final-prescription"
-    | "compact-prescription"
-    | "addition"
-    | "retinoscop"
-    | "retinoscop-dilation"
-    | "uncorrected-va"
-    | "keratometer"
-    | "keratometer-full"
-    | "corneal-topography"
-    | "cover-test"
-    | "notes"
-    | "anamnesis"
-    | "schirmer-test"
-    | "contact-lens-diameters"
-    | "contact-lens-details"
-    | "keratometer-contact-lens"
-    | "contact-lens-exam"
-    | "sensation-vision-stability"
-    | "diopter-adjustment-panel"
-    | "fusion-range"
-    | "maddox-rod"
-    | "stereo-test"
-    | "rg"
-    | "ocular-motor-assessment"
-    | "old-contact-lenses"
-    | "over-refraction";
+  | "old-ref"
+  | "old-refraction"
+  | "old-refraction-extension"
+  | "objective"
+  | "subjective"
+  | "final-subjective"
+  | "final-prescription"
+  | "compact-prescription"
+  | "addition"
+  | "retinoscop"
+  | "retinoscop-dilation"
+  | "uncorrected-va"
+  | "keratometer"
+  | "keratometer-full"
+  | "corneal-topography"
+  | "cover-test"
+  | "notes"
+  | "anamnesis"
+  | "schirmer-test"
+  | "contact-lens-diameters"
+  | "contact-lens-details"
+  | "keratometer-contact-lens"
+  | "contact-lens-exam"
+  | "sensation-vision-stability"
+  | "diopter-adjustment-panel"
+  | "fusion-range"
+  | "maddox-rod"
+  | "stereo-test"
+  | "rg"
+  | "ocular-motor-assessment"
+  | "old-contact-lenses"
+  | "over-refraction";
   showEyeLabels?: boolean;
   title?: string;
 }
@@ -328,7 +329,7 @@ const getFieldHandler = (
       value: string | boolean | number | null,
     ) => void;
   }
-  return (() => {}) as (
+  return (() => { }) as (
     field: string,
     value: string | boolean | number | null,
   ) => void;
@@ -760,49 +761,69 @@ export const ExamCardRenderer = React.memo<RenderCardProps>(
       setIsOrdersHistoryOpen(false);
       if (!order.order_data || item.type !== "old-refraction") return;
 
-      // Identify target tab
-      const oldRefTabs = detailProps?.oldRefractionTabs?.[item.id] || [];
-      const activeTabId =
-        detailProps?.activeOldRefractionTabs?.[item.id] ||
-        (oldRefTabs.length > 0 ? oldRefTabs[0] : undefined);
+      // Flush any pending changes from currently blurred/typing inputs
+      inputSyncManager.flush();
 
-      const tabId = activeTabId;
+      // Identify target tab robustly using same logic as render
+      const oldRefTabs = detailProps?.oldRefractionTabs?.[item.id] || [];
+      const requestedActiveTabId = detailProps?.activeOldRefractionTabs?.[item.id];
+      const tabId =
+        requestedActiveTabId && oldRefTabs.includes(requestedActiveTabId)
+          ? requestedActiveTabId
+          : oldRefTabs.length > 0
+            ? oldRefTabs[0]
+            : undefined;
+
       const targetKey = tabId
         ? `old-refraction-${item.id}-${tabId}`
         : undefined;
 
-      if (!targetKey) return;
+      if (!targetKey) {
+        console.error("No target key found for ingestion", { tabId, itemId: item.id });
+        return;
+      }
 
-      const handler = detailProps?.fieldHandlers?.[targetKey];
       const setFormData = detailProps?.setExamFormData;
-
       if (!setFormData) {
         toast.error("Error: Could not access form data setter");
         return;
       }
 
       const isContact = order.type === "עדשות מגע" || (order as any).__contact;
-      const orderData = order.order_data || {};
+      let orderDataRaw = order.order_data || {};
+      if (typeof orderDataRaw === 'string') {
+        try { orderDataRaw = JSON.parse(orderDataRaw); } catch(e) {}
+      }
+      const orderData = orderDataRaw || {};
 
       let sourceData: any = {};
       if (isContact) {
-        sourceData = orderData["contact-lens-exam"] || {};
+        sourceData = (orderData["contact-lens-exam"] && Object.keys(orderData["contact-lens-exam"]).length > 0)
+          ? orderData["contact-lens-exam"]
+          : (orderData["final-prescription"] && Object.keys(orderData["final-prescription"]).length > 0)
+            ? orderData["final-prescription"]
+            : orderData;
       } else {
-        sourceData = orderData["final-prescription"] || {};
+        sourceData = (orderData["final-prescription"] && Object.keys(orderData["final-prescription"]).length > 0)
+          ? orderData["final-prescription"]
+          : (orderData["contact-lens-exam"] && Object.keys(orderData["contact-lens-exam"]).length > 0)
+            ? orderData["contact-lens-exam"]
+            : orderData;
       }
 
       // Perform bulk update
       setFormData((prev) => {
         const prevTab = (prev[targetKey] as any) || {};
-        const nextTab = { ...prevTab };
+        const activeTabIndex = tabId ? oldRefTabs.indexOf(tabId) : 0;
 
-        // Ensure layout_instance_id is set
-        if (
-          nextTab.layout_instance_id == null &&
-          detailProps?.layoutInstanceId != null
-        ) {
-          nextTab.layout_instance_id = detailProps.layoutInstanceId;
-        }
+        // Construct next tab, preserving existing metadata
+        const nextTab = {
+          ...prevTab,
+          card_id: item.id,
+          card_instance_id: tabId,
+          tab_index: activeTabIndex >= 0 ? activeTabIndex : 0,
+          layout_instance_id: prevTab.layout_instance_id ?? detailProps.layoutInstanceId
+        };
 
         const updateFieldRaw = (key: string, value: any) => {
           if (value !== undefined && value !== null) {
@@ -810,24 +831,31 @@ export const ExamCardRenderer = React.memo<RenderCardProps>(
           }
         };
 
-        // Map fields
+        // Map standard fields
         ["r_sph", "l_sph", "r_cyl", "l_cyl", "r_ax", "l_ax"].forEach((key) => {
           updateFieldRaw(key, sourceData[key]);
         });
 
+        // Map prism fields (if not contact)
         if (!isContact) {
           ["r_pris", "l_pris", "r_base", "l_base"].forEach((key) => {
             updateFieldRaw(key, sourceData[key]);
           });
         }
 
+        // Map ADD and VA/J fields
         if (isContact) {
-          if (sourceData["r_read_ad"] !== undefined)
-            updateFieldRaw("r_ad", sourceData["r_read_ad"]);
-          if (sourceData["l_read_ad"] !== undefined)
-            updateFieldRaw("l_ad", sourceData["l_read_ad"]);
+          // Contact lens orders use read_ad/va/j
+          if (sourceData["r_read_ad"] !== undefined) updateFieldRaw("r_ad", sourceData["r_read_ad"]);
+          if (sourceData["l_read_ad"] !== undefined) updateFieldRaw("l_ad", sourceData["l_read_ad"]);
+          if (sourceData["r_va"] !== undefined) updateFieldRaw("r_va", sourceData["r_va"]);
+          if (sourceData["l_va"] !== undefined) updateFieldRaw("l_va", sourceData["l_va"]);
+          if (sourceData["r_j"] !== undefined) updateFieldRaw("r_j", sourceData["r_j"]);
+          if (sourceData["l_j"] !== undefined) updateFieldRaw("l_j", sourceData["l_j"]);
+          if (sourceData["comb_va"] !== undefined) updateFieldRaw("comb_va", sourceData["comb_va"]);
         } else {
-          ["r_ad", "l_ad"].forEach((key) => {
+          // Regular orders use r_ad/r_va etc
+          ["r_ad", "l_ad", "r_va", "l_va", "comb_va"].forEach((key) => {
             updateFieldRaw(key, sourceData[key]);
           });
         }
@@ -856,12 +884,12 @@ export const ExamCardRenderer = React.memo<RenderCardProps>(
           currentRowIndex={currentRowIndex}
           currentCardIndex={currentCardIndex}
           clipboardSourceType={clipboardSourceType || null}
-          onClearData={onClearData || (() => {})}
-          onCopy={onCopy || (() => {})}
-          onPaste={onPaste || (() => {})}
-          onCopyLeft={onCopyLeft || (() => {})}
-          onCopyRight={onCopyRight || (() => {})}
-          onCopyBelow={onCopyBelow || (() => {})}
+          onClearData={onClearData || (() => { })}
+          onCopy={onCopy || (() => { })}
+          onPaste={onPaste || (() => { })}
+          onCopyLeft={onCopyLeft || (() => { })}
+          onCopyRight={onCopyRight || (() => { })}
+          onCopyBelow={onCopyBelow || (() => { })}
           onShowOrdersHistory={
             item.type === "old-refraction"
               ? () => setIsOrdersHistoryOpen(true)
@@ -956,17 +984,17 @@ export const ExamCardRenderer = React.memo<RenderCardProps>(
     const legacyHandlers =
       mode === "detail"
         ? {
-            handleMultifocalOldRefraction:
-              detailProps!.handleMultifocalOldRefraction,
-            handleVHConfirmOldRefraction:
-              detailProps!.handleVHConfirmOldRefraction,
-            handleVHConfirm: detailProps!.handleVHConfirm,
-            handleMultifocalSubjective: detailProps!.handleMultifocalSubjective,
-            handleFinalSubjectiveVHConfirm:
-              detailProps!.handleFinalSubjectiveVHConfirm,
-            handleMultifocalOldRefractionExtension:
-              detailProps!.handleMultifocalOldRefractionExtension,
-          }
+          handleMultifocalOldRefraction:
+            detailProps!.handleMultifocalOldRefraction,
+          handleVHConfirmOldRefraction:
+            detailProps!.handleVHConfirmOldRefraction,
+          handleVHConfirm: detailProps!.handleVHConfirm,
+          handleMultifocalSubjective: detailProps!.handleMultifocalSubjective,
+          handleFinalSubjectiveVHConfirm:
+            detailProps!.handleFinalSubjectiveVHConfirm,
+          handleMultifocalOldRefractionExtension:
+            detailProps!.handleMultifocalOldRefractionExtension,
+        }
         : {};
 
     const getExamData = (type: ExamComponentType, cardInstanceId?: string) => {
@@ -1070,7 +1098,7 @@ export const ExamCardRenderer = React.memo<RenderCardProps>(
 
         return getFieldHandler(detailProps.fieldHandlers, type);
       }
-      return () => {};
+      return () => { };
     };
 
     // Move hooks to top level
@@ -1179,10 +1207,10 @@ export const ExamCardRenderer = React.memo<RenderCardProps>(
               onOldRefractionChange={onOldRefChange}
               isEditing={mode === "detail" ? detailProps!.isEditing : false}
               onMultifocalClick={
-                legacyHandlers.handleMultifocalOldRefraction || (() => {})
+                legacyHandlers.handleMultifocalOldRefraction || (() => { })
               }
               onVHConfirm={
-                legacyHandlers.handleVHConfirmOldRefraction || (() => {})
+                legacyHandlers.handleVHConfirmOldRefraction || (() => { })
               }
               hideEyeLabels={finalHideEyeLabels}
               tabCount={oldRefTabs.length}
@@ -1238,7 +1266,7 @@ export const ExamCardRenderer = React.memo<RenderCardProps>(
               isEditing={mode === "detail" ? detailProps!.isEditing : false}
               onMultifocalClick={
                 legacyHandlers.handleMultifocalOldRefractionExtension ||
-                (() => {})
+                (() => { })
               }
               hideEyeLabels={finalHideEyeLabels}
             />
@@ -1278,10 +1306,10 @@ export const ExamCardRenderer = React.memo<RenderCardProps>(
               isEditing={mode === "detail" ? detailProps!.isEditing : false}
               onVHConfirm={
                 (legacyHandlers as unknown as DetailProps).handleVHConfirm ||
-                (() => {})
+                (() => { })
               }
               onMultifocalClick={
-                legacyHandlers.handleMultifocalSubjective || (() => {})
+                legacyHandlers.handleMultifocalSubjective || (() => { })
               }
               hideEyeLabels={finalHideEyeLabels}
             />
@@ -1304,7 +1332,7 @@ export const ExamCardRenderer = React.memo<RenderCardProps>(
               )}
               isEditing={mode === "detail" ? detailProps!.isEditing : false}
               onVHConfirm={
-                legacyHandlers.handleFinalSubjectiveVHConfirm || (() => {})
+                legacyHandlers.handleFinalSubjectiveVHConfirm || (() => { })
               }
               hideEyeLabels={finalHideEyeLabels}
             />
@@ -1513,11 +1541,11 @@ export const ExamCardRenderer = React.memo<RenderCardProps>(
                   mode === "editor"
                     ? item.title
                     : (
-                        getExamData(
-                          "corneal-topography",
-                          item.id,
-                        ) as CornealTopographyExam
-                      ).title,
+                      getExamData(
+                        "corneal-topography",
+                        item.id,
+                      ) as CornealTopographyExam
+                    ).title,
               }}
               onCornealTopographyChange={getChangeHandler(
                 "corneal-topography",
@@ -2083,11 +2111,25 @@ export const ExamCardRenderer = React.memo<RenderCardProps>(
         const nextTabs = next.detailProps.oldRefractionTabs?.[id] || [];
         if (prevTabs.length !== nextTabs.length) return false;
 
-        const prevActiveId = prev.detailProps.activeOldRefractionTabs?.[id];
-        const nextActiveId = next.detailProps.activeOldRefractionTabs?.[id];
+        const nextActiveIdProp = next.detailProps.activeOldRefractionTabs?.[id];
+        const nextActiveId =
+          nextActiveIdProp && nextTabs.includes(nextActiveIdProp)
+            ? nextActiveIdProp
+            : nextTabs.length > 0
+              ? nextTabs[0]
+              : undefined;
+
+        const prevActiveIdProp = prev.detailProps.activeOldRefractionTabs?.[id];
+        const prevActiveId =
+          prevActiveIdProp && prevTabs.includes(prevActiveIdProp)
+            ? prevActiveIdProp
+            : prevTabs.length > 0
+              ? prevTabs[0]
+              : undefined;
+
         if (prevActiveId !== nextActiveId) return false;
 
-        // Check current tab data
+        // Check resolved active tab data
         if (nextActiveId) {
           const key = `old-refraction-${id}-${nextActiveId}`;
           if (prevData[key] !== nextData[key]) return false;
@@ -2100,8 +2142,20 @@ export const ExamCardRenderer = React.memo<RenderCardProps>(
         const nextTabs = next.detailProps.coverTestTabs?.[id] || [];
         if (prevTabs.length !== nextTabs.length) return false;
 
-        const prevActiveIdx = prev.detailProps.activeCoverTestTabs?.[id];
-        const nextActiveIdx = next.detailProps.activeCoverTestTabs?.[id];
+        const nextActiveIdx =
+          next.detailProps.activeCoverTestTabs?.[id] !== undefined
+            ? next.detailProps.activeCoverTestTabs?.[id]
+            : nextTabs.length > 0
+              ? 0
+              : undefined;
+
+        const prevActiveIdx =
+          prev.detailProps.activeCoverTestTabs?.[id] !== undefined
+            ? prev.detailProps.activeCoverTestTabs?.[id]
+            : prevTabs.length > 0
+              ? 0
+              : undefined;
+
         if (prevActiveIdx !== nextActiveIdx) return false;
 
         if (nextActiveIdx !== undefined) {

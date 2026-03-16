@@ -90,9 +90,8 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
     const isNumeric = isNumericInput || inputMode === "decimal" || inputMode === "numeric"
     const effectiveDir = dir ?? (isNumeric ? "ltr" : "rtl")
 
-    // Get precision from step prop (e.g., step="0.25" = 2 decimals)
     const stepPrecision = React.useMemo(() => {
-      if (!props.step) return 2
+      if (!props.step) return 0
       const stepStr = props.step.toString()
       const decimal = stepStr.split(".")[1]
       return decimal?.length ?? 0
@@ -146,10 +145,9 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
 
       let newVal: number;
       if (isNumericInput) {
-        // For numeric inputs, manually calculate the step to support signed formatting and trailing dots
         const rawValue = input.value
         const parsed = parseSignedNumber(rawValue)
-        const step = parseFloat(props.step as string) || 0.25
+        const step = parseFloat(props.step as string) || 1
         const minValue = props.min !== undefined ? parseFloat(props.min as string) : undefined
         const hasValue = rawValue !== "" && !isNaN(parsed)
 
@@ -165,7 +163,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
 
         // Format with sign and proper precision
         const formatted = formatSignedNumber(newVal, !!showPlus, stepPrecision)
-        
+
         // Use native setter to ensure React's onChange is triggered
         const nativeValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")?.set
         nativeValueSetter?.call(input, formatted)
@@ -181,7 +179,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
           const currentVal = parseFloat(input.value) || 0
           const step = parseFloat(props.step as string) || 1
           newVal = increment ? currentVal + step : currentVal - step
-          
+
           const nativeValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")?.set
           nativeValueSetter?.call(input, newVal.toString())
           setLocalValue(input.value)
@@ -254,7 +252,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
               val = cleanSignedNumberInput(val)
             }
 
-            e.currentTarget.value = val 
+            e.currentTarget.value = val
             setLocalValue(val)
             props.onInput?.(e)
           }}
@@ -281,12 +279,10 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
           }}
           onBlur={(e) => {
             let val = localValue
-            if (val !== "") {
+            if (val !== "" && isNumericInput) {
               const num = parseSignedNumber(val)
               if (!isNaN(num)) {
-                const finalValue = isNumericInput 
-                  ? formatSignedNumber(num, !!showPlus, stepPrecision)
-                  : num.toString()
+                const finalValue = formatSignedNumber(num, !!showPlus, stepPrecision)
 
                 if (finalValue !== val) {
                   setLocalValue(finalValue)
