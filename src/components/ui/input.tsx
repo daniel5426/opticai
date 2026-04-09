@@ -10,6 +10,9 @@ interface InputProps extends React.ComponentProps<"input"> {
   suffix?: string
   prefix?: string
   center?: boolean
+  leadingOverlay?: React.ReactNode
+  leadingOverlayWidth?: number
+  showLeadingOverlay?: boolean
 }
 
 /**
@@ -73,7 +76,20 @@ function cleanSignedNumberInput(value: string): string {
 }
 
 const Input = React.forwardRef<HTMLInputElement, InputProps>(
-  ({ className, noBorder, type, showPlus, suffix, prefix, center, dir, ...props }, ref) => {
+  ({
+    className,
+    noBorder,
+    type,
+    showPlus,
+    suffix,
+    prefix,
+    center,
+    dir,
+    leadingOverlay,
+    leadingOverlayWidth = 12,
+    showLeadingOverlay = false,
+    ...props
+  }, ref) => {
     const internalRef = React.useRef<HTMLInputElement>(null)
     React.useImperativeHandle(ref, () => internalRef.current!)
 
@@ -215,8 +231,29 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
         || (maxValue !== undefined && !isNaN(maxValue) && numericValue > maxValue))
     const ariaInvalid = props["aria-invalid"] ?? isOutOfRange
 
+    const hasLeadingOverlay = !!leadingOverlay
+
     return (
-      <div dir={effectiveDir} className={cn("group w-full flex items-center", (prefix || suffix || showButtons) ? "relative" : "")}>
+      <div
+        dir={effectiveDir}
+        className={cn(
+          "group w-full flex items-center",
+          (prefix || suffix || showButtons || hasLeadingOverlay) ? "relative" : "",
+        )}
+      >
+        {hasLeadingOverlay && (
+          <div
+            className={cn(
+              "absolute left-px top-px bottom-px z-20 overflow-hidden rounded-l-md border-r border-input bg-card",
+              "transition-opacity duration-200 ease-out",
+              "group-hover:opacity-100",
+              showLeadingOverlay ? "opacity-100" : "opacity-0",
+            )}
+            style={{ width: `${leadingOverlayWidth}px` }}
+          >
+            {leadingOverlay}
+          </div>
+        )}
         {prefix && (
           <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none z-10 font-medium">
             {prefix}
@@ -235,7 +272,9 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
             "focus-visible:outline-none focus-visible:border-ring ring-0 outline-none",
             "aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive",
             "[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none",
-            prefix ? "pl-5.5" : "px-1",
+            hasLeadingOverlay
+              ? ""
+              : prefix ? "pl-5.5" : "px-1",
             suffix ? "pr-5.5" : "",
             className
           )}

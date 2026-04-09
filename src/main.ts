@@ -4,8 +4,11 @@ import path from "path";
 
 // Load the appropriate .env file based on environment
 if (process.env.NODE_ENV === 'production') {
-  // In production, load .env.production from extraResources
-  const envPath = path.join(process.resourcesPath, '.env.production');
+  // In production, load the packaged runtime env for the current platform.
+  const runtimeEnvFile = process.platform === 'win32'
+    ? '.env.windows.production'
+    : '.env.production';
+  const envPath = path.join(process.resourcesPath, runtimeEnvFile);
   dotenv.config({ path: envPath });
   console.log('Loading production environment from:', envPath);
 } else {
@@ -15,7 +18,7 @@ if (process.env.NODE_ENV === 'production') {
   console.log('Loading development environment');
 }
 
-import { app, BrowserWindow, ipcMain, dialog } from "electron";
+import { app, BrowserWindow, ipcMain, dialog, shell } from "electron";
 import { autoUpdater } from "electron-updater";
 import { GoogleOAuthService } from './lib/google/google-oauth';
 import { GoogleCalendarService } from './lib/google/google-calendar';
@@ -38,7 +41,146 @@ import { apiClient } from "./lib/api-client";
 // Import will be done dynamically to allow hot reload
 
 const inDevelopment = process.env.NODE_ENV === "development";
+const isWindows = process.platform === 'win32';
 let mainWindow: BrowserWindow | null = null; // Store reference to the main window
+
+interface WindowsUpdateManifest {
+  version: string;
+  downloadUrl?: string;
+  pageUrl?: string;
+  releaseNotes?: string[];
+}
+
+function getWindowsDownloadPageUrl() {
+  return process.env.DOWNLOAD_PAGE_URL?.trim() || '';
+}
+
+function getWindowsUpdateFeedUrl() {
+  const configuredFeedUrl = process.env.WINDOWS_UPDATE_FEED_URL?.trim();
+  if (configuredFeedUrl) {
+    return configuredFeedUrl;
+  }
+
+  const downloadPageUrl = getWindowsDownloadPageUrl();
+  if (!downloadPageUrl) {
+    return '';
+  }
+
+  return `${downloadPageUrl.replace(/\/$/, '')}/latest.json`;
+}
+
+function compareVersions(current: string, latest: string): boolean {
+  const currentParts = current.split('.').map(Number);
+  const latestParts = latest.split('.').map(Number);
+
+  for (let index = 0; index < Math.max(currentParts.length, latestParts.length); index += 1) {
+    const currentPart = currentParts[index] || 0;
+    const latestPart = latestParts[index] || 0;
+
+    if (latestPart > currentPart) {
+      return true;
+    }
+
+    if (latestPart < currentPart) {
+      return false;
+    }
+  }
+
+  return false;
+}
+
+async function fetchWindowsUpdateManifest(): Promise<WindowsUpdateManifest> {
+  const feedUrl = getWindowsUpdateFeedUrl();
+  if (!feedUrl) {
+    throw new Error('Windows update feed URL is not configured');
+  }
+
+  const response = await fetch(feedUrl, {
+    cache: 'no-store',
+    headers: {
+      Accept: 'application/json'
+    }
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch Windows update feed (${response.status})`);
+  }
+
+  const manifest = await response.json() as WindowsUpdateManifest;
+  if (!manifest.version) {
+    throw new Error('Windows update feed is missing a version');
+  }
+
+  return manifest;
+}
+
+async function openWindowsDownloadPage(version?: string) {
+  const basePageUrl = getWindowsDownloadPageUrl();
+  if (!basePageUrl) {
+    return {
+      success: false,
+      error: 'Download page URL is not configured'
+    };
+  }
+
+  const url = new URL(basePageUrl);
+  if (version) {
+    url.searchParams.set('version', version);
+  }
+
+  await shell.openExternal(url.toString());
+
+  return {
+    success: true,
+    url: url.toString()
+  };
+}
+
+async function checkWindowsManualUpdates(showPrompt: boolean) {
+  const currentVersion = app.getVersion();
+
+  try {
+    const manifest = await fetchWindowsUpdateManifest();
+    const available = compareVersions(currentVersion, manifest.version);
+
+    if (available && showPrompt && mainWindow && !mainWindow.isDestroyed()) {
+      const result = await dialog.showMessageBox(mainWindow, {
+        type: 'info',
+        title: 'עדכון זמין',
+        message: `גרסה חדשה ${manifest.version} זמינה להורדה.`,
+        detail: 'ב-Windows העדכון מותקן ידנית. סגור את Prysm, הורד את המתקין החדש והפעל אותו.',
+        buttons: ['פתח דף הורדה', 'מאוחר יותר'],
+        defaultId: 0,
+        cancelId: 1,
+      });
+
+      if (result.response === 0) {
+        const pageUrl = manifest.pageUrl?.trim();
+        if (pageUrl) {
+          await shell.openExternal(pageUrl);
+        } else {
+          await openWindowsDownloadPage(manifest.version);
+        }
+      }
+    }
+
+    return {
+      available,
+      version: manifest.version,
+      currentVersion,
+      downloadUrl: manifest.downloadUrl,
+      downloadPageUrl: manifest.pageUrl || getWindowsDownloadPageUrl(),
+      message: available ? undefined : 'הגרסה שלך היא העדכנית ביותר'
+    };
+  } catch (error) {
+    console.error('Error checking Windows manual updates:', error);
+    return {
+      available: false,
+      currentVersion,
+      error: error instanceof Error ? error.message : 'Unknown error'
+    };
+  }
+}
 
 // Performance optimizations for production
 if (!inDevelopment) {
@@ -59,7 +201,7 @@ console.log('Main: autoUpdater.autoInstallOnAppQuit =', autoUpdater.autoInstallO
 
 // Set update server for GitHub releases
 console.log('Main: Setting up update server, inDevelopment =', inDevelopment);
-if (!inDevelopment) {
+if (!inDevelopment && !isWindows) {
   try {
     const updateConfig: any = {
       provider: 'github',
@@ -84,6 +226,8 @@ if (!inDevelopment) {
   } catch (error) {
     console.error('Main: Error setting up auto-updater:', error);
   }
+} else if (isWindows) {
+  console.log('Main: Skipping electron-updater feed setup on Windows; manual landing-page updates are enabled');
 } else {
   console.log('Main: Skipping auto-updater setup in development mode');
 }
@@ -442,6 +586,16 @@ function setupAutoUpdater() {
     return;
   }
 
+  if (isWindows) {
+    console.log('Windows detected - using landing-page update flow');
+    setTimeout(() => {
+      checkWindowsManualUpdates(true).catch((err) => {
+        console.error('Failed to check Windows manual updates:', err);
+      });
+    }, 3000);
+    return;
+  }
+
   autoUpdater.on('checking-for-update', () => {
     console.log('Checking for updates...');
   });
@@ -553,6 +707,9 @@ function setupAutoUpdater() {
 
 // IPC handler for manual update check
 ipcMain.handle('check-for-updates', async () => {
+  if (isWindows) {
+    return checkWindowsManualUpdates(false);
+  }
   
   try {
     const result = await autoUpdater.checkForUpdates();
@@ -597,6 +754,10 @@ ipcMain.handle('download-update', async () => {
   if (inDevelopment) {
     return { success: false, error: 'Updates disabled in development' };
   }
+
+  if (isWindows) {
+    return openWindowsDownloadPage();
+  }
   
   try {
     await autoUpdater.downloadUpdate();
@@ -610,9 +771,28 @@ ipcMain.handle('download-update', async () => {
   }
 });
 
+ipcMain.handle('open-update-download-page', async () => {
+  if (inDevelopment) {
+    return openWindowsDownloadPage();
+  }
+
+  if (isWindows) {
+    return openWindowsDownloadPage();
+  }
+
+  return {
+    success: false,
+    error: 'Manual download page is only used on Windows'
+  };
+});
+
 ipcMain.handle('install-update', async () => {
   if (inDevelopment) {
     return { success: false, error: 'Updates disabled in development' };
+  }
+
+  if (isWindows) {
+    return openWindowsDownloadPage();
   }
 
   console.log('=== INSTALL UPDATE REQUESTED ===');

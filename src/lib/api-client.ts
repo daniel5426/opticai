@@ -1486,6 +1486,10 @@ class ApiClient {
     return this.request(`/control-center/stats/users-clients-per-clinic/${companyId}`);
   }
 
+  async ccStatsOverview(companyId: number, range: '7d' | '30d' | '12m' = '30d') {
+    return this.request(`/control-center/stats/overview/${companyId}?range=${range}`);
+  }
+
   async ccStatsAppointmentsMonthPerClinic(companyId: number) {
     return this.request(`/control-center/stats/appointments-month-per-clinic/${companyId}`);
   }

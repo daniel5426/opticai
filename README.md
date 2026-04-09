@@ -1,157 +1,53 @@
-# electron-shadcn
+# OpticAI
 
-Electron in all its glory. Everything you will need to develop your beautiful desktop application.
+Last Updated: 2026-04-09
 
-![Demo GIF](https://github.com/LuanRoger/electron-shadcn/blob/main/images/demo.gif)
+OpticAI is a Windows-first Electron desktop application for optical clinics. It combines a React/TanStack Router renderer, an Electron shell for desktop-only capabilities, and an in-repo FastAPI backend that owns the API, auth, data model, AI endpoints, and several integration workflows.
 
-## Libs and tools
+## What The App Covers
+- Clinic operations: clients, appointments, exams, orders, referrals, files, settings
+- Company/admin surfaces: control center dashboard, clinics, users, settings
+- Assistive and growth surfaces: AI assistant, campaigns, worker stats
+- Desktop-only capabilities: updater flow, Google OAuth callback handling, email/campaign schedulers, DOCX generation
 
-To develop a Electron app, you probably will need some UI, test, formatter, style or other kind of library or framework, so let me install and configure some of them to you.
+## Architecture
+- Renderer: React 19, TanStack Router, Tailwind 4, shadcn/ui
+- Desktop shell: Electron 35 with preload IPC and `electron-updater`
+- Backend: FastAPI app under [`backend/main.py`](/Users/danielbenassaya/Code/personal/opticai/backend/main.py)
+- Auth: Supabase session + backend `/auth/me` + local clinic/user session state
+- Data: backend API is the source of truth; frontend still contains some legacy/local abstractions
 
-### Core 🏍️
+## Repo Entry Points
+- Frontend app: [`src/App.tsx`](/Users/danielbenassaya/Code/personal/opticai/src/App.tsx)
+- Route map: [`src/routes/routes.tsx`](/Users/danielbenassaya/Code/personal/opticai/src/routes/routes.tsx)
+- Electron main: [`src/main.ts`](/Users/danielbenassaya/Code/personal/opticai/src/main.ts)
+- Electron preload: [`src/preload.ts`](/Users/danielbenassaya/Code/personal/opticai/src/preload.ts)
+- Backend app: [`backend/main.py`](/Users/danielbenassaya/Code/personal/opticai/backend/main.py)
+- Canonical docs hub: [`docs/README.md`](/Users/danielbenassaya/Code/personal/opticai/docs/README.md)
 
-- [Electron 35](https://www.electronjs.org)
-- [Vite 6](https://vitejs.dev)
-- [SWC](https://swc.rs)
+## Scripts
+- `npm run dev`: start renderer dev flow
+- `npm run build`: production build + local packaging dir
+- `npm run build:win`: Windows packaging build
+- `npm run dist:win`: Windows distributable build
+- `npm run test`: Vitest unit tests
+- `npm run test:e2e`: Playwright Electron tests
+- `npm run lint`: project-wide ESLint run
 
-### DX 🛠️
+## Current Readiness Signals
+- `npm run test`: passes, but only minimal unit coverage exists
+- `npm run test:e2e`: not a valid gate yet; it still points at template-era assumptions and fails looking for `out/`
+- `npm run build`: passes
+- Build output shows a very large renderer bundle and ineffective exam component code-splitting
+- Root docs and some test/tooling surfaces were still template-era until this docs pass
 
-- [TypeScript 5.8](https://www.typescriptlang.org)
-- [Prettier](https://prettier.io)
-- [ESLint 9](https://eslint.org)
-- [Zod](https://zod.dev)
-- [React Query (TanStack)](https://react-query.tanstack.com)
+## Release Notes
+- The current release pipeline is defined in [`.github/workflows/release.yml`](/Users/danielbenassaya/Code/personal/opticai/.github/workflows/release.yml)
+- Windows is the primary launch target for next week
+- macOS packaging works locally, but signing is currently skipped without a valid Developer ID identity
 
-### UI 🎨
-
-- [React 19](https://reactjs.org)
-- [Tailwind 4](https://tailwindcss.com)
-- [Shadcn UI](https://ui.shadcn.com)
-- [Geist](https://vercel.com/font) as default font
-- [i18next](https://www.i18next.com)
-- [TanStack Router](https://tanstack.com/router)
-- [Lucide](https://lucide.dev)
-
-### Test 🧪
-
-- [Vitest](https://vitest.dev)
-- [Playwright](https://playwright.dev)
-- [React Testing Library](https://testing-library.com/docs/react-testing-library/intro)
-
-### Packing and distribution 📦
-
-- [Electron Forge](https://www.electronforge.io)
-
-### CI/CD 🚀
-
-- Pre-configured [GitHub Actions workflow](https://github.com/LuanRoger/electron-shadcn/blob/main/.github/workflows/playwright.yml), for test with Playwright
-
-### Project preferences 🎯
-
-- Use Context isolation
-- [React Compiler](https://react.dev/learn/react-compiler) is enabled by default.
-- `titleBarStyle`: hidden (Using custom title bar)
-- Geist as default font
-- Some default styles was applied, check the [`styles`](https://github.com/LuanRoger/electron-shadcn/tree/main/src/styles) directory
-- React DevTools are installed by default
-
-> If you don't know some of these libraries or tools, I recommend you to check their documentation to understand how they work and how to use them.
-
-> [!WARNING]
-> Prefer to use the [`canary` release of `shadcn/ui`](https://ui.shadcn.com/docs/tailwind-v4) to avoid compatibility issues with React 19 and Tailwind v4.
-
-```bash
-npx shadcn@canary add button
-```
-
-## Directory structure
-
-```plaintext
-.
-└── ./src/
-    ├── ./src/assets/
-    │   └── ./src/assets/fonts/
-    ├── ./src/components/
-    │   ├── ./src/components/template
-    │   └── ./src/components/ui/
-    ├── ./src/helpers/
-    │   └── ./src/helpers/ipc/
-    ├── ./src/layout/
-    ├── ./src/lib/
-    ├── ./src/pages/
-    ├── ./src/style/
-    └── ./src/tests/
-```
-
-- `src/`: Main directory
-  - `assets/`: Store assets like images, fonts, etc.
-  - `components/`: Store UI components
-    - `template/`: Store the all not important components used by the template. It doesn't include the `WindowRegion` or the theme toggler, if you want to start an empty project, you can safely delete this directory.
-    - `ui/`: Store Shadcn UI components (this is the default direcotry used by Shadcn UI)
-  - `helpers/`: Store IPC related functions to be called in the renderer process
-    - `ipc/`: Directory to store IPC context and listener functions
-      - Some implementations are already done, like `theme` and `window` for the custom title bar
-  - `layout/`: Directory to store layout components
-  - `lib/`: Store libraries and other utilities
-  - `pages/`: Store app's pages
-  - `style/`: Store global styles
-  - `tests/`: Store tests (from Vitest and Playwright)
-
-## NPM script
-
-To run any of those scripts:
-
-```bash
-npm run <script>
-```
-
-- `start`: Start the app in development mode
-- `package`: Package your application into a platform-specific executable bundle and put the result in a folder.
-- `make`: Generate platform-specific distributables (e.g. .exe, .dmg, etc) of your application for distribution.
-- `publish`: Electron Forge's way of taking the artifacts generated by the `make` command and sending them to a service somewhere for you to distribute or use as updates.
-- `lint`: Run ESLint to lint the code
-- `format`: Run Prettier to check the code (it doesn't change the code)
-- `format:write`: Run Prettier to format the code
-- `test`: Run the default unit-test script (Vitest)
-- `test:watch`: Run the default unit-test script in watch mode (Vitest)
-- `test:unit`: Run the Vitest tests
-- `test:e2e`: Run the Playwright tests
-- `test:all`: Run all tests (Vitest and Playwright)
-
-> The test scripts involving Playwright require the app be builded before running the tests. So, before run the tests, run the `package`, `make` or `publish` script.
-
-## How to use
-
-1. Clone this repository
-
-```bash
-git clone https://github.com/LuanRoger/electron-shadcn.git
-```
-
-Or use it as a template on GitHub
-
-2. Install dependencies
-
-```bash
-npm install
-```
-
-3. Run the app
-
-```bash
-npm run start
-```
-
-## Used by
-
-- [yaste](https://github.com/LuanRoger/yaste) - yaste (Yet another super ₛᵢₘₚₗₑ text editor) is a text editor, that can be used as an alternative to the native text editor of your SO, maybe.
-- [eletric-drizzle](https://github.com/LuanRoger/electric-drizzle) - shadcn-ui and Drizzle ORM with Electron.
-- [Wordle Game](https://github.com/masonyekta/wordle-game) - A Wordle game which features interactive gameplay, cross-platform compatibility, and integration with a custom Wordle API for word validation and letter correctness.
-- [Mehr 🌟](https://github.com/xmannii/MehrLocalChat) - A modern, elegant local AI chatbot application using Electron, React, shadcn/ui, and Ollama.
-
-> Does you've used this template in your project? Add it here and open a PR.
-
-## License
-
-This project is licensed under the MIT License - see the [LICENSE](https://github.com/LuanRoger/electron-shadcn/blob/main/LICENSE) file for details.
-# opticai
+## Documentation
+- Docs hub: [`docs/README.md`](/Users/danielbenassaya/Code/personal/opticai/docs/README.md)
+- Current-state architecture: [`docs/design-docs/index.md`](/Users/danielbenassaya/Code/personal/opticai/docs/design-docs/index.md)
+- Generated inventories and audit matrices: [`docs/generated/index.md`](/Users/danielbenassaya/Code/personal/opticai/docs/generated/index.md)
+- Launch cleanup plan: [`docs/exec-plans/active/production_readiness_launch_plan.md`](/Users/danielbenassaya/Code/personal/opticai/docs/exec-plans/active/production_readiness_launch_plan.md)

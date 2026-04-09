@@ -494,15 +494,15 @@ export const getColumnCount = (
     case "contact-lens-diameters":
       return 2;
     case "contact-lens-details":
-      return 13;
+      return 10;
     case "keratometer-contact-lens":
       return 6;
     case "contact-lens-exam":
-      return 9;
+      return 7;
     case "old-contact-lenses":
       return 13;
     case "over-refraction":
-      return 8;
+      return 9;
     case "sensation-vision-stability":
       return 5;
     case "fusion-range":
@@ -529,8 +529,6 @@ export const getMaxWidth = (
   switch (type) {
     case "rg":
       return 290;
-    case "maddox-rod":
-      return 756;
     case "corneal-topography":
       return 1260;
     case "keratometer":

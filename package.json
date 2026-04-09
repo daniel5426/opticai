@@ -180,14 +180,9 @@
     "files": [
       "dist/**/*",
       "dist-electron/**/*",
-      ".env.production",
       "app-update.yml"
     ],
     "extraResources": [
-      {
-        "from": ".env.production",
-        "to": ".env.production"
-      },
       {
         "from": "app-update.yml",
         "to": "app-update.yml"
@@ -198,6 +193,12 @@
       "icon": "images/prysm-icon-1024.icns",
       "hardenedRuntime": true,
       "gatekeeperAssess": false,
+      "extraResources": [
+        {
+          "from": ".env.production",
+          "to": ".env.production"
+        }
+      ],
       "entitlements": "build/entitlements.mac.plist",
       "entitlementsInherit": "build/entitlements.mac.plist",
       "target": [
@@ -226,6 +227,12 @@
     },
     "win": {
       "icon": "images/prysm-icon.ico",
+      "extraResources": [
+        {
+          "from": ".env.windows.production",
+          "to": ".env.windows.production"
+        }
+      ],
       "target": [
         {
           "target": "nsis",

@@ -137,7 +137,11 @@ export function ClientDetailsTab({
     setIsCreatingFamily(false)
     setNewFamilyName('')
     try {
-      const created = await createFamily({ name: optimisticFamily.name, clinic_id: currentClinic?.id as number })
+      const created = await createFamily({ 
+        name: optimisticFamily.name, 
+        clinic_id: currentClinic?.id as number,
+        company_id: currentClinic?.company_id as number 
+      })
       if (!created || !created.id) throw new Error('createFamily failed')
       setFamilies(curr => curr.map(f => (f.id === optimisticFamily.id ? created : f)))
       handleSelectChange(String(created.id), 'family_id')

@@ -3,7 +3,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { IconDownload, IconRefresh, IconCheck, IconAlertCircle, IconInfoCircle } from '@tabler/icons-react';
-import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 
 interface DownloadState {
@@ -17,6 +16,7 @@ interface DownloadState {
 }
 
 export function AboutTab() {
+  const isWindows = typeof navigator !== 'undefined' && navigator.userAgent.toLowerCase().includes('windows');
   const [currentVersion, setCurrentVersion] = useState<string>('');
   const [latestVersion, setLatestVersion] = useState<string | null>(null);
   const [updateAvailable, setUpdateAvailable] = useState(false);
@@ -31,24 +31,30 @@ export function AboutTab() {
   useEffect(() => {
     console.log('AboutTab: Component mounted, loading version and checking for updates');
     loadCurrentVersion();
-    
-    const savedDownload = localStorage.getItem('downloaded-update');
-    if (savedDownload) {
-      try {
-        const parsed = JSON.parse(savedDownload);
-        setDownloadState(prev => ({
-          ...prev,
-          isDownloaded: true,
-          version: parsed.version,
-          progress: 100
-        }));
-      } catch (e) {
-        localStorage.removeItem('downloaded-update');
+
+    if (!isWindows) {
+      const savedDownload = localStorage.getItem('downloaded-update');
+      if (savedDownload) {
+        try {
+          const parsed = JSON.parse(savedDownload);
+          setDownloadState(prev => ({
+            ...prev,
+            isDownloaded: true,
+            version: parsed.version,
+            progress: 100
+          }));
+        } catch (e) {
+          localStorage.removeItem('downloaded-update');
+        }
       }
     }
-    
+
     checkForUpdates();
-    
+
+    if (isWindows) {
+      return;
+    }
+
     const cleanupProgress = window.electronAPI.onDownloadProgress((progress) => {
       console.log('AboutTab: Download progress:', progress);
       setDownloadState(prev => ({
@@ -78,7 +84,7 @@ export function AboutTab() {
       cleanupProgress();
       cleanupDownloaded();
     };
-  }, []);
+  }, [isWindows]);
 
   const loadCurrentVersion = async () => {
     try {
@@ -173,6 +179,10 @@ export function AboutTab() {
   };
 
   const handleDownloadUpdate = async () => {
+    if (isWindows) {
+      return handleOpenUpdateDownloadPage();
+    }
+
     try {
       console.log('AboutTab: Starting download update');
       setDownloadState(prev => ({ ...prev, isDownloading: true, progress: 0 }));
@@ -194,6 +204,10 @@ export function AboutTab() {
   };
 
   const handleInstallUpdate = async () => {
+    if (isWindows) {
+      return handleOpenUpdateDownloadPage();
+    }
+
     try {
       console.log('AboutTab: Starting install update');
       toast.info('מתקין עדכון... האפליקציה תאותחל מחדש');
@@ -212,6 +226,21 @@ export function AboutTab() {
     } catch (error) {
       console.error('AboutTab: Error installing update:', error);
       toast.error('שגיאה בהתקנת עדכון');
+    }
+  };
+
+  const handleOpenUpdateDownloadPage = async () => {
+    try {
+      const result = await window.electronAPI.openUpdateDownloadPage();
+      if (!result.success) {
+        toast.error(result.error || 'לא ניתן לפתוח את דף ההורדה');
+        return;
+      }
+
+      toast.success('דף ההורדה נפתח בדפדפן');
+    } catch (error) {
+      console.error('Error opening update download page:', error);
+      toast.error('שגיאה בפתיחת דף ההורדה');
     }
   };
   
@@ -274,22 +303,26 @@ export function AboutTab() {
             <div className="p-4 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
               <h4 className="text-sm font-medium text-blue-800 dark:text-blue-200 mb-3 text-right flex items-center gap-2 justify-end">
                 <IconAlertCircle className="h-4 w-4" />
-                {downloadState.isDownloaded 
-                  ? 'עדכון מוכן להתקנה' 
-                  : downloadState.isDownloading 
-                    ? 'מוריד עדכון...' 
-                    : 'עדכון חדש זמין'}
+                {isWindows
+                  ? 'עדכון חדש זמין'
+                  : downloadState.isDownloaded 
+                    ? 'עדכון מוכן להתקנה' 
+                    : downloadState.isDownloading 
+                      ? 'מוריד עדכון...' 
+                      : 'עדכון חדש זמין'}
               </h4>
               <div className="text-sm text-blue-700 dark:text-blue-300 text-right mb-4" dir="rtl">
-                {downloadState.isDownloaded 
-                  ? `גרסה ${downloadState.version || latestVersion} הורדה בהצלחה ומוכנה להתקנה.`
-                  : downloadState.isDownloading
-                    ? `מוריד גרסה ${latestVersion}...`
-                    : `גרסה ${latestVersion} זמינה להורדה. מומלץ לעדכן לגרסה האחרונה כדי ליהנות מתכונות חדשות ותיקוני באגים.`
+                {isWindows
+                  ? `גרסה ${latestVersion} זמינה. ב-Windows יש לסגור את Prysm, להוריד את המתקין החדש ולהפעיל אותו ידנית.`
+                  : downloadState.isDownloaded 
+                    ? `גרסה ${downloadState.version || latestVersion} הורדה בהצלחה ומוכנה להתקנה.`
+                    : downloadState.isDownloading
+                      ? `מוריד גרסה ${latestVersion}...`
+                      : `גרסה ${latestVersion} זמינה להורדה. מומלץ לעדכן לגרסה האחרונה כדי ליהנות מתכונות חדשות ותיקוני באגים.`
                 }
               </div>
               
-              {downloadState.isDownloading && (
+              {!isWindows && downloadState.isDownloading && (
                 <div className="mb-4 space-y-2">
                   <div className="flex items-center justify-between text-xs text-blue-700 dark:text-blue-300">
                     <span>{downloadState.progress}%</span>
@@ -306,7 +339,16 @@ export function AboutTab() {
               )}
               
               <div className="flex gap-3 justify-end">
-                {downloadState.isDownloaded ? (
+                {isWindows ? (
+                  <Button
+                    onClick={handleOpenUpdateDownloadPage}
+                    size="sm"
+                    className="flex items-center gap-2"
+                  >
+                    <IconDownload className="h-4 w-4" />
+                    הורד את המתקין החדש
+                  </Button>
+                ) : downloadState.isDownloaded ? (
                   <Button
                     onClick={handleInstallUpdate}
                     size="sm"
@@ -418,12 +460,16 @@ export function AboutTab() {
               variant="link"
               size="sm"
               onClick={() => {
-                // Open GitHub releases page
+                if (isWindows) {
+                  handleOpenUpdateDownloadPage();
+                  return;
+                }
+
                 window.open('https://github.com/daniel5426/opticai/releases', '_blank');
               }}
               className="text-blue-600 dark:text-blue-400"
             >
-              הצג הערות שחרור
+              {isWindows ? 'פתח דף הורדות' : 'הצג הערות שחרור'}
             </Button>
           </div>
         </div>
@@ -431,4 +477,3 @@ export function AboutTab() {
     </Card>
   );
 }
-

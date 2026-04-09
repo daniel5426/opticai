@@ -15,6 +15,9 @@ import {
 import { FastInput, inputSyncManager } from "./OptimizedInputs";
 import { ChevronDown } from "lucide-react";
 
+const PRESET_TRIGGER_WIDTH_PX = 12;
+const PRESET_TRIGGER_GUTTER_PX = 8;
+
 interface ToggleTextNumberInputProps {
   value: string;
   onChange?: (value: string) => void;
@@ -39,6 +42,7 @@ export function ToggleTextNumberInput({
 }: ToggleTextNumberInputProps) {
   const [open, setOpen] = useState(false);
   const measureRef = useRef<HTMLSpanElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const [textWidthPx, setTextWidthPx] = useState<number | null>(null);
   const [optimisticText, setOptimisticText] = useState<string | null>(null);
   const lastSelectionRef = useRef<{ label: string; ts: number } | null>(null);
@@ -89,6 +93,7 @@ export function ToggleTextNumberInput({
   const shownTextValue = optimisticText ?? selectValue;
   const shownValue = optimisticText ?? displayValue;
   const isShownAsText = isTextValue || !!optimisticText;
+  const effectiveSuffix = isShownAsText ? undefined : numericProps?.suffix;
 
   useEffect(() => {
     if (!optimisticText) return;
@@ -109,7 +114,10 @@ export function ToggleTextNumberInput({
 
   const dynamicTextWidth =
     isShownAsText && textWidthPx !== null
-      ? Math.max(textWidthPx + 32, 64)
+      ? Math.max(
+          textWidthPx + PRESET_TRIGGER_WIDTH_PX + PRESET_TRIGGER_GUTTER_PX,
+          92,
+        )
       : null;
 
   const commitSelectChange = (label: string) => {
@@ -130,11 +138,17 @@ export function ToggleTextNumberInput({
   return (
     <div
       className={cn(
-        "relative h-8 transition-[width] duration-300 ease-in-out overflow-hidden rounded-md",
-        isShownAsText ? "w-fit max-w-full" : "w-full",
+        "relative h-8 w-full overflow-visible rounded-md transition-[width] duration-200 ease-out",
         className,
       )}
-      style={dynamicTextWidth ? { width: `${dynamicTextWidth}px` } : undefined}
+      style={
+        dynamicTextWidth
+          ? {
+              width: "100%",
+              minWidth: `${dynamicTextWidth}px`,
+            }
+          : { width: "100%" }
+      }
     >
       {isShownAsText && (
         <span
@@ -154,9 +168,68 @@ export function ToggleTextNumberInput({
         dir={isShownAsText ? "ltr" : undefined}
         center={false}
         value={shownValue}
+        suffix={effectiveSuffix}
+        leadingOverlayWidth={PRESET_TRIGGER_WIDTH_PX}
+        showLeadingOverlay={open}
+        leadingOverlay={
+          <Select
+            value={shownTextValue}
+            onValueChange={commitSelectChange}
+            disabled={disabled}
+            open={open}
+            onOpenChange={(nextOpen) => {
+              setOpen(nextOpen);
+              if (!nextOpen) {
+                requestAnimationFrame(() => {
+                  triggerRef.current?.blur();
+                });
+              }
+            }}
+          >
+            <SelectTrigger
+              ref={triggerRef}
+              className={cn(
+                "relative block h-full w-full border-none bg-transparent p-0 shadow-none",
+                "!rounded-none !py-0 !pl-0 !pr-0 focus:ring-0 focus:ring-offset-0",
+                selectValue
+                  ? "text-primary hover:bg-primary/5"
+                  : "text-muted-foreground hover:bg-accent/70",
+              )}
+              hideIcon
+              noBorder
+              aria-label="Choose text preset"
+            >
+              <ChevronDown
+                className={cn(
+                  "absolute left-1/2 top-1/2 block size-2.5 shrink-0 -translate-x-1/2 -translate-y-[calc(50%+2px)] transform-gpu transition-transform duration-200 ease-out",
+                  open && "rotate-180",
+                )}
+              />
+            </SelectTrigger>
+            <SelectContent className="w-fit min-w-16" sideOffset={4}>
+              {textOptions.map((opt) => (
+                <SelectItem
+                  key={opt}
+                  value={opt}
+                  dir="ltr"
+                  className="justify-center"
+                  onClick={() => commitSelectChange(opt)}
+                >
+                  {opt}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        }
         onChange={(val) => {
           // Ignore stale sync events right after dropdown selection.
           if (open || Date.now() < suppressInputUntilRef.current) return;
+
+          if (val.trim() === "") {
+            setOptimisticText(null);
+            onChange?.("");
+            return;
+          }
 
           if (isShownAsText && textOptions.includes(val)) {
             const stored = textValueAliases[val] ?? val;
@@ -169,50 +242,11 @@ export function ToggleTextNumberInput({
         }}
         disabled={disabled}
         className={cn(
-          "transition-all duration-300 ease-in-out",
-          isShownAsText ? "pr-1 pl-[18px] text-left font-medium" : "pr-1 pl-5",
+          "w-full transition-all duration-200 ease-out",
+          isShownAsText ? "px-1.5 text-center font-medium" : "pl-1 pr-2",
           numericProps?.className,
         )}
       />
-      <Select
-        value={shownTextValue}
-        onValueChange={commitSelectChange}
-        disabled={disabled}
-        open={open}
-        onOpenChange={setOpen}
-      >
-        <SelectTrigger
-          className={cn(
-            "absolute top-0 left-0 z-10 max-h-full h-full w-[14px] rounded-tl-md rounded-bl-md border-none bg-transparent p-0 shadow-none focus:ring-0 focus:ring-offset-0 transition-colors duration-200 ease-in-out flex items-center justify-center",
-            selectValue
-              ? "text-primary bg-primary/5 hover:bg-primary/10"
-              : "text-muted-foreground/30 hover:bg-accent/50 hover:text-muted-foreground/50",
-          )}
-          hideIcon
-          noBorder
-          aria-label="Choose text preset"
-        >
-          <ChevronDown 
-            className={cn(
-              "size-2.5 transition-transform duration-300 ease-in-out",
-              open && "rotate-180"
-            )} 
-          />
-        </SelectTrigger>
-        <SelectContent className="w-fit min-w-16" sideOffset={4}>
-          {textOptions.map((opt) => (
-            <SelectItem
-              key={opt}
-              value={opt}
-              dir="ltr"
-              className="justify-center"
-              onClick={() => commitSelectChange(opt)}
-            >
-              {opt}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
     </div>
   );
 }

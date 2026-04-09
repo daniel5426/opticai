@@ -194,7 +194,9 @@ export function FamilyManagementModal({ isOpen, onClose, family, onFamilyChange 
       } else {
         familyResult = await createFamily({ 
           name: familyName.trim(),
-          notes: familyNotes.trim() || undefined 
+          notes: familyNotes.trim() || undefined,
+          clinic_id: currentClinic!.id,
+          company_id: currentClinic!.company_id
         })
       }
 
