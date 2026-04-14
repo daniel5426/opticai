@@ -1,7 +1,6 @@
 import * as React from "react"
 import { User } from "@/lib/db/schema-interface"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import {
   Table,
   TableBody,
@@ -15,9 +14,10 @@ import { CustomModal } from "@/components/ui/custom-modal"
 import { deleteUser, updateUser } from "@/lib/db/users-db"
 import { toast } from "sonner"
 import { Badge } from "@/components/ui/badge"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { ROLE_LEVELS, getRoleBadgeVariant, getRoleLabel, isRoleAtLeast } from "@/lib/role-levels"
+import { TableFiltersBar } from "@/components/table-filters-bar"
+import { ALL_FILTER_VALUE, USER_CLINIC_SCOPE_OPTIONS, USER_ROLE_FILTER_OPTIONS } from "@/lib/table-filters"
 
 interface UserWithClinic extends User {
   clinic_name?: string;
@@ -39,6 +39,10 @@ interface UsersTableProps {
   pagination?: { page: number; pageSize: number; total: number; setPage: (p: number) => void }
   companyId?: number
   currentClinicId?: number
+  roleFilter?: string
+  onRoleFilterChange?: (value: string) => void
+  clinicScopeFilter?: string
+  onClinicScopeFilterChange?: (value: string) => void
 }
 
 export function UsersTable({ 
@@ -56,16 +60,21 @@ export function UsersTable({
   loading = false,
   pagination,
   companyId,
-  currentClinicId
+  currentClinicId,
+  roleFilter: externalRoleFilter,
+  onRoleFilterChange,
+  clinicScopeFilter: externalClinicScopeFilter,
+  onClinicScopeFilterChange,
 }: UsersTableProps) {
   const [internalSearchQuery, setInternalSearchQuery] = React.useState("")
-  const [selectedRole, setSelectedRole] = React.useState<string>("all")
+  const [selectedRole, setSelectedRole] = React.useState<string>(ALL_FILTER_VALUE)
   const [isDeleteModalOpen, setIsDeleteModalOpen] = React.useState(false)
   const [userToDelete, setUserToDelete] = React.useState<User | null>(null)
-  const [showCurrentClinicOnly, setShowCurrentClinicOnly] = React.useState(false)
+  const [clinicScope, setClinicScope] = React.useState<string>(ALL_FILTER_VALUE)
 
   const searchQuery = externalSearchQuery !== undefined ? externalSearchQuery : internalSearchQuery
-  const isExternalSearch = externalSearchQuery !== undefined
+  const roleFilter = externalRoleFilter ?? selectedRole
+  const clinicScopeFilter = externalClinicScopeFilter ?? clinicScope
 
   const handleSearchChange = (value: string) => {
     if (onSearchChange) {
@@ -75,18 +84,34 @@ export function UsersTable({
     }
   }
 
+  const handleRoleFilterChange = (value: string) => {
+    if (onRoleFilterChange) {
+      onRoleFilterChange(value)
+      return
+    }
+    setSelectedRole(value)
+  }
+
+  const handleClinicScopeFilterChange = (value: string) => {
+    if (onClinicScopeFilterChange) {
+      onClinicScopeFilterChange(value)
+      return
+    }
+    setClinicScope(value)
+  }
+
   const filteredData = React.useMemo(() => {
-    let result = data;
+    let result = data
     
-    if (showCurrentClinicOnly && currentClinicId) {
+    if (clinicScopeFilter === "current" && currentClinicId) {
        result = result.filter(u => u.clinic_id === currentClinicId)
     }
 
-    if (selectedRole !== "all") {
-      result = result.filter(u => u.role_level === Number(selectedRole))
+    if (roleFilter !== ALL_FILTER_VALUE) {
+      result = result.filter(u => u.role_level === Number(roleFilter))
     }
 
-    if (!isExternalSearch && searchQuery) {
+    if (searchQuery) {
       result = result.filter((user) =>
         user.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         user.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -94,7 +119,7 @@ export function UsersTable({
       )
     }
     return result
-  }, [data, searchQuery, isExternalSearch, showCurrentClinicOnly, currentClinicId, selectedRole])
+  }, [clinicScopeFilter, currentClinicId, data, roleFilter, searchQuery])
 
   const handleDeleteClick = (user: UserWithClinic) => {
     const ceoCount = data.filter(u => isRoleAtLeast(u.role_level, ROLE_LEVELS.ceo)).length
@@ -153,48 +178,53 @@ export function UsersTable({
   }
 
   return (
-    <div className="space-y-4 mb-10" dir="rtl">
+    <div className="space-y-2.5 mb-10" dir="rtl">
       {!hideSearch && (
-        <div className="flex items-center justify-between">
-          <div className="flex gap-2">
-            <Input
-              placeholder="חיפוש משתמשים..."
-              value={searchQuery}
-              onChange={(e) => handleSearchChange(e.target.value)}
-              className="w-[250px] bg-card dark:bg-card"
-              dir="rtl"
-            />
-            {companyId && currentClinicId && (
-              <Button
-                variant={showCurrentClinicOnly ? "secondary" : "outline"}
-                onClick={() => setShowCurrentClinicOnly(!showCurrentClinicOnly)}
-                className="text-sm"
-              >
-                {showCurrentClinicOnly ? "מציג מרפאה נוכחית" : "הצג הכל"}
-              </Button>
-            )}
-            <Select value={selectedRole} onValueChange={setSelectedRole} dir="rtl">
-              <SelectTrigger className="w-[120px]">
-                <SelectValue placeholder="תפקיד" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">הכל</SelectItem>
-                <SelectItem value={String(ROLE_LEVELS.worker)}>עובד</SelectItem>
-                <SelectItem value={String(ROLE_LEVELS.manager)}>מנהל</SelectItem>
-                <SelectItem value={String(ROLE_LEVELS.ceo)}>מנכ״ל</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="flex items-center gap-2">
-            <h3 className="text-lg font-semibold">משתמשים</h3>
-            {!hideNewButton && onNewUser && (
+        <TableFiltersBar
+          searchValue={searchQuery}
+          onSearchChange={handleSearchChange}
+          searchPlaceholder="חיפוש משתמשים…"
+          filters={[
+            {
+              key: "role",
+              value: roleFilter,
+              onChange: handleRoleFilterChange,
+              placeholder: "תפקיד",
+              options: USER_ROLE_FILTER_OPTIONS,
+              widthClassName: "w-[150px]",
+            },
+            ...(companyId && currentClinicId
+              ? [
+                  {
+                    key: "clinic-scope",
+                    value: clinicScopeFilter,
+                    onChange: handleClinicScopeFilterChange,
+                    placeholder: "מרפאה",
+                    options: USER_CLINIC_SCOPE_OPTIONS,
+                    widthClassName: "w-[170px]",
+                  },
+                ]
+              : []),
+          ]}
+          hasActiveFilters={
+            Boolean(searchQuery.trim()) ||
+            roleFilter !== ALL_FILTER_VALUE ||
+            clinicScopeFilter !== ALL_FILTER_VALUE
+          }
+          onReset={() => {
+            handleSearchChange("")
+            handleRoleFilterChange(ALL_FILTER_VALUE)
+            handleClinicScopeFilterChange(ALL_FILTER_VALUE)
+          }}
+          actions={
+            !hideNewButton && onNewUser ? (
               <Button onClick={onNewUser} dir="rtl">
                 משתמש חדש
                 <PlusIcon className="mr-2 h-4 w-4" />
               </Button>
-            )}
-          </div>
-        </div>
+            ) : null
+          }
+        />
       )}
 
       <div className="rounded-md bg-card">

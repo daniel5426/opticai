@@ -40,6 +40,7 @@ class AuthService {
   private initialized = false
   private router: any = null
   private routerHistory: any = null
+  private isLoggingOut = false
 
   constructor() {
     // Don't initialize AuthService in popup windows (OAuth callbacks)
@@ -72,6 +73,16 @@ class AuthService {
       if (!supabaseUrl || !supabaseAnonKey) {
         console.warn('[Auth] Supabase not configured, skipping session check')
         await this.restoreLocalSession()
+        this.setupAuthListener()
+        this.initialized = true
+        console.log('[Auth] Initialization complete, state:', this.state)
+        return
+      }
+
+      const storedSupabaseSession = this.getStoredSupabaseSession()
+      if (storedSupabaseSession?.access_token) {
+        console.log('[Auth] Found stored Supabase session in localStorage')
+        await this.handleSupabaseSession(storedSupabaseSession)
         this.setupAuthListener()
         this.initialized = true
         console.log('[Auth] Initialization complete, state:', this.state)
@@ -124,14 +135,19 @@ class AuthService {
   }
 
   private setupAuthListener(): void {
-    supabase.auth.onAuthStateChange(async (event, session) => {
+    supabase.auth.onAuthStateChange((event, session) => {
       console.log('[Auth] Supabase event:', event)
+
+      if (this.isLoggingOut) {
+        console.log('[Auth] Ignoring Supabase event during logout:', event)
+        return
+      }
 
       // Ignore initial session (already handled in initialize)
       if (event === 'INITIAL_SESSION') return
 
       if (event === 'SIGNED_IN' && session) {
-        await this.handleSupabaseSession(session)
+        void this.handleSupabaseSession(session)
       } else if (event === 'SIGNED_OUT') {
         // Only clear if not already unauthenticated and not a clinic user session
         if (this.state !== AuthState.UNAUTHENTICATED && !this.hasClinicContext()) {
@@ -161,6 +177,7 @@ class AuthService {
       
       // Set token for API calls
       apiClient.setToken(session.access_token)
+      this.storeSupabaseSession(session)
       
       // Check for pending clinic user OAuth (special case)
       const pendingUserId = this.getPendingClinicUserId()
@@ -647,46 +664,39 @@ class AuthService {
   async logoutClinic(): Promise<void> {
     try {
       console.log('[Auth] Logging out from clinic')
-      
-      // Transition to LOADING state immediately to show loading UI
-      this.transitionTo(AuthState.LOADING)
-      console.log('[Auth] Transitioned to LOADING state')
-      
+
+      this.isLoggingOut = true
       const wasSupabaseAuth = this.session?.isSupabaseAuth
-      
-      // If authenticated via Supabase, sign out from Supabase FIRST
+
+      // Clear local session state first so the UI cannot rehydrate the clinic while logout is in flight.
+      console.log('[Auth] Clearing local session data before remote sign out')
+      this.clearClinic()
+      this.clearUser()
+      apiClient.clearToken()
+      this.clearAllStorage()
+      this.session = null
+      this.transitionTo(AuthState.UNAUTHENTICATED, true)
+
+      // Then sign out from Supabase if needed.
       if (wasSupabaseAuth) {
         console.log('[Auth] Signing out from Supabase')
         try {
           await supabase.auth.signOut()
           console.log('[Auth] Supabase sign out complete')
-    } catch (error) {
+        } catch (error) {
           console.error('[Auth] Error signing out from Supabase:', error)
         }
       }
-      
-      // Then clear all local session data
-      console.log('[Auth] Clearing session data')
-      this.clearClinic()
-      this.clearUser()
-      apiClient.clearToken()
-      this.clearAllStorage()
-      
-      this.session = null
-      console.log('[Auth] Session cleared')
-      
-      // Small delay to ensure navigation happens smoothly
-      await new Promise(resolve => setTimeout(resolve, 50))
-      
-      console.log('[Auth] Transitioning to UNAUTHENTICATED state')
-      this.transitionTo(AuthState.UNAUTHENTICATED)
+
       console.log('[Auth] Logout complete')
     } catch (error) {
       console.error('[Auth] Error during logout:', error)
-      // Ensure we still transition to unauthenticated even on error
+      // Ensure we still transition to unauthenticated even on error.
       this.clearAllStorage()
       this.session = null
-      this.transitionTo(AuthState.UNAUTHENTICATED)
+      this.transitionTo(AuthState.UNAUTHENTICATED, true)
+    } finally {
+      this.isLoggingOut = false
     }
   }
 
@@ -710,6 +720,29 @@ class AuthService {
 
   private openOAuthPopup(url: string): Promise<void> {
     return new Promise((resolve, reject) => {
+      const setSessionInMainWindow = async (session: any) => {
+        if (!session?.access_token || !session?.refresh_token) {
+          return session
+        }
+
+        return Promise.race([
+          supabase.auth.setSession({
+            access_token: session.access_token,
+            refresh_token: session.refresh_token,
+          }).then(({ data, error }) => {
+            if (error) throw error
+            return data?.session || session
+          }),
+          new Promise((_, rejectTimeout) => {
+            setTimeout(() => rejectTimeout(new Error('Main-window session setup timed out')), 15000)
+          }),
+        ]).catch((error) => {
+          console.warn('[Auth] Supabase setSession fallback activated:', error)
+          this.storeSupabaseSession(session)
+          return session
+        })
+      }
+
       const popup = window.open(
         url,
         'google-oauth',
@@ -721,25 +754,8 @@ class AuthService {
         return
       }
 
-      // Check if popup closed
-      // Note: popup.closed may be blocked by COOP when navigating to external domains
-      const checkClosed = setInterval(() => {
-        try {
-          if (popup.closed) {
-            clearInterval(checkClosed)
-            clearTimeout(timeout)
-            window.removeEventListener('message', messageHandler)
-            reject(new Error('Popup closed by user'))
-          }
-        } catch (e) {
-          // COOP blocks access to popup.closed when on external domain - this is expected
-          // We'll rely on the message handler instead
-        }
-      }, 1000)
-
       // Timeout after 2 minutes
       const timeout = setTimeout(() => {
-        clearInterval(checkClosed)
         window.removeEventListener('message', messageHandler)
         try {
           popup.close()
@@ -757,7 +773,6 @@ class AuthService {
         if (!isSameOrigin && !isFileProtocol && !isBlank) return
 
         if (event.data.type === 'OAUTH_SUCCESS') {
-          clearInterval(checkClosed)
           clearTimeout(timeout)
           window.removeEventListener('message', messageHandler)
           
@@ -772,13 +787,13 @@ class AuthService {
           await new Promise(resolve => setTimeout(resolve, 200))
 
           try {
-            await this.handleSupabaseSession(event.data.session)
+            const hydratedSession = await setSessionInMainWindow(event.data.session)
+            await this.handleSupabaseSession(hydratedSession)
             resolve()
           } catch (error) {
             reject(error)
           }
         } else if (event.data.type === 'OAUTH_ERROR') {
-          clearInterval(checkClosed)
           clearTimeout(timeout)
           window.removeEventListener('message', messageHandler)
           
@@ -1143,12 +1158,42 @@ class AuthService {
       'selectedClinic',
       'controlCenterCompany',
       'auth_token',
+      this.getSupabaseStorageKey(),
       'pendingClinicUserId',
       'isClinicGoogleAuth',
       'lastAppPath',
       'lastAppContext'
     ]
     keys.forEach(key => localStorage.removeItem(key))
+  }
+
+  private getSupabaseStorageKey(): string {
+    try {
+      const supabaseUrl = (import.meta as any).env?.VITE_SUPABASE_URL || (globalThis as any)?.VITE_SUPABASE_URL
+      const hostname = new URL(supabaseUrl).hostname
+      const projectRef = hostname.split('.')[0]
+      return `sb-${projectRef}-auth-token`
+    } catch {
+      return 'sb-auth-token'
+    }
+  }
+
+  private getStoredSupabaseSession(): any | null {
+    try {
+      const stored = localStorage.getItem(this.getSupabaseStorageKey())
+      return stored ? JSON.parse(stored) : null
+    } catch {
+      return null
+    }
+  }
+
+  private storeSupabaseSession(session: any): void {
+    if (!session?.access_token) return
+    try {
+      localStorage.setItem(this.getSupabaseStorageKey(), JSON.stringify(session))
+    } catch (error) {
+      console.warn('[Auth] Failed to store Supabase session locally:', error)
+    }
   }
   public setRouter(router: any, history: any) {
     this.router = router

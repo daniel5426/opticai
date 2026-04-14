@@ -1,4 +1,4 @@
-import React, { useState } from "react"
+import React, { useState } from "react";
 import {
   Table,
   TableBody,
@@ -6,104 +6,149 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table"
+} from "@/components/ui/table";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@/components/ui/dialog"
+} from "@/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
-import { MoreHorizontal, ChevronDown, UserPlus, Users, Plus, Trash2, Edit, Loader2 } from "lucide-react"
-import { Appointment, Client, User } from "@/lib/db/schema-interface"
-import { toast } from "sonner"
-import { ClientSelectModal } from "@/components/ClientSelectModal"
-import { cleanupModalArtifacts } from "@/lib/utils"
-import { CustomModal } from "@/components/ui/custom-modal"
-import { ClientWarningModal } from "@/components/ClientWarningModal"
-import { UserSelect } from "@/components/ui/user-select"
-import { useUser } from "@/contexts/UserContext"
-import { Skeleton } from "@/components/ui/skeleton"
-import { getClientById, getAllClients, createClient } from "@/lib/db/clients-db"
-import { getAllUsers } from "@/lib/db/users-db"
-import { createAppointment, updateAppointment, deleteAppointment } from "@/lib/db/appointments-db"
-import { useNavigate } from "@tanstack/react-router"
+} from "@/components/ui/dropdown-menu";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  MoreHorizontal,
+  ChevronDown,
+  UserPlus,
+  Users,
+  Plus,
+  Trash2,
+  Edit,
+  Loader2,
+} from "lucide-react";
+import { Appointment, Client, User } from "@/lib/db/schema-interface";
+import { toast } from "sonner";
+import { ClientSelectModal } from "@/components/ClientSelectModal";
+import { cleanupModalArtifacts } from "@/lib/utils";
+import { CustomModal } from "@/components/ui/custom-modal";
+import { ClientWarningModal } from "@/components/ClientWarningModal";
+import { UserSelect } from "@/components/ui/user-select";
+import { useUser } from "@/contexts/UserContext";
+import { Skeleton } from "@/components/ui/skeleton";
+import { DateInput } from "@/components/ui/date";
+import {
+  getClientById,
+  getAllClients,
+  createClient,
+} from "@/lib/db/clients-db";
+import { getAllUsers } from "@/lib/db/users-db";
+import {
+  createAppointment,
+  updateAppointment,
+  deleteAppointment,
+} from "@/lib/db/appointments-db";
+import { useNavigate } from "@tanstack/react-router";
+import { TableFiltersBar } from "@/components/table-filters-bar";
+import {
+  APPOINTMENT_DATE_SCOPE_OPTIONS,
+  ALL_FILTER_VALUE,
+} from "@/lib/table-filters";
 
 interface AppointmentsTableProps {
-  data: Appointment[]
-  clientId: number
-  onAppointmentChange: () => void
-  onAppointmentDeleted: (appointmentId: number) => void
-  onAppointmentDeleteFailed: () => void
-  loading: boolean
-  pagination?: { page: number; pageSize: number; total: number; setPage: (p: number) => void }
-  searchQuery?: string
-  onSearchChange?: (q: string) => void
+  data: Appointment[];
+  clientId: number;
+  onAppointmentChange: () => void;
+  onAppointmentDeleted: (appointmentId: number) => void;
+  onAppointmentDeleteFailed: () => void;
+  loading: boolean;
+  pagination?: {
+    page: number;
+    pageSize: number;
+    total: number;
+    setPage: (p: number) => void;
+  };
+  searchQuery?: string;
+  onSearchChange?: (q: string) => void;
+  examTypeFilter?: string;
+  onExamTypeFilterChange?: (value: string) => void;
+  dateScopeFilter?: string;
+  onDateScopeFilterChange?: (value: string) => void;
 }
 
 interface AppointmentTableRowProps {
-  appointment: Appointment
-  onEdit: (appointment: Appointment) => void
-  onDelete: (appointment: Appointment) => void
-  onSendEmail: (id: number) => void
-  clientId: number
+  appointment: Appointment;
+  onEdit: (appointment: Appointment) => void;
+  onDelete: (appointment: Appointment) => void;
+  onSendEmail: (id: number) => void;
+  clientId: number;
 }
 
-const AppointmentTableRow = React.memo(function AppointmentTableRow({ appointment, onEdit, onDelete, onSendEmail, clientId }: AppointmentTableRowProps) {
-  const navigate = useNavigate()
-
+const AppointmentTableRow = React.memo(function AppointmentTableRow({
+  appointment,
+  onEdit,
+  onDelete,
+  onSendEmail,
+  clientId,
+}: AppointmentTableRowProps) {
+  const navigate = useNavigate();
 
   return (
     <TableRow>
-      <TableCell
-        onClick={() => onEdit(appointment)}
-        className="cursor-pointer"
-      >
-        {appointment.date ? new Date(appointment.date).toLocaleDateString('he-IL') : ''}
+      <TableCell onClick={() => onEdit(appointment)} className="cursor-pointer">
+        {appointment.date
+          ? new Date(appointment.date).toLocaleDateString("he-IL")
+          : ""}
       </TableCell>
-      <TableCell
-        onClick={() => onEdit(appointment)}
-        className="cursor-pointer"
-      >{appointment.time}</TableCell>
+      <TableCell onClick={() => onEdit(appointment)} className="cursor-pointer">
+        {appointment.time}
+      </TableCell>
       {clientId === 0 && (
-        <TableCell className="cursor-pointer text-blue-600 hover:underline"
-          onClick={e => {
+        <TableCell
+          className="cursor-pointer text-blue-600 hover:underline"
+          onClick={(e) => {
             e.stopPropagation();
-            navigate({ to: "/clients/$clientId", params: { clientId: String(appointment.client_id) }, search: { tab: 'appointments' } })
+            navigate({
+              to: "/clients/$clientId",
+              params: { clientId: String(appointment.client_id) },
+              search: { tab: "appointments" },
+            });
           }}
-        >{appointment.client_full_name || ''}</TableCell>
+        >
+          {appointment.client_full_name || ""}
+        </TableCell>
       )}
-      <TableCell
-        onClick={() => onEdit(appointment)}
-        className="cursor-pointer"
-      >{appointment.exam_name}</TableCell>
-      <TableCell
-        onClick={() => onEdit(appointment)}
-        className="cursor-pointer"
-    >{appointment.examiner_name || ''}</TableCell>
-      <TableCell
-        onClick={() => onEdit(appointment)}
-        className="cursor-pointer"
-      >{appointment.note}</TableCell>
+      <TableCell onClick={() => onEdit(appointment)} className="cursor-pointer">
+        {appointment.exam_name}
+      </TableCell>
+      <TableCell onClick={() => onEdit(appointment)} className="cursor-pointer">
+        {appointment.examiner_name || ""}
+      </TableCell>
+      <TableCell onClick={() => onEdit(appointment)} className="cursor-pointer">
+        {appointment.note}
+      </TableCell>
       <TableCell>
         <div className="flex items-center gap-1">
           <Button
             variant="ghost"
             className="h-8 w-8 p-0"
             onClick={(e) => {
-              e.stopPropagation()
-              onEdit(appointment)
+              e.stopPropagation();
+              onEdit(appointment);
             }}
             title="עריכה"
           >
@@ -113,8 +158,8 @@ const AppointmentTableRow = React.memo(function AppointmentTableRow({ appointmen
             variant="ghost"
             className="h-8 w-8 p-0"
             onClick={(e) => {
-              e.stopPropagation()
-              onDelete(appointment)
+              e.stopPropagation();
+              onDelete(appointment);
             }}
             title="מחיקה"
           >
@@ -123,103 +168,179 @@ const AppointmentTableRow = React.memo(function AppointmentTableRow({ appointmen
         </div>
       </TableCell>
     </TableRow>
-  )
-})
+  );
+});
 
-export function AppointmentsTable({ data, clientId, onAppointmentChange, onAppointmentDeleted, onAppointmentDeleteFailed, loading, pagination, searchQuery: externalSearch, onSearchChange }: AppointmentsTableProps) {
-  const [searchQuery, setSearchQuery] = useState("")
-  const searchValue = externalSearch !== undefined ? externalSearch : searchQuery
-  const [isAppointmentDialogOpen, setIsAppointmentDialogOpen] = useState(false)
-  const [isNewClientDialogOpen, setIsNewClientDialogOpen] = useState(false)
-  const [isClientSelectOpen, setIsClientSelectOpen] = useState(false)
-  const [editingAppointment, setEditingAppointment] = useState<Appointment | null>(null)
-  const [selectedClient, setSelectedClient] = useState<Client | null>(null)
-  const { currentUser, currentClinic } = useUser()
-  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
-  const [appointmentToDelete, setAppointmentToDelete] = useState<Appointment | null>(null)
-  const [users, setUsers] = useState<User[]>([])
-  const [optimisticAppointments, setOptimisticAppointments] = useState<Appointment[]>([])
-  const [selectedExamType, setSelectedExamType] = useState<string>("all")
-  const [isSavingNewClientAppointment, setIsSavingNewClientAppointment] = useState(false)
-  
-  const [appointmentFormData, setAppointmentFormData] = useState<Omit<Appointment, 'id'>>({
+export function AppointmentsTable({
+  data,
+  clientId,
+  onAppointmentChange,
+  onAppointmentDeleted,
+  onAppointmentDeleteFailed,
+  loading,
+  pagination,
+  searchQuery: externalSearch,
+  onSearchChange,
+  examTypeFilter: externalExamTypeFilter,
+  onExamTypeFilterChange,
+  dateScopeFilter: externalDateScopeFilter,
+  onDateScopeFilterChange,
+}: AppointmentsTableProps) {
+  const [searchQuery, setSearchQuery] = useState("");
+  const searchValue =
+    externalSearch !== undefined ? externalSearch : searchQuery;
+  const [isAppointmentDialogOpen, setIsAppointmentDialogOpen] = useState(false);
+  const [isNewClientDialogOpen, setIsNewClientDialogOpen] = useState(false);
+  const [isClientSelectOpen, setIsClientSelectOpen] = useState(false);
+  const [editingAppointment, setEditingAppointment] =
+    useState<Appointment | null>(null);
+  const [selectedClient, setSelectedClient] = useState<Client | null>(null);
+  const { currentUser, currentClinic } = useUser();
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [appointmentToDelete, setAppointmentToDelete] =
+    useState<Appointment | null>(null);
+  const [users, setUsers] = useState<User[]>([]);
+  const [optimisticAppointments, setOptimisticAppointments] = useState<
+    Appointment[]
+  >([]);
+  const [selectedExamType, setSelectedExamType] =
+    useState<string>(ALL_FILTER_VALUE);
+  const [selectedDateScope, setSelectedDateScope] =
+    useState<string>(ALL_FILTER_VALUE);
+  const [isSavingNewClientAppointment, setIsSavingNewClientAppointment] =
+    useState(false);
+  const examTypeFilter = externalExamTypeFilter ?? selectedExamType;
+  const dateScopeFilter = externalDateScopeFilter ?? selectedDateScope;
+
+  const handleExamTypeFilterChange = (value: string) => {
+    if (onExamTypeFilterChange) {
+      onExamTypeFilterChange(value);
+      return;
+    }
+    setSelectedExamType(value);
+  };
+
+  const handleDateScopeFilterChange = (value: string) => {
+    if (onDateScopeFilterChange) {
+      onDateScopeFilterChange(value);
+      return;
+    }
+    setSelectedDateScope(value);
+  };
+
+  const [appointmentFormData, setAppointmentFormData] = useState<
+    Omit<Appointment, "id">
+  >({
     client_id: clientId,
     user_id: currentUser?.id,
-    date: '',
-    time: '',
+    date: "",
+    time: "",
     duration: 30,
-    exam_name: '',
-    note: ''
-  })
+    exam_name: "",
+    note: "",
+  });
 
   const [newClientFormData, setNewClientFormData] = useState<{
-    first_name: string
-    last_name: string
-    phone_mobile: string
-    email: string
-    user_id?: number
-    date: string
-    time: string
-    duration: number
-    exam_name: string
-    note: string
+    first_name: string;
+    last_name: string;
+    phone_mobile: string;
+    email: string;
+    user_id?: number;
+    date: string;
+    time: string;
+    duration: number;
+    exam_name: string;
+    note: string;
   }>({
-    first_name: '',
-    last_name: '',
-    phone_mobile: '',
-    email: '',
+    first_name: "",
+    last_name: "",
+    phone_mobile: "",
+    email: "",
     user_id: currentUser?.id,
-    date: '',
-    time: '',
+    date: "",
+    time: "",
     duration: 30,
-    exam_name: '',
-    note: ''
-  })
+    exam_name: "",
+    note: "",
+  });
 
   const [existingClientWarning, setExistingClientWarning] = useState<{
-    show: boolean
-    clients: Client[]
-    type: 'name' | 'phone' | 'email' | 'multiple'
+    show: boolean;
+    clients: Client[];
+    type: "name" | "phone" | "email" | "multiple";
   }>({
     show: false,
     clients: [],
-    type: 'name'
-  })
+    type: "name",
+  });
 
   const allAppointments = React.useMemo(() => {
-    const combined = [...optimisticAppointments, ...data]
-    const seen = new Set<number>()
-    const deduped: Appointment[] = []
+    const combined = [...optimisticAppointments, ...data];
+    const seen = new Set<number>();
+    const deduped: Appointment[] = [];
     for (const appt of combined) {
-      if (typeof appt.id === 'number') {
-        if (seen.has(appt.id)) continue
-        seen.add(appt.id)
+      if (typeof appt.id === "number") {
+        if (seen.has(appt.id)) continue;
+        seen.add(appt.id);
       }
-      deduped.push(appt)
+      deduped.push(appt);
     }
-    return deduped
-  }, [optimisticAppointments, data])
-  const filteredData = externalSearch !== undefined ? allAppointments : allAppointments.filter((appointment) => {
-    const searchableFields = [
-      appointment.date || '',
-      appointment.time || '',
-      appointment.exam_name || '',
-      appointment.note || '',
-    ]
-
-    return searchableFields.some(
-      (field) => field.toLowerCase().includes(searchValue.toLowerCase())
-    )
-  })
-
-  // Filter by exam type locally
+    return deduped;
+  }, [optimisticAppointments, data]);
   const finalFilteredData = React.useMemo(() => {
-    if (selectedExamType === "all") return filteredData;
-    return filteredData.filter(a => a.exam_name === selectedExamType);
-  }, [filteredData, selectedExamType]);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    return allAppointments.filter((appointment) => {
+      if (
+        examTypeFilter !== ALL_FILTER_VALUE &&
+        appointment.exam_name !== examTypeFilter
+      ) {
+        return false;
+      }
+
+      if (dateScopeFilter !== ALL_FILTER_VALUE && appointment.date) {
+        const appointmentDate = new Date(appointment.date);
+        appointmentDate.setHours(0, 0, 0, 0);
+
+        if (
+          dateScopeFilter === "today" &&
+          appointmentDate.getTime() !== today.getTime()
+        ) {
+          return false;
+        }
+        if (dateScopeFilter === "upcoming" && appointmentDate <= today) {
+          return false;
+        }
+        if (dateScopeFilter === "past" && appointmentDate >= today) {
+          return false;
+        }
+      }
+
+      const searchLower = searchValue.toLowerCase().trim();
+      if (!searchLower) {
+        return true;
+      }
+
+      const searchableFields = [
+        appointment.date || "",
+        appointment.time || "",
+        appointment.exam_name || "",
+        appointment.note || "",
+        appointment.client_full_name || "",
+        appointment.examiner_name || "",
+      ];
+
+      return searchableFields.some((field) =>
+        field.toLowerCase().includes(searchLower),
+      );
+    });
+  }, [allAppointments, dateScopeFilter, examTypeFilter, searchValue]);
 
   const uniqueExamTypes = React.useMemo(() => {
-    const types = new Set(allAppointments.map(a => a.exam_name).filter(Boolean));
+    const types = new Set(
+      allAppointments.map((a) => a.exam_name).filter(Boolean),
+    );
     return Array.from(types);
   }, [allAppointments]);
 
@@ -229,169 +350,186 @@ export function AppointmentsTable({ data, clientId, onAppointmentChange, onAppoi
     setAppointmentFormData({
       client_id: clientId,
       user_id: currentUser?.id,
-      date: '',
-      time: '',
+      date: "",
+      time: "",
       duration: 30,
-      exam_name: '',
-      note: ''
-    })
+      exam_name: "",
+      note: "",
+    });
     setNewClientFormData({
-      first_name: '',
-      last_name: '',
-      phone_mobile: '',
-      email: '',
+      first_name: "",
+      last_name: "",
+      phone_mobile: "",
+      email: "",
       user_id: currentUser?.id,
-      date: '',
-      time: '',
+      date: "",
+      time: "",
       duration: 30,
-      exam_name: '',
-      note: ''
-    })
-    setSelectedClient(null)
-    setEditingAppointment(null)
-    setExistingClientWarning({ show: false, clients: [], type: 'name' })
-  }
+      exam_name: "",
+      note: "",
+    });
+    setSelectedClient(null);
+    setEditingAppointment(null);
+    setExistingClientWarning({ show: false, clients: [], type: "name" });
+  };
 
   const closeAllDialogs = () => {
-    setIsAppointmentDialogOpen(false)
-    setIsNewClientDialogOpen(false)
-    setIsClientSelectOpen(false)
-    resetAllForms()
+    setIsAppointmentDialogOpen(false);
+    setIsNewClientDialogOpen(false);
+    setIsClientSelectOpen(false);
+    resetAllForms();
     setTimeout(() => {
-      cleanupModalArtifacts()
-    }, 100)
-  }
+      cleanupModalArtifacts();
+    }, 100);
+  };
 
-  const handleAppointmentInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target
-    setAppointmentFormData(prev => ({ ...prev, [name]: value }))
-  }
+  const handleAppointmentInputChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
+  ) => {
+    const { name, value } = e.target;
+    setAppointmentFormData((prev) => ({ ...prev, [name]: value }));
+  };
 
-  const handleNewClientInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target
-    setNewClientFormData(prev => ({ ...prev, [name]: value }))
-  }
+  const handleNewClientInputChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
+  ) => {
+    const { name, value } = e.target;
+    setNewClientFormData((prev) => ({ ...prev, [name]: value }));
+  };
 
   const openDirectAppointmentDialog = () => {
-    resetAllForms()
-    setIsAppointmentDialogOpen(true)
-  }
+    resetAllForms();
+    setIsAppointmentDialogOpen(true);
+  };
 
   React.useEffect(() => {
     const loadUsersOnce = async () => {
       try {
-        const data = await getAllUsers()
-        setUsers(data || [])
+        const data = await getAllUsers();
+        setUsers(data || []);
       } catch {}
-    }
-    loadUsersOnce()
-  }, [])
+    };
+    loadUsersOnce();
+  }, []);
 
   React.useEffect(() => {
     const handleOpenAppointmentModal = (e: CustomEvent) => {
-      const appointmentId = e.detail?.appointmentId
+      const appointmentId = e.detail?.appointmentId;
       if (appointmentId) {
-        const appointment = dataToRender.find(a => a.id === appointmentId) || data.find(a => a.id === appointmentId)
+        const appointment =
+          dataToRender.find((a) => a.id === appointmentId) ||
+          data.find((a) => a.id === appointmentId);
         if (appointment) {
-          openEditDialog(appointment)
+          openEditDialog(appointment);
         }
       }
-    }
-    
-    window.addEventListener('openAppointmentModal', handleOpenAppointmentModal as EventListener)
-    return () => window.removeEventListener('openAppointmentModal', handleOpenAppointmentModal as EventListener)
-  }, [data])
+    };
+
+    window.addEventListener(
+      "openAppointmentModal",
+      handleOpenAppointmentModal as EventListener,
+    );
+    return () =>
+      window.removeEventListener(
+        "openAppointmentModal",
+        handleOpenAppointmentModal as EventListener,
+      );
+  }, [data]);
 
   const isVacation = (userId?: number, dateStr?: string) => {
-    console.log('isVacation', userId, dateStr)
-    if (!userId || !dateStr) return false
-    const u = users.find(x => x.id === userId)
-    if (!u) return false
+    console.log("isVacation", userId, dateStr);
+    if (!userId || !dateStr) return false;
+    const u = users.find((x) => x.id === userId);
+    if (!u) return false;
     const vacations = [
-      ...((u.system_vacation_dates) || []),
-      ...((u.added_vacation_dates) || [])
-    ]
-    console.log('vacations', vacations, vacations.includes(dateStr))
-    return vacations.includes(dateStr)
-  }
+      ...(u.system_vacation_dates || []),
+      ...(u.added_vacation_dates || []),
+    ];
+    console.log("vacations", vacations, vacations.includes(dateStr));
+    return vacations.includes(dateStr);
+  };
 
   const openNewClientDialog = () => {
-    resetAllForms()
-    setIsNewClientDialogOpen(true)
-  }
+    resetAllForms();
+    setIsNewClientDialogOpen(true);
+  };
 
   const openOldClientFlow = () => {
-    resetAllForms()
-    setIsClientSelectOpen(true)
-  }
+    resetAllForms();
+    setIsClientSelectOpen(true);
+  };
 
   const openEditDialog = (appointment: Appointment) => {
-    setEditingAppointment(appointment)
+    setEditingAppointment(appointment);
     setAppointmentFormData({
       client_id: appointment.client_id,
       user_id: appointment.user_id || currentUser?.id,
-      date: appointment.date || '',
-      time: appointment.time || '',
+      date: appointment.date || "",
+      time: appointment.time || "",
       duration: appointment.duration || 30,
-      exam_name: appointment.exam_name || '',
-      note: appointment.note || ''
-    })
-    setIsAppointmentDialogOpen(true)
-  }
+      exam_name: appointment.exam_name || "",
+      note: appointment.note || "",
+    });
+    setIsAppointmentDialogOpen(true);
+  };
 
   const handleClientSelect = async (selectedClientId: number) => {
     try {
-      const client = await getClientById(selectedClientId)
+      const client = await getClientById(selectedClientId);
       if (client) {
-        setSelectedClient(client)
-        setAppointmentFormData(prev => ({
+        setSelectedClient(client);
+        setAppointmentFormData((prev) => ({
           ...prev,
           client_id: selectedClientId,
-          duration: 30
-        }))
-        setIsClientSelectOpen(false)
-        setIsAppointmentDialogOpen(true)
+          duration: 30,
+        }));
+        setIsClientSelectOpen(false);
+        setIsAppointmentDialogOpen(true);
       }
     } catch (error) {
-      console.error('Error loading client:', error)
-      toast.error("שגיאה בטעינת פרטי הלקוח")
+      console.error("Error loading client:", error);
+      toast.error("שגיאה בטעינת פרטי הלקוח");
     }
-  }
+  };
 
   const handleSaveAppointment = async () => {
-    console.log('handleSaveAppointment', appointmentFormData)
+    console.log("handleSaveAppointment", appointmentFormData);
     try {
-      const dateStr = appointmentFormData.date
-      const userId = appointmentFormData.user_id
+      const dateStr = appointmentFormData.date;
+      const userId = appointmentFormData.user_id;
       if (isVacation(userId, dateStr)) {
-        toast.error('לא ניתן לקבוע תור ביום חופשה של המשתמש')
-        return
+        toast.error("לא ניתן לקבוע תור ביום חופשה של המשתמש");
+        return;
       }
       if (editingAppointment) {
-        const result = await updateAppointment({ ...appointmentFormData, id: editingAppointment.id, client_id: appointmentFormData.client_id })
+        const result = await updateAppointment({
+          ...appointmentFormData,
+          id: editingAppointment.id,
+          client_id: appointmentFormData.client_id,
+        });
         if (result) {
-          toast.success("התור עודכן בהצלחה")
+          toast.success("התור עודכן בהצלחה");
         } else {
-          toast.error("שגיאה בעדכון התור")
+          toast.error("שגיאה בעדכון התור");
         }
       } else {
         const examinerName = (() => {
-          if (!appointmentFormData.user_id) return ''
-          const u = users.find(x => x.id === appointmentFormData.user_id)
-          return (u?.full_name || u?.username || '').trim()
-        })()
+          if (!appointmentFormData.user_id) return "";
+          const u = users.find((x) => x.id === appointmentFormData.user_id);
+          return (u?.full_name || u?.username || "").trim();
+        })();
 
         const clientFullName = (() => {
           if (selectedClient?.first_name || selectedClient?.last_name) {
-            const first = selectedClient?.first_name?.trim() || ''
-            const last = selectedClient?.last_name?.trim() || ''
-            return `${first} ${last}`.trim()
+            const first = selectedClient?.first_name?.trim() || "";
+            const last = selectedClient?.last_name?.trim() || "";
+            return `${first} ${last}`.trim();
           }
-          return ''
-        })()
+          return "";
+        })();
 
         // Optimistic create: add temporary appointment to the table immediately
-        const tempId = -Date.now()
+        const tempId = -Date.now();
         const tempAppointment: Appointment = {
           id: tempId,
           client_id: appointmentFormData.client_id,
@@ -404,146 +542,174 @@ export function AppointmentsTable({ data, clientId, onAppointmentChange, onAppoi
           note: appointmentFormData.note,
           examiner_name: examinerName,
           client_full_name: clientFullName,
-        } as Appointment
-        setOptimisticAppointments(prev => [tempAppointment, ...prev])
+        } as Appointment;
+        setOptimisticAppointments((prev) => [tempAppointment, ...prev]);
 
         if (!clientFullName && appointmentFormData.client_id) {
-          ;(async () => {
+          (async () => {
             try {
-              const client = await getClientById(appointmentFormData.client_id)
+              const client = await getClientById(appointmentFormData.client_id);
               if (client) {
-                const first = client.first_name?.trim() || ''
-                const last = client.last_name?.trim() || ''
-                const fullName = `${first} ${last}`.trim()
+                const first = client.first_name?.trim() || "";
+                const last = client.last_name?.trim() || "";
+                const fullName = `${first} ${last}`.trim();
                 if (fullName) {
-                  setOptimisticAppointments(prev => prev.map(a => a.id === tempId ? { ...a, client_full_name: fullName } : a))
+                  setOptimisticAppointments((prev) =>
+                    prev.map((a) =>
+                      a.id === tempId
+                        ? { ...a, client_full_name: fullName }
+                        : a,
+                    ),
+                  );
                 }
               }
             } catch {}
-          })()
+          })();
         }
 
         // Fire-and-forget the actual creation, then reconcile
-        ;(async () => {
+        (async () => {
           try {
             const result = await createAppointment({
               ...appointmentFormData,
-              clinic_id: currentClinic?.id
-            })
+              clinic_id: currentClinic?.id,
+            });
             if (result) {
-              toast.success("התור נוצר בהצלחה")
+              toast.success("התור נוצר בהצלחה");
               const merged: Appointment = {
                 ...(result as Appointment),
-                examiner_name: (result as Appointment).examiner_name || examinerName,
-                client_full_name: (result as Appointment).client_full_name || clientFullName,
-              }
-              setOptimisticAppointments(prev => prev.map(a => a.id === tempId ? merged : a))
+                examiner_name:
+                  (result as Appointment).examiner_name || examinerName,
+                client_full_name:
+                  (result as Appointment).client_full_name || clientFullName,
+              };
+              setOptimisticAppointments((prev) =>
+                prev.map((a) => (a.id === tempId ? merged : a)),
+              );
             } else {
-              setOptimisticAppointments(prev => prev.filter(a => a.id !== tempId))
-              toast.error("שגיאה ביצירת התור")
+              setOptimisticAppointments((prev) =>
+                prev.filter((a) => a.id !== tempId),
+              );
+              toast.error("שגיאה ביצירת התור");
             }
           } catch (error) {
-            setOptimisticAppointments(prev => prev.filter(a => a.id !== tempId))
-            toast.error("שגיאה ביצירת התור")
+            setOptimisticAppointments((prev) =>
+              prev.filter((a) => a.id !== tempId),
+            );
+            toast.error("שגיאה ביצירת התור");
           }
-        })()
+        })();
       }
-      closeAllDialogs()
+      closeAllDialogs();
     } catch (error) {
-      console.error('Error saving appointment:', error)
-      toast.error("שגיאה בשמירת התור")
+      console.error("Error saving appointment:", error);
+      toast.error("שגיאה בשמירת התור");
     }
-  }
+  };
 
   const checkForExistingClients = async () => {
-    if (!newClientFormData.first_name.trim() || !newClientFormData.last_name.trim()) {
-      toast.error("שם פרטי ושם משפחה הם שדות חובה")
-      return false
+    if (
+      !newClientFormData.first_name.trim() ||
+      !newClientFormData.last_name.trim()
+    ) {
+      toast.error("שם פרטי ושם משפחה הם שדות חובה");
+      return false;
     }
 
     try {
-      const allClients = await getAllClients(currentClinic?.id)
-      const existingClients: Client[] = []
-      let warningType: 'name' | 'phone' | 'email' | 'multiple' = 'name'
+      const allClients = await getAllClients(currentClinic?.id);
+      const existingClients: Client[] = [];
+      let warningType: "name" | "phone" | "email" | "multiple" = "name";
 
-      const nameMatches = allClients.filter(client => 
-        client.first_name?.toLowerCase().trim() === newClientFormData.first_name.toLowerCase().trim() &&
-        client.last_name?.toLowerCase().trim() === newClientFormData.last_name.toLowerCase().trim()
-      )
+      const nameMatches = allClients.filter(
+        (client) =>
+          client.first_name?.toLowerCase().trim() ===
+            newClientFormData.first_name.toLowerCase().trim() &&
+          client.last_name?.toLowerCase().trim() ===
+            newClientFormData.last_name.toLowerCase().trim(),
+      );
 
-      const phoneMatches = newClientFormData.phone_mobile.trim() 
-        ? allClients.filter(client => 
-            client.phone_mobile?.trim() === newClientFormData.phone_mobile.trim()
+      const phoneMatches = newClientFormData.phone_mobile.trim()
+        ? allClients.filter(
+            (client) =>
+              client.phone_mobile?.trim() ===
+              newClientFormData.phone_mobile.trim(),
           )
-        : []
+        : [];
 
-      const emailMatches = newClientFormData.email.trim() 
-        ? allClients.filter(client => 
-            client.email?.toLowerCase().trim() === newClientFormData.email.toLowerCase().trim()
+      const emailMatches = newClientFormData.email.trim()
+        ? allClients.filter(
+            (client) =>
+              client.email?.toLowerCase().trim() ===
+              newClientFormData.email.toLowerCase().trim(),
           )
-        : []
+        : [];
 
-      const matchTypes = []
+      const matchTypes = [];
       if (nameMatches.length > 0) {
-        existingClients.push(...nameMatches)
-        matchTypes.push('name')
+        existingClients.push(...nameMatches);
+        matchTypes.push("name");
       }
       if (phoneMatches.length > 0) {
-        existingClients.push(...phoneMatches)
-        matchTypes.push('phone')
+        existingClients.push(...phoneMatches);
+        matchTypes.push("phone");
       }
       if (emailMatches.length > 0) {
-        existingClients.push(...emailMatches)
-        matchTypes.push('email')
+        existingClients.push(...emailMatches);
+        matchTypes.push("email");
       }
 
       if (matchTypes.length > 1) {
-        warningType = 'multiple'
+        warningType = "multiple";
       } else if (matchTypes.length === 1) {
-        warningType = matchTypes[0] as 'name' | 'phone' | 'email'
+        warningType = matchTypes[0] as "name" | "phone" | "email";
       }
 
       if (existingClients.length > 0) {
-        const uniqueClients = existingClients.filter((client, index, self) => 
-          index === self.findIndex(c => c.id === client.id)
-        )
+        const uniqueClients = existingClients.filter(
+          (client, index, self) =>
+            index === self.findIndex((c) => c.id === client.id),
+        );
         setExistingClientWarning({
           show: true,
           clients: uniqueClients,
-          type: warningType
-        })
-        return false
+          type: warningType,
+        });
+        return false;
       }
 
-      return true
+      return true;
     } catch (error) {
-      console.error('Error checking for existing clients:', error)
-      toast.error("שגיאה בבדיקת לקוחות קיימים")
-      return false
+      console.error("Error checking for existing clients:", error);
+      toast.error("שגיאה בבדיקת לקוחות קיימים");
+      return false;
     }
-  }
+  };
 
   const handleSaveNewClientAndAppointment = async (forceCreate = false) => {
     try {
-      setIsSavingNewClientAppointment(true)
+      setIsSavingNewClientAppointment(true);
       if (!forceCreate) {
-        const canProceed = await checkForExistingClients()
-        if (!canProceed) { setIsSavingNewClientAppointment(false); return }
+        const canProceed = await checkForExistingClients();
+        if (!canProceed) {
+          setIsSavingNewClientAppointment(false);
+          return;
+        }
       }
 
       if (isVacation(newClientFormData.user_id, newClientFormData.date)) {
-        toast.error('לא ניתן לקבוע תור ביום חופשה של המשתמש')
-        setIsSavingNewClientAppointment(false)
-        return
+        toast.error("לא ניתן לקבוע תור ביום חופשה של המשתמש");
+        setIsSavingNewClientAppointment(false);
+        return;
       }
 
-              const newClient = await createClient({
+      const newClient = await createClient({
         first_name: newClientFormData.first_name,
         last_name: newClientFormData.last_name,
         phone_mobile: newClientFormData.phone_mobile,
         email: newClientFormData.email,
-        clinic_id: currentClinic?.id
-      })
+        clinic_id: currentClinic?.id,
+      });
 
       if (newClient && newClient.id) {
         const appointmentData = {
@@ -554,33 +720,33 @@ export function AppointmentsTable({ data, clientId, onAppointmentChange, onAppoi
           time: newClientFormData.time,
           duration: newClientFormData.duration,
           exam_name: newClientFormData.exam_name,
-          note: newClientFormData.note
-        }
+          note: newClientFormData.note,
+        };
 
-        const result = await createAppointment(appointmentData)
+        const result = await createAppointment(appointmentData);
         if (result) {
-          toast.success("לקוח חדש ותור נוצרו בהצלחה")
-          closeAllDialogs()
-          onAppointmentChange()
+          toast.success("לקוח חדש ותור נוצרו בהצלחה");
+          closeAllDialogs();
+          onAppointmentChange();
         } else {
-          toast.error("שגיאה ביצירת התור")
+          toast.error("שגיאה ביצירת התור");
         }
       } else {
-        toast.error("שגיאה ביצירת הלקוח")
+        toast.error("שגיאה ביצירת הלקוח");
       }
     } catch (error) {
-      console.error('Error creating client and appointment:', error)
-      toast.error("שגיאה ביצירת לקוח ותור")
+      console.error("Error creating client and appointment:", error);
+      toast.error("שגיאה ביצירת לקוח ותור");
     } finally {
-      setIsSavingNewClientAppointment(false)
+      setIsSavingNewClientAppointment(false);
     }
-  }
+  };
 
   const handleUseExistingClient = async (existingClient: Client) => {
     try {
       if (isVacation(newClientFormData.user_id, newClientFormData.date)) {
-        toast.error('לא ניתן לקבוע תור ביום חופשה של המשתמש')
-        return
+        toast.error("לא ניתן לקבוע תור ביום חופשה של המשתמש");
+        return;
       }
       const appointmentData = {
         client_id: existingClient.id!,
@@ -590,27 +756,27 @@ export function AppointmentsTable({ data, clientId, onAppointmentChange, onAppoi
         time: newClientFormData.time,
         duration: newClientFormData.duration,
         exam_name: newClientFormData.exam_name,
-        note: newClientFormData.note
-      }
+        note: newClientFormData.note,
+      };
 
-              const result = await createAppointment(appointmentData)
+      const result = await createAppointment(appointmentData);
       if (result) {
-        toast.success("תור נוצר עם לקוח קיים בהצלחה")
-        closeAllDialogs()
-        onAppointmentChange()
+        toast.success("תור נוצר עם לקוח קיים בהצלחה");
+        closeAllDialogs();
+        onAppointmentChange();
       } else {
-        toast.error("שגיאה ביצירת התור")
+        toast.error("שגיאה ביצירת התור");
       }
     } catch (error) {
-      console.error('Error creating appointment with existing client:', error)
-      toast.error("שגיאה ביצירת תור עם לקוח קיים")
+      console.error("Error creating appointment with existing client:", error);
+      toast.error("שגיאה ביצירת תור עם לקוח קיים");
     }
-  }
+  };
 
   const handleDelete = (appointment: Appointment) => {
     setAppointmentToDelete(appointment);
     setIsDeleteModalOpen(true);
-  }
+  };
 
   const handleDeleteConfirm = async () => {
     if (appointmentToDelete && appointmentToDelete.id !== undefined) {
@@ -621,86 +787,108 @@ export function AppointmentsTable({ data, clientId, onAppointmentChange, onAppoi
 
         const result = await deleteAppointment(deletedAppointmentId);
         if (result) {
-          toast.success("התור נמחק בהצלחה")
-          onAppointmentDeleted(deletedAppointmentId)
+          toast.success("התור נמחק בהצלחה");
+          onAppointmentDeleted(deletedAppointmentId);
         } else {
-          toast.error("שגיאה במחיקת התור")
-          onAppointmentDeleteFailed()
+          toast.error("שגיאה במחיקת התור");
+          onAppointmentDeleteFailed();
         }
       } catch (error) {
-        toast.error("שגיאה במחיקת התור")
-        onAppointmentDeleteFailed()
+        toast.error("שגיאה במחיקת התור");
+        onAppointmentDeleteFailed();
       } finally {
         setAppointmentToDelete(null);
       }
     }
     setIsDeleteModalOpen(false);
-  }
+  };
 
   const handleSendTestEmail = async (appointmentId: number) => {
     try {
-      toast.info("שולח תזכורת...")
-      const result = await window.electronAPI.emailSendTestReminder(appointmentId)
+      toast.info("שולח תזכורת...");
+      const result =
+        await window.electronAPI.emailSendTestReminder(appointmentId);
       if (result) {
-        toast.success("תזכורת נשלחה בהצלחה")
+        toast.success("תזכורת נשלחה בהצלחה");
       } else {
-        toast.error("שגיאה בשליחת התזכורת")
+        toast.error("שגיאה בשליחת התזכורת");
       }
     } catch (error) {
-      console.error('Error sending test email:', error)
-      toast.error("שגיאה בשליחת התזכורת")
+      console.error("Error sending test email:", error);
+      toast.error("שגיאה בשליחת התזכורת");
     }
-  }
+  };
 
   return (
-    <div className="space-y-4 mb-10" style={{scrollbarWidth: 'none'}}>
-      <div className="flex justify-between items-center" dir="rtl">        
-        <div className="flex gap-2">
-          <Input
-            placeholder="חיפוש תורים..."
-            value={searchValue}
-            onChange={(e) => (onSearchChange ? onSearchChange(e.target.value) : setSearchQuery(e.target.value))}
-            className="w-[250px] bg-card dark:bg-card" 
-            dir="rtl"
-          />
-           <Select value={selectedExamType} onValueChange={setSelectedExamType} dir="rtl">
-            <SelectTrigger className="w-[180px] bg-card">
-              <SelectValue placeholder="סוג בדיקה" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">כל הבדיקות</SelectItem>
-              {uniqueExamTypes.map(type => (
-                <SelectItem key={type} value={type || 'unknown'}>{type}</SelectItem>
-              ))}
-            </SelectContent>
-           </Select>
-        </div>
-        
-        {clientId > 0 ? (
-          <Button onClick={openDirectAppointmentDialog}
-          >תור חדש
-              <Plus className="h-4 w-4 mr-2" />
-              </Button>
-        ) : (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button>
-                תור חדש <ChevronDown className="h-4 w-4 mr-2" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={openNewClientDialog}>
-                <UserPlus className="h-4 w-4 ml-2" />
-                לקוח חדש
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={openOldClientFlow}>
-                <Users className="h-4 w-4 ml-2" />
-                לקוח קיים
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        )}
-      </div>
+    <div className="mb-10 space-y-2.5" style={{ scrollbarWidth: "none" }}>
+      <TableFiltersBar
+        searchValue={searchValue}
+        onSearchChange={(value) =>
+          onSearchChange ? onSearchChange(value) : setSearchQuery(value)
+        }
+        searchPlaceholder="חיפוש תורים…"
+        filters={[
+          {
+            key: "date-scope",
+            value: dateScopeFilter,
+            onChange: handleDateScopeFilterChange,
+            placeholder: "טווח תאריכים",
+            options: APPOINTMENT_DATE_SCOPE_OPTIONS,
+            widthClassName: "w-[160px]",
+          },
+          {
+            key: "exam-type",
+            value: examTypeFilter,
+            onChange: handleExamTypeFilterChange,
+            placeholder: "סוג בדיקה",
+            options: [
+              { value: ALL_FILTER_VALUE, label: "כל הבדיקות" },
+              ...uniqueExamTypes.map((type) => ({
+                value: type || "unknown",
+                label: type || "unknown",
+              })),
+            ],
+            widthClassName: "w-[190px]",
+          },
+        ]}
+        hasActiveFilters={
+          Boolean(searchValue.trim()) ||
+          examTypeFilter !== ALL_FILTER_VALUE ||
+          dateScopeFilter !== ALL_FILTER_VALUE
+        }
+        onReset={() => {
+          if (onSearchChange) onSearchChange("");
+          else setSearchQuery("");
+          handleExamTypeFilterChange(ALL_FILTER_VALUE);
+          handleDateScopeFilterChange(ALL_FILTER_VALUE);
+        }}
+        actions={
+          clientId > 0 ? (
+            <Button onClick={openDirectAppointmentDialog}>
+              תור חדש
+              <Plus className="mr-2 h-4 w-4" />
+            </Button>
+          ) : (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button>
+                  תור חדש <ChevronDown className="mr-2 h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={openNewClientDialog}>
+                  <UserPlus className="ml-2 h-4 w-4" />
+                  לקוח חדש
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={openOldClientFlow}>
+                  <Users className="ml-2 h-4 w-4" />
+                  לקוח קיים
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )
+        }
+      />
 
       {/* Client Select Modal */}
       <ClientSelectModal
@@ -716,10 +904,15 @@ export function AppointmentsTable({ data, clientId, onAppointmentChange, onAppoi
         title="לקוח חדש ותור"
         className="sm:max-w-[500px]"
       >
-        <div className="grid gap-4 max-h-[60vh] overflow-auto p-1" style={{scrollbarWidth: 'none'}}>
+        <div
+          className="grid max-h-[60vh] gap-4 overflow-auto p-1"
+          style={{ scrollbarWidth: "none" }}
+        >
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="new-first-name" className="text-right block">שם פרטי *</Label>
+              <Label htmlFor="new-first-name" className="block text-right">
+                שם פרטי *
+              </Label>
               <Input
                 id="new-first-name"
                 name="first_name"
@@ -730,7 +923,9 @@ export function AppointmentsTable({ data, clientId, onAppointmentChange, onAppoi
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="new-last-name" className="text-right block">שם משפחה *</Label>
+              <Label htmlFor="new-last-name" className="block text-right">
+                שם משפחה *
+              </Label>
               <Input
                 id="new-last-name"
                 name="last_name"
@@ -743,7 +938,9 @@ export function AppointmentsTable({ data, clientId, onAppointmentChange, onAppoi
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="new-email" className="text-right block">אימייל</Label>
+              <Label htmlFor="new-email" className="block text-right">
+                אימייל
+              </Label>
               <Input
                 id="new-email"
                 name="email"
@@ -754,7 +951,9 @@ export function AppointmentsTable({ data, clientId, onAppointmentChange, onAppoi
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="new-phone" className="text-right block">טלפון נייד</Label>
+              <Label htmlFor="new-phone" className="block text-right">
+                טלפון נייד
+              </Label>
               <Input
                 id="new-phone"
                 name="phone_mobile"
@@ -766,31 +965,39 @@ export function AppointmentsTable({ data, clientId, onAppointmentChange, onAppoi
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="new-date" className="text-right block">תאריך</Label>
-              <Input
-                id="new-date"
+              <Label htmlFor="new-date" className="block text-right">
+                תאריך
+              </Label>
+              <DateInput
                 name="date"
-                type="date"
                 value={newClientFormData.date}
                 onChange={handleNewClientInputChange}
-                style={{ textAlign: 'right', direction: 'rtl', paddingLeft: '25%' }}
+                className="text-right"
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="new-time" className="text-right block">שעה</Label>
+              <Label htmlFor="new-time" className="block text-right">
+                שעה
+              </Label>
               <Input
                 id="new-time"
                 name="time"
                 type="time"
                 value={newClientFormData.time}
                 onChange={handleNewClientInputChange}
-                style={{ textAlign: 'right', direction: 'rtl', paddingLeft: '55%' }}
+                style={{
+                  textAlign: "right",
+                  direction: "rtl",
+                  paddingLeft: "55%",
+                }}
               />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="new-exam-name" className="text-right block">סוג בדיקה</Label>
+              <Label htmlFor="new-exam-name" className="block text-right">
+                סוג בדיקה
+              </Label>
               <Input
                 id="new-exam-name"
                 name="exam_name"
@@ -800,16 +1007,22 @@ export function AppointmentsTable({ data, clientId, onAppointmentChange, onAppoi
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="new-examiner" className="text-right block">בודק</Label>
+              <Label htmlFor="new-examiner" className="block text-right">
+                בודק
+              </Label>
               <UserSelect
                 value={newClientFormData.user_id}
-                onValueChange={(userId) => setNewClientFormData(prev => ({ ...prev, user_id: userId }))}
+                onValueChange={(userId) =>
+                  setNewClientFormData((prev) => ({ ...prev, user_id: userId }))
+                }
                 users={users}
               />
             </div>
           </div>
           <div className="space-y-2 pb-2">
-            <Label htmlFor="new-note" className="text-right block">הערות</Label>
+            <Label htmlFor="new-note" className="block text-right">
+              הערות
+            </Label>
             <Textarea
               id="new-note"
               name="note"
@@ -818,15 +1031,20 @@ export function AppointmentsTable({ data, clientId, onAppointmentChange, onAppoi
               dir="rtl"
             />
           </div>
-
-
         </div>
-        <div className="flex justify-start gap-2 mt-4">
-          <Button onClick={() => handleSaveNewClientAndAppointment(false)} disabled={isSavingNewClientAppointment}>
-            {isSavingNewClientAppointment && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+        <div className="mt-4 flex justify-start gap-2">
+          <Button
+            onClick={() => handleSaveNewClientAndAppointment(false)}
+            disabled={isSavingNewClientAppointment}
+          >
+            {isSavingNewClientAppointment && (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            )}
             שמור
           </Button>
-          <Button variant="outline" onClick={closeAllDialogs}>ביטול</Button>
+          <Button variant="outline" onClick={closeAllDialogs}>
+            ביטול
+          </Button>
         </div>
       </CustomModal>
 
@@ -834,45 +1052,60 @@ export function AppointmentsTable({ data, clientId, onAppointmentChange, onAppoi
       <CustomModal
         isOpen={isAppointmentDialogOpen}
         onClose={closeAllDialogs}
-        title={editingAppointment ? 'עריכת תור' : selectedClient ? `תור חדש - ${selectedClient.first_name} ${selectedClient.last_name}` : 'תור חדש'}
+        title={
+          editingAppointment
+            ? "עריכת תור"
+            : selectedClient
+              ? `תור חדש - ${selectedClient.first_name} ${selectedClient.last_name}`
+              : "תור חדש"
+        }
         className="w-md"
       >
         <div className="grid gap-4">
           {selectedClient && (
-            <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded-md">
+            <div className="rounded-md bg-gray-50 p-3 dark:bg-gray-800">
               <div className="text-sm font-medium">פרטי לקוח:</div>
-              <div className="text-sm text-muted-foreground">
-                {selectedClient.first_name} {selectedClient.last_name} • {selectedClient.phone_mobile}
+              <div className="text-muted-foreground text-sm">
+                {selectedClient.first_name} {selectedClient.last_name} •{" "}
+                {selectedClient.phone_mobile}
               </div>
             </div>
           )}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="time" className="text-right block">שעה</Label>
+              <Label htmlFor="time" className="block text-right">
+                שעה
+              </Label>
               <Input
                 id="time"
                 name="time"
                 type="time"
                 value={appointmentFormData.time}
                 onChange={handleAppointmentInputChange}
-                style={{ textAlign: 'right', direction: 'rtl', paddingLeft: '55%' }}
+                style={{
+                  textAlign: "right",
+                  direction: "rtl",
+                  paddingLeft: "55%",
+                }}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="date" className="text-right block">תאריך</Label>
-              <Input
-                id="date"
+              <Label htmlFor="date" className="block text-right">
+                תאריך
+              </Label>
+              <DateInput
                 name="date"
-                type="date"
                 value={appointmentFormData.date}
                 onChange={handleAppointmentInputChange}
-                style={{ textAlign: 'right', direction: 'rtl', paddingLeft: '25%' }}
+                className="text-right"
               />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="exam_name" className="text-right block">סוג בדיקה</Label>
+              <Label htmlFor="exam_name" className="block text-right">
+                סוג בדיקה
+              </Label>
               <Input
                 id="exam_name"
                 name="exam_name"
@@ -882,16 +1115,25 @@ export function AppointmentsTable({ data, clientId, onAppointmentChange, onAppoi
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="examiner" className="text-right block">בודק</Label>
+              <Label htmlFor="examiner" className="block text-right">
+                בודק
+              </Label>
               <UserSelect
                 value={appointmentFormData.user_id}
-                onValueChange={(userId) => setAppointmentFormData(prev => ({ ...prev, user_id: userId }))}
+                onValueChange={(userId) =>
+                  setAppointmentFormData((prev) => ({
+                    ...prev,
+                    user_id: userId,
+                  }))
+                }
                 users={users}
               />
             </div>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="note" className="text-right block">הערות</Label>
+            <Label htmlFor="note" className="block text-right">
+              הערות
+            </Label>
             <Textarea
               id="note"
               name="note"
@@ -901,16 +1143,20 @@ export function AppointmentsTable({ data, clientId, onAppointmentChange, onAppoi
             />
           </div>
         </div>
-        <div className="flex justify-start gap-2 mt-4">
+        <div className="mt-4 flex justify-start gap-2">
           <Button onClick={handleSaveAppointment}>שמור</Button>
-          <Button variant="outline" onClick={closeAllDialogs}>ביטול</Button>
+          <Button variant="outline" onClick={closeAllDialogs}>
+            ביטול
+          </Button>
         </div>
       </CustomModal>
 
       {/* Client Warning Modal */}
       <ClientWarningModal
         isOpen={existingClientWarning.show}
-        onClose={() => setExistingClientWarning({ show: false, clients: [], type: 'name' })}
+        onClose={() =>
+          setExistingClientWarning({ show: false, clients: [], type: "name" })
+        }
         clients={existingClientWarning.clients}
         warningType={existingClientWarning.type}
         onUseExistingClient={handleUseExistingClient}
@@ -921,23 +1167,33 @@ export function AppointmentsTable({ data, clientId, onAppointmentChange, onAppoi
         isOpen={isDeleteModalOpen}
         onClose={() => setIsDeleteModalOpen(false)}
         title="מחיקת תור"
-        description={appointmentToDelete ? `האם אתה בטוח שברצונך למחוק את התור בתאריך ${appointmentToDelete.date ? new Date(appointmentToDelete.date).toLocaleDateString('he-IL') : ''}?` : "האם אתה בטוח שברצונך למחוק את התור?"}
+        description={
+          appointmentToDelete
+            ? `האם אתה בטוח שברצונך למחוק את התור בתאריך ${appointmentToDelete.date ? new Date(appointmentToDelete.date).toLocaleDateString("he-IL") : ""}?`
+            : "האם אתה בטוח שברצונך למחוק את התור?"
+        }
         onConfirm={handleDeleteConfirm}
         confirmText="מחק"
         cancelText="בטל"
       />
 
-      <div className="rounded-md bg-card">
-        <Table dir="rtl" containerClassName="max-h-[70vh] overflow-y-auto overscroll-contain" containerStyle={{ scrollbarWidth: 'none' }}>
-          <TableHeader className="sticky top-0 bg-card">
+      <div className="bg-card rounded-md">
+        <Table
+          dir="rtl"
+          containerClassName="max-h-[70vh] overflow-y-auto overscroll-contain"
+          containerStyle={{ scrollbarWidth: "none" }}
+        >
+          <TableHeader className="bg-card sticky top-0">
             <TableRow>
               <TableHead className="text-right">תאריך</TableHead>
               <TableHead className="text-right">שעה</TableHead>
-              {clientId === 0 && <TableHead className="text-right">לקוח</TableHead>}
+              {clientId === 0 && (
+                <TableHead className="text-right">לקוח</TableHead>
+              )}
               <TableHead className="text-right">סוג בדיקה</TableHead>
               <TableHead className="text-right">בודק</TableHead>
               <TableHead className="text-right">הערות</TableHead>
-              <TableHead className="text-right w-[50px]"></TableHead>
+              <TableHead className="w-[50px] text-right"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -945,32 +1201,32 @@ export function AppointmentsTable({ data, clientId, onAppointmentChange, onAppoi
               Array.from({ length: 14 }).map((_, i) => (
                 <TableRow key={i}>
                   <TableCell>
-                    <Skeleton className="w-[70%] h-4 my-2" />
+                    <Skeleton className="my-2 h-4 w-[70%]" />
                   </TableCell>
                   <TableCell>
-                    <Skeleton className="w-[70%] h-4 my-2" />
+                    <Skeleton className="my-2 h-4 w-[70%]" />
                   </TableCell>
                   {clientId === 0 && (
                     <TableCell>
-                      <Skeleton className="w-[70%] h-4 my-2" />
+                      <Skeleton className="my-2 h-4 w-[70%]" />
                     </TableCell>
                   )}
                   <TableCell>
-                    <Skeleton className="w-[70%] h-4 my-2" />
+                    <Skeleton className="my-2 h-4 w-[70%]" />
                   </TableCell>
                   <TableCell>
-                    <Skeleton className="w-[70%] h-4 my-2" />
+                    <Skeleton className="my-2 h-4 w-[70%]" />
                   </TableCell>
                   <TableCell>
-                    <Skeleton className="w-[70%] h-4 my-2" />
+                    <Skeleton className="my-2 h-4 w-[70%]" />
                   </TableCell>
                   <TableCell>
-                    <Skeleton className="w-[70%] h-4 my-2" />
+                    <Skeleton className="my-2 h-4 w-[70%]" />
                   </TableCell>
                 </TableRow>
               ))
-            ) : filteredData.length > 0 ? (
-              filteredData.map((appointment) => (
+            ) : dataToRender.length > 0 ? (
+              dataToRender.map((appointment) => (
                 <AppointmentTableRow
                   key={appointment.id}
                   appointment={appointment}
@@ -982,7 +1238,10 @@ export function AppointmentsTable({ data, clientId, onAppointmentChange, onAppoi
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
+                <TableCell
+                  colSpan={7}
+                  className="text-muted-foreground h-24 text-center"
+                >
                   לא נמצאו תורים
                 </TableCell>
               </TableRow>
@@ -992,26 +1251,43 @@ export function AppointmentsTable({ data, clientId, onAppointmentChange, onAppoi
       </div>
 
       {pagination && (
-        <div className="flex items-center justify-between mt-4">
-          <div className="text-sm text-muted-foreground">
-            עמוד {pagination.page} מתוך {Math.max(1, Math.ceil((pagination.total || 0) / (pagination.pageSize || 1)))} · סה"כ {pagination.total || 0}
+        <div className="mt-4 flex items-center justify-between">
+          <div className="text-muted-foreground text-sm">
+            עמוד {pagination.page} מתוך{" "}
+            {Math.max(
+              1,
+              Math.ceil((pagination.total || 0) / (pagination.pageSize || 1)),
+            )}{" "}
+            · סה"כ {pagination.total || 0}
           </div>
           <div className="flex gap-2">
             <Button
               variant="outline"
               size="sm"
               disabled={loading || pagination.page <= 1}
-              onClick={() => pagination.setPage(Math.max(1, pagination.page - 1))}
-            >הקודם</Button>
+              onClick={() =>
+                pagination.setPage(Math.max(1, pagination.page - 1))
+              }
+            >
+              הקודם
+            </Button>
             <Button
               variant="outline"
               size="sm"
-              disabled={loading || pagination.page >= Math.ceil((pagination.total || 0) / (pagination.pageSize || 1))}
+              disabled={
+                loading ||
+                pagination.page >=
+                  Math.ceil(
+                    (pagination.total || 0) / (pagination.pageSize || 1),
+                  )
+              }
               onClick={() => pagination.setPage(pagination.page + 1)}
-            >הבא</Button>
+            >
+              הבא
+            </Button>
           </div>
         </div>
       )}
     </div>
-  )
-} 
+  );
+}

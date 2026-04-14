@@ -13,6 +13,7 @@ import {
   upsertContactLensOrderFull,
   getContactLensOrderById,
   getAllOrders,
+  getOrdersByClientId,
 } from "@/lib/db/orders-db";
 import {
   getBillingByOrderId,
@@ -31,6 +32,17 @@ type OrderLens = {
   order_id: number;
   right_model?: string;
   left_model?: string;
+  right_supplier?: string;
+  left_supplier?: string;
+  right_material?: string;
+  left_material?: string;
+  right_coating?: string;
+  left_coating?: string;
+  right_color?: string;
+  left_color?: string;
+  right_diameter?: string;
+  left_diameter?: string;
+  // Legacy fields
   color?: string;
   coating?: string;
   material?: string;
@@ -103,8 +115,7 @@ import { useClientSidebar } from "@/contexts/ClientSidebarContext";
 import { Skeleton } from "@/components/ui/skeleton";
 import RegularOrderTab from "@/components/orders/RegularOrderTab";
 import ContactOrderTab from "@/components/orders/ContactOrderTab";
-import { docxGenerator } from "@/lib/docx-generator";
-import { OrderToDocxMapper } from "@/lib/order-to-docx-mapper";
+import { exportOrderToDocx } from "@/lib/order-docx";
 import { UnsavedChangesDialog } from "@/components/unsaved-changes-dialog";
 import { useUnsavedChanges } from "@/hooks/shared/useUnsavedChanges";
 import { UI_CONFIG } from "@/config/ui-config";
@@ -120,13 +131,6 @@ interface OrderDetailPageProps {
   onCancel?: () => void;
 }
 
-const LENS_FRAME_TYPE_OPTIONS = [
-  "רחוק",
-  "קרוב",
-  "מולטיפוקל",
-  "ביפוקל",
-] as const;
-
 const createLensFrameTabId = () =>
   `lf-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
@@ -140,13 +144,28 @@ const createEmptyLensFrameTab = (
   frame: { order_id: 0 },
 });
 
+const hydrateLensFrameTab = (
+  tab: Partial<LensFrameTab> | undefined,
+  orderId = 0,
+): LensFrameTab => ({
+  id: tab?.id || createLensFrameTabId(),
+  type: tab?.type || "רחוק",
+  lens: { order_id: orderId, ...(tab?.lens || {}) },
+  frame: { order_id: orderId, ...(tab?.frame || {}) },
+  created_at: tab?.created_at,
+  updated_at: tab?.updated_at,
+});
+
 const normalizeOrderDetails = (
   details: Partial<OrderDetails> | undefined,
   orderId?: number,
 ): OrderDetails => {
   const next = { ...(details || {}) } as Record<string, unknown>;
   delete next.branch;
-  if (next.delivery_clinic_id !== undefined && next.delivery_clinic_id !== null) {
+  if (
+    next.delivery_clinic_id !== undefined &&
+    next.delivery_clinic_id !== null
+  ) {
     const parsed =
       typeof next.delivery_clinic_id === "number"
         ? next.delivery_clinic_id
@@ -215,7 +234,8 @@ export default function OrderDetailPage({
       searchTypeParam = search?.type as string | undefined;
       examIdFromSearch = (search?.examId as string | undefined) ?? null;
       importSourceId = (search?.importSourceId as string | undefined) ?? null;
-      importSourceType = (search?.importSourceType as string | undefined) ?? null;
+      importSourceType =
+        (search?.importSourceType as string | undefined) ?? null;
     } catch {
       searchTypeParam = undefined;
       examIdFromSearch = null;
@@ -234,6 +254,7 @@ export default function OrderDetailPage({
   const [deletedOrderLineItemIds, setDeletedOrderLineItemIds] = useState<
     number[]
   >([]);
+  const [clientOrderIndex, setClientOrderIndex] = useState<number | null>(null);
 
   // Debug wrapper for setOrderLineItems
   const setOrderLineItemsWithLogging = (
@@ -269,9 +290,12 @@ export default function OrderDetailPage({
       return {
         client_id: Number(clientId),
         clinic_id: currentClinic?.id,
+        supply_in_clinic_id: currentClinic?.id,
         order_date: new Date().toISOString().split("T")[0],
         type: "עדשות מגע",
+        dominant_eye: "",
         user_id: currentUser?.id,
+        advisor: currentUser?.full_name || currentUser?.username,
         notes: "",
         supplier_notes: "",
       };
@@ -299,13 +323,18 @@ export default function OrderDetailPage({
     }
     return {} as Order;
   });
-  const [lensFrameTabs, setLensFrameTabs] = useState<LensFrameTab[]>(
-    isNewMode ? [createEmptyLensFrameTab("רחוק")] : [],
+  const [lensFrameTab, setLensFrameTab] = useState<LensFrameTab>(
+    createEmptyLensFrameTab("רחוק"),
   );
-  const [activeLensFrameTab, setActiveLensFrameTab] = useState(0);
   const [orderDetailsFormData, setOrderDetailsFormData] =
     useState<OrderDetails>(
-      isNewMode ? ({ order_id: 0 } as OrderDetails) : ({} as OrderDetails),
+      isNewMode
+        ? ({
+            order_id: 0,
+            advisor: currentUser?.full_name || currentUser?.username,
+            delivery_clinic_id: currentClinic?.id,
+          } as OrderDetails)
+        : ({} as OrderDetails),
     );
   const [billingFormData, setBillingFormData] = useState<Billing>(
     isNewMode ? ({} as Billing) : ({} as Billing),
@@ -320,8 +349,7 @@ export default function OrderDetailPage({
   // Use refs to ensure handleSave (which is a stable callback) can access the
   // MOST RECENT data even after calling inputSyncManager.flush().
   const formDataRef = useRef(formData);
-  const lensFrameTabsRef = useRef(lensFrameTabs);
-  const activeLensFrameTabRef = useRef(activeLensFrameTab);
+  const lensFrameTabRef = useRef(lensFrameTab);
   const orderDetailsFormDataRef = useRef(orderDetailsFormData);
   const billingFormDataRef = useRef(billingFormData);
   const finalPrescriptionFormDataRef = useRef(finalPrescriptionFormData);
@@ -337,11 +365,8 @@ export default function OrderDetailPage({
     formDataRef.current = formData;
   }, [formData]);
   useEffect(() => {
-    lensFrameTabsRef.current = lensFrameTabs;
-  }, [lensFrameTabs]);
-  useEffect(() => {
-    activeLensFrameTabRef.current = activeLensFrameTab;
-  }, [activeLensFrameTab]);
+    lensFrameTabRef.current = lensFrameTab;
+  }, [lensFrameTab]);
   useEffect(() => {
     orderDetailsFormDataRef.current = orderDetailsFormData;
   }, [orderDetailsFormData]);
@@ -354,6 +379,36 @@ export default function OrderDetailPage({
   useEffect(() => {
     contactFormDataRef.current = contactFormData;
   }, [contactFormData]);
+
+  useEffect(() => {
+    if (!isNewMode || !isContactMode) return;
+
+    setContactFormData((prev: any) => {
+      const next = { ...prev };
+
+      if (!next.clinic_id && currentClinic?.id) {
+        next.clinic_id = currentClinic.id;
+      }
+      if (!next.supply_in_clinic_id && currentClinic?.id) {
+        next.supply_in_clinic_id = currentClinic.id;
+      }
+      if (!next.user_id && currentUser?.id) {
+        next.user_id = currentUser.id;
+      }
+      if (!next.advisor && (currentUser?.full_name || currentUser?.username)) {
+        next.advisor = currentUser?.full_name || currentUser?.username;
+      }
+
+      return next;
+    });
+  }, [
+    currentClinic?.id,
+    currentUser?.full_name,
+    currentUser?.id,
+    currentUser?.username,
+    isContactMode,
+    isNewMode,
+  ]);
   useEffect(() => {
     contactLensExamDataRef.current = contactLensExamData;
   }, [contactLensExamData]);
@@ -384,8 +439,7 @@ export default function OrderDetailPage({
       JSON.stringify({
         isContactMode,
         formData,
-        lensFrameTabs,
-        activeLensFrameTab,
+        lensFrameTab,
         orderDetailsFormData,
         billingFormData,
         finalPrescriptionFormData,
@@ -401,8 +455,7 @@ export default function OrderDetailPage({
     [
       isContactMode,
       formData,
-      lensFrameTabs,
-      activeLensFrameTab,
+      lensFrameTab,
       orderDetailsFormData,
       billingFormData,
       finalPrescriptionFormData,
@@ -538,36 +591,23 @@ export default function OrderDetailPage({
               ? (od.lens_frame_tabs as LensFrameTab[])
               : [];
             if (persistedTabs.length > 0) {
-              const hydratedTabs = persistedTabs.map((tab) => ({
-                id: tab.id || createLensFrameTabId(),
-                type: tab.type || "רחוק",
-                lens: { order_id: orderData.id!, ...(tab.lens || {}) },
-                frame: { order_id: orderData.id!, ...(tab.frame || {}) },
-                created_at: tab.created_at,
-                updated_at: tab.updated_at,
-              }));
-              setLensFrameTabs(hydratedTabs);
-              const activeTabId = od.active_lens_frame_tab_id as
-                | string
-                | undefined;
-              const activeIndex = activeTabId
-                ? hydratedTabs.findIndex((tab) => tab.id === activeTabId)
-                : 0;
-              setActiveLensFrameTab(activeIndex >= 0 ? activeIndex : 0);
+              setLensFrameTab(
+                hydrateLensFrameTab(persistedTabs[0], orderData.id!),
+              );
             } else if (od.lens || od.frame) {
-              const legacyId = `legacy-${orderData.id}`;
-              setLensFrameTabs([
-                {
-                  id: legacyId,
-                  type: "רחוק",
-                  lens: { order_id: orderData.id!, ...(od.lens || {}) },
-                  frame: { order_id: orderData.id!, ...(od.frame || {}) },
-                },
-              ]);
-              setActiveLensFrameTab(0);
+              setLensFrameTab(
+                hydrateLensFrameTab(
+                  {
+                    id: `legacy-${orderData.id}`,
+                    type: "רחוק",
+                    lens: od.lens || {},
+                    frame: od.frame || {},
+                  },
+                  orderData.id!,
+                ),
+              );
             } else {
-              setLensFrameTabs([createEmptyLensFrameTab("רחוק")]);
-              setActiveLensFrameTab(0);
+              setLensFrameTab(createEmptyLensFrameTab("רחוק"));
             }
             if (od.details) {
               setOrderDetailsFormData(
@@ -648,20 +688,54 @@ export default function OrderDetailPage({
           setExam(examData || null);
         }
 
+        // Load client's order index
+        if (clientId) {
+          const allClientOrders = await getOrdersByClientId(Number(clientId));
+          const sortedOrders = [...allClientOrders].sort(
+            (a, b) =>
+              new Date(a.order_date).getTime() -
+              new Date(b.order_date).getTime(),
+          );
+
+          if (isNewMode) {
+            setClientOrderIndex(sortedOrders.length + 1);
+          } else if (orderId) {
+            const idx = sortedOrders.findIndex((o) => o.id === Number(orderId));
+            if (idx !== -1) setClientOrderIndex(idx + 1);
+          }
+        }
+
         // Handle Import from Last Exam or Order
         if (isNewMode && importSourceId && importSourceType) {
-          console.log(`Importing from ${importSourceType} with ID ${importSourceId}`);
-          if (importSourceType === 'exam') {
+          console.log(
+            `Importing from ${importSourceType} with ID ${importSourceId}`,
+          );
+          if (importSourceType === "exam") {
             const pageData = await getExamPageData(Number(importSourceId));
             if (pageData) {
               const exam = pageData.exam;
               // Set base fields
               if (exam.dominant_eye) {
-                setFormData(prev => ({ ...prev, dominant_eye: exam.dominant_eye }));
+                if (isContactMode) {
+                  setContactFormData((prev: any) => ({
+                    ...prev,
+                    dominant_eye: exam.dominant_eye,
+                  }));
+                } else {
+                  setFormData((prev) => ({
+                    ...prev,
+                    dominant_eye: exam.dominant_eye,
+                  }));
+                }
               }
               if (exam.user_id) {
-                setFormData(prev => ({ ...prev, user_id: exam.user_id }));
-                setContactFormData(prev => ({ ...prev, user_id: exam.user_id }));
+                if (!isContactMode) {
+                  setFormData((prev) => ({ ...prev, user_id: exam.user_id }));
+                }
+                setContactFormData((prev: any) => ({
+                  ...prev,
+                  user_id: exam.user_id,
+                }));
               }
 
               // Extract card data
@@ -691,10 +765,12 @@ export default function OrderDetailPage({
                 }
               }
             }
-          } else if (importSourceType === 'order') {
+          } else if (importSourceType === "order") {
             let sourceOrder: any = null;
             if (isContactMode) {
-              sourceOrder = await getContactLensOrderById(Number(importSourceId));
+              sourceOrder = await getContactLensOrderById(
+                Number(importSourceId),
+              );
             } else {
               sourceOrder = await getOrderById(Number(importSourceId));
             }
@@ -702,22 +778,46 @@ export default function OrderDetailPage({
             if (sourceOrder) {
               // Set base fields
               if (sourceOrder.dominant_eye) {
-                setFormData(prev => ({ ...prev, dominant_eye: sourceOrder.dominant_eye }));
+                if (isContactMode) {
+                  setContactFormData((prev: any) => ({
+                    ...prev,
+                    dominant_eye: sourceOrder.dominant_eye,
+                  }));
+                } else {
+                  setFormData((prev) => ({
+                    ...prev,
+                    dominant_eye: sourceOrder.dominant_eye,
+                  }));
+                }
               }
               if (sourceOrder.user_id) {
-                setFormData(prev => ({ ...prev, user_id: sourceOrder.user_id }));
-                setContactFormData(prev => ({ ...prev, user_id: sourceOrder.user_id }));
+                if (!isContactMode) {
+                  setFormData((prev) => ({
+                    ...prev,
+                    user_id: sourceOrder.user_id,
+                  }));
+                }
+                setContactFormData((prev) => ({
+                  ...prev,
+                  user_id: sourceOrder.user_id,
+                }));
               }
 
               const od = sourceOrder.order_data || {};
               if (isContactMode) {
-                if (od["contact-lens-exam"]) setContactLensExamData({ ...od["contact-lens-exam"] });
-                if (od["contact-lens-details"]) setContactLensDetailsData({ ...od["contact-lens-details"] });
-                if (od["keratometer-contact-lens"]) setKeratoCLData({ ...od["keratometer-contact-lens"] });
-                if (od["schirmer-test"]) setSchirmerData({ ...od["schirmer-test"] });
-                if (od["contact-lens-diameters"]) setDiametersData({ ...od["contact-lens-diameters"] });
+                if (od["contact-lens-exam"])
+                  setContactLensExamData({ ...od["contact-lens-exam"] });
+                if (od["contact-lens-details"])
+                  setContactLensDetailsData({ ...od["contact-lens-details"] });
+                if (od["keratometer-contact-lens"])
+                  setKeratoCLData({ ...od["keratometer-contact-lens"] });
+                if (od["schirmer-test"])
+                  setSchirmerData({ ...od["schirmer-test"] });
+                if (od["contact-lens-diameters"])
+                  setDiametersData({ ...od["contact-lens-diameters"] });
               } else {
-                if (od["final-prescription"]) setFinalPrescriptionFormData({ ...od["final-prescription"] });
+                if (od["final-prescription"])
+                  setFinalPrescriptionFormData({ ...od["final-prescription"] });
                 if (od.details) {
                   setOrderDetailsFormData((prev) =>
                     normalizeOrderDetails(
@@ -730,15 +830,19 @@ export default function OrderDetailPage({
                   );
                 }
 
-                if (Array.isArray(od.lens_frame_tabs) && od.lens_frame_tabs.length > 0) {
-                  const hydratedTabs = od.lens_frame_tabs.map((tab: any) => ({
-                    ...tab,
-                    id: createLensFrameTabId(), // New IDs for new order
-                    lens: { ...tab.lens, order_id: 0 },
-                    frame: { ...tab.frame, order_id: 0 }
-                  }));
-                  setLensFrameTabs(hydratedTabs);
-                  setActiveLensFrameTab(0);
+                if (
+                  Array.isArray(od.lens_frame_tabs) &&
+                  od.lens_frame_tabs.length > 0
+                ) {
+                  setLensFrameTab(
+                    hydrateLensFrameTab(
+                      {
+                        ...(od.lens_frame_tabs[0] as LensFrameTab),
+                        id: createLensFrameTabId(),
+                      },
+                      0,
+                    ),
+                  );
                 }
               }
             }
@@ -804,87 +908,17 @@ export default function OrderDetailPage({
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleLensFrameTabChange = (tabIdx: number) => {
-    setActiveLensFrameTab(tabIdx);
+  const handleLensFieldChange = (field: keyof OrderLens, value: string) => {
+    setLensFrameTab((prev) => ({
+      ...prev,
+      lens: {
+        ...prev.lens,
+        [field]: value,
+      },
+    }));
   };
 
-  const handleAddLensFrameTab = (type: string) => {
-    setLensFrameTabs((prev) => {
-      if (prev.length >= 4) return prev;
-      const nextType = LENS_FRAME_TYPE_OPTIONS.includes(
-        type as (typeof LENS_FRAME_TYPE_OPTIONS)[number],
-      )
-        ? type
-        : "רחוק";
-      const next = [...prev, createEmptyLensFrameTab(nextType)];
-      setActiveLensFrameTab(next.length - 1);
-      return next;
-    });
-  };
-
-  const handleDeleteLensFrameTab = (tabIdx: number) => {
-    setLensFrameTabs((prev) => {
-      if (prev.length <= 1) return prev;
-      const next = prev.filter((_, idx) => idx !== tabIdx);
-      setActiveLensFrameTab((current) => {
-        if (current === tabIdx) return Math.max(0, current - 1);
-        if (current > tabIdx) return current - 1;
-        return current;
-      });
-      return next;
-    });
-  };
-
-  const handleDuplicateLensFrameTab = (tabIdx: number) => {
-    setLensFrameTabs((prev) => {
-      if (prev.length >= 4 || !prev[tabIdx]) return prev;
-      const source = prev[tabIdx];
-      const duplicated: LensFrameTab = {
-        ...source,
-        id: createLensFrameTabId(),
-        lens: { ...source.lens },
-        frame: { ...source.frame },
-      };
-      const next = [...prev];
-      next.splice(tabIdx + 1, 0, duplicated);
-      setActiveLensFrameTab(tabIdx + 1);
-      return next;
-    });
-  };
-
-  const handleUpdateLensFrameTabType = (tabIdx: number, newType: string) => {
-    setLensFrameTabs((prev) =>
-      prev.map((tab, idx) =>
-        idx === tabIdx ? { ...tab, type: newType } : tab,
-      ),
-    );
-  };
-
-  const handleLensFieldChange = (
-    tabIdx: number,
-    field: keyof OrderLens,
-    value: string,
-  ) => {
-    setLensFrameTabs((prev) =>
-      prev.map((tab, idx) =>
-        idx === tabIdx
-          ? {
-            ...tab,
-            lens: {
-              ...tab.lens,
-              [field]: value,
-            },
-          }
-          : tab,
-      ),
-    );
-  };
-
-  const handleFrameFieldChange = (
-    tabIdx: number,
-    field: keyof Frame,
-    value: string,
-  ) => {
+  const handleFrameFieldChange = (field: keyof Frame, value: string) => {
     const numericFields: (keyof Frame)[] = [
       "bridge",
       "width",
@@ -900,19 +934,13 @@ export default function OrderDetailPage({
           ? undefined
           : value;
 
-    setLensFrameTabs((prev) =>
-      prev.map((tab, idx) =>
-        idx === tabIdx
-          ? {
-            ...tab,
-            frame: {
-              ...tab.frame,
-              [field]: processedValue,
-            },
-          }
-          : tab,
-      ),
-    );
+    setLensFrameTab((prev) => ({
+      ...prev,
+      frame: {
+        ...prev.frame,
+        [field]: processedValue,
+      },
+    }));
   };
 
   const handleOrderFieldChange = (field: keyof Order, rawValue: string) => {
@@ -988,8 +1016,7 @@ export default function OrderDetailPage({
     // After flush, we MUST read from the refs because the local state variables
     // still hold the "old" values from the previous render.
     const currentFormData = formDataRef.current;
-    const currentLensFrameTabs = lensFrameTabsRef.current;
-    const currentActiveLensFrameTab = activeLensFrameTabRef.current;
+    const currentLensFrameTab = lensFrameTabRef.current;
     const currentOrderDetailsFormData = orderDetailsFormDataRef.current;
     const currentBillingFormData = billingFormDataRef.current;
     const currentFinalPrescriptionFormData =
@@ -1036,60 +1063,60 @@ export default function OrderDetailPage({
 
         const mergedOrderData: any = isNewMode
           ? {
-            client_id: Number(clientId),
-            clinic_id: currentClinic?.id,
-            order_date: currentContactFormData.order_date,
-            type: currentContactFormData.type,
-            user_id: currentContactFormData.user_id,
-            notes: currentContactFormData.notes,
-            supplier_notes: currentContactFormData.supplier_notes,
-            order_data: {
-              ...(hasDetails
-                ? {
-                  "contact-lens-details": {
-                    ...currentContactLensDetailsData,
-                  },
-                }
-                : {}),
-              ...(hasExam
-                ? { "contact-lens-exam": { ...currentContactLensExamData } }
-                : {}),
-              ...(hasKerato
-                ? { "keratometer-contact-lens": { ...currentKeratoCLData } }
-                : {}),
-              ...(hasSchirmer
-                ? { "schirmer-test": { ...currentSchirmerData } }
-                : {}),
-              ...(hasDiam
-                ? { "contact-lens-diameters": { ...currentDiametersData } }
-                : {}),
-            },
-          }
+              client_id: Number(clientId),
+              clinic_id: currentClinic?.id,
+              order_date: currentContactFormData.order_date,
+              type: currentContactFormData.type,
+              user_id: currentContactFormData.user_id,
+              notes: currentContactFormData.notes,
+              supplier_notes: currentContactFormData.supplier_notes,
+              order_data: {
+                ...(hasDetails
+                  ? {
+                      "contact-lens-details": {
+                        ...currentContactLensDetailsData,
+                      },
+                    }
+                  : {}),
+                ...(hasExam
+                  ? { "contact-lens-exam": { ...currentContactLensExamData } }
+                  : {}),
+                ...(hasKerato
+                  ? { "keratometer-contact-lens": { ...currentKeratoCLData } }
+                  : {}),
+                ...(hasSchirmer
+                  ? { "schirmer-test": { ...currentSchirmerData } }
+                  : {}),
+                ...(hasDiam
+                  ? { "contact-lens-diameters": { ...currentDiametersData } }
+                  : {}),
+              },
+            }
           : {
-            ...(currentContactFormData as any),
-            order_data: {
-              ...((currentContactFormData as any)?.order_data || {}),
-              ...(hasDetails
-                ? {
-                  "contact-lens-details": {
-                    ...currentContactLensDetailsData,
-                  },
-                }
-                : {}),
-              ...(hasExam
-                ? { "contact-lens-exam": { ...currentContactLensExamData } }
-                : {}),
-              ...(hasKerato
-                ? { "keratometer-contact-lens": { ...currentKeratoCLData } }
-                : {}),
-              ...(hasSchirmer
-                ? { "schirmer-test": { ...currentSchirmerData } }
-                : {}),
-              ...(hasDiam
-                ? { "contact-lens-diameters": { ...currentDiametersData } }
-                : {}),
-            },
-          };
+              ...(currentContactFormData as any),
+              order_data: {
+                ...((currentContactFormData as any)?.order_data || {}),
+                ...(hasDetails
+                  ? {
+                      "contact-lens-details": {
+                        ...currentContactLensDetailsData,
+                      },
+                    }
+                  : {}),
+                ...(hasExam
+                  ? { "contact-lens-exam": { ...currentContactLensExamData } }
+                  : {}),
+                ...(hasKerato
+                  ? { "keratometer-contact-lens": { ...currentKeratoCLData } }
+                  : {}),
+                ...(hasSchirmer
+                  ? { "schirmer-test": { ...currentSchirmerData } }
+                  : {}),
+                ...(hasDiam
+                  ? { "contact-lens-diameters": { ...currentDiametersData } }
+                  : {}),
+              },
+            };
 
         const hasBillingData = Object.values(currentBillingFormData).some(
           (value) => value !== undefined && value !== null && value !== "",
@@ -1186,8 +1213,7 @@ export default function OrderDetailPage({
           setBaseline({
             isContactMode,
             formData: currentFormData,
-            lensFrameTabs: currentLensFrameTabs,
-            activeLensFrameTab: currentActiveLensFrameTab,
+            lensFrameTab: currentLensFrameTab,
             orderDetailsFormData: currentOrderDetailsFormData,
             billingFormData: nextBillingFormData,
             finalPrescriptionFormData: currentFinalPrescriptionFormData,
@@ -1227,17 +1253,10 @@ export default function OrderDetailPage({
         (value) =>
           value !== undefined && value !== null && value !== "" && value !== 0,
       );
-      const normalizedLensFrameTabs =
-        currentLensFrameTabs.length > 0
-          ? currentLensFrameTabs
-          : [createEmptyLensFrameTab("רחוק")];
-      const clampedActiveTabIndex = Math.min(
-        Math.max(currentActiveLensFrameTab, 0),
-        normalizedLensFrameTabs.length - 1,
-      );
-      const activeLensFrameTabId =
-        normalizedLensFrameTabs[clampedActiveTabIndex]?.id ||
-        normalizedLensFrameTabs[0]?.id;
+      const normalizedLensFrameTab = currentLensFrameTab?.id
+        ? currentLensFrameTab
+        : createEmptyLensFrameTab("רחוק");
+      const activeLensFrameTabId = normalizedLensFrameTab.id;
       const existingRegularOrderData = {
         ...((order as any)?.order_data || {}),
       } as Record<string, unknown>;
@@ -1250,59 +1269,63 @@ export default function OrderDetailPage({
       );
       const mergedOrderData = isNewMode
         ? {
-          client_id: Number(clientId),
-          clinic_id: currentClinic?.id,
-          order_date: currentFormData.order_date,
-          type: currentFormData.type,
-          dominant_eye: currentFormData.dominant_eye,
-          user_id: currentFormData.user_id,
-          comb_va: currentFormData.comb_va,
-          comb_high: currentFormData.comb_high,
-          comb_pd: currentFormData.comb_pd,
-          order_data: {
-            ...(hasFinalPrescriptionData
-              ? {
-                "final-prescription": {
-                  ...currentFinalPrescriptionFormData,
+            client_id: Number(clientId),
+            clinic_id: currentClinic?.id,
+            order_date: currentFormData.order_date,
+            type: currentFormData.type,
+            dominant_eye: currentFormData.dominant_eye,
+            user_id: currentFormData.user_id,
+            comb_va: currentFormData.comb_va,
+            comb_high: currentFormData.comb_high,
+            comb_pd: currentFormData.comb_pd,
+            order_data: {
+              ...(hasFinalPrescriptionData
+                ? {
+                    "final-prescription": {
+                      ...currentFinalPrescriptionFormData,
+                    },
+                  }
+                : {}),
+              lens_frame_tabs: [
+                {
+                  ...normalizedLensFrameTab,
+                  lens: { ...normalizedLensFrameTab.lens },
+                  frame: { ...normalizedLensFrameTab.frame },
                 },
-              }
-              : {}),
-            lens_frame_tabs: normalizedLensFrameTabs.map((tab) => ({
-              ...tab,
-              lens: { ...tab.lens },
-              frame: { ...tab.frame },
-            })),
-            active_lens_frame_tab_id: activeLensFrameTabId,
-            details: { ...normalizedOrderDetails },
-          },
-        }
+              ],
+              active_lens_frame_tab_id: activeLensFrameTabId,
+              details: { ...normalizedOrderDetails },
+            },
+          }
         : {
-          ...(currentFormData as Order),
-          order_date: currentFormData.order_date,
-          type: currentFormData.type,
-          dominant_eye: currentFormData.dominant_eye,
-          user_id: currentFormData.user_id,
-          comb_va: currentFormData.comb_va,
-          comb_high: currentFormData.comb_high,
-          comb_pd: currentFormData.comb_pd,
-          order_data: {
-            ...existingRegularOrderData,
-            ...(hasFinalPrescriptionData
-              ? {
-                "final-prescription": {
-                  ...currentFinalPrescriptionFormData,
+            ...(currentFormData as Order),
+            order_date: currentFormData.order_date,
+            type: currentFormData.type,
+            dominant_eye: currentFormData.dominant_eye,
+            user_id: currentFormData.user_id,
+            comb_va: currentFormData.comb_va,
+            comb_high: currentFormData.comb_high,
+            comb_pd: currentFormData.comb_pd,
+            order_data: {
+              ...existingRegularOrderData,
+              ...(hasFinalPrescriptionData
+                ? {
+                    "final-prescription": {
+                      ...currentFinalPrescriptionFormData,
+                    },
+                  }
+                : {}),
+              lens_frame_tabs: [
+                {
+                  ...normalizedLensFrameTab,
+                  lens: { ...normalizedLensFrameTab.lens },
+                  frame: { ...normalizedLensFrameTab.frame },
                 },
-              }
-              : {}),
-            lens_frame_tabs: normalizedLensFrameTabs.map((tab) => ({
-              ...tab,
-              lens: { ...tab.lens },
-              frame: { ...tab.frame },
-            })),
-            active_lens_frame_tab_id: activeLensFrameTabId,
-            details: { ...normalizedOrderDetails },
-          },
-        };
+              ],
+              active_lens_frame_tab_id: activeLensFrameTabId,
+              details: { ...normalizedOrderDetails },
+            },
+          };
 
       const hasBillingData = Object.values(currentBillingFormData).some(
         (value) => value !== undefined && value !== null && value !== "",
@@ -1352,27 +1375,13 @@ export default function OrderDetailPage({
         // We trust the server for IDs and system fields, but we trust local state (formData)
         // for the content fields we just edited, in case the server response is stale.
         const od = (updatedOrder as any).order_data || {};
-        const nextLensFrameTabsSource = Array.isArray(od.lens_frame_tabs)
-          ? (od.lens_frame_tabs as LensFrameTab[])
-          : normalizedLensFrameTabs;
-        const nextLensFrameTabs = nextLensFrameTabsSource.map((tab) => ({
-          ...tab,
-          id: tab.id || createLensFrameTabId(),
-          type: tab.type || "רחוק",
-          lens: { order_id: updatedOrder.id!, ...(tab.lens || {}) },
-          frame: { order_id: updatedOrder.id!, ...(tab.frame || {}) },
-          created_at: tab.created_at,
-          updated_at: tab.updated_at,
-        }));
-        const nextActiveTabId =
-          (od.active_lens_frame_tab_id as string | undefined) ||
-          activeLensFrameTabId;
-        const nextActiveLensFrameTab = nextActiveTabId
-          ? Math.max(
-            0,
-            nextLensFrameTabs.findIndex((tab) => tab.id === nextActiveTabId),
-          )
-          : clampedActiveTabIndex;
+        const nextLensFrameTabSource = Array.isArray(od.lens_frame_tabs)
+          ? (od.lens_frame_tabs[0] as LensFrameTab | undefined)
+          : undefined;
+        const nextLensFrameTab = hydrateLensFrameTab(
+          nextLensFrameTabSource || normalizedLensFrameTab,
+          updatedOrder.id!,
+        );
 
         const nextOrderDetailsFormData = normalizeOrderDetails(
           {
@@ -1395,10 +1404,8 @@ export default function OrderDetailPage({
 
         const nextOrderData = {
           ...odWithoutLegacy,
-          lens_frame_tabs: nextLensFrameTabs,
-          active_lens_frame_tab_id:
-            nextLensFrameTabs[nextActiveLensFrameTab]?.id ||
-            nextLensFrameTabs[0]?.id,
+          lens_frame_tabs: [nextLensFrameTab],
+          active_lens_frame_tab_id: nextLensFrameTab.id,
           details: nextOrderDetailsFormData,
           "final-prescription": nextFinalPrescriptionFormData,
         };
@@ -1413,8 +1420,7 @@ export default function OrderDetailPage({
         setOrder(nextFormData);
         setFormData(nextFormData);
 
-        setLensFrameTabs(nextLensFrameTabs);
-        setActiveLensFrameTab(nextActiveLensFrameTab);
+        setLensFrameTab(nextLensFrameTab);
         setOrderDetailsFormData(nextOrderDetailsFormData);
 
         if (fp2 || Object.keys(currentFinalPrescriptionFormData).length > 0) {
@@ -1443,8 +1449,7 @@ export default function OrderDetailPage({
         setBaseline({
           isContactMode,
           formData: nextFormData,
-          lensFrameTabs: nextLensFrameTabs,
-          activeLensFrameTab: nextActiveLensFrameTab,
+          lensFrameTab: nextLensFrameTab,
           orderDetailsFormData: nextOrderDetailsFormData,
           billingFormData: nextBillingFormData,
           finalPrescriptionFormData: nextFinalPrescriptionFormData,
@@ -1482,27 +1487,16 @@ export default function OrderDetailPage({
 
   const handleExportDocx = async () => {
     try {
-      const orderToExport = isContactMode ? contactFormData : formData;
-      const userData = users.find((u) => u.id === orderToExport.user_id);
+      const orderIdToExport = isContactMode ? contactFormData?.id : formData?.id;
+      if (!orderIdToExport) {
+        toast.error("לא ניתן לייצא הזמנה לפני שמירה");
+        return;
+      }
 
-      // Use currentClient if available, otherwise it should already be loaded from context
-      // For safety, we're using currentClient which should have full data
-      const clientData = currentClient;
-
-      const templateData = OrderToDocxMapper.mapOrderToTemplateData(
-        orderToExport,
-        clientData,
-        userData,
-        billing,
-        orderLineItems,
-      );
-
-      // Use different templates based on order type
-      const templatePath = isContactMode
-        ? "/templates/template.docx"
-        : "/templates/template_regular_order.docx";
-
-      await docxGenerator.generate(templateData, undefined, templatePath);
+      await exportOrderToDocx({
+        orderId: orderIdToExport,
+        kind: isContactMode ? "contact" : "regular",
+      });
       toast.success("הדוח יוצא בהצלחה");
     } catch (error) {
       console.error("Error exporting DOCX:", error);
@@ -1756,17 +1750,12 @@ export default function OrderDetailPage({
                   onToolboxClearData={() => toolboxActions.clearData(type)}
                   onToolboxCopy={handleCopy}
                   onToolboxPaste={handlePaste}
-                  lensFrameTabs={lensFrameTabs}
-                  activeLensFrameTab={activeLensFrameTab}
-                  onLensFrameTabChange={handleLensFrameTabChange}
-                  onAddLensFrameTab={handleAddLensFrameTab}
-                  onDeleteLensFrameTab={handleDeleteLensFrameTab}
-                  onDuplicateLensFrameTab={handleDuplicateLensFrameTab}
-                  onUpdateLensFrameTabType={handleUpdateLensFrameTabType}
+                  lensFrameTab={lensFrameTab}
                   onLensFieldChange={handleLensFieldChange}
                   onFrameFieldChange={handleFrameFieldChange}
                   orderDetailsFormData={orderDetailsFormData}
                   setOrderDetailsFormData={setOrderDetailsFormData}
+                  clientOrderIndex={clientOrderIndex}
                 />
               </TabsContent>
             )}
@@ -1783,6 +1772,7 @@ export default function OrderDetailPage({
                   setContactLensDetailsData={setContactLensDetailsData}
                   contactLensExamData={contactLensExamData}
                   setContactLensExamData={setContactLensExamData}
+                  clientOrderIndex={clientOrderIndex}
                 />
               </TabsContent>
             )}

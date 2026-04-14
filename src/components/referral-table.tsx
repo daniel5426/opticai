@@ -2,7 +2,6 @@ import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
   Table,
   TableBody,
@@ -17,6 +16,8 @@ import { toast } from "sonner";
 import { ClientSelectModal } from "@/components/ClientSelectModal";
 import { CustomModal } from "@/components/ui/custom-modal";
 import { Skeleton } from "@/components/ui/skeleton";
+import { TableFiltersBar } from "@/components/table-filters-bar";
+import { ALL_FILTER_VALUE, REFERRAL_URGENCY_OPTIONS } from "@/lib/table-filters";
 
 interface ReferralTableProps {
   referrals: Referral[];
@@ -27,6 +28,10 @@ interface ReferralTableProps {
   pagination?: { page: number; pageSize: number; total: number; setPage: (p: number) => void };
   searchQuery?: string;
   onSearchChange?: (query: string) => void;
+  urgencyFilter?: string;
+  onUrgencyFilterChange?: (value: string) => void;
+  referralTypeFilter?: string;
+  onReferralTypeFilterChange?: (value: string) => void;
 }
 
 export function ReferralTable({
@@ -38,21 +43,64 @@ export function ReferralTable({
   pagination,
   searchQuery: externalSearch,
   onSearchChange,
+  urgencyFilter: externalUrgencyFilter,
+  onUrgencyFilterChange,
+  referralTypeFilter: externalReferralTypeFilter,
+  onReferralTypeFilterChange,
 }: ReferralTableProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const searchValue = externalSearch !== undefined ? externalSearch : searchTerm;
   const navigate = useNavigate();
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [referralToDelete, setReferralToDelete] = useState<Referral | null>(null);
+  const [selectedUrgency, setSelectedUrgency] = useState<string>(ALL_FILTER_VALUE);
+  const [selectedReferralType, setSelectedReferralType] = useState<string>(ALL_FILTER_VALUE);
+  const urgencyFilter = externalUrgencyFilter ?? selectedUrgency;
+  const referralTypeFilter = externalReferralTypeFilter ?? selectedReferralType;
 
+  const handleUrgencyFilterChange = (value: string) => {
+    if (onUrgencyFilterChange) {
+      onUrgencyFilterChange(value);
+      return;
+    }
+    setSelectedUrgency(value);
+  };
 
-  const filteredReferrals = externalSearch !== undefined ? referrals : referrals.filter(
-    (referral) =>
-      referral.type?.toLowerCase().includes(searchValue.toLowerCase()) ||
-      referral.recipient?.toLowerCase().includes(searchValue.toLowerCase()) ||
-      referral.urgency_level?.toLowerCase().includes(searchValue.toLowerCase()) ||
-      referral.date?.includes(searchValue),
-  );
+  const handleReferralTypeFilterChange = (value: string) => {
+    if (onReferralTypeFilterChange) {
+      onReferralTypeFilterChange(value);
+      return;
+    }
+    setSelectedReferralType(value);
+  };
+
+  const referralTypeOptions = React.useMemo(() => {
+    return Array.from(new Set(referrals.map((referral) => referral.type).filter(Boolean)));
+  }, [referrals]);
+
+  const filteredReferrals = React.useMemo(() => {
+    return referrals.filter((referral) => {
+      if (urgencyFilter !== ALL_FILTER_VALUE && referral.urgency_level !== urgencyFilter) {
+        return false;
+      }
+      if (referralTypeFilter !== ALL_FILTER_VALUE && referral.type !== referralTypeFilter) {
+        return false;
+      }
+
+      const normalizedSearch = searchValue.toLowerCase().trim();
+      if (!normalizedSearch) {
+        return true;
+      }
+
+      return (
+        referral.type?.toLowerCase().includes(normalizedSearch) ||
+        referral.recipient?.toLowerCase().includes(normalizedSearch) ||
+        referral.urgency_level?.toLowerCase().includes(normalizedSearch) ||
+        referral.date?.includes(searchValue) ||
+        referral.client_full_name?.toLowerCase().includes(normalizedSearch)
+      );
+    });
+  }, [referralTypeFilter, referrals, searchValue, urgencyFilter]);
 
   const handleDeleteConfirm = async () => {
     if (referralToDelete && referralToDelete.id !== undefined) {
@@ -83,31 +131,57 @@ export function ReferralTable({
   };
 
   return (
-    <div className="space-y-4 mb-10" style={{ scrollbarWidth: "none" }}>
-      <div className="flex items-center justify-between" dir="rtl">
-        <Input
-          placeholder="חיפוש הפניות..."
-          value={searchValue}
-          onChange={(e) => (onSearchChange ? onSearchChange(e.target.value) : setSearchTerm(e.target.value))}
-          className="w-[250px] bg-card dark:bg-card"
-          dir="rtl"
-        />
-        {clientId > 0 ? (
-          <Link to="/clients/$clientId/referrals/new" params={{ clientId: String(clientId) }}>
-            <Button>
-              הפניה חדשה
-              <Plus className="mr-2 h-4 w-4" />
-            </Button>
-          </Link>
-        ) : (
-          <ClientSelectModal
-            triggerText="הפניה חדשה"
-            onClientSelect={(selectedClientId) => {
-              navigate({ to: "/clients/$clientId/referrals/new", params: { clientId: String(selectedClientId) } });
-            }}
-          />
-        )}
-      </div>
+    <div className="space-y-2.5 mb-10" style={{ scrollbarWidth: "none" }}>
+      <TableFiltersBar
+        searchValue={searchValue}
+        onSearchChange={(value) => (onSearchChange ? onSearchChange(value) : setSearchTerm(value))}
+        searchPlaceholder="חיפוש הפניות…"
+        filters={[
+          {
+            key: "urgency",
+            value: urgencyFilter,
+            onChange: handleUrgencyFilterChange,
+            placeholder: "דחיפות",
+            options: REFERRAL_URGENCY_OPTIONS,
+            widthClassName: "w-[160px]",
+          },
+          {
+            key: "type",
+            value: referralTypeFilter,
+            onChange: handleReferralTypeFilterChange,
+            placeholder: "סוג הפניה",
+            options: [
+              { value: ALL_FILTER_VALUE, label: "כל הסוגים" },
+              ...referralTypeOptions.map((type) => ({ value: type || "unknown", label: type || "unknown" })),
+            ],
+            widthClassName: "w-[190px]",
+          },
+        ]}
+        hasActiveFilters={Boolean(searchValue.trim()) || urgencyFilter !== ALL_FILTER_VALUE || referralTypeFilter !== ALL_FILTER_VALUE}
+        onReset={() => {
+          if (onSearchChange) onSearchChange("");
+          else setSearchTerm("");
+          handleUrgencyFilterChange(ALL_FILTER_VALUE);
+          handleReferralTypeFilterChange(ALL_FILTER_VALUE);
+        }}
+        actions={
+          clientId > 0 ? (
+            <Link to="/clients/$clientId/referrals/new" params={{ clientId: String(clientId) }}>
+              <Button>
+                הפניה חדשה
+                <Plus className="mr-2 h-4 w-4" />
+              </Button>
+            </Link>
+          ) : (
+            <ClientSelectModal
+              triggerText="הפניה חדשה"
+              onClientSelect={(selectedClientId) => {
+                navigate({ to: "/clients/$clientId/referrals/new", params: { clientId: String(selectedClientId) } });
+              }}
+            />
+          )
+        }
+      />
 
       <div
         className="overflow-hidden rounded-lg bg-card"

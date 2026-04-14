@@ -1,32 +1,64 @@
 import React, { useState, useEffect } from "react"
+import { useNavigate, useSearch } from "@tanstack/react-router"
 import { SiteHeader } from "@/components/site-header"
 import { getPaginatedFiles } from "@/lib/db/files-db"
 import { File } from "@/lib/db/schema-interface"
 import { FilesTable } from "@/components/files-table"
-import { useNavigate } from "@tanstack/react-router"
 import { useUser } from "@/contexts/UserContext"
+import { ALL_FILTER_VALUE } from "@/lib/table-filters"
+import { buildTableSearch } from "@/lib/list-page-search"
 
 export default function AllFilesPage() {
   const { currentClinic } = useUser()
+  const search = useSearch({ from: "/files" })
+  const navigate = useNavigate()
   const [files, setFiles] = useState<File[]>([])
   const [loading, setLoading] = useState(true)
-  const [page, setPage] = useState(1)
   const [pageSize] = useState(25)
   const [total, setTotal] = useState(0)
-  const navigate = useNavigate()
-  const [searchQuery, setSearchQuery] = useState("")
-  const [debouncedSearch, setDebouncedSearch] = useState("")
+  const [searchInput, setSearchInput] = useState(search.q)
 
   useEffect(() => {
-    const t = setTimeout(() => setDebouncedSearch(searchQuery), 400)
+    setSearchInput(search.q)
+  }, [search.q])
+
+  const buildSearchState = (overrides?: Partial<{ q: string; page: number; fileCategory: string }>) =>
+    buildTableSearch(
+      {
+        q: searchInput.trim(),
+        page: search.page,
+        fileCategory: search.fileCategory,
+        ...overrides,
+      },
+      {
+        q: "",
+        page: 1,
+        fileCategory: ALL_FILTER_VALUE,
+      },
+    )
+
+  useEffect(() => {
+    const t = setTimeout(() => {
+      if (searchInput === search.q) return
+      navigate({
+        to: "/files",
+        search: buildSearchState({ q: searchInput.trim(), page: 1 }),
+      })
+    }, 400)
     return () => clearTimeout(t)
-  }, [searchQuery])
+  }, [navigate, search.q, searchInput])
 
   const loadFiles = async () => {
     try {
       setLoading(true)
-      const offset = (page - 1) * pageSize
-      const { items, total } = await getPaginatedFiles(currentClinic?.id, { limit: pageSize, offset, order: 'upload_date_desc', search: debouncedSearch || undefined })
+      const offset = (search.page - 1) * pageSize
+      const { items, total } = await getPaginatedFiles(currentClinic?.id, {
+        limit: pageSize,
+        offset,
+        order: 'upload_date_desc',
+        q: search.q || undefined,
+        fileCategory: search.fileCategory !== ALL_FILTER_VALUE ? search.fileCategory : undefined,
+      })
       setFiles(items)
       setTotal(total)
     } catch (error) {
@@ -40,17 +72,16 @@ export default function AllFilesPage() {
     if (currentClinic) {
       loadFiles()
     }
-  }, [currentClinic, page, pageSize, debouncedSearch])
-
-  useEffect(() => {
-    setPage(1)
-  }, [debouncedSearch])
+  }, [currentClinic, pageSize, search.fileCategory, search.page, search.q])
 
   const handleFileDeleted = (deletedFileId: number) => {
     setFiles(prevFiles => prevFiles.filter(file => file.id !== deletedFileId))
     // Move to previous page if we deleted the last item on the current page
-    if (files.length === 1 && page > 1) {
-      setPage(page - 1)
+    if (files.length === 1 && search.page > 1) {
+      navigate({
+        to: "/files",
+        search: buildSearchState({ page: search.page - 1 }),
+      })
     } else {
       setTotal(prev => prev - 1)
     }
@@ -77,10 +108,26 @@ export default function AllFilesPage() {
           onFileUploaded={loadFiles}
           onFileDeleted={handleFileDeleted}
           onFileDeleteFailed={handleFileDeleteFailed}
-          searchQuery={searchQuery}
-          onSearchChange={setSearchQuery}
+          searchQuery={searchInput}
+          onSearchChange={setSearchInput}
+          fileCategoryFilter={search.fileCategory}
+          onFileCategoryFilterChange={(value) =>
+            navigate({
+              to: "/files",
+              search: buildSearchState({ fileCategory: value, page: 1 }),
+            })
+          }
           loading={loading}
-          pagination={{ page, pageSize, total, setPage }}
+          pagination={{
+            page: search.page,
+            pageSize,
+            total,
+            setPage: (page) =>
+              navigate({
+                to: "/files",
+                search: buildSearchState({ page }),
+              }),
+          }}
         />
       </div>
     </>

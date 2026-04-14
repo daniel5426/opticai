@@ -32,6 +32,21 @@ import AllUsersPage from "@/pages/AllUsersPage";
 import AuthCallbackPage from "@/pages/AuthCallbackPage";
 import GoogleAuthCallbackPage from "@/pages/GoogleAuthCallbackPage";
 
+const getSearchString = (search: Record<string, unknown>, key: string) =>
+  typeof search[key] === "string" ? (search[key] as string) : ""
+
+const getPositiveSearchNumber = (search: Record<string, unknown>, key: string) => {
+  const value = Number(search[key])
+  return Number.isFinite(value) && value > 0 ? value : 1
+}
+
+const getOptionalFilter = (search: Record<string, unknown>, key: string) => {
+  const value = search[key]
+  return typeof value === "string" && value.length > 0 ? value : "all"
+}
+
+const getClientsMode = (search: Record<string, unknown>) =>
+  search.mode === "families" ? "families" : "clients"
 
 // TODO: Steps to add a new route:
 // 1. Create a new page component in the '../pages/' directory (e.g., NewPage.tsx)
@@ -120,6 +135,12 @@ export const SecondPageRoute = createRoute({
 export const ClientsRoute = createRoute({
   getParentRoute: () => RootRoute,
   path: "/clients",
+  validateSearch: (search: Record<string, unknown>) => ({
+    mode: getClientsMode(search),
+    q: getSearchString(search, "q"),
+    page: getPositiveSearchNumber(search, "page"),
+    gender: getOptionalFilter(search, "gender"),
+  }),
   component: ClientsPage,
 });
 
@@ -193,12 +214,23 @@ export const ReferralCreateRoute = createRoute({
 export const AllExamsRoute = createRoute({
   getParentRoute: () => RootRoute,
   path: "/exams",
+  validateSearch: (search: Record<string, unknown>) => ({
+    q: getSearchString(search, "q"),
+    page: getPositiveSearchNumber(search, "page"),
+    testName: getOptionalFilter(search, "testName"),
+  }),
   component: AllExamsPage,
 });
 
 export const AllOrdersRoute = createRoute({
   getParentRoute: () => RootRoute,
   path: "/orders",
+  validateSearch: (search: Record<string, unknown>) => ({
+    q: getSearchString(search, "q"),
+    page: getPositiveSearchNumber(search, "page"),
+    kind: getOptionalFilter(search, "kind"),
+    status: getOptionalFilter(search, "status"),
+  }),
   component: AllOrdersPage,
 });
 
@@ -206,24 +238,47 @@ export const AllOrdersRoute = createRoute({
 export const AllReferralsRoute = createRoute({
   getParentRoute: () => RootRoute,
   path: "/referrals",
+  validateSearch: (search: Record<string, unknown>) => ({
+    q: getSearchString(search, "q"),
+    page: getPositiveSearchNumber(search, "page"),
+    urgency: getOptionalFilter(search, "urgency"),
+    referralType: getOptionalFilter(search, "referralType"),
+  }),
   component: AllReferralsPage,
 });
 
 export const AllAppointmentsRoute = createRoute({
   getParentRoute: () => RootRoute,
   path: "/appointments",
+  validateSearch: (search: Record<string, unknown>) => ({
+    q: getSearchString(search, "q"),
+    page: getPositiveSearchNumber(search, "page"),
+    dateScope: getOptionalFilter(search, "dateScope"),
+    examName: getOptionalFilter(search, "examName"),
+  }),
   component: AllAppointmentsPage,
 });
 
 export const AllFilesRoute = createRoute({
   getParentRoute: () => RootRoute,
   path: "/files",
+  validateSearch: (search: Record<string, unknown>) => ({
+    q: getSearchString(search, "q"),
+    page: getPositiveSearchNumber(search, "page"),
+    fileCategory: getOptionalFilter(search, "fileCategory"),
+  }),
   component: AllFilesPage,
 });
 
 export const AllUsersRoute = createRoute({
   getParentRoute: () => RootRoute,
   path: "/users",
+  validateSearch: (search: Record<string, unknown>) => ({
+    q: getSearchString(search, "q"),
+    page: getPositiveSearchNumber(search, "page"),
+    role: getOptionalFilter(search, "role"),
+    clinicScope: getOptionalFilter(search, "clinicScope"),
+  }),
   component: AllUsersPage,
 });
 
@@ -243,6 +298,10 @@ export const AIAssistantRoute = createRoute({
 export const ExamLayoutsRoute = createRoute({
   getParentRoute: () => RootRoute,
   path: "/exam-layouts",
+  validateSearch: (search: Record<string, unknown>) => ({
+    q: getSearchString(search, "q"),
+    type: getOptionalFilter(search, "type"),
+  }),
   component: ExamLayoutsPage,
 });
 

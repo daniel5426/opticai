@@ -1,13 +1,47 @@
 import React, { useState, useEffect, useCallback } from "react"
+import { useNavigate, useSearch } from "@tanstack/react-router"
 import { SiteHeader } from "@/components/site-header"
 import { ExamLayoutsTable } from "@/components/exam-layouts-table"
 import { getAllExamLayouts } from "@/lib/db/exam-layouts-db"
 import { ExamLayout } from "@/lib/db/schema-interface"
+import { ALL_FILTER_VALUE } from "@/lib/table-filters"
+import { buildTableSearch } from "@/lib/list-page-search"
 
 export default function ExamLayoutsPage() {
+  const search = useSearch({ from: "/exam-layouts" })
+  const navigate = useNavigate()
   const [layouts, setLayouts] = useState<ExamLayout[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshCounter, setRefreshCounter] = useState(0)
+  const [searchInput, setSearchInput] = useState(search.q)
+
+  useEffect(() => {
+    setSearchInput(search.q)
+  }, [search.q])
+
+  const buildSearchState = (overrides?: Partial<{ q: string; type: string }>) =>
+    buildTableSearch(
+      {
+        q: searchInput.trim(),
+        type: search.type,
+        ...overrides,
+      },
+      {
+        q: "",
+        type: ALL_FILTER_VALUE,
+      },
+    )
+
+  useEffect(() => {
+    const t = setTimeout(() => {
+      if (searchInput === search.q) return
+      navigate({
+        to: "/exam-layouts",
+        search: buildSearchState({ q: searchInput.trim() }),
+      })
+    }, 400)
+    return () => clearTimeout(t)
+  }, [navigate, search.q, searchInput])
 
   const loadLayouts = useCallback(async () => {
     try {
@@ -67,7 +101,19 @@ export default function ExamLayoutsPage() {
           <h2 className="text-xl font-semibold">ניהול פריסות בדיקה</h2>
         </div>
         
-        <ExamLayoutsTable data={layouts} onRefresh={handleRefresh} />
+        <ExamLayoutsTable
+          data={layouts}
+          onRefresh={handleRefresh}
+          searchQuery={searchInput}
+          onSearchChange={setSearchInput}
+          typeFilter={search.type}
+          onTypeFilterChange={(value) =>
+            navigate({
+              to: "/exam-layouts",
+              search: buildSearchState({ type: value }),
+            })
+          }
+        />
       </div>
     </>
   )

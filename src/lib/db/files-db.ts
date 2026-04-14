@@ -59,7 +59,7 @@ export async function getAllFiles(clinicId?: number): Promise<File[]> {
 
 export async function getPaginatedFiles(
   clinicId?: number,
-  options?: { limit?: number; offset?: number; order?: 'upload_date_desc' | 'upload_date_asc' | 'id_desc' | 'id_asc'; search?: string }
+  options?: { limit?: number; offset?: number; order?: 'upload_date_desc' | 'upload_date_asc' | 'id_desc' | 'id_asc'; q?: string; fileCategory?: string }
 ): Promise<{ items: File[]; total: number }> {
   try {
     const effectiveOptions = options ?? { limit: 25, offset: 0, order: 'upload_date_desc' as const };

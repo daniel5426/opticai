@@ -1,5 +1,6 @@
 // Load environment variables from .env file
 import dotenv from 'dotenv';
+import fs from 'fs';
 import path from "path";
 
 // Load the appropriate .env file based on environment
@@ -43,6 +44,57 @@ import { apiClient } from "./lib/api-client";
 const inDevelopment = process.env.NODE_ENV === "development";
 const isWindows = process.platform === 'win32';
 let mainWindow: BrowserWindow | null = null; // Store reference to the main window
+const APP_PROFILE_NAME = 'Prysm';
+
+function hasPersistedBrowserState(dirPath: string): boolean {
+  return fs.existsSync(path.join(dirPath, 'Local Storage', 'leveldb'));
+}
+
+function copyProfileIfNeeded(fromDir: string, toDir: string): boolean {
+  if (!fs.existsSync(fromDir) || hasPersistedBrowserState(toDir) || !hasPersistedBrowserState(fromDir)) {
+    return false;
+  }
+
+  fs.mkdirSync(toDir, { recursive: true });
+  fs.cpSync(fromDir, toDir, {
+    recursive: true,
+    dereference: true,
+    errorOnExist: false,
+    force: false,
+  });
+
+  return true;
+}
+
+function configureAppStoragePaths() {
+  app.setName(APP_PROFILE_NAME);
+
+  const appDataPath = app.getPath('appData');
+  const stableUserDataPath = path.join(appDataPath, APP_PROFILE_NAME);
+  const stableSessionDataPath = stableUserDataPath;
+
+  const legacyPaths = [
+    path.join(appDataPath, 'OpticAI'),
+    path.join(appDataPath, 'opticai'),
+    path.join(appDataPath, 'Electron'),
+  ];
+
+  for (const legacyPath of legacyPaths) {
+    try {
+      if (copyProfileIfNeeded(legacyPath, stableUserDataPath)) {
+        console.log('[Storage] Migrated browser profile from:', legacyPath);
+        break;
+      }
+    } catch (error) {
+      console.warn('[Storage] Failed to migrate browser profile from:', legacyPath, error);
+    }
+  }
+
+  app.setPath('userData', stableUserDataPath);
+  app.setPath('sessionData', stableSessionDataPath);
+}
+
+configureAppStoragePaths();
 
 interface WindowsUpdateManifest {
   version: string;
@@ -939,25 +991,28 @@ ipcMain.handle('get-app-version', async () => {
 });
 
 async function installExtensions() {
-  // Only install extensions in development mode
-  if (!inDevelopment) {
+  // Keep React DevTools opt-in; its extension service worker can corrupt/noise the dev profile.
+  if (!inDevelopment || process.env.ELECTRON_INSTALL_REACT_DEVTOOLS !== '1') {
     return;
   }
   
   try {
     const result = await installExtension(REACT_DEVELOPER_TOOLS);
     console.log(`Extensions installed successfully: ${result.name}`);
-  } catch {
-    console.error("Failed to install extensions");
+  } catch (error) {
+    console.warn("Failed to install React Developer Tools:", error);
   }
 }
 
 app.whenReady().then(() => {
   console.log('=== APP STARTUP ===');
   console.log('App version:', app.getVersion());
+  console.log('App name:', app.getName());
   console.log('Platform:', process.platform);
   console.log('Arch:', process.arch);
   console.log('App path:', app.getPath('exe'));
+  console.log('User data path:', app.getPath('userData'));
+  console.log('Session data path:', app.getPath('sessionData'));
   
   setupIpcHandlers();
   createWindow();

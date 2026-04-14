@@ -534,6 +534,9 @@ export interface ContactLensDetails {
 export interface ContactLensOrderEntity {
   id?: number;
   client_id?: number;
+  clinic_id?: number;
+  order_date?: string;
+  type?: string;
   order_data?: Record<string, unknown>;
   user_id?: number;
 
@@ -554,9 +557,6 @@ export interface ContactLensOrderEntity {
   r_quantity?: number;
   r_order_quantity?: number;
   r_dx?: boolean;
-
-  clinic_id?: number;
-
   supply_in_clinic_id?: number;
   order_status?: string;
   advisor?: string;

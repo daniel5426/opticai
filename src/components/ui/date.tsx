@@ -34,16 +34,55 @@ export function DateInput({
     return `${day}/${month}/${year}`;
   };
 
+  const parseKnownDateString = (rawValue: string): Date | null => {
+    const trimmed = rawValue.trim();
+    if (!trimmed) return null;
+
+    const isoMatch = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (isoMatch) {
+      const [, year, month, day] = isoMatch;
+      const parsed = new Date(Number(year), Number(month) - 1, Number(day));
+      return !isNaN(parsed.getTime()) ? parsed : null;
+    }
+
+    const parts = trimmed.split(/[\/\-\.]/);
+    if (parts.length !== 3) return null;
+
+    let day: number;
+    let month: number;
+    let year: number;
+
+    if (parts[0].length === 4) {
+      year = parseInt(parts[0], 10);
+      month = parseInt(parts[1], 10);
+      day = parseInt(parts[2], 10);
+    } else {
+      day = parseInt(parts[0], 10);
+      month = parseInt(parts[1], 10);
+      year = parseInt(parts[2], 10);
+    }
+
+    if (year < 100) year += 2000;
+
+    const parsed = new Date(year, month - 1, day);
+    if (
+      isNaN(parsed.getTime()) ||
+      parsed.getDate() !== day ||
+      parsed.getMonth() !== month - 1 ||
+      parsed.getFullYear() !== year
+    ) {
+      return null;
+    }
+
+    return parsed;
+  };
+
   React.useEffect(() => {
     if (value) {
-      try {
-        const date = new Date(value);
-        if (!isNaN(date.getTime())) {
-          setTextValue(formatDateToString(date));
-        } else {
-          setTextValue("");
-        }
-      } catch {
+      const parsedDate = parseKnownDateString(value);
+      if (parsedDate) {
+        setTextValue(formatDateToString(parsedDate));
+      } else {
         setTextValue("");
       }
     } else {
@@ -51,21 +90,21 @@ export function DateInput({
     }
   }, [value]);
 
-  const parseDateFromText = (text: string): { date: Date; isoString: string } | null => {
+  const parseDateFromText = (
+    text: string,
+  ): { date: Date; isoString: string } | null => {
     if (!text.trim()) return null;
 
     const trimmed = text.trim();
 
     const isoMatch = trimmed.match(/^\d{4}-\d{2}-\d{2}$/);
     if (isoMatch) {
-      const date = new Date(trimmed + "T00:00:00");
-      if (!isNaN(date.getTime())) {
-        const [y, m, d] = trimmed.split("-").map(Number);
-        return {
-          date: new Date(y, m - 1, d),
-          isoString: trimmed,
-        };
-      }
+      const date = parseKnownDateString(trimmed);
+      if (!date) return null;
+      return {
+        date,
+        isoString: trimmed,
+      };
     }
 
     const parts = trimmed.split(/[\/\-\.]/);
@@ -106,19 +145,6 @@ export function DateInput({
       }
     }
 
-    try {
-      const date = new Date(trimmed);
-      if (!isNaN(date.getTime())) {
-        const year = date.getFullYear();
-        const month = date.getMonth() + 1;
-        const day = date.getDate();
-        const isoString = `${year}-${month.toString().padStart(2, "0")}-${day.toString().padStart(2, "0")}`;
-        return { date, isoString };
-      }
-    } catch {
-      return null;
-    }
-
     return null;
   };
 
@@ -141,14 +167,10 @@ export function DateInput({
       onChange(syntheticEvent);
     } else {
       if (value) {
-        try {
-          const date = new Date(value);
-          if (!isNaN(date.getTime())) {
-            setTextValue(formatDateToString(date));
-          } else {
-            setTextValue("");
-          }
-        } catch {
+        const parsedDate = parseKnownDateString(value);
+        if (parsedDate) {
+          setTextValue(formatDateToString(parsedDate));
+        } else {
           setTextValue("");
         }
       } else {
@@ -176,13 +198,9 @@ export function DateInput({
 
   const selectedDate = value
     ? (() => {
-      try {
-        const date = new Date(value);
-        return !isNaN(date.getTime()) ? date : undefined;
-      } catch {
-        return undefined;
-      }
-    })()
+        const parsedDate = parseKnownDateString(value);
+        return parsedDate || undefined;
+      })()
     : undefined;
 
   return (

@@ -14,7 +14,43 @@ const ServerStatusContext = createContext<ServerStatusContextType | undefined>(u
 
 const getHealthCheckUrl = () => {
   const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8001/api/v1';
-  return apiUrl.replace(/\/api\/v1$/, '');
+
+  try {
+    const url = new URL(apiUrl);
+    if (url.hostname === '0.0.0.0') {
+      url.hostname = 'localhost';
+    }
+    return url.toString().replace(/\/api\/v1\/?$/, '').replace(/\/$/, '');
+  } catch {
+    return apiUrl
+      .replace('://0.0.0.0', '://localhost')
+      .replace(/\/api\/v1\/?$/, '')
+      .replace(/\/$/, '');
+  }
+};
+
+const getFallbackHealthCheckUrl = (baseUrl: string) => {
+  try {
+    const url = new URL(baseUrl);
+    if (url.hostname !== 'localhost') return null;
+    if (url.port === '8000') {
+      url.port = '8001';
+      return url.toString().replace(/\/$/, '');
+    }
+    if (url.port === '8001') {
+      url.port = '8000';
+      return url.toString().replace(/\/$/, '');
+    }
+    return null;
+  } catch {
+    if (baseUrl.includes('localhost:8000')) {
+      return baseUrl.replace('localhost:8000', 'localhost:8001');
+    }
+    if (baseUrl.includes('localhost:8001')) {
+      return baseUrl.replace('localhost:8001', 'localhost:8000');
+    }
+    return null;
+  }
 };
 
 interface ServerStatusProviderProps {
@@ -29,10 +65,23 @@ export function ServerStatusProvider({ children }: ServerStatusProviderProps) {
     setIsChecking(true);
     try {
       const baseUrl = getHealthCheckUrl();
-      const res = await fetch(`${baseUrl}/health`, {
-        cache: 'no-store',
-        signal: AbortSignal.timeout(5000) // 5 second timeout
-      });
+      let res: Response;
+
+      try {
+        res = await fetch(`${baseUrl}/health`, {
+          cache: 'no-store',
+          signal: AbortSignal.timeout(5000)
+        });
+      } catch (primaryError) {
+        const fallbackUrl = getFallbackHealthCheckUrl(baseUrl);
+        if (!fallbackUrl) throw primaryError;
+
+        res = await fetch(`${fallbackUrl}/health`, {
+          cache: 'no-store',
+          signal: AbortSignal.timeout(5000)
+        });
+      }
+
       setIsServerDown(!res.ok);
     } catch (error) {
       console.error('[ServerStatus] Health check failed:', error);
@@ -107,4 +156,3 @@ export const useServerStatus = () => {
   }
   return context;
 };
-

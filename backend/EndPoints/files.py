@@ -14,6 +14,53 @@ from security.scope import resolve_company_id, assert_clinic_belongs_to_company
 
 router = APIRouter(prefix="/files", tags=["files"])
 
+
+def build_file_category_filter(file_category: str):
+    normalized = (file_category or "").strip().lower()
+    if normalized in {"", "all"}:
+        return None
+    if normalized == "image":
+        return FileModel.file_type.ilike("image/%")
+    if normalized == "video":
+        return FileModel.file_type.ilike("video/%")
+    if normalized == "audio":
+        return FileModel.file_type.ilike("audio/%")
+    if normalized == "archive":
+        return (
+            FileModel.file_type.ilike("%zip%") |
+            FileModel.file_type.ilike("%rar%") |
+            FileModel.file_type.ilike("%archive%")
+        )
+    if normalized == "document":
+        return (
+            FileModel.file_type.ilike("%pdf%") |
+            FileModel.file_type.ilike("%word%") |
+            FileModel.file_type.ilike("%document%") |
+            FileModel.file_type.ilike("%sheet%") |
+            FileModel.file_type.ilike("%excel%") |
+            FileModel.file_type.ilike("%spreadsheet%") |
+            FileModel.file_type.ilike("%presentation%") |
+            FileModel.file_type.ilike("%powerpoint%") |
+            FileModel.file_type.ilike("%text%")
+        )
+    return ~(
+        FileModel.file_type.ilike("image/%") |
+        FileModel.file_type.ilike("video/%") |
+        FileModel.file_type.ilike("audio/%") |
+        FileModel.file_type.ilike("%zip%") |
+        FileModel.file_type.ilike("%rar%") |
+        FileModel.file_type.ilike("%archive%") |
+        FileModel.file_type.ilike("%pdf%") |
+        FileModel.file_type.ilike("%word%") |
+        FileModel.file_type.ilike("%document%") |
+        FileModel.file_type.ilike("%sheet%") |
+        FileModel.file_type.ilike("%excel%") |
+        FileModel.file_type.ilike("%spreadsheet%") |
+        FileModel.file_type.ilike("%presentation%") |
+        FileModel.file_type.ilike("%powerpoint%") |
+        FileModel.file_type.ilike("%text%")
+    )
+
 def get_supabase_client():
     supabase_url = getattr(config.settings, 'SUPABASE_URL', None)
     supabase_key = getattr(config.settings, 'SUPABASE_KEY', None) or getattr(config.settings, 'SUPABASE_ANON_KEY', None)
@@ -84,6 +131,7 @@ def get_files_paginated(
     offset: int = Query(0, ge=0, description="Items to skip"),
     order: Optional[str] = Query("upload_date_desc", description="Sort order: upload_date_desc|upload_date_asc|id_desc|id_asc"),
     search: Optional[str] = Query(None, description="Search by file name/type/uploader/client name/notes"),
+    file_category: Optional[str] = Query(None, description="Filter by file category"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -100,6 +148,9 @@ def get_files_paginated(
     if clinic_id is not None:
         assert_clinic_belongs_to_company(db, clinic_id, company_id)
         base = base.filter(FileModel.clinic_id == clinic_id)
+    file_category_filter = build_file_category_filter(file_category or "")
+    if file_category_filter is not None:
+        base = base.filter(file_category_filter)
     if search:
         like = f"%{search.strip()}%"
         base = (

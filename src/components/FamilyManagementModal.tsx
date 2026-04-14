@@ -79,7 +79,7 @@ export function FamilyManagementModal({ isOpen, onClose, family, onFamilyChange 
         limit: pageSize,
         offset: nextOffset,
         order: 'id_desc',
-        search: debouncedSearch || undefined,
+        q: debouncedSearch || undefined,
       })
       setClients(prev => (nextOffset === 0 ? items : [...prev, ...items]))
       setTotal(total)

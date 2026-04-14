@@ -21,6 +21,7 @@ def get_clients_paginated(
     offset: int = Query(0, ge=0, description="Items to skip"),
     order: Optional[str] = Query("id_desc", description="Sort order: id_desc|id_asc"),
     search: Optional[str] = Query(None, description="Search by name/phone/email"),
+    gender: Optional[str] = Query(None, description="Filter by gender"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -41,6 +42,8 @@ def get_clients_paginated(
     if clinic_id is not None:
         assert_clinic_belongs_to_company(db, clinic_id, company_id)
         base = base.filter(Client.clinic_id == clinic_id)
+    if gender and gender != "all":
+        base = base.filter(Client.gender == gender)
 
     # Apply search filtering server-side to avoid fetching entire tables
     if search:

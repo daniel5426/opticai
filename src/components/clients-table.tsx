@@ -2,8 +2,6 @@ import * as React from "react"
 import { useNavigate } from "@tanstack/react-router"
 import { Client } from "@/lib/db/schema-interface"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   Table,
   TableBody,
@@ -17,6 +15,8 @@ import { CustomModal } from "@/components/ui/custom-modal"
 import { deleteClient } from "@/lib/db/clients-db"
 import { toast } from "sonner"
 import { Skeleton } from "@/components/ui/skeleton"
+import { TableFiltersBar } from "@/components/table-filters-bar"
+import { GENDER_FILTER_OPTIONS } from "@/lib/table-filters"
 
 interface ClientsTableProps {
   data: Client[]
@@ -31,6 +31,9 @@ interface ClientsTableProps {
   compactMode?: boolean
   loading?: boolean
   pagination?: { page: number; pageSize: number; total: number; setPage: (p: number) => void }
+  genderFilter?: string
+  onGenderFilterChange?: (value: string) => void
+  toolbarActions?: React.ReactNode
 }
 
 export function ClientsTable({ 
@@ -45,7 +48,10 @@ export function ClientsTable({
   hideNewButton = false,
   compactMode = false,
   loading = false,
-  pagination
+  pagination,
+  genderFilter: externalGenderFilter,
+  onGenderFilterChange,
+  toolbarActions,
 }: ClientsTableProps) {
   const [internalSearchQuery, setInternalSearchQuery] = React.useState("")
   const [selectedGender, setSelectedGender] = React.useState<string>("all")
@@ -54,7 +60,7 @@ export function ClientsTable({
   const navigate = useNavigate()
 
   const searchQuery = externalSearchQuery !== undefined ? externalSearchQuery : internalSearchQuery
-  const isExternalSearch = externalSearchQuery !== undefined
+  const genderFilter = externalGenderFilter ?? selectedGender
 
   const handleSearchChange = (value: string) => {
     if (onSearchChange) {
@@ -62,6 +68,14 @@ export function ClientsTable({
     } else {
       setInternalSearchQuery(value)
     }
+  }
+
+  const handleGenderFilterChange = (value: string) => {
+    if (onGenderFilterChange) {
+      onGenderFilterChange(value)
+      return
+    }
+    setSelectedGender(value)
   }
 
   const filteredData = React.useMemo(() => {
@@ -75,12 +89,11 @@ export function ClientsTable({
       }
     }
 
-    if (selectedGender !== "all") {
-      filtered = filtered.filter(client => client.gender === selectedGender)
+    if (genderFilter !== "all") {
+      filtered = filtered.filter(client => client.gender === genderFilter)
     }
 
-    // Only apply local text filtering when using internal search.
-    if (!isExternalSearch && searchQuery && filtered.length > 0) {
+    if (searchQuery && filtered.length > 0) {
       filtered = filtered.filter((client) => {
         const searchableFields = [
           client.first_name,
@@ -98,7 +111,7 @@ export function ClientsTable({
     }
 
     return filtered
-  }, [data, searchQuery, selectedFamilyId, showFamilyColumn, isExternalSearch, selectedGender])
+  }, [data, searchQuery, selectedFamilyId, showFamilyColumn, genderFilter])
 
   const handleDeleteConfirm = async () => {
     if (clientToDelete && clientToDelete.id !== undefined) {
@@ -129,35 +142,39 @@ export function ClientsTable({
   }
 
   return (
-    <div className="space-y-4 mb-10" dir="rtl" style={{ scrollbarWidth: 'none' }}>
+    <div className="space-y-2.5 mb-10" dir="rtl" style={{ scrollbarWidth: 'none' }}>
       {!hideSearch && (
-        <div className="flex items-center justify-between">
-          <div className="flex gap-2">
-            <Input
-              placeholder="חיפוש לקוחות..."
-              value={searchQuery}
-              onChange={(e) => handleSearchChange(e.target.value)}
-              className="w-[250px] bg-card dark:bg-card"
-              dir="rtl"
-            />
-            <Select value={selectedGender} onValueChange={setSelectedGender} dir="rtl">
-              <SelectTrigger className="w-[120px]">
-                <SelectValue placeholder="מגדר" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">הכל</SelectItem>
-                <SelectItem value="זכר">זכר</SelectItem>
-                <SelectItem value="נקבה">נקבה</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          {!hideNewButton && (
-            <Button onClick={() => navigate({ to: "/clients/new" })} dir="rtl">
-              לקוח חדש
-              <PlusIcon className="mr-2 h-4 w-4" />
-            </Button>
-          )}
-        </div>
+        <TableFiltersBar
+          searchValue={searchQuery}
+          onSearchChange={handleSearchChange}
+          searchPlaceholder="חיפוש לקוחות…"
+          filters={[
+            {
+              key: "gender",
+              value: genderFilter,
+              onChange: handleGenderFilterChange,
+              placeholder: "מגדר",
+              options: GENDER_FILTER_OPTIONS,
+              widthClassName: "w-[130px]",
+            },
+          ]}
+          hasActiveFilters={Boolean(searchQuery.trim()) || genderFilter !== "all"}
+          onReset={() => {
+            handleSearchChange("")
+            handleGenderFilterChange("all")
+          }}
+          actions={
+            <>
+              {toolbarActions}
+              {!hideNewButton ? (
+                <Button onClick={() => navigate({ to: "/clients/new" })} dir="rtl">
+                  לקוח חדש
+                  <PlusIcon className="mr-2 h-4 w-4" />
+                </Button>
+              ) : null}
+            </>
+          }
+        />
       )}
 
       <div className="rounded-md bg-card">

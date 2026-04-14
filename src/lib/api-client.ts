@@ -22,7 +22,46 @@ import {
 } from './db/schema-interface';
 import { getSupabaseAccessToken } from './supabaseClient'
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8001/api/v1';
+function normalizeApiBaseUrl(rawUrl?: string): string {
+  const fallback = 'http://localhost:8001/api/v1';
+  if (!rawUrl) return fallback;
+
+  try {
+    const url = new URL(rawUrl);
+    if (url.hostname === '0.0.0.0') {
+      url.hostname = 'localhost';
+    }
+    return url.toString().replace(/\/$/, '');
+  } catch {
+    return rawUrl.replace('://0.0.0.0', '://localhost').replace(/\/$/, '');
+  }
+}
+
+const API_BASE_URL = normalizeApiBaseUrl(import.meta.env.VITE_API_URL);
+
+function getFallbackApiBaseUrl(baseUrl: string): string | null {
+  try {
+    const url = new URL(baseUrl);
+    if (url.hostname !== 'localhost') return null;
+    if (url.port === '8000') {
+      url.port = '8001';
+      return url.toString().replace(/\/$/, '');
+    }
+    if (url.port === '8001') {
+      url.port = '8000';
+      return url.toString().replace(/\/$/, '');
+    }
+    return null;
+  } catch {
+    if (baseUrl.includes('localhost:8000')) {
+      return baseUrl.replace('localhost:8000', 'localhost:8001');
+    }
+    if (baseUrl.includes('localhost:8001')) {
+      return baseUrl.replace('localhost:8001', 'localhost:8000');
+    }
+    return null;
+  }
+}
 
 interface ApiResponse<T> {
   data?: T;
@@ -153,6 +192,24 @@ class ApiClient {
       const data = await response.json();
       return { data };
     } catch (error) {
+      const fallbackBaseUrl = getFallbackApiBaseUrl(this.baseUrl);
+      if (fallbackBaseUrl) {
+        try {
+          const fallbackUrl = `${fallbackBaseUrl}${endpoint}`;
+          const fallbackResponse = await fetch(fallbackUrl, {
+            ...options,
+            headers,
+            cache: (options as any)?.cache ?? 'no-store',
+          });
+
+          if (fallbackResponse.ok) {
+            this.baseUrl = fallbackBaseUrl;
+            const data = await fallbackResponse.json();
+            return { data };
+          }
+        } catch {}
+      }
+
       // Dispatch network error event for ServerStatusContext
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('api:network-error', { 
@@ -353,62 +410,70 @@ class ApiClient {
 
   async getClientsPaginated(
     clinicId?: number,
-    options?: { limit?: number; offset?: number; order?: 'id_desc' | 'id_asc'; search?: string }
+    options?: { limit?: number; offset?: number; order?: 'id_desc' | 'id_asc'; q?: string; gender?: string }
   ) {
     const params = new URLSearchParams();
     if (clinicId) params.append('clinic_id', clinicId.toString());
     if (options?.limit !== undefined) params.append('limit', String(options.limit));
     if (options?.offset !== undefined) params.append('offset', String(options.offset));
     if (options?.order) params.append('order', options.order);
-    if (options?.search) params.append('search', options.search);
+    if (options?.q) params.append('search', options.q);
+    if (options?.gender && options.gender !== 'all') params.append('gender', options.gender);
     const qs = params.toString();
     return this.request<{ items: Client[]; total: number }>(`/clients/paginated${qs ? `?${qs}` : ''}`);
   }
 
   // Referrals pagination
-  async getReferralsPaginated(clinicId?: number, options?: { limit?: number; offset?: number; order?: 'date_desc' | 'date_asc' | 'id_desc' | 'id_asc'; search?: string }) {
+  async getReferralsPaginated(clinicId?: number, options?: { limit?: number; offset?: number; order?: 'date_desc' | 'date_asc' | 'id_desc' | 'id_asc'; q?: string; urgencyLevel?: string; referralType?: string }) {
     const params = new URLSearchParams();
     if (clinicId) params.append('clinic_id', clinicId.toString());
     if (options?.limit !== undefined) params.append('limit', String(options.limit));
     if (options?.offset !== undefined) params.append('offset', String(options.offset));
     if (options?.order) params.append('order', options.order);
-    if (options?.search) params.append('search', options.search);
+    if (options?.q) params.append('search', options.q);
+    if (options?.urgencyLevel && options.urgencyLevel !== 'all') params.append('urgency_level', options.urgencyLevel);
+    if (options?.referralType && options.referralType !== 'all') params.append('type', options.referralType);
     const qs = params.toString();
     return this.request<{ items: any[]; total: number }>(`/referrals/paginated${qs ? `?${qs}` : ''}`);
   }
 
   // Orders pagination
-  async getOrdersPaginated(clinicId?: number, options?: { limit?: number; offset?: number; order?: 'date_desc' | 'date_asc' | 'id_desc' | 'id_asc'; search?: string }) {
+  async getOrdersPaginated(clinicId?: number, options?: { limit?: number; offset?: number; order?: 'date_desc' | 'date_asc' | 'id_desc' | 'id_asc'; q?: string; kind?: string; status?: string }) {
     const params = new URLSearchParams();
     if (clinicId) params.append('clinic_id', clinicId.toString());
     if (options?.limit !== undefined) params.append('limit', String(options.limit));
     if (options?.offset !== undefined) params.append('offset', String(options.offset));
     if (options?.order) params.append('order', options.order);
-    if (options?.search) params.append('search', options.search);
+    if (options?.q) params.append('search', options.q);
+    if (options?.kind && options.kind !== 'all') params.append('kind', options.kind);
+    if (options?.status && options.status !== 'all') params.append('status', options.status);
     const qs = params.toString();
     return this.request<{ items: any[]; total: number }>(`/orders/paginated${qs ? `?${qs}` : ''}`);
   }
 
   // Files pagination
-  async getFilesPaginated(clinicId?: number, options?: { limit?: number; offset?: number; order?: 'upload_date_desc' | 'upload_date_asc' | 'id_desc' | 'id_asc'; search?: string }) {
+  async getFilesPaginated(clinicId?: number, options?: { limit?: number; offset?: number; order?: 'upload_date_desc' | 'upload_date_asc' | 'id_desc' | 'id_asc'; q?: string; fileCategory?: string }) {
     const params = new URLSearchParams();
     if (clinicId) params.append('clinic_id', clinicId.toString());
     if (options?.limit !== undefined) params.append('limit', String(options.limit));
     if (options?.offset !== undefined) params.append('offset', String(options.offset));
     if (options?.order) params.append('order', options.order);
-    if (options?.search) params.append('search', options.search);
+    if (options?.q) params.append('search', options.q);
+    if (options?.fileCategory && options.fileCategory !== 'all') params.append('file_category', options.fileCategory);
     const qs = params.toString();
     return this.request<{ items: any[]; total: number }>(`/files/paginated${qs ? `?${qs}` : ''}`);
   }
 
   // Appointments pagination
-  async getAppointmentsPaginated(clinicId?: number, options?: { limit?: number; offset?: number; order?: 'date_desc' | 'date_asc' | 'id_desc' | 'id_asc'; search?: string }) {
+  async getAppointmentsPaginated(clinicId?: number, options?: { limit?: number; offset?: number; order?: 'date_desc' | 'date_asc' | 'id_desc' | 'id_asc'; q?: string; dateScope?: string; examName?: string }) {
     const params = new URLSearchParams();
     if (clinicId) params.append('clinic_id', clinicId.toString());
     if (options?.limit !== undefined) params.append('limit', String(options.limit));
     if (options?.offset !== undefined) params.append('offset', String(options.offset));
     if (options?.order) params.append('order', options.order);
-    if (options?.search) params.append('search', options.search);
+    if (options?.q) params.append('search', options.q);
+    if (options?.dateScope && options.dateScope !== 'all') params.append('date_scope', options.dateScope);
+    if (options?.examName && options.examName !== 'all') params.append('exam_name', options.examName);
     const qs = params.toString();
     return this.request<{ items: any[]; total: number }>(`/appointments/paginated${qs ? `?${qs}` : ''}`);
   }
@@ -429,12 +494,20 @@ class ApiClient {
   }
 
   // Users pagination
-  async getUsersPaginated(options?: { limit?: number; offset?: number; order?: string; search?: string; clinic_id?: number }) {
+  async getUsersPaginated(options?: {
+    limit?: number
+    offset?: number
+    order?: string
+    q?: string
+    roleLevel?: number
+    clinic_id?: number
+  }) {
     const params = new URLSearchParams();
     if (options?.limit !== undefined) params.append('limit', String(options.limit));
     if (options?.offset !== undefined) params.append('offset', String(options.offset));
     if (options?.order) params.append('order', options.order);
-    if (options?.search) params.append('search', options.search);
+    if (options?.q) params.append('search', options.q);
+    if (options?.roleLevel !== undefined) params.append('role_level', String(options.roleLevel));
     if (options?.clinic_id) params.append('clinic_id', options.clinic_id.toString());
     
     const qs = params.toString();
@@ -574,14 +647,15 @@ class ApiClient {
     });
   }
 
-  async getEnrichedExams(type?: string, clinicId?: number, options?: { limit?: number; offset?: number; order?: 'exam_date_desc' | 'exam_date_asc'; search?: string }) {
+  async getEnrichedExams(type?: string, clinicId?: number, options?: { limit?: number; offset?: number; order?: 'exam_date_desc' | 'exam_date_asc'; q?: string; testName?: string }) {
     const params = new URLSearchParams();
     if (type) params.append('type', type);
     if (clinicId) params.append('clinic_id', clinicId.toString());
     if (options?.limit !== undefined) params.append('limit', String(options.limit));
     if (options?.offset !== undefined) params.append('offset', String(options.offset));
     if (options?.order) params.append('order', options.order);
-    if (options?.search) params.append('search', options.search);
+    if (options?.q) params.append('search', options.q);
+    if (options?.testName && options.testName !== 'all') params.append('test_name', options.testName);
     const queryString = params.toString();
     const url = `/exams/enriched${queryString ? `?${queryString}` : ''}`;
     return this.request<{ items: any[]; total: number }>(url);

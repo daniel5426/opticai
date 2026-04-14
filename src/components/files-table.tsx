@@ -16,17 +16,17 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { MoreHorizontal, File, FileText, FileImage, FileVideo, FileAudio, Upload, Download, Trash2 } from "lucide-react"
-import { File as FileType, User } from "@/lib/db/schema-interface"
+import { File, FileText, FileImage, FileVideo, FileAudio, Upload, Download, Trash2 } from "lucide-react"
+import { File as FileType } from "@/lib/db/schema-interface"
 import { ClientSelectModal } from "@/components/ClientSelectModal"
-import { getAllUsers } from "@/lib/db/users-db"
 import { deleteFile, createFile } from "@/lib/db/files-db"
 import { apiClient } from "@/lib/api-client"
 import { toast } from "sonner"
 import { CustomModal } from "@/components/ui/custom-modal"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useUser } from "@/contexts/UserContext"
+import { TableFiltersBar } from "@/components/table-filters-bar"
+import { ALL_FILTER_VALUE, FILE_CATEGORY_OPTIONS, normalizeFileCategory } from "@/lib/table-filters"
 
 interface FilesTableProps {
   data: FileType[]
@@ -39,13 +39,27 @@ interface FilesTableProps {
   pagination?: { page: number; pageSize: number; total: number; setPage: (p: number) => void }
   searchQuery?: string
   onSearchChange?: (query: string) => void
+  fileCategoryFilter?: string
+  onFileCategoryFilterChange?: (value: string) => void
 }
 
-export function FilesTable({ data, clientId, onFileDeleted, onFileDeleteFailed, onFileUploaded, onClientSelectForUpload, loading, pagination, searchQuery: externalSearch, onSearchChange }: FilesTableProps) {
+export function FilesTable({
+  data,
+  clientId,
+  onFileDeleted,
+  onFileDeleteFailed,
+  onFileUploaded,
+  onClientSelectForUpload,
+  loading,
+  pagination,
+  searchQuery: externalSearch,
+  onSearchChange,
+  fileCategoryFilter: externalFileCategoryFilter,
+  onFileCategoryFilterChange,
+}: FilesTableProps) {
   const { currentClinic, currentUser } = useUser()
   const [searchQuery, setSearchQuery] = useState("")
   const searchValue = externalSearch !== undefined ? externalSearch : searchQuery
-  const [users, setUsers] = useState<User[]>([])
   const [isDragOver, setIsDragOver] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
   const [showClientSelect, setShowClientSelect] = useState(false)
@@ -55,6 +69,16 @@ export function FilesTable({ data, clientId, onFileDeleted, onFileDeleteFailed, 
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
   const [fileToDelete, setFileToDelete] = useState<FileType | null>(null)
   const [isDownloading, setIsDownloading] = useState<Record<number, boolean>>({})
+  const [selectedFileCategory, setSelectedFileCategory] = useState<string>(ALL_FILTER_VALUE)
+  const fileCategoryFilter = externalFileCategoryFilter ?? selectedFileCategory
+
+  const handleFileCategoryFilterChange = (value: string) => {
+    if (onFileCategoryFilterChange) {
+      onFileCategoryFilterChange(value)
+      return
+    }
+    setSelectedFileCategory(value)
+  }
 
 
 
@@ -256,23 +280,32 @@ export function FilesTable({ data, clientId, onFileDeleted, onFileDeleteFailed, 
     }
   }
 
-  const filteredData = externalSearch !== undefined ? data : data.filter((file) => {
-    const searchableFields = [
-      file.file_name || '',
-      file.file_type || '',
-      file.upload_date || '',
-      getClientName(file),
-      file.notes || ''
-    ]
+  const filteredData = React.useMemo(() => {
+    return data.filter((file) => {
+      if (fileCategoryFilter !== ALL_FILTER_VALUE && normalizeFileCategory(file.file_type) !== fileCategoryFilter) {
+        return false
+      }
 
-    return searchableFields.some(
-      (field) => field.toLowerCase().includes(searchValue.toLowerCase())
-    )
-  })
+      const normalizedSearch = searchValue.toLowerCase().trim()
+      if (!normalizedSearch) {
+        return true
+      }
+
+      const searchableFields = [
+        file.file_name || '',
+        file.file_type || '',
+        file.upload_date || '',
+        getClientName(file),
+        file.notes || ''
+      ]
+
+      return searchableFields.some((field) => field.toLowerCase().includes(normalizedSearch))
+    })
+  }, [data, fileCategoryFilter, searchValue])
 
   return (
     <div 
-      className="relative space-y-4 mb-10" 
+      className="relative space-y-2.5 mb-10" 
       style={{scrollbarWidth: 'none'}}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
@@ -288,22 +321,37 @@ export function FilesTable({ data, clientId, onFileDeleted, onFileDeleteFailed, 
         </div>
       )}
       
-      <div className="flex justify-between items-center" dir="rtl">
-        <div className="flex gap-2">
-          <Input
-            placeholder="חיפוש מסמכים..."
-            value={searchValue}
-            onChange={(e) => (onSearchChange ? onSearchChange(e.target.value) : setSearchQuery(e.target.value))}
-            className="w-[250px] bg-card dark:bg-card" dir="rtl"
-          />
-        </div>
-        <Button 
-          onClick={() => fileInputRef.current?.click()}
-          disabled={isUploading}
-        >
-          {isUploading ? 'מעלה...' : 'העלאת קובץ'}
-          <Upload className="h-4 w-4 mr-2" />
-        </Button>
+      <TableFiltersBar
+        searchValue={searchValue}
+        onSearchChange={(value) => (onSearchChange ? onSearchChange(value) : setSearchQuery(value))}
+        searchPlaceholder="חיפוש מסמכים…"
+        filters={[
+          {
+            key: "file-category",
+            value: fileCategoryFilter,
+            onChange: handleFileCategoryFilterChange,
+            placeholder: "קטגוריה",
+            options: FILE_CATEGORY_OPTIONS,
+            widthClassName: "w-[170px]",
+          },
+        ]}
+        hasActiveFilters={Boolean(searchValue.trim()) || fileCategoryFilter !== ALL_FILTER_VALUE}
+        onReset={() => {
+          if (onSearchChange) onSearchChange("")
+          else setSearchQuery("")
+          handleFileCategoryFilterChange(ALL_FILTER_VALUE)
+        }}
+        actions={
+          <Button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isUploading}
+          >
+            {isUploading ? 'מעלה...' : 'העלאת קובץ'}
+            <Upload className="h-4 w-4 mr-2" />
+          </Button>
+        }
+      />
+
         <input
           ref={fileInputRef}
           type="file"
@@ -311,7 +359,6 @@ export function FilesTable({ data, clientId, onFileDeleted, onFileDeleteFailed, 
           multiple
           onChange={handleFileInputChange}
         />
-      </div>
 
       <div className="rounded-md bg-card">
         <Table dir="rtl" containerClassName="max-h-[70vh] overflow-y-auto overscroll-contain" containerStyle={{ scrollbarWidth: 'none' }}>

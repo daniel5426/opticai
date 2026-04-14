@@ -1,42 +1,80 @@
 import React, { useState, useEffect } from "react"
-import { useTranslation } from "react-i18next"
+import { useNavigate, useSearch } from "@tanstack/react-router"
 import { SiteHeader } from "@/components/site-header"
 import { UsersTable } from "@/components/users-table"
 import { UserModal } from "@/components/UserModal"
 import { getPaginatedUsers } from "@/lib/db/users-db"
 import { User } from "@/lib/db/schema-interface"
-import { Button } from "@/components/ui/button"
-import { UserPlus } from "lucide-react"
 import { useUser } from "@/contexts/UserContext"
 import { ROLE_LEVELS, isRoleAtLeast } from '@/lib/role-levels'
+import { ALL_FILTER_VALUE } from "@/lib/table-filters"
+import { buildTableSearch } from "@/lib/list-page-search"
 
 interface UserWithClinic extends User {
   clinic_name?: string;
 }
 
 export default function AllUsersPage() {
-  const { t } = useTranslation()
-  const { currentUser } = useUser()
+  const search = useSearch({ from: "/users" })
+  const navigate = useNavigate()
+  const { currentUser, currentClinic } = useUser()
   const [users, setUsers] = useState<UserWithClinic[]>([])
   const [loading, setLoading] = useState(true)
-  const [page, setPage] = useState(1)
   const [pageSize] = useState(25)
   const [total, setTotal] = useState(0)
   const [isUserModalOpen, setIsUserModalOpen] = useState(false)
   const [editingUser, setEditingUser] = useState<UserWithClinic | null>(null)
-  const [searchQuery, setSearchQuery] = useState("")
-  const [debouncedSearch, setDebouncedSearch] = useState("")
+  const [searchInput, setSearchInput] = useState(search.q)
 
   useEffect(() => {
-    const t = setTimeout(() => setDebouncedSearch(searchQuery), 400)
+    setSearchInput(search.q)
+  }, [search.q])
+
+  const buildSearchState = (
+    overrides?: Partial<{ q: string; page: number; role: string; clinicScope: string }>
+  ) =>
+    buildTableSearch(
+      {
+        q: searchInput.trim(),
+        page: search.page,
+        role: search.role,
+        clinicScope: search.clinicScope,
+        ...overrides,
+      },
+      {
+        q: "",
+        page: 1,
+        role: ALL_FILTER_VALUE,
+        clinicScope: ALL_FILTER_VALUE,
+      },
+    )
+
+  useEffect(() => {
+    const t = setTimeout(() => {
+      if (searchInput === search.q) return
+      navigate({
+        to: "/users",
+        search: buildSearchState({ q: searchInput.trim(), page: 1 }),
+      })
+    }, 400)
     return () => clearTimeout(t)
-  }, [searchQuery])
+  }, [navigate, search.q, searchInput])
 
   const loadUsers = async () => {
     try {
       setLoading(true)
-      const offset = (page - 1) * pageSize
-      const { items, total } = await getPaginatedUsers({ limit: pageSize, offset, order: 'id_desc', search: debouncedSearch || undefined })
+      const offset = (search.page - 1) * pageSize
+      const { items, total } = await getPaginatedUsers({
+        limit: pageSize,
+        offset,
+        order: 'id_desc',
+        q: search.q || undefined,
+        roleLevel: search.role !== ALL_FILTER_VALUE ? Number(search.role) : undefined,
+        clinic_id:
+          search.clinicScope === "current" && currentClinic?.id
+            ? currentClinic.id
+            : undefined,
+      })
       setUsers(items as UserWithClinic[])
       setTotal(total)
     } catch (error) {
@@ -48,20 +86,18 @@ export default function AllUsersPage() {
 
   useEffect(() => {
     loadUsers()
-  }, [page, pageSize, debouncedSearch])
-
-  useEffect(() => {
-    setPage(1)
-  }, [debouncedSearch])
+  }, [currentClinic?.id, pageSize, search.clinicScope, search.page, search.q, search.role])
 
   const handleUserDeleted = (userId: number) => {
     setUsers(prevUsers => prevUsers.filter(user => user.id !== userId))
-    setTotal(prevTotal => prevTotal - 1)
-    
-    // If we deleted the last item on this page and we're not on page 1, go to previous page
-    if (users.length === 1 && page > 1) {
-      setPage(page - 1)
+    if (users.length === 1 && search.page > 1) {
+      navigate({
+        to: "/users",
+        search: buildSearchState({ page: search.page - 1 }),
+      })
+      return
     }
+    setTotal(prevTotal => prevTotal - 1)
   }
 
   const handleUserDeleteFailed = () => {
@@ -123,10 +159,6 @@ export default function AllUsersPage() {
           <div className="flex flex-col gap-2 md:gap-0">
             <div className="flex items-center justify-between mb-4">
               <h1 className="text-xl font-bold">כל המשתמשים</h1>
-              <Button onClick={handleNewUser} className="flex items-center gap-2">
-                <UserPlus className="h-4 w-4" />
-                משתמש חדש
-              </Button>
             </div>
 
             <UsersTable 
@@ -138,10 +170,35 @@ export default function AllUsersPage() {
               onNewUser={handleNewUser}
               onEditUser={handleEditUser}
               loading={loading}
-              searchQuery={searchQuery}
-              onSearchChange={setSearchQuery}
-              hideNewButton={true}
-              pagination={{ page, pageSize, total, setPage }}
+              searchQuery={searchInput}
+              onSearchChange={setSearchInput}
+              roleFilter={search.role}
+              onRoleFilterChange={(value) =>
+                navigate({
+                  to: "/users",
+                  search: buildSearchState({ role: value, page: 1 }),
+                })
+              }
+              clinicScopeFilter={search.clinicScope}
+              onClinicScopeFilterChange={(value) =>
+                navigate({
+                  to: "/users",
+                  search: buildSearchState({ clinicScope: value, page: 1 }),
+                })
+              }
+              companyId={currentUser?.company_id}
+              currentClinicId={currentClinic?.id}
+              hideNewButton={false}
+              pagination={{
+                page: search.page,
+                pageSize,
+                total,
+                setPage: (page) =>
+                  navigate({
+                    to: "/users",
+                    search: buildSearchState({ page }),
+                  }),
+              }}
             />
             
             <div className="h-12"></div>

@@ -12,6 +12,7 @@ import type { DateRange } from "react-day-picker"
 import { User } from "@/lib/db/schema-interface"
 import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { getSafeHexColor } from "@/components/ui/color-input"
 import { cn } from "@/lib/utils"
 
 const PRESET_COLORS = [
@@ -305,7 +306,7 @@ export function PersonalProfileTab({
               <div className="relative group shrink-0">
                 <input
                   type="color"
-                  value={personalProfile.primary_theme_color || '#000000'}
+                  value={getSafeHexColor(personalProfile.primary_theme_color, '#2256aa')}
                   onChange={(e) => onProfileChange('primary_theme_color', e.target.value)}
                   className="absolute inset-0 opacity-0 w-8 h-8 cursor-pointer p-0 z-10"
                 />
@@ -663,5 +664,4 @@ function GoogleCalendarDisconnected({
     </div>
   )
 }
-
 

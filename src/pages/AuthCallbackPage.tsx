@@ -10,9 +10,34 @@ export default function AuthCallbackPage() {
   const [status, setStatus] = useState<'processing' | 'success' | 'error'>('processing')
   const [errorMessage, setErrorMessage] = useState<string>('')
   const [isWebRedirect, setIsWebRedirect] = useState(false)
+  const hasHandledRef = React.useRef(false)
 
   useEffect(() => {
+    const runWithTimeout = async <T,>(promise: Promise<T>, ms: number, label: string): Promise<T> => {
+      return Promise.race([
+        promise,
+        new Promise<T>((_, reject) => {
+          setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms)
+        })
+      ])
+    }
+
+    const notifyParentOfError = (message: string) => {
+      if (window.opener) {
+        try {
+          window.opener.postMessage({ type: 'OAUTH_ERROR', error: message }, '*')
+        } catch (postError) {
+          console.warn('[OAuth Callback] Failed to notify opener of error:', postError)
+        }
+      }
+    }
+
     const handleCallback = async () => {
+      if (hasHandledRef.current) {
+        return
+      }
+      hasHandledRef.current = true
+
       try {
         console.log('[OAuth Callback] URL:', window.location.href)
         
@@ -35,9 +60,14 @@ export default function AuthCallbackPage() {
 
         if (code) {
           console.log('[OAuth Callback] Exchanging code for session')
-          const { data, error: exchangeError } = await supabase.auth.exchangeCodeForSession(window.location.href)
+          const { data, error: exchangeError } = await runWithTimeout(
+            supabase.auth.exchangeCodeForSession(code),
+            15000,
+            'Supabase code exchange'
+          )
           if (exchangeError) {
             console.error('[OAuth Callback] Exchange error:', exchangeError)
+            throw exchangeError
           }
           session = data?.session
         }
@@ -48,13 +78,11 @@ export default function AuthCallbackPage() {
           const refreshToken = hashParams.get('refresh_token') || ''
           
           if (accessToken) {
-            console.log('[OAuth Callback] Setting session from hash tokens')
-            const { data, error: setErr } = await supabase.auth.setSession({
+            console.log('[OAuth Callback] Using hash tokens from callback')
+            session = {
               access_token: accessToken,
               refresh_token: refreshToken,
-            })
-            if (setErr) console.warn('[OAuth Callback] setSession warning:', setErr.message)
-            session = data?.session || { access_token: accessToken } // Fallback to just tokens
+            }
           }
         }
 
@@ -78,6 +106,10 @@ export default function AuthCallbackPage() {
           console.log('[OAuth Callback] Electron popup: Notifying parent...')
           window.opener.postMessage({ type: 'OAUTH_SUCCESS', session }, '*')
           setTimeout(() => window.close(), 800)
+        } else if (hasOpener) {
+          console.log('[OAuth Callback] Browser popup: Notifying opener...')
+          window.opener.postMessage({ type: 'OAUTH_SUCCESS', session }, '*')
+          setTimeout(() => window.close(), 800)
         } else {
           console.log('[OAuth Callback] Web mode: Showing manual button')
           setIsWebRedirect(true)
@@ -85,6 +117,7 @@ export default function AuthCallbackPage() {
         
       } catch (error) {
         console.error('[OAuth Callback] Fatal Error:', error)
+        notifyParentOfError(error instanceof Error ? error.message : 'Failed to process login')
         setStatus('error')
         setErrorMessage(error instanceof Error ? error.message : 'Failed to process login')
       }

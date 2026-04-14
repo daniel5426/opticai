@@ -177,6 +177,7 @@ def get_users_paginated(
     order: Optional[str] = Query("id_desc", description="Sort order: id_desc|id_asc|username_asc|username_desc|role_asc|role_desc"),
     search: Optional[str] = Query(None, description="Search by name/email/phone/username"),
     clinic_id: Optional[int] = Query(None, description="Filter by clinic ID"),
+    role_level: Optional[int] = Query(None, description="Filter by role level"),
     db: Session = Depends(get_db),
     current_user: UserModel = Depends(get_current_user)
 ):
@@ -242,6 +243,8 @@ def get_users_paginated(
                 User.phone.ilike(like),
             )
         )
+    if role_level is not None:
+        base = base.filter(User.role_level == role_level)
 
     # Apply ordering
     if order == "id_asc":

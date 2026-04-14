@@ -21,6 +21,7 @@ def get_enriched_exams(
     offset: int = Query(0, ge=0, description="Items to skip"),
     order: Optional[str] = Query("exam_date_desc", description="Sort order: exam_date_desc|exam_date_asc"),
     search: Optional[str] = Query(None, description="Search by client name, username, test name, or clinic"),
+    test_name: Optional[str] = Query(None, description="Filter by exact test name"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -37,6 +38,8 @@ def get_enriched_exams(
         base_query = base_query.filter(OpticalExam.type == type)
     if clinic_id:
         base_query = base_query.filter(OpticalExam.clinic_id == clinic_id)
+    if test_name and test_name != "all":
+        base_query = base_query.filter(OpticalExam.test_name == test_name)
 
     # Apply role-based access control
     if current_user.role_level < 4:

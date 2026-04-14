@@ -427,31 +427,31 @@ const ControlCenterDashboardPage: React.FC = () => {
             </Card>
 
             {/* Summary Cards */}
-            <div className="lg:col-span-2 flex flex-col gap-4">
+            <div className="lg:col-span-2 self-start flex flex-col gap-3">
               {loading ? (
                 <>
-                  <Skeleton className="h-[100px] w-full rounded-xl" />
-                  <Skeleton className="h-[100px] w-full rounded-xl" />
-                  <Skeleton className="h-[100px] w-full rounded-xl" />
+                  <Skeleton className="h-[76px] w-full rounded-xl" />
+                  <Skeleton className="h-[76px] w-full rounded-xl" />
+                  <Skeleton className="h-[76px] w-full rounded-xl" />
                 </>
               ) : (
                 <>
-                  <Card className="shadow-none flex-1 flex flex-col justify-center">
-                    <CardHeader className="py-4">
+                  <Card className="shadow-none">
+                    <CardHeader className="py-3">
                       <CardDescription>סה״כ תורים בטווח</CardDescription>
-                      <CardTitle className="text-2xl tabular-nums mt-1">{integerFormatter.format(overviewSummary.appointments)}</CardTitle>
+                      <CardTitle className="text-xl tabular-nums mt-1">{integerFormatter.format(overviewSummary.appointments)}</CardTitle>
                     </CardHeader>
                   </Card>
-                  <Card className="shadow-none flex-1 flex flex-col justify-center">
-                    <CardHeader className="py-4">
+                  <Card className="shadow-none">
+                    <CardHeader className="py-3">
                       <CardDescription>מצטרפים חדשים</CardDescription>
-                      <CardTitle className="text-2xl tabular-nums mt-1">{integerFormatter.format(overviewSummary.newClients)}</CardTitle>
+                      <CardTitle className="text-xl tabular-nums mt-1">{integerFormatter.format(overviewSummary.newClients)}</CardTitle>
                     </CardHeader>
                   </Card>
-                  <Card className="shadow-none flex-1 flex flex-col justify-center">
-                    <CardHeader className="py-4">
+                  <Card className="shadow-none">
+                    <CardHeader className="py-3">
                       <CardDescription>מחזור בטווח נבחר</CardDescription>
-                      <CardTitle className="text-2xl text-primary tabular-nums mt-1">{compactFormatter.format(overviewSummary.revenue)}</CardTitle>
+                      <CardTitle className="text-xl text-primary tabular-nums mt-1">{compactFormatter.format(overviewSummary.revenue)}</CardTitle>
                     </CardHeader>
                   </Card>
                 </>

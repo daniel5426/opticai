@@ -9,6 +9,6 @@ export const UI_CONFIG = {
    * Set to undefined or null for no max width constraint.
    * Examples: "1400px", "1600px", "80rem", "90vw"
    */
-  pageMaxWidth: "2000px",
+  pageMaxWidth: "1500px",
   examPageMaxWidth: "2300px",
 };

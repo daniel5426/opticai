@@ -12,13 +12,14 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { CustomModal } from "@/components/ui/custom-modal";
 import { toast } from "sonner";
-import { ChevronDown, ChevronLeft, ChevronRight, Plus, Star, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronLeft, Plus, Star, Trash2 } from "lucide-react";
 import { ExamLayout } from "@/lib/db/schema-interface";
 import { bulkDeleteExamLayouts, createExamLayoutGroup, deleteExamLayout, reorderExamLayouts, updateExamLayout } from "@/lib/db/exam-layouts-db";
+import { TableFiltersBar } from "@/components/table-filters-bar";
+import { ALL_FILTER_VALUE, EXAM_LAYOUT_TYPE_OPTIONS } from "@/lib/table-filters";
 
 type LayoutNode = ExamLayout & { children?: LayoutNode[] };
 
@@ -32,6 +33,10 @@ interface FlattenedNode {
 interface ExamLayoutsTableProps {
   data: LayoutNode[];
   onRefresh: () => void;
+  searchQuery?: string;
+  onSearchChange?: (value: string) => void;
+  typeFilter?: string;
+  onTypeFilterChange?: (value: string) => void;
 }
 
 function cloneTree(nodes: LayoutNode[]) {
@@ -285,9 +290,17 @@ function SortableRow({
   );
 }
 
-export function ExamLayoutsTable({ data, onRefresh }: ExamLayoutsTableProps) {
+export function ExamLayoutsTable({
+  data,
+  onRefresh,
+  searchQuery: externalSearchQuery,
+  onSearchChange,
+  typeFilter: externalTypeFilter,
+  onTypeFilterChange,
+}: ExamLayoutsTableProps) {
   const navigate = useNavigate();
-  const [searchQuery, setSearchQuery] = useState("");
+  const [internalSearchQuery, setInternalSearchQuery] = useState("");
+  const [selectedType, setSelectedType] = useState<string>(ALL_FILTER_VALUE);
   const [localData, setLocalData] = useState<LayoutNode[]>(data);
   const [isProcessing, setIsProcessing] = useState<Record<number, boolean>>({});
   const [activeId, setActiveId] = useState<number | null>(null);
@@ -302,20 +315,40 @@ export function ExamLayoutsTable({ data, onRefresh }: ExamLayoutsTableProps) {
   const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
   const [groupName, setGroupName] = useState("");
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
+  const searchQuery = externalSearchQuery !== undefined ? externalSearchQuery : internalSearchQuery;
+  const typeFilter = externalTypeFilter ?? selectedType;
 
   React.useEffect(() => {
     setLocalData(data);
   }, [data]);
 
-  const filteredData = useMemo(() => {
-    if (!searchQuery.trim()) {
-      return localData;
+  const handleSearchChange = (value: string) => {
+    if (onSearchChange) {
+      onSearchChange(value);
+      return;
     }
+    setInternalSearchQuery(value);
+  };
+
+  const handleTypeFilterChange = (value: string) => {
+    if (onTypeFilterChange) {
+      onTypeFilterChange(value);
+      return;
+    }
+    setSelectedType(value);
+  };
+
+  const filteredData = useMemo(() => {
     const filter = (nodes: LayoutNode[]): LayoutNode[] => {
       return nodes
         .map((node) => {
-          const nameMatch = node.name?.toLowerCase().includes(searchQuery.toLowerCase());
-          if (nameMatch) {
+          const matchesType =
+            typeFilter === ALL_FILTER_VALUE || node.is_group || node.type === typeFilter;
+          const searchMatches = !searchQuery.trim()
+            ? true
+            : node.name?.toLowerCase().includes(searchQuery.toLowerCase());
+
+          if (matchesType && searchMatches) {
             return node;
           }
           if (node.children && node.children.length) {
@@ -332,7 +365,7 @@ export function ExamLayoutsTable({ data, onRefresh }: ExamLayoutsTableProps) {
         .filter(Boolean) as LayoutNode[];
     };
     return filter(localData);
-  }, [localData, searchQuery]);
+  }, [localData, searchQuery, typeFilter]);
 
   const flattenedAll = useMemo(() => {
     return flattenTree(localData, expandedIds);
@@ -607,38 +640,51 @@ export function ExamLayoutsTable({ data, onRefresh }: ExamLayoutsTableProps) {
   };
 
   return (
-    <div className="space-y-6 mb-10" dir="rtl">
-      <div className="flex items-center justify-between gap-4">
-        <Input
-          placeholder="חיפוש פריסות..."
-          value={searchQuery}
-          onChange={(event) => setSearchQuery(event.target.value)}
-          className="max-w-sm"
-        />
-        <div className="flex items-center gap-2">
-          {selectedIds.size > 0 ? (
-            <>
-              <Button
-                variant="destructive"
-                onClick={() => setIsBulkDeleteModalOpen(true)}
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
-              <Button
-                onClick={handleOpenGroupModal}
-                disabled={selectedIds.size < 2}
-                className="bg-primary text-primary-foreground"
-              >
-                צור קבוצה
-
-              </Button>
-            </>
-          ) : null}
-          <Button onClick={handleCreateNew} className="bg-card shadow-none text-card-foreground hover:bg-accent border">
-            <Plus className="h-4 w-4" />
-          </Button>
-        </div>
-      </div>
+    <div className="space-y-2.5 mb-10" dir="rtl">
+      <TableFiltersBar
+        searchValue={searchQuery}
+        onSearchChange={handleSearchChange}
+        searchPlaceholder="חיפוש פריסות…"
+        filters={[
+          {
+            key: "type",
+            value: typeFilter,
+            onChange: handleTypeFilterChange,
+            placeholder: "סוג",
+            options: EXAM_LAYOUT_TYPE_OPTIONS,
+            widthClassName: "w-[160px]",
+          },
+        ]}
+        hasActiveFilters={Boolean(searchQuery.trim()) || typeFilter !== ALL_FILTER_VALUE}
+        onReset={() => {
+          handleSearchChange("");
+          handleTypeFilterChange(ALL_FILTER_VALUE);
+        }}
+        actions={
+          <>
+            {selectedIds.size > 0 ? (
+              <>
+                <Button
+                  variant="destructive"
+                  onClick={() => setIsBulkDeleteModalOpen(true)}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+                <Button
+                  onClick={handleOpenGroupModal}
+                  disabled={selectedIds.size < 2}
+                  className="bg-primary text-primary-foreground"
+                >
+                  צור קבוצה
+                </Button>
+              </>
+            ) : null}
+            <Button onClick={handleCreateNew} className="bg-card shadow-none text-card-foreground hover:bg-accent border">
+              <Plus className="h-4 w-4" />
+            </Button>
+          </>
+        }
+      />
 
       <div className="rounded-md bg-card">
         <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>

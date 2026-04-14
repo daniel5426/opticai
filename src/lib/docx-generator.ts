@@ -6,48 +6,28 @@ import { saveAs } from "file-saver";
  * DocxGenerator - Service class for generating DOCX files from templates
  */
 export class DocxGenerator {
-  private templatePath: string;
-
-  constructor(templatePath: string = "/templates/template.docx") {
+  constructor(templatePath: string = "/templates/regular-order.docx") {
     this.templatePath = templatePath;
   }
 
-  /**
-   * Load the template file
-   */
-  private async loadTemplate(): Promise<ArrayBuffer> {
-    try {
-      const response = await fetch(this.templatePath);
-      
-      if (!response.ok) {
-        throw new Error(
-          `Failed to load template: HTTP ${response.status}. Check that the file exists at: ${this.templatePath}`
-        );
-      }
-
-      return await response.arrayBuffer();
-    } catch (error) {
-      console.error("Error loading template:", error);
-      throw new Error("שגיאה בטעינת קובץ התבנית. ודא שהקובץ קיים.");
-    }
-  }
+  private templatePath: string;
 
   /**
    * Generate and download a DOCX file from template and data
    */
-  async generate(data: Record<string, any>, fileName?: string, templatePath?: string): Promise<void> {
+  async generate(
+    data: Record<string, any>,
+    fileName?: string,
+    templatePath?: string,
+  ): Promise<void> {
     try {
-      // Use custom template if provided, otherwise use default
       const template = templatePath || this.templatePath;
-      
-      // Load template
       const response = await fetch(template);
       if (!response.ok) {
         throw new Error(`Failed to load template: HTTP ${response.status}`);
       }
       const content = await response.arrayBuffer();
 
-      // Create docxtemplater instance
       const zip = new PizZip(content);
       const doc = new Docxtemplater(zip, {
         paragraphLoop: true,
@@ -55,10 +35,8 @@ export class DocxGenerator {
         delimiters: { start: "{", end: "}" },
       });
 
-      // Merge data into template
       doc.render(data);
 
-      // Generate binary file
       const out = doc.getZip().generate({
         type: "blob",
         mimeType:
@@ -66,7 +44,6 @@ export class DocxGenerator {
         compression: "DEFLATE",
       });
 
-      // Download file
       const defaultFileName = this.generateFileName(data);
       saveAs(out, fileName || defaultFileName);
     } catch (error) {
@@ -84,8 +61,10 @@ export class DocxGenerator {
   private generateFileName(data: Record<string, any>): string {
     const parts = ["דוח_הזמנה"];
     
-    if (data.customer_name) {
-      parts.push(data.customer_name);
+    const clientName = data.client_name || data.customer_name;
+
+    if (clientName) {
+      parts.push(clientName);
     }
     
     if (data.order_number) {
@@ -103,4 +82,3 @@ export class DocxGenerator {
  * Singleton instance for easy usage
  */
 export const docxGenerator = new DocxGenerator();
-

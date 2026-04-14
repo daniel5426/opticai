@@ -1,5 +1,5 @@
 /// <reference path="../../types/electron.d.ts" />
-import { Order, ContactLensOrder } from './schema-interface';
+import { Order, ContactLensOrderEntity } from './schema-interface';
 import { apiClient } from '../api-client';
 
 export async function getOrdersByClientId(clientId: number): Promise<Order[]> {
@@ -82,7 +82,7 @@ export async function getAllOrders(clinicId?: number): Promise<Order[]> {
 
 export async function getPaginatedOrders(
   clinicId?: number,
-  options?: { limit?: number; offset?: number; order?: 'date_desc' | 'date_asc' | 'id_desc' | 'id_asc'; search?: string }
+  options?: { limit?: number; offset?: number; order?: 'date_desc' | 'date_asc' | 'id_desc' | 'id_asc'; q?: string; kind?: string; status?: string }
 ): Promise<{ items: Order[]; total: number }> {
   try {
     const effectiveOptions = options ?? { limit: 25, offset: 0, order: 'date_desc' as const };
@@ -112,7 +112,7 @@ export async function getOrderById(orderId: number): Promise<Order | null> {
   }
 }
 
-export async function getContactLensOrderById(orderId: number): Promise<ContactLensOrder | null> {
+export async function getContactLensOrderById(orderId: number): Promise<ContactLensOrderEntity | null> {
   try {
     const response = await apiClient.getContactLensOrder(orderId);
     if ((response as any).error) {

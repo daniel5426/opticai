@@ -9,7 +9,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -17,10 +16,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Plus, Trash2 } from "lucide-react";
-import { OpticalExam, User, Client, ExamLayout } from "@/lib/db/schema-interface";
+import { OpticalExam, ExamLayout } from "@/lib/db/schema-interface";
 import { ClientSelectModal } from "@/components/ClientSelectModal";
-import { getAllUsers } from "@/lib/db/users-db";
-import { getAllClients } from "@/lib/db/clients-db";
 import { CustomModal } from "@/components/ui/custom-modal";
 import { deleteExam } from "@/lib/db/exams-db";
 import { getDefaultExamLayouts } from "@/lib/db/exam-layouts-db";
@@ -30,6 +27,8 @@ import { DateSearchHelper } from "@/lib/date-search-helper";
 import { useUser } from "@/contexts/UserContext";
 import { Eye } from "lucide-react";
 import { ExamPreviewModal } from "@/components/exam/ExamPreviewModal";
+import { TableFiltersBar } from "@/components/table-filters-bar";
+import { ALL_FILTER_VALUE } from "@/lib/table-filters";
 
 interface ExamWithNames extends OpticalExam {
   username?: string;
@@ -45,9 +44,24 @@ interface ExamsTableProps {
   onExamDeleteFailed: () => void;
   loading: boolean;
   pagination?: { page: number; pageSize: number; total: number; setPage: (p: number) => void };
+  searchQuery?: string;
+  onSearchChange?: (q: string) => void;
+  testNameFilter?: string;
+  onTestNameFilterChange?: (value: string) => void;
 }
 
-export function ExamsTable({ data, clientId, onExamDeleted, onExamDeleteFailed, loading, pagination, searchQuery: externalSearch, onSearchChange }: ExamsTableProps & { searchQuery?: string; onSearchChange?: (q: string) => void }) {
+export function ExamsTable({
+  data,
+  clientId,
+  onExamDeleted,
+  onExamDeleteFailed,
+  loading,
+  pagination,
+  searchQuery: externalSearch,
+  onSearchChange,
+  testNameFilter: externalTestNameFilter,
+  onTestNameFilterChange,
+}: ExamsTableProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const searchValue = externalSearch !== undefined ? externalSearch : searchQuery;
   const navigate = useNavigate();
@@ -58,6 +72,8 @@ export function ExamsTable({ data, clientId, onExamDeleted, onExamDeleteFailed, 
   const { currentClinic } = useUser();
   const [previewExamId, setPreviewExamId] = useState<number | null>(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [selectedTestName, setSelectedTestName] = useState<string>(ALL_FILTER_VALUE);
+  const testNameFilter = externalTestNameFilter ?? selectedTestName;
 
   useEffect(() => {
     const fetchDefaultLayouts = async () => {
@@ -71,31 +87,27 @@ export function ExamsTable({ data, clientId, onExamDeleted, onExamDeleteFailed, 
     fetchDefaultLayouts();
   }, [currentClinic?.id]);
 
-  const filteredData = React.useMemo(() => {
-    if (externalSearch === undefined) {
-      return data.filter((exam) => {
-        const searchableFields = [
-          exam.full_name || exam.username,
-          exam.clinic,
-          exam.test_name,
-        ];
-        return searchableFields.some(
-          (field) =>
-            field && field.toLowerCase().includes(searchValue.toLowerCase()),
-        ) || DateSearchHelper.matchesDate(searchValue, exam.exam_date);
-      });
+  const handleTestNameFilterChange = (value: string) => {
+    if (onTestNameFilterChange) {
+      onTestNameFilterChange(value);
+      return;
     }
+    setSelectedTestName(value);
+  };
 
-    if (!searchValue || clientId === 0) {
-      return data;
+  const filteredData = React.useMemo(() => {
+    let result = data;
+
+    if (testNameFilter !== ALL_FILTER_VALUE) {
+      result = result.filter((exam) => exam.test_name === testNameFilter);
     }
 
     const searchLower = searchValue.toLowerCase().trim();
     if (!searchLower) {
-      return data;
+      return result;
     }
 
-    return data.filter((exam) => {
+    return result.filter((exam) => {
       const fullName = (exam.full_name || exam.username || '').toLowerCase();
       const clinic = (exam.clinic || '').toLowerCase();
       const testName = (exam.test_name || '').toLowerCase();
@@ -108,7 +120,11 @@ export function ExamsTable({ data, clientId, onExamDeleted, onExamDeleteFailed, 
 
       return DateSearchHelper.matchesDate(searchLower, exam.exam_date);
     });
-  }, [data, searchValue, externalSearch, clientId]);
+  }, [data, searchValue, testNameFilter]);
+
+  const uniqueTestNames = React.useMemo(() => {
+    return Array.from(new Set(data.map((exam) => exam.test_name).filter(Boolean)));
+  }, [data]);
 
   const handleDeleteConfirm = async () => {
     if (examToDelete && examToDelete.id !== undefined) {
@@ -135,66 +151,77 @@ export function ExamsTable({ data, clientId, onExamDeleted, onExamDeleteFailed, 
   };
 
   return (
-    <div className="space-y-4 mb-10" dir="rtl" style={{ scrollbarWidth: 'none' }}>
-      <div className="flex items-center justify-between">
-        <div className="flex gap-2">
-          <Input
-            placeholder="חיפוש בדיקות..."
-            value={searchValue}
-            onChange={(e) => (onSearchChange ? onSearchChange(e.target.value) : setSearchQuery(e.target.value))}
-            className="w-[250px] bg-card dark:bg-card"
-            dir="rtl"
-          />
-        </div>
-        {clientId > 0 ? (
-          defaultLayouts.length > 0 ? (
-            <DropdownMenu open={isDropdownOpen} onOpenChange={setIsDropdownOpen}>
-              <DropdownMenuTrigger dir="rtl" asChild>
-                <Button
-                >
-                  <Plus className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent
-                align="start"
-              >
-                {defaultLayouts.map((layout) => (
-                  <DropdownMenuItem
-                    dir="rtl"
-                    key={layout.id}
-                    onClick={() => {
-                      navigate({
-                        to: "/clients/$clientId/exams/new",
-                        params: { clientId: String(clientId) },
-                        search: { layoutId: String(layout.id) },
-                      });
-                      setIsDropdownOpen(false);
-                    }}
-                  >
-                    {layout.name}
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
+    <div className="space-y-2.5 mb-10" dir="rtl" style={{ scrollbarWidth: 'none' }}>
+      <TableFiltersBar
+        searchValue={searchValue}
+        onSearchChange={(value) => (onSearchChange ? onSearchChange(value) : setSearchQuery(value))}
+        searchPlaceholder="חיפוש בדיקות…"
+        filters={[
+          {
+            key: "test-name",
+            value: testNameFilter,
+            onChange: handleTestNameFilterChange,
+            placeholder: "סוג בדיקה",
+            options: [
+              { value: ALL_FILTER_VALUE, label: "כל הבדיקות" },
+              ...uniqueTestNames.map((testName) => ({ value: testName || "unknown", label: testName || "unknown" })),
+            ],
+            widthClassName: "w-[190px]",
+          },
+        ]}
+        hasActiveFilters={Boolean(searchValue.trim()) || testNameFilter !== ALL_FILTER_VALUE}
+        onReset={() => {
+          if (onSearchChange) onSearchChange("");
+          else setSearchQuery("");
+          handleTestNameFilterChange(ALL_FILTER_VALUE);
+        }}
+        actions={
+          clientId > 0 ? (
+            defaultLayouts.length > 0 ? (
+              <DropdownMenu open={isDropdownOpen} onOpenChange={setIsDropdownOpen}>
+                <DropdownMenuTrigger dir="rtl" asChild>
+                  <Button>
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start">
+                  {defaultLayouts.map((layout) => (
+                    <DropdownMenuItem
+                      dir="rtl"
+                      key={layout.id}
+                      onClick={() => {
+                        navigate({
+                          to: "/clients/$clientId/exams/new",
+                          params: { clientId: String(clientId) },
+                          search: { layoutId: String(layout.id) },
+                        });
+                        setIsDropdownOpen(false);
+                      }}
+                    >
+                      {layout.name}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : (
+              <Button>
+                <Plus className="h-4 w-4" />
+              </Button>
+            )
           ) : (
-            <Button>
-              <Plus className="h-4 w-4" />
-            </Button>
+            <NewExamButtonWithoutClient
+              defaultLayouts={defaultLayouts}
+              onClientSelect={(selectedClientId, layoutId) => {
+                navigate({
+                  to: "/clients/$clientId/exams/new",
+                  params: { clientId: String(selectedClientId) },
+                  search: layoutId ? { layoutId: String(layoutId) } : undefined,
+                });
+              }}
+            />
           )
-        ) : (
-          <NewExamButtonWithoutClient
-            defaultLayouts={defaultLayouts}
-            onClientSelect={(selectedClientId, layoutId) => {
-              navigate({
-                to: "/clients/$clientId/exams/new",
-                params: { clientId: String(selectedClientId) },
-                search: layoutId ? { layoutId: String(layoutId) } : undefined,
-              });
-            }}
-          />
-        )}
-
-      </div>
+        }
+      />
 
       <div className="rounded-md bg-card">
 

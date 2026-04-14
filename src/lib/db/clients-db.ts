@@ -18,7 +18,7 @@ export async function getAllClients(clinicId?: number): Promise<Client[]> {
 
 export async function getPaginatedClients(
   clinicId?: number,
-  options?: { limit?: number; offset?: number; order?: 'id_desc' | 'id_asc'; search?: string }
+  options?: { limit?: number; offset?: number; order?: 'id_desc' | 'id_asc'; q?: string; gender?: string }
 ): Promise<{ items: Client[]; total: number }> {
   try {
     const effective = options ?? { limit: 25, offset: 0, order: 'id_desc' as const };

@@ -1,34 +1,67 @@
 import React, { useState, useEffect, useCallback } from "react"
+import { useNavigate, useSearch } from "@tanstack/react-router"
 import { SiteHeader } from "@/components/site-header"
 import { getPaginatedEnrichedExams } from "@/lib/db/exams-db"
 import { OpticalExam } from "@/lib/db/schema-interface"
 import { ExamsTable } from "@/components/exams-table"
 import { ClientSelectModal } from "@/components/ClientSelectModal"
-import { useNavigate } from "@tanstack/react-router"
 import { useUser } from "@/contexts/UserContext"
 import { Button } from "@/components/ui/button"
+import { ALL_FILTER_VALUE } from "@/lib/table-filters"
+import { buildTableSearch } from "@/lib/list-page-search"
 
 export default function AllExamsPage() {
   const { currentClinic } = useUser()
+  const search = useSearch({ from: "/exams" })
+  const navigate = useNavigate()
   const [exams, setExams] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-  const [page, setPage] = useState(1)
   const [pageSize] = useState(25)
   const [total, setTotal] = useState(0)
-  const navigate = useNavigate()
-  const [searchQuery, setSearchQuery] = useState("")
-  const [debouncedSearch, setDebouncedSearch] = useState("")
+  const [searchInput, setSearchInput] = useState(search.q)
 
   useEffect(() => {
-    const t = setTimeout(() => setDebouncedSearch(searchQuery), 400)
+    setSearchInput(search.q)
+  }, [search.q])
+
+  const buildSearchState = useCallback((overrides?: Partial<{ q: string; page: number; testName: string }>) => {
+    return buildTableSearch(
+      {
+        q: searchInput.trim(),
+        page: search.page,
+        testName: search.testName,
+        ...overrides,
+      },
+      {
+        q: "",
+        page: 1,
+        testName: ALL_FILTER_VALUE,
+      },
+    )
+  }, [search.page, search.testName, searchInput])
+
+  useEffect(() => {
+    const t = setTimeout(() => {
+      if (searchInput === search.q) return
+      navigate({
+        to: "/exams",
+        search: buildSearchState({ q: searchInput.trim(), page: 1 }),
+      })
+    }, 400)
     return () => clearTimeout(t)
-  }, [searchQuery])
+  }, [buildSearchState, navigate, search.q, searchInput])
 
   const loadData = useCallback(async () => {
     try {
       setLoading(true)
-      const offset = (page - 1) * pageSize
-      const { items, total } = await getPaginatedEnrichedExams('exam', currentClinic?.id, { limit: pageSize, offset, order: 'exam_date_desc', search: debouncedSearch || undefined })
+      const offset = (search.page - 1) * pageSize
+      const { items, total } = await getPaginatedEnrichedExams('exam', currentClinic?.id, {
+        limit: pageSize,
+        offset,
+        order: 'exam_date_desc',
+        q: search.q || undefined,
+        testName: search.testName !== ALL_FILTER_VALUE ? search.testName : undefined,
+      })
       setExams(items)
       setTotal(total)
     } catch (error) {
@@ -36,11 +69,7 @@ export default function AllExamsPage() {
     } finally {
       setLoading(false)
     }
-  }, [currentClinic, page, pageSize, debouncedSearch])
-
-  useEffect(() => {
-    setPage(1)
-  }, [debouncedSearch])
+  }, [currentClinic, pageSize, search.page, search.q, search.testName])
 
   useEffect(() => {
     if (currentClinic) {
@@ -53,8 +82,11 @@ export default function AllExamsPage() {
       const updated = prevExams.filter(exam => exam.id !== deletedExamId)
       const newTotal = Math.max(0, total - 1)
       setTotal(newTotal)
-      if (updated.length === 0 && page > 1) {
-        setPage(p => Math.max(1, p - 1))
+      if (updated.length === 0 && search.page > 1) {
+        navigate({
+          to: "/exams",
+          search: buildSearchState({ page: Math.max(1, search.page - 1) }),
+        })
       }
       return updated
     })
@@ -63,13 +95,6 @@ export default function AllExamsPage() {
   const handleExamDeleteFailed = () => {
     loadData()
   } 
-
-  const handleClientSelect = (clientId: number) => {
-    navigate({
-      to: "/clients/$clientId/exams/new",
-      params: { clientId: String(clientId) }
-    })
-  }
 
   return (
     <>
@@ -83,10 +108,26 @@ export default function AllExamsPage() {
           clientId={0} 
           onExamDeleted={handleExamDeleted} 
           onExamDeleteFailed={handleExamDeleteFailed} 
-          searchQuery={searchQuery}
-          onSearchChange={setSearchQuery}
+          searchQuery={searchInput}
+          onSearchChange={setSearchInput}
+          testNameFilter={search.testName}
+          onTestNameFilterChange={(value) =>
+            navigate({
+              to: "/exams",
+              search: buildSearchState({ testName: value, page: 1 }),
+            })
+          }
           loading={loading} 
-          pagination={{ page, pageSize, total, setPage }}
+          pagination={{
+            page: search.page,
+            pageSize,
+            total,
+            setPage: (page) =>
+              navigate({
+                to: "/exams",
+                search: buildSearchState({ page }),
+              }),
+          }}
         />
       </div>
     </>

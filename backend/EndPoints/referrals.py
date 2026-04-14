@@ -17,6 +17,8 @@ def get_referrals_paginated(
     offset: int = Query(0, ge=0, description="Items to skip"),
     order: Optional[str] = Query("date_desc", description="Sort order: date_desc|date_asc|id_desc|id_asc"),
     search: Optional[str] = Query(None, description="Search by type/recipient/urgency_level/client name"),
+    urgency_level: Optional[str] = Query(None, description="Filter by urgency level"),
+    referral_type: Optional[str] = Query(None, alias="type", description="Filter by referral type"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -35,6 +37,10 @@ def get_referrals_paginated(
     if clinic_id is not None:
         assert_clinic_belongs_to_company(db, clinic_id, company_id)
         base = base.filter(Referral.clinic_id == clinic_id)
+    if urgency_level and urgency_level != "all":
+        base = base.filter(Referral.urgency_level == urgency_level)
+    if referral_type and referral_type != "all":
+        base = base.filter(Referral.type == referral_type)
     if search:
         like = f"%{search.strip()}%"
         base = base.filter(

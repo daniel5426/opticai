@@ -16,6 +16,7 @@ import { UserModal } from "@/components/UserModal"
 import { apiClient } from "@/lib/api-client"
 import { supabase } from "@/lib/supabaseClient"
 import { ImageInput } from "@/components/ui/image-input"
+import { ColorInput } from "@/components/ui/color-input"
 import { AboutTab } from "@/components/settings/AboutTab"
 import { WhatsAppTab } from "@/components/settings/WhatsAppTab"
 import { ROLE_LEVELS, getRoleBadgeVariant, getRoleLabel, isRoleAtLeast } from "@/lib/role-levels"
@@ -777,8 +778,7 @@ export default function ControlCenterSettingsPage() {
                           <div className="space-y-2">
                             <Label className="text-right block text-sm font-medium">צבע ראשי</Label>
                             <div className="flex items-center gap-4">
-                              <Input
-                                type="color"
+                              <ColorInput
                                 value={localCompany.primary_theme_color || '#2256aa'}
                                 onChange={(e) => {
                                   handleCompanyChange('primary_theme_color', e.target.value);
@@ -809,7 +809,7 @@ export default function ControlCenterSettingsPage() {
                                   }, 150);
                                   setProfileColorUpdateTimeout(timeout);
                                 }}
-                                className="w-16 h-12 p-1 rounded shadow-sm"
+                                fallbackColor="#2256aa"
                               />
                               <div className="flex-1">
                                 <Input
@@ -853,8 +853,7 @@ export default function ControlCenterSettingsPage() {
                           <div className="space-y-2">
                             <Label className="text-right block text-sm font-medium">צבע משני</Label>
                             <div className="flex items-center gap-4">
-                              <Input
-                                type="color"
+                              <ColorInput
                                 value={localCompany.secondary_theme_color || '#cce9ff'}
                                 onChange={(e) => {
                                   handleCompanyChange('secondary_theme_color', e.target.value);
@@ -885,7 +884,7 @@ export default function ControlCenterSettingsPage() {
                                   }, 150);
                                   setProfileColorUpdateTimeout(timeout);
                                 }}
-                                className="w-16 h-12 p-1 rounded shadow-sm"
+                                fallbackColor="#cce9ff"
                               />
                               <div className="flex-1">
                                 <Input
@@ -1007,11 +1006,10 @@ export default function ControlCenterSettingsPage() {
                         <div className="space-y-2">
                           <Label className="text-right block text-sm font-medium">צבע לתורים ביומן</Label>
                           <div className="flex items-center gap-4">
-                            <Input
-                              type="color"
+                            <ColorInput
                               value={personalProfile.primary_theme_color}
                               onChange={(e) => handlePersonalProfileChange('primary_theme_color', e.target.value)}
-                              className="w-16 h-12 p-1 rounded shadow-sm"
+                              fallbackColor="#2256aa"
                             />
                             <div className="flex-1">
                               <Input

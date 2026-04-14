@@ -80,6 +80,8 @@ def get_appointments_paginated(
     offset: int = Query(0, ge=0, description="Items to skip"),
     order: Optional[str] = Query("date_desc", description="Sort order: date_desc|date_asc|id_desc|id_asc"),
     search: Optional[str] = Query(None, description="Search by date/time/exam_name/note or client name"),
+    date_scope: Optional[str] = Query(None, description="Filter by date scope: all|today|upcoming|past"),
+    exam_name: Optional[str] = Query(None, description="Filter by exact exam name"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -99,6 +101,15 @@ def get_appointments_paginated(
     if clinic_id is not None:
         assert_clinic_belongs_to_company(db, clinic_id, company_id)
         base = base.filter(Appointment.clinic_id == clinic_id)
+    if exam_name and exam_name != "all":
+        base = base.filter(Appointment.exam_name == exam_name)
+    today = date.today()
+    if date_scope == "today":
+        base = base.filter(Appointment.date == today)
+    elif date_scope == "upcoming":
+        base = base.filter(Appointment.date > today)
+    elif date_scope == "past":
+        base = base.filter(Appointment.date < today)
     if search:
         like = f"%{search.strip()}%"
         base = base.filter(

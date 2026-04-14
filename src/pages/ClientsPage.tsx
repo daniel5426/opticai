@@ -1,43 +1,68 @@
 import React, { useState, useEffect } from "react"
-import { useTranslation } from "react-i18next"
-import { useNavigate } from "@tanstack/react-router"
+import { useNavigate, useSearch } from "@tanstack/react-router"
 import { SiteHeader } from "@/components/site-header"
 import { ClientsTable } from "@/components/clients-table"
 import { FamiliesTable } from "@/components/families-table"
 import { FamilyManagementModal } from "@/components/FamilyManagementModal"
-import { getAllClients, getPaginatedClients } from "@/lib/db/clients-db"
-import { getAllFamilies, getPaginatedFamilies } from "@/lib/db/family-db"
+import { getPaginatedClients } from "@/lib/db/clients-db"
+import { getPaginatedFamilies } from "@/lib/db/family-db"
 import { Client, Family } from "@/lib/db/schema-interface"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Users, UserPlus, PlusIcon } from "lucide-react"
+import { Users, PlusIcon } from "lucide-react"
 import { useUser } from "@/contexts/UserContext"
+import { TableFiltersBar } from "@/components/table-filters-bar"
+import { ALL_FILTER_VALUE } from "@/lib/table-filters"
+import { buildTableSearch } from "@/lib/list-page-search"
 
 export default function ClientsPage() {
-  const { t } = useTranslation()
+  const search = useSearch({ from: "/clients" })
   const navigate = useNavigate()
   const { currentClinic } = useUser()
   const [clients, setClients] = useState<Client[]>([])
   const [families, setFamilies] = useState<Family[]>([])
   const [clientsLoading, setClientsLoading] = useState(true)
   const [familiesLoading, setFamiliesLoading] = useState(false)
-  const [clientsPage, setClientsPage] = useState(1)
-  const [familiesPage, setFamiliesPage] = useState(1)
   const [pageSize] = useState(25)
   const [clientsTotal, setClientsTotal] = useState(0)
   const [familiesTotal, setFamiliesTotal] = useState(0)
-  const [isFamilyMode, setIsFamilyMode] = useState(false)
   const [selectedFamily, setSelectedFamily] = useState<Family | null>(null)
   
   const [isFamilyModalOpen, setIsFamilyModalOpen] = useState(false)
   const [editingFamily, setEditingFamily] = useState<Family | null>(null)
-  const [searchQuery, setSearchQuery] = useState("")
-  const [debouncedSearch, setDebouncedSearch] = useState("")
+  const [searchInput, setSearchInput] = useState(search.q)
+  const isFamilyMode = search.mode === "families"
 
   useEffect(() => {
-    const t = setTimeout(() => setDebouncedSearch(searchQuery), 400)
+    setSearchInput(search.q)
+  }, [search.q])
+
+  const buildSearchState = (overrides?: Partial<{ mode: string; q: string; page: number; gender: string }>) =>
+    buildTableSearch(
+      {
+        mode: search.mode,
+        q: searchInput.trim(),
+        page: search.page,
+        gender: search.gender,
+        ...overrides,
+      },
+      {
+        mode: "clients",
+        q: "",
+        page: 1,
+        gender: ALL_FILTER_VALUE,
+      },
+    )
+
+  useEffect(() => {
+    const t = setTimeout(() => {
+      if (searchInput === search.q) return
+      navigate({
+        to: "/clients",
+        search: buildSearchState({ q: searchInput.trim(), page: 1 }),
+      })
+    }, 400)
     return () => clearTimeout(t)
-  }, [searchQuery])
+  }, [navigate, search.q, searchInput])
 
   // Show loading instantly while waiting for debounced server search
   useEffect(() => {
@@ -49,15 +74,21 @@ export default function ClientsPage() {
       setClientsLoading(true)
       setClients([])
     }
-  }, [searchQuery, currentClinic, isFamilyMode])
+  }, [currentClinic, isFamilyMode, searchInput])
 
   const loadClients = async () => {
     try {
       setClientsLoading(true)
-      const offset = (clientsPage - 1) * pageSize
+      const offset = (search.page - 1) * pageSize
       const { items, total } = await getPaginatedClients(
         currentClinic?.id,
-        { limit: pageSize, offset, order: 'id_desc', search: isFamilyMode ? undefined : (debouncedSearch || undefined) }
+        {
+          limit: pageSize,
+          offset,
+          order: 'id_desc',
+          q: search.q || undefined,
+          gender: search.gender !== ALL_FILTER_VALUE ? search.gender : undefined,
+        }
       )
       setClients(items)
       setClientsTotal(total)
@@ -71,8 +102,13 @@ export default function ClientsPage() {
   const loadFamilies = async () => {
     try {
       setFamiliesLoading(true)
-      const offset = (familiesPage - 1) * pageSize
-      const {items, total} = await getPaginatedFamilies(currentClinic?.id, { limit: pageSize, offset, order: 'id_desc', search: debouncedSearch || undefined })
+      const offset = (search.page - 1) * pageSize
+      const {items, total} = await getPaginatedFamilies(currentClinic?.id, {
+        limit: pageSize,
+        offset,
+        order: 'id_desc',
+        search: search.q || undefined,
+      })
       setFamilies(items)
       setFamiliesTotal(total)
     } catch (error) {
@@ -84,7 +120,7 @@ export default function ClientsPage() {
 
   const loadData = async () => {
     if (isFamilyMode) {
-      await Promise.all([loadFamilies(), loadClients()])
+      await loadFamilies()
     } else {
       await loadClients()
     }
@@ -94,19 +130,20 @@ export default function ClientsPage() {
     if (currentClinic) {
       loadData()
     }
-  }, [currentClinic, pageSize, debouncedSearch, isFamilyMode, clientsPage, familiesPage])
-
-  // Reset to first page when search changes
-  useEffect(() => {
-    if (isFamilyMode) {
-      setFamiliesPage(1)
-    } else {
-      setClientsPage(1)
-    }
-  }, [debouncedSearch, isFamilyMode])
+  }, [currentClinic, pageSize, isFamilyMode, search.gender, search.page, search.q])
 
   const handleClientDeleted = (clientId: number) => {
     setClients(prevClients => prevClients.filter(client => client.id !== clientId))
+    if (!isFamilyMode && clients.length === 1 && search.page > 1) {
+      navigate({
+        to: "/clients",
+        search: buildSearchState({ page: search.page - 1 }),
+      })
+      return
+    }
+    if (!isFamilyMode) {
+      setClientsTotal(prev => prev - 1)
+    }
   }
 
   const handleClientDeleteFailed = () => {
@@ -153,6 +190,17 @@ export default function ClientsPage() {
     if (selectedFamily?.id === familyId) {
       setSelectedFamily(null)
     }
+    if (isFamilyMode && families.length === 1 && search.page > 1) {
+      navigate({
+        to: "/clients",
+        search: buildSearchState({ page: search.page - 1 }),
+      })
+      return
+    }
+    if (isFamilyMode) {
+      setFamiliesTotal(prev => prev - 1)
+      return
+    }
     loadClients()
   }
 
@@ -186,9 +234,16 @@ export default function ClientsPage() {
   }
 
   const toggleFamilyMode = () => {
-    setIsFamilyMode(!isFamilyMode)
     setSelectedFamily(null)
-    setSearchQuery("")
+    navigate({
+      to: "/clients",
+      search: buildSearchState({
+        mode: isFamilyMode ? "clients" : "families",
+        q: "",
+        page: 1,
+        gender: ALL_FILTER_VALUE,
+      }),
+    })
   }
 
 
@@ -201,48 +256,34 @@ export default function ClientsPage() {
             <div className="flex items-center justify-between mb-4">
               <h1 className="text-xl font-bold">{isFamilyMode ? "כל המשפחות" : "כל הלקוחות"}</h1>
             </div>
-            <div className="flex items-center justify-between mb-4">
-                          <div className="flex gap-2">
-                <Input
-                  placeholder={isFamilyMode ? "חיפוש משפחות..." : "חיפוש לקוחות..."}
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-[250px] bg-card dark:bg-card"
-                  dir="rtl"
-                />
-              </div>
-
-              <div className="flex gap-2">
-                <Button 
-                  onClick={isFamilyMode ? handleCreateFamily : () => navigate({ to: "/clients/new" })}
-                  className="flex items-center gap-2"
-                >
-                  {isFamilyMode ? (
-                    <>
-                      <PlusIcon className="h-4 w-4" />
-                      משפחה חדשה
-                    </>
-                  ) : (
-                    <>
-                      <UserPlus className="h-4 w-4" />
-                      לקוח חדש
-                    </>
-                  )}
-                </Button>
-                <Button 
-                  variant={isFamilyMode ? "default" : "outline"}
-                  onClick={toggleFamilyMode}
-                  className={`flex items-center gap-2 ${!isFamilyMode ? 'bg-card dark:bg-card' : ''}`}
-                  title={isFamilyMode ? "מצב רגיל" : "מצב משפחות"}
-                >
-                  <Users className="h-4 w-4" />
-                </Button>
-              </div>
-              
-            </div>
 
             {isFamilyMode ? (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <>
+                <TableFiltersBar
+                  searchValue={searchInput}
+                  onSearchChange={setSearchInput}
+                  searchPlaceholder="חיפוש משפחות…"
+                  actions={
+                    <>
+                      <Button
+                        onClick={handleCreateFamily}
+                        className="flex items-center gap-2"
+                      >
+                        <PlusIcon className="h-4 w-4" />
+                        משפחה חדשה
+                      </Button>
+                      <Button
+                        variant="default"
+                        onClick={toggleFamilyMode}
+                        className="flex items-center gap-2"
+                        title="מצב רגיל"
+                      >
+                        <Users className="h-4 w-4" />
+                      </Button>
+                    </>
+                  }
+                />
+                <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
                 <div className="space-y-4">
                   <FamiliesTable 
                     data={families}
@@ -251,11 +292,20 @@ export default function ClientsPage() {
                     onFamilyDeleted={handleFamilyDeleted}
                     onFamilyDeleteFailed={handleFamilyDeleteFailed}
                     selectedFamilyId={selectedFamily?.id}
-                    searchQuery={searchQuery}
-                    onSearchChange={setSearchQuery}
+                    searchQuery={searchInput}
+                    onSearchChange={setSearchInput}
                     hideSearch={true}
                     loading={familiesLoading}
-                    pagination={{ page: familiesPage, pageSize, total: familiesTotal, setPage: setFamiliesPage }}
+                    pagination={{
+                      page: search.page,
+                      pageSize,
+                      total: familiesTotal,
+                      setPage: (page) =>
+                        navigate({
+                          to: "/clients",
+                          search: buildSearchState({ page }),
+                        }),
+                    }}
                   />
                 </div>
                 <div className="space-y-2">
@@ -270,18 +320,44 @@ export default function ClientsPage() {
                     compactMode={true}
                   />
                 </div>
-              </div>
+                </div>
+              </>
             ) : (
               <ClientsTable 
                 data={clients} 
                 onClientDeleted={handleClientDeleted}
                 onClientDeleteFailed={handleClientDeleteFailed}
-                searchQuery={searchQuery}
-                onSearchChange={setSearchQuery}
-                hideSearch={true}
+                searchQuery={searchInput}
+                onSearchChange={setSearchInput}
+                genderFilter={search.gender}
+                onGenderFilterChange={(value) =>
+                  navigate({
+                    to: "/clients",
+                    search: buildSearchState({ gender: value, page: 1 }),
+                  })
+                }
                 hideNewButton={true}
                 loading={clientsLoading}
-                pagination={{ page: clientsPage, pageSize, total: clientsTotal, setPage: setClientsPage }}
+                pagination={{
+                  page: search.page,
+                  pageSize,
+                  total: clientsTotal,
+                  setPage: (page) =>
+                    navigate({
+                      to: "/clients",
+                      search: buildSearchState({ page }),
+                    }),
+                }}
+                toolbarActions={
+                  <Button 
+                    variant="outline"
+                    onClick={toggleFamilyMode}
+                    className="flex items-center gap-2"
+                    title="מצב משפחות"
+                  >
+                    <Users className="h-4 w-4" />
+                  </Button>
+                }
               />
             )}
             

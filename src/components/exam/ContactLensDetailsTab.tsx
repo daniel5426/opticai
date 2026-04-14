@@ -66,7 +66,7 @@ export function ContactLensDetailsTab({
       <CardContent className="px-4" style={{ scrollbarWidth: 'none' }}>
         <div className="space-y-3">
           <div className="text-center">
-            <h3 className="font-medium text-muted-foreground">פרטי הזמנת עדשות מגע</h3>
+            <h3 className="font-medium text-muted-foreground">פרטי ההזמנה</h3>
           </div>
 
           <div className={`grid ${hideEyeLabels ? 'grid-cols-[2fr_2fr_2fr_2fr_2fr_1fr_1fr]' : 'grid-cols-[20px_2fr_2fr_2fr_2fr_2fr_1fr_1fr]'} gap-2 items-center`}>

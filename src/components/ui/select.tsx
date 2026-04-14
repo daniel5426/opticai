@@ -60,7 +60,7 @@ function SelectTrigger({
       {children}
       {!hideIcon && (
         <SelectPrimitive.Icon asChild>
-          <ChevronDownIcon className={cn("size-3 opacity-50", centered ? "absolute left-1 top-1/2 -translate-y-1/2" : "")} />
+          <ChevronDownIcon className={cn("size-3 opacity-50", centered ? "absolute left-1 top-1/2 -translate-y-1/2" : " ml-1")} />
         </SelectPrimitive.Icon>
       )}
     </SelectPrimitive.Trigger>

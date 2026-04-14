@@ -104,7 +104,7 @@ export async function getAppointmentsByDateRange(
 
 export async function getPaginatedAppointments(
   clinicId?: number,
-  options?: { limit?: number; offset?: number; order?: 'date_desc' | 'date_asc' | 'id_desc' | 'id_asc'; search?: string }
+  options?: { limit?: number; offset?: number; order?: 'date_desc' | 'date_asc' | 'id_desc' | 'id_asc'; q?: string; dateScope?: string; examName?: string }
 ): Promise<{ items: Appointment[]; total: number }> {
   try {
     const effectiveOptions = options ?? { limit: 25, offset: 0, order: 'date_desc' as const };

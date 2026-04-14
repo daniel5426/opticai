@@ -9,13 +9,10 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { Plus, Trash2, FileText } from "lucide-react"
-import { Order, User, Client } from "@/lib/db/schema-interface"
+import { Order } from "@/lib/db/schema-interface"
 import { ClientSelectModal } from "@/components/ClientSelectModal"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { docxGenerator } from "@/lib/docx-generator"
-import { OrderToDocxMapper } from "@/lib/order-to-docx-mapper"
+import { exportOrderToDocx } from "@/lib/order-docx"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -37,12 +34,12 @@ import { Badge } from "@/components/ui/badge"
 
 import { CustomModal } from "@/components/ui/custom-modal"
 import { deleteOrder, deleteContactLensOrder } from "@/lib/db/orders-db"
-import { getBillingByOrderId, getBillingByContactLensId, getOrderLineItemsByBillingId } from "@/lib/db/billing-db"
-import { getClientById } from "@/lib/db/clients-db"
 import { toast } from "sonner"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useUser } from "@/contexts/UserContext"
 import { DateSearchHelper } from "@/lib/date-search-helper"
+import { TableFiltersBar } from "@/components/table-filters-bar"
+import { ORDER_KIND_OPTIONS, ORDER_STATUS_FILTER_OPTIONS, type OrderKindFilter } from "@/lib/table-filters"
 
 interface OrdersTableProps {
   data: Order[]
@@ -51,15 +48,36 @@ interface OrdersTableProps {
   onOrderDeleteFailed: () => void
   loading: boolean
   pagination?: { page: number; pageSize: number; total: number; setPage: (p: number) => void }
+  searchQuery?: string
+  onSearchChange?: (q: string) => void
+  kindFilter?: OrderKindFilter
+  onKindFilterChange?: (value: OrderKindFilter) => void
+  statusFilter?: string
+  onStatusFilterChange?: (value: string) => void
 }
 
-export function OrdersTable({ data, clientId, onOrderDeleted, onOrderDeleteFailed, loading, pagination, searchQuery: externalSearch, onSearchChange }: OrdersTableProps & { searchQuery?: string; onSearchChange?: (q: string) => void }) {
+export function OrdersTable({
+  data,
+  clientId,
+  onOrderDeleted,
+  onOrderDeleteFailed,
+  loading,
+  pagination,
+  searchQuery: externalSearch,
+  onSearchChange,
+  kindFilter: externalKindFilter,
+  onKindFilterChange,
+  statusFilter: externalStatusFilter,
+  onStatusFilterChange,
+}: OrdersTableProps) {
   const { currentClinic } = useUser()
 
   const navigate = useNavigate()
+  const [internalSearch, setInternalSearch] = useState("")
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
   const [orderToDelete, setOrderToDelete] = useState<Order | null>(null)
-  const [selectedCategory, setSelectedCategory] = useState<string>("all")
+  const [internalKindFilter, setInternalKindFilter] = useState<OrderKindFilter>("all")
+  const [internalStatusFilter, setInternalStatusFilter] = useState("all")
 
   // Preview and Import logic
   const [latestExamId, setLatestExamId] = useState<number | null>(null)
@@ -74,6 +92,34 @@ export function OrdersTable({ data, clientId, onOrderDeleted, onOrderDeleteFaile
   const [cardPreviewType, setCardPreviewType] = useState<'final-prescription' | 'contact-lens-exam'>('final-prescription')
   const [statusOverrides, setStatusOverrides] = useState<Record<number, string>>({})
   const [savingStatusIds, setSavingStatusIds] = useState<Record<number, boolean>>({})
+  const searchValue = externalSearch !== undefined ? externalSearch : internalSearch
+  const kindFilter = externalKindFilter ?? internalKindFilter
+  const statusFilter = externalStatusFilter ?? internalStatusFilter
+
+  const handleSearchChange = (value: string) => {
+    if (onSearchChange) {
+      onSearchChange(value)
+      return
+    }
+    setInternalSearch(value)
+  }
+
+  const handleKindFilterChange = (value: string) => {
+    const nextValue = value as OrderKindFilter
+    if (onKindFilterChange) {
+      onKindFilterChange(nextValue)
+      return
+    }
+    setInternalKindFilter(nextValue)
+  }
+
+  const handleStatusFilterUpdate = (value: string) => {
+    if (onStatusFilterChange) {
+      onStatusFilterChange(value)
+      return
+    }
+    setInternalStatusFilter(value)
+  }
 
   useEffect(() => {
     if (clientId > 0) {
@@ -192,43 +238,16 @@ export function OrdersTable({ data, clientId, onOrderDeleted, onOrderDeleteFaile
 
   const handleExportDocx = async (order: Order) => {
     try {
-      // Fetch full client data
-      const clientData = order.client_id
-        ? await getClientById(order.client_id)
-        : null;
-
-      if (!clientData) {
-        toast.error("לא ניתן למצוא את פרטי הלקוח");
+      const isContact = Boolean((order as any).__contact);
+      if (!order.id) {
+        toast.error("לא ניתן לייצא הזמנה ללא מזהה");
         return;
       }
 
-      // Fetch billing data and line items
-      const isContact = Boolean((order as any).__contact);
-      const billingData = order.id
-        ? await (isContact
-          ? getBillingByContactLensId(order.id)
-          : getBillingByOrderId(order.id))
-        : null;
-
-      // Fetch line items if billing exists
-      const lineItems = billingData?.id
-        ? await getOrderLineItemsByBillingId(billingData.id)
-        : [];
-
-      const templateData = OrderToDocxMapper.mapOrderToTemplateData(
-        order,
-        clientData,
-        undefined,
-        billingData,
-        lineItems
-      );
-
-      // Use different templates based on order type
-      const templatePath = isContact
-        ? "/templates/template.docx"
-        : "/templates/template_regular_order.docx";
-
-      await docxGenerator.generate(templateData, undefined, templatePath);
+      await exportOrderToDocx({
+        orderId: order.id,
+        kind: isContact ? "contact" : "regular",
+      });
       toast.success("הדוח יוצא בהצלחה");
     } catch (error) {
       console.error("Error exporting DOCX:", error);
@@ -237,38 +256,46 @@ export function OrdersTable({ data, clientId, onOrderDeleted, onOrderDeleteFaile
   };
 
   const filteredData = React.useMemo(() => {
-    if (!externalSearch || clientId === 0) {
-      return data
+    let result = data
+
+    if (kindFilter !== "all") {
+      result = result.filter((order) => {
+        const isContact = Boolean((order as any).__contact)
+        if (kindFilter === "contact") return isContact
+        if (kindFilter === "regular") return !isContact
+        return true
+      })
     }
 
-    const searchLower = externalSearch.toLowerCase().trim()
-    if (!searchLower && selectedCategory === "all") {
-      return data
+    if (statusFilter !== "all") {
+      result = result.filter((order) => {
+        if (!order.id) return false
+        const effectiveStatus =
+          statusOverrides[order.id] ??
+          (order as any).order_status ??
+          (order as any)?.order_data?.details?.order_status ??
+          ""
+        return effectiveStatus === statusFilter
+      })
     }
 
-    return data.filter((order) => {
-      // Category filter
-      if (selectedCategory !== "all") {
-        const isContact = Boolean((order as any).__contact);
-        if (selectedCategory === "contact" && !isContact) return false;
-        if (selectedCategory === "regular" && isContact) return false;
-      }
+    const searchLower = searchValue.toLowerCase().trim()
+    if (!searchLower) {
+      return result
+    }
 
-      if (!searchLower) return true;
-
+    return result.filter((order) => {
       const clientName = ((order as any).clientName || '').toLowerCase()
       const username = ((order as any).username || '').toLowerCase()
       const orderType = (order.type || '').toLowerCase()
 
-      if (clientName.includes(searchLower) ||
-        username.includes(searchLower) ||
-        orderType.includes(searchLower)) {
+      if (clientName.includes(searchLower) || username.includes(searchLower) || orderType.includes(searchLower)) {
         return true
       }
 
       return DateSearchHelper.matchesDate(searchLower, order.order_date)
     })
-  }, [data, externalSearch, clientId, selectedCategory])
+  }, [data, kindFilter, searchValue, statusFilter, statusOverrides])
 
   const getOrderStatus = React.useCallback((order: Order) => {
     if (!order.id) return "";
@@ -317,156 +344,169 @@ export function OrdersTable({ data, clientId, onOrderDeleted, onOrderDeleteFaile
   };
 
   return (
-    <div className="space-y-4 mb-10" style={{ scrollbarWidth: 'none' }}>
-      <div className="flex justify-between items-center" dir="rtl">
-        <div className="flex gap-2 bg-card">
-          <Input
-            placeholder="חיפוש הזמנות..."
-            value={externalSearch || ""}
-            onChange={(e) => onSearchChange?.(e.target.value)}
-            className="w-[250px] bg-card dark:bg-card" dir="rtl"
-          />
-          <Select value={selectedCategory} onValueChange={setSelectedCategory} dir="rtl">
-            <SelectTrigger className="w-[150px] bg-card">
-              <SelectValue placeholder="סוג" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">הכל</SelectItem>
-              <SelectItem value="regular">הזמנה רגילה</SelectItem>
-              <SelectItem value="contact">עדשות מגע</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="flex gap-2">
-          {/* Regular Order Dropdown */}
-          <DropdownMenu dir="rtl">
-            <DropdownMenuTrigger asChild>
-              <Button>הזמנה חדשה</Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              {clientId > 0 && latestExamId && (
-                <DropdownMenuItem
-                  className="flex justify-between items-center gap-4"
-                  onClick={() => navigate({
-                    to: "/clients/$clientId/orders/new",
-                    params: { clientId: String(clientId) },
-                    search: { importSourceId: String(latestExamId), importSourceType: 'exam' }
-                  })}
-                >
-                  <span>מבדיקה אחרונה</span>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setCardPreviewType('final-prescription');
-                      setIsCardPreviewOpen(true);
-                    }}
+    <div className="space-y-2.5 mb-10" style={{ scrollbarWidth: 'none' }}>
+      <TableFiltersBar
+        searchValue={searchValue}
+        onSearchChange={handleSearchChange}
+        searchPlaceholder="חיפוש הזמנות…"
+        filters={[
+          {
+            key: "kind",
+            value: kindFilter,
+            onChange: handleKindFilterChange,
+            placeholder: "סוג הזמנה",
+            options: ORDER_KIND_OPTIONS,
+            widthClassName: "w-[170px]",
+          },
+          {
+            key: "status",
+            value: statusFilter,
+            onChange: handleStatusFilterUpdate,
+            placeholder: "סטטוס",
+            options: ORDER_STATUS_FILTER_OPTIONS,
+            widthClassName: "w-[190px]",
+          },
+        ]}
+        hasActiveFilters={Boolean(searchValue.trim()) || kindFilter !== "all" || statusFilter !== "all"}
+        onReset={() => {
+          handleSearchChange("")
+          handleKindFilterChange("all")
+          handleStatusFilterUpdate("all")
+        }}
+        actions={
+          <>
+            <DropdownMenu dir="rtl">
+              <DropdownMenuTrigger asChild>
+                <Button>הזמנה חדשה</Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {clientId > 0 && latestExamId && (
+                  <DropdownMenuItem
+                    className="flex items-center justify-between gap-4"
+                    onClick={() => navigate({
+                      to: "/clients/$clientId/orders/new",
+                      params: { clientId: String(clientId) },
+                      search: { importSourceId: String(latestExamId), importSourceType: 'exam' }
+                    })}
                   >
-                    <Eye className="h-4 w-4" />
-                  </Button>
-                </DropdownMenuItem>
-              )}
-              {clientId > 0 && latestOrderId && (
-                <DropdownMenuItem
-                  className="flex justify-between items-center gap-4"
-                  onClick={() => navigate({
-                    to: "/clients/$clientId/orders/new",
-                    params: { clientId: String(clientId) },
-                    search: { importSourceId: String(latestOrderId), importSourceType: 'order' }
-                  })}
-                >
-                  <span>מהזמנה אחרונה</span>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setPreviewOrderId(latestOrderId);
-                      setPreviewOrderIsContact(false);
-                      setIsPreviewOrderOpen(true);
-                    }}
+                    <span>מבדיקה אחרונה</span>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6"
+                      aria-label="תצוגה מקדימה של בדיקה אחרונה"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setCardPreviewType('final-prescription');
+                        setIsCardPreviewOpen(true);
+                      }}
+                    >
+                      <Eye className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuItem>
+                )}
+                {clientId > 0 && latestOrderId && (
+                  <DropdownMenuItem
+                    className="flex items-center justify-between gap-4"
+                    onClick={() => navigate({
+                      to: "/clients/$clientId/orders/new",
+                      params: { clientId: String(clientId) },
+                      search: { importSourceId: String(latestOrderId), importSourceType: 'order' }
+                    })}
                   >
-                    <Eye className="h-4 w-4" />
-                  </Button>
+                    <span>מהזמנה אחרונה</span>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6"
+                      aria-label="תצוגה מקדימה של הזמנה אחרונה"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setPreviewOrderId(latestOrderId);
+                        setPreviewOrderIsContact(false);
+                        setIsPreviewOrderOpen(true);
+                      }}
+                    >
+                      <Eye className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuItem onClick={() => handleCreateOrder('regular')}>
+                  הזמנה חדשה
                 </DropdownMenuItem>
-              )}
-              <DropdownMenuItem onClick={() => handleCreateOrder('regular')}>
-                הזמנה חדשה
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+              </DropdownMenuContent>
+            </DropdownMenu>
 
-          {/* Contact Lens Dropdown */}
-          <DropdownMenu dir="rtl">
-            <DropdownMenuTrigger asChild>
-              <Button variant="secondary">עדשות מגע</Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              {clientId > 0 && latestExamId && (
-                <DropdownMenuItem
-                  className="flex justify-between items-center gap-4"
-                  onClick={() => navigate({
-                    to: "/clients/$clientId/orders/new",
-                    params: { clientId: String(clientId) },
-                    search: { type: 'contact', importSourceId: String(latestExamId), importSourceType: 'exam' }
-                  })}
-                >
-                  <span>מבדיקה אחרונה</span>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setCardPreviewType('contact-lens-exam');
-                      setIsCardPreviewOpen(true);
-                    }}
+            <DropdownMenu dir="rtl">
+              <DropdownMenuTrigger asChild>
+                <Button variant="secondary">עדשות מגע</Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {clientId > 0 && latestExamId && (
+                  <DropdownMenuItem
+                    className="flex items-center justify-between gap-4"
+                    onClick={() => navigate({
+                      to: "/clients/$clientId/orders/new",
+                      params: { clientId: String(clientId) },
+                      search: { type: 'contact', importSourceId: String(latestExamId), importSourceType: 'exam' }
+                    })}
                   >
-                    <Eye className="h-4 w-4" />
-                  </Button>
-                </DropdownMenuItem>
-              )}
-              {clientId > 0 && latestContactOrderId && (
-                <DropdownMenuItem
-                  className="flex justify-between items-center gap-4"
-                  onClick={() => navigate({
-                    to: "/clients/$clientId/orders/new",
-                    params: { clientId: String(clientId) },
-                    search: { type: 'contact', importSourceId: String(latestContactOrderId), importSourceType: 'order' }
-                  })}
-                >
-                  <span>מהזמנה אחרונה</span>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setPreviewOrderId(latestContactOrderId);
-                      setPreviewOrderIsContact(true);
-                      setIsPreviewOrderOpen(true);
-                    }}
+                    <span>מבדיקה אחרונה</span>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6"
+                      aria-label="תצוגה מקדימה של בדיקת עדשות מגע"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setCardPreviewType('contact-lens-exam');
+                        setIsCardPreviewOpen(true);
+                      }}
+                    >
+                      <Eye className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuItem>
+                )}
+                {clientId > 0 && latestContactOrderId && (
+                  <DropdownMenuItem
+                    className="flex items-center justify-between gap-4"
+                    onClick={() => navigate({
+                      to: "/clients/$clientId/orders/new",
+                      params: { clientId: String(clientId) },
+                      search: { type: 'contact', importSourceId: String(latestContactOrderId), importSourceType: 'order' }
+                    })}
                   >
-                    <Eye className="h-4 w-4" />
-                  </Button>
+                    <span>מהזמנה אחרונה</span>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6"
+                      aria-label="תצוגה מקדימה של הזמנת עדשות מגע אחרונה"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setPreviewOrderId(latestContactOrderId);
+                        setPreviewOrderIsContact(true);
+                        setIsPreviewOrderOpen(true);
+                      }}
+                    >
+                      <Eye className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuItem onClick={() => handleCreateOrder('contact')}>
+                  הזמנה חדשה
                 </DropdownMenuItem>
-              )}
-              <DropdownMenuItem onClick={() => handleCreateOrder('contact')}>
-                הזמנה חדשה
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </>
+        }
+      />
 
-          <ClientSelectModal
-            isOpen={isClientModalOpen}
-            onClose={() => setIsClientModalOpen(false)}
-            onClientSelect={handleClientSelect}
-          />
-        </div>
-      </div>
+      <ClientSelectModal
+        isOpen={isClientModalOpen}
+        onClose={() => setIsClientModalOpen(false)}
+        onClientSelect={handleClientSelect}
+      />
 
       <ExamCardPreviewModal
         isOpen={isCardPreviewOpen}

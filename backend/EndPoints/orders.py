@@ -19,6 +19,8 @@ def get_orders_paginated(
     offset: int = Query(0, ge=0, description="Items to skip"),
     order: Optional[str] = Query("date_desc", description="Sort order: date_desc|date_asc|id_desc|id_asc"),
     search: Optional[str] = Query(None, description="Search by type/examiner/client name/VA/PD/date"),
+    kind: Optional[str] = Query(None, description="Filter by kind: all|regular|contact"),
+    status: Optional[str] = Query(None, description="Filter by order status"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -53,6 +55,10 @@ def get_orders_paginated(
         
         if parsed_date:
             order_filters.append(Order.order_date == parsed_date)
+    if status and status != "all":
+        order_filters.append(
+            func.json_extract_path_text(Order.order_data, 'details', 'order_status') == status
+        )
 
     cl_filters = [ContactLensOrder.clinic_id.in_(allowed_clinic_ids)]
     if like:
@@ -72,6 +78,8 @@ def get_orders_paginated(
         
         if parsed_date:
             cl_filters.append(ContactLensOrder.order_date == parsed_date)
+    if status and status != "all":
+        cl_filters.append(ContactLensOrder.order_status == status)
 
     orders_from = Order.__table__.outerjoin(User.__table__, Order.user_id == User.id).outerjoin(Client.__table__, Order.client_id == Client.id)
     orders_select = select(
@@ -109,7 +117,13 @@ def get_orders_paginated(
     if cl_filters:
         cl_select = cl_select.where(*cl_filters)
 
-    merged_subq = union_all(orders_select, cl_select).subquery()
+    normalized_kind = (kind or "all").strip().lower()
+    if normalized_kind == "regular":
+        merged_subq = orders_select.subquery()
+    elif normalized_kind == "contact":
+        merged_subq = cl_select.subquery()
+    else:
+        merged_subq = union_all(orders_select, cl_select).subquery()
 
     # Total count
     total = db.execute(select(func.count()).select_from(merged_subq)).scalar() or 0
