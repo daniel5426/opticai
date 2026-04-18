@@ -14,6 +14,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { CustomModal } from "@/components/ui/custom-modal";
+import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { ChevronDown, ChevronLeft, Plus, Star, Trash2 } from "lucide-react";
 import { ExamLayout } from "@/lib/db/schema-interface";

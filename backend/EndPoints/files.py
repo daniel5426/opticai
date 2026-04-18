@@ -1,4 +1,7 @@
+import os
+
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File as FastAPIFile, Form
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from database import get_db
@@ -13,6 +16,10 @@ from models import Clinic
 from security.scope import resolve_company_id, assert_clinic_belongs_to_company
 
 router = APIRouter(prefix="/files", tags=["files"])
+
+
+def is_local_file_path(path: Optional[str]) -> bool:
+    return bool(path and os.path.isabs(path))
 
 
 def build_file_category_filter(file_category: str):
@@ -241,24 +248,32 @@ def delete_file(file_id: int, db: Session = Depends(get_db)):
     client_id = file.client_id
     try:
         if file.file_path:
-            bucket = config.settings.SUPABASE_BUCKET or "opticai"
-            fp = file.file_path
-            prefix_public = "/storage/v1/object/public/"
-            prefix_object = "/storage/v1/object/"
-            storage_path = None
-            try:
-                if prefix_public in fp:
-                    after = fp.split(prefix_public, 1)[1]
-                elif prefix_object in fp:
-                    after = fp.split(prefix_object, 1)[1]
-                else:
-                    after = fp
-                parts = after.split("/", 1)
-                storage_path = parts[1] if len(parts) == 2 else after
-                sb = get_supabase_client()
-                sb.storage.from_(bucket).remove([storage_path])
-            except Exception:
-                pass
+            if is_local_file_path(file.file_path):
+                try:
+                    os.remove(file.file_path)
+                except FileNotFoundError:
+                    pass
+                except Exception:
+                    pass
+            else:
+                bucket = config.settings.SUPABASE_BUCKET or "opticai"
+                fp = file.file_path
+                prefix_public = "/storage/v1/object/public/"
+                prefix_object = "/storage/v1/object/"
+                storage_path = None
+                try:
+                    if prefix_public in fp:
+                        after = fp.split(prefix_public, 1)[1]
+                    elif prefix_object in fp:
+                        after = fp.split(prefix_object, 1)[1]
+                    else:
+                        after = fp
+                    parts = after.split("/", 1)
+                    storage_path = parts[1] if len(parts) == 2 else after
+                    sb = get_supabase_client()
+                    sb.storage.from_(bucket).remove([storage_path])
+                except Exception:
+                    pass
     finally:
         db.delete(file)
         db.commit()
@@ -281,6 +296,10 @@ def get_file_download_url(file_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="File not found")
     if not file.file_path:
         raise HTTPException(status_code=400, detail="No file path available")
+    if is_local_file_path(file.file_path):
+        if not os.path.exists(file.file_path):
+            raise HTTPException(status_code=404, detail="File content not found")
+        return {"url": f"/files/{file_id}/content"}
 
     bucket = config.settings.SUPABASE_BUCKET or "opticai"
     path = None
@@ -326,3 +345,19 @@ def get_file_download_url(file_id: int, db: Session = Depends(get_db)):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to create signed URL: {str(e)}")
+
+
+@router.get("/{file_id}/content")
+def get_local_file_content(file_id: int, db: Session = Depends(get_db)):
+    file = db.query(FileModel).filter(FileModel.id == file_id).first()
+    if not file:
+        raise HTTPException(status_code=404, detail="File not found")
+    if not is_local_file_path(file.file_path):
+        raise HTTPException(status_code=400, detail="File is not stored locally")
+    if not os.path.exists(file.file_path):
+        raise HTTPException(status_code=404, detail="File content not found")
+    return FileResponse(
+        path=file.file_path,
+        filename=file.file_name,
+        media_type=file.file_type or "application/octet-stream",
+    )

@@ -118,7 +118,7 @@ def table(rows: list[str], widths: list[int], *, layout: str = "fixed") -> str:
         "<w:tblPr>"
         f'<w:tblW w:w="{PAGE_WIDTH}" w:type="dxa"/>'
         f'<w:tblLayout w:type="{layout}"/>'
-        '<w:jc w:val="center"/>'
+        '<w:jc w:val="right"/>'
         '<w:tblCellMar><w:top w:w="0" w:type="dxa"/><w:right w:w="0" w:type="dxa"/>'
         '<w:bottom w:w="0" w:type="dxa"/><w:left w:w="0" w:type="dxa"/></w:tblCellMar>'
         "</w:tblPr>"
@@ -191,9 +191,9 @@ def metric_table(items: list[tuple[str, str]]) -> str:
         for label, key in reversed(chunk):
             row_cells.append(
                 cell(
-                    paragraph(field(key, size=20), spacing_after=0),
+                    paragraph(field(key, size=20), align="right", spacing_after=0),
                     width=1320,
-                    align="center",
+                    align="right",
                 )
             )
             row_cells.append(
@@ -227,7 +227,13 @@ def kv_table(pairs: list[tuple[str, str]], *, pairs_per_row: int = 2) -> str:
         chunk = pairs[i : i + pairs_per_row]
         row_cells = []
         for label, key in reversed(chunk):
-            row_cells.append(cell(paragraph(field(key, size=20), spacing_after=0), width=value_width))
+            row_cells.append(
+                cell(
+                    paragraph(field(key, size=20), align="right", spacing_after=0),
+                    width=value_width,
+                    align="right",
+                )
+            )
             row_cells.append(
                 cell(
                     paragraph(run(label, bold=True, size=20), spacing_after=0),
@@ -275,9 +281,9 @@ def eye_table(row_label_title: str, labels: list[str], right_keys: list[str], le
                 [
                     *[
                         cell(
-                            paragraph(field(key, size=20), align="center", spacing_after=0),
+                            paragraph(field(key, size=20), align="right", spacing_after=0),
                             width=value_width,
-                            align="center",
+                            align="right",
                         )
                         for key in reversed(keys)
                     ],
@@ -324,9 +330,9 @@ def comparison_table(headers: list[str], right_keys: list[str], left_keys: list[
                 [
                     *[
                         cell(
-                            paragraph(field(key, size=20), align="center", spacing_after=0),
+                            paragraph(field(key, size=20), align="right", spacing_after=0),
                             width=value_width,
-                            align="center",
+                            align="right",
                         )
                         for key in reversed(keys)
                     ],
@@ -348,13 +354,14 @@ def text_box(title: str, key: str) -> str:
             row(
                 [
                     cell(
-                        paragraph(run(title, bold=True, size=20, color=HEADER_FILL), spacing_after=0),
+                        paragraph(run(title, bold=True, size=20, color=HEADER_FILL), align="right", spacing_after=0),
                         width=PAGE_WIDTH,
                         fill=LABEL_FILL,
+                        align="right",
                     )
                 ]
             ),
-            row([cell(paragraph(field(key, size=20), spacing_after=40), width=PAGE_WIDTH, fill=SUBTLE_FILL, vertical="top", margins=(120, 120, 220, 120))], height=760),
+            row([cell(paragraph(field(key, size=20), align="right", spacing_after=40), width=PAGE_WIDTH, fill=SUBTLE_FILL, vertical="top", margins=(120, 120, 220, 120), align="right")], height=760),
         ],
         [PAGE_WIDTH],
     )
@@ -363,12 +370,12 @@ def text_box(title: str, key: str) -> str:
 def notes_row(right_title: str, right_key: str, left_title: str, left_key: str) -> str:
     half_width = PAGE_WIDTH // 2
     right_cell = (
-        paragraph(run(right_title, bold=True, size=20, color=HEADER_FILL), spacing_after=70, keep_next=True)
-        + paragraph(field(right_key, size=20), spacing_after=20)
+        paragraph(run(right_title, bold=True, size=20, color=HEADER_FILL), align="right", spacing_after=70, keep_next=True)
+        + paragraph(field(right_key, size=20), align="right", spacing_after=20)
     )
     left_cell = (
-        paragraph(run(left_title, bold=True, size=20, color=HEADER_FILL), spacing_after=70, keep_next=True)
-        + paragraph(field(left_key, size=20), spacing_after=20)
+        paragraph(run(left_title, bold=True, size=20, color=HEADER_FILL), align="right", spacing_after=70, keep_next=True)
+        + paragraph(field(left_key, size=20), align="right", spacing_after=20)
     )
     return table(
         [
@@ -405,6 +412,7 @@ def expanded_billing_block() -> str:
                         fill=SUBTLE_FILL,
                         vertical="top",
                         margins=(120, 120, 180, 120),
+                        align="right",
                     )
                 ],
                 height=980,
