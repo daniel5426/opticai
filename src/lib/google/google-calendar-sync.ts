@@ -1,5 +1,6 @@
 import { GoogleTokens } from './google-oauth.js'
 import { Appointment, Client, User } from '../db/schema-interface.js'
+import { apiClient } from '../api-client.js'
 
 export class GoogleCalendarSyncService {
   constructor() {
@@ -9,14 +10,21 @@ export class GoogleCalendarSyncService {
   /**
    * Get user's Google tokens if they're explicitly connected
    */
-  private getUserTokens(user: User): GoogleTokens | null {
-    if (!user.google_account_connected || !user.google_access_token || !user.google_refresh_token) {
+  private async getUserTokens(user: User): Promise<GoogleTokens | null> {
+    if (!user.google_account_connected || !user.id) {
+      return null
+    }
+
+    const response = await apiClient.getGoogleTokens(user.id)
+    const accessToken = response.data?.access_token
+    const refreshToken = response.data?.refresh_token
+    if (!accessToken || !refreshToken) {
       return null
     }
 
     return {
-      access_token: user.google_access_token,
-      refresh_token: user.google_refresh_token,
+      access_token: accessToken,
+      refresh_token: refreshToken,
       scope: 'https://www.googleapis.com/auth/calendar',
       token_type: 'Bearer',
       expiry_date: Date.now() + 3600000 // 1 hour from now
@@ -28,7 +36,7 @@ export class GoogleCalendarSyncService {
    */
   async syncAppointmentCreated(appointment: Appointment, client: Client | null, user: User): Promise<string | null> {
     try {
-      const tokens = this.getUserTokens(user)
+      const tokens = await this.getUserTokens(user)
       if (!tokens) {
         console.log('User not connected to Google Calendar, skipping sync')
         return null
@@ -55,7 +63,7 @@ export class GoogleCalendarSyncService {
    */
   async syncAppointmentUpdated(appointment: Appointment, client: Client | null, user: User, googleEventId?: string): Promise<boolean> {
     try {
-      const tokens = this.getUserTokens(user)
+      const tokens = await this.getUserTokens(user)
       if (!tokens) {
         console.log('User not connected to Google Calendar, skipping sync')
         return false
@@ -100,7 +108,7 @@ export class GoogleCalendarSyncService {
    */
   async syncAppointmentDeleted(user: User, googleEventId?: string): Promise<boolean> {
     try {
-      const tokens = this.getUserTokens(user)
+      const tokens = await this.getUserTokens(user)
       if (!tokens) {
         console.log('User not connected to Google Calendar, skipping sync')
         return false

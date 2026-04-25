@@ -5,7 +5,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Building2, ArrowLeft } from 'lucide-react';
-import { apiClient } from '@/lib/api-client';
 import { authService } from '@/lib/auth/AuthService';
 
 interface ClinicEntranceProps {
@@ -18,6 +17,7 @@ interface ClinicEntranceProps {
  */
 export function ClinicEntrance({ onBackToWelcome }: ClinicEntranceProps) {
   const [clinicId, setClinicId] = useState('');
+  const [pin, setPin] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -31,10 +31,13 @@ export function ClinicEntrance({ onBackToWelcome }: ClinicEntranceProps) {
         throw new Error('אנא הכנס מזהה מרפאה');
       }
 
-      console.log('[ClinicEntrance] Looking up clinic:', clinicId.trim());
+      if (!pin.trim()) {
+        throw new Error('אנא הכנס קוד PIN למרפאה');
+      }
 
-      const clinicResponse = await apiClient.getClinicByUniqueId(clinicId.trim());
-      const clinic = clinicResponse.data;
+      console.log('[ClinicEntrance] Authenticating clinic:', clinicId.trim());
+
+      const clinic = await authService.createClinicTrustSession(clinicId.trim(), pin.trim());
 
       if (!clinic) {
         throw new Error('מזהה מרפאה לא נמצא במערכת');
@@ -46,7 +49,6 @@ export function ClinicEntrance({ onBackToWelcome }: ClinicEntranceProps) {
 
       console.log('[ClinicEntrance] Clinic found:', clinic.name);
       
-      // Set clinic session (without user yet)
       authService.setClinicSession(clinic);
       
     } catch (error) {
@@ -103,12 +105,27 @@ export function ClinicEntrance({ onBackToWelcome }: ClinicEntranceProps) {
               </p>
             </div>
 
+            <div className="space-y-2" dir="rtl">
+              <Label htmlFor="clinicPin">קוד PIN למרפאה</Label>
+              <Input
+                id="clinicPin"
+                type="password"
+                value={pin}
+                onChange={(e) => setPin(e.target.value)}
+                placeholder="הכנס קוד PIN"
+                required
+              />
+              <p className="text-xs text-gray-500">
+                הקוד מוגדר על ידי מנהל המרפאה
+              </p>
+            </div>
+
             <Button 
               type="submit" 
               className="w-full bg-general-primary hover:bg-general-primary/80" 
               disabled={loading}
             >
-              {loading ? 'מחפש מרפאה...' : 'כניסה למרפאה'}
+              {loading ? 'מאמת מרפאה...' : 'כניסה למרפאה'}
               <ArrowLeft className="mr-2 h-4 w-4" />
             </Button>
           </form>

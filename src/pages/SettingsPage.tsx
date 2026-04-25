@@ -264,6 +264,7 @@ export default function SettingsPage() {
           clinic_website: localClinic.clinic_website || undefined,
           manager_name: localClinic.manager_name || undefined,
           license_number: localClinic.license_number || undefined,
+          entry_pin: localClinic.entry_pin || undefined,
         }
       }
       if (company?.id && isRoleAtLeast(currentUser?.role_level, ROLE_LEVELS.manager)) {
@@ -307,7 +308,7 @@ export default function SettingsPage() {
         return
       }
       const data = unifiedResp.data as any
-      if (data?.clinic) setLocalClinic(data.clinic as Clinic)
+      if (data?.clinic) setLocalClinic({ ...(data.clinic as Clinic), entry_pin: '' })
       if (data?.settings) {
         setLocalSettings(data.settings as Settings)
         updateBaseSettings(data.settings as Settings)
@@ -533,10 +534,10 @@ export default function SettingsPage() {
       setGoogleCalendarSyncing(true)
       toast.info('מסנכרן תורים עם Google Calendar...')
 
-      // Try to get tokens from user database first
+      const storedTokensResponse = await apiClient.getGoogleTokens(currentUser.id)
       let tokens = {
-        access_token: currentUser.google_access_token,
-        refresh_token: currentUser.google_refresh_token,
+        access_token: storedTokensResponse.data?.access_token,
+        refresh_token: storedTokensResponse.data?.refresh_token,
         scope: 'https://www.googleapis.com/auth/calendar',
         token_type: 'Bearer',
         expiry_date: Date.now() + 3600000 // 1 hour from now

@@ -71,12 +71,14 @@ interface ApiResponse<T> {
 class ApiClient {
   private baseUrl: string;
   private token: string | null = null;
+  private clinicTrustToken: string | null = null;
   private isRefreshingToken: boolean = false;
 
   constructor(baseUrl: string = API_BASE_URL) {
     this.baseUrl = baseUrl;
     if (typeof localStorage !== 'undefined') {
       this.token = localStorage.getItem('auth_token');
+      this.clinicTrustToken = localStorage.getItem('clinicTrustToken');
     }
   }
 
@@ -109,10 +111,12 @@ class ApiClient {
       const hasPassword = typeof parsed?.has_password === 'boolean' ? parsed.has_password : !!(parsed?.password && String(parsed.password).trim() !== '');
       const canNoPasswordLogin = parsed?.username && !hasPassword;
       if (!canNoPasswordLogin) return;
+      const clinicTrustToken = this.getClinicTrustToken();
+      if (!clinicTrustToken) return;
       const url = `${this.baseUrl}/auth/login-no-password`;
       const res = await fetch(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${clinicTrustToken}` },
         body: JSON.stringify({ username: parsed.username })
       });
       if (res.ok) {
@@ -132,6 +136,7 @@ class ApiClient {
     options: RequestInit = {}
   ): Promise<ApiResponse<T>> {
     const url = `${this.baseUrl}${endpoint}`;
+    const suppressUnauthorized = Boolean((options as any).suppressUnauthorized);
     
     const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData;
     const headers: Record<string, string> = {
@@ -141,7 +146,7 @@ class ApiClient {
       headers['Content-Type'] = headers['Content-Type'] || 'application/json';
     }
 
-    const isPublicEndpoint = endpoint.includes('/public') || endpoint.startsWith('/auth/login-no-password') || endpoint.startsWith('/auth/login');
+      const isPublicEndpoint = endpoint.includes('/public') || endpoint.startsWith('/auth/clinic-session') || endpoint === '/auth/login' || endpoint === '/auth/clinic-google-login';
     let effectiveToken = this.token;
     if (!isPublicEndpoint) {
       if (!effectiveToken) {
@@ -169,13 +174,21 @@ class ApiClient {
         const errorData = await response.json().catch(() => ({}));
         if (response.status === 401) {
           const hadAuthHeader = Boolean(headers['Authorization']);
-          if (hadAuthHeader && !isPublicEndpoint) {
+          if (hadAuthHeader && !isPublicEndpoint && !suppressUnauthorized) {
+            await this.refreshTokenIfPossible();
+            if (this.token) {
+              headers['Authorization'] = `Bearer ${this.token}`;
+              response = await fetch(url, fetchOptions);
+              if (response.ok) {
+                const data = await response.json();
+                return { data };
+              }
+            }
             this.clearToken();
             try {
               if (typeof localStorage !== 'undefined') {
                 localStorage.removeItem('currentUser');
                 localStorage.removeItem('currentUserId');
-                localStorage.removeItem('selectedClinic');
               }
             } catch {}
             try {
@@ -236,8 +249,63 @@ class ApiClient {
     }
   }
 
-  async getCurrentUser() {
-    return this.request('/auth/me');
+  setClinicTrustToken(token: string) {
+    this.clinicTrustToken = token;
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem('clinicTrustToken', token);
+    }
+  }
+
+  getClinicTrustToken() {
+    if (this.clinicTrustToken) return this.clinicTrustToken;
+    if (typeof localStorage === 'undefined') return null;
+    this.clinicTrustToken = localStorage.getItem('clinicTrustToken');
+    return this.clinicTrustToken;
+  }
+
+  clearClinicTrustToken() {
+    this.clinicTrustToken = null;
+    if (typeof localStorage !== 'undefined') {
+      localStorage.removeItem('clinicTrustToken');
+    }
+  }
+
+  async getCurrentUser(options?: { suppressUnauthorized?: boolean }) {
+    return this.request('/auth/me', options as any);
+  }
+
+  async createClinicSession(data: { clinic_unique_id: string; pin: string; device_id: string }) {
+    return this.request<{ clinic_trust_token: string; token_type: string; clinic: Clinic }>('/auth/clinic-session', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async clinicGoogleLogin(data: { user_id: number; device_id: string }, supabaseToken: string, clinicTrustToken: string) {
+    return this.request<{ access_token: string; token_type: string; user: User }>('/auth/clinic-google-login', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${clinicTrustToken}`,
+        'X-Supabase-Authorization': `Bearer ${supabaseToken}`,
+      },
+      body: JSON.stringify(data),
+    });
+  }
+
+  async completeSetup(data: { company: any; clinic: any }) {
+    return this.request<{ company: Company; user: User; clinic: Clinic }>('/auth/complete-setup', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getGoogleTokens(userId: number) {
+    return this.request<{
+      connected: boolean;
+      email?: string;
+      access_token?: string;
+      refresh_token?: string;
+    }>(`/users/${userId}/google-tokens`);
   }
 
   // Companies

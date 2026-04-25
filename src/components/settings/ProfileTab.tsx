@@ -69,6 +69,33 @@ export function ProfileTab({ localClinic, onClinicChange }: ProfileTabProps) {
 
       <Card className="">
         <CardHeader>
+          <CardTitle className="text-right">אבטחת כניסה למרפאה</CardTitle>
+          <p className="text-sm text-muted-foreground text-right">
+            קוד ה-PIN מאשר את המכשיר ומאפשר כניסה ללא סיסמה למשתמשים שהוגדרו כך
+          </p>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="clinic_entry_pin" className="text-right block text-sm">
+                {localClinic.has_entry_pin ? "קוד PIN חדש" : "קוד PIN למרפאה"}
+              </Label>
+              <Input
+                id="clinic_entry_pin"
+                type="password"
+                value={localClinic.entry_pin || ''}
+                onChange={(e) => onClinicChange('entry_pin', e.target.value)}
+                placeholder={localClinic.has_entry_pin ? "השאר ריק כדי לא לשנות" : "לפחות 4 תווים"}
+                className="text-right h-9"
+                dir="rtl"
+              />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="">
+        <CardHeader>
           <CardTitle className="text-right">פרטי קשר וכתובת</CardTitle>
           <p className="text-sm text-muted-foreground text-right">דרכי יצירת קשר ומיקום המרפאה</p>
         </CardHeader>
@@ -164,5 +191,4 @@ export function ProfileTab({ localClinic, onClinicChange }: ProfileTabProps) {
     </div>
   )
 }
-
 

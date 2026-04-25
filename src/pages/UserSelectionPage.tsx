@@ -97,6 +97,10 @@ export default function UserSelectionPage() {
 
   const handlePasswordlessLogin = async () => {
     if (!selectedUser) return
+    if (isRoleAtLeast(selectedUser.role_level, ROLE_LEVELS.ceo) || selectedUser.has_password) {
+      toast.error('משתמש זה חייב להתחבר עם סיסמה או Google')
+      return
+    }
 
     setIsLoggingIn(true)
     try {
@@ -161,7 +165,7 @@ export default function UserSelectionPage() {
     if (e.key === 'Enter' && selectedUser) {
       if (selectedUser.has_password && password) {
         handlePasswordLogin()
-      } else if (!selectedUser.has_password) {
+      } else if (!selectedUser.has_password && !isRoleAtLeast(selectedUser.role_level, ROLE_LEVELS.ceo)) {
         if (selectedUser.auth_provider === 'google') {
           handleGoogleLogin()
         } else {
@@ -405,6 +409,8 @@ function UserLoginPanel({
   const roleText = getRoleLabel(user.role_level)
   
   const roleVariant = getRoleBadgeVariant(user.role_level)
+  const isPrivileged = isRoleAtLeast(user.role_level, ROLE_LEVELS.ceo)
+  const canUsePasswordless = !user.has_password && !isPrivileged && user.auth_provider !== 'google'
 
   return (
     <div 
@@ -500,7 +506,7 @@ function UserLoginPanel({
               </Button>
             </div>
           </div>
-        ) : (
+        ) : canUsePasswordless ? (
           <div className="text-center space-y-4" dir="rtl">
             <p className="text-slate-600 dark:text-slate-400">
               התחברות ללא סיסמה עבור משתמש זה
@@ -528,6 +534,19 @@ function UserLoginPanel({
                 </svg>
               </Button>
             </div>
+          </div>
+        ) : (
+          <div className="text-center space-y-4" dir="rtl">
+            <p className="text-slate-600 dark:text-slate-400">
+              משתמש זה חייב להתחבר עם סיסמה או Google
+            </p>
+            <Button 
+              variant="outline" 
+              onClick={onBack}
+              className="w-full"
+            >
+              חזרה
+            </Button>
           </div>
         )}
       </Card>

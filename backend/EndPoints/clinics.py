@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from database import get_db
 from models import Clinic, Company
 from schemas import ClinicCreate, ClinicUpdate, Clinic as ClinicSchema
-from auth import get_current_user
+from auth import get_current_user, get_password_hash
 from models import User
 import uuid
 
@@ -35,9 +35,11 @@ def create_clinic(
     if not clinic.unique_id:
         clinic.unique_id = str(uuid.uuid4())
 
-    print(clinic.dict())
+    clinic_payload = clinic.dict()
+    clinic_payload.pop("has_entry_pin", None)
+    print(clinic_payload)
     
-    db_clinic = Clinic(**clinic.dict())
+    db_clinic = Clinic(**clinic_payload)
     db.add(db_clinic)
     db.commit()
     db.refresh(db_clinic)
@@ -123,7 +125,17 @@ def update_clinic(
     if db_clinic is None:
         raise HTTPException(status_code=404, detail="Clinic not found")
     
-    for field, value in clinic.dict(exclude_unset=True).items():
+    update_data = clinic.dict(exclude_unset=True)
+    entry_pin = update_data.pop("entry_pin", None)
+    if entry_pin is not None:
+        if len(entry_pin.strip()) < 4:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Clinic PIN must be at least 4 characters")
+        db_clinic.entry_pin_hash = get_password_hash(entry_pin.strip())
+        db_clinic.entry_pin_version = (db_clinic.entry_pin_version or 1) + 1
+
+    for field, value in update_data.items():
+        if field == "has_entry_pin":
+            continue
         setattr(db_clinic, field, value)
     
     db.commit()

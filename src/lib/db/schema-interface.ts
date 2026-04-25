@@ -35,6 +35,9 @@ export interface Clinic {
   manager_name?: string;
   license_number?: string;
   unique_id: string; // Auto-generated unique identifier for clinic entrance
+  has_entry_pin?: boolean;
+  entry_pin?: string;
+  entry_pin_version?: number;
   is_active?: boolean;
   created_at?: string;
   updated_at?: string;

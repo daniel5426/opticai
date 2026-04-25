@@ -45,6 +45,31 @@ const inDevelopment = process.env.NODE_ENV === "development";
 const isWindows = process.platform === 'win32';
 let mainWindow: BrowserWindow | null = null; // Store reference to the main window
 const APP_PROFILE_NAME = 'Prysm';
+const AUTH_PROTOCOL = 'prysm';
+
+function forwardAuthCallbackUrl(url: string) {
+  if (!url.startsWith(`${AUTH_PROTOCOL}://auth/callback`)) return;
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('auth-callback-url', url);
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.focus();
+  }
+}
+
+const singleInstanceLock = app.requestSingleInstanceLock();
+if (!singleInstanceLock) {
+  app.quit();
+} else {
+  app.on('second-instance', (_event, argv) => {
+    const callbackUrl = argv.find(arg => arg.startsWith(`${AUTH_PROTOCOL}://auth/callback`));
+    if (callbackUrl) forwardAuthCallbackUrl(callbackUrl);
+  });
+}
+
+app.on('open-url', (event, url) => {
+  event.preventDefault();
+  forwardAuthCallbackUrl(url);
+});
 
 function hasPersistedBrowserState(dirPath: string): boolean {
   return fs.existsSync(path.join(dirPath, 'Local Storage', 'leveldb'));
@@ -95,6 +120,7 @@ function configureAppStoragePaths() {
 }
 
 configureAppStoragePaths();
+app.setAsDefaultProtocolClient(AUTH_PROTOCOL);
 
 interface WindowsUpdateManifest {
   version: string;
@@ -347,6 +373,11 @@ function setupIpcHandlers() {
   // This has been replaced with direct API calls using apiClient
   ipcMain.handle('db-operation', async (_, methodName: string, ...args: any[]) => {
     throw new Error(`DB operation ${methodName} is deprecated. Use direct API calls instead.`);
+  });
+
+  ipcMain.handle('open-external-auth-url', async (_event, url: string) => {
+    await shell.openExternal(url);
+    return true;
   });
 
   // Server Mode operations removed - using FastAPI backend instead

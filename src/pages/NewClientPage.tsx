@@ -17,23 +17,35 @@ export default function NewClientPage() {
     blocked_credit: false,
     discount_percent: 0
   } as Client)
+  const formDataRef = useRef<Client>(formData)
   const formRef = useRef<HTMLFormElement>(null!);
+
+  const updateFormData = (updater: (prev: Client) => Client) => {
+    const next = updater(formDataRef.current)
+    formDataRef.current = next
+    setFormData(next)
+  }
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
-    setFormData((prev: Client) => ({ ...prev, [name]: value }))
+    updateFormData((prev: Client) => ({ ...prev, [name]: value }))
   }
 
   const handleSelectChange = (value: string | boolean, name: string) => {
-    setFormData((prev: Client) => ({ ...prev, [name]: value }))
+    updateFormData((prev: Client) => ({
+      ...prev,
+      [name]: value,
+      ...(name === 'health_fund' ? { status: '' } : {})
+    }))
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!formData.first_name?.trim()) { toast.error("שם פרטי הוא שדה חובה"); return }
-    if (!formData.last_name?.trim()) { toast.error("שם משפחה הוא שדה חובה"); return }
+    const latestFormData = formDataRef.current
+    if (!latestFormData.first_name?.trim()) { toast.error("שם פרטי הוא שדה חובה"); return }
+    if (!latestFormData.last_name?.trim()) { toast.error("שם משפחה הוא שדה חובה"); return }
     const clientData = {
-      ...formData,
+      ...latestFormData,
       clinic_id: currentClinic?.id,
       file_creation_date: new Date().toISOString().split('T')[0]
     }

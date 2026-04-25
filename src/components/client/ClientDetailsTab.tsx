@@ -13,7 +13,6 @@ import { getAllFamilies, getFamilyById, createFamily, addClientToFamily, removeC
 import { useUser } from "@/contexts/UserContext"
 import { SaveIcon, XIcon, ChevronDownIcon, CheckIcon } from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
-import israelCities from "@/utils/israel_cities.json"
 import { CityLookupInput } from "@/components/ui/city-lookup-input"
 import { DateInput } from "@/components/ui/date"
 import { NotesCard } from "@/components/ui/notes-card"
@@ -25,6 +24,38 @@ const HEALTH_FUNDS: Record<string, string[]> = {
   "מאוחדת": ["רגיל", "עדיף", "שיא"],
   "לאומית": ["רגיל", "כסף", "זהב"]
 };
+
+const GENDER_OPTIONS = ["זכר", "נקבה", "אחר"]
+
+const GENDER_VALUE_MAP: Record<string, string> = {
+  male: "זכר",
+  m: "זכר",
+  female: "נקבה",
+  f: "נקבה",
+  other: "אחר",
+}
+
+const HEALTH_FUND_VALUE_MAP: Record<string, string> = {
+  clalit: "כללית",
+  "כללית": "כללית",
+  maccabi: "מכבי",
+  "מכבי": "מכבי",
+  meuhedet: "מאוחדת",
+  "מאוחדת": "מאוחדת",
+  leumit: "לאומית",
+  "לאומית": "לאומית",
+}
+
+const normalizeSelectValue = (
+  value: string | null | undefined,
+  valueMap: Record<string, string>,
+  allowedValues: string[]
+) => {
+  const rawValue = (value || '').trim()
+  if (!rawValue) return ''
+  if (allowedValues.includes(rawValue)) return rawValue
+  return valueMap[rawValue.toLowerCase()] || rawValue
+}
 
 // Custom label component
 function ModernLabel({ children }: { children: React.ReactNode }) {
@@ -66,6 +97,8 @@ export function ClientDetailsTab({
   const isNewMode = mode === 'new'
   const showEditableFields = isEditing || isNewMode
   const { currentClinic } = useUser()
+  const normalizedGender = normalizeSelectValue(formData.gender, GENDER_VALUE_MAP, GENDER_OPTIONS)
+  const normalizedHealthFund = normalizeSelectValue(formData.health_fund, HEALTH_FUND_VALUE_MAP, Object.keys(HEALTH_FUNDS))
 
   const [families, setFamilies] = React.useState<Family[]>([])
   const [filteredFamilies, setFilteredFamilies] = React.useState<Family[]>([])
@@ -597,16 +630,16 @@ export function ClientDetailsTab({
                 <ModernLabel>מגדר</ModernLabel>
                 <Select dir="rtl"
                   disabled={!showEditableFields}
-                  value={formData.gender || ''}
+                  value={normalizedGender}
                   onValueChange={(value) => handleSelectChange(value, 'gender')}
                 >
                   <SelectTrigger disabled={!showEditableFields}>
                     <SelectValue placeholder="בחר מגדר" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="זכר">זכר</SelectItem>
-                    <SelectItem value="נקבה">נקבה</SelectItem>
-                    <SelectItem value="אחר">אחר</SelectItem>
+                    {GENDER_OPTIONS.map(option => (
+                      <SelectItem key={option} value={option}>{option}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -635,11 +668,8 @@ export function ClientDetailsTab({
                 <ModernLabel>קופת חולים</ModernLabel>
                 <Select dir="rtl"
                   disabled={!showEditableFields}
-                  value={formData.health_fund || ''}
-                  onValueChange={(value) => {
-                    handleSelectChange(value, 'health_fund');
-                    if (formData.status) handleSelectChange('', 'status');
-                  }}
+                  value={normalizedHealthFund}
+                  onValueChange={(value) => handleSelectChange(value, 'health_fund')}
                 >
                   <SelectTrigger disabled={!showEditableFields}>
                     <SelectValue placeholder="בחר קופת חולים" />
@@ -666,15 +696,15 @@ export function ClientDetailsTab({
               <div className="space-y-2">
                 <ModernLabel>סטטוס</ModernLabel>
                 <Select dir="rtl"
-                  disabled={!showEditableFields || !formData.health_fund}
+                  disabled={!showEditableFields || !normalizedHealthFund}
                   value={formData.status || ''}
                   onValueChange={(value) => handleSelectChange(value, 'status')}
                 >
-                  <SelectTrigger disabled={!showEditableFields || !formData.health_fund}>
-                    <SelectValue placeholder={formData.health_fund ? "בחר סטטוס" : "בחר קופת חולים תחילה"} />
+                  <SelectTrigger disabled={!showEditableFields || !normalizedHealthFund}>
+                    <SelectValue placeholder={normalizedHealthFund ? "בחר סטטוס" : "בחר קופת חולים תחילה"} />
                   </SelectTrigger>
                   <SelectContent>
-                    {(HEALTH_FUNDS[formData.health_fund || ''] || []).map(plan => (
+                    {(HEALTH_FUNDS[normalizedHealthFund] || []).map(plan => (
                       <SelectItem key={plan} value={plan}>{plan}</SelectItem>
                     ))}
                   </SelectContent>

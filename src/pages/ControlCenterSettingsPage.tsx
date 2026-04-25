@@ -407,15 +407,12 @@ export default function ControlCenterSettingsPage() {
         id: currentUser.id,
         email: currentUser.email,
         google_account_connected: currentUser.google_account_connected,
-        has_google_access_token: !!currentUser.google_access_token,
-        has_google_refresh_token: !!currentUser.google_refresh_token,
-        google_access_token_preview: currentUser.google_access_token ? currentUser.google_access_token.substring(0, 20) + '...' : 'null'
       })
       
-      // Try to get tokens from user database first
+      const storedTokensResponse = await apiClient.getGoogleTokens(currentUser.id)
       let tokens = {
-        access_token: currentUser.google_access_token,
-        refresh_token: currentUser.google_refresh_token,
+        access_token: storedTokensResponse.data?.access_token,
+        refresh_token: storedTokensResponse.data?.refresh_token,
         scope: 'https://www.googleapis.com/auth/calendar',
         token_type: 'Bearer',
         expiry_date: Date.now() + 3600000

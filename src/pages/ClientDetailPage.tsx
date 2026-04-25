@@ -52,16 +52,24 @@ export default function ClientDetailPage() {
   const { currentClient, updateCurrentClient, setActiveTab: setSidebarActiveTab } = useClientSidebar()
   const [isEditing, setIsEditing] = useState(false)
   const [formData, setFormData] = useState<Client>({} as Client)
+  const formDataRef = useRef<Client>({} as Client)
   const [activeTab, setActiveTab] = useState(initialTab)
   const [refreshKey, setRefreshKey] = useState(0)
   const formRef = useRef<HTMLFormElement>(null)
   const isDetailsLoading = !currentClient || !currentClient.id
 
   useEffect(() => {
-    if (currentClient && (!formData.id || formData.id !== currentClient.id)) {
-      setFormData({ ...currentClient })
-    }
-  }, [currentClient, formData.id])
+    if (!currentClient || isEditing) return
+    const next = { ...currentClient }
+    formDataRef.current = next
+    setFormData(next)
+  }, [currentClient, isEditing])
+
+  const updateFormData = (updater: (prev: Client) => Client) => {
+    const next = updater(formDataRef.current)
+    formDataRef.current = next
+    setFormData(next)
+  }
 
   useEffect(() => {
     // Refresh orders and referrals data when switching to those tabs
@@ -80,7 +88,7 @@ export default function ClientDetailPage() {
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
-    setFormData(prev => ({ ...prev, [name]: value }))
+    updateFormData(prev => ({ ...prev, [name]: value }))
   }
 
   const handleSelectChange = (value: string | boolean, name: string) => {
@@ -91,26 +99,36 @@ export default function ClientDetailPage() {
       processedValue = value === '' ? null : parseInt(value, 10)
     }
 
-    setFormData(prev => ({ ...prev, [name]: processedValue }))
+    updateFormData(prev => ({
+      ...prev,
+      [name]: processedValue,
+      ...(name === 'health_fund' ? { status: '' } : {})
+    }))
   }
 
   const handleSave = async () => {
     if (!formRef.current) return
-    const prev = { ...formData }
-    updateCurrentClient(formData)
+    const latestFormData = formDataRef.current
+    const prev = currentClient ? { ...currentClient } : { ...latestFormData }
+    updateCurrentClient(latestFormData)
     setIsEditing(false)
-    const p = updateClient(formData)
+    const p = updateClient(latestFormData)
     p.then((updated) => {
       if (updated) {
-        setFormData({ ...updated })
+        const next = { ...updated }
+        formDataRef.current = next
+        setFormData(next)
+        updateCurrentClient(next)
         toast.success("פרטי הלקוח עודכנו בהצלחה")
       } else {
+        formDataRef.current = prev
         updateCurrentClient(prev)
         setFormData(prev)
         setIsEditing(true)
         toast.error("לא הצלחנו לשמור את השינויים")
       }
     }).catch(() => {
+      formDataRef.current = prev
       updateCurrentClient(prev)
       setFormData(prev)
       setIsEditing(true)

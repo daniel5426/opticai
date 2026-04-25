@@ -41,6 +41,7 @@ class AuthService {
   private router: any = null
   private routerHistory: any = null
   private isLoggingOut = false
+  private isHandlingUnauthorized = false
 
   constructor() {
     // Don't initialize AuthService in popup windows (OAuth callbacks)
@@ -74,16 +75,7 @@ class AuthService {
         console.warn('[Auth] Supabase not configured, skipping session check')
         await this.restoreLocalSession()
         this.setupAuthListener()
-        this.initialized = true
-        console.log('[Auth] Initialization complete, state:', this.state)
-        return
-      }
-
-      const storedSupabaseSession = this.getStoredSupabaseSession()
-      if (storedSupabaseSession?.access_token) {
-        console.log('[Auth] Found stored Supabase session in localStorage')
-        await this.handleSupabaseSession(storedSupabaseSession)
-        this.setupAuthListener()
+        this.setupUnauthorizedListener()
         this.initialized = true
         console.log('[Auth] Initialization complete, state:', this.state)
         return
@@ -123,6 +115,7 @@ class AuthService {
 
       // Setup Supabase auth listener
       this.setupAuthListener()
+      this.setupUnauthorizedListener()
       
       this.initialized = true
       console.log('[Auth] Initialization complete, state:', this.state)
@@ -161,6 +154,47 @@ class AuthService {
     })
   }
 
+  private setupUnauthorizedListener(): void {
+    window.addEventListener('auth:unauthorized', () => {
+      void this.handleUnauthorized()
+    })
+  }
+
+  private async handleUnauthorized(): Promise<void> {
+    if (this.isHandlingUnauthorized || this.isLoggingOut) return
+    this.isHandlingUnauthorized = true
+    try {
+      console.log('[Auth] Handling unauthorized API response')
+      const { data } = await supabase.auth.refreshSession()
+      if (data?.session?.access_token) {
+        apiClient.setToken(data.session.access_token)
+        await this.handleSupabaseSession(data.session)
+        return
+      }
+
+      const user = this.session?.user || this.getStoredUser()
+      const clinic = this.session?.clinic || this.getStoredClinic()
+      if (user && clinic && user.has_password === false && !isRoleAtLeast(user.role_level, ROLE_LEVELS.ceo)) {
+        const refreshedUser = await this.signInClinicUser(user.username)
+        if (refreshedUser) {
+          this.setClinicSession(clinic, refreshedUser)
+          return
+        }
+      }
+
+      this.clearUser()
+      apiClient.clearToken()
+      if (clinic) {
+        this.session = { clinic }
+        this.transitionTo(AuthState.CLINIC_SELECTED, true)
+      } else {
+        this.clearSession()
+      }
+    } finally {
+      this.isHandlingUnauthorized = false
+    }
+  }
+
   // ============================================================================
   // SESSION HANDLING
   // ============================================================================
@@ -187,7 +221,7 @@ class AuthService {
           }
           
       // Try to get app user from backend
-      const userResponse = await apiClient.getCurrentUser()
+      const userResponse = await apiClient.getCurrentUser({ suppressUnauthorized: true })
       
       if (!userResponse.data) {
         console.log('[Auth] No app user found, setup required')
@@ -283,6 +317,12 @@ class AuthService {
   // AUTHENTICATION METHODS
   // ============================================================================
 
+  private getOAuthRedirectUrl(): string {
+    const isFileOrigin = window.location.origin === 'file://'
+    const isPackagedElectron = !!(window as any).electronAPI && isFileOrigin
+    return isPackagedElectron ? 'prysm://auth/callback' : `${window.location.origin}/auth/callback`
+  }
+
   async signInWithEmail(email: string, password: string): Promise<boolean> {
     try {
       console.log('[Auth] Email sign in for:', email)
@@ -303,7 +343,7 @@ class AuthService {
     }
   }
 
-  async signUp(email: string, password: string, fullName: string): Promise<{ success: boolean; error?: string }> {
+  async signUp(email: string, password: string, fullName: string): Promise<{ success: boolean; status?: 'authenticated' | 'setup_required' | 'pending_confirmation' | 'error'; error?: string }> {
     try {
       console.log('[Auth] Sign up for:', email)
 
@@ -328,14 +368,14 @@ class AuthService {
 
       if (data.session) {
         await this.handleSupabaseSession(data.session)
-        return { success: true }
+        return { success: true, status: 'authenticated' }
       }
 
-      return { success: false, error: 'no_session_returned' }
+      return { success: true, status: 'pending_confirmation' }
       
     } catch (error) {
       console.error('[Auth] Sign up error:', error)
-      return { success: false, error: 'unknown_error' }
+      return { success: false, status: 'error', error: 'unknown_error' }
     }
   }
 
@@ -346,7 +386,7 @@ class AuthService {
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/auth/callback`,
+          redirectTo: this.getOAuthRedirectUrl(),
           scopes: 'openid email profile https://www.googleapis.com/auth/calendar',
           queryParams: {
             access_type: 'offline',
@@ -369,16 +409,45 @@ class AuthService {
     }
   }
 
+  getClinicDeviceId(): string {
+    const key = 'clinicDeviceId'
+    const existing = localStorage.getItem(key)
+    if (existing) return existing
+    const id = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`
+    localStorage.setItem(key, id)
+    return id
+  }
+
+  async createClinicTrustSession(clinicUniqueId: string, pin: string): Promise<Clinic | null> {
+    const deviceId = this.getClinicDeviceId()
+    const response = await apiClient.createClinicSession({
+      clinic_unique_id: clinicUniqueId,
+      pin,
+      device_id: deviceId
+    })
+    if (!response.data?.clinic_trust_token || !response.data.clinic) {
+      return null
+    }
+    apiClient.setClinicTrustToken(response.data.clinic_trust_token)
+    localStorage.setItem('clinicTrustToken', response.data.clinic_trust_token)
+    return response.data.clinic as Clinic
+  }
+
   async signInClinicUser(username: string, password?: string): Promise<User | null> {
     try {
       console.log('[Auth] Clinic user sign in:', username, 'with password:', !!password)
 
       const endpoint = password ? '/auth/login' : '/auth/login-no-password'
-      const body = password ? { username, password } : { username }
+      const clinic = this.session?.clinic || this.getStoredClinic()
+      const clinicTrustToken = apiClient.getClinicTrustToken()
+      const body = password ? { username, password, clinic_id: clinic?.id } : { username }
       
       const response = await fetch(`${(apiClient as any).baseUrl}${endpoint}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(!password && clinicTrustToken ? { Authorization: `Bearer ${clinicTrustToken}` } : {})
+        },
         body: JSON.stringify(body),
       })
       
@@ -407,7 +476,7 @@ class AuthService {
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/auth/callback`,
+          redirectTo: this.getOAuthRedirectUrl(),
           scopes: 'openid email profile https://www.googleapis.com/auth/calendar',
           queryParams: {
             access_type: 'offline',
@@ -437,30 +506,29 @@ class AuthService {
       
       this.clearPendingClinicAuth()
 
-      const userResponse = await apiClient.getUser(userId)
-      if (!userResponse.data) {
-        throw new Error('User not found')
-      }
-
-      const user = userResponse.data as User
-      
-      // Update auth_provider to google since they just successfully logged in via Google
-      if (user.auth_provider !== 'google') {
-        try {
-          const updated = await apiClient.updateUser(user.id!, { ...user, auth_provider: 'google' })
-          if (updated.data) {
-            user.auth_provider = 'google'
-          }
-        } catch (e) {
-          console.warn('[Auth] Failed to update auth_provider to google:', e)
-        }
-      }
-
       const clinic = this.getStoredClinic()
 
       if (!clinic) {
         throw new Error('No clinic context')
       }
+
+      const { data: { session } } = await supabase.auth.getSession()
+      const clinicTrustToken = apiClient.getClinicTrustToken()
+      if (!session?.access_token || !clinicTrustToken) {
+        throw new Error('Missing Google or clinic trust session')
+      }
+
+      const loginResponse = await apiClient.clinicGoogleLogin(
+        { user_id: userId, device_id: this.getClinicDeviceId() },
+        session.access_token,
+        clinicTrustToken
+      )
+      if (!loginResponse.data?.access_token || !loginResponse.data.user) {
+        throw new Error(loginResponse.error || 'Clinic Google login failed')
+      }
+
+      apiClient.setToken(loginResponse.data.access_token)
+      const user = loginResponse.data.user as User
 
       // Build session with proper context
       const newSession: AuthSession = { user, clinic }
@@ -517,49 +585,28 @@ class AuthService {
       
       console.log('[Auth] Setup for auth provider:', session.user.app_metadata?.provider, 'isGoogle:', isGoogleAuth)
       
-      // Create company
-      const companyResponse = await apiClient.createCompanyPublic({
-        name: companyData.name,
-        owner_full_name: session.user.user_metadata?.full_name || session.user.email.split('@')[0],
-        contact_email: session.user.email,
-        contact_phone: companyData.phone || '',
-        address: companyData.address || ''
+      const setupResponse = await apiClient.completeSetup({
+        company: {
+          name: companyData.name,
+          owner_full_name: session.user.user_metadata?.full_name || session.user.email.split('@')[0],
+          contact_email: session.user.email,
+          contact_phone: companyData.phone || '',
+          address: companyData.address || ''
+        },
+        clinic: {
+          name: clinicData.name,
+          location: clinicData.location,
+          phone_number: clinicData.phone_number,
+          email: clinicData.email
+        }
       })
 
-      if (!companyResponse.data) {
-        throw new Error('Failed to create company')
+      if (!setupResponse.data?.company || !setupResponse.data.user) {
+        throw new Error(setupResponse.error || 'Failed to complete setup')
       }
 
-      const company = companyResponse.data as Company
-      
-      // Create CEO user
-      const userResponse = await apiClient.createUserPublic({
-        clinic_id: null, 
-        company_id: company.id!,
-        username: session.user.email.split('@')[0] + '_ceo',
-        email: session.user.email,
-        password: '',
-        role_level: ROLE_LEVELS.ceo,
-        full_name: session.user.user_metadata?.full_name || session.user.email.split('@')[0],
-        google_account_connected: isGoogleAuth,
-        google_account_email: isGoogleAuth ? session.user.email : null,
-        is_active: true
-      })
-
-      if (!userResponse.data) {
-        throw new Error('Failed to create user')
-      }
-
-      const user = userResponse.data as User
-
-      // Create first clinic
-      await apiClient.createClinic({
-        company_id: company.id!,
-        name: clinicData.name,
-        location: clinicData.location,
-        phone_number: clinicData.phone_number,
-        email: clinicData.email
-      })
+      const company = setupResponse.data.company as Company
+      const user = setupResponse.data.user as User
 
       // Set session
       this.storeCompany(company)
@@ -720,6 +767,9 @@ class AuthService {
 
   private openOAuthPopup(url: string): Promise<void> {
     return new Promise((resolve, reject) => {
+      let removeAuthCallbackUrl: (() => void) | null = null
+      let timeout: ReturnType<typeof setTimeout> | undefined
+
       const setSessionInMainWindow = async (session: any) => {
         if (!session?.access_token || !session?.refresh_token) {
           return session
@@ -743,22 +793,51 @@ class AuthService {
         })
       }
 
-      const popup = window.open(
-        url,
-        'google-oauth',
-        'width=500,height=600,scrollbars=yes,resizable=yes'
-      )
+      const handleCallbackUrl = async (callbackUrl: string) => {
+        try {
+          const parsed = new URL(callbackUrl)
+          const code = parsed.searchParams.get('code')
+          const error = parsed.searchParams.get('error') || parsed.searchParams.get('error_description')
+          if (error) throw new Error(error)
+          if (!code) throw new Error('No authorization code received')
+          const { data, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
+          if (exchangeError) throw exchangeError
+          const hydratedSession = await setSessionInMainWindow(data?.session)
+          await this.handleSupabaseSession(hydratedSession)
+          if (removeAuthCallbackUrl) removeAuthCallbackUrl()
+          if (timeout) clearTimeout(timeout)
+          resolve()
+        } catch (error) {
+          if (removeAuthCallbackUrl) removeAuthCallbackUrl()
+          if (timeout) clearTimeout(timeout)
+          reject(error)
+        }
+      }
 
-      if (!popup) {
+      const isPackagedElectron = this.getOAuthRedirectUrl().startsWith('prysm://')
+      let popup: Window | null = null
+      if (isPackagedElectron && window.electronAPI?.openExternalAuthUrl) {
+        removeAuthCallbackUrl = window.electronAPI.onAuthCallbackUrl(handleCallbackUrl)
+        void window.electronAPI.openExternalAuthUrl(url)
+      } else {
+        popup = window.open(
+          url,
+          'google-oauth',
+          'width=500,height=600,scrollbars=yes,resizable=yes'
+        )
+      }
+
+      if (!popup && !isPackagedElectron) {
         reject(new Error('Popup blocked - please allow popups for this site'))
         return
       }
 
       // Timeout after 2 minutes
-      const timeout = setTimeout(() => {
+      timeout = setTimeout(() => {
         window.removeEventListener('message', messageHandler)
+        if (removeAuthCallbackUrl) removeAuthCallbackUrl()
         try {
-          popup.close()
+          popup?.close()
         } catch (e) {
           console.warn('[Auth] Could not close popup on timeout:', e)
         }
@@ -778,7 +857,7 @@ class AuthService {
           
           // Close popup immediately
           try {
-            popup.close()
+            popup?.close()
           } catch (e) {
             console.warn('[Auth] Could not close popup:', e)
           }
@@ -798,7 +877,7 @@ class AuthService {
           window.removeEventListener('message', messageHandler)
           
           try {
-            popup.close()
+            popup?.close()
           } catch (e) {
             console.warn('[Auth] Could not close popup:', e)
           }

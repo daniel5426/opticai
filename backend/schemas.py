@@ -51,6 +51,7 @@ class ClinicBase(BaseModel):
     license_number: Optional[str] = None
     unique_id: Optional[str] = None
     is_active: bool = True
+    has_entry_pin: Optional[bool] = None
 
 class ClinicCreate(ClinicBase):
     company_id: int
@@ -59,10 +60,12 @@ class ClinicUpdate(ClinicBase):
     name: Optional[str] = None
     unique_id: Optional[str] = None
     company_id: Optional[int] = None
+    entry_pin: Optional[str] = None
 
 class Clinic(ClinicBase):
     id: int
     company_id: int
+    entry_pin_version: int = 1
     created_at: datetime
     updated_at: Optional[datetime] = None
     
@@ -83,8 +86,6 @@ class UserBase(BaseModel):
     theme_preference: str = "system"
     google_account_connected: bool = False
     google_account_email: Optional[str] = None
-    google_access_token: Optional[str] = None
-    google_refresh_token: Optional[str] = None
     google_calendar_sync_enabled: bool = False
     va_format: Optional[str] = "meter"
     system_vacation_dates: Optional[List[str]] = None
@@ -96,6 +97,8 @@ class UserBase(BaseModel):
 class UserCreate(UserBase):
     password: Optional[str] = None
     clinic_id: Optional[int] = None
+    google_access_token: Optional[str] = None
+    google_refresh_token: Optional[str] = None
 
 class UserUpdate(UserBase):
     username: Optional[str] = None
@@ -108,12 +111,14 @@ class UserUpdate(UserBase):
     va_format: Optional[str] = None
     sync_subjective_to_final_subjective: Optional[bool] = None
     auth_provider: Optional[str] = None
+    google_access_token: Optional[str] = None
+    google_refresh_token: Optional[str] = None
 
 
 class User(UserBase):
     id: int
     clinic_id: Optional[int] = None
-    password: Optional[str] = None
+    has_password: Optional[bool] = None
     created_at: datetime
     updated_at: Optional[datetime] = None
     
@@ -139,6 +144,11 @@ class UserSelectItem(BaseModel):
     email: Optional[str] = None
     phone: Optional[str] = None
     auth_provider: Optional[str] = None
+    google_account_connected: Optional[bool] = None
+    google_account_email: Optional[str] = None
+    profile_picture: Optional[str] = None
+    company_id: Optional[int] = None
+    has_password: Optional[bool] = None
     is_active: bool
 
 class FamilyBase(BaseModel):
@@ -286,9 +296,23 @@ class TokenData(BaseModel):
 class UserLogin(BaseModel):
     username: str
     password: str
+    clinic_id: Optional[int] = None
 
 class UserLoginNoPassword(BaseModel):
     username: str
+
+class ClinicSessionRequest(BaseModel):
+    clinic_unique_id: str
+    pin: str
+    device_id: str
+
+class ClinicGoogleLoginRequest(BaseModel):
+    user_id: int
+    device_id: str
+
+class CompleteSetupRequest(BaseModel):
+    company: Dict[str, Any]
+    clinic: Dict[str, Any]
 
 # Appointment schemas
 class AppointmentBase(BaseModel):

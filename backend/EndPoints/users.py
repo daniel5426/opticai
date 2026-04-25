@@ -350,6 +350,26 @@ def get_users_for_select(
         ))
     return result
 
+@router.get("/{user_id}/google-tokens")
+def get_user_google_tokens(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user: UserModel = Depends(get_current_user)
+):
+    if current_user.id != user_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    user = db.query(User).filter(User.id == user_id).first()
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    return {
+        "connected": bool(user.google_account_connected),
+        "email": user.google_account_email,
+        "access_token": user.google_access_token if user.google_account_connected else None,
+        "refresh_token": user.google_refresh_token if user.google_account_connected else None,
+    }
+
 @router.get("/{user_id}", response_model=UserSchema)
 def get_user(
     user_id: int,

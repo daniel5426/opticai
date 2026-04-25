@@ -72,6 +72,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   installUpdate: () => ipcRenderer.invoke('install-update'),
   openUpdateDownloadPage: () => ipcRenderer.invoke('open-update-download-page'),
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
+  openExternalAuthUrl: (url: string) => ipcRenderer.invoke('open-external-auth-url', url),
+  onAuthCallbackUrl: (callback: (url: string) => void) => {
+    ipcRenderer.on('auth-callback-url', (_event, url) => callback(url));
+    return () => ipcRenderer.removeAllListeners('auth-callback-url');
+  },
   
   onDownloadProgress: (callback: (progress: any) => void) => {
     ipcRenderer.on('download-progress', (_, progress) => callback(progress));

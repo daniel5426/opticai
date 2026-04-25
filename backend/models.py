@@ -46,6 +46,8 @@ class Clinic(Base):
     manager_name = Column(String)
     license_number = Column(String)
     unique_id = Column(String, unique=True, nullable=False)
+    entry_pin_hash = Column(String)
+    entry_pin_version = Column(Integer, nullable=False, default=1)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
@@ -55,6 +57,10 @@ class Clinic(Base):
     clients = relationship("Client", back_populates="clinic")
     families = relationship("Family", back_populates="clinic")
     settings = relationship("Settings", back_populates="clinic")
+
+    @property
+    def has_entry_pin(self):
+        return bool(self.entry_pin_hash)
 
 class User(Base):
     __tablename__ = "users"
@@ -89,6 +95,10 @@ class User(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     
     clinic = relationship("Clinic", back_populates="users")
+
+    @property
+    def has_password(self):
+        return bool(self.password and self.password.strip())
 
 class Family(Base):
     __tablename__ = "families"

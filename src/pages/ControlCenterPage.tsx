@@ -143,7 +143,10 @@ export default function ControlCenterPage() {
         registerForm.fullName,
       );
 
-      if (!result.success) {
+      if (result.success && result.status === "pending_confirmation") {
+        toast.success("נשלח אליך אימייל לאישור החשבון")
+        setIsRegisterMode(false)
+      } else if (!result.success) {
         if (result.error === "email_exists_but_wrong_password") {
           toast.error("האימייל כבר קיים במערכת - אנא התחבר");
         } else {

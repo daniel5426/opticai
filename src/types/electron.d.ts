@@ -91,6 +91,8 @@ export interface ElectronAPI {
   installUpdate: () => Promise<{ success: boolean; error?: string }>;
   openUpdateDownloadPage: () => Promise<{ success: boolean; error?: string; url?: string }>;
   getAppVersion: () => Promise<string>;
+  openExternalAuthUrl: (url: string) => Promise<boolean>;
+  onAuthCallbackUrl: (callback: (url: string) => void) => () => void;
   onDownloadProgress: (callback: (progress: { percent: number; transferred: number; total: number; bytesPerSecond: number }) => void) => () => void;
   onUpdateDownloaded: (callback: (info: { version: string }) => void) => () => void;
 }

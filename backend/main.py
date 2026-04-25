@@ -34,6 +34,17 @@ app.add_middleware(GZipMiddleware, minimum_size=1024)
 
 Base.metadata.create_all(bind=engine)
 
+def ensure_auth_columns():
+    from sqlalchemy import text
+    try:
+        with engine.begin() as conn:
+            conn.execute(text("ALTER TABLE clinics ADD COLUMN IF NOT EXISTS entry_pin_hash VARCHAR"))
+            conn.execute(text("ALTER TABLE clinics ADD COLUMN IF NOT EXISTS entry_pin_version INTEGER NOT NULL DEFAULT 1"))
+    except Exception as exc:
+        logging.warning("Auth schema guard skipped or failed: %s", exc)
+
+ensure_auth_columns()
+
 # Seed initial data
 from database import get_db
 from utils.seed_data import seed_va_values
