@@ -252,6 +252,7 @@ export default function SettingsPage() {
       }
       // Map clinic fields to backend ClinicUpdate names
       if (currentClinic?.id) {
+        const entryPin = typeof localClinic.entry_pin === 'string' ? localClinic.entry_pin.trim() : ''
         payload.clinic = {
           clinic_position: localClinic.clinic_position || undefined,
           email: localClinic.email || undefined,
@@ -264,7 +265,7 @@ export default function SettingsPage() {
           clinic_website: localClinic.clinic_website || undefined,
           manager_name: localClinic.manager_name || undefined,
           license_number: localClinic.license_number || undefined,
-          entry_pin: localClinic.entry_pin || undefined,
+          entry_pin: entryPin || undefined,
         }
       }
       if (company?.id && isRoleAtLeast(currentUser?.role_level, ROLE_LEVELS.manager)) {

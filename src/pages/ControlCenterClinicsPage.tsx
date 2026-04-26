@@ -55,9 +55,17 @@ function ClinicModal({ isOpen, onClose, clinic, onSave }: ClinicModalProps) {
   const [licenseNumber, setLicenseNumber] = useState(clinic?.license_number || '');
   const [phoneNumber, setPhoneNumber] = useState(clinic?.phone_number || '');
   const [email, setEmail] = useState(clinic?.email || '');
+  const [entryPin, setEntryPin] = useState('');
+  const [showEntryPin, setShowEntryPin] = useState(false);
   const [isActive, setIsActive] = useState(clinic?.is_active ?? true);
 
   const handleConfirm = () => {
+    const cleanEntryPin = entryPin.trim();
+    if (cleanEntryPin.length < 4) {
+      toast.error('יש להזין PIN למרפאה באורך 4 תווים לפחות');
+      return;
+    }
+
     const data = {
       id: clinic?.id,
       company_id: clinic?.company_id,
@@ -73,6 +81,7 @@ function ClinicModal({ isOpen, onClose, clinic, onSave }: ClinicModalProps) {
       license_number: licenseNumber,
       phone_number: phoneNumber,
       email,
+      entry_pin: cleanEntryPin,
       unique_id: clinic?.unique_id || generateUniqueId(),
       is_active: isActive,
       created_at: clinic?.created_at,
@@ -98,6 +107,8 @@ function ClinicModal({ isOpen, onClose, clinic, onSave }: ClinicModalProps) {
     setLicenseNumber(clinic?.license_number || '');
     setPhoneNumber(clinic?.phone_number || '');
     setEmail(clinic?.email || '');
+    setEntryPin('');
+    setShowEntryPin(false);
     setIsActive(clinic?.is_active ?? true);
   };
 
@@ -135,6 +146,44 @@ function ClinicModal({ isOpen, onClose, clinic, onSave }: ClinicModalProps) {
             placeholder="שם המרפאה כפי שיופיע במסמכים"
             className="w-full"
           />
+        </div>
+
+        <div className="rounded-lg border bg-muted/25 p-4">
+          <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+            <div className="space-y-1 text-right">
+              <Label htmlFor="entry_pin" className="text-sm font-medium">
+                {clinic?.has_entry_pin ? 'PIN חדש לכניסה למרפאה' : 'PIN לכניסה למרפאה'}
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                נדרש לאישור מכשירים ולכניסה ללא סיסמה למשתמשים שהוגדרו כך
+              </p>
+            </div>
+            <div className="w-full md:w-[280px]">
+              <div className="relative">
+                <Input
+                  id="entry_pin"
+                  type={showEntryPin ? 'text' : 'password'}
+                  value={entryPin}
+                  onChange={(e) => setEntryPin(e.target.value)}
+                  placeholder="לפחות 4 תווים"
+                  autoComplete="new-password"
+                  maxLength={32}
+                  className="h-10 pl-10 text-right"
+                  dir="rtl"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowEntryPin((value) => !value)}
+                  className="absolute left-1 top-1 h-8 w-8 p-0"
+                  aria-label={showEntryPin ? 'הסתר PIN' : 'הצג PIN'}
+                >
+                  {showEntryPin ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </Button>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

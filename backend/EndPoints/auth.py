@@ -219,6 +219,8 @@ async def clinic_google_login(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid user")
     if user.clinic_id != clinic.id and not (user.role_level >= CEO_LEVEL and user.company_id == clinic.company_id):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User does not belong to trusted clinic")
+    if user.auth_provider != "google":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Selected user is not configured for Google login")
 
     supabase_token = _bearer_value(x_supabase_authorization)
     if not supabase_token:
@@ -228,16 +230,11 @@ async def clinic_google_login(
     except Exception:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid Supabase token")
     oauth_email = (payload.get("email") or payload.get("user_metadata", {}).get("email") or "").lower()
-    allowed_emails = [email.lower() for email in [user.google_account_email, user.email] if email]
+    login_email = user.email or user.google_account_email
+    allowed_emails = [login_email.lower()] if login_email else []
     if not oauth_email or oauth_email not in allowed_emails:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Google account does not match selected user")
-    if user.auth_provider != "google" or not user.google_account_connected:
-        user.auth_provider = "google"
-        user.google_account_connected = True
-        if not user.google_account_email:
-            user.google_account_email = oauth_email
-        db.commit()
-        db.refresh(user)
+
     return {
         "access_token": _issue_user_token(user),
         "token_type": "bearer",

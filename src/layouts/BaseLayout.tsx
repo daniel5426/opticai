@@ -79,30 +79,43 @@ function BaseLayoutContent({ children }: { children: React.ReactNode }) {
   // Load company data
   useEffect(() => {
     const loadCompany = async () => {
+      const companyId = currentClinic?.company_id || currentUser?.company_id;
+      if (!companyId) {
+        setCompany(null);
+        return;
+      }
+
       const companyData = localStorage.getItem("controlCenterCompany");
       if (companyData) {
-        const company = JSON.parse(companyData);
-        setCompany(company);
-        // Cache company theme colors
-        cacheCompanyThemeColors(company);
-        applyCompanyThemeColors(company);
-      } else if (currentClinic?.company_id) {
         try {
-          const resp = await apiClient.getCompany(currentClinic.company_id);
-          if (resp.data) {
-            setCompany(resp.data);
-            // Cache company theme colors
-            cacheCompanyThemeColors(resp.data);
-            applyCompanyThemeColors(resp.data);
+          const cachedCompany = JSON.parse(companyData);
+          if (cachedCompany?.id === companyId) {
+            setCompany(cachedCompany);
+            cacheCompanyThemeColors(cachedCompany);
+            applyCompanyThemeColors(cachedCompany);
+            return;
           }
+          localStorage.removeItem("controlCenterCompany");
         } catch (error) {
-          console.error("[BaseLayout] Error loading company:", error);
+          localStorage.removeItem("controlCenterCompany");
         }
+      }
+
+      try {
+        const resp = await apiClient.getCompany(companyId);
+        if (resp.data) {
+          setCompany(resp.data);
+          localStorage.setItem("controlCenterCompany", JSON.stringify(resp.data));
+          cacheCompanyThemeColors(resp.data);
+          applyCompanyThemeColors(resp.data);
+        }
+      } catch (error) {
+        console.error("[BaseLayout] Error loading company:", error);
       }
     };
 
     loadCompany();
-  }, [currentClinic?.company_id]);
+  }, [currentClinic?.company_id, currentUser?.company_id]);
 
   // Listen for company updates
   useEffect(() => {

@@ -83,10 +83,7 @@ def create_user_public(
         except Exception:
             pass
     
-    # Set auth_provider based on google_account_connected for new users
-    if up.get('google_account_connected'):
-        up['auth_provider'] = 'google'
-    else:
+    if up.get('auth_provider') not in ('email', 'google'):
         up['auth_provider'] = 'email'
 
     db_user = User(

@@ -1,8 +1,10 @@
-import React from "react"
+import React, { useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Clinic } from "@/lib/db/schema-interface"
+import { Eye, EyeOff } from "lucide-react"
 
 interface ProfileTabProps {
   localClinic: Partial<Clinic>
@@ -10,6 +12,8 @@ interface ProfileTabProps {
 }
 
 export function ProfileTab({ localClinic, onClinicChange }: ProfileTabProps) {
+  const [showPin, setShowPin] = useState(false)
+
   return (
     <div className="space-y-6">
       <Card className="">
@@ -67,29 +71,54 @@ export function ProfileTab({ localClinic, onClinicChange }: ProfileTabProps) {
         </CardContent>
       </Card>
 
-      <Card className="">
-        <CardHeader>
-          <CardTitle className="text-right">אבטחת כניסה למרפאה</CardTitle>
-          <p className="text-sm text-muted-foreground text-right">
-            קוד ה-PIN מאשר את המכשיר ומאפשר כניסה ללא סיסמה למשתמשים שהוגדרו כך
-          </p>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="clinic_entry_pin" className="text-right block text-sm">
-                {localClinic.has_entry_pin ? "קוד PIN חדש" : "קוד PIN למרפאה"}
-              </Label>
-              <Input
-                id="clinic_entry_pin"
-                type="password"
-                value={localClinic.entry_pin || ''}
-                onChange={(e) => onClinicChange('entry_pin', e.target.value)}
-                placeholder={localClinic.has_entry_pin ? "השאר ריק כדי לא לשנות" : "לפחות 4 תווים"}
-                className="text-right h-9"
-                dir="rtl"
-              />
+      <Card dir="rtl">
+        <CardContent className="px-5">
+          <div className="grid grid-cols-1 gap-5 md:grid-cols-[minmax(340px,520px)_minmax(260px,1fr)] md:items-stretch">
+
+            <div className="order-1 flex flex-col justify-center rounded-md border bg-muted/25 p-4 text-right md:order-2">
+              <p className="text-sm font-medium">מה הקוד עושה?</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                הקוד מאשר את המכשיר לכניסה למרפאה. אחרי שינוי הקוד, מכשירים קיימים יצטרכו אימות מחדש.
+              </p>
             </div>
+            <div className="order-2 space-y-4 text-right md:order-1">
+              <div>
+                <CardTitle className="text-right text-lg">אבטחת כניסה למרפאה</CardTitle>
+                <p className="mt-1 text-right text-sm text-muted-foreground">
+                  שינוי הקוד יבטל אישורי מכשירים קיימים.
+                </p>
+              </div>
+
+              <div className="w-full max-w-sm space-y-2">
+                <Label htmlFor="clinic_entry_pin" className="block text-right text-sm">
+                  {localClinic.has_entry_pin ? "קוד PIN חדש" : "קוד PIN למרפאה"}
+                </Label>
+                <div className="relative">
+                  <Input
+                    id="clinic_entry_pin"
+                    type={showPin ? "text" : "password"}
+                    autoComplete="new-password"
+                    maxLength={32}
+                    value={localClinic.entry_pin || ''}
+                    onChange={(e) => onClinicChange('entry_pin', e.target.value)}
+                    placeholder={localClinic.has_entry_pin ? "השאר ריק כדי לא לשנות" : "לפחות 4 תווים"}
+                    className="h-9 pl-10 text-right"
+                    dir="rtl"
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowPin((value) => !value)}
+                    className="absolute left-1 top-0.5 h-8 w-8 p-0"
+                    aria-label={showPin ? "הסתר PIN" : "הצג PIN"}
+                  >
+                    {showPin ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </Button>
+                </div>
+              </div>
+            </div>
+
           </div>
         </CardContent>
       </Card>
@@ -191,4 +220,3 @@ export function ProfileTab({ localClinic, onClinicChange }: ProfileTabProps) {
     </div>
   )
 }
-

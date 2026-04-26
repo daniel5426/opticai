@@ -100,6 +100,7 @@ class AuthService {
         console.warn('[Auth] Error getting Supabase session:', error)
         await this.restoreLocalSession()
         this.setupAuthListener()
+        this.setupUnauthorizedListener()
         this.initialized = true
         console.log('[Auth] Initialization complete, state:', this.state)
         return
@@ -123,6 +124,8 @@ class AuthService {
       console.error('[Auth] Initialization failed:', error)
       
       await this.restoreLocalSession()
+      this.setupAuthListener()
+      this.setupUnauthorizedListener()
       this.initialized = true
     }
   }

@@ -37,9 +37,17 @@ def create_clinic(
 
     clinic_payload = clinic.dict()
     clinic_payload.pop("has_entry_pin", None)
-    print(clinic_payload)
+    entry_pin = (clinic_payload.pop("entry_pin", None) or "").strip()
+    if len(entry_pin) < 4:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Clinic PIN must be at least 4 characters")
+    if len(entry_pin.encode("utf-8")) > 72:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Clinic PIN must be 72 bytes or fewer")
     
-    db_clinic = Clinic(**clinic_payload)
+    db_clinic = Clinic(
+        **clinic_payload,
+        entry_pin_hash=get_password_hash(entry_pin),
+        entry_pin_version=1,
+    )
     db.add(db_clinic)
     db.commit()
     db.refresh(db_clinic)
@@ -128,10 +136,16 @@ def update_clinic(
     update_data = clinic.dict(exclude_unset=True)
     entry_pin = update_data.pop("entry_pin", None)
     if entry_pin is not None:
-        if len(entry_pin.strip()) < 4:
+        entry_pin = entry_pin.strip()
+        if not entry_pin:
+            entry_pin = None
+        elif len(entry_pin) < 4:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Clinic PIN must be at least 4 characters")
-        db_clinic.entry_pin_hash = get_password_hash(entry_pin.strip())
-        db_clinic.entry_pin_version = (db_clinic.entry_pin_version or 1) + 1
+        elif len(entry_pin.encode("utf-8")) > 72:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Clinic PIN must be 72 bytes or fewer")
+        if entry_pin:
+            db_clinic.entry_pin_hash = get_password_hash(entry_pin)
+            db_clinic.entry_pin_version = (db_clinic.entry_pin_version or 1) + 1
 
     for field, value in update_data.items():
         if field == "has_entry_pin":

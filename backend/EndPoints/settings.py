@@ -122,10 +122,16 @@ def save_all(payload: SaveAllRequest, db: Session = Depends(get_db), request: Re
             entry_pin = cl_update.pop('entry_pin', None)
             cl_update.pop('has_entry_pin', None)
             if entry_pin is not None:
-                if len(entry_pin.strip()) < 4:
+                entry_pin = entry_pin.strip()
+                if not entry_pin:
+                    entry_pin = None
+                elif len(entry_pin) < 4:
                     raise HTTPException(status_code=400, detail="Clinic PIN must be at least 4 characters")
-                db_clinic.entry_pin_hash = get_password_hash(entry_pin.strip())
-                db_clinic.entry_pin_version = (db_clinic.entry_pin_version or 1) + 1
+                elif len(entry_pin.encode("utf-8")) > 72:
+                    raise HTTPException(status_code=400, detail="Clinic PIN must be 72 bytes or fewer")
+                if entry_pin:
+                    db_clinic.entry_pin_hash = get_password_hash(entry_pin)
+                    db_clinic.entry_pin_version = (db_clinic.entry_pin_version or 1) + 1
             if cl_update.get('clinic_logo_path'):
                 try:
                     cl_update['clinic_logo_path'] = upload_base64_image(cl_update['clinic_logo_path'], f"clinics/{payload.clinic_id}/logos")

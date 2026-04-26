@@ -126,6 +126,17 @@ export default function AuthCallbackPage() {
     handleCallback()
   }, [])
 
+  const returnHome = () => {
+    try {
+      localStorage.removeItem('lastAppPath')
+      localStorage.removeItem('lastAppContext')
+      localStorage.removeItem('pendingClinicUserId')
+      localStorage.removeItem('isClinicGoogleAuth')
+    } catch {}
+
+    window.location.replace('/')
+  }
+
   return (
     <div style={{ 
       display: 'flex', 
@@ -161,7 +172,7 @@ export default function AuthCallbackPage() {
               {isWebRedirect ? 'מיד תועבר חזרה לאפליקציה...' : 'החלון ייסגר אוטומטית.'}
             </p>
             <button 
-              onClick={() => window.location.href = '/'}
+              onClick={returnHome}
               style={buttonStyle}
             >
               המשך לאפליקציה
@@ -175,7 +186,7 @@ export default function AuthCallbackPage() {
             <h2 style={{ fontSize: '1.25rem', fontWeight: 600, color: '#dc2626' }}>שגיאה בהתחברות</h2>
             <p style={{ color: '#ef4444', marginTop: '0.5rem', fontSize: '0.875rem' }}>{errorMessage}</p>
             <button 
-              onClick={() => window.location.href = '/'}
+              onClick={returnHome}
               style={{ ...buttonStyle, backgroundColor: '#64748b' }}
             >
               חזרה לדף הבית

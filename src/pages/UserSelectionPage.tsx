@@ -10,6 +10,23 @@ import { toast } from 'sonner'
 import { apiClient } from '@/lib/api-client'
 import { authService } from '@/lib/auth/AuthService'
 
+const usesGoogleAuth = (user: User) =>
+  user.auth_provider === 'google'
+
+const usesSupabaseEmailPassword = (user: User) =>
+  !user.has_password &&
+  !usesGoogleAuth(user) &&
+  !!user.email &&
+  isRoleAtLeast(user.role_level, ROLE_LEVELS.ceo)
+
+const usesPasswordAuth = (user: User) =>
+  !!user.has_password || usesSupabaseEmailPassword(user)
+
+const usesPasswordlessAuth = (user: User) =>
+  !user.has_password &&
+  !usesGoogleAuth(user) &&
+  !isRoleAtLeast(user.role_level, ROLE_LEVELS.ceo)
+
 export default function UserSelectionPage() {
   const [users, setUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
@@ -77,9 +94,11 @@ export default function UserSelectionPage() {
     setIsLoggingIn(true)
     try {
       console.log('[UserSelection] Password login for:', selectedUser.username)
-      
-      const user = await authService.signInClinicUser(selectedUser.username, password)
-      
+
+      const user = usesSupabaseEmailPassword(selectedUser)
+        ? await signInSupabaseClinicUser(selectedUser, password)
+        : await authService.signInClinicUser(selectedUser.username, password)
+
       if (user) {
         authService.setClinicSession(selectedClinic, user)
       } else {
@@ -95,9 +114,19 @@ export default function UserSelectionPage() {
     }
   }
 
+  const signInSupabaseClinicUser = async (user: User, userPassword: string): Promise<User | null> => {
+    if (!user.email) return null
+
+    const success = await authService.signInWithEmail(user.email, userPassword)
+    if (!success) return null
+
+    const currentUserResponse = await apiClient.getCurrentUser({ suppressUnauthorized: true })
+    return (currentUserResponse.data as User | undefined) || user
+  }
+
   const handlePasswordlessLogin = async () => {
     if (!selectedUser) return
-    if (isRoleAtLeast(selectedUser.role_level, ROLE_LEVELS.ceo) || selectedUser.has_password) {
+    if (!usesPasswordlessAuth(selectedUser)) {
       toast.error('משתמש זה חייב להתחבר עם סיסמה או Google')
       return
     }
@@ -122,7 +151,7 @@ export default function UserSelectionPage() {
   }
 
   const handleGoogleLogin = async () => {
-    if (!selectedUser?.google_account_connected) return
+    if (!selectedUser || !usesGoogleAuth(selectedUser)) return
 
     setIsLoggingIn(true)
     try {
@@ -163,14 +192,12 @@ export default function UserSelectionPage() {
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && selectedUser) {
-      if (selectedUser.has_password && password) {
+      if (usesPasswordAuth(selectedUser) && password) {
         handlePasswordLogin()
-      } else if (!selectedUser.has_password && !isRoleAtLeast(selectedUser.role_level, ROLE_LEVELS.ceo)) {
-        if (selectedUser.auth_provider === 'google') {
-          handleGoogleLogin()
-        } else {
-          handlePasswordlessLogin()
-        }
+      } else if (usesGoogleAuth(selectedUser)) {
+        handleGoogleLogin()
+      } else if (usesPasswordlessAuth(selectedUser)) {
+        handlePasswordlessLogin()
       }
     }
     if (e.key === 'Escape' && selectedUser) {
@@ -359,6 +386,7 @@ function UserAvatar({ user, loadedImages, size = 'md' }: { user: User; loadedIma
 function UserCard({ user, index, loadedImages, onSelect }: any) {
   const roleText = getRoleLabel(user.role_level)
   const roleVariant = getRoleBadgeVariant(user.role_level)
+  const showPasswordBadge = usesPasswordAuth(user)
 
   return (
     <div
@@ -371,7 +399,7 @@ function UserCard({ user, index, loadedImages, onSelect }: any) {
       <div className="relative mb-3 transform transition-all duration-500 ease-out group-hover:scale-110 group-hover:-translate-y-2">
         <UserAvatar user={user} loadedImages={loadedImages} size="sm" />
         
-        {user.has_password && (
+        {showPasswordBadge && (
           <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-emerald-100 dark:bg-emerald-900 border-2 border-white dark:border-slate-950 rounded-full flex items-center justify-center transform transition-all duration-300 group-hover:scale-110">
             <svg className="w-3 h-3 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
@@ -409,8 +437,9 @@ function UserLoginPanel({
   const roleText = getRoleLabel(user.role_level)
   
   const roleVariant = getRoleBadgeVariant(user.role_level)
-  const isPrivileged = isRoleAtLeast(user.role_level, ROLE_LEVELS.ceo)
-  const canUsePasswordless = !user.has_password && !isPrivileged && user.auth_provider !== 'google'
+  const canUseGoogle = usesGoogleAuth(user)
+  const canUsePassword = usesPasswordAuth(user)
+  const canUsePasswordless = usesPasswordlessAuth(user)
 
   return (
     <div 
@@ -435,7 +464,7 @@ function UserLoginPanel({
       </div>
 
       <Card className="w-full max-w-sm p-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
-        {user.auth_provider === 'google' ? (
+        {canUseGoogle ? (
           <div className="text-center space-y-4" dir="rtl">
             <p className="text-slate-600 dark:text-slate-400">
               התחברות עם Google עבור משתמש זה
@@ -464,7 +493,7 @@ function UserLoginPanel({
               </Button>
             </div>
           </div>
-        ) : user.has_password ? (
+        ) : canUsePassword ? (
           <div className="space-y-4" dir="rtl">
             <div className="space-y-2">
               <Label htmlFor="password" className="text-slate-700 dark:text-slate-300">

@@ -55,6 +55,7 @@ class ClinicBase(BaseModel):
 
 class ClinicCreate(ClinicBase):
     company_id: int
+    entry_pin: Optional[str] = None
 
 class ClinicUpdate(ClinicBase):
     name: Optional[str] = None

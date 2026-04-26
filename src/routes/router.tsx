@@ -97,10 +97,16 @@ export const router = createRouter({
 if (typeof window !== 'undefined') {
   const pathWithSearch = `${history.location.pathname}${history.location.search}${history.location.hash}`;
   try {
-    localStorage.setItem('lastAppPath', pathWithSearch);
-    const isControlCenterContext =
-      history.location.pathname === '/' || history.location.pathname.startsWith('/control-center');
-    localStorage.setItem('lastAppContext', isControlCenterContext ? 'control-center' : 'clinic');
+    const isCallbackRoute =
+      history.location.pathname === '/auth/callback' ||
+      history.location.pathname === '/oauth/callback';
+
+    if (!isCallbackRoute) {
+      localStorage.setItem('lastAppPath', pathWithSearch);
+      const isControlCenterContext =
+        history.location.pathname === '/' || history.location.pathname.startsWith('/control-center');
+      localStorage.setItem('lastAppContext', isControlCenterContext ? 'control-center' : 'clinic');
+    }
   } catch (error) {
     console.error('[Router] Failed to persist initial path/context:', error);
   }

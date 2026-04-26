@@ -1,8 +1,8 @@
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
 import requests
+import bcrypt
 from jose import jwt, JWTError
-from passlib.context import CryptContext
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
@@ -13,7 +13,6 @@ from models import User
 from schemas import TokenData
 from config import settings
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 security = HTTPBearer()
 
 _jwks_cache: Dict[str, Any] = {}
@@ -127,7 +126,18 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(securit
         raise credentials_exception
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return pwd_context.verify(plain_password, hashed_password)
+    if not plain_password or not hashed_password:
+        return False
+    raw_password = plain_password.encode("utf-8")
+    if len(raw_password) > 72:
+        return False
+    try:
+        return bcrypt.checkpw(raw_password, hashed_password.encode("utf-8"))
+    except ValueError:
+        return False
 
 def get_password_hash(password: str) -> str:
-    return pwd_context.hash(password)
+    raw_password = password.encode("utf-8")
+    if len(raw_password) > 72:
+        raise ValueError("password cannot be longer than 72 bytes")
+    return bcrypt.hashpw(raw_password, bcrypt.gensalt()).decode("utf-8")
