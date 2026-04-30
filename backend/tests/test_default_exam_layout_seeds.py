@@ -183,6 +183,58 @@ def test_default_layouts_endpoint_returns_scoped_active_non_group_defaults():
     assert all(item["is_active"] and not item["is_group"] for item in payload)
 
 
+def test_create_custom_layout_cannot_set_seed_metadata():
+    SessionLocal = _session_factory()
+    db = SessionLocal()
+    try:
+        company, clinic = _company_and_clinic(db)
+        user = User(company_id=company.id, clinic_id=clinic.id, username="manager", role_level=2, is_active=True)
+        db.add(user)
+        db.commit()
+        clinic_id = clinic.id
+        user_id = user.id
+    finally:
+        db.close()
+
+    def override_get_db():
+        session = SessionLocal()
+        try:
+            yield session
+        finally:
+            session.close()
+
+    def override_current_user():
+        session = SessionLocal()
+        try:
+            return session.query(User).filter(User.id == user_id).one()
+        finally:
+            session.close()
+
+    app = FastAPI()
+    app.include_router(exam_layouts_endpoint.router, prefix="/api/v1")
+    app.dependency_overrides[get_db] = override_get_db
+    app.dependency_overrides[exam_layouts_endpoint.get_current_user] = override_current_user
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/v1/exam-layouts/",
+            json={
+                "clinic_id": clinic_id,
+                "name": "Custom",
+                "layout_data": "{}",
+                "is_seeded_default": True,
+                "seed_key": "should-not-stick",
+                "seed_version": 99,
+            },
+        )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["seed_key"] is None
+    assert payload["seed_version"] is None
+    assert payload["is_seeded_default"] is False
+
+
 def test_create_clinic_endpoint_seeds_defaults():
     SessionLocal = _session_factory()
     db = SessionLocal()

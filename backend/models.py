@@ -1,6 +1,6 @@
 from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text, Float, ForeignKey, Date, JSON, Index, UniqueConstraint
 from sqlalchemy.orm import relationship, backref
-from sqlalchemy.sql import func
+from sqlalchemy.sql import func, false
 from database import Base
 
 class Company(Base):
@@ -328,7 +328,7 @@ class ExamLayout(Base):
     type = Column(String, nullable=True) # "contact lens", "glass", "global"
     seed_key = Column(String, nullable=True)
     seed_version = Column(Integer, nullable=True)
-    is_seeded_default = Column(Boolean, nullable=False, default=False)
+    is_seeded_default = Column(Boolean, nullable=False, default=False, server_default=false())
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     

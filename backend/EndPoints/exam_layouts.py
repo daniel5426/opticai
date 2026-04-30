@@ -114,6 +114,9 @@ def create_exam_layout(
     layout_data = layout.dict()
     target_clinic = normalize_clinic_id_for_company(db, current_user, layout_data.get('clinic_id'))
     layout_data['clinic_id'] = target_clinic
+    layout_data['seed_key'] = None
+    layout_data['seed_version'] = None
+    layout_data['is_seeded_default'] = False
     parent_id = layout_data.get('parent_layout_id')
     parent_layout = None
     if parent_id is not None:
@@ -211,6 +214,8 @@ def update_exam_layout(
         raise HTTPException(status_code=403, detail="Cannot update layout for other clinics")
     
     payload = layout.dict(exclude_unset=True)
+    for field in ("seed_key", "seed_version", "is_seeded_default"):
+        payload.pop(field, None)
     old_parent_id = db_layout.parent_layout_id
     new_parent_id = payload.get("parent_layout_id", db_layout.parent_layout_id)
     if new_parent_id == db_layout.id:
@@ -348,6 +353,7 @@ def create_exam_layout_group(
         name=name,
         layout_data="{}",
         is_group=True,
+        is_seeded_default=False,
         sort_index=max_root + 1,
         parent_layout_id=None
     )
