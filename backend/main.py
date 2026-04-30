@@ -6,8 +6,6 @@ from fastapi.middleware.gzip import GZipMiddleware
 import logging
 from fastapi.middleware.cors import CORSMiddleware
 import config
-from database import engine
-from models import Base
 from EndPoints import auth, companies, clinics, users, clients, families, appointments, medical_logs, orders, referrals, files, settings, work_shifts, lookups, campaigns, billing, chats, email_logs, exam_layouts, exams, unified_exam_data, ai, ai_sidebar, control_center, dashboard, search, whatsapp_webhook, whatsapp
 import httpx
 import json
@@ -31,19 +29,6 @@ app.add_middleware(
 )
 
 app.add_middleware(GZipMiddleware, minimum_size=1024)
-
-Base.metadata.create_all(bind=engine)
-
-def ensure_auth_columns():
-    from sqlalchemy import text
-    try:
-        with engine.begin() as conn:
-            conn.execute(text("ALTER TABLE clinics ADD COLUMN IF NOT EXISTS entry_pin_hash VARCHAR"))
-            conn.execute(text("ALTER TABLE clinics ADD COLUMN IF NOT EXISTS entry_pin_version INTEGER NOT NULL DEFAULT 1"))
-    except Exception as exc:
-        logging.warning("Auth schema guard skipped or failed: %s", exc)
-
-ensure_auth_columns()
 
 # Seed initial data
 from database import get_db

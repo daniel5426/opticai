@@ -1,9 +1,11 @@
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
-from sqlalchemy import or_, and_, func, literal, cast, String, case
+from sqlalchemy import or_, func, literal, cast, String, case
 from typing import Optional
 from database import get_db
-from models import Client, OpticalExam, MedicalLog, Family, Referral, Appointment, Campaign
+from models import Client, OpticalExam, MedicalLog, Family, Referral, Appointment, Campaign, User
+from auth import get_current_user
+from security.scope import get_allowed_clinic_ids
 
 router = APIRouter(prefix="/search", tags=["search"])
 
@@ -15,6 +17,7 @@ def unified_search(
     limit: int = Query(20, ge=1, le=200),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     # Split query into individual terms for better matching
     search_terms = q.strip().split()
@@ -23,6 +26,10 @@ def unified_search(
 
     # If no valid search terms, return empty result
     if not search_terms or all(not term.strip() for term in search_terms):
+        return {"items": [], "total": 0}
+
+    allowed_clinic_ids = get_allowed_clinic_ids(db, current_user, clinic_id)
+    if not allowed_clinic_ids:
         return {"items": [], "total": 0}
 
     # Create efficient search conditions for each entity type
@@ -66,8 +73,7 @@ def unified_search(
     clients_filter = []
     if client_condition is not None:
         clients_filter.append(client_condition)
-    if clinic_id is not None:
-        clients_filter.append(Client.clinic_id == clinic_id)
+    clients_filter.append(Client.clinic_id.in_(allowed_clinic_ids))
 
     clients_q = db.query(
         literal("client").label("type"),
@@ -90,8 +96,7 @@ def unified_search(
     exams_filter = []
     if exam_condition is not None:
         exams_filter.append(exam_condition)
-    if clinic_id is not None:
-        exams_filter.append(OpticalExam.clinic_id == clinic_id)
+    exams_filter.append(OpticalExam.clinic_id.in_(allowed_clinic_ids))
 
     exams_q = db.query(
         literal("exam").label("type"),
@@ -114,8 +119,7 @@ def unified_search(
     medical_filter = []
     if medical_condition is not None:
         medical_filter.append(medical_condition)
-    if clinic_id is not None:
-        medical_filter.append(MedicalLog.clinic_id == clinic_id)
+    medical_filter.append(MedicalLog.clinic_id.in_(allowed_clinic_ids))
 
     medical_q = db.query(
         literal("medical-log").label("type"),
@@ -138,8 +142,7 @@ def unified_search(
     families_filter = []
     if family_condition is not None:
         families_filter.append(family_condition)
-    if clinic_id is not None:
-        families_filter.append(Family.clinic_id == clinic_id)
+    families_filter.append(Family.clinic_id.in_(allowed_clinic_ids))
 
     families_q = db.query(
         literal("family").label("type"),
@@ -165,8 +168,7 @@ def unified_search(
     referrals_filter = []
     if referral_condition is not None:
         referrals_filter.append(referral_condition)
-    if clinic_id is not None:
-        referrals_filter.append(Referral.clinic_id == clinic_id)
+    referrals_filter.append(Referral.clinic_id.in_(allowed_clinic_ids))
 
     referrals_q = db.query(
         literal("referral").label("type"),
@@ -192,8 +194,7 @@ def unified_search(
     appointments_filter = []
     if appointment_condition is not None:
         appointments_filter.append(appointment_condition)
-    if clinic_id is not None:
-        appointments_filter.append(Appointment.clinic_id == clinic_id)
+    appointments_filter.append(Appointment.clinic_id.in_(allowed_clinic_ids))
 
     appointments_q = db.query(
         literal("appointment").label("type"),
@@ -216,8 +217,7 @@ def unified_search(
     campaigns_filter = []
     if campaign_condition is not None:
         campaigns_filter.append(campaign_condition)
-    if clinic_id is not None:
-        campaigns_filter.append(Campaign.clinic_id == clinic_id)
+    campaigns_filter.append(Campaign.clinic_id.in_(allowed_clinic_ids))
 
     campaigns_q = db.query(
         literal("campaign").label("type"),
@@ -267,11 +267,10 @@ def unified_search(
             "title": r[2],
             "subtitle": r[3],
             "description": r[4],
-            "client_id": r[6],
+            "client_id": r[7],
         }
         for r in rows
     ]
 
     return {"items": items, "total": total}
-
 

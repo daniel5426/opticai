@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text, Float, ForeignKey, Date, JSON, Index
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text, Float, ForeignKey, Date, JSON, Index, UniqueConstraint
 from sqlalchemy.orm import relationship, backref
 from sqlalchemy.sql import func
 from database import Base
@@ -99,6 +99,33 @@ class User(Base):
     @property
     def has_password(self):
         return bool(self.password and self.password.strip())
+
+class MigrationSourceLink(Base):
+    __tablename__ = "migration_source_links"
+    __table_args__ = (
+        UniqueConstraint(
+            "source_system",
+            "target_model",
+            "clinic_id",
+            "raw_row_ref",
+            name="uq_migration_source_links_source_target",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    source_system = Column(String, nullable=False)
+    source_table = Column(String, nullable=False)
+    raw_row_ref = Column(String, nullable=False)
+    source_primary_key_parts = Column(JSON, nullable=False)
+    source_per_id = Column(Integer)
+    source_user_id = Column(Integer)
+    target_model = Column(String, nullable=False)
+    target_id = Column(Integer, nullable=False)
+    clinic_id = Column(Integer, ForeignKey("clinics.id"), nullable=False)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False)
+    payload = Column(JSON, nullable=False, default=dict)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
 class Family(Base):
     __tablename__ = "families"
@@ -655,6 +682,9 @@ class LookupVADecimal(Base):
 
 
 # Indexes to speed up common client list queries
+Index('ix_families_company_clinic_id', Family.company_id, Family.clinic_id, Family.id)
+Index('ix_families_company_clinic_name', Family.company_id, Family.clinic_id, Family.name)
+Index('ix_families_clinic_name', Family.clinic_id, Family.name)
 Index('ix_clients_clinic_id', Client.clinic_id)
 Index('ix_clients_clinic_id_id_desc', Client.clinic_id, Client.id.desc())
 Index('ix_clients_family_id', Client.family_id)
@@ -696,6 +726,8 @@ Index('ix_families_clinic_created', Family.clinic_id, Family.created_date.desc()
 Index('ix_users_clinic_id', User.clinic_id)
 Index('ix_users_is_active', User.is_active)
 Index('ix_settings_clinic_id', Settings.clinic_id)
+Index('ix_migration_source_links_source', MigrationSourceLink.source_system, MigrationSourceLink.source_table, MigrationSourceLink.clinic_id)
+Index('ix_migration_source_links_target', MigrationSourceLink.target_model, MigrationSourceLink.target_id)
 
 Index('ix_exam_layout_instances_exam_id', ExamLayoutInstance.exam_id)
 Index('ix_exam_layout_instances_exam_id_is_active', ExamLayoutInstance.exam_id, ExamLayoutInstance.is_active)

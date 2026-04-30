@@ -11,6 +11,8 @@ from models import (
     LookupManufacturingLab, LookupAdvisor, LookupVAMeter, LookupVADecimal
 )
 from pydantic import BaseModel
+from auth import get_current_user
+from models import User
 
 router = APIRouter(prefix="/lookups", tags=["lookups"])
 
@@ -45,6 +47,11 @@ class LookupCreate(BaseModel):
 class LookupUpdate(BaseModel):
     name: str
 
+
+def _require_lookup_write(current_user: User) -> None:
+    if (current_user.role_level or 1) < 3:
+        raise HTTPException(status_code=403, detail="Access denied")
+
 @router.get("/types")
 def get_lookup_types():
     return {"lookup_types": list(LOOKUP_MODELS.keys())}
@@ -67,7 +74,13 @@ def get_all_lookups(lookup_type: str, db: Session = Depends(get_db)):
     ]
 
 @router.post("/{lookup_type}")
-def create_lookup(lookup_type: str, lookup: LookupCreate, db: Session = Depends(get_db)):
+def create_lookup(
+    lookup_type: str,
+    lookup: LookupCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    _require_lookup_write(current_user)
     if lookup_type not in LOOKUP_MODELS:
         raise HTTPException(status_code=400, detail=f"Invalid lookup type: {lookup_type}")
     
@@ -107,7 +120,14 @@ def get_lookup(lookup_type: str, lookup_id: int, db: Session = Depends(get_db)):
     }
 
 @router.put("/{lookup_type}/{lookup_id}")
-def update_lookup(lookup_type: str, lookup_id: int, lookup: LookupUpdate, db: Session = Depends(get_db)):
+def update_lookup(
+    lookup_type: str,
+    lookup_id: int,
+    lookup: LookupUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    _require_lookup_write(current_user)
     if lookup_type not in LOOKUP_MODELS:
         raise HTTPException(status_code=400, detail=f"Invalid lookup type: {lookup_type}")
     
@@ -136,7 +156,13 @@ def update_lookup(lookup_type: str, lookup_id: int, lookup: LookupUpdate, db: Se
     }
 
 @router.delete("/{lookup_type}/{lookup_id}")
-def delete_lookup(lookup_type: str, lookup_id: int, db: Session = Depends(get_db)):
+def delete_lookup(
+    lookup_type: str,
+    lookup_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    _require_lookup_write(current_user)
     if lookup_type not in LOOKUP_MODELS:
         raise HTTPException(status_code=400, detail=f"Invalid lookup type: {lookup_type}")
     
@@ -148,4 +174,4 @@ def delete_lookup(lookup_type: str, lookup_id: int, db: Session = Depends(get_db
     
     db.delete(lookup)
     db.commit()
-    return {"message": "Lookup deleted successfully"} 
+    return {"message": "Lookup deleted successfully"}

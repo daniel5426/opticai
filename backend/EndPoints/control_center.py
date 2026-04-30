@@ -7,6 +7,8 @@ from models import Company, Clinic, User as UserModel, Appointment
 from datetime import date, datetime, timedelta
 from schemas import Company as CompanySchema, Clinic as ClinicSchema, User as UserSchema
 from sqlalchemy import func
+from auth import get_current_user
+from security.scope import require_company_admin
 
 router = APIRouter(prefix="/control-center", tags=["control-center"])
 
@@ -113,7 +115,9 @@ def _sum_company_revenue(db: Session, company_id: int, start_date: date, end_dat
 def get_dashboard_data(
     company_id: int,
     db: Session = Depends(get_db),
+    current_user: UserModel = Depends(get_current_user),
 ) -> Dict[str, Any]:
+    require_company_admin(db, current_user, company_id)
     today = datetime.utcnow().date()
     month_start = _month_start(today)
     next_month_start = _next_month(month_start)
@@ -152,7 +156,13 @@ def get_dashboard_data(
 
 
 @router.get("/stats/overview/{company_id}")
-def stats_overview(company_id: int, range: str = "30d", db: Session = Depends(get_db)) -> Dict[str, Any]:
+def stats_overview(
+    company_id: int,
+    range: str = "30d",
+    db: Session = Depends(get_db),
+    current_user: UserModel = Depends(get_current_user),
+) -> Dict[str, Any]:
+    require_company_admin(db, current_user, company_id)
     from models import Billing as BillingModel, Client as ClientModel, ContactLensOrder as CLOModel, Order as OrderModel
 
     granularity, start_date, keys, labels = _get_range_definition(range)
@@ -234,7 +244,12 @@ def stats_overview(company_id: int, range: str = "30d", db: Session = Depends(ge
     return {"range": range, "items": [items_map[key] for key in keys]}
 
 @router.get("/stats/users-clients-per-clinic/{company_id}")
-def stats_users_clients_per_clinic(company_id: int, db: Session = Depends(get_db)) -> Dict[str, Any]:
+def stats_users_clients_per_clinic(
+    company_id: int,
+    db: Session = Depends(get_db),
+    current_user: UserModel = Depends(get_current_user),
+) -> Dict[str, Any]:
+    require_company_admin(db, current_user, company_id)
     clinic_rows = (
         db.query(Clinic.id, Clinic.name)
         .filter(Clinic.company_id == company_id)
@@ -270,7 +285,12 @@ def stats_users_clients_per_clinic(company_id: int, db: Session = Depends(get_db
     return {"items": data}
 
 @router.get("/stats/appointments-month-per-clinic/{company_id}")
-def stats_appointments_month_per_clinic(company_id: int, db: Session = Depends(get_db)) -> Dict[str, Any]:
+def stats_appointments_month_per_clinic(
+    company_id: int,
+    db: Session = Depends(get_db),
+    current_user: UserModel = Depends(get_current_user),
+) -> Dict[str, Any]:
+    require_company_admin(db, current_user, company_id)
     now = datetime.utcnow()
     month_start = datetime(now.year, now.month, 1)
     if now.month == 12:
@@ -292,7 +312,13 @@ def stats_appointments_month_per_clinic(company_id: int, db: Session = Depends(g
     return {"items": items}
 
 @router.get("/stats/new-clients-series/{company_id}")
-def stats_new_clients_series(company_id: int, months: int = 12, db: Session = Depends(get_db)) -> Dict[str, Any]:
+def stats_new_clients_series(
+    company_id: int,
+    months: int = 12,
+    db: Session = Depends(get_db),
+    current_user: UserModel = Depends(get_current_user),
+) -> Dict[str, Any]:
+    require_company_admin(db, current_user, company_id)
     from models import Client as ClientModel
     current_month = _month_start(datetime.utcnow().date())
     start_date = _shift_months(current_month, -(months - 1))
@@ -322,7 +348,13 @@ def stats_new_clients_series(company_id: int, months: int = 12, db: Session = De
     return {"items": series}
 
 @router.get("/stats/aov/{company_id}")
-def stats_average_order_value(company_id: int, months: int = 3, db: Session = Depends(get_db)) -> Dict[str, Any]:
+def stats_average_order_value(
+    company_id: int,
+    months: int = 3,
+    db: Session = Depends(get_db),
+    current_user: UserModel = Depends(get_current_user),
+) -> Dict[str, Any]:
+    require_company_admin(db, current_user, company_id)
     from models import Billing as BillingModel, Order as OrderModel, ContactLensOrder as CLOModel
     now = datetime.utcnow()
     start_year = now.year
@@ -360,7 +392,13 @@ def stats_average_order_value(company_id: int, months: int = 3, db: Session = De
     return {"aov": round(aov, 2)}
 
 @router.get("/stats/orders-by-type/{company_id}")
-def stats_orders_by_type(company_id: int, months: int = 6, db: Session = Depends(get_db)) -> Dict[str, Any]:
+def stats_orders_by_type(
+    company_id: int,
+    months: int = 6,
+    db: Session = Depends(get_db),
+    current_user: UserModel = Depends(get_current_user),
+) -> Dict[str, Any]:
+    require_company_admin(db, current_user, company_id)
     from models import Order as OrderModel
     now = datetime.utcnow()
     start_year = now.year
@@ -382,7 +420,14 @@ def stats_orders_by_type(company_id: int, months: int = 6, db: Session = Depends
     return {"items": items}
 
 @router.get("/stats/top-skus/{company_id}")
-def stats_top_skus(company_id: int, months: int = 6, limit: int = 10, db: Session = Depends(get_db)) -> Dict[str, Any]:
+def stats_top_skus(
+    company_id: int,
+    months: int = 6,
+    limit: int = 10,
+    db: Session = Depends(get_db),
+    current_user: UserModel = Depends(get_current_user),
+) -> Dict[str, Any]:
+    require_company_admin(db, current_user, company_id)
     from models import Billing as BillingModel, OrderLineItem as OLIModel, Order as OrderModel, ContactLensOrder as CLOModel
     now = datetime.utcnow()
     start_year = now.year
@@ -430,7 +475,9 @@ def stats_top_skus(company_id: int, months: int = 6, limit: int = 10, db: Sessio
 def get_users_page_data(
     company_id: int,
     db: Session = Depends(get_db),
+    current_user: UserModel = Depends(get_current_user),
 ) -> Dict[str, Any]:
+    require_company_admin(db, current_user, company_id)
     clinics = _get_company_clinics(db, company_id)
     users = _get_company_users(db, company_id)
     return {
@@ -442,9 +489,10 @@ def get_users_page_data(
 def get_clinics_page_data(
     company_id: int,
     db: Session = Depends(get_db),
+    current_user: UserModel = Depends(get_current_user),
 ) -> Dict[str, Any]:
+    require_company_admin(db, current_user, company_id)
     clinics = _get_company_clinics(db, company_id)
     return {
         "clinics": [ClinicSchema.model_validate(c).model_dump() for c in clinics],
     }
-

@@ -1,92 +1,133 @@
-# How to Release a New Version
+# How To Release Prysm
 
-## Quick Release (3 commands)
+Last Updated: 2026-04-30
 
-```bash
-# 1. Bump version
-npm version patch    # 1.0.1 → 1.0.2
-# OR
-npm version minor    # 1.0.1 → 1.1.0  
-# OR
-npm version major    # 1.0.1 → 2.0.0
+Use this runbook for production releases. Production uses:
+- Backend: Heroku
+- Database: Supabase Postgres
+- Schema changes: Alembic only
+- Desktop builds: GitHub Actions release workflow
 
-# 2. Push to GitHub
-git push origin main && git push origin --tags
+Never commit real `.env*` files. Production desktop env files are generated from GitHub Actions secrets.
 
-# 3. Wait ~15 minutes, then publish on GitHub!
-```
+## 1. Preflight
 
-for server:
-git push heroku main --force
-
-Run the subdirectory buildpack in front of the Python one and point it at backend/:
-heroku buildpacks:clear -a prysm-backend
-heroku buildpacks:add -a prysm-backend -i 1 https://github.com/timanovsky/subdir-heroku-buildpack
-heroku buildpacks:add -a prysm-backend -i 2 heroku/python
-heroku config:set -a prysm-backend PROJECT_PATH=backend
-
-
-## What Happens Automatically
-
-1. ✅ **GitHub Actions builds** for all platforms:
-   - macOS Apple Silicon (M1/M2/M3)
-   - macOS Intel
-   - Windows
-   - Linux (DEB & RPM)
-
-2. ✅ **Creates draft release** with all files attached
-
-3. ✅ **Generates release notes** automatically
-
-## Publishing the Release
-
-1. Go to: https://github.com/daniel5426/opticai/releases
-2. Find the **draft release** (e.g., "Release v1.0.2")
-3. Review the attached files and release notes
-4. Click **"Publish release"**
-
-## Monitoring the Build
-
-- **Actions**: https://github.com/daniel5426/opticai/actions
-- **Releases**: https://github.com/daniel5426/opticai/releases
-
-Build takes ~10-15 minutes.
-
-## Version Types
-
-- **`patch`**: Bug fixes (1.0.1 → 1.0.2)
-- **`minor`**: New features (1.0.1 → 1.1.0)  
-- **`major`**: Breaking changes (1.0.1 → 2.0.0)
-
-## Local Testing (Optional)
-
-Before releasing, test locally:
+From the repo root:
 
 ```bash
-# Test ARM64 build (M1/M2 Macs)
-npm run make:arm64
-
-# Test x64 build (Intel Macs)
-npm run make:x64
-
-# Clean up
-rm -rf test-arm64 test-x64
+git status --short
+npm run test
 ```
 
-## Troubleshooting
+For backend DB/schema work, also run:
 
-**Build fails?**
-- Check Actions tab for error logs
-- Common: Missing dependencies, Node version issues
+```bash
+cd backend
+python scripts/safe_migrate.py
+cd ..
+```
 
-**Release not created?**
-- Ensure tag starts with `v` (e.g., `v1.0.2`)
-- Push both commits AND tags
+Before production deploy:
+- Confirm Supabase has a fresh backup.
+- Confirm Heroku config has `APP_ENV=production`.
+- Confirm Heroku `DATABASE_URL` points to Supabase Postgres, not SQLite.
+- Confirm GitHub Actions secrets include:
+  - `VITE_API_URL`
+  - `VITE_SUPABASE_URL`
+  - `VITE_SUPABASE_ANON_KEY`
+  - Google/update secrets used by the Electron app
 
-**Wrong architecture?**
-- Use `make:arm64` for Apple Silicon
-- Use `make:x64` for Intel Macs
+## 2. Deploy Backend
 
----
+Deploy only the backend folder to Heroku:
 
-That's it! 🚀 Your app will be automatically built and ready for distribution.
+```bash
+git subtree push --prefix backend heroku main
+```
+
+If Heroku rejects the subtree push because history diverged:
+
+```bash
+git push heroku `git subtree split --prefix backend main`:main --force
+```
+
+Run migrations after deploy:
+
+```bash
+heroku run python scripts/safe_migrate.py -a prysm-backend
+```
+
+Verify backend:
+
+```bash
+curl https://prysm-backend.herokuapp.com/health
+curl https://prysm-backend.herokuapp.com/health/database
+heroku logs -n 100 -a prysm-backend
+```
+
+## 3. Smoke Test
+
+Before tagging the desktop release, verify against production backend:
+
+- Clinic session login
+- User login / user selection
+- Client create, edit, reload
+- Exam create, save, reload
+- Order create with billing line items
+- Appointment create/edit
+- File upload/read
+- Search
+- Logout and restart session restore
+
+If any schema change was included, confirm app startup did not create/alter tables by itself. Schema changes must come from Alembic.
+
+## 4. Tag Desktop Release
+
+Bump version and create a tag:
+
+```bash
+npm version patch
+git push origin main
+git push origin --tags
+```
+
+Use `npm version minor` for meaningful feature releases and `npm version major` only for breaking release changes.
+
+The tag must be `v*.*.*`; GitHub Actions builds the draft release from tags.
+
+## 5. Publish Release
+
+Watch the workflow:
+
+- Actions: https://github.com/daniel5426/opticai/actions
+- Releases: https://github.com/daniel5426/opticai/releases
+
+When the workflow succeeds:
+
+1. Open the draft GitHub release.
+2. Confirm Windows and macOS artifacts are attached.
+3. Review generated release notes.
+4. Publish the release.
+
+## 6. Rollback
+
+Backend rollback:
+
+```bash
+heroku releases -a prysm-backend
+heroku rollback v123 -a prysm-backend
+```
+
+Database rollback requires restoring the Supabase backup taken before migration. Do not run destructive downgrade migrations against production.
+
+Desktop rollback:
+- Keep the previous GitHub release available.
+- If needed, publish a new patch release pointing users back to a known-good build.
+
+## Release Rules
+
+- Backup production DB before every release with migrations.
+- Rotate exposed secrets immediately; never paste real keys into docs.
+- Do not use wildcard CORS in production unless explicitly setting `ALLOW_WILDCARD_CORS_IN_PRODUCTION=true` as a temporary emergency measure.
+- Do not edit production DB schema manually except for emergency recovery with a recorded SQL transcript.
+- Do not ship a desktop build unless backend health checks and clinic smoke test pass.

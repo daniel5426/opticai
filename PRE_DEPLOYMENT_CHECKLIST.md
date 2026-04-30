@@ -1,5 +1,7 @@
 # Pre-Deployment Checklist
 
+Last Updated: 2026-04-30
+
 Use this checklist before deploying OpticAI for the first time.
 
 ## ⚙️ Configuration
@@ -32,40 +34,37 @@ Use this checklist before deploying OpticAI for the first time.
 - [ ] Add PostgreSQL: `heroku addons:create heroku-postgresql:mini`
 - [ ] Set environment variables (see below)
 - [ ] Deploy backend: `git subtree push --prefix backend heroku main`
-- [ ] Verify backend works: `curl https://your-app.herokuapp.com/api/v1/health`
+- [ ] Run safe migrations: `heroku run python scripts/safe_migrate.py -a your-app-name`
+- [ ] Verify backend works: `curl https://your-app.herokuapp.com/health`
 
 #### Heroku Environment Variables
 
 ```bash
-# Security
+# Runtime
+heroku config:set APP_ENV=production
 heroku config:set SECRET_KEY="$(python -c 'import secrets; print(secrets.token_urlsafe(32))')"
 heroku config:set ACCESS_TOKEN_EXPIRE_MINUTES=0
+heroku config:set DATABASE_URL="postgresql://postgres:[password]@[host]:5432/postgres"
 
-# OpenAI
+# Integrations
 heroku config:set OPENAI_API_KEY="your-openai-api-key"
-
-# Supabase
-heroku config:set DATABASE_URL='postgresql://postgres.eoyqvffwzllggemzfxaw:rDb&9w*$rGVt4#z@aws-0-eu-central-1.pooler.supabase.com:6543/postgres'
-heroku config:set OPENAI_API_KEY=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
-heroku config:set SECRET_KEY=ntBesFwAGgWI3T0Htx9hokScM-E2U_pvX2vT0qTA0uw
-heroku config:set SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVveXF2ZmZ3emxsZ2dlbXpmeGF3Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1Mzk2MjA0MSwiZXhwIjoyMDY5NTM4MDQxfQ.PkBmwHTrdQz1Gpc5Mm_nfvSeDGxtiXQxosASvTYk69s'
+heroku config:set SUPABASE_KEY="your-supabase-anon-key"
 heroku config:set SUPABASE_BUCKET='opticai'
-heroku config:set SUPABASE_URL='https://eoyqvffwzllggemzfxaw.supabase.co'
-heroku config:set SUPABASE_SERVICE_ROLE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVveXF2ZmZ3emxsZ2dlbXpmeGF3Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1Mzk2MjA0MSwiZXhwIjoyMDY5NTM4MDQxfQ.PkBmwHTrdQz1Gpc5Mm_nfvSeDGxtiXQxosASvTYk69s'
-heroku config:set BACKEND_CORS_ORIGINS=http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174
-heroku config:set SUPABASE_JWT_SECRET='0JNwTlP0wZ44dF0H7uS+ckGeiC2C4IS/Q2CIL3n+nTniBV5hxo27cmeJn6sE401ubhVLcs6nN+LVIMT0JhgxRQ=='
+heroku config:set SUPABASE_URL="https://your-project.supabase.co"
+heroku config:set SUPABASE_SERVICE_ROLE_KEY="your-supabase-service-role-key"
+heroku config:set SUPABASE_JWT_SECRET="your-supabase-jwt-secret"
 
-# CORS
-heroku config:set BACKEND_CORS_ORIGINS="*"
+# Explicit origins only; wildcard CORS is blocked in production by default.
+heroku config:set BACKEND_CORS_ORIGINS="app://.,http://localhost:5173,http://127.0.0.1:5173"
 ```
 
 ### 3. Frontend Configuration
 
-- [ ] **Update .env.production** with your Heroku backend URL
+- [ ] Configure GitHub Actions secrets; CI generates `.env.production` / `.env.windows.production`
   ```env
   VITE_API_URL=https://your-app-name.herokuapp.com/api/v1
   VITE_SUPABASE_URL=your-supabase-url
-  VITE_SUPABASE_KEY=your-supabase-anon-key
+  VITE_SUPABASE_ANON_KEY=your-supabase-anon-key
   ```
 
 - [ ] **Verify .env.development** for local development
@@ -88,7 +87,7 @@ heroku config:set BACKEND_CORS_ORIGINS="*"
   - Add New repository secret:
     - `VITE_API_URL`: Your Heroku URL (e.g., https://your-app.herokuapp.com/api/v1)
     - `VITE_SUPABASE_URL`: Your Supabase project URL
-    - `VITE_SUPABASE_KEY`: Your Supabase anon key
+    - `VITE_SUPABASE_ANON_KEY`: Your Supabase anon key
   - Note: `GITHUB_TOKEN` is automatically provided
 
 ## 🧪 Testing
@@ -96,10 +95,10 @@ heroku config:set BACKEND_CORS_ORIGINS="*"
 ### Backend Testing
 
 - [ ] Backend runs locally: `cd backend && uvicorn main:app --reload --port 8001`
-- [ ] Database initialized: `python init_db.py` (if needed)
-- [ ] API endpoints respond: `curl http://localhost:8001/api/v1/health`
+- [ ] Database migrated: `cd backend && python scripts/safe_migrate.py`
+- [ ] API endpoints respond: `curl http://localhost:8001/health`
 - [ ] Backend deployed to Heroku successfully
-- [ ] Heroku API responds: `curl https://your-app.herokuapp.com/api/v1/health`
+- [ ] Heroku API responds: `curl https://your-app.herokuapp.com/health`
 
 ### Frontend Testing
 
@@ -194,8 +193,8 @@ $env:GITHUB_TOKEN="your-github-token"
 - Verify GitHub token has `repo` scope
 
 ### Backend connection errors
-- Verify `.env.production` has correct Heroku URL
-- Test backend: `curl https://your-app.herokuapp.com/api/v1/health`
+- Verify GitHub Actions generated env files have the correct Heroku URL
+- Test backend: `curl https://your-app.herokuapp.com/health`
 - Check Heroku logs: `heroku logs --tail`
 
 ### Build fails
@@ -244,4 +243,3 @@ Once all checkboxes are complete, you're ready to deploy!
 ---
 
 **Need Help?** Check the troubleshooting sections in DEPLOYMENT.md or open an issue on GitHub.
-

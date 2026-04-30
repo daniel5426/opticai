@@ -5,6 +5,8 @@ import models
 import config
 import httpx
 import logging
+from auth import get_current_user
+from security.scope import require_company_admin
 
 router = APIRouter(prefix="/whatsapp", tags=["whatsapp"])
 logger = logging.getLogger(__name__)
@@ -13,13 +15,15 @@ logger = logging.getLogger(__name__)
 async def connect_whatsapp(
     company_id: int,
     access_token: str = Body(..., embed=True),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ):
     """
     Automated onboarding for WhatsApp Embedded Signup.
     Exchanges a short-lived user token for a long-lived one, 
     detects the WABA and Phone Number ID, and saves them.
     """
+    require_company_admin(db, current_user, company_id)
     company = db.query(models.Company).filter(models.Company.id == company_id).first()
     if not company:
         raise HTTPException(status_code=404, detail="Company not found")

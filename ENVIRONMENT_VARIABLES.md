@@ -1,11 +1,13 @@
 # Environment Variables in OpticAI
 
+Last Updated: 2026-04-30
+
 ## Overview
 
 The application handles environment variables differently in development vs production:
 
-- **Development**: Loads from `.env.development` (or falls back to `.env`)
-- **Production**: Loads from `.env.production` (bundled as an extra resource)
+- **Development**: Uses ignored local env files based on `.env.example`
+- **Production**: CI generates `.env.production` / `.env.windows.production` from GitHub Secrets before packaging
 
 ## How It Works
 
@@ -21,7 +23,7 @@ npm run dev
 ```bash
 npm run make
 ```
-- The `.env.production` file is **packaged** as an extra resource
+- The generated `.env.production` file is **packaged** as an extra resource
 - Located at: `Prysm.app/Contents/Resources/.env.production`
 - Loaded at runtime from `process.resourcesPath`
 
@@ -79,8 +81,8 @@ VITE_SUPABASE_ANON_KEY='your-anon-key'
 ## Important Notes
 
 ### 🔒 Security
-- **Never commit** `.env`, `.env.development`, or `.env.production` to git
-- Add them to `.gitignore`
+- **Never commit** `.env`, `.env.*`, or backend secret files to git
+- `.gitignore` blocks env files except `.env.example`
 - Use `.env.example` as a template for other developers
 
 ### 🏗️ Build-Time vs Runtime
@@ -100,13 +102,12 @@ VITE_SUPABASE_ANON_KEY='your-anon-key'
 To change environment variables in a packaged app:
 
 1. **For end users**: You cannot change them without rebuilding
-2. **For developers**: 
+2. **For developers**:
    ```bash
-   # Edit .env.production
-   nano .env.production
+   # Update GitHub Actions secrets or create a local ignored .env.production
    
-   # Rebuild the app
-   npm run make
+   # Rebuild the app after regenerating env
+   npm run dist:win
    ```
 
 ### 🔄 Different Environments
@@ -114,11 +115,10 @@ To change environment variables in a packaged app:
 You can create different builds for different environments:
 
 ```bash
-# Copy the appropriate config
-cp .env.staging .env.production
+# Create an ignored .env.production from secrets or a secure local source
 
 # Build
-npm run make
+npm run dist:win
 
 # The app will now use staging environment
 ```
@@ -149,27 +149,27 @@ npm run make
 
 1. **Local Development**:
    ```bash
-   # Use .env.development for local backend
+   # Use an ignored .env.development for local frontend/backend URLs
    echo "VITE_API_URL='http://localhost:8001/api/v1'" > .env.development
    npm run dev
    ```
 
 2. **Testing Production Build**:
    ```bash
-   # Use .env.production for deployed backend
+   # Use an ignored .env.production or CI-generated production env file
    echo "VITE_API_URL='https://your-backend.herokuapp.com/api/v1'" > .env.production
-   npm run make
+   npm run dist:win
    ```
 
 3. **Distribution**:
-   - Ensure `.env.production` has production values
+   - Ensure GitHub Actions secrets produce the intended production values
    - Build and distribute the ZIP/DMG
    - Environment variables are embedded in the app
 
 ## Best Practices
 
-1. ✅ **Always** use `.env.development` for local development
-2. ✅ **Always** use `.env.production` for builds
+1. ✅ **Always** use ignored env files for local development
+2. ✅ **Always** generate production env files from secrets for release builds
 3. ✅ **Never** hardcode sensitive credentials in source code
 4. ✅ **Prefix** renderer variables with `VITE_`
 5. ✅ **Test** production builds before distribution
@@ -183,4 +183,3 @@ For more information, see:
 - [Vite Environment Variables](https://vitejs.dev/guide/env-and-mode.html)
 - [Electron Forge Packaging](https://www.electronforge.io/config/makers)
 - [dotenv Documentation](https://github.com/motdotla/dotenv)
-

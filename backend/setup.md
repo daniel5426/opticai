@@ -1,5 +1,7 @@
 # OpticAI API Server Setup
 
+Last Updated: 2026-04-30
+
 ## Prerequisites
 
 1. Python 3.8 or higher
@@ -29,10 +31,10 @@ HOST=0.0.0.0
 PORT=8001
 ```
 
-3. Set up PostgreSQL database:
-   - Create a new database
-   - Run the application to create tables automatically
-   - Or use the migration script to transfer existing SQLite data
+3. Set up the database schema:
+   - For a new database, run `python scripts/safe_migrate.py`
+   - For an existing production database, create a backup before running migrations
+   - Do not rely on app startup to create or alter tables
 
 4. Run the server:
 ```bash
@@ -61,7 +63,7 @@ If you have existing SQLite data, use the migration script:
 python migrate_sqlite_to_postgres.py
 ```
 
-This will transfer your existing data to the PostgreSQL database.
+This will transfer your existing data to the PostgreSQL database. Run `python scripts/safe_migrate.py` before importing data into a new target database.
 
 ## API Endpoints
 
@@ -126,4 +128,4 @@ The backend is organized into:
 - `schemas.py` - Pydantic schemas
 - `auth.py` - Authentication utilities
 - `EndPoints/` - API endpoint modules
-- `main.py` - FastAPI application 
+- `main.py` - FastAPI application

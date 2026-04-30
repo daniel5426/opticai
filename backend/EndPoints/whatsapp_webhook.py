@@ -4,10 +4,28 @@ from database import get_db
 from config import settings
 from services.bot_service import BotService
 import logging
+import hashlib
+import hmac
+import json
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/whatsapp", tags=["whatsapp"])
+
+
+def _verify_meta_signature(raw_body: bytes, signature: str | None) -> None:
+    if not settings.FB_APP_SECRET:
+        return
+    if not signature or not signature.startswith("sha256="):
+        raise HTTPException(status_code=403, detail="Invalid webhook signature")
+    expected = hmac.new(
+        settings.FB_APP_SECRET.encode("utf-8"),
+        raw_body,
+        hashlib.sha256,
+    ).hexdigest()
+    received = signature.split("=", 1)[1]
+    if not hmac.compare_digest(expected, received):
+        raise HTTPException(status_code=403, detail="Invalid webhook signature")
 
 @router.get("/webhook")
 def verify_webhook(request: Request):
@@ -39,7 +57,9 @@ async def handle_webhook(
     Receives incoming WhatsApp messages and status updates.
     """
     try:
-        payload = await request.json()
+        raw_body = await request.body()
+        _verify_meta_signature(raw_body, request.headers.get("x-hub-signature-256"))
+        payload = json.loads(raw_body.decode("utf-8") or "{}")
         logger.info(f"Received WhatsApp webhook: {payload}")
 
         # Extract message information

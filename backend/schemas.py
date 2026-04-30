@@ -1,4 +1,4 @@
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator
 from typing import Optional, List, Dict, Any
 from datetime import datetime, date
 from sqlalchemy import Column, Integer, String, DateTime, Boolean, ForeignKey, Date, Float, Text
@@ -174,6 +174,20 @@ class Family(FamilyBase):
     
     class Config:
         from_attributes = True
+
+class FamilyMember(BaseModel):
+    id: int
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    family_id: Optional[int] = None
+    family_role: Optional[str] = None
+    national_id: Optional[str] = None
+    phone_mobile: Optional[str] = None
+    email: Optional[str] = None
+
+class FamilyWithMembers(Family):
+    member_count: int = 0
+    clients: List[FamilyMember] = Field(default_factory=list)
 
 class ClientBase(BaseModel):
     first_name: Optional[str] = None
@@ -722,6 +736,7 @@ class ExamLayoutBase(BaseModel):
     name: str
     layout_data: str
     is_default: bool = False
+    is_active: bool = True
     sort_index: Optional[int] = None
     parent_layout_id: Optional[int] = None
     is_group: bool = False

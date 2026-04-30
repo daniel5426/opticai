@@ -1,5 +1,7 @@
 # Backend Deployment Guide (Heroku)
 
+Last Updated: 2026-04-30
+
 ## Prerequisites
 
 1. Install Heroku CLI: https://devcenter.heroku.com/articles/heroku-cli
@@ -30,7 +32,8 @@ heroku git:remote -a your-app-name
 Set all required environment variables:
 
 ```bash
-# Security
+# Runtime
+heroku config:set APP_ENV=production
 heroku config:set SECRET_KEY="$(python -c 'import secrets; print(secrets.token_urlsafe(32))')"
 heroku config:set ACCESS_TOKEN_EXPIRE_MINUTES=0
 
@@ -47,8 +50,8 @@ heroku config:set SUPABASE_KEY="your-supabase-anon-key"
 heroku config:set SUPABASE_JWT_SECRET="your-jwt-secret"
 heroku config:set SUPABASE_BUCKET="opticai"
 
-# CORS - Allow all origins for Electron app
-heroku config:set BACKEND_CORS_ORIGINS="*"
+# CORS - keep explicit unless you intentionally opt into wildcard
+heroku config:set BACKEND_CORS_ORIGINS="app://.,http://localhost:5173,http://127.0.0.1:5173"
 ```
 
 ### 4. View All Config Variables
@@ -122,26 +125,34 @@ ls -la  # Should show Procfile, main.py, etc. at root
 
 ## Post-Deployment
 
-### 1. Check Logs
+### 1. Backup Production Database
+Before first clinic go-live or any migration, create a Supabase dashboard backup or run:
+```bash
+pg_dump "postgresql://postgres:[password]@[host]:5432/[database]" > backup-before-launch.sql
+```
+
+### 2. Run Safe Migrations
+```bash
+heroku run python scripts/safe_migrate.py -a your-app-name
+```
+
+The runner upgrades empty databases normally. For existing app databases without Alembic history, it verifies the model schema, stamps the baseline, then applies launch-safe schema guards.
+
+### 3. Check Logs
 ```bash
 heroku logs --tail
 ```
 
-### 2. Test API
+### 4. Test API
 ```bash
-# Health check endpoint (if you have one)
-curl https://your-app-name.herokuapp.com/api/v1/health
+# Health check endpoint
+curl https://your-app-name.herokuapp.com/health
 
 # Or test login
 curl https://your-app-name.herokuapp.com/api/v1/auth/login
 ```
 
-### 3. Run Database Migrations (if needed)
-```bash
-heroku run python init_db.py
-```
-
-### 4. Scale Dynos
+### 5. Scale Dynos
 ```bash
 # Ensure at least one web dyno is running
 heroku ps:scale web=1
@@ -199,7 +210,8 @@ pg_dump "postgresql://postgres:[password]@[host]:5432/[database]" > backup.sql
 - Ensure SSL mode is enabled for external connections
 
 ### Issue: CORS Errors
-- Verify BACKEND_CORS_ORIGINS includes "*" or your app's origin
+- Verify `BACKEND_CORS_ORIGINS` includes the actual packaged app/backend origin.
+- Wildcard CORS is rejected in production unless `ALLOW_WILDCARD_CORS_IN_PRODUCTION=true`.
 - Check that requests include proper headers
 
 ### Restart Application
@@ -260,6 +272,7 @@ heroku rollback v123  # Replace with version number
 
 | Variable | Description | Required | Source |
 |----------|-------------|----------|---------|
+| `APP_ENV` | Runtime mode; set to `production` on Heroku | Yes | Heroku config |
 | `DATABASE_URL` | Supabase PostgreSQL connection string | Yes | Supabase Dashboard → Settings → Database |
 | `SECRET_KEY` | JWT signing secret | Yes | Generate with Python secrets module |
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | Token expiration (0 = no expiry) | Yes | Set to 0 for development |
@@ -269,7 +282,8 @@ heroku rollback v123  # Replace with version number
 | `SUPABASE_KEY` | Supabase anon/public key | Yes | Supabase Dashboard → Settings → API |
 | `SUPABASE_JWT_SECRET` | Supabase JWT secret | Yes | Supabase Dashboard → Settings → API |
 | `SUPABASE_BUCKET` | Storage bucket name | Yes | Set to "opticai" or your preferred name |
-| `BACKEND_CORS_ORIGINS` | Allowed CORS origins | Yes | Set to "*" for Electron app |
+| `BACKEND_CORS_ORIGINS` | Allowed CORS origins | Yes | Explicit origins; avoid `*` in production |
+| `ALLOW_WILDCARD_CORS_IN_PRODUCTION` | Emergency override for wildcard CORS | No | Defaults to false |
 
 ## Getting Your Supabase Connection String
 
