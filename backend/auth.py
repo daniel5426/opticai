@@ -1,100 +1,69 @@
 from datetime import datetime, timedelta
-from typing import Optional, Dict, Any
-import requests
+import base64
+import hashlib
+import secrets
+import uuid
+from typing import Any, Dict, Optional
+
 import bcrypt
-from jose import jwt, JWTError
-from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from sqlalchemy.orm import Session
-from sqlalchemy.exc import OperationalError, DatabaseError, TimeoutError
+from cryptography.fernet import Fernet, InvalidToken
+from fastapi import Depends, HTTPException, Request, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from jose import JWTError, jwt
 from sqlalchemy import text
-from database import get_db
-from models import User
-from schemas import TokenData
+from sqlalchemy.exc import DatabaseError, OperationalError, TimeoutError
+from sqlalchemy.orm import Session
+
 from config import settings
+from database import get_db
+from models import AuthSession, User
 
 security = HTTPBearer()
 
-_jwks_cache: Dict[str, Any] = {}
-_jwks_last_fetch: Optional[datetime] = None
+ACCESS_TOKEN_EXPIRE_MINUTES = settings.ACCESS_TOKEN_EXPIRE_MINUTES or 15
+REFRESH_TOKEN_EXPIRE_DAYS = 30
 
-def _get_supabase_jwks() -> Dict[str, Any]:
-    global _jwks_cache, _jwks_last_fetch
-    now = datetime.utcnow()
-    
-    if _jwks_cache and _jwks_last_fetch and (now - _jwks_last_fetch).seconds < 3600:
-        return _jwks_cache
-    
-    if not settings.SUPABASE_URL:
-        raise RuntimeError("SUPABASE_URL is not configured")
-    
-    jwks_url = f"{settings.SUPABASE_URL.rstrip('/')}/auth/v1/jwks"
+
+def utcnow() -> datetime:
+    return datetime.utcnow()
+
+
+def is_expired(value: Optional[datetime]) -> bool:
+    if value is None:
+        return True
+    if value.tzinfo is not None:
+        value = value.replace(tzinfo=None)
+    return value <= utcnow()
+
+
+def token_hash(token: str) -> str:
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def new_secret_token() -> str:
+    return secrets.token_urlsafe(48)
+
+
+def _fernet() -> Fernet:
+    raw = settings.TOKEN_ENCRYPTION_KEY or settings.SECRET_KEY
+    digest = hashlib.sha256(raw.encode("utf-8")).digest()
+    return Fernet(base64.urlsafe_b64encode(digest))
+
+
+def encrypt_secret(value: Optional[str]) -> Optional[str]:
+    if not value:
+        return None
+    return _fernet().encrypt(value.encode("utf-8")).decode("utf-8")
+
+
+def decrypt_secret(value: Optional[str]) -> Optional[str]:
+    if not value:
+        return None
     try:
-        resp = requests.get(jwks_url, timeout=5)
-        resp.raise_for_status()
-        _jwks_cache = resp.json()
-        _jwks_last_fetch = now
-        return _jwks_cache
-    except (requests.RequestException, requests.Timeout) as e:
-        if _jwks_cache:
-            print(f"JWKS fetch failed, using cached version: {e}")
-            return _jwks_cache
-        else:
-            print(f"JWKS fetch failed and no cache available: {e}")
-            raise RuntimeError(f"Could not fetch JWKS: {e}")
+        return _fernet().decrypt(value.encode("utf-8")).decode("utf-8")
+    except InvalidToken:
+        return None
 
-def _get_signing_key(token: str) -> Any:
-    unverified_header = jwt.get_unverified_header(token)
-    kid = unverified_header.get("kid")
-    jwks = _get_supabase_jwks()
-    for key in jwks.get("keys", []):
-        if key.get("kid") == kid:
-            return jwt.algorithms.RSAAlgorithm.from_jwk(key)
-    raise JWTError("Signing key not found")
-
-def verify_supabase_token(token: str) -> Dict[str, Any]:
-    secrets = [
-        value for value in (
-            settings.SUPABASE_JWT_SECRET,
-            settings.SECRET_KEY,
-            settings.SUPABASE_KEY,
-        )
-        if value
-    ]
-    for secret in secrets:
-        try:
-            return jwt.decode(
-                token,
-                secret,
-                algorithms=["HS256"],
-                options={"verify_aud": False}
-            )
-        except Exception:
-            pass
-
-    if settings.SUPABASE_URL and settings.SUPABASE_KEY:
-        try:
-            resp = requests.get(
-                f"{settings.SUPABASE_URL.rstrip('/')}/auth/v1/user",
-                headers={
-                    "apikey": settings.SUPABASE_KEY,
-                    "Authorization": f"Bearer {token}",
-                },
-                timeout=5,
-            )
-            resp.raise_for_status()
-            user = resp.json()
-            return {
-                "sub": user.get("id"),
-                "email": user.get("email"),
-                "user_metadata": user.get("user_metadata") or {},
-                "aud": "authenticated",
-                "role": "authenticated",
-            }
-        except Exception as e:
-            print(f"AUTH DEBUG Supabase token verification failed: {e}")
-
-    raise JWTError("Could not verify token")
 
 def check_database_connection(db: Session) -> bool:
     try:
@@ -103,55 +72,6 @@ def check_database_connection(db: Session) -> bool:
     except (OperationalError, DatabaseError, TimeoutError):
         return False
 
-
-def ensure_user_role_level(user: User) -> User:
-    if getattr(user, "role_level", None) is None:
-        user.role_level = 1
-    return user
-
-def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security), db: Session = Depends(get_db)):
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
-    
-    database_unavailable_exception = HTTPException(
-        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-        detail="Database service temporarily unavailable",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
-    
-    token = credentials.credentials
-    try:
-        payload = verify_supabase_token(token)
-        email = payload.get("email") or payload.get("user_metadata", {}).get("email")
-        username = payload.get("username")
-        
-        if not check_database_connection(db):
-            raise database_unavailable_exception
-        
-        user = None
-        try:
-            if email:
-                user = db.query(User).filter(User.email == email).first()
-            
-            if not user and username:
-                user = db.query(User).filter(User.username == username).first()
-            
-            if not user and email and "@clinic.local" in email:
-                username_from_email = email.split("@")[0]
-                user = db.query(User).filter(User.username == username_from_email).first()
-                
-        except (OperationalError, DatabaseError, TimeoutError) as e:
-            print(f"Database connection error in auth: {e}")
-            raise database_unavailable_exception
-        
-        if user is None:
-            raise credentials_exception
-        return ensure_user_role_level(user)
-    except JWTError:
-        raise credentials_exception
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     if not plain_password or not hashed_password:
@@ -164,8 +84,121 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     except ValueError:
         return False
 
+
 def get_password_hash(password: str) -> str:
     raw_password = password.encode("utf-8")
     if len(raw_password) > 72:
         raise ValueError("password cannot be longer than 72 bytes")
     return bcrypt.hashpw(raw_password, bcrypt.gensalt()).decode("utf-8")
+
+
+def ensure_user_role_level(user: User) -> User:
+    if getattr(user, "role_level", None) is None:
+        user.role_level = 1
+    return user
+
+
+def issue_access_token(session: AuthSession, user: User) -> str:
+    now = utcnow()
+    payload = {
+        "token_type": "access",
+        "session_id": session.id,
+        "user_id": str(user.id),
+        "company_id": user.company_id,
+        "clinic_id": session.clinic_id,
+        "username": user.username,
+        "email": user.email,
+        "iat": now,
+        "exp": now + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES),
+        "aud": "opticai",
+        "role": "authenticated",
+    }
+    return jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+
+
+def create_auth_session(
+    db: Session,
+    user: User,
+    clinic_id: Optional[int] = None,
+    device_id: Optional[str] = None,
+    request: Optional[Request] = None,
+) -> Dict[str, Any]:
+    refresh_token = new_secret_token()
+    auth_session = AuthSession(
+        id=str(uuid.uuid4()),
+        user_id=user.id,
+        company_id=user.company_id,
+        clinic_id=clinic_id,
+        refresh_token_hash=token_hash(refresh_token),
+        device_id=device_id,
+        user_agent=request.headers.get("user-agent") if request else None,
+        ip_address=request.client.host if request and request.client else None,
+        expires_at=utcnow() + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS),
+        last_seen_at=utcnow(),
+    )
+    db.add(auth_session)
+    db.flush()
+    return {
+        "access_token": issue_access_token(auth_session, user),
+        "refresh_token": refresh_token,
+        "token_type": "bearer",
+        "expires_in": ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        "session_id": auth_session.id,
+    }
+
+
+def revoke_auth_session(db: Session, auth_session: AuthSession) -> None:
+    auth_session.revoked_at = utcnow()
+
+
+def _credentials_exception() -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+
+
+def get_current_auth_session(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    db: Session = Depends(get_db),
+) -> AuthSession:
+    if not check_database_connection(db):
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Database service temporarily unavailable",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    try:
+        payload = jwt.decode(
+            credentials.credentials,
+            settings.SECRET_KEY,
+            algorithms=[settings.ALGORITHM],
+            options={"verify_aud": False},
+        )
+    except JWTError:
+        raise _credentials_exception()
+    if payload.get("token_type") != "access":
+        raise _credentials_exception()
+    session_id = payload.get("session_id")
+    if not session_id:
+        raise _credentials_exception()
+    auth_session = db.query(AuthSession).filter(AuthSession.id == session_id).first()
+    if (
+        not auth_session
+        or auth_session.revoked_at is not None
+        or is_expired(auth_session.expires_at)
+    ):
+        raise _credentials_exception()
+    auth_session.last_seen_at = utcnow()
+    return auth_session
+
+
+def get_current_user(
+    auth_session: AuthSession = Depends(get_current_auth_session),
+    db: Session = Depends(get_db),
+) -> User:
+    user = db.query(User).filter(User.id == auth_session.user_id).first()
+    if user is None or not user.is_active:
+        raise _credentials_exception()
+    return ensure_user_role_level(user)

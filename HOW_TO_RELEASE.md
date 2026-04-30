@@ -31,10 +31,10 @@ Before production deploy:
 - Confirm Supabase has a fresh backup.
 - Confirm Heroku config has `APP_ENV=production`.
 - Confirm Heroku `DATABASE_URL` points to Supabase Postgres, not SQLite.
+- Confirm Heroku has strong `SECRET_KEY` and `TOKEN_ENCRYPTION_KEY`.
+- For auth releases, deploy backend and desktop builds as one coordinated release; old Supabase-auth desktop builds cannot log in after this hard cut.
 - Confirm GitHub Actions secrets include:
   - `VITE_API_URL`
-  - `VITE_SUPABASE_URL`
-  - `VITE_SUPABASE_ANON_KEY`
   - Google/update secrets used by the Electron app
 
 ## 2. Deploy Backend
@@ -71,12 +71,14 @@ Before tagging the desktop release, verify against production backend:
 
 - Clinic session login
 - User login / user selection
+- CEO password login and Google login
 - Client create, edit, reload
 - Exam create, save, reload
 - Order create with billing line items
 - Appointment create/edit
 - File upload/read
 - Search
+- Google calendar connect/sync if that release touches Google auth
 - Logout and restart session restore
 
 If any schema change was included, confirm app startup did not create/alter tables by itself. Schema changes must come from Alembic.

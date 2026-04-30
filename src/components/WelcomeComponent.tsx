@@ -2,9 +2,6 @@ import React, { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Building2, Stethoscope, Settings, Users } from 'lucide-react'
-import { useRouter } from '@tanstack/react-router'
-import { apiClient } from '@/lib/api-client'
-import { OctahedronLoader } from '@/components/ui/octahedron-loader'
 import { authService, AuthState } from '@/lib/auth/AuthService'
 import { useUser } from '@/contexts/UserContext'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -16,9 +13,6 @@ interface WelcomeComponentProps {
 }
 
 export function WelcomeComponent({ onControlCenterClick, onClinicEntranceClick }: WelcomeComponentProps) {
-  const [isMultiClinicMode, setIsMultiClinicMode] = useState(false)
-  const [loading, setLoading] = useState(true)
-  const router = useRouter()
   const { authState } = useUser()
 
   useEffect(() => {
@@ -36,17 +30,10 @@ export function WelcomeComponent({ onControlCenterClick, onClinicEntranceClick }
           return
         }
 
-        // Only handle welcome screen logic for unauthenticated state
-        const companiesResponse = await apiClient.getCompaniesPublic()
-        const companies = companiesResponse.data || []
-        setIsMultiClinicMode(companies.length > 0)
-
         // AuthService handles navigation automatically based on state changes
 
       } catch (error) {
         console.error('WelcomeComponent: Bootstrap error:', error)
-      } finally {
-        setLoading(false)
       }
     }
 

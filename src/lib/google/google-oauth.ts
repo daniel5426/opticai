@@ -4,6 +4,7 @@ import { GOOGLE_CONFIG } from './google-config.js'
 export interface GoogleTokens {
   access_token: string
   refresh_token: string
+  id_token?: string
   scope: string
   token_type: string
   expiry_date: number
@@ -20,15 +21,6 @@ export class GoogleOAuthService {
   private static pendingAuth: { resolve: Function; reject: Function } | null = null
 
   constructor() {
-    // Debug: Print the credentials being used
-    console.log('🔍 Google OAuth Debug Info (Desktop Client):')
-    console.log('Client ID:', GOOGLE_CONFIG.clientId)
-    console.log('Client Secret:', GOOGLE_CONFIG.clientSecret ? `${GOOGLE_CONFIG.clientSecret.substring(0, 10)}...` : 'NOT SET')
-    console.log('Redirect URI:', GOOGLE_CONFIG.redirectUri)
-    console.log('Environment variables:')
-    console.log('- GOOGLE_DESKTOP_CLIENT_ID:', process.env.GOOGLE_DESKTOP_CLIENT_ID ? `${process.env.GOOGLE_DESKTOP_CLIENT_ID.substring(0, 20)}...` : 'NOT SET')
-    console.log('- GOOGLE_DESKTOP_CLIENT_SECRET:', process.env.GOOGLE_DESKTOP_CLIENT_SECRET ? 'SET' : 'NOT SET')
-    
     // Import google dynamically to avoid loading Node.js dependencies in renderer
     const { google } = require('googleapis')
     this.oauth2Client = new google.auth.OAuth2(
@@ -209,4 +201,4 @@ export class GoogleOAuthService {
       return false
     }
   }
-} 
+}

@@ -1,18 +1,15 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from sqlalchemy.sql import func
 from typing import List, Optional
 from database import get_db
 from models import Settings, Clinic, Company, User
 from schemas import SettingsCreate, SettingsUpdate, Settings as SettingsSchema
-from schemas import SaveAllRequest, SaveAllResponse, ClinicUpdate, CompanyUpdate, UserUpdate
-from config import settings as app_settings
-from auth import get_password_hash, verify_supabase_token
-import requests
+from schemas import SaveAllRequest, SaveAllResponse
+from auth import encrypt_secret, get_password_hash
 from utils.storage import upload_base64_image
 from auth import get_current_user
 from security.scope import resolve_company_id, assert_company_scope, assert_clinic_belongs_to_company
-from utils.supabase_auth import update_supabase_auth_email
 
 router = APIRouter(prefix="/settings", tags=["settings"])
 
@@ -92,7 +89,7 @@ def delete_settings(settings_id: int, db: Session = Depends(get_db)):
     return {"message": "Settings deleted successfully"} 
 
 @router.post("/save-all", response_model=SaveAllResponse)
-def save_all(payload: SaveAllRequest, db: Session = Depends(get_db), request: Request = None):
+def save_all(payload: SaveAllRequest, db: Session = Depends(get_db)):
     """Atomically save clinic, settings, user and company in a single call.
     Each object is optional; only provided sections are updated.
     """
@@ -173,17 +170,24 @@ def save_all(payload: SaveAllRequest, db: Session = Depends(get_db), request: Re
             if not db_user:
                 raise HTTPException(status_code=404, detail="User not found")
 
-            # Sync email change to Supabase Auth (admin) before updating DB
             update_fields = payload.user.dict(exclude_unset=True)
             if update_fields.get('profile_picture'):
                 try:
                     update_fields['profile_picture'] = upload_base64_image(update_fields['profile_picture'], f"users/{payload.user_id}/profile")
                 except Exception:
                     pass
-            new_email = update_fields.get("email")
-            old_email = db_user.email
-            auth_header = request.headers.get("authorization") or request.headers.get("Authorization")
-            update_supabase_auth_email(old_email, new_email, db, auth_header, payload.user_id)
+            if "password" in update_fields:
+                update_fields["password_hash"] = get_password_hash(update_fields["password"]) if update_fields["password"] else None
+                update_fields.pop("password", None)
+            if update_fields.get("google_account_connected") is False:
+                update_fields["google_access_token"] = None
+                update_fields["google_refresh_token"] = None
+                update_fields["google_account_email"] = None
+            else:
+                if "google_access_token" in update_fields:
+                    update_fields["google_access_token"] = encrypt_secret(update_fields["google_access_token"])
+                if "google_refresh_token" in update_fields:
+                    update_fields["google_refresh_token"] = encrypt_secret(update_fields["google_refresh_token"])
 
             for field, value in update_fields.items():
                 setattr(db_user, field, value)

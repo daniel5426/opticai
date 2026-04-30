@@ -288,10 +288,16 @@ export default function ExamDetailPage({
     return initialData;
   };
 
-  const initializeFormData = (instanceKey: number, layoutData?: string) => {
+  const initializeFormData = (
+    instanceKey: number,
+    layoutData?: string,
+    setCurrent = true,
+  ) => {
     const initialData = createInitialFormDataBucket(instanceKey, layoutData);
 
-    setExamFormData(initialData);
+    if (setCurrent) {
+      setExamFormData(initialData);
+    }
     setExamFormDataByInstance((prev) => ({
       ...prev,
       [instanceKey]: initialData,
@@ -374,6 +380,12 @@ export default function ExamDetailPage({
               if (type === "cover-test") {
                 Object.keys(data).forEach((k) => {
                   if (k.startsWith(`cover-test-${cardId}-`)) {
+                    formDataLocal[k] = (data as any)[k];
+                  }
+                });
+              } else if (type === "old-refraction") {
+                Object.keys(data).forEach((k) => {
+                  if (k.startsWith(`old-refraction-${cardId}-`)) {
                     formDataLocal[k] = (data as any)[k];
                   }
                 });
@@ -558,6 +570,7 @@ export default function ExamDetailPage({
     examFormData,
     examFormDataByInstance,
     setExamFormDataByInstance,
+    fullDataSourcesRef,
     layoutTabs,
     setLayoutTabs,
     activeInstanceId,

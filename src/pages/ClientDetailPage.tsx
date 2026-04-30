@@ -1,10 +1,8 @@
 import React, { useState, useRef, useEffect } from "react"
 import { useParams, useSearch } from "@tanstack/react-router"
 import { SiteHeader } from "@/components/site-header"
-import { getClientById, updateClient } from "@/lib/db/clients-db"
 import { Client } from "@/lib/db/schema-interface"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Button } from "@/components/ui/button"
+import { Tabs, TabsContent } from "@/components/ui/tabs"
 import { toast } from "sonner"
 import {
   ClientDetailsTab,
@@ -18,9 +16,11 @@ import {
 import { ClientDataProvider } from "@/contexts/ClientDataContext"
 import { ClientSpaceLayout } from "@/layouts/ClientSpaceLayout"
 import { useClientSidebar } from "@/contexts/ClientSidebarContext"
+import { useClientDetailsEditor } from "@/hooks/client/useClientDetailsEditor"
 
 export default function ClientDetailPage() {
   const { clientId } = useParams({ from: "/clients/$clientId" })
+  const clientIdNum = Number(clientId)
 
   // Get search params to check for tab parameter
   let initialTab = 'details'
@@ -49,27 +49,12 @@ export default function ClientDetailPage() {
     }
   }
 
-  const { currentClient, updateCurrentClient, setActiveTab: setSidebarActiveTab } = useClientSidebar()
-  const [isEditing, setIsEditing] = useState(false)
-  const [formData, setFormData] = useState<Client>({} as Client)
-  const formDataRef = useRef<Client>({} as Client)
+  const { updateCurrentClient, setActiveTab: setSidebarActiveTab } = useClientSidebar()
+  const editor = useClientDetailsEditor(clientIdNum)
   const [activeTab, setActiveTab] = useState(initialTab)
   const [refreshKey, setRefreshKey] = useState(0)
   const formRef = useRef<HTMLFormElement>(null)
-  const isDetailsLoading = !currentClient || !currentClient.id
-
-  useEffect(() => {
-    if (!currentClient || isEditing) return
-    const next = { ...currentClient }
-    formDataRef.current = next
-    setFormData(next)
-  }, [currentClient, isEditing])
-
-  const updateFormData = (updater: (prev: Client) => Client) => {
-    const next = updater(formDataRef.current)
-    formDataRef.current = next
-    setFormData(next)
-  }
+  const isDetailsLoading = editor.isLoading || !editor.draftClient
 
   useEffect(() => {
     // Refresh orders and referrals data when switching to those tabs
@@ -86,61 +71,25 @@ export default function ClientDetailPage() {
     setSidebarActiveTab(activeTab)
   }, [activeTab, clientId, setSidebarActiveTab])
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target
-    updateFormData(prev => ({ ...prev, [name]: value }))
-  }
-
-  const handleSelectChange = (value: string | boolean, name: string) => {
-    let processedValue: any = value
-
-    // Convert family_id to number if it's a string
-    if (name === 'family_id' && typeof value === 'string') {
-      processedValue = value === '' ? null : parseInt(value, 10)
-    }
-
-    updateFormData(prev => ({
-      ...prev,
-      [name]: processedValue,
-      ...(name === 'health_fund' ? { status: '' } : {})
-    }))
-  }
+  useEffect(() => {
+    if (editor.serverClient) updateCurrentClient(editor.serverClient)
+  }, [editor.serverClient, updateCurrentClient])
 
   const handleSave = async () => {
-    if (!formRef.current) return
-    const latestFormData = formDataRef.current
-    const prev = currentClient ? { ...currentClient } : { ...latestFormData }
-    updateCurrentClient(latestFormData)
-    setIsEditing(false)
-    const p = updateClient(latestFormData)
-    p.then((updated) => {
-      if (updated) {
-        const next = { ...updated }
-        formDataRef.current = next
-        setFormData(next)
-        updateCurrentClient(next)
-        toast.success("פרטי הלקוח עודכנו בהצלחה")
-      } else {
-        formDataRef.current = prev
-        updateCurrentClient(prev)
-        setFormData(prev)
-        setIsEditing(true)
-        toast.error("לא הצלחנו לשמור את השינויים")
-      }
-    }).catch(() => {
-      formDataRef.current = prev
-      updateCurrentClient(prev)
-      setFormData(prev)
-      setIsEditing(true)
+    const updated = await editor.saveDraft()
+    if (updated) {
+      updateCurrentClient(updated)
+      toast.success("פרטי הלקוח עודכנו בהצלחה")
+    } else {
       toast.error("לא הצלחנו לשמור את השינויים")
-    })
+    }
   }
 
 
 
 
   return (
-    <ClientDataProvider clientId={Number(clientId)}>
+    <ClientDataProvider clientId={clientIdNum}>
       <SiteHeader
         title="לקוחות"
         backLink="/clients"
@@ -157,18 +106,23 @@ export default function ClientDetailPage() {
             onValueChange={(value) => setActiveTab(value)}
           >
             <TabsContent value="details">
-              <ClientDetailsTab
-                client={currentClient || {} as Client}
-                formData={formData}
-                isEditing={isEditing}
-                isLoading={isDetailsLoading}
-                handleInputChange={handleInputChange}
-                handleSelectChange={handleSelectChange}
-                formRef={formRef as React.RefObject<HTMLFormElement>}
-                setIsEditing={setIsEditing}
-                handleSave={handleSave}
-                onClientUpdate={updateCurrentClient}
-              />
+              {editor.isError ? (
+                <div className="bg-card rounded-lg examcard p-6 text-right" dir="rtl">
+                  לא הצלחנו לטעון את פרטי הלקוח
+                </div>
+              ) : (
+                <ClientDetailsTab
+                  draft={editor.draftClient || {} as Client}
+                  isEditing={editor.isEditing}
+                  isLoading={isDetailsLoading}
+                  isSaving={editor.isSaving}
+                  onFieldChange={editor.updateDraftField}
+                  formRef={formRef as React.RefObject<HTMLFormElement>}
+                  onStartEdit={editor.startEdit}
+                  onCancelEdit={editor.cancelEdit}
+                  onSave={handleSave}
+                />
+              )}
             </TabsContent>
 
             <TabsContent value="exams">

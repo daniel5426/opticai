@@ -20,7 +20,7 @@ import { OpticalExam, ExamLayout } from "@/lib/db/schema-interface";
 import { ClientSelectModal } from "@/components/ClientSelectModal";
 import { CustomModal } from "@/components/ui/custom-modal";
 import { deleteExam } from "@/lib/db/exams-db";
-import { getDefaultExamLayouts } from "@/lib/db/exam-layouts-db";
+import { getAllExamLayouts } from "@/lib/db/exam-layouts-db";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DateSearchHelper } from "@/lib/date-search-helper";
@@ -43,11 +43,32 @@ interface ExamsTableProps {
   onExamDeleted: (examId: number) => void;
   onExamDeleteFailed: () => void;
   loading: boolean;
-  pagination?: { page: number; pageSize: number; total: number; setPage: (p: number) => void };
+  pagination?: {
+    page: number;
+    pageSize: number;
+    total: number;
+    setPage: (p: number) => void;
+  };
   searchQuery?: string;
   onSearchChange?: (q: string) => void;
   testNameFilter?: string;
   onTestNameFilterChange?: (value: string) => void;
+}
+
+function filterActiveLayouts(layouts: ExamLayout[]): ExamLayout[] {
+  return layouts
+    .map((layout) => {
+      const children = layout.children
+        ? filterActiveLayouts(layout.children)
+        : undefined;
+      if (layout.is_group) {
+        return layout.is_active !== false && children && children.length > 0
+          ? { ...layout, children }
+          : null;
+      }
+      return layout.is_active === false ? null : { ...layout, children };
+    })
+    .filter(Boolean) as ExamLayout[];
 }
 
 export function ExamsTable({
@@ -63,28 +84,34 @@ export function ExamsTable({
   onTestNameFilterChange,
 }: ExamsTableProps) {
   const [searchQuery, setSearchQuery] = useState("");
-  const searchValue = externalSearch !== undefined ? externalSearch : searchQuery;
+  const searchValue =
+    externalSearch !== undefined ? externalSearch : searchQuery;
   const navigate = useNavigate();
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [examToDelete, setExamToDelete] = useState<ExamWithNames | null>(null);
-  const [defaultLayouts, setDefaultLayouts] = useState<ExamLayout[]>([]);
+  const [activeLayouts, setActiveLayouts] = useState<ExamLayout[]>([]);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const { currentClinic } = useUser();
   const [previewExamId, setPreviewExamId] = useState<number | null>(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
-  const [selectedTestName, setSelectedTestName] = useState<string>(ALL_FILTER_VALUE);
+  const [selectedTestName, setSelectedTestName] =
+    useState<string>(ALL_FILTER_VALUE);
   const testNameFilter = externalTestNameFilter ?? selectedTestName;
 
   useEffect(() => {
-    const fetchDefaultLayouts = async () => {
+    const fetchActiveLayouts = async () => {
+      if (!currentClinic?.id) {
+        setActiveLayouts([]);
+        return;
+      }
       try {
-        const layouts = await getDefaultExamLayouts();
-        setDefaultLayouts(layouts.filter(layout => layout.is_default));
+        const layouts = await getAllExamLayouts(currentClinic?.id);
+        setActiveLayouts(filterActiveLayouts(layouts));
       } catch (error) {
-        console.error("Error fetching default layouts:", error);
+        console.error("Error fetching active layouts:", error);
       }
     };
-    fetchDefaultLayouts();
+    fetchActiveLayouts();
   }, [currentClinic?.id]);
 
   const handleTestNameFilterChange = (value: string) => {
@@ -108,13 +135,15 @@ export function ExamsTable({
     }
 
     return result.filter((exam) => {
-      const fullName = (exam.full_name || exam.username || '').toLowerCase();
-      const clinic = (exam.clinic || '').toLowerCase();
-      const testName = (exam.test_name || '').toLowerCase();
+      const fullName = (exam.full_name || exam.username || "").toLowerCase();
+      const clinic = (exam.clinic || "").toLowerCase();
+      const testName = (exam.test_name || "").toLowerCase();
 
-      if (fullName.includes(searchLower) ||
+      if (
+        fullName.includes(searchLower) ||
         clinic.includes(searchLower) ||
-        testName.includes(searchLower)) {
+        testName.includes(searchLower)
+      ) {
         return true;
       }
 
@@ -123,7 +152,9 @@ export function ExamsTable({
   }, [data, searchValue, testNameFilter]);
 
   const uniqueTestNames = React.useMemo(() => {
-    return Array.from(new Set(data.map((exam) => exam.test_name).filter(Boolean)));
+    return Array.from(
+      new Set(data.map((exam) => exam.test_name).filter(Boolean)),
+    );
   }, [data]);
 
   const handleDeleteConfirm = async () => {
@@ -151,10 +182,16 @@ export function ExamsTable({
   };
 
   return (
-    <div className="space-y-2.5 mb-10" dir="rtl" style={{ scrollbarWidth: 'none' }}>
+    <div
+      className="mb-10 space-y-2.5"
+      dir="rtl"
+      style={{ scrollbarWidth: "none" }}
+    >
       <TableFiltersBar
         searchValue={searchValue}
-        onSearchChange={(value) => (onSearchChange ? onSearchChange(value) : setSearchQuery(value))}
+        onSearchChange={(value) =>
+          onSearchChange ? onSearchChange(value) : setSearchQuery(value)
+        }
         searchPlaceholder="חיפוש בדיקות…"
         filters={[
           {
@@ -164,12 +201,17 @@ export function ExamsTable({
             placeholder: "סוג בדיקה",
             options: [
               { value: ALL_FILTER_VALUE, label: "כל הבדיקות" },
-              ...uniqueTestNames.map((testName) => ({ value: testName || "unknown", label: testName || "unknown" })),
+              ...uniqueTestNames.map((testName) => ({
+                value: testName || "unknown",
+                label: testName || "unknown",
+              })),
             ],
             widthClassName: "w-[190px]",
           },
         ]}
-        hasActiveFilters={Boolean(searchValue.trim()) || testNameFilter !== ALL_FILTER_VALUE}
+        hasActiveFilters={
+          Boolean(searchValue.trim()) || testNameFilter !== ALL_FILTER_VALUE
+        }
         onReset={() => {
           if (onSearchChange) onSearchChange("");
           else setSearchQuery("");
@@ -177,15 +219,18 @@ export function ExamsTable({
         }}
         actions={
           clientId > 0 ? (
-            defaultLayouts.length > 0 ? (
-              <DropdownMenu open={isDropdownOpen} onOpenChange={setIsDropdownOpen}>
+            activeLayouts.length > 0 ? (
+              <DropdownMenu
+                open={isDropdownOpen}
+                onOpenChange={setIsDropdownOpen}
+              >
                 <DropdownMenuTrigger dir="rtl" asChild>
                   <Button>
                     <Plus className="h-4 w-4" />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start">
-                  {defaultLayouts.map((layout) => (
+                  {activeLayouts.map((layout) => (
                     <DropdownMenuItem
                       dir="rtl"
                       key={layout.id}
@@ -210,7 +255,7 @@ export function ExamsTable({
             )
           ) : (
             <NewExamButtonWithoutClient
-              defaultLayouts={defaultLayouts}
+              activeLayouts={activeLayouts}
               onClientSelect={(selectedClientId, layoutId) => {
                 navigate({
                   to: "/clients/$clientId/exams/new",
@@ -223,14 +268,19 @@ export function ExamsTable({
         }
       />
 
-      <div className="rounded-md bg-card">
-
-        <Table dir="rtl" containerClassName="max-h-[70vh] overflow-y-auto overscroll-contain" containerStyle={{ scrollbarWidth: 'none' }}>
-          <TableHeader className="sticky top-0 z-0 bg-card">
+      <div className="bg-card rounded-md">
+        <Table
+          dir="rtl"
+          containerClassName="max-h-[70vh] overflow-y-auto overscroll-contain"
+          containerStyle={{ scrollbarWidth: "none" }}
+        >
+          <TableHeader className="bg-card sticky top-0 z-0">
             <TableRow>
               <TableHead className="text-right">תאריך בדיקה</TableHead>
               <TableHead className="text-right">סוג בדיקה</TableHead>
-              {clientId === 0 && <TableHead className="text-right">לקוח</TableHead>}
+              {clientId === 0 && (
+                <TableHead className="text-right">לקוח</TableHead>
+              )}
               <TableHead className="text-right">סניף</TableHead>
               <TableHead className="text-right">בודק</TableHead>
               <TableHead className="w-[50px] text-right"></TableHead>
@@ -239,24 +289,21 @@ export function ExamsTable({
           <TableBody>
             {loading ? (
               Array.from({ length: 14 }).map((_, i) => (
-                <TableRow
-                  key={i}
-                  className="cursor-pointer"
-                >
+                <TableRow key={i} className="cursor-pointer">
                   <TableCell>
-                    <Skeleton className="w-[70%] h-4 my-2" />
+                    <Skeleton className="my-2 h-4 w-[70%]" />
                   </TableCell>
                   <TableCell>
-                    <Skeleton className="w-[70%] h-4 my-2" />
+                    <Skeleton className="my-2 h-4 w-[70%]" />
                   </TableCell>
                   <TableCell>
-                    <Skeleton className="w-[70%] h-4 my-2" />
+                    <Skeleton className="my-2 h-4 w-[70%]" />
                   </TableCell>
                   <TableCell>
-                    <Skeleton className="w-[70%] h-4 my-2" />
+                    <Skeleton className="my-2 h-4 w-[70%]" />
                   </TableCell>
                   <TableCell>
-                    <Skeleton className="w-[70%] h-4 my-2" />
+                    <Skeleton className="my-2 h-4 w-[70%]" />
                   </TableCell>
                 </TableRow>
               ))
@@ -282,65 +329,101 @@ export function ExamsTable({
                   </TableCell>
                   <TableCell>{exam.test_name}</TableCell>
                   {clientId === 0 && (
-                    <TableCell className="cursor-pointer text-blue-600 hover:underline"
-                      onClick={e => {
+                    <TableCell
+                      className="cursor-pointer text-blue-600 hover:underline"
+                      onClick={(e) => {
                         e.stopPropagation();
                         if (exam.client_id) {
-                          navigate({ to: "/clients/$clientId", params: { clientId: String(exam.client_id) }, search: { tab: 'exams' } })
+                          navigate({
+                            to: "/clients/$clientId",
+                            params: { clientId: String(exam.client_id) },
+                            search: { tab: "exams" },
+                          });
                         }
                       }}
-                    >{exam.clientName}</TableCell>
+                    >
+                      {exam.clientName}
+                    </TableCell>
                   )}
                   <TableCell>{exam.clinic}</TableCell>
                   <TableCell>{exam.full_name || exam.username}</TableCell>
                   <TableCell>
-                    <Button variant="ghost" className="h-8 w-8 p-0" onClick={(e) => {
-                      e.stopPropagation();
-                      setExamToDelete(exam);
-                      setIsDeleteModalOpen(true);
-                    }} title="מחיקה">
+                    <Button
+                      variant="ghost"
+                      className="h-8 w-8 p-0"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setExamToDelete(exam);
+                        setIsDeleteModalOpen(true);
+                      }}
+                      title="מחיקה"
+                    >
                       <Trash2 className="h-4 w-4 text-red-600" />
                     </Button>
-                    <Button variant="ghost" className="h-8 w-8 p-0" onClick={(e) => {
-                      e.stopPropagation();
-                      setPreviewExamId(exam.id || null);
-                      setIsPreviewOpen(true);
-                    }} title="צפייה מהירה">
-                      <Eye className="h-4 w-4 text-muted-foreground" />
+                    <Button
+                      variant="ghost"
+                      className="h-8 w-8 p-0"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setPreviewExamId(exam.id || null);
+                        setIsPreviewOpen(true);
+                      }}
+                      title="צפייה מהירה"
+                    >
+                      <Eye className="text-muted-foreground h-4 w-4" />
                     </Button>
                   </TableCell>
                 </TableRow>
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={clientId === 0 ? 6 : 5} className="h-24 text-center">
+                <TableCell
+                  colSpan={clientId === 0 ? 6 : 5}
+                  className="h-24 text-center"
+                >
                   לא נמצאו בדיקות לתצוגה
                 </TableCell>
               </TableRow>
             )}
           </TableBody>
         </Table>
-
       </div>
 
       {pagination && (
-        <div className="flex items-center justify-between mt-4">
-          <div className="text-sm text-muted-foreground">
-            עמוד {pagination.page} מתוך {Math.max(1, Math.ceil((pagination.total || 0) / (pagination.pageSize || 1)))} · סה"כ {pagination.total || 0}
+        <div className="mt-4 flex items-center justify-between">
+          <div className="text-muted-foreground text-sm">
+            עמוד {pagination.page} מתוך{" "}
+            {Math.max(
+              1,
+              Math.ceil((pagination.total || 0) / (pagination.pageSize || 1)),
+            )}{" "}
+            · סה"כ {pagination.total || 0}
           </div>
           <div className="flex gap-2">
             <Button
               variant="outline"
               size="sm"
               disabled={loading || pagination.page <= 1}
-              onClick={() => pagination.setPage(Math.max(1, pagination.page - 1))}
-            >הקודם</Button>
+              onClick={() =>
+                pagination.setPage(Math.max(1, pagination.page - 1))
+              }
+            >
+              הקודם
+            </Button>
             <Button
               variant="outline"
               size="sm"
-              disabled={loading || pagination.page >= Math.ceil((pagination.total || 0) / (pagination.pageSize || 1))}
+              disabled={
+                loading ||
+                pagination.page >=
+                  Math.ceil(
+                    (pagination.total || 0) / (pagination.pageSize || 1),
+                  )
+              }
               onClick={() => pagination.setPage(pagination.page + 1)}
-            >הבא</Button>
+            >
+              הבא
+            </Button>
           </div>
         </div>
       )}
@@ -349,7 +432,11 @@ export function ExamsTable({
         isOpen={isDeleteModalOpen}
         onClose={() => setIsDeleteModalOpen(false)}
         title="מחיקת בדיקה"
-        description={examToDelete ? `האם אתה בטוח שברצונך למחוק את הבדיקה של ${examToDelete.test_name || 'בדיקה זו'} מיום ${examToDelete.exam_date ? new Date(examToDelete.exam_date).toLocaleDateString('he-IL') : ''}? פעולה זו אינה הפיכה.` : "האם אתה בטוח שברצונך למחוק בדיקה זו? פעולה זו אינה הפיכה."}
+        description={
+          examToDelete
+            ? `האם אתה בטוח שברצונך למחוק את הבדיקה של ${examToDelete.test_name || "בדיקה זו"} מיום ${examToDelete.exam_date ? new Date(examToDelete.exam_date).toLocaleDateString("he-IL") : ""}? פעולה זו אינה הפיכה.`
+            : "האם אתה בטוח שברצונך למחוק בדיקה זו? פעולה זו אינה הפיכה."
+        }
         onConfirm={handleDeleteConfirm}
         confirmText="מחק"
         className="text-center"
@@ -362,23 +449,23 @@ export function ExamsTable({
         onClose={() => setIsPreviewOpen(false)}
         examId={previewExamId}
         onNext={() => {
-          const index = filteredData.findIndex(e => e.id === previewExamId);
+          const index = filteredData.findIndex((e) => e.id === previewExamId);
           if (index < filteredData.length - 1) {
             setPreviewExamId(filteredData[index + 1].id || null);
           }
         }}
         onPrev={() => {
-          const index = filteredData.findIndex(e => e.id === previewExamId);
+          const index = filteredData.findIndex((e) => e.id === previewExamId);
           if (index > 0) {
             setPreviewExamId(filteredData[index - 1].id || null);
           }
         }}
         hasNext={(() => {
-          const index = filteredData.findIndex(e => e.id === previewExamId);
+          const index = filteredData.findIndex((e) => e.id === previewExamId);
           return index !== -1 && index < filteredData.length - 1;
         })()}
         hasPrev={(() => {
-          const index = filteredData.findIndex(e => e.id === previewExamId);
+          const index = filteredData.findIndex((e) => e.id === previewExamId);
           return index > 0;
         })()}
       />
@@ -387,15 +474,17 @@ export function ExamsTable({
 }
 
 function NewExamButtonWithoutClient({
-  defaultLayouts,
+  activeLayouts,
   onClientSelect,
 }: {
-  defaultLayouts: ExamLayout[];
+  activeLayouts: ExamLayout[];
   onClientSelect: (clientId: number, layoutId?: number) => void;
 }) {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isClientModalOpen, setIsClientModalOpen] = useState(false);
-  const [selectedLayoutId, setSelectedLayoutId] = useState<number | undefined>();
+  const [selectedLayoutId, setSelectedLayoutId] = useState<
+    number | undefined
+  >();
 
   const handleLayoutSelect = (layoutId: number) => {
     setSelectedLayoutId(layoutId);
@@ -409,20 +498,17 @@ function NewExamButtonWithoutClient({
     setSelectedLayoutId(undefined);
   };
 
-  if (defaultLayouts.length > 0) {
+  if (activeLayouts.length > 0) {
     return (
       <>
         <DropdownMenu open={isDropdownOpen} onOpenChange={setIsDropdownOpen}>
           <DropdownMenuTrigger asChild>
-            <Button
-            >
+            <Button>
               <Plus className="h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent
-            align="start"
-          >
-            {defaultLayouts.map((layout) => (
+          <DropdownMenuContent align="start">
+            {activeLayouts.map((layout) => (
               <DropdownMenuItem
                 dir="rtl"
                 key={layout.id}
@@ -446,8 +532,7 @@ function NewExamButtonWithoutClient({
   }
 
   return (
-    <Button
-    >
+    <Button>
       <Plus className="h-4 w-4" />
     </Button>
   );

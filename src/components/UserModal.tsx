@@ -57,7 +57,7 @@ export function UserModal({
         username: editingUser.username,
         email: editingUser.email || '',
         phone: editingUser.phone || '',
-        hasPassword: !!editingUser.password,
+        hasPassword: !!editingUser.has_password,
         password: '',
         role_level: (editingUser.role_level as 1 | 2 | 3 | 4) || ROLE_LEVELS.worker,
         clinic_id: editingUser.clinic_id?.toString() || ''
@@ -134,65 +134,6 @@ export function UserModal({
           toast.error('שגיאה בעדכון המשתמש')
         }
       } else {
-        // For new users, create in Supabase Auth first if they have email
-        // Note: We'll do this in a way that doesn't interfere with current session
-        if (userData.email) {
-          try {
-            // Create a separate Supabase client instance for user creation
-            // This avoids interfering with the current session
-            const { createClient } = await import('@supabase/supabase-js')
-            const supabaseUrl = (import.meta as any).env.VITE_SUPABASE_URL
-            const supabaseKey = (import.meta as any).env.VITE_SUPABASE_ANON_KEY
-            const tempClient = createClient(supabaseUrl, supabaseKey, {
-              auth: { persistSession: false, autoRefreshToken: false }
-            })
-            
-            if (userData.password) {
-              // Create user with password using temporary client
-              const { data: signUpData, error: signUpError } = await tempClient.auth.signUp({
-                email: userData.email,
-                password: userData.password,
-                options: { 
-                  data: { 
-                    full_name: userData.full_name,
-                    username: userData.username
-                  }
-                }
-              })
-              
-              if (signUpError && !signUpError.message?.includes('User already registered')) {
-                console.error('Supabase signup error:', signUpError)
-                // Don't show error for signup issues, continue with database creation
-                console.log('Continuing with database creation despite Supabase signup error')
-              }
-            } else {
-              // For passwordless users with email, create them with a temporary password
-              // The database will store them without a password
-              const tempPassword = Math.random().toString(36).slice(-12) + Math.random().toString(36).slice(-12)
-              const { data: signUpData, error: signUpError } = await tempClient.auth.signUp({
-                email: userData.email,
-                password: tempPassword,
-                options: { 
-                  data: { 
-                    full_name: userData.full_name,
-                    username: userData.username,
-                    is_passwordless: true // Mark as passwordless user
-                  }
-                }
-              })
-              
-              if (signUpError && !signUpError.message?.includes('User already registered')) {
-                console.error('Supabase signup error for passwordless user:', signUpError)
-                // Continue anyway - user might still be created in database
-                console.log('Continuing with database creation despite Supabase signup error')
-              }
-            }
-          } catch (supabaseError) {
-            console.error('Supabase auth exception:', supabaseError)
-            // Continue anyway - user might still be created in database
-          }
-        }
-
         const newUser = await createUser(userData)
         if (newUser) {
           onUserSaved(newUser)
@@ -396,4 +337,4 @@ export function UserModal({
       </div>
     </CustomModal>
   )
-} 
+}

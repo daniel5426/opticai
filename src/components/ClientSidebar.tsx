@@ -151,39 +151,44 @@ function AIInformationSection({
         </div>
         
         {isAiBlockOpen && (
-          <div className="p-3 rounded-lg bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 border border-blue-200 dark:border-blue-800">
-          {(!hasLoaded) || (!aiInfo && (isGenerating || isLoading)) ? (
-            <div className="space-y-2" dir="rtl">
-              <div className="flex items-center gap-1 mb-2">
-                <Skeleton className="h-3 w-3 rounded-full bg-blue-100" />
-                <Skeleton className="h-3 w-24 bg-blue-100" />
-              </div>
-              <Skeleton className="h-3 w-5/6 bg-blue-100" />
-              <Skeleton className="h-3 w-4/6 bg-blue-100" />
-              <Skeleton className="h-3 w-3/6 bg-blue-100" />
+          <>
+            <div className="p-3 rounded-lg bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 border border-blue-200 dark:border-blue-800">
+              {(!hasLoaded) || (!aiInfo && (isGenerating || isLoading)) ? (
+                <div className="space-y-2" dir="rtl">
+                  <div className="flex items-center gap-1 mb-2">
+                    <Skeleton className="h-3 w-3 rounded-full bg-blue-100" />
+                    <Skeleton className="h-3 w-24 bg-blue-100" />
+                  </div>
+                  <Skeleton className="h-3 w-5/6 bg-blue-100" />
+                  <Skeleton className="h-3 w-4/6 bg-blue-100" />
+                  <Skeleton className="h-3 w-3/6 bg-blue-100" />
+                </div>
+              ) : aiInfo ? (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-1 mb-2">
+                    <Sparkles className="h-3 w-3 text-primary" />
+                    <span className="text-xs text-primary font-medium">המלצות AI</span>
+                  </div>
+                  <div className="text-sm whitespace-pre-line leading-relaxed">
+                    {aiInfo}
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-2" dir="rtl">
+                  <div className="flex items-center gap-1 mb-2">
+                    <Skeleton className="h-3 w-3 rounded-full bg-blue-100" />
+                    <Skeleton className="h-3 w-24 bg-blue-100" />
+                  </div>
+                  <Skeleton className="h-3 w-5/6 bg-blue-100" />
+                  <Skeleton className="h-3 w-4/6 bg-blue-100" />
+                  <Skeleton className="h-3 w-3/6 bg-blue-100" />
+                </div>
+              )}
             </div>
-          ) : aiInfo ? (
-            <div className="space-y-2">
-              <div className="flex items-center gap-1 mb-2">
-                <Sparkles className="h-3 w-3 text-primary" />
-                <span className="text-xs text-primary font-medium">המלצות AI</span>
-              </div>
-              <div className="text-sm whitespace-pre-line leading-relaxed">
-                {aiInfo}
-              </div>
-            </div>
-          ) : (
-            <div className="space-y-2" dir="rtl">
-              <div className="flex items-center gap-1 mb-2">
-                <Skeleton className="h-3 w-3 rounded-full bg-blue-100" />
-                <Skeleton className="h-3 w-24 bg-blue-100" />
-              </div>
-              <Skeleton className="h-3 w-5/6 bg-blue-100" />
-              <Skeleton className="h-3 w-4/6 bg-blue-100" />
-              <Skeleton className="h-3 w-3/6 bg-blue-100" />
-            </div>
-          )}
-          </div>
+            <p className="text-xs leading-relaxed text-muted-foreground px-2">
+              המידע מבוסס AI ואינו תחליף לשיקול מקצועי.
+            </p>
+          </>
         )}
       </div>
     </>
@@ -594,4 +599,4 @@ export function ClientSidebar() {
       </div>
     </Card>
   )
-} 
+}

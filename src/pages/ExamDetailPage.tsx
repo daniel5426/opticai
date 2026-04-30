@@ -9,7 +9,6 @@ import React, {
 import {
   useParams,
   useNavigate,
-  Link,
   useLocation,
   useSearch,
 } from "@tanstack/react-router";
@@ -24,6 +23,15 @@ import {
 import { getAllExamLayouts, getExamLayoutById } from "@/lib/db/exam-layouts-db";
 import { Button } from "@/components/ui/button";
 import { Edit, Save, Loader2 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import { useUser } from "@/contexts/UserContext";
 import { createDetailProps, DetailProps } from "@/components/exam/ExamCardRenderer";
@@ -66,6 +74,13 @@ import { ExamLayoutRenderer } from "@/components/exam/ExamLayoutRenderer";
 import { ExamSyncManager } from "@/lib/exam-sync/ExamSyncManager";
 import { SubjectiveToFinalSyncRule } from "@/lib/exam-sync/rules/SubjectiveToFinalSyncRule";
 import { SyncContext } from "@/lib/exam-sync/types";
+import {
+  ADDITION_ADD_TYPE_LABELS,
+  extractAdditionAddSourcesFromExamData,
+  getAdditionAddTypeOptions,
+  type AdditionAddSourceMap,
+  type AdditionAddType,
+} from "@/lib/addition-add-sources";
 
 export default function ExamDetailPage({
   mode = "view",
@@ -234,7 +249,6 @@ export default function ExamDetailPage({
   );
 
   const {
-    hasUnsavedChanges,
     showUnsavedDialog,
     isSaveInFlight,
     setIsSaveInFlight,
@@ -390,6 +404,12 @@ export default function ExamDetailPage({
               if (type === "cover-test") {
                 Object.keys(data).forEach((k) => {
                   if (k.startsWith(`cover-test-${cardId}-`)) {
+                    formDataLocal[k] = (data as any)[k];
+                  }
+                });
+              } else if (type === "old-refraction") {
+                Object.keys(data).forEach((k) => {
+                  if (k.startsWith(`old-refraction-${cardId}-`)) {
                     formDataLocal[k] = (data as any)[k];
                   }
                 });
@@ -698,6 +718,7 @@ export default function ExamDetailPage({
     examFormData,
     examFormDataByInstance,
     setExamFormDataByInstance,
+    fullDataSourcesRef,
     layoutTabs,
     setLayoutTabs,
     activeInstanceId,
@@ -1330,28 +1351,76 @@ export default function ExamDetailPage({
     }
   }, [leafLayouts.length, currentClinic?.id, setAvailableLayouts]);
 
+  const currentExamAdditionSources = useMemo(() => {
+    const sources: AdditionAddSourceMap = {};
+    const buckets = [
+      ...Object.values(examFormDataByInstance || {}),
+      examFormData,
+    ];
+
+    buckets.forEach((bucket) => {
+      const bucketSources = extractAdditionAddSourcesFromExamData(
+        bucket as Record<string, unknown>,
+      );
+
+      Object.entries(bucketSources).forEach(([type, source]) => {
+        const addType = type as AdditionAddType;
+        sources[addType] = {
+          ...(sources[addType] || {}),
+          ...source,
+        };
+      });
+    });
+
+    return sources;
+  }, [examFormDataByInstance, examFormData]);
+
+  const currentExamAddTypeOptions = useMemo(
+    () => getAdditionAddTypeOptions(currentExamAdditionSources),
+    [currentExamAdditionSources],
+  );
+
+  const navigateToOrderFromCurrentExam = useCallback(
+    (search: Record<string, string>) => {
+      if (!clientId || !exam?.id) return;
+
+      handleNavigationAttempt(() => {
+        navigate({
+          to: "/clients/$clientId/orders/new",
+          params: { clientId: String(clientId) },
+          search,
+        });
+      });
+    },
+    [clientId, exam?.id, handleNavigationAttempt, navigate],
+  );
+
+  const openRegularOrderFromCurrentExam = useCallback(
+    (addType?: AdditionAddType) => {
+      if (!exam?.id) return;
+
+      navigateToOrderFromCurrentExam({
+        importSourceId: String(exam.id),
+        importSourceType: "exam",
+        ...(addType ? { addType } : {}),
+      });
+    },
+    [exam?.id, navigateToOrderFromCurrentExam],
+  );
+
+  const openContactLensOrderFromCurrentExam = useCallback(() => {
+    if (!exam?.id) return;
+
+    navigateToOrderFromCurrentExam({
+      type: "contact",
+      importSourceId: String(exam.id),
+      importSourceType: "exam",
+    });
+  }, [exam?.id, navigateToOrderFromCurrentExam]);
+
   // Header actions
   const headerActions = (
     <>
-      {!isNewMode && !isEditing && exam?.id && (
-        <Link
-          to="/clients/$clientId/orders/new"
-          params={{ clientId: String(clientId) }}
-          search={{ examId: String(exam.id) }}
-          onClick={(e) => {
-            if (!hasUnsavedChanges) return;
-            e.preventDefault();
-            handleNavigationAttempt(() => {
-              navigate({
-                to: "/clients/$clientId/orders/new",
-                params: { clientId: String(clientId) },
-                search: { examId: String(exam.id) },
-              });
-            });
-          }}
-        >
-        </Link>
-      )}
       {!isNewMode && (<><LayoutSelectorDropdown
         availableLayouts={availableLayouts}
         onSelectLayout={handleSelectLayoutOption}
@@ -1359,9 +1428,39 @@ export default function ExamDetailPage({
         onRequestLayouts={handleRequestLayouts}
         isLoading={isAddingLayouts}
       />
-        <Button variant="outline" className="h-9 px-4">
-          הזמנה
-        </Button></>)}
+        {exam?.id && (
+          <DropdownMenu dir="rtl">
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" className="h-9 px-4">
+                הזמנה
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {currentExamAddTypeOptions.length > 0 ? (
+                <DropdownMenuSub>
+                  <DropdownMenuSubTrigger>רגילה</DropdownMenuSubTrigger>
+                  <DropdownMenuSubContent>
+                    {currentExamAddTypeOptions.map((type) => (
+                      <DropdownMenuItem
+                        key={type}
+                        onClick={() => openRegularOrderFromCurrentExam(type)}
+                      >
+                        {ADDITION_ADD_TYPE_LABELS[type]}
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuSubContent>
+                </DropdownMenuSub>
+              ) : (
+                <DropdownMenuItem onClick={() => openRegularOrderFromCurrentExam()}>
+                  רגילה
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuItem onClick={openContactLensOrderFromCurrentExam}>
+                עדשות מגע
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}</>)}
 
       {isNewMode && onCancel && (
         <Button

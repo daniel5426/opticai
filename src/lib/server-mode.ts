@@ -55,26 +55,13 @@ class ElectronServerMode {
     });
 
     this.app.post('/api/auth/login', async (req, res) => {
-      try {
-        const { username, password } = req.body;
-        const user = await window.electronAPI.db('getUserByUsername', username);
-        
-        if (user && user.password === password) {
-          const { password: _, ...userWithoutPassword } = user;
-          res.json({ success: true, user: userWithoutPassword });
-        } else {
-          res.status(401).json({ success: false, message: 'Invalid credentials' });
-        }
-      } catch (error) {
-        console.error('Login error:', error);
-        res.status(500).json({ success: false, message: 'Server error' });
-      }
+      res.status(410).json({ success: false, message: 'Backend auth is required' });
     });
 
     this.app.get('/api/users', async (req, res) => {
       try {
         const users = await window.electronAPI.db('getAllUsers');
-        const usersWithoutPasswords = users.map(({ password, ...user }: any) => user);
+        const usersWithoutPasswords = users.map(({ password, password_hash, ...user }: any) => user);
         res.json(usersWithoutPasswords);
       } catch (error) {
         console.error('Get users error:', error);
@@ -194,4 +181,4 @@ class ElectronServerMode {
 }
 
 export const electronServerMode = new ElectronServerMode();
-export default electronServerMode; 
+export default electronServerMode;

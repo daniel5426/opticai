@@ -28,6 +28,7 @@ interface ExamLayoutRendererProps {
         copyToLeft: (sourceType: ExamComponentType, targetType: ExamComponentType, sourceKey?: string, targetKey?: string) => void;
         copyToRight: (sourceType: ExamComponentType, targetType: ExamComponentType, sourceKey?: string, targetKey?: string) => void;
         copyToBelow: (sourceType: ExamComponentType, targetType: ExamComponentType, sourceKey?: string, targetKey?: string) => void;
+        copyEyeRow: (componentType: ExamComponentType, fromEye: "R" | "L", key?: string) => void;
     };
     onCopy: (card: CardItem) => void;
     onPaste: (card: CardItem) => void;
@@ -212,6 +213,20 @@ export function ExamLayoutRenderer({
                                                     }
                                                 }
                                             }
+                                        }}
+                                        onCopyToRightEye={() => {
+                                            toolboxActions.copyEyeRow(
+                                                item.type as ExamComponentType,
+                                                "L",
+                                                getCardKey(item),
+                                            );
+                                        }}
+                                        onCopyToLeftEye={() => {
+                                            toolboxActions.copyEyeRow(
+                                                item.type as ExamComponentType,
+                                                "R",
+                                                getCardKey(item),
+                                            );
                                         }}
                                     />
                                 </div>

@@ -1,5 +1,7 @@
 # Google Calendar Integration Setup
 
+Last Updated: 2026-04-30
+
 This document explains how to set up Google Calendar integration for your optical clinic management system.
 
 ## Prerequisites
@@ -23,7 +25,7 @@ This document explains how to set up Google Calendar integration for your optica
 2. Click "Create Credentials" > "OAuth 2.0 Client ID"
 3. Choose "Desktop application" as application type
 4. Add authorized redirect URIs:
-   - `http://localhost:3000/oauth/callback`
+   - `http://localhost:5173/oauth/callback`
 5. Download the credentials JSON file
 
 ## Step 3: Configure Environment Variables
@@ -32,8 +34,8 @@ Create a `.env` file in your project root with the following content:
 
 ```env
 # Google OAuth Configuration
-GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
-GOOGLE_CLIENT_SECRET=your-client-secret
+GOOGLE_DESKTOP_CLIENT_ID=your-client-id.apps.googleusercontent.com
+GOOGLE_DESKTOP_CLIENT_SECRET=your-client-secret
 ```
 
 Replace `your-client-id` and `your-client-secret` with the values from your Google Cloud Console credentials.
@@ -48,6 +50,9 @@ Replace `your-client-id` and `your-client-secret` with the values from your Goog
      - `https://www.googleapis.com/auth/calendar`
      - `https://www.googleapis.com/auth/calendar.events`
      - `https://www.googleapis.com/auth/userinfo.email`
+     - `openid`
+     - `email`
+     - `profile`
 3. Add test users if your app is in testing mode
 
 ## Step 5: Testing the Integration
@@ -65,7 +70,7 @@ Replace `your-client-id` and `your-client-secret` with the values from your Goog
 ### Common Issues
 
 1. **"Invalid client" error**: Check your client ID and secret
-2. **"Redirect URI mismatch"**: Ensure the redirect URI is exactly `http://localhost:3000/oauth/callback`
+2. **"Redirect URI mismatch"**: Ensure the redirect URI is exactly `http://localhost:5173/oauth/callback`
 3. **"Access denied" error**: Make sure you've granted all necessary permissions
 4. **"API not enabled" error**: Enable the Google Calendar API in your Google Cloud Console
 
@@ -75,6 +80,7 @@ The application requires the following OAuth scopes:
 - `https://www.googleapis.com/auth/calendar` - Full calendar access
 - `https://www.googleapis.com/auth/calendar.events` - Calendar events access
 - `https://www.googleapis.com/auth/userinfo.email` - User email access
+- `openid`, `email`, `profile` - Backend Google identity verification
 
 ### Rate Limits
 
@@ -96,4 +102,4 @@ Google Calendar API has rate limits:
 - ✅ Create calendar events with client details
 - ✅ Update and delete calendar events
 - ✅ Token refresh for long-term access
-- ✅ Disconnect Google account 
+- ✅ Disconnect Google account

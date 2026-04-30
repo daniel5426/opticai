@@ -1,30 +1,6 @@
 import "@testing-library/jest-dom";
 import { vi } from "vitest";
 
-// Mock Supabase client
-vi.mock("@supabase/supabase-js", () => ({
-  createClient: vi.fn(() => ({
-    auth: {
-      getSession: vi.fn(() => Promise.resolve({ data: { session: null }, error: null })),
-      signInWithPassword: vi.fn(),
-      signOut: vi.fn(),
-    },
-    from: vi.fn(() => ({
-      select: vi.fn(() => ({
-        eq: vi.fn(() => ({
-          single: vi.fn(() => Promise.resolve({ data: null, error: null })),
-        })),
-      })),
-    })),
-    storage: {
-      from: vi.fn(() => ({
-        upload: vi.fn(),
-        getPublicUrl: vi.fn(() => ({ data: { publicUrl: "https://test.url" } })),
-      })),
-    },
-  })),
-}));
-
 // Mock api-client
 vi.mock("@/lib/api-client", () => ({
   apiClient: {

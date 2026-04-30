@@ -1,17 +1,7 @@
-import { supabase } from '@/lib/supabaseClient'
-import { apiClient } from '@/lib/api-client'
+import { apiClient, AuthPayload, AuthResult, SetupRequiredPayload } from '@/lib/api-client'
 import { User, Company, Clinic } from '@/lib/db/schema-interface'
 import { ROLE_LEVELS, isRoleAtLeast } from '@/lib/role-levels'
 
-
-/**
- * Authentication State Machine
- * LOADING -> Initial state during app boot
- * UNAUTHENTICATED -> No session, show welcome/control-center
- * CLINIC_SELECTED -> Clinic chosen, show user selection
- * AUTHENTICATED -> Full session with user context
- * SETUP_REQUIRED -> New Supabase user needs company setup
- */
 export enum AuthState {
   LOADING = 'loading',
   UNAUTHENTICATED = 'unauthenticated',
@@ -24,15 +14,10 @@ export interface AuthSession {
   user?: User
   company?: Company
   clinic?: Clinic
-  isSupabaseAuth?: boolean // True if authenticated via Supabase (not clinic user)
 }
 
 type StateChangeListener = (state: AuthState, session: AuthSession | null) => void
 
-/**
- * AuthService - Single source of truth for authentication
- * Manages the complete authentication lifecycle with a clean state machine
- */
 class AuthService {
   private state: AuthState = AuthState.LOADING
   private session: AuthSession | null = null
@@ -40,121 +25,43 @@ class AuthService {
   private initialized = false
   private router: any = null
   private routerHistory: any = null
-  private isLoggingOut = false
   private isHandlingUnauthorized = false
 
   constructor() {
-    // Don't initialize AuthService in popup windows (OAuth callbacks)
-    // Check both window.opener and current path to detect popup/callback context
-    const isPopup = window.opener !== null
-    const isCallbackRoute = 
-      window.location.pathname === '/auth/callback' || 
-      window.location.pathname === '/oauth/callback'
-    
-    if (isPopup || isCallbackRoute) {
-      console.log('[Auth] Skipping initialization - popup/callback context:', { isPopup, isCallbackRoute })
-      this.state = AuthState.LOADING
-      return
-    }
-    
     this.initialize()
   }
 
-  // ============================================================================
-  // INITIALIZATION
-  // ============================================================================
-
   private async initialize(): Promise<void> {
     try {
-      console.log('[Auth] Initializing...')
-
-      const supabaseUrl = (import.meta as any).env?.VITE_SUPABASE_URL || (globalThis as any)?.VITE_SUPABASE_URL
-      const supabaseAnonKey = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY || (globalThis as any)?.VITE_SUPABASE_ANON_KEY
-
-      if (!supabaseUrl || !supabaseAnonKey) {
-        console.warn('[Auth] Supabase not configured, skipping session check')
-        await this.restoreLocalSession()
-        this.setupAuthListener()
-        this.setupUnauthorizedListener()
-        this.initialized = true
-        console.log('[Auth] Initialization complete, state:', this.state)
-        return
+      const token = localStorage.getItem('auth_token')
+      if (token) {
+        const response = await apiClient.getCurrentSession({ suppressUnauthorized: true })
+        if (response.data?.user) {
+          this.applySession({
+            user: response.data.user,
+            company: response.data.company || undefined,
+            clinic: this.getStoredClinic() || response.data.clinic || undefined,
+          }, false)
+          this.initialized = true
+          return
+        }
       }
 
-      const getSessionWithTimeout = () => {
-        return Promise.race([
-          supabase.auth.getSession(),
-          new Promise<{ data: { session: any }, error: any }>((resolve) => {
-            setTimeout(() => {
-              console.warn('[Auth] getSession() timeout after 5s')
-              resolve({ data: { session: null }, error: { message: 'timeout' } })
-            }, 5000)
-          })
-        ])
+      const clinic = this.getStoredClinic()
+      if (clinic && apiClient.getClinicTrustToken()) {
+        this.session = { clinic }
+        this.transitionTo(AuthState.CLINIC_SELECTED)
+      } else {
+        this.clearAllStorage()
+        this.transitionTo(AuthState.UNAUTHENTICATED)
       }
-
-      // Check Supabase session first
-      const { data: { session: supabaseSession }, error } = await getSessionWithTimeout()
-      
-      if (error) {
-        console.warn('[Auth] Error getting Supabase session:', error)
-        await this.restoreLocalSession()
-        this.setupAuthListener()
-        this.setupUnauthorizedListener()
-        this.initialized = true
-        console.log('[Auth] Initialization complete, state:', this.state)
-        return
-      }
-      
-      if (supabaseSession) {
-        console.log('[Auth] Found Supabase session')
-        await this.handleSupabaseSession(supabaseSession)
-        } else {
-        console.log('[Auth] No Supabase session, checking local storage')
-        await this.restoreLocalSession()
-      }
-
-      // Setup Supabase auth listener
-      this.setupAuthListener()
-      this.setupUnauthorizedListener()
-      
-      this.initialized = true
-      console.log('[Auth] Initialization complete, state:', this.state)
-    } catch (error) {
-      console.error('[Auth] Initialization failed:', error)
-      
-      await this.restoreLocalSession()
-      this.setupAuthListener()
+    } catch {
+      this.clearAllStorage()
+      this.transitionTo(AuthState.UNAUTHENTICATED)
+    } finally {
       this.setupUnauthorizedListener()
       this.initialized = true
     }
-  }
-
-  private setupAuthListener(): void {
-    supabase.auth.onAuthStateChange((event, session) => {
-      console.log('[Auth] Supabase event:', event)
-
-      if (this.isLoggingOut) {
-        console.log('[Auth] Ignoring Supabase event during logout:', event)
-        return
-      }
-
-      // Ignore initial session (already handled in initialize)
-      if (event === 'INITIAL_SESSION') return
-
-      if (event === 'SIGNED_IN' && session) {
-        void this.handleSupabaseSession(session)
-      } else if (event === 'SIGNED_OUT') {
-        // Only clear if not already unauthenticated and not a clinic user session
-        if (this.state !== AuthState.UNAUTHENTICATED && !this.hasClinicContext()) {
-          console.log('[Auth] Supabase signed out, clearing session')
-          this.clearSession()
-        }
-      } else if (event === 'TOKEN_REFRESHED' && session) {
-        // Update token silently
-        apiClient.setToken(session.access_token)
-      }
-    })
   }
 
   private setupUnauthorizedListener(): void {
@@ -164,30 +71,23 @@ class AuthService {
   }
 
   private async handleUnauthorized(): Promise<void> {
-    if (this.isHandlingUnauthorized || this.isLoggingOut) return
+    if (this.isHandlingUnauthorized) return
     this.isHandlingUnauthorized = true
     try {
-      console.log('[Auth] Handling unauthorized API response')
-      const { data } = await supabase.auth.refreshSession()
-      if (data?.session?.access_token) {
-        apiClient.setToken(data.session.access_token)
-        await this.handleSupabaseSession(data.session)
+      const response = await apiClient.getCurrentSession({ suppressUnauthorized: true })
+      if (response.data?.user) {
+        this.applySession({
+          user: response.data.user,
+          company: response.data.company || undefined,
+          clinic: this.getStoredClinic() || response.data.clinic || undefined,
+        })
         return
       }
 
-      const user = this.session?.user || this.getStoredUser()
       const clinic = this.session?.clinic || this.getStoredClinic()
-      if (user && clinic && user.has_password === false && !isRoleAtLeast(user.role_level, ROLE_LEVELS.ceo)) {
-        const refreshedUser = await this.signInClinicUser(user.username)
-        if (refreshedUser) {
-          this.setClinicSession(clinic, refreshedUser)
-          return
-        }
-      }
-
       this.clearUser()
       apiClient.clearToken()
-      if (clinic) {
+      if (clinic && apiClient.getClinicTrustToken()) {
         this.session = { clinic }
         this.transitionTo(AuthState.CLINIC_SELECTED, true)
       } else {
@@ -198,218 +98,38 @@ class AuthService {
     }
   }
 
-  // ============================================================================
-  // SESSION HANDLING
-  // ============================================================================
-
-  private async handleSupabaseSession(session: any): Promise<void> {
-    // Don't process sessions in popup/callback context
-    if (window.location.pathname === '/auth/callback') {
-      console.log('[Auth] Skipping session processing - in callback route')
-      return
-    }
-
-    try {
-      console.log('[Auth] Processing Supabase session')
-      
-      // Set token for API calls
-      apiClient.setToken(session.access_token)
-      this.storeSupabaseSession(session)
-      
-      // Check for pending clinic user OAuth (special case)
-      const pendingUserId = this.getPendingClinicUserId()
-      if (pendingUserId) {
-        await this.completePendingClinicAuth(pendingUserId)
-                return
-          }
-          
-      // Try to get app user from backend
-      const userResponse = await apiClient.getCurrentUser({ suppressUnauthorized: true })
-      
-      if (!userResponse.data) {
-        console.log('[Auth] No app user found, setup required')
-        this.session = { isSupabaseAuth: true }
-        this.transitionTo(AuthState.SETUP_REQUIRED)
-              return
-            }
-
-          const user = userResponse.data as User
-      
-      // Check if CEO without company (shouldn't happen, but handle it)
-      if (isRoleAtLeast(user.role_level, ROLE_LEVELS.ceo) && !user.company_id) {
-        console.log('[Auth] CEO without company, setup required')
-        this.session = { user, isSupabaseAuth: true }
-        this.transitionTo(AuthState.SETUP_REQUIRED)
-              return
-            }
-      
-      // Load full context based on user role
-      await this.loadUserContext(user, true)
-      
-      this.transitionTo(AuthState.AUTHENTICATED)
-      
-      } catch (error) {
-      console.error('[Auth] Failed to process Supabase session:', error)
-      this.clearSession()
-    }
-  }
-
-  private async restoreLocalSession(): Promise<void> {
-    const storedClinic = this.getStoredClinic()
-    const storedUser = this.getStoredUser()
-
-    console.log('[Auth] Stored clinic:', !!storedClinic, 'Stored user:', !!storedUser)
-
-    if (storedClinic && storedUser) {
-      // Full session restored
-      this.session = { clinic: storedClinic, user: storedUser }
-      this.transitionTo(AuthState.AUTHENTICATED)
-    } else if (storedClinic) {
-      // Only clinic selected
-      this.session = { clinic: storedClinic }
-      this.transitionTo(AuthState.CLINIC_SELECTED)
-    } else {
-      // No session
-      this.transitionTo(AuthState.UNAUTHENTICATED)
-    }
-  }
-
-  private async loadUserContext(user: User, isSupabaseAuth: boolean): Promise<void> {
-    this.storeUser(user)
-    const lastContext = this.getStoredContext()
-    console.log('[Auth] loadUserContext: last context', lastContext)
-
-    if (isRoleAtLeast(user.role_level, ROLE_LEVELS.ceo) && user.company_id) {
-      // Load company for CEO
-      const companyResponse = await apiClient.getCompany(user.company_id)
-      if (companyResponse.data) {
-        const company = companyResponse.data as Company
-        this.storeCompany(company)
-        
-        const storedClinic = this.getStoredClinic()
-        const shouldAttachClinic = lastContext !== 'control-center'
-        console.log('[Auth] loadUserContext: clinic attach?', { storedClinic: !!storedClinic, shouldAttachClinic })
-        
-        if (storedClinic && shouldAttachClinic) {
-          console.log('[Auth] CEO has stored clinic session:', storedClinic.name)
-          this.session = { user, company, clinic: storedClinic, isSupabaseAuth }
-          return
-        }
-        
-        this.session = { user, company, isSupabaseAuth }
-        return
-      }
-    }
-
-    if (user.clinic_id) {
-      // Load clinic for clinic users
-      const clinicResponse = await apiClient.getClinic(user.clinic_id)
-      if (clinicResponse.data) {
-        const clinic = clinicResponse.data as Clinic
-        this.storeClinic(clinic)
-        this.session = { user, clinic, isSupabaseAuth }
-        return
-      }
-    }
-
-    // Fallback - user only
-    this.session = { user, isSupabaseAuth }
-  }
-
-  // ============================================================================
-  // AUTHENTICATION METHODS
-  // ============================================================================
-
-  private getOAuthRedirectUrl(): string {
-    const isFileOrigin = window.location.origin === 'file://'
-    const isPackagedElectron = !!(window as any).electronAPI && isFileOrigin
-    return isPackagedElectron ? 'prysm://auth/callback' : `${window.location.origin}/auth/callback`
-  }
-
   async signInWithEmail(email: string, password: string): Promise<boolean> {
-    try {
-      console.log('[Auth] Email sign in for:', email)
-      
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password })
-      
-      if (error || !data.session) {
-        console.error('[Auth] Email sign in failed:', error)
-        return false
-      }
-      
-      await this.handleSupabaseSession(data.session)
-      return true
-      
-    } catch (error) {
-      console.error('[Auth] Email sign in error:', error)
-      return false
-    }
+    const response = await apiClient.loginPassword({ identifier: email, password })
+    if (!response.data || response.error) return false
+    this.handleAuthResult(response.data)
+    return response.data.status === 'authenticated'
   }
 
   async signUp(email: string, password: string, fullName: string): Promise<{ success: boolean; status?: 'authenticated' | 'setup_required' | 'pending_confirmation' | 'error'; error?: string }> {
-    try {
-      console.log('[Auth] Sign up for:', email)
-
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: { data: { full_name: fullName } }
-      })
-
-      if (error) {
-        // Check if user already exists
-        if (error.message?.toLowerCase().includes('already registered')) {
-          // Try to sign in instead
-          const signInResult = await this.signInWithEmail(email, password)
-          if (signInResult) {
-            return { success: true }
-          }
-          return { success: false, error: 'email_exists_but_wrong_password' }
-        }
-        return { success: false, error: error.message }
-      }
-
-      if (data.session) {
-        await this.handleSupabaseSession(data.session)
-        return { success: true, status: 'authenticated' }
-      }
-
-      return { success: true, status: 'pending_confirmation' }
-      
-    } catch (error) {
-      console.error('[Auth] Sign up error:', error)
-      return { success: false, status: 'error', error: 'unknown_error' }
+    const response = await apiClient.registerStart({ email, password, full_name: fullName })
+    if (!response.data || response.error) {
+      return { success: false, status: 'error', error: response.error }
     }
+    this.storePendingSetup(response.data)
+    this.transitionTo(AuthState.SETUP_REQUIRED)
+    return { success: true, status: 'setup_required' }
   }
 
   async signInWithGoogle(): Promise<void> {
-    try {
-      console.log('[Auth] Starting Google OAuth')
-
-      const { data, error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: this.getOAuthRedirectUrl(),
-          scopes: 'openid email profile https://www.googleapis.com/auth/calendar',
-          queryParams: {
-            access_type: 'offline',
-            prompt: 'consent',
-          },
-          skipBrowserRedirect: true,
-        }
-      })
-
-      if (error || !data?.url) {
-        throw new Error(error?.message || 'No OAuth URL received')
-      }
-
-      // Open popup for OAuth
-      await this.openOAuthPopup(data.url)
-      
-    } catch (error) {
-      console.error('[Auth] Google sign in error:', error)
-      throw error
+    const result = await window.electronAPI.googleOAuthAuthenticate()
+    if (result.success === false || !result.tokens?.access_token) {
+      throw new Error(result.error || 'Google authentication failed')
     }
+    const response = await apiClient.loginGoogle({
+      access_token: result.tokens.access_token,
+      refresh_token: result.tokens.refresh_token,
+      id_token: result.tokens.id_token,
+      user_info: result.userInfo,
+    })
+    if (!response.data || response.error) {
+      throw new Error(response.error || 'Google login failed')
+    }
+    this.handleAuthResult(response.data)
   }
 
   getClinicDeviceId(): string {
@@ -422,270 +142,102 @@ class AuthService {
   }
 
   async createClinicTrustSession(clinicUniqueId: string, pin: string): Promise<Clinic | null> {
-    const deviceId = this.getClinicDeviceId()
     const response = await apiClient.createClinicSession({
       clinic_unique_id: clinicUniqueId,
       pin,
-      device_id: deviceId
+      device_id: this.getClinicDeviceId()
     })
-    if (!response.data?.clinic_trust_token || !response.data.clinic) {
-      return null
-    }
+    if (!response.data?.clinic_trust_token || !response.data.clinic) return null
     apiClient.setClinicTrustToken(response.data.clinic_trust_token)
-    localStorage.setItem('clinicTrustToken', response.data.clinic_trust_token)
+    this.storeClinic(response.data.clinic as Clinic)
     return response.data.clinic as Clinic
   }
 
   async signInClinicUser(username: string, password?: string): Promise<User | null> {
-    try {
-      console.log('[Auth] Clinic user sign in:', username, 'with password:', !!password)
+    const clinic = this.session?.clinic || this.getStoredClinic()
+    const clinicTrustToken = apiClient.getClinicTrustToken()
+    if (!clinic || !clinicTrustToken) return null
 
-      const endpoint = password ? '/auth/login' : '/auth/login-no-password'
-      const clinic = this.session?.clinic || this.getStoredClinic()
-      const clinicTrustToken = apiClient.getClinicTrustToken()
-      const body = password ? { username, password, clinic_id: clinic?.id } : { username }
-      
-      const response = await fetch(`${(apiClient as any).baseUrl}${endpoint}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(!password && clinicTrustToken ? { Authorization: `Bearer ${clinicTrustToken}` } : {})
-        },
-        body: JSON.stringify(body),
-      })
-      
-      const data = await response.json()
-      
-      if (data?.access_token && data?.user) {
-        apiClient.setToken(data.access_token)
-        return data.user as User
-      }
-      
-      return null
-      
-    } catch (error) {
-      console.error('[Auth] Clinic user sign in error:', error)
-      return null
-    }
+    const response = password
+      ? await apiClient.loginPassword(
+          { identifier: username, password, clinic_id: clinic.id, device_id: this.getClinicDeviceId() },
+          clinicTrustToken
+        )
+      : await apiClient.loginQuick(
+          { username, device_id: this.getClinicDeviceId() },
+          clinicTrustToken
+        )
+    if (!response.data || response.error || response.data.status !== 'authenticated') return null
+    this.storeAuthPayload(response.data)
+    return response.data.user as User
   }
 
   async signInClinicUserWithGoogle(userId: number): Promise<void> {
-    try {
-      console.log('[Auth] Starting clinic user Google OAuth for user:', userId)
+    const clinic = this.session?.clinic || this.getStoredClinic()
+    const clinicTrustToken = apiClient.getClinicTrustToken()
+    if (!clinic || !clinicTrustToken) throw new Error('Missing clinic trust session')
 
-      // Store pending auth info
-      this.storePendingClinicAuth(userId)
-
-      const { data, error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: this.getOAuthRedirectUrl(),
-          scopes: 'openid email profile https://www.googleapis.com/auth/calendar',
-          queryParams: {
-            access_type: 'offline',
-            prompt: 'consent',
-          },
-          skipBrowserRedirect: true,
-        }
-      })
-
-      if (error || !data?.url) {
-        this.clearPendingClinicAuth()
-        throw new Error(error?.message || 'No OAuth URL received')
-      }
-
-      await this.openOAuthPopup(data.url)
-      
-        } catch (error) {
-      this.clearPendingClinicAuth()
-      console.error('[Auth] Clinic Google sign in error:', error)
-      throw error
+    const result = await window.electronAPI.googleOAuthAuthenticate()
+    if (result.success === false || !result.tokens?.access_token) {
+      throw new Error(result.error || 'Google authentication failed')
     }
-  }
-
-  private async completePendingClinicAuth(userId: number): Promise<void> {
-    try {
-      console.log('[Auth] Completing pending clinic auth for user:', userId)
-      
-      this.clearPendingClinicAuth()
-
-      const clinic = this.getStoredClinic()
-
-      if (!clinic) {
-        throw new Error('No clinic context')
-      }
-
-      const { data: { session } } = await supabase.auth.getSession()
-      const clinicTrustToken = apiClient.getClinicTrustToken()
-      if (!session?.access_token || !clinicTrustToken) {
-        throw new Error('Missing Google or clinic trust session')
-      }
-
-      const loginResponse = await apiClient.clinicGoogleLogin(
-        { user_id: userId, device_id: this.getClinicDeviceId() },
-        session.access_token,
-        clinicTrustToken
-      )
-      if (!loginResponse.data?.access_token || !loginResponse.data.user) {
-        throw new Error(loginResponse.error || 'Clinic Google login failed')
-      }
-
-      apiClient.setToken(loginResponse.data.access_token)
-      const user = loginResponse.data.user as User
-
-      // Build session with proper context
-      const newSession: AuthSession = { user, clinic }
-      
-      // CEOs keep their Supabase auth, clinic workers don't need it
-      if (isRoleAtLeast(user.role_level, ROLE_LEVELS.ceo)) {
-        newSession.isSupabaseAuth = true
-        // Load company context for CEO
-        if (user.company_id) {
-          const companyResponse = await apiClient.getCompany(user.company_id)
-          if (companyResponse.data) {
-            newSession.company = companyResponse.data as Company
-            this.storeCompany(companyResponse.data as Company)
-          }
-        }
-      }
-      
-      this.storeUser(user)
-      this.session = newSession
-      this.transitionTo(AuthState.AUTHENTICATED)
-
-      // Only sign out from Supabase if NOT a CEO (clinic workers don't need Supabase session)
-      if (!isRoleAtLeast(user.role_level, ROLE_LEVELS.ceo)) {
-        console.log('[Auth] Signing out from Supabase (clinic worker)')
-        setTimeout(() => supabase.auth.signOut(), 100)
-      } else {
-        console.log('[Auth] Keeping Supabase session (CEO)')
-      }
-      
-        } catch (error) {
-      console.error('[Auth] Failed to complete pending clinic auth:', error)
-      this.clearSession()
+    const response = await apiClient.loginGoogle({
+      access_token: result.tokens.access_token,
+      refresh_token: result.tokens.refresh_token,
+      id_token: result.tokens.id_token,
+      user_id: userId,
+      device_id: this.getClinicDeviceId(),
+      user_info: result.userInfo,
+    }, clinicTrustToken)
+    if (!response.data || response.error || response.data.status !== 'authenticated') {
+      throw new Error(response.error || 'Clinic Google login failed')
     }
+    this.storeAuthPayload(response.data)
+    this.setClinicSession(clinic, response.data.user)
   }
-
-  // ============================================================================
-  // SETUP FLOW
-  // ============================================================================
 
   async completeSetup(companyData: any, clinicData: any): Promise<boolean> {
-    try {
-      console.log('[Auth] Starting setup completion')
-
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session?.user?.email) {
-        throw new Error('No active Supabase session')
+    const setup = this.getPendingSetup()
+    if (!setup?.setup_token) return false
+    const response = await apiClient.registerComplete({
+      setup_token: setup.setup_token,
+      company: {
+        name: companyData.name,
+        owner_full_name: setup.full_name || setup.email?.split('@')[0],
+        contact_email: setup.email,
+        contact_phone: companyData.phone || '',
+        address: companyData.address || ''
+      },
+      clinic: {
+        name: clinicData.name,
+        location: clinicData.location,
+        phone_number: clinicData.phone_number,
+        email: clinicData.email || setup.email
       }
-
-      apiClient.setToken(session.access_token)
-      
-      // Detect auth provider (google or email)
-      const isGoogleAuth = session.user.app_metadata?.provider === 'google' || 
-                           session.user.app_metadata?.providers?.includes('google')
-      
-      console.log('[Auth] Setup for auth provider:', session.user.app_metadata?.provider, 'isGoogle:', isGoogleAuth)
-      
-      const setupResponse = await apiClient.completeSetup({
-        company: {
-          name: companyData.name,
-          owner_full_name: session.user.user_metadata?.full_name || session.user.email.split('@')[0],
-          contact_email: session.user.email,
-          contact_phone: companyData.phone || '',
-          address: companyData.address || ''
-        },
-        clinic: {
-          name: clinicData.name,
-          location: clinicData.location,
-          phone_number: clinicData.phone_number,
-          email: clinicData.email
-        }
-      })
-
-      if (!setupResponse.data?.company || !setupResponse.data.user) {
-        throw new Error(setupResponse.error || 'Failed to complete setup')
-      }
-
-      const company = setupResponse.data.company as Company
-      const user = setupResponse.data.user as User
-
-      // Set session
-      this.storeCompany(company)
-      this.storeUser(user)
-      this.session = { user, company, isSupabaseAuth: true }
-      this.transitionTo(AuthState.AUTHENTICATED)
-
-      console.log('[Auth] Setup completed successfully')
-      return true
-      
-    } catch (error) {
-      console.error('[Auth] Setup completion failed:', error)
-              return false
-            }
+    })
+    if (!response.data || response.error) return false
+    this.clearPendingSetup()
+    this.handleAuthPayload(response.data)
+    return true
   }
 
   async getSetupData() {
-    if (this.state !== AuthState.SETUP_REQUIRED) {
-      return null
-    }
-
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session?.user?.email) return null
-
+    if (this.state !== AuthState.SETUP_REQUIRED) return null
+    const setup = this.getPendingSetup()
+    if (!setup) return null
     return {
-      email: session.user.email,
-      fullName: session.user.user_metadata?.full_name || session.user.email.split('@')[0],
-      isGoogleUser: true,
-      supabaseSession: session
+      email: setup.email,
+      fullName: setup.full_name || setup.email?.split('@')[0],
+      isGoogleUser: setup.auth_provider === 'google',
     }
   }
 
-  // ============================================================================
-  // SESSION MANAGEMENT
-  // ============================================================================
-
   setClinicSession(clinic: Clinic, user?: User): void {
-    console.log('[Auth] Setting clinic session:', clinic.name, 'with user:', user?.username)
-
     this.storeClinic(clinic)
-
     if (user) {
       this.storeUser(user)
-
-      // Build new session preserving company context for CEOs
-      const newSession: AuthSession = { clinic, user }
-
-      if (isRoleAtLeast(user.role_level, ROLE_LEVELS.ceo) && this.session?.company) {
-          newSession.company = this.session.company
-        newSession.isSupabaseAuth = this.session.isSupabaseAuth
-      }
-
-      const previousClinicId = this.session?.clinic?.id
-      const isClinicChange = previousClinicId !== clinic.id
-      const currentPath = window.location.pathname
-      const isOnControlCenter = currentPath.startsWith('/control-center')
-      
-      this.session = newSession
-
-      // Force navigation if:
-      // 1. Coming from Control Center to a clinic, OR
-      // 2. Switching between different clinics, OR  
-      // 3. CEO explicitly selecting a clinic (even if same ID, context may differ)
-      const forceNavigation = isRoleAtLeast(user.role_level, ROLE_LEVELS.ceo) && 
-                             (isOnControlCenter || isClinicChange || !!clinic)
-
-      console.log('[Auth] Clinic switch:', { 
-        previousClinicId, 
-        newClinicId: clinic.id, 
-        currentPath,
-        isOnControlCenter,
-        isClinicChange,
-        forceNavigation 
-      })
-
-      this.transitionTo(AuthState.AUTHENTICATED, forceNavigation)
+      const company = this.session?.company || this.getStoredCompany()
+      this.applySession({ user, clinic, company }, true)
     } else {
       this.session = { clinic }
       this.transitionTo(AuthState.CLINIC_SELECTED)
@@ -693,405 +245,34 @@ class AuthService {
   }
 
   logoutUser(): void {
-    console.log('[Auth] Logging out user, preserving clinic context')
-
-    const clinic = this.session?.clinic
-
-    // Clear user data
+    const clinic = this.session?.clinic || this.getStoredClinic()
+    void apiClient.logout()
     this.clearUser()
     apiClient.clearToken()
-
-    if (clinic) {
-      // Keep clinic session - force navigation to user selection
+    if (clinic && apiClient.getClinicTrustToken()) {
       this.session = { clinic }
       this.transitionTo(AuthState.CLINIC_SELECTED, true)
     } else {
-      // No clinic context, full logout
       this.clearSession()
     }
   }
 
   async logoutClinic(): Promise<void> {
-    try {
-      console.log('[Auth] Logging out from clinic')
-
-      this.isLoggingOut = true
-      const wasSupabaseAuth = this.session?.isSupabaseAuth
-
-      // Clear local session state first so the UI cannot rehydrate the clinic while logout is in flight.
-      console.log('[Auth] Clearing local session data before remote sign out')
-      this.clearClinic()
-      this.clearUser()
-      apiClient.clearToken()
-      this.clearAllStorage()
-      this.session = null
-      this.transitionTo(AuthState.UNAUTHENTICATED, true)
-
-      // Then sign out from Supabase if needed.
-      if (wasSupabaseAuth) {
-        console.log('[Auth] Signing out from Supabase')
-        try {
-          await supabase.auth.signOut()
-          console.log('[Auth] Supabase sign out complete')
-        } catch (error) {
-          console.error('[Auth] Error signing out from Supabase:', error)
-        }
-      }
-
-      console.log('[Auth] Logout complete')
-    } catch (error) {
-      console.error('[Auth] Error during logout:', error)
-      // Ensure we still transition to unauthenticated even on error.
-      this.clearAllStorage()
-      this.session = null
-      this.transitionTo(AuthState.UNAUTHENTICATED, true)
-    } finally {
-      this.isLoggingOut = false
-    }
+    await apiClient.logout().catch(() => undefined)
+    this.clearAllStorage()
+    apiClient.clearToken()
+    apiClient.clearClinicTrustToken()
+    this.session = null
+    this.transitionTo(AuthState.UNAUTHENTICATED, true)
   }
 
   signOut(): void {
-    console.log('[Auth] Full sign out')
-    
-    this.clearSession()
-    apiClient.clearToken()
-    supabase.auth.signOut()
+    void this.logoutClinic()
   }
-
-  private clearSession(): void {
-    this.clearAllStorage()
-    this.session = null
-    this.transitionTo(AuthState.UNAUTHENTICATED)
-  }
-
-  // ============================================================================
-  // OAUTH POPUP HANDLING
-  // ============================================================================
-
-  private openOAuthPopup(url: string): Promise<void> {
-    return new Promise((resolve, reject) => {
-      let removeAuthCallbackUrl: (() => void) | null = null
-      let timeout: ReturnType<typeof setTimeout> | undefined
-
-      const setSessionInMainWindow = async (session: any) => {
-        if (!session?.access_token || !session?.refresh_token) {
-          return session
-        }
-
-        return Promise.race([
-          supabase.auth.setSession({
-            access_token: session.access_token,
-            refresh_token: session.refresh_token,
-          }).then(({ data, error }) => {
-            if (error) throw error
-            return data?.session || session
-          }),
-          new Promise((_, rejectTimeout) => {
-            setTimeout(() => rejectTimeout(new Error('Main-window session setup timed out')), 15000)
-          }),
-        ]).catch((error) => {
-          console.warn('[Auth] Supabase setSession fallback activated:', error)
-          this.storeSupabaseSession(session)
-          return session
-        })
-      }
-
-      const handleCallbackUrl = async (callbackUrl: string) => {
-        try {
-          const parsed = new URL(callbackUrl)
-          const code = parsed.searchParams.get('code')
-          const error = parsed.searchParams.get('error') || parsed.searchParams.get('error_description')
-          if (error) throw new Error(error)
-          if (!code) throw new Error('No authorization code received')
-          const { data, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
-          if (exchangeError) throw exchangeError
-          const hydratedSession = await setSessionInMainWindow(data?.session)
-          await this.handleSupabaseSession(hydratedSession)
-          if (removeAuthCallbackUrl) removeAuthCallbackUrl()
-          if (timeout) clearTimeout(timeout)
-          resolve()
-        } catch (error) {
-          if (removeAuthCallbackUrl) removeAuthCallbackUrl()
-          if (timeout) clearTimeout(timeout)
-          reject(error)
-        }
-      }
-
-      const isPackagedElectron = this.getOAuthRedirectUrl().startsWith('prysm://')
-      let popup: Window | null = null
-      if (isPackagedElectron && window.electronAPI?.openExternalAuthUrl) {
-        removeAuthCallbackUrl = window.electronAPI.onAuthCallbackUrl(handleCallbackUrl)
-        void window.electronAPI.openExternalAuthUrl(url)
-      } else {
-        popup = window.open(
-          url,
-          'google-oauth',
-          'width=500,height=600,scrollbars=yes,resizable=yes'
-        )
-      }
-
-      if (!popup && !isPackagedElectron) {
-        reject(new Error('Popup blocked - please allow popups for this site'))
-        return
-      }
-
-      // Timeout after 2 minutes
-      timeout = setTimeout(() => {
-        window.removeEventListener('message', messageHandler)
-        if (removeAuthCallbackUrl) removeAuthCallbackUrl()
-        try {
-          popup?.close()
-        } catch (e) {
-          console.warn('[Auth] Could not close popup on timeout:', e)
-        }
-        reject(new Error('OAuth timeout'))
-      }, 120000)
-
-      const messageHandler = async (event: MessageEvent) => {
-        // Accept messages from same-origin, file://, and about:blank (Electron dev)
-        const isSameOrigin = event.origin === window.location.origin
-        const isFileProtocol = window.location.origin === 'file://' || event.origin === 'file://'
-        const isBlank = event.origin === 'null' || event.origin === ''
-        if (!isSameOrigin && !isFileProtocol && !isBlank) return
-
-        if (event.data.type === 'OAUTH_SUCCESS') {
-          clearTimeout(timeout)
-          window.removeEventListener('message', messageHandler)
-          
-          // Close popup immediately
-          try {
-            popup?.close()
-          } catch (e) {
-            console.warn('[Auth] Could not close popup:', e)
-          }
-
-          // Small delay to ensure popup closes before we navigate
-          await new Promise(resolve => setTimeout(resolve, 200))
-
-          try {
-            const hydratedSession = await setSessionInMainWindow(event.data.session)
-            await this.handleSupabaseSession(hydratedSession)
-            resolve()
-          } catch (error) {
-            reject(error)
-          }
-        } else if (event.data.type === 'OAUTH_ERROR') {
-          clearTimeout(timeout)
-          window.removeEventListener('message', messageHandler)
-          
-          try {
-            popup?.close()
-          } catch (e) {
-            console.warn('[Auth] Could not close popup:', e)
-          }
-          
-          reject(new Error(event.data.error))
-        }
-      }
-
-      window.addEventListener('message', messageHandler)
-    })
-  }
-
-  // ============================================================================
-  // STATE MACHINE
-  // ============================================================================
-
-  private transitionTo(newState: AuthState, forceNavigation = false): void {
-    const oldState = this.state
-    
-    if (oldState === newState && !forceNavigation) {
-      console.log('[Auth] Already in state:', newState, '- skipping transition and navigation')
-      return
-    }
-
-    console.log('[Auth] State transition:', oldState, '->', newState, forceNavigation ? '(forced)' : '')
-    
-    // Update state if different
-    if (oldState !== newState) {
-      this.state = newState
-    }
-    
-    this.notifyListeners()
-
-    // Navigate after state update (synchronous)
-    // Always navigate if forceNavigation is true, even in same state
-    if (forceNavigation || newState !== AuthState.LOADING) {
-      this.navigate(forceNavigation)
-    }
-  }
-
-  private notifyListeners(): void {
-    this.listeners.forEach(listener => {
-      try {
-        listener(this.state, this.session)
-      } catch (error) {
-        console.error('[Auth] Listener error:', error)
-      }
-    })
-  }
-
-  private navigate(forceNavigation = false): void {
-    // Don't navigate if we're in a popup window (OAuth callback)
-    if (window.opener) {
-      console.log('[Auth] Skipping navigation - in popup window')
-      return
-    }
-
-    console.log('[Auth] Navigating for state:', this.state, forceNavigation ? '(forced)' : '')
-
-    // Try to get current path from router first, fallback to window.location
-    let currentPath = window.location.pathname
-    try {
-      if (this.router?.state?.location?.pathname) {
-        currentPath = this.router.state.location.pathname
-      }
-    } catch (error) {
-      console.log('[Auth] Could not get path from router, using window.location')
-    }
-
-    console.log('[Auth] Current path:', currentPath)
-
-    try {
-      if (!forceNavigation) {
-        const storedPath = this.getStoredPath()
-        const storedContext = this.getStoredContext()
-        console.log('[Auth] Stored path/context:', { storedPath, storedContext, currentPath })
-        if (storedPath && this.shouldRestorePath(storedPath, currentPath)) {
-          console.log('[Auth] Restoring stored path:', storedPath)
-          if (this.restoreStoredPath(storedPath)) {
-            return
-          }
-        } else {
-          console.log('[Auth] Path restoration skipped')
-        }
-      }
-
-      switch (this.state) {
-        case AuthState.UNAUTHENTICATED:
-          if (currentPath !== '/control-center' && this.router) {
-            console.log('[Auth] Navigating to control center from:', currentPath)
-            const navResult = this.router.navigate({ 
-              to: '/control-center',
-              replace: true  // Replace history instead of push
-            })
-            if (navResult && typeof navResult.then === 'function') {
-              navResult.catch((err: Error) => {
-                console.error('[Auth] Navigation failed:', err)
-              })
-            }
-          } else {
-            console.log('[Auth] Already on control center page')
-          }
-          break
-
-        case AuthState.CLINIC_SELECTED:
-          if (currentPath !== '/user-selection' && this.router) {
-            console.log('[Auth] Navigating to user selection from:', currentPath)
-            this.router.navigate({ 
-              to: '/user-selection',
-              replace: true
-            })
-          }
-          break
-
-        case AuthState.AUTHENTICATED:
-          if (this.session?.clinic) {
-            // Clinic user context - go to dashboard
-            // Navigate if not already on a clinic page OR coming from control center
-            const isOnClinicPage = currentPath.startsWith('/dashboard') || 
-                                   currentPath.startsWith('/clients') ||
-                                   currentPath.startsWith('/exams') ||
-                                   currentPath.startsWith('/orders') ||
-                                   currentPath.startsWith('/appointments') ||
-                                   currentPath.startsWith('/referrals') ||
-                                   currentPath.startsWith('/files') ||
-                                   currentPath.startsWith('/settings') ||
-                                   currentPath.startsWith('/campaigns') ||
-                                   currentPath.startsWith('/ai-assistant') ||
-                                   currentPath.startsWith('/worker-stats')
-            const isComingFromControlCenter = currentPath.startsWith('/control-center')
-            
-            if (forceNavigation && this.router) {
-              console.log('[Auth] Navigating to clinic dashboard from:', currentPath, '(forced)')
-              
-              const clinicIdParam = this.session?.clinic?.id
-                ? this.session.clinic.id.toString()
-                : undefined
-              const refreshToken = Date.now().toString()
-
-              const navResult = this.router.navigate({
-                to: '/dashboard',
-                replace: true,
-                search: {
-                  clinicId: clinicIdParam,
-                  refresh: refreshToken
-                }
-              })
-
-              if (navResult && typeof navResult.then === 'function') {
-                navResult.catch((err: Error) => {
-                  console.error('[Auth] Forced dashboard navigation failed:', err)
-                })
-              }
-            } else if ((!isOnClinicPage || isComingFromControlCenter) && this.router) {
-              console.log('[Auth] Navigating to clinic dashboard from:', currentPath)
-              const navResult = this.router.navigate({ to: '/dashboard' })
-              if (navResult && typeof navResult.then === 'function') {
-                navResult.catch((err: Error) => {
-                  console.error('[Auth] Dashboard navigation failed:', err)
-                })
-              }
-            } else {
-              console.log('[Auth] Already on clinic page, skipping navigation')
-            }
-          } else if (isRoleAtLeast(this.session?.user?.role_level, ROLE_LEVELS.ceo)) {
-            // CEO context - go to control center dashboard
-            if ((forceNavigation || !currentPath.startsWith('/control-center/dashboard')) && this.router) {
-              console.log('[Auth] Navigating to control center dashboard from:', currentPath, forceNavigation ? '(forced)' : '')
-              const navResult = this.router.navigate({
-                to: '/control-center/dashboard',
-                search: {
-                  companyId: this.session.company?.id?.toString() || '',
-                  companyName: this.session.company?.name || '',
-                  fromSetup: 'false'
-                }
-              })
-              if (navResult && typeof navResult.then === 'function') {
-                navResult.catch((err: Error) => {
-                  console.error('[Auth] Control center navigation failed:', err)
-                })
-              }
-            } else {
-              console.log('[Auth] Already on control center dashboard, skipping navigation')
-            }
-          }
-          break
-
-        case AuthState.SETUP_REQUIRED:
-          if (currentPath !== '/control-center' && this.router) {
-            console.log('[Auth] Navigating to control center for setup from:', currentPath)
-            this.router.navigate({ to: '/control-center' })
-          }
-          break
-      }
-    } catch (error) {
-      console.error('[Auth] Navigation failed:', error)
-    }
-  }
-
-  // ============================================================================
-  // PUBLIC API
-  // ============================================================================
 
   subscribe(listener: StateChangeListener): () => void {
     this.listeners.push(listener)
-    
-    // Immediately notify with current state
-    if (this.initialized) {
-      listener(this.state, this.session)
-    }
-    
+    listener(this.state, this.session)
     return () => {
       this.listeners = this.listeners.filter(l => l !== listener)
     }
@@ -1109,31 +290,152 @@ class AuthService {
     return this.initialized
   }
 
-  // ============================================================================
-  // LOCAL STORAGE HELPERS
-  // ============================================================================
-
-  private hasClinicContext(): boolean {
+  hasClinicContext(): boolean {
     return !!this.session?.clinic
   }
 
-  private getStoredUser(): User | null {
+  public setRouter(router: any, history: any) {
+    this.router = router
+    this.routerHistory = history
+  }
+
+  private handleAuthResult(result: AuthResult): void {
+    if (result.status === 'setup_required') {
+      this.storePendingSetup(result)
+      this.transitionTo(AuthState.SETUP_REQUIRED)
+      return
+    }
+    this.handleAuthPayload(result)
+  }
+
+  private handleAuthPayload(payload: AuthPayload): void {
+    this.storeAuthPayload(payload)
+    this.applySession({
+      user: payload.user,
+      company: payload.company || undefined,
+      clinic: payload.clinic || this.getStoredClinic() || undefined,
+    }, true)
+  }
+
+  private storeAuthPayload(payload: AuthPayload): void {
+    apiClient.setSessionTokens(payload.access_token, payload.refresh_token)
+    this.storeUser(payload.user)
+    if (payload.company) this.storeCompany(payload.company)
+    if (payload.clinic) this.storeClinic(payload.clinic)
+  }
+
+  private applySession(session: AuthSession, forceNavigation = false): void {
+    this.session = session
+    if (session.user) this.storeUser(session.user)
+    if (session.company) this.storeCompany(session.company)
+    if (session.clinic) this.storeClinic(session.clinic)
+    this.transitionTo(AuthState.AUTHENTICATED, forceNavigation)
+  }
+
+  private transitionTo(newState: AuthState, forceNavigation = false): void {
+    const oldState = this.state
+    if (oldState === newState && !forceNavigation) {
+      this.notifyListeners()
+      return
+    }
+    this.state = newState
+    this.notifyListeners()
+    if (newState !== AuthState.LOADING || forceNavigation) {
+      this.navigate(forceNavigation)
+    }
+  }
+
+  private notifyListeners(): void {
+    this.listeners.forEach(listener => {
+      try {
+        listener(this.state, this.session)
+      } catch (error) {
+        console.error('[Auth] Listener error:', error)
+      }
+    })
+  }
+
+  private navigate(forceNavigation = false): void {
+    if (!this.router) return
+    let currentPath = window.location.pathname
     try {
-      const stored = localStorage.getItem('currentUser')
-      return stored ? JSON.parse(stored) : null
-    } catch {
-      return null
+      currentPath = this.router.state?.location?.pathname || currentPath
+    } catch {}
+
+    if (!forceNavigation) {
+      const storedPath = this.getStoredPath()
+      if (storedPath && this.shouldRestorePath(storedPath, currentPath) && this.restoreStoredPath(storedPath)) {
+        return
+      }
+    }
+
+    if (this.state === AuthState.UNAUTHENTICATED && currentPath !== '/control-center') {
+      void this.router.navigate({ to: '/control-center', replace: true })
+      return
+    }
+    if (this.state === AuthState.CLINIC_SELECTED && currentPath !== '/user-selection') {
+      void this.router.navigate({ to: '/user-selection', replace: true })
+      return
+    }
+    if (this.state === AuthState.SETUP_REQUIRED && currentPath !== '/control-center') {
+      void this.router.navigate({ to: '/control-center' })
+      return
+    }
+    if (this.state !== AuthState.AUTHENTICATED || !this.session?.user) return
+
+    if (this.session.clinic) {
+      const isOnClinicPage = [
+        '/dashboard',
+        '/clients',
+        '/exams',
+        '/orders',
+        '/appointments',
+        '/referrals',
+        '/files',
+        '/settings',
+        '/campaigns',
+        '/ai-assistant',
+        '/worker-stats',
+      ].some(prefix => currentPath.startsWith(prefix))
+      if (forceNavigation || !isOnClinicPage || currentPath.startsWith('/control-center')) {
+        void this.router.navigate({
+          to: '/dashboard',
+          replace: true,
+          search: {
+            clinicId: this.session.clinic.id?.toString(),
+            refresh: Date.now().toString(),
+          }
+        })
+      }
+      return
+    }
+
+    if (isRoleAtLeast(this.session.user.role_level, ROLE_LEVELS.ceo)) {
+      if (forceNavigation || !currentPath.startsWith('/control-center/dashboard')) {
+        void this.router.navigate({
+          to: '/control-center/dashboard',
+          search: {
+            companyId: this.session.company?.id?.toString() || '',
+            companyName: this.session.company?.name || '',
+            fromSetup: 'false'
+          }
+        })
+      }
     }
   }
 
   private storeUser(user: User): void {
     localStorage.setItem('currentUser', JSON.stringify(user))
-    localStorage.setItem('currentUserId', user.id!.toString())
+    if (user.id) localStorage.setItem('currentUserId', user.id.toString())
   }
 
   private clearUser(): void {
     localStorage.removeItem('currentUser')
     localStorage.removeItem('currentUserId')
+  }
+
+  private storeClinic(clinic: Clinic): void {
+    localStorage.setItem('selectedClinic', JSON.stringify(clinic))
   }
 
   private getStoredClinic(): Clinic | null {
@@ -1145,16 +447,60 @@ class AuthService {
     }
   }
 
-  private storeClinic(clinic: Clinic): void {
-    localStorage.setItem('selectedClinic', JSON.stringify(clinic))
-  }
-
-  private clearClinic(): void {
-    localStorage.removeItem('selectedClinic')
-  }
-
   private storeCompany(company: Company): void {
     localStorage.setItem('controlCenterCompany', JSON.stringify(company))
+  }
+
+  private getStoredCompany(): Company | null {
+    try {
+      const stored = localStorage.getItem('controlCenterCompany')
+      return stored ? JSON.parse(stored) : null
+    } catch {
+      return null
+    }
+  }
+
+  private storePendingSetup(setup: SetupRequiredPayload): void {
+    localStorage.setItem('pendingCompanySetup', JSON.stringify(setup))
+  }
+
+  private getPendingSetup(): SetupRequiredPayload | null {
+    try {
+      const stored = localStorage.getItem('pendingCompanySetup')
+      return stored ? JSON.parse(stored) : null
+    } catch {
+      return null
+    }
+  }
+
+  private clearPendingSetup(): void {
+    localStorage.removeItem('pendingCompanySetup')
+  }
+
+  private clearSession(): void {
+    this.clearAllStorage()
+    this.session = null
+    this.transitionTo(AuthState.UNAUTHENTICATED)
+  }
+
+  private clearAllStorage(): void {
+    [
+      'currentUser',
+      'currentUserId',
+      'selectedClinic',
+      'controlCenterCompany',
+      'auth_token',
+      'auth_refresh_token',
+      'clinicTrustToken',
+      'pendingCompanySetup',
+      'pendingClinicUserId',
+      'isClinicGoogleAuth',
+      'lastAppPath',
+      'lastAppContext',
+    ].forEach(key => localStorage.removeItem(key))
+    Object.keys(localStorage)
+      .filter(key => key.startsWith('sb-'))
+      .forEach(key => localStorage.removeItem(key))
   }
 
   private getStoredPath(): string | null {
@@ -1165,121 +511,22 @@ class AuthService {
     }
   }
 
-  private getStoredContext(): 'control-center' | 'clinic' | null {
-    try {
-      const value = localStorage.getItem('lastAppContext')
-      if (value === 'control-center' || value === 'clinic') {
-        return value
-      }
-      return null
-    } catch {
-      return null
-    }
-  }
-
   private shouldRestorePath(storedPath: string, currentPath: string): boolean {
     if (!storedPath || storedPath === currentPath) return false
-    if (storedPath === '/auth/callback') return false
-
-    const storedContext = this.getStoredContext()
-    if (!storedContext) return false
-
-    const isControlCenterPath = storedPath === '/' || storedPath.startsWith('/control-center')
-    const isClinicPath = !isControlCenterPath
-
-    if (storedContext === 'control-center') {
-      if (!isControlCenterPath) return false
-      return isRoleAtLeast(this.session?.user?.role_level, ROLE_LEVELS.ceo)
-    }
-
-    if (storedContext === 'clinic') {
-      if (!isClinicPath) return false
-      return !!this.session?.clinic
-    }
-
-    return false
+    if (storedPath === '/auth/callback' || storedPath === '/oauth/callback') return false
+    if (this.state === AuthState.UNAUTHENTICATED || this.state === AuthState.SETUP_REQUIRED) return false
+    if (this.state === AuthState.CLINIC_SELECTED) return storedPath === '/user-selection'
+    return storedPath !== '/control-center'
   }
 
   private restoreStoredPath(path: string): boolean {
     try {
-      if (this.routerHistory) {
-        this.routerHistory.replace(path)
-        return true
-      }
-      return false
-    } catch (error) {
-      console.error('[Auth] Failed to restore stored path:', error)
+      if (!this.routerHistory) return false
+      this.routerHistory.replace(path)
+      return true
+    } catch {
       return false
     }
-  }
-
-  private getPendingClinicUserId(): number | null {
-    try {
-      const stored = localStorage.getItem('pendingClinicUserId')
-      const isClinicAuth = localStorage.getItem('isClinicGoogleAuth')
-      return stored && isClinicAuth ? parseInt(stored, 10) : null
-    } catch {
-      return null
-    }
-  }
-
-  private storePendingClinicAuth(userId: number): void {
-    localStorage.setItem('pendingClinicUserId', userId.toString())
-    localStorage.setItem('isClinicGoogleAuth', 'true')
-  }
-
-  private clearPendingClinicAuth(): void {
-    localStorage.removeItem('pendingClinicUserId')
-    localStorage.removeItem('isClinicGoogleAuth')
-  }
-
-  private clearAllStorage(): void {
-    const keys = [
-      'currentUser',
-      'currentUserId',
-      'selectedClinic',
-      'controlCenterCompany',
-      'auth_token',
-      this.getSupabaseStorageKey(),
-      'pendingClinicUserId',
-      'isClinicGoogleAuth',
-      'lastAppPath',
-      'lastAppContext'
-    ]
-    keys.forEach(key => localStorage.removeItem(key))
-  }
-
-  private getSupabaseStorageKey(): string {
-    try {
-      const supabaseUrl = (import.meta as any).env?.VITE_SUPABASE_URL || (globalThis as any)?.VITE_SUPABASE_URL
-      const hostname = new URL(supabaseUrl).hostname
-      const projectRef = hostname.split('.')[0]
-      return `sb-${projectRef}-auth-token`
-    } catch {
-      return 'sb-auth-token'
-    }
-  }
-
-  private getStoredSupabaseSession(): any | null {
-    try {
-      const stored = localStorage.getItem(this.getSupabaseStorageKey())
-      return stored ? JSON.parse(stored) : null
-    } catch {
-      return null
-    }
-  }
-
-  private storeSupabaseSession(session: any): void {
-    if (!session?.access_token) return
-    try {
-      localStorage.setItem(this.getSupabaseStorageKey(), JSON.stringify(session))
-    } catch (error) {
-      console.warn('[Auth] Failed to store Supabase session locally:', error)
-    }
-  }
-  public setRouter(router: any, history: any) {
-    this.router = router
-    this.routerHistory = history
   }
 }
 

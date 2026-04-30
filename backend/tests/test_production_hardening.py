@@ -48,10 +48,12 @@ def test_production_config_rejects_sqlite_database():
         "APP_ENV": "production",
         "DATABASE_URL": "sqlite:///./opticai.db",
         "SECRET_KEY": "x" * 40,
+        "TOKEN_ENCRYPTION_KEY": "y" * 40,
         "SUPABASE_URL": "https://example.supabase.co",
         "SUPABASE_SERVICE_ROLE_KEY": "service-role",
         "SUPABASE_KEY": "anon",
-        "SUPABASE_JWT_SECRET": "jwt-secret",
+        "GOOGLE_DESKTOP_CLIENT_ID": "desktop-client",
+        "GOOGLE_DESKTOP_CLIENT_SECRET": "desktop-secret",
         "BACKEND_CORS_ORIGINS": "http://localhost:5173",
     }
     result = subprocess.run(
@@ -72,10 +74,12 @@ def test_production_config_rejects_wildcard_cors_by_default():
         "APP_ENV": "production",
         "DATABASE_URL": "postgresql://user:pass@localhost:5432/opticai",
         "SECRET_KEY": "x" * 40,
+        "TOKEN_ENCRYPTION_KEY": "y" * 40,
         "SUPABASE_URL": "https://example.supabase.co",
         "SUPABASE_SERVICE_ROLE_KEY": "service-role",
         "SUPABASE_KEY": "anon",
-        "SUPABASE_JWT_SECRET": "jwt-secret",
+        "GOOGLE_DESKTOP_CLIENT_ID": "desktop-client",
+        "GOOGLE_DESKTOP_CLIENT_SECRET": "desktop-secret",
         "BACKEND_CORS_ORIGINS": "*",
     }
     result = subprocess.run(

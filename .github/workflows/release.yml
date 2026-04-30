@@ -51,12 +51,8 @@ jobs:
         run: |
           cat > .env.production <<'EOF'
           VITE_API_URL=${{ secrets.VITE_API_URL }}
-          VITE_SUPABASE_URL=${{ secrets.VITE_SUPABASE_URL }}
-          VITE_SUPABASE_ANON_KEY=${{ secrets.VITE_SUPABASE_ANON_KEY }}
           DOWNLOAD_PAGE_URL=${{ secrets.DOWNLOAD_PAGE_URL }}
           WINDOWS_UPDATE_FEED_URL=${{ secrets.WINDOWS_UPDATE_FEED_URL }}
-          GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }}
-          GOOGLE_CLIENT_SECRET=${{ secrets.GOOGLE_CLIENT_SECRET }}
           GOOGLE_DESKTOP_CLIENT_ID=${{ secrets.GOOGLE_DESKTOP_CLIENT_ID }}
           GOOGLE_DESKTOP_CLIENT_SECRET=${{ secrets.GOOGLE_DESKTOP_CLIENT_SECRET }}
           EOF
@@ -103,12 +99,8 @@ jobs:
         run: |
           @"
           VITE_API_URL=${{ secrets.VITE_API_URL }}
-          VITE_SUPABASE_URL=${{ secrets.VITE_SUPABASE_URL }}
-          VITE_SUPABASE_ANON_KEY=${{ secrets.VITE_SUPABASE_ANON_KEY }}
           DOWNLOAD_PAGE_URL=${{ secrets.DOWNLOAD_PAGE_URL }}
           WINDOWS_UPDATE_FEED_URL=${{ secrets.WINDOWS_UPDATE_FEED_URL }}
-          GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }}
-          GOOGLE_CLIENT_SECRET=${{ secrets.GOOGLE_CLIENT_SECRET }}
           GOOGLE_DESKTOP_CLIENT_ID=${{ secrets.GOOGLE_DESKTOP_CLIENT_ID }}
           GOOGLE_DESKTOP_CLIENT_SECRET=${{ secrets.GOOGLE_DESKTOP_CLIENT_SECRET }}
           "@ | Set-Content -Path .env.windows.production -NoNewline

@@ -13,6 +13,7 @@ import { usePrescriptionLogic } from "./shared/usePrescriptionLogic"
 import { CylTitle } from "./shared/CylTitle"
 import { useAxisWarning } from "./shared/useAxisWarning"
 import { AxisWarningInput } from "./shared/AxisWarningInput"
+import { copyEyeRowFields } from "./shared/copyEyeRowFields"
 import { ToggleTextNumberInput } from "./shared/ToggleTextNumberInput"
 
 interface SubjectiveTabProps {
@@ -95,20 +96,7 @@ export const SubjectiveTab = React.memo(function SubjectiveTab({
   };
 
   const copyFromOtherEye = (fromEye: "R" | "L") => {
-    inputSyncManager.flush();
-    const latestData = dataRef.current;
-
-    const toEye = fromEye === "R" ? "L" : "R";
-    columns.forEach(({ key }) => {
-      // Use getFieldValue with latestData instead of props
-      const getLatestVal = (e: "R" | "L" | "C", f: string) => {
-        const eyeField = `${e.toLowerCase()}_${f}` as keyof SubjectiveExam;
-        return latestData[eyeField]?.toString() || "";
-      };
-
-      const value = getLatestVal(fromEye, key);
-      handleChange(toEye, key, value);
-    });
+    copyEyeRowFields(dataRef.current, onSubjectiveChange, fromEye);
   };
 
   return (

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react"
-import { Link, useNavigate } from "@tanstack/react-router"
+import { useNavigate } from "@tanstack/react-router"
 import {
   Table,
   TableBody,
@@ -9,22 +9,23 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
-import { Plus, Trash2, FileText } from "lucide-react"
-import { Order } from "@/lib/db/schema-interface"
+import { Eye, Trash2, FileText } from "lucide-react"
+import { Order, User } from "@/lib/db/schema-interface"
 import { ClientSelectModal } from "@/components/ClientSelectModal"
 import { exportOrderToDocx } from "@/lib/order-docx"
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Eye } from "lucide-react"
 import { OrderPreviewModal } from "./orders/OrderPreviewModal"
 import { ExamCardPreviewModal } from "./exam/ExamCardPreviewModal"
-import { getLatestExamByClientId } from "@/lib/db/exams-db"
+import { getExamPageData, getLatestExamByClientId } from "@/lib/db/exams-db"
 import {
-  getLatestOrderByClientId,
   getOrdersByClientId,
   saveOrderData,
   updateContactLensOrder,
@@ -36,10 +37,17 @@ import { CustomModal } from "@/components/ui/custom-modal"
 import { deleteOrder, deleteContactLensOrder } from "@/lib/db/orders-db"
 import { toast } from "sonner"
 import { Skeleton } from "@/components/ui/skeleton"
-import { useUser } from "@/contexts/UserContext"
 import { DateSearchHelper } from "@/lib/date-search-helper"
 import { TableFiltersBar } from "@/components/table-filters-bar"
 import { ORDER_KIND_OPTIONS, ORDER_STATUS_FILTER_OPTIONS, type OrderKindFilter } from "@/lib/table-filters"
+import { getAllUsers } from "@/lib/db/users-db"
+import {
+  ADDITION_ADD_TYPE_LABELS,
+  extractAdditionAddSourcesFromExamPageData,
+  getAdditionAddTypeOptions,
+  type AdditionAddSourceMap,
+  type AdditionAddType,
+} from "@/lib/addition-add-sources"
 
 interface OrdersTableProps {
   data: Order[]
@@ -70,17 +78,17 @@ export function OrdersTable({
   statusFilter: externalStatusFilter,
   onStatusFilterChange,
 }: OrdersTableProps) {
-  const { currentClinic } = useUser()
-
   const navigate = useNavigate()
   const [internalSearch, setInternalSearch] = useState("")
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
   const [orderToDelete, setOrderToDelete] = useState<Order | null>(null)
   const [internalKindFilter, setInternalKindFilter] = useState<OrderKindFilter>("all")
   const [internalStatusFilter, setInternalStatusFilter] = useState("all")
+  const [users, setUsers] = useState<User[]>([])
 
   // Preview and Import logic
   const [latestExamId, setLatestExamId] = useState<number | null>(null)
+  const [latestExamAddSources, setLatestExamAddSources] = useState<AdditionAddSourceMap>({})
   const [latestOrderId, setLatestOrderId] = useState<number | null>(null)
   const [latestContactOrderId, setLatestContactOrderId] = useState<number | null>(null)
   const [isPreviewOrderOpen, setIsPreviewOrderOpen] = useState(false)
@@ -95,6 +103,40 @@ export function OrdersTable({
   const searchValue = externalSearch !== undefined ? externalSearch : internalSearch
   const kindFilter = externalKindFilter ?? internalKindFilter
   const statusFilter = externalStatusFilter ?? internalStatusFilter
+  const latestExamAddTypeOptions = getAdditionAddTypeOptions(latestExamAddSources)
+
+  useEffect(() => {
+    let isActive = true
+
+    const loadUsers = async () => {
+      const usersData = await getAllUsers()
+      if (isActive) {
+        setUsers(usersData)
+      }
+    }
+
+    loadUsers()
+
+    return () => {
+      isActive = false
+    }
+  }, [])
+
+  const usersById = React.useMemo(() => {
+    return new Map(users.map((user) => [user.id, user]))
+  }, [users])
+
+  const getExaminerName = React.useCallback((order: Order) => {
+    const orderUser = order.user_id ? usersById.get(order.user_id) : undefined
+    return (
+      orderUser?.full_name ||
+      orderUser?.username ||
+      (order as any).examiner_name ||
+      (order as any).full_name ||
+      (order as any).username ||
+      ""
+    )
+  }, [usersById])
 
   const handleSearchChange = (value: string) => {
     if (onSearchChange) {
@@ -122,18 +164,38 @@ export function OrdersTable({
   }
 
   useEffect(() => {
+    let isActive = true;
+
     if (clientId > 0) {
+      setLatestExamId(null);
+      setLatestExamAddSources({});
+
       const fetchLatest = async () => {
         const [exam, allOrders] = await Promise.all([
           getLatestExamByClientId(clientId),
           getOrdersByClientId(clientId)
         ]);
 
+        if (!isActive) return;
+
         if (exam) {
-          setLatestExamId(exam.id || null);
+          const examId = exam.id || null;
           console.log("Fetched latest exam ID:", exam.id);
+
+          if (examId) {
+            const pageData = await getExamPageData(examId);
+            if (!isActive) return;
+            setLatestExamId(examId);
+            setLatestExamAddSources(
+              extractAdditionAddSourcesFromExamPageData(pageData),
+            );
+          } else {
+            setLatestExamId(null);
+            setLatestExamAddSources({});
+          }
         } else {
           setLatestExamId(null);
+          setLatestExamAddSources({});
           console.log("No latest exam found.");
         }
 
@@ -171,15 +233,33 @@ export function OrdersTable({
       fetchLatest();
     } else {
       setLatestExamId(null);
+      setLatestExamAddSources({});
       setLatestOrderId(null);
       setLatestContactOrderId(null);
       console.log("Client ID is 0, resetting latest order/exam IDs.");
     }
+
+    return () => {
+      isActive = false;
+    };
   }, [clientId]);
 
 
 
 
+
+  const openRegularOrderFromLatestExam = (addType?: AdditionAddType) => {
+    if (!latestExamId) return;
+    navigate({
+      to: "/clients/$clientId/orders/new",
+      params: { clientId: String(clientId) },
+      search: {
+        importSourceId: String(latestExamId),
+        importSourceType: "exam",
+        ...(addType ? { addType } : {}),
+      },
+    });
+  };
 
   const handleCreateOrder = (type: 'contact' | 'regular') => {
     if (clientId > 0) {
@@ -286,7 +366,7 @@ export function OrdersTable({
 
     return result.filter((order) => {
       const clientName = ((order as any).clientName || '').toLowerCase()
-      const username = ((order as any).username || '').toLowerCase()
+      const username = getExaminerName(order).toLowerCase()
       const orderType = (order.type || '').toLowerCase()
 
       if (clientName.includes(searchLower) || username.includes(searchLower) || orderType.includes(searchLower)) {
@@ -295,7 +375,7 @@ export function OrdersTable({
 
       return DateSearchHelper.matchesDate(searchLower, order.order_date)
     })
-  }, [data, kindFilter, searchValue, statusFilter, statusOverrides])
+  }, [data, getExaminerName, kindFilter, searchValue, statusFilter, statusOverrides])
 
   const getOrderStatus = React.useCallback((order: Order) => {
     if (!order.id) return "";
@@ -306,6 +386,8 @@ export function OrdersTable({
       ""
     );
   }, [statusOverrides]);
+
+  const tableColumnCount = clientId === 0 ? 7 : 6;
 
   const handleStatusChange = async (order: Order, nextStatus: string) => {
     if (!order.id) return;
@@ -381,29 +463,57 @@ export function OrdersTable({
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 {clientId > 0 && latestExamId && (
-                  <DropdownMenuItem
-                    className="flex items-center justify-between gap-4"
-                    onClick={() => navigate({
-                      to: "/clients/$clientId/orders/new",
-                      params: { clientId: String(clientId) },
-                      search: { importSourceId: String(latestExamId), importSourceType: 'exam' }
-                    })}
-                  >
-                    <span>מבדיקה אחרונה</span>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-6 w-6"
-                      aria-label="תצוגה מקדימה של בדיקה אחרונה"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setCardPreviewType('final-prescription');
-                        setIsCardPreviewOpen(true);
-                      }}
+                  latestExamAddTypeOptions.length > 0 ? (
+                    <DropdownMenuSub>
+                      <DropdownMenuSubTrigger className="flex items-center justify-between gap-4">
+                        <span>מבדיקה אחרונה</span>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6"
+                          aria-label="תצוגה מקדימה של בדיקה אחרונה"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setCardPreviewType('final-prescription');
+                            setIsCardPreviewOpen(true);
+                          }}
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuSubTrigger>
+                      <DropdownMenuSubContent alignOffset={-4}>
+                        {latestExamAddTypeOptions.map((type) => (
+                          <DropdownMenuItem
+                            key={type}
+                            onClick={() => openRegularOrderFromLatestExam(type)}
+                          >
+                            {ADDITION_ADD_TYPE_LABELS[type]}
+                          </DropdownMenuItem>
+                        ))}
+                      </DropdownMenuSubContent>
+                    </DropdownMenuSub>
+                  ) : (
+                    <DropdownMenuItem
+                      className="flex items-center justify-between gap-4"
+                      onClick={() => openRegularOrderFromLatestExam()}
                     >
-                      <Eye className="h-4 w-4" />
-                    </Button>
-                  </DropdownMenuItem>
+                      <span>מבדיקה אחרונה</span>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6"
+                        aria-label="תצוגה מקדימה של בדיקה אחרונה"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setCardPreviewType('final-prescription');
+                          setIsCardPreviewOpen(true);
+                        }}
+                      >
+                        <Eye className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuItem>
+                  )
                 )}
                 {clientId > 0 && latestOrderId && (
                   <DropdownMenuItem
@@ -555,8 +665,6 @@ export function OrdersTable({
               <TableHead className="text-right">סוג</TableHead>
               {clientId === 0 && <TableHead className="text-right">לקוח</TableHead>}
               <TableHead className="text-right">בודק</TableHead>
-              <TableHead className="text-right">VA</TableHead>
-              <TableHead className="text-right">PD</TableHead>
               <TableHead className="text-right">סטטוס</TableHead>
               <TableHead className="w-[80px] text-right"></TableHead>
             </TableRow>
@@ -565,32 +673,11 @@ export function OrdersTable({
             {loading ? (
               Array.from({ length: 14 }).map((_, i) => (
                 <TableRow key={i}>
-                  <TableCell>
-                    <Skeleton className="w-[70%] h-4 my-2 " />
-                  </TableCell>
-                  <TableCell>
-                    <Skeleton className="w-[70%] h-4 my-2" />
-                  </TableCell>
-                  {clientId === 0 && (
-                    <TableCell>
+                  {Array.from({ length: tableColumnCount }).map((_, cellIndex) => (
+                    <TableCell key={cellIndex}>
                       <Skeleton className="w-[70%] h-4 my-2" />
                     </TableCell>
-                  )}
-                  <TableCell>
-                    <Skeleton className="w-[70%] h-4 my-2" />
-                  </TableCell>
-                  <TableCell>
-                    <Skeleton className="w-[70%] h-4 my-2" />
-                  </TableCell>
-                  <TableCell>
-                    <Skeleton className="w-[70%] h-4 my-2 " />
-                  </TableCell>
-                  <TableCell>
-                    <Skeleton className="w-[70%] h-4 my-2" />
-                  </TableCell>
-                  <TableCell>
-                    <Skeleton className="w-[70%] h-4 my-2" />
-                  </TableCell>
+                  ))}
                 </TableRow>
               ))
             ) : filteredData.length > 0 ? (
@@ -626,9 +713,7 @@ export function OrdersTable({
                         }}
                       >{(order as any).clientName || ''}</TableCell>
                     )}
-                    <TableCell>{(order as any).username || ''}</TableCell>
-                    <TableCell>{order.comb_va ? `6/${order.comb_va}` : ''}</TableCell>
-                    <TableCell>{order.comb_pd}</TableCell>
+                    <TableCell>{getExaminerName(order)}</TableCell>
                     <TableCell>
                       <DropdownMenu dir="rtl">
                         <DropdownMenuTrigger asChild>
@@ -706,7 +791,7 @@ export function OrdersTable({
             ) : (
               <TableRow>
                 <TableCell
-                  colSpan={clientId === 0 ? 9 : 8}
+                  colSpan={tableColumnCount}
                   className="h-24 text-center text-muted-foreground"
                 >
                   לא נמצאו הזמנות לתצוגה

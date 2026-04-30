@@ -133,9 +133,9 @@ export async function bulkDeleteExamLayouts(data: { clinic_id?: number; layout_i
   }
 }
 
-export async function getDefaultExamLayout(): Promise<ExamLayout | null> {
+export async function getDefaultExamLayout(clinicId?: number, type?: string): Promise<ExamLayout | null> {
   try {
-    const response = await apiClient.getExamLayouts();
+    const response = await apiClient.getDefaultExamLayouts(clinicId, type);
     if (response.error) {
       console.error('Error getting default exam layout:', response.error);
       return null;
@@ -148,14 +148,14 @@ export async function getDefaultExamLayout(): Promise<ExamLayout | null> {
   }
 }
 
-export async function getDefaultExamLayouts(): Promise<ExamLayout[]> {
+export async function getDefaultExamLayouts(clinicId?: number, type?: string): Promise<ExamLayout[]> {
   try {
-    const response = await apiClient.getExamLayouts();
+    const response = await apiClient.getDefaultExamLayouts(clinicId, type);
     if (response.error) {
       console.error('Error getting default exam layouts:', response.error);
       return [];
     }
-    return (response.data || []).filter(layout => layout.is_default);
+    return response.data || [];
   } catch (error) {
     console.error('Error getting default exam layouts:', error);
     return [];

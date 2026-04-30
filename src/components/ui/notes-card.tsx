@@ -1,6 +1,5 @@
 import React from 'react'
 import { Card } from '@/components/ui/card'
-import { Textarea } from '@/components/ui/textarea'
 import { FastTextarea } from '../exam/shared/OptimizedInputs'
 import { Maximize2, FileText, Lock } from 'lucide-react'
 import {
@@ -20,6 +19,7 @@ type NotesCardProps = {
   disabled?: boolean
   placeholder?: string
   height?: string
+  className?: string
 }
 
 export function NotesCard({
@@ -31,6 +31,7 @@ export function NotesCard({
   disabled = false,
   placeholder = '',
   height = 'full',
+  className,
 }: NotesCardProps) {
   const [isShowingHidden, setIsShowingHidden] = React.useState(false)
   const [dialogOpen, setDialogOpen] = React.useState(false)
@@ -72,6 +73,7 @@ export function NotesCard({
   return (
     <Card
       className={`w-full px-4 ${height && height == 'full' ? 'h-full' : undefined} pt-3 pb-4 gap-2 transition-all duration-500 ease-in-out relative overflow-hidden group/card ${isShowingHidden ? 'bg-zinc-900 text-zinc-100 border-zinc-800' : ''
+        } ${className || ''
         }`}
       dir="rtl"
     >
@@ -108,6 +110,7 @@ export function NotesCard({
                 className={`min-h-[500px] text-base p-4 ${dialogIsShowingHidden ? 'bg-transparent text-zinc-100 placeholder:text-zinc-700 focus-visible:ring-0 focus-visible:ring-offset-0 border-none resize-none' : 'focus-visible:ring-0 focus-visible:ring-offset-0 border-none resize-none'}`}
                 placeholder={disabled ? '' : placeholder}
                 showMaximize={false}
+                autoResize={false}
               />
               {/* Secret Toggle in Modal */}
               {onHiddenChange && (
@@ -141,6 +144,7 @@ export function NotesCard({
           } ${height === 'full' ? 'h-full flex-1' : ''}`}
         placeholder={disabled ? '' : placeholder}
         showMaximize={false}
+        autoResize={false}
       />
 
       {/* Secret Icon */}

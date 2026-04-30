@@ -25,6 +25,7 @@ import { CylTitle } from "./shared/CylTitle";
 import { useAxisWarning } from "./shared/useAxisWarning";
 import { AxisWarningInput } from "./shared/AxisWarningInput";
 import { ToggleTextNumberInput } from "./shared/ToggleTextNumberInput";
+import { copyEyeRowFields } from "./shared/copyEyeRowFields";
 
 interface OldRefractionTabProps {
   oldRefractionData: OldRefractionExam;
@@ -138,14 +139,7 @@ export const OldRefractionTab = React.memo(function OldRefractionTab({
   };
 
   const copyFromOtherEye = (fromEye: "R" | "L") => {
-    inputSyncManager.flush();
-    const latestData = dataRef.current;
-
-    const toEye = fromEye === "R" ? "L" : "R";
-    mainColumns.forEach(({ key }) => {
-      const value = getFieldValue(fromEye, key, latestData);
-      handleChange(toEye, key, value);
-    });
+    copyEyeRowFields(dataRef.current, onOldRefractionChange, fromEye);
   };
 
   const renderField = (eye: "R" | "L" | "C", col: any) => {

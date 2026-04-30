@@ -9,53 +9,20 @@ import { Card } from "@/components/ui/card"
 import { Textarea } from "@/components/ui/textarea"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Calendar } from "@/components/ui/calendar"
-import { getAllFamilies, getFamilyById, createFamily, addClientToFamily, removeClientFromFamily } from "@/lib/db/family-db"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { getAllFamilies, getFamilyById, createFamily } from "@/lib/db/family-db"
 import { useUser } from "@/contexts/UserContext"
-import { SaveIcon, XIcon, ChevronDownIcon, CheckIcon } from "lucide-react"
+import { SaveIcon, XIcon, ChevronDownIcon, CheckIcon, ChevronsUpDownIcon } from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
 import { CityLookupInput } from "@/components/ui/city-lookup-input"
 import { DateInput } from "@/components/ui/date"
 import { NotesCard } from "@/components/ui/notes-card"
+import {
+  CLIENT_GENDER_OPTIONS,
+  CLIENT_HEALTH_FUNDS,
+  getClientStatusOptions,
+} from "@/lib/client-details-editor"
 
-
-const HEALTH_FUNDS: Record<string, string[]> = {
-  "כללית": ["רגיל", "מושלם זהב", "מושלם פלטינום"],
-  "מכבי": ["רגיל", "זהב", "שלי"],
-  "מאוחדת": ["רגיל", "עדיף", "שיא"],
-  "לאומית": ["רגיל", "כסף", "זהב"]
-};
-
-const GENDER_OPTIONS = ["זכר", "נקבה", "אחר"]
-
-const GENDER_VALUE_MAP: Record<string, string> = {
-  male: "זכר",
-  m: "זכר",
-  female: "נקבה",
-  f: "נקבה",
-  other: "אחר",
-}
-
-const HEALTH_FUND_VALUE_MAP: Record<string, string> = {
-  clalit: "כללית",
-  "כללית": "כללית",
-  maccabi: "מכבי",
-  "מכבי": "מכבי",
-  meuhedet: "מאוחדת",
-  "מאוחדת": "מאוחדת",
-  leumit: "לאומית",
-  "לאומית": "לאומית",
-}
-
-const normalizeSelectValue = (
-  value: string | null | undefined,
-  valueMap: Record<string, string>,
-  allowedValues: string[]
-) => {
-  const rawValue = (value || '').trim()
-  if (!rawValue) return ''
-  if (allowedValues.includes(rawValue)) return rawValue
-  return valueMap[rawValue.toLowerCase()] || rawValue
-}
 
 // Custom label component
 function ModernLabel({ children }: { children: React.ReactNode }) {
@@ -66,52 +33,68 @@ function ModernLabel({ children }: { children: React.ReactNode }) {
   )
 }
 
+type FamilyMember = NonNullable<Family["clients"]>[number]
+
 
 interface ClientDetailsTabProps {
-  client: Client;
-  formData: Client;
+  draft: Client;
   isEditing: boolean;
   mode?: 'view' | 'edit' | 'new';
   isLoading?: boolean;
-  handleInputChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => void;
-  handleSelectChange: (value: string | boolean, name: string) => void;
+  isSaving?: boolean;
+  onFieldChange: (name: string, value: string | boolean | number | null) => void;
   formRef: React.RefObject<HTMLFormElement>;
-  setIsEditing?: (editing: boolean) => void;
-  handleSave?: () => void;
-  onClientUpdate?: (client: Client) => void;
+  onStartEdit?: () => void;
+  onCancelEdit?: () => void;
+  onSave?: () => void;
 }
 
 export function ClientDetailsTab({
-  client,
-  formData,
+  draft,
   isEditing,
   mode = 'view',
   isLoading = false,
-  handleInputChange,
-  handleSelectChange,
+  isSaving = false,
+  onFieldChange,
   formRef,
-  setIsEditing,
-  handleSave,
-  onClientUpdate
+  onStartEdit,
+  onCancelEdit,
+  onSave,
 }: ClientDetailsTabProps) {
   const isNewMode = mode === 'new'
   const showEditableFields = isEditing || isNewMode
   const { currentClinic } = useUser()
-  const normalizedGender = normalizeSelectValue(formData.gender, GENDER_VALUE_MAP, GENDER_OPTIONS)
-  const normalizedHealthFund = normalizeSelectValue(formData.health_fund, HEALTH_FUND_VALUE_MAP, Object.keys(HEALTH_FUNDS))
+  const formData = draft
+  const healthFundValue = formData.health_fund || ''
+  const statusValue = formData.status || ''
+  const statusOptions = getClientStatusOptions(healthFundValue)
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target
+    onFieldChange(name, value)
+  }
+
+  const handleSelectChange = (value: string | boolean | number | null, name: string) => {
+    const processedValue = name === 'family_id' && typeof value === 'string'
+      ? value === '' ? null : parseInt(value, 10)
+      : value
+    onFieldChange(name, processedValue)
+  }
 
   const [families, setFamilies] = React.useState<Family[]>([])
   const [filteredFamilies, setFilteredFamilies] = React.useState<Family[]>([])
   const [familySearchTerm, setFamilySearchTerm] = React.useState('')
   const [isFamilySelectOpen, setIsFamilySelectOpen] = React.useState(false)
   const [selectedFamily, setSelectedFamily] = React.useState<Family | null>(null)
+  const [familyMembersById, setFamilyMembersById] = React.useState<Record<number, FamilyMember[]>>({})
+  const [openFamilyTooltipId, setOpenFamilyTooltipId] = React.useState<number | null>(null)
   const [isCreatingFamily, setIsCreatingFamily] = React.useState(false)
   const [newFamilyName, setNewFamilyName] = React.useState('')
   const [newFamilyRole, setNewFamilyRole] = React.useState('אחר')
 
   React.useEffect(() => {
     loadFamilies()
-  }, [])
+  }, [currentClinic?.id])
 
   React.useEffect(() => {
     if (formData.family_id) {
@@ -126,11 +109,12 @@ export function ClientDetailsTab({
       setFilteredFamilies(families)
     } else {
       const filtered = families.filter(family =>
-        family.name.toLowerCase().includes(familySearchTerm.toLowerCase())
+        family.name.toLowerCase().includes(familySearchTerm.toLowerCase()) ||
+        getFamilyMemberNames(family).toLowerCase().includes(familySearchTerm.toLowerCase())
       )
       setFilteredFamilies(filtered)
     }
-  }, [families, familySearchTerm])
+  }, [families, familySearchTerm, familyMembersById])
 
   React.useEffect(() => {
     if (isNewMode && !formData.file_creation_date) {
@@ -140,9 +124,22 @@ export function ClientDetailsTab({
   }, [isNewMode, formData.file_creation_date])
 
   const loadFamilies = async () => {
+    if (!currentClinic?.id) {
+      setFamilies([])
+      setFamilyMembersById({})
+      return
+    }
+
     try {
-      const familiesData = await getAllFamilies()
+      const familiesData = await getAllFamilies(currentClinic.id)
       setFamilies(familiesData)
+      setFamilyMembersById(
+        Object.fromEntries(
+          familiesData
+            .filter(family => family.id)
+            .map(family => [family.id!, family.clients || []])
+        )
+      )
     } catch (error) {
       console.error('Error loading families:', error)
     }
@@ -162,11 +159,11 @@ export function ClientDetailsTab({
     if (!newFamilyName.trim()) return
     const optimisticFamily = { id: -Date.now(), name: newFamilyName.trim(), clinic_id: currentClinic?.id } as Family
     const prevFamilies = families
-    const prevClient = { ...client }
     setFamilies(prev => [...prev, optimisticFamily])
-    handleSelectChange(String(optimisticFamily.id), 'family_id')
+    setFamilyMembersById(prev => ({ ...prev, [optimisticFamily.id as number]: [] }))
+    setSelectedFamily(optimisticFamily)
+    handleSelectChange(optimisticFamily.id as number, 'family_id')
     handleSelectChange(newFamilyRole, 'family_role')
-    if (onClientUpdate) onClientUpdate({ ...client, family_id: optimisticFamily.id as number, family_role: newFamilyRole })
     setIsCreatingFamily(false)
     setNewFamilyName('')
     try {
@@ -177,14 +174,16 @@ export function ClientDetailsTab({
       })
       if (!created || !created.id) throw new Error('createFamily failed')
       setFamilies(curr => curr.map(f => (f.id === optimisticFamily.id ? created : f)))
-      handleSelectChange(String(created.id), 'family_id')
-      if (client.id) {
-        const ok = await addClientToFamily(client.id, created.id, newFamilyRole)
-        if (!ok) throw new Error('addClientToFamily failed')
-        if (onClientUpdate) onClientUpdate({ ...prevClient, family_id: created.id, family_role: newFamilyRole })
-      }
+      setFamilyMembersById(prev => {
+        const next = { ...prev, [created.id!]: prev[optimisticFamily.id as number] || [] }
+        delete next[optimisticFamily.id as number]
+        return next
+      })
+      setSelectedFamily(created)
+      handleSelectChange(created.id, 'family_id')
     } catch (e) {
       setFamilies(prevFamilies)
+      setSelectedFamily(null)
       handleSelectChange('', 'family_id')
       handleSelectChange('', 'family_role')
     }
@@ -193,43 +192,45 @@ export function ClientDetailsTab({
   const handleFamilyChange = async (familyId: string) => {
     setIsFamilySelectOpen(false)
     setFamilySearchTerm('')
-    const prev = { id: formData.family_id, role: formData.family_role }
     if (familyId === 'none') {
       handleSelectChange('', 'family_id')
       handleSelectChange('', 'family_role')
-      if (client.id && prev.id) {
-        const ok = await removeClientFromFamily(client.id, prev.id)
-        if (!ok) {
-          handleSelectChange(String(prev.id), 'family_id')
-          handleSelectChange(String(prev.role || ''), 'family_role')
-        }
-      }
+      setSelectedFamily(null)
     } else {
-      handleSelectChange(familyId, 'family_id')
-      if (client.id) {
-        const ok = await addClientToFamily(client.id, parseInt(familyId, 10), formData.family_role || 'אחר')
-        if (!ok) {
-          handleSelectChange(String(prev.id || ''), 'family_id')
-        }
-      }
+      const nextFamilyId = parseInt(familyId, 10)
+      handleSelectChange(nextFamilyId, 'family_id')
+      if (!formData.family_role) handleSelectChange('אחר', 'family_role')
+      setSelectedFamily(families.find(family => family.id === nextFamilyId) || null)
     }
   }
 
-  const handleRoleChange = async (role: string) => {
-    const prevRole = formData.family_role
+  const handleRoleChange = (role: string) => {
     handleSelectChange(role, 'family_role')
-    if (client.id && formData.family_id && role) {
-      const ok = await addClientToFamily(client.id, formData.family_id, role)
-      if (!ok) {
-        handleSelectChange(String(prevRole || ''), 'family_role')
-      }
-    }
   }
 
   const getSelectedFamilyName = () => {
     if (!formData.family_id) return 'בחר משפחה'
     const family = families.find(f => f.id === formData.family_id)
-    return family ? family.name : 'בחר משפחה'
+    return family?.name || selectedFamily?.name || 'בחר משפחה'
+  }
+
+  const getFamilyMembersForDisplay = (family: Family) => {
+    if (!family.id) return family.clients || []
+    return familyMembersById[family.id] || family.clients || []
+  }
+
+  const getClientDisplayName = (client: FamilyMember) => {
+    return [client.first_name, client.last_name].filter(Boolean).join(' ').trim() || 'ללא שם'
+  }
+
+  const getFamilyMemberNames = (family: Family) => {
+    return getFamilyMembersForDisplay(family).map(getClientDisplayName).join(', ')
+  }
+
+  const getFamilyMemberPreview = (family: Family) => {
+    const members = getFamilyMembersForDisplay(family)
+    if (members.length === 0) return 'אין חברים'
+    return getClientDisplayName(members[0])
   }
 
   if (isLoading) {
@@ -333,15 +334,28 @@ export function ClientDetailsTab({
 
   return (
     <form ref={formRef} className="no-scrollbar" style={{ containerType: 'inline-size', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-      {mode === 'view' && setIsEditing && handleSave && (
+      {mode === 'view' && onStartEdit && onSave && (
         <div className="flex justify-between items-center mb-4">
-          <Button
-            type="button"
-            variant={isEditing ? "outline" : "default"}
-            onClick={() => isEditing ? handleSave() : setIsEditing(true)}
-          >
-            {isEditing ? "שמור שינויים" : "ערוך פרטים"}
-          </Button>
+          <div className="flex gap-2">
+            {isEditing && onCancelEdit && (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={onCancelEdit}
+                disabled={isSaving}
+              >
+                ביטול
+              </Button>
+            )}
+            <Button
+              type="button"
+              variant={isEditing ? "outline" : "default"}
+              onClick={() => isEditing ? onSave() : onStartEdit()}
+              disabled={isSaving}
+            >
+              {isEditing ? "שמור שינויים" : "ערוך פרטים"}
+            </Button>
+          </div>
           <h2 className="text-xl font-semibold">פרטים אישיים</h2>
         </div>
       )}
@@ -630,14 +644,14 @@ export function ClientDetailsTab({
                 <ModernLabel>מגדר</ModernLabel>
                 <Select dir="rtl"
                   disabled={!showEditableFields}
-                  value={normalizedGender}
+                  value={formData.gender || ''}
                   onValueChange={(value) => handleSelectChange(value, 'gender')}
                 >
                   <SelectTrigger disabled={!showEditableFields}>
                     <SelectValue placeholder="בחר מגדר" />
                   </SelectTrigger>
                   <SelectContent>
-                    {GENDER_OPTIONS.map(option => (
+                    {CLIENT_GENDER_OPTIONS.map(option => (
                       <SelectItem key={option} value={option}>{option}</SelectItem>
                     ))}
                   </SelectContent>
@@ -668,14 +682,14 @@ export function ClientDetailsTab({
                 <ModernLabel>קופת חולים</ModernLabel>
                 <Select dir="rtl"
                   disabled={!showEditableFields}
-                  value={normalizedHealthFund}
+                  value={healthFundValue}
                   onValueChange={(value) => handleSelectChange(value, 'health_fund')}
                 >
                   <SelectTrigger disabled={!showEditableFields}>
                     <SelectValue placeholder="בחר קופת חולים" />
                   </SelectTrigger>
                   <SelectContent>
-                    {Object.keys(HEALTH_FUNDS).map(fund => (
+                    {Object.keys(CLIENT_HEALTH_FUNDS).map(fund => (
                       <SelectItem key={fund} value={fund}>{fund}</SelectItem>
                     ))}
                   </SelectContent>
@@ -696,15 +710,18 @@ export function ClientDetailsTab({
               <div className="space-y-2">
                 <ModernLabel>סטטוס</ModernLabel>
                 <Select dir="rtl"
-                  disabled={!showEditableFields || !normalizedHealthFund}
-                  value={formData.status || ''}
+                  disabled={!showEditableFields || !healthFundValue}
+                  value={statusValue}
                   onValueChange={(value) => handleSelectChange(value, 'status')}
                 >
-                  <SelectTrigger disabled={!showEditableFields || !normalizedHealthFund}>
-                    <SelectValue placeholder={normalizedHealthFund ? "בחר סטטוס" : "בחר קופת חולים תחילה"} />
+                  <SelectTrigger disabled={!showEditableFields || !healthFundValue}>
+                    <SelectValue placeholder={healthFundValue ? "בחר סטטוס" : "בחר קופת חולים תחילה"} />
                   </SelectTrigger>
                   <SelectContent>
-                    {(HEALTH_FUNDS[normalizedHealthFund] || []).map(plan => (
+                    {statusValue && !statusOptions.includes(statusValue) && (
+                      <SelectItem value={statusValue}>{statusValue}</SelectItem>
+                    )}
+                    {statusOptions.map(plan => (
                       <SelectItem key={plan} value={plan}>{plan}</SelectItem>
                     ))}
                   </SelectContent>
@@ -751,8 +768,9 @@ export function ClientDetailsTab({
                         <Button
                           variant="outline"
                           role="combobox"
+                          aria-label="משפחה"
                           aria-expanded={isFamilySelectOpen}
-                          className="w-full justify-between h-9 text-sm font-normal"
+                          className="w-full justify-between h-9 text-sm font-normal shadow-none"
                           disabled={!showEditableFields}
                           dir="rtl"
                         >
@@ -760,7 +778,7 @@ export function ClientDetailsTab({
                           <ChevronDownIcon className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                         </Button>
                       </PopoverTrigger>
-                      <PopoverContent className="w-full p-0" align="start">
+                      <PopoverContent className="w-[min(92vw,36rem)] p-0 shadow-none" align="start">
                         <div className="p-2">
                           <Input
                             placeholder="חפש משפחה..."
@@ -769,9 +787,14 @@ export function ClientDetailsTab({
                             className=""
                           />
                         </div>
+                        <div className="grid grid-cols-[minmax(7rem,1fr)_minmax(10rem,1.35fr)_2rem] gap-3 border-y bg-muted/40 px-3 py-1.5 pr-8 text-xs font-medium text-muted-foreground" dir="rtl">
+                          <span className="border-l border-border pl-3">שם משפחה</span>
+                          <span>בן משפחה</span>
+                          <span aria-hidden="true" />
+                        </div>
                         <div className="max-h-60 overflow-y-auto" style={{ scrollbarWidth: 'none' }}>
                           <div dir="rtl"
-                            className="flex cursor-default items-center gap-2 rounded-sm py-1.5 pr-8 pl-2 text-sm hover:bg-accent hover:text-accent-foreground"
+                            className="relative flex cursor-default items-center gap-2 rounded-sm py-1.5 pr-8 pl-2 text-sm hover:bg-accent hover:text-accent-foreground"
                             onClick={() => handleFamilyChange('none')}
                           >
                             {!formData.family_id && (
@@ -789,7 +812,50 @@ export function ClientDetailsTab({
                               {formData.family_id === family.id && (
                                 <CheckIcon className="absolute right-2 h-4 w-4" />
                               )}
-                              {family.name}
+                              <div className="grid w-full grid-cols-[minmax(7rem,1fr)_minmax(10rem,1.35fr)_2rem] items-center gap-3">
+                                <span className="truncate border-l border-border/70 pl-3 font-medium">
+                                  {family.name}
+                                </span>
+                                <span className="truncate text-muted-foreground">
+                                  {getFamilyMemberPreview(family)}
+                                </span>
+                                <Tooltip
+                                  open={openFamilyTooltipId === family.id}
+                                  onOpenChange={(open) => setOpenFamilyTooltipId(open ? family.id || null : null)}
+                                >
+                                  <TooltipTrigger asChild>
+                                    <button
+                                      type="button"
+                                      className="flex h-7 w-7 items-center justify-center rounded-sm text-muted-foreground hover:bg-background hover:text-foreground"
+                                      aria-label={`הצג חברי משפחת ${family.name}`}
+                                      onClick={(event) => {
+                                        event.stopPropagation()
+                                        setOpenFamilyTooltipId(openFamilyTooltipId === family.id ? null : family.id || null)
+                                      }}
+                                    >
+                                      <ChevronsUpDownIcon className="h-4 w-4" />
+                                    </button>
+                                  </TooltipTrigger>
+                                  <TooltipContent
+                                    side="left"
+                                    align="center"
+                                    className="max-w-72 border bg-popover px-3 py-2 text-right text-popover-foreground shadow-lg"
+                                    dir="rtl"
+                                  >
+                                    {getFamilyMembersForDisplay(family).length > 0 ? (
+                                      <div className="space-y-1">
+                                        {getFamilyMembersForDisplay(family).map((member) => (
+                                          <div key={member.id || getClientDisplayName(member)} className="whitespace-nowrap">
+                                            {getClientDisplayName(member)}
+                                          </div>
+                                        ))}
+                                      </div>
+                                    ) : (
+                                      <div className="whitespace-nowrap">אין חברים</div>
+                                    )}
+                                  </TooltipContent>
+                                </Tooltip>
+                              </div>
                             </div>
                           ))}
                           {filteredFamilies.length === 0 && familySearchTerm && (

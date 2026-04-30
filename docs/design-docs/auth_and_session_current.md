@@ -1,12 +1,9 @@
 # Auth And Session Current
 
-Last Updated: 2026-04-09
+Last Updated: 2026-04-30
 
 ## Summary
-Auth is a hybrid state machine:
-- Supabase authenticates the top-level user identity
-- backend `/auth/me` resolves the application user
-- local storage preserves clinic and clinic-user context for day-to-day operation
+Auth is backend-owned. The OpticAI API issues access/refresh sessions and clinic trust tokens. Supabase is used for Postgres and Storage only.
 
 ## Main Components
 - Auth state machine: [`src/lib/auth/AuthService.ts`](/Users/danielbenassaya/Code/personal/opticai/src/lib/auth/AuthService.ts)
@@ -21,14 +18,15 @@ Auth is a hybrid state machine:
 - `setup_required`
 
 ## Runtime Flow
-- App boot checks Supabase session first.
-- If Supabase exists, backend user lookup runs through `apiClient.getCurrentUser()`.
+- App boot restores only the backend access/refresh session through `/auth/me`.
+- Clinic PIN validation creates a backend clinic trust token for the device.
+- Clinic user selection uses backend quick/password/Google login endpoints.
 - CEO/control-center users can keep company context without a clinic.
-- Clinic session is also persisted locally to support clinic/user selection behavior.
-- OAuth callback routes are special-cased to avoid full app boot logic.
+- Google OAuth tokens are sent to the backend for verification and encrypted storage.
+- Local storage preserves only backend tokens, clinic trust, and UI context.
 
 ## Current Risks
-- Several state transitions depend on local storage and path/context persistence.
+- Several state transitions still depend on local storage and path/context persistence.
 - This flow needs packaged Windows verification for:
   - email login
   - Google login

@@ -11,7 +11,6 @@ import { UserModal } from "@/components/UserModal"
 import { useSettings } from "@/hooks/useSettings"
 import { useUser } from "@/contexts/UserContext"
 import { apiClient } from "@/lib/api-client"
-import { supabase } from "@/lib/supabaseClient"
 import { ProfileTab } from "@/components/settings/ProfileTab"
 import { PreferencesTab } from "@/components/settings/PreferencesTab"
 import { NotificationsTab } from "@/components/settings/NotificationsTab"
@@ -351,25 +350,9 @@ export default function SettingsPage() {
 
         setPersonalProfile(newProfile)
 
-        const emailChanged = (currentUser?.email || '').trim() !== (updatedUser.email || '').trim()
         await setCurrentUser(updatedUser, true)
         // Reflect changes immediately in users list (if present)
         setUsers(prev => prev.map(u => u.id === updatedUser.id ? updatedUser : u))
-        if (emailChanged) {
-          try {
-            const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession()
-            if (refreshError) {
-              console.warn('Supabase refreshSession failed after email change:', refreshError)
-              toast.warning('האימייל עודכן. אם יש בעיות גישה, נא להתחבר מחדש')
-            } else if (refreshed?.session?.access_token) {
-              // Token auto-used by apiClient on next requests
-              toast.success('האימייל עודכן בהצלחה והחיבור נשמר')
-            }
-          } catch (e) {
-            console.error('Error refreshing session after email change:', e)
-            toast.warning('האימייל עודכן. אם יש בעיות גישה, נא להתחבר מחדש')
-          }
-        }
       }
       setSaveSuccess(true)
       setTimeout(() => {
@@ -544,56 +527,36 @@ export default function SettingsPage() {
         expiry_date: Date.now() + 3600000 // 1 hour from now
       }
 
-      // If tokens are not in database, try to get them from Supabase session
       if (!tokens.access_token || !tokens.refresh_token) {
-        console.log('Google tokens not found in database, trying Supabase session...')
+        console.log('Google tokens not found in database, requesting Google OAuth...')
         try {
-          const { data: sessionData } = await supabase.auth.getSession()
-          if (sessionData?.session) {
-            // Try to get provider tokens first (these are the actual Google tokens)
-            const providerToken = (sessionData.session as any).provider_token
-            const providerRefreshToken = (sessionData.session as any).provider_refresh_token
-
-            if (providerToken && providerRefreshToken) {
-              console.log('Using Google provider tokens for calendar sync')
-              tokens = {
-                access_token: providerToken,
-                refresh_token: providerRefreshToken,
-                scope: 'https://www.googleapis.com/auth/calendar',
-                token_type: 'Bearer',
-                expiry_date: sessionData.session.expires_at || Date.now() + 3600000
-              }
-            } else {
-              console.log('No provider tokens found, using Supabase tokens as fallback')
-              tokens = {
-                access_token: sessionData.session.access_token,
-                refresh_token: sessionData.session.refresh_token,
-                scope: 'https://www.googleapis.com/auth/calendar',
-                token_type: 'Bearer',
-                expiry_date: sessionData.session.expires_at || Date.now() + 3600000
-              }
-            }
-
-            // Also update the user's tokens in the database for future use
-            try {
-              const updatedUser = await updateUser({
-                ...currentUser,
-                google_access_token: tokens.access_token,
-                google_refresh_token: tokens.refresh_token
-              })
-              if (updatedUser) {
-                console.log('Updated user tokens in database')
-                await setCurrentUser(updatedUser, true) // Skip navigation when just updating tokens
-              }
-            } catch (updateError) {
-              console.log('Could not update tokens in database:', updateError)
-            }
-          } else {
-            toast.error('לא נמצאו אסימוני Google - התחבר מחדש')
+          const result = await window.electronAPI.googleOAuthAuthenticate()
+          if (result.success === false || !result.tokens) {
+            toast.error(`שגיאה בחיבור לחשבון Google: ${result.error}`)
             return
           }
-        } catch (sessionError) {
-          console.error('Could not get Supabase session:', sessionError)
+          const updatedUser = await updateUser({
+            ...currentUser,
+            google_account_connected: true,
+            google_account_email: result.userInfo?.email,
+            google_access_token: result.tokens.access_token,
+            google_refresh_token: result.tokens.refresh_token
+          })
+          if (updatedUser) {
+            await setCurrentUser(updatedUser, true)
+            tokens = {
+              access_token: result.tokens.access_token,
+              refresh_token: result.tokens.refresh_token,
+              scope: 'https://www.googleapis.com/auth/calendar',
+              token_type: 'Bearer',
+              expiry_date: result.tokens.expiry_date || Date.now() + 3600000
+            }
+          } else {
+            toast.error('שגיאה בעדכון אסימוני Google')
+            return
+          }
+        } catch (authError) {
+          console.error('Could not get Google tokens:', authError)
           toast.error('שגיאה בקבלת אסימוני Google')
           return
         }
@@ -620,8 +583,7 @@ export default function SettingsPage() {
         console.log('⚠️ Warning: Token does not appear to be a Google OAuth token - using manual Google OAuth flow')
         toast.info('נדרשת הרשאה ליומן Google - מתחיל תהליך הרשאה...')
 
-        // For calendar access, we need real Google OAuth tokens, not Supabase JWT tokens
-        // Redirect to manual Google OAuth flow
+        // Calendar sync requires Google OAuth tokens, so reconnect when stored tokens are missing or malformed.
         try {
           const result = await window.electronAPI.googleOAuthAuthenticate()
 

@@ -1,6 +1,6 @@
 # Route Inventory
 
-Last Updated: 2026-04-09
+Last Updated: 2026-04-30
 
 ## Summary
 Current renderer route count: 35.
@@ -40,5 +40,5 @@ Current renderer route count: 35.
 | `/exam-layouts/$layoutId` | `ExamLayoutEditorPage` | Exams | Layout edit |
 | `/worker-stats` | `WorkerStatsPage` | Assistive/Operations | Staff time/attendance |
 | `/campaigns` | `CampaignsPage` | Growth | Campaign management |
-| `/auth/callback` | `AuthCallbackPage` | Auth | Supabase callback |
+| `/auth/callback` | `AuthCallbackPage` | Auth | Legacy callback route; backend auth owns sessions |
 | `/oauth/callback` | `GoogleAuthCallbackPage` | Auth/Google | Google OAuth callback |

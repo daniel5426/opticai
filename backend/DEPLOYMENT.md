@@ -35,7 +35,8 @@ Set all required environment variables:
 # Runtime
 heroku config:set APP_ENV=production
 heroku config:set SECRET_KEY="$(python -c 'import secrets; print(secrets.token_urlsafe(32))')"
-heroku config:set ACCESS_TOKEN_EXPIRE_MINUTES=0
+heroku config:set TOKEN_ENCRYPTION_KEY="$(python -c 'import secrets; print(secrets.token_urlsafe(48))')"
+heroku config:set ACCESS_TOKEN_EXPIRE_MINUTES=15
 
 # Database (Supabase PostgreSQL)
 heroku config:set DATABASE_URL="postgresql://postgres:[password]@[host]:5432/[database]"
@@ -47,7 +48,6 @@ heroku config:set OPENAI_API_KEY="your-openai-api-key"
 heroku config:set SUPABASE_URL="your-supabase-url"
 heroku config:set SUPABASE_SERVICE_ROLE_KEY="your-service-role-key"
 heroku config:set SUPABASE_KEY="your-supabase-anon-key"
-heroku config:set SUPABASE_JWT_SECRET="your-jwt-secret"
 heroku config:set SUPABASE_BUCKET="opticai"
 
 # CORS - keep explicit unless you intentionally opt into wildcard
@@ -275,13 +275,15 @@ heroku rollback v123  # Replace with version number
 | `APP_ENV` | Runtime mode; set to `production` on Heroku | Yes | Heroku config |
 | `DATABASE_URL` | Supabase PostgreSQL connection string | Yes | Supabase Dashboard → Settings → Database |
 | `SECRET_KEY` | JWT signing secret | Yes | Generate with Python secrets module |
-| `ACCESS_TOKEN_EXPIRE_MINUTES` | Token expiration (0 = no expiry) | Yes | Set to 0 for development |
+| `TOKEN_ENCRYPTION_KEY` | Encrypts refresh-related integration tokens | Yes | Generate with Python secrets module |
+| `ACCESS_TOKEN_EXPIRE_MINUTES` | Short-lived access token lifetime | Yes | Use 15 unless there is a specific reason |
 | `OPENAI_API_KEY` | OpenAI API key for AI features | Yes | OpenAI Dashboard |
 | `SUPABASE_URL` | Supabase project URL | Yes | Supabase Dashboard |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key | Yes | Supabase Dashboard → Settings → API |
 | `SUPABASE_KEY` | Supabase anon/public key | Yes | Supabase Dashboard → Settings → API |
-| `SUPABASE_JWT_SECRET` | Supabase JWT secret | Yes | Supabase Dashboard → Settings → API |
 | `SUPABASE_BUCKET` | Storage bucket name | Yes | Set to "opticai" or your preferred name |
+| `GOOGLE_DESKTOP_CLIENT_ID` | Google OAuth desktop client ID | Yes | Google Cloud Console |
+| `GOOGLE_DESKTOP_CLIENT_SECRET` | Google OAuth desktop client secret | Yes | Google Cloud Console |
 | `BACKEND_CORS_ORIGINS` | Allowed CORS origins | Yes | Explicit origins; avoid `*` in production |
 | `ALLOW_WILDCARD_CORS_IN_PRODUCTION` | Emergency override for wildcard CORS | No | Defaults to false |
 

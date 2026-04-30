@@ -72,7 +72,7 @@ class User(Base):
     username = Column(String, nullable=False, unique=True)
     email = Column(String)
     phone = Column(String)
-    password = Column(String)
+    password_hash = Column(String)
     role_level = Column(Integer, nullable=False, default=1)
     is_active = Column(Boolean, default=True)
     profile_picture = Column(String)
@@ -98,7 +98,63 @@ class User(Base):
 
     @property
     def has_password(self):
-        return bool(self.password and self.password.strip())
+        return bool(self.password_hash and self.password_hash.strip())
+
+class AuthSession(Base):
+    __tablename__ = "auth_sessions"
+
+    id = Column(String, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+    clinic_id = Column(Integer, ForeignKey("clinics.id"), index=True)
+    refresh_token_hash = Column(String, nullable=False, unique=True, index=True)
+    device_id = Column(String)
+    user_agent = Column(String)
+    ip_address = Column(String)
+    expires_at = Column(DateTime(timezone=True), nullable=False, index=True)
+    revoked_at = Column(DateTime(timezone=True))
+    last_seen_at = Column(DateTime(timezone=True))
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+    user = relationship("User")
+
+class ClinicDeviceTrust(Base):
+    __tablename__ = "clinic_device_trusts"
+    __table_args__ = (
+        UniqueConstraint("clinic_id", "device_id", name="uq_clinic_device_trusts_clinic_device"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    clinic_id = Column(Integer, ForeignKey("clinics.id"), nullable=False, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+    device_id = Column(String, nullable=False)
+    token_hash = Column(String, nullable=False, unique=True, index=True)
+    entry_pin_version = Column(Integer, nullable=False, default=1)
+    expires_at = Column(DateTime(timezone=True), nullable=False, index=True)
+    revoked_at = Column(DateTime(timezone=True))
+    last_used_at = Column(DateTime(timezone=True))
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+    clinic = relationship("Clinic")
+
+class PendingCompanySetup(Base):
+    __tablename__ = "pending_company_setups"
+
+    id = Column(String, primary_key=True)
+    setup_token_hash = Column(String, nullable=False, unique=True, index=True)
+    email = Column(String, nullable=False, index=True)
+    full_name = Column(String)
+    password_hash = Column(String)
+    auth_provider = Column(String, nullable=False, default="email")
+    google_account_email = Column(String)
+    google_access_token = Column(Text)
+    google_refresh_token = Column(Text)
+    expires_at = Column(DateTime(timezone=True), nullable=False, index=True)
+    used_at = Column(DateTime(timezone=True))
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
 class MigrationSourceLink(Base):
     __tablename__ = "migration_source_links"
@@ -270,6 +326,9 @@ class ExamLayout(Base):
     parent_layout_id = Column(Integer, ForeignKey("exam_layouts.id", ondelete="SET NULL"))
     is_group = Column(Boolean, default=False)
     type = Column(String, nullable=True) # "contact lens", "glass", "global"
+    seed_key = Column(String, nullable=True)
+    seed_version = Column(Integer, nullable=True)
+    is_seeded_default = Column(Boolean, nullable=False, default=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     
@@ -732,6 +791,7 @@ Index('ix_migration_source_links_target', MigrationSourceLink.target_model, Migr
 Index('ix_exam_layout_instances_exam_id', ExamLayoutInstance.exam_id)
 Index('ix_exam_layout_instances_exam_id_is_active', ExamLayoutInstance.exam_id, ExamLayoutInstance.is_active)
 Index('ix_exam_layout_instances_exam_id_order', ExamLayoutInstance.exam_id, ExamLayoutInstance.order)
+Index('ix_exam_layouts_clinic_seed_key', ExamLayout.clinic_id, ExamLayout.seed_key, unique=True)
 
 # Indexes to speed up common filters and sorting on exams list
 Index('ix_optical_exams_clinic_id', OpticalExam.clinic_id)

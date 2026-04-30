@@ -4,7 +4,7 @@ from sqlalchemy import func
 from typing import List, Optional
 from database import get_db
 from models import Family, Client
-from schemas import FamilyCreate, FamilyUpdate, Family as FamilySchema
+from schemas import FamilyCreate, FamilyUpdate, Family as FamilySchema, FamilyWithMembers
 from auth import get_current_user
 from models import User
 from security.scope import resolve_company_id, assert_clinic_belongs_to_company
@@ -133,7 +133,7 @@ def get_family(family_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Family not found")
     return family
 
-@router.get("/", response_model=List[FamilySchema])
+@router.get("/", response_model=List[FamilyWithMembers])
 def get_all_families(
     clinic_id: Optional[int] = Query(None, description="Filter by clinic ID"),
     company_id: Optional[int] = Query(None, description="Filter by company ID"),
@@ -145,7 +145,52 @@ def get_all_families(
     if clinic_id is not None:
         assert_clinic_belongs_to_company(db, clinic_id, effective_company_id)
         query = query.filter(Family.clinic_id == clinic_id)
-    return query.all()
+    families = query.all()
+    family_ids = [family.id for family in families]
+
+    clients_by_family: dict[int, list] = {}
+    if family_ids:
+        members = (
+            db.query(
+                Client.id,
+                Client.first_name,
+                Client.last_name,
+                Client.family_id,
+                Client.family_role,
+                Client.national_id,
+                Client.phone_mobile,
+                Client.email,
+            )
+            .filter(Client.family_id.in_(family_ids))
+            .all()
+        )
+        for member in members:
+            if member.family_id is None:
+                continue
+            clients_by_family.setdefault(member.family_id, []).append({
+                "id": member.id,
+                "first_name": member.first_name,
+                "last_name": member.last_name,
+                "family_id": member.family_id,
+                "family_role": member.family_role,
+                "national_id": member.national_id,
+                "phone_mobile": member.phone_mobile,
+                "email": member.email,
+            })
+
+    return [
+        {
+            "id": family.id,
+            "clinic_id": family.clinic_id,
+            "company_id": family.company_id,
+            "name": family.name,
+            "created_date": family.created_date,
+            "notes": family.notes,
+            "member_count": len(clients_by_family.get(family.id, [])),
+            "clients": clients_by_family.get(family.id, []),
+        }
+        for family in families
+    ]
 
 @router.put("/{family_id}", response_model=FamilySchema)
 def update_family(family_id: int, family: FamilyUpdate, db: Session = Depends(get_db)):
@@ -226,4 +271,4 @@ def remove_client_from_family(family_id: int, client_id: int, db: Session = Depe
     client.family_role = None
     db.commit()
     
-    return {"message": "Client removed from family successfully"} 
+    return {"message": "Client removed from family successfully"}

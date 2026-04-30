@@ -12,6 +12,7 @@ import { usePrescriptionLogic } from "./shared/usePrescriptionLogic"
 import { CylTitle } from "./shared/CylTitle"
 import { NVJSelect } from "./shared/NVJSelect"
 import { ToggleTextNumberInput } from "./shared/ToggleTextNumberInput"
+import { copyEyeRowFields } from "./shared/copyEyeRowFields"
 
 interface OldRefractionExtensionTabProps {
   oldRefractionExtensionData: OldRefractionExtensionExam;
@@ -90,14 +91,7 @@ export function OldRefractionExtensionTab({
   };
 
   const copyFromOtherEye = (fromEye: "R" | "L") => {
-    inputSyncManager.flush();
-    const latestData = dataRef.current;
-
-    const toEye = fromEye === "R" ? "L" : "R";
-    columns.forEach(({ key }) => {
-      const value = getFieldValue(fromEye, key, latestData);
-      handleChange(toEye, key, value);
-    });
+    copyEyeRowFields(dataRef.current, onOldRefractionExtensionChange, fromEye);
   };
 
   const renderField = (eye: "R" | "L" | "C", column: any) => {

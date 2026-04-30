@@ -36,7 +36,11 @@ interface UseLayoutTabsParams {
   layoutMap: Map<number, ExamLayout>;
   fullDataSourcesRef: React.MutableRefObject<Record<number, Record<string, number | string | null>>>;
   loadExamComponentData: (layoutInstanceId: number, layoutData?: string, setCurrent?: boolean) => Promise<void>;
-  initializeFormData: (instanceKey: number, layoutData?: string) => void;
+  initializeFormData: (
+    instanceKey: number,
+    layoutData?: string,
+    setCurrent?: boolean,
+  ) => void;
   applyLayoutStructure: (layoutData?: string) => void;
   setIsAddingLayouts: React.Dispatch<React.SetStateAction<boolean>>;
   tempLayoutIdCounterRef: React.MutableRefObject<number>;
@@ -132,6 +136,7 @@ export function useLayoutTabs({
     const cardDefs: { id: string; type: CardItem["type"]; title?: string }[] = [];
     const addedStandard = new Set<string>();
     const addedCoverCards = new Set<string>();
+    const addedOldRefractionCards = new Set<string>();
 
     entries.forEach(([key, value]) => {
       let type: CardItem["type"] | null = null;
@@ -143,10 +148,28 @@ export function useLayoutTabs({
       } else if (key.startsWith("cover-test-")) {
         const suffix = key.slice("cover-test-".length);
         const dashIndex = suffix.indexOf("-");
-        const id = dashIndex >= 0 ? suffix.slice(0, dashIndex) : suffix;
+        const tabId = (value as any)?.card_instance_id;
+        const id =
+          (value as any)?.card_id ||
+          (tabId && suffix.endsWith(`-${tabId}`)
+            ? suffix.slice(0, -(String(tabId).length + 1))
+            : dashIndex >= 0 ? suffix.slice(0, dashIndex) : suffix);
         if (addedCoverCards.has(id)) return;
         addedCoverCards.add(id);
         cardDefs.push({ id, type: "cover-test" });
+        return;
+      } else if (key.startsWith("old-refraction-")) {
+        const suffix = key.slice("old-refraction-".length);
+        const dashIndex = suffix.indexOf("-");
+        const tabId = (value as any)?.card_instance_id;
+        const id =
+          (value as any)?.card_id ||
+          (tabId && suffix.endsWith(`-${tabId}`)
+            ? suffix.slice(0, -(String(tabId).length + 1))
+            : dashIndex >= 0 ? suffix.slice(0, dashIndex) : suffix);
+        if (addedOldRefractionCards.has(id)) return;
+        addedOldRefractionCards.add(id);
+        cardDefs.push({ id, type: "old-refraction" });
         return;
       } else {
         for (const registeredType of examComponentRegistry.getAllTypes()) {
@@ -365,7 +388,7 @@ export function useLayoutTabs({
           setActiveInstanceId(newLayoutInstance.id || null);
           applyLayoutStructure(layout.layout_data);
           if (newLayoutInstance.id) {
-            await loadExamComponentData(newLayoutInstance.id, layout.layout_data);
+            await loadExamComponentData(newLayoutInstance.id, layout.layout_data, true);
           }
         }
       } else {
@@ -386,7 +409,7 @@ export function useLayoutTabs({
             },
           ];
         });
-        initializeFormData(tempId, layout.layout_data);
+        initializeFormData(tempId, layout.layout_data, activate);
         if (activate) {
           setActiveInstanceId(tempId);
           applyLayoutStructure(layout.layout_data);
@@ -666,22 +689,26 @@ export function useLayoutTabs({
 
       const tabToRemove = layoutTabs[tabIndex];
       const isActive = tabToRemove.isActive;
+      delete fullDataSourcesRef.current[tabId];
 
       // Optimistic update: Calculate next state immediately
       const updatedTabs = [...layoutTabs];
       updatedTabs.splice(tabIndex, 1);
-      
+
       let newActiveTabId: number | null = null;
+      let nextActiveFormData: Record<string, any> | null = null;
 
       if (isActive && updatedTabs.length > 0) {
         const newActiveIndex = Math.min(tabIndex, updatedTabs.length - 1);
-        updatedTabs[newActiveIndex].isActive = true;
-        newActiveTabId = updatedTabs[newActiveIndex].id;
+        const newActiveTab = { ...updatedTabs[newActiveIndex], isActive: true };
+        updatedTabs[newActiveIndex] = newActiveTab;
+        newActiveTabId = newActiveTab.id;
+        nextActiveFormData = examFormDataByInstance[newActiveTabId] || {};
 
         setActiveInstanceId(newActiveTabId);
+        setExamFormData(nextActiveFormData);
 
         try {
-          const newActiveTab = updatedTabs[newActiveIndex];
           const parsedLayout = JSON.parse(newActiveTab.layout_data);
           if (Array.isArray(parsedLayout)) {
             setCardRows(parsedLayout);
@@ -697,6 +724,14 @@ export function useLayoutTabs({
 
       // Update the tabs state immediately
       setLayoutTabs(updatedTabs);
+      setExamFormDataByInstance((prev) => {
+        const next = { ...prev };
+        delete next[tabId];
+        if (newActiveTabId !== null && nextActiveFormData !== null) {
+          next[newActiveTabId] = nextActiveFormData;
+        }
+        return next;
+      });
       toast.success("לשונית הפריסה הוסרה");
 
       // Perform API calls in the background
@@ -704,8 +739,8 @@ export function useLayoutTabs({
         if (exam && exam.id && !isNewMode) {
           // Chain the operations to avoid server-side concurrency issues (StaleDataError)
           // where set-active tries to update a row that is being deleted
-          const deletePromise = tabId > 0 
-            ? deleteExamLayoutInstance(tabId) 
+          const deletePromise = tabId > 0
+            ? deleteExamLayoutInstance(tabId)
             : Promise.resolve(true);
 
           deletePromise
@@ -714,9 +749,9 @@ export function useLayoutTabs({
                 console.error("Failed to delete layout instance from DB");
                 toast.error("שגיאה במחיקת פריסה מהשרת");
               }
-              
+
               if (isActive && newActiveTabId !== null) {
-                // Return this promise so it can be caught by the chain if needed, 
+                // Return this promise so it can be caught by the chain if needed,
                 // though we mainly just want it to execute sequentially
                 return setActiveExamLayoutInstance(exam.id, newActiveTabId);
               }
@@ -731,12 +766,16 @@ export function useLayoutTabs({
     },
     [
       layoutTabs,
+      examFormDataByInstance,
       exam,
       isNewMode,
       setLayoutTabs,
       setActiveInstanceId,
+      setExamFormData,
+      setExamFormDataByInstance,
       setCardRows,
       setCustomWidths,
+      fullDataSourcesRef,
     ],
   );
 

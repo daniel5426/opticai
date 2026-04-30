@@ -20,7 +20,6 @@ import {
   FinalPrescriptionExam, RetinoscopExam, RetinoscopDilationExam,
   CompactPrescriptionExam
 } from './db/schema-interface';
-import { getSupabaseAccessToken } from './supabaseClient'
 
 function normalizeApiBaseUrl(rawUrl?: string): string {
   const fallback = 'http://localhost:8001/api/v1';
@@ -68,9 +67,31 @@ interface ApiResponse<T> {
   error?: string;
 }
 
+export interface AuthPayload {
+  access_token: string;
+  refresh_token: string;
+  token_type: string;
+  expires_in: number;
+  status: 'authenticated';
+  user: User;
+  company?: Company | null;
+  clinic?: Clinic | null;
+}
+
+export interface SetupRequiredPayload {
+  status: 'setup_required';
+  setup_token: string;
+  email: string;
+  full_name?: string | null;
+  auth_provider?: 'email' | 'google';
+}
+
+export type AuthResult = AuthPayload | SetupRequiredPayload;
+
 class ApiClient {
   private baseUrl: string;
   private token: string | null = null;
+  private refreshToken: string | null = null;
   private clinicTrustToken: string | null = null;
   private isRefreshingToken: boolean = false;
 
@@ -78,6 +99,7 @@ class ApiClient {
     this.baseUrl = baseUrl;
     if (typeof localStorage !== 'undefined') {
       this.token = localStorage.getItem('auth_token');
+      this.refreshToken = localStorage.getItem('auth_refresh_token');
       this.clinicTrustToken = localStorage.getItem('clinicTrustToken');
     }
   }
@@ -105,24 +127,20 @@ class ApiClient {
     if (this.isRefreshingToken) return;
     this.isRefreshingToken = true;
     try {
-      const cu = typeof localStorage !== 'undefined' ? localStorage.getItem('currentUser') : null;
-      if (!cu) return;
-      const parsed = JSON.parse(cu);
-      const hasPassword = typeof parsed?.has_password === 'boolean' ? parsed.has_password : !!(parsed?.password && String(parsed.password).trim() !== '');
-      const canNoPasswordLogin = parsed?.username && !hasPassword;
-      if (!canNoPasswordLogin) return;
-      const clinicTrustToken = this.getClinicTrustToken();
-      if (!clinicTrustToken) return;
-      const url = `${this.baseUrl}/auth/login-no-password`;
+      if (!this.refreshToken && typeof localStorage !== 'undefined') {
+        this.refreshToken = localStorage.getItem('auth_refresh_token');
+      }
+      if (!this.refreshToken) return;
+      const url = `${this.baseUrl}/auth/refresh`;
       const res = await fetch(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${clinicTrustToken}` },
-        body: JSON.stringify({ username: parsed.username })
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refresh_token: this.refreshToken })
       });
       if (res.ok) {
         const data = await res.json();
-        if (data?.access_token) {
-          this.setToken(data.access_token);
+        if (data?.access_token && data?.refresh_token) {
+          this.setSessionTokens(data.access_token, data.refresh_token);
         }
       }
     } catch {}
@@ -146,17 +164,14 @@ class ApiClient {
       headers['Content-Type'] = headers['Content-Type'] || 'application/json';
     }
 
-      const isPublicEndpoint = endpoint.includes('/public') || endpoint.startsWith('/auth/clinic-session') || endpoint === '/auth/login' || endpoint === '/auth/clinic-google-login';
+    const isPublicEndpoint =
+      endpoint.includes('/public') ||
+      endpoint.startsWith('/auth/register/') ||
+      endpoint.startsWith('/auth/clinic/trust') ||
+      endpoint.startsWith('/auth/login/') ||
+      endpoint === '/auth/refresh';
     let effectiveToken = this.token;
     if (!isPublicEndpoint) {
-      if (!effectiveToken) {
-        // Only try to get Supabase token if we're not in a clinic context
-        const isInClinicContext = typeof localStorage !== 'undefined' && localStorage.getItem('selectedClinic');
-        if (!isInClinicContext) {
-          const supabaseToken = await getSupabaseAccessToken();
-          effectiveToken = supabaseToken || null;
-        }
-      }
       if (effectiveToken) {
         headers['Authorization'] = `Bearer ${effectiveToken}`;
       }
@@ -234,18 +249,24 @@ class ApiClient {
   }
 
   setToken(token: string) {
+    this.setSessionTokens(token);
+  }
+
+  setSessionTokens(token: string, refreshToken?: string) {
     this.token = token;
-    // Check if localStorage is available (renderer process) before using it
+    if (refreshToken) this.refreshToken = refreshToken;
     if (typeof localStorage !== 'undefined') {
       localStorage.setItem('auth_token', token);
+      if (refreshToken) localStorage.setItem('auth_refresh_token', refreshToken);
     }
   }
 
   clearToken() {
     this.token = null;
-    // Check if localStorage is available (renderer process) before using it
+    this.refreshToken = null;
     if (typeof localStorage !== 'undefined') {
       localStorage.removeItem('auth_token');
+      localStorage.removeItem('auth_refresh_token');
     }
   }
 
@@ -270,42 +291,83 @@ class ApiClient {
     }
   }
 
+  async getCurrentSession(options?: { suppressUnauthorized?: boolean }) {
+    return this.request<{ user: User; company?: Company | null; clinic?: Clinic | null }>('/auth/me', options as any);
+  }
+
   async getCurrentUser(options?: { suppressUnauthorized?: boolean }) {
-    return this.request('/auth/me', options as any);
+    const response = await this.getCurrentSession(options);
+    if (response.error) return { error: response.error } as ApiResponse<User>;
+    return { data: response.data?.user } as ApiResponse<User>;
   }
 
   async createClinicSession(data: { clinic_unique_id: string; pin: string; device_id: string }) {
-    return this.request<{ clinic_trust_token: string; token_type: string; clinic: Clinic }>('/auth/clinic-session', {
+    return this.request<{ clinic_trust_token: string; token_type: string; clinic: Clinic }>('/auth/clinic/trust', {
       method: 'POST',
       body: JSON.stringify(data),
     });
   }
 
-  async clinicGoogleLogin(data: { user_id: number; device_id: string }, supabaseToken: string, clinicTrustToken: string) {
-    return this.request<{ access_token: string; token_type: string; user: User }>('/auth/clinic-google-login', {
+  async registerStart(data: { email: string; password: string; full_name: string }) {
+    return this.request<SetupRequiredPayload>('/auth/register/start', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async registerComplete(data: { setup_token: string; company: any; clinic: any }) {
+    return this.request<AuthPayload>('/auth/register/complete', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async loginPassword(data: { identifier: string; password: string; clinic_id?: number; device_id?: string }, clinicTrustToken?: string | null) {
+    return this.request<AuthPayload>('/auth/login/password', {
+      method: 'POST',
+      headers: clinicTrustToken ? { Authorization: `Bearer ${clinicTrustToken}` } : undefined,
+      body: JSON.stringify(data),
+    });
+  }
+
+  async loginQuick(data: { username: string; device_id?: string }, clinicTrustToken: string) {
+    return this.request<AuthPayload>('/auth/login/quick', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${clinicTrustToken}` },
+      body: JSON.stringify(data),
+    });
+  }
+
+  async loginGoogle(data: {
+    access_token: string;
+    refresh_token?: string;
+    id_token?: string;
+    user_id?: number;
+    device_id?: string;
+    user_info?: any;
+  }, clinicTrustToken?: string | null) {
+    return this.request<AuthResult>('/auth/login/google', {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${clinicTrustToken}`,
-        'X-Supabase-Authorization': `Bearer ${supabaseToken}`,
+        ...(clinicTrustToken ? { Authorization: `Bearer ${clinicTrustToken}` } : {}),
       },
       body: JSON.stringify(data),
     });
   }
 
-  async completeSetup(data: { company: any; clinic: any }) {
-    return this.request<{ company: Company; user: User; clinic: Clinic }>('/auth/complete-setup', {
+  async logout() {
+    return this.request('/auth/logout', {
       method: 'POST',
-      body: JSON.stringify(data),
     });
   }
 
-  async getGoogleTokens(userId: number) {
+  async getGoogleTokens(_userId?: number) {
     return this.request<{
       connected: boolean;
       email?: string;
       access_token?: string;
       refresh_token?: string;
-    }>(`/users/${userId}/google-tokens`);
+    }>('/auth/google-tokens');
   }
 
   // Companies
@@ -741,8 +803,12 @@ class ApiClient {
     return this.request<ExamLayout>(`/exam-layouts/${id}`);
   }
 
-  async getDefaultExamLayouts() {
-    return this.request<ExamLayout[]>('/exam-layouts/default');
+  async getDefaultExamLayouts(clinicId?: number, type?: string) {
+    const params = new URLSearchParams();
+    if (clinicId) params.append('clinic_id', clinicId.toString());
+    if (type) params.append('type', type);
+    const url = `/exam-layouts/defaults${params.toString() ? '?' + params.toString() : ''}`;
+    return this.request<ExamLayout[]>(url);
   }
 
   async getLayoutsByExam(examId: number) {

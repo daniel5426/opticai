@@ -10,6 +10,7 @@ import { CylTitle } from "./shared/CylTitle"
 import { useAxisWarning } from "./shared/useAxisWarning"
 import { AxisWarningInput } from "./shared/AxisWarningInput"
 import { ToggleTextNumberInput } from "./shared/ToggleTextNumberInput"
+import { copyEyeRowFields } from "./shared/copyEyeRowFields"
 
 interface FinalPrescriptionTabProps {
   finalPrescriptionData: FinalPrescriptionExam;
@@ -91,22 +92,7 @@ export function FinalPrescriptionTab({
   };
 
   const copyFromOtherEye = (fromEye: "R" | "L") => {
-    inputSyncManager.flush();
-    const latestData = dataRef.current;
-
-    const toEye = fromEye === "R" ? "L" : "R";
-    columns.forEach(({ key }) => {
-      const getLatestVal = (e: "R" | "L" | "C", f: string) => {
-        if (e === "C") {
-          const combField = `comb_${f}` as keyof FinalPrescriptionExam;
-          return latestData[combField]?.toString() || "";
-        }
-        const eyeField = `${e.toLowerCase()}_${f}` as keyof FinalPrescriptionExam;
-        return latestData[eyeField]?.toString() || "";
-      };
-      const value = getLatestVal(fromEye, key);
-      handleChange(toEye, key, value);
-    });
+    copyEyeRowFields(dataRef.current, onFinalPrescriptionChange, fromEye);
   };
 
   const renderInput = (eye: "R" | "L", col: (typeof columns)[number]) => {

@@ -94,7 +94,7 @@ export function UsersTab({
                         {!user.email && !user.phone && <span>אין פרטי יצירת קשר</span>}
                       </div>
                       <div className="text-xs text-muted-foreground mt-1">
-                        {user.password ? 'מוגן בסיסמה' : 'ללא סיסמה'}
+                        {user.has_password ? 'מוגן בסיסמה' : 'ללא סיסמה'}
                       </div>
                     </div>
                   </div>
@@ -107,5 +107,4 @@ export function UsersTab({
     </div>
   )
 }
-
 

@@ -4,6 +4,7 @@ import { GOOGLE_CONFIG, GOOGLE_OAUTH_URL, GOOGLE_TOKEN_URL } from './google-conf
 export interface GoogleTokens {
   access_token: string;
   refresh_token: string;
+  id_token?: string;
   scope: string;
   token_type: string;
   expiry_date: number;
@@ -92,6 +93,7 @@ export const googleWebAPI = {
       tokens: {
         access_token: tokens.access_token,
         refresh_token: tokens.refresh_token,
+        id_token: tokens.id_token,
         scope: tokens.scope,
         token_type: tokens.token_type,
         expiry_date: Date.now() + (tokens.expires_in * 1000)

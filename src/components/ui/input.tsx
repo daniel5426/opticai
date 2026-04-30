@@ -49,6 +49,23 @@ function parseSignedNumber(value: string): number {
   return parseFloat(cleaned)
 }
 
+function isStepAligned(value: number, stepProp: string | number | undefined, minProp: string | number | undefined): boolean {
+  if (stepProp === undefined || stepProp === "any") return true
+
+  const step = typeof stepProp === "number" ? stepProp : parseFloat(stepProp)
+  if (!Number.isFinite(step) || step <= 0) return true
+
+  const stepBase =
+    minProp !== undefined
+      ? (typeof minProp === "number" ? minProp : parseFloat(minProp))
+      : 0
+  const base = Number.isFinite(stepBase) ? stepBase : 0
+  const ratio = (value - base) / step
+  const nearest = Math.round(ratio)
+
+  return Math.abs(ratio - nearest) < 1e-9
+}
+
 /**
  * Validates and cleans input for signed number fields.
  * Allows: digits, one decimal point, and one leading +/- sign.
@@ -229,7 +246,11 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
       && !isNaN(numericValue)
       && ((minValue !== undefined && !isNaN(minValue) && numericValue < minValue)
         || (maxValue !== undefined && !isNaN(maxValue) && numericValue > maxValue))
-    const ariaInvalid = props["aria-invalid"] ?? isOutOfRange
+    const isStepMismatch = isNumericInput
+      && !isNaN(numericValue)
+      && localValue !== ""
+      && !isStepAligned(numericValue, props.step, props.min)
+    const ariaInvalid = props["aria-invalid"] ?? (isOutOfRange || isStepMismatch)
 
     const hasLeadingOverlay = !!leadingOverlay
 

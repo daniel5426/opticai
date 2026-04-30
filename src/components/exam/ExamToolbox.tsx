@@ -19,6 +19,8 @@ interface ExamToolboxProps {
   onCopyLeft: () => void
   onCopyRight: () => void
   onCopyBelow: () => void
+  onCopyToRightEye?: () => void
+  onCopyToLeftEye?: () => void
   showClear?: boolean
   onShowOrdersHistory?: () => void
 }
@@ -37,6 +39,8 @@ export function ExamToolbox({
   onCopyLeft,
   onCopyRight,
   onCopyBelow,
+  onCopyToRightEye,
+  onCopyToLeftEye,
   showClear,
   onShowOrdersHistory
 }: ExamToolboxProps) {
@@ -164,6 +168,32 @@ export function ExamToolbox({
               </Button>
             )}
 
+            {onCopyToRightEye && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={onCopyToRightEye}
+                className="h-7 w-7 p-0 hover:bg-indigo-100 text-indigo-600 hover:text-indigo-800 text-xs font-semibold"
+                title="העתק מעין שמאל לעין ימין"
+              >
+                R
+              </Button>
+            )}
+
+            {onCopyToLeftEye && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={onCopyToLeftEye}
+                className="h-7 w-7 p-0 hover:bg-indigo-100 text-indigo-600 hover:text-indigo-800 text-xs font-semibold"
+                title="העתק מעין ימין לעין שמאל"
+              >
+                L
+              </Button>
+            )}
+
             {canPaste() && (
               <Button
                 type="button"
@@ -227,6 +257,7 @@ export interface ToolboxActions {
   copyToLeft: (sourceType: ExamComponentType, targetType: ExamComponentType, sourceKey?: string, targetKey?: string) => void
   copyToRight: (sourceType: ExamComponentType, targetType: ExamComponentType, sourceKey?: string, targetKey?: string) => void
   copyToBelow: (sourceType: ExamComponentType, targetType: ExamComponentType, sourceKey?: string, targetKey?: string) => void
+  copyEyeRow: (componentType: ExamComponentType, fromEye: "R" | "L", key?: string) => void
 }
 
 export function createToolboxActions(
@@ -290,10 +321,31 @@ export function createToolboxActions(
     copyToLeft(sourceType, targetType, sourceKey, targetKey)
   }
 
+  const copyEyeRow = (componentType: ExamComponentType, fromEye: "R" | "L", key?: string) => {
+    inputSyncManager.flush();
+    const data = getDataByType(componentType, key)
+    const changeHandler = getChangeHandlerByType(componentType, key)
+    if (!data || !changeHandler) return
+
+    const sourcePrefix = fromEye === "R" ? "r_" : "l_"
+    const targetPrefix = fromEye === "R" ? "l_" : "r_"
+
+    Object.keys(data).forEach((field) => {
+      if (!field.startsWith(sourcePrefix)) return
+
+      const targetField = `${targetPrefix}${field.slice(2)}`
+      const value = data[field]
+      if (value !== undefined) {
+        changeHandler(targetField, String(value ?? ""))
+      }
+    })
+  }
+
   return {
     clearData,
     copyToLeft,
     copyToRight,
-    copyToBelow
+    copyToBelow,
+    copyEyeRow
   }
-} 
+}

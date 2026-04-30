@@ -1,6 +1,13 @@
 import React, { useMemo, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { DndContext, DragEndEvent, DragStartEvent, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
+import {
+  DndContext,
+  DragEndEvent,
+  DragStartEvent,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
 import { SortableContext, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import {
@@ -15,12 +22,22 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { CustomModal } from "@/components/ui/custom-modal";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
-import { ChevronDown, ChevronLeft, Plus, Star, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronLeft, Plus, Trash2 } from "lucide-react";
 import { ExamLayout } from "@/lib/db/schema-interface";
-import { bulkDeleteExamLayouts, createExamLayoutGroup, deleteExamLayout, reorderExamLayouts, updateExamLayout } from "@/lib/db/exam-layouts-db";
+import {
+  bulkDeleteExamLayouts,
+  createExamLayoutGroup,
+  deleteExamLayout,
+  reorderExamLayouts,
+  updateExamLayout,
+} from "@/lib/db/exam-layouts-db";
 import { TableFiltersBar } from "@/components/table-filters-bar";
-import { ALL_FILTER_VALUE, EXAM_LAYOUT_TYPE_OPTIONS } from "@/lib/table-filters";
+import {
+  ALL_FILTER_VALUE,
+  EXAM_LAYOUT_TYPE_OPTIONS,
+} from "@/lib/table-filters";
 
 type LayoutNode = ExamLayout & { children?: LayoutNode[] };
 
@@ -44,7 +61,10 @@ function cloneTree(nodes: LayoutNode[]) {
   return JSON.parse(JSON.stringify(nodes)) as LayoutNode[];
 }
 
-function detachNode(nodes: LayoutNode[], id: number): { node: LayoutNode | null } {
+function detachNode(
+  nodes: LayoutNode[],
+  id: number,
+): { node: LayoutNode | null } {
   for (let i = 0; i < nodes.length; i += 1) {
     const node = nodes[i];
     if (node.id === id) {
@@ -64,7 +84,12 @@ function detachNode(nodes: LayoutNode[], id: number): { node: LayoutNode | null 
   return { node: null };
 }
 
-function insertNode(nodes: LayoutNode[], node: LayoutNode, parentId: number | null, index: number) {
+function insertNode(
+  nodes: LayoutNode[],
+  node: LayoutNode,
+  parentId: number | null,
+  index: number,
+) {
   if (!parentId) {
     if (index >= nodes.length) {
       nodes.push(node);
@@ -75,7 +100,9 @@ function insertNode(nodes: LayoutNode[], node: LayoutNode, parentId: number | nu
   }
   for (const current of nodes) {
     if (current.id === parentId) {
-      const list = current.children ? current.children : (current.children = []);
+      const list = current.children
+        ? current.children
+        : (current.children = []);
       if (index >= list.length) {
         list.push(node);
       } else {
@@ -89,7 +116,12 @@ function insertNode(nodes: LayoutNode[], node: LayoutNode, parentId: number | nu
   }
 }
 
-function moveNode(nodes: LayoutNode[], id: number, parentId: number | null, index: number) {
+function moveNode(
+  nodes: LayoutNode[],
+  id: number,
+  parentId: number | null,
+  index: number,
+) {
   const cloned = cloneTree(nodes);
   const { node } = detachNode(cloned, id);
   if (!node) {
@@ -99,7 +131,12 @@ function moveNode(nodes: LayoutNode[], id: number, parentId: number | null, inde
   return cloned;
 }
 
-function flattenTree(nodes: LayoutNode[], expanded: Set<number>, depth = 0, parentId: number | null = null): FlattenedNode[] {
+function flattenTree(
+  nodes: LayoutNode[],
+  expanded: Set<number>,
+  depth = 0,
+  parentId: number | null = null,
+): FlattenedNode[] {
   const items: FlattenedNode[] = [];
   nodes.forEach((node, index) => {
     if (!node.id) {
@@ -148,7 +185,11 @@ function hasDescendant(node: LayoutNode, id: number): boolean {
   return false;
 }
 
-function isDescendant(nodes: LayoutNode[], rootId: number, searchId: number): boolean {
+function isDescendant(
+  nodes: LayoutNode[],
+  rootId: number,
+  searchId: number,
+): boolean {
   const root = findNode(nodes, rootId);
   if (!root) {
     return false;
@@ -156,8 +197,15 @@ function isDescendant(nodes: LayoutNode[], rootId: number, searchId: number): bo
   return hasDescendant(root, searchId);
 }
 
-function collectReorderPayload(nodes: LayoutNode[], parentId: number | null = null) {
-  const items: { id: number; sort_index: number; parent_layout_id: number | null }[] = [];
+function collectReorderPayload(
+  nodes: LayoutNode[],
+  parentId: number | null = null,
+) {
+  const items: {
+    id: number;
+    sort_index: number;
+    parent_layout_id: number | null;
+  }[] = [];
   nodes.forEach((node, index) => {
     if (!node.id) {
       return;
@@ -174,6 +222,42 @@ function collectReorderPayload(nodes: LayoutNode[], parentId: number | null = nu
   return items;
 }
 
+function updateNodeActiveState(
+  nodes: LayoutNode[],
+  id: number,
+  isActive: boolean,
+): LayoutNode[] {
+  return nodes.map((node) => ({
+    ...node,
+    is_active: node.id === id ? isActive : node.is_active,
+    children: node.children
+      ? updateNodeActiveState(node.children, id, isActive)
+      : node.children,
+  }));
+}
+
+function applyActiveOverrides(
+  nodes: LayoutNode[],
+  overrides: Record<number, boolean>,
+): LayoutNode[] {
+  return nodes.map((node) => ({
+    ...node,
+    is_active:
+      node.id && node.id in overrides ? overrides[node.id] : node.is_active,
+    children: node.children
+      ? applyActiveOverrides(node.children, overrides)
+      : node.children,
+  }));
+}
+
+function getNodeActiveState(
+  nodes: LayoutNode[],
+  id: number,
+): boolean | undefined {
+  const node = findNode(nodes, id);
+  return node ? Boolean(node.is_active) : undefined;
+}
+
 function SortableRow({
   item,
   isSelected,
@@ -181,7 +265,9 @@ function SortableRow({
   onToggleExpand,
   onSelectChange,
   onRowClick,
-  getRowActions,
+  onActiveChange,
+  onDelete,
+  isProcessing,
   activeId,
 }: {
   item: FlattenedNode;
@@ -190,10 +276,19 @@ function SortableRow({
   onToggleExpand: () => void;
   onSelectChange: (value: boolean) => void;
   onRowClick: () => void;
-  getRowActions: (showDefaultToggle: boolean) => React.ReactNode;
+  onActiveChange: (value: boolean) => void;
+  onDelete: (event: React.MouseEvent) => void;
+  isProcessing: boolean;
   activeId: number | null;
 }) {
-  const { attributes, isDragging, listeners, setNodeRef, transform, transition } = useSortable({
+  const {
+    attributes,
+    isDragging,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+  } = useSortable({
     id: item.node.id!,
   });
   const style = {
@@ -201,19 +296,19 @@ function SortableRow({
     transition,
   };
   const isGroup = Boolean(item.node.is_group);
-  const showDefaultToggle = item.parentId === null;
 
   const typeMap: Record<string, string> = {
-    "global": "כללי",
-    "glass": "משקפיים",
+    global: "כללי",
+    glass: "משקפיים",
     "contact lens": "עדשות מגע",
   };
+  const isInactive = item.node.is_active === false;
   return (
     <TableRow
       ref={setNodeRef}
       style={style}
       data-state={isDragging ? "dragging" : undefined}
-      className={`relative ${isDragging ? "opacity-70" : ""} ${activeId === item.node.id ? "ring-1 ring-primary" : ""}`}
+      className={`relative transition-colors ${isInactive ? "bg-muted/20 text-muted-foreground opacity-60" : ""} ${isDragging ? "opacity-70" : ""} ${activeId === item.node.id ? "ring-primary ring-1" : ""}`}
       onClick={() => {
         if (isGroup) {
           onToggleExpand();
@@ -239,14 +334,14 @@ function SortableRow({
           style={{ paddingInlineStart: `${item.depth * 1.5}rem` }}
         >
           <span
-            className="font-medium cursor-grab active:cursor-grabbing select-none"
+            className="cursor-grab font-medium select-none active:cursor-grabbing"
             {...listeners}
             {...attributes}
           >
             {item.node.name}
           </span>
           {item.node.is_group ? (
-            <span className="text-xs text-muted-foreground">
+            <span className="text-muted-foreground text-xs">
               {(item.node.children && item.node.children.length) || 0} פריסות
             </span>
           ) : null}
@@ -258,34 +353,57 @@ function SortableRow({
                 event.stopPropagation();
                 onToggleExpand();
               }}
-              className="flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground transition-colors"
+              className="text-muted-foreground flex h-6 w-6 items-center justify-center rounded-md transition-colors"
             >
-              {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
+              {isExpanded ? (
+                <ChevronDown className="h-4 w-4" />
+              ) : (
+                <ChevronLeft className="h-4 w-4" />
+              )}
             </button>
           ) : null}
-
         </div>
       </TableCell>
       <TableCell className="text-right">
         {item.node.type ? typeMap[item.node.type] || item.node.type : "—"}
       </TableCell>
       <TableCell className="text-right">
-        {item.parentId !== null ? (
-          "—"
-        ) : item.node.is_default ? (
-          "כן"
-        ) : (
-          "לא"
-        )}
+        {item.node.created_at
+          ? new Date(item.node.created_at).toLocaleDateString("he-IL")
+          : ""}
       </TableCell>
       <TableCell className="text-right">
-        {item.node.created_at ? new Date(item.node.created_at).toLocaleDateString("he-IL") : ""}
+        {item.node.updated_at
+          ? new Date(item.node.updated_at).toLocaleDateString("he-IL")
+          : ""}
       </TableCell>
       <TableCell className="text-right">
-        {item.node.updated_at ? new Date(item.node.updated_at).toLocaleDateString("he-IL") : ""}
+        <div className="flex items-center justify-start">
+          <Switch
+            checked={Boolean(item.node.is_active)}
+            disabled={isProcessing}
+            onCheckedChange={(value) => {
+              onActiveChange(value);
+            }}
+            onClick={(event) => event.stopPropagation()}
+            onPointerDown={(event) => event.stopPropagation()}
+            aria-label={item.node.is_active ? "פריסה פעילה" : "פריסה לא פעילה"}
+          />
+        </div>
       </TableCell>
-      <TableCell className="text-right w-[140px]">
-        <div className="flex items-center justify-end gap-2">{getRowActions(showDefaultToggle)}</div>
+      <TableCell className="w-[140px] text-right">
+        <div className="flex items-center justify-end gap-2">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 p-1 text-red-500 hover:bg-red-50 hover:text-red-700"
+            onClick={onDelete}
+            title="מחק פריסה"
+            disabled={isProcessing}
+          >
+            <Trash2 className="h-5 w-5" />
+          </Button>
+        </div>
       </TableCell>
     </TableRow>
   );
@@ -303,6 +421,9 @@ export function ExamLayoutsTable({
   const [internalSearchQuery, setInternalSearchQuery] = useState("");
   const [selectedType, setSelectedType] = useState<string>(ALL_FILTER_VALUE);
   const [localData, setLocalData] = useState<LayoutNode[]>(data);
+  const [activeOverrides, setActiveOverrides] = useState<
+    Record<number, boolean>
+  >({});
   const [isProcessing, setIsProcessing] = useState<Record<number, boolean>>({});
   const [activeId, setActiveId] = useState<number | null>(null);
   const [expandedIds, setExpandedIds] = useState<Set<number>>(new Set());
@@ -315,12 +436,25 @@ export function ExamLayoutsTable({
   const [isGrouping, setIsGrouping] = useState(false);
   const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
   const [groupName, setGroupName] = useState("");
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
-  const searchQuery = externalSearchQuery !== undefined ? externalSearchQuery : internalSearchQuery;
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+  );
+  const searchQuery =
+    externalSearchQuery !== undefined
+      ? externalSearchQuery
+      : internalSearchQuery;
   const typeFilter = externalTypeFilter ?? selectedType;
 
   React.useEffect(() => {
-    setLocalData(data);
+    setActiveOverrides((currentOverrides) => {
+      const nextOverrides = Object.fromEntries(
+        Object.entries(currentOverrides).filter(([id, isActive]) => {
+          return getNodeActiveState(data, Number(id)) !== isActive;
+        }),
+      ) as Record<number, boolean>;
+      setLocalData(applyActiveOverrides(data, nextOverrides));
+      return nextOverrides;
+    });
   }, [data]);
 
   const handleSearchChange = (value: string) => {
@@ -344,7 +478,9 @@ export function ExamLayoutsTable({
       return nodes
         .map((node) => {
           const matchesType =
-            typeFilter === ALL_FILTER_VALUE || node.is_group || node.type === typeFilter;
+            typeFilter === ALL_FILTER_VALUE ||
+            node.is_group ||
+            node.type === typeFilter;
           const searchMatches = !searchQuery.trim()
             ? true
             : node.name?.toLowerCase().includes(searchQuery.toLowerCase());
@@ -454,14 +590,20 @@ export function ExamLayoutsTable({
     if (activeIdValue === overIdValue) {
       return;
     }
-    const activeItem = flattenedAll.find((item) => item.node.id === activeIdValue);
+    const activeItem = flattenedAll.find(
+      (item) => item.node.id === activeIdValue,
+    );
     const overItem = flattenedAll.find((item) => item.node.id === overIdValue);
     if (!activeItem || !overItem) {
       return;
     }
     let targetParent: number | null;
-    const activeIndex = flattenedAll.findIndex((item) => item.node.id === activeIdValue);
-    const overIndex = flattenedAll.findIndex((item) => item.node.id === overIdValue);
+    const activeIndex = flattenedAll.findIndex(
+      (item) => item.node.id === activeIdValue,
+    );
+    const overIndex = flattenedAll.findIndex(
+      (item) => item.node.id === overIdValue,
+    );
     let targetIndex: number;
     if (overItem.node.is_group) {
       const sameGroup = activeItem.parentId === overItem.node.id;
@@ -471,7 +613,9 @@ export function ExamLayoutsTable({
         targetIndex = overItem.index;
       } else {
         targetParent = overItem.node.id!;
-        targetIndex = overItem.node.children ? overItem.node.children.length : 0;
+        targetIndex = overItem.node.children
+          ? overItem.node.children.length
+          : 0;
       }
     } else {
       targetParent = overItem.parentId;
@@ -492,7 +636,12 @@ export function ExamLayoutsTable({
     if (currentParent === targetParent && activeItem.index === targetIndex) {
       return;
     }
-    const nextTree = moveNode(localData, activeIdValue, targetParent ?? null, targetIndex);
+    const nextTree = moveNode(
+      localData,
+      activeIdValue,
+      targetParent ?? null,
+      targetIndex,
+    );
     setLocalData(nextTree);
     try {
       await persistReorder(nextTree);
@@ -504,43 +653,49 @@ export function ExamLayoutsTable({
     }
   };
 
-  const handleSetDefault = async (layoutId: number | undefined) => {
+  const handleSetActive = async (
+    layoutId: number | undefined,
+    isActive: boolean,
+  ) => {
     if (!layoutId) {
       return;
     }
     if (isProcessing[layoutId]) {
       return;
     }
+    const previousData = localData;
+    setActiveOverrides((prev) => ({ ...prev, [layoutId]: isActive }));
+    setLocalData((prev) => updateNodeActiveState(prev, layoutId, isActive));
     setIsProcessing((prev) => ({ ...prev, [layoutId]: true }));
     try {
-      const node = findNode(data, layoutId);
+      const node = findNode(localData, layoutId);
       if (!node) {
         throw new Error("Layout not found");
       }
-      const newDefaultStatus = !node.is_default;
-      if (!newDefaultStatus) {
-        const defaults = flattenedAll.filter((item) => item.node.is_default);
-        if (defaults.length <= 1) {
-          toast.error("חייב להיות לפחות פריסת ברירת מחדל אחת");
-          setIsProcessing((prev) => ({ ...prev, [layoutId]: false }));
-          return;
-        }
-      }
       await updateExamLayout({
         ...node,
-        is_default: newDefaultStatus,
+        is_active: isActive,
       });
-      toast.success(newDefaultStatus ? "הפריסה הוגדרה כברירת מחדל" : "הפריסה הוסרה מברירת מחדל");
+      toast.success(isActive ? "הפריסה הופעלה" : "הפריסה כובתה");
       onRefresh();
     } catch (error) {
-      console.error("Error setting default layout", error);
-      toast.error("שגיאה בהגדרת פריסת ברירת מחדל");
+      setActiveOverrides((prev) => {
+        const next = { ...prev };
+        delete next[layoutId];
+        return next;
+      });
+      setLocalData(previousData);
+      console.error("Error updating layout active state", error);
+      toast.error("שגיאה בעדכון סטטוס הפריסה");
     } finally {
       setIsProcessing((prev) => ({ ...prev, [layoutId]: false }));
     }
   };
 
-  const handleDeleteLayout = (layoutId: number | undefined, event: React.MouseEvent) => {
+  const handleDeleteLayout = (
+    layoutId: number | undefined,
+    event: React.MouseEvent,
+  ) => {
     event.stopPropagation();
     if (!layoutId) {
       return;
@@ -583,7 +738,9 @@ export function ExamLayoutsTable({
     }
     setIsBulkDeleting(true);
     try {
-      const anyNode = flattenedAll.find((item) => selectedIds.has(item.node.id!));
+      const anyNode = flattenedAll.find((item) =>
+        selectedIds.has(item.node.id!),
+      );
       const clinicId = anyNode?.node.clinic_id;
       await bulkDeleteExamLayouts({
         clinic_id: clinicId,
@@ -602,7 +759,9 @@ export function ExamLayoutsTable({
   };
 
   const handleOpenGroupModal = () => {
-    const selected = flattenedAll.filter((item) => selectedIds.has(item.node.id!));
+    const selected = flattenedAll.filter((item) =>
+      selectedIds.has(item.node.id!),
+    );
     const includesGroup = selected.some((item) => item.node.is_group);
     if (includesGroup) {
       toast.error("לא ניתן לקבץ פריסות הכוללות קבוצה קיימת");
@@ -620,7 +779,9 @@ export function ExamLayoutsTable({
     }
     setIsGrouping(true);
     try {
-      const selected = flattenedAll.filter((item) => selectedIds.has(item.node.id!));
+      const selected = flattenedAll.filter((item) =>
+        selectedIds.has(item.node.id!),
+      );
       const clinicId = selected[0]?.node.clinic_id;
       await createExamLayoutGroup({
         clinic_id: clinicId,
@@ -641,7 +802,7 @@ export function ExamLayoutsTable({
   };
 
   return (
-    <div className="space-y-2.5 mb-10" dir="rtl">
+    <div className="mb-10 space-y-2.5" dir="rtl">
       <TableFiltersBar
         searchValue={searchQuery}
         onSearchChange={handleSearchChange}
@@ -656,7 +817,9 @@ export function ExamLayoutsTable({
             widthClassName: "w-[160px]",
           },
         ]}
-        hasActiveFilters={Boolean(searchQuery.trim()) || typeFilter !== ALL_FILTER_VALUE}
+        hasActiveFilters={
+          Boolean(searchQuery.trim()) || typeFilter !== ALL_FILTER_VALUE
+        }
         onReset={() => {
           handleSearchChange("");
           handleTypeFilterChange(ALL_FILTER_VALUE);
@@ -680,32 +843,52 @@ export function ExamLayoutsTable({
                 </Button>
               </>
             ) : null}
-            <Button onClick={handleCreateNew} className="bg-card shadow-none text-card-foreground hover:bg-accent border">
+            <Button
+              onClick={handleCreateNew}
+              className="bg-card text-card-foreground hover:bg-accent border shadow-none"
+            >
               <Plus className="h-4 w-4" />
             </Button>
           </>
         }
       />
 
-      <div className="rounded-md bg-card">
-        <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-          <Table dir="rtl" containerClassName="max-h-[70vh] overflow-y-auto overscroll-contain" containerStyle={{ scrollbarWidth: "none" }}>
-            <TableHeader className="sticky top-0 bg-card z-10">
+      <div className="bg-card rounded-md">
+        <DndContext
+          sensors={sensors}
+          onDragStart={handleDragStart}
+          onDragEnd={handleDragEnd}
+        >
+          <Table
+            dir="rtl"
+            containerClassName="max-h-[70vh] overflow-y-auto overscroll-contain"
+            containerStyle={{ scrollbarWidth: "none" }}
+          >
+            <TableHeader className="bg-card sticky top-0 z-10">
               <TableRow>
                 <TableHead className="w-12">
                   <div className="flex items-center justify-center">
                     <Checkbox
                       checked={
-                        flattenedDisplay.length > 0 && flattenedDisplay.every((item) => selectedIds.has(item.node.id!))
+                        flattenedDisplay.length > 0 &&
+                        flattenedDisplay.every((item) =>
+                          selectedIds.has(item.node.id!),
+                        )
                           ? true
-                          : flattenedDisplay.some((item) => selectedIds.has(item.node.id!))
+                          : flattenedDisplay.some((item) =>
+                                selectedIds.has(item.node.id!),
+                              )
                             ? "indeterminate"
                             : false
                       }
                       onCheckedChange={(checked) => {
-                        const allVisibleIds = flattenedDisplay.map((item) => item.node.id!);
+                        const allVisibleIds = flattenedDisplay.map(
+                          (item) => item.node.id!,
+                        );
                         if (checked === true) {
-                          setSelectedIds((prev) => new Set([...prev, ...allVisibleIds]));
+                          setSelectedIds(
+                            (prev) => new Set([...prev, ...allVisibleIds]),
+                          );
                         } else {
                           setSelectedIds((prev) => {
                             const next = new Set(prev);
@@ -719,9 +902,9 @@ export function ExamLayoutsTable({
                 </TableHead>
                 <TableHead className="text-right">שם הפריסה</TableHead>
                 <TableHead className="text-right">סוג</TableHead>
-                <TableHead className="text-right">ברירת מחדל</TableHead>
                 <TableHead className="text-right">תאריך יצירה</TableHead>
                 <TableHead className="text-right">עדכון אחרון</TableHead>
+                <TableHead className="text-right">פעילה</TableHead>
                 <TableHead className="w-[140px] text-right"></TableHead>
               </TableRow>
             </TableHeader>
@@ -733,7 +916,9 @@ export function ExamLayoutsTable({
                   </TableCell>
                 </TableRow>
               ) : (
-                <SortableContext items={flattenedDisplay.map((item) => item.node.id!)}>
+                <SortableContext
+                  items={flattenedDisplay.map((item) => item.node.id!)}
+                >
                   {flattenedDisplay.map((item) => (
                     <SortableRow
                       key={item.node.id}
@@ -742,50 +927,21 @@ export function ExamLayoutsTable({
                       isSelected={selectedIds.has(item.node.id!)}
                       isExpanded={expandedIds.has(item.node.id!)}
                       onToggleExpand={() => toggleExpand(item.node.id!)}
-                      onSelectChange={(value) => toggleSelection(item.node.id!, value)}
+                      onSelectChange={(value) =>
+                        toggleSelection(item.node.id!, value)
+                      }
+                      onActiveChange={(value) =>
+                        handleSetActive(item.node.id, value)
+                      }
+                      onDelete={(event) =>
+                        handleDeleteLayout(item.node.id, event)
+                      }
+                      isProcessing={Boolean(isProcessing[item.node.id || 0])}
                       onRowClick={() => {
                         navigate({
                           to: "/exam-layouts/$layoutId",
                           params: { layoutId: String(item.node.id) },
                         });
-                      }}
-                      getRowActions={(showDefaultToggle) => {
-                        const actions: React.ReactNode[] = [];
-                        if (showDefaultToggle) {
-                          actions.push(
-                            <Button
-                              key="default"
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 p-1"
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                handleSetDefault(item.node.id);
-                              }}
-                              title={item.node.is_default ? "הסר מברירת מחדל" : "הגדר כברירת מחדל"}
-                              disabled={isProcessing[item.node.id || 0]}
-                            >
-                              <Star
-                                className={`h-5 w-5 transition-colors ${item.node.is_default ? "fill-yellow-400 text-yellow-400" : "text-gray-400"
-                                  }`}
-                              />
-                            </Button>
-                          );
-                        }
-                        actions.push(
-                          <Button
-                            key="delete"
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 p-1 text-red-500 hover:text-red-700 hover:bg-red-50"
-                            onClick={(event) => handleDeleteLayout(item.node.id, event)}
-                            title="מחק פריסה"
-                            disabled={isProcessing[item.node.id || 0]}
-                          >
-                            <Trash2 className="h-5 w-5" />
-                          </Button>
-                        );
-                        return actions;
                       }}
                     />
                   ))}
@@ -845,7 +1001,9 @@ export function ExamLayoutsTable({
             onChange={(event) => setGroupName(event.target.value)}
             className="text-center"
           />
-          <p className="text-sm text-muted-foreground">הקבוצה תכיל {selectedIds.size} פריסות שנבחרו</p>
+          <p className="text-muted-foreground text-sm">
+            הקבוצה תכיל {selectedIds.size} פריסות שנבחרו
+          </p>
         </div>
       </CustomModal>
     </div>

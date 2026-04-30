@@ -56,8 +56,25 @@ export function ExamPreviewModal({
     const [cardRows, setCardRows] = useState<CardRow[]>([]);
     const [examFormData, setExamFormData] = useState<Record<string, any>>({});
     const [examFormDataByInstance, setExamFormDataByInstance] = useState<Record<number, Record<string, any>>>({});
+    const [activeOldRefractionTabs, setActiveOldRefractionTabs] = useState<Record<string, string>>({});
 
     const { rowWidths, rowRefs } = useRowWidthTracking(cardRows, [activeInstanceId, layoutTabs]);
+
+    const oldRefractionTabs = useMemo(
+        () => buildOldRefractionTabs(cardRows, examFormData),
+        [cardRows, examFormData],
+    );
+
+    const resolvedActiveOldRefractionTabs = useMemo(() => {
+        return Object.fromEntries(
+            Object.entries(oldRefractionTabs).map(([cardId, tabs]) => [
+                cardId,
+                activeOldRefractionTabs[cardId] && tabs.includes(activeOldRefractionTabs[cardId])
+                    ? activeOldRefractionTabs[cardId]
+                    : tabs[0],
+            ]),
+        );
+    }, [oldRefractionTabs, activeOldRefractionTabs]);
 
     useEffect(() => {
         if (isOpen && examId) {
@@ -69,6 +86,7 @@ export function ExamPreviewModal({
             setCardRows([]);
             setExamFormData({});
             setExamFormDataByInstance({});
+            setActiveOldRefractionTabs({});
             setActiveInstanceId(null);
         }
     }, [isOpen, examId]);
@@ -148,6 +166,7 @@ export function ExamPreviewModal({
         setActiveInstanceId(id);
         applyLayoutStructure(tab.layout_data);
         setExamFormData(examFormDataByInstance[id] || {});
+        setActiveOldRefractionTabs({});
     };
 
     const headerContent = useMemo(() => (
@@ -276,8 +295,13 @@ export function ExamPreviewModal({
                                                             handleInputChange: () => { },
                                                             handleSelectChange: () => { },
                                                             setFormData: () => { },
+                                                            setExamFormData,
+                                                            layoutInstanceId: activeInstanceId || undefined,
                                                             handleNotesChange: () => { },
-                                                            allRows: cardRows.map(r => r.cards)
+                                                            allRows: cardRows.map(r => r.cards),
+                                                            oldRefractionTabs,
+                                                            activeOldRefractionTabs: resolvedActiveOldRefractionTabs,
+                                                            setActiveOldRefractionTabs,
                                                         }}
                                                         hideEyeLabels={cardIndex > 0}
                                                         matchHeight={hasNoteCard(row.cards) && row.cards.length > 1}
@@ -297,5 +321,34 @@ export function ExamPreviewModal({
                 </div>
             )}
         </CustomModal>
+    );
+}
+
+function buildOldRefractionTabs(
+    cardRows: CardRow[],
+    examFormData: Record<string, any>,
+): Record<string, string[]> {
+    const cardIds = cardRows.flatMap((row) =>
+        row.cards
+            .filter((card) => card.type === "old-refraction")
+            .map((card) => card.id),
+    );
+
+    return Object.fromEntries(
+        cardIds
+            .map((cardId) => {
+                const prefix = `old-refraction-${cardId}-`;
+                const tabs = Object.entries(examFormData)
+                    .filter(([key]) => key.startsWith(prefix))
+                    .map(([key, value]) => ({
+                        id: key.slice(prefix.length),
+                        index: Number((value as any)?.tab_index ?? 0) || 0,
+                    }))
+                    .sort((a, b) => a.index - b.index)
+                    .map((tab) => tab.id);
+
+                return [cardId, tabs] as const;
+            })
+            .filter(([, tabs]) => tabs.length > 0),
     );
 }

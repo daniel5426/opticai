@@ -13,6 +13,7 @@ import { useUser } from "@/contexts/UserContext"
 import { TableFiltersBar } from "@/components/table-filters-bar"
 import { ALL_FILTER_VALUE } from "@/lib/table-filters"
 import { buildTableSearch } from "@/lib/list-page-search"
+import { GuardedRouterLink } from "@/components/GuardedRouterLink"
 
 export default function ClientsPage() {
   const search = useSearch({ from: "/clients" })
@@ -258,7 +259,7 @@ export default function ClientsPage() {
             </div>
 
             {isFamilyMode ? (
-              <>
+              <div className="space-y-2.5">
                 <TableFiltersBar
                   searchValue={searchInput}
                   onSearchChange={setSearchInput}
@@ -284,47 +285,47 @@ export default function ClientsPage() {
                   }
                 />
                 <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-                <div className="space-y-4">
-                  <FamiliesTable 
-                    data={families}
-                    onFamilySelected={handleFamilySelected}
-                    onFamilyEdit={handleFamilyEdit}
-                    onFamilyDeleted={handleFamilyDeleted}
-                    onFamilyDeleteFailed={handleFamilyDeleteFailed}
-                    selectedFamilyId={selectedFamily?.id}
-                    searchQuery={searchInput}
-                    onSearchChange={setSearchInput}
-                    hideSearch={true}
-                    loading={familiesLoading}
-                    pagination={{
-                      page: search.page,
-                      pageSize,
-                      total: familiesTotal,
-                      setPage: (page) =>
-                        navigate({
-                          to: "/clients",
-                          search: buildSearchState({ page }),
-                        }),
-                    }}
-                  />
+                  <div className="space-y-4">
+                    <FamiliesTable
+                      data={families}
+                      onFamilySelected={handleFamilySelected}
+                      onFamilyEdit={handleFamilyEdit}
+                      onFamilyDeleted={handleFamilyDeleted}
+                      onFamilyDeleteFailed={handleFamilyDeleteFailed}
+                      selectedFamilyId={selectedFamily?.id}
+                      searchQuery={searchInput}
+                      onSearchChange={setSearchInput}
+                      hideSearch={true}
+                      loading={familiesLoading}
+                      pagination={{
+                        page: search.page,
+                        pageSize,
+                        total: familiesTotal,
+                        setPage: (page) =>
+                          navigate({
+                            to: "/clients",
+                            search: buildSearchState({ page }),
+                          }),
+                      }}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <ClientsTable
+                      data={clients}
+                      onClientDeleted={handleClientDeleted}
+                      onClientDeleteFailed={handleClientDeleteFailed}
+                      selectedFamilyId={selectedFamily?.id}
+                      showFamilyColumn={true}
+                      hideSearch={true}
+                      hideNewButton={true}
+                      compactMode={true}
+                    />
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <ClientsTable 
-                    data={clients}
-                    onClientDeleted={handleClientDeleted}
-                    onClientDeleteFailed={handleClientDeleteFailed}
-                    selectedFamilyId={selectedFamily?.id}
-                    showFamilyColumn={true}
-                    hideSearch={true}
-                    hideNewButton={true}
-                    compactMode={true}
-                  />
-                </div>
-                </div>
-              </>
+              </div>
             ) : (
-              <ClientsTable 
-                data={clients} 
+              <ClientsTable
+                data={clients}
                 onClientDeleted={handleClientDeleted}
                 onClientDeleteFailed={handleClientDeleteFailed}
                 searchQuery={searchInput}
@@ -349,14 +350,22 @@ export default function ClientsPage() {
                     }),
                 }}
                 toolbarActions={
-                  <Button 
-                    variant="outline"
-                    onClick={toggleFamilyMode}
-                    className="flex items-center gap-2"
-                    title="מצב משפחות"
-                  >
-                    <Users className="h-4 w-4" />
-                  </Button>
+                  <>
+                    <Button asChild className="flex items-center gap-2">
+                      <GuardedRouterLink to="/clients/new">
+                        <PlusIcon className="h-4 w-4" />
+                        לקוח חדש
+                      </GuardedRouterLink>
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={toggleFamilyMode}
+                      className="flex items-center gap-2"
+                      title="מצב משפחות"
+                    >
+                      <Users className="h-4 w-4" />
+                    </Button>
+                  </>
                 }
               />
             )}

@@ -1,11 +1,11 @@
 # Release Checklist
 
-Last Updated: 2026-04-09
+Last Updated: 2026-04-30
 
 ## Windows-First Launch Checklist
 - Verify backend base URL and required desktop env values
-- Verify Supabase auth configuration
-- Verify Google OAuth callback flow on packaged desktop build
+- Verify backend auth config and Heroku `TOKEN_ENCRYPTION_KEY`
+- Verify Google OAuth login/connect flow on packaged desktop build
 - Verify clinic login, clinic selection, user selection, logout, restart restore
 - Verify dashboard, clients, exams, orders, referrals, files, settings
 - Verify DOCX export in packaged build

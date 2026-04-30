@@ -13,6 +13,7 @@ import { CylTitle } from "./shared/CylTitle"
 import { useAxisWarning } from "./shared/useAxisWarning"
 import { AxisWarningInput } from "./shared/AxisWarningInput"
 import { ToggleTextNumberInput } from "./shared/ToggleTextNumberInput"
+import { copyEyeRowFields } from "./shared/copyEyeRowFields"
 
 interface FinalSubjectiveTabProps {
   finalSubjectiveData: FinalSubjectiveExam;
@@ -213,38 +214,7 @@ export function FinalSubjectiveTab({
   };
 
   const copyFromOtherEye = (fromEye: "R" | "L") => {
-    inputSyncManager.flush();
-    const latestData = dataRef.current;
-
-    const toEye = fromEye === "R" ? "L" : "R";
-    columns.forEach(({ key }) => {
-      if (key === "va" || key === "j") return;
-
-      const getLatestVal = (e: "R" | "L" | "C", f: string): string => {
-        if (e === "C") {
-          const field = `comb_${f}` as keyof FinalSubjectiveExam;
-          return latestData[field]?.toString() || "";
-        }
-
-        if (f === "pris") {
-          const vVal = latestData[`${e.toLowerCase()}_pr_v` as keyof FinalSubjectiveExam];
-          const hVal = latestData[`${e.toLowerCase()}_pr_h` as keyof FinalSubjectiveExam];
-          return (vVal || hVal || "").toString();
-        }
-
-        if (f === "base") {
-          const vBase = latestData[`${e.toLowerCase()}_base_v` as keyof FinalSubjectiveExam];
-          const hBase = latestData[`${e.toLowerCase()}_base_h` as keyof FinalSubjectiveExam];
-          return (vBase || hBase || "").toString();
-        }
-
-        const field = `${e.toLowerCase()}_${f}` as keyof FinalSubjectiveExam;
-        return latestData[field]?.toString() || "";
-      };
-
-      const val = getLatestVal(fromEye, key);
-      handleChange(toEye, key, val);
-    });
+    copyEyeRowFields(dataRef.current, onFinalSubjectiveChange, fromEye);
   };
 
   return (

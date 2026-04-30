@@ -118,6 +118,44 @@ export const isNonEmptyComponent = (key: string, value: any) => {
     "nv_2",
   ];
 
+  const specialOldRefraction = [
+    "r_sph",
+    "r_cyl",
+    "r_ax",
+    "r_pris",
+    "r_base",
+    "r_va",
+    "r_ad",
+    "r_j",
+    "l_sph",
+    "l_cyl",
+    "l_ax",
+    "l_pris",
+    "l_base",
+    "l_va",
+    "l_ad",
+    "l_j",
+    "comb_va",
+    "comb_j",
+  ];
+
+  const specialRetinoscop = [
+    "r_sph",
+    "r_cyl",
+    "r_ax",
+    "r_reflex",
+    "r_pd_far",
+    "r_pd_close",
+    "l_sph",
+    "l_cyl",
+    "l_ax",
+    "l_reflex",
+    "l_pd_far",
+    "l_pd_close",
+    "comb_pd_far",
+    "comb_pd_close",
+  ];
+
   // Notes are special: they MUST have a note or a custom title to be meaningful
   if (key.startsWith("notes-") || key === "notes") {
     const v = value as any;
@@ -128,6 +166,23 @@ export const isNonEmptyComponent = (key: string, value: any) => {
 
   if (key.startsWith("cover-test-")) {
     return specialCover.some((k) => isMeaningfulValue((value as any)[k]));
+  }
+
+  if (key.startsWith("old-refraction-") || key === "old-refraction") {
+    return specialOldRefraction.some((k) =>
+      isMeaningfulValue((value as any)[k]),
+    );
+  }
+
+  if (
+    key.startsWith("retinoscop-") ||
+    key === "retinoscop" ||
+    key.startsWith("retinoscop-dilation-") ||
+    key === "retinoscop-dilation"
+  ) {
+    return specialRetinoscop.some((k) =>
+      isMeaningfulValue((value as any)[k]),
+    );
   }
 
   // For everything else, check if any non-ignored field has a value

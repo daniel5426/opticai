@@ -5,11 +5,9 @@ from sqlalchemy.exc import IntegrityError
 from database import get_db
 from models import User, Clinic
 from schemas import UserCreate, UserUpdate, User as UserSchema, UserPublic, UserSelectItem
-from auth import get_current_user, get_password_hash
+from auth import decrypt_secret, encrypt_secret, get_current_user, get_password_hash
 from models import User as UserModel
 from utils.storage import upload_base64_image
-from utils.supabase_auth import update_supabase_auth_email
-from fastapi import Request
 
 
 CEO_LEVEL = 4
@@ -18,83 +16,27 @@ WORKER_LEVEL = 2
 
 router = APIRouter(prefix="/users", tags=["users"])
 
+
+def _normalize_google_token_update(update_data: dict) -> None:
+    if update_data.get("google_account_connected") is False:
+        update_data["google_access_token"] = None
+        update_data["google_refresh_token"] = None
+        update_data["google_account_email"] = None
+        return
+    if "google_access_token" in update_data:
+        update_data["google_access_token"] = encrypt_secret(update_data["google_access_token"])
+    if "google_refresh_token" in update_data:
+        update_data["google_refresh_token"] = encrypt_secret(update_data["google_refresh_token"])
+
 @router.post("/public", response_model=UserSchema)
 def create_user_public(
     user: UserCreate,
     db: Session = Depends(get_db)
 ):
-
-    # Prefer matching by email when provided; fallback to username
-    existing: Optional[User] = None
-    if user.email:
-        existing = db.query(User).filter(User.email == user.email).first()
-    if not existing:
-        existing = db.query(User).filter(User.username == user.username).first()
-
-    if existing:
-        # If existing user is already linked to a company, block duplicate signup
-        if existing.company_id is not None:
-            # Keep original error semantics depending on what clashes
-            if user.email and existing.email == user.email:
-                print(f"DEBUG: Email already exists and linked to company: {user.email}")
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Email already exists"
-                )
-            print(f"DEBUG: Username already exists and linked to company: {user.username}")
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Username already exists"
-            )
-
-        # Existing user without company: continue setup by updating the record
-        print(f"DEBUG: Continuing setup for existing user without company (id={existing.id})")
-        update_payload = user.dict(exclude_unset=True)
-        # Never override username when continuing by email/username match
-        update_payload.pop('username', None)
-        # Handle password hashing
-        if 'password' in update_payload:
-            pwd = update_payload.pop('password')
-            existing.password = get_password_hash(pwd) if pwd else None
-        # Handle profile picture upload
-        if update_payload.get('profile_picture'):
-            try:
-                update_payload['profile_picture'] = upload_base64_image(update_payload['profile_picture'], f"users/public/profile")
-            except Exception:
-                update_payload.pop('profile_picture', None)
-        for k, v in update_payload.items():
-            setattr(existing, k, v)
-        try:
-            db.commit()
-        except IntegrityError:
-            db.rollback()
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Integrity error: duplicate field")
-        db.refresh(existing)
-        print(f"DEBUG: User updated and linked successfully (id={existing.id}, company_id={existing.company_id})")
-        return existing
-
-    # Create a fresh user
-    print(f"DEBUG: Creating new user: {user.username}")
-    hashed_password = get_password_hash(user.password) if user.password else None
-    up = user.dict(exclude={'password'})
-    if up.get('profile_picture'):
-        try:
-            up['profile_picture'] = upload_base64_image(up['profile_picture'], f"users/public/profile")
-        except Exception:
-            pass
-    
-    if up.get('auth_provider') not in ('email', 'google'):
-        up['auth_provider'] = 'email'
-
-    db_user = User(
-        **up,
-        password=hashed_password
+    raise HTTPException(
+        status_code=status.HTTP_410_GONE,
+        detail="Legacy public user creation is disabled; use /auth/register/start and /auth/register/complete",
     )
-    db.add(db_user)
-    db.commit()
-    db.refresh(db_user)
-    print(f"DEBUG: User created successfully with ID: {db_user.id}")
-    return db_user
 
 @router.post("/link-company", response_model=UserSchema)
 def link_company(
@@ -158,9 +100,10 @@ def create_user(
             up['profile_picture'] = upload_base64_image(up['profile_picture'], f"users/profile")
         except Exception:
             pass
+    _normalize_google_token_update(up)
     db_user = User(
         **up,
-        password=hashed_password
+        password_hash=hashed_password
     )
     db.add(db_user)
     db.commit()
@@ -363,8 +306,8 @@ def get_user_google_tokens(
     return {
         "connected": bool(user.google_account_connected),
         "email": user.google_account_email,
-        "access_token": user.google_access_token if user.google_account_connected else None,
-        "refresh_token": user.google_refresh_token if user.google_account_connected else None,
+        "access_token": decrypt_secret(user.google_access_token) if user.google_account_connected else None,
+        "refresh_token": decrypt_secret(user.google_refresh_token) if user.google_account_connected else None,
     }
 
 @router.get("/{user_id}", response_model=UserSchema)
@@ -426,7 +369,7 @@ def get_user_by_username_public(
         "added_vacation_dates": user.added_vacation_dates,
         "va_format": user.va_format,
         "auth_provider": user.auth_provider,
-        "has_password": bool(user.password and user.password.strip()),
+        "has_password": bool(user.password_hash and user.password_hash.strip()),
         "created_at": user.created_at,
         "updated_at": user.updated_at,
         "company_id": user.company_id,
@@ -460,7 +403,7 @@ def get_user_by_email_public(
         "added_vacation_dates": user.added_vacation_dates,
         "va_format": user.va_format,
         "auth_provider": user.auth_provider,
-        "has_password": bool(user.password and user.password.strip()),
+        "has_password": bool(user.password_hash and user.password_hash.strip()),
         "created_at": user.created_at,
         "updated_at": user.updated_at,
         "company_id": user.company_id,
@@ -535,7 +478,7 @@ def get_users_by_clinic_public(
             "added_vacation_dates": user.added_vacation_dates,
             "va_format": user.va_format,
             "auth_provider": user.auth_provider,
-            "has_password": bool(user.password and user.password.strip()),
+            "has_password": bool(user.password_hash and user.password_hash.strip()),
             "created_at": user.created_at,
             "updated_at": user.updated_at,
             "company_id": user.company_id
@@ -574,7 +517,6 @@ def get_users_by_company(
 def update_user(
     user_id: int,
     user: UserUpdate,
-    request: Request,
     db: Session = Depends(get_db),
     current_user: UserModel = Depends(get_current_user)
 ):
@@ -607,21 +549,13 @@ def update_user(
         if existing_user and existing_user.id != db_user.id:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Username already exists")
     
-    if "email" in update_data and update_data["email"] and update_data["email"] != db_user.email:
-        new_email = update_data["email"]
-        old_email = db_user.email
-        
-        # Sync email change to Supabase Auth
-        auth_header = request.headers.get("authorization") or request.headers.get("Authorization")
-        update_supabase_auth_email(old_email, new_email, db, auth_header, user_id)
-
     if "password" in update_data:
         if update_data["password"] is None:
-            # Remove password (set to None)
-            update_data["password"] = None
+            update_data["password_hash"] = None
         else:
-            # Hash the new password
-            update_data["password"] = get_password_hash(update_data["password"])
+            update_data["password_hash"] = get_password_hash(update_data["password"])
+        update_data.pop("password", None)
+    _normalize_google_token_update(update_data)
     
     for field, value in update_data.items():
         setattr(db_user, field, value)

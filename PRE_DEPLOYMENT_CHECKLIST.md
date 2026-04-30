@@ -43,7 +43,8 @@ Use this checklist before deploying OpticAI for the first time.
 # Runtime
 heroku config:set APP_ENV=production
 heroku config:set SECRET_KEY="$(python -c 'import secrets; print(secrets.token_urlsafe(32))')"
-heroku config:set ACCESS_TOKEN_EXPIRE_MINUTES=0
+heroku config:set TOKEN_ENCRYPTION_KEY="$(python -c 'import secrets; print(secrets.token_urlsafe(48))')"
+heroku config:set ACCESS_TOKEN_EXPIRE_MINUTES=15
 heroku config:set DATABASE_URL="postgresql://postgres:[password]@[host]:5432/postgres"
 
 # Integrations
@@ -52,7 +53,8 @@ heroku config:set SUPABASE_KEY="your-supabase-anon-key"
 heroku config:set SUPABASE_BUCKET='opticai'
 heroku config:set SUPABASE_URL="https://your-project.supabase.co"
 heroku config:set SUPABASE_SERVICE_ROLE_KEY="your-supabase-service-role-key"
-heroku config:set SUPABASE_JWT_SECRET="your-supabase-jwt-secret"
+heroku config:set GOOGLE_DESKTOP_CLIENT_ID="your-desktop-client-id.apps.googleusercontent.com"
+heroku config:set GOOGLE_DESKTOP_CLIENT_SECRET="your-desktop-client-secret"
 
 # Explicit origins only; wildcard CORS is blocked in production by default.
 heroku config:set BACKEND_CORS_ORIGINS="app://.,http://localhost:5173,http://127.0.0.1:5173"
@@ -63,8 +65,6 @@ heroku config:set BACKEND_CORS_ORIGINS="app://.,http://localhost:5173,http://127
 - [ ] Configure GitHub Actions secrets; CI generates `.env.production` / `.env.windows.production`
   ```env
   VITE_API_URL=https://your-app-name.herokuapp.com/api/v1
-  VITE_SUPABASE_URL=your-supabase-url
-  VITE_SUPABASE_ANON_KEY=your-supabase-anon-key
   ```
 
 - [ ] **Verify .env.development** for local development
@@ -86,8 +86,6 @@ heroku config:set BACKEND_CORS_ORIGINS="app://.,http://localhost:5173,http://127
   - Go to: Repository → Settings → Secrets and variables → Actions
   - Add New repository secret:
     - `VITE_API_URL`: Your Heroku URL (e.g., https://your-app.herokuapp.com/api/v1)
-    - `VITE_SUPABASE_URL`: Your Supabase project URL
-    - `VITE_SUPABASE_ANON_KEY`: Your Supabase anon key
   - Note: `GITHUB_TOKEN` is automatically provided
 
 ## 🧪 Testing

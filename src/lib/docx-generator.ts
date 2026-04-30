@@ -1,6 +1,7 @@
 import Docxtemplater from "docxtemplater";
 import PizZip from "pizzip";
 import { saveAs } from "file-saver";
+import { forceRtlDocxZip } from "@/lib/docx-rtl";
 
 /**
  * DocxGenerator - Service class for generating DOCX files from templates
@@ -36,8 +37,10 @@ export class DocxGenerator {
       });
 
       doc.render(data);
+      const renderedZip = doc.getZip();
+      forceRtlDocxZip(renderedZip);
 
-      const out = doc.getZip().generate({
+      const out = renderedZip.generate({
         type: "blob",
         mimeType:
           "application/vnd.openxmlformats-officedocument.wordprocessingml.document",

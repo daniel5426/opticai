@@ -352,6 +352,8 @@ export interface FinalPrescriptionExam {
   comb_va?: string | number;
   comb_pd?: number;
   comb_high?: number;
+  add_type?: string;
+  addition_add_sources?: Record<string, { r_ad?: number; l_ad?: number }>;
 }
 
 export interface CompactPrescriptionExam {
@@ -909,6 +911,9 @@ export interface ExamLayout {
   parent_layout_id?: number | null;
   is_group?: boolean;
   type?: string;
+  seed_key?: string | null;
+  seed_version?: number | null;
+  is_seeded_default?: boolean;
   children?: ExamLayout[];
   created_at?: string;
   updated_at?: string;

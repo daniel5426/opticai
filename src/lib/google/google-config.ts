@@ -7,7 +7,6 @@ export interface GoogleConfig {
 
 export const GOOGLE_CONFIG: GoogleConfig = {
   // Desktop OAuth credentials for Google Calendar API access
-  // These are separate from the web OAuth used by Supabase for login
   get clientId() {
     return process.env.GOOGLE_DESKTOP_CLIENT_ID || 'your-desktop-client-id.apps.googleusercontent.com';
   },
@@ -17,6 +16,9 @@ export const GOOGLE_CONFIG: GoogleConfig = {
   // Use Vite development port or production URL
   redirectUri: 'http://localhost:5173/oauth/callback',
   scopes: [
+    'openid',
+    'email',
+    'profile',
     'https://www.googleapis.com/auth/calendar',
     'https://www.googleapis.com/auth/calendar.events',
     'https://www.googleapis.com/auth/userinfo.email'
@@ -24,4 +26,4 @@ export const GOOGLE_CONFIG: GoogleConfig = {
 }
 
 export const GOOGLE_OAUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth'
-export const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token' 
+export const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token'

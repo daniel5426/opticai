@@ -1,4 +1,4 @@
-import { useCallback, useRef, useEffect } from "react";
+import { useCallback, useRef, useLayoutEffect } from "react";
 import { toast } from "sonner";
 import { OpticalExam } from "@/lib/db/schema-interface";
 import { updateExam, createExam } from "@/lib/db/exams-db";
@@ -6,6 +6,7 @@ import { addLayoutToExam } from "@/lib/db/exam-layouts-db";
 import { examComponentRegistry } from "@/lib/exam-component-registry";
 import { LayoutTab } from "@/pages/exam-detail/types";
 import { inputSyncManager } from "@/components/exam/shared/OptimizedInputs";
+import { FULL_DATA_NAME } from "@/pages/exam-detail/utils";
 
 interface ExamPageConfig {
   dbType: "exam" | "opticlens";
@@ -33,6 +34,7 @@ interface UseExamSaveParams {
   examFormData: Record<string, any>;
   examFormDataByInstance: Record<number | string, Record<string, any>>;
   setExamFormDataByInstance: React.Dispatch<React.SetStateAction<Record<number | string, Record<string, any>>>>;
+  fullDataSourcesRef: React.MutableRefObject<Record<number, Record<string, number | string | null>>>;
   layoutTabs: LayoutTab[];
   setLayoutTabs: React.Dispatch<React.SetStateAction<LayoutTab[]>>;
   activeInstanceId: number | null;
@@ -61,6 +63,7 @@ export function useExamSave({
   examFormData,
   examFormDataByInstance,
   setExamFormDataByInstance,
+  fullDataSourcesRef,
   layoutTabs,
   setLayoutTabs,
   activeInstanceId,
@@ -82,10 +85,10 @@ export function useExamSave({
   const examFormDataByInstanceRef = useRef(examFormDataByInstance);
   const layoutTabsRef = useRef(layoutTabs);
 
-  useEffect(() => { formDataRef.current = formData; }, [formData]);
-  useEffect(() => { examFormDataRef.current = examFormData; }, [examFormData]);
-  useEffect(() => { examFormDataByInstanceRef.current = examFormDataByInstance; }, [examFormDataByInstance]);
-  useEffect(() => { layoutTabsRef.current = layoutTabs; }, [layoutTabs]);
+  useLayoutEffect(() => { formDataRef.current = formData; }, [formData]);
+  useLayoutEffect(() => { examFormDataRef.current = examFormData; }, [examFormData]);
+  useLayoutEffect(() => { examFormDataByInstanceRef.current = examFormDataByInstance; }, [examFormDataByInstance]);
+  useLayoutEffect(() => { layoutTabsRef.current = layoutTabs; }, [layoutTabs]);
 
   const handleSave = useCallback(async () => {
     if (!formRef.current || isSaveInFlight) return;
@@ -99,6 +102,67 @@ export function useExamSave({
     const currentExamFormData = examFormDataRef.current;
     const currentExamFormDataByInstance = examFormDataByInstanceRef.current;
     const currentLayoutTabs = layoutTabsRef.current;
+    const currentActiveInstanceId = activeInstanceId;
+    const saveBuckets: Record<number | string, Record<string, any>> = {
+      ...currentExamFormDataByInstance,
+    };
+
+    if (currentActiveInstanceId != null) {
+      saveBuckets[currentActiveInstanceId] = currentExamFormData;
+    }
+
+    const activeLayoutTab =
+      currentActiveInstanceId != null
+        ? currentLayoutTabs.find((tab) => tab.id === currentActiveInstanceId)
+        : undefined;
+
+    if (
+      currentActiveInstanceId != null &&
+      activeLayoutTab?.name === FULL_DATA_NAME
+    ) {
+      const sources = fullDataSourcesRef.current[currentActiveInstanceId] || {};
+      const keys = new Set([
+        ...Object.keys(sources),
+        ...Object.keys(currentExamFormData),
+      ]);
+
+      keys.forEach((componentKey) => {
+        const currentValue = currentExamFormData[componentKey];
+        const mappedSource =
+          sources[componentKey] ??
+          (currentValue as any)?.source_layout_instance_id ??
+          null;
+        if (mappedSource == null) return;
+
+        const resolvedKey =
+          typeof mappedSource === "number"
+            ? mappedSource
+            : Number(mappedSource);
+        if (!Number.isFinite(resolvedKey)) return;
+        if (resolvedKey === currentActiveInstanceId) return;
+
+        const existingBucket = saveBuckets[resolvedKey] || {};
+
+        if (!currentValue) {
+          if (existingBucket[componentKey]) {
+            const updatedBucket = { ...existingBucket };
+            delete updatedBucket[componentKey];
+            saveBuckets[resolvedKey] = updatedBucket;
+          }
+          return;
+        }
+
+        const updatedValue = {
+          ...currentValue,
+          layout_instance_id: resolvedKey,
+        };
+        delete (updatedValue as any).source_layout_instance_id;
+        saveBuckets[resolvedKey] = {
+          ...existingBucket,
+          [componentKey]: updatedValue,
+        };
+      });
+    }
 
     setIsSaveInFlight(true);
 
@@ -135,10 +199,7 @@ export function useExamSave({
           activeInstanceId != null &&
           activeTempTab.id === activeInstanceId
         ) {
-          setExamFormDataByInstance((prev) => ({
-            ...prev,
-            [activeTempTab.id]: currentExamFormData,
-          }));
+          setExamFormDataByInstance(saveBuckets);
         }
 
         const tempIdToRealId: Record<number, number> = {};
@@ -152,7 +213,7 @@ export function useExamSave({
             if (!instance || instance.id == null)
               throw new Error("failed to create instance");
             tempIdToRealId[tab.id] = Number(instance.id);
-            const dataBucket = currentExamFormDataByInstance[tab.id] || {};
+            const dataBucket = saveBuckets[tab.id] || {};
             await examComponentRegistry.saveAllData(
               Number(instance.id),
               dataBucket,
@@ -177,7 +238,7 @@ export function useExamSave({
           ) {
             const realId = Number(tempIdToRealId[activeTempTab.id]);
             setActiveInstanceId(realId);
-            setExamFormData(currentExamFormDataByInstance[activeTempTab.id] || {});
+            setExamFormData(saveBuckets[activeTempTab.id] || {});
           }
         } catch (error) {
           toast.error(config.saveErrorNewData);
@@ -188,7 +249,7 @@ export function useExamSave({
         setBaseline({
           formData: { ...newExam },
           examFormData: currentExamFormData,
-          examFormDataByInstance: currentExamFormDataByInstance,
+          examFormDataByInstance: saveBuckets,
         });
         allowNavigationRef.current = true;
         navigate({
@@ -204,16 +265,11 @@ export function useExamSave({
         try {
           const updatedExam = await updateExam(currentFormData as OpticalExam);
 
-          if (activeInstanceId != null) {
-            setExamFormDataByInstance((prev) => ({
-              ...prev,
-              [activeInstanceId]: currentExamFormData,
-            }));
-          }
+          setExamFormDataByInstance(saveBuckets);
 
           for (const tab of currentLayoutTabs) {
             if (tab.id > 0) {
-              const bucket = currentExamFormDataByInstance[tab.id] || {};
+              const bucket = saveBuckets[tab.id] || {};
               await examComponentRegistry.saveAllData(tab.id, bucket);
             }
           }
@@ -226,7 +282,7 @@ export function useExamSave({
             setBaseline({
               formData: { ...updatedExam },
               examFormData: currentExamFormData,
-              examFormDataByInstance: currentExamFormDataByInstance,
+              examFormDataByInstance: saveBuckets,
             });
             
             toast.success(config.saveSuccessUpdate);
@@ -260,6 +316,7 @@ export function useExamSave({
     // examFormData, // Removed
     // examFormDataByInstance, // Removed
     setExamFormDataByInstance,
+    fullDataSourcesRef,
     // layoutTabs, // Removed
     setLayoutTabs,
     activeInstanceId,

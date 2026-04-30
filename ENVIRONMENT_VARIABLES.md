@@ -65,17 +65,9 @@ packagerConfig: {
 # Backend API
 VITE_API_URL='https://your-backend.herokuapp.com/api/v1'
 
-# Google OAuth (Web - for Supabase auth)
-GOOGLE_CLIENT_ID=your-web-client-id.apps.googleusercontent.com
-GOOGLE_CLIENT_SECRET=your-web-client-secret
-
 # Google OAuth (Desktop - for Calendar/Email sync)
 GOOGLE_DESKTOP_CLIENT_ID=your-desktop-client-id.apps.googleusercontent.com
 GOOGLE_DESKTOP_CLIENT_SECRET=your-desktop-client-secret
-
-# Supabase (optional, for storage/auth)
-VITE_SUPABASE_URL='https://your-project.supabase.co'
-VITE_SUPABASE_ANON_KEY='your-anon-key'
 ```
 
 ## Important Notes

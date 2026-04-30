@@ -1,6 +1,6 @@
 # Launch Blocker Matrix
 
-Last Updated: 2026-04-09
+Last Updated: 2026-04-30
 
 | Priority | Blocker | Evidence | Impact | Required Action |
 | --- | --- | --- | --- | --- |
@@ -8,7 +8,7 @@ Last Updated: 2026-04-09
 | P0 launch blocker | Exam surface is large and under-tested | Build warnings show ineffective code-splitting across exam tabs; exam subsystem is the largest custom workflow | Clinical core could regress in the highest-value surface | Run focused end-to-end exam audit before broad polish work |
 | P0 launch blocker | Current automated readiness signals are not trustworthy | `npm run test:e2e` fails on template-era assumptions; unit tests are minimal | False confidence in launch readiness | Replace current launch gate with a manual smoke checklist immediately; rebuild e2e coverage after launch or during stabilization |
 | P0 launch blocker | Backend/runtime assumptions are not yet normalized into a current launch runbook | Backend deployment docs still need reconciliation with the actual production path | Release can fail on env or backend mismatch even if frontend looks healthy | Produce and verify a real release/runtime checklist tied to current env and hosted backend |
-| P1 must-fix | Auth and callback flows need packaged verification | Auth depends on Supabase, backend `/auth/me`, local storage, and callback routes | Login or session restore failure blocks all user activity | Validate email login, Google login, callback return, clinic selection, logout, and restart restore |
+| P1 must-fix | Auth and session flows need packaged verification | Auth depends on backend sessions, clinic trust tokens, Google OAuth, `/auth/me`, and local storage | Login or session restore failure blocks all user activity | Validate CEO login, clinic PIN, quick/password/Google user login, refresh, logout, and restart restore |
 | P1 must-fix | Settings and communications need real integration validation | Email is real SMTP-backed; campaigns depend on email/SMS/WhatsApp; SMS is dummy-backed | Operators may think outbound comms are ready when they are not | Validate email path, restrict SMS, and gate campaign execution by channel readiness |
 | P1 must-fix | Root docs and release entrypoints were stale | Root `README.md` was still template-era and repo docs were fragmented | Team can lose time and miss launch-critical setup details | Keep the new docs hub and release checklist as the source of truth |
 | P1 must-fix | Desktop shell security/operational cleanup is incomplete | `devTools: true` in production; preload exposes stale APIs | Raises support and hardening concerns near launch | Review prod shell settings and stale IPC exposure as part of release hardening |

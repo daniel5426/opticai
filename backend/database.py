@@ -3,6 +3,7 @@ from sqlalchemy.engine import make_url
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import QueuePool
+from fastapi import HTTPException
 from config import settings
 
 database_url = settings.DATABASE_URL
@@ -36,6 +37,9 @@ def get_db():
     try:
         db.execute(text("SELECT 1"))
         yield db
+    except HTTPException:
+        db.rollback()
+        raise
     except Exception as e:
         print(f"Database connection error: {e}")
         db.rollback()

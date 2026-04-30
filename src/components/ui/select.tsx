@@ -7,11 +7,48 @@ import { CheckIcon, ChevronDownIcon, ChevronUpIcon } from "lucide-react"
 import { UI_CONFIG } from "@/config/ui-config"
 import { cn } from "@/utils/tailwind"
 
+const SELECT_CLEAR_VALUE = "__opticai_select_clear__"
+
+const SelectClearContext = React.createContext<{
+  value?: string
+  disabled?: boolean
+  clearable?: boolean
+}>({})
+
 function Select({
+  value,
+  defaultValue,
+  onValueChange,
   onOpenChange,
+  disabled,
+  clearable = true,
   ...props
-}: React.ComponentProps<typeof SelectPrimitive.Root>) {
-  return <SelectPrimitive.Root data-slot="select" onOpenChange={onOpenChange} {...props} />
+}: React.ComponentProps<typeof SelectPrimitive.Root> & { clearable?: boolean }) {
+  const [uncontrolledValue, setUncontrolledValue] = React.useState(defaultValue || "")
+  const currentValue = value ?? uncontrolledValue
+
+  const handleValueChange = React.useCallback((nextValue: string) => {
+    const normalizedValue = nextValue === SELECT_CLEAR_VALUE ? "" : nextValue
+
+    if (value === undefined) {
+      setUncontrolledValue(normalizedValue)
+    }
+
+    onValueChange?.(normalizedValue)
+  }, [onValueChange, value])
+
+  return (
+    <SelectClearContext.Provider value={{ value: currentValue, disabled, clearable }}>
+      <SelectPrimitive.Root
+        data-slot="select"
+        value={currentValue}
+        disabled={disabled}
+        onValueChange={handleValueChange}
+        onOpenChange={onOpenChange}
+        {...props}
+      />
+    </SelectClearContext.Provider>
+  )
 }
 
 function SelectGroup({
@@ -73,13 +110,16 @@ function SelectContent({
   position = "popper",
   ...props
 }: React.ComponentProps<typeof SelectPrimitive.Content>) {
+  const { value, disabled, clearable } = React.useContext(SelectClearContext)
+  const showClearOption = clearable && value && !disabled
+
   return (
     <SelectPrimitive.Portal>
       <SelectPrimitive.Content
         dir="rtl"
         data-slot="select-content"
         className={cn(
-          "bg-popover gap text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 relative z-50 max-h-(--radix-select-content-available-height) min-w-[8rem] origin-(--radix-select-content-transform-origin) overflow-x-hidden overflow-y-auto rounded-md border shadow-md",
+          "bg-popover gap text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 relative z-50 max-h-96 min-w-[8rem] origin-(--radix-select-content-transform-origin) overflow-x-hidden overflow-y-auto rounded-md border shadow-md",
           position === "popper" &&
           "data-[side=bottom]:translate-y-1 data-[side=left]:-translate-x-1 data-[side=right]:translate-x-1 data-[side=top]:-translate-y-1",
           className
@@ -95,6 +135,20 @@ function SelectContent({
             "h-[var(--radix-select-trigger-height)] w-full min-w-[var(--radix-select-trigger-width)] scroll-my-1"
           )}
         >
+          {showClearOption && (
+            <>
+              <SelectPrimitive.Item
+                value={SELECT_CLEAR_VALUE}
+                className={cn(
+                  "focus:bg-accent focus:text-accent-foreground text-muted-foreground relative flex w-full cursor-default items-center rounded-sm py-1.5 pr-2 pl-2 text-sm outline-hidden select-none",
+                  "mb-1"
+                )}
+              >
+                <SelectPrimitive.ItemText>הסר</SelectPrimitive.ItemText>
+              </SelectPrimitive.Item>
+              <SelectSeparator className="mb-1 mt-0" />
+            </>
+          )}
           {children}
         </SelectPrimitive.Viewport>
         <SelectScrollDownButton />

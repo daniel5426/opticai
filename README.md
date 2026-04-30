@@ -14,7 +14,7 @@ OpticAI is a Windows-first Electron desktop application for optical clinics. It 
 - Renderer: React 19, TanStack Router, Tailwind 4, shadcn/ui
 - Desktop shell: Electron 35 with preload IPC and `electron-updater`
 - Backend: FastAPI app under [`backend/main.py`](/Users/danielbenassaya/Code/personal/opticai/backend/main.py)
-- Auth: Supabase session + backend `/auth/me` + local clinic/user session state
+- Auth: backend-owned access/refresh sessions with clinic trust tokens; Supabase is used for Postgres and Storage only
 - Data: backend API is the source of truth; frontend still contains some legacy/local abstractions
 
 ## Repo Entry Points

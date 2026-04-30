@@ -59,6 +59,7 @@ export interface ElectronAPI {
     tokens?: {
       access_token: string;
       refresh_token: string;
+      id_token?: string;
       scope: string;
       token_type: string;
       expiry_date: number;

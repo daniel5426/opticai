@@ -41,8 +41,9 @@ class Settings:
     
     # Security
     SECRET_KEY: str = os.getenv("SECRET_KEY", "your-secret-key-here")
+    TOKEN_ENCRYPTION_KEY: str = os.getenv("TOKEN_ENCRYPTION_KEY", "")
     ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "0"))
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "15"))
     
     # CORS
     BACKEND_CORS_ORIGINS: list = _csv_env(
@@ -63,8 +64,11 @@ class Settings:
     # Prefer service role for backend admin operations, fallback to legacy SUPABASE_KEY for backward compatibility
     SUPABASE_SERVICE_ROLE_KEY: str = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
     SUPABASE_KEY: str = os.getenv("SUPABASE_KEY", "")
-    SUPABASE_JWT_SECRET: str = os.getenv("SUPABASE_JWT_SECRET", "")
     SUPABASE_BUCKET: str = os.getenv("SUPABASE_BUCKET", "opticai")
+
+    # Google OAuth
+    GOOGLE_DESKTOP_CLIENT_ID: str = os.getenv("GOOGLE_DESKTOP_CLIENT_ID", "")
+    GOOGLE_DESKTOP_CLIENT_SECRET: str = os.getenv("GOOGLE_DESKTOP_CLIENT_SECRET", "")
 
     # WhatsApp
     WHATSAPP_ACCESS_TOKEN: str = os.getenv("WHATSAPP_ACCESS_TOKEN", "")
@@ -88,6 +92,9 @@ class Settings:
         if not self.SECRET_KEY or self.SECRET_KEY == "your-secret-key-here" or len(self.SECRET_KEY) < 32:
             errors.append("SECRET_KEY must be a real secret with at least 32 characters in production")
 
+        if not self.TOKEN_ENCRYPTION_KEY or len(self.TOKEN_ENCRYPTION_KEY) < 32:
+            errors.append("TOKEN_ENCRYPTION_KEY must be configured with at least 32 characters in production")
+
         if "*" in self.BACKEND_CORS_ORIGINS and not self.ALLOW_WILDCARD_CORS_IN_PRODUCTION:
             errors.append("Wildcard CORS is blocked in production unless ALLOW_WILDCARD_CORS_IN_PRODUCTION=true")
 
@@ -95,11 +102,12 @@ class Settings:
             "SUPABASE_URL": self.SUPABASE_URL,
             "SUPABASE_SERVICE_ROLE_KEY": self.SUPABASE_SERVICE_ROLE_KEY,
             "SUPABASE_KEY": self.SUPABASE_KEY,
-            "SUPABASE_JWT_SECRET": self.SUPABASE_JWT_SECRET,
+            "GOOGLE_DESKTOP_CLIENT_ID": self.GOOGLE_DESKTOP_CLIENT_ID,
+            "GOOGLE_DESKTOP_CLIENT_SECRET": self.GOOGLE_DESKTOP_CLIENT_SECRET,
         }
         missing = [key for key, value in required.items() if not value]
         if missing:
-            errors.append(f"Missing required production Supabase settings: {', '.join(missing)}")
+            errors.append(f"Missing required production settings: {', '.join(missing)}")
 
         if errors:
             raise RuntimeError("Invalid production configuration: " + "; ".join(errors))

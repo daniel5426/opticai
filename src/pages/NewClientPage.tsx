@@ -26,12 +26,7 @@ export default function NewClientPage() {
     setFormData(next)
   }
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target
-    updateFormData((prev: Client) => ({ ...prev, [name]: value }))
-  }
-
-  const handleSelectChange = (value: string | boolean, name: string) => {
+  const handleFieldChange = (name: string, value: string | boolean | number | null) => {
     updateFormData((prev: Client) => ({
       ...prev,
       [name]: value,
@@ -102,12 +97,10 @@ export default function NewClientPage() {
         </div>
         <div className="flex flex-col gap-4" dir="ltr">
           <ClientDetailsTab
-            client={{} as Client}
-            formData={formData}
+            draft={formData}
             isEditing={false}
             mode="new"
-            handleInputChange={handleInputChange}
-          handleSelectChange={handleSelectChange}
+            onFieldChange={handleFieldChange}
             formRef={formRef}
           />
         </div>

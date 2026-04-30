@@ -28,6 +28,10 @@ import {
   User,
   FinalPrescriptionExam,
 } from "@/lib/db/schema-interface";
+import {
+  extractAdditionAddSourcesFromExamPageData,
+  normalizeAdditionAddType,
+} from "@/lib/addition-add-sources";
 type OrderLens = {
   order_id: number;
   right_model?: string;
@@ -221,13 +225,15 @@ export default function OrderDetailPage({
   let searchTypeParam: string | undefined,
     examIdFromSearch: string | null = null,
     importSourceId: string | null = null,
-    importSourceType: string | null = null;
+    importSourceType: string | null = null,
+    addTypeFromSearch: string | null = null;
   try {
     const search = useSearch({ from: "/clients/$clientId/orders/$orderId" });
     searchTypeParam = search?.type as string | undefined;
     examIdFromSearch = (search?.examId as string | undefined) ?? null;
     importSourceId = (search?.importSourceId as string | undefined) ?? null;
     importSourceType = (search?.importSourceType as string | undefined) ?? null;
+    addTypeFromSearch = (search?.addType as string | undefined) ?? null;
   } catch {
     try {
       const search = useSearch({ from: "/clients/$clientId/orders/new" });
@@ -236,14 +242,17 @@ export default function OrderDetailPage({
       importSourceId = (search?.importSourceId as string | undefined) ?? null;
       importSourceType =
         (search?.importSourceType as string | undefined) ?? null;
+      addTypeFromSearch = (search?.addType as string | undefined) ?? null;
     } catch {
       searchTypeParam = undefined;
       examIdFromSearch = null;
       importSourceId = null;
       importSourceType = null;
+      addTypeFromSearch = null;
     }
   }
   const isContactMode = searchTypeParam === "contact";
+  const selectedAdditionAddType = normalizeAdditionAddType(addTypeFromSearch);
   const examId = propExamId || examIdFromSearch || undefined;
 
   const [loading, setLoading] = useState(true);
@@ -760,8 +769,30 @@ export default function OrderDetailPage({
                 if (diam) setDiametersData({ ...diam });
               } else {
                 const fp = allExamData["final-prescription"];
-                if (fp) {
-                  setFinalPrescriptionFormData({ ...fp });
+                const additionSources =
+                  extractAdditionAddSourcesFromExamPageData(pageData);
+                const selectedAdditionSource = selectedAdditionAddType
+                  ? additionSources[selectedAdditionAddType]
+                  : undefined;
+
+                if (fp || selectedAdditionSource) {
+                  const nextFinalPrescription = {
+                    ...(fp || {}),
+                    ...(Object.keys(additionSources).length > 0
+                      ? { addition_add_sources: additionSources }
+                      : {}),
+                    ...(selectedAdditionAddType
+                      ? { add_type: selectedAdditionAddType }
+                      : {}),
+                    ...(selectedAdditionSource?.r_ad !== undefined
+                      ? { r_ad: selectedAdditionSource.r_ad }
+                      : {}),
+                    ...(selectedAdditionSource?.l_ad !== undefined
+                      ? { l_ad: selectedAdditionSource.l_ad }
+                      : {}),
+                  } as FinalPrescriptionExam;
+
+                  setFinalPrescriptionFormData(nextFinalPrescription);
                 }
               }
             }
@@ -866,7 +897,15 @@ export default function OrderDetailPage({
     };
 
     loadData();
-  }, [clientId, orderId, examId, currentClinic?.id, isNewMode, isContactMode]);
+  }, [
+    clientId,
+    orderId,
+    examId,
+    currentClinic?.id,
+    isNewMode,
+    isContactMode,
+    selectedAdditionAddType,
+  ]);
 
   useEffect(() => {
     if (!loading && !baselineInitializedRef.current) {

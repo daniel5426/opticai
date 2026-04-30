@@ -425,7 +425,7 @@ export function NavUser({
               <div className="grid grid-cols-3 gap-2 text-sm">
                 <span className="text-muted-foreground">סיסמה:</span>
                 <span className="col-span-2">
-                  {currentUser.password ? 'מוגן בסיסמה' : 'ללא סיסמה'}
+                  {currentUser.has_password ? 'מוגן בסיסמה' : 'ללא סיסמה'}
                 </span>
               </div>
             </div>

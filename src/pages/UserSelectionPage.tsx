@@ -13,14 +13,8 @@ import { authService } from '@/lib/auth/AuthService'
 const usesGoogleAuth = (user: User) =>
   user.auth_provider === 'google'
 
-const usesSupabaseEmailPassword = (user: User) =>
-  !user.has_password &&
-  !usesGoogleAuth(user) &&
-  !!user.email &&
-  isRoleAtLeast(user.role_level, ROLE_LEVELS.ceo)
-
 const usesPasswordAuth = (user: User) =>
-  !!user.has_password || usesSupabaseEmailPassword(user)
+  !!user.has_password
 
 const usesPasswordlessAuth = (user: User) =>
   !user.has_password &&
@@ -95,9 +89,7 @@ export default function UserSelectionPage() {
     try {
       console.log('[UserSelection] Password login for:', selectedUser.username)
 
-      const user = usesSupabaseEmailPassword(selectedUser)
-        ? await signInSupabaseClinicUser(selectedUser, password)
-        : await authService.signInClinicUser(selectedUser.username, password)
+      const user = await authService.signInClinicUser(selectedUser.username, password)
 
       if (user) {
         authService.setClinicSession(selectedClinic, user)
@@ -112,16 +104,6 @@ export default function UserSelectionPage() {
     } finally {
       setIsLoggingIn(false)
     }
-  }
-
-  const signInSupabaseClinicUser = async (user: User, userPassword: string): Promise<User | null> => {
-    if (!user.email) return null
-
-    const success = await authService.signInWithEmail(user.email, userPassword)
-    if (!success) return null
-
-    const currentUserResponse = await apiClient.getCurrentUser({ suppressUnauthorized: true })
-    return (currentUserResponse.data as User | undefined) || user
   }
 
   const handlePasswordlessLogin = async () => {

@@ -14,7 +14,6 @@ import { IconPlus, IconEdit, IconTrash, IconCalendar, IconBrandGoogle, IconCamer
 import { useUser } from "@/contexts/UserContext"
 import { UserModal } from "@/components/UserModal"
 import { apiClient } from "@/lib/api-client"
-import { supabase } from "@/lib/supabaseClient"
 import { ImageInput } from "@/components/ui/image-input"
 import { ColorInput } from "@/components/ui/color-input"
 import { AboutTab } from "@/components/settings/AboutTab"
@@ -240,25 +239,10 @@ export default function ControlCenterSettingsPage() {
           secondary_theme_color: updatedUser.secondary_theme_color || '#cce9ff',
           theme_preference: updatedUser.theme_preference || 'system'
         })
-        const emailChanged = (currentUser?.email || '').trim() !== (updatedUser.email || '').trim()
         await setCurrentUser(updatedUser, true) // Skip navigation when just updating profile
         localStorage.setItem('currentUser', JSON.stringify(updatedUser))
         // Reflect change in users list immediately
         setUsers(prev => prev.map(u => u.id === updatedUser.id ? updatedUser : u))
-        if (emailChanged) {
-          try {
-            const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession()
-            if (refreshError) {
-              console.warn('Supabase refreshSession failed after email change:', refreshError)
-              toast.warning('האימייל עודכן. אם יש בעיות גישה, נא להתחבר מחדש')
-            } else if (refreshed?.session?.access_token) {
-              toast.success('האימייל עודכן בהצלחה והחיבור נשמר')
-            }
-          } catch (e) {
-            console.error('Error refreshing session after email change:', e)
-            toast.warning('האימייל עודכן. אם יש בעיות גישה, נא להתחבר מחדש')
-          }
-        }
       }
       
       setSaveSuccess(true)
@@ -424,73 +408,36 @@ export default function ControlCenterSettingsPage() {
         access_token_preview: tokens.access_token ? tokens.access_token.substring(0, 20) + '...' : 'null'
       })
       
-      // If tokens are not in database, try to get them from Supabase session
       if (!tokens.access_token || !tokens.refresh_token) {
-        console.log('Google tokens not found in database, trying Supabase session...')
+        console.log('Google tokens not found in database, requesting Google OAuth...')
         try {
-          const { data: sessionData } = await supabase.auth.getSession()
-          console.log('🔍 Calendar Sync Debug - Supabase Session:', {
-            has_session: !!sessionData?.session,
-            session_user: sessionData?.session?.user?.email || 'null',
-            expires_at: sessionData?.session?.expires_at,
-            has_access_token: !!sessionData?.session?.access_token,
-            has_refresh_token: !!sessionData?.session?.refresh_token
-          })
-          
-          if (sessionData?.session) {
-            // Try to get provider tokens first (these are the actual Google tokens)
-            const providerToken = (sessionData.session as any).provider_token
-            const providerRefreshToken = (sessionData.session as any).provider_refresh_token
-            
-            console.log('🔍 Calendar Sync Debug - Provider Tokens:', {
-              has_provider_token: !!providerToken,
-              has_provider_refresh_token: !!providerRefreshToken,
-              provider_token_preview: providerToken ? providerToken.substring(0, 20) + '...' : 'null',
-              session_keys: Object.keys(sessionData.session)
-            })
-            
-            if (providerToken && providerRefreshToken) {
-              console.log('✅ Using Google provider tokens for calendar sync')
-              tokens = {
-                access_token: providerToken,
-                refresh_token: providerRefreshToken,
-                scope: 'https://www.googleapis.com/auth/calendar',
-                token_type: 'Bearer',
-                expiry_date: sessionData.session.expires_at || Date.now() + 3600000
-              }
-            } else {
-              console.log('⚠️ No provider tokens found, using Supabase tokens as fallback')
-              tokens = {
-                access_token: sessionData.session.access_token,
-                refresh_token: sessionData.session.refresh_token,
-                scope: 'https://www.googleapis.com/auth/calendar',
-                token_type: 'Bearer',
-                expiry_date: sessionData.session.expires_at || Date.now() + 3600000
-              }
-            }
-            
-            // Also update the user's tokens in the database for future use
-            try {
-              const updatedUser = await apiClient.updateUser(currentUser.id, {
-                ...currentUser,
-                google_access_token: tokens.access_token,
-                google_refresh_token: tokens.refresh_token
-              })
-              if (updatedUser?.data) {
-                console.log('Updated user tokens in database')
-                await setCurrentUser(updatedUser.data, true) // Skip navigation when just updating tokens
-              }
-            } catch (updateError) {
-              console.log('Could not update tokens in database:', updateError)
-            }
-          } else {
-            console.log('❌ No Supabase session found')
-            toast.error('לא נמצאו אסימוני Google - יש להתחבר מחדש עם Google כדי לאפשר גישה ליומן')
-            toast.info('לחץ על "נתק חשבון Google" ולאחר מכן "חבר חשבון Google" כדי לאפשר הרשאות יומן')
+          const result = await window.electronAPI.googleOAuthAuthenticate()
+          if (result.success === false || !result.tokens) {
+            toast.error(`שגיאה בחיבור לחשבון Google: ${result.error}`)
             return
           }
-        } catch (sessionError) {
-          console.error('Could not get Supabase session:', sessionError)
+          const updatedUser = await apiClient.updateUser(currentUser.id, {
+            ...currentUser,
+            google_account_connected: true,
+            google_account_email: result.userInfo?.email,
+            google_access_token: result.tokens.access_token,
+            google_refresh_token: result.tokens.refresh_token
+          })
+          if (updatedUser?.data) {
+            await setCurrentUser(updatedUser.data, true)
+            tokens = {
+              access_token: result.tokens.access_token,
+              refresh_token: result.tokens.refresh_token,
+              scope: 'https://www.googleapis.com/auth/calendar',
+              token_type: 'Bearer',
+              expiry_date: result.tokens.expiry_date || Date.now() + 3600000
+            }
+          } else {
+            toast.error('שגיאה בעדכון אסימוני Google')
+            return
+          }
+        } catch (authError) {
+          console.error('Could not get Google tokens:', authError)
           toast.error('שגיאה בקבלת אסימוני Google')
           return
         }
@@ -517,8 +464,7 @@ export default function ControlCenterSettingsPage() {
         console.log('⚠️ Warning: Token does not appear to be a Google OAuth token - using manual Google OAuth flow')
         toast.info('נדרשת הרשאה ליומן Google - מתחיל תהליך הרשאה...')
         
-        // For calendar access, we need real Google OAuth tokens, not Supabase JWT tokens
-        // Redirect to manual Google OAuth flow
+        // Calendar sync requires Google OAuth tokens, so reconnect when stored tokens are missing or malformed.
         try {
           const result = await window.electronAPI.googleOAuthAuthenticate()
           
@@ -1196,7 +1142,7 @@ export default function ControlCenterSettingsPage() {
                                       {!user.email && !user.phone && <span>אין פרטי יצירת קשר</span>}
                                     </div>
                                     <div className="text-xs text-muted-foreground mt-1">
-                                      {user.password ? 'מוגן בסיסמה' : 'ללא סיסמה'}
+                                      {user.has_password ? 'מוגן בסיסמה' : 'ללא סיסמה'}
                                     </div>
                                   </div>
                                 </div>

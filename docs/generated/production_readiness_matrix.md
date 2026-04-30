@@ -1,11 +1,11 @@
 # Production Readiness Matrix
 
-Last Updated: 2026-04-09
+Last Updated: 2026-04-30
 
 | Area | Owner / Subsystem | Entrypoints | Current Behavior | Dependencies | Known Gaps | Severity | Launch Status | Required Action | Test Coverage | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Desktop shell and preload | Electron main/preload | `src/main.ts`, `src/preload.ts` | Window boot, updater, IPC, Google operations | Electron, GitHub releases, env files | prod devtools enabled, stale IPC exposure, Windows updater unverified | P1 must-fix | fix-before-launch | Smoke-test packaged Windows app and trim or document stale IPC | Build only | Launch-critical because Windows is primary |
-| Auth and session | AuthService/UserContext | `src/lib/auth/AuthService.ts`, `src/contexts/UserContext.tsx` | Hybrid Supabase + backend + clinic session auth | Supabase, backend `/auth/me`, local storage | complex restore/callback path, packaged OAuth not yet validated | P1 must-fix | fix-before-launch | Validate all login/logout/callback flows in packaged app | Manual only | Gates all primary workflows |
+| Auth and session | AuthService/UserContext/backend auth | `src/lib/auth/AuthService.ts`, `src/contexts/UserContext.tsx`, `backend/EndPoints/auth.py` | Backend-owned sessions plus clinic trust tokens | Backend `/auth/*`, local storage, Google OAuth | packaged OAuth, refresh, and restore need validation | P1 must-fix | fix-before-launch | Validate CEO login, clinic login, Google login, refresh, logout, and restart restore | Manual only | Gates all primary workflows |
 | Control-center entry/setup | Entry/auth UI | `/`, `/control-center`, `/user-selection` | Login, register, setup, clinic/user selection | Auth, companies/clinics/users APIs | first-run and setup need explicit validation | P1 must-fix | fix-before-launch | Run first-run walkthrough and capture any dead ends | Manual only | Root route depends on this |
 | Control-center admin | Company admin | `/control-center/*` | Dashboard, users, clinics, settings | backend analytics and CRUD endpoints | less critical than clinic flows, existing user edits indicate active change area | P2 should-fix | ship-with-guard | Validate CEO-only happy path and hide broken subflows if needed | Manual only | Do not block core launch unless client needs it |
 | Dashboard and appointments | Clinic core | `/dashboard`, `/appointments` | Calendar, appointment CRUD, scheduling | appointments API, Google calendar sync | needs workflow validation, Google sync package validation | P1 must-fix | fix-before-launch | Validate CRUD, drag/resize, reload, sync failure handling | Manual only | Core daily operator surface |

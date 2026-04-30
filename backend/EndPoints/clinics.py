@@ -6,6 +6,7 @@ from models import Clinic, Company
 from schemas import ClinicCreate, ClinicUpdate, Clinic as ClinicSchema
 from auth import get_current_user, get_password_hash
 from models import User
+from services.default_exam_layouts import ensure_default_exam_layouts_for_clinic
 import uuid
 
 
@@ -49,6 +50,8 @@ def create_clinic(
         entry_pin_version=1,
     )
     db.add(db_clinic)
+    db.flush()
+    ensure_default_exam_layouts_for_clinic(db, db_clinic.id)
     db.commit()
     db.refresh(db_clinic)
     return db_clinic

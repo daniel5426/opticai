@@ -741,6 +741,9 @@ class ExamLayoutBase(BaseModel):
     parent_layout_id: Optional[int] = None
     is_group: bool = False
     type: Optional[str] = None
+    seed_key: Optional[str] = None
+    seed_version: Optional[int] = None
+    is_seeded_default: bool = False
 
 class ExamLayoutCreate(ExamLayoutBase):
     pass

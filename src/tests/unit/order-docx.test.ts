@@ -4,6 +4,7 @@ import {
   buildContactOrderPrintModel,
   buildRegularOrderPrintModel,
 } from "@/lib/order-docx";
+import { forceRtlDocxXml } from "@/lib/docx-rtl";
 import { extractTemplatePlaceholders } from "@/lib/order-docx/template-audit";
 
 const regularTemplateKeys = [
@@ -404,6 +405,28 @@ describe("order-docx template audit", () => {
 
   test("contact template placeholders match the contact print model contract", () => {
     expect(extractTemplatePlaceholders("contact")).toEqual(contactTemplateKeys);
+  });
+});
+
+describe("forceRtlDocxXml", () => {
+  test("forces RTL paragraph direction without changing table direction or run direction", () => {
+    const xml = [
+      '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>',
+      '<w:tbl><w:tblPr><w:jc w:val="right"/></w:tblPr></w:tbl>',
+      '<w:p><w:r><w:t>{client_name}</w:t></w:r></w:p>',
+      '<w:p><w:pPr><w:jc w:val="right"/></w:pPr><w:r><w:rPr><w:b/><w:rtl/></w:rPr><w:t>בדיקה</w:t></w:r></w:p>',
+      '<w:sectPr><w:pgSz w:w="11906" w:h="16838"/></w:sectPr>',
+      "</w:body></w:document>",
+    ].join("");
+
+    const result = forceRtlDocxXml(xml);
+
+    expect(result).not.toContain("bidiVisual");
+    expect(result).toContain('<w:tblPr><w:jc w:val="right"/></w:tblPr>');
+    expect(result.match(/<w:jc w:val="left"\/>/g)).toHaveLength(2);
+    expect(result.match(/<w:jc w:val="right"\/>/g)).toHaveLength(1);
+    expect(result.match(/<w:bidi w:val="1"\/>/g)).toHaveLength(3);
+    expect(result).toContain("<w:rPr><w:b/><w:rtl/></w:rPr>");
   });
 });
 

@@ -16,8 +16,15 @@ from database import engine  # noqa: E402
 from models import Base  # noqa: E402
 
 BASELINE_REVISION = "0001_baseline_current_schema"
+TABLES_CREATED_AFTER_BASELINE = {
+    "auth_sessions",
+    "clinic_device_trusts",
+    "pending_company_setups",
+}
 ALLOWED_BASELINE_DRIFT = {
     "clinics": {"entry_pin_hash", "entry_pin_version"},
+    "exam_layouts": {"seed_key", "seed_version", "is_seeded_default"},
+    "users": {"password_hash"},
 }
 
 
@@ -35,7 +42,7 @@ def _app_tables(inspector) -> set[str]:
 def _verify_existing_schema(inspector) -> None:
     expected_tables = set(Base.metadata.tables.keys())
     existing_tables = _app_tables(inspector)
-    missing_tables = sorted(expected_tables - existing_tables)
+    missing_tables = sorted((expected_tables - existing_tables) - TABLES_CREATED_AFTER_BASELINE)
     if missing_tables:
         raise RuntimeError(
             "Existing database is missing model tables; refusing to stamp baseline: "
@@ -44,11 +51,18 @@ def _verify_existing_schema(inspector) -> None:
 
     missing_columns: list[str] = []
     for table_name, table in Base.metadata.tables.items():
+        if table_name not in existing_tables and table_name in TABLES_CREATED_AFTER_BASELINE:
+            continue
         existing_columns = {column["name"] for column in inspector.get_columns(table_name)}
         allowed = ALLOWED_BASELINE_DRIFT.get(table_name, set())
         for column_name in table.columns.keys():
             if column_name not in existing_columns and column_name not in allowed:
                 missing_columns.append(f"{table_name}.{column_name}")
+
+    if "users" in existing_tables:
+        user_columns = {column["name"] for column in inspector.get_columns("users")}
+        if "password_hash" not in user_columns and "password" not in user_columns:
+            missing_columns.append("users.password or users.password_hash")
     if missing_columns:
         raise RuntimeError(
             "Existing database has schema drift outside the launch guard migration: "

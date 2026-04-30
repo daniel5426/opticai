@@ -1,13 +1,13 @@
 # Integration Inventory
 
-Last Updated: 2026-04-09
+Last Updated: 2026-04-30
 
 | Integration | Main Files | Current Role | Current Risk |
 | --- | --- | --- | --- |
-| Supabase auth | [`src/lib/supabaseClient.ts`](/Users/danielbenassaya/Code/personal/opticai/src/lib/supabaseClient.ts), [`src/lib/auth/AuthService.ts`](/Users/danielbenassaya/Code/personal/opticai/src/lib/auth/AuthService.ts) | Top-level user auth and token source | Launch-critical; packaged callback and restore behavior must be verified |
+| Backend auth | [`src/lib/auth/AuthService.ts`](/Users/danielbenassaya/Code/personal/opticai/src/lib/auth/AuthService.ts), [`backend/EndPoints/auth.py`](/Users/danielbenassaya/Code/personal/opticai/backend/EndPoints/auth.py), [`backend/auth.py`](/Users/danielbenassaya/Code/personal/opticai/backend/auth.py) | Backend-owned access/refresh sessions, clinic trust, signup, password login, Google login | Launch-critical; packaged login, refresh, logout, and restore behavior must be verified |
 | Backend API | [`src/lib/api-client.ts`](/Users/danielbenassaya/Code/personal/opticai/src/lib/api-client.ts), [`backend/main.py`](/Users/danielbenassaya/Code/personal/opticai/backend/main.py) | Main application data and business logic | Launch-critical dependency for almost all surfaces |
 | Electron updater | [`src/main.ts`](/Users/danielbenassaya/Code/personal/opticai/src/main.ts), [`src/preload.ts`](/Users/danielbenassaya/Code/personal/opticai/src/preload.ts) | Version checks, download/install update flow | Windows-first priority; needs smoke test and release asset verification |
-| Google OAuth + Calendar | [`src/lib/google/google-oauth.ts`](/Users/danielbenassaya/Code/personal/opticai/src/lib/google/google-oauth.ts), [`src/lib/google/google-calendar-sync.ts`](/Users/danielbenassaya/Code/personal/opticai/src/lib/google/google-calendar-sync.ts) | Calendar sync for appointments and Google login | Packaged desktop callback behavior must be validated |
+| Google OAuth + Calendar | [`src/lib/google/google-oauth.ts`](/Users/danielbenassaya/Code/personal/opticai/src/lib/google/google-oauth.ts), [`src/lib/google/google-calendar-sync.ts`](/Users/danielbenassaya/Code/personal/opticai/src/lib/google/google-calendar-sync.ts) | Calendar sync and backend-verified Google login | Packaged desktop callback behavior must be validated |
 | Email SMTP | [`src/lib/email/email-service.ts`](/Users/danielbenassaya/Code/personal/opticai/src/lib/email/email-service.ts) | Reminder email and campaign email sending | Config-sensitive; must verify provider settings and scheduler behavior |
 | SMS | [`src/lib/sms/sms-service.ts`](/Users/danielbenassaya/Code/personal/opticai/src/lib/sms/sms-service.ts) | Campaign SMS sending | Not production-ready; current implementation is dummy-backed |
 | WhatsApp | [`backend/services/messaging/whatsapp.py`](/Users/danielbenassaya/Code/personal/opticai/backend/services/messaging/whatsapp.py), [`backend/EndPoints/whatsapp.py`](/Users/danielbenassaya/Code/personal/opticai/backend/EndPoints/whatsapp.py) | Backend messaging and webhook support | Needs explicit launch validation before client exposure |

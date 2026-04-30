@@ -361,6 +361,7 @@ interface FastTextareaProps extends Omit<React.ComponentProps<typeof Textarea>, 
     label?: string; // Used for the dialog title
     showMaximize?: boolean;
     isSecret?: boolean;
+    autoResize?: boolean;
 }
 
 export const FastTextarea = memo(function FastTextarea({
@@ -371,6 +372,7 @@ export const FastTextarea = memo(function FastTextarea({
     label,
     showMaximize = false,
     isSecret = false,
+    autoResize = true,
     className,
     ...props
 }: FastTextareaProps) {
@@ -380,6 +382,8 @@ export const FastTextarea = memo(function FastTextarea({
 
 
     useEffect(() => {
+        if (!autoResize) return;
+
         const el = textareaRef.current;
         if (!el) return;
 
@@ -400,27 +404,29 @@ export const FastTextarea = memo(function FastTextarea({
             el.removeEventListener('input', updateMirror);
             if (rafId) cancelAnimationFrame(rafId);
         };
-    }, [textareaRef]);
+    }, [autoResize, textareaRef]);
 
     return (
         <div className="relative group/field flex-1 grid">
-            {/* Hidden div that drives the height - Managed via Ref for speed */}
-            <TextareaMirror
-                ref={mirrorRef}
-                className={cn(
-                    "col-start-1 row-start-1 bg-transparent invisible whitespace-pre-wrap break-words min-h-[40px] px-2 py-2 text-sm pointer-events-none border border-transparent",
-                    showMaximize && "pl-10",
-                    className
-                )}
-                value={initialValue}
-            />
+            {autoResize && (
+                <TextareaMirror
+                    ref={mirrorRef}
+                    className={cn(
+                        "col-start-1 row-start-1 bg-transparent invisible whitespace-pre-wrap break-words min-h-[40px] px-2 py-2 text-sm pointer-events-none border border-transparent",
+                        showMaximize && "pl-10",
+                        className
+                    )}
+                    value={initialValue}
+                />
+            )}
 
             <Textarea
                 {...props}
                 ref={textareaRef}
                 defaultValue={value}
                 className={cn(
-                    "col-start-1 row-start-1 w-full max-w-full h-full min-h-[40px] px-2 py-2 text-sm resize-none overflow-hidden break-words bg-white",
+                    "col-start-1 row-start-1 w-full max-w-full h-full min-h-[40px] px-2 py-2 text-sm resize-none break-words bg-white",
+                    autoResize ? "overflow-hidden" : "overflow-y-auto",
                     !isSecret && "disabled:bg-accent/50",
                     "disabled:opacity-100 disabled:cursor-default",
                     showMaximize && "pl-10",

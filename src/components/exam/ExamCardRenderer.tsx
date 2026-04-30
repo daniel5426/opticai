@@ -120,6 +120,29 @@ const componentsDontHaveMiddleRow: CardItem["type"][] = [
   "ocular-motor-assessment",
 ];
 
+const componentsWithEyeRowCopy: CardItem["type"][] = [
+  "old-refraction",
+  "old-refraction-extension",
+  "objective",
+  "subjective",
+  "final-subjective",
+  "final-prescription",
+  "compact-prescription",
+  "addition",
+  "retinoscop",
+  "retinoscop-dilation",
+  "uncorrected-va",
+  "keratometer",
+  "keratometer-full",
+  "corneal-topography",
+  "schirmer-test",
+  "contact-lens-details",
+  "keratometer-contact-lens",
+  "contact-lens-exam",
+  "old-contact-lenses",
+  "over-refraction",
+];
+
 export interface CardItem {
   id: string;
   type:
@@ -439,6 +462,8 @@ interface RenderCardProps {
   onCopyLeft?: () => void;
   onCopyRight?: () => void;
   onCopyBelow?: () => void;
+  onCopyToRightEye?: () => void;
+  onCopyToLeftEye?: () => void;
   onTitleChange?: (title: string) => void;
 }
 
@@ -747,6 +772,8 @@ export const ExamCardRenderer = React.memo<RenderCardProps>(
     onCopyLeft,
     onCopyRight,
     onCopyBelow,
+    onCopyToRightEye,
+    onCopyToLeftEye,
     onTitleChange,
   }) => {
     // Move hooks to the very top, before any logic or early returns
@@ -888,6 +915,12 @@ export const ExamCardRenderer = React.memo<RenderCardProps>(
           onCopyLeft={onCopyLeft || (() => { })}
           onCopyRight={onCopyRight || (() => { })}
           onCopyBelow={onCopyBelow || (() => { })}
+          onCopyToRightEye={
+            componentsWithEyeRowCopy.includes(item.type) ? onCopyToRightEye : undefined
+          }
+          onCopyToLeftEye={
+            componentsWithEyeRowCopy.includes(item.type) ? onCopyToLeftEye : undefined
+          }
           onShowOrdersHistory={
             item.type === "old-refraction"
               ? () => setIsOrdersHistoryOpen(true)

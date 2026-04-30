@@ -1,5 +1,7 @@
 # Quick Heroku Setup for Prysm
 
+Last Updated: 2026-04-30
+
 Since you're using Supabase for PostgreSQL, here's the streamlined setup:
 
 ## 1. Install Heroku CLI
@@ -32,7 +34,8 @@ git remote -v
 ```bash
 # Security
 heroku config:set SECRET_KEY="$(python -c 'import secrets; print(secrets.token_urlsafe(32))')" -a prysm-backend
-heroku config:set ACCESS_TOKEN_EXPIRE_MINUTES=0 -a prysm-backend
+heroku config:set TOKEN_ENCRYPTION_KEY="$(python -c 'import secrets; print(secrets.token_urlsafe(48))')" -a prysm-backend
+heroku config:set ACCESS_TOKEN_EXPIRE_MINUTES=15 -a prysm-backend
 
 # Database (from your Supabase dashboard)
 heroku config:set DATABASE_URL="postgresql://postgres:[YOUR_PASSWORD]@[YOUR_HOST]:5432/postgres" -a prysm-backend
@@ -44,11 +47,12 @@ heroku config:set OPENAI_API_KEY="your-openai-api-key" -a prysm-backend
 heroku config:set SUPABASE_URL="your-supabase-url" -a prysm-backend
 heroku config:set SUPABASE_SERVICE_ROLE_KEY="your-service-role-key" -a prysm-backend
 heroku config:set SUPABASE_KEY="your-supabase-anon-key" -a prysm-backend
-heroku config:set SUPABASE_JWT_SECRET="your-jwt-secret" -a prysm-backend
 heroku config:set SUPABASE_BUCKET="opticai" -a prysm-backend
+heroku config:set GOOGLE_DESKTOP_CLIENT_ID="your-desktop-client-id.apps.googleusercontent.com" -a prysm-backend
+heroku config:set GOOGLE_DESKTOP_CLIENT_SECRET="your-desktop-client-secret" -a prysm-backend
 
 # CORS
-heroku config:set BACKEND_CORS_ORIGINS="*" -a prysm-backend
+heroku config:set BACKEND_CORS_ORIGINS="app://.,http://localhost:5173,http://127.0.0.1:5173" -a prysm-backend
 ```
 
 ## 4. Deploy Backend
@@ -73,8 +77,8 @@ curl https://prysm-backend.herokuapp.com/api/v1/health
 Edit `.env.production`:
 ```env
 VITE_API_URL=https://prysm-backend.herokuapp.com/api/v1
-VITE_SUPABASE_URL=your-supabase-url
-VITE_SUPABASE_KEY=your-supabase-anon-key
+GOOGLE_DESKTOP_CLIENT_ID=your-desktop-client-id.apps.googleusercontent.com
+GOOGLE_DESKTOP_CLIENT_SECRET=your-desktop-client-secret
 ```
 
 ## Getting Your Supabase Connection String

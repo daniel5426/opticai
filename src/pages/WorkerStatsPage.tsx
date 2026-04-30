@@ -197,8 +197,11 @@ export default function WorkerStatsPage() {
                 </Card>
               </div>
 
-              <div className="w-48">
-                <div className="dark:bg-card/50 flex h-fit w-48 flex-col gap-1 rounded-md bg-cyan-800/10 p-1">
+              <div className="w-48 shrink-0">
+                <div
+                  className="no-scrollbar dark:bg-card/50 flex h-fit max-h-[70vh] w-48 flex-col gap-1 overflow-y-auto rounded-md bg-cyan-800/10 p-1"
+                  style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+                >
                   {Array.from({ length: 8 }).map((_, i) => (
                     <div key={i} className="w-full rounded-md px-2 py-2">
                       <div className="flex items-center justify-end gap-2">
@@ -571,7 +574,10 @@ export default function WorkerStatsPage() {
                 </div>
 
                 {/* Vertical TabsList on the Right */}
-                <TabsList className="dark:bg-card/50 flex h-fit w-48 flex-col bg-cyan-800/10 p-1">
+                <TabsList
+                  className="no-scrollbar dark:bg-card/50 flex h-fit max-h-[70vh] w-48 shrink-0 flex-col items-stretch justify-start overflow-y-auto bg-cyan-800/10 p-1"
+                  style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+                >
                   {users.map((user) => (
                     <TabsTrigger
                       key={user.id}

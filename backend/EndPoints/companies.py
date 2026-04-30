@@ -16,38 +16,20 @@ router = APIRouter(prefix="/companies", tags=["companies"])
 
 @router.get("/public", response_model=List[CompanySchema])
 def get_companies_public(db: Session = Depends(get_db)):
-    """Public endpoint for getting companies during initial setup"""
-    companies = db.query(Company).all()
-    return companies
+    raise HTTPException(
+        status_code=status.HTTP_410_GONE,
+        detail="Legacy public company lookup is disabled",
+    )
 
 @router.post("/public", response_model=CompanySchema)
 def create_company_public(
     company: CompanyCreate,
     db: Session = Depends(get_db)
 ):
-    """Public endpoint for creating companies during registration"""
-    print(f"DEBUG: Creating new company: {company.name}")
-    try:
-        payload = company.dict()
-        if payload.get('logo_path'):
-            try:
-                payload['logo_path'] = upload_base64_image(payload['logo_path'], f"companies")
-            except Exception:
-                pass
-        db_company = Company(**payload)
-        db.add(db_company)
-        db.commit()
-        db.refresh(db_company)
-        print(f"DEBUG: Company created successfully with ID: {db_company.id}")
-        return db_company
-    except IntegrityError:
-        db.rollback()
-        # If a unique constraint exists at DB level from older schema, reuse existing company
-        existing = db.query(Company).filter(Company.name == company.name).first()
-        if existing:
-            print(f"DEBUG: Company with same name exists, returning existing ID: {existing.id}")
-            return existing
-        raise
+    raise HTTPException(
+        status_code=status.HTTP_410_GONE,
+        detail="Legacy public company creation is disabled; use /auth/register/start and /auth/register/complete",
+    )
 
 @router.post("/", response_model=CompanySchema)
 def create_company(data: CompanyCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
@@ -149,4 +131,4 @@ def delete_company(
     
     db.delete(db_company)
     db.commit()
-    return {"message": "Company deleted successfully"} 
+    return {"message": "Company deleted successfully"}

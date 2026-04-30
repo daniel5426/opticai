@@ -14,7 +14,7 @@ from schemas import (
     ExamLayoutInstanceReorderRequest,
 )
 from auth import get_current_user
-from security.scope import normalize_clinic_id_for_company, resolve_company_id, assert_clinic_belongs_to_company
+from security.scope import get_allowed_clinic_ids, normalize_clinic_id_for_company, resolve_company_id, assert_clinic_belongs_to_company
 
 router = APIRouter(prefix="/exam-layouts", tags=["exam-layouts"])
 
@@ -38,6 +38,9 @@ def build_layout_tree(layouts: List[ExamLayout]) -> List[dict]:
             "parent_layout_id": layout.parent_layout_id,
             "is_group": layout.is_group,
             "type": layout.type,
+            "seed_key": layout.seed_key,
+            "seed_version": layout.seed_version,
+            "is_seeded_default": layout.is_seeded_default,
             "created_at": layout.created_at,
             "updated_at": layout.updated_at,
             "children": [serialize(child) for child in children]
@@ -48,6 +51,28 @@ def build_layout_tree(layouts: List[ExamLayout]) -> List[dict]:
     ]
     roots.sort(key=lambda item: (item.sort_index, item.id))
     return [serialize(layout) for layout in roots]
+
+def default_layouts_query(
+    db: Session,
+    current_user: User,
+    clinic_id: Optional[int] = None,
+    type: Optional[str] = None,
+):
+    allowed_clinic_ids = get_allowed_clinic_ids(db, current_user, clinic_id)
+    query = (
+        db.query(ExamLayout)
+        .filter(ExamLayout.clinic_id.in_(allowed_clinic_ids))
+        .filter(ExamLayout.is_active == True)
+        .filter(ExamLayout.is_group == False)
+        .filter((ExamLayout.is_seeded_default == True) | (ExamLayout.is_default == True))
+    )
+    if type:
+        query = query.filter(ExamLayout.type == type)
+    return query.order_by(
+        ExamLayout.is_seeded_default.desc(),
+        ExamLayout.sort_index.asc(),
+        ExamLayout.id.asc(),
+    )
 
 def reindex_siblings(db: Session, clinic_id: int, parent_id: Optional[int]) -> None:
     siblings = (
@@ -61,6 +86,24 @@ def reindex_siblings(db: Session, clinic_id: int, parent_id: Optional[int]) -> N
     )
     for index, layout in enumerate(siblings, start=1):
         layout.sort_index = index
+
+@router.get("/default", response_model=Optional[ExamLayoutSchema])
+def get_default_exam_layout(
+    clinic_id: Optional[int] = Query(None, description="Filter by clinic ID"),
+    type: Optional[str] = Query(None, description="Filter by layout type"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    return default_layouts_query(db, current_user, clinic_id=clinic_id, type=type).first()
+
+@router.get("/defaults", response_model=List[ExamLayoutSchema])
+def get_default_exam_layouts(
+    clinic_id: Optional[int] = Query(None, description="Filter by clinic ID"),
+    type: Optional[str] = Query(None, description="Filter by layout type"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    return default_layouts_query(db, current_user, clinic_id=clinic_id, type=type).all()
 
 @router.post("/", response_model=ExamLayoutSchema)
 def create_exam_layout(
@@ -409,32 +452,6 @@ def delete_exam_layout(
     db.commit()
     return {"message": "Exam layout deleted successfully"}
 
-@router.get("/default")
-def get_default_exam_layout(
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    query = db.query(ExamLayout).filter(ExamLayout.is_default == True)
-    
-    if current_user.role_level < 4:
-        query = query.filter(ExamLayout.clinic_id == current_user.clinic_id)
-    
-    layout = query.first()
-    return layout
-
-@router.get("/defaults", response_model=List[ExamLayoutSchema])
-def get_default_exam_layouts(
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    query = db.query(ExamLayout).filter(ExamLayout.is_default == True)
-    
-    if current_user.role_level < 4:
-        query = query.filter(ExamLayout.clinic_id == current_user.clinic_id)
-    
-    layouts = query.all()
-    return layouts
-
 # Exam Layout Instances endpoints
 @router.post("/instances")
 def create_exam_layout_instance(
@@ -686,4 +703,4 @@ def set_active_exam_layout_instance(
     target_instance.is_active = True
     db.commit()
     
-    return {"message": "Active exam layout instance updated successfully"} 
+    return {"message": "Active exam layout instance updated successfully"}

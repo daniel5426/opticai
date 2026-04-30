@@ -11,6 +11,7 @@ import { CylTitle } from "./shared/CylTitle"
 import { useAxisWarning } from "./shared/useAxisWarning"
 import { AxisWarningInput } from "./shared/AxisWarningInput"
 import { ToggleTextNumberInput } from "./shared/ToggleTextNumberInput"
+import { copyEyeRowFields } from "./shared/copyEyeRowFields"
 
 interface OverRefractionTabProps {
   data: OverRefraction;
@@ -94,21 +95,7 @@ export function OverRefractionTab({
   };
 
   const copyFromOtherEye = (fromEye: "R" | "L") => {
-    inputSyncManager.flush();
-    const latestData = dataRef.current;
-
-    const toEye = fromEye === "R" ? "L" : "R";
-    columns.forEach(({ key }) => {
-      const getLatestVal = (e: "R" | "L", f: string) => {
-        const eyeField = `${e.toLowerCase()}_${f}` as keyof OverRefraction;
-        return latestData[eyeField]?.toString() || "";
-      };
-      const value = getLatestVal(fromEye, key);
-      onChange(`${toEye.toLowerCase()}_${key}` as keyof OverRefraction, value);
-    });
-    // Also copy comb_va and comb_j
-    if (latestData.comb_va !== undefined) onChange("comb_va", latestData.comb_va.toString());
-    if (latestData.comb_j !== undefined) onChange("comb_j", latestData.comb_j.toString());
+    copyEyeRowFields(dataRef.current, onChange, fromEye);
   };
 
   const renderEyeField = (eye: "R" | "L", key: string, config: any) => {

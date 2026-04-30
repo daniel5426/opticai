@@ -1,6 +1,6 @@
 # Release And Runtime Inventory
 
-Last Updated: 2026-04-09
+Last Updated: 2026-04-30
 
 ## Build And Release Commands
 - `npm run build`
@@ -26,8 +26,8 @@ Last Updated: 2026-04-09
 ## Key Runtime Assumptions
 - Electron production loads `.env.production` from app resources.
 - Renderer uses `VITE_API_URL` to reach the hosted backend.
-- Supabase URL and anon key are present in desktop env files.
-- Google client ids are present in desktop env files.
+- Desktop env files contain `VITE_API_URL` and Google desktop OAuth credentials only.
+- Supabase credentials are backend-only for Postgres/Storage.
 - Auto-updater is configured against GitHub releases.
 
 ## Baseline Check Results
