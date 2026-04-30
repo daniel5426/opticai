@@ -14,6 +14,7 @@ from auth import get_current_user
 import EndPoints.billing as billing
 import EndPoints.control_center as control_center
 import EndPoints.email_logs as email_logs
+import EndPoints.files as files
 import EndPoints.lookups as lookups
 import EndPoints.search as search
 import EndPoints.work_shifts as work_shifts
@@ -36,6 +37,12 @@ def test_obvious_business_endpoints_require_auth():
     assert _route_has_auth(work_shifts.router, "/work-shifts/", "POST")
     assert _route_has_auth(email_logs.router, "/email-logs/", "GET")
     assert _route_has_auth(email_logs.router, "/email-logs/", "POST")
+    assert _route_has_auth(files.router, "/files/", "POST")
+    assert _route_has_auth(files.router, "/files/{file_id}", "GET")
+    assert _route_has_auth(files.router, "/files/{file_id}", "PATCH")
+    assert _route_has_auth(files.router, "/files/{file_id}", "DELETE")
+    assert _route_has_auth(files.router, "/files/{file_id}/download-url", "GET")
+    assert _route_has_auth(files.router, "/files/client/{client_id}", "GET")
     assert _route_has_auth(control_center.router, "/control-center/dashboard/{company_id}", "GET")
     assert _route_has_auth(lookups.router, "/lookups/{lookup_type}", "POST")
     assert _route_has_auth(lookups.router, "/lookups/{lookup_type}/{lookup_id}", "PUT")

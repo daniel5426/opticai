@@ -93,7 +93,7 @@ def get_orders_paginated(
         literal(None).label('comb_va'),
         literal(None).label('comb_pd'),
         literal(False).label('__contact'),
-        (User.username).label('username'),
+        func.coalesce(User.full_name, User.username).label('username'),
         (func.concat(Client.first_name, ' ', Client.last_name)).label('clientName'),
     ).select_from(orders_from)
     if order_filters:
@@ -111,7 +111,7 @@ def get_orders_paginated(
         literal(None).label('comb_va'),
         literal(None).label('comb_pd'),
         literal(True).label('__contact'),
-        (User.username).label('username'),
+        func.coalesce(User.full_name, User.username).label('username'),
         (func.concat(Client.first_name, ' ', Client.last_name)).label('clientName'),
     ).select_from(cl_from)
     if cl_filters:
@@ -128,17 +128,26 @@ def get_orders_paginated(
     # Total count
     total = db.execute(select(func.count()).select_from(merged_subq)).scalar() or 0
 
-    # Ordering
-    if order == "date_asc":
-        order_by_clause = merged_subq.c.order_date.asc().nulls_last()
-    elif order == "id_asc":
-        order_by_clause = merged_subq.c.id.asc()
-    elif order == "id_desc":
-        order_by_clause = merged_subq.c.id.desc()
+    order_columns = {
+        "date": merged_subq.c.order_date,
+        "order_date": merged_subq.c.order_date,
+        "id": merged_subq.c.id,
+        "type": merged_subq.c.type,
+        "kind": merged_subq.c["__contact"],
+        "client": merged_subq.c["clientName"],
+        "examiner": merged_subq.c.username,
+        "status": merged_subq.c.order_status,
+    }
+    order_key, _, order_direction = (order or "date_desc").rpartition("_")
+    order_column = order_columns.get(order_key, merged_subq.c.order_date)
+    if order_direction == "asc":
+        order_by_clause = order_column.asc().nulls_last()
+        tie_breaker = merged_subq.c.id.asc()
     else:
-        order_by_clause = merged_subq.c.order_date.desc().nulls_last()
+        order_by_clause = order_column.desc().nulls_last()
+        tie_breaker = merged_subq.c.id.desc()
 
-    stmt = select(merged_subq).order_by(order_by_clause).offset(offset).limit(limit)
+    stmt = select(merged_subq).order_by(order_by_clause, tie_breaker).offset(offset).limit(limit)
     rows = db.execute(stmt).mappings().all()
     items = [dict(r) for r in rows]
 

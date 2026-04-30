@@ -34,7 +34,7 @@ export function OldRefractionExtensionTab({
   const dataRef = useRef(oldRefractionExtensionData);
   dataRef.current = oldRefractionExtensionData;
 
-  const { handleManualTranspose } = usePrescriptionLogic(
+  const { handleManualTranspose, getPowerWarningMessage } = usePrescriptionLogic(
     oldRefractionExtensionData,
     onOldRefractionExtensionChange,
     isEditing
@@ -146,6 +146,8 @@ export function OldRefractionExtensionTab({
             max,
             showPlus: column.showPlus,
             suffix: column.suffix,
+            "aria-invalid": getPowerWarningMessage(eye) ? true : undefined,
+            warningMessage: getPowerWarningMessage(eye),
             className: `h-8 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`
           }}
         />
@@ -161,6 +163,8 @@ export function OldRefractionExtensionTab({
         onChange={(val) => handleChange(eye, key, val)}
         disabled={!isEditing}
         debounceMs={key === "pd_far" || key === "pd_close" ? 0 : undefined}
+        aria-invalid={eye !== "C" && key === "cyl" && getPowerWarningMessage(eye) ? true : undefined}
+        warningMessage={eye !== "C" && key === "cyl" ? getPowerWarningMessage(eye) : null}
         className={`h-8 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
       />
     );

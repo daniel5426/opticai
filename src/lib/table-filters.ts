@@ -89,11 +89,13 @@ export function normalizeFileCategory(fileType?: string | null): FileCategoryFil
     fileType.includes("spreadsheet") ||
     fileType.includes("presentation") ||
     fileType.includes("powerpoint") ||
-    fileType.includes("text")
+    fileType.includes("text") ||
+    fileType.includes("rtf") ||
+    fileType.includes("csv")
   ) {
     return "document"
   }
-  if (fileType.includes("zip") || fileType.includes("rar") || fileType.includes("archive")) {
+  if (fileType.includes("zip") || fileType.includes("rar") || fileType.includes("7z") || fileType.includes("gzip") || fileType.includes("archive")) {
     return "archive"
   }
   return "other"

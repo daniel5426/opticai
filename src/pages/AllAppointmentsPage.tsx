@@ -7,6 +7,7 @@ import { AppointmentsTable } from "@/components/appointments-table"
 import { useUser } from "@/contexts/UserContext"
 import { ALL_FILTER_VALUE } from "@/lib/table-filters"
 import { buildTableSearch } from "@/lib/list-page-search"
+import { parseSortSearch, sortToOrder, sortToSearch } from "@/lib/table-sorting"
 
 export default function AllAppointmentsPage() {
   const { currentClinic } = useUser()
@@ -17,18 +18,23 @@ export default function AllAppointmentsPage() {
   const [pageSize] = useState(25)
   const [total, setTotal] = useState(0)
   const [searchInput, setSearchInput] = useState(search.q)
+  const activeSort = React.useMemo(
+    () => parseSortSearch(search.sort, { key: "date", direction: "desc" }),
+    [search.sort],
+  )
 
   useEffect(() => {
     setSearchInput(search.q)
   }, [search.q])
 
-  const buildSearchState = (overrides?: Partial<{ q: string; page: number; dateScope: string; examName: string }>) =>
+  const buildSearchState = (overrides?: Partial<{ q: string; page: number; dateScope: string; examName: string; sort: string }>) =>
     buildTableSearch(
       {
         q: searchInput.trim(),
         page: search.page,
         dateScope: search.dateScope,
         examName: search.examName,
+        sort: search.sort,
         ...overrides,
       },
       {
@@ -36,6 +42,7 @@ export default function AllAppointmentsPage() {
         page: 1,
         dateScope: ALL_FILTER_VALUE,
         examName: ALL_FILTER_VALUE,
+        sort: "",
       },
     )
 
@@ -57,7 +64,7 @@ export default function AllAppointmentsPage() {
       const { items, total } = await getPaginatedAppointments(currentClinic?.id, {
         limit: pageSize,
         offset,
-        order: 'date_desc',
+        order: sortToOrder(activeSort, "date_desc"),
         q: search.q || undefined,
         dateScope: search.dateScope !== ALL_FILTER_VALUE ? search.dateScope : undefined,
         examName: search.examName !== ALL_FILTER_VALUE ? search.examName : undefined,
@@ -75,7 +82,7 @@ export default function AllAppointmentsPage() {
     if (currentClinic) {
       loadData()
     }
-  }, [currentClinic, pageSize, search.dateScope, search.examName, search.page, search.q])
+  }, [activeSort, currentClinic, pageSize, search.dateScope, search.examName, search.page, search.q])
 
   const handleAppointmentDeleted = (deletedAppointmentId: number) => {
     setAppointments(prevAppointments => prevAppointments.filter(appointment => appointment.id !== deletedAppointmentId))
@@ -125,6 +132,13 @@ export default function AllAppointmentsPage() {
             navigate({
               to: "/appointments",
               search: buildSearchState({ examName: value, page: 1 }),
+            })
+          }
+          sort={activeSort}
+          onSortChange={(sort) =>
+            navigate({
+              to: "/appointments",
+              search: buildSearchState({ sort: sortToSearch(sort), page: 1 }),
             })
           }
           loading={loading}

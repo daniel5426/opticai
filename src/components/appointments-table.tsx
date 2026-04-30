@@ -68,6 +68,8 @@ import {
   APPOINTMENT_DATE_SCOPE_OPTIONS,
   ALL_FILTER_VALUE,
 } from "@/lib/table-filters";
+import { SortableTableHead } from "@/components/sortable-table-head";
+import { SortColumns, SortState, sortRows } from "@/lib/table-sorting";
 
 interface AppointmentsTableProps {
   data: Appointment[];
@@ -88,6 +90,8 @@ interface AppointmentsTableProps {
   onExamTypeFilterChange?: (value: string) => void;
   dateScopeFilter?: string;
   onDateScopeFilterChange?: (value: string) => void;
+  sort?: SortState;
+  onSortChange?: (sort: SortState) => void;
 }
 
 interface AppointmentTableRowProps {
@@ -185,8 +189,11 @@ export function AppointmentsTable({
   onExamTypeFilterChange,
   dateScopeFilter: externalDateScopeFilter,
   onDateScopeFilterChange,
+  sort,
+  onSortChange,
 }: AppointmentsTableProps) {
   const [searchQuery, setSearchQuery] = useState("");
+  const [localSort, setLocalSort] = useState<SortState | undefined>();
   const searchValue =
     externalSearch !== undefined ? externalSearch : searchQuery;
   const [isAppointmentDialogOpen, setIsAppointmentDialogOpen] = useState(false);
@@ -211,6 +218,8 @@ export function AppointmentsTable({
     useState(false);
   const examTypeFilter = externalExamTypeFilter ?? selectedExamType;
   const dateScopeFilter = externalDateScopeFilter ?? selectedDateScope;
+  const activeSort = sort ?? localSort;
+  const handleSortChange = onSortChange ?? setLocalSort;
 
   const handleExamTypeFilterChange = (value: string) => {
     if (onExamTypeFilterChange) {
@@ -344,7 +353,18 @@ export function AppointmentsTable({
     return Array.from(types);
   }, [allAppointments]);
 
-  const dataToRender = finalFilteredData;
+  const sortColumns = React.useMemo<SortColumns<Appointment>>(() => ({
+    date: { getValue: (appointment) => appointment.date, type: "date" },
+    time: { getValue: (appointment) => appointment.time },
+    client: { getValue: (appointment) => appointment.client_full_name },
+    exam_name: { getValue: (appointment) => appointment.exam_name },
+    examiner: { getValue: (appointment) => appointment.examiner_name },
+    note: { getValue: (appointment) => appointment.note },
+  }), []);
+
+  const dataToRender = React.useMemo(() => {
+    return onSortChange ? finalFilteredData : sortRows(finalFilteredData, activeSort, sortColumns);
+  }, [activeSort, finalFilteredData, onSortChange, sortColumns]);
 
   const resetAllForms = () => {
     setAppointmentFormData({
@@ -1185,14 +1205,14 @@ export function AppointmentsTable({
         >
           <TableHeader className="bg-card sticky top-0">
             <TableRow>
-              <TableHead className="text-right">תאריך</TableHead>
-              <TableHead className="text-right">שעה</TableHead>
+              <SortableTableHead sortKey="date" sort={activeSort} onSortChange={handleSortChange} className="text-right">תאריך</SortableTableHead>
+              <SortableTableHead sortKey="time" sort={activeSort} onSortChange={handleSortChange} className="text-right">שעה</SortableTableHead>
               {clientId === 0 && (
-                <TableHead className="text-right">לקוח</TableHead>
+                <SortableTableHead sortKey="client" sort={activeSort} onSortChange={handleSortChange} className="text-right">לקוח</SortableTableHead>
               )}
-              <TableHead className="text-right">סוג בדיקה</TableHead>
-              <TableHead className="text-right">בודק</TableHead>
-              <TableHead className="text-right">הערות</TableHead>
+              <SortableTableHead sortKey="exam_name" sort={activeSort} onSortChange={handleSortChange} className="text-right">סוג בדיקה</SortableTableHead>
+              <SortableTableHead sortKey="examiner" sort={activeSort} onSortChange={handleSortChange} className="text-right">בודק</SortableTableHead>
+              <SortableTableHead sortKey="note" sort={activeSort} onSortChange={handleSortChange} className="text-right">הערות</SortableTableHead>
               <TableHead className="w-[50px] text-right"></TableHead>
             </TableRow>
           </TableHeader>

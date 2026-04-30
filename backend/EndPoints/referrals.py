@@ -51,14 +51,20 @@ def get_referrals_paginated(
                 func.concat(Client.first_name, ' ', Client.last_name).ilike(like)
             )
         )
-    if order == "date_desc":
-        base = base.order_by(Referral.date.desc().nulls_last())
-    elif order == "date_asc":
-        base = base.order_by(Referral.date.asc().nulls_last())
-    elif order == "id_asc":
-        base = base.order_by(Referral.id.asc())
+    order_columns = {
+        "date": Referral.date,
+        "id": Referral.id,
+        "type": Referral.type,
+        "client": func.concat(Client.first_name, ' ', Client.last_name),
+        "urgency": Referral.urgency_level,
+        "recipient": Referral.recipient,
+    }
+    order_key, _, order_direction = (order or "date_desc").rpartition("_")
+    order_column = order_columns.get(order_key, Referral.date)
+    if order_direction == "asc":
+        base = base.order_by(order_column.asc().nulls_last(), Referral.id.asc())
     else:
-        base = base.order_by(Referral.id.desc())
+        base = base.order_by(order_column.desc().nulls_last(), Referral.id.desc())
     total = base.count()
     rows = base.offset(offset).limit(limit).all()
     items = []

@@ -140,6 +140,7 @@ export const ClientsRoute = createRoute({
     q: getSearchString(search, "q"),
     page: getPositiveSearchNumber(search, "page"),
     gender: getOptionalFilter(search, "gender"),
+    sort: getSearchString(search, "sort"),
   }),
   component: ClientsPage,
 });
@@ -218,6 +219,7 @@ export const AllExamsRoute = createRoute({
     q: getSearchString(search, "q"),
     page: getPositiveSearchNumber(search, "page"),
     testName: getOptionalFilter(search, "testName"),
+    sort: getSearchString(search, "sort"),
   }),
   component: AllExamsPage,
 });
@@ -230,6 +232,7 @@ export const AllOrdersRoute = createRoute({
     page: getPositiveSearchNumber(search, "page"),
     kind: getOptionalFilter(search, "kind"),
     status: getOptionalFilter(search, "status"),
+    sort: getSearchString(search, "sort"),
   }),
   component: AllOrdersPage,
 });
@@ -243,6 +246,7 @@ export const AllReferralsRoute = createRoute({
     page: getPositiveSearchNumber(search, "page"),
     urgency: getOptionalFilter(search, "urgency"),
     referralType: getOptionalFilter(search, "referralType"),
+    sort: getSearchString(search, "sort"),
   }),
   component: AllReferralsPage,
 });
@@ -255,6 +259,7 @@ export const AllAppointmentsRoute = createRoute({
     page: getPositiveSearchNumber(search, "page"),
     dateScope: getOptionalFilter(search, "dateScope"),
     examName: getOptionalFilter(search, "examName"),
+    sort: getSearchString(search, "sort"),
   }),
   component: AllAppointmentsPage,
 });
@@ -266,6 +271,7 @@ export const AllFilesRoute = createRoute({
     q: getSearchString(search, "q"),
     page: getPositiveSearchNumber(search, "page"),
     fileCategory: getOptionalFilter(search, "fileCategory"),
+    sort: getSearchString(search, "sort"),
   }),
   component: AllFilesPage,
 });
@@ -278,6 +284,7 @@ export const AllUsersRoute = createRoute({
     page: getPositiveSearchNumber(search, "page"),
     role: getOptionalFilter(search, "role"),
     clinicScope: getOptionalFilter(search, "clinicScope"),
+    sort: getSearchString(search, "sort"),
   }),
   component: AllUsersPage,
 });

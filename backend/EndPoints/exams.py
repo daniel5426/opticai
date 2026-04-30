@@ -29,6 +29,7 @@ def get_enriched_exams(
     base_query = db.query(
         OpticalExam,
         User.username.label('username'),
+        User.full_name.label('full_name'),
         Client.first_name.label('client_first_name'),
         Client.last_name.label('client_last_name')
     ).outerjoin(User, OpticalExam.user_id == User.id).outerjoin(Client, OpticalExam.client_id == Client.id)
@@ -70,17 +71,25 @@ def get_enriched_exams(
     # Count total before pagination
     total = base_query.count()
 
-    # Ordering
-    if order == "exam_date_asc":
-        base_query = base_query.order_by(OpticalExam.exam_date.asc(), OpticalExam.id.asc())
+    order_columns = {
+        "exam_date": OpticalExam.exam_date,
+        "test_name": OpticalExam.test_name,
+        "client": func.concat(Client.first_name, ' ', Client.last_name),
+        "clinic": OpticalExam.clinic,
+        "examiner": func.coalesce(User.full_name, User.username),
+    }
+    order_key, _, order_direction = (order or "exam_date_desc").rpartition("_")
+    order_column = order_columns.get(order_key, OpticalExam.exam_date)
+    if order_direction == "asc":
+        base_query = base_query.order_by(order_column.asc().nulls_last(), OpticalExam.id.asc())
     else:
-        base_query = base_query.order_by(OpticalExam.exam_date.desc(), OpticalExam.id.desc())
+        base_query = base_query.order_by(order_column.desc().nulls_last(), OpticalExam.id.desc())
 
     # Pagination
     rows = base_query.offset(offset).limit(limit).all()
 
     items = []
-    for exam, username, client_first_name, client_last_name in rows:
+    for exam, username, full_name, client_first_name, client_last_name in rows:
         items.append({
             "id": exam.id,
             "client_id": exam.client_id,
@@ -92,6 +101,7 @@ def get_enriched_exams(
             "dominant_eye": exam.dominant_eye,
             "type": exam.type,
             "username": username or "",
+            "full_name": full_name or "",
             "clientName": f"{client_first_name or ''} {client_last_name or ''}".strip()
         })
 

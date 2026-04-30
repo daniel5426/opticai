@@ -44,7 +44,7 @@ export const SubjectiveTab = React.memo(function SubjectiveTab({
   const dataRef = useRef(subjectiveData);
   dataRef.current = subjectiveData;
 
-  const { handleManualTranspose } = usePrescriptionLogic(
+  const { handleManualTranspose, getPowerWarningMessage } = usePrescriptionLogic(
     subjectiveData,
     onSubjectiveChange,
     isEditing
@@ -142,6 +142,8 @@ export const SubjectiveTab = React.memo(function SubjectiveTab({
                     value={getFieldValue("R", key)}
                     missingAxis={fieldWarnings.R.missingAxis}
                     missingCyl={fieldWarnings.R.missingCyl}
+                    aria-invalid={key === "cyl" && getPowerWarningMessage("R") ? true : undefined}
+                    warningMessage={key === "cyl" ? getPowerWarningMessage("R") : null}
                     isEditing={isEditing}
                     onValueChange={handleAxisChange}
                     onBlur={(eye, field, val) => handleAxisBlur(eye, field, val, (colProps as any).min, (colProps as any).max)}
@@ -160,6 +162,8 @@ export const SubjectiveTab = React.memo(function SubjectiveTab({
                       max: (colProps as any).max,
                       showPlus: (colProps as any).showPlus,
                       suffix: (colProps as any).suffix,
+                      "aria-invalid": getPowerWarningMessage("R") ? true : undefined,
+                      warningMessage: getPowerWarningMessage("R"),
                       className: `h-8 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`
                     }}
                   />
@@ -254,6 +258,8 @@ export const SubjectiveTab = React.memo(function SubjectiveTab({
                     value={getFieldValue("L", key)}
                     missingAxis={fieldWarnings.L.missingAxis}
                     missingCyl={fieldWarnings.L.missingCyl}
+                    aria-invalid={key === "cyl" && getPowerWarningMessage("L") ? true : undefined}
+                    warningMessage={key === "cyl" ? getPowerWarningMessage("L") : null}
                     isEditing={isEditing}
                     onValueChange={handleAxisChange}
                     onBlur={(eye, field, val) => handleAxisBlur(eye, field, val, (colProps as any).min, (colProps as any).max)}
@@ -272,6 +278,8 @@ export const SubjectiveTab = React.memo(function SubjectiveTab({
                       max: (colProps as any).max,
                       showPlus: (colProps as any).showPlus,
                       suffix: (colProps as any).suffix,
+                      "aria-invalid": getPowerWarningMessage("L") ? true : undefined,
+                      warningMessage: getPowerWarningMessage("L"),
                       className: `h-8 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`
                     }}
                   />

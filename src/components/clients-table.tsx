@@ -17,6 +17,8 @@ import { toast } from "sonner"
 import { Skeleton } from "@/components/ui/skeleton"
 import { TableFiltersBar } from "@/components/table-filters-bar"
 import { GENDER_FILTER_OPTIONS } from "@/lib/table-filters"
+import { SortableTableHead } from "@/components/sortable-table-head"
+import { SortColumns, SortState, sortRows } from "@/lib/table-sorting"
 
 interface ClientsTableProps {
   data: Client[]
@@ -34,6 +36,8 @@ interface ClientsTableProps {
   genderFilter?: string
   onGenderFilterChange?: (value: string) => void
   toolbarActions?: React.ReactNode
+  sort?: SortState
+  onSortChange?: (sort: SortState) => void
 }
 
 export function ClientsTable({ 
@@ -52,15 +56,31 @@ export function ClientsTable({
   genderFilter: externalGenderFilter,
   onGenderFilterChange,
   toolbarActions,
+  sort,
+  onSortChange,
 }: ClientsTableProps) {
   const [internalSearchQuery, setInternalSearchQuery] = React.useState("")
   const [selectedGender, setSelectedGender] = React.useState<string>("all")
+  const [localSort, setLocalSort] = React.useState<SortState | undefined>()
   const [isDeleteModalOpen, setIsDeleteModalOpen] = React.useState(false)
   const [clientToDelete, setClientToDelete] = React.useState<Client | null>(null)
   const navigate = useNavigate()
 
   const searchQuery = externalSearchQuery !== undefined ? externalSearchQuery : internalSearchQuery
   const genderFilter = externalGenderFilter ?? selectedGender
+  const activeSort = sort ?? localSort
+  const handleSortChange = onSortChange ?? setLocalSort
+
+  const sortColumns = React.useMemo<SortColumns<Client>>(() => ({
+    id: { getValue: (client) => client.id, type: "number" },
+    first_name: { getValue: (client) => client.first_name },
+    last_name: { getValue: (client) => client.last_name },
+    gender: { getValue: (client) => client.gender },
+    national_id: { getValue: (client) => client.national_id },
+    phone_mobile: { getValue: (client) => client.phone_mobile },
+    email: { getValue: (client) => client.email },
+    family_role: { getValue: (client) => client.family_role },
+  }), [])
 
   const handleSearchChange = (value: string) => {
     if (onSearchChange) {
@@ -112,6 +132,10 @@ export function ClientsTable({
 
     return filtered
   }, [data, searchQuery, selectedFamilyId, showFamilyColumn, genderFilter])
+
+  const displayData = React.useMemo(() => {
+    return onSortChange ? filteredData : sortRows(filteredData, activeSort, sortColumns)
+  }, [activeSort, filteredData, onSortChange, sortColumns])
 
   const handleDeleteConfirm = async () => {
     if (clientToDelete && clientToDelete.id !== undefined) {
@@ -185,14 +209,14 @@ export function ClientsTable({
         >
           <TableHeader className="sticky top-0 bg-card">
             <TableRow>
-              <TableHead className="text-right sticky top-0 z-20 bg-card">מס' לקוח</TableHead>
-              <TableHead className="text-right sticky top-0 z-20 bg-card">שם פרטי</TableHead>
-              <TableHead className="text-right sticky top-0 z-20 bg-card">שם משפחה</TableHead>
-              {!compactMode && <TableHead className="text-right sticky top-0 z-20 bg-card">מגדר</TableHead>}
-              <TableHead className="text-right sticky top-0 z-20 bg-card">ת.ז.</TableHead>
-              {!compactMode && <TableHead className="text-right sticky top-0 z-20 bg-card">נייד</TableHead>}
-              {!compactMode && <TableHead className="text-right sticky top-0 z-20 bg-card">אימייל</TableHead>}
-              {showFamilyColumn && <TableHead className="text-right sticky top-0 z-20 bg-card">תפקיד במשפחה</TableHead>}
+              <SortableTableHead sortKey="id" sort={activeSort} onSortChange={handleSortChange} className="text-right sticky top-0 z-20 bg-card">מס' לקוח</SortableTableHead>
+              <SortableTableHead sortKey="first_name" sort={activeSort} onSortChange={handleSortChange} className="text-right sticky top-0 z-20 bg-card">שם פרטי</SortableTableHead>
+              <SortableTableHead sortKey="last_name" sort={activeSort} onSortChange={handleSortChange} className="text-right sticky top-0 z-20 bg-card">שם משפחה</SortableTableHead>
+              {!compactMode && <SortableTableHead sortKey="gender" sort={activeSort} onSortChange={handleSortChange} className="text-right sticky top-0 z-20 bg-card">מגדר</SortableTableHead>}
+              <SortableTableHead sortKey="national_id" sort={activeSort} onSortChange={handleSortChange} className="text-right sticky top-0 z-20 bg-card">ת.ז.</SortableTableHead>
+              {!compactMode && <SortableTableHead sortKey="phone_mobile" sort={activeSort} onSortChange={handleSortChange} className="text-right sticky top-0 z-20 bg-card">נייד</SortableTableHead>}
+              {!compactMode && <SortableTableHead sortKey="email" sort={activeSort} onSortChange={handleSortChange} className="text-right sticky top-0 z-20 bg-card">אימייל</SortableTableHead>}
+              {showFamilyColumn && <SortableTableHead sortKey="family_role" sort={activeSort} onSortChange={handleSortChange} className="text-right sticky top-0 z-20 bg-card">תפקיד במשפחה</SortableTableHead>}
               <TableHead className="w-[50px] text-right sticky top-0 z-20 bg-card"></TableHead>
             </TableRow>
           </TableHeader>
@@ -237,8 +261,8 @@ export function ClientsTable({
                   </TableCell>
                 </TableRow>
               ))
-            ) : filteredData.length > 0 ? (
-              filteredData.map((client) => (
+            ) : displayData.length > 0 ? (
+              displayData.map((client) => (
                 <TableRow
                   key={client.id}
                   className="cursor-pointer"

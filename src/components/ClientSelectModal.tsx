@@ -177,8 +177,11 @@ export function ClientSelectModal({ triggerText, onClientSelect, triggerVariant 
                   }}
                   tabIndex={0}
                 >
-                  <div className="font-medium">
-                    {client.first_name} {client.last_name}
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium">{client.first_name} {client.last_name}</span>
+                    {client.national_id && (
+                      <span className="text-sm text-gray-500">ת.ז: {client.national_id}</span>
+                    )}
                   </div>
                   {client.phone_mobile && (
                     <div className="text-sm text-gray-500">{client.phone_mobile}</div>

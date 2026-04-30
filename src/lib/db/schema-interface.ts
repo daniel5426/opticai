@@ -891,7 +891,7 @@ export interface File {
   client_id: number;
   clinic_id?: number; // Added for multi-clinic support
   file_name: string;
-  file_path: string;
+  original_file_name?: string;
   file_size?: number;
   file_type?: string;
   upload_date?: string;

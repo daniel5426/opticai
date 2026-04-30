@@ -7,6 +7,7 @@ import { FilesTable } from "@/components/files-table"
 import { useUser } from "@/contexts/UserContext"
 import { ALL_FILTER_VALUE } from "@/lib/table-filters"
 import { buildTableSearch } from "@/lib/list-page-search"
+import { parseSortSearch, sortToOrder, sortToSearch } from "@/lib/table-sorting"
 
 export default function AllFilesPage() {
   const { currentClinic } = useUser()
@@ -17,23 +18,29 @@ export default function AllFilesPage() {
   const [pageSize] = useState(25)
   const [total, setTotal] = useState(0)
   const [searchInput, setSearchInput] = useState(search.q)
+  const activeSort = React.useMemo(
+    () => parseSortSearch(search.sort, { key: "upload_date", direction: "desc" }),
+    [search.sort],
+  )
 
   useEffect(() => {
     setSearchInput(search.q)
   }, [search.q])
 
-  const buildSearchState = (overrides?: Partial<{ q: string; page: number; fileCategory: string }>) =>
+  const buildSearchState = (overrides?: Partial<{ q: string; page: number; fileCategory: string; sort: string }>) =>
     buildTableSearch(
       {
         q: searchInput.trim(),
         page: search.page,
         fileCategory: search.fileCategory,
+        sort: search.sort,
         ...overrides,
       },
       {
         q: "",
         page: 1,
         fileCategory: ALL_FILTER_VALUE,
+        sort: "",
       },
     )
 
@@ -55,7 +62,7 @@ export default function AllFilesPage() {
       const { items, total } = await getPaginatedFiles(currentClinic?.id, {
         limit: pageSize,
         offset,
-        order: 'upload_date_desc',
+        order: sortToOrder(activeSort, "upload_date_desc"),
         q: search.q || undefined,
         fileCategory: search.fileCategory !== ALL_FILTER_VALUE ? search.fileCategory : undefined,
       })
@@ -72,7 +79,7 @@ export default function AllFilesPage() {
     if (currentClinic) {
       loadFiles()
     }
-  }, [currentClinic, pageSize, search.fileCategory, search.page, search.q])
+  }, [activeSort, currentClinic, pageSize, search.fileCategory, search.page, search.q])
 
   const handleFileDeleted = (deletedFileId: number) => {
     setFiles(prevFiles => prevFiles.filter(file => file.id !== deletedFileId))
@@ -91,6 +98,10 @@ export default function AllFilesPage() {
     loadFiles()
   }
 
+  const handleFileUpdated = (updatedFile: File) => {
+    setFiles(prevFiles => prevFiles.map(file => file.id === updatedFile.id ? updatedFile : file))
+  }
+
   return (
     <>
       <SiteHeader title="מסמכים" />
@@ -106,6 +117,7 @@ export default function AllFilesPage() {
           data={files} 
           clientId={0} 
           onFileUploaded={loadFiles}
+          onFileUpdated={handleFileUpdated}
           onFileDeleted={handleFileDeleted}
           onFileDeleteFailed={handleFileDeleteFailed}
           searchQuery={searchInput}
@@ -115,6 +127,13 @@ export default function AllFilesPage() {
             navigate({
               to: "/files",
               search: buildSearchState({ fileCategory: value, page: 1 }),
+            })
+          }
+          sort={activeSort}
+          onSortChange={(sort) =>
+            navigate({
+              to: "/files",
+              search: buildSearchState({ sort: sortToSearch(sort), page: 1 }),
             })
           }
           loading={loading}

@@ -5,7 +5,7 @@ import { useClientData } from "@/contexts/ClientDataContext"
 
 export function ClientFilesTab() {
   const { clientId } = useParams({ from: "/clients/$clientId" })
-  const { files, loading, removeFile, refreshFiles } = useClientData()
+  const { files, loading, removeFile, updateFile, refreshFiles } = useClientData()
 
   const handleFileDeleted = (deletedFileId: number) => {
     removeFile(deletedFileId)
@@ -20,6 +20,7 @@ export function ClientFilesTab() {
       data={files} 
       clientId={Number(clientId)} 
       onFileUploaded={refreshFiles}
+      onFileUpdated={updateFile}
       onFileDeleted={handleFileDeleted}
       onFileDeleteFailed={handleFileDeleteFailed}
       loading={loading.files}

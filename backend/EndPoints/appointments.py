@@ -122,15 +122,21 @@ def get_appointments_paginated(
             )
         )
     
-    # Apply ordering
-    if order == "date_desc":
-        base = base.order_by(Appointment.date.desc().nulls_last())
-    elif order == "date_asc":
-        base = base.order_by(Appointment.date.asc().nulls_last())
-    elif order == "id_asc":
-        base = base.order_by(Appointment.id.asc())
-    else:  # default to id_desc
-        base = base.order_by(Appointment.id.desc())
+    order_columns = {
+        "date": Appointment.date,
+        "time": Appointment.time,
+        "id": Appointment.id,
+        "client": func.concat(Client.first_name, ' ', Client.last_name),
+        "exam_name": Appointment.exam_name,
+        "examiner": func.coalesce(User.full_name, User.username),
+        "note": Appointment.note,
+    }
+    order_key, _, order_direction = (order or "date_desc").rpartition("_")
+    order_column = order_columns.get(order_key, Appointment.date)
+    if order_direction == "asc":
+        base = base.order_by(order_column.asc().nulls_last(), Appointment.id.asc())
+    else:
+        base = base.order_by(order_column.desc().nulls_last(), Appointment.id.desc())
     
     total = base.count()
     rows = base.offset(offset).limit(limit).all()

@@ -93,7 +93,7 @@ class ApiClient {
   private token: string | null = null;
   private refreshToken: string | null = null;
   private clinicTrustToken: string | null = null;
-  private isRefreshingToken: boolean = false;
+  private refreshTokenPromise: Promise<boolean> | null = null;
 
   constructor(baseUrl: string = API_BASE_URL) {
     this.baseUrl = baseUrl;
@@ -123,29 +123,46 @@ class ApiClient {
     return payload.exp <= now + bufferSeconds;
   }
 
-  private async refreshTokenIfPossible(): Promise<void> {
-    if (this.isRefreshingToken) return;
-    this.isRefreshingToken = true;
-    try {
-      if (!this.refreshToken && typeof localStorage !== 'undefined') {
-        this.refreshToken = localStorage.getItem('auth_refresh_token');
-      }
-      if (!this.refreshToken) return;
-      const url = `${this.baseUrl}/auth/refresh`;
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ refresh_token: this.refreshToken })
-      });
-      if (res.ok) {
+  private async refreshTokenIfPossible(): Promise<boolean> {
+    if (this.refreshTokenPromise) {
+      return this.refreshTokenPromise;
+    }
+
+    const refreshPromise = (async (): Promise<boolean> => {
+      try {
+        if (!this.refreshToken && typeof localStorage !== 'undefined') {
+          this.refreshToken = localStorage.getItem('auth_refresh_token');
+        }
+        if (!this.refreshToken) return false;
+
+        const url = `${this.baseUrl}/auth/refresh`;
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refresh_token: this.refreshToken })
+        });
+        if (!res.ok) return false;
+
         const data = await res.json();
         if (data?.access_token && data?.refresh_token) {
           this.setSessionTokens(data.access_token, data.refresh_token);
+          return true;
         }
+        return false;
+      } catch {
+        return false;
       }
-    } catch {}
-    finally {
-      this.isRefreshingToken = false;
+    })();
+
+    this.refreshTokenPromise = refreshPromise;
+    try {
+      return await refreshPromise;
+    } catch {
+      return false;
+    } finally {
+      if (this.refreshTokenPromise === refreshPromise) {
+        this.refreshTokenPromise = null;
+      }
     }
   }
 
@@ -190,13 +207,18 @@ class ApiClient {
         if (response.status === 401) {
           const hadAuthHeader = Boolean(headers['Authorization']);
           if (hadAuthHeader && !isPublicEndpoint && !suppressUnauthorized) {
-            await this.refreshTokenIfPossible();
-            if (this.token) {
+            const tokenChangedDuringRequest = Boolean(this.token && this.token !== effectiveToken);
+            const hasUsableToken = tokenChangedDuringRequest || (await this.refreshTokenIfPossible());
+            if (hasUsableToken && this.token) {
               headers['Authorization'] = `Bearer ${this.token}`;
               response = await fetch(url, fetchOptions);
               if (response.ok) {
                 const data = await response.json();
                 return { data };
+              }
+              if (response.status !== 401) {
+                const retryError = await response.json().catch(() => errorData);
+                return { error: (retryError && (retryError as any).detail) || `HTTP ${response.status}` };
               }
             }
             this.clearToken();
@@ -540,7 +562,7 @@ class ApiClient {
 
   async getClientsPaginated(
     clinicId?: number,
-    options?: { limit?: number; offset?: number; order?: 'id_desc' | 'id_asc'; q?: string; gender?: string }
+    options?: { limit?: number; offset?: number; order?: string; q?: string; gender?: string }
   ) {
     const params = new URLSearchParams();
     if (clinicId) params.append('clinic_id', clinicId.toString());
@@ -554,7 +576,7 @@ class ApiClient {
   }
 
   // Referrals pagination
-  async getReferralsPaginated(clinicId?: number, options?: { limit?: number; offset?: number; order?: 'date_desc' | 'date_asc' | 'id_desc' | 'id_asc'; q?: string; urgencyLevel?: string; referralType?: string }) {
+  async getReferralsPaginated(clinicId?: number, options?: { limit?: number; offset?: number; order?: string; q?: string; urgencyLevel?: string; referralType?: string }) {
     const params = new URLSearchParams();
     if (clinicId) params.append('clinic_id', clinicId.toString());
     if (options?.limit !== undefined) params.append('limit', String(options.limit));
@@ -568,7 +590,7 @@ class ApiClient {
   }
 
   // Orders pagination
-  async getOrdersPaginated(clinicId?: number, options?: { limit?: number; offset?: number; order?: 'date_desc' | 'date_asc' | 'id_desc' | 'id_asc'; q?: string; kind?: string; status?: string }) {
+  async getOrdersPaginated(clinicId?: number, options?: { limit?: number; offset?: number; order?: string; q?: string; kind?: string; status?: string }) {
     const params = new URLSearchParams();
     if (clinicId) params.append('clinic_id', clinicId.toString());
     if (options?.limit !== undefined) params.append('limit', String(options.limit));
@@ -582,7 +604,7 @@ class ApiClient {
   }
 
   // Files pagination
-  async getFilesPaginated(clinicId?: number, options?: { limit?: number; offset?: number; order?: 'upload_date_desc' | 'upload_date_asc' | 'id_desc' | 'id_asc'; q?: string; fileCategory?: string }) {
+  async getFilesPaginated(clinicId?: number, options?: { limit?: number; offset?: number; order?: string; q?: string; fileCategory?: string }) {
     const params = new URLSearchParams();
     if (clinicId) params.append('clinic_id', clinicId.toString());
     if (options?.limit !== undefined) params.append('limit', String(options.limit));
@@ -595,7 +617,7 @@ class ApiClient {
   }
 
   // Appointments pagination
-  async getAppointmentsPaginated(clinicId?: number, options?: { limit?: number; offset?: number; order?: 'date_desc' | 'date_asc' | 'id_desc' | 'id_asc'; q?: string; dateScope?: string; examName?: string }) {
+  async getAppointmentsPaginated(clinicId?: number, options?: { limit?: number; offset?: number; order?: string; q?: string; dateScope?: string; examName?: string }) {
     const params = new URLSearchParams();
     if (clinicId) params.append('clinic_id', clinicId.toString());
     if (options?.limit !== undefined) params.append('limit', String(options.limit));
@@ -609,7 +631,7 @@ class ApiClient {
   }
 
   // Families pagination
-  async getFamiliesPaginated(clinicId?: number, options?: { limit?: number; offset?: number; order?: 'created_desc' | 'created_asc' | 'name_asc' | 'name_desc' | 'id_desc' | 'id_asc'; search?: string }, companyId?: number) {
+  async getFamiliesPaginated(clinicId?: number, options?: { limit?: number; offset?: number; order?: string; search?: string }, companyId?: number) {
     const params = new URLSearchParams();
     if (clinicId) params.append('clinic_id', clinicId.toString());
     if (companyId) params.append('company_id', companyId.toString());
@@ -777,7 +799,7 @@ class ApiClient {
     });
   }
 
-  async getEnrichedExams(type?: string, clinicId?: number, options?: { limit?: number; offset?: number; order?: 'exam_date_desc' | 'exam_date_asc'; q?: string; testName?: string }) {
+  async getEnrichedExams(type?: string, clinicId?: number, options?: { limit?: number; offset?: number; order?: string; q?: string; testName?: string }) {
     const params = new URLSearchParams();
     if (type) params.append('type', type);
     if (clinicId) params.append('clinic_id', clinicId.toString());
@@ -957,7 +979,7 @@ class ApiClient {
 
   // Files
   async getFiles(clinicId?: number) {
-    const url = clinicId ? `/files?clinic_id=${clinicId}` : '/files';
+    const url = clinicId ? `/files/?clinic_id=${clinicId}` : '/files/';
     return this.request<File[]>(url);
   }
 
@@ -975,7 +997,7 @@ class ApiClient {
 
   async createFile(payload: any) {
     const isFormData = typeof FormData !== 'undefined' && payload instanceof FormData;
-    return this.request<File>('/files', {
+    return this.request<File>('/files/', {
       method: 'POST',
       body: isFormData ? payload : JSON.stringify(payload),
     });
@@ -983,7 +1005,7 @@ class ApiClient {
 
   async updateFile(id: number, file: any) {
     return this.request<File>(`/files/${id}`, {
-      method: 'PUT',
+      method: 'PATCH',
       body: JSON.stringify(file),
     });
   }

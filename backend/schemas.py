@@ -483,7 +483,7 @@ class FileBase(BaseModel):
     client_id: int
     clinic_id: Optional[int] = None
     file_name: str
-    file_path: str
+    original_file_name: Optional[str] = None
     file_size: Optional[int] = None
     file_type: Optional[str] = None
     uploaded_by: Optional[int] = None
@@ -492,10 +492,9 @@ class FileBase(BaseModel):
 class FileCreate(FileBase):
     pass
 
-class FileUpdate(FileBase):
-    client_id: Optional[int] = None
+class FileUpdate(BaseModel):
     file_name: Optional[str] = None
-    file_path: Optional[str] = None
+    notes: Optional[str] = None
 
 class File(FileBase):
     id: int

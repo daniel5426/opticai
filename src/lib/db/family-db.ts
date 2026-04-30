@@ -18,7 +18,7 @@ export async function getAllFamilies(clinicId?: number): Promise<Family[]> {
 
 export async function getPaginatedFamilies(
   clinicId?: number,
-  options?: { limit?: number; offset?: number; order?: 'created_desc' | 'created_asc' | 'name_asc' | 'name_desc' | 'id_desc' | 'id_asc'; search?: string },
+  options?: { limit?: number; offset?: number; order?: string; search?: string },
   companyId?: number
 ): Promise<{ items: (Family & { clients?: Client[] })[]; total: number }> {
   try {
@@ -135,4 +135,4 @@ export async function removeClientFromFamily(clientId: number, familyId: number)
     console.error('Error removing client from family:', error);
     return false;
   }
-} 
+}

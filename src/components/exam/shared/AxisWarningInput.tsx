@@ -27,16 +27,26 @@ export const AxisWarningInput = React.memo(function AxisWarningInput({
     ...props
 }: AxisWarningInputProps) {
     const showWarning = (field === "ax" && missingAxis) || (field === "cyl" && missingCyl);
+    const axisWarningMessage = showWarning ? (field === "ax" ? "חסר Axis" : "חסר Cyl") : null;
+    const warningMessage = props.warningMessage ?? axisWarningMessage;
+    const ariaInvalid = props["aria-invalid"] || showWarning ? true : undefined;
 
     return (
         <div className="relative">
             <Input
                 {...(() => {
-                    const { defaultValue: _, ...rest } = props as any;
+                    const {
+                        defaultValue: _,
+                        warningMessage: __,
+                        "aria-invalid": ___,
+                        ...rest
+                    } = props as any;
                     return rest;
                 })()}
                 type="number"
                 value={value}
+                aria-invalid={ariaInvalid}
+                warningMessage={warningMessage}
                 onChange={(e) => onValueChange(eye, field, e.target.value)}
                 onInput={(e) => onValueChange(eye, field, e.currentTarget.value)}
                 onBlur={(e) => {
@@ -46,15 +56,9 @@ export const AxisWarningInput = React.memo(function AxisWarningInput({
                 disabled={!isEditing}
                 className={cn(
                     "h-8 text-xs disabled:opacity-100 disabled:cursor-default",
-                    showWarning && "border-destructive ring-1 ring-destructive",
                     className
                 )}
             />
-            {showWarning && (
-                <div dir="rtl" className="absolute -top-6 left-1/2 -translate-x-1/2 bg-destructive text-destructive-foreground text-[10px] px-1 rounded shadow-sm whitespace-nowrap z-10 animate-in fade-in zoom-in duration-200">
-                    {field === "ax" ? "חסר Axis" : "חסר Cyl"}
-                </div>
-            )}
         </div>
     );
 });

@@ -182,6 +182,13 @@ const normalizeOrderDetails = (
   };
 };
 
+const isIncompleteSignedNumber = (value: string) =>
+  value === "-" ||
+  value === "+" ||
+  value === "." ||
+  value === "-." ||
+  value === "+.";
+
 const getNextBagNumber = (orders: Order[]): string => {
   const maxBagNumber = orders.reduce((max, order) => {
     const details = (order as any)?.order_data?.details;
@@ -1032,7 +1039,14 @@ export default function OrderDetailPage({
 
     if (numericFields.includes(field)) {
       const val = parseFloat(rawValue);
-      processedValue = rawValue === "" || isNaN(val) ? undefined : val;
+      processedValue =
+        rawValue === ""
+          ? undefined
+          : isIncompleteSignedNumber(rawValue)
+            ? rawValue
+            : isNaN(val)
+              ? undefined
+              : val;
     } else if (integerFields.includes(field)) {
       const val = parseInt(rawValue, 10);
       processedValue = rawValue === "" || isNaN(val) ? undefined : val;
@@ -1067,6 +1081,10 @@ export default function OrderDetailPage({
     const currentSchirmerData = schirmerDataRef.current;
     const currentDiametersData = diametersDataRef.current;
     const currentOrderLineItems = orderLineItemsRef.current;
+    const existingRegularOrderId =
+      Number(currentFormData.id || order?.id || orderId) || undefined;
+    const existingContactOrderId =
+      Number((currentContactFormData as any).id || orderId) || undefined;
 
     if (!isContactMode) {
       if (!currentFormData.type) {
@@ -1076,6 +1094,16 @@ export default function OrderDetailPage({
     } else if (!currentContactFormData.type) {
       toast.error("אנא בחר סוג הזמנה");
       return;
+    }
+
+    if (!isNewMode) {
+      const existingOrderId = isContactMode
+        ? existingContactOrderId
+        : existingRegularOrderId;
+      if (!existingOrderId) {
+        toast.error("לא ניתן לעדכן הזמנה ללא מזהה הזמנה");
+        return;
+      }
     }
 
     if (isSaveInFlight) return;
@@ -1133,6 +1161,7 @@ export default function OrderDetailPage({
             }
           : {
               ...(currentContactFormData as any),
+              id: existingContactOrderId,
               order_data: {
                 ...((currentContactFormData as any)?.order_data || {}),
                 ...(hasDetails
@@ -1338,6 +1367,7 @@ export default function OrderDetailPage({
           }
         : {
             ...(currentFormData as Order),
+            id: existingRegularOrderId,
             order_date: currentFormData.order_date,
             type: currentFormData.type,
             dominant_eye: currentFormData.dominant_eye,

@@ -95,7 +95,7 @@ function AddComponentDrawer({ isEditing, onAddComponent }: AddComponentDrawerPro
   if (!isEditing) return null
 
   // Generate component list from registry
-  const registeredComponents = examComponentRegistry.getAllTypes().map(type => {
+  const registeredComponents = examComponentRegistry.getLayoutEditorTypes().map(type => {
     const config = examComponentRegistry.getConfig(type);
     return {
       id: type,
@@ -104,7 +104,6 @@ function AddComponentDrawer({ isEditing, onAddComponent }: AddComponentDrawerPro
     };
   });
 
-  // Add notes and anamnesis component which isn't in the registry
   const eyeComponents = [
     ...registeredComponents
   ] as const

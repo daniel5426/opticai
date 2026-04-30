@@ -1,4 +1,5 @@
 import { PD_EYE_MIN, PD_EYE_MAX, PD_COMB_MIN, PD_COMB_MAX } from "./exam-constants";
+import { PRESCRIPTION_CYL_RANGE, PRESCRIPTION_POWER_RANGE } from "@/utils/optometry-utils";
 
 export interface FieldConfig {
   label: string;
@@ -22,8 +23,8 @@ export const EXAM_FIELDS = {
     label: "SPH",
     step: "0.25",
     type: "number",
-    min: -30,
-    max: 30,
+    min: PRESCRIPTION_POWER_RANGE.min,
+    max: PRESCRIPTION_POWER_RANGE.max,
     showPlus: true,
     textOptions: ["Plano", "Ambliyopya", "Balance"],
     textValueAliases: { Plano: "0" },
@@ -32,8 +33,8 @@ export const EXAM_FIELDS = {
     label: "CYL",
     step: "0.25",
     type: "number",
-    min: -30,
-    max: 30,
+    min: PRESCRIPTION_CYL_RANGE.min,
+    max: PRESCRIPTION_CYL_RANGE.max,
     showPlus: true,
   } as FieldConfig,
   AXIS: {
@@ -89,7 +90,7 @@ export const EXAM_FIELDS = {
   } as FieldConfig,
   PUPIL_DIAMETER: {
     label: "קוטר אישון",
-    step: "0.1",
+    step: "0.5",
     type: "number",
     min: 0,
     max: 12,
@@ -181,7 +182,7 @@ export const EXAM_FIELDS = {
     label: "DIAM",
     step: "0.1",
     type: "number",
-    min: 8.0,
+    min: 5.0,
     max: 18.0,
     suffix: "mm",
     showPlus: false,

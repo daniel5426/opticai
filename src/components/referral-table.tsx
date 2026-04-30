@@ -18,6 +18,8 @@ import { CustomModal } from "@/components/ui/custom-modal";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TableFiltersBar } from "@/components/table-filters-bar";
 import { ALL_FILTER_VALUE, REFERRAL_URGENCY_OPTIONS } from "@/lib/table-filters";
+import { SortableTableHead } from "@/components/sortable-table-head";
+import { SortColumns, SortState, sortRows } from "@/lib/table-sorting";
 
 interface ReferralTableProps {
   referrals: Referral[];
@@ -32,6 +34,8 @@ interface ReferralTableProps {
   onUrgencyFilterChange?: (value: string) => void;
   referralTypeFilter?: string;
   onReferralTypeFilterChange?: (value: string) => void;
+  sort?: SortState;
+  onSortChange?: (sort: SortState) => void;
 }
 
 export function ReferralTable({
@@ -47,8 +51,11 @@ export function ReferralTable({
   onUrgencyFilterChange,
   referralTypeFilter: externalReferralTypeFilter,
   onReferralTypeFilterChange,
+  sort,
+  onSortChange,
 }: ReferralTableProps) {
   const [searchTerm, setSearchTerm] = useState("");
+  const [localSort, setLocalSort] = useState<SortState | undefined>();
   const searchValue = externalSearch !== undefined ? externalSearch : searchTerm;
   const navigate = useNavigate();
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -57,6 +64,16 @@ export function ReferralTable({
   const [selectedReferralType, setSelectedReferralType] = useState<string>(ALL_FILTER_VALUE);
   const urgencyFilter = externalUrgencyFilter ?? selectedUrgency;
   const referralTypeFilter = externalReferralTypeFilter ?? selectedReferralType;
+  const activeSort = sort ?? localSort;
+  const handleSortChange = onSortChange ?? setLocalSort;
+
+  const sortColumns = React.useMemo<SortColumns<Referral>>(() => ({
+    date: { getValue: (referral) => referral.date, type: "date" },
+    type: { getValue: (referral) => referral.type },
+    client: { getValue: (referral) => referral.client_full_name },
+    urgency: { getValue: (referral) => referral.urgency_level, type: "rank", rank: ["routine", "urgent", "emergency"] },
+    recipient: { getValue: (referral) => referral.recipient },
+  }), []);
 
   const handleUrgencyFilterChange = (value: string) => {
     if (onUrgencyFilterChange) {
@@ -101,6 +118,10 @@ export function ReferralTable({
       );
     });
   }, [referralTypeFilter, referrals, searchValue, urgencyFilter]);
+
+  const displayData = React.useMemo(() => {
+    return onSortChange ? filteredReferrals : sortRows(filteredReferrals, activeSort, sortColumns);
+  }, [activeSort, filteredReferrals, onSortChange, sortColumns]);
 
   const handleDeleteConfirm = async () => {
     if (referralToDelete && referralToDelete.id !== undefined) {
@@ -190,11 +211,11 @@ export function ReferralTable({
         <Table dir="rtl" containerClassName="max-h-[70vh] overflow-y-auto overscroll-contain" containerStyle={{ scrollbarWidth: 'none' }}>
           <TableHeader className="sticky top-0  bg-card">
             <TableRow>
-              <TableHead className="text-right">תאריך</TableHead>
-              <TableHead className="text-right">סוג הפניה</TableHead>
-              {clientId === 0 && <TableHead className="text-right">לקוח</TableHead>}
-              <TableHead className="text-right">רמת דחיפות</TableHead>
-              <TableHead className="text-right">נמען</TableHead>
+              <SortableTableHead sortKey="date" sort={activeSort} onSortChange={handleSortChange} className="text-right">תאריך</SortableTableHead>
+              <SortableTableHead sortKey="type" sort={activeSort} onSortChange={handleSortChange} className="text-right">סוג הפניה</SortableTableHead>
+              {clientId === 0 && <SortableTableHead sortKey="client" sort={activeSort} onSortChange={handleSortChange} className="text-right">לקוח</SortableTableHead>}
+              <SortableTableHead sortKey="urgency" sort={activeSort} onSortChange={handleSortChange} className="text-right">רמת דחיפות</SortableTableHead>
+              <SortableTableHead sortKey="recipient" sort={activeSort} onSortChange={handleSortChange} className="text-right">נמען</SortableTableHead>
               <TableHead className="w-[50px] text-right"></TableHead>
             </TableRow>
           </TableHeader>
@@ -224,8 +245,8 @@ export function ReferralTable({
                   </TableCell>
                 </TableRow>
               ))
-            ) : filteredReferrals.length > 0 ? (
-              filteredReferrals.map((referral) => (
+            ) : displayData.length > 0 ? (
+              displayData.map((referral) => (
                 <TableRow
                   key={referral.id}
                   className="cursor-pointer"

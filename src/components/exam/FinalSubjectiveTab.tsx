@@ -41,7 +41,7 @@ export function FinalSubjectiveTab({
   const dataRef = useRef(finalSubjectiveData);
   dataRef.current = finalSubjectiveData;
 
-  const { handleManualTranspose } = usePrescriptionLogic(
+  const { handleManualTranspose, getPowerWarningMessage } = usePrescriptionLogic(
     finalSubjectiveData,
     onFinalSubjectiveChange,
     isEditing
@@ -174,6 +174,8 @@ export function FinalSubjectiveTab({
                 max: (pdProps as any).max,
                 showPlus: (pdProps as any).showPlus,
                 suffix: (pdProps as any).suffix,
+                "aria-invalid": getPowerWarningMessage(eye) ? true : undefined,
+            warningMessage: getPowerWarningMessage(eye),
                 className: "h-8 text-xs disabled:opacity-100 disabled:cursor-default"
               }}
             />
@@ -190,6 +192,8 @@ export function FinalSubjectiveTab({
               value={value}
               missingAxis={eyeWarnings.missingAxis}
               missingCyl={eyeWarnings.missingCyl}
+              aria-invalid={key === "cyl" && getPowerWarningMessage(eye) ? true : undefined}
+          warningMessage={key === "cyl" ? getPowerWarningMessage(eye) : null}
               isEditing={isEditing}
               onValueChange={handleAxisChange}
               onBlur={(eye, field, val) => handleAxisBlur(eye, field, val, (pdProps as any).min, (pdProps as any).max)}

@@ -14,6 +14,7 @@ import { TableFiltersBar } from "@/components/table-filters-bar"
 import { ALL_FILTER_VALUE } from "@/lib/table-filters"
 import { buildTableSearch } from "@/lib/list-page-search"
 import { GuardedRouterLink } from "@/components/GuardedRouterLink"
+import { parseSortSearch, sortToOrder, sortToSearch } from "@/lib/table-sorting"
 
 export default function ClientsPage() {
   const search = useSearch({ from: "/clients" })
@@ -32,18 +33,23 @@ export default function ClientsPage() {
   const [editingFamily, setEditingFamily] = useState<Family | null>(null)
   const [searchInput, setSearchInput] = useState(search.q)
   const isFamilyMode = search.mode === "families"
+  const activeSort = React.useMemo(
+    () => parseSortSearch(search.sort, { key: "id", direction: "desc" }),
+    [search.sort],
+  )
 
   useEffect(() => {
     setSearchInput(search.q)
   }, [search.q])
 
-  const buildSearchState = (overrides?: Partial<{ mode: string; q: string; page: number; gender: string }>) =>
+  const buildSearchState = (overrides?: Partial<{ mode: string; q: string; page: number; gender: string; sort: string }>) =>
     buildTableSearch(
       {
         mode: search.mode,
         q: searchInput.trim(),
         page: search.page,
         gender: search.gender,
+        sort: search.sort,
         ...overrides,
       },
       {
@@ -51,6 +57,7 @@ export default function ClientsPage() {
         q: "",
         page: 1,
         gender: ALL_FILTER_VALUE,
+        sort: "",
       },
     )
 
@@ -86,7 +93,7 @@ export default function ClientsPage() {
         {
           limit: pageSize,
           offset,
-          order: 'id_desc',
+          order: sortToOrder(activeSort, "id_desc"),
           q: search.q || undefined,
           gender: search.gender !== ALL_FILTER_VALUE ? search.gender : undefined,
         }
@@ -107,7 +114,7 @@ export default function ClientsPage() {
       const {items, total} = await getPaginatedFamilies(currentClinic?.id, {
         limit: pageSize,
         offset,
-        order: 'id_desc',
+        order: sortToOrder(activeSort, "id_desc"),
         search: search.q || undefined,
       })
       setFamilies(items)
@@ -131,7 +138,7 @@ export default function ClientsPage() {
     if (currentClinic) {
       loadData()
     }
-  }, [currentClinic, pageSize, isFamilyMode, search.gender, search.page, search.q])
+  }, [activeSort, currentClinic, pageSize, isFamilyMode, search.gender, search.page, search.q])
 
   const handleClientDeleted = (clientId: number) => {
     setClients(prevClients => prevClients.filter(client => client.id !== clientId))
@@ -243,6 +250,7 @@ export default function ClientsPage() {
         q: "",
         page: 1,
         gender: ALL_FILTER_VALUE,
+        sort: "",
       }),
     })
   }
@@ -297,6 +305,13 @@ export default function ClientsPage() {
                       onSearchChange={setSearchInput}
                       hideSearch={true}
                       loading={familiesLoading}
+                      sort={activeSort}
+                      onSortChange={(sort) =>
+                        navigate({
+                          to: "/clients",
+                          search: buildSearchState({ sort: sortToSearch(sort), page: 1 }),
+                        })
+                      }
                       pagination={{
                         page: search.page,
                         pageSize,
@@ -339,6 +354,13 @@ export default function ClientsPage() {
                 }
                 hideNewButton={true}
                 loading={clientsLoading}
+                sort={activeSort}
+                onSortChange={(sort) =>
+                  navigate({
+                    to: "/clients",
+                    search: buildSearchState({ sort: sortToSearch(sort), page: 1 }),
+                  })
+                }
                 pagination={{
                   page: search.page,
                   pageSize,

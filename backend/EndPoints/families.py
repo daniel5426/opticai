@@ -64,18 +64,20 @@ def get_families_paginated(
 
     base = base.group_by(Family.id, Family.clinic_id, Family.name, Family.created_date, Family.notes, Family.company_id)
 
-    if order == "created_desc":
-        base = base.order_by(Family.created_date.desc().nulls_last())
-    elif order == "created_asc":
-        base = base.order_by(Family.created_date.asc().nulls_last())
-    elif order == "name_asc":
-        base = base.order_by(Family.name.asc())
-    elif order == "name_desc":
-        base = base.order_by(Family.name.desc())
-    elif order == "id_asc":
-        base = base.order_by(Family.id.asc())
+    member_count = func.count(Client.id)
+    order_columns = {
+        "created": Family.created_date,
+        "created_date": Family.created_date,
+        "name": Family.name,
+        "member_count": member_count,
+        "id": Family.id,
+    }
+    order_key, _, order_direction = (order or "id_desc").rpartition("_")
+    order_column = order_columns.get(order_key, Family.id)
+    if order_direction == "asc":
+        base = base.order_by(order_column.asc().nulls_last(), Family.id.asc())
     else:
-        base = base.order_by(Family.id.desc())
+        base = base.order_by(order_column.desc().nulls_last(), Family.id.desc())
 
     rows = base.offset(offset).limit(limit).all()
     family_ids = [r[0] for r in rows]

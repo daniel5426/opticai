@@ -82,7 +82,7 @@ export async function getAllOrders(clinicId?: number): Promise<Order[]> {
 
 export async function getPaginatedOrders(
   clinicId?: number,
-  options?: { limit?: number; offset?: number; order?: 'date_desc' | 'date_asc' | 'id_desc' | 'id_asc'; q?: string; kind?: string; status?: string }
+  options?: { limit?: number; offset?: number; order?: string; q?: string; kind?: string; status?: string }
 ): Promise<{ items: Order[]; total: number }> {
   try {
     const effectiveOptions = options ?? { limit: 25, offset: 0, order: 'date_desc' as const };

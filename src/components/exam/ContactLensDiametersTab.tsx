@@ -1,27 +1,31 @@
-import React from "react"
-import { Card, CardContent } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { ContactLensDiameters } from "@/lib/db/schema-interface"
-import { EXAM_FIELDS } from "./data/exam-field-definitions"
+import React from "react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { ContactLensDiameters } from "@/lib/db/schema-interface";
+import { EXAM_FIELDS } from "./data/exam-field-definitions";
 
 interface ContactLensDiametersTabProps {
   contactLensDiametersData: ContactLensDiameters;
-  onContactLensDiametersChange: (field: keyof ContactLensDiameters, value: string) => void;
+  onContactLensDiametersChange: (
+    field: keyof ContactLensDiameters,
+    value: string,
+  ) => void;
   isEditing: boolean;
+  needsMiddleSpacer?: boolean;
 }
 
-import { FastInput } from "./shared/OptimizedInputs"
+import { FastInput } from "./shared/OptimizedInputs";
 
 export function ContactLensDiametersTab({
   contactLensDiametersData,
   onContactLensDiametersChange,
-  isEditing
+  isEditing,
+  needsMiddleSpacer = false,
 }: ContactLensDiametersTabProps) {
-
   const fields = [
     { key: "pupil_diameter" as const, ...EXAM_FIELDS.PUPIL_DIAMETER },
     { key: "corneal_diameter" as const, ...EXAM_FIELDS.CORNEAL_DIAMETER },
-    { key: "eyelid_aperture" as const, ...EXAM_FIELDS.EYELID_APERTURE }
+    { key: "eyelid_aperture" as const, ...EXAM_FIELDS.EYELID_APERTURE },
   ];
 
   const getFieldValue = (field: keyof ContactLensDiameters) => {
@@ -33,24 +37,23 @@ export function ContactLensDiametersTab({
   };
 
   return (
-    <Card className="w-full examcard pb-4 pt-3">
-      <CardContent className="px-4" style={{ scrollbarWidth: 'none' }}>
+    <Card className="examcard w-full pt-3 pb-4">
+      <CardContent className="px-4" style={{ scrollbarWidth: "none" }}>
         <div className="space-y-3">
           <div className="text-center">
-            <h3 className="font-medium text-muted-foreground">Diameters</h3>
+            <h3 className="text-muted-foreground font-medium">Diameters</h3>
           </div>
 
-          <div className="grid grid-cols-[2fr_auto] gap-2 gap-x-4 items-center">
+          <div className="grid grid-cols-[2fr_auto] items-center gap-2 gap-x-4">
             {/* Header row */}
-            <div className="h-4 flex items-center justify-center">
-              <span className="text-xs font-medium text-muted-foreground">
+            <div className="flex h-4 items-center justify-center">
+              <span className="text-muted-foreground text-xs font-medium">
                 Value (mm)
               </span>
             </div>
-            <div className="h-4 flex items-center justify-center">
-            </div>
+            <div className="flex h-4 items-center justify-center"></div>
 
-            {fields.map(field => (
+            {fields.map((field, index) => (
               <React.Fragment key={field.key}>
                 <FastInput
                   type="number"
@@ -60,13 +63,19 @@ export function ContactLensDiametersTab({
                   value={getFieldValue(field.key)}
                   onChange={(val) => handleChange(field.key, val)}
                   disabled={!isEditing}
-                  className={`h-8 pr-1 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
+                  className={`h-8 pr-1 text-xs ${isEditing ? "bg-white" : "bg-accent/50"} disabled:cursor-default disabled:opacity-100`}
                 />
                 <div className="flex items-center justify-end">
-                  <span className="text-xs font-medium text-muted-foreground">
+                  <span className="text-muted-foreground text-xs font-medium">
                     {field.label}
                   </span>
                 </div>
+                {needsMiddleSpacer && index === 0 && (
+                  <>
+                    <div className="h-8" />
+                    <div className="h-8" />
+                  </>
+                )}
               </React.Fragment>
             ))}
           </div>

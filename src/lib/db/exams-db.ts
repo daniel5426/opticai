@@ -59,7 +59,7 @@ export async function getAllExams(type?: string, clinicId?: number): Promise<Opt
   }
 }
 
-export async function getAllEnrichedExams(type?: string, clinicId?: number, options?: { limit?: number; offset?: number; order?: 'exam_date_desc' | 'exam_date_asc' }): Promise<any[]> {
+export async function getAllEnrichedExams(type?: string, clinicId?: number, options?: { limit?: number; offset?: number; order?: string }): Promise<any[]> {
   try {
     const effectiveOptions = options ?? { limit: 100, offset: 0, order: 'exam_date_desc' as const };
     const response = await apiClient.getEnrichedExams(type, clinicId, effectiveOptions);
@@ -78,7 +78,7 @@ export async function getAllEnrichedExams(type?: string, clinicId?: number, opti
 export async function getPaginatedEnrichedExams(
   type?: string,
   clinicId?: number,
-  options?: { limit?: number; offset?: number; order?: 'exam_date_desc' | 'exam_date_asc'; q?: string; testName?: string }
+  options?: { limit?: number; offset?: number; order?: string; q?: string; testName?: string }
 ): Promise<{ items: any[]; total: number }> {
   try {
     const effectiveOptions = options ?? { limit: 25, offset: 0, order: 'exam_date_desc' as const };

@@ -37,7 +37,7 @@ export function OverRefractionTab({
   const dataRef = useRef(data);
   dataRef.current = data;
 
-  const { handleManualTranspose } = usePrescriptionLogic(
+  const { handleManualTranspose, getPowerWarningMessage } = usePrescriptionLogic(
     data,
     onChange,
     isEditing
@@ -110,6 +110,8 @@ export function OverRefractionTab({
           value={getFieldValue(eye, key)}
           missingAxis={fieldWarnings[eye].missingAxis}
           missingCyl={fieldWarnings[eye].missingCyl}
+          aria-invalid={key === "cyl" && getPowerWarningMessage(eye) ? true : undefined}
+          warningMessage={key === "cyl" ? getPowerWarningMessage(eye) : null}
           isEditing={isEditing}
           onValueChange={handleAxisChange}
           onBlur={(currentEye, field, val) =>
@@ -134,6 +136,8 @@ export function OverRefractionTab({
             max: config.max,
             showPlus: config.showPlus,
             suffix: config.suffix,
+            "aria-invalid": getPowerWarningMessage(eye) ? true : undefined,
+            warningMessage: getPowerWarningMessage(eye),
             className: `h-8 text-xs ${isEditing ? "bg-white" : "bg-accent/50"} disabled:opacity-100 disabled:cursor-default`,
           }}
         />

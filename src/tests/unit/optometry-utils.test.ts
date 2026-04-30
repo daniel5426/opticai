@@ -1,5 +1,5 @@
 import { describe, test, expect } from "vitest";
-import { transposePrescription, getCylNotation, calculateSE } from "@/utils/optometry-utils";
+import { transposePrescription, getCylNotation, calculateSE, hasPrescriptionPowerWarning, getPrescriptionPowerWarningMessage } from "@/utils/optometry-utils";
 
 describe('Optometry Utils', () => {
   describe('transposePrescription', () => {
@@ -80,6 +80,35 @@ describe('Optometry Utils', () => {
       expect(calculateSE("", -1.00)).toBe('-0.50');
       expect(calculateSE(2.00, "")).toBe('2.00');
       expect(calculateSE("", "")).toBe('');
+    });
+  });
+
+  describe('hasPrescriptionPowerWarning', () => {
+    test('warns when a hidden meridian is out of range before transpose', () => {
+      expect(hasPrescriptionPowerWarning("-30.00", "-12.00")).toBe(true);
+    });
+
+    test('keeps warning state stable after transpose', () => {
+      const before = hasPrescriptionPowerWarning("-30.00", "-12.00");
+      const after = hasPrescriptionPowerWarning("-42.00", "12.00");
+
+      expect(after).toBe(before);
+      expect(after).toBe(true);
+    });
+
+    test('does not warn when both principal meridians are in range', () => {
+      expect(hasPrescriptionPowerWarning("-10.00", "-2.00")).toBe(false);
+      expect(hasPrescriptionPowerWarning("-12.00", "2.00")).toBe(false);
+    });
+
+    test('warns when cylinder power is outside the cylinder range', () => {
+      expect(hasPrescriptionPowerWarning("0.00", "13.00")).toBe(true);
+    });
+
+    test('returns the current warning reason', () => {
+      expect(getPrescriptionPowerWarningMessage("-30.00", "-12.00")).toContain("SPH + CYL = -42.00");
+      expect(getPrescriptionPowerWarningMessage("0.00", "13.00")).toContain("CYL is outside");
+      expect(getPrescriptionPowerWarningMessage("-10.00", "-2.00")).toBeNull();
     });
   });
 });

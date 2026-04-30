@@ -1,7 +1,7 @@
 import { File } from './schema-interface';
 import { apiClient } from '../api-client';
 
-export async function createFile(data: Omit<File, 'id'> | FormData): Promise<File | null> {
+export async function createFile(data: Partial<File> | FormData): Promise<File | null> {
   try {
     const response = await apiClient.createFile(data);
     if (response.error) {
@@ -59,7 +59,7 @@ export async function getAllFiles(clinicId?: number): Promise<File[]> {
 
 export async function getPaginatedFiles(
   clinicId?: number,
-  options?: { limit?: number; offset?: number; order?: 'upload_date_desc' | 'upload_date_asc' | 'id_desc' | 'id_asc'; q?: string; fileCategory?: string }
+  options?: { limit?: number; offset?: number; order?: string; q?: string; fileCategory?: string }
 ): Promise<{ items: File[]; total: number }> {
   try {
     const effectiveOptions = options ?? { limit: 25, offset: 0, order: 'upload_date_desc' as const };
@@ -75,7 +75,7 @@ export async function getPaginatedFiles(
   }
 }
 
-export async function updateFile(data: File): Promise<File | null> {
+export async function updateFile(data: Pick<File, 'id'> & Partial<Pick<File, 'file_name' | 'notes'>>): Promise<File | null> {
   try {
     if (!data.id) {
       console.error('Error updating file: No file ID provided');

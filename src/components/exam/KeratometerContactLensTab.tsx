@@ -9,6 +9,7 @@ import { CylTitle } from "./shared/CylTitle"
 import { useAxisWarning } from "./shared/useAxisWarning"
 import { AxisWarningInput } from "./shared/AxisWarningInput"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { convertKeratometerValue, getKeratometerRange, getKeratometerStep, KeratometerUnit } from "@/utils/keratometer-utils"
 
 interface KeratometerContactLensTabProps {
   keratometerContactLensData: KeratometerContactLens;
@@ -26,7 +27,7 @@ export function KeratometerContactLensTab({
   needsMiddleSpacer = false
 }: KeratometerContactLensTabProps) {
   const [hoveredEye, setHoveredEye] = useState<"R" | "L" | null>(null);
-  const [unit, setUnit] = useState<"mm" | "D">("mm")
+  const [unit, setUnit] = useState<KeratometerUnit>("mm")
 
   const { fieldWarnings, handleAxisChange, handleAxisBlur } = useAxisWarning(
     keratometerContactLensData,
@@ -42,17 +43,14 @@ export function KeratometerContactLensTab({
     onKeratometerContactLensChange,
     isEditing
   );
-
-  const convertValue = (val: string, from: "mm" | "D") => {
-    const num = parseFloat(val)
-    if (isNaN(num)) return ""
-    const result = 337.5 / num
-    return result.toFixed(2)
-  }
+  const radiusRange = getKeratometerRange(unit);
 
   const handleUnitChange = (newUnit: string) => {
-    const nextUnit = newUnit as "mm" | "D"
+    const nextUnit = newUnit as KeratometerUnit
     if (nextUnit === unit) return
+
+    inputSyncManager.flush()
+    const latestData = dataRef.current
 
     // Convert current values for rv and rh
     const fieldsToConvert = ["rh", "rv"]
@@ -61,9 +59,9 @@ export function KeratometerContactLensTab({
     eyes.forEach(eye => {
       fieldsToConvert.forEach(field => {
         const eyeField = `${eye}_${field}` as keyof KeratometerContactLens
-        const val = keratometerContactLensData[eyeField]?.toString() || ""
+        const val = latestData[eyeField]?.toString() || ""
         if (val) {
-          onKeratometerContactLensChange(eyeField, convertValue(val, unit))
+          onKeratometerContactLensChange(eyeField, convertKeratometerValue(val, nextUnit))
         }
       })
     })
@@ -75,16 +73,16 @@ export function KeratometerContactLensTab({
     {
       key: "rh",
       label: "RH",
-      step: "0.01",
-      min: unit === "mm" ? "3.0" : "40.00",
-      max: unit === "mm" ? "20.0" : "80.00"
+      step: getKeratometerStep(unit),
+      min: radiusRange.min,
+      max: radiusRange.max
     },
     {
       key: "rv",
       label: "RV",
-      step: "0.01",
-      min: unit === "mm" ? "3.0" : "40.00",
-      max: unit === "mm" ? "20.0" : "80.00"
+      step: getKeratometerStep(unit),
+      min: radiusRange.min,
+      max: radiusRange.max
     },
     { key: "avg", label: "AVG", step: "0.01" },
     { key: "cyl", label: "CYL", step: "0.01" },

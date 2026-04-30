@@ -32,7 +32,7 @@ export function OldContactLensesTab({ data, onChange, isEditing, hideEyeLabels =
   const dataRef = useRef(data);
   dataRef.current = data;
 
-  const { handleManualTranspose } = usePrescriptionLogic(
+  const { handleManualTranspose, getPowerWarningMessage } = usePrescriptionLogic(
     data,
     onChange,
     isEditing
@@ -136,6 +136,8 @@ export function OldContactLensesTab({ data, onChange, isEditing, hideEyeLabels =
                       isEditing={isEditing}
                       onValueChange={handleAxisChange}
                       onBlur={(eye, field, val) => handleAxisBlur(eye, field, val, (colProps as any).min, (colProps as any).max)}
+                      aria-invalid={key === "cyl" && getPowerWarningMessage("R") ? true : undefined}
+                    warningMessage={key === "cyl" ? getPowerWarningMessage("R") : null}
                       className={isEditing ? 'bg-white' : 'bg-accent/50'}
                     />
                   ) : key === "sph" ? (
@@ -151,6 +153,8 @@ export function OldContactLensesTab({ data, onChange, isEditing, hideEyeLabels =
                         max: (colProps as any).max,
                         showPlus: (colProps as any).showPlus,
                         suffix: (colProps as any).suffix,
+                        "aria-invalid": getPowerWarningMessage("R") ? true : undefined,
+                      warningMessage: getPowerWarningMessage("R"),
                         className: `h-8 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`
                       }}
                     />
@@ -242,6 +246,8 @@ export function OldContactLensesTab({ data, onChange, isEditing, hideEyeLabels =
                       isEditing={isEditing}
                       onValueChange={handleAxisChange}
                       onBlur={(eye, field, val) => handleAxisBlur(eye, field, val, (colProps as any).min, (colProps as any).max)}
+                      aria-invalid={key === "cyl" && getPowerWarningMessage("L") ? true : undefined}
+                    warningMessage={key === "cyl" ? getPowerWarningMessage("L") : null}
                       className={isEditing ? 'bg-white' : 'bg-accent/50'}
                     />
                   ) : key === "sph" ? (
@@ -257,6 +263,8 @@ export function OldContactLensesTab({ data, onChange, isEditing, hideEyeLabels =
                         max: (colProps as any).max,
                         showPlus: (colProps as any).showPlus,
                         suffix: (colProps as any).suffix,
+                        "aria-invalid": getPowerWarningMessage("L") ? true : undefined,
+                      warningMessage: getPowerWarningMessage("L"),
                         className: `h-8 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`
                       }}
                     />

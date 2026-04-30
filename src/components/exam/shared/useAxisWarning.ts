@@ -44,8 +44,8 @@ export function useAxisWarning<T>(
 
     // Logic 1: Has Cyl but missing Axis
     const missingAxis = !!(cyl && cyl !== "0" && cyl !== "0.00" && !ax);
-    // Logic 2: Has Axis but missing Cyl
-    const missingCyl = !!(ax && ax !== "0" && (!cyl || cyl === "0" || cyl === "0.00"));
+    // Logic 2: Has Axis but Cyl is empty. Zero cylinder is a valid entered value.
+    const missingCyl = !!(ax && ax !== "0" && !cyl);
 
     return { missingAxis, missingCyl };
   }, [fieldMapping]);

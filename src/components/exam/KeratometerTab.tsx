@@ -4,6 +4,7 @@ import { ChevronUp, ChevronDown } from "lucide-react"
 import { KeratometerExam } from "@/lib/db/schema-interface"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { FastInput, inputSyncManager } from "./shared/OptimizedInputs"
+import { convertKeratometerValue, getKeratometerRange, getKeratometerStep, KeratometerUnit } from "@/utils/keratometer-utils"
 
 interface KeratometerTabProps {
   keratometerData: KeratometerExam
@@ -21,27 +22,24 @@ export function KeratometerTab({
   needsMiddleSpacer = false
 }: KeratometerTabProps) {
   const [hoveredEye, setHoveredEye] = useState<"R" | "L" | null>(null)
-  const [unit, setUnit] = useState<"mm" | "D">("mm") // mm or Diopter
+  const [unit, setUnit] = useState<KeratometerUnit>("mm")
 
   const dataRef = useRef(keratometerData);
   dataRef.current = keratometerData;
+  const kRange = getKeratometerRange(unit);
 
   const columns = [
-    { key: "k1", label: "K1", step: "0.1", min: unit === "mm" ? "3.0" : "40.00", max: unit === "mm" ? "20.0" : "80.00" },
-    { key: "k2", label: "K2", labelHe: "K2", step: "0.1", min: unit === "mm" ? "3.0" : "40.00", max: unit === "mm" ? "20.0" : "80.00" },
+    { key: "k1", label: "K1", step: getKeratometerStep(unit), min: kRange.min, max: kRange.max },
+    { key: "k2", label: "K2", labelHe: "K2", step: getKeratometerStep(unit), min: kRange.min, max: kRange.max },
     { key: "axis", label: "AX", labelHe: "אקסיס", step: "1", min: "0", max: "180" }
   ]
 
-  const convertValue = (val: string, from: "mm" | "D") => {
-    const num = parseFloat(val)
-    if (isNaN(num)) return ""
-    const result = 337.5 / num
-    return result.toFixed(2)
-  }
-
   const handleUnitChange = (newUnit: string) => {
-    const nextUnit = newUnit as "mm" | "D"
+    const nextUnit = newUnit as KeratometerUnit
     if (nextUnit === unit) return
+
+    inputSyncManager.flush()
+    const latestData = dataRef.current
 
     // Convert current values
     const kFields = ["k1", "k2"]
@@ -50,9 +48,9 @@ export function KeratometerTab({
     eyes.forEach(eye => {
       kFields.forEach(field => {
         const eyeField = `${eye}_${field}` as keyof KeratometerExam
-        const val = keratometerData[eyeField]?.toString() || ""
+        const val = latestData[eyeField]?.toString() || ""
         if (val) {
-          onKeratometerChange(eyeField, convertValue(val, unit))
+          onKeratometerChange(eyeField, convertKeratometerValue(val, nextUnit))
         }
       })
     })

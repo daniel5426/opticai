@@ -39,7 +39,7 @@ export function ObjectiveTab({
   const dataRef = useRef(objectiveData);
   dataRef.current = objectiveData;
 
-  const { handleManualTranspose } = usePrescriptionLogic(
+  const { handleManualTranspose, getPowerWarningMessage } = usePrescriptionLogic(
     objectiveData,
     onObjectiveChange,
     isEditing
@@ -136,6 +136,8 @@ export function ObjectiveTab({
                     value={getFieldValue("R", key)}
                     missingAxis={eyeWarnings.missingAxis}
                     missingCyl={eyeWarnings.missingCyl}
+                    aria-invalid={key === "cyl" && getPowerWarningMessage("R") ? true : undefined}
+                    warningMessage={key === "cyl" ? getPowerWarningMessage("R") : null}
                     isEditing={isEditing}
                     onValueChange={(eye, field, val) => handleChange(eye, field, val)}
                     onBlur={(eye, field, val) => handleAxisBlur(eye, field, val, (inputProps as any).min, (inputProps as any).max)}
@@ -158,6 +160,8 @@ export function ObjectiveTab({
                       max: (inputProps as any).max,
                       showPlus: (inputProps as any).showPlus,
                       suffix: (inputProps as any).suffix,
+                      "aria-invalid": getPowerWarningMessage("R") ? true : undefined,
+                      warningMessage: getPowerWarningMessage("R"),
                       debounceMs: key === "sph" || key === "cyl" ? 0 : undefined,
                       className: `h-8 pr-1 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`
                     }}
@@ -210,6 +214,8 @@ export function ObjectiveTab({
                     value={getFieldValue("L", key)}
                     missingAxis={eyeWarnings.missingAxis}
                     missingCyl={eyeWarnings.missingCyl}
+                    aria-invalid={key === "cyl" && getPowerWarningMessage("L") ? true : undefined}
+                    warningMessage={key === "cyl" ? getPowerWarningMessage("L") : null}
                     isEditing={isEditing}
                     onValueChange={(eye, field, val) => handleChange(eye, field, val)}
                     onBlur={(eye, field, val) => handleAxisBlur(eye, field, val, (inputProps as any).min, (inputProps as any).max)}
@@ -232,6 +238,8 @@ export function ObjectiveTab({
                       max: (inputProps as any).max,
                       showPlus: (inputProps as any).showPlus,
                       suffix: (inputProps as any).suffix,
+                      "aria-invalid": getPowerWarningMessage("L") ? true : undefined,
+                      warningMessage: getPowerWarningMessage("L"),
                       debounceMs: key === "sph" || key === "cyl" ? 0 : undefined,
                       className: `h-8 pr-1 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`
                     }}

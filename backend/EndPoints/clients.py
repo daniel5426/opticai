@@ -62,10 +62,22 @@ def get_clients_paginated(
 
     total = base.count()
 
-    if order == "id_asc":
-        base = base.order_by(Client.id.asc())
+    order_columns = {
+        "id": Client.id,
+        "first_name": Client.first_name,
+        "last_name": Client.last_name,
+        "gender": Client.gender,
+        "national_id": Client.national_id,
+        "phone_mobile": Client.phone_mobile,
+        "email": Client.email,
+        "family_role": Client.family_role,
+    }
+    order_key, _, order_direction = (order or "id_desc").rpartition("_")
+    order_column = order_columns.get(order_key, Client.id)
+    if order_direction == "asc":
+        base = base.order_by(order_column.asc().nulls_last(), Client.id.asc())
     else:
-        base = base.order_by(Client.id.desc())
+        base = base.order_by(order_column.desc().nulls_last(), Client.id.desc())
 
     rows = base.offset(offset).limit(limit).all()
     items = [

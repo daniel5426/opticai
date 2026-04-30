@@ -18,6 +18,8 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { ROLE_LEVELS, getRoleBadgeVariant, getRoleLabel, isRoleAtLeast } from "@/lib/role-levels"
 import { TableFiltersBar } from "@/components/table-filters-bar"
 import { ALL_FILTER_VALUE, USER_CLINIC_SCOPE_OPTIONS, USER_ROLE_FILTER_OPTIONS } from "@/lib/table-filters"
+import { SortableTableHead } from "@/components/sortable-table-head"
+import { SortColumns, SortState, sortRows } from "@/lib/table-sorting"
 
 interface UserWithClinic extends User {
   clinic_name?: string;
@@ -43,6 +45,8 @@ interface UsersTableProps {
   onRoleFilterChange?: (value: string) => void
   clinicScopeFilter?: string
   onClinicScopeFilterChange?: (value: string) => void
+  sort?: SortState
+  onSortChange?: (sort: SortState) => void
 }
 
 export function UsersTable({ 
@@ -65,9 +69,12 @@ export function UsersTable({
   onRoleFilterChange,
   clinicScopeFilter: externalClinicScopeFilter,
   onClinicScopeFilterChange,
+  sort,
+  onSortChange,
 }: UsersTableProps) {
   const [internalSearchQuery, setInternalSearchQuery] = React.useState("")
   const [selectedRole, setSelectedRole] = React.useState<string>(ALL_FILTER_VALUE)
+  const [localSort, setLocalSort] = React.useState<SortState | undefined>()
   const [isDeleteModalOpen, setIsDeleteModalOpen] = React.useState(false)
   const [userToDelete, setUserToDelete] = React.useState<User | null>(null)
   const [clinicScope, setClinicScope] = React.useState<string>(ALL_FILTER_VALUE)
@@ -75,6 +82,18 @@ export function UsersTable({
   const searchQuery = externalSearchQuery !== undefined ? externalSearchQuery : internalSearchQuery
   const roleFilter = externalRoleFilter ?? selectedRole
   const clinicScopeFilter = externalClinicScopeFilter ?? clinicScope
+  const activeSort = sort ?? localSort
+  const handleSortChange = onSortChange ?? setLocalSort
+
+  const sortColumns = React.useMemo<SortColumns<UserWithClinic>>(() => ({
+    id: { getValue: (user) => user.id, type: "number" },
+    name: { getValue: (user) => user.full_name || user.username },
+    role: { getValue: (user) => user.role_level, type: "number" },
+    email: { getValue: (user) => user.email },
+    phone: { getValue: (user) => user.phone },
+    clinic: { getValue: (user) => user.clinic_name || "גלובלי" },
+    status: { getValue: (user) => user.is_active, type: "boolean" },
+  }), [])
 
   const handleSearchChange = (value: string) => {
     if (onSearchChange) {
@@ -120,6 +139,10 @@ export function UsersTable({
     }
     return result
   }, [clinicScopeFilter, currentClinicId, data, roleFilter, searchQuery])
+
+  const displayData = React.useMemo(() => {
+    return onSortChange ? filteredData : sortRows(filteredData, activeSort, sortColumns)
+  }, [activeSort, filteredData, onSortChange, sortColumns])
 
   const handleDeleteClick = (user: UserWithClinic) => {
     const ceoCount = data.filter(u => isRoleAtLeast(u.role_level, ROLE_LEVELS.ceo)).length
@@ -231,13 +254,13 @@ export function UsersTable({
         <Table dir="rtl" containerClassName="max-h-[70vh] overflow-y-auto overscroll-contain" containerStyle={{ scrollbarWidth: 'none' }}>
           <TableHeader className="sticky top-0  bg-card">
             <TableRow>
-              <TableHead className="text-right">מס' משתמש</TableHead>
-              <TableHead className="text-right">שם מלא</TableHead>
-              <TableHead className="text-right">תפקיד</TableHead>
-              <TableHead className="text-right">אימייל</TableHead>
-              <TableHead className="text-right">טלפון</TableHead>
-              <TableHead className="text-right">מרפאה</TableHead>
-              <TableHead className="text-right">סטטוס</TableHead>
+              <SortableTableHead sortKey="id" sort={activeSort} onSortChange={handleSortChange} className="text-right">מס' משתמש</SortableTableHead>
+              <SortableTableHead sortKey="name" sort={activeSort} onSortChange={handleSortChange} className="text-right">שם מלא</SortableTableHead>
+              <SortableTableHead sortKey="role" sort={activeSort} onSortChange={handleSortChange} className="text-right">תפקיד</SortableTableHead>
+              <SortableTableHead sortKey="email" sort={activeSort} onSortChange={handleSortChange} className="text-right">אימייל</SortableTableHead>
+              <SortableTableHead sortKey="phone" sort={activeSort} onSortChange={handleSortChange} className="text-right">טלפון</SortableTableHead>
+              <SortableTableHead sortKey="clinic" sort={activeSort} onSortChange={handleSortChange} className="text-right">מרפאה</SortableTableHead>
+              <SortableTableHead sortKey="status" sort={activeSort} onSortChange={handleSortChange} className="text-right">סטטוס</SortableTableHead>
               <TableHead className="w-[100px] text-right">פעולות</TableHead>
             </TableRow>
           </TableHeader>
@@ -271,8 +294,8 @@ export function UsersTable({
                   </TableCell>
                 </TableRow>
               ))
-            ) : filteredData.length > 0 ? (
-              filteredData.map((user) => (
+            ) : displayData.length > 0 ? (
+              displayData.map((user) => (
                 <TableRow key={user.id}>
                   <TableCell className="font-medium">{user.id}</TableCell>
                   <TableCell>{user.full_name || user.username || ""}</TableCell>

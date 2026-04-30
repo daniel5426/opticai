@@ -7,6 +7,7 @@ import { ReferralTable } from "@/components/referral-table"
 import { useUser } from "@/contexts/UserContext"
 import { ALL_FILTER_VALUE } from "@/lib/table-filters"
 import { buildTableSearch } from "@/lib/list-page-search"
+import { parseSortSearch, sortToOrder, sortToSearch } from "@/lib/table-sorting"
 
 export default function AllReferralsPage() {
   const { currentClinic } = useUser()
@@ -17,18 +18,23 @@ export default function AllReferralsPage() {
   const [pageSize] = useState(25)
   const [total, setTotal] = useState(0)
   const [searchInput, setSearchInput] = useState(search.q)
+  const activeSort = React.useMemo(
+    () => parseSortSearch(search.sort, { key: "date", direction: "desc" }),
+    [search.sort],
+  )
 
   useEffect(() => {
     setSearchInput(search.q)
   }, [search.q])
 
-  const buildSearchState = (overrides?: Partial<{ q: string; page: number; urgency: string; referralType: string }>) =>
+  const buildSearchState = (overrides?: Partial<{ q: string; page: number; urgency: string; referralType: string; sort: string }>) =>
     buildTableSearch(
       {
         q: searchInput.trim(),
         page: search.page,
         urgency: search.urgency,
         referralType: search.referralType,
+        sort: search.sort,
         ...overrides,
       },
       {
@@ -36,6 +42,7 @@ export default function AllReferralsPage() {
         page: 1,
         urgency: ALL_FILTER_VALUE,
         referralType: ALL_FILTER_VALUE,
+        sort: "",
       },
     )
 
@@ -57,7 +64,7 @@ export default function AllReferralsPage() {
       const { items, total } = await getPaginatedReferrals(currentClinic?.id, {
         limit: pageSize,
         offset,
-        order: 'date_desc',
+        order: sortToOrder(activeSort, "date_desc"),
         q: search.q || undefined,
         urgencyLevel: search.urgency !== ALL_FILTER_VALUE ? search.urgency : undefined,
         referralType: search.referralType !== ALL_FILTER_VALUE ? search.referralType : undefined,
@@ -75,7 +82,7 @@ export default function AllReferralsPage() {
     if (currentClinic) {
       loadData()
     }
-  }, [currentClinic, pageSize, search.page, search.q, search.referralType, search.urgency])
+  }, [activeSort, currentClinic, pageSize, search.page, search.q, search.referralType, search.urgency])
 
   const handleReferralDeleted = (deletedReferralId: number) => {
     setReferrals(prevReferrals => prevReferrals.filter(referral => referral.id !== deletedReferralId))
@@ -121,6 +128,13 @@ export default function AllReferralsPage() {
             navigate({
               to: "/referrals",
               search: buildSearchState({ referralType: value, page: 1 }),
+            })
+          }
+          sort={activeSort}
+          onSortChange={(sort) =>
+            navigate({
+              to: "/referrals",
+              search: buildSearchState({ sort: sortToSearch(sort), page: 1 }),
             })
           }
           pagination={{

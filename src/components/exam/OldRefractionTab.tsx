@@ -79,7 +79,7 @@ export const OldRefractionTab = React.memo(function OldRefractionTab({
   const dataRef = useRef(oldRefractionData);
   dataRef.current = oldRefractionData;
 
-  const { handleManualTranspose } = usePrescriptionLogic(
+  const { handleManualTranspose, getPowerWarningMessage } = usePrescriptionLogic(
     oldRefractionData,
     onOldRefractionChange,
     isEditing,
@@ -202,6 +202,8 @@ export const OldRefractionTab = React.memo(function OldRefractionTab({
               (inputProps as any).max,
             )
           }
+          aria-invalid={key === "cyl" && getPowerWarningMessage(eye) ? true : undefined}
+          warningMessage={key === "cyl" ? getPowerWarningMessage(eye) : null}
         />
       );
     }
@@ -221,6 +223,8 @@ export const OldRefractionTab = React.memo(function OldRefractionTab({
             showPlus: (inputProps as any).showPlus,
             suffix: (inputProps as any).suffix,
             debounceMs: 0,
+            "aria-invalid": getPowerWarningMessage(eye) ? true : undefined,
+            warningMessage: getPowerWarningMessage(eye),
             className:
               "h-8 text-xs disabled:opacity-100 disabled:cursor-default",
           }}

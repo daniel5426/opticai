@@ -22,8 +22,8 @@ import {
   ADDITION_ADD_TYPE_LABELS,
   ADDITION_ADD_TYPES,
   normalizeAdditionAddType,
-  type AdditionAddType,
 } from "@/lib/addition-add-sources";
+import { getPrescriptionPowerWarningMessage } from "@/utils/optometry-utils";
 
 interface OrderFinalPrescriptionTabProps {
   finalPrescriptionData: FinalPrescriptionExam;
@@ -33,7 +33,6 @@ interface OrderFinalPrescriptionTabProps {
   ) => void;
   isEditing: boolean;
   hideEyeLabels?: boolean;
-  addTypeOptions?: AdditionAddType[];
 }
 
 export function OrderFinalPrescriptionTab({
@@ -41,14 +40,10 @@ export function OrderFinalPrescriptionTab({
   onFinalPrescriptionChange,
   isEditing,
   hideEyeLabels = false,
-  addTypeOptions,
 }: OrderFinalPrescriptionTabProps) {
   const [hoveredEye, setHoveredEye] = useState<"R" | "L" | null>(null);
   const selectedAddType = normalizeAdditionAddType(finalPrescriptionData.add_type) || "";
-  const visibleAddTypeOptions =
-    addTypeOptions && addTypeOptions.length > 0
-      ? addTypeOptions
-      : [...ADDITION_ADD_TYPES];
+  const visibleAddTypeOptions = [...ADDITION_ADD_TYPES];
 
   const { fieldWarnings, handleAxisChange, handleAxisBlur } = useAxisWarning(
     finalPrescriptionData,
@@ -67,6 +62,8 @@ export function OrderFinalPrescriptionTab({
     finalPrescriptionData,
     onFinalPrescriptionChange,
     isEditing,
+    undefined,
+    { autoTransposeOnEdit: false },
   );
 
   const columns = [
@@ -137,10 +134,21 @@ export function OrderFinalPrescriptionTab({
     copyEyeRowFields(dataRef.current, onFinalPrescriptionChange, fromEye);
   };
 
+  const getPrescriptionWarningMessage = (eye: "R" | "L") => {
+    return getPrescriptionPowerWarningMessage(
+      getFieldValue(eye, "sph"),
+      getFieldValue(eye, "cyl"),
+    );
+  };
+
   const renderInput = (eye: "R" | "L", col: (typeof columns)[number]) => {
     const { key, step, ...colProps } = col;
     const type = (col as any).type as string | undefined;
     const options = (col as any).options as readonly string[] | undefined;
+    const prescriptionWarningMessage =
+      key === "sph" || key === "cyl" ? getPrescriptionWarningMessage(eye) : null;
+    const prescriptionAriaInvalid = prescriptionWarningMessage ? true : undefined;
+
     switch (type) {
       case "select":
         return (
@@ -165,6 +173,8 @@ export function OrderFinalPrescriptionTab({
               value={getFieldValue(eye, key)}
               missingAxis={fieldWarnings[eye].missingAxis}
               missingCyl={fieldWarnings[eye].missingCyl}
+              aria-invalid={key === "cyl" ? prescriptionAriaInvalid : undefined}
+              warningMessage={key === "cyl" ? prescriptionWarningMessage : null}
               isEditing={isEditing}
               onValueChange={handleAxisChange}
               onBlur={(eye, field, val) =>
@@ -188,6 +198,9 @@ export function OrderFinalPrescriptionTab({
                 max: colProps.max,
                 showPlus: colProps.showPlus,
                 suffix: colProps.suffix,
+                debounceMs: 0,
+                "aria-invalid": prescriptionAriaInvalid,
+                warningMessage: prescriptionWarningMessage,
                 className: `h-8 text-xs ${isEditing ? "bg-white" : "bg-accent/50"} disabled:opacity-100 disabled:cursor-default`,
               }}
             />

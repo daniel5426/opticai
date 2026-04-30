@@ -15,6 +15,8 @@ import { CustomModal } from "@/components/ui/custom-modal"
 import { deleteFamily } from "@/lib/db/family-db"
 import { toast } from "sonner"
 import { Skeleton } from "@/components/ui/skeleton"
+import { SortableTableHead } from "@/components/sortable-table-head"
+import { SortColumns, SortState, sortRows } from "@/lib/table-sorting"
 
 interface FamiliesTableProps {
   data: Family[]
@@ -30,6 +32,8 @@ interface FamiliesTableProps {
   pagination?: { page: number; pageSize: number; total: number; setPage: (p: number) => void }
   companyId?: number
   currentClinicId?: number
+  sort?: SortState
+  onSortChange?: (sort: SortState) => void
 }
 
 export function FamiliesTable({ 
@@ -45,9 +49,12 @@ export function FamiliesTable({
   loading = false,
   pagination,
   companyId,
-  currentClinicId
+  currentClinicId,
+  sort,
+  onSortChange,
 }: FamiliesTableProps) {
   const [internalSearchQuery, setInternalSearchQuery] = React.useState("")
+  const [localSort, setLocalSort] = React.useState<SortState | undefined>()
   const [isDeleteModalOpen, setIsDeleteModalOpen] = React.useState(false)
   const [familyToDelete, setFamilyToDelete] = React.useState<Family | null>(null)
   const [memberCounts, setMemberCounts] = React.useState<Record<number, number>>({})
@@ -55,6 +62,14 @@ export function FamiliesTable({
 
   const searchQuery = externalSearchQuery !== undefined ? externalSearchQuery : internalSearchQuery
   const isExternalSearch = externalSearchQuery !== undefined
+  const activeSort = sort ?? localSort
+  const handleSortChange = onSortChange ?? setLocalSort
+
+  const sortColumns = React.useMemo<SortColumns<Family>>(() => ({
+    name: { getValue: (family) => family.name },
+    member_count: { getValue: (family) => memberCounts[family.id!] || 0, type: "number" },
+    created_date: { getValue: (family) => family.created_date, type: "date" },
+  }), [memberCounts])
 
   // Effect to notify parent about filter change if needed, or handle locally if data is all-loaded
   // But here 'data' is passed from parent. Parent normally handles fetching? 
@@ -80,6 +95,10 @@ export function FamiliesTable({
     }
     return result
   }, [data, searchQuery, isExternalSearch, showCurrentClinicOnly, currentClinicId])
+
+  const displayData = React.useMemo(() => {
+    return onSortChange ? filteredData : sortRows(filteredData, activeSort, sortColumns)
+  }, [activeSort, filteredData, onSortChange, sortColumns])
 
   const handleSearchChange = (value: string) => {
     if (onSearchChange) {
@@ -157,9 +176,9 @@ export function FamiliesTable({
         <Table dir="rtl" containerClassName="max-h-[70vh] overflow-y-auto overscroll-contain" containerStyle={{ scrollbarWidth: 'none' }}>
           <TableHeader className="sticky top-0 bg-card">
             <TableRow>
-              <TableHead className="text-right">שם המשפחה</TableHead>
-              <TableHead className="text-right">מספר חברים</TableHead>
-              <TableHead className="text-right">נוצר בתאריך</TableHead>
+              <SortableTableHead sortKey="name" sort={activeSort} onSortChange={handleSortChange} className="text-right">שם המשפחה</SortableTableHead>
+              <SortableTableHead sortKey="member_count" sort={activeSort} onSortChange={handleSortChange} className="text-right">מספר חברים</SortableTableHead>
+              <SortableTableHead sortKey="created_date" sort={activeSort} onSortChange={handleSortChange} className="text-right">נוצר בתאריך</SortableTableHead>
               <TableHead className="w-[100px] text-right">פעולות</TableHead>
             </TableRow>
           </TableHeader>
@@ -181,8 +200,8 @@ export function FamiliesTable({
                   </TableCell>
                 </TableRow>
               ))
-            ) : filteredData.length > 0 ? (
-              filteredData.map((family) => (
+            ) : displayData.length > 0 ? (
+              displayData.map((family) => (
                 <TableRow
                   key={family.id}
                   className={`cursor-pointer hover:bg-muted/50 ${
@@ -284,4 +303,4 @@ export function FamiliesTable({
       />
     </div>
   )
-} 
+}

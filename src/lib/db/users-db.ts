@@ -22,7 +22,7 @@ export async function getPaginatedUsers(
   options?: {
     limit?: number
     offset?: number
-    order?: 'id_desc' | 'id_asc' | 'username_asc' | 'username_desc' | 'role_asc' | 'role_desc'
+    order?: string
     q?: string
     roleLevel?: number
     clinic_id?: number

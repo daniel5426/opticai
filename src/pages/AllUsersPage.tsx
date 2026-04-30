@@ -9,6 +9,7 @@ import { useUser } from "@/contexts/UserContext"
 import { ROLE_LEVELS, isRoleAtLeast } from '@/lib/role-levels'
 import { ALL_FILTER_VALUE } from "@/lib/table-filters"
 import { buildTableSearch } from "@/lib/list-page-search"
+import { parseSortSearch, sortToOrder, sortToSearch } from "@/lib/table-sorting"
 
 interface UserWithClinic extends User {
   clinic_name?: string;
@@ -25,13 +26,17 @@ export default function AllUsersPage() {
   const [isUserModalOpen, setIsUserModalOpen] = useState(false)
   const [editingUser, setEditingUser] = useState<UserWithClinic | null>(null)
   const [searchInput, setSearchInput] = useState(search.q)
+  const activeSort = React.useMemo(
+    () => parseSortSearch(search.sort, { key: "id", direction: "desc" }),
+    [search.sort],
+  )
 
   useEffect(() => {
     setSearchInput(search.q)
   }, [search.q])
 
   const buildSearchState = (
-    overrides?: Partial<{ q: string; page: number; role: string; clinicScope: string }>
+    overrides?: Partial<{ q: string; page: number; role: string; clinicScope: string; sort: string }>
   ) =>
     buildTableSearch(
       {
@@ -39,6 +44,7 @@ export default function AllUsersPage() {
         page: search.page,
         role: search.role,
         clinicScope: search.clinicScope,
+        sort: search.sort,
         ...overrides,
       },
       {
@@ -46,6 +52,7 @@ export default function AllUsersPage() {
         page: 1,
         role: ALL_FILTER_VALUE,
         clinicScope: ALL_FILTER_VALUE,
+        sort: "",
       },
     )
 
@@ -67,7 +74,7 @@ export default function AllUsersPage() {
       const { items, total } = await getPaginatedUsers({
         limit: pageSize,
         offset,
-        order: 'id_desc',
+        order: sortToOrder(activeSort, "id_desc"),
         q: search.q || undefined,
         roleLevel: search.role !== ALL_FILTER_VALUE ? Number(search.role) : undefined,
         clinic_id:
@@ -86,7 +93,7 @@ export default function AllUsersPage() {
 
   useEffect(() => {
     loadUsers()
-  }, [currentClinic?.id, pageSize, search.clinicScope, search.page, search.q, search.role])
+  }, [activeSort, currentClinic?.id, pageSize, search.clinicScope, search.page, search.q, search.role])
 
   const handleUserDeleted = (userId: number) => {
     setUsers(prevUsers => prevUsers.filter(user => user.id !== userId))
@@ -184,6 +191,13 @@ export default function AllUsersPage() {
                 navigate({
                   to: "/users",
                   search: buildSearchState({ clinicScope: value, page: 1 }),
+                })
+              }
+              sort={activeSort}
+              onSortChange={(sort) =>
+                navigate({
+                  to: "/users",
+                  search: buildSearchState({ sort: sortToSearch(sort), page: 1 }),
                 })
               }
               companyId={currentUser?.company_id}

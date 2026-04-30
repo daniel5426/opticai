@@ -29,6 +29,8 @@ import { Eye } from "lucide-react";
 import { ExamPreviewModal } from "@/components/exam/ExamPreviewModal";
 import { TableFiltersBar } from "@/components/table-filters-bar";
 import { ALL_FILTER_VALUE } from "@/lib/table-filters";
+import { SortableTableHead } from "@/components/sortable-table-head";
+import { SortColumns, SortState, sortRows } from "@/lib/table-sorting";
 
 interface ExamWithNames extends OpticalExam {
   username?: string;
@@ -53,6 +55,8 @@ interface ExamsTableProps {
   onSearchChange?: (q: string) => void;
   testNameFilter?: string;
   onTestNameFilterChange?: (value: string) => void;
+  sort?: SortState;
+  onSortChange?: (sort: SortState) => void;
 }
 
 function filterActiveLayouts(layouts: ExamLayout[]): ExamLayout[] {
@@ -82,8 +86,11 @@ export function ExamsTable({
   onSearchChange,
   testNameFilter: externalTestNameFilter,
   onTestNameFilterChange,
+  sort,
+  onSortChange,
 }: ExamsTableProps) {
   const [searchQuery, setSearchQuery] = useState("");
+  const [localSort, setLocalSort] = useState<SortState | undefined>();
   const searchValue =
     externalSearch !== undefined ? externalSearch : searchQuery;
   const navigate = useNavigate();
@@ -97,6 +104,16 @@ export function ExamsTable({
   const [selectedTestName, setSelectedTestName] =
     useState<string>(ALL_FILTER_VALUE);
   const testNameFilter = externalTestNameFilter ?? selectedTestName;
+  const activeSort = sort ?? localSort;
+  const handleSortChange = onSortChange ?? setLocalSort;
+
+  const sortColumns = React.useMemo<SortColumns<ExamWithNames>>(() => ({
+    exam_date: { getValue: (exam) => exam.exam_date, type: "date" },
+    test_name: { getValue: (exam) => exam.test_name },
+    client: { getValue: (exam) => exam.clientName },
+    clinic: { getValue: (exam) => exam.clinic },
+    examiner: { getValue: (exam) => exam.full_name || exam.username },
+  }), []);
 
   useEffect(() => {
     const fetchActiveLayouts = async () => {
@@ -150,6 +167,10 @@ export function ExamsTable({
       return DateSearchHelper.matchesDate(searchLower, exam.exam_date);
     });
   }, [data, searchValue, testNameFilter]);
+
+  const displayData = React.useMemo(() => {
+    return onSortChange ? filteredData : sortRows(filteredData, activeSort, sortColumns);
+  }, [activeSort, filteredData, onSortChange, sortColumns]);
 
   const uniqueTestNames = React.useMemo(() => {
     return Array.from(
@@ -276,13 +297,13 @@ export function ExamsTable({
         >
           <TableHeader className="bg-card sticky top-0 z-0">
             <TableRow>
-              <TableHead className="text-right">תאריך בדיקה</TableHead>
-              <TableHead className="text-right">סוג בדיקה</TableHead>
+              <SortableTableHead sortKey="exam_date" sort={activeSort} onSortChange={handleSortChange} className="text-right">תאריך בדיקה</SortableTableHead>
+              <SortableTableHead sortKey="test_name" sort={activeSort} onSortChange={handleSortChange} className="text-right">סוג בדיקה</SortableTableHead>
               {clientId === 0 && (
-                <TableHead className="text-right">לקוח</TableHead>
+                <SortableTableHead sortKey="client" sort={activeSort} onSortChange={handleSortChange} className="text-right">לקוח</SortableTableHead>
               )}
-              <TableHead className="text-right">סניף</TableHead>
-              <TableHead className="text-right">בודק</TableHead>
+              <SortableTableHead sortKey="clinic" sort={activeSort} onSortChange={handleSortChange} className="text-right">סניף</SortableTableHead>
+              <SortableTableHead sortKey="examiner" sort={activeSort} onSortChange={handleSortChange} className="text-right">בודק</SortableTableHead>
               <TableHead className="w-[50px] text-right"></TableHead>
             </TableRow>
           </TableHeader>
@@ -307,8 +328,8 @@ export function ExamsTable({
                   </TableCell>
                 </TableRow>
               ))
-            ) : filteredData.length > 0 ? (
-              filteredData.map((exam) => (
+            ) : displayData.length > 0 ? (
+              displayData.map((exam) => (
                 <TableRow
                   key={exam.id}
                   className="cursor-pointer"
@@ -449,23 +470,23 @@ export function ExamsTable({
         onClose={() => setIsPreviewOpen(false)}
         examId={previewExamId}
         onNext={() => {
-          const index = filteredData.findIndex((e) => e.id === previewExamId);
-          if (index < filteredData.length - 1) {
-            setPreviewExamId(filteredData[index + 1].id || null);
+          const index = displayData.findIndex((e) => e.id === previewExamId);
+          if (index < displayData.length - 1) {
+            setPreviewExamId(displayData[index + 1].id || null);
           }
         }}
         onPrev={() => {
-          const index = filteredData.findIndex((e) => e.id === previewExamId);
+          const index = displayData.findIndex((e) => e.id === previewExamId);
           if (index > 0) {
-            setPreviewExamId(filteredData[index - 1].id || null);
+            setPreviewExamId(displayData[index - 1].id || null);
           }
         }}
         hasNext={(() => {
-          const index = filteredData.findIndex((e) => e.id === previewExamId);
-          return index !== -1 && index < filteredData.length - 1;
+          const index = displayData.findIndex((e) => e.id === previewExamId);
+          return index !== -1 && index < displayData.length - 1;
         })()}
         hasPrev={(() => {
-          const index = filteredData.findIndex((e) => e.id === previewExamId);
+          const index = displayData.findIndex((e) => e.id === previewExamId);
           return index > 0;
         })()}
       />

@@ -41,7 +41,7 @@ export function CompactPrescriptionTab({
   const dataRef = useRef(data);
   dataRef.current = data;
 
-  const { handleManualTranspose } = usePrescriptionLogic(
+  const { handleManualTranspose, getPowerWarningMessage } = usePrescriptionLogic(
     data,
     onChange,
     isEditing
@@ -126,6 +126,8 @@ export function CompactPrescriptionTab({
               value={getFieldValue(eye as "R" | "L", key)}
               missingAxis={fieldWarnings[eye as "R" | "L"].missingAxis}
               missingCyl={fieldWarnings[eye as "R" | "L"].missingCyl}
+              aria-invalid={key === "cyl" && getPowerWarningMessage(eye) ? true : undefined}
+          warningMessage={key === "cyl" ? getPowerWarningMessage(eye) : null}
               isEditing={isEditing}
               onValueChange={handleAxisChange}
               onBlur={(eye, field, val) => handleAxisBlur(eye, field, val, colProps.min, colProps.max)}
@@ -147,6 +149,8 @@ export function CompactPrescriptionTab({
                 max: colProps.max,
                 showPlus: colProps.showPlus,
                 suffix: colProps.suffix,
+                "aria-invalid": getPowerWarningMessage(eye) ? true : undefined,
+            warningMessage: getPowerWarningMessage(eye),
                 className: `h-8 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`
               }}
             />

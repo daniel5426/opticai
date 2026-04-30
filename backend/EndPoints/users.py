@@ -121,7 +121,7 @@ def get_users_paginated(
     db: Session = Depends(get_db),
     current_user: UserModel = Depends(get_current_user)
 ):
-    from sqlalchemy import or_, and_
+    from sqlalchemy import or_, and_, func
     
     if current_user.role_level >= CEO_LEVEL:
         # CEOs see only users in their company (including other CEOs)
@@ -186,19 +186,22 @@ def get_users_paginated(
     if role_level is not None:
         base = base.filter(User.role_level == role_level)
 
-    # Apply ordering
-    if order == "id_asc":
-        base = base.order_by(User.id.asc())
-    elif order == "username_asc":
-        base = base.order_by(User.username.asc())
-    elif order == "username_desc":
-        base = base.order_by(User.username.desc())
-    elif order == "role_asc":
-        base = base.order_by(User.role_level.asc())
-    elif order == "role_desc":
-        base = base.order_by(User.role_level.desc())
-    else:  # default to id_desc
-        base = base.order_by(User.id.desc())
+    order_columns = {
+        "id": User.id,
+        "name": func.coalesce(User.full_name, User.username),
+        "username": User.username,
+        "role": User.role_level,
+        "email": User.email,
+        "phone": User.phone,
+        "clinic": User.clinic_id,
+        "status": User.is_active,
+    }
+    order_key, _, order_direction = (order or "id_desc").rpartition("_")
+    order_column = order_columns.get(order_key, User.id)
+    if order_direction == "asc":
+        base = base.order_by(order_column.asc().nulls_last(), User.id.asc())
+    else:
+        base = base.order_by(order_column.desc().nulls_last(), User.id.desc())
     
     total = base.count()
     items = base.offset(offset).limit(limit).all()

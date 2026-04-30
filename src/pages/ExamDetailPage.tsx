@@ -1429,17 +1429,17 @@ export default function ExamDetailPage({
         isLoading={isAddingLayouts}
       />
         {exam?.id && (
-          <DropdownMenu dir="rtl">
+          <DropdownMenu dir="ltr">
             <DropdownMenuTrigger asChild>
               <Button variant="outline" className="h-9 px-4">
                 הזמנה
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
+            <DropdownMenuContent align="end" dir="rtl">
               {currentExamAddTypeOptions.length > 0 ? (
                 <DropdownMenuSub>
-                  <DropdownMenuSubTrigger>רגילה</DropdownMenuSubTrigger>
-                  <DropdownMenuSubContent>
+                  <DropdownMenuSubTrigger hideIcon>רגילה</DropdownMenuSubTrigger>
+                  <DropdownMenuSubContent side="right">
                     {currentExamAddTypeOptions.map((type) => (
                       <DropdownMenuItem
                         key={type}

@@ -23,7 +23,6 @@ import {
 import { useUser } from "@/contexts/UserContext";
 import { apiClient } from "@/lib/api-client";
 import { ORDER_STATUS_OPTIONS } from "@/lib/order-status";
-import { getAdditionAddTypeOptions } from "@/lib/addition-add-sources";
 
 type OrderLens = {
   order_id: number;
@@ -232,9 +231,6 @@ export default function RegularOrderTab({
   const { currentUser, currentClinic } = useUser();
   const activeLens = lensFrameTab?.lens || ({ order_id: 0 } as OrderLens);
   const activeFrame = lensFrameTab?.frame || ({ order_id: 0 } as Frame);
-  const addTypeOptions = getAdditionAddTypeOptions(
-    finalPrescriptionData.addition_add_sources || {},
-  );
   const lensRowsAreEqual = lensRowsMatch(activeLens);
   const isLensSplit =
     lensLayoutMode === "split" ||
@@ -565,7 +561,6 @@ export default function RegularOrderTab({
               }
               isEditing={isEditing}
               hideEyeLabels={false}
-              addTypeOptions={addTypeOptions}
             />
           </div>
         </div>

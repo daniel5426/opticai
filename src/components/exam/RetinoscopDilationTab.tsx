@@ -38,7 +38,7 @@ export function RetinoscopDilationTab({
   const dataRef = useRef(retinoscopDilationData);
   dataRef.current = retinoscopDilationData;
 
-  const { handleManualTranspose } = usePrescriptionLogic(
+  const { handleManualTranspose, getPowerWarningMessage } = usePrescriptionLogic(
     retinoscopDilationData,
     onRetinoscopDilationChange,
     isEditing
@@ -175,6 +175,8 @@ export function RetinoscopDilationTab({
                     isEditing={isEditing}
                     onValueChange={handleAxisChange}
                     onBlur={(eye, field, val) => handleAxisBlur(eye, field, val, (colProps as any).min, (colProps as any).max)}
+                    aria-invalid={key === "cyl" && getPowerWarningMessage("R") ? true : undefined}
+                    warningMessage={key === "cyl" ? getPowerWarningMessage("R") : null}
                     className={isEditing ? 'bg-white' : 'bg-accent/50'}
                   />
                 );
@@ -194,8 +196,9 @@ export function RetinoscopDilationTab({
                       max: colProps.max,
                       showPlus: colProps.showPlus,
                       suffix: colProps.suffix,
-                      debounceMs: key === "pd_far" || key === "pd_close" ? 0 : undefined,
-                      className: `h-8 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default ${key === 'reflex' ? 'col-span-1' : ''}`
+                      "aria-invalid": getPowerWarningMessage("R") ? true : undefined,
+                      warningMessage: getPowerWarningMessage("R"),
+                      className: `h-8 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`
                     }}
                   />
                 );
@@ -265,6 +268,8 @@ export function RetinoscopDilationTab({
                     isEditing={isEditing}
                     onValueChange={handleAxisChange}
                     onBlur={(eye, field, val) => handleAxisBlur(eye, field, val, (colProps as any).min, (colProps as any).max)}
+                    aria-invalid={key === "cyl" && getPowerWarningMessage("L") ? true : undefined}
+                    warningMessage={key === "cyl" ? getPowerWarningMessage("L") : null}
                     className={isEditing ? 'bg-white' : 'bg-accent/50'}
                   />
                 );
@@ -284,8 +289,9 @@ export function RetinoscopDilationTab({
                       max: colProps.max,
                       showPlus: colProps.showPlus,
                       suffix: colProps.suffix,
-                      debounceMs: key === "pd_far" || key === "pd_close" ? 0 : undefined,
-                      className: `h-8 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default ${key === 'reflex' ? 'col-span-1' : ''}`
+                      "aria-invalid": getPowerWarningMessage("L") ? true : undefined,
+                      warningMessage: getPowerWarningMessage("L"),
+                      className: `h-8 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`
                     }}
                   />
                 );

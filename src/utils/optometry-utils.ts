@@ -8,6 +8,59 @@ export interface Prescription {
   ax: string | number | undefined;
 }
 
+export const PRESCRIPTION_POWER_RANGE = {
+  min: -30,
+  max: 25,
+} as const;
+
+export const PRESCRIPTION_CYL_RANGE = {
+  min: -12,
+  max: 12,
+} as const;
+
+function parsePrescriptionNumber(value: string | number | undefined): number | null {
+  if (value === undefined || value === "" || value === null) return null;
+  const num = typeof value === "string" ? parseFloat(value.replace(/^\+/, "")) : value;
+  return Number.isFinite(num) ? num : null;
+}
+
+export function hasPrescriptionPowerWarning(
+  sphValue: string | number | undefined,
+  cylValue: string | number | undefined,
+  range: { min: number; max: number } = PRESCRIPTION_POWER_RANGE
+): boolean {
+  return getPrescriptionPowerWarningMessage(sphValue, cylValue, range) !== null;
+}
+
+export function getPrescriptionPowerWarningMessage(
+  sphValue: string | number | undefined,
+  cylValue: string | number | undefined,
+  range: { min: number; max: number } = PRESCRIPTION_POWER_RANGE,
+  cylRange: { min: number; max: number } = PRESCRIPTION_CYL_RANGE
+): string | null {
+  const sph = parsePrescriptionNumber(sphValue);
+  const cyl = parsePrescriptionNumber(cylValue);
+
+  if (sph === null) return null;
+
+  if (sph < range.min || sph > range.max) {
+    return `SPH is outside the allowed range (${range.min} to +${range.max}).`;
+  }
+
+  if (cyl === null) return null;
+
+  if (cyl < cylRange.min || cyl > cylRange.max) {
+    return `CYL is outside the allowed range (${cylRange.min} to +${cylRange.max}).`;
+  }
+
+  const crossMeridianPower = sph + cyl;
+  if (crossMeridianPower < range.min || crossMeridianPower > range.max) {
+    return `The second principal meridian (SPH + CYL = ${crossMeridianPower.toFixed(2)}) is outside the allowed range (${range.min} to +${range.max}).`;
+  }
+
+  return null;
+}
+
 /**
  * Detects if a cylinder value is minus or plus oriented.
  */

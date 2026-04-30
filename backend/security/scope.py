@@ -9,6 +9,7 @@ from models import (
     Client,
     Clinic,
     ContactLensOrder,
+    File,
     Order,
     OrderLineItem,
     User,
@@ -115,6 +116,14 @@ def get_scoped_client(db: Session, current_user: User, client_id: int) -> Client
         raise HTTPException(status_code=404, detail="Client not found")
     assert_clinic_scope(db, current_user, client.clinic_id)
     return client
+
+
+def get_scoped_file(db: Session, current_user: User, file_id: int) -> File:
+    file = db.query(File).filter(File.id == file_id).first()
+    if not file:
+        raise HTTPException(status_code=404, detail="File not found")
+    assert_clinic_scope(db, current_user, file.clinic_id)
+    return file
 
 
 def get_scoped_user(db: Session, current_user: User, user_id: int) -> User:

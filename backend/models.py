@@ -504,7 +504,9 @@ class File(Base):
     client_id = Column(Integer, ForeignKey("clients.id", ondelete="CASCADE"), nullable=False)
     clinic_id = Column(Integer, ForeignKey("clinics.id"))
     file_name = Column(String, nullable=False)
-    file_path = Column(String, nullable=False)
+    original_file_name = Column(String)
+    storage_bucket = Column(String)
+    storage_key = Column(String)
     file_size = Column(Integer)
     file_type = Column(String)
     upload_date = Column(DateTime(timezone=True), server_default=func.now())
@@ -769,6 +771,7 @@ Index('ix_contact_lens_orders_clinic_date', ContactLensOrder.clinic_id, ContactL
 Index('ix_files_clinic_id', File.clinic_id)
 Index('ix_files_client_id', File.client_id)
 Index('ix_files_clinic_upload_date', File.clinic_id, File.upload_date.desc())
+Index('ix_files_storage_key', File.storage_bucket, File.storage_key)
 
 # Indexes for appointments table
 Index('ix_appointments_clinic_id', Appointment.clinic_id)

@@ -25,6 +25,7 @@ export interface ExamComponentConfig {
   component: () => Promise<any>
   icon?: string
   order?: number
+  showInLayoutEditor?: boolean
   isRequired?: boolean
   validationRules?: Record<string, any>
 }
@@ -53,6 +54,13 @@ export class ExamComponentRegistry {
 
   getAllTypes(): ExamComponentType[] {
     return Array.from(this.components.keys())
+  }
+
+  getLayoutEditorTypes(): ExamComponentType[] {
+    return Array.from(this.components.entries())
+      .filter(([, config]) => config.showInLayoutEditor === true)
+      .sort(([, a], [, b]) => (a.order ?? 0) - (b.order ?? 0))
+      .map(([type]) => type)
   }
 
   createFieldChangeHandler<T>(
@@ -188,185 +196,216 @@ export const examComponentRegistry = new ExamComponentRegistry()
 examComponentRegistry.register('old-refraction', {
   name: 'רפרקציה ישנה',
   component: () => import('../components/exam/OldRefractionTab'),
-  order: 2
+  order: 2,
+  showInLayoutEditor: true
 })
 
 examComponentRegistry.register('objective', {
   name: 'אובייקטיבי',
   component: () => import('../components/exam/ObjectiveTab'),
-  order: 3
+  order: 3,
+  showInLayoutEditor: true
 })
 
 examComponentRegistry.register('subjective', {
   name: 'סובייקטיבי',
   component: () => import('../components/exam/SubjectiveTab'),
-  order: 4
+  order: 4,
+  showInLayoutEditor: true
 })
 
 examComponentRegistry.register('addition', {
   name: 'תוספת',
   component: () => import('../components/exam/AdditionTab'),
-  order: 5
+  order: 5,
+  showInLayoutEditor: true
 })
 
 examComponentRegistry.register('final-subjective', {
   name: 'סובייקטיבי סופי',
   component: () => import('../components/exam/FinalSubjectiveTab'),
-  order: 6
+  order: 6,
+  showInLayoutEditor: true
 })
 
 examComponentRegistry.register('final-prescription', {
   name: 'מרשם סופי',
   component: () => import('../components/exam/FinalPrescriptionTab'),
-  order: 7
+  order: 7,
+  showInLayoutEditor: true
 })
 
 examComponentRegistry.register('retinoscop', {
   name: 'רטינוסקופ',
   component: () => import('../components/exam/RetinoscopTab'),
-  order: 9
+  order: 9,
+  showInLayoutEditor: true
 })
 
 examComponentRegistry.register('retinoscop-dilation', {
   name: 'רטינוסקופ הרחבה',
   component: () => import('../components/exam/RetinoscopDilationTab'),
-  order: 10
+  order: 10,
+  showInLayoutEditor: true
 })
 
 examComponentRegistry.register('uncorrected-va', {
   name: 'ראייה ללא תיקון',
   component: () => import('../components/exam/UncorrectedVATab'),
-  order: 11
+  order: 11,
+  showInLayoutEditor: true
 })
 
 examComponentRegistry.register('keratometer', {
   name: 'קרטומטר',
   component: () => import('../components/exam/KeratometerTab'),
-  order: 12
+  order: 12,
+  showInLayoutEditor: true
 })
 
 examComponentRegistry.register('keratometer-full', {
   name: 'קרטומטר מלא',
   component: () => import('../components/exam/KeratometerFullTab'),
-  order: 13
+  order: 13,
+  showInLayoutEditor: true
 })
 
 examComponentRegistry.register('corneal-topography', {
   name: 'טופוגרפיה קרנית',
   component: () => import('../components/exam/CornealTopographyTab'),
-  order: 14
+  order: 14,
+  showInLayoutEditor: true
 })
 
 examComponentRegistry.register('schirmer-test', {
   name: 'בדיקת שירמר',
   component: () => import('../components/exam/SchirmerTestTab'),
-  order: 15
+  order: 15,
+  showInLayoutEditor: true
 })
 
 examComponentRegistry.register('old-refraction-extension', {
   name: 'הרחבת רפרקציה ישנה',
   component: () => import('../components/exam/OldRefractionExtensionTab'),
-  order: 16
+  order: 16,
+  showInLayoutEditor: true
 })
 
 examComponentRegistry.register('anamnesis', {
   name: 'היסטוריה רפואית ואופטית (אנמנזה)',
   component: () => import('../components/exam/AnamnesisTab'),
-  order: 17
+  order: 17,
+  showInLayoutEditor: true
 })
 
 examComponentRegistry.register('notes', {
   name: 'הערות',
   component: () => import('../components/exam/ObservationTab'),
-  order: 18
+  order: 18,
+  showInLayoutEditor: true
 })
 
 examComponentRegistry.register('contact-lens-diameters', {
   name: 'קוטר עדשות מגע',
   component: () => import('../components/exam/ContactLensDiametersTab'),
-  order: 19
+  order: 19,
+  showInLayoutEditor: true
 })
 
 examComponentRegistry.register('contact-lens-details', {
   name: 'פרטי עדשות מגע',
   component: () => import('../components/exam/ContactLensDetailsTab'),
-  order: 20
+  order: 20,
+  showInLayoutEditor: false
 })
 
 examComponentRegistry.register('keratometer-contact-lens', {
   name: 'קרטומטר עדשות מגע',
   component: () => import('../components/exam/KeratometerContactLensTab'),
-  order: 21
+  order: 21,
+  showInLayoutEditor: true
 })
 
 examComponentRegistry.register('contact-lens-exam', {
   name: 'בדיקת עדשות מגע',
   component: () => import('../components/exam/ContactLensExamTab'),
-  order: 22
+  order: 22,
+  showInLayoutEditor: true
 })
 
 examComponentRegistry.register('contact-lens-order', {
   name: 'הזמנת עדשות מגע',
   component: () => import('../components/exam/ContactLensOrderTab'),
-  order: 23
+  order: 23,
+  showInLayoutEditor: false
 })
 
 examComponentRegistry.register('old-contact-lenses', {
   name: 'עדשות מגע ישנות',
   component: () => import('../components/exam/OldContactLensesTab'),
-  order: 24
+  order: 24,
+  showInLayoutEditor: true
 })
 
 examComponentRegistry.register('over-refraction', {
   name: 'רפרקציה נוספת',
   component: () => import('../components/exam/OverRefractionTab'),
-  order: 25
+  order: 25,
+  showInLayoutEditor: true
 })
 
 examComponentRegistry.register('sensation-vision-stability', {
   name: 'יציבות ראייה תחושתית',
   component: () => import('../components/exam/DiopterAdjustmentPanelTab'),
-  order: 26
+  order: 26,
+  showInLayoutEditor: true
 })
 
 examComponentRegistry.register('fusion-range', {
   name: 'טווח פיוזיה',
   component: () => import('../components/exam/FusionRangeTab'),
-  order: 27
+  order: 27,
+  showInLayoutEditor: true
 })
 
 examComponentRegistry.register('maddox-rod', {
   name: 'מוט מדוקס',
   component: () => import('../components/exam/MaddoxRodTab'),
-  order: 28
+  order: 28,
+  showInLayoutEditor: true
 })
 
 examComponentRegistry.register('stereo-test', {
   name: 'בדיקת סטריאו',
   component: () => import('../components/exam/StereoTestTab'),
-  order: 29
+  order: 29,
+  showInLayoutEditor: true
 })
 
 examComponentRegistry.register('rg', {
   name: 'RG',
   component: () => import('../components/exam/RGTab'),
-  order: 30
+  order: 30,
+  showInLayoutEditor: true
 })
 
 examComponentRegistry.register('ocular-motor-assessment', {
   name: 'הערכת תנועות עיניים',
   component: () => import('../components/exam/OcularMotorAssessmentTab'),
-  order: 31
+  order: 31,
+  showInLayoutEditor: true
 })
 
 examComponentRegistry.register('cover-test', {
   name: 'בדיקת כיסוי',
   component: () => import('../components/exam/CoverTestTab'),
-  order: 32
+  order: 32,
+  showInLayoutEditor: true
 })
 
 examComponentRegistry.register('diopter-adjustment-panel', {
   name: 'פנל תיקון דיופטר',
   component: () => import('../components/exam/DiopterAdjustmentPanelTab'),
-  order: 33
+  order: 33,
+  showInLayoutEditor: true
 })

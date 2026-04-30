@@ -9,6 +9,7 @@ import { useUser } from "@/contexts/UserContext"
 import { Button } from "@/components/ui/button"
 import { ALL_FILTER_VALUE } from "@/lib/table-filters"
 import { buildTableSearch } from "@/lib/list-page-search"
+import { parseSortSearch, sortToOrder, sortToSearch } from "@/lib/table-sorting"
 
 export default function AllExamsPage() {
   const { currentClinic } = useUser()
@@ -19,26 +20,32 @@ export default function AllExamsPage() {
   const [pageSize] = useState(25)
   const [total, setTotal] = useState(0)
   const [searchInput, setSearchInput] = useState(search.q)
+  const activeSort = React.useMemo(
+    () => parseSortSearch(search.sort, { key: "exam_date", direction: "desc" }),
+    [search.sort],
+  )
 
   useEffect(() => {
     setSearchInput(search.q)
   }, [search.q])
 
-  const buildSearchState = useCallback((overrides?: Partial<{ q: string; page: number; testName: string }>) => {
+  const buildSearchState = useCallback((overrides?: Partial<{ q: string; page: number; testName: string; sort: string }>) => {
     return buildTableSearch(
       {
         q: searchInput.trim(),
         page: search.page,
         testName: search.testName,
+        sort: search.sort,
         ...overrides,
       },
       {
         q: "",
         page: 1,
         testName: ALL_FILTER_VALUE,
+        sort: "",
       },
     )
-  }, [search.page, search.testName, searchInput])
+  }, [search.page, search.sort, search.testName, searchInput])
 
   useEffect(() => {
     const t = setTimeout(() => {
@@ -58,7 +65,7 @@ export default function AllExamsPage() {
       const { items, total } = await getPaginatedEnrichedExams('exam', currentClinic?.id, {
         limit: pageSize,
         offset,
-        order: 'exam_date_desc',
+        order: sortToOrder(activeSort, "exam_date_desc"),
         q: search.q || undefined,
         testName: search.testName !== ALL_FILTER_VALUE ? search.testName : undefined,
       })
@@ -69,7 +76,7 @@ export default function AllExamsPage() {
     } finally {
       setLoading(false)
     }
-  }, [currentClinic, pageSize, search.page, search.q, search.testName])
+  }, [activeSort, currentClinic, pageSize, search.page, search.q, search.testName])
 
   useEffect(() => {
     if (currentClinic) {
@@ -115,6 +122,13 @@ export default function AllExamsPage() {
             navigate({
               to: "/exams",
               search: buildSearchState({ testName: value, page: 1 }),
+            })
+          }
+          sort={activeSort}
+          onSortChange={(sort) =>
+            navigate({
+              to: "/exams",
+              search: buildSearchState({ sort: sortToSearch(sort), page: 1 }),
             })
           }
           loading={loading} 

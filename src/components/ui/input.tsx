@@ -1,7 +1,8 @@
 import * as React from "react"
 import { UI_CONFIG } from "@/config/ui-config"
 import { cn } from "@/utils/tailwind"
-import { ChevronUp, ChevronDown } from "lucide-react"
+import { ChevronUp, ChevronDown, Info } from "lucide-react"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 
 interface InputProps extends React.ComponentProps<"input"> {
   /** Show + sign for positive numbers. Only works with type="number" */
@@ -13,6 +14,7 @@ interface InputProps extends React.ComponentProps<"input"> {
   leadingOverlay?: React.ReactNode
   leadingOverlayWidth?: number
   showLeadingOverlay?: boolean
+  warningMessage?: string | null
 }
 
 /**
@@ -105,6 +107,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
     leadingOverlay,
     leadingOverlayWidth = 12,
     showLeadingOverlay = false,
+    warningMessage,
     ...props
   }, ref) => {
     const internalRef = React.useRef<HTMLInputElement>(null)
@@ -360,6 +363,23 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
             props.onBlur?.(e)
           }}
         />
+        {ariaInvalid && warningMessage && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                tabIndex={-1}
+                aria-label="Input warning details"
+                className="absolute top-0.5 left-0.5 z-30 flex h-3 w-3 items-center justify-center text-destructive opacity-90"
+              >
+                <Info className="h-2 w-2" aria-hidden="true" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="top" align="center" className="max-w-64 text-center">
+              {warningMessage}
+            </TooltipContent>
+          </Tooltip>
+        )}
         {suffix && (
           <span className={cn(
             "absolute top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground pointer-events-none z-10 font-medium",

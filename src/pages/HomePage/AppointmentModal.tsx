@@ -102,6 +102,7 @@ export function AppointmentModal({
               value={formData.time || ""}
               onChange={onInputChange}
               dir="rtl"
+              className="text-right [text-align-last:right] [&::-webkit-date-and-time-value]:text-right"
             />
           </div>
           <div className="space-y-2">

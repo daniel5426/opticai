@@ -11,6 +11,7 @@ import { useAxisWarning } from "./shared/useAxisWarning"
 import { AxisWarningInput } from "./shared/AxisWarningInput"
 import { ToggleTextNumberInput } from "./shared/ToggleTextNumberInput"
 import { copyEyeRowFields } from "./shared/copyEyeRowFields"
+import { getPrescriptionPowerWarningMessage } from "@/utils/optometry-utils"
 
 interface FinalPrescriptionTabProps {
   finalPrescriptionData: FinalPrescriptionExam;
@@ -95,10 +96,21 @@ export function FinalPrescriptionTab({
     copyEyeRowFields(dataRef.current, onFinalPrescriptionChange, fromEye);
   };
 
+  const getPrescriptionWarningMessage = (eye: "R" | "L") => {
+    return getPrescriptionPowerWarningMessage(
+      getFieldValue(eye, "sph"),
+      getFieldValue(eye, "cyl")
+    );
+  };
+
   const renderInput = (eye: "R" | "L", col: (typeof columns)[number]) => {
     const { key, step, ...colProps } = col;
     const type = (col as any).type as string | undefined;
     const options = (col as any).options as readonly string[] | undefined;
+    const prescriptionWarningMessage =
+      key === "sph" || key === "cyl" ? getPrescriptionWarningMessage(eye) : null;
+    const prescriptionAriaInvalid = prescriptionWarningMessage ? true : undefined;
+
     switch (type) {
       case "select":
         return (
@@ -123,6 +135,8 @@ export function FinalPrescriptionTab({
               value={getFieldValue(eye as "R" | "L", key)}
               missingAxis={fieldWarnings[eye as "R" | "L"].missingAxis}
               missingCyl={fieldWarnings[eye as "R" | "L"].missingCyl}
+              aria-invalid={key === "cyl" ? prescriptionAriaInvalid : undefined}
+              warningMessage={key === "cyl" ? prescriptionWarningMessage : null}
               isEditing={isEditing}
               onValueChange={handleAxisChange}
               onBlur={(eye, field, val) => handleAxisBlur(eye, field, val, colProps.min, colProps.max)}
@@ -144,6 +158,9 @@ export function FinalPrescriptionTab({
                 max: colProps.max,
                 showPlus: colProps.showPlus,
                 suffix: colProps.suffix,
+                debounceMs: 0,
+                "aria-invalid": prescriptionAriaInvalid,
+                warningMessage: prescriptionWarningMessage,
                 className: `h-8 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`
               }}
             />

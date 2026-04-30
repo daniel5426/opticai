@@ -41,6 +41,8 @@ import { DateSearchHelper } from "@/lib/date-search-helper"
 import { TableFiltersBar } from "@/components/table-filters-bar"
 import { ORDER_KIND_OPTIONS, ORDER_STATUS_FILTER_OPTIONS, type OrderKindFilter } from "@/lib/table-filters"
 import { getAllUsers } from "@/lib/db/users-db"
+import { SortableTableHead } from "@/components/sortable-table-head"
+import { SortColumns, SortState, sortRows } from "@/lib/table-sorting"
 import {
   ADDITION_ADD_TYPE_LABELS,
   extractAdditionAddSourcesFromExamPageData,
@@ -62,6 +64,8 @@ interface OrdersTableProps {
   onKindFilterChange?: (value: OrderKindFilter) => void
   statusFilter?: string
   onStatusFilterChange?: (value: string) => void
+  sort?: SortState
+  onSortChange?: (sort: SortState) => void
 }
 
 export function OrdersTable({
@@ -77,9 +81,12 @@ export function OrdersTable({
   onKindFilterChange,
   statusFilter: externalStatusFilter,
   onStatusFilterChange,
+  sort,
+  onSortChange,
 }: OrdersTableProps) {
   const navigate = useNavigate()
   const [internalSearch, setInternalSearch] = useState("")
+  const [localSort, setLocalSort] = useState<SortState | undefined>()
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
   const [orderToDelete, setOrderToDelete] = useState<Order | null>(null)
   const [internalKindFilter, setInternalKindFilter] = useState<OrderKindFilter>("all")
@@ -91,6 +98,7 @@ export function OrdersTable({
   const [latestExamAddSources, setLatestExamAddSources] = useState<AdditionAddSourceMap>({})
   const [latestOrderId, setLatestOrderId] = useState<number | null>(null)
   const [latestContactOrderId, setLatestContactOrderId] = useState<number | null>(null)
+  const [isLatestContextLoading, setIsLatestContextLoading] = useState(clientId > 0)
   const [isPreviewOrderOpen, setIsPreviewOrderOpen] = useState(false)
   const [previewOrderId, setPreviewOrderId] = useState<number | null>(null)
   const [previewOrderIsContact, setPreviewOrderIsContact] = useState(false)
@@ -103,6 +111,8 @@ export function OrdersTable({
   const searchValue = externalSearch !== undefined ? externalSearch : internalSearch
   const kindFilter = externalKindFilter ?? internalKindFilter
   const statusFilter = externalStatusFilter ?? internalStatusFilter
+  const activeSort = sort ?? localSort
+  const handleSortChange = onSortChange ?? setLocalSort
   const latestExamAddTypeOptions = getAdditionAddTypeOptions(latestExamAddSources)
 
   useEffect(() => {
@@ -167,71 +177,86 @@ export function OrdersTable({
     let isActive = true;
 
     if (clientId > 0) {
+      setIsLatestContextLoading(true);
       setLatestExamId(null);
       setLatestExamAddSources({});
 
       const fetchLatest = async () => {
-        const [exam, allOrders] = await Promise.all([
-          getLatestExamByClientId(clientId),
-          getOrdersByClientId(clientId)
-        ]);
+        try {
+          const [exam, allOrders] = await Promise.all([
+            getLatestExamByClientId(clientId),
+            getOrdersByClientId(clientId)
+          ]);
 
-        if (!isActive) return;
+          if (!isActive) return;
 
-        if (exam) {
-          const examId = exam.id || null;
-          console.log("Fetched latest exam ID:", exam.id);
+          if (exam) {
+            const examId = exam.id || null;
+            console.log("Fetched latest exam ID:", exam.id);
 
-          if (examId) {
-            const pageData = await getExamPageData(examId);
-            if (!isActive) return;
-            setLatestExamId(examId);
-            setLatestExamAddSources(
-              extractAdditionAddSourcesFromExamPageData(pageData),
-            );
+            if (examId) {
+              const pageData = await getExamPageData(examId);
+              if (!isActive) return;
+              setLatestExamId(examId);
+              setLatestExamAddSources(
+                extractAdditionAddSourcesFromExamPageData(pageData),
+              );
+            } else {
+              setLatestExamId(null);
+              setLatestExamAddSources({});
+            }
           } else {
             setLatestExamId(null);
             setLatestExamAddSources({});
+            console.log("No latest exam found.");
           }
-        } else {
-          setLatestExamId(null);
-          setLatestExamAddSources({});
-          console.log("No latest exam found.");
-        }
 
-        if (allOrders.length > 0) {
-          // Sort all orders by date desc
-          const sorted = allOrders.sort((a, b) => {
-            const dateA = a.order_date ? new Date(a.order_date).getTime() : 0;
-            const dateB = b.order_date ? new Date(b.order_date).getTime() : 0;
-            return dateB - dateA;
-          });
+          if (allOrders.length > 0) {
+            // Sort all orders by date desc
+            const sorted = allOrders.sort((a, b) => {
+              const dateA = a.order_date ? new Date(a.order_date).getTime() : 0;
+              const dateB = b.order_date ? new Date(b.order_date).getTime() : 0;
+              return dateB - dateA;
+            });
 
-          const latestReg = sorted.find(o => !(o as any).__contact);
-          const latestCL = sorted.find(o => (o as any).__contact);
+            const latestReg = sorted.find(o => !(o as any).__contact);
+            const latestCL = sorted.find(o => (o as any).__contact);
 
-          if (latestReg) {
-            setLatestOrderId(latestReg.id || null);
-            console.log("Fetched latest regular order ID:", latestReg.id);
+            if (latestReg) {
+              setLatestOrderId(latestReg.id || null);
+              console.log("Fetched latest regular order ID:", latestReg.id);
+            } else {
+              setLatestOrderId(null);
+              console.log("No latest regular order found.");
+            }
+            if (latestCL) {
+              setLatestContactOrderId(latestCL.id || null);
+              console.log("Fetched latest contact order ID:", latestCL.id);
+            } else {
+              setLatestContactOrderId(null);
+              console.log("No latest contact order found.");
+            }
           } else {
             setLatestOrderId(null);
-            console.log("No latest regular order found.");
-          }
-          if (latestCL) {
-            setLatestContactOrderId(latestCL.id || null);
-            console.log("Fetched latest contact order ID:", latestCL.id);
-          } else {
             setLatestContactOrderId(null);
-            console.log("No latest contact order found.");
+            console.log("No orders found for client.");
           }
-        } else {
+        } catch (error) {
+          if (!isActive) return;
+          console.error("Failed to fetch latest order/exam context:", error);
+          setLatestExamId(null);
+          setLatestExamAddSources({});
           setLatestOrderId(null);
           setLatestContactOrderId(null);
-          console.log("No orders found for client.");
+        } finally {
+          if (isActive) {
+            setIsLatestContextLoading(false);
+          }
         }
       };
       fetchLatest();
     } else {
+      setIsLatestContextLoading(false);
       setLatestExamId(null);
       setLatestExamAddSources({});
       setLatestOrderId(null);
@@ -387,6 +412,19 @@ export function OrdersTable({
     );
   }, [statusOverrides]);
 
+  const sortColumns = React.useMemo<SortColumns<Order>>(() => ({
+    order_date: { getValue: (order) => order.order_date, type: "date" },
+    type: { getValue: (order) => order.type },
+    kind: { getValue: (order) => ((order as any).__contact ? "עדשות מגע" : "הזמנה רגילה") },
+    client: { getValue: (order) => (order as any).clientName },
+    examiner: { getValue: getExaminerName },
+    status: { getValue: getOrderStatus },
+  }), [getExaminerName, getOrderStatus])
+
+  const displayData = React.useMemo(() => {
+    return onSortChange ? filteredData : sortRows(filteredData, activeSort, sortColumns)
+  }, [activeSort, filteredData, onSortChange, sortColumns])
+
   const tableColumnCount = clientId === 0 ? 7 : 6;
 
   const handleStatusChange = async (order: Order, nextStatus: string) => {
@@ -457,157 +495,173 @@ export function OrdersTable({
         }}
         actions={
           <>
-            <DropdownMenu dir="rtl">
-              <DropdownMenuTrigger asChild>
-                <Button>הזמנה חדשה</Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                {clientId > 0 && latestExamId && (
-                  latestExamAddTypeOptions.length > 0 ? (
-                    <DropdownMenuSub>
-                      <DropdownMenuSubTrigger className="flex items-center justify-between gap-4">
+            {clientId === 0 ? (
+              <>
+                <Button onClick={() => handleCreateOrder('regular')}>משקפיים</Button>
+                <Button variant="secondary" onClick={() => handleCreateOrder('contact')}>
+                  עדשות מגע
+                </Button>
+              </>
+            ) : (
+              <>
+                <DropdownMenu dir="ltr">
+                  <DropdownMenuTrigger asChild>
+                    <Button disabled={isLatestContextLoading}>משקפיים</Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" dir="rtl">
+                    {latestExamId && (
+                      latestExamAddTypeOptions.length > 0 ? (
+                        <DropdownMenuSub>
+                          <DropdownMenuSubTrigger
+                            hideIcon
+                            className="flex items-center justify-between gap-4"
+                          >
+                            <span>מבדיקה אחרונה</span>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6"
+                              aria-label="תצוגה מקדימה של בדיקה אחרונה"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setCardPreviewType('final-prescription');
+                                setIsCardPreviewOpen(true);
+                              }}
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuSubTrigger>
+                          <DropdownMenuSubContent side="right" alignOffset={-4}>
+                            {latestExamAddTypeOptions.map((type) => (
+                              <DropdownMenuItem
+                                key={type}
+                                onClick={() => openRegularOrderFromLatestExam(type)}
+                              >
+                                {ADDITION_ADD_TYPE_LABELS[type]}
+                              </DropdownMenuItem>
+                            ))}
+                          </DropdownMenuSubContent>
+                        </DropdownMenuSub>
+                      ) : (
+                        <DropdownMenuItem
+                          className="flex items-center justify-between gap-4"
+                          onClick={() => openRegularOrderFromLatestExam()}
+                        >
+                          <span>מבדיקה אחרונה</span>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6"
+                            aria-label="תצוגה מקדימה של בדיקה אחרונה"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setCardPreviewType('final-prescription');
+                              setIsCardPreviewOpen(true);
+                            }}
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuItem>
+                      )
+                    )}
+                    {latestOrderId && (
+                      <DropdownMenuItem
+                        className="flex items-center justify-between gap-4"
+                        onClick={() => navigate({
+                          to: "/clients/$clientId/orders/new",
+                          params: { clientId: String(clientId) },
+                          search: { importSourceId: String(latestOrderId), importSourceType: 'order' }
+                        })}
+                      >
+                        <span>מהזמנה אחרונה</span>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6"
+                          aria-label="תצוגה מקדימה של הזמנה אחרונה"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setPreviewOrderId(latestOrderId);
+                            setPreviewOrderIsContact(false);
+                            setIsPreviewOrderOpen(true);
+                          }}
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuItem>
+                    )}
+                    <DropdownMenuItem onClick={() => handleCreateOrder('regular')}>
+                      משקפיים
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+
+                <DropdownMenu dir="rtl">
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="secondary" disabled={isLatestContextLoading}>
+                      עדשות מגע
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    {latestExamId && (
+                      <DropdownMenuItem
+                        className="flex items-center justify-between gap-4"
+                        onClick={() => navigate({
+                          to: "/clients/$clientId/orders/new",
+                          params: { clientId: String(clientId) },
+                          search: { type: 'contact', importSourceId: String(latestExamId), importSourceType: 'exam' }
+                        })}
+                      >
                         <span>מבדיקה אחרונה</span>
                         <Button
                           variant="ghost"
                           size="icon"
                           className="h-6 w-6"
-                          aria-label="תצוגה מקדימה של בדיקה אחרונה"
+                          aria-label="תצוגה מקדימה של בדיקת עדשות מגע"
                           onClick={(e) => {
-                            e.preventDefault();
                             e.stopPropagation();
-                            setCardPreviewType('final-prescription');
+                            setCardPreviewType('contact-lens-exam');
                             setIsCardPreviewOpen(true);
                           }}
                         >
                           <Eye className="h-4 w-4" />
                         </Button>
-                      </DropdownMenuSubTrigger>
-                      <DropdownMenuSubContent alignOffset={-4}>
-                        {latestExamAddTypeOptions.map((type) => (
-                          <DropdownMenuItem
-                            key={type}
-                            onClick={() => openRegularOrderFromLatestExam(type)}
-                          >
-                            {ADDITION_ADD_TYPE_LABELS[type]}
-                          </DropdownMenuItem>
-                        ))}
-                      </DropdownMenuSubContent>
-                    </DropdownMenuSub>
-                  ) : (
-                    <DropdownMenuItem
-                      className="flex items-center justify-between gap-4"
-                      onClick={() => openRegularOrderFromLatestExam()}
-                    >
-                      <span>מבדיקה אחרונה</span>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6"
-                        aria-label="תצוגה מקדימה של בדיקה אחרונה"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setCardPreviewType('final-prescription');
-                          setIsCardPreviewOpen(true);
-                        }}
+                      </DropdownMenuItem>
+                    )}
+                    {latestContactOrderId && (
+                      <DropdownMenuItem
+                        className="flex items-center justify-between gap-4"
+                        onClick={() => navigate({
+                          to: "/clients/$clientId/orders/new",
+                          params: { clientId: String(clientId) },
+                          search: { type: 'contact', importSourceId: String(latestContactOrderId), importSourceType: 'order' }
+                        })}
                       >
-                        <Eye className="h-4 w-4" />
-                      </Button>
+                        <span>מהזמנה אחרונה</span>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6"
+                          aria-label="תצוגה מקדימה של הזמנת עדשות מגע אחרונה"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setPreviewOrderId(latestContactOrderId);
+                            setPreviewOrderIsContact(true);
+                            setIsPreviewOrderOpen(true);
+                          }}
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuItem>
+                    )}
+                    <DropdownMenuItem onClick={() => handleCreateOrder('contact')}>
+                      עדשות מגע
                     </DropdownMenuItem>
-                  )
-                )}
-                {clientId > 0 && latestOrderId && (
-                  <DropdownMenuItem
-                    className="flex items-center justify-between gap-4"
-                    onClick={() => navigate({
-                      to: "/clients/$clientId/orders/new",
-                      params: { clientId: String(clientId) },
-                      search: { importSourceId: String(latestOrderId), importSourceType: 'order' }
-                    })}
-                  >
-                    <span>מהזמנה אחרונה</span>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-6 w-6"
-                      aria-label="תצוגה מקדימה של הזמנה אחרונה"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setPreviewOrderId(latestOrderId);
-                        setPreviewOrderIsContact(false);
-                        setIsPreviewOrderOpen(true);
-                      }}
-                    >
-                      <Eye className="h-4 w-4" />
-                    </Button>
-                  </DropdownMenuItem>
-                )}
-                <DropdownMenuItem onClick={() => handleCreateOrder('regular')}>
-                  הזמנה חדשה
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-
-            <DropdownMenu dir="rtl">
-              <DropdownMenuTrigger asChild>
-                <Button variant="secondary">עדשות מגע</Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                {clientId > 0 && latestExamId && (
-                  <DropdownMenuItem
-                    className="flex items-center justify-between gap-4"
-                    onClick={() => navigate({
-                      to: "/clients/$clientId/orders/new",
-                      params: { clientId: String(clientId) },
-                      search: { type: 'contact', importSourceId: String(latestExamId), importSourceType: 'exam' }
-                    })}
-                  >
-                    <span>מבדיקה אחרונה</span>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-6 w-6"
-                      aria-label="תצוגה מקדימה של בדיקת עדשות מגע"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setCardPreviewType('contact-lens-exam');
-                        setIsCardPreviewOpen(true);
-                      }}
-                    >
-                      <Eye className="h-4 w-4" />
-                    </Button>
-                  </DropdownMenuItem>
-                )}
-                {clientId > 0 && latestContactOrderId && (
-                  <DropdownMenuItem
-                    className="flex items-center justify-between gap-4"
-                    onClick={() => navigate({
-                      to: "/clients/$clientId/orders/new",
-                      params: { clientId: String(clientId) },
-                      search: { type: 'contact', importSourceId: String(latestContactOrderId), importSourceType: 'order' }
-                    })}
-                  >
-                    <span>מהזמנה אחרונה</span>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-6 w-6"
-                      aria-label="תצוגה מקדימה של הזמנת עדשות מגע אחרונה"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setPreviewOrderId(latestContactOrderId);
-                        setPreviewOrderIsContact(true);
-                        setIsPreviewOrderOpen(true);
-                      }}
-                    >
-                      <Eye className="h-4 w-4" />
-                    </Button>
-                  </DropdownMenuItem>
-                )}
-                <DropdownMenuItem onClick={() => handleCreateOrder('contact')}>
-                  הזמנה חדשה
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </>
+            )}
           </>
         }
       />
@@ -631,27 +685,27 @@ export function OrdersTable({
         orderId={previewOrderId}
         isContact={previewOrderIsContact}
         onNext={() => {
-          const index = filteredData.findIndex((o) => o.id === previewOrderId);
-          if (index !== -1 && index < filteredData.length - 1) {
-            const nextOrder = filteredData[index + 1];
+          const index = displayData.findIndex((o) => o.id === previewOrderId);
+          if (index !== -1 && index < displayData.length - 1) {
+            const nextOrder = displayData[index + 1];
             setPreviewOrderId(nextOrder.id || null);
             setPreviewOrderIsContact(Boolean((nextOrder as any).__contact));
           }
         }}
         onPrev={() => {
-          const index = filteredData.findIndex((o) => o.id === previewOrderId);
+          const index = displayData.findIndex((o) => o.id === previewOrderId);
           if (index > 0) {
-            const prevOrder = filteredData[index - 1];
+            const prevOrder = displayData[index - 1];
             setPreviewOrderId(prevOrder.id || null);
             setPreviewOrderIsContact(Boolean((prevOrder as any).__contact));
           }
         }}
         hasNext={(() => {
-          const index = filteredData.findIndex((o) => o.id === previewOrderId);
-          return index !== -1 && index < filteredData.length - 1;
+          const index = displayData.findIndex((o) => o.id === previewOrderId);
+          return index !== -1 && index < displayData.length - 1;
         })()}
         hasPrev={(() => {
-          const index = filteredData.findIndex((o) => o.id === previewOrderId);
+          const index = displayData.findIndex((o) => o.id === previewOrderId);
           return index > 0;
         })()}
       />
@@ -660,12 +714,12 @@ export function OrdersTable({
         <Table dir="rtl" containerClassName="max-h-[70vh] overflow-y-auto overscroll-contain" containerStyle={{ scrollbarWidth: 'none' }}>
           <TableHeader className="sticky top-0  bg-card">
             <TableRow>
-              <TableHead className="text-right">תאריך הזמנה</TableHead>
-              <TableHead className="text-right">סוג הזמנה</TableHead>
-              <TableHead className="text-right">סוג</TableHead>
-              {clientId === 0 && <TableHead className="text-right">לקוח</TableHead>}
-              <TableHead className="text-right">בודק</TableHead>
-              <TableHead className="text-right">סטטוס</TableHead>
+              <SortableTableHead sortKey="order_date" sort={activeSort} onSortChange={handleSortChange} className="text-right">תאריך הזמנה</SortableTableHead>
+              <SortableTableHead sortKey="type" sort={activeSort} onSortChange={handleSortChange} className="text-right">סוג הזמנה</SortableTableHead>
+              <SortableTableHead sortKey="kind" sort={activeSort} onSortChange={handleSortChange} className="text-right">סוג</SortableTableHead>
+              {clientId === 0 && <SortableTableHead sortKey="client" sort={activeSort} onSortChange={handleSortChange} className="text-right">לקוח</SortableTableHead>}
+              <SortableTableHead sortKey="examiner" sort={activeSort} onSortChange={handleSortChange} className="text-right">בודק</SortableTableHead>
+              <SortableTableHead sortKey="status" sort={activeSort} onSortChange={handleSortChange} className="text-right">סטטוס</SortableTableHead>
               <TableHead className="w-[80px] text-right"></TableHead>
             </TableRow>
           </TableHeader>
@@ -680,8 +734,8 @@ export function OrdersTable({
                   ))}
                 </TableRow>
               ))
-            ) : filteredData.length > 0 ? (
-              filteredData.map((order) => {
+            ) : displayData.length > 0 ? (
+              displayData.map((order) => {
                 return (
                   <TableRow
                     key={order.id}
