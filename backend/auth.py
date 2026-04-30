@@ -53,20 +53,48 @@ def _get_signing_key(token: str) -> Any:
     raise JWTError("Signing key not found")
 
 def verify_supabase_token(token: str) -> Dict[str, Any]:
-    # Fallback to HS256 using project JWT secret (Supabase JWT secret)
-    try:
-        secret = settings.SUPABASE_JWT_SECRET or settings.SUPABASE_KEY
-        if not secret:
-            raise JWTError("Missing SUPABASE_KEY for HS256 verification")
-        return jwt.decode(
-            token,
-            secret,
-            algorithms=["HS256"],
-            options={"verify_aud": False}
+    secrets = [
+        value for value in (
+            settings.SUPABASE_JWT_SECRET,
+            settings.SECRET_KEY,
+            settings.SUPABASE_KEY,
         )
-    except Exception as e:
-        print(f"AUTH DEBUG verify failed: {e}")
-        raise JWTError(str(e))
+        if value
+    ]
+    for secret in secrets:
+        try:
+            return jwt.decode(
+                token,
+                secret,
+                algorithms=["HS256"],
+                options={"verify_aud": False}
+            )
+        except Exception:
+            pass
+
+    if settings.SUPABASE_URL and settings.SUPABASE_KEY:
+        try:
+            resp = requests.get(
+                f"{settings.SUPABASE_URL.rstrip('/')}/auth/v1/user",
+                headers={
+                    "apikey": settings.SUPABASE_KEY,
+                    "Authorization": f"Bearer {token}",
+                },
+                timeout=5,
+            )
+            resp.raise_for_status()
+            user = resp.json()
+            return {
+                "sub": user.get("id"),
+                "email": user.get("email"),
+                "user_metadata": user.get("user_metadata") or {},
+                "aud": "authenticated",
+                "role": "authenticated",
+            }
+        except Exception as e:
+            print(f"AUTH DEBUG Supabase token verification failed: {e}")
+
+    raise JWTError("Could not verify token")
 
 def check_database_connection(db: Session) -> bool:
     try:
