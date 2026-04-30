@@ -92,3 +92,28 @@ def test_production_config_rejects_wildcard_cors_by_default():
 
     assert result.returncode != 0
     assert "Wildcard CORS" in result.stderr
+
+
+def test_production_config_allows_missing_google_oauth():
+    env = {
+        **os.environ,
+        "APP_ENV": "production",
+        "DATABASE_URL": "postgresql://user:pass@localhost:5432/opticai",
+        "SECRET_KEY": "x" * 40,
+        "TOKEN_ENCRYPTION_KEY": "y" * 40,
+        "SUPABASE_URL": "https://example.supabase.co",
+        "SUPABASE_SERVICE_ROLE_KEY": "service-role",
+        "SUPABASE_KEY": "anon",
+        "GOOGLE_DESKTOP_CLIENT_ID": "",
+        "GOOGLE_DESKTOP_CLIENT_SECRET": "",
+        "BACKEND_CORS_ORIGINS": "http://localhost:5173",
+    }
+    result = subprocess.run(
+        [sys.executable, "-c", "import config"],
+        cwd=BACKEND_DIR,
+        env=env,
+        text=True,
+        capture_output=True,
+    )
+
+    assert result.returncode == 0

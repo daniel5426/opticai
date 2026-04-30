@@ -102,8 +102,6 @@ class Settings:
             "SUPABASE_URL": self.SUPABASE_URL,
             "SUPABASE_SERVICE_ROLE_KEY": self.SUPABASE_SERVICE_ROLE_KEY,
             "SUPABASE_KEY": self.SUPABASE_KEY,
-            "GOOGLE_DESKTOP_CLIENT_ID": self.GOOGLE_DESKTOP_CLIENT_ID,
-            "GOOGLE_DESKTOP_CLIENT_SECRET": self.GOOGLE_DESKTOP_CLIENT_SECRET,
         }
         missing = [key for key, value in required.items() if not value]
         if missing:

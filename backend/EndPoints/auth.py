@@ -169,6 +169,11 @@ def _store_google_tokens(user: User, access_token: str, refresh_token: Optional[
 
 
 def _verify_google_user(access_token: str, id_token: Optional[str] = None) -> dict[str, Any]:
+    if not settings.GOOGLE_DESKTOP_CLIENT_ID or not settings.GOOGLE_DESKTOP_CLIENT_SECRET:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Google login is not configured",
+        )
     tokeninfo_email = None
     if id_token:
         try:
