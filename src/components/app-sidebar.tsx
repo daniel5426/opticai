@@ -12,7 +12,6 @@ import {
   IconInnerShadowTop,
   IconListDetails,
   IconReport,
-  IconSearch,
   IconSettings,
   IconUsers,
   IconEye,
@@ -26,8 +25,6 @@ import {
   IconChartLine,
   IconUserCog,
 } from "@tabler/icons-react"
-import { Link } from "@tanstack/react-router"
-
 import { NavDocuments } from "@/components/nav-documents"
 import { NavMain } from "@/components/nav-main"
 import { NavSecondary } from "@/components/nav-secondary"
@@ -46,7 +43,8 @@ import {
 import { cn } from "@/utils/tailwind"
 import { User, Clinic } from "@/lib/db/schema-interface"
 import { ROLE_LEVELS, isRoleAtLeast } from "@/lib/role-levels"
-import { useUser } from "@/contexts/UserContext"
+
+const showBetaSidebarItems = import.meta.env.DEV
 
 const getNavData = (currentUser?: User) => ({
   navMain: [
@@ -60,17 +58,17 @@ const getNavData = (currentUser?: User) => ({
       url: "/clients",
       icon: IconUsers,
     },
-    {
+    ...(showBetaSidebarItems ? [{
       title: "עוזר חכם",
       url: "/ai-assistant",
       icon: IconRobot,
-    },
+    }] : []),
     {
       title: "יומן נוכחות",
       url: "/worker-stats",
       icon: IconChartLine,
     },
-    ...(isRoleAtLeast(currentUser?.role_level, ROLE_LEVELS.manager) ? [{
+    ...(showBetaSidebarItems && isRoleAtLeast(currentUser?.role_level, ROLE_LEVELS.manager) ? [{
       title: "קמפיינים",
       url: "/campaigns",
       icon: IconChartBar,
@@ -84,13 +82,8 @@ const getNavData = (currentUser?: User) => ({
     },
     {
       title: "קבלת עזרה",
-      url: "#",
+      url: "https://prysm.co.il/contact",
       icon: IconHelp,
-    },
-    {
-      title: "חיפוש",
-      url: "#",
-      icon: IconSearch,
     },
   ],
   documents: [

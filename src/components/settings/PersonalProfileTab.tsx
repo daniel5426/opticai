@@ -148,7 +148,7 @@ export function PersonalProfileTab({
 
   return (
     <div className="space-y-6">
-      <Card className="">
+      <Card className="" dir="rtl">
         <CardHeader>
           <CardTitle className="text-right">פרטים אישיים</CardTitle>
           <p className="text-sm text-muted-foreground text-right">תמונת פרופיל ופרטי יצירת קשר</p>
@@ -431,12 +431,14 @@ export function PersonalProfileTab({
       </Card>
 
       <Card className="">
-        <CardHeader>
-          <CardTitle className="text-right flex items-center gap-2 justify-end">
+        <CardHeader dir="rtl" className="text-right">
+          <CardTitle dir="rtl" className="w-full text-right flex items-center gap-2 justify-start">
             <IconCalendar className="h-5 w-5" />
-            חיבור ל-Google Calendar
+            <span dir="rtl">חיבור ל-Google Calendar</span>
           </CardTitle>
-          <p className="text-sm text-muted-foreground text-right">סנכרן את התורים שלך עם Google Calendar</p>
+          <p dir="rtl" className="w-full text-sm text-muted-foreground text-right">
+            סנכרן את התורים שלך עם Google Calendar
+          </p>
         </CardHeader>
         <CardContent>
           {currentUser?.google_account_connected ? (
@@ -571,8 +573,8 @@ function GoogleCalendarConnected({
   onToggleAutoSync
 }: GoogleCalendarConnectedProps) {
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between p-4 bg-green-50 dark:bg-green-950/20 rounded-lg border border-green-200 dark:border-green-800">
+    <div className="space-y-4" dir="rtl">
+      <div className="flex items-center justify-between p-4 bg-green-50 dark:bg-green-950/20 rounded-lg border border-green-200 dark:border-green-800" dir="rtl">
         <div className="space-y-3">
           <div className="flex items-center gap-3">
             <Button
@@ -607,7 +609,7 @@ function GoogleCalendarConnected({
         </div>
       </div>
 
-      <div className="p-4 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
+      <div className="p-4 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800" dir="rtl">
         <h4 className="text-sm font-medium text-blue-800 dark:text-blue-200 mb-2 text-right">מידע על הסנכרון</h4>
         <ul className="text-xs text-blue-700 dark:text-blue-300 text-right space-y-1" dir="rtl">
           <li>• התורים מהעמוד הראשי יסונכרנו עם Google Calendar שלך</li>
@@ -625,16 +627,15 @@ interface GoogleCalendarDisconnectedProps {
 }
 
 function GoogleCalendarDisconnected({
-  loading,
-  onConnect
+  loading
 }: GoogleCalendarDisconnectedProps) {
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border">
+    <div className="space-y-4" dir="rtl">
+      <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border" dir="rtl">
         <Button
-          onClick={onConnect}
-          disabled={loading}
+          disabled
           className="flex items-center gap-2"
+          dir="rtl"
         >
           {loading ? (
             <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
@@ -647,12 +648,12 @@ function GoogleCalendarDisconnected({
         <div className="text-right">
           <div className="font-medium text-gray-700 dark:text-gray-300">לא מחובר ל-Google Calendar</div>
           <div className="text-sm text-muted-foreground mt-1">
-            חבר את חשבון Google שלך כדי לסנכרן תורים
+            חיבור Google Calendar יגיע בקרוב
           </div>
         </div>
       </div>
 
-      <div className="p-4 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
+      <div className="p-4 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800" dir="rtl">
         <h4 className="text-sm font-medium text-blue-800 dark:text-blue-200 mb-2 text-right">יתרונות החיבור ל-Google Calendar</h4>
         <ul className="text-xs text-blue-700 dark:text-blue-300 text-right space-y-1" dir="rtl">
           <li>• סנכרון אוטומטי של כל התורים שלך</li>
@@ -664,4 +665,3 @@ function GoogleCalendarDisconnected({
     </div>
   )
 }
-

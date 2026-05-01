@@ -141,12 +141,13 @@ class AuthService {
     return id
   }
 
-  async createClinicTrustSession(clinicUniqueId: string, pin: string): Promise<Clinic | null> {
+  async createClinicTrustSession(clinicUniqueId: string, pin?: string): Promise<Clinic | null> {
     const response = await apiClient.createClinicSession({
       clinic_unique_id: clinicUniqueId,
       pin,
       device_id: this.getClinicDeviceId()
     })
+    if (response.error) throw new Error(response.error)
     if (!response.data?.clinic_trust_token || !response.data.clinic) return null
     apiClient.setClinicTrustToken(response.data.clinic_trust_token)
     this.storeClinic(response.data.clinic as Clinic)

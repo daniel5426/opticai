@@ -2,6 +2,7 @@
 import dotenv from 'dotenv';
 import fs from 'fs';
 import path from "path";
+import { spawn } from "child_process";
 
 // Load the appropriate .env file based on environment
 if (process.env.NODE_ENV === 'production') {
@@ -214,6 +215,64 @@ async function openWindowsDownloadPage(version?: string) {
   };
 }
 
+async function openUrlInChrome(url: string) {
+  const parsedUrl = new URL(url);
+  if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
+    throw new Error('Only HTTP and HTTPS URLs can be opened in Chrome');
+  }
+
+  const openWithChrome = () => new Promise<void>((resolve, reject) => {
+    const targetUrl = parsedUrl.toString();
+    const candidates = process.platform === 'darwin'
+      ? [{ command: 'open', args: ['-a', 'Google Chrome', targetUrl] }]
+      : process.platform === 'win32'
+        ? [{ command: 'cmd', args: ['/c', 'start', '', 'chrome', targetUrl] }]
+        : [
+            { command: 'google-chrome', args: [targetUrl] },
+            { command: 'google-chrome-stable', args: [targetUrl] },
+            { command: 'chromium', args: [targetUrl] },
+            { command: 'chromium-browser', args: [targetUrl] },
+          ];
+
+    let index = 0;
+    const tryNext = () => {
+      const candidate = candidates[index];
+      if (!candidate) {
+        reject(new Error('Google Chrome was not found'));
+        return;
+      }
+
+      index += 1;
+      const child = spawn(candidate.command, candidate.args, {
+        detached: true,
+        stdio: 'ignore',
+        windowsHide: true,
+      });
+
+      child.once('error', tryNext);
+      child.once('exit', (code) => {
+        if (code === 0 || process.platform === 'win32') {
+          resolve();
+        } else {
+          tryNext();
+        }
+      });
+      child.unref();
+    };
+
+    tryNext();
+  });
+
+  try {
+    await openWithChrome();
+  } catch (error) {
+    console.warn('[ExternalLink] Failed to open Chrome, falling back to default browser:', error);
+    await shell.openExternal(parsedUrl.toString());
+  }
+
+  return true;
+}
+
 async function checkWindowsManualUpdates(showPrompt: boolean) {
   const currentVersion = app.getVersion();
 
@@ -380,6 +439,10 @@ function setupIpcHandlers() {
     return true;
   });
 
+  ipcMain.handle('open-url-in-chrome', async (_event, url: string) => {
+    return openUrlInChrome(url);
+  });
+
   // Server Mode operations removed - using FastAPI backend instead
 
   // Removed AI IPC handlers; AI moved to backend
@@ -534,6 +597,10 @@ function setupIpcHandlers() {
       console.error('Error handling received Google OAuth code:', error);
       return false;
     }
+  });
+
+  ipcMain.handle('google-oauth-cancel', async () => {
+    return GoogleOAuthService.cancelPendingAuth();
   });
 
   ipcMain.handle('google-oauth-refresh-token', async (event, refreshToken: string) => {

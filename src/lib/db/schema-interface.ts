@@ -37,6 +37,7 @@ export interface Clinic {
   unique_id: string; // Auto-generated unique identifier for clinic entrance
   has_entry_pin?: boolean;
   entry_pin?: string;
+  remove_entry_pin?: boolean;
   entry_pin_version?: number;
   is_active?: boolean;
   created_at?: string;

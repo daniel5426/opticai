@@ -85,7 +85,7 @@ export function ProfileTab({ localClinic, onClinicChange }: ProfileTabProps) {
               <div>
                 <CardTitle className="text-right text-lg">אבטחת כניסה למרפאה</CardTitle>
                 <p className="mt-1 text-right text-sm text-muted-foreground">
-                  שינוי הקוד יבטל אישורי מכשירים קיימים.
+                  שינוי או הסרת הקוד יבטלו אישורי מכשירים קיימים.
                 </p>
               </div>
 
@@ -100,10 +100,14 @@ export function ProfileTab({ localClinic, onClinicChange }: ProfileTabProps) {
                     autoComplete="new-password"
                     maxLength={32}
                     value={localClinic.entry_pin || ''}
-                    onChange={(e) => onClinicChange('entry_pin', e.target.value)}
+                    onChange={(e) => {
+                      onClinicChange('entry_pin', e.target.value)
+                      if (e.target.value.trim()) onClinicChange('remove_entry_pin', false)
+                    }}
                     placeholder={localClinic.has_entry_pin ? "השאר ריק כדי לא לשנות" : "לפחות 4 תווים"}
                     className="h-9 pl-10 text-right"
                     dir="rtl"
+                    disabled={!!localClinic.remove_entry_pin}
                   />
                   <Button
                     type="button"
@@ -116,6 +120,21 @@ export function ProfileTab({ localClinic, onClinicChange }: ProfileTabProps) {
                     {showPin ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </Button>
                 </div>
+                {localClinic.has_entry_pin && (
+                  <Button
+                    type="button"
+                    variant={localClinic.remove_entry_pin ? "destructive" : "outline"}
+                    size="sm"
+                    className="w-full"
+                    onClick={() => {
+                      const shouldRemove = !localClinic.remove_entry_pin
+                      onClinicChange('remove_entry_pin', shouldRemove)
+                      onClinicChange('entry_pin', '')
+                    }}
+                  >
+                    {localClinic.remove_entry_pin ? "PIN יוסר בשמירה" : "הסר PIN מהמרפאה"}
+                  </Button>
+                )}
               </div>
             </div>
 

@@ -64,7 +64,7 @@ class RegisterCompleteRequest(BaseModel):
 
 class ClinicTrustRequest(BaseModel):
     clinic_unique_id: str
-    pin: str
+    pin: Optional[str] = None
     device_id: str
 
 
@@ -344,12 +344,15 @@ async def register_complete(
 @router.post("/clinic/trust")
 async def clinic_trust(payload: ClinicTrustRequest, db: Session = Depends(get_db)):
     clinic = db.query(Clinic).filter(Clinic.unique_id == payload.clinic_unique_id).first()
-    if not clinic or not clinic.is_active:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid clinic credentials")
+    if not clinic:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid clinic ID")
+    if not clinic.is_active:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Clinic is inactive")
     _check_rate_limit(f"clinic-pin:{clinic.id}:{payload.device_id}", limit=6)
-    if not clinic.entry_pin_hash:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Clinic PIN is not configured")
-    if not verify_password(payload.pin, clinic.entry_pin_hash):
+    pin = (payload.pin or "").strip()
+    if clinic.entry_pin_hash and not pin:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Clinic PIN is required")
+    if clinic.entry_pin_hash and not verify_password(pin, clinic.entry_pin_hash):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid clinic credentials")
 
     raw_token = new_secret_token()

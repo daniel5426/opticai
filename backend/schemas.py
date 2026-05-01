@@ -62,6 +62,7 @@ class ClinicUpdate(ClinicBase):
     unique_id: Optional[str] = None
     company_id: Optional[int] = None
     entry_pin: Optional[str] = None
+    remove_entry_pin: Optional[bool] = None
 
 class Clinic(ClinicBase):
     id: int
@@ -318,7 +319,7 @@ class UserLoginNoPassword(BaseModel):
 
 class ClinicSessionRequest(BaseModel):
     clinic_unique_id: str
-    pin: str
+    pin: Optional[str] = None
     device_id: str
 
 class ClinicGoogleLoginRequest(BaseModel):

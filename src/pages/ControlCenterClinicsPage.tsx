@@ -56,12 +56,13 @@ function ClinicModal({ isOpen, onClose, clinic, onSave }: ClinicModalProps) {
   const [phoneNumber, setPhoneNumber] = useState(clinic?.phone_number || '');
   const [email, setEmail] = useState(clinic?.email || '');
   const [entryPin, setEntryPin] = useState('');
+  const [removeEntryPin, setRemoveEntryPin] = useState(false);
   const [showEntryPin, setShowEntryPin] = useState(false);
   const [isActive, setIsActive] = useState(clinic?.is_active ?? true);
 
   const handleConfirm = () => {
     const cleanEntryPin = entryPin.trim();
-    if (cleanEntryPin.length < 4) {
+    if (cleanEntryPin && cleanEntryPin.length < 4) {
       toast.error('יש להזין PIN למרפאה באורך 4 תווים לפחות');
       return;
     }
@@ -81,7 +82,8 @@ function ClinicModal({ isOpen, onClose, clinic, onSave }: ClinicModalProps) {
       license_number: licenseNumber,
       phone_number: phoneNumber,
       email,
-      entry_pin: cleanEntryPin,
+      entry_pin: cleanEntryPin || undefined,
+      remove_entry_pin: removeEntryPin || undefined,
       unique_id: clinic?.unique_id || generateUniqueId(),
       is_active: isActive,
       created_at: clinic?.created_at,
@@ -108,6 +110,7 @@ function ClinicModal({ isOpen, onClose, clinic, onSave }: ClinicModalProps) {
     setPhoneNumber(clinic?.phone_number || '');
     setEmail(clinic?.email || '');
     setEntryPin('');
+    setRemoveEntryPin(false);
     setShowEntryPin(false);
     setIsActive(clinic?.is_active ?? true);
   };
@@ -164,12 +167,16 @@ function ClinicModal({ isOpen, onClose, clinic, onSave }: ClinicModalProps) {
                   id="entry_pin"
                   type={showEntryPin ? 'text' : 'password'}
                   value={entryPin}
-                  onChange={(e) => setEntryPin(e.target.value)}
-                  placeholder="לפחות 4 תווים"
+                  onChange={(e) => {
+                    setEntryPin(e.target.value);
+                    if (e.target.value.trim()) setRemoveEntryPin(false);
+                  }}
+                  placeholder={clinic?.has_entry_pin ? 'השאר ריק כדי לא לשנות' : 'אופציונלי, לפחות 4 תווים'}
                   autoComplete="new-password"
                   maxLength={32}
                   className="h-10 pl-10 text-right"
                   dir="rtl"
+                  disabled={removeEntryPin}
                 />
                 <Button
                   type="button"
@@ -182,6 +189,20 @@ function ClinicModal({ isOpen, onClose, clinic, onSave }: ClinicModalProps) {
                   {showEntryPin ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </Button>
               </div>
+              {clinic?.has_entry_pin && (
+                <Button
+                  type="button"
+                  variant={removeEntryPin ? 'destructive' : 'outline'}
+                  size="sm"
+                  className="mt-2 w-full"
+                  onClick={() => {
+                    setRemoveEntryPin((value) => !value);
+                    setEntryPin('');
+                  }}
+                >
+                  {removeEntryPin ? 'PIN יוסר בשמירה' : 'הסר PIN מהמרפאה'}
+                </Button>
+              )}
             </div>
           </div>
         </div>

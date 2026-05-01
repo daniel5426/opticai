@@ -70,6 +70,7 @@ export interface ElectronAPI {
       picture?: string;
     };
   }>;
+  googleOAuthCancel: () => Promise<boolean>;
   googleOAuthRefreshToken: (refreshToken: string) => Promise<{
     success?: boolean;
     error?: string;
@@ -93,6 +94,7 @@ export interface ElectronAPI {
   openUpdateDownloadPage: () => Promise<{ success: boolean; error?: string; url?: string }>;
   getAppVersion: () => Promise<string>;
   openExternalAuthUrl: (url: string) => Promise<boolean>;
+  openUrlInChrome: (url: string) => Promise<boolean>;
   onAuthCallbackUrl: (callback: (url: string) => void) => () => void;
   onDownloadProgress: (callback: (progress: { percent: number; transferred: number; total: number; bytesPerSecond: number }) => void) => () => void;
   onUpdateDownloaded: (callback: (info: { version: string }) => void) => () => void;

@@ -18,8 +18,18 @@ interface ClinicEntranceProps {
 export function ClinicEntrance({ onBackToWelcome }: ClinicEntranceProps) {
   const [clinicId, setClinicId] = useState('');
   const [pin, setPin] = useState('');
+  const [pinRequired, setPinRequired] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  const getClinicEntranceError = (message: string) => {
+    if (message === 'Clinic PIN is required') return 'למרפאה זו מוגדר PIN. יש להזין את הקוד כדי להמשיך';
+    if (message === 'Invalid clinic credentials') return 'מזהה המרפאה או קוד ה-PIN שגויים';
+    if (message === 'Invalid clinic ID') return 'מזהה המרפאה לא נמצא במערכת';
+    if (message === 'Clinic is inactive') return 'המרפאה אינה פעילה';
+    if (message === 'Too many attempts') return 'יותר מדי ניסיונות. נסה שוב בעוד כמה דקות';
+    return message || 'שגיאה בחיפוש המרפאה';
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -29,10 +39,6 @@ export function ClinicEntrance({ onBackToWelcome }: ClinicEntranceProps) {
     try {
       if (!clinicId.trim()) {
         throw new Error('אנא הכנס מזהה מרפאה');
-      }
-
-      if (!pin.trim()) {
-        throw new Error('אנא הכנס קוד PIN למרפאה');
       }
 
       console.log('[ClinicEntrance] Authenticating clinic:', clinicId.trim());
@@ -53,7 +59,9 @@ export function ClinicEntrance({ onBackToWelcome }: ClinicEntranceProps) {
       
     } catch (error) {
       console.error('[ClinicEntrance] Error:', error);
-      setError(error instanceof Error ? error.message : 'שגיאה בחיפוש המרפאה');
+      const message = error instanceof Error ? error.message : '';
+      if (message === 'Clinic PIN is required') setPinRequired(true);
+      setError(getClinicEntranceError(message));
     } finally {
       setLoading(false);
     }
@@ -106,17 +114,19 @@ export function ClinicEntrance({ onBackToWelcome }: ClinicEntranceProps) {
             </div>
 
             <div className="space-y-2" dir="rtl">
-              <Label htmlFor="clinicPin">קוד PIN למרפאה</Label>
+              <Label htmlFor="clinicPin">
+                {pinRequired ? 'קוד PIN למרפאה' : 'קוד PIN למרפאה (אם הוגדר)'}
+              </Label>
               <Input
                 id="clinicPin"
                 type="password"
                 value={pin}
                 onChange={(e) => setPin(e.target.value)}
-                placeholder="הכנס קוד PIN"
-                required
+                placeholder={pinRequired ? 'הכנס קוד PIN' : 'אפשר להשאיר ריק אם אין PIN'}
+                required={pinRequired}
               />
               <p className="text-xs text-gray-500">
-                הקוד מוגדר על ידי מנהל המרפאה
+                מרפאות ללא PIN נכנסות לפי מזהה המרפאה בלבד
               </p>
             </div>
 

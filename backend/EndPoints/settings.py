@@ -117,6 +117,7 @@ def save_all(payload: SaveAllRequest, db: Session = Depends(get_db)):
                 raise HTTPException(status_code=404, detail="Clinic not found")
             cl_update = payload.clinic.dict(exclude_unset=True)
             entry_pin = cl_update.pop('entry_pin', None)
+            remove_entry_pin = bool(cl_update.pop('remove_entry_pin', False))
             cl_update.pop('has_entry_pin', None)
             if entry_pin is not None:
                 entry_pin = entry_pin.strip()
@@ -129,6 +130,9 @@ def save_all(payload: SaveAllRequest, db: Session = Depends(get_db)):
                 if entry_pin:
                     db_clinic.entry_pin_hash = get_password_hash(entry_pin)
                     db_clinic.entry_pin_version = (db_clinic.entry_pin_version or 1) + 1
+            if remove_entry_pin and not entry_pin and db_clinic.entry_pin_hash:
+                db_clinic.entry_pin_hash = None
+                db_clinic.entry_pin_version = (db_clinic.entry_pin_version or 1) + 1
             if cl_update.get('clinic_logo_path'):
                 try:
                     cl_update['clinic_logo_path'] = upload_base64_image(cl_update['clinic_logo_path'], f"clinics/{payload.clinic_id}/logos")

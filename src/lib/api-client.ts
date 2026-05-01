@@ -323,7 +323,7 @@ class ApiClient {
     return { data: response.data?.user } as ApiResponse<User>;
   }
 
-  async createClinicSession(data: { clinic_unique_id: string; pin: string; device_id: string }) {
+  async createClinicSession(data: { clinic_unique_id: string; pin?: string; device_id: string }) {
     return this.request<{ clinic_trust_token: string; token_type: string; clinic: Clinic }>('/auth/clinic/trust', {
       method: 'POST',
       body: JSON.stringify(data),

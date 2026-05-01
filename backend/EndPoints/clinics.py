@@ -38,15 +38,16 @@ def create_clinic(
 
     clinic_payload = clinic.dict()
     clinic_payload.pop("has_entry_pin", None)
+    clinic_payload.pop("remove_entry_pin", None)
     entry_pin = (clinic_payload.pop("entry_pin", None) or "").strip()
-    if len(entry_pin) < 4:
+    if entry_pin and len(entry_pin) < 4:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Clinic PIN must be at least 4 characters")
-    if len(entry_pin.encode("utf-8")) > 72:
+    if entry_pin and len(entry_pin.encode("utf-8")) > 72:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Clinic PIN must be 72 bytes or fewer")
     
     db_clinic = Clinic(
         **clinic_payload,
-        entry_pin_hash=get_password_hash(entry_pin),
+        entry_pin_hash=get_password_hash(entry_pin) if entry_pin else None,
         entry_pin_version=1,
     )
     db.add(db_clinic)
@@ -138,6 +139,7 @@ def update_clinic(
     
     update_data = clinic.dict(exclude_unset=True)
     entry_pin = update_data.pop("entry_pin", None)
+    remove_entry_pin = bool(update_data.pop("remove_entry_pin", False))
     if entry_pin is not None:
         entry_pin = entry_pin.strip()
         if not entry_pin:
@@ -149,9 +151,12 @@ def update_clinic(
         if entry_pin:
             db_clinic.entry_pin_hash = get_password_hash(entry_pin)
             db_clinic.entry_pin_version = (db_clinic.entry_pin_version or 1) + 1
+    if remove_entry_pin and not entry_pin and db_clinic.entry_pin_hash:
+        db_clinic.entry_pin_hash = None
+        db_clinic.entry_pin_version = (db_clinic.entry_pin_version or 1) + 1
 
     for field, value in update_data.items():
-        if field == "has_entry_pin":
+        if field in {"has_entry_pin", "remove_entry_pin"}:
             continue
         setattr(db_clinic, field, value)
     

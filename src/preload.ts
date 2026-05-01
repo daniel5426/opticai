@@ -55,6 +55,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Google OAuth and Calendar operations
   googleOAuthAuthenticate: () => ipcRenderer.invoke('google-oauth-authenticate'),
   googleOAuthCodeReceived: (code: string) => ipcRenderer.invoke('google-oauth-code-received', code),
+  googleOAuthCancel: () => ipcRenderer.invoke('google-oauth-cancel'),
   googleOAuthRefreshToken: (refreshToken: string) => ipcRenderer.invoke('google-oauth-refresh-token', refreshToken),
   googleOAuthValidateTokens: (tokens: any) => ipcRenderer.invoke('google-oauth-validate-tokens', tokens),
   googleCalendarCreateEvent: (tokens: any, appointment: any, client?: any) => ipcRenderer.invoke('google-calendar-create-event', tokens, appointment, client),
@@ -73,6 +74,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   openUpdateDownloadPage: () => ipcRenderer.invoke('open-update-download-page'),
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
   openExternalAuthUrl: (url: string) => ipcRenderer.invoke('open-external-auth-url', url),
+  openUrlInChrome: (url: string) => ipcRenderer.invoke('open-url-in-chrome', url),
   onAuthCallbackUrl: (callback: (url: string) => void) => {
     ipcRenderer.on('auth-callback-url', (_event, url) => callback(url));
     return () => ipcRenderer.removeAllListeners('auth-callback-url');

@@ -272,10 +272,11 @@ def test_create_clinic_endpoint_seeds_defaults():
     with TestClient(app) as client:
         response = client.post(
             "/api/v1/clinics/",
-            json={"company_id": company_id, "name": "New Clinic", "entry_pin": "1234"},
+            json={"company_id": company_id, "name": "New Clinic"},
         )
 
     assert response.status_code == 200
+    assert response.json()["has_entry_pin"] is False
     clinic_id = response.json()["id"]
     db = SessionLocal()
     try:

@@ -46,13 +46,29 @@ export function NavSecondary({
         <SidebarMenu>
           {items.map((item) => {
             const isActive = isRouteActive(item.url)
+            const isExternal = /^https?:\/\//.test(item.url)
+            const openExternal = async (event: React.MouseEvent<HTMLAnchorElement>) => {
+              event.preventDefault()
+              if (window.electronAPI?.openUrlInChrome) {
+                await window.electronAPI.openUrlInChrome(item.url)
+                return
+              }
+              window.open(item.url, "_blank", "noopener,noreferrer")
+            }
             return (
               <SidebarMenuItem key={item.title}>
                 <SidebarMenuButton asChild isActive={!!isActive}>
-                  <GuardedRouterLink to={item.url}>
-                    <item.icon />
-                    <span>{item.title}</span>
-                  </GuardedRouterLink>
+                  {isExternal ? (
+                    <a href={item.url} onClick={openExternal}>
+                      <item.icon />
+                      <span>{item.title}</span>
+                    </a>
+                  ) : (
+                    <GuardedRouterLink to={item.url}>
+                      <item.icon />
+                      <span>{item.title}</span>
+                    </GuardedRouterLink>
+                  )}
                 </SidebarMenuButton>
               </SidebarMenuItem>
             )

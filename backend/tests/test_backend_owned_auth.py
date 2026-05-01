@@ -20,6 +20,7 @@ os.environ.setdefault("TOKEN_ENCRYPTION_KEY", "development-encryption-key-for-te
 from auth import get_password_hash
 from database import Base, get_db
 from EndPoints import auth as auth_endpoint
+from EndPoints import clinics as clinics_endpoint
 from models import Clinic, ExamLayout, User
 
 
@@ -42,6 +43,7 @@ def client_and_db():
 
     app = FastAPI()
     app.include_router(auth_endpoint.router, prefix="/api/v1")
+    app.include_router(clinics_endpoint.router, prefix="/api/v1")
     app.dependency_overrides[get_db] = override_get_db
 
     with TestClient(app) as client:
@@ -158,6 +160,138 @@ def test_clinic_trust_quick_login_and_pin_version_revoke(client_and_db):
         headers={"Authorization": f"Bearer {trust_token}"},
     )
     assert revoked.status_code == 401
+
+
+def test_no_pin_clinic_trust_and_quick_login(client_and_db):
+    client, session_factory = client_and_db
+    setup = complete_setup(client)
+    clinic = setup["clinic"]
+    company_id = setup["company"]["id"]
+
+    db = session_factory()
+    try:
+        worker = User(
+            company_id=company_id,
+            clinic_id=clinic["id"],
+            username="no-pin-worker",
+            full_name="No Pin Worker",
+            role_level=1,
+            is_active=True,
+        )
+        db.add(worker)
+        db.commit()
+    finally:
+        db.close()
+
+    trust = client.post(
+        "/api/v1/auth/clinic/trust",
+        json={"clinic_unique_id": clinic["unique_id"], "device_id": "device-no-pin"},
+    )
+    assert trust.status_code == 200
+
+    quick = client.post(
+        "/api/v1/auth/login/quick",
+        json={"username": "no-pin-worker", "device_id": "device-no-pin"},
+        headers={"Authorization": f"Bearer {trust.json()['clinic_trust_token']}"},
+    )
+    assert quick.status_code == 200
+    assert quick.json()["user"]["username"] == "no-pin-worker"
+
+
+def test_pin_clinic_requires_pin_for_trust(client_and_db):
+    client, session_factory = client_and_db
+    setup = complete_setup(client)
+    clinic_id = setup["clinic"]["id"]
+    unique_id = setup["clinic"]["unique_id"]
+
+    db = session_factory()
+    try:
+        clinic = db.query(Clinic).filter(Clinic.id == clinic_id).one()
+        clinic.entry_pin_hash = get_password_hash("1234")
+        db.commit()
+    finally:
+        db.close()
+
+    missing = client.post(
+        "/api/v1/auth/clinic/trust",
+        json={"clinic_unique_id": unique_id, "device_id": "device-pin"},
+    )
+    assert missing.status_code == 400
+    assert missing.json()["detail"] == "Clinic PIN is required"
+
+    wrong = client.post(
+        "/api/v1/auth/clinic/trust",
+        json={"clinic_unique_id": unique_id, "pin": "9999", "device_id": "device-pin"},
+    )
+    assert wrong.status_code == 401
+
+    correct = client.post(
+        "/api/v1/auth/clinic/trust",
+        json={"clinic_unique_id": unique_id, "pin": "1234", "device_id": "device-pin"},
+    )
+    assert correct.status_code == 200
+
+
+def test_clinic_create_without_pin_and_remove_pin_revokes_trust(client_and_db):
+    client, session_factory = client_and_db
+    setup = complete_setup(client)
+    token = setup["access_token"]
+    company_id = setup["company"]["id"]
+    clinic_id = setup["clinic"]["id"]
+    unique_id = setup["clinic"]["unique_id"]
+
+    created = client.post(
+        "/api/v1/clinics/",
+        json={"company_id": company_id, "name": "Branch Without Pin"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert created.status_code == 200
+    assert created.json()["has_entry_pin"] is False
+
+    db = session_factory()
+    try:
+        worker = User(
+            company_id=company_id,
+            clinic_id=clinic_id,
+            username="remove-pin-worker",
+            full_name="Remove Pin Worker",
+            role_level=1,
+            is_active=True,
+        )
+        clinic = db.query(Clinic).filter(Clinic.id == clinic_id).one()
+        clinic.entry_pin_hash = get_password_hash("1234")
+        db.add(worker)
+        db.commit()
+    finally:
+        db.close()
+
+    old_trust = client.post(
+        "/api/v1/auth/clinic/trust",
+        json={"clinic_unique_id": unique_id, "pin": "1234", "device_id": "device-remove"},
+    )
+    assert old_trust.status_code == 200
+    old_token = old_trust.json()["clinic_trust_token"]
+
+    removed = client.put(
+        f"/api/v1/clinics/{clinic_id}",
+        json={"remove_entry_pin": True},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert removed.status_code == 200
+    assert removed.json()["has_entry_pin"] is False
+
+    revoked = client.post(
+        "/api/v1/auth/login/quick",
+        json={"username": "remove-pin-worker", "device_id": "device-remove"},
+        headers={"Authorization": f"Bearer {old_token}"},
+    )
+    assert revoked.status_code == 401
+
+    new_trust = client.post(
+        "/api/v1/auth/clinic/trust",
+        json={"clinic_unique_id": unique_id, "device_id": "device-remove"},
+    )
+    assert new_trust.status_code == 200
 
 
 def test_password_login_scope_refresh_and_logout(client_and_db):
