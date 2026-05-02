@@ -62,7 +62,7 @@ jobs:
 
       - name: Deploy backend to Railway staging
         env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN_STAGING }}
+          RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_TOKEN_STAGING }}
         run: |
           railway up \
             --ci \
@@ -85,7 +85,7 @@ jobs:
 
       - name: Deploy backend to Railway production
         env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN_PRODUCTION }}
+          RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_TOKEN_PRODUCTION }}
         run: |
           railway up \
             --ci \
