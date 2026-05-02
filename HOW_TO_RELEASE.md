@@ -1,12 +1,8 @@
 # How To Release Prysm
 
-Last Updated: 2026-04-30
+Last Updated: 2026-05-02
 
-Use this runbook for production releases. Production uses:
-- Backend: Heroku
-- Database: Supabase Postgres
-- Schema changes: Alembic only
-- Desktop builds: GitHub Actions release workflow
+Production uses Railway for the backend, Supabase Postgres/Storage for data, Alembic for schema changes, and GitHub Actions for desktop release builds.
 
 Never commit real `.env*` files. Production desktop env files are generated from GitHub Actions secrets.
 
@@ -19,7 +15,7 @@ git status --short
 npm run test
 ```
 
-For backend DB/schema work, also run:
+For backend/schema work, also run locally against the intended non-production database first:
 
 ```bash
 cd backend
@@ -27,42 +23,35 @@ python scripts/safe_migrate.py
 cd ..
 ```
 
-Before production deploy:
-- Confirm Supabase has a fresh backup.
-- Confirm Heroku config has `APP_ENV=production`.
-- Confirm Heroku `DATABASE_URL` points to Supabase Postgres, not SQLite.
-- Confirm Heroku has strong `SECRET_KEY` and `TOKEN_ENCRYPTION_KEY`.
-- For auth releases, deploy backend and desktop builds as one coordinated release; old Supabase-auth desktop builds cannot log in after this hard cut.
-- Confirm GitHub Actions secrets include:
-  - `VITE_API_URL`
-  - Google/update secrets used by the Electron app
+Before production backend deploy:
+
+- Confirm Supabase `opticai-prod` has a fresh backup.
+- Confirm Railway production variables point to Supabase `opticai-prod`.
+- Confirm staging points to Supabase `opticai`, not production data.
+- Confirm the current released desktop build still works against staging.
+- Confirm GitHub Actions secrets include `VITE_API_URL=https://api.prysm.co.il/api/v1`.
 
 ## 2. Deploy Backend
 
-Deploy only the backend folder to Heroku:
+Pushes to `main` deploy backend changes to Railway `staging` through `.github/workflows/backend-railway.yml`.
+
+Production backend deploy is manual:
+
+1. Open GitHub Actions.
+2. Run `Backend Railway Deploy`.
+3. Choose `production`.
+4. Verify:
 
 ```bash
-git subtree push --prefix backend heroku main
+curl https://api.prysm.co.il/health
+curl https://api.prysm.co.il/health/database
 ```
 
-If Heroku rejects the subtree push because history diverged:
+Staging verification:
 
 ```bash
-git push heroku `git subtree split --prefix backend main`:main --force
-```
-
-Run migrations after deploy:
-
-```bash
-heroku run python scripts/safe_migrate.py -a prysm-backend
-```
-
-Verify backend:
-
-```bash
-curl https://prysm-backend.herokuapp.com/health
-curl https://prysm-backend.herokuapp.com/health/database
-heroku logs -n 100 -a prysm-backend
+curl https://staging-api.prysm.co.il/health
+curl https://staging-api.prysm.co.il/health/database
 ```
 
 ## 3. Smoke Test
@@ -81,11 +70,9 @@ Before tagging the desktop release, verify against production backend:
 - Google calendar connect/sync if that release touches Google auth
 - Logout and restart session restore
 
-If any schema change was included, confirm app startup did not create/alter tables by itself. Schema changes must come from Alembic.
+Schema changes must come from Alembic. App startup must not create or alter tables.
 
 ## 4. Tag Desktop Release
-
-Bump version and create a tag:
 
 ```bash
 npm version patch
@@ -99,37 +86,32 @@ The tag must be `v*.*.*`; GitHub Actions builds the draft release from tags.
 
 ## 5. Publish Release
 
-Watch the workflow:
+Watch:
 
 - Actions: https://github.com/daniel5426/opticai/actions
 - Releases: https://github.com/daniel5426/opticai/releases
 
-When the workflow succeeds:
-
-1. Open the draft GitHub release.
-2. Confirm Windows and macOS artifacts are attached.
-3. Review generated release notes.
-4. Publish the release.
+When the workflow succeeds, confirm artifacts are attached, review notes, then publish the release.
 
 ## 6. Rollback
 
 Backend rollback:
 
-```bash
-heroku releases -a prysm-backend
-heroku rollback v123 -a prysm-backend
-```
+- Redeploy the previous known-good Railway deployment.
+- If needed, temporarily keep existing clients on Heroku until the next desktop patch release.
 
 Database rollback requires restoring the Supabase backup taken before migration. Do not run destructive downgrade migrations against production.
 
 Desktop rollback:
+
 - Keep the previous GitHub release available.
-- If needed, publish a new patch release pointing users back to a known-good build.
+- If needed, publish a new patch release pointing users back to a known-good backend.
 
 ## Release Rules
 
+- Backend changes must remain compatible with the currently installed desktop version.
 - Backup production DB before every release with migrations.
 - Rotate exposed secrets immediately; never paste real keys into docs.
-- Do not use wildcard CORS in production unless explicitly setting `ALLOW_WILDCARD_CORS_IN_PRODUCTION=true` as a temporary emergency measure.
+- Do not use wildcard CORS in production unless `ALLOW_WILDCARD_CORS_IN_PRODUCTION=true` is set as a temporary emergency measure.
 - Do not edit production DB schema manually except for emergency recovery with a recorded SQL transcript.
 - Do not ship a desktop build unless backend health checks and clinic smoke test pass.

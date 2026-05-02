@@ -1,0 +1,15 @@
+{
+  "$schema": "https://railway.com/railway.schema.json",
+  "build": {
+    "builder": "RAILPACK"
+  },
+  "deploy": {
+    "startCommand": "uvicorn main:app --host 0.0.0.0 --port $PORT",
+    "preDeployCommand": "python scripts/safe_migrate.py",
+    "healthcheckPath": "/health",
+    "healthcheckTimeout": 300,
+    "ipv6EgressEnabled": true,
+    "restartPolicyType": "ON_FAILURE",
+    "restartPolicyMaxRetries": 10
+  }
+}

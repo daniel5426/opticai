@@ -124,3 +124,27 @@ def test_production_config_allows_missing_google_oauth():
     )
 
     assert result.returncode == 0
+
+
+def test_main_import_does_not_connect_to_database():
+    env = {
+        **os.environ,
+        "APP_ENV": "production",
+        "DATABASE_URL": "postgresql://user:pass@localhost:5432/opticai",
+        "SECRET_KEY": "x" * 40,
+        "TOKEN_ENCRYPTION_KEY": "y" * 40,
+        "SUPABASE_URL": "https://example.supabase.co",
+        "SUPABASE_SERVICE_ROLE_KEY": "service-role",
+        "SUPABASE_KEY": "anon",
+        "BACKEND_CORS_ORIGINS": "http://localhost:5173",
+    }
+    result = subprocess.run(
+        [sys.executable, "-c", "import main; print('ok')"],
+        cwd=BACKEND_DIR,
+        env=env,
+        text=True,
+        capture_output=True,
+    )
+
+    assert result.returncode == 0
+    assert "ok" in result.stdout

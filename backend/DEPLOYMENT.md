@@ -1,296 +1,84 @@
-# Backend Deployment Guide (Heroku)
+# Backend Deployment Guide (Railway)
 
-Last Updated: 2026-04-30
+Last Updated: 2026-05-02
 
-## Prerequisites
+## Runtime
 
-1. Install Heroku CLI: https://devcenter.heroku.com/articles/heroku-cli
-2. Have a Heroku account
-3. Have Supabase account with PostgreSQL database
-4. Have OpenAI API key (for AI features)
+- Railway project: `opticai`
+- Service: `opticai`
+- Environments:
+  - `staging` -> Supabase `opticai`
+  - `production` -> Supabase `opticai-prod`
+- Production API: `https://api.prysm.co.il`
+- Staging API: `https://staging-api.prysm.co.il`
 
-## Initial Setup
+Railway builds only `backend/`. Config-as-code lives in `backend/railway.json`.
 
-### 1. Login to Heroku
-```bash
-heroku login
+Production uses Supabase direct Postgres over IPv6 because the `opticai-prod` Supabase pooler endpoint timed out from Railway during migration. Keep `ipv6EgressEnabled` enabled in Railway config.
+
+## Required Variables
+
+Set these per Railway environment:
+
+```text
+APP_ENV
+ACCESS_TOKEN_EXPIRE_MINUTES
+DATABASE_URL
+SECRET_KEY
+TOKEN_ENCRYPTION_KEY
+BACKEND_CORS_ORIGINS
+SUPABASE_URL
+SUPABASE_SERVICE_ROLE_KEY
+SUPABASE_KEY
+SUPABASE_BUCKET
+OPENAI_API_KEY
+RAILPACK_PYTHON_VERSION
 ```
 
-### 2. Create Heroku App
-```bash
-cd backend
-heroku create your-app-name
-```
+Google, WhatsApp, and Facebook variables are optional unless the release touches those integrations.
 
-Or use existing app:
-```bash
-heroku git:remote -a your-app-name
-```
+## Deploy Flow
 
-### 3. Configure Environment Variables
+- Pushes to `main` deploy backend changes to Railway `staging` through GitHub Actions.
+- Production deploys are manual from the `Backend Railway Deploy` workflow.
+- Keep Heroku live until Railway production and a new desktop build are verified.
 
-Set all required environment variables:
+Manual CLI deploys, when needed:
 
 ```bash
-# Runtime
-heroku config:set APP_ENV=production
-heroku config:set SECRET_KEY="$(python -c 'import secrets; print(secrets.token_urlsafe(32))')"
-heroku config:set TOKEN_ENCRYPTION_KEY="$(python -c 'import secrets; print(secrets.token_urlsafe(48))')"
-heroku config:set ACCESS_TOKEN_EXPIRE_MINUTES=15
-
-# Database (Supabase PostgreSQL)
-heroku config:set DATABASE_URL="postgresql://postgres:[password]@[host]:5432/[database]"
-
-# OpenAI
-heroku config:set OPENAI_API_KEY="your-openai-api-key"
-
-# Supabase
-heroku config:set SUPABASE_URL="your-supabase-url"
-heroku config:set SUPABASE_SERVICE_ROLE_KEY="your-service-role-key"
-heroku config:set SUPABASE_KEY="your-supabase-anon-key"
-heroku config:set SUPABASE_BUCKET="opticai"
-
-# CORS - keep explicit unless you intentionally opt into wildcard
-heroku config:set BACKEND_CORS_ORIGINS="app://.,http://localhost:5173,http://127.0.0.1:5173"
+railway up --ci --project fb97ce50-fb72-4612-bfd1-c6d8a7bed9cb --environment staging --service opticai --message "Manual staging deploy"
+railway up --ci --project fb97ce50-fb72-4612-bfd1-c6d8a7bed9cb --environment production --service opticai --message "Manual production deploy"
 ```
 
-### 4. View All Config Variables
-```bash
-heroku config
+## DNS
+
+Add the DNS records Railway reports for:
+
+```text
+CNAME api         -> dhgajqlu.up.railway.app
+CNAME staging-api -> c5mltt5v.up.railway.app
 ```
 
-## Deployment
+Railway ownership verification and certificates are active. If Railway asks to re-verify ownership, use:
 
-### Understanding the Monorepo Setup
+```text
+TXT _railway-verify.api         -> railway-verify=3e394d7df0f641c5b96081cd7f5f6db14ebfb5ec31e9c075e8efee0ab1b01e52
+TXT _railway-verify.staging-api -> railway-verify=e4de5d0f06d0715934b29ff01014d133f3f2eac146a5ea7cee8adf4bb58cbdb9
+```
 
-Since both backend (FastAPI) and frontend (Electron) are in the same repository, Heroku needs to know to deploy **only the backend directory**. We use **git subtree push** to achieve this.
+If using Cloudflare, keep the records DNS-only until Railway certificates are active.
 
-### Deploy from Local Repository
-
-**Method 1: Git Subtree Push (Recommended)**
-
-This pushes only the `backend/` directory to Heroku as if it were the root:
+## Verification
 
 ```bash
-# From the ROOT of your project (not inside backend/)
-git subtree push --prefix backend heroku main
+curl https://staging-api.prysm.co.il/health
+curl https://staging-api.prysm.co.il/health/database
+curl https://api.prysm.co.il/health
+curl https://api.prysm.co.il/health/database
 ```
 
-What this does:
-- Extracts only the `backend/` folder
-- Pushes it to Heroku as the root directory
-- Heroku sees `Procfile`, `requirements.txt`, `main.py` at root level
-- Heroku automatically detects it as a Python app
+Before production deploys with migrations:
 
-**Important Notes:**
-- Run this from the **project root**, not from inside `backend/`
-- First time may take a few minutes
-- Subsequent deploys are faster
-
-**Method 2: Separate Git Remote (Alternative)**
-
-If you prefer a dedicated backend repository:
-
-```bash
-# Inside backend directory
-cd backend
-git init
-git remote add heroku https://git.heroku.com/your-app.git
-git add .
-git commit -m "Initial backend deployment"
-git push heroku master
-```
-
-### Troubleshooting Deployment
-
-**Error: "No such ref: refs/heads/heroku"**
-```bash
-# First deployment, use this instead:
-git subtree split --prefix backend -b backend-deploy
-git push heroku backend-deploy:main
-git branch -D backend-deploy
-```
-
-**Error: Updates were rejected**
-```bash
-# Force push (be careful!)
-git push heroku `git subtree split --prefix backend main`:main --force
-```
-
-**Verify what Heroku sees:**
-```bash
-heroku run bash
-ls -la  # Should show Procfile, main.py, etc. at root
-```
-
-## Post-Deployment
-
-### 1. Backup Production Database
-Before first clinic go-live or any migration, create a Supabase dashboard backup or run:
-```bash
-pg_dump "postgresql://postgres:[password]@[host]:5432/[database]" > backup-before-launch.sql
-```
-
-### 2. Run Safe Migrations
-```bash
-heroku run python scripts/safe_migrate.py -a your-app-name
-```
-
-The runner upgrades empty databases normally. For existing app databases without Alembic history, it verifies the model schema, stamps the baseline, then applies launch-safe schema guards.
-
-### 3. Check Logs
-```bash
-heroku logs --tail
-```
-
-### 4. Test API
-```bash
-# Health check endpoint
-curl https://your-app-name.herokuapp.com/health
-
-# Or test login
-curl https://your-app-name.herokuapp.com/api/v1/auth/login
-```
-
-### 5. Scale Dynos
-```bash
-# Ensure at least one web dyno is running
-heroku ps:scale web=1
-```
-
-## Monitoring
-
-### View App Status
-```bash
-heroku ps
-```
-
-### View Recent Logs
-```bash
-heroku logs -n 200
-```
-
-### Open App in Browser
-```bash
-heroku open
-```
-
-## Database Management
-
-### Access Database Console
-```bash
-# Connect to your Supabase database
-# Use the connection string from Supabase dashboard
-psql "postgresql://postgres:[password]@[host]:5432/[database]"
-```
-
-### View Database Info
-```bash
-# Check your Supabase dashboard for database info
-# Or use the connection string to connect directly
-```
-
-### Create Backup
-```bash
-# Use Supabase dashboard backup features
-# Or create manual backup:
-pg_dump "postgresql://postgres:[password]@[host]:5432/[database]" > backup.sql
-```
-
-## Troubleshooting
-
-### Issue: Application Error
-- Check logs: `heroku logs --tail`
-- Verify all environment variables are set: `heroku config`
-- Check dyno status: `heroku ps`
-
-### Issue: Database Connection Error
-- Verify DATABASE_URL points to your Supabase PostgreSQL
-- Check Supabase database is running and accessible
-- Ensure SSL mode is enabled for external connections
-
-### Issue: CORS Errors
-- Verify `BACKEND_CORS_ORIGINS` includes the actual packaged app/backend origin.
-- Wildcard CORS is rejected in production unless `ALLOW_WILDCARD_CORS_IN_PRODUCTION=true`.
-- Check that requests include proper headers
-
-### Restart Application
-```bash
-heroku restart
-```
-
-## Updating the Application
-
-### Deploy Latest Changes
-```bash
-git add .
-git commit -m "Your commit message"
-git subtree push --prefix backend heroku main
-```
-
-### Rollback to Previous Version
-```bash
-heroku releases
-heroku rollback v123  # Replace with version number
-```
-
-## Cost Optimization
-
-- **Eco Dynos**: $5/month, sleeps after 30 minutes of inactivity
-- **Basic Dynos**: $7/month, never sleeps
-- **No database costs** (using Supabase)
-- Consider upgrading for production use
-
-## Security Best Practices
-
-1. **Never commit sensitive data** - Use environment variables
-2. **Rotate SECRET_KEY** periodically
-3. **Use strong passwords** for database
-4. **Enable 2FA** on Heroku account
-5. **Review access logs** regularly
-6. **Keep dependencies updated** - Run `pip list --outdated`
-
-## Production Checklist
-
-- [ ] All environment variables set
-- [ ] Database configured and migrations run
-- [ ] CORS properly configured
-- [ ] SECRET_KEY is strong and unique
-- [ ] Logs reviewed for errors
-- [ ] API endpoints tested
-- [ ] SSL/HTTPS enabled (automatic on Heroku)
-- [ ] Monitoring set up
-- [ ] Backup strategy in place
-
-## Additional Resources
-
-- [Heroku Python Documentation](https://devcenter.heroku.com/articles/getting-started-with-python)
-- [Supabase Documentation](https://supabase.com/docs)
-- [FastAPI Deployment Guide](https://fastapi.tiangolo.com/deployment/)
-
-## Environment Variables Reference
-
-| Variable | Description | Required | Source |
-|----------|-------------|----------|---------|
-| `APP_ENV` | Runtime mode; set to `production` on Heroku | Yes | Heroku config |
-| `DATABASE_URL` | Supabase PostgreSQL connection string | Yes | Supabase Dashboard → Settings → Database |
-| `SECRET_KEY` | JWT signing secret | Yes | Generate with Python secrets module |
-| `TOKEN_ENCRYPTION_KEY` | Encrypts refresh-related integration tokens | Yes | Generate with Python secrets module |
-| `ACCESS_TOKEN_EXPIRE_MINUTES` | Short-lived access token lifetime | Yes | Use 15 unless there is a specific reason |
-| `OPENAI_API_KEY` | OpenAI API key for AI features | Yes | OpenAI Dashboard |
-| `SUPABASE_URL` | Supabase project URL | Yes | Supabase Dashboard |
-| `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key | Yes | Supabase Dashboard → Settings → API |
-| `SUPABASE_KEY` | Supabase anon/public key | Yes | Supabase Dashboard → Settings → API |
-| `SUPABASE_BUCKET` | Storage bucket name | Yes | Set to "opticai" or your preferred name |
-| `GOOGLE_DESKTOP_CLIENT_ID` | Google OAuth desktop client ID | Yes | Google Cloud Console |
-| `GOOGLE_DESKTOP_CLIENT_SECRET` | Google OAuth desktop client secret | Yes | Google Cloud Console |
-| `BACKEND_CORS_ORIGINS` | Allowed CORS origins | Yes | Explicit origins; avoid `*` in production |
-| `ALLOW_WILDCARD_CORS_IN_PRODUCTION` | Emergency override for wildcard CORS | No | Defaults to false |
-
-## Getting Your Supabase Connection String
-
-1. Go to your Supabase project dashboard
-2. Navigate to Settings → Database
-3. Copy the "Connection string" under "Connection parameters"
-4. It will look like: `postgresql://postgres:[password]@[host]:5432/postgres`
-5. Use this as your `DATABASE_URL` in Heroku config
+1. Confirm a fresh Supabase production backup exists.
+2. Confirm the current released desktop build works against staging.
+3. Confirm migrations are backward-compatible.

@@ -1,5 +1,7 @@
 # where the backend fastapi app that will be used as a proxy for openai llm call, and for handling the app backups
 
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.responses import ORJSONResponse
 from fastapi.middleware.gzip import GZipMiddleware
@@ -12,12 +14,35 @@ import json
 from fastapi.responses import StreamingResponse
 
 logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+
+def seed_initial_data():
+    from database import get_db
+    from utils.seed_data import seed_va_values
+
+    try:
+        db = next(get_db())
+        try:
+            seed_va_values(db)
+        finally:
+            db.close()
+    except Exception:
+        logger.exception("Skipping startup seed because the database is unavailable")
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    seed_initial_data()
+    yield
+
 
 app = FastAPI(
     title=config.settings.PROJECT_NAME,
     version=config.settings.VERSION,
     openapi_url=f"{config.settings.API_V1_STR}/openapi.json",
-    default_response_class=ORJSONResponse
+    default_response_class=ORJSONResponse,
+    lifespan=lifespan,
 )
 
 app.add_middleware(
@@ -29,15 +54,6 @@ app.add_middleware(
 )
 
 app.add_middleware(GZipMiddleware, minimum_size=1024)
-
-# Seed initial data
-from database import get_db
-from utils.seed_data import seed_va_values
-db = next(get_db())
-try:
-    seed_va_values(db)
-finally:
-    db.close()
 
 app.include_router(auth.router, prefix=config.settings.API_V1_STR)
 app.include_router(companies.router, prefix=config.settings.API_V1_STR)

@@ -8,6 +8,7 @@ lerna-debug.log*
 
 qdrant_storage/
 supabase/.temp/
+.railway/
 
 # Local databases and imported legacy data dumps
 *.db
