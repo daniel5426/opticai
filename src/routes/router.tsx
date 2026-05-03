@@ -37,6 +37,19 @@ const serializeSearch = (search: unknown): string => {
   return "";
 };
 
+const isCallbackPath = (path: string) =>
+  path === "/auth/callback" || path === "/oauth/callback";
+
+const isPackagedIndexPath = (path: string) =>
+  path === "/index.html" ||
+  path.endsWith("/index.html") ||
+  /^\/[A-Za-z]:\//.test(path);
+
+const isUsableStoredPath = (path: string) =>
+  path.startsWith("/") &&
+  !isCallbackPath(path) &&
+  !isPackagedIndexPath(path);
+
 const resolveInitialEntry = (): string => {
   if (typeof window === "undefined") return "/";
 
@@ -45,16 +58,24 @@ const resolveInitialEntry = (): string => {
     // Otherwise the memory history will boot into the last saved app path
     // and ignore the login tokens in the URL/Hash.
     const currentPath = window.location.pathname;
-    if (currentPath === "/auth/callback" || currentPath === "/oauth/callback") {
+    if (isCallbackPath(currentPath)) {
       return currentPath + window.location.search + window.location.hash;
     }
 
     const storedPath = localStorage.getItem("lastAppPath");
-    if (storedPath && storedPath !== "/auth/callback" && storedPath !== "/oauth/callback") {
+    if (storedPath && isUsableStoredPath(storedPath)) {
       return storedPath;
+    }
+
+    if (storedPath && !isUsableStoredPath(storedPath)) {
+      localStorage.removeItem("lastAppPath");
     }
   } catch (error) {
     console.error("[Router] Failed to read stored path:", error);
+  }
+
+  if (window.location.protocol === "file:" && isPackagedIndexPath(window.location.pathname)) {
+    return "/";
   }
 
   const fallback =
@@ -101,7 +122,7 @@ if (typeof window !== 'undefined') {
       history.location.pathname === '/auth/callback' ||
       history.location.pathname === '/oauth/callback';
 
-    if (!isCallbackRoute) {
+    if (!isCallbackRoute && isUsableStoredPath(pathWithSearch)) {
       localStorage.setItem('lastAppPath', pathWithSearch);
       const isControlCenterContext =
         history.location.pathname === '/' || history.location.pathname.startsWith('/control-center');
