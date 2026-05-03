@@ -24,7 +24,7 @@ def run(
     text: str,
     *,
     bold: bool = False,
-    size: int = 20,
+    size: int = 18,
     color: str | None = None,
     font: str = "Assistant",
 ) -> str:
@@ -42,7 +42,7 @@ def run(
     return f"<w:r><w:rPr>{''.join(props)}</w:rPr><w:t xml:space=\"preserve\">{xml(text)}</w:t></w:r>"
 
 
-def field(key: str, *, size: int = 20, bold: bool = False, color: str | None = None, font: str = "Assistant") -> str:
+def field(key: str, *, size: int = 18, bold: bool = False, color: str | None = None, font: str = "Assistant") -> str:
     props = [
         f'<w:rFonts w:ascii="{font}" w:hAnsi="{font}" w:cs="{font}" w:eastAsia="{font}"/>',
         f'<w:sz w:val="{size}"/>',
@@ -85,7 +85,7 @@ def paragraph(
     *,
     align: str = "right",
     spacing_before: int = 0,
-    spacing_after: int = 120,
+    spacing_after: int = 60,
     keep_next: bool = False,
 ) -> str:
     keep_next_xml = "<w:keepNext/>" if keep_next else ""
@@ -97,7 +97,7 @@ def paragraph(
     )
 
 
-def empty_paragraph(height: int = 80) -> str:
+def empty_paragraph(height: int = 40) -> str:
     return f"<w:p><w:pPr><w:bidi/><w:spacing w:after=\"{height}\"/></w:pPr></w:p>"
 
 
@@ -111,7 +111,7 @@ def cell(
     align: str = "right",
     span: int | None = None,
     vertical: str = "center",
-    margins: tuple[int, int, int, int] = (90, 120, 90, 120),
+    margins: tuple[int, int, int, int] = (40, 120, 40, 120),
 ) -> str:
     top, right, bottom, left = margins
     tc_pr = [f'<w:tcW w:w="{width}" w:type="dxa"/>']
@@ -176,10 +176,10 @@ def table(rows: list[str], widths: list[int], *, layout: str = "fixed", borders:
 
 def section_title(title: str) -> str:
     return paragraph(
-        run(title, bold=True, size=28, color="18181B"),
+        run(title, bold=True, size=20, color="18181B"),
         align="center",
-        spacing_before=240,
-        spacing_after=80,
+        spacing_before=120,
+        spacing_after=40,
         keep_next=True
     )
 
@@ -193,8 +193,8 @@ def header_block(title: str, subtitle_key: str) -> str:
         margins=(0, 0, 0, 0),
         vertical="center"
     )
-    title_run = run(title, bold=True, size=40, color=HEADER_TEXT)
-    subtitle_run = run("סניף: ", bold=True, size=24, color="71717A") + field(subtitle_key, size=24, color="71717A")
+    title_run = run(title, bold=True, size=32, color=HEADER_TEXT)
+    subtitle_run = run("סניף: ", bold=True, size=20, color="71717A") + field(subtitle_key, size=20, color="71717A")
     
     right_cell = cell(
         paragraph(title_run, align="right", spacing_after=40) + paragraph(subtitle_run, align="right", spacing_after=0),
@@ -394,21 +394,21 @@ def comparison_table(headers: list[str], right_keys: list[str], left_keys: list[
 def notes_row(right_title: str, right_key: str, left_title: str, left_key: str) -> str:
     half_width = PAGE_WIDTH // 2
     right_cell = (
-        paragraph(run(right_title, bold=True, size=20, color="18181B"), align="right", spacing_after=70, keep_next=True)
+        paragraph(run(right_title, bold=True, size=20, color="18181B"), align="right", spacing_after=40, keep_next=True)
         + paragraph(field(right_key, size=20), align="right", spacing_after=20)
     )
     left_cell = (
-        paragraph(run(left_title, bold=True, size=20, color="18181B"), align="right", spacing_after=70, keep_next=True)
+        paragraph(run(left_title, bold=True, size=20, color="18181B"), align="right", spacing_after=40, keep_next=True)
         + paragraph(field(left_key, size=20), align="right", spacing_after=20)
     )
     return table(
         [
             row(
                 [
-                    cell(left_cell, width=half_width, fill=SUBTLE_FILL, vertical="top", margins=(120, 120, 180, 120), borders=False),
-                    cell(right_cell, width=half_width, fill=SUBTLE_FILL, vertical="top", margins=(120, 120, 180, 120), borders=False),
+                    cell(left_cell, width=half_width, fill=SUBTLE_FILL, vertical="top", margins=(80, 120, 80, 120), borders=False),
+                    cell(right_cell, width=half_width, fill=SUBTLE_FILL, vertical="top", margins=(80, 120, 80, 120), borders=False),
                 ],
-                height=980,
+                height=600,
             )
         ],
         [half_width, half_width],
@@ -419,7 +419,7 @@ def notes_row(right_title: str, right_key: str, left_title: str, left_key: str) 
 def build_regular_xml() -> str:
     content = [
         header_block("הזמנה רגילה", "clinic_name"),
-        empty_paragraph(240),
+        empty_paragraph(120),
         metric_table(
             [
                 ("מס' הזמנה", "order_number"),
@@ -432,7 +432,7 @@ def build_regular_xml() -> str:
                 ("הובטח", "promised_date"),
             ]
         ),
-        empty_paragraph(180),
+        empty_paragraph(60),
         section_title("פרטי לקוח"),
         kv_table(
             [
@@ -445,7 +445,7 @@ def build_regular_xml() -> str:
             ],
             pairs_per_row=3,
         ),
-        empty_paragraph(180),
+        empty_paragraph(60),
         section_title("צוות ותפעול"),
         kv_table(
             [
@@ -458,7 +458,7 @@ def build_regular_xml() -> str:
             ],
             pairs_per_row=3,
         ),
-        empty_paragraph(180),
+        empty_paragraph(60),
         section_title("מרשם"),
         eye_table(
             "עין",
@@ -466,16 +466,16 @@ def build_regular_xml() -> str:
             ["r_sph", "r_cyl", "r_ax", "r_pris", "r_base", "r_add", "r_pd"],
             ["l_sph", "l_cyl", "l_ax", "l_pris", "l_base", "l_add", "l_pd"],
         ),
-        empty_paragraph(80),
+        empty_paragraph(40),
         kv_table([("PD משולב", "comb_pd"), ("רב מוקדי", "multifocal_block")], pairs_per_row=2),
-        empty_paragraph(180),
+        empty_paragraph(60),
         section_title("פרטי עדשות"),
         comparison_table(
             ["דגם", "ספק", "חומר", "ציפוי", "צבע", "קוטר"],
             ["r_lens_model", "r_lens_supplier", "r_lens_material", "r_lens_coating", "r_lens_color", "r_lens_diameter"],
             ["l_lens_model", "l_lens_supplier", "l_lens_material", "l_lens_coating", "l_lens_color", "l_lens_diameter"],
         ),
-        empty_paragraph(180),
+        empty_paragraph(60),
         section_title("מסגרת"),
         kv_table(
             [
@@ -491,7 +491,7 @@ def build_regular_xml() -> str:
             ],
             pairs_per_row=3,
         ),
-        empty_paragraph(180),
+        empty_paragraph(60),
         section_title("סיכום כספי"),
         metric_table(
             [
@@ -500,7 +500,7 @@ def build_regular_xml() -> str:
                 ("יתרה", "balance_due"),
             ]
         ),
-        empty_paragraph(180),
+        empty_paragraph(60),
         section_title("הערות"),
         notes_row("הערות קליניות", "clinic_notes", "הערות לספק", "supplier_notes"),
     ]
@@ -517,7 +517,7 @@ def build_regular_xml() -> str:
 def build_contact_xml() -> str:
     content = [
         header_block("הזמנת עדשות מגע", "clinic_name"),
-        empty_paragraph(240),
+        empty_paragraph(120),
         metric_table(
             [
                 ("מס' הזמנה", "order_number"),
@@ -530,7 +530,7 @@ def build_contact_xml() -> str:
                 ("נמסר", "delivery_date"),
             ]
         ),
-        empty_paragraph(180),
+        empty_paragraph(60),
         section_title("פרטי לקוח"),
         kv_table(
             [
@@ -543,7 +543,7 @@ def build_contact_xml() -> str:
             ],
             pairs_per_row=3,
         ),
-        empty_paragraph(180),
+        empty_paragraph(60),
         section_title("צוות ותפעול"),
         kv_table(
             [
@@ -553,14 +553,14 @@ def build_contact_xml() -> str:
             ],
             pairs_per_row=3,
         ),
-        empty_paragraph(180),
+        empty_paragraph(60),
         section_title("פרטי עדשות"),
         comparison_table(
             ["סוג", "דגם", "ספק", "חומר", "צבע", "כמות"],
             ["r_lens_type", "r_model", "r_supplier", "r_material", "r_color", "r_quantity"],
             ["l_lens_type", "l_model", "l_supplier", "l_material", "l_color", "l_quantity"],
         ),
-        empty_paragraph(180),
+        empty_paragraph(60),
         section_title("מרשם עדשות מגע"),
         eye_table(
             "עין",
@@ -568,7 +568,7 @@ def build_contact_xml() -> str:
             ["r_bc1", "r_bc2", "r_oz", "r_diam", "r_sph", "r_cyl", "r_ax", "r_read_add"],
             ["l_bc1", "l_bc2", "l_oz", "l_diam", "l_sph", "l_cyl", "l_ax", "l_read_add"],
         ),
-        empty_paragraph(180),
+        empty_paragraph(60),
         section_title("תמיסות"),
         kv_table(
             [
@@ -578,7 +578,7 @@ def build_contact_xml() -> str:
             ],
             pairs_per_row=3,
         ),
-        empty_paragraph(180),
+        empty_paragraph(60),
         section_title("סיכום כספי"),
         metric_table(
             [
@@ -587,7 +587,7 @@ def build_contact_xml() -> str:
                 ("יתרה", "balance_due"),
             ]
         ),
-        empty_paragraph(180),
+        empty_paragraph(60),
         section_title("הערות"),
         notes_row("הערות קליניות", "clinic_notes", "הערות לספק", "supplier_notes"),
     ]
@@ -606,9 +606,9 @@ def build_referral_xml() -> str:
         paragraph(logo(1000000, 1000000), align="left", spacing_after=0),
         width=PAGE_WIDTH // 3, borders=False, fill=None, margins=(0,0,0,0), vertical="center"
     )
-    title_run = run("מכתב הפניה", bold=True, size=40, color=HEADER_TEXT)
-    company_para = paragraph(field("#has_company_info") + field("company_info", bold=True, size=24, color="71717A") + field("/has_company_info"), align="right", spacing_after=0)
-    clinic_para = paragraph(field("#has_clinic_info") + field("clinic_info", size=24, color="71717A") + field("/has_clinic_info"), align="right", spacing_after=0)
+    title_run = run("מכתב הפניה", bold=True, size=32, color=HEADER_TEXT)
+    company_para = paragraph(field("#has_company_info") + field("company_info", bold=True, size=20, color="71717A") + field("/has_company_info"), align="right", spacing_after=0)
+    clinic_para = paragraph(field("#has_clinic_info") + field("clinic_info", size=20, color="71717A") + field("/has_clinic_info"), align="right", spacing_after=0)
     right_cell = cell(
         paragraph(title_run, align="right", spacing_after=40) + company_para + clinic_para,
         width=(PAGE_WIDTH * 2) // 3, borders=False, fill=None, margins=(0,0,0,0), vertical="center"
@@ -616,7 +616,7 @@ def build_referral_xml() -> str:
 
     content = [
         table([row([left_cell, right_cell])], [PAGE_WIDTH // 3, (PAGE_WIDTH * 2) // 3], borders=False),
-        empty_paragraph(240),
+        empty_paragraph(120),
         
         paragraph(field("#has_referral_details"), spacing_after=0),
         paragraph(field("referral_details", size=22), align="right", spacing_after=180),
@@ -640,11 +640,11 @@ def build_referral_xml() -> str:
                 cell(
                     paragraph(run("הערות:", bold=True, size=22, color="18181B"), align="right", spacing_after=40) +
                     paragraph(field("referral_notes", size=22), align="right", spacing_after=0),
-                    width=PAGE_WIDTH, borders=False, fill=SUBTLE_FILL, margins=(160, 160, 160, 160)
+                    width=PAGE_WIDTH, borders=False, fill=SUBTLE_FILL, margins=(80, 160, 80, 160)
                 )
             ])
         ], [PAGE_WIDTH], borders=True),
-        empty_paragraph(180),
+        empty_paragraph(60),
         paragraph(field("/has_referral_notes"), spacing_after=0),
         
         paragraph(field("#has_clinical_findings"), spacing_after=0),
@@ -653,11 +653,11 @@ def build_referral_xml() -> str:
                 cell(
                     paragraph(run("ממצאים קליניים:", bold=True, size=22, color="18181B"), align="right", spacing_after=40) +
                     paragraph(field("clinical_findings_text", size=22), align="right", spacing_after=0),
-                    width=PAGE_WIDTH, borders=False, fill=SUBTLE_FILL, margins=(160, 160, 160, 160)
+                    width=PAGE_WIDTH, borders=False, fill=SUBTLE_FILL, margins=(80, 160, 80, 160)
                 )
             ])
         ], [PAGE_WIDTH], borders=True),
-        empty_paragraph(180),
+        empty_paragraph(60),
         paragraph(field("/has_clinical_findings"), spacing_after=0),
         
         paragraph(field("#has_compact_prescription"), spacing_after=0),
@@ -668,13 +668,13 @@ def build_referral_xml() -> str:
             ["r_sph", "r_cyl", "r_ax", "r_pris", "r_base", "r_va", "r_add", "r_pd"],
             ["l_sph", "l_cyl", "l_ax", "l_pris", "l_base", "l_va", "l_add", "l_pd"],
         ),
-        empty_paragraph(80),
+        empty_paragraph(40),
         kv_table([("VA משולב", "comb_va"), ("PD משולב", "comb_pd")], pairs_per_row=2),
-        empty_paragraph(240),
+        empty_paragraph(120),
         paragraph(field("/has_compact_prescription"), spacing_after=0),
         
         paragraph(field("#has_signature"), spacing_after=0),
-        paragraph(field("signature_text", size=20, color="52525B"), align="right", spacing_before=360, spacing_after=80),
+        paragraph(field("signature_text", size=20, color="52525B"), align="right", spacing_before=360, spacing_after=40),
         paragraph(field("/has_signature"), spacing_after=0),
     ]
     return (

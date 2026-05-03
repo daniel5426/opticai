@@ -97,6 +97,15 @@ function detectCurrentPart(pathname: string, searchParams?: any, contextActiveTa
   return null
 }
 
+const AI_PART_KEYS = ['exam', 'order', 'referral', 'appointment', 'file', 'medical'] as const
+
+function extractAiPartCache(client: any): Record<string, string | null> {
+  return AI_PART_KEYS.reduce<Record<string, string | null>>((cache, part) => {
+    cache[part] = client?.[`ai_${part}_state`] || null
+    return cache
+  }, {})
+}
+
 function AIInformationSection({
   currentPart,
   aiInfo,
@@ -226,6 +235,16 @@ export function ClientSidebar() {
     setMounted(true)
   }, [])
 
+  useEffect(() => {
+    requestSeqRef.current += 1
+    setAiPartCache({})
+    setAiInfo(null)
+    setIsGenerating(false)
+    setIsLoading(false)
+    setHasAiLoadedOnce(false)
+    setLastClientUpdateDate(null)
+  }, [currentClient?.id])
+
   // Handle AI block toggle
   const handleToggleAiBlock = useCallback(() => {
     const newState = !isAiBlockOpen
@@ -276,7 +295,7 @@ export function ClientSidebar() {
         if (aiUpdatedDate && clientUpdatedDate && new Date(aiUpdatedDate) >= new Date(clientUpdatedDate)) {
           if (mySeq !== requestSeqRef.current) return
           setAiInfo(aiPartState)
-          setAiPartCache(prev => ({ ...prev, [currentPart]: aiPartState }))
+          setAiPartCache(prev => ({ ...prev, ...extractAiPartCache(client) }))
           setIsLoading(false)
           setHasAiLoadedOnce(true)
           return
@@ -305,13 +324,13 @@ export function ClientSidebar() {
       if (updatedClient) {
         const partState = updatedClient[`ai_${currentPart}_state` as keyof typeof updatedClient] as string
         if (mySeq !== requestSeqRef.current) return
+        const nextCache = extractAiPartCache(updatedClient)
         if (partState) {
           setAiInfo(partState)
-          setAiPartCache(prev => ({ ...prev, [currentPart]: partState }))
         } else {
           setAiInfo(null)
-          setAiPartCache(prev => ({ ...prev, [currentPart]: null }))
         }
+        setAiPartCache(prev => ({ ...prev, ...nextCache }))
       }
       
       setIsGenerating(false)
@@ -337,7 +356,7 @@ export function ClientSidebar() {
         const snapshot = (currentClient as any)[`ai_${currentPart}_state`]
         if (snapshot) {
           setAiInfo(snapshot as string)
-          setAiPartCache(prev => ({ ...prev, [currentPart]: snapshot as string }))
+          setAiPartCache(prev => ({ ...prev, ...extractAiPartCache(currentClient) }))
           setIsLoading(false)
           setHasAiLoadedOnce(true)
         }
