@@ -1,0 +1,112 @@
+name: Staging Electron Build
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  VITE_API_URL: https://staging-api.prysm.co.il/api/v1
+  APP_ENVIRONMENT: staging
+  APP_PROFILE_NAME: Prysm Staging
+  AUTH_PROTOCOL: prysm-staging
+
+jobs:
+  build-macos-staging:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate staging environment file
+        run: |
+          cat > .env.production <<'EOF'
+          VITE_API_URL=${{ env.VITE_API_URL }}
+          APP_ENVIRONMENT=${{ env.APP_ENVIRONMENT }}
+          APP_PROFILE_NAME=${{ env.APP_PROFILE_NAME }}
+          AUTH_PROTOCOL=${{ env.AUTH_PROTOCOL }}
+          GOOGLE_DESKTOP_CLIENT_ID=${{ secrets.GOOGLE_DESKTOP_CLIENT_ID }}
+          GOOGLE_DESKTOP_CLIENT_SECRET=${{ secrets.GOOGLE_DESKTOP_CLIENT_SECRET }}
+          EOF
+
+      - name: Build macOS staging app
+        run: |
+          npm run build:mac:arm64 -- \
+            --publish never \
+            -c.productName="Prysm Staging" \
+            -c.appId="com.prysm.app.staging" \
+            '-c.artifactName=Prysm-Staging-${os}-${arch}-${version}.${ext}'
+        env:
+          NODE_ENV: production
+          NODE_OPTIONS: --max-old-space-size=4096
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+
+      - name: Upload macOS staging artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: prysm-staging-macos-arm64-${{ github.sha }}
+          path: |
+            release/*.zip
+            release/latest-mac.yml
+          if-no-files-found: error
+          retention-days: 14
+
+  build-windows-staging:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate staging environment files
+        shell: pwsh
+        run: |
+          @"
+          VITE_API_URL=${{ env.VITE_API_URL }}
+          APP_ENVIRONMENT=${{ env.APP_ENVIRONMENT }}
+          APP_PROFILE_NAME=${{ env.APP_PROFILE_NAME }}
+          AUTH_PROTOCOL=${{ env.AUTH_PROTOCOL }}
+          GOOGLE_DESKTOP_CLIENT_ID=${{ secrets.GOOGLE_DESKTOP_CLIENT_ID }}
+          GOOGLE_DESKTOP_CLIENT_SECRET=${{ secrets.GOOGLE_DESKTOP_CLIENT_SECRET }}
+          "@ | Set-Content -Path .env.production -NoNewline
+
+          @"
+          VITE_API_URL=${{ env.VITE_API_URL }}
+          APP_ENVIRONMENT=${{ env.APP_ENVIRONMENT }}
+          APP_PROFILE_NAME=${{ env.APP_PROFILE_NAME }}
+          AUTH_PROTOCOL=${{ env.AUTH_PROTOCOL }}
+          GOOGLE_DESKTOP_CLIENT_ID=${{ secrets.GOOGLE_DESKTOP_CLIENT_ID }}
+          GOOGLE_DESKTOP_CLIENT_SECRET=${{ secrets.GOOGLE_DESKTOP_CLIENT_SECRET }}
+          "@ | Set-Content -Path .env.windows.production -NoNewline
+
+      - name: Build Windows staging app
+        run: |
+          npm run build:win -- --publish never -c.productName="Prysm Staging" -c.appId="com.prysm.app.staging" '-c.nsis.artifactName=Prysm-Staging-Setup-${version}.${ext}'
+        env:
+          NODE_ENV: production
+          NODE_OPTIONS: --max-old-space-size=4096
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+
+      - name: Upload Windows staging artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: prysm-staging-windows-x64-${{ github.sha }}
+          path: release/Prysm-Staging-Setup-*.exe
+          if-no-files-found: error
+          retention-days: 14

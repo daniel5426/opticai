@@ -43,10 +43,11 @@ import { apiClient } from "./lib/api-client";
 // Import will be done dynamically to allow hot reload
 
 const inDevelopment = process.env.NODE_ENV === "development";
+const isStagingBuild = process.env.APP_ENVIRONMENT === 'staging';
 const isWindows = process.platform === 'win32';
 let mainWindow: BrowserWindow | null = null; // Store reference to the main window
-const APP_PROFILE_NAME = 'Prysm';
-const AUTH_PROTOCOL = 'prysm';
+const APP_PROFILE_NAME = process.env.APP_PROFILE_NAME || 'Prysm';
+const AUTH_PROTOCOL = process.env.AUTH_PROTOCOL || 'prysm';
 
 function forwardAuthCallbackUrl(url: string) {
   if (!url.startsWith(`${AUTH_PROTOCOL}://auth/callback`)) return;
@@ -338,7 +339,9 @@ console.log('Main: autoUpdater.autoInstallOnAppQuit =', autoUpdater.autoInstallO
 
 // Set update server for GitHub releases
 console.log('Main: Setting up update server, inDevelopment =', inDevelopment);
-if (!inDevelopment && !isWindows) {
+if (isStagingBuild) {
+  console.log('Main: Skipping auto-updater setup for staging build');
+} else if (!inDevelopment && !isWindows) {
   try {
     const updateConfig: any = {
       provider: 'github',
@@ -731,8 +734,8 @@ function setupIpcHandlers() {
 // Auto-updater event handlers
 function setupAutoUpdater() {
   // Skip auto-update in development
-  if (inDevelopment) {
-    console.log('Auto-update disabled in development mode');
+  if (inDevelopment || isStagingBuild) {
+    console.log('Auto-update disabled in development or staging mode');
     return;
   }
 
