@@ -157,11 +157,14 @@ class AuthService {
   async signInClinicUser(username: string, password?: string): Promise<User | null> {
     const clinic = this.session?.clinic || this.getStoredClinic()
     const clinicTrustToken = apiClient.getClinicTrustToken()
-    if (!clinic || !clinicTrustToken) return null
+    if (!clinic) return null
+    if (!password && !clinicTrustToken) return null
 
     const response = password
       ? await apiClient.loginPassword(
-          { identifier: username, password, clinic_id: clinic.id, device_id: this.getClinicDeviceId() },
+          clinicTrustToken
+            ? { identifier: username, password, clinic_id: clinic.id, device_id: this.getClinicDeviceId() }
+            : { identifier: username, password, device_id: this.getClinicDeviceId() },
           clinicTrustToken
         )
       : await apiClient.loginQuick(
@@ -176,7 +179,7 @@ class AuthService {
   async signInClinicUserWithGoogle(userId: number): Promise<void> {
     const clinic = this.session?.clinic || this.getStoredClinic()
     const clinicTrustToken = apiClient.getClinicTrustToken()
-    if (!clinic || !clinicTrustToken) throw new Error('Missing clinic trust session')
+    if (!clinic) throw new Error('Missing clinic session')
 
     const result = await window.electronAPI.googleOAuthAuthenticate()
     if (result.success === false || !result.tokens?.access_token) {
@@ -186,12 +189,15 @@ class AuthService {
       access_token: result.tokens.access_token,
       refresh_token: result.tokens.refresh_token,
       id_token: result.tokens.id_token,
-      user_id: userId,
+      user_id: clinicTrustToken ? userId : undefined,
       device_id: this.getClinicDeviceId(),
       user_info: result.userInfo,
     }, clinicTrustToken)
     if (!response.data || response.error || response.data.status !== 'authenticated') {
       throw new Error(response.error || 'Clinic Google login failed')
+    }
+    if (response.data.user?.id !== userId) {
+      throw new Error('Google account does not match selected user')
     }
     this.storeAuthPayload(response.data)
     this.setClinicSession(clinic, response.data.user)
@@ -247,10 +253,11 @@ class AuthService {
 
   logoutUser(): void {
     const clinic = this.session?.clinic || this.getStoredClinic()
+    const user = this.session?.user
     void apiClient.logout()
     this.clearUser()
     apiClient.clearToken()
-    if (clinic && apiClient.getClinicTrustToken()) {
+    if (clinic && (apiClient.getClinicTrustToken() || isRoleAtLeast(user?.role_level, ROLE_LEVELS.ceo))) {
       this.session = { clinic }
       this.transitionTo(AuthState.CLINIC_SELECTED, true)
     } else {

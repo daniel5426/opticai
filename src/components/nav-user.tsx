@@ -1,9 +1,7 @@
 import React from "react"
 import {
-  IconCreditCard,
   IconDotsVertical,
   IconLogout,
-  IconNotification,
   IconUserCircle,
   IconSettings,
   IconClock,
@@ -11,7 +9,7 @@ import {
   IconPlayerStop,
   IconX,
 } from "@tabler/icons-react"
-import { useNavigate } from "@tanstack/react-router"
+import { useLocation } from "@tanstack/react-router"
 
 import {
   Avatar,
@@ -54,8 +52,8 @@ export function NavUser({
   showShiftControls?: boolean
 }) {
   const { isMobile } = useSidebar()
-  const { logoutUser, logoutClinic } = useUser()
-  const navigate = useNavigate()
+  const { currentClinic, logoutUser, logoutClinic } = useUser()
+  const location = useLocation()
   const [showProfileModal, setShowProfileModal] = React.useState(false)
   const [currentTime, setCurrentTime] = React.useState(new Date())
   const [activeShift, setActiveShift] = React.useState<WorkShift | null>(null)
@@ -194,6 +192,10 @@ export function NavUser({
   const displayName = currentUser.full_name?.trim() || currentUser.username
   const userInitials = displayName.charAt(0).toUpperCase()
   const roleName = getRoleLabel(currentUser.role_level)
+  const isControlCenterRoute = location.pathname.startsWith("/control-center")
+  const showClinicLogoutOptions =
+    !isRoleAtLeast(currentUser.role_level, ROLE_LEVELS.ceo) ||
+    (!!currentClinic && !isControlCenterRoute)
 
   return (
     <>
@@ -333,18 +335,7 @@ export function NavUser({
               </DropdownMenuGroup>
               <DropdownMenuSeparator />
               <DropdownMenuGroup>
-                {isRoleAtLeast(currentUser.role_level, ROLE_LEVELS.ceo) ? (
-                  // CEO only sees full logout
-                  <DropdownMenuItem
-                    className="flex justify-between items-center text-red-600 hover:text-red-700"
-                    onClick={handleLogoutClinic}
-                    dir="rtl"
-                  >
-                    <span>התנתקות</span>
-                    <IconLogout className="mr-2" />
-                  </DropdownMenuItem>
-                ) : (
-                  // Clinic users see both user and clinic logout
+                {showClinicLogoutOptions ? (
                   <>
                     <DropdownMenuItem
                       className="flex justify-between items-center"
@@ -363,6 +354,15 @@ export function NavUser({
                       <IconLogout className="mr-2" />
                     </DropdownMenuItem>
                   </>
+                ) : (
+                  <DropdownMenuItem
+                    className="flex justify-between items-center text-red-600 hover:text-red-700"
+                    onClick={handleLogoutClinic}
+                    dir="rtl"
+                  >
+                    <span>התנתקות</span>
+                    <IconLogout className="mr-2" />
+                  </DropdownMenuItem>
                 )}
               </DropdownMenuGroup>
             </DropdownMenuContent>

@@ -70,6 +70,7 @@ import {
 } from "@/lib/table-filters";
 import { SortableTableHead } from "@/components/sortable-table-head";
 import { SortColumns, SortState, sortRows } from "@/lib/table-sorting";
+import { useSettings } from "@/hooks/useSettings";
 
 interface AppointmentsTableProps {
   data: Appointment[];
@@ -203,6 +204,8 @@ export function AppointmentsTable({
     useState<Appointment | null>(null);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const { currentUser, currentClinic } = useUser();
+  const { settings } = useSettings();
+  const APPOINTMENT_DURATION = settings?.appointment_duration || 30;
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [appointmentToDelete, setAppointmentToDelete] =
     useState<Appointment | null>(null);
@@ -246,7 +249,7 @@ export function AppointmentsTable({
     user_id: currentUser?.id,
     date: "",
     time: "",
-    duration: 30,
+    duration: APPOINTMENT_DURATION,
     exam_name: "",
     note: "",
   });
@@ -270,10 +273,25 @@ export function AppointmentsTable({
     user_id: currentUser?.id,
     date: "",
     time: "",
-    duration: 30,
+    duration: APPOINTMENT_DURATION,
     exam_name: "",
     note: "",
   });
+
+  React.useEffect(() => {
+    if (editingAppointment) return;
+
+    setAppointmentFormData((prev) =>
+      prev.duration === APPOINTMENT_DURATION
+        ? prev
+        : { ...prev, duration: APPOINTMENT_DURATION },
+    );
+    setNewClientFormData((prev) =>
+      prev.duration === APPOINTMENT_DURATION
+        ? prev
+        : { ...prev, duration: APPOINTMENT_DURATION },
+    );
+  }, [APPOINTMENT_DURATION, editingAppointment]);
 
   const [existingClientWarning, setExistingClientWarning] = useState<{
     show: boolean;
@@ -374,7 +392,7 @@ export function AppointmentsTable({
       user_id: currentUser?.id,
       date: "",
       time: "",
-      duration: 30,
+      duration: APPOINTMENT_DURATION,
       exam_name: "",
       note: "",
     });
@@ -386,7 +404,7 @@ export function AppointmentsTable({
       user_id: currentUser?.id,
       date: "",
       time: "",
-      duration: 30,
+      duration: APPOINTMENT_DURATION,
       exam_name: "",
       note: "",
     });
@@ -488,7 +506,7 @@ export function AppointmentsTable({
       user_id: appointment.user_id || currentUser?.id,
       date: appointment.date || "",
       time: appointment.time || "",
-      duration: appointment.duration || 30,
+      duration: appointment.duration || APPOINTMENT_DURATION,
       exam_name: appointment.exam_name || "",
       note: appointment.note || "",
     });
@@ -503,7 +521,7 @@ export function AppointmentsTable({
         setAppointmentFormData((prev) => ({
           ...prev,
           client_id: selectedClientId,
-          duration: 30,
+          duration: APPOINTMENT_DURATION,
         }));
         setIsClientSelectOpen(false);
         setIsAppointmentDialogOpen(true);
