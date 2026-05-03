@@ -267,6 +267,7 @@ class SettingsBase(BaseModel):
     break_start_time: Optional[str] = None
     break_end_time: Optional[str] = None
     max_appointments_per_day: Optional[int] = None
+    va_test_distance: Optional[int] = 6
     email_provider: Optional[str] = None
     email_smtp_host: Optional[str] = None
     email_smtp_port: Optional[int] = None
@@ -274,6 +275,15 @@ class SettingsBase(BaseModel):
     email_username: Optional[str] = None
     email_password: Optional[str] = None
     email_from_name: Optional[str] = None
+
+    @field_validator("va_test_distance")
+    @classmethod
+    def validate_va_test_distance(cls, value: Optional[int]) -> Optional[int]:
+        if value is None:
+            return value
+        if value < 2 or value > 6:
+            raise ValueError("VA test distance must be between 2 and 6 meters")
+        return value
 
 class SettingsCreate(SettingsBase):
     clinic_id: int

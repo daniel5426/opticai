@@ -703,6 +703,7 @@ export interface Settings {
   break_start_time?: string;
   break_end_time?: string;
   max_appointments_per_day?: number;
+  va_test_distance?: number;
 
   // Email Configuration
   email_provider?: string; // 'gmail', 'outlook', 'yahoo', 'custom'

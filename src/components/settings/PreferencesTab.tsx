@@ -1,19 +1,32 @@
-import React from "react"
-import { Link } from "@tanstack/react-router"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { IconLayoutGrid } from "@tabler/icons-react"
-import { Settings } from "@/lib/db/schema-interface"
+import React from "react";
+import { Link } from "@tanstack/react-router";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { TimeInput } from "@/components/ui/time";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { IconLayoutGrid } from "@tabler/icons-react";
+import { Settings } from "@/lib/db/schema-interface";
 
 interface PreferencesTabProps {
-  localSettings: Settings
-  onInputChange: (field: keyof Settings, value: string | number | boolean) => void
+  localSettings: Settings;
+  onInputChange: (
+    field: keyof Settings,
+    value: string | number | boolean,
+  ) => void;
 }
 
-export function PreferencesTab({ localSettings, onInputChange }: PreferencesTabProps) {
+export function PreferencesTab({
+  localSettings,
+  onInputChange,
+}: PreferencesTabProps) {
   return (
     <div className="space-y-6">
       <Card className="">
@@ -27,75 +40,133 @@ export function PreferencesTab({ localSettings, onInputChange }: PreferencesTabP
             </Link>
             <div className="text-right">
               <h3 className="font-medium">פריסות בדיקה</h3>
-              <p className="text-sm text-muted-foreground">יצירה ועריכה של פריסות בדיקה מותאמות אישית</p>
+              <p className="text-muted-foreground text-sm">
+                יצירה ועריכה של פריסות בדיקה מותאמות אישית
+              </p>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      <Card className="shadow-md border-none">
+      <Card className="border-none shadow-md">
         <CardHeader>
           <CardTitle className="text-right">שעות עבודה</CardTitle>
-          <p className="text-sm text-muted-foreground text-right">הגדר שעות פעילות והפסקות</p>
+          <p className="text-muted-foreground text-right text-sm">
+            הגדר שעות פעילות והפסקות
+          </p>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
             <div className="space-y-2">
-              <Label htmlFor="work_start_time" className="text-right block">התחלה</Label>
-              <Input
+              <Label htmlFor="work_start_time" className="block text-right">
+                התחלה
+              </Label>
+              <TimeInput
                 id="work_start_time"
-                type="time"
-                value={localSettings.work_start_time || '08:00'}
-                onChange={(e) => onInputChange('work_start_time', e.target.value)}
-                className="text-center"
+                value={localSettings.work_start_time || "08:00"}
+                onChange={(e) =>
+                  onInputChange("work_start_time", e.target.value)
+                }
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="work_end_time" className="text-right block">סיום</Label>
-              <Input
+              <Label htmlFor="work_end_time" className="block text-right">
+                סיום
+              </Label>
+              <TimeInput
                 id="work_end_time"
-                type="time"
-                value={localSettings.work_end_time || '18:00'}
-                onChange={(e) => onInputChange('work_end_time', e.target.value)}
-                className="text-center"
+                value={localSettings.work_end_time || "18:00"}
+                onChange={(e) => onInputChange("work_end_time", e.target.value)}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="break_start_time" className="text-right block">הפסקה מ</Label>
-              <Input
+              <Label htmlFor="break_start_time" className="block text-right">
+                הפסקה מ
+              </Label>
+              <TimeInput
                 id="break_start_time"
-                type="time"
-                value={localSettings.break_start_time || ''}
-                onChange={(e) => onInputChange('break_start_time', e.target.value)}
-                className="text-center"
+                value={localSettings.break_start_time || ""}
+                onChange={(e) =>
+                  onInputChange("break_start_time", e.target.value)
+                }
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="break_end_time" className="text-right block">הפסקה עד</Label>
-              <Input
+              <Label htmlFor="break_end_time" className="block text-right">
+                הפסקה עד
+              </Label>
+              <TimeInput
                 id="break_end_time"
-                type="time"
-                value={localSettings.break_end_time || ''}
-                onChange={(e) => onInputChange('break_end_time', e.target.value)}
-                className="text-center"
+                value={localSettings.break_end_time || ""}
+                onChange={(e) =>
+                  onInputChange("break_end_time", e.target.value)
+                }
               />
             </div>
           </div>
         </CardContent>
       </Card>
 
-      <Card className="shadow-md border-none">
+      <Card className="border-none shadow-md">
+        <CardHeader>
+          <CardTitle className="text-right">בדיקות אופטומטריה</CardTitle>
+          <p className="text-muted-foreground text-right text-sm">
+            הגדרות ברירת מחדל לשדות בדיקה
+          </p>
+        </CardHeader>
+        <CardContent>
+          <div className="flex w-full flex-col items-start gap-2 text-right" dir="rtl">
+            <Label htmlFor="va_test_distance" className="block text-right">
+              מרחק בדיקת VA
+            </Label>
+            <Select
+              dir="rtl"
+              value={String(localSettings.va_test_distance || 6)}
+              onValueChange={(value) =>
+                onInputChange("va_test_distance", Number(value))
+              }
+            >
+              <SelectTrigger
+                id="va_test_distance"
+                className="w-[200px] justify-end text-right [&>span]:w-full [&>span]:text-right"
+                dir="rtl"
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent align="end">
+                <SelectItem value="2">2 מטר</SelectItem>
+                <SelectItem value="3">3 מטר</SelectItem>
+                <SelectItem value="4">4 מטר</SelectItem>
+                <SelectItem value="5">5 מטר</SelectItem>
+                <SelectItem value="6">6 מטר</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="border-none shadow-md">
         <CardHeader>
           <CardTitle className="text-right">תורים</CardTitle>
-          <p className="text-sm text-muted-foreground text-right">הגדרות זמנים ומגבלות תורים</p>
+          <p className="text-muted-foreground text-right text-sm">
+            הגדרות זמנים ומגבלות תורים
+          </p>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="space-y-2" dir="rtl">
-              <Label htmlFor="appointment_duration" className="text-right block">משך תור (דקות)</Label>
-              <Select dir="rtl"
+              <Label
+                htmlFor="appointment_duration"
+                className="block text-right"
+              >
+                משך תור (דקות)
+              </Label>
+              <Select
+                dir="rtl"
                 value={String(localSettings.appointment_duration || 30)}
-                onValueChange={(value) => onInputChange('appointment_duration', Number(value))}
+                onValueChange={(value) =>
+                  onInputChange("appointment_duration", Number(value))
+                }
               >
                 <SelectTrigger className="text-right" dir="rtl">
                   <SelectValue />
@@ -109,12 +180,19 @@ export function PreferencesTab({ localSettings, onInputChange }: PreferencesTabP
               </Select>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="max_appointments" className="text-right block">מקסימום תורים ליום</Label>
+              <Label htmlFor="max_appointments" className="block text-right">
+                מקסימום תורים ליום
+              </Label>
               <Input
                 id="max_appointments"
                 type="number"
                 value={localSettings.max_appointments_per_day || 20}
-                onChange={(e) => onInputChange('max_appointments_per_day', Number(e.target.value))}
+                onChange={(e) =>
+                  onInputChange(
+                    "max_appointments_per_day",
+                    Number(e.target.value),
+                  )
+                }
                 min="1"
                 max="50"
                 className="text-right"
@@ -125,7 +203,5 @@ export function PreferencesTab({ localSettings, onInputChange }: PreferencesTabP
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }
-
-

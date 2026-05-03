@@ -8,6 +8,10 @@ import {
   restoreQueryData,
   upsertQueryItemById,
 } from "@/hooks/client/useClientTabQueries"
+import {
+  syncSavedClientExam,
+  syncSavedClientOrder,
+} from "@/hooks/client/clientTabCache"
 import { getClientOrdersContext } from "@/lib/db/orders-db"
 import { apiClient } from "@/lib/api-client"
 
@@ -97,5 +101,70 @@ describe("client tab optimistic cache helpers", () => {
     expect(upsertQueryItemById([{ id: 1, name: "old" }], { id: 1, name: "new" })).toEqual([
       { id: 1, name: "new" },
     ])
+  })
+
+  it("updates an existing orders cache and invalidates dependent order queries", async () => {
+    const queryClient = new QueryClient()
+    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries")
+    const queryKey = clientQueryKeys.orders(8)
+    queryClient.setQueryData(queryKey, [
+      { id: 1, client_id: 8, order_date: "2026-01-01", type: "old" },
+      { id: 2, client_id: 8, order_date: "2026-01-03", type: "latest" },
+    ])
+
+    syncSavedClientOrder(queryClient, {
+      id: 1,
+      client_id: 8,
+      order_date: "2026-01-04",
+      type: "updated",
+    } as any)
+
+    expect(queryClient.getQueryData(queryKey)).toEqual([
+      { id: 1, client_id: 8, order_date: "2026-01-04", type: "updated" },
+      { id: 2, client_id: 8, order_date: "2026-01-03", type: "latest" },
+    ])
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey })
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: clientQueryKeys.ordersContext(8),
+    })
+  })
+
+  it("does not create a partial orders cache when the list was never loaded", () => {
+    const queryClient = new QueryClient()
+    const queryKey = clientQueryKeys.orders(8)
+
+    syncSavedClientOrder(queryClient, {
+      id: 1,
+      client_id: 8,
+      order_date: "2026-01-04",
+      type: "new",
+    } as any)
+
+    expect(queryClient.getQueryData(queryKey)).toBeUndefined()
+  })
+
+  it("invalidates exam list and orders context after saved exams", () => {
+    const queryClient = new QueryClient()
+    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries")
+    const queryKey = clientQueryKeys.exams(8, "exam")
+    queryClient.setQueryData(queryKey, [
+      { id: 1, client_id: 8, exam_date: "2026-01-01", test_name: "old" },
+    ])
+
+    syncSavedClientExam(queryClient, {
+      id: 2,
+      client_id: 8,
+      exam_date: "2026-01-03",
+      test_name: "new",
+    } as any, "exam")
+
+    expect(queryClient.getQueryData(queryKey)).toEqual([
+      { id: 2, client_id: 8, exam_date: "2026-01-03", test_name: "new" },
+      { id: 1, client_id: 8, exam_date: "2026-01-01", test_name: "old" },
+    ])
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey })
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: clientQueryKeys.ordersContext(8),
+    })
   })
 })

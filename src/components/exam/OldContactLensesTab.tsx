@@ -177,7 +177,7 @@ export function OldContactLensesTab({ data, onChange, isEditing, hideEyeLabels =
                       onChange={(value) => handleChange("R", key, value)}
                       lookupType={lookupConfig.lookupType}
                       placeholder=""
-                      className="h-8 text-xs bg-white"
+                      className="h-8 text-xs bg-white [&_input]:h-8 [&_input]:text-xs"
                       center={true}
                     />
                   ) : (
@@ -287,7 +287,7 @@ export function OldContactLensesTab({ data, onChange, isEditing, hideEyeLabels =
                         onChange={(value) => handleChange("L", key, value)}
                         lookupType={lookupConfig.lookupType}
                         placeholder=""
-                        className="h-8 text-xs bg-white"
+                        className="h-8 text-xs bg-white [&_input]:h-8 [&_input]:text-xs"
                         center={true}
                       />
                     ) : (

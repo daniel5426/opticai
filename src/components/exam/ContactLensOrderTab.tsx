@@ -276,7 +276,7 @@ export function ContactLensOrderTab({
                   handleFieldChange("cleaning_solution", value)
                 }
                 placeholder="בחר תמיסת ניקוי"
-                className={`${fieldClass} text-right`}
+                className={`${fieldClass} text-right [&_input]:h-9 [&_input]:text-sm`}
                 disabled={false}
               />
             ) : (
@@ -296,7 +296,7 @@ export function ContactLensOrderTab({
                   handleFieldChange("disinfection_solution", value)
                 }
                 placeholder="בחר תמיסת חיטוי"
-                className={`${fieldClass} text-right`}
+                className={`${fieldClass} text-right [&_input]:h-9 [&_input]:text-sm`}
                 disabled={false}
               />
             ) : (
@@ -316,7 +316,7 @@ export function ContactLensOrderTab({
                   handleFieldChange("rinsing_solution", value)
                 }
                 placeholder="בחר תמיסת שטיפה"
-                className={`${fieldClass} text-right`}
+                className={`${fieldClass} text-right [&_input]:h-9 [&_input]:text-sm`}
                 disabled={false}
               />
             ) : (

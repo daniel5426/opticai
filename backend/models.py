@@ -277,6 +277,7 @@ class Settings(Base):
     break_start_time = Column(String)
     break_end_time = Column(String)
     max_appointments_per_day = Column(Integer)
+    va_test_distance = Column(Integer, nullable=False, default=6)
     email_provider = Column(String)
     email_smtp_host = Column(String)
     email_smtp_port = Column(Integer)

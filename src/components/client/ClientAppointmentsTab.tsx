@@ -7,6 +7,7 @@ import {
   removeQueryItemById,
   useClientAppointmentsQuery,
 } from "@/hooks/client/useClientTabQueries"
+import { syncSavedClientAppointment } from "@/hooks/client/clientTabCache"
 import { Appointment } from "@/lib/db/schema-interface"
 
 interface ClientAppointmentsTabProps {
@@ -20,7 +21,11 @@ export function ClientAppointmentsTab({ enabled = true }: ClientAppointmentsTabP
   const appointmentsQuery = useClientAppointmentsQuery(clientIdNum, enabled)
   const queryKey = clientQueryKeys.appointments(clientIdNum)
 
-  const handleAppointmentChange = () => {
+  const handleAppointmentChange = (appointment?: Appointment) => {
+    if (appointment) {
+      syncSavedClientAppointment(queryClient, appointment)
+      return
+    }
     queryClient.invalidateQueries({ queryKey })
   }
 

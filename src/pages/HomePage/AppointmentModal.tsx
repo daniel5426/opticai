@@ -6,6 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { CustomModal } from "@/components/ui/custom-modal";
 import { UserSelect } from "@/components/ui/user-select";
 import { DateInput } from "@/components/ui/date";
+import { TimeInput } from "@/components/ui/time";
 import { Trash2, Loader2 } from "lucide-react";
 import { Appointment, Client, User } from "@/lib/db/schema-interface";
 
@@ -95,14 +96,11 @@ export function AppointmentModal({
             <Label htmlFor="time" className="block text-right">
               שעה
             </Label>
-            <Input
+            <TimeInput
               id="time"
               name="time"
-              type="time"
               value={formData.time || ""}
               onChange={onInputChange}
-              dir="rtl"
-              className="text-right [text-align-last:right] [&::-webkit-date-and-time-value]:text-right"
             />
           </div>
           <div className="space-y-2">

@@ -30,6 +30,7 @@ export async function getSettings(clinicId?: number): Promise<Settings | null> {
       break_start_time: '12:00',
       break_end_time: '13:00',
       max_appointments_per_day: 20,
+      va_test_distance: 6,
       email_provider: '',
       email_smtp_host: '',
       email_smtp_port: 587,
@@ -62,4 +63,4 @@ export async function updateSettings(settings: Settings): Promise<Settings | nul
     console.error('Error updating settings:', error);
     return null;
   }
-} 
+}

@@ -14,16 +14,18 @@ VA_DECIMAL_VALUES = [
 ]
 
 def seed_va_values(db: Session):
+    db.query(LookupVAMeter).filter(LookupVAMeter.name == '6').delete(synchronize_session=False)
+
     # Seed VA Meter values if empty
     if db.query(LookupVAMeter).count() == 0:
         for value in VA_METER_VALUES:
             db.add(LookupVAMeter(name=value))
-        db.commit()
         print("Seeded LookupVAMeter with default values.")
 
     # Seed VA Decimal values if empty
     if db.query(LookupVADecimal).count() == 0:
         for value in VA_DECIMAL_VALUES:
             db.add(LookupVADecimal(name=value))
-        db.commit()
         print("Seeded LookupVADecimal with default values.")
+
+    db.commit()

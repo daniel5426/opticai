@@ -1,4 +1,5 @@
 import { useCallback, useRef, useLayoutEffect } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { OpticalExam } from "@/lib/db/schema-interface";
 import { updateExam, createExam } from "@/lib/db/exams-db";
@@ -14,6 +15,7 @@ import {
   resolveFullDataSourceInstanceId,
 } from "@/pages/exam-detail/utils";
 import { ensureTabsMetadataForRows } from "@/lib/exam-ui-metadata";
+import { syncSavedClientExam } from "@/hooks/client/clientTabCache";
 
 interface ExamPageConfig {
   dbType: "exam" | "opticlens";
@@ -85,6 +87,8 @@ export function useExamSave({
   navigate,
   onSave,
 }: UseExamSaveParams) {
+  const queryClient = useQueryClient();
+
   // Use refs to ensure handleSave (which is a stable callback) can access the 
   // MOST RECENT data even after calling inputSyncManager.flush().
   const formDataRef = useRef(formData);
@@ -276,6 +280,7 @@ export function useExamSave({
           examFormData: currentExamFormData,
           examFormDataByInstance: saveBuckets,
         });
+        syncSavedClientExam(queryClient, newExam, config.dbType);
         allowNavigationRef.current = true;
         navigate({
           to: "/clients/$clientId",
@@ -309,6 +314,7 @@ export function useExamSave({
               examFormData: currentExamFormData,
               examFormDataByInstance: saveBuckets,
             });
+            syncSavedClientExam(queryClient, updatedExam, config.dbType);
             
             toast.success(config.saveSuccessUpdate);
             setIsEditing(false);
@@ -355,6 +361,7 @@ export function useExamSave({
     allowNavigationRef,
     navigate,
     onSave,
+    queryClient,
   ]);
 
   return { handleSave };

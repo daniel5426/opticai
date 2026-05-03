@@ -6,11 +6,14 @@ import { cn } from '@/lib/utils';
 
 interface ServerStatusContextType {
   isServerDown: boolean;
+  isClientOffline: boolean;
   isChecking: boolean;
   checkServerHealth: () => Promise<void>;
 }
 
 const ServerStatusContext = createContext<ServerStatusContextType | undefined>(undefined);
+
+type ConnectionIssue = 'server' | 'client-offline' | null;
 
 const getHealthCheckUrl = () => {
   const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8001/api/v1';
@@ -53,16 +56,27 @@ const getFallbackHealthCheckUrl = (baseUrl: string) => {
   }
 };
 
+const isClientOffline = () =>
+  typeof navigator !== 'undefined' && navigator.onLine === false;
+
 interface ServerStatusProviderProps {
   children: ReactNode;
 }
 
 export function ServerStatusProvider({ children }: ServerStatusProviderProps) {
-  const [isServerDown, setIsServerDown] = useState(false);
+  const [connectionIssue, setConnectionIssue] = useState<ConnectionIssue>(null);
   const [isChecking, setIsChecking] = useState(true);
+  const serverDown = connectionIssue === 'server';
+  const clientOffline = connectionIssue === 'client-offline';
 
   const checkServerHealth = async () => {
     setIsChecking(true);
+    if (isClientOffline()) {
+      setConnectionIssue('client-offline');
+      setIsChecking(false);
+      return;
+    }
+
     try {
       const baseUrl = getHealthCheckUrl();
       let res: Response;
@@ -82,10 +96,10 @@ export function ServerStatusProvider({ children }: ServerStatusProviderProps) {
         });
       }
 
-      setIsServerDown(!res.ok);
+      setConnectionIssue(res.ok ? null : 'server');
     } catch (error) {
       console.error('[ServerStatus] Health check failed:', error);
-      setIsServerDown(true);
+      setConnectionIssue(isClientOffline() ? 'client-offline' : 'server');
     } finally {
       setIsChecking(false);
     }
@@ -96,19 +110,36 @@ export function ServerStatusProvider({ children }: ServerStatusProviderProps) {
     checkServerHealth();
   }, []);
 
-  // Periodic health check every 30 seconds when server is down
+  // Periodic health check every 30 seconds while the app cannot reach the API
   useEffect(() => {
-    if (isServerDown) {
+    if (connectionIssue) {
       const interval = setInterval(checkServerHealth, 30000);
       return () => clearInterval(interval);
     }
-  }, [isServerDown]);
+  }, [connectionIssue]);
+
+  useEffect(() => {
+    const handleOffline = () => {
+      setConnectionIssue('client-offline');
+      setIsChecking(false);
+    };
+    const handleOnline = () => {
+      checkServerHealth();
+    };
+
+    window.addEventListener('offline', handleOffline);
+    window.addEventListener('online', handleOnline);
+    return () => {
+      window.removeEventListener('offline', handleOffline);
+      window.removeEventListener('online', handleOnline);
+    };
+  }, []);
 
   // Listen for API client errors (network failures)
   useEffect(() => {
     const handleApiError = (event: CustomEvent) => {
       if (event.detail?.isNetworkError) {
-        setIsServerDown(true);
+        setConnectionIssue(isClientOffline() ? 'client-offline' : 'server');
       }
     };
 
@@ -117,9 +148,16 @@ export function ServerStatusProvider({ children }: ServerStatusProviderProps) {
   }, []);
 
   return (
-    <ServerStatusContext.Provider value={{ isServerDown, isChecking, checkServerHealth }}>
+    <ServerStatusContext.Provider
+      value={{
+        isServerDown: serverDown,
+        isClientOffline: clientOffline,
+        isChecking,
+        checkServerHealth
+      }}
+    >
       {children}
-      {isServerDown && (
+      {connectionIssue && (
         <div
           className="fixed inset-0 bg-muted flex flex-col items-center justify-center p-6 md:p-10"
           dir="rtl"
@@ -129,8 +167,14 @@ export function ServerStatusProvider({ children }: ServerStatusProviderProps) {
             <Card className="overflow-hidden p-0">
               <CardContent className="flex h-[360px] flex-col items-center justify-center gap-4 p-8 text-center">
                 <AlertTriangle className="h-10 w-10 text-yellow-500" />
-                <h1 className="text-2xl font-bold">הפלטפורמה אינה זמינה כרגע</h1>
-                <p className="text-muted-foreground">אנחנו מקווים לחזור לפעילות ממש בקרוב</p>
+                <h1 className="text-2xl font-bold">
+                  {clientOffline ? 'אין חיבור לאינטרנט' : 'הפלטפורמה אינה זמינה כרגע'}
+                </h1>
+                <p className="text-muted-foreground">
+                  {clientOffline
+                    ? 'נראה שהמחשב לא מחובר לאינטרנט. בדקו את ה-Wi-Fi ונסו שוב'
+                    : 'אנחנו מקווים לחזור לפעילות ממש בקרוב'}
+                </p>
                 <div className="mt-2">
                   <Button
                     onClick={checkServerHealth}

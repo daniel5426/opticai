@@ -13,7 +13,7 @@ export const pageConfig = {
   },
   "contact-lens": {
     dbType: "opticlens" as "exam" | "opticlens",
-    sidebarTab: "contact-lenses",
+    sidebarTab: "details",
     paramName: "contactLensId",
     newTitle: "עדשות מגע חדשות",
     detailTitle: "פרטי עדשות מגע",

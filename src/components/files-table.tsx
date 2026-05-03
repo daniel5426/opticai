@@ -29,7 +29,7 @@ interface FilesTableProps {
   clientId: number
   onFileDeleted: (fileId: number) => void
   onFileDeleteFailed: () => void
-  onFileUploaded?: () => void
+  onFileUploaded?: (file?: FileType) => void
   onFileUpdated?: (file: FileType) => void
   onClientSelectForUpload?: (files: FileList, clientId: number) => void
   loading: boolean
@@ -230,12 +230,12 @@ export function FilesTable({
 
         const result = await createFile(form)
         if (result) {
+          onFileUploaded?.(result)
           toast.success(`קובץ "${file.name}" הועלה בהצלחה`)
         } else {
           toast.error(`שגיאה בהעלאת קובץ "${file.name}"`)
         }
       }
-      
       onFileUploaded?.()
     } catch (error) {
       console.error('Error uploading files:', error)

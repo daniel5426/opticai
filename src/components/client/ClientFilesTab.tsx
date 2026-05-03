@@ -5,9 +5,9 @@ import { useQueryClient } from "@tanstack/react-query"
 import {
   clientQueryKeys,
   removeQueryItemById,
-  replaceQueryItemById,
   useClientFilesQuery,
 } from "@/hooks/client/useClientTabQueries"
+import { syncSavedClientFile } from "@/hooks/client/clientTabCache"
 import { File } from "@/lib/db/schema-interface"
 
 interface ClientFilesTabProps {
@@ -32,16 +32,20 @@ export function ClientFilesTab({ enabled = true }: ClientFilesTabProps) {
   }
 
   const handleFileUpdated = (file: File) => {
-    queryClient.setQueryData<File[]>(queryKey, (current) =>
-      replaceQueryItemById(current, file),
-    )
+    syncSavedClientFile(queryClient, file)
   }
 
   return (
     <FilesTable 
       data={filesQuery.data || []} 
       clientId={clientIdNum} 
-      onFileUploaded={() => queryClient.invalidateQueries({ queryKey })}
+      onFileUploaded={(file) => {
+        if (file) {
+          syncSavedClientFile(queryClient, file)
+          return
+        }
+        queryClient.invalidateQueries({ queryKey })
+      }}
       onFileUpdated={handleFileUpdated}
       onFileDeleted={handleFileDeleted}
       onFileDeleteFailed={handleFileDeleteFailed}

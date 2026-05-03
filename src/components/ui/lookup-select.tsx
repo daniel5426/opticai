@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react'
+import React, { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react'
 import { Input } from './input'
 import { Button } from './button'
 import { Card } from './card'
@@ -6,7 +6,7 @@ import { IconChevronDown, IconPlus, IconCheck } from '@tabler/icons-react'
 import { toast } from 'sonner'
 import { useLookupData } from '@/hooks/useLookupData'
 import { inputSyncManager } from '@/components/exam/shared/OptimizedInputs'
-import { flushSync } from 'react-dom'
+import { createPortal, flushSync } from 'react-dom'
 
 interface LookupItem {
   id?: number
@@ -37,10 +37,12 @@ export const LookupSelect = React.memo(function LookupSelect({
 }: LookupSelectProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [inputValue, setInputValue] = useState(value)
+  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, width: 0 })
   const lastPropValueRef = useRef(value)
   const lastSentValueRef = useRef(value)
   const inputValueRef = useRef(value)
   const containerRef = useRef<HTMLDivElement>(null)
+  const dropdownRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null)
 
@@ -114,7 +116,12 @@ export const LookupSelect = React.memo(function LookupSelect({
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+      const target = event.target as Node
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(target) &&
+        !dropdownRef.current?.contains(target)
+      ) {
         setIsOpen(false)
       }
     }
@@ -122,6 +129,30 @@ export const LookupSelect = React.memo(function LookupSelect({
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
+
+  useLayoutEffect(() => {
+    if (!isOpen) return
+
+    const updateDropdownPosition = () => {
+      const rect = containerRef.current?.getBoundingClientRect()
+      if (!rect) return
+
+      setDropdownPosition({
+        top: rect.bottom + 4,
+        left: rect.left,
+        width: rect.width,
+      })
+    }
+
+    updateDropdownPosition()
+    window.addEventListener('resize', updateDropdownPosition)
+    window.addEventListener('scroll', updateDropdownPosition, true)
+
+    return () => {
+      window.removeEventListener('resize', updateDropdownPosition)
+      window.removeEventListener('scroll', updateDropdownPosition, true)
+    }
+  }, [isOpen])
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newValue = e.target.value
@@ -208,8 +239,17 @@ export const LookupSelect = React.memo(function LookupSelect({
         </Button>
       </div>
 
-      {isOpen && (
-        <Card className="absolute gap-1 z-50 w-full mt-1 p-1 shadow-lg border max-h-60 overflow-auto" style={{ scrollbarWidth: 'none' }}>
+      {isOpen && createPortal(
+        <Card
+          ref={dropdownRef}
+          className="fixed gap-1 z-[9999] p-1 shadow-lg border max-h-60 overflow-auto"
+          style={{
+            scrollbarWidth: 'none',
+            top: dropdownPosition.top,
+            left: dropdownPosition.left,
+            width: dropdownPosition.width,
+          }}
+        >
           {loading ? (
             <div className="px-2 py-1 text-center text-muted-foreground">טוען...</div>
           ) : (
@@ -261,7 +301,8 @@ export const LookupSelect = React.memo(function LookupSelect({
               )}
             </>
           )}
-        </Card>
+        </Card>,
+        document.body
       )}
     </div>
   )

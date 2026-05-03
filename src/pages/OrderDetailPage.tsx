@@ -5,6 +5,7 @@ import {
   useSearch,
   useBlocker,
 } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import { SiteHeader } from "@/components/site-header";
 import { getExamById, getExamPageData } from "@/lib/db/exams-db";
 import {
@@ -125,6 +126,7 @@ import { useUnsavedChanges } from "@/hooks/shared/useUnsavedChanges";
 import { UI_CONFIG } from "@/config/ui-config";
 import { inputSyncManager } from "@/components/exam/shared/OptimizedInputs";
 import { flushSync } from "react-dom";
+import { syncSavedClientOrder } from "@/hooks/client/clientTabCache";
 
 interface OrderDetailPageProps {
   mode?: "view" | "edit" | "new";
@@ -567,6 +569,7 @@ export default function OrderDetailPage({
 
   const formRef = useRef<HTMLFormElement>(null);
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   const handleTabChange = (value: string) => {
     if (clientId && value !== "orders") {
@@ -815,6 +818,19 @@ export default function OrderDetailPage({
 
             if (sourceOrder) {
               // Set base fields
+              if (sourceOrder.type) {
+                if (isContactMode) {
+                  setContactFormData((prev: any) => ({
+                    ...prev,
+                    type: sourceOrder.type,
+                  }));
+                } else {
+                  setFormData((prev) => ({
+                    ...prev,
+                    type: sourceOrder.type,
+                  }));
+                }
+              }
               if (sourceOrder.dominant_eye) {
                 if (isContactMode) {
                   setContactFormData((prev: any) => ({
@@ -1301,6 +1317,10 @@ export default function OrderDetailPage({
             deletedOrderLineItemIds: [],
           });
 
+          syncSavedClientOrder(queryClient, {
+            ...nextContactFormData,
+            __contact: true,
+          } as any);
           if (onSave) onSave(updatedOrder);
           if (isNewMode && clientId) {
             allowNavigationRef.current = true;
@@ -1538,6 +1558,7 @@ export default function OrderDetailPage({
           deletedOrderLineItemIds: [],
         });
 
+        syncSavedClientOrder(queryClient, nextFormData);
         if (onSave) onSave(updatedOrder);
         if (isNewMode && clientId) {
           allowNavigationRef.current = true;

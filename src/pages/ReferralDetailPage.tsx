@@ -7,6 +7,7 @@ import React, {
 } from "react";
 import { Loader2, Save, Edit } from "lucide-react";
 import { useParams, useNavigate, useLocation } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import { SiteHeader } from "@/components/site-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -47,10 +48,12 @@ import { useUser } from "@/contexts/UserContext";
 import { inputSyncManager } from "@/components/exam/shared/OptimizedInputs";
 import { NotesCard } from "@/components/ui/notes-card";
 import { DateInput } from "@/components/ui/date";
+import { syncSavedClientReferral } from "@/hooks/client/clientTabCache";
 
 export default function ReferralDetailPage() {
   const location = useLocation();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { currentClinic } = useUser();
   const [loading, setLoading] = useState(true);
   const [client, setClient] = useState<Client | null>(null);
@@ -326,6 +329,7 @@ export default function ReferralDetailPage() {
         const created = await createReferral(createPayload as any);
 
         if (created && created.id) {
+          syncSavedClientReferral(queryClient, created);
           toast.success("ההפניה נשמרה בהצלחה");
           setIsEditing(false);
           if (clientIdFromRoute) {
@@ -341,6 +345,7 @@ export default function ReferralDetailPage() {
         const savedReferral = await updateReferral(basePayload as any);
         if (savedReferral) {
           setFormData(savedReferral);
+          syncSavedClientReferral(queryClient, savedReferral);
           toast.success("ההפניה נשמרה בהצלחה");
           setIsEditing(false);
         } else {

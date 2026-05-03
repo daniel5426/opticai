@@ -74,7 +74,7 @@ import { SortColumns, SortState, sortRows } from "@/lib/table-sorting";
 interface AppointmentsTableProps {
   data: Appointment[];
   clientId: number;
-  onAppointmentChange: () => void;
+  onAppointmentChange: (appointment?: Appointment) => void;
   onAppointmentDeleted: (appointmentId: number) => void;
   onAppointmentDeleteFailed: () => void;
   loading: boolean;
@@ -528,6 +528,7 @@ export function AppointmentsTable({
           client_id: appointmentFormData.client_id,
         });
         if (result) {
+          onAppointmentChange(result);
           toast.success("התור עודכן בהצלחה");
         } else {
           toast.error("שגיאה בעדכון התור");
@@ -606,6 +607,7 @@ export function AppointmentsTable({
               setOptimisticAppointments((prev) =>
                 prev.map((a) => (a.id === tempId ? merged : a)),
               );
+              onAppointmentChange(merged);
             } else {
               setOptimisticAppointments((prev) =>
                 prev.filter((a) => a.id !== tempId),
@@ -747,7 +749,7 @@ export function AppointmentsTable({
         if (result) {
           toast.success("לקוח חדש ותור נוצרו בהצלחה");
           closeAllDialogs();
-          onAppointmentChange();
+          onAppointmentChange(result);
         } else {
           toast.error("שגיאה ביצירת התור");
         }
@@ -783,7 +785,7 @@ export function AppointmentsTable({
       if (result) {
         toast.success("תור נוצר עם לקוח קיים בהצלחה");
         closeAllDialogs();
-        onAppointmentChange();
+        onAppointmentChange(result);
       } else {
         toast.error("שגיאה ביצירת התור");
       }

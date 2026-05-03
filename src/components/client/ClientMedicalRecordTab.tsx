@@ -1,6 +1,7 @@
 import React, { useState, ChangeEvent, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { PencilIcon, Plus, SaveIcon, TrashIcon } from "lucide-react";
@@ -30,7 +31,32 @@ interface ClientMedicalRecordTabProps {
   enabled?: boolean;
 }
 
-export const ClientMedicalRecordTab = ({ enabled = true }: ClientMedicalRecordTabProps) => {
+const MedicalRecordsSkeleton = () => (
+  <div className="relative mr-6" dir="rtl">
+    <div className="space-y-8">
+      {[0, 1, 2].map((item) => (
+        <div key={item} className="relative">
+          {item < 2 && (
+            <div className="bg-primary/10 absolute top-6 right-3 h-[calc(100%+2rem-6px)] w-0.5" />
+          )}
+          <div className="relative h-6">
+            <Skeleton className="absolute top-1/2 right-0 h-6 w-6 -translate-y-1/2 rounded-full" />
+            <Skeleton className="absolute top-1/2 right-10 h-4 w-36 -translate-y-1/2" />
+          </div>
+          <div className="mt-4 mr-14 space-y-2">
+            <Skeleton className="h-4 w-full max-w-3xl" />
+            <Skeleton className="h-4 w-4/5 max-w-2xl" />
+            <Skeleton className="h-4 w-3/5 max-w-xl" />
+          </div>
+        </div>
+      ))}
+    </div>
+  </div>
+);
+
+export const ClientMedicalRecordTab = ({
+  enabled = true,
+}: ClientMedicalRecordTabProps) => {
   const { clientId } = useParams({ from: "/clients/$clientId" });
   const clientIdNum = Number(clientId);
   const queryClient = useQueryClient();
@@ -230,10 +256,6 @@ export const ClientMedicalRecordTab = ({ enabled = true }: ClientMedicalRecordTa
     }).format(date);
   };
 
-  if (medicalLogsQuery.isLoading) {
-    return <div className="flex h-32 items-center justify-center"></div>;
-  }
-
   return (
     <div className="flex w-full flex-col">
       <div className="mb-6 flex items-center justify-between">
@@ -244,7 +266,9 @@ export const ClientMedicalRecordTab = ({ enabled = true }: ClientMedicalRecordTa
         <h2 className="text-xl font-semibold">גליון רפואי</h2>
       </div>
 
-      {records.length === 0 ? (
+      {medicalLogsQuery.isLoading ? (
+        <MedicalRecordsSkeleton />
+      ) : records.length === 0 ? (
         <div className="text-muted-foreground py-10 text-center" dir="rtl">
           אין רשומות רפואיות להצגה. לחץ על "הוספת רשומה חדשה" כדי להתחיל.
         </div>

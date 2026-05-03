@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react"
+import React, { useCallback, useState, useEffect } from "react"
 import { SiteHeader } from "@/components/site-header"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -22,6 +22,57 @@ import { UsersTab } from "@/components/settings/UsersTab"
 import { FieldDataTab } from "@/components/settings/FieldDataTab"
 import { PersonalProfileTab } from "@/components/settings/PersonalProfileTab"
 import { AboutTab } from "@/components/settings/AboutTab"
+import { UnsavedChangesDialog } from "@/components/unsaved-changes-dialog"
+import { useUnsavedChanges } from "@/hooks/shared/useUnsavedChanges"
+
+const SETTINGS_UNSAVED_IGNORED_KEYS = new Set([
+  "created_at",
+  "updated_at",
+  "entry_pin",
+  "remove_entry_pin",
+  "google_access_token",
+  "google_refresh_token",
+])
+
+function createSettingsUnsavedSnapshot(
+  localSettings: Settings,
+  localClinic: Partial<Clinic>,
+  personalProfile: Partial<User>,
+) {
+  return sortSettingsValue({
+    settings: localSettings,
+    clinic: localClinic,
+    personalProfile,
+  })
+}
+
+function sortSettingsValue(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map(sortSettingsValue).filter(item => item !== undefined)
+  }
+
+  if (value instanceof Date) {
+    return value.toISOString()
+  }
+
+  if (value && typeof value === "object") {
+    return Object.keys(value as Record<string, unknown>)
+      .filter(key => !SETTINGS_UNSAVED_IGNORED_KEYS.has(key))
+      .sort()
+      .reduce<Record<string, unknown>>((acc, key) => {
+        const child = sortSettingsValue((value as Record<string, unknown>)[key])
+        if (child !== undefined) acc[key] = child
+        return acc
+      }, {})
+  }
+
+  if (typeof value === "string") {
+    const trimmed = value.trim()
+    return trimmed === "" ? undefined : trimmed
+  }
+
+  return value
+}
 
 export default function SettingsPage() {
   const { settings, updateSettings: updateBaseSettings } = useSettings()
@@ -83,7 +134,8 @@ export default function SettingsPage() {
     working_days: '["sunday","monday","tuesday","wednesday","thursday"]',
     break_start_time: '',
     break_end_time: '',
-    max_appointments_per_day: 20
+    max_appointments_per_day: 20,
+    va_test_distance: 6
   })
 
   const [localClinic, setLocalClinic] = useState<Partial<Clinic>>({})
@@ -108,19 +160,39 @@ export default function SettingsPage() {
   // Google Calendar state
   const [googleCalendarLoading, setGoogleCalendarLoading] = useState(false)
   const [googleCalendarSyncing, setGoogleCalendarSyncing] = useState(false)
+  const [settingsBaselineVersion, setSettingsBaselineVersion] = useState(0)
+
+  const getSerializedState = useCallback(
+    () => JSON.stringify(createSettingsUnsavedSnapshot(localSettings, localClinic, personalProfile)),
+    [localSettings, localClinic, personalProfile],
+  )
+
+  const {
+    hasUnsavedChanges,
+    showUnsavedDialog,
+    handleUnsavedConfirm,
+    handleUnsavedCancel,
+    setBaseline,
+    baselineInitializedRef,
+  } = useUnsavedChanges({
+    getSerializedState,
+    isEditing: true,
+    isNewMode: false,
+  })
 
   useEffect(() => {
+    let isActive = true
+    baselineInitializedRef.current = false
+    setLoading(true)
+
     const loadSettings = async () => {
       try {
-        setLoading(true)
         if (settings) {
           setLocalSettings(settings)
         }
       } catch (error) {
         console.error('Error loading settings:', error)
         toast.error('שגיאה בטעינת ההגדרות')
-      } finally {
-        setLoading(false)
       }
     }
     const loadClinic = async () => {
@@ -171,12 +243,20 @@ export default function SettingsPage() {
       }
     }
 
-    loadSettings()
-    loadClinic()
+    const loadInitialData = async () => {
+      await Promise.all([loadSettings(), loadClinic()])
+      if (isActive) {
+        setSettingsBaselineVersion(prev => prev + 1)
+        setLoading(false)
+      }
+    }
+
+    loadInitialData()
     loadUsers()
     loadPersonalProfile()
 
     return () => {
+      isActive = false
       if (colorUpdateTimeout) {
         clearTimeout(colorUpdateTimeout)
       }
@@ -184,7 +264,20 @@ export default function SettingsPage() {
         clearTimeout(profileColorUpdateTimeout)
       }
     }
-  }, [settings, currentUser])
+  }, [baselineInitializedRef, currentClinic?.id, settings, currentUser])
+
+  useEffect(() => {
+    if (loading || settingsBaselineVersion === 0 || baselineInitializedRef.current) return
+    setBaseline(createSettingsUnsavedSnapshot(localSettings, localClinic, personalProfile))
+  }, [
+    baselineInitializedRef,
+    loading,
+    localClinic,
+    localSettings,
+    personalProfile,
+    setBaseline,
+    settingsBaselineVersion,
+  ])
 
   const handleInputChange = (field: keyof Settings, value: string | number | boolean) => {
     const newSettings = { ...localSettings, [field]: value }
@@ -270,10 +363,18 @@ export default function SettingsPage() {
         return
       }
       const data = unifiedResp.data as any
-      if (data?.clinic) setLocalClinic({ ...(data.clinic as Clinic), entry_pin: '', remove_entry_pin: false })
+      let nextClinic = localClinic
+      let nextSettings = localSettings
+      let nextProfile = personalProfile
+
+      if (data?.clinic) {
+        nextClinic = { ...(data.clinic as Clinic), entry_pin: '', remove_entry_pin: false }
+        setLocalClinic(nextClinic)
+      }
       if (data?.settings) {
-        setLocalSettings(data.settings as Settings)
-        updateBaseSettings(data.settings as Settings)
+        nextSettings = data.settings as Settings
+        setLocalSettings(nextSettings)
+        updateBaseSettings(nextSettings)
       }
       if (data?.user) {
         const updatedUser = data.user as User
@@ -310,6 +411,7 @@ export default function SettingsPage() {
           import_order_to_old_refraction_default: updatedUser.import_order_to_old_refraction_default ?? personalProfile.import_order_to_old_refraction_default ?? false
         }
 
+        nextProfile = newProfile
         setPersonalProfile(newProfile)
 
         await setCurrentUser(updatedUser, true)
@@ -320,6 +422,7 @@ export default function SettingsPage() {
       setTimeout(() => {
         setSaveSuccess(false)
       }, 2000)
+      setBaseline(createSettingsUnsavedSnapshot(nextSettings, nextClinic, nextProfile))
       toast.success('כל ההגדרות נשמרו בהצלחה')
     } catch (error) {
       console.error('Error saving settings:', error)
@@ -676,6 +779,13 @@ export default function SettingsPage() {
               <p className="text-muted-foreground">נהל את פרטי המרפאה והגדרות המערכת</p>
             </div>
             <div className="flex items-center gap-3 pt-6 pl-1">
+              {hasUnsavedChanges && !saving && (
+                <div className="flex items-center gap-1.5 text-xs font-medium text-amber-600 animate-fade-in">
+                  <span className="h-2 w-2 rounded-full bg-amber-500" />
+                  <span>שינויים שלא נשמרו</span>
+                </div>
+              )}
+
               <Button
                 onClick={handleSave}
                 disabled={saving}
@@ -824,6 +934,11 @@ export default function SettingsPage() {
         onUserUpdated={(updatedUser) => {
           setUsers(prev => prev.map(u => u.id === updatedUser.id ? updatedUser : u))
         }}
+      />
+      <UnsavedChangesDialog
+        open={showUnsavedDialog}
+        onConfirm={handleUnsavedConfirm}
+        onCancel={handleUnsavedCancel}
       />
     </>
   )
