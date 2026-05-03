@@ -6,6 +6,7 @@ import { updateAppLanguage } from "./helpers/language_helpers";
 import { router } from "@/routes/router";
 import { RouterProvider } from "@tanstack/react-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { authService } from "@/lib/auth/AuthService";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -79,6 +80,14 @@ export default function App() {
       channel.close();
     };
   }, [i18n]);
+
+  useEffect(() => {
+    if (!window.electronAPI?.onUserLogoutBeforeClose) return;
+
+    return window.electronAPI.onUserLogoutBeforeClose(async () => {
+      await authService.logoutUser();
+    });
+  }, []);
 
   return (
     <ErrorBoundary>

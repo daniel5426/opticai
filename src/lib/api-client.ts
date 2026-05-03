@@ -184,7 +184,7 @@ class ApiClient {
     const isPublicEndpoint =
       endpoint.includes('/public') ||
       endpoint.startsWith('/auth/register/') ||
-      endpoint.startsWith('/auth/clinic/trust') ||
+      endpoint === '/auth/clinic/trust' ||
       endpoint.startsWith('/auth/login/') ||
       endpoint === '/auth/refresh';
     let effectiveToken = this.token;
@@ -325,6 +325,13 @@ class ApiClient {
 
   async createClinicSession(data: { clinic_unique_id: string; pin?: string; device_id: string }) {
     return this.request<{ clinic_trust_token: string; token_type: string; clinic: Clinic }>('/auth/clinic/trust', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async createAuthenticatedClinicSession(data: { clinic_id: number; device_id: string }) {
+    return this.request<{ clinic_trust_token: string; token_type: string; clinic: Clinic }>('/auth/clinic/trust/authenticated', {
       method: 'POST',
       body: JSON.stringify(data),
     });

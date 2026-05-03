@@ -75,6 +75,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
   openExternalAuthUrl: (url: string) => ipcRenderer.invoke('open-external-auth-url', url),
   openUrlInChrome: (url: string) => ipcRenderer.invoke('open-url-in-chrome', url),
+  onUserLogoutBeforeClose: (callback: () => Promise<void> | void) => {
+    const handler = async () => {
+      try {
+        await callback();
+      } finally {
+        ipcRenderer.send('app:user-logout-before-close:done');
+      }
+    };
+    ipcRenderer.on('app:user-logout-before-close', handler);
+    return () => ipcRenderer.removeListener('app:user-logout-before-close', handler);
+  },
   onAuthCallbackUrl: (callback: (url: string) => void) => {
     ipcRenderer.on('auth-callback-url', (_event, url) => callback(url));
     return () => ipcRenderer.removeAllListeners('auth-callback-url');

@@ -95,6 +95,7 @@ export interface ElectronAPI {
   getAppVersion: () => Promise<string>;
   openExternalAuthUrl: (url: string) => Promise<boolean>;
   openUrlInChrome: (url: string) => Promise<boolean>;
+  onUserLogoutBeforeClose: (callback: () => Promise<void> | void) => () => void;
   onAuthCallbackUrl: (callback: (url: string) => void) => () => void;
   onDownloadProgress: (callback: (progress: { percent: number; transferred: number; total: number; bytesPerSecond: number }) => void) => () => void;
   onUpdateDownloaded: (callback: (info: { version: string }) => void) => () => void;

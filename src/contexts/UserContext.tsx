@@ -122,7 +122,7 @@ export function UserProvider({ children }: UserProviderProps) {
         setCurrentUser(user)
       }
     } else {
-      authService.logoutUser()
+      void authService.logoutUser()
     }
   }, [currentClinic])
 
@@ -147,7 +147,7 @@ export function UserProvider({ children }: UserProviderProps) {
 
   const logoutUser = useCallback(() => {
     console.log('[UserContext] Logout user only')
-    authService.logoutUser()
+    void authService.logoutUser()
   }, [])
 
   const logoutClinic = useCallback(async () => {

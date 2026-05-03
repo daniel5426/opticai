@@ -68,6 +68,11 @@ class ClinicTrustRequest(BaseModel):
     device_id: str
 
 
+class AuthenticatedClinicTrustRequest(BaseModel):
+    clinic_id: int
+    device_id: str
+
+
 class PasswordLoginRequest(BaseModel):
     identifier: str
     password: str
@@ -157,6 +162,29 @@ def _verify_clinic_trust(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Clinic trust revoked")
     trust.last_used_at = utcnow()
     return trust
+
+
+def _issue_clinic_trust(db: Session, clinic: Clinic, device_id: str) -> dict[str, Any]:
+    raw_token = new_secret_token()
+    existing = db.query(ClinicDeviceTrust).filter(
+        ClinicDeviceTrust.clinic_id == clinic.id,
+        ClinicDeviceTrust.device_id == device_id,
+    ).first()
+    trust = existing or ClinicDeviceTrust(clinic_id=clinic.id, device_id=device_id)
+    trust.company_id = clinic.company_id
+    trust.token_hash = token_hash(raw_token)
+    trust.entry_pin_version = clinic.entry_pin_version or 1
+    trust.expires_at = utcnow() + timedelta(days=TRUST_EXPIRE_DAYS)
+    trust.revoked_at = None
+    trust.last_used_at = utcnow()
+    if not existing:
+        db.add(trust)
+    db.commit()
+    return {
+        "clinic_trust_token": raw_token,
+        "token_type": "clinic_trust",
+        "clinic": _clinic_response(clinic),
+    }
 
 
 def _store_google_tokens(user: User, access_token: str, refresh_token: Optional[str], email: str) -> None:
@@ -355,26 +383,25 @@ async def clinic_trust(payload: ClinicTrustRequest, db: Session = Depends(get_db
     if clinic.entry_pin_hash and not verify_password(pin, clinic.entry_pin_hash):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid clinic credentials")
 
-    raw_token = new_secret_token()
-    existing = db.query(ClinicDeviceTrust).filter(
-        ClinicDeviceTrust.clinic_id == clinic.id,
-        ClinicDeviceTrust.device_id == payload.device_id,
-    ).first()
-    trust = existing or ClinicDeviceTrust(clinic_id=clinic.id, device_id=payload.device_id)
-    trust.company_id = clinic.company_id
-    trust.token_hash = token_hash(raw_token)
-    trust.entry_pin_version = clinic.entry_pin_version or 1
-    trust.expires_at = utcnow() + timedelta(days=TRUST_EXPIRE_DAYS)
-    trust.revoked_at = None
-    trust.last_used_at = utcnow()
-    if not existing:
-        db.add(trust)
-    db.commit()
-    return {
-        "clinic_trust_token": raw_token,
-        "token_type": "clinic_trust",
-        "clinic": _clinic_response(clinic),
-    }
+    return _issue_clinic_trust(db, clinic, payload.device_id)
+
+
+@router.post("/clinic/trust/authenticated")
+async def authenticated_clinic_trust(
+    payload: AuthenticatedClinicTrustRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    if current_user.role_level < CEO_LEVEL:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
+    clinic = db.query(Clinic).filter(Clinic.id == payload.clinic_id).first()
+    if not clinic:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Clinic not found")
+    if not clinic.is_active:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Clinic is inactive")
+    if clinic.company_id != current_user.company_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
+    return _issue_clinic_trust(db, clinic, payload.device_id)
 
 
 @router.post("/login/password")

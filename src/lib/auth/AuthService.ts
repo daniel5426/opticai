@@ -154,6 +154,24 @@ class AuthService {
     return response.data.clinic as Clinic
   }
 
+  private async createAuthenticatedClinicTrust(clinic: Clinic, user?: User): Promise<boolean> {
+    const isCeo = isRoleAtLeast(user?.role_level, ROLE_LEVELS.ceo)
+    if (!clinic.id || !isCeo) {
+      return !!apiClient.getClinicTrustToken()
+    }
+
+    const response = await apiClient.createAuthenticatedClinicSession({
+      clinic_id: clinic.id,
+      device_id: this.getClinicDeviceId(),
+    })
+    if (response.error || !response.data?.clinic_trust_token) {
+      return false
+    }
+    apiClient.setClinicTrustToken(response.data.clinic_trust_token)
+    this.storeClinic(response.data.clinic as Clinic)
+    return true
+  }
+
   async signInClinicUser(username: string, password?: string): Promise<User | null> {
     const clinic = this.session?.clinic || this.getStoredClinic()
     const clinicTrustToken = apiClient.getClinicTrustToken()
@@ -242,6 +260,7 @@ class AuthService {
   setClinicSession(clinic: Clinic, user?: User): void {
     this.storeClinic(clinic)
     if (user) {
+      void this.createAuthenticatedClinicTrust(clinic, user).catch(() => undefined)
       this.storeUser(user)
       const company = this.session?.company || this.getStoredCompany()
       this.applySession({ user, clinic, company }, true)
@@ -251,13 +270,16 @@ class AuthService {
     }
   }
 
-  logoutUser(): void {
+  async logoutUser(): Promise<void> {
     const clinic = this.session?.clinic || this.getStoredClinic()
     const user = this.session?.user
-    void apiClient.logout()
+    const hasClinicTrust = clinic
+      ? await this.createAuthenticatedClinicTrust(clinic, user).catch(() => false)
+      : false
+    await apiClient.logout().catch(() => undefined)
     this.clearUser()
     apiClient.clearToken()
-    if (clinic && (apiClient.getClinicTrustToken() || isRoleAtLeast(user?.role_level, ROLE_LEVELS.ceo))) {
+    if (clinic && hasClinicTrust) {
       this.session = { clinic }
       this.transitionTo(AuthState.CLINIC_SELECTED, true)
     } else {

@@ -48,6 +48,10 @@ const isWindows = process.platform === 'win32';
 let mainWindow: BrowserWindow | null = null; // Store reference to the main window
 const APP_PROFILE_NAME = process.env.APP_PROFILE_NAME || 'Prysm';
 const AUTH_PROTOCOL = process.env.AUTH_PROTOCOL || 'prysm';
+const APP_USER_LOGOUT_BEFORE_CLOSE_CHANNEL = 'app:user-logout-before-close';
+const APP_USER_LOGOUT_BEFORE_CLOSE_DONE_CHANNEL = 'app:user-logout-before-close:done';
+let allowWindowCloseAfterUserLogout = false;
+let windowCloseLogoutInProgress = false;
 
 function forwardAuthCallbackUrl(url: string) {
   if (!url.startsWith(`${AUTH_PROTOCOL}://auth/callback`)) return;
@@ -274,6 +278,44 @@ async function openUrlInChrome(url: string) {
   return true;
 }
 
+function waitForUserLogoutBeforeClose(window: BrowserWindow, timeoutMs = 3000): Promise<void> {
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      ipcMain.removeListener(APP_USER_LOGOUT_BEFORE_CLOSE_DONE_CHANNEL, finish);
+      resolve();
+    };
+    const timeout = setTimeout(finish, timeoutMs);
+    ipcMain.once(APP_USER_LOGOUT_BEFORE_CLOSE_DONE_CHANNEL, finish);
+    window.webContents.send(APP_USER_LOGOUT_BEFORE_CLOSE_CHANNEL);
+  });
+}
+
+function addUserLogoutOnWindowClose(window: BrowserWindow) {
+  window.on('close', async (event) => {
+    if (allowWindowCloseAfterUserLogout || windowCloseLogoutInProgress || window.webContents.isDestroyed()) {
+      return;
+    }
+
+    event.preventDefault();
+    windowCloseLogoutInProgress = true;
+    try {
+      await waitForUserLogoutBeforeClose(window);
+    } catch (error) {
+      console.warn('[AppClose] Failed to logout user before close:', error);
+    } finally {
+      allowWindowCloseAfterUserLogout = true;
+      windowCloseLogoutInProgress = false;
+      if (!window.isDestroyed()) {
+        window.close();
+      }
+    }
+  });
+}
+
 async function checkWindowsManualUpdates(showPrompt: boolean) {
   const currentVersion = app.getVersion();
 
@@ -394,6 +436,8 @@ function createWindow() {
   if (isWindows) {
     Menu.setApplicationMenu(null);
   }
+  allowWindowCloseAfterUserLogout = false;
+  windowCloseLogoutInProgress = false;
 
   mainWindow = new BrowserWindow({
     width: 1200,
@@ -419,6 +463,7 @@ function createWindow() {
     },
   });
   registerListeners(mainWindow);
+  addUserLogoutOnWindowClose(mainWindow);
 
   // Add keyboard shortcut for DevTools (both development and production)
   mainWindow.webContents.on('before-input-event', (event, input) => {
