@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { SiteHeader } from "@/components/site-header";
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -40,9 +40,10 @@ interface ClinicModalProps {
   onClose: () => void;
   clinic?: Clinic;
   onSave: (data: Clinic) => void;
+  isSaving: boolean;
 }
 
-function ClinicModal({ isOpen, onClose, clinic, onSave }: ClinicModalProps) {
+function ClinicModal({ isOpen, onClose, clinic, onSave, isSaving }: ClinicModalProps) {
   const [name, setName] = useState(clinic?.name || '');
   const [clinicName, setClinicName] = useState(clinic?.clinic_name || '');
   const [clinicPosition, setClinicPosition] = useState(clinic?.clinic_position || '');
@@ -61,6 +62,8 @@ function ClinicModal({ isOpen, onClose, clinic, onSave }: ClinicModalProps) {
   const [isActive, setIsActive] = useState(clinic?.is_active ?? true);
 
   const handleConfirm = () => {
+    if (isSaving) return;
+
     const cleanEntryPin = entryPin.trim();
     if (cleanEntryPin && cleanEntryPin.length < 4) {
       toast.error('יש להזין PIN למרפאה באורך 4 תווים לפחות');
@@ -122,12 +125,13 @@ function ClinicModal({ isOpen, onClose, clinic, onSave }: ClinicModalProps) {
   return (
     <CustomModal 
       isOpen={isOpen} 
-      onClose={onClose} 
+      onClose={() => !isSaving && onClose()} 
       title={clinic ? "עריכת מרפאה" : "מרפאה חדשה"} 
       onConfirm={handleConfirm} 
       confirmText="שמירה" 
       cancelText="ביטול"
       width="max-w-2xl"
+      isLoading={isSaving}
     >
       <div className="space-y-6" dir="rtl">
         <div className="space-y-2">
@@ -329,6 +333,8 @@ const ControlCenterClinicsPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingClinic, setEditingClinic] = useState<Clinic | undefined>(undefined);
+  const [isSavingClinic, setIsSavingClinic] = useState(false);
+  const isSavingClinicRef = useRef(false);
   const { refreshClinics, currentUser } = useUser();
   const { runGuard, hasGuard } = useNavigationGuard();
 
@@ -361,6 +367,10 @@ const ControlCenterClinicsPage: React.FC = () => {
   }, []);
 
   const handleSave = async (data: Clinic) => {
+    if (isSavingClinicRef.current) return;
+
+    isSavingClinicRef.current = true;
+    setIsSavingClinic(true);
     try {
       if (data.id) {
         const resultResponse = await apiClient.updateClinic(data.id!, data);
@@ -397,6 +407,9 @@ const ControlCenterClinicsPage: React.FC = () => {
     } catch (error) {
       console.error('Error saving clinic:', error);
       toast.error("שגיאה בשמירת המרפאה");
+    } finally {
+      isSavingClinicRef.current = false;
+      setIsSavingClinic(false);
     }
   };
 
@@ -687,9 +700,10 @@ const ControlCenterClinicsPage: React.FC = () => {
 
       <ClinicModal 
         isOpen={isModalOpen} 
-        onClose={() => setIsModalOpen(false)} 
+        onClose={() => !isSavingClinic && setIsModalOpen(false)} 
         clinic={editingClinic} 
         onSave={handleSave} 
+        isSaving={isSavingClinic}
       />
     </>
   );

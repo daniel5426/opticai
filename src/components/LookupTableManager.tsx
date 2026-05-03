@@ -7,6 +7,7 @@ import { IconPlus, IconEdit, IconTrash } from '@tabler/icons-react'
 import { CustomModal } from '@/components/ui/custom-modal'
 import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
+import { Loader2 } from 'lucide-react'
 
 interface LookupItem {
   id?: number
@@ -53,6 +54,8 @@ export function LookupTableManager({
   }
 
   const handleSave = async () => {
+    if (loading) return
+
     if (!formData.name.trim()) {
       toast.error('השם הוא שדה חובה')
       return
@@ -176,7 +179,7 @@ export function LookupTableManager({
 
       <CustomModal
         isOpen={showModal}
-        onClose={() => setShowModal(false)}
+        onClose={() => !loading && setShowModal(false)}
         title={editingItem ? `ערוך ${displayName.slice(0, -1)}` : `הוסף ${displayName.slice(0, -1)} חדש`}
         className="max-w-md"
       >
@@ -200,7 +203,14 @@ export function LookupTableManager({
               onClick={handleSave}
               disabled={loading}
             >
-              {loading ? 'שומר...' : (editingItem ? 'עדכן' : 'צור')}
+              {loading ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  שומר...
+                </>
+              ) : (
+                editingItem ? 'עדכן' : 'צור'
+              )}
             </Button>
             <Button 
               variant="outline" 

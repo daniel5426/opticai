@@ -821,7 +821,7 @@ class ApiClient {
   async getExamLayouts(clinicId?: number) {
     const params = new URLSearchParams();
     if (clinicId) params.append('clinic_id', clinicId.toString());
-    const url = `/exam-layouts${params.toString() ? '?' + params.toString() : ''}`;
+    const url = `/exam-layouts/${params.toString() ? '?' + params.toString() : ''}`;
     return this.request<ExamLayout[]>(url);
   }
 
@@ -842,7 +842,7 @@ class ApiClient {
   }
 
   async createExamLayout(layout: any) {
-    return this.request<ExamLayout>('/exam-layouts', {
+    return this.request<ExamLayout>('/exam-layouts/', {
       method: 'POST',
       body: JSON.stringify(layout),
     });

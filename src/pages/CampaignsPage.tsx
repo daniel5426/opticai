@@ -271,11 +271,13 @@ function CampaignModal({
   onClose,
   campaign,
   onSave,
+  isSaving,
 }: {
   isOpen: boolean;
   onClose: () => void;
   campaign?: Campaign;
   onSave: (data: Campaign) => void;
+  isSaving: boolean;
 }) {
   const [name, setName] = useState(campaign?.name || "");
   const [filters, setFilters] = useState<FilterCondition[]>(
@@ -300,6 +302,8 @@ function CampaignModal({
   );
 
   const handleConfirm = () => {
+    if (isSaving) return;
+
     const data = {
       id: campaign?.id,
       name,
@@ -341,12 +345,13 @@ function CampaignModal({
   return (
     <CustomModal
       isOpen={isOpen}
-      onClose={onClose}
+      onClose={() => !isSaving && onClose()}
       title={campaign ? "עריכת קמפיין" : "קמפיין חדש"}
       onConfirm={handleConfirm}
       confirmText="שמירה"
       cancelText="ביטול"
       width="max-w-4xl"
+      isLoading={isSaving}
     >
       <div className="space-y-6" dir="rtl">
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
@@ -536,7 +541,9 @@ export default function CampaignsPage() {
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
   const [aiSuccess, setAiSuccess] = useState<string | null>(null);
+  const [isSavingCampaign, setIsSavingCampaign] = useState(false);
   const aiTextareaRef = useRef<HTMLTextAreaElement>(null);
+  const isSavingCampaignRef = useRef(false);
 
   const loadCampaigns = async () => {
     try {
@@ -646,6 +653,10 @@ export default function CampaignsPage() {
   };
 
   const handleSave = async (data: Campaign) => {
+    if (isSavingCampaignRef.current) return;
+
+    isSavingCampaignRef.current = true;
+    setIsSavingCampaign(true);
     try {
       if (data.id) {
         const result = await updateCampaign(data);
@@ -676,6 +687,9 @@ export default function CampaignsPage() {
     } catch (error) {
       console.error("Error saving campaign:", error);
       toast.error("שגיאה בשמירת הקמפיין");
+    } finally {
+      isSavingCampaignRef.current = false;
+      setIsSavingCampaign(false);
     }
   };
 
@@ -1245,9 +1259,10 @@ export default function CampaignsPage() {
 
       <CampaignModal
         isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
+        onClose={() => !isSavingCampaign && setIsModalOpen(false)}
         campaign={editingCampaign}
         onSave={handleSave}
+        isSaving={isSavingCampaign}
       />
       {/* AI Campaign Modal */}
       <CustomModal

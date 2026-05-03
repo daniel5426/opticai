@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import {
   Table,
   TableBody,
@@ -216,6 +216,8 @@ export function AppointmentsTable({
     useState<string>(ALL_FILTER_VALUE);
   const [isSavingNewClientAppointment, setIsSavingNewClientAppointment] =
     useState(false);
+  const [isSavingAppointment, setIsSavingAppointment] = useState(false);
+  const isSavingAppointmentRef = useRef(false);
   const examTypeFilter = externalExamTypeFilter ?? selectedExamType;
   const dateScopeFilter = externalDateScopeFilter ?? selectedDateScope;
   const activeSort = sort ?? localSort;
@@ -513,7 +515,10 @@ export function AppointmentsTable({
   };
 
   const handleSaveAppointment = async () => {
+    if (isSavingAppointmentRef.current) return;
+
     console.log("handleSaveAppointment", appointmentFormData);
+    let optimisticAppointmentId: number | null = null;
     try {
       const dateStr = appointmentFormData.date;
       const userId = appointmentFormData.user_id;
@@ -521,6 +526,10 @@ export function AppointmentsTable({
         toast.error("לא ניתן לקבוע תור ביום חופשה של המשתמש");
         return;
       }
+
+      isSavingAppointmentRef.current = true;
+      setIsSavingAppointment(true);
+
       if (editingAppointment) {
         const result = await updateAppointment({
           ...appointmentFormData,
@@ -530,6 +539,7 @@ export function AppointmentsTable({
         if (result) {
           onAppointmentChange(result);
           toast.success("התור עודכן בהצלחה");
+          closeAllDialogs();
         } else {
           toast.error("שגיאה בעדכון התור");
         }
@@ -551,6 +561,7 @@ export function AppointmentsTable({
 
         // Optimistic create: add temporary appointment to the table immediately
         const tempId = -Date.now();
+        optimisticAppointmentId = tempId;
         const tempAppointment: Appointment = {
           id: tempId,
           client_id: appointmentFormData.client_id,
@@ -588,44 +599,42 @@ export function AppointmentsTable({
           })();
         }
 
-        // Fire-and-forget the actual creation, then reconcile
-        (async () => {
-          try {
-            const result = await createAppointment({
-              ...appointmentFormData,
-              clinic_id: currentClinic?.id,
-            });
-            if (result) {
-              toast.success("התור נוצר בהצלחה");
-              const merged: Appointment = {
-                ...(result as Appointment),
-                examiner_name:
-                  (result as Appointment).examiner_name || examinerName,
-                client_full_name:
-                  (result as Appointment).client_full_name || clientFullName,
-              };
-              setOptimisticAppointments((prev) =>
-                prev.map((a) => (a.id === tempId ? merged : a)),
-              );
-              onAppointmentChange(merged);
-            } else {
-              setOptimisticAppointments((prev) =>
-                prev.filter((a) => a.id !== tempId),
-              );
-              toast.error("שגיאה ביצירת התור");
-            }
-          } catch (error) {
-            setOptimisticAppointments((prev) =>
-              prev.filter((a) => a.id !== tempId),
-            );
-            toast.error("שגיאה ביצירת התור");
-          }
-        })();
+        const result = await createAppointment({
+          ...appointmentFormData,
+          clinic_id: currentClinic?.id,
+        });
+        if (result) {
+          toast.success("התור נוצר בהצלחה");
+          const merged: Appointment = {
+            ...(result as Appointment),
+            examiner_name:
+              (result as Appointment).examiner_name || examinerName,
+            client_full_name:
+              (result as Appointment).client_full_name || clientFullName,
+          };
+          setOptimisticAppointments((prev) =>
+            prev.map((a) => (a.id === tempId ? merged : a)),
+          );
+          onAppointmentChange(merged);
+          closeAllDialogs();
+        } else {
+          setOptimisticAppointments((prev) =>
+            prev.filter((a) => a.id !== tempId),
+          );
+          toast.error("שגיאה ביצירת התור");
+        }
       }
-      closeAllDialogs();
     } catch (error) {
+      if (optimisticAppointmentId !== null) {
+        setOptimisticAppointments((prev) =>
+          prev.filter((a) => a.id !== optimisticAppointmentId),
+        );
+      }
       console.error("Error saving appointment:", error);
       toast.error("שגיאה בשמירת התור");
+    } finally {
+      isSavingAppointmentRef.current = false;
+      setIsSavingAppointment(false);
     }
   };
 
@@ -1073,7 +1082,7 @@ export function AppointmentsTable({
       {/* Appointment Modal */}
       <CustomModal
         isOpen={isAppointmentDialogOpen}
-        onClose={closeAllDialogs}
+        onClose={() => !isSavingAppointment && closeAllDialogs()}
         title={
           editingAppointment
             ? "עריכת תור"
@@ -1166,8 +1175,14 @@ export function AppointmentsTable({
           </div>
         </div>
         <div className="mt-4 flex justify-start gap-2">
-          <Button onClick={handleSaveAppointment}>שמור</Button>
-          <Button variant="outline" onClick={closeAllDialogs}>
+          <Button onClick={handleSaveAppointment} disabled={isSavingAppointment}>
+            {isSavingAppointment ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              "שמור"
+            )}
+          </Button>
+          <Button variant="outline" onClick={closeAllDialogs} disabled={isSavingAppointment}>
             ביטול
           </Button>
         </div>

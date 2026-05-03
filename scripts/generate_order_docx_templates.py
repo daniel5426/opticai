@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import zipfile
+import shutil
 from pathlib import Path
 from xml.sax.saxutils import escape
 
@@ -610,6 +611,117 @@ def build_contact_xml() -> str:
     )
 
 
+def build_referral_xml() -> str:
+    content = [
+        paragraph(field("company_name", bold=True, size=30), align="center", spacing_after=60),
+        paragraph(
+            field("company_address", size=18)
+            + run("  ")
+            + field("company_phone", size=18)
+            + run("  ")
+            + field("company_email", size=18),
+            align="center",
+            spacing_after=60,
+        ),
+        paragraph(field("clinic_name", bold=True, size=26), align="center", spacing_after=40),
+        paragraph(
+            field("clinic_address", size=18)
+            + run("  ")
+            + field("clinic_phone", size=18)
+            + run("  ")
+            + field("clinic_email", size=18),
+            align="center",
+            spacing_after=80,
+        ),
+        empty_paragraph(40),
+        metric_table(
+            [
+                ("מס' הפניה", "referral_number"),
+                ("תאריך", "referral_date"),
+                ("סוג הפניה", "referral_type"),
+                ("דחיפות", "urgency_level"),
+            ]
+        ),
+        empty_paragraph(),
+        paragraph(run("מכתב הפניה", bold=True, size=32), align="center", spacing_after=240),
+        kv_table(
+            [
+                ("לכבוד", "recipient"),
+                ("בודק", "examiner_name"),
+            ],
+            pairs_per_row=2,
+        ),
+        empty_paragraph(),
+        section_title("פרטי מטופל"),
+        kv_table(
+            [
+                ("שם מטופל", "client_name"),
+                ("ת.ז / מספר לקוח", "client_id"),
+                ("תאריך לידה", "client_birth_date"),
+                ("נייד", "phone_mobile"),
+                ("טלפון בית", "phone_home"),
+                ("כתובת", "client_address"),
+            ],
+            pairs_per_row=3,
+        ),
+        empty_paragraph(),
+        paragraph(field("#has_referral_notes"), spacing_after=0),
+        paragraph(run("הערות: ", bold=True, size=22) + field("referral_notes", size=22), align="right", spacing_after=220),
+        paragraph(field("/has_referral_notes"), spacing_after=0),
+        paragraph(field("#has_clinical_findings"), spacing_after=0),
+        section_title("ממצאים קליניים"),
+        kv_table(
+            [
+                ("הערכה / אבחנה", "clinical_impression"),
+                ("R-IOP", "r_iop"),
+                ("L-IOP", "l_iop"),
+            ],
+            pairs_per_row=3,
+        ),
+        empty_paragraph(),
+        paragraph(field("/has_clinical_findings"), spacing_after=0),
+        paragraph(field("#has_compact_prescription"), spacing_after=0),
+        section_title("מרשם / כרטיס בדיקה"),
+        eye_table(
+            "עין",
+            ["SPH", "CYL", "AX", "PRISM", "BASE", "VA", "ADD", "PD"],
+            ["r_sph", "r_cyl", "r_ax", "r_pris", "r_base", "r_va", "r_add", "r_pd"],
+            ["l_sph", "l_cyl", "l_ax", "l_pris", "l_base", "l_va", "l_add", "l_pd"],
+        ),
+        empty_paragraph(40),
+        kv_table([("VA משולב", "comb_va"), ("PD משולב", "comb_pd")], pairs_per_row=2),
+        empty_paragraph(),
+        paragraph(field("/has_compact_prescription"), spacing_after=0),
+        table(
+            [
+                row(
+                    [
+                        cell(
+                            paragraph(run("בברכה", bold=True, size=20), align="right", spacing_after=100)
+                            + paragraph(field("signer_name", size=20), align="right", spacing_after=40)
+                            + paragraph(field("signer_title", size=18), align="right", spacing_after=40)
+                            + paragraph(run("מ.ר. ", size=18) + field("license_number", size=18), align="right", spacing_after=20),
+                            width=PAGE_WIDTH,
+                            borders=False,
+                            vertical="top",
+                            margins=(120, 120, 120, 120),
+                        )
+                    ]
+                )
+            ],
+            [PAGE_WIDTH],
+        ),
+    ]
+    return (
+        f'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        f'<w:document xmlns:w="{W_NS}"><w:body>'
+        f"{''.join(content)}"
+        '<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1080" w:right="900" '
+        'w:bottom="1080" w:left="900" w:header="708" w:footer="708" w:gutter="0"/><w:bidi/></w:sectPr>'
+        "</w:body></w:document>"
+    )
+
+
 def replace_document_xml(docx_path: Path, xml_content: str) -> None:
     temp_path = docx_path.with_suffix(".tmp")
     with zipfile.ZipFile(docx_path, "r") as source, zipfile.ZipFile(temp_path, "w") as target:
@@ -624,6 +736,10 @@ def replace_document_xml(docx_path: Path, xml_content: str) -> None:
 def main() -> None:
     replace_document_xml(TEMPLATES_DIR / "regular-order.docx", build_regular_xml())
     replace_document_xml(TEMPLATES_DIR / "contact-order.docx", build_contact_xml())
+    referral_path = TEMPLATES_DIR / "referral.docx"
+    if not referral_path.exists():
+        shutil.copyfile(TEMPLATES_DIR / "regular-order.docx", referral_path)
+    replace_document_xml(referral_path, build_referral_xml())
 
 
 if __name__ == "__main__":

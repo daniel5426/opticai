@@ -5,7 +5,7 @@ import React, {
   useLayoutEffect,
   useCallback,
 } from "react";
-import { Loader2, Save, Edit } from "lucide-react";
+import { FileText, Loader2, Save, Edit } from "lucide-react";
 import { useParams, useNavigate, useLocation } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { SiteHeader } from "@/components/site-header";
@@ -49,6 +49,7 @@ import { inputSyncManager } from "@/components/exam/shared/OptimizedInputs";
 import { NotesCard } from "@/components/ui/notes-card";
 import { DateInput } from "@/components/ui/date";
 import { syncSavedClientReferral } from "@/hooks/client/clientTabCache";
+import { exportReferralToDocx } from "@/lib/referral-docx";
 
 export default function ReferralDetailPage() {
   const location = useLocation();
@@ -88,6 +89,7 @@ export default function ReferralDetailPage() {
       },
     },
   });
+  const [fieldErrors, setFieldErrors] = useState<{ date?: string }>({});
 
   const [compactPrescription, setCompactPrescription] =
     useState<CompactPrescriptionExam | null>(null);
@@ -259,6 +261,9 @@ export default function ReferralDetailPage() {
   ) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
+    if (name === "date" && value) {
+      setFieldErrors((prev) => ({ ...prev, date: undefined }));
+    }
   };
 
   const handleCompactPrescriptionChange = (
@@ -304,6 +309,15 @@ export default function ReferralDetailPage() {
 
       // Flush any pending updates from optimized components
       inputSyncManager.flush();
+
+      if (!formData.date?.trim()) {
+        setFieldErrors((prev) => ({
+          ...prev,
+          date: "תאריך הוא שדה חובה",
+        }));
+        setIsSaveInFlight(false);
+        return;
+      }
 
       // Prepare the referral_data by merging current clinical findings with current prescription form data
       const finalReferralData = {
@@ -382,6 +396,21 @@ export default function ReferralDetailPage() {
       });
     } else {
       navigate({ to: "/clients" });
+    }
+  };
+
+  const handleExportDocx = async () => {
+    try {
+      if (!formData.id) {
+        toast.error("לא ניתן לייצא הפניה לפני שמירה");
+        return;
+      }
+
+      await exportReferralToDocx({ referralId: formData.id });
+      toast.success("הדוח יוצא בהצלחה");
+    } catch (error) {
+      console.error("Error exporting referral DOCX:", error);
+      toast.error("שגיאה ביצירת הדוח");
     }
   };
 
@@ -511,6 +540,16 @@ export default function ReferralDetailPage() {
                     ביטול
                   </Button>
                 )}
+                {!isNewReferral && (
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={handleExportDocx}
+                    title="ייצוא לדוח Word"
+                  >
+                    <FileText className="h-4 w-4" />
+                  </Button>
+                )}
                 <Button
                   variant={isEditing ? "outline" : "default"}
                   onClick={handleEditButtonClick}
@@ -541,8 +580,13 @@ export default function ReferralDetailPage() {
                     value={formData.date || ""}
                     onChange={handleInputChange}
                     disabled={!isEditing}
-                    className={`h-9 text-sm ${isEditing ? "bg-white" : "bg-accent/50"} disabled:cursor-default disabled:opacity-100`}
+                    className={`h-9 text-sm ${fieldErrors.date ? "border-destructive focus-visible:ring-destructive" : ""} ${isEditing ? "bg-white" : "bg-accent/50"} disabled:cursor-default disabled:opacity-100`}
                   />
+                  {fieldErrors.date && isEditing && (
+                    <p className="mt-1 text-xs font-medium text-destructive">
+                      {fieldErrors.date}
+                    </p>
+                  )}
                 </div>
                 <div className="col-span-1">
                   <label className="text-base font-semibold">סוג הפניה</label>

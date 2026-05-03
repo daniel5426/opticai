@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { SiteHeader } from "@/components/site-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -42,6 +42,8 @@ export default function WorkerStatsPage() {
   const [dayShifts, setDayShifts] = useState<WorkShift[]>([]);
   const [loading, setLoading] = useState(true);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isCreatingShift, setIsCreatingShift] = useState(false);
+  const isCreatingShiftRef = useRef(false);
   const [newShiftData, setNewShiftData] = useState({
     start_time: "",
     end_time: "",
@@ -228,9 +230,12 @@ export default function WorkerStatsPage() {
   };
 
   const handleCreateShift = async () => {
+    if (isCreatingShiftRef.current) return;
     if (!selectedUserId || !newShiftData.start_time || !newShiftData.end_time)
       return;
 
+    isCreatingShiftRef.current = true;
+    setIsCreatingShift(true);
     try {
       const startTime = new Date(
         `${selectedDate}T${newShiftData.start_time}:00`,
@@ -258,6 +263,9 @@ export default function WorkerStatsPage() {
       }
     } catch (error) {
       console.error("Error creating shift:", error);
+    } finally {
+      isCreatingShiftRef.current = false;
+      setIsCreatingShift(false);
     }
   };
 
@@ -610,6 +618,7 @@ export default function WorkerStatsPage() {
       <CustomModal
         isOpen={isCreateModalOpen}
         onClose={() => {
+          if (isCreatingShift) return;
           setIsCreateModalOpen(false);
           setNewShiftData({ start_time: "", end_time: "" });
         }}
@@ -621,6 +630,7 @@ export default function WorkerStatsPage() {
         confirmText="הוספה"
         showCloseButton={false}
         cancelText="ביטול"
+        isLoading={isCreatingShift}
       >
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-4">

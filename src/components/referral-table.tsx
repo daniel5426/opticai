@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { Plus, Trash2 } from "lucide-react";
+import { FileText, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -20,6 +20,7 @@ import { TableFiltersBar } from "@/components/table-filters-bar";
 import { ALL_FILTER_VALUE, REFERRAL_URGENCY_OPTIONS } from "@/lib/table-filters";
 import { SortableTableHead } from "@/components/sortable-table-head";
 import { SortColumns, SortState, sortRows } from "@/lib/table-sorting";
+import { exportReferralToDocx } from "@/lib/referral-docx";
 
 interface ReferralTableProps {
   referrals: Referral[];
@@ -151,6 +152,21 @@ export function ReferralTable({
     navigate({ to: "/clients/$clientId/referrals/$referralId", params: { clientId: String(referral.client_id), referralId: String(referral.id) } });
   };
 
+  const handleExportDocx = async (referral: Referral) => {
+    try {
+      if (!referral.id) {
+        toast.error("לא ניתן לייצא הפניה ללא מזהה");
+        return;
+      }
+
+      await exportReferralToDocx({ referralId: referral.id });
+      toast.success("הדוח יוצא בהצלחה");
+    } catch (error) {
+      console.error("Error exporting referral DOCX:", error);
+      toast.error("שגיאה ביצירת הדוח");
+    }
+  };
+
   return (
     <div className="space-y-2.5 mb-10" style={{ scrollbarWidth: "none" }}>
       <TableFiltersBar
@@ -216,7 +232,7 @@ export function ReferralTable({
               {clientId === 0 && <SortableTableHead sortKey="client" sort={activeSort} onSortChange={handleSortChange} className="text-right">לקוח</SortableTableHead>}
               <SortableTableHead sortKey="urgency" sort={activeSort} onSortChange={handleSortChange} className="text-right">רמת דחיפות</SortableTableHead>
               <SortableTableHead sortKey="recipient" sort={activeSort} onSortChange={handleSortChange} className="text-right">נמען</SortableTableHead>
-              <TableHead className="w-[50px] text-right"></TableHead>
+              <TableHead className="w-[80px] text-right"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -281,18 +297,31 @@ export function ReferralTable({
                     {referral.recipient || "-"}
                   </TableCell>
                   <TableCell>
-                    <Button
-                      variant="ghost"
-                      className="h-8 w-8 p-0"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setReferralToDelete(referral);
-                        setIsDeleteModalOpen(true);
-                      }}
-                      title="מחיקה"
-                    >
-                      <Trash2 className="h-4 w-4 text-red-600" />
-                    </Button>
+                    <div className="flex gap-1">
+                      <Button
+                        variant="ghost"
+                        className="h-8 w-8 p-0"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleExportDocx(referral);
+                        }}
+                        title="ייצוא לדוח Word"
+                      >
+                        <FileText className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        className="h-8 w-8 p-0"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setReferralToDelete(referral);
+                          setIsDeleteModalOpen(true);
+                        }}
+                        title="מחיקה"
+                      >
+                        <Trash2 className="h-4 w-4 text-red-600" />
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))
