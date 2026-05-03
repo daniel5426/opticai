@@ -8,7 +8,18 @@ from schemas import OrderCreate, OrderUpdate, Order as OrderSchema, BillingCreat
 from utils.date_search import DateSearchHelper
 from auth import get_current_user
 from models import Clinic
-from security.scope import resolve_company_id, assert_clinic_belongs_to_company
+from security.scope import (
+    apply_clinic_user_scope,
+    assert_clinic_belongs_to_company,
+    assert_clinic_scope,
+    get_allowed_clinic_ids,
+    get_scoped_billing,
+    get_scoped_client,
+    get_scoped_contact_lens_order,
+    get_scoped_order,
+    normalize_client_id,
+    resolve_company_id,
+)
 
 router = APIRouter(prefix="/orders", tags=["orders"])
 
@@ -31,11 +42,7 @@ def get_orders_paginated(
     
     parsed_date = DateSearchHelper.parse_date(search) if search else None
 
-    company_id = resolve_company_id(db, current_user)
-    allowed_clinic_ids = [r[0] for r in db.query(Clinic.id).filter(Clinic.company_id == company_id).all()]
-    if clinic_id is not None:
-        assert_clinic_belongs_to_company(db, clinic_id, company_id)
-        allowed_clinic_ids = [clinic_id]
+    allowed_clinic_ids = get_allowed_clinic_ids(db, current_user, clinic_id)
 
     order_filters = [Order.clinic_id.in_(allowed_clinic_ids)]
     if like:
@@ -154,8 +161,13 @@ def get_orders_paginated(
     return {"items": items, "total": int(total)}
 
 @router.post("/", response_model=OrderSchema)
-def create_order(order: OrderCreate, db: Session = Depends(get_db)):
-    db_order = Order(**order.dict())
+def create_order(
+    order: OrderCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    payload = _prepare_model_payload(db, current_user, Order, order.dict())
+    db_order = Order(**payload)
     db.add(db_order)
     db.commit()
     db.refresh(db_order)
@@ -171,11 +183,8 @@ def create_order(order: OrderCreate, db: Session = Depends(get_db)):
     return db_order
 
 @router.get("/{order_id}", response_model=OrderSchema)
-def get_order(order_id: int, db: Session = Depends(get_db)):
-    order = db.query(Order).filter(Order.id == order_id).first()
-    if not order:
-        raise HTTPException(status_code=404, detail="Order not found")
-    return order
+def get_order(order_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    return get_scoped_order(db, current_user, order_id)
 
 @router.get("/", response_model=List[OrderSchema])
 def get_all_orders(
@@ -183,11 +192,8 @@ def get_all_orders(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    company_id = resolve_company_id(db, current_user)
-    query = db.query(Order).join(Clinic, Clinic.id == Order.clinic_id).filter(Clinic.company_id == company_id)
-    if clinic_id is not None:
-        assert_clinic_belongs_to_company(db, clinic_id, company_id)
-        query = query.filter(Order.clinic_id == clinic_id)
+    allowed_clinic_ids = get_allowed_clinic_ids(db, current_user, clinic_id)
+    query = db.query(Order).filter(Order.clinic_id.in_(allowed_clinic_ids))
     orders = query.all()
     for order in orders:
         details = ((order.order_data or {}).get("details") or {}) if isinstance(order.order_data, dict) else {}
@@ -195,7 +201,12 @@ def get_all_orders(
     return orders
 
 @router.get("/client/{client_id}", response_model=List[OrderSchema])
-def get_orders_by_client(client_id: int, db: Session = Depends(get_db)):
+def get_orders_by_client(
+    client_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    get_scoped_client(db, current_user, client_id)
     orders = (
         db.query(Order)
         .filter(Order.client_id == client_id)
@@ -208,12 +219,15 @@ def get_orders_by_client(client_id: int, db: Session = Depends(get_db)):
     return orders
 
 @router.put("/{order_id}", response_model=OrderSchema)
-def update_order(order_id: int, order: OrderUpdate, db: Session = Depends(get_db)):
-    db_order = db.query(Order).filter(Order.id == order_id).first()
-    if not db_order:
-        raise HTTPException(status_code=404, detail="Order not found")
-    
-    for field, value in order.dict(exclude_unset=True).items():
+def update_order(
+    order_id: int,
+    order: OrderUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    db_order = get_scoped_order(db, current_user, order_id)
+    update_fields = _prepare_update_payload(db, current_user, db_order, Order, order.dict(exclude_unset=True))
+    for field, value in update_fields.items():
         setattr(db_order, field, value)
     
     db.commit()
@@ -230,11 +244,8 @@ def update_order(order_id: int, order: OrderUpdate, db: Session = Depends(get_db
     return db_order
 
 @router.delete("/{order_id}")
-def delete_order(order_id: int, db: Session = Depends(get_db)):
-    order = db.query(Order).filter(Order.id == order_id).first()
-    if not order:
-        raise HTTPException(status_code=404, detail="Order not found")
-    
+def delete_order(order_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    order = get_scoped_order(db, current_user, order_id)
     client_id = order.client_id
     db.delete(order)
     db.commit()
@@ -251,17 +262,18 @@ def delete_order(order_id: int, db: Session = Depends(get_db)):
 
 # Order unified data endpoints
 @router.get("/{order_id}/data")
-def get_order_data(order_id: int, db: Session = Depends(get_db)):
-    order = db.query(Order).filter(Order.id == order_id).first()
-    if not order:
-        raise HTTPException(status_code=404, detail="Order not found")
+def get_order_data(order_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    order = get_scoped_order(db, current_user, order_id)
     return order.order_data or {}
 
 @router.post("/{order_id}/data")
-async def save_order_data(order_id: int, request: Request, db: Session = Depends(get_db)):
-    order = db.query(Order).filter(Order.id == order_id).first()
-    if not order:
-        raise HTTPException(status_code=404, detail="Order not found")
+async def save_order_data(
+    order_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    order = get_scoped_order(db, current_user, order_id)
     try:
         data = await request.json()
         if not isinstance(data, dict):
@@ -283,18 +295,25 @@ async def save_order_data(order_id: int, request: Request, db: Session = Depends
     return {"success": True}
 
 @router.get("/{order_id}/data/component/{component_type}")
-def get_order_component_data(order_id: int, component_type: str, db: Session = Depends(get_db)):
-    order = db.query(Order).filter(Order.id == order_id).first()
-    if not order:
-        raise HTTPException(status_code=404, detail="Order not found")
+def get_order_component_data(
+    order_id: int,
+    component_type: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    order = get_scoped_order(db, current_user, order_id)
     data = order.order_data or {}
     return data.get(component_type)
 
 @router.post("/{order_id}/data/component/{component_type}")
-async def save_order_component_data(order_id: int, component_type: str, request: Request, db: Session = Depends(get_db)):
-    order = db.query(Order).filter(Order.id == order_id).first()
-    if not order:
-        raise HTTPException(status_code=404, detail="Order not found")
+async def save_order_component_data(
+    order_id: int,
+    component_type: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    order = get_scoped_order(db, current_user, order_id)
     try:
         component_data = await request.json()
         if not isinstance(component_data, dict):
@@ -322,9 +341,31 @@ def filter_model_data(model, data: Dict[str, Any]) -> Dict[str, Any]:
     columns = {c.name for c in model.__table__.columns}
     return {k: v for k, v in data.items() if k in columns}
 
+
+def _prepare_model_payload(db: Session, current_user: User, model, data: Dict[str, Any]) -> Dict[str, Any]:
+    payload = filter_model_data(model, data)
+    payload = apply_clinic_user_scope(db, current_user, payload)
+    if payload.get("supply_in_clinic_id") is not None:
+        assert_clinic_scope(db, current_user, payload["supply_in_clinic_id"])
+    return payload
+
+
+def _prepare_update_payload(db: Session, current_user: User, db_obj, model, data: Dict[str, Any]) -> Dict[str, Any]:
+    update = filter_model_data(model, data)
+    if not update:
+        return update
+    candidate = {c.name: getattr(db_obj, c.name) for c in model.__table__.columns}
+    candidate.update(update)
+    scoped_candidate = _prepare_model_payload(db, current_user, model, candidate)
+    return {k: scoped_candidate[k] for k in update if k in scoped_candidate}
+
 # Combined create/update with billing and line items
 @router.post("/upsert-full")
-def upsert_order_full(payload: Dict[str, Any], db: Session = Depends(get_db)):
+def upsert_order_full(
+    payload: Dict[str, Any],
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     order_data = payload.get("order")
     billing_data = payload.get("billing")
     line_items = payload.get("line_items", [])
@@ -333,12 +374,11 @@ def upsert_order_full(payload: Dict[str, Any], db: Session = Depends(get_db)):
         raise HTTPException(status_code=422, detail="order payload missing or invalid")
 
     order_id = order_data.get("id")
-    filtered_order_data = filter_model_data(Order, order_data)
+    filtered_order_data = _prepare_model_payload(db, current_user, Order, order_data)
     
     if order_id:
-        db_order = db.query(Order).filter(Order.id == order_id).first()
-        if not db_order:
-            raise HTTPException(status_code=404, detail="Order not found")
+        db_order = get_scoped_order(db, current_user, order_id)
+        filtered_order_data = _prepare_update_payload(db, current_user, db_order, Order, order_data)
         for k, v in filtered_order_data.items():
             if k == "id":
                 continue
@@ -358,7 +398,7 @@ def upsert_order_full(payload: Dict[str, Any], db: Session = Depends(get_db)):
         
         # Try to find existing billing
         if billing_data.get("id"):
-            db_billing = db.query(Billing).filter(Billing.id == billing_data["id"]).first()
+            db_billing = get_scoped_billing(db, current_user, billing_data["id"])
         else:
             db_billing = db.query(Billing).filter(Billing.order_id == db_order.id).first()
             
@@ -429,8 +469,13 @@ def upsert_order_full(payload: Dict[str, Any], db: Session = Depends(get_db)):
 cl_router = APIRouter(prefix="/contact-lens-orders", tags=["contact-lens-orders"])
 
 @cl_router.post("/", response_model=ContactLensOrderSchema)
-def create_contact_lens_order(order: ContactLensOrderCreate, db: Session = Depends(get_db)):
-    db_order = ContactLensOrder(**order.dict())
+def create_contact_lens_order(
+    order: ContactLensOrderCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    payload = _prepare_model_payload(db, current_user, ContactLensOrder, order.dict())
+    db_order = ContactLensOrder(**payload)
     db.add(db_order)
     db.commit()
     db.refresh(db_order)
@@ -445,11 +490,8 @@ def create_contact_lens_order(order: ContactLensOrderCreate, db: Session = Depen
     return db_order
 
 @cl_router.get("/{order_id}", response_model=ContactLensOrderSchema)
-def get_contact_lens_order(order_id: int, db: Session = Depends(get_db)):
-    order = db.query(ContactLensOrder).filter(ContactLensOrder.id == order_id).first()
-    if not order:
-        raise HTTPException(status_code=404, detail="Contact lens order not found")
-    return order
+def get_contact_lens_order(order_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    return get_scoped_contact_lens_order(db, current_user, order_id)
 
 @cl_router.get("/", response_model=List[ContactLensOrderSchema])
 def get_all_contact_lens_orders(
@@ -457,15 +499,17 @@ def get_all_contact_lens_orders(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    company_id = resolve_company_id(db, current_user)
-    query = db.query(ContactLensOrder).join(Clinic, Clinic.id == ContactLensOrder.clinic_id).filter(Clinic.company_id == company_id)
-    if clinic_id is not None:
-        assert_clinic_belongs_to_company(db, clinic_id, company_id)
-        query = query.filter(ContactLensOrder.clinic_id == clinic_id)
+    allowed_clinic_ids = get_allowed_clinic_ids(db, current_user, clinic_id)
+    query = db.query(ContactLensOrder).filter(ContactLensOrder.clinic_id.in_(allowed_clinic_ids))
     return query.all()
 
 @cl_router.get("/client/{client_id}", response_model=List[ContactLensOrderSchema])
-def get_contact_lens_orders_by_client(client_id: int, db: Session = Depends(get_db)):
+def get_contact_lens_orders_by_client(
+    client_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    get_scoped_client(db, current_user, client_id)
     return (
         db.query(ContactLensOrder)
         .filter(ContactLensOrder.client_id == client_id)
@@ -474,11 +518,15 @@ def get_contact_lens_orders_by_client(client_id: int, db: Session = Depends(get_
     )
 
 @cl_router.put("/{order_id}", response_model=ContactLensOrderSchema)
-def update_contact_lens_order(order_id: int, order: ContactLensOrderUpdate, db: Session = Depends(get_db)):
-    db_order = db.query(ContactLensOrder).filter(ContactLensOrder.id == order_id).first()
-    if not db_order:
-        raise HTTPException(status_code=404, detail="Contact lens order not found")
-    for field, value in order.dict(exclude_unset=True).items():
+def update_contact_lens_order(
+    order_id: int,
+    order: ContactLensOrderUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    db_order = get_scoped_contact_lens_order(db, current_user, order_id)
+    update_fields = _prepare_update_payload(db, current_user, db_order, ContactLensOrder, order.dict(exclude_unset=True))
+    for field, value in update_fields.items():
         setattr(db_order, field, value)
     db.commit()
     try:
@@ -493,10 +541,12 @@ def update_contact_lens_order(order_id: int, order: ContactLensOrderUpdate, db: 
     return db_order
 
 @cl_router.delete("/{order_id}")
-def delete_contact_lens_order(order_id: int, db: Session = Depends(get_db)):
-    order = db.query(ContactLensOrder).filter(ContactLensOrder.id == order_id).first()
-    if not order:
-        raise HTTPException(status_code=404, detail="Contact lens order not found")
+def delete_contact_lens_order(
+    order_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    order = get_scoped_contact_lens_order(db, current_user, order_id)
     client_id = order.client_id
     db.delete(order)
     db.commit()
@@ -511,7 +561,11 @@ def delete_contact_lens_order(order_id: int, db: Session = Depends(get_db)):
     return {"message": "Contact lens order deleted successfully"}
 
 @cl_router.post("/upsert-full")
-def upsert_contact_lens_order_full(payload: Dict[str, Any], db: Session = Depends(get_db)):
+def upsert_contact_lens_order_full(
+    payload: Dict[str, Any],
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     order_data = payload.get("order")
     billing_data = payload.get("billing")
     line_items = payload.get("line_items", [])
@@ -520,12 +574,11 @@ def upsert_contact_lens_order_full(payload: Dict[str, Any], db: Session = Depend
         raise HTTPException(status_code=422, detail="order payload missing or invalid")
 
     order_id = order_data.get("id")
-    filtered_order_data = filter_model_data(ContactLensOrder, order_data)
+    filtered_order_data = _prepare_model_payload(db, current_user, ContactLensOrder, order_data)
 
     if order_id:
-        db_order = db.query(ContactLensOrder).filter(ContactLensOrder.id == order_id).first()
-        if not db_order:
-            raise HTTPException(status_code=404, detail="Contact lens order not found")
+        db_order = get_scoped_contact_lens_order(db, current_user, order_id)
+        filtered_order_data = _prepare_update_payload(db, current_user, db_order, ContactLensOrder, order_data)
         for k, v in filtered_order_data.items():
             if k == "id":
                 continue
@@ -545,7 +598,7 @@ def upsert_contact_lens_order_full(payload: Dict[str, Any], db: Session = Depend
         
         # Try to find existing billing
         if billing_data.get("id"):
-            db_billing = db.query(Billing).filter(Billing.id == billing_data["id"]).first()
+            db_billing = get_scoped_billing(db, current_user, billing_data["id"])
         else:
             db_billing = db.query(Billing).filter(Billing.contact_lens_id == db_order.id).first()
             

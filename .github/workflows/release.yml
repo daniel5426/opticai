@@ -103,7 +103,9 @@ jobs:
           WINDOWS_UPDATE_FEED_URL=${{ secrets.WINDOWS_UPDATE_FEED_URL }}
           GOOGLE_DESKTOP_CLIENT_ID=${{ secrets.GOOGLE_DESKTOP_CLIENT_ID }}
           GOOGLE_DESKTOP_CLIENT_SECRET=${{ secrets.GOOGLE_DESKTOP_CLIENT_SECRET }}
-          "@ | Set-Content -Path .env.windows.production -NoNewline
+          "@ | Set-Content -Path .env.production -NoNewline
+
+          Copy-Item -Path .env.production -Destination .env.windows.production
 
       - name: Build for Windows
         run: npm run build:win

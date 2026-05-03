@@ -6,12 +6,18 @@ from sqlalchemy.orm import Session
 from models import (
     Appointment,
     Billing,
+    Campaign,
+    Chat,
     Client,
     Clinic,
     ContactLensOrder,
+    Family,
     File,
+    MedicalLog,
     Order,
     OrderLineItem,
+    Referral,
+    Settings,
     User,
 )
 
@@ -74,12 +80,11 @@ def normalize_clinic_id_for_company(
     current_user: User,
     clinic_id: Optional[int],
 ) -> int:
-    company_id = require_company_id(current_user)
     if clinic_id is None:
         if current_user.clinic_id is None:
             raise HTTPException(status_code=400, detail="clinic_id is required")
         clinic_id = current_user.clinic_id
-    assert_clinic_belongs_to_company(db, clinic_id, company_id)
+    assert_clinic_scope(db, current_user, clinic_id)
     return clinic_id
 
 
@@ -110,12 +115,97 @@ def get_allowed_clinic_ids(db: Session, current_user: User, clinic_id: Optional[
     return [current_user.clinic_id]
 
 
+def normalize_user_id(db: Session, current_user: User, user_id: Optional[int]) -> int:
+    if user_id is None or user_id <= 0:
+        return current_user.id
+    return get_scoped_user(db, current_user, user_id).id
+
+
+def normalize_client_id(db: Session, current_user: User, client_id: int, clinic_id: Optional[int] = None) -> int:
+    client = get_scoped_client(db, current_user, client_id)
+    if clinic_id is not None and client.clinic_id != clinic_id:
+        raise HTTPException(status_code=403, detail="Client does not belong to clinic")
+    return client.id
+
+
+def apply_clinic_user_scope(
+    db: Session,
+    current_user: User,
+    data: dict,
+    *,
+    require_clinic: bool = True,
+    validate_client: bool = True,
+    validate_user: bool = True,
+) -> dict:
+    scoped = dict(data)
+    scoped.pop("company_id", None)
+
+    if require_clinic or scoped.get("clinic_id") is not None:
+        scoped["clinic_id"] = normalize_clinic_id_for_company(db, current_user, scoped.get("clinic_id"))
+
+    if validate_client and scoped.get("client_id") is not None:
+        scoped["client_id"] = normalize_client_id(db, current_user, scoped["client_id"], scoped.get("clinic_id"))
+
+    if validate_user and "user_id" in scoped:
+        scoped["user_id"] = normalize_user_id(db, current_user, scoped.get("user_id"))
+
+    return scoped
+
+
 def get_scoped_client(db: Session, current_user: User, client_id: int) -> Client:
     client = db.query(Client).filter(Client.id == client_id).first()
     if not client:
         raise HTTPException(status_code=404, detail="Client not found")
     assert_clinic_scope(db, current_user, client.clinic_id)
     return client
+
+
+def get_scoped_family(db: Session, current_user: User, family_id: int) -> Family:
+    family = db.query(Family).filter(Family.id == family_id).first()
+    if not family:
+        raise HTTPException(status_code=404, detail="Family not found")
+    assert_clinic_scope(db, current_user, family.clinic_id)
+    return family
+
+
+def get_scoped_medical_log(db: Session, current_user: User, medical_log_id: int) -> MedicalLog:
+    medical_log = db.query(MedicalLog).filter(MedicalLog.id == medical_log_id).first()
+    if not medical_log:
+        raise HTTPException(status_code=404, detail="Medical log not found")
+    assert_clinic_scope(db, current_user, medical_log.clinic_id)
+    return medical_log
+
+
+def get_scoped_referral(db: Session, current_user: User, referral_id: int) -> Referral:
+    referral = db.query(Referral).filter(Referral.id == referral_id).first()
+    if not referral:
+        raise HTTPException(status_code=404, detail="Referral not found")
+    assert_clinic_scope(db, current_user, referral.clinic_id)
+    return referral
+
+
+def get_scoped_settings(db: Session, current_user: User, settings_id: int) -> Settings:
+    settings = db.query(Settings).filter(Settings.id == settings_id).first()
+    if not settings:
+        raise HTTPException(status_code=404, detail="Settings not found")
+    assert_clinic_scope(db, current_user, settings.clinic_id)
+    return settings
+
+
+def get_scoped_campaign(db: Session, current_user: User, campaign_id: int) -> Campaign:
+    campaign = db.query(Campaign).filter(Campaign.id == campaign_id).first()
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+    assert_clinic_scope(db, current_user, campaign.clinic_id)
+    return campaign
+
+
+def get_scoped_chat(db: Session, current_user: User, chat_id: int) -> Chat:
+    chat = db.query(Chat).filter(Chat.id == chat_id).first()
+    if not chat:
+        raise HTTPException(status_code=404, detail="Chat not found")
+    assert_clinic_scope(db, current_user, chat.clinic_id)
+    return chat
 
 
 def get_scoped_file(db: Session, current_user: User, file_id: int) -> File:

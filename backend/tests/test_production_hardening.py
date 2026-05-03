@@ -11,6 +11,7 @@ os.environ.setdefault("DATABASE_URL", "sqlite:///:memory:")
 os.environ.setdefault("SECRET_KEY", "development-secret-for-tests-only")
 
 from auth import get_current_user
+from fastapi.routing import APIRoute
 import EndPoints.billing as billing
 import EndPoints.control_center as control_center
 import EndPoints.email_logs as email_logs
@@ -18,6 +19,7 @@ import EndPoints.files as files
 import EndPoints.lookups as lookups
 import EndPoints.search as search
 import EndPoints.work_shifts as work_shifts
+import main
 
 
 def _route_has_auth(router, path: str, method: str) -> bool:
@@ -47,6 +49,31 @@ def test_obvious_business_endpoints_require_auth():
     assert _route_has_auth(lookups.router, "/lookups/{lookup_type}", "POST")
     assert _route_has_auth(lookups.router, "/lookups/{lookup_type}/{lookup_id}", "PUT")
     assert _route_has_auth(lookups.router, "/lookups/{lookup_type}/{lookup_id}", "DELETE")
+
+
+def test_non_public_api_routes_require_auth():
+    allowed_public_prefixes = (
+        "/api/v1/auth/",
+        "/api/v1/clinics/unique/",
+        "/api/v1/companies/public",
+        "/api/v1/users/public",
+        "/api/v1/users/clinic/",
+        "/api/v1/users/email/",
+        "/api/v1/users/username/",
+        "/api/v1/whatsapp/webhook",
+    )
+
+    missing = []
+    for route in main.app.routes:
+        if not isinstance(route, APIRoute) or not route.path.startswith("/api/v1"):
+            continue
+        if route.path.startswith(allowed_public_prefixes):
+            continue
+        if not any(dep.call is get_current_user for dep in route.dependant.dependencies):
+            methods = ",".join(sorted(route.methods or []))
+            missing.append(f"{methods} {route.path}")
+
+    assert missing == []
 
 
 def test_production_config_rejects_sqlite_database():

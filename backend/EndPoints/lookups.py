@@ -53,11 +53,15 @@ def _require_lookup_write(current_user: User) -> None:
         raise HTTPException(status_code=403, detail="Access denied")
 
 @router.get("/types")
-def get_lookup_types():
+def get_lookup_types(current_user: User = Depends(get_current_user)):
     return {"lookup_types": list(LOOKUP_MODELS.keys())}
 
 @router.get("/{lookup_type}")
-def get_all_lookups(lookup_type: str, db: Session = Depends(get_db)):
+def get_all_lookups(
+    lookup_type: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     if lookup_type not in LOOKUP_MODELS:
         raise HTTPException(status_code=400, detail=f"Invalid lookup type: {lookup_type}")
     
@@ -103,7 +107,12 @@ def create_lookup(
     }
 
 @router.get("/{lookup_type}/{lookup_id}")
-def get_lookup(lookup_type: str, lookup_id: int, db: Session = Depends(get_db)):
+def get_lookup(
+    lookup_type: str,
+    lookup_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     if lookup_type not in LOOKUP_MODELS:
         raise HTTPException(status_code=400, detail=f"Invalid lookup type: {lookup_type}")
     

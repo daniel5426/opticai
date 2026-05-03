@@ -9,13 +9,26 @@ from schemas import SaveAllRequest, SaveAllResponse
 from auth import encrypt_secret, get_password_hash
 from utils.storage import upload_base64_image
 from auth import get_current_user
-from security.scope import resolve_company_id, assert_company_scope, assert_clinic_belongs_to_company
+from security.scope import (
+    assert_company_scope,
+    get_allowed_clinic_ids,
+    get_scoped_settings,
+    get_scoped_user,
+    normalize_clinic_id_for_company,
+    require_company_admin,
+    resolve_company_id,
+)
 
 router = APIRouter(prefix="/settings", tags=["settings"])
 
 @router.post("/", response_model=SettingsSchema)
-def create_settings(settings: SettingsCreate, db: Session = Depends(get_db)):
+def create_settings(
+    settings: SettingsCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     payload = settings.dict()
+    payload["clinic_id"] = normalize_clinic_id_for_company(db, current_user, payload.get("clinic_id"))
     if payload.get('clinic_logo_path'):
         try:
             payload['clinic_logo_path'] = upload_base64_image(payload['clinic_logo_path'], f"clinics/{payload.get('clinic_id') or 'no-clinic'}/logos")
@@ -28,7 +41,12 @@ def create_settings(settings: SettingsCreate, db: Session = Depends(get_db)):
     return db_settings
 
 @router.get("/clinic/{clinic_id}", response_model=SettingsSchema)
-def get_settings_by_clinic(clinic_id: int, db: Session = Depends(get_db)):
+def get_settings_by_clinic(
+    clinic_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    normalize_clinic_id_for_company(db, current_user, clinic_id)
     settings = db.query(Settings).filter(Settings.clinic_id == clinic_id).first()
     if not settings:
         raise HTTPException(status_code=404, detail="Settings not found for clinic")
@@ -41,31 +59,32 @@ def get_all_settings(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    query = db.query(Settings)
     company_id = resolve_company_id(db, current_user)
     assert_company_scope(current_user, company_id)
-    clinic_ids = db.query(Clinic.id).filter(Clinic.company_id == company_id).all()
-    clinic_id_list = [c[0] for c in clinic_ids]
-    query = query.filter(Settings.clinic_id.in_(clinic_id_list))
-    if clinic_id is not None:
-        assert_clinic_belongs_to_company(db, clinic_id, company_id)
-        query = query.filter(Settings.clinic_id == clinic_id)
+    clinic_id_list = get_allowed_clinic_ids(db, current_user, clinic_id)
+    query = db.query(Settings).filter(Settings.clinic_id.in_(clinic_id_list))
     return query.all()
 
 @router.get("/{settings_id}", response_model=SettingsSchema)
-def get_settings(settings_id: int, db: Session = Depends(get_db)):
-    settings = db.query(Settings).filter(Settings.id == settings_id).first()
-    if not settings:
-        raise HTTPException(status_code=404, detail="Settings not found")
-    return settings
+def get_settings(
+    settings_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return get_scoped_settings(db, current_user, settings_id)
 
 @router.put("/{settings_id}", response_model=SettingsSchema)
-def update_settings(settings_id: int, settings: SettingsUpdate, db: Session = Depends(get_db)):
-    db_settings = db.query(Settings).filter(Settings.id == settings_id).first()
-    if not db_settings:
-        raise HTTPException(status_code=404, detail="Settings not found")
+def update_settings(
+    settings_id: int,
+    settings: SettingsUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    db_settings = get_scoped_settings(db, current_user, settings_id)
     
     update_fields = settings.dict(exclude_unset=True)
+    if "clinic_id" in update_fields:
+        update_fields["clinic_id"] = normalize_clinic_id_for_company(db, current_user, update_fields["clinic_id"])
     if update_fields.get('clinic_logo_path'):
         try:
             update_fields['clinic_logo_path'] = upload_base64_image(update_fields['clinic_logo_path'], f"clinics/{db_settings.clinic_id or 'no-clinic'}/logos")
@@ -79,17 +98,23 @@ def update_settings(settings_id: int, settings: SettingsUpdate, db: Session = De
     return db_settings
 
 @router.delete("/{settings_id}")
-def delete_settings(settings_id: int, db: Session = Depends(get_db)):
-    settings = db.query(Settings).filter(Settings.id == settings_id).first()
-    if not settings:
-        raise HTTPException(status_code=404, detail="Settings not found")
+def delete_settings(
+    settings_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    settings = get_scoped_settings(db, current_user, settings_id)
     
     db.delete(settings)
     db.commit()
     return {"message": "Settings deleted successfully"} 
 
 @router.post("/save-all", response_model=SaveAllResponse)
-def save_all(payload: SaveAllRequest, db: Session = Depends(get_db)):
+def save_all(
+    payload: SaveAllRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     """Atomically save clinic, settings, user and company in a single call.
     Each object is optional; only provided sections are updated.
     """
@@ -97,6 +122,7 @@ def save_all(payload: SaveAllRequest, db: Session = Depends(get_db)):
     try:
         # Company
         if payload.company_id and payload.company is not None:
+            require_company_admin(db, current_user, payload.company_id)
             db_company = db.query(Company).filter(Company.id == payload.company_id).first()
             if not db_company:
                 raise HTTPException(status_code=404, detail="Company not found")
@@ -112,6 +138,7 @@ def save_all(payload: SaveAllRequest, db: Session = Depends(get_db)):
 
         # Clinic
         if payload.clinic_id and payload.clinic is not None:
+            normalize_clinic_id_for_company(db, current_user, payload.clinic_id)
             db_clinic = db.query(Clinic).filter(Clinic.id == payload.clinic_id).first()
             if not db_clinic:
                 raise HTTPException(status_code=404, detail="Clinic not found")
@@ -145,10 +172,10 @@ def save_all(payload: SaveAllRequest, db: Session = Depends(get_db)):
         # Settings
         if payload.settings is not None:
             if payload.settings_id:
-                db_settings = db.query(Settings).filter(Settings.id == payload.settings_id).first()
-                if not db_settings:
-                    raise HTTPException(status_code=404, detail="Settings not found")
+                db_settings = get_scoped_settings(db, current_user, payload.settings_id)
                 s_update = payload.settings.dict(exclude_unset=True)
+                if "clinic_id" in s_update:
+                    s_update["clinic_id"] = normalize_clinic_id_for_company(db, current_user, s_update["clinic_id"])
                 if s_update.get('clinic_logo_path'):
                     try:
                         s_update['clinic_logo_path'] = upload_base64_image(s_update['clinic_logo_path'], f"clinics/{db_settings.clinic_id or payload.clinic_id or 'no-clinic'}/logos")
@@ -160,6 +187,11 @@ def save_all(payload: SaveAllRequest, db: Session = Depends(get_db)):
             else:
                 # Create new when no id provided but clinic_id exists in settings
                 s_payload = payload.settings.dict(exclude_unset=True)
+                s_payload["clinic_id"] = normalize_clinic_id_for_company(
+                    db,
+                    current_user,
+                    s_payload.get("clinic_id") or payload.clinic_id,
+                )
                 if s_payload.get('clinic_logo_path'):
                     try:
                         s_payload['clinic_logo_path'] = upload_base64_image(s_payload['clinic_logo_path'], f"clinics/{s_payload.get('clinic_id') or payload.clinic_id or 'no-clinic'}/logos")
@@ -170,9 +202,7 @@ def save_all(payload: SaveAllRequest, db: Session = Depends(get_db)):
 
         # User
         if payload.user_id and payload.user is not None:
-            db_user = db.query(User).filter(User.id == payload.user_id).first()
-            if not db_user:
-                raise HTTPException(status_code=404, detail="User not found")
+            db_user = get_scoped_user(db, current_user, payload.user_id)
 
             update_fields = payload.user.dict(exclude_unset=True)
             if update_fields.get('profile_picture'):

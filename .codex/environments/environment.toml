@@ -30,3 +30,8 @@ git commit -m "$MSG" && \
 git push origin main && \
 gh workflow run backend-railway.yml --repo daniel5426/opticai --ref main -f environment=production
 '''
+
+[[actions]]
+name = "open app on mac"
+icon = "tool"
+command = "find ~/Downloads/app -name \"*.app\" -type d -exec xattr -dr com.apple.quarantine {} +"

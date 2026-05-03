@@ -7,7 +7,13 @@ from models import Family, Client
 from schemas import FamilyCreate, FamilyUpdate, Family as FamilySchema, FamilyWithMembers
 from auth import get_current_user
 from models import User
-from security.scope import resolve_company_id, assert_clinic_belongs_to_company
+from security.scope import (
+    get_allowed_clinic_ids,
+    get_scoped_client,
+    get_scoped_family,
+    normalize_clinic_id_for_company,
+    resolve_company_id,
+)
 
 router = APIRouter(prefix="/families", tags=["families"])
 
@@ -23,18 +29,14 @@ def get_families_paginated(
     current_user: User = Depends(get_current_user)
 ):
     effective_company_id = resolve_company_id(db, current_user)
-    effective_clinic_id = None
-    if clinic_id is not None:
-        assert_clinic_belongs_to_company(db, clinic_id, effective_company_id)
-        effective_clinic_id = clinic_id
+    allowed_clinic_ids = get_allowed_clinic_ids(db, current_user, clinic_id)
 
     count_q = db.query(func.count(Family.id))
     
     if effective_company_id is not None:
         count_q = count_q.filter(Family.company_id == effective_company_id)
         
-    if effective_clinic_id is not None:
-        count_q = count_q.filter(Family.clinic_id == effective_clinic_id)
+    count_q = count_q.filter(Family.clinic_id.in_(allowed_clinic_ids))
         
     if search:
         like = f"%{search.strip()}%"
@@ -55,8 +57,7 @@ def get_families_paginated(
     if effective_company_id is not None:
         base = base.filter(Family.company_id == effective_company_id)
 
-    if effective_clinic_id is not None:
-        base = base.filter(Family.clinic_id == effective_clinic_id)
+    base = base.filter(Family.clinic_id.in_(allowed_clinic_ids))
         
     if search:
         like = f"%{search.strip()}%"
@@ -121,19 +122,27 @@ def get_families_paginated(
     return {"items": items, "total": total}
 
 @router.post("/", response_model=FamilySchema)
-def create_family(family: FamilyCreate, db: Session = Depends(get_db)):
-    db_family = Family(**family.dict())
+def create_family(
+    family: FamilyCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    payload = family.dict()
+    payload["company_id"] = resolve_company_id(db, current_user)
+    payload["clinic_id"] = normalize_clinic_id_for_company(db, current_user, payload.get("clinic_id"))
+    db_family = Family(**payload)
     db.add(db_family)
     db.commit()
     db.refresh(db_family)
     return db_family
 
 @router.get("/{family_id}", response_model=FamilySchema)
-def get_family(family_id: int, db: Session = Depends(get_db)):
-    family = db.query(Family).filter(Family.id == family_id).first()
-    if not family:
-        raise HTTPException(status_code=404, detail="Family not found")
-    return family
+def get_family(
+    family_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return get_scoped_family(db, current_user, family_id)
 
 @router.get("/", response_model=List[FamilyWithMembers])
 def get_all_families(
@@ -143,10 +152,8 @@ def get_all_families(
     current_user: User = Depends(get_current_user)
 ):
     effective_company_id = resolve_company_id(db, current_user)
-    query = db.query(Family).filter(Family.company_id == effective_company_id)
-    if clinic_id is not None:
-        assert_clinic_belongs_to_company(db, clinic_id, effective_company_id)
-        query = query.filter(Family.clinic_id == clinic_id)
+    allowed_clinic_ids = get_allowed_clinic_ids(db, current_user, clinic_id)
+    query = db.query(Family).filter(Family.company_id == effective_company_id).filter(Family.clinic_id.in_(allowed_clinic_ids))
     families = query.all()
     family_ids = [family.id for family in families]
 
@@ -195,12 +202,18 @@ def get_all_families(
     ]
 
 @router.put("/{family_id}", response_model=FamilySchema)
-def update_family(family_id: int, family: FamilyUpdate, db: Session = Depends(get_db)):
-    db_family = db.query(Family).filter(Family.id == family_id).first()
-    if not db_family:
-        raise HTTPException(status_code=404, detail="Family not found")
-    
-    for field, value in family.dict(exclude_unset=True).items():
+def update_family(
+    family_id: int,
+    family: FamilyUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    db_family = get_scoped_family(db, current_user, family_id)
+    update_fields = family.dict(exclude_unset=True)
+    update_fields.pop("company_id", None)
+    if "clinic_id" in update_fields:
+        update_fields["clinic_id"] = normalize_clinic_id_for_company(db, current_user, update_fields["clinic_id"])
+    for field, value in update_fields.items():
         setattr(db_family, field, value)
     
     db.commit()
@@ -208,20 +221,23 @@ def update_family(family_id: int, family: FamilyUpdate, db: Session = Depends(ge
     return db_family
 
 @router.delete("/{family_id}")
-def delete_family(family_id: int, db: Session = Depends(get_db)):
-    family = db.query(Family).filter(Family.id == family_id).first()
-    if not family:
-        raise HTTPException(status_code=404, detail="Family not found")
-    
+def delete_family(
+    family_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    family = get_scoped_family(db, current_user, family_id)
     db.delete(family)
     db.commit()
     return {"message": "Family deleted successfully"}
 
 @router.get("/{family_id}/members", response_model=List[dict])
-def get_family_members(family_id: int, db: Session = Depends(get_db)):
-    family = db.query(Family).filter(Family.id == family_id).first()
-    if not family:
-        raise HTTPException(status_code=404, detail="Family not found")
+def get_family_members(
+    family_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    get_scoped_family(db, current_user, family_id)
     
     members = db.query(Client).filter(Client.family_id == family_id).all()
     return [
@@ -243,15 +259,13 @@ def add_client_to_family(
     family_id: int, 
     client_id: int, 
     role: str, 
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
-    family = db.query(Family).filter(Family.id == family_id).first()
-    if not family:
-        raise HTTPException(status_code=404, detail="Family not found")
-    
-    client = db.query(Client).filter(Client.id == client_id).first()
-    if not client:
-        raise HTTPException(status_code=404, detail="Client not found")
+    family = get_scoped_family(db, current_user, family_id)
+    client = get_scoped_client(db, current_user, client_id)
+    if client.clinic_id != family.clinic_id:
+        raise HTTPException(status_code=403, detail="Client does not belong to family clinic")
     
     client.family_id = family_id
     client.family_role = role
@@ -260,7 +274,14 @@ def add_client_to_family(
     return {"message": "Client added to family successfully"}
 
 @router.delete("/{family_id}/remove-client/{client_id}")
-def remove_client_from_family(family_id: int, client_id: int, db: Session = Depends(get_db)):
+def remove_client_from_family(
+    family_id: int,
+    client_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    get_scoped_family(db, current_user, family_id)
+    get_scoped_client(db, current_user, client_id)
     client = db.query(Client).filter(
         Client.id == client_id,
         Client.family_id == family_id

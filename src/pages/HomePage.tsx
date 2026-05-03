@@ -59,7 +59,7 @@ export default function HomePage() {
   const [selectedTimeSlot, setSelectedTimeSlot] = useState<{ date: Date; time: string }>({ date: new Date(), time: '' })
   const [formData, setFormData] = useState<Omit<Appointment, 'id'>>({
     client_id: 0,
-    user_id: currentUser?.id || 0,
+    user_id: currentUser?.id,
     date: undefined,
     time: undefined,
     duration: 30,
@@ -136,14 +136,14 @@ export default function HomePage() {
   useEffect(() => {
     if (!isClientSelectOpen && selectedClient) {
       // Ensure default examiner is current user when opening create modal
-      setFormData(prev => ({ ...prev, user_id: currentUser?.id || prev.user_id || 0 }))
+      setFormData(prev => ({ ...prev, user_id: currentUser?.id || prev.user_id }))
       setIsCreateModalOpen(true)
     }
   }, [isClientSelectOpen, selectedClient, currentUser?.id])
 
   // Ensure the default examiner in the modal is the current user when modal opens without client selection path (e.g., editing or direct open)
   useEffect(() => {
-    if (isCreateModalOpen && (!formData.user_id || formData.user_id === 0) && currentUser?.id) {
+    if (isCreateModalOpen && !formData.user_id && currentUser?.id) {
       setFormData(prev => ({ ...prev, user_id: currentUser.id }))
     }
   }, [isCreateModalOpen, currentUser?.id])
@@ -341,7 +341,7 @@ export default function HomePage() {
   const resetAllForms = useCallback(() => {
     setFormData({
       client_id: 0,
-      user_id: currentUser?.id || 0,
+      user_id: currentUser?.id,
       date: undefined,
       time: undefined,
       duration: APPOINTMENT_DURATION,
@@ -358,7 +358,7 @@ export default function HomePage() {
     resetAllForms()
     setFormData({
       client_id: 0,
-      user_id: currentUser?.id || 0,
+      user_id: currentUser?.id,
       date: dateStr,
       time: time,
       duration: APPOINTMENT_DURATION,
@@ -381,7 +381,7 @@ export default function HomePage() {
       // Set form immediately and open modal without waiting for network
       setFormData({
         client_id: appointment.client_id,
-        user_id: appointment.user_id || currentUser?.id || 0,
+        user_id: appointment.user_id || currentUser?.id,
         date: appointment.date || '',
         time: appointment.time || '',
         duration: appointment.duration || APPOINTMENT_DURATION,
@@ -413,7 +413,7 @@ export default function HomePage() {
         setFormData(prev => ({
           ...prev,
           client_id: selectedClientId,
-          user_id: currentUser?.id || prev.user_id || 0,
+          user_id: currentUser?.id || prev.user_id,
           date: format(selectedTimeSlot.date, 'yyyy-MM-dd'),
           time: selectedTimeSlot.time,
           duration: APPOINTMENT_DURATION,
@@ -713,4 +713,3 @@ export default function HomePage() {
     </>
   )
 }
-

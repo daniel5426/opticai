@@ -475,7 +475,7 @@ class ApiClient {
 
   // Users
   async getUsers() {
-    return this.request<User[]>('/users');
+    return this.request<User[]>('/users/');
   }
 
   async getUsersForSelect(params?: { clinic_id?: number; include_ceo?: boolean }) {
@@ -515,7 +515,7 @@ class ApiClient {
   }
 
   async createUser(data: any) {
-    return this.request('/users', {
+    return this.request('/users/', {
       method: 'POST',
       body: JSON.stringify(data),
     });
@@ -556,7 +556,7 @@ class ApiClient {
 
   // Clients
   async getClients(clinicId?: number) {
-    const url = clinicId ? `/clients?clinic_id=${clinicId}` : '/clients';
+    const url = clinicId ? `/clients/?clinic_id=${clinicId}` : '/clients/';
     return this.request<Client[]>(url);
   }
 
@@ -675,7 +675,7 @@ class ApiClient {
   }
 
   async createClient(client: any) {
-    return this.request<Client>('/clients', {
+    return this.request<Client>('/clients/', {
       method: 'POST',
       body: JSON.stringify(client),
     });
@@ -720,7 +720,7 @@ class ApiClient {
 
   // Families
   async getFamilies(clinicId?: number) {
-    const url = clinicId ? `/families?clinic_id=${clinicId}` : '/families';
+    const url = clinicId ? `/families/?clinic_id=${clinicId}` : '/families/';
     return this.request<Family[]>(url);
   }
 
@@ -729,7 +729,7 @@ class ApiClient {
   }
 
   async createFamily(family: any) {
-    return this.request<Family>('/families', {
+    return this.request<Family>('/families/', {
       method: 'POST',
       body: JSON.stringify(family),
     });
@@ -931,7 +931,7 @@ class ApiClient {
 
   // Appointments
   async getAppointments(clinicId?: number) {
-    const url = clinicId ? `/appointments?clinic_id=${clinicId}` : '/appointments';
+    const url = clinicId ? `/appointments/?clinic_id=${clinicId}` : '/appointments/';
     return this.request<Appointment[]>(url);
   }
 
@@ -953,7 +953,7 @@ class ApiClient {
 
   async createAppointment(appointment: any) {
     console.log('API Client - Creating appointment with payload:', appointment);
-    return this.request<Appointment>('/appointments', {
+    return this.request<Appointment>('/appointments/', {
       method: 'POST',
       body: JSON.stringify(appointment),
     });
@@ -1022,7 +1022,7 @@ class ApiClient {
 
   // Medical Logs
   async getMedicalLogs(clinicId?: number) {
-    const url = clinicId ? `/medical-logs?clinic_id=${clinicId}` : '/medical-logs';
+    const url = clinicId ? `/medical-logs/?clinic_id=${clinicId}` : '/medical-logs/';
     return this.request<MedicalLog[]>(url);
   }
 
@@ -1035,7 +1035,7 @@ class ApiClient {
   }
 
   async createMedicalLog(log: any) {
-    return this.request<MedicalLog>('/medical-logs', {
+    return this.request<MedicalLog>('/medical-logs/', {
       method: 'POST',
       body: JSON.stringify(log),
     });
@@ -1056,7 +1056,7 @@ class ApiClient {
 
   // Orders
   async getOrders(clinicId?: number) {
-    const url = clinicId ? `/orders?clinic_id=${clinicId}` : '/orders';
+    const url = clinicId ? `/orders/?clinic_id=${clinicId}` : '/orders/';
     return this.request<Order[]>(url);
   }
 
@@ -1069,7 +1069,7 @@ class ApiClient {
   }
 
   async createOrder(order: any) {
-    return this.request<Order>('/orders', {
+    return this.request<Order>('/orders/', {
       method: 'POST',
       body: JSON.stringify(order),
     });
@@ -1097,7 +1097,7 @@ class ApiClient {
 
   // Contact Lens Orders
   async getContactLensOrders(clinicId?: number) {
-    const url = clinicId ? `/contact-lens-orders?clinic_id=${clinicId}` : '/contact-lens-orders';
+    const url = clinicId ? `/contact-lens-orders/?clinic_id=${clinicId}` : '/contact-lens-orders/';
     return this.request<ContactLensOrderEntity[]>(url);
   }
 
@@ -1110,7 +1110,7 @@ class ApiClient {
   }
 
   async createContactLensOrder(order: any) {
-    return this.request<ContactLensOrderEntity>('/contact-lens-orders', {
+    return this.request<ContactLensOrderEntity>('/contact-lens-orders/', {
       method: 'POST',
       body: JSON.stringify(order),
     });
@@ -1216,7 +1216,7 @@ class ApiClient {
 
   // Referrals
   async getReferrals(clinicId?: number) {
-    const url = clinicId ? `/referrals?clinic_id=${clinicId}` : '/referrals';
+    const url = clinicId ? `/referrals/?clinic_id=${clinicId}` : '/referrals/';
     return this.request<Referral[]>(url);
   }
 
@@ -1229,7 +1229,7 @@ class ApiClient {
   }
 
   async createReferral(referral: any) {
-    return this.request<Referral>('/referrals', {
+    return this.request<Referral>('/referrals/', {
       method: 'POST',
       body: JSON.stringify(referral),
     });
@@ -1333,7 +1333,7 @@ class ApiClient {
 
   // Campaigns
   async getCampaigns(clinicId?: number) {
-    const url = clinicId ? `/campaigns?clinic_id=${clinicId}` : '/campaigns';
+    const url = clinicId ? `/campaigns/?clinic_id=${clinicId}` : '/campaigns/';
     return this.request<Campaign[]>(url);
   }
 
@@ -1342,7 +1342,7 @@ class ApiClient {
   }
 
   async createCampaign(campaign: any) {
-    return this.request<Campaign>('/campaigns', {
+    return this.request<Campaign>('/campaigns/', {
       method: 'POST',
       body: JSON.stringify(campaign),
     });
@@ -1395,7 +1395,7 @@ class ApiClient {
   }
 
   async createChat(title: string, clinicId?: number) {
-    return this.request<Chat>('/chats', {
+    return this.request<Chat>('/chats/', {
       method: 'POST',
       body: JSON.stringify({ title, clinic_id: clinicId }),
     });
@@ -1477,14 +1477,14 @@ class ApiClient {
         body: JSON.stringify(settings),
       });
     }
-    return this.request<Settings>('/settings', {
+    return this.request<Settings>('/settings/', {
       method: 'POST',
       body: JSON.stringify(settings),
     });
   }
 
   async createSettings(settings: any) {
-    return this.request<Settings>('/settings', {
+    return this.request<Settings>('/settings/', {
       method: 'POST',
       body: JSON.stringify(settings),
     });

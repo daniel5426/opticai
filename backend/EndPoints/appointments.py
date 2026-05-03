@@ -7,7 +7,17 @@ from models import Appointment, Client, User, Clinic
 from schemas import AppointmentCreate, AppointmentUpdate, Appointment as AppointmentSchema
 from auth import get_current_user
 from sqlalchemy import func
-from security.scope import resolve_company_id, assert_clinic_belongs_to_company, normalize_clinic_id_for_company
+from security.scope import (
+    apply_clinic_user_scope,
+    get_allowed_clinic_ids,
+    get_scoped_appointment,
+    get_scoped_client,
+    get_scoped_user,
+    normalize_client_id,
+    normalize_clinic_id_for_company,
+    normalize_user_id,
+    resolve_company_id,
+)
 
 
 CEO_LEVEL = 4
@@ -28,26 +38,12 @@ def create_appointment(
         if not appointment.client_id:
             raise HTTPException(status_code=422, detail="client_id is required")
         
-        client = db.query(Client).filter(Client.id == appointment.client_id).first()
-        if not client:
-            raise HTTPException(status_code=422, detail=f"Client with id {appointment.client_id} not found")
+        payload = apply_clinic_user_scope(db, current_user, appointment.dict())
+        payload["user_id"] = normalize_user_id(db, current_user, payload.get("user_id"))
+        payload["client_id"] = normalize_client_id(db, current_user, payload["client_id"], payload["clinic_id"])
         
-        if appointment.user_id:
-            user = db.query(User).filter(User.id == appointment.user_id).first()
-            if not user:
-                raise HTTPException(status_code=422, detail=f"User with id {appointment.user_id} not found")
-        
-        appointment.clinic_id = normalize_clinic_id_for_company(db, current_user, appointment.clinic_id)
-        
-        # Set user_id if not provided
-        if not appointment.user_id:
-            appointment.user_id = current_user.id
-        
-        company_id = resolve_company_id(db, current_user)
-        assert_clinic_belongs_to_company(db, appointment.clinic_id, company_id)
-        
-        print(f"Creating appointment with final data: {appointment.dict()}")
-        db_appointment = Appointment(**appointment.dict())
+        print(f"Creating appointment with final data: {payload}")
+        db_appointment = Appointment(**payload)
         db.add(db_appointment)
         db.commit()
         db.refresh(db_appointment)
@@ -96,11 +92,8 @@ def get_appointments_paginated(
         .outerjoin(Client, Client.id == Appointment.client_id)
         .outerjoin(User, User.id == Appointment.user_id)
     )
-    company_id = resolve_company_id(db, current_user)
-    base = base.join(Clinic, Clinic.id == Appointment.clinic_id).filter(Clinic.company_id == company_id)
-    if clinic_id is not None:
-        assert_clinic_belongs_to_company(db, clinic_id, company_id)
-        base = base.filter(Appointment.clinic_id == clinic_id)
+    allowed_clinic_ids = get_allowed_clinic_ids(db, current_user, clinic_id)
+    base = base.filter(Appointment.clinic_id.in_(allowed_clinic_ids))
     if exam_name and exam_name != "all":
         base = base.filter(Appointment.exam_name == exam_name)
     today = date.today()
@@ -150,7 +143,11 @@ def get_appointments_paginated(
     return {"items": items, "total": total}
 
 @router.get("/{appointment_id}", response_model=AppointmentSchema)
-def get_appointment(appointment_id: int, db: Session = Depends(get_db)):
+def get_appointment(
+    appointment_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     row = (
         db.query(
             Appointment,
@@ -165,6 +162,7 @@ def get_appointment(appointment_id: int, db: Session = Depends(get_db)):
     appointment = row[0] if row else None
     if not appointment:
         raise HTTPException(status_code=404, detail="Appointment not found")
+    get_scoped_appointment(db, current_user, appointment_id)
     setattr(appointment, 'client_full_name', row[1])
     setattr(appointment, 'examiner_name', row[2])
     return appointment
@@ -184,11 +182,8 @@ def get_all_appointments(
         .outerjoin(Client, Client.id == Appointment.client_id)
         .outerjoin(User, User.id == Appointment.user_id)
     )
-    company_id = resolve_company_id(db, current_user)
-    base = base.join(Clinic, Clinic.id == Appointment.clinic_id).filter(Clinic.company_id == company_id)
-    if clinic_id is not None:
-        assert_clinic_belongs_to_company(db, clinic_id, company_id)
-        base = base.filter(Appointment.clinic_id == clinic_id)
+    allowed_clinic_ids = get_allowed_clinic_ids(db, current_user, clinic_id)
+    base = base.filter(Appointment.clinic_id.in_(allowed_clinic_ids))
     rows = base.all()
     items = []
     for row in rows:
@@ -199,7 +194,12 @@ def get_all_appointments(
     return items
 
 @router.get("/client/{client_id}", response_model=List[AppointmentSchema])
-def get_appointments_by_client(client_id: int, db: Session = Depends(get_db)):
+def get_appointments_by_client(
+    client_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    get_scoped_client(db, current_user, client_id)
     rows = (
         db.query(
             Appointment,
@@ -221,7 +221,12 @@ def get_appointments_by_client(client_id: int, db: Session = Depends(get_db)):
     return items
 
 @router.get("/user/{user_id}", response_model=List[AppointmentSchema])
-def get_appointments_by_user(user_id: int, db: Session = Depends(get_db)):
+def get_appointments_by_user(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    get_scoped_user(db, current_user, user_id)
     rows = (
         db.query(
             Appointment,
@@ -242,12 +247,26 @@ def get_appointments_by_user(user_id: int, db: Session = Depends(get_db)):
     return items
 
 @router.put("/{appointment_id}", response_model=AppointmentSchema)
-def update_appointment(appointment_id: int, appointment: AppointmentUpdate, db: Session = Depends(get_db)):
-    db_appointment = db.query(Appointment).filter(Appointment.id == appointment_id).first()
-    if not db_appointment:
-        raise HTTPException(status_code=404, detail="Appointment not found")
-    
-    for field, value in appointment.dict(exclude_unset=True).items():
+def update_appointment(
+    appointment_id: int,
+    appointment: AppointmentUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    db_appointment = get_scoped_appointment(db, current_user, appointment_id)
+    update_fields = appointment.dict(exclude_unset=True)
+    if update_fields:
+        candidate = {
+            "client_id": db_appointment.client_id,
+            "clinic_id": db_appointment.clinic_id,
+            "user_id": db_appointment.user_id,
+        }
+        candidate.update({k: update_fields[k] for k in candidate.keys() & update_fields.keys()})
+        scoped = apply_clinic_user_scope(db, current_user, candidate)
+        for key in ("client_id", "clinic_id", "user_id"):
+            if key in update_fields:
+                update_fields[key] = scoped[key]
+    for field, value in update_fields.items():
         setattr(db_appointment, field, value)
     
     db.commit()
@@ -265,11 +284,12 @@ def update_appointment(appointment_id: int, appointment: AppointmentUpdate, db: 
     return db_appointment
 
 @router.delete("/{appointment_id}")
-def delete_appointment(appointment_id: int, db: Session = Depends(get_db)):
-    appointment = db.query(Appointment).filter(Appointment.id == appointment_id).first()
-    if not appointment:
-        raise HTTPException(status_code=404, detail="Appointment not found")
-    
+def delete_appointment(
+    appointment_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    appointment = get_scoped_appointment(db, current_user, appointment_id)
     client_id = appointment.client_id
     db.delete(appointment)
     db.commit()
@@ -289,11 +309,10 @@ def delete_appointment(appointment_id: int, db: Session = Depends(get_db)):
 def update_appointment_google_event_id(
     appointment_id: int, 
     google_event_id: Optional[str], 
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
-    appointment = db.query(Appointment).filter(Appointment.id == appointment_id).first()
-    if not appointment:
-        raise HTTPException(status_code=404, detail="Appointment not found")
+    appointment = get_scoped_appointment(db, current_user, appointment_id)
     
     appointment.google_calendar_event_id = google_event_id
     db.commit()

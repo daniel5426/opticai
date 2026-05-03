@@ -7,7 +7,14 @@ from schemas import ClientCreate, ClientUpdate, Client as ClientSchema, ClientOr
 from sqlalchemy import and_, func, or_
 from auth import get_current_user
 from utils.storage import upload_base64_image
-from security.scope import assert_company_scope, assert_clinic_belongs_to_company, normalize_clinic_id_for_company, resolve_company_id
+from security.scope import (
+    assert_company_scope,
+    assert_clinic_scope,
+    get_allowed_clinic_ids,
+    get_scoped_client,
+    normalize_clinic_id_for_company,
+    resolve_company_id,
+)
 
 
 CEO_LEVEL = 4
@@ -25,7 +32,6 @@ def get_clients_paginated(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    company_id = resolve_company_id(db, current_user)
     base = db.query(
         Client.id,
         Client.clinic_id,
@@ -38,10 +44,8 @@ def get_clients_paginated(
         Client.family_id,
         Client.family_role,
     )
-    base = base.join(Clinic, Clinic.id == Client.clinic_id).filter(Clinic.company_id == company_id)
-    if clinic_id is not None:
-        assert_clinic_belongs_to_company(db, clinic_id, company_id)
-        base = base.filter(Client.clinic_id == clinic_id)
+    allowed_clinic_ids = get_allowed_clinic_ids(db, current_user, clinic_id)
+    base = base.filter(Client.clinic_id.in_(allowed_clinic_ids))
     if gender and gender != "all":
         base = base.filter(Client.gender == gender)
 
@@ -127,8 +131,7 @@ def get_client(
     client = db.query(Client).filter(Client.id == client_id).first()
     if not client:
         raise HTTPException(status_code=404, detail="Client not found")
-    company_id = resolve_company_id(db, current_user)
-    assert_clinic_belongs_to_company(db, client.clinic_id, company_id)
+    assert_clinic_scope(db, current_user, client.clinic_id)
     return client
 
 def _has_value(value):
@@ -171,11 +174,7 @@ def get_client_orders_context(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    client = db.query(Client).filter(Client.id == client_id).first()
-    if not client:
-        raise HTTPException(status_code=404, detail="Client not found")
-    company_id = resolve_company_id(db, current_user)
-    assert_clinic_belongs_to_company(db, client.clinic_id, company_id)
+    client = get_scoped_client(db, current_user, client_id)
 
     latest_exam = (
         db.query(OpticalExam)
@@ -225,11 +224,8 @@ def get_all_clients(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    company_id = resolve_company_id(db, current_user)
-    query = db.query(Client).join(Clinic, Clinic.id == Client.clinic_id).filter(Clinic.company_id == company_id)
-    if clinic_id is not None:
-        assert_clinic_belongs_to_company(db, clinic_id, company_id)
-        query = query.filter(Client.clinic_id == clinic_id)
+    allowed_clinic_ids = get_allowed_clinic_ids(db, current_user, clinic_id)
+    query = db.query(Client).filter(Client.clinic_id.in_(allowed_clinic_ids))
     return query.all()
 
 
@@ -240,21 +236,18 @@ def update_client(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    db_client = db.query(Client).filter(Client.id == client_id).first()
-    if not db_client:
-        raise HTTPException(status_code=404, detail="Client not found")
-    company_id = resolve_company_id(db, current_user)
-    assert_clinic_belongs_to_company(db, db_client.clinic_id, company_id)
+    db_client = get_scoped_client(db, current_user, client_id)
     
     update_fields = client.dict(exclude_unset=True)
+    update_fields.pop("company_id", None)
+    if "clinic_id" in update_fields:
+        update_fields["clinic_id"] = normalize_clinic_id_for_company(db, current_user, update_fields["clinic_id"])
     if update_fields.get('profile_picture'):
         try:
             update_fields['profile_picture'] = upload_base64_image(update_fields['profile_picture'], f"clients/{db_client.clinic_id or 'no-clinic'}/{client_id}/profile")
         except Exception:
             pass
     for field, value in update_fields.items():
-        if field in {"clinic_id"}:
-            continue
         setattr(db_client, field, value)
     
     db.commit()
@@ -267,11 +260,7 @@ def delete_client(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    client = db.query(Client).filter(Client.id == client_id).first()
-    if not client:
-        raise HTTPException(status_code=404, detail="Client not found")
-    company_id = resolve_company_id(db, current_user)
-    assert_clinic_belongs_to_company(db, client.clinic_id, company_id)
+    client = get_scoped_client(db, current_user, client_id)
     
     db.delete(client)
     db.commit()
@@ -283,11 +272,7 @@ def get_family_members(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    client = db.query(Client).filter(Client.id == client_id).first()
-    if not client:
-        raise HTTPException(status_code=404, detail="Client not found")
-    company_id = resolve_company_id(db, current_user)
-    assert_clinic_belongs_to_company(db, client.clinic_id, company_id)
+    client = get_scoped_client(db, current_user, client_id)
     
     if not client.family_id:
         return []
@@ -301,11 +286,7 @@ def update_client_updated_date(
     current_user: User = Depends(get_current_user)
 ):
     from sqlalchemy.sql import func
-    client = db.query(Client).filter(Client.id == client_id).first()
-    if not client:
-        raise HTTPException(status_code=404, detail="Client not found")
-    company_id = resolve_company_id(db, current_user)
-    assert_clinic_belongs_to_company(db, client.clinic_id, company_id)
+    client = get_scoped_client(db, current_user, client_id)
     
     client.client_updated_date = func.now()
     db.commit()
@@ -318,11 +299,7 @@ def update_client_ai_states(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    client = db.query(Client).filter(Client.id == client_id).first()
-    if not client:
-        raise HTTPException(status_code=404, detail="Client not found")
-    company_id = resolve_company_id(db, current_user)
-    assert_clinic_belongs_to_company(db, client.clinic_id, company_id)
+    client = get_scoped_client(db, current_user, client_id)
     
     mapping = {
         "exam": "ai_exam_state",
@@ -351,11 +328,7 @@ def update_client_ai_part_state(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    client = db.query(Client).filter(Client.id == client_id).first()
-    if not client:
-        raise HTTPException(status_code=404, detail="Client not found")
-    company_id = resolve_company_id(db, current_user)
-    assert_clinic_belongs_to_company(db, client.clinic_id, company_id)
+    client = get_scoped_client(db, current_user, client_id)
     
     field_name = f"ai_{part}_state"
     if hasattr(client, field_name):
