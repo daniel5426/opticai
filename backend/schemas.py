@@ -90,6 +90,7 @@ class UserBase(BaseModel):
     google_account_email: Optional[str] = None
     google_calendar_sync_enabled: bool = False
     va_format: Optional[str] = "meter"
+    cyl_format: Optional[str] = "minus"
     system_vacation_dates: Optional[List[str]] = None
     added_vacation_dates: Optional[List[str]] = None
     sync_subjective_to_final_subjective: bool = False
@@ -111,6 +112,7 @@ class UserUpdate(UserBase):
     clinic_id: Optional[int] = None
     company_id: Optional[int] = None
     va_format: Optional[str] = None
+    cyl_format: Optional[str] = None
     sync_subjective_to_final_subjective: Optional[bool] = None
     auth_provider: Optional[str] = None
     google_access_token: Optional[str] = None

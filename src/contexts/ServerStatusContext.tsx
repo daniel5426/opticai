@@ -69,11 +69,11 @@ export function ServerStatusProvider({ children }: ServerStatusProviderProps) {
   const serverDown = connectionIssue === 'server';
   const clientOffline = connectionIssue === 'client-offline';
 
-  const checkServerHealth = async () => {
-    setIsChecking(true);
+  const checkServerHealth = async (showChecking = true) => {
+    if (showChecking) setIsChecking(true);
     if (isClientOffline()) {
       setConnectionIssue('client-offline');
-      setIsChecking(false);
+      if (showChecking) setIsChecking(false);
       return;
     }
 
@@ -101,7 +101,7 @@ export function ServerStatusProvider({ children }: ServerStatusProviderProps) {
       console.error('[ServerStatus] Health check failed:', error);
       setConnectionIssue(isClientOffline() ? 'client-offline' : 'server');
     } finally {
-      setIsChecking(false);
+      if (showChecking) setIsChecking(false);
     }
   };
 
@@ -110,10 +110,12 @@ export function ServerStatusProvider({ children }: ServerStatusProviderProps) {
     checkServerHealth();
   }, []);
 
-  // Periodic health check every 30 seconds while the app cannot reach the API
+  // Silent reconnect loop while the app cannot reach the API
   useEffect(() => {
     if (connectionIssue) {
-      const interval = setInterval(checkServerHealth, 30000);
+      const interval = setInterval(() => {
+        checkServerHealth(false);
+      }, 1000);
       return () => clearInterval(interval);
     }
   }, [connectionIssue]);
@@ -177,7 +179,7 @@ export function ServerStatusProvider({ children }: ServerStatusProviderProps) {
                 </p>
                 <div className="mt-2">
                   <Button
-                    onClick={checkServerHealth}
+                    onClick={() => checkServerHealth()}
                     disabled={isChecking}
                     className="bg-general-primary hover:bg-general-primary/80"
                   >

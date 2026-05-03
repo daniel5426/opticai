@@ -1,4 +1,4 @@
-import React, { useCallback, useState, useEffect } from "react"
+import React, { useCallback, useMemo, useRef, useState, useEffect } from "react"
 import { SiteHeader } from "@/components/site-header"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -25,24 +25,89 @@ import { AboutTab } from "@/components/settings/AboutTab"
 import { UnsavedChangesDialog } from "@/components/unsaved-changes-dialog"
 import { useUnsavedChanges } from "@/hooks/shared/useUnsavedChanges"
 
-const SETTINGS_UNSAVED_IGNORED_KEYS = new Set([
-  "created_at",
-  "updated_at",
+const SETTINGS_SNAPSHOT_FIELDS: (keyof Settings)[] = [
+  "id",
+  "clinic_id",
+  "clinic_logo_path",
+  "primary_theme_color",
+  "secondary_theme_color",
+  "work_start_time",
+  "work_end_time",
+  "appointment_duration",
+  "send_email_before_appointment",
+  "email_days_before",
+  "email_time",
+  "working_days",
+  "break_start_time",
+  "break_end_time",
+  "max_appointments_per_day",
+  "va_test_distance",
+  "email_provider",
+  "email_smtp_host",
+  "email_smtp_port",
+  "email_smtp_secure",
+  "email_username",
+  "email_password",
+  "email_from_name",
+]
+
+const CLINIC_SNAPSHOT_FIELDS: (keyof Clinic)[] = [
+  "id",
+  "clinic_position",
+  "email",
+  "phone_number",
+  "clinic_name",
+  "clinic_address",
+  "clinic_city",
+  "clinic_postal_code",
+  "clinic_directions",
+  "clinic_website",
+  "manager_name",
+  "license_number",
+  "has_entry_pin",
   "entry_pin",
-  "remove_entry_pin",
-  "google_access_token",
-  "google_refresh_token",
-])
+]
+
+const PROFILE_SNAPSHOT_FIELDS: (keyof User)[] = [
+  "full_name",
+  "email",
+  "phone",
+  "profile_picture",
+  "primary_theme_color",
+  "secondary_theme_color",
+  "theme_preference",
+  "system_vacation_dates",
+  "added_vacation_dates",
+  "va_format",
+  "cyl_format",
+  "sync_subjective_to_final_subjective",
+  "import_order_to_old_refraction_default",
+]
+
+function pickSnapshotFields<T extends object>(
+  source: Partial<T>,
+  fields: (keyof T)[],
+): Partial<T> {
+  return fields.reduce<Partial<T>>((acc, field) => {
+    if (field in source) {
+      acc[field] = source[field]
+    }
+    return acc
+  }, {})
+}
 
 function createSettingsUnsavedSnapshot(
   localSettings: Settings,
   localClinic: Partial<Clinic>,
   personalProfile: Partial<User>,
 ) {
+  const clinicSnapshot = pickSnapshotFields(localClinic, CLINIC_SNAPSHOT_FIELDS)
+  clinicSnapshot.remove_entry_pin = localClinic.remove_entry_pin ? true : undefined
+
   return sortSettingsValue({
-    settings: localSettings,
-    clinic: localClinic,
-    personalProfile,
+    settings: pickSnapshotFields(localSettings, SETTINGS_SNAPSHOT_FIELDS),
+    clinic: clinicSnapshot,
+    personalProfile: pickSnapshotFields(personalProfile, PROFILE_SNAPSHOT_FIELDS),
   })
 }
 
@@ -57,7 +122,6 @@ function sortSettingsValue(value: unknown): unknown {
 
   if (value && typeof value === "object") {
     return Object.keys(value as Record<string, unknown>)
-      .filter(key => !SETTINGS_UNSAVED_IGNORED_KEYS.has(key))
       .sort()
       .reduce<Record<string, unknown>>((acc, key) => {
         const child = sortSettingsValue((value as Record<string, unknown>)[key])
@@ -152,6 +216,7 @@ export default function SettingsPage() {
     system_vacation_dates: [],
     added_vacation_dates: [],
     va_format: 'meter',
+    cyl_format: 'minus',
     sync_subjective_to_final_subjective: false,
     import_order_to_old_refraction_default: false
   })
@@ -161,14 +226,32 @@ export default function SettingsPage() {
   const [googleCalendarLoading, setGoogleCalendarLoading] = useState(false)
   const [googleCalendarSyncing, setGoogleCalendarSyncing] = useState(false)
   const [settingsBaselineVersion, setSettingsBaselineVersion] = useState(0)
+  const [savedSettingsSnapshot, setSavedSettingsSnapshot] = useState<string | null>(null)
+  const dirtyVersionRef = useRef(0)
+  const [settingsDirtyVersion, setSettingsDirtyVersion] = useState(0)
+  const [savedSettingsDirtyVersion, setSavedSettingsDirtyVersion] = useState(0)
 
-  const getSerializedState = useCallback(
+  const currentSettingsSnapshot = useMemo(
     () => JSON.stringify(createSettingsUnsavedSnapshot(localSettings, localClinic, personalProfile)),
     [localSettings, localClinic, personalProfile],
   )
 
+  const hasSettingsUnsavedChanges =
+    savedSettingsSnapshot !== null &&
+    settingsDirtyVersion !== savedSettingsDirtyVersion &&
+    currentSettingsSnapshot !== savedSettingsSnapshot
+
+  const markSettingsDirty = useCallback(() => {
+    dirtyVersionRef.current += 1
+    setSettingsDirtyVersion(dirtyVersionRef.current)
+  }, [])
+
+  const getSerializedState = useCallback(
+    () => currentSettingsSnapshot,
+    [currentSettingsSnapshot],
+  )
+
   const {
-    hasUnsavedChanges,
     showUnsavedDialog,
     handleUnsavedConfirm,
     handleUnsavedCancel,
@@ -176,7 +259,7 @@ export default function SettingsPage() {
     baselineInitializedRef,
   } = useUnsavedChanges({
     getSerializedState,
-    isEditing: true,
+    isEditing: hasSettingsUnsavedChanges,
     isNewMode: false,
   })
 
@@ -237,6 +320,7 @@ export default function SettingsPage() {
           system_vacation_dates: currentUser.system_vacation_dates || [],
           added_vacation_dates: currentUser.added_vacation_dates || [],
           va_format: currentUser.va_format || 'meter',
+          cyl_format: currentUser.cyl_format || 'minus',
           sync_subjective_to_final_subjective: currentUser.sync_subjective_to_final_subjective || false,
           import_order_to_old_refraction_default: currentUser.import_order_to_old_refraction_default || false
         })
@@ -268,7 +352,10 @@ export default function SettingsPage() {
 
   useEffect(() => {
     if (loading || settingsBaselineVersion === 0 || baselineInitializedRef.current) return
-    setBaseline(createSettingsUnsavedSnapshot(localSettings, localClinic, personalProfile))
+    const baselineSnapshot = createSettingsUnsavedSnapshot(localSettings, localClinic, personalProfile)
+    setSavedSettingsSnapshot(JSON.stringify(baselineSnapshot))
+    setSavedSettingsDirtyVersion(dirtyVersionRef.current)
+    setBaseline(baselineSnapshot)
   }, [
     baselineInitializedRef,
     loading,
@@ -280,16 +367,19 @@ export default function SettingsPage() {
   ])
 
   const handleInputChange = (field: keyof Settings, value: string | number | boolean) => {
+    markSettingsDirty()
     const newSettings = { ...localSettings, [field]: value }
     setLocalSettings(newSettings)
   }
 
   const handleClinicChange = (field: keyof Clinic, value: any) => {
+    markSettingsDirty()
     const updated = { ...localClinic, [field]: value }
     setLocalClinic(updated)
   }
 
   const handlePersonalProfileChange = (field: keyof User, value: any) => {
+    markSettingsDirty()
     const newProfile = { ...personalProfile, [field]: value }
     setPersonalProfile(newProfile)
     if (field === 'email' && emailError) {
@@ -301,6 +391,8 @@ export default function SettingsPage() {
   }
 
   const handleSave = async () => {
+    const saveDirtyVersion = dirtyVersionRef.current
+
     try {
       setSaving(true)
       setSaveSuccess(false)
@@ -347,6 +439,7 @@ export default function SettingsPage() {
           system_vacation_dates: personalProfile.system_vacation_dates,
           added_vacation_dates: personalProfile.added_vacation_dates,
           va_format: personalProfile.va_format,
+          cyl_format: personalProfile.cyl_format,
           sync_subjective_to_final_subjective: personalProfile.sync_subjective_to_final_subjective,
           import_order_to_old_refraction_default: personalProfile.import_order_to_old_refraction_default
         }
@@ -407,6 +500,7 @@ export default function SettingsPage() {
             ? normalizeDates(updatedUser.added_vacation_dates)
             : (personalProfile.added_vacation_dates as string[] || []),
           va_format: updatedUser.va_format ?? personalProfile.va_format ?? 'meter',
+          cyl_format: updatedUser.cyl_format ?? personalProfile.cyl_format ?? 'minus',
           sync_subjective_to_final_subjective: updatedUser.sync_subjective_to_final_subjective ?? personalProfile.sync_subjective_to_final_subjective ?? false,
           import_order_to_old_refraction_default: updatedUser.import_order_to_old_refraction_default ?? personalProfile.import_order_to_old_refraction_default ?? false
         }
@@ -422,7 +516,12 @@ export default function SettingsPage() {
       setTimeout(() => {
         setSaveSuccess(false)
       }, 2000)
-      setBaseline(createSettingsUnsavedSnapshot(nextSettings, nextClinic, nextProfile))
+      const savedSnapshot = createSettingsUnsavedSnapshot(nextSettings, nextClinic, nextProfile)
+      setSavedSettingsSnapshot(JSON.stringify(savedSnapshot))
+      if (dirtyVersionRef.current === saveDirtyVersion) {
+        setSavedSettingsDirtyVersion(saveDirtyVersion)
+      }
+      setBaseline(savedSnapshot)
       toast.success('כל ההגדרות נשמרו בהצלחה')
     } catch (error) {
       console.error('Error saving settings:', error)
@@ -779,7 +878,7 @@ export default function SettingsPage() {
               <p className="text-muted-foreground">נהל את פרטי המרפאה והגדרות המערכת</p>
             </div>
             <div className="flex items-center gap-3 pt-6 pl-1">
-              {hasUnsavedChanges && !saving && (
+              {hasSettingsUnsavedChanges && !saving && (
                 <div className="flex items-center gap-1.5 text-xs font-medium text-amber-600 animate-fade-in">
                   <span className="h-2 w-2 rounded-full bg-amber-500" />
                   <span>שינויים שלא נשמרו</span>
@@ -888,7 +987,10 @@ export default function SettingsPage() {
                       googleCalendarLoading={googleCalendarLoading}
                       googleCalendarSyncing={googleCalendarSyncing}
                       onProfileChange={handlePersonalProfileChange}
-                      onProfilePictureRemove={() => setPersonalProfile(prev => ({ ...prev, profile_picture: '' }))}
+                      onProfilePictureRemove={() => {
+                        markSettingsDirty()
+                        setPersonalProfile(prev => ({ ...prev, profile_picture: '' }))
+                      }}
                       onConnectGoogle={handleConnectGoogleAccount}
                       onDisconnectGoogle={handleDisconnectGoogleAccount}
                       onSyncGoogleCalendar={handleSyncGoogleCalendar}
@@ -936,7 +1038,7 @@ export default function SettingsPage() {
         }}
       />
       <UnsavedChangesDialog
-        open={showUnsavedDialog}
+        open={showUnsavedDialog && hasSettingsUnsavedChanges}
         onConfirm={handleUnsavedConfirm}
         onCancel={handleUnsavedCancel}
       />
