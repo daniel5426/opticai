@@ -1,9 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 from typing import List, Optional, Dict, Any
+from datetime import date
 from database import get_db
 from models import Order, Client, User, Billing, OrderLineItem, ContactLensOrder
-from sqlalchemy import func
+from sqlalchemy import Date, func
 from schemas import OrderCreate, OrderUpdate, Order as OrderSchema, BillingCreate, BillingUpdate, Billing as BillingSchema, OrderLineItemCreate, OrderLineItemUpdate, OrderLineItem as OrderLineItemSchema, ContactLensOrderCreate, ContactLensOrderUpdate, ContactLensOrder as ContactLensOrderSchema
 from utils.date_search import DateSearchHelper
 from auth import get_current_user
@@ -344,6 +345,16 @@ def filter_model_data(model, data: Dict[str, Any]) -> Dict[str, Any]:
 
 def _prepare_model_payload(db: Session, current_user: User, model, data: Dict[str, Any]) -> Dict[str, Any]:
     payload = filter_model_data(model, data)
+    if "user_id" in {c.name for c in model.__table__.columns} and "user_id" not in payload:
+        payload["user_id"] = None
+    for column in model.__table__.columns:
+        if column.name not in payload or payload[column.name] in (None, ""):
+            continue
+        if isinstance(column.type, Date) and not isinstance(payload[column.name], date):
+            try:
+                payload[column.name] = date.fromisoformat(payload[column.name])
+            except (TypeError, ValueError):
+                raise HTTPException(status_code=422, detail=f"Invalid date for {column.name}")
     payload = apply_clinic_user_scope(db, current_user, payload)
     if payload.get("supply_in_clinic_id") is not None:
         assert_clinic_scope(db, current_user, payload["supply_in_clinic_id"])
