@@ -1291,6 +1291,10 @@ class ApiClient {
   }
 
   // Work Shifts
+  async getWorkShift(id: number) {
+    return this.request<WorkShift>(`/work-shifts/${id}`);
+  }
+
   async getWorkShifts(userId: number) {
     return this.request<WorkShift[]>(`/work-shifts/user/${userId}`);
   }

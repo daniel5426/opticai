@@ -21,6 +21,16 @@ import { User, WorkShift } from "@/lib/db/schema-interface";
 import { ROLE_LEVELS, isRoleAtLeast } from "@/lib/role-levels";
 import { useUser } from "@/contexts/UserContext";
 
+const normalizeDisplayNumber = (
+  value: number | null | undefined,
+  fractionDigits = 0,
+) => {
+  const numericValue = Number(value);
+  if (!Number.isFinite(numericValue)) return 0;
+
+  return Number(numericValue.toFixed(fractionDigits));
+};
+
 export default function WorkerStatsPage() {
   const { currentUser } = useUser();
   const [users, setUsers] = useState<User[]>([]);
@@ -107,9 +117,9 @@ export default function WorkerStatsPage() {
           average_minutes: number;
         };
         setUserStats({
-          totalShifts: stats.total_shifts || 0,
-          totalMinutes: stats.total_minutes || 0,
-          averageMinutes: stats.average_minutes || 0,
+          totalShifts: normalizeDisplayNumber(stats.total_shifts),
+          totalMinutes: normalizeDisplayNumber(stats.total_minutes),
+          averageMinutes: normalizeDisplayNumber(stats.average_minutes),
         });
       } else {
         setUserStats({ totalShifts: 0, totalMinutes: 0, averageMinutes: 0 });
@@ -223,9 +233,11 @@ export default function WorkerStatsPage() {
 
   const selectedUser = users.find((u) => u.id === selectedUserId);
   const formatDuration = (minutes: number) => {
-    if (!minutes || isNaN(minutes)) return "0:00";
-    const hours = Math.floor(minutes / 60);
-    const mins = minutes % 60;
+    const totalMinutes = Math.max(0, normalizeDisplayNumber(minutes));
+    if (!totalMinutes) return "0:00";
+
+    const hours = Math.floor(totalMinutes / 60);
+    const mins = totalMinutes % 60;
     return `${hours}:${mins.toString().padStart(2, "0")}`;
   };
 

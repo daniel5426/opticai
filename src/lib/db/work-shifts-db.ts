@@ -7,11 +7,8 @@ export async function createWorkShift(data: Omit<WorkShift, 'id' | 'created_at' 
 }
 
 export async function getWorkShiftById(id: number) {
-  // Note: apiClient doesn't have a direct getWorkShift method
-  // This would need to be implemented in the API or we can get all work shifts and filter
-  const response = await apiClient.getWorkShifts(0); // Get all work shifts
-  const workShifts = response.data || [];
-  return workShifts.find(ws => ws.id === id);
+  const response = await apiClient.getWorkShift(id);
+  return response.data;
 }
 
 export async function getActiveWorkShiftByUserId(userId: number) {
