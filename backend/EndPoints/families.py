@@ -1,12 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from typing import List, Optional
 from database import get_db
 from models import Family, Client
 from schemas import FamilyCreate, FamilyUpdate, Family as FamilySchema, FamilyWithMembers
 from auth import get_current_user
 from models import User
+from utils.date_search import DateSearchHelper
 from security.scope import (
     get_allowed_clinic_ids,
     get_scoped_client,
@@ -40,7 +41,10 @@ def get_families_paginated(
         
     if search:
         like = f"%{search.strip()}%"
-        count_q = count_q.filter(Family.name.ilike(like))
+        date_search_conditions = DateSearchHelper.build_date_search_conditions(
+            Family.created_date, search
+        )
+        count_q = count_q.filter(or_(Family.name.ilike(like), *date_search_conditions))
 
     total = count_q.scalar() or 0
 
@@ -61,7 +65,10 @@ def get_families_paginated(
         
     if search:
         like = f"%{search.strip()}%"
-        base = base.filter(Family.name.ilike(like))
+        date_search_conditions = DateSearchHelper.build_date_search_conditions(
+            Family.created_date, search
+        )
+        base = base.filter(or_(Family.name.ilike(like), *date_search_conditions))
 
     base = base.group_by(Family.id, Family.clinic_id, Family.name, Family.created_date, Family.notes, Family.company_id)
 

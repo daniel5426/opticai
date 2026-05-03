@@ -6,6 +6,7 @@ from models import Client, Family, Clinic, User, OpticalExam, Appointment, Order
 from schemas import ClientCreate, ClientUpdate, Client as ClientSchema, ClientOrdersContext
 from sqlalchemy import and_, func, or_
 from auth import get_current_user
+from utils.date_search import DateSearchHelper
 from utils.storage import upload_base64_image
 from security.scope import (
     assert_company_scope,
@@ -54,13 +55,21 @@ def get_clients_paginated(
         search = search.strip()
         if search:
             like = f"%{search}%"
+            date_search_conditions = [
+                *DateSearchHelper.build_date_search_conditions(Client.date_of_birth, search),
+                *DateSearchHelper.build_date_search_conditions(Client.file_creation_date, search),
+                *DateSearchHelper.build_date_search_conditions(Client.membership_end, search),
+                *DateSearchHelper.build_date_search_conditions(Client.service_end, search),
+            ]
             base = base.filter(
                 or_(
                     Client.first_name.ilike(like),
                     Client.last_name.ilike(like),
                     func.concat(Client.first_name, ' ', Client.last_name).ilike(like),
+                    Client.national_id.ilike(like),
                     Client.phone_mobile.ilike(like),
                     Client.email.ilike(like),
+                    *date_search_conditions,
                 )
             )
 

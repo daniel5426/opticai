@@ -71,6 +71,7 @@ import {
 import { SortableTableHead } from "@/components/sortable-table-head";
 import { SortColumns, SortState, sortRows } from "@/lib/table-sorting";
 import { useSettings } from "@/hooks/useSettings";
+import { DateSearchHelper } from "@/lib/date-search-helper";
 
 interface AppointmentsTableProps {
   data: Appointment[];
@@ -352,7 +353,6 @@ export function AppointmentsTable({
       }
 
       const searchableFields = [
-        appointment.date || "",
         appointment.time || "",
         appointment.exam_name || "",
         appointment.note || "",
@@ -360,8 +360,10 @@ export function AppointmentsTable({
         appointment.examiner_name || "",
       ];
 
-      return searchableFields.some((field) =>
-        field.toLowerCase().includes(searchLower),
+      return (
+        searchableFields.some((field) =>
+          field.toLowerCase().includes(searchLower),
+        ) || DateSearchHelper.matchesDate(searchLower, appointment.date)
       );
     });
   }, [allAppointments, dateScopeFilter, examTypeFilter, searchValue]);

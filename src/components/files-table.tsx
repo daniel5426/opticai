@@ -23,6 +23,7 @@ import { ALL_FILTER_VALUE, FILE_CATEGORY_OPTIONS, normalizeFileCategory } from "
 import { SortableTableHead } from "@/components/sortable-table-head"
 import { SortColumns, SortState, sortRows } from "@/lib/table-sorting"
 import { Input } from "@/components/ui/input"
+import { DateSearchHelper } from "@/lib/date-search-helper"
 
 interface FilesTableProps {
   data: FileType[]
@@ -331,12 +332,14 @@ export function FilesTable({
       const searchableFields = [
         file.file_name || '',
         file.file_type || '',
-        file.upload_date || '',
         getClientName(file),
         file.notes || ''
       ]
 
-      return searchableFields.some((field) => field.toLowerCase().includes(normalizedSearch))
+      return (
+        searchableFields.some((field) => field.toLowerCase().includes(normalizedSearch)) ||
+        DateSearchHelper.matchesDate(normalizedSearch, file.upload_date)
+      )
     })
   }, [data, fileCategoryFilter, searchValue])
 

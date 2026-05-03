@@ -17,6 +17,7 @@ from security.scope import (
     get_scoped_file,
 )
 from services.file_storage_service import FileStorageService, get_file_storage_service
+from utils.date_search import DateSearchHelper
 
 router = APIRouter(prefix="/files", tags=["files"])
 
@@ -305,6 +306,9 @@ def get_files_paginated(
         base = base.filter(file_category_filter)
     if search:
         like = f"%{search.strip()}%"
+        date_search_conditions = DateSearchHelper.build_date_search_conditions(
+            FileModel.upload_date, search
+        )
         base = (
             base.outerjoin(User, User.id == FileModel.uploaded_by)
             .filter(
@@ -316,6 +320,7 @@ def get_files_paginated(
                     func.concat(Client.first_name, " ", Client.last_name).ilike(like),
                     User.full_name.ilike(like),
                     User.username.ilike(like),
+                    *date_search_conditions,
                 )
             )
         )

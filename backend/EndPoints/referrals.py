@@ -6,6 +6,7 @@ from models import Referral, Client, User, ReferralEye, Clinic
 from sqlalchemy import func
 from schemas import ReferralCreate, ReferralUpdate, Referral as ReferralSchema
 from auth import get_current_user
+from utils.date_search import DateSearchHelper
 from security.scope import (
     apply_clinic_user_scope,
     get_allowed_clinic_ids,
@@ -45,12 +46,17 @@ def get_referrals_paginated(
         base = base.filter(Referral.type == referral_type)
     if search:
         like = f"%{search.strip()}%"
+        date_search_conditions = DateSearchHelper.build_date_search_conditions(
+            Referral.date, search
+        )
         base = base.filter(
             or_(
                 Referral.type.ilike(like),
                 Referral.recipient.ilike(like),
                 Referral.urgency_level.ilike(like),
-                func.concat(Client.first_name, ' ', Client.last_name).ilike(like)
+                func.concat(Client.first_name, ' ', Client.last_name).ilike(like),
+                func.coalesce(User.full_name, User.username).ilike(like),
+                *date_search_conditions,
             )
         )
     order_columns = {

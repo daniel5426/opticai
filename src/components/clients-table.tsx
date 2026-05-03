@@ -19,6 +19,7 @@ import { TableFiltersBar } from "@/components/table-filters-bar"
 import { GENDER_FILTER_OPTIONS } from "@/lib/table-filters"
 import { SortableTableHead } from "@/components/sortable-table-head"
 import { SortColumns, SortState, sortRows } from "@/lib/table-sorting"
+import { DateSearchHelper } from "@/lib/date-search-helper"
 
 interface ClientsTableProps {
   data: Client[]
@@ -126,7 +127,12 @@ export function ClientsTable({
         return searchableFields.some(
           (field) =>
             field && field.toLowerCase().includes(searchQuery.toLowerCase()),
-        )
+        ) || [
+          client.date_of_birth,
+          client.file_creation_date,
+          client.membership_end,
+          client.service_end,
+        ].some((date) => DateSearchHelper.matchesDate(searchQuery, date))
       })
     }
 

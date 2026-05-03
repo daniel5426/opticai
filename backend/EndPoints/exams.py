@@ -62,10 +62,6 @@ def get_enriched_exams(
         )
         search_conditions.extend(date_search_conditions)
         
-        parsed_date = DateSearchHelper.parse_date(search)
-        if parsed_date:
-            search_conditions.append(OpticalExam.exam_date == parsed_date)
-        
         base_query = base_query.filter(or_(*search_conditions))
 
     # Count total before pagination

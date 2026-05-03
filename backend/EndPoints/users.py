@@ -8,6 +8,7 @@ from schemas import UserCreate, UserUpdate, User as UserSchema, UserPublic, User
 from auth import decrypt_secret, encrypt_secret, get_current_user, get_password_hash
 from models import User as UserModel
 from utils.storage import upload_base64_image
+from utils.date_search import DateSearchHelper
 
 
 CEO_LEVEL = 4
@@ -175,12 +176,17 @@ def get_users_paginated(
     if search:
         from sqlalchemy import or_
         like = f"%{search.strip()}%"
+        date_search_conditions = [
+            *DateSearchHelper.build_date_search_conditions(User.created_at, search),
+            *DateSearchHelper.build_date_search_conditions(User.updated_at, search),
+        ]
         base = base.filter(
             or_(
                 User.full_name.ilike(like),
                 User.username.ilike(like),
                 User.email.ilike(like),
                 User.phone.ilike(like),
+                *date_search_conditions,
             )
         )
     if role_level is not None:

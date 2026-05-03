@@ -165,7 +165,7 @@ def table(rows: list[str], widths: list[int], *, layout: str = "fixed", borders:
     return (
         "<w:tbl>"
         "<w:tblPr>"
-        f'<w:tblW w:w="{sum(widths)}" w:type="dxa"/>'
+        '<w:tblW w:w="5000" w:type="pct"/>'
         f'<w:tblLayout w:type="{layout}"/>'
         '<w:jc w:val="right"/>'
         f'{tbl_borders}'

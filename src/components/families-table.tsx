@@ -17,6 +17,7 @@ import { toast } from "sonner"
 import { Skeleton } from "@/components/ui/skeleton"
 import { SortableTableHead } from "@/components/sortable-table-head"
 import { SortColumns, SortState, sortRows } from "@/lib/table-sorting"
+import { DateSearchHelper } from "@/lib/date-search-helper"
 
 interface FamiliesTableProps {
   data: Family[]
@@ -91,7 +92,10 @@ export function FamiliesTable({
     }
 
     if (!isExternalSearch && searchQuery) {
-      result = result.filter((family) => family.name.toLowerCase().includes(searchQuery.toLowerCase()))
+      result = result.filter((family) =>
+        family.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        DateSearchHelper.matchesDate(searchQuery, family.created_date)
+      )
     }
     return result
   }, [data, searchQuery, isExternalSearch, showCurrentClinicOnly, currentClinicId])

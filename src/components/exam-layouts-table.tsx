@@ -38,6 +38,7 @@ import {
   ALL_FILTER_VALUE,
   EXAM_LAYOUT_TYPE_OPTIONS,
 } from "@/lib/table-filters";
+import { DateSearchHelper } from "@/lib/date-search-helper";
 
 type LayoutNode = ExamLayout & { children?: LayoutNode[] };
 
@@ -483,7 +484,9 @@ export function ExamLayoutsTable({
             node.type === typeFilter;
           const searchMatches = !searchQuery.trim()
             ? true
-            : node.name?.toLowerCase().includes(searchQuery.toLowerCase());
+            : node.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+              DateSearchHelper.matchesDate(searchQuery, node.created_at) ||
+              DateSearchHelper.matchesDate(searchQuery, node.updated_at);
 
           if (matchesType && searchMatches) {
             return node;

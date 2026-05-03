@@ -20,6 +20,7 @@ import { TableFiltersBar } from "@/components/table-filters-bar"
 import { ALL_FILTER_VALUE, USER_CLINIC_SCOPE_OPTIONS, USER_ROLE_FILTER_OPTIONS } from "@/lib/table-filters"
 import { SortableTableHead } from "@/components/sortable-table-head"
 import { SortColumns, SortState, sortRows } from "@/lib/table-sorting"
+import { DateSearchHelper } from "@/lib/date-search-helper"
 
 interface UserWithClinic extends User {
   clinic_name?: string;
@@ -134,7 +135,10 @@ export function UsersTable({
       result = result.filter((user) =>
         user.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         user.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        user.email?.toLowerCase().includes(searchQuery.toLowerCase())
+        user.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        user.phone?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        DateSearchHelper.matchesDate(searchQuery, user.created_at) ||
+        DateSearchHelper.matchesDate(searchQuery, user.updated_at)
       )
     }
     return result

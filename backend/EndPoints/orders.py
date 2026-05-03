@@ -41,8 +41,6 @@ def get_orders_paginated(
 
     like = f"%{search.strip()}%" if search else None
     
-    parsed_date = DateSearchHelper.parse_date(search) if search else None
-
     allowed_clinic_ids = get_allowed_clinic_ids(db, current_user, clinic_id)
 
     order_filters = [Order.clinic_id.in_(allowed_clinic_ids)]
@@ -61,8 +59,6 @@ def get_orders_paginated(
             )
         )
         
-        if parsed_date:
-            order_filters.append(Order.order_date == parsed_date)
     if status and status != "all":
         order_filters.append(
             func.json_extract_path_text(Order.order_data, 'details', 'order_status') == status
@@ -84,8 +80,6 @@ def get_orders_paginated(
             )
         )
         
-        if parsed_date:
-            cl_filters.append(ContactLensOrder.order_date == parsed_date)
     if status and status != "all":
         cl_filters.append(ContactLensOrder.order_status == status)
 

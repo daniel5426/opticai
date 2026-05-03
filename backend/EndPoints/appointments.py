@@ -6,6 +6,7 @@ from database import get_db
 from models import Appointment, Client, User, Clinic
 from schemas import AppointmentCreate, AppointmentUpdate, Appointment as AppointmentSchema
 from auth import get_current_user
+from utils.date_search import DateSearchHelper
 from sqlalchemy import func
 from security.scope import (
     apply_clinic_user_scope,
@@ -105,13 +106,18 @@ def get_appointments_paginated(
         base = base.filter(Appointment.date < today)
     if search:
         like = f"%{search.strip()}%"
+        date_search_conditions = DateSearchHelper.build_date_search_conditions(
+            Appointment.date, search
+        )
         base = base.filter(
             or_(
                 func.cast(Appointment.date, String).ilike(like),
                 Appointment.time.ilike(like),
                 Appointment.exam_name.ilike(like),
                 Appointment.note.ilike(like),
-                func.concat(Client.first_name, ' ', Client.last_name).ilike(like)
+                func.concat(Client.first_name, ' ', Client.last_name).ilike(like),
+                func.coalesce(User.full_name, User.username).ilike(like),
+                *date_search_conditions,
             )
         )
     

@@ -21,6 +21,7 @@ import { ALL_FILTER_VALUE, REFERRAL_URGENCY_OPTIONS } from "@/lib/table-filters"
 import { SortableTableHead } from "@/components/sortable-table-head";
 import { SortColumns, SortState, sortRows } from "@/lib/table-sorting";
 import { exportReferralToDocx } from "@/lib/referral-docx";
+import { DateSearchHelper } from "@/lib/date-search-helper";
 
 interface ReferralTableProps {
   referrals: Referral[];
@@ -115,7 +116,7 @@ export function ReferralTable({
         referral.type?.toLowerCase().includes(normalizedSearch) ||
         referral.recipient?.toLowerCase().includes(normalizedSearch) ||
         referral.urgency_level?.toLowerCase().includes(normalizedSearch) ||
-        referral.date?.includes(searchValue) ||
+        DateSearchHelper.matchesDate(normalizedSearch, referral.date) ||
         referral.client_full_name?.toLowerCase().includes(normalizedSearch)
       );
     });
