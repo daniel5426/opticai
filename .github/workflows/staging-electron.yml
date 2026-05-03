@@ -40,11 +40,15 @@ jobs:
 
       - name: Build macOS staging app
         run: |
-          npm run build:mac:arm64 -- \
+          npx vite build
+          npx electron-builder --mac zip --arm64 \
             --publish never \
-            -c.productName="Prysm Staging" \
-            -c.appId="com.prysm.app.staging" \
-            '-c.artifactName=Prysm-Staging-${os}-${arch}-${version}.${ext}'
+            --config.productName="Prysm Staging" \
+            --config.appId="com.prysm.app.staging" \
+            --config.mac.identity=null \
+            --config.mac.hardenedRuntime=false \
+            --config.mac.gatekeeperAssess=false \
+            '--config.artifactName=Prysm-Staging-${os}-${arch}-${version}.${ext}'
         env:
           NODE_ENV: production
           NODE_OPTIONS: --max-old-space-size=4096
@@ -97,7 +101,8 @@ jobs:
 
       - name: Build Windows staging app
         run: |
-          npm run build:win -- --publish never -c.productName="Prysm Staging" -c.appId="com.prysm.app.staging" '-c.nsis.artifactName=Prysm-Staging-Setup-${version}.${ext}'
+          npx vite build
+          npx electron-builder --win nsis --x64 --publish never --config.productName="Prysm Staging" --config.appId="com.prysm.app.staging" '--config.nsis.artifactName=Prysm-Staging-Setup-${version}.${ext}'
         env:
           NODE_ENV: production
           NODE_OPTIONS: --max-old-space-size=4096
