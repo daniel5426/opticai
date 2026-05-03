@@ -87,11 +87,15 @@ def paragraph(
     spacing_before: int = 0,
     spacing_after: int = 60,
     keep_next: bool = False,
+    indent_left: int = 0,
+    bidi: bool = True,
 ) -> str:
     keep_next_xml = "<w:keepNext/>" if keep_next else ""
+    ind_xml = f'<w:ind w:left="{indent_left}"/>' if indent_left != 0 else ""
+    bidi_xml = "<w:bidi/>" if bidi else ""
     return (
         "<w:p>"
-        f"<w:pPr><w:jc w:val=\"{align}\"/><w:bidi/><w:spacing w:before=\"{spacing_before}\" "
+        f"<w:pPr><w:jc w:val=\"{align}\"/>{bidi_xml}{ind_xml}<w:spacing w:before=\"{spacing_before}\" "
         f"w:after=\"{spacing_after}\"/>{keep_next_xml}</w:pPr>"
         f"{runs}</w:p>"
     )
@@ -186,7 +190,7 @@ def section_title(title: str) -> str:
 
 def header_block(title: str, subtitle_key: str) -> str:
     left_cell = cell(
-        paragraph(logo(1000000, 1000000), align="left", spacing_after=0),
+        paragraph(logo(1000000, 1000000), align="left", spacing_after=0, bidi=False),
         width=PAGE_WIDTH // 3,
         borders=False,
         fill=None,
@@ -408,7 +412,7 @@ def notes_row(right_title: str, right_key: str, left_title: str, left_key: str) 
                     cell(left_cell, width=half_width, fill=SUBTLE_FILL, vertical="top", margins=(80, 120, 80, 120), borders=False),
                     cell(right_cell, width=half_width, fill=SUBTLE_FILL, vertical="top", margins=(80, 120, 80, 120), borders=False),
                 ],
-                height=600,
+                
             )
         ],
         [half_width, half_width],
@@ -508,8 +512,8 @@ def build_regular_xml() -> str:
         f'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
         f'<w:document xmlns:w="{W_NS}" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><w:body>'
         f"{''.join(content)}"
-        '<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1080" w:right="900" '
-        'w:bottom="1080" w:left="900" w:header="708" w:footer="708" w:gutter="0"/><w:bidi/></w:sectPr>'
+        '<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="567" w:right="900" '
+        'w:bottom="567" w:left="900" w:header="708" w:footer="708" w:gutter="0"/><w:bidi/></w:sectPr>'
         "</w:body></w:document>"
     )
 
@@ -595,15 +599,15 @@ def build_contact_xml() -> str:
         f'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
         f'<w:document xmlns:w="{W_NS}" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><w:body>'
         f"{''.join(content)}"
-        '<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1080" w:right="900" '
-        'w:bottom="1080" w:left="900" w:header="708" w:footer="708" w:gutter="0"/><w:bidi/></w:sectPr>'
+        '<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="567" w:right="900" '
+        'w:bottom="567" w:left="900" w:header="708" w:footer="708" w:gutter="0"/><w:bidi/></w:sectPr>'
         "</w:body></w:document>"
     )
 
 
 def build_referral_xml() -> str:
     left_cell = cell(
-        paragraph(logo(1000000, 1000000), align="left", spacing_after=0),
+        paragraph(logo(1000000, 1000000), align="left", spacing_after=0, bidi=False),
         width=PAGE_WIDTH // 3, borders=False, fill=None, margins=(0,0,0,0), vertical="center"
     )
     title_run = run("מכתב הפניה", bold=True, size=32, color=HEADER_TEXT)
@@ -681,8 +685,8 @@ def build_referral_xml() -> str:
         f'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
         f'<w:document xmlns:w="{W_NS}" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><w:body>'
         f"{''.join(content)}"
-        '<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1080" w:right="900" '
-        'w:bottom="1080" w:left="900" w:header="708" w:footer="708" w:gutter="0"/><w:bidi/></w:sectPr>'
+        '<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="567" w:right="900" '
+        'w:bottom="567" w:left="900" w:header="708" w:footer="708" w:gutter="0"/><w:bidi/></w:sectPr>'
         "</w:body></w:document>"
     )
 
