@@ -1,15 +1,11 @@
 import React, { type ReactNode } from "react";
-import { ModeToggle } from "@/components/mode-toggle";
 import { GlobalSearch } from "@/components/GlobalSearch";
-import { RotateCcw } from "lucide-react";
 import { useLocation } from "@tanstack/react-router";
 import prysmLogo from "@/assets/images/prysm-logo.png";
 
 interface DragWindowRegionProps {
   title?: ReactNode;
 }
-
-
 
 export default function DragWindowRegion({ title }: DragWindowRegionProps) {
   const location = useLocation();
@@ -30,16 +26,8 @@ export default function DragWindowRegion({ title }: DragWindowRegionProps) {
         }}
       >
         <div className="draglayer flex-1 bg-secondary px-1 flex items-center gap-2">
-          <img 
-            src={prysmLogo} 
-            alt="Prysm Logo" 
-            className="h-5 w-9 pl-1 object-contain"
-          />
-          <span className="text-[16px] font-semibold ml-[-10px] pt-[1px] text-sidebar-foreground select-none">
-            Prysm
-          </span>
           {title && (
-            <div className="flex items-center select-none whitespace-nowrap text-[16px] text-sidebar-foreground/70 font-medium ml-4">
+            <div className="flex items-center select-none whitespace-nowrap text-[16px] text-sidebar-foreground/70 font-medium px-2">
               {title}
             </div>
           )}
@@ -49,28 +37,19 @@ export default function DragWindowRegion({ title }: DragWindowRegionProps) {
             <GlobalSearch />
           </div>
         )}
-        <div className="draglayer flex items-center bg-transparent">
-          <ModeToggle />
-          <RefreshButton />
+        <div className="draglayer flex h-full pt-[6px] items-center bg-transparent px-3">
+          <span className="select-none text-[17px] pt-[2px] font-semibold text-sidebar-foreground">
+            Prysm
+          </span>
+          <img
+            src={prysmLogo}
+            alt="Prysm Logo"
+            className="h-6 w-9 select-none object-contain"
+            draggable={false}
+          />
+
         </div>
       </div>
     </div>
-  );
-}
-
-function RefreshButton() {
-  const handleRefresh = () => {
-    window.location.reload();
-  };
-
-  return (
-    <button
-      title="Refresh App"
-      type="button"
-      className="flex items-center justify-center w-10 h-8 text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-colors"
-      onClick={handleRefresh}
-    >
-      <RotateCcw className="h-4 w-4" />
-    </button>
   );
 }
