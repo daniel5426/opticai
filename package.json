@@ -12,6 +12,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build && electron-builder --dir",
+    "build:web": "vite build --config vite.renderer.config.mts",
     "build:mac": "vite build && electron-builder --mac",
     "build:mac:arm64": "vite build && electron-builder --mac --arm64",
     "build:mac:x64": "vite build && electron-builder --mac --x64",
@@ -23,6 +24,7 @@
     "dist:linux": "vite build && electron-builder --linux",
     "reset": "rm '/Users/danielbenassaya/Library/Application Support/OpticAI/database.sqlite' && npm run dev",
     "start": "vite",
+    "start:web": "node scripts/serve-web.mjs",
     "lint": "eslint .",
     "format": "prettier --check .",
     "format:write": "prettier --write .",

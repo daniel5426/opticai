@@ -1,0 +1,24 @@
+{
+  "$schema": "https://railway.com/railway.schema.json",
+  "build": {
+    "builder": "RAILPACK",
+    "buildCommand": "npm run build:web",
+    "watchPatterns": [
+      "src/**",
+      "public/**",
+      "index.html",
+      "package.json",
+      "package-lock.json",
+      "vite.renderer.config.mts",
+      "railway.json",
+      "scripts/serve-web.mjs"
+    ]
+  },
+  "deploy": {
+    "startCommand": "npm run start:web",
+    "healthcheckPath": "/health",
+    "healthcheckTimeout": 300,
+    "restartPolicyType": "ON_FAILURE",
+    "restartPolicyMaxRetries": 10
+  }
+}

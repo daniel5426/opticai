@@ -394,7 +394,7 @@ class ApiClient {
 
   // Companies
   async getCompanies() {
-    return this.request<Company[]>('/companies');
+    return this.request<Company[]>('/companies/');
   }
 
   async getCompaniesPublic() {
@@ -406,7 +406,7 @@ class ApiClient {
   }
 
   async createCompany(data: any) {
-    return this.request('/companies', {
+    return this.request('/companies/', {
       method: 'POST',
       body: JSON.stringify(data),
     });
@@ -434,7 +434,7 @@ class ApiClient {
 
   // Clinics
   async getClinics() {
-    return this.request<Clinic[]>('/clinics');
+    return this.request<Clinic[]>('/clinics/');
   }
 
   async getClinic(id: number) {
@@ -770,7 +770,7 @@ class ApiClient {
     const params = new URLSearchParams();
     if (type) params.append('type', type);
     if (clinicId) params.append('clinic_id', clinicId.toString());
-    const url = `/exams${params.toString() ? '?' + params.toString() : ''}`;
+    const url = `/exams/${params.toString() ? '?' + params.toString() : ''}`;
     return this.request<OpticalExam[]>(url);
   }
 
@@ -784,7 +784,7 @@ class ApiClient {
   }
 
   async createExam(exam: any) {
-    return this.request<OpticalExam>('/exams', {
+    return this.request<OpticalExam>('/exams/', {
       method: 'POST',
       body: JSON.stringify(exam),
     });
@@ -1176,7 +1176,7 @@ class ApiClient {
   }
 
   async createBilling(billing: any) {
-    return this.request<Billing>('/billing', {
+    return this.request<Billing>('/billing/', {
       method: 'POST',
       body: JSON.stringify(billing),
     });
@@ -1195,7 +1195,7 @@ class ApiClient {
   }
 
   async createOrderLineItem(orderLineItem: any) {
-    return this.request<OrderLineItem>('/order-line-items', {
+    return this.request<OrderLineItem>('/order-line-items/', {
       method: 'POST',
       body: JSON.stringify(orderLineItem),
     });
@@ -1308,7 +1308,7 @@ class ApiClient {
   }
 
   async createWorkShift(workShift: any) {
-    return this.request<WorkShift>('/work-shifts', {
+    return this.request<WorkShift>('/work-shifts/', {
       method: 'POST',
       body: JSON.stringify(workShift),
     });
@@ -1362,25 +1362,24 @@ class ApiClient {
   }
 
   async getCampaignClientExecution(campaignId: number, clientId: number) {
-    return this.request(`/campaigns/${campaignId}/execution/${clientId}`);
+    return this.request(`/campaigns/${campaignId}/client-execution/${clientId}`);
   }
 
   async addCampaignClientExecution(campaignId: number, clientId: number) {
-    return this.request(`/campaigns/${campaignId}/execution`, {
+    return this.request(`/campaigns/${campaignId}/client-execution/${clientId}`, {
       method: 'POST',
-      body: JSON.stringify({ clientId }),
     });
   }
 
   async deleteCampaignClientExecutions(campaignId: number) {
-    return this.request(`/campaigns/${campaignId}/executions`, {
+    return this.request(`/campaigns/${campaignId}/client-executions`, {
       method: 'DELETE',
     });
   }
 
   // Chats
   async getChats(clinicId?: number, limit: number = 10, offset: number = 0, search?: string) {
-    let url = `/chats?limit=${limit}&offset=${offset}`;
+    let url = `/chats/?limit=${limit}&offset=${offset}`;
     if (clinicId) {
       url += `&clinic_id=${clinicId}`;
     }
@@ -1442,7 +1441,7 @@ class ApiClient {
 
   // Email Logs
   async getEmailLogs() {
-    return this.request<EmailLog[]>('/email-logs');
+    return this.request<EmailLog[]>('/email-logs/');
   }
 
   async getEmailLogsByAppointment(appointmentId: number) {
@@ -1450,7 +1449,7 @@ class ApiClient {
   }
 
   async createEmailLog(emailLog: any) {
-    return this.request<EmailLog>('/email-logs', {
+    return this.request<EmailLog>('/email-logs/', {
       method: 'POST',
       body: JSON.stringify(emailLog),
     });
@@ -1656,11 +1655,11 @@ class ApiClient {
   }
 
   async getUnifiedExamComponentData(layoutInstanceId: number, componentType: string) {
-    return this.request(`/unified-exam-data/${layoutInstanceId}/${componentType}`);
+    return this.request(`/unified-exam-data/${layoutInstanceId}/component/${componentType}`);
   }
 
   async saveUnifiedExamComponentData(layoutInstanceId: number, componentType: string, data: Record<string, any>) {
-    return this.request(`/unified-exam-data/${layoutInstanceId}/${componentType}`, {
+    return this.request(`/unified-exam-data/${layoutInstanceId}/component/${componentType}`, {
       method: 'POST',
       body: JSON.stringify(data),
     });
