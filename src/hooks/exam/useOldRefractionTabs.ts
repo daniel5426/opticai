@@ -1,6 +1,13 @@
 import { useMemo, useCallback, useEffect, useState } from "react";
 import { v4 as uuidv4 } from "uuid";
 import { CardRow } from "@/pages/exam-detail/types";
+import {
+  ensureTabsMetadataForRows,
+  getTabsForCard,
+  getTabsMetadataSignature,
+  getTabDataKey,
+  setTabsForCard,
+} from "@/lib/exam-ui-metadata";
 
 interface UseOldRefractionTabsParams {
   cardRows: CardRow[];
@@ -17,6 +24,22 @@ export function useOldRefractionTabs({
   activeInstanceId,
   loading,
 }: UseOldRefractionTabsParams) {
+  const cardRowsKey = useMemo(
+    () =>
+      JSON.stringify(
+        cardRows.map((row) => ({
+          id: row.id,
+          cards: row.cards.map((card) => ({ id: card.id, type: card.type })),
+        })),
+      ),
+    [cardRows],
+  );
+  const tabsSignature = getTabsMetadataSignature(
+    examFormData,
+    "old-refraction",
+    cardRows,
+  );
+
   // Compute old refraction tabs from form data
   const computedOldRefractionTabs = useMemo(() => {
     const map: Record<string, string[]> = {};
@@ -30,38 +53,13 @@ export function useOldRefractionTabs({
     });
 
     oldRefractionCardIds.forEach((cardId) => {
-      const keys = Object.keys(examFormData).filter((k) =>
-        k.startsWith(`old-refraction-${cardId}-`),
-      );
-      if (keys.length === 0) return;
-      
-      const pairs = keys.map((k) => ({
-        tabId: k.replace(`old-refraction-${cardId}-`, ""),
-        idx: Number((examFormData[k]?.tab_index ?? 0) as any) || 0,
-      }));
-      pairs.sort((a, b) => a.idx - b.idx);
-      map[cardId] = pairs.map((p) => p.tabId);
+      const tabs = getTabsForCard(examFormData, "old-refraction", cardId);
+      if (tabs.length > 0) {
+        map[cardId] = tabs.map((tab) => tab.id);
+      }
     });
     return map;
-    // We only want to recompute if the keys or indices change.
-    // However, examFormData changes on every edit.
-    // Ideally we should use a custom comparison or ref, but for now let's keep it simple
-    // and rely on the fact that if this returns a new object, we need to make sure downstream
-    // consumers (like createFieldHandlers) are memoized correctly or handle it.
-    // IMPROVEMENT: We can use JSON.stringify on the relevant subset of data, but that's expensive.
-    // Better: Trust that the memoization in ExamDetailPage will handle the handlers.
-    // But wait, if this returns a new object, the memo in ExamDetailPage will re-run.
-    // So we MUST stabilize this output.
-  }, [
-    // We need a stable representation of the tabs structure.
-    // Construct a string key: cardId:tabId:index|...
-    Object.keys(examFormData)
-        .filter(k => k.startsWith('old-refraction-'))
-        .sort()
-        .map(k => `${k}:${(examFormData[k] as any)?.tab_index}`)
-        .join('|'),
-    JSON.stringify(cardRows)
-  ]);
+  }, [tabsSignature, cardRowsKey]);
 
   // Track active tabId for each old refraction card (storing UUID directly, not index)
   const [activeOldRefractionTabs, setActiveOldRefractionTabs] = useState<
@@ -79,53 +77,76 @@ export function useOldRefractionTabs({
     );
     if (oldRefractionCardIds.length === 0) return;
 
-    let changed = false;
-    const updates: Record<string, any> = {};
-    oldRefractionCardIds.forEach((cardId) => {
-      const keys = Object.keys(examFormData).filter((k) =>
-        k.startsWith(`old-refraction-${cardId}-`),
-      );
-      if (keys.length === 0) {
-        const tabId = uuidv4();
-        const key = `old-refraction-${cardId}-${tabId}`;
-        updates[key] = {
-          card_instance_id: tabId,
-          card_id: cardId,
-          tab_index: 0,
-          layout_instance_id: activeInstanceId,
-          r_glasses_type: "רחוק",
-          l_glasses_type: "רחוק",
-        };
-        changed = true;
-        setActiveOldRefractionTabs((prev) => ({ ...prev, [cardId]: tabId }));
-      }
+    setExamFormData((prev) => {
+      const normalized = ensureTabsMetadataForRows(prev, cardRows);
+      let next = normalized.examData;
+      let changed = normalized.changed;
+
+      oldRefractionCardIds.forEach((cardId) => {
+        const tabs = getTabsForCard(next, "old-refraction", cardId);
+        if (tabs.length === 0) {
+          const tabId = uuidv4();
+          const key = getTabDataKey("old-refraction", cardId, tabId);
+          next = {
+            ...next,
+            [key]: {
+              card_instance_id: tabId,
+              card_id: cardId,
+              tab_index: 0,
+              layout_instance_id: activeInstanceId,
+              r_glasses_type: "רחוק",
+              l_glasses_type: "רחוק",
+            },
+          };
+          next = setTabsForCard(next, "old-refraction", cardId, [
+            { id: tabId, index: 0, type: "רחוק" },
+          ]);
+          changed = true;
+          setActiveOldRefractionTabs((current) => ({
+            ...current,
+            [cardId]: tabId,
+          }));
+        }
+      });
+
+      return changed ? next : prev;
     });
-    if (changed) setExamFormData((prev) => ({ ...prev, ...updates }));
-  }, [JSON.stringify(cardRows), activeInstanceId, loading, examFormData, setExamFormData]);
+  }, [
+    cardRowsKey,
+    tabsSignature,
+    activeInstanceId,
+    loading,
+    setExamFormData,
+  ]);
 
   // Add a new tab to an old refraction card
   const addOldRefractionTab = useCallback(
     (cardId: string, type: string) => {
       const newTabId = uuidv4();
-      const keyPrefix = `old-refraction-${cardId}-`;
-      const currentTabs = Object.keys(examFormData).filter((k) =>
-        k.startsWith(keyPrefix),
-      );
-      const tabIndex = currentTabs.length;
-      setExamFormData((formData) => ({
-        ...formData,
-        [`${keyPrefix}${newTabId}`]: {
-          card_instance_id: newTabId,
-          card_id: cardId,
-          tab_index: tabIndex,
-          layout_instance_id: activeInstanceId,
-          r_glasses_type: type,
-          l_glasses_type: type,
-        },
-      }));
+      setExamFormData((formData) => {
+        const tabs = getTabsForCard(formData, "old-refraction", cardId);
+        const tabIndex = tabs.length;
+        const key = getTabDataKey("old-refraction", cardId, newTabId);
+        return setTabsForCard(
+          {
+            ...formData,
+            [key]: {
+              card_instance_id: newTabId,
+              card_id: cardId,
+              tab_index: tabIndex,
+              layout_instance_id: activeInstanceId,
+              r_glasses_type: type,
+              l_glasses_type: type,
+            },
+          },
+          "old-refraction",
+          cardId,
+          [...tabs, { id: newTabId, index: tabIndex, type }],
+        );
+      });
       setActiveOldRefractionTabs((prev) => ({ ...prev, [cardId]: newTabId }));
     },
-    [examFormData, activeInstanceId, setExamFormData],
+    [activeInstanceId, setExamFormData],
   );
 
   // Update a tab's type
@@ -134,9 +155,16 @@ export function useOldRefractionTabs({
       const tabs = computedOldRefractionTabs[cardId] || [];
       const tabId = tabs[tabIdx];
       if (!tabId) return;
-      const key = `old-refraction-${cardId}-${tabId}`;
+      const key = getTabDataKey("old-refraction", cardId, tabId);
       setExamFormData((prev) => ({
-        ...prev,
+        ...setTabsForCard(
+          prev,
+          "old-refraction",
+          cardId,
+          getTabsForCard(prev, "old-refraction", cardId).map((tab) =>
+            tab.id === tabId ? { ...tab, type: newType } : tab,
+          ),
+        ),
         [key]: {
           ...(prev[key] || {}),
           r_glasses_type: newType,
@@ -153,19 +181,23 @@ export function useOldRefractionTabs({
       const tabs = computedOldRefractionTabs[cardId] || [];
       if (tabs.length <= 1) return;
       const toRemoveId = tabs[tabIdx];
-      const key = `old-refraction-${cardId}-${toRemoveId}`;
+      const key = getTabDataKey("old-refraction", cardId, toRemoveId);
       setExamFormData((prev) => {
         const updated = { ...prev };
         delete updated[key];
-        // Recompute indices
-        const remaining = (computedOldRefractionTabs[cardId] || []).filter(
-          (_, i) => i !== tabIdx,
+        const remaining = getTabsForCard(prev, "old-refraction", cardId).filter(
+          (tab) => tab.id !== toRemoveId,
         );
-        remaining.forEach((tabId, idx) => {
-          const k = `old-refraction-${cardId}-${tabId}`;
+        remaining.forEach((tab, idx) => {
+          const k = getTabDataKey("old-refraction", cardId, tab.id);
           if (updated[k]) updated[k] = { ...updated[k], tab_index: idx };
         });
-        return updated;
+        return setTabsForCard(
+          updated,
+          "old-refraction",
+          cardId,
+          remaining.map((tab, index) => ({ ...tab, index })),
+        );
       });
       // After deletion, set active to the first remaining tab
       const remaining = tabs.filter((_, i) => i !== tabIdx);
@@ -182,22 +214,31 @@ export function useOldRefractionTabs({
     (cardId: string, tabIdx: number) => {
       const tabs = computedOldRefractionTabs[cardId] || [];
       const toDuplicateId = tabs[tabIdx];
-      const sourceKey = `old-refraction-${cardId}-${toDuplicateId}`;
+      const sourceKey = getTabDataKey("old-refraction", cardId, toDuplicateId);
       const sourceData = examFormData[sourceKey];
       if (!sourceData) return;
 
       const newTabId = uuidv4();
-      const keyPrefix = `old-refraction-${cardId}-`;
       const tabIndex = tabs.length;
 
-      setExamFormData((formData) => ({
-        ...formData,
-        [`${keyPrefix}${newTabId}`]: {
-          ...sourceData,
-          card_instance_id: newTabId,
-          tab_index: tabIndex,
-        },
-      }));
+      setExamFormData((formData) => {
+        const currentTabs = getTabsForCard(formData, "old-refraction", cardId);
+        const newType =
+          sourceData.r_glasses_type || sourceData.l_glasses_type || undefined;
+        return setTabsForCard(
+          {
+            ...formData,
+            [getTabDataKey("old-refraction", cardId, newTabId)]: {
+              ...sourceData,
+              card_instance_id: newTabId,
+              tab_index: tabIndex,
+            },
+          },
+          "old-refraction",
+          cardId,
+          [...currentTabs, { id: newTabId, index: tabIndex, type: newType }],
+        );
+      });
       setActiveOldRefractionTabs((prev) => ({ ...prev, [cardId]: newTabId }));
     },
     [computedOldRefractionTabs, examFormData, setExamFormData],

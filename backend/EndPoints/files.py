@@ -361,7 +361,12 @@ def get_files_by_client(
     current_user: User = Depends(get_current_user),
 ):
     get_scoped_client(db, current_user, client_id)
-    return db.query(FileModel).filter(FileModel.client_id == client_id).all()
+    return (
+        db.query(FileModel)
+        .filter(FileModel.client_id == client_id)
+        .order_by(FileModel.upload_date.desc().nulls_last(), FileModel.id.desc())
+        .all()
+    )
 
 
 @router.get("/{file_id}", response_model=FileSchema)

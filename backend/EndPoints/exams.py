@@ -405,4 +405,4 @@ def get_exams_by_client(
     if current_user.role_level < 4:
         query = query.filter(OpticalExam.clinic_id == current_user.clinic_id)
     
-    return query.all() 
+    return query.order_by(OpticalExam.exam_date.desc().nulls_last(), OpticalExam.id.desc()).all() 

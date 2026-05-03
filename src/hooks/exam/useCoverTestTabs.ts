@@ -1,6 +1,13 @@
 import { useMemo, useCallback, useEffect, useState } from "react";
 import { v4 as uuidv4 } from "uuid";
 import { CardRow } from "@/pages/exam-detail/types";
+import {
+  ensureTabsMetadataForRows,
+  getTabsForCard,
+  getTabsMetadataSignature,
+  getTabDataKey,
+  setTabsForCard,
+} from "@/lib/exam-ui-metadata";
 
 interface UseCoverTestTabsParams {
   cardRows: CardRow[];
@@ -17,6 +24,22 @@ export function useCoverTestTabs({
   activeInstanceId,
   loading,
 }: UseCoverTestTabsParams) {
+  const cardRowsKey = useMemo(
+    () =>
+      JSON.stringify(
+        cardRows.map((row) => ({
+          id: row.id,
+          cards: row.cards.map((card) => ({ id: card.id, type: card.type })),
+        })),
+      ),
+    [cardRows],
+  );
+  const tabsSignature = getTabsMetadataSignature(
+    examFormData,
+    "cover-test",
+    cardRows,
+  );
+
   // Compute cover test tabs from form data
   const computedCoverTestTabs = useMemo(() => {
     const map: Record<string, string[]> = {};
@@ -27,26 +50,13 @@ export function useCoverTestTabs({
       });
     });
     coverCardIds.forEach((cardId) => {
-      const keys = Object.keys(examFormData).filter((k) =>
-        k.startsWith(`cover-test-${cardId}-`),
-      );
-      if (keys.length === 0) return;
-      const pairs = keys.map((k) => ({
-        tabId: k.replace(`cover-test-${cardId}-`, ""),
-        idx: Number((examFormData[k]?.tab_index ?? 0) as any) || 0,
-      }));
-      pairs.sort((a, b) => a.idx - b.idx);
-      map[cardId] = pairs.map((p) => p.tabId);
+      const tabs = getTabsForCard(examFormData, "cover-test", cardId);
+      if (tabs.length > 0) {
+        map[cardId] = tabs.map((tab) => tab.id);
+      }
     });
     return map;
-  }, [
-    Object.keys(examFormData)
-      .filter(k => k.startsWith('cover-test-'))
-      .sort()
-      .map(k => `${k}:${(examFormData[k] as any)?.tab_index}`)
-      .join('|'),
-    JSON.stringify(cardRows)
-  ]);
+  }, [tabsSignature, cardRowsKey]);
 
   // Track active tab index for each cover test card
   const [activeCoverTestTabs, setActiveCoverTestTabs] = useState<
@@ -64,46 +74,65 @@ export function useCoverTestTabs({
     );
     if (coverCardIds.length === 0) return;
 
-    let changed = false;
-    const updates: Record<string, any> = {};
-    coverCardIds.forEach((cardId) => {
-      const keys = Object.keys(examFormData).filter((k) =>
-        k.startsWith(`cover-test-${cardId}-`),
-      );
-      if (keys.length === 0) {
-        const tabId = uuidv4();
-        const key = `cover-test-${cardId}-${tabId}`;
-        updates[key] = {
-          card_instance_id: tabId,
-          card_id: cardId,
-          tab_index: 0,
-          layout_instance_id: activeInstanceId,
-          deviation_type: null,
-          deviation_direction: null,
-          fv_1: null,
-          fv_2: null,
-          nv_1: null,
-          nv_2: null,
-        };
-        changed = true;
-        setActiveCoverTestTabs((prev) => ({ ...prev, [cardId]: 0 }));
-      }
+    setExamFormData((prev) => {
+      const normalized = ensureTabsMetadataForRows(prev, cardRows);
+      let next = normalized.examData;
+      let changed = normalized.changed;
+
+      coverCardIds.forEach((cardId) => {
+        const tabs = getTabsForCard(next, "cover-test", cardId);
+        if (tabs.length === 0) {
+          const tabId = uuidv4();
+          const key = getTabDataKey("cover-test", cardId, tabId);
+          next = {
+            ...next,
+            [key]: {
+              card_instance_id: tabId,
+              card_id: cardId,
+              tab_index: 0,
+              layout_instance_id: activeInstanceId,
+              deviation_type: null,
+              deviation_direction: null,
+              fv_1: null,
+              fv_2: null,
+              nv_1: null,
+              nv_2: null,
+            },
+          };
+          next = setTabsForCard(next, "cover-test", cardId, [
+            { id: tabId, index: 0 },
+          ]);
+          changed = true;
+          setActiveCoverTestTabs((current) => ({ ...current, [cardId]: 0 }));
+        }
+      });
+
+      return changed ? next : prev;
     });
-    if (changed) setExamFormData((prev) => ({ ...prev, ...updates }));
-  }, [JSON.stringify(cardRows), activeInstanceId, loading, examFormData, setExamFormData]);
+  }, [
+    cardRowsKey,
+    tabsSignature,
+    activeInstanceId,
+    loading,
+    setExamFormData,
+  ]);
 
   // Add a new tab to a cover test card
   const addCoverTestTab = useCallback(
     (cardId: string) => {
       const newTabId = uuidv4();
-      const keyPrefix = `cover-test-${cardId}-`;
-      const currentTabs = Object.keys(examFormData).filter((k) =>
-        k.startsWith(keyPrefix),
-      );
-      const tabIndex = currentTabs.length;
-      setExamFormData((formData) => ({
-        ...formData,
-        [`${keyPrefix}${newTabId}`]: {
+      setExamFormData((formData) => {
+        const tabs = getTabsForCard(formData, "cover-test", cardId);
+        const tabIndex = tabs.length;
+        const key = getTabDataKey("cover-test", cardId, newTabId);
+        setActiveCoverTestTabs((current) => ({
+          ...current,
+          [cardId]: tabIndex,
+        }));
+        return setTabsForCard(
+          {
+            ...formData,
+            [key]: {
           card_instance_id: newTabId,
           card_id: cardId,
           tab_index: tabIndex,
@@ -114,11 +143,15 @@ export function useCoverTestTabs({
           fv_2: null,
           nv_1: null,
           nv_2: null,
-        },
-      }));
-      setActiveCoverTestTabs((prev) => ({ ...prev, [cardId]: tabIndex }));
+            },
+          },
+          "cover-test",
+          cardId,
+          [...tabs, { id: newTabId, index: tabIndex }],
+        );
+      });
     },
-    [examFormData, activeInstanceId, setExamFormData],
+    [activeInstanceId, setExamFormData],
   );
 
   // Remove a tab from a cover test card
@@ -127,19 +160,23 @@ export function useCoverTestTabs({
       const tabs = computedCoverTestTabs[cardId] || [];
       if (tabs.length <= 1) return;
       const toRemoveId = tabs[tabIdx];
-      const key = `cover-test-${cardId}-${toRemoveId}`;
+      const key = getTabDataKey("cover-test", cardId, toRemoveId);
       setExamFormData((prev) => {
         const updated = { ...prev };
         delete updated[key];
-        // Recompute indices
-        const remaining = (computedCoverTestTabs[cardId] || []).filter(
-          (_, i) => i !== tabIdx,
+        const remaining = getTabsForCard(prev, "cover-test", cardId).filter(
+          (tab) => tab.id !== toRemoveId,
         );
         remaining.forEach((tabId, idx) => {
-          const k = `cover-test-${cardId}-${tabId}`;
+          const k = getTabDataKey("cover-test", cardId, tabId.id);
           if (updated[k]) updated[k] = { ...updated[k], tab_index: idx };
         });
-        return updated;
+        return setTabsForCard(
+          updated,
+          "cover-test",
+          cardId,
+          remaining.map((tab, index) => ({ ...tab, index })),
+        );
       });
       setActiveCoverTestTabs((prev) => ({
         ...prev,

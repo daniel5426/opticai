@@ -247,6 +247,12 @@ class Client(ClientBase):
     class Config:
         from_attributes = True
 
+class ClientOrdersContext(BaseModel):
+    latest_exam_id: Optional[int] = None
+    latest_regular_order_id: Optional[int] = None
+    latest_contact_order_id: Optional[int] = None
+    latest_exam_add_sources: Dict[str, Any] = Field(default_factory=dict)
+
 class SettingsBase(BaseModel):
     clinic_logo_path: Optional[str] = None
     primary_theme_color: Optional[str] = None

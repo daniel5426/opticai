@@ -1,6 +1,7 @@
 import { ExamLayout } from "@/lib/db/schema-interface";
 import { CardItem, getColumnCount } from "@/components/exam/ExamCardRenderer";
 import { examComponentRegistry } from "@/lib/exam-component-registry";
+import type { CardRow } from "./types";
 
 export const flattenExamLayouts = (nodes: ExamLayout[]): ExamLayout[] => {
   const list: ExamLayout[] = [];
@@ -94,7 +95,7 @@ export const isNonEmptyComponent = (key: string, value: any) => {
   if (!value || typeof value !== "object") return false;
 
   // Skip technical keys that aren't components
-  if (key === 'layout_instance_id' || key === 'id' || key === 'exam_id' || key === 'created_at' || key === 'updated_at') {
+  if (key === 'layout_instance_id' || key === 'id' || key === 'exam_id' || key === 'created_at' || key === 'updated_at' || key === '__ui') {
     return false;
   }
 
@@ -276,4 +277,106 @@ export const packCardsIntoRows = (
   return rows.map((r) => ({ id: r.id, cards: r.cards }));
 };
 
+export interface ParsedLayoutData {
+  rows: CardRow[];
+  customWidths: Record<string, Record<string, number>>;
+}
+
+export const parseLayoutData = (layoutData?: string): ParsedLayoutData => {
+  if (!layoutData) {
+    return { rows: [], customWidths: {} };
+  }
+
+  try {
+    const parsed = JSON.parse(layoutData);
+    if (Array.isArray(parsed)) {
+      return { rows: parsed, customWidths: {} };
+    }
+    return {
+      rows: parsed.rows || [],
+      customWidths: parsed.customWidths || {},
+    };
+  } catch (error) {
+    console.error("Error parsing layout structure:", error);
+    return { rows: [], customWidths: {} };
+  }
+};
+
+export const createParsedLayoutCache = () => {
+  const cache = new Map<
+    string,
+    { layoutData: string | undefined; parsed: ParsedLayoutData }
+  >();
+
+  return {
+    get(instanceId: number | string, layoutData?: string): ParsedLayoutData {
+      const key = String(instanceId);
+      const cached = cache.get(key);
+      if (cached && cached.layoutData === layoutData) {
+        return cached.parsed;
+      }
+      const parsed = parseLayoutData(layoutData);
+      cache.set(key, { layoutData, parsed });
+      return parsed;
+    },
+    clear(instanceId?: number | string) {
+      if (instanceId == null) {
+        cache.clear();
+        return;
+      }
+      cache.delete(String(instanceId));
+    },
+  };
+};
+
 export const FULL_DATA_NAME = "כל הנתונים";
+export const VIRTUAL_FULL_DATA_TAB_ID = -1;
+
+export const isVirtualFullDataTabId = (id: number | string | null | undefined) =>
+  id === VIRTUAL_FULL_DATA_TAB_ID || String(id) === String(VIRTUAL_FULL_DATA_TAB_ID);
+
+export type LayoutTabLike = {
+  id: number | string | null | undefined;
+  layout_id?: number | string | null;
+};
+
+export const isInternalFullDataTab = (tab: LayoutTabLike | null | undefined) =>
+  !!tab && isVirtualFullDataTabId(tab.id) && tab.layout_id == null;
+
+export const isPersistableLayoutTab = (tab: LayoutTabLike | null | undefined) =>
+  !!tab && tab.layout_id != null && !isVirtualFullDataTabId(tab.id);
+
+export const resolveFullDataSourceInstanceId = (
+  componentKey: string,
+  value: any,
+  sources: Record<string, number | string | null>,
+) => {
+  const direct =
+    sources[componentKey] ??
+    (value && typeof value === "object"
+      ? (value as any).source_layout_instance_id
+      : null);
+  if (direct != null) return direct;
+
+  const cardId =
+    value && typeof value === "object" ? (value as any).card_id : undefined;
+  const prefixes: string[] = [];
+  if (componentKey.startsWith("cover-test-")) {
+    const fallbackId =
+      cardId || componentKey.slice("cover-test-".length).split("-")[0];
+    if (fallbackId) prefixes.push(`cover-test-${fallbackId}-`);
+  } else if (componentKey.startsWith("old-refraction-")) {
+    const fallbackId =
+      cardId || componentKey.slice("old-refraction-".length).split("-")[0];
+    if (fallbackId) prefixes.push(`old-refraction-${fallbackId}-`);
+  }
+
+  for (const prefix of prefixes) {
+    const sourceKey = Object.keys(sources).find(
+      (key) => key === prefix.slice(0, -1) || key.startsWith(prefix),
+    );
+    if (sourceKey && sources[sourceKey] != null) return sources[sourceKey];
+  }
+
+  return null;
+};

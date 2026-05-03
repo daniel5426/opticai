@@ -82,6 +82,11 @@ import { NotesCard } from "@/components/ui/notes-card";
 import { OrdersHistoryModal } from "@/components/exam/OrdersHistoryModal";
 import { Order } from "@/lib/db/schema-interface";
 import { inputSyncManager } from "./shared/OptimizedInputs";
+import {
+  getTabDataKey,
+  getTabsForCard,
+  setTabsForCard,
+} from "@/lib/exam-ui-metadata";
 
 // Renaming for consistency within the component props
 type Exam = OpticalExam;
@@ -202,29 +207,7 @@ export interface DetailProps {
   handleNotesChange: (value: string) => void;
   // Legacy handlers for components with special behaviors
   handleMultifocalOldRefraction?: () => void;
-  handleVHConfirmOldRefraction?: (
-    rightPris: number,
-    rightBase: number,
-    leftPris: number,
-    leftBase: number,
-  ) => void;
-  handleVHConfirm?: (
-    rightPris: number,
-    rightBase: number,
-    leftPris: number,
-    leftBase: number,
-  ) => void;
   handleMultifocalSubjective?: () => void;
-  handleFinalSubjectiveVHConfirm?: (
-    rightPrisH: number,
-    rightBaseH: string,
-    rightPrisV: number,
-    rightBaseV: string,
-    leftPrisH: number,
-    leftBaseH: string,
-    leftPrisV: number,
-    leftBaseV: string,
-  ) => void;
   handleMultifocalOldRefractionExtension?: () => void;
   toolboxActions?: ToolboxActions;
   allRows?: CardItem[][];
@@ -381,29 +364,7 @@ export const createDetailProps = (
   // Optional legacy handlers
   legacyHandlers?: {
     handleMultifocalOldRefraction?: () => void;
-    handleVHConfirmOldRefraction?: (
-      rightPris: number,
-      rightBase: number,
-      leftPris: number,
-      leftBase: number,
-    ) => void;
-    handleVHConfirm?: (
-      rightPris: number,
-      rightBase: number,
-      leftPris: number,
-      leftBase: number,
-    ) => void;
     handleMultifocalSubjective?: () => void;
-    handleFinalSubjectiveVHConfirm?: (
-      rightPrisH: number,
-      rightBaseH: string,
-      rightPrisV: number,
-      rightBaseV: string,
-      leftPrisH: number,
-      leftBaseH: string,
-      leftPrisV: number,
-      leftBaseV: string,
-    ) => void;
     handleMultifocalOldRefractionExtension?: () => void;
   },
   tabProps?: {
@@ -513,7 +474,7 @@ export const getColumnCount = (
     case "corneal-topography":
       return 1;
     case "cover-test":
-      return 3;
+      return 4;
     case "notes":
       return 5;
     case "anamnesis":
@@ -1045,12 +1006,7 @@ export const ExamCardRenderer = React.memo<RenderCardProps>(
         ? {
             handleMultifocalOldRefraction:
               detailProps!.handleMultifocalOldRefraction,
-            handleVHConfirmOldRefraction:
-              detailProps!.handleVHConfirmOldRefraction,
-            handleVHConfirm: detailProps!.handleVHConfirm,
             handleMultifocalSubjective: detailProps!.handleMultifocalSubjective,
-            handleFinalSubjectiveVHConfirm:
-              detailProps!.handleFinalSubjectiveVHConfirm,
             handleMultifocalOldRefractionExtension:
               detailProps!.handleMultifocalOldRefractionExtension,
           }
@@ -1268,9 +1224,6 @@ export const ExamCardRenderer = React.memo<RenderCardProps>(
               onMultifocalClick={
                 legacyHandlers.handleMultifocalOldRefraction || (() => {})
               }
-              onVHConfirm={
-                legacyHandlers.handleVHConfirmOldRefraction || (() => {})
-              }
               hideEyeLabels={finalHideEyeLabels}
               tabCount={oldRefTabs.length}
               activeTab={displayActiveTab}
@@ -1363,10 +1316,6 @@ export const ExamCardRenderer = React.memo<RenderCardProps>(
               }
               onSubjectiveChange={getChangeHandler("subjective", item.id)}
               isEditing={mode === "detail" ? detailProps!.isEditing : false}
-              onVHConfirm={
-                (legacyHandlers as unknown as DetailProps).handleVHConfirm ||
-                (() => {})
-              }
               onMultifocalClick={
                 legacyHandlers.handleMultifocalSubjective || (() => {})
               }
@@ -1390,9 +1339,6 @@ export const ExamCardRenderer = React.memo<RenderCardProps>(
                 item.id,
               )}
               isEditing={mode === "detail" ? detailProps!.isEditing : false}
-              onVHConfirm={
-                legacyHandlers.handleFinalSubjectiveVHConfirm || (() => {})
-              }
               hideEyeLabels={finalHideEyeLabels}
             />
           </div>
@@ -1661,8 +1607,28 @@ export const ExamCardRenderer = React.memo<RenderCardProps>(
           if (tabData && tabData.id) {
           }
           detailProps?.setExamFormData?.((prev) => {
-            const newData = { ...prev };
+            let newData = { ...prev };
             delete newData[key];
+            const remaining = getTabsForCard(
+              prev,
+              "cover-test",
+              item.id,
+            ).filter((tab) => tab.id !== removedTabId);
+            remaining.forEach((tab, index) => {
+              const tabKey = getTabDataKey("cover-test", item.id, tab.id);
+              if (newData[tabKey]) {
+                newData[tabKey] = {
+                  ...(newData[tabKey] as Record<string, unknown>),
+                  tab_index: index,
+                };
+              }
+            });
+            newData = setTabsForCard(
+              newData,
+              "cover-test",
+              item.id,
+              remaining.map((tab, index) => ({ ...tab, index })),
+            );
             return newData;
           });
           if (detailProps?.setCoverTestTabs) {
@@ -1694,8 +1660,10 @@ export const ExamCardRenderer = React.memo<RenderCardProps>(
             nv_2,
           } = sourceData;
           detailProps?.setExamFormData?.((prev) => {
-            const newData = { ...prev };
-            newData[`cover-test-${item.id}-${newTabId}`] = {
+            const currentTabs = getTabsForCard(prev, "cover-test", item.id);
+            const newData = {
+              ...prev,
+              [`cover-test-${item.id}-${newTabId}`]: {
               deviation_type,
               deviation_direction,
               fv_1,
@@ -1706,8 +1674,13 @@ export const ExamCardRenderer = React.memo<RenderCardProps>(
               card_id: sourceData.card_id || item.id,
               card_instance_id: newTabId,
               tab_index: idx + 1,
+              },
             };
-            return newData;
+            return setTabsForCard(newData, "cover-test", item.id, [
+              ...currentTabs.slice(0, idx + 1),
+              { id: newTabId, index: idx + 1 },
+              ...currentTabs.slice(idx + 1),
+            ]);
           });
           if (detailProps?.setCoverTestTabs) {
             detailProps.setCoverTestTabs((prev: Record<string, string[]>) => ({

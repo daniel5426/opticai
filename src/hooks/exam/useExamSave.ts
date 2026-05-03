@@ -6,7 +6,14 @@ import { addLayoutToExam } from "@/lib/db/exam-layouts-db";
 import { examComponentRegistry } from "@/lib/exam-component-registry";
 import { LayoutTab } from "@/pages/exam-detail/types";
 import { inputSyncManager } from "@/components/exam/shared/OptimizedInputs";
-import { FULL_DATA_NAME } from "@/pages/exam-detail/utils";
+import {
+  parseLayoutData,
+  VIRTUAL_FULL_DATA_TAB_ID,
+  isPersistableLayoutTab,
+  isVirtualFullDataTabId,
+  resolveFullDataSourceInstanceId,
+} from "@/pages/exam-detail/utils";
+import { ensureTabsMetadataForRows } from "@/lib/exam-ui-metadata";
 
 interface ExamPageConfig {
   dbType: "exam" | "opticlens";
@@ -103,24 +110,27 @@ export function useExamSave({
     const currentExamFormDataByInstance = examFormDataByInstanceRef.current;
     const currentLayoutTabs = layoutTabsRef.current;
     const currentActiveInstanceId = activeInstanceId;
+    const realLayoutTabs = currentLayoutTabs.filter(isPersistableLayoutTab);
+    const hasActiveRealTab =
+      currentActiveInstanceId != null &&
+      realLayoutTabs.some((tab) => tab.id === currentActiveInstanceId);
+    const tabsToPersist = realLayoutTabs.map((tab, index) => ({
+      ...tab,
+      isActive: hasActiveRealTab ? tab.id === currentActiveInstanceId : index === 0,
+    }));
     const saveBuckets: Record<number | string, Record<string, any>> = {
       ...currentExamFormDataByInstance,
     };
 
-    if (currentActiveInstanceId != null) {
+    if (
+      currentActiveInstanceId != null &&
+      !isVirtualFullDataTabId(currentActiveInstanceId)
+    ) {
       saveBuckets[currentActiveInstanceId] = currentExamFormData;
     }
 
-    const activeLayoutTab =
-      currentActiveInstanceId != null
-        ? currentLayoutTabs.find((tab) => tab.id === currentActiveInstanceId)
-        : undefined;
-
-    if (
-      currentActiveInstanceId != null &&
-      activeLayoutTab?.name === FULL_DATA_NAME
-    ) {
-      const sources = fullDataSourcesRef.current[currentActiveInstanceId] || {};
+    if (isVirtualFullDataTabId(currentActiveInstanceId)) {
+      const sources = fullDataSourcesRef.current[VIRTUAL_FULL_DATA_TAB_ID] || {};
       const keys = new Set([
         ...Object.keys(sources),
         ...Object.keys(currentExamFormData),
@@ -128,10 +138,11 @@ export function useExamSave({
 
       keys.forEach((componentKey) => {
         const currentValue = currentExamFormData[componentKey];
-        const mappedSource =
-          sources[componentKey] ??
-          (currentValue as any)?.source_layout_instance_id ??
-          null;
+        const mappedSource = resolveFullDataSourceInstanceId(
+          componentKey,
+          currentValue,
+          sources,
+        );
         if (mappedSource == null) return;
 
         const resolvedKey =
@@ -139,7 +150,7 @@ export function useExamSave({
             ? mappedSource
             : Number(mappedSource);
         if (!Number.isFinite(resolvedKey)) return;
-        if (resolvedKey === currentActiveInstanceId) return;
+        if (isVirtualFullDataTabId(resolvedKey)) return;
 
         const existingBucket = saveBuckets[resolvedKey] || {};
 
@@ -163,6 +174,20 @@ export function useExamSave({
         };
       });
     }
+
+    delete saveBuckets[VIRTUAL_FULL_DATA_TAB_ID];
+
+    tabsToPersist.forEach((tab) => {
+      const bucket = saveBuckets[tab.id];
+      if (!bucket) return;
+      const normalized = ensureTabsMetadataForRows(
+        bucket,
+        parseLayoutData(tab.layout_data).rows,
+      );
+      if (normalized.changed) {
+        saveBuckets[tab.id] = normalized.examData;
+      }
+    });
 
     setIsSaveInFlight(true);
 
@@ -193,7 +218,7 @@ export function useExamSave({
         toast.success(config.saveSuccessNew);
         if (onSave) onSave(newExam);
 
-        const activeTempTab = currentLayoutTabs.find((t) => t.isActive);
+        const activeTempTab = tabsToPersist.find((t) => t.isActive);
         if (
           activeTempTab &&
           activeInstanceId != null &&
@@ -204,7 +229,7 @@ export function useExamSave({
 
         const tempIdToRealId: Record<number, number> = {};
         try {
-          for (const tab of currentLayoutTabs) {
+          for (const tab of tabsToPersist) {
             const instance = await addLayoutToExam(
               Number(newExam.id),
               Number(tab.layout_id || 0),
@@ -220,7 +245,7 @@ export function useExamSave({
             );
           }
 
-          const remappedTabs = currentLayoutTabs.map((tab) => ({
+          const remappedTabs = tabsToPersist.map((tab) => ({
             ...tab,
             id:
               tempIdToRealId[tab.id] !== undefined
@@ -267,7 +292,7 @@ export function useExamSave({
 
           setExamFormDataByInstance(saveBuckets);
 
-          for (const tab of currentLayoutTabs) {
+          for (const tab of tabsToPersist) {
             if (tab.id > 0) {
               const bucket = saveBuckets[tab.id] || {};
               await examComponentRegistry.saveAllData(tab.id, bucket);

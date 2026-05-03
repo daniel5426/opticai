@@ -196,7 +196,12 @@ def get_all_orders(
 
 @router.get("/client/{client_id}", response_model=List[OrderSchema])
 def get_orders_by_client(client_id: int, db: Session = Depends(get_db)):
-    orders = db.query(Order).filter(Order.client_id == client_id).all()
+    orders = (
+        db.query(Order)
+        .filter(Order.client_id == client_id)
+        .order_by(Order.order_date.desc().nulls_last(), Order.id.desc())
+        .all()
+    )
     for order in orders:
         details = ((order.order_data or {}).get("details") or {}) if isinstance(order.order_data, dict) else {}
         setattr(order, "order_status", details.get("order_status"))
@@ -461,7 +466,12 @@ def get_all_contact_lens_orders(
 
 @cl_router.get("/client/{client_id}", response_model=List[ContactLensOrderSchema])
 def get_contact_lens_orders_by_client(client_id: int, db: Session = Depends(get_db)):
-    return db.query(ContactLensOrder).filter(ContactLensOrder.client_id == client_id).all()
+    return (
+        db.query(ContactLensOrder)
+        .filter(ContactLensOrder.client_id == client_id)
+        .order_by(ContactLensOrder.order_date.desc().nulls_last(), ContactLensOrder.id.desc())
+        .all()
+    )
 
 @cl_router.put("/{order_id}", response_model=ContactLensOrderSchema)
 def update_contact_lens_order(order_id: int, order: ContactLensOrderUpdate, db: Session = Depends(get_db)):

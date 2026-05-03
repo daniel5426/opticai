@@ -139,7 +139,7 @@ export function CoverTestTab({
               <h3 className="font-medium text-muted-foreground">Cover Test</h3>
             </div>
           </div>
-          <div className="grid grid-cols-3 items-center gap-2">
+          <div className="grid grid-cols-[2fr_1fr_1fr] items-center gap-2">
             {/* Row 1: Titles */}
             <div className="flex h-4 items-center justify-center">
               <span className="text-muted-foreground text-xs font-medium">
@@ -270,4 +270,3 @@ export function CoverTestTab({
     </Card>
   );
 }
-

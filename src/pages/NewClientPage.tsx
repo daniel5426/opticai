@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react"
+import React, { useCallback, useEffect, useRef, useState } from "react"
 import { useNavigate } from "@tanstack/react-router"
 import { SiteHeader } from "@/components/site-header"
 import { Button } from "@/components/ui/button"
@@ -7,6 +7,9 @@ import { Client } from "@/lib/db/schema-interface"
 import { toast } from "sonner"
 import { ClientDetailsTab } from "@/components/client"
 import { useUser } from "@/contexts/UserContext"
+import { UnsavedChangesDialog } from "@/components/unsaved-changes-dialog"
+import { useUnsavedChanges } from "@/hooks/shared/useUnsavedChanges"
+import { serializeClientDraftForUnsavedChanges } from "@/lib/client-details-editor"
 
 export default function NewClientPage() {
   const navigate = useNavigate()
@@ -15,10 +18,40 @@ export default function NewClientPage() {
     gender: "זכר",
     blocked_checks: false,
     blocked_credit: false,
-    discount_percent: 0
+    discount_percent: 0,
+    file_creation_date: new Date().toISOString().split('T')[0]
   } as Client)
+  const [isSaving, setIsSaving] = useState(false)
+  const isSavingRef = useRef(false)
   const formDataRef = useRef<Client>(formData)
   const formRef = useRef<HTMLFormElement>(null!);
+
+  const getSerializedState = useCallback(
+    () => serializeClientDraftForUnsavedChanges(formData),
+    [formData],
+  )
+
+  const {
+    showUnsavedDialog,
+    handleNavigationAttempt,
+    handleUnsavedConfirm,
+    handleUnsavedCancel,
+    setBaseline,
+    baselineInitializedRef,
+    allowNavigationRef,
+  } = useUnsavedChanges({
+    getSerializedState,
+    isEditing: false,
+    isNewMode: true,
+  })
+
+  useEffect(() => {
+    if (baselineInitializedRef.current) return
+    const timer = setTimeout(() => {
+      setBaseline()
+    }, 0)
+    return () => clearTimeout(timer)
+  }, [baselineInitializedRef, setBaseline])
 
   const updateFormData = (updater: (prev: Client) => Client) => {
     const next = updater(formDataRef.current)
@@ -34,33 +67,49 @@ export default function NewClientPage() {
     }))
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const handleSubmit = async () => {
+    if (isSavingRef.current) return
+
     const latestFormData = formDataRef.current
     if (!latestFormData.first_name?.trim()) { toast.error("שם פרטי הוא שדה חובה"); return }
     if (!latestFormData.last_name?.trim()) { toast.error("שם משפחה הוא שדה חובה"); return }
+
+    isSavingRef.current = true
+    setIsSaving(true)
     const clientData = {
       ...latestFormData,
       clinic_id: currentClinic?.id,
       file_creation_date: new Date().toISOString().split('T')[0]
     }
-    ;(async () => {
-      try {
-        const newClient = await createClient(clientData)
-        if (newClient) {
-          toast.success("לקוח נוצר בהצלחה")
-          navigate({ to: "/clients/$clientId", params: { clientId: String(newClient.id) }, search: { tab: "details" } })
-        } else {
-          toast.error("שגיאה ביצירת לקוח חדש")
-        }
-      } catch {
+
+    let shouldResetSaving = true
+    try {
+      const newClient = await createClient(clientData)
+      if (newClient) {
+        shouldResetSaving = false
+        toast.success("לקוח נוצר בהצלחה")
+        allowNavigationRef.current = true
+        navigate({ to: "/clients/$clientId", params: { clientId: String(newClient.id) }, search: { tab: "details" } })
+        setTimeout(() => {
+          allowNavigationRef.current = false
+        }, 0)
+      } else {
         toast.error("שגיאה ביצירת לקוח חדש")
       }
-    })()
+    } catch {
+      toast.error("שגיאה ביצירת לקוח חדש")
+    } finally {
+      if (shouldResetSaving) {
+        isSavingRef.current = false
+        setIsSaving(false)
+      }
+    }
   }
 
   const handleCancel = () => {
-    navigate({ to: "/clients" })
+    handleNavigationAttempt(() => {
+      navigate({ to: "/clients" })
+    })
   }
 
   return (
@@ -87,11 +136,8 @@ export default function NewClientPage() {
             <Button variant="outline" onClick={handleCancel}>
               ביטול
             </Button>
-            <Button 
-              onClick={handleSubmit}
-              type="submit"
-            >
-              שמירה
+            <Button onClick={handleSubmit} disabled={isSaving}>
+              {isSaving ? "שומר..." : "שמירה"}
             </Button>
           </div>
         </div>
@@ -102,9 +148,15 @@ export default function NewClientPage() {
             mode="new"
             onFieldChange={handleFieldChange}
             formRef={formRef}
+            isSaving={isSaving}
           />
         </div>
       </div>
+      <UnsavedChangesDialog
+        open={showUnsavedDialog}
+        onConfirm={handleUnsavedConfirm}
+        onCancel={handleUnsavedCancel}
+      />
     </>
   )
-} 
+}

@@ -1,7 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { VHCalculatorModal } from "@/components/ui/vh-calculator-modal";
 import { OldRefractionExam } from "@/lib/db/schema-interface";
 import { ChevronUp, ChevronDown, Plus } from "lucide-react";
 import { EXAM_FIELDS } from "./data/exam-field-definitions";
@@ -35,12 +33,6 @@ interface OldRefractionTabProps {
   ) => void;
   isEditing: boolean;
   onMultifocalClick: () => void;
-  onVHConfirm: (
-    rightPris: number,
-    rightBase: number,
-    leftPris: number,
-    leftBase: number,
-  ) => void;
   hideEyeLabels?: boolean;
   tabCount: number;
   activeTab: number;
@@ -57,7 +49,6 @@ export const OldRefractionTab = React.memo(function OldRefractionTab({
   onOldRefractionChange,
   isEditing,
   onMultifocalClick,
-  onVHConfirm,
   hideEyeLabels = false,
   tabCount,
   activeTab,
@@ -434,16 +425,6 @@ export const OldRefractionTab = React.memo(function OldRefractionTab({
               <div className="flex h-8 items-center justify-center"></div>
             )}
             {mainColumns.map(({ key }) => {
-              if (key === "pris") {
-                return (
-                  <div key="c-vh-calculator" className="flex justify-center">
-                    <VHCalculatorModal
-                      onConfirm={onVHConfirm}
-                      disabled={!isEditing}
-                    />
-                  </div>
-                );
-              }
               if (key === "va" || key === "j") {
                 return (
                   <div key={`c-${key}-input`}>

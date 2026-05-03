@@ -7,6 +7,7 @@ import { Client } from "@/lib/db/schema-interface"
 import {
   buildClientUpdatePayload,
   normalizeClientForDraft,
+  serializeClientDraftForUnsavedChanges,
   shouldClearStatusForHealthFund,
 } from "@/lib/client-details-editor"
 
@@ -71,6 +72,20 @@ describe("client details editor helpers", () => {
     expect(shouldClearStatusForHealthFund("רגיל", "מכבי")).toBe(false)
     expect(shouldClearStatusForHealthFund("מושלם פלטינום", "מכבי")).toBe(true)
     expect(shouldClearStatusForHealthFund("", "מכבי")).toBe(false)
+  })
+
+  test("serializes client drafts with stable keys and trimmed text", () => {
+    const first = serializeClientDraftForUnsavedChanges({
+      last_name: " כהן ",
+      first_name: "דנה",
+      email: "",
+    } as Client)
+    const second = serializeClientDraftForUnsavedChanges({
+      first_name: "דנה",
+      last_name: "כהן",
+    } as Client)
+
+    expect(first).toBe(second)
   })
 })
 

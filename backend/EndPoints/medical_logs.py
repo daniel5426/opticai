@@ -50,7 +50,12 @@ def get_all_medical_logs(
 
 @router.get("/client/{client_id}", response_model=List[MedicalLogSchema])
 def get_medical_logs_by_client(client_id: int, db: Session = Depends(get_db)):
-    medical_logs = db.query(MedicalLog).filter(MedicalLog.client_id == client_id).all()
+    medical_logs = (
+        db.query(MedicalLog)
+        .filter(MedicalLog.client_id == client_id)
+        .order_by(MedicalLog.log_date.desc().nulls_last(), MedicalLog.id.desc())
+        .all()
+    )
     return medical_logs
 
 @router.put("/{medical_log_id}", response_model=MedicalLogSchema)

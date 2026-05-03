@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
     ExamCardRenderer,
     CardItem,
@@ -52,6 +52,47 @@ export function ExamLayoutRenderer({
     onCopy,
     onPaste,
 }: ExamLayoutRendererProps) {
+    const rowRenderKey = useMemo(
+        () =>
+            cardRows
+                .map((row) =>
+                    `${row.id}:${row.cards
+                        .map((card) => `${card.id}:${card.type}:${card.title || ""}`)
+                        .join(",")}`,
+                )
+                .join("|"),
+        [cardRows],
+    );
+    const [visibleRowCount, setVisibleRowCount] = useState(() =>
+        Math.min(3, cardRows.length),
+    );
+
+    useEffect(() => {
+        const initialCount = Math.min(3, cardRows.length);
+        setVisibleRowCount(initialCount);
+        if (cardRows.length <= initialCount) return;
+
+        let frameId = 0;
+        let nextCount = initialCount;
+        const mountNextBatch = () => {
+            nextCount = Math.min(cardRows.length, nextCount + 4);
+            setVisibleRowCount(nextCount);
+            if (nextCount < cardRows.length) {
+                frameId = window.requestAnimationFrame(mountNextBatch);
+            }
+        };
+
+        frameId = window.requestAnimationFrame(mountNextBatch);
+        return () => {
+            if (frameId) window.cancelAnimationFrame(frameId);
+        };
+    }, [rowRenderKey, cardRows.length]);
+
+    const visibleRows = useMemo(
+        () => cardRows.slice(0, visibleRowCount),
+        [cardRows, visibleRowCount],
+    );
+
     const getCardKey = (card: CardItem) => {
         if (card.type === "cover-test") {
             const activeTabIndex = activeCoverTestTabs[card.id] ?? 0;
@@ -69,7 +110,7 @@ export function ExamLayoutRenderer({
             className="no-scrollbar space-y-4"
             style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
         >
-            {cardRows.map((row, rowIndex) => {
+            {visibleRows.map((row, rowIndex) => {
                 const pxPerCol = rowWidths[row.id] || 1380;
                 const cardWidths = calculateCardWidth(
                     row.cards,
@@ -79,7 +120,14 @@ export function ExamLayoutRenderer({
                     "detail",
                 );
                 return (
-                    <div key={row.id} className="w-full">
+                    <div
+                        key={row.id}
+                        className="w-full"
+                        style={{
+                            contentVisibility: "auto",
+                            containIntrinsicSize: "0 190px",
+                        }}
+                    >
                         <div
                             className="flex flex-1 gap-4"
                             dir="ltr"

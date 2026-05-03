@@ -209,6 +209,7 @@ def get_appointments_by_client(client_id: int, db: Session = Depends(get_db)):
         .outerjoin(Client, Client.id == Appointment.client_id)
         .outerjoin(User, User.id == Appointment.user_id)
         .filter(Appointment.client_id == client_id)
+        .order_by(Appointment.date.desc().nulls_last(), Appointment.id.desc())
         .all()
     )
     items = []

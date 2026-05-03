@@ -6,12 +6,6 @@ import React, {
   useState,
 } from "react";
 import { cn } from "@/utils/tailwind";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-} from "@/components/ui/select";
 import { FastInput, inputSyncManager } from "./OptimizedInputs";
 import { ChevronDown } from "lucide-react";
 
@@ -41,8 +35,8 @@ export function ToggleTextNumberInput({
   className,
 }: ToggleTextNumberInputProps) {
   const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
   const measureRef = useRef<HTMLSpanElement>(null);
-  const triggerRef = useRef<HTMLButtonElement>(null);
   const [textWidthPx, setTextWidthPx] = useState<number | null>(null);
   const [optimisticText, setOptimisticText] = useState<string | null>(null);
   const lastSelectionRef = useRef<{ label: string; ts: number } | null>(null);
@@ -90,10 +84,35 @@ export function ToggleTextNumberInput({
   }, [normalizedValue, normalizedUnsignedValue, textOptions, reverseAliases]);
 
   const displayValue = isTextValue ? selectValue : value;
-  const shownTextValue = optimisticText ?? selectValue;
   const shownValue = optimisticText ?? displayValue;
   const isShownAsText = isTextValue || !!optimisticText;
   const effectiveSuffix = isShownAsText ? undefined : numericProps?.suffix;
+
+  useEffect(() => {
+    if (!open) return;
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target;
+      if (!(target instanceof Node)) return;
+      if (!rootRef.current?.contains(target)) {
+        setOpen(false);
+      }
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setOpen(false);
+      }
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown, true);
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown, true);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [open]);
 
   useEffect(() => {
     if (!optimisticText) return;
@@ -141,6 +160,7 @@ export function ToggleTextNumberInput({
         "relative h-8 w-full overflow-visible rounded-md transition-[width] duration-200 ease-out",
         className,
       )}
+      ref={rootRef}
       style={
         dynamicTextWidth
           ? {
@@ -172,54 +192,35 @@ export function ToggleTextNumberInput({
         leadingOverlayWidth={PRESET_TRIGGER_WIDTH_PX}
         showLeadingOverlay={open}
         leadingOverlay={
-          <Select
-            value={shownTextValue}
-            onValueChange={commitSelectChange}
-            disabled={disabled}
-            open={open}
-            onOpenChange={(nextOpen) => {
-              setOpen(nextOpen);
-              if (!nextOpen) {
-                requestAnimationFrame(() => {
-                  triggerRef.current?.blur();
-                });
-              }
+          <button
+            type="button"
+            tabIndex={-1}
+            disabled={disabled || textOptions.length === 0}
+            aria-label="Choose text preset"
+            aria-haspopup="listbox"
+            aria-expanded={open}
+            className={cn(
+              "relative block h-full w-full border-none bg-transparent p-0 shadow-none",
+              "rounded-none focus-visible:outline-none focus-visible:ring-0 disabled:cursor-default",
+              selectValue
+                ? "text-primary hover:bg-primary/5"
+                : "text-muted-foreground hover:bg-accent/70",
+            )}
+            onMouseDown={(event) => {
+              event.preventDefault();
+            }}
+            onClick={() => {
+              if (disabled || textOptions.length === 0) return;
+              setOpen((current) => !current);
             }}
           >
-            <SelectTrigger
-              ref={triggerRef}
+            <ChevronDown
               className={cn(
-                "relative block h-full w-full border-none bg-transparent p-0 shadow-none",
-                "!rounded-none !py-0 !pl-0 !pr-0 focus:ring-0 focus:ring-offset-0",
-                selectValue
-                  ? "text-primary hover:bg-primary/5"
-                  : "text-muted-foreground hover:bg-accent/70",
+                "absolute left-1/2 top-1/2 block size-2.5 shrink-0 -translate-x-1/2 -translate-y-[calc(50%+2px)] transform-gpu transition-transform duration-200 ease-out",
+                open && "rotate-180",
               )}
-              hideIcon
-              noBorder
-              aria-label="Choose text preset"
-            >
-              <ChevronDown
-                className={cn(
-                  "absolute left-1/2 top-1/2 block size-2.5 shrink-0 -translate-x-1/2 -translate-y-[calc(50%+2px)] transform-gpu transition-transform duration-200 ease-out",
-                  open && "rotate-180",
-                )}
-              />
-            </SelectTrigger>
-            <SelectContent className="w-fit min-w-16" sideOffset={4}>
-              {textOptions.map((opt) => (
-                <SelectItem
-                  key={opt}
-                  value={opt}
-                  dir="ltr"
-                  className="justify-center"
-                  onClick={() => commitSelectChange(opt)}
-                >
-                  {opt}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            />
+          </button>
         }
         onChange={(val) => {
           // Ignore stale sync events right after dropdown selection.
@@ -247,6 +248,33 @@ export function ToggleTextNumberInput({
           numericProps?.className,
         )}
       />
+      {open && textOptions.length > 0 && (
+        <div
+          role="listbox"
+          className="absolute left-0 top-[calc(100%+4px)] z-50 w-fit min-w-16 overflow-hidden rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-md"
+        >
+          {textOptions.map((opt) => (
+            <button
+              key={opt}
+              type="button"
+              role="option"
+              aria-selected={opt === selectValue}
+              dir="ltr"
+              className={cn(
+                "relative flex h-8 w-full min-w-14 cursor-default select-none items-center justify-center rounded-sm px-2 text-sm outline-none",
+                "hover:bg-accent hover:text-accent-foreground focus-visible:bg-accent focus-visible:text-accent-foreground",
+                opt === selectValue && "bg-accent/70 text-accent-foreground",
+              )}
+              onMouseDown={(event) => {
+                event.preventDefault();
+              }}
+              onClick={() => commitSelectChange(opt)}
+            >
+              {opt}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

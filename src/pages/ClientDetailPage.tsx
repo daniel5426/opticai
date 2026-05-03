@@ -1,5 +1,6 @@
-import React, { useState, useRef, useEffect } from "react"
+import React, { useState, useRef, useEffect, useCallback } from "react"
 import { useParams, useSearch } from "@tanstack/react-router"
+import { useQueryClient } from "@tanstack/react-query"
 import { SiteHeader } from "@/components/site-header"
 import { Client } from "@/lib/db/schema-interface"
 import { Tabs, TabsContent } from "@/components/ui/tabs"
@@ -13,10 +14,14 @@ import {
   ClientAppointmentsTab,
   ClientFilesTab
 } from "@/components/client"
-import { ClientDataProvider } from "@/contexts/ClientDataContext"
 import { ClientSpaceLayout } from "@/layouts/ClientSpaceLayout"
 import { useClientSidebar } from "@/contexts/ClientSidebarContext"
+import { useUser } from "@/contexts/UserContext"
 import { useClientDetailsEditor } from "@/hooks/client/useClientDetailsEditor"
+import { UnsavedChangesDialog } from "@/components/unsaved-changes-dialog"
+import { useUnsavedChanges } from "@/hooks/shared/useUnsavedChanges"
+import { serializeClientDraftForUnsavedChanges } from "@/lib/client-details-editor"
+import { ClientTabName, prefetchClientTab } from "@/hooks/client/useClientTabQueries"
 
 export default function ClientDetailPage() {
   const { clientId } = useParams({ from: "/clients/$clientId" })
@@ -50,18 +55,32 @@ export default function ClientDetailPage() {
   }
 
   const { updateCurrentClient, setActiveTab: setSidebarActiveTab } = useClientSidebar()
+  const { currentClinic } = useUser()
+  const queryClient = useQueryClient()
   const editor = useClientDetailsEditor(clientIdNum)
   const [activeTab, setActiveTab] = useState(initialTab)
-  const [refreshKey, setRefreshKey] = useState(0)
   const formRef = useRef<HTMLFormElement>(null)
   const isDetailsLoading = editor.isLoading || !editor.draftClient
 
-  useEffect(() => {
-    // Refresh orders and referrals data when switching to those tabs
-    if (activeTab === 'orders' || activeTab === 'referrals') {
-      setRefreshKey(prev => prev + 1)
-    }
+  const getSerializedState = useCallback(
+    () => serializeClientDraftForUnsavedChanges(editor.draftClient),
+    [editor.draftClient],
+  )
 
+  const {
+    showUnsavedDialog,
+    handleNavigationAttempt,
+    handleUnsavedConfirm,
+    handleUnsavedCancel,
+    setBaseline,
+    baselineInitializedRef,
+  } = useUnsavedChanges({
+    getSerializedState,
+    isEditing: editor.isEditing,
+    isNewMode: false,
+  })
+
+  useEffect(() => {
     // Save current tab to localStorage for this client
     if (clientId && activeTab) {
       localStorage.setItem(`client-${clientId}-last-tab`, activeTab)
@@ -72,8 +91,30 @@ export default function ClientDetailPage() {
   }, [activeTab, clientId, setSidebarActiveTab])
 
   useEffect(() => {
+    prefetchClientTab(
+      queryClient,
+      clientIdNum,
+      activeTab as ClientTabName,
+      currentClinic?.id,
+    )
+  }, [activeTab, clientIdNum, currentClinic?.id, queryClient])
+
+  useEffect(() => {
     if (editor.serverClient) updateCurrentClient(editor.serverClient)
   }, [editor.serverClient, updateCurrentClient])
+
+  useEffect(() => {
+    if (!editor.isEditing) {
+      baselineInitializedRef.current = false
+      return
+    }
+    if (isDetailsLoading || baselineInitializedRef.current) return
+
+    const timer = setTimeout(() => {
+      setBaseline()
+    }, 0)
+    return () => clearTimeout(timer)
+  }, [baselineInitializedRef, editor.isEditing, isDetailsLoading, setBaseline])
 
   const handleSave = async () => {
     const updated = await editor.saveDraft()
@@ -85,17 +126,29 @@ export default function ClientDetailPage() {
     }
   }
 
+  const handleStartEdit = () => {
+    editor.startEdit()
+    baselineInitializedRef.current = false
+  }
 
-
+  const handleTabChange = (value: string) => {
+    if (value === activeTab) return
+    handleNavigationAttempt(() => {
+      if (activeTab === "details" && value !== "details" && editor.isEditing) {
+        editor.cancelEdit()
+      }
+      setActiveTab(value)
+    })
+  }
 
   return (
-    <ClientDataProvider clientId={clientIdNum}>
+    <>
       <SiteHeader
         title="לקוחות"
         backLink="/clients"
         tabs={{
           activeTab,
-          onTabChange: setActiveTab
+          onTabChange: handleTabChange
         }}
       />
       <ClientSpaceLayout>
@@ -103,7 +156,7 @@ export default function ClientDetailPage() {
           <Tabs
             value={activeTab}
             className="w-full"
-            onValueChange={(value) => setActiveTab(value)}
+            onValueChange={handleTabChange}
           >
             <TabsContent value="details">
               {editor.isError ? (
@@ -118,7 +171,7 @@ export default function ClientDetailPage() {
                   isSaving={editor.isSaving}
                   onFieldChange={editor.updateDraftField}
                   formRef={formRef as React.RefObject<HTMLFormElement>}
-                  onStartEdit={editor.startEdit}
+                  onStartEdit={handleStartEdit}
                   onCancelEdit={editor.cancelEdit}
                   onSave={handleSave}
                 />
@@ -126,33 +179,38 @@ export default function ClientDetailPage() {
             </TabsContent>
 
             <TabsContent value="exams">
-              <ClientExamsTab />
+              <ClientExamsTab enabled={activeTab === "exams"} />
             </TabsContent>
 
             <TabsContent value="medical">
-              <ClientMedicalRecordTab />
+              <ClientMedicalRecordTab enabled={activeTab === "medical"} />
             </TabsContent>
 
             <TabsContent value="orders">
-              <ClientOrdersTab key={refreshKey} />
+              <ClientOrdersTab enabled={activeTab === "orders"} />
             </TabsContent>
 
 
             <TabsContent value="referrals">
-              <ClientReferralTab key={refreshKey} />
+              <ClientReferralTab enabled={activeTab === "referrals"} />
             </TabsContent>
 
             <TabsContent value="appointments">
-              <ClientAppointmentsTab />
+              <ClientAppointmentsTab enabled={activeTab === "appointments"} />
             </TabsContent>
 
             <TabsContent value="files">
-              <ClientFilesTab />
+              <ClientFilesTab enabled={activeTab === "files"} />
             </TabsContent>
 
           </Tabs>
         </div>
       </ClientSpaceLayout>
-    </ClientDataProvider>
+      <UnsavedChangesDialog
+        open={showUnsavedDialog}
+        onConfirm={handleUnsavedConfirm}
+        onCancel={handleUnsavedCancel}
+      />
+    </>
   )
 } 

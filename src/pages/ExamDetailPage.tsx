@@ -55,8 +55,12 @@ import {
   sortKeysDeep,
   normalizeFieldValue,
   shallowEqual,
-  FULL_DATA_NAME,
+  parseLayoutData,
+  VIRTUAL_FULL_DATA_TAB_ID,
+  isVirtualFullDataTabId,
+  resolveFullDataSourceInstanceId,
 } from "./exam-detail/utils";
+import { EXAM_DATA_UI_KEY, ensureLayoutDataForRows } from "@/lib/exam-ui-metadata";
 
 // Import new hooks
 import { useLayoutTabs } from "@/hooks/exam/useLayoutTabs";
@@ -216,7 +220,6 @@ export default function ExamDetailPage({
   const [customWidths, setCustomWidths] = useState<
     Record<string, Record<string, number>>
   >({});
-  const [isRegeneratingFullData, setIsRegeneratingFullData] = useState(false);
 
   // Computed values
   const flattenedAvailableLayouts = useMemo(
@@ -266,7 +269,6 @@ export default function ExamDetailPage({
 
   const { rowWidths, rowRefs } = useRowWidthTracking(cardRows, [
     activeInstanceId,
-    layoutTabs,
   ]);
 
   const formRef = useRef<HTMLFormElement>(null);
@@ -329,25 +331,9 @@ export default function ExamDetailPage({
   };
 
   const applyLayoutStructure = (layoutData?: string) => {
-    if (!layoutData) {
-      setCardRows([]);
-      setCustomWidths({});
-      return;
-    }
-    try {
-      const parsed = JSON.parse(layoutData);
-      if (Array.isArray(parsed)) {
-        setCardRows(parsed);
-        setCustomWidths({});
-      } else {
-        setCardRows(parsed.rows || []);
-        setCustomWidths(parsed.customWidths || {});
-      }
-    } catch (error) {
-      console.error("Error parsing layout structure:", error);
-      setCardRows([]);
-      setCustomWidths({});
-    }
+    const parsed = parseLayoutData(layoutData);
+    setCardRows(parsed.rows);
+    setCustomWidths(parsed.customWidths);
   };
 
   const loadExamComponentData = async (
@@ -676,10 +662,8 @@ export default function ExamDetailPage({
     handleLayoutTabChange,
     handleLayoutTabDrop,
     handleSelectLayoutOption,
-    handleAddFullDataTab,
-    handleRegenerateFullData,
+    handleAddFullDataTab: handleActivateFullDataTab,
     handleRemoveLayoutTab,
-    buildFullDataBucket,
   } = useLayoutTabs({
     exam,
     isNewMode,
@@ -896,11 +880,17 @@ export default function ExamDetailPage({
               available_layouts,
             } = pageData;
             setExam(examData || null);
-            const layoutInstances = (instances || []).map(
+            if (Array.isArray(available_layouts)) {
+              setAvailableLayouts(available_layouts as any);
+            }
+            const regularInstances = (instances || []).filter(
+              (e: any) => e?.instance?.layout_id != null,
+            );
+            const layoutInstances = regularInstances.map(
               (e: any) => e.instance,
             );
             const layoutMapLocal: Record<number, any> = Object.fromEntries(
-              (instances || []).map((e: any) => [
+              regularInstances.map((e: any) => [
                 e.instance.layout_id,
                 e.layout,
               ]),
@@ -910,8 +900,7 @@ export default function ExamDetailPage({
                 const layout = layoutMapLocal[instance.layout_id];
                 const layoutDataStr =
                   layout?.layout_data || instance?.layout_data || "";
-                const name =
-                  layout?.name || (instance?.layout_data ? FULL_DATA_NAME : "");
+                const name = layout?.name || "";
                 return {
                   id: instance.id || 0,
                   layout_id: instance.layout_id,
@@ -920,59 +909,59 @@ export default function ExamDetailPage({
                   isActive: instance.id === chosen_active_instance_id,
                 };
               });
-              setLayoutTabs(tabs);
               const chosenInstId = chosen_active_instance_id as
                 | number
                 | undefined;
               const chosen =
-                (instances || []).find(
+                regularInstances.find(
                   (e: any) => e?.instance?.id === chosenInstId,
-                ) || (instances || [])[0];
+                ) || regularInstances[0];
               if (
                 chosen &&
                 chosen.instance &&
                 (chosen.layout || chosen.instance?.layout_data)
               ) {
+                setLayoutTabs(
+                  tabs.map((tab) => ({
+                    ...tab,
+                    isActive: tab.id === chosen.instance.id,
+                  })),
+                );
                 setActiveInstanceId(chosen.instance.id || 0);
                 const layoutDataStr =
                   chosen.layout?.layout_data ||
                   chosen.instance?.layout_data ||
                   "[]";
-                const parsedLayout = JSON.parse(layoutDataStr);
-                if (Array.isArray(parsedLayout)) {
-                  setCardRows(parsedLayout);
-                  setCustomWidths({});
-                } else {
-                  setCardRows(parsedLayout.rows || []);
-                  setCustomWidths(parsedLayout.customWidths || {});
-                }
+                const parsedLayout = parseLayoutData(layoutDataStr);
+                setCardRows(parsedLayout.rows);
+                setCustomWidths(parsedLayout.customWidths);
 
                 const initialFormDataByInstance: Record<number, any> = {};
-                instances.forEach((instanceData: any) => {
+                regularInstances.forEach((instanceData: any) => {
                   if (
                     instanceData.exam_data &&
                     typeof instanceData.exam_data === "object"
                   ) {
+                    const instanceLayoutData =
+                      instanceData.layout?.layout_data ||
+                      instanceData.instance?.layout_data ||
+                      "[]";
+                    const instanceRows = parseLayoutData(instanceLayoutData).rows;
+                    const normalized = ensureLayoutDataForRows(
+                      instanceData.exam_data,
+                      instanceRows,
+                      instanceData.instance.id,
+                    );
                     initialFormDataByInstance[instanceData.instance.id] =
-                      instanceData.exam_data;
+                      normalized.examData;
                   }
                 });
                 setExamFormDataByInstance(initialFormDataByInstance);
 
                 const activeExamData =
                   initialFormDataByInstance[chosen.instance.id];
-                const chosenTab = layoutTabs.find(
-                  (tab) => tab.id === chosenInstId,
-                );
 
-                if (chosenTab && chosenTab.name === FULL_DATA_NAME) {
-                  const seedBucket = buildFullDataBucket(chosen.instance.id);
-                  setExamFormData(seedBucket);
-                  setExamFormDataByInstance((prev) => ({
-                    ...prev,
-                    [chosen.instance.id]: seedBucket,
-                  }));
-                } else if (
+                if (
                   activeExamData &&
                   Object.keys(activeExamData).length > 0
                 ) {
@@ -983,18 +972,15 @@ export default function ExamDetailPage({
                     layoutDataStr,
                     true,
                   );
-                } else {
-                  const seedBucket = buildFullDataBucket(chosen.instance.id);
-                  setExamFormData(seedBucket);
-                  setExamFormDataByInstance((prev) => ({
-                    ...prev,
-                    [chosen.instance.id]: seedBucket,
-                  }));
                 }
               }
-              if (Array.isArray(available_layouts)) {
-                setAvailableLayouts(available_layouts as any);
-              }
+            } else {
+              setLayoutTabs([]);
+              setActiveInstanceId(VIRTUAL_FULL_DATA_TAB_ID);
+              setCardRows([]);
+              setCustomWidths({});
+              setExamFormData({});
+              setExamFormDataByInstance({});
             }
           }
         } else {
@@ -1101,16 +1087,7 @@ export default function ExamDetailPage({
   }, [exam]);
 
   useEffect(() => {
-    if (activeInstanceId != null) {
-      const bucket = examFormDataByInstance[activeInstanceId];
-      if (!shallowEqual(bucket || {}, examFormData)) {
-        setExamFormData(bucket || {});
-      }
-    }
-  }, [activeInstanceId]);
-
-  useEffect(() => {
-    if (activeInstanceId != null) {
+    if (activeInstanceId != null && !isVirtualFullDataTabId(activeInstanceId)) {
       const currentBucket = examFormDataByInstance[activeInstanceId] || {};
       if (!shallowEqual(currentBucket, examFormData)) {
         setExamFormDataByInstance((prev) => ({
@@ -1122,10 +1099,8 @@ export default function ExamDetailPage({
   }, [examFormData]);
 
   useEffect(() => {
-    if (activeInstanceId == null) return;
-    const activeTabItem = layoutTabs.find((tab) => tab.isActive);
-    if (!activeTabItem || activeTabItem.name !== FULL_DATA_NAME) return;
-    const sources = fullDataSourcesRef.current[activeInstanceId] || {};
+    if (!isVirtualFullDataTabId(activeInstanceId)) return;
+    const sources = fullDataSourcesRef.current[VIRTUAL_FULL_DATA_TAB_ID] || {};
     setExamFormDataByInstance((prev) => {
       const nextState: Record<number | string, Record<string, any>> = {
         ...prev,
@@ -1139,10 +1114,11 @@ export default function ExamDetailPage({
 
       keys.forEach((componentKey) => {
         const currentValue = examFormData[componentKey];
-        const mappedSource =
-          sources[componentKey] ??
-          (currentValue as any)?.source_layout_instance_id ??
-          null;
+        const mappedSource = resolveFullDataSourceInstanceId(
+          componentKey,
+          currentValue,
+          sources,
+        );
         if (mappedSource == null) {
           if (sources[componentKey] != null) {
             delete sources[componentKey];
@@ -1159,7 +1135,7 @@ export default function ExamDetailPage({
             ? mappedSource
             : Number(mappedSource);
         if (!Number.isFinite(resolvedKey)) return;
-        if (resolvedKey === activeInstanceId) return;
+        if (isVirtualFullDataTabId(resolvedKey)) return;
 
         const existingBucket =
           nextState[resolvedKey] || prev[resolvedKey] || {};
@@ -1207,9 +1183,72 @@ export default function ExamDetailPage({
         }
       });
 
+      const fullDataTabsByCard = (examFormData as any)?.[EXAM_DATA_UI_KEY]?.tabsByCard;
+      if (fullDataTabsByCard && typeof fullDataTabsByCard === "object") {
+        Object.entries(fullDataTabsByCard).forEach(([tabsKey, tabs]) => {
+          if (!Array.isArray(tabs)) return;
+          const [type, cardId] = tabsKey.split(":");
+          if (
+            (type !== "old-refraction" && type !== "cover-test") ||
+            !cardId
+          ) {
+            return;
+          }
+
+          const sourceKey = Object.keys(sources).find((key) =>
+            key.startsWith(`${type}-${cardId}-`),
+          );
+          const mappedSource = sourceKey ? sources[sourceKey] : null;
+          if (mappedSource == null) return;
+
+          const resolvedKey =
+            typeof mappedSource === "number"
+              ? mappedSource
+              : Number(mappedSource);
+          if (!Number.isFinite(resolvedKey)) return;
+          if (isVirtualFullDataTabId(resolvedKey)) return;
+
+          const existingBucket =
+            nextState[resolvedKey] || prev[resolvedKey] || {};
+          const existingUi =
+            existingBucket[EXAM_DATA_UI_KEY] &&
+            typeof existingBucket[EXAM_DATA_UI_KEY] === "object"
+              ? existingBucket[EXAM_DATA_UI_KEY]
+              : {};
+          const existingTabsByCard =
+            existingUi.tabsByCard && typeof existingUi.tabsByCard === "object"
+              ? existingUi.tabsByCard
+              : {};
+          const currentTabs = existingTabsByCard[tabsKey];
+
+          if (JSON.stringify(currentTabs || null) === JSON.stringify(tabs)) {
+            return;
+          }
+
+          nextState[resolvedKey] = {
+            ...existingBucket,
+            [EXAM_DATA_UI_KEY]: {
+              ...existingUi,
+              tabsByCard: {
+                ...existingTabsByCard,
+                [tabsKey]: tabs.map((tab: any, index: number) => ({
+                  id: tab.id,
+                  index:
+                    Number.isFinite(Number(tab.index))
+                      ? Number(tab.index)
+                      : index,
+                  ...(tab.type ? { type: tab.type } : {}),
+                })),
+              },
+            },
+          };
+          changed = true;
+        });
+      }
+
       return changed ? nextState : prev;
     });
-  }, [examFormData, activeInstanceId, layoutTabs]);
+  }, [examFormData, activeInstanceId]);
 
   // Event handlers
   const handleInputChange = (
@@ -1262,57 +1301,7 @@ export default function ExamDetailPage({
     cardRows.map((row) => row.cards),
     {
       handleMultifocalOldRefraction: () => { },
-      handleVHConfirmOldRefraction: (
-        rightPris: number,
-        rightBase: number,
-        leftPris: number,
-        leftBase: number,
-      ) => {
-        const oldRefractionHandler = fieldHandlers["old-refraction"];
-        if (oldRefractionHandler) {
-          oldRefractionHandler("r_pris", rightPris.toString());
-          oldRefractionHandler("r_base", rightBase.toString());
-          oldRefractionHandler("l_pris", leftPris.toString());
-          oldRefractionHandler("l_base", leftBase.toString());
-        }
-      },
-      handleVHConfirm: (
-        rightPris: number,
-        rightBase: number,
-        leftPris: number,
-        leftBase: number,
-      ) => {
-        const subjectiveHandler = fieldHandlers["subjective"];
-        if (subjectiveHandler) {
-          subjectiveHandler("r_pris", rightPris.toString());
-          subjectiveHandler("r_base", rightBase.toString());
-          subjectiveHandler("l_pris", leftPris.toString());
-          subjectiveHandler("l_base", leftBase.toString());
-        }
-      },
       handleMultifocalSubjective: () => { },
-      handleFinalSubjectiveVHConfirm: (
-        rightPrisH: number,
-        rightBaseH: string,
-        rightPrisV: number,
-        rightBaseV: string,
-        leftPrisH: number,
-        leftBaseH: string,
-        leftPrisV: number,
-        leftBaseV: string,
-      ) => {
-        const finalSubjectiveHandler = fieldHandlers["final-subjective"];
-        if (finalSubjectiveHandler) {
-          finalSubjectiveHandler("r_pr_h", rightPrisH.toString());
-          finalSubjectiveHandler("r_base_h", rightBaseH);
-          finalSubjectiveHandler("r_pr_v", rightPrisV.toString());
-          finalSubjectiveHandler("r_base_v", rightBaseV);
-          finalSubjectiveHandler("l_pr_h", leftPrisH.toString());
-          finalSubjectiveHandler("l_base_h", leftBaseH);
-          finalSubjectiveHandler("l_pr_v", leftPrisV.toString());
-          finalSubjectiveHandler("l_base_v", leftBaseV);
-        }
-      },
       handleMultifocalOldRefractionExtension: () => { },
       coverTestTabs: computedCoverTestTabs as any,
       activeCoverTestTabs: activeCoverTestTabs as any,
@@ -1424,7 +1413,6 @@ export default function ExamDetailPage({
       {!isNewMode && (<><LayoutSelectorDropdown
         availableLayouts={availableLayouts}
         onSelectLayout={handleSelectLayoutOption}
-        onAddFullData={handleAddFullDataTab}
         onRequestLayouts={handleRequestLayouts}
         isLoading={isAddingLayouts}
       />
@@ -1535,10 +1523,9 @@ export default function ExamDetailPage({
             layoutTabs={layoutTabs}
             activeInstanceId={activeInstanceId}
             isEditing={isEditing}
-            isRegeneratingFullData={isRegeneratingFullData}
             onTabClick={handleLayoutTabChange}
             onTabDrop={handleLayoutTabDrop}
-            onRegenerateFullData={handleRegenerateFullData}
+            onFullDataClick={handleActivateFullDataTab}
             onRemoveTab={handleRemoveLayoutTab}
           />
 

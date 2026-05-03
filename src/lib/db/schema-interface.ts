@@ -344,6 +344,10 @@ export interface FinalPrescriptionExam {
   l_va?: string | number;
   r_ad?: number;
   l_ad?: number;
+  r_pd_far?: number;
+  l_pd_far?: number;
+  r_pd_close?: number;
+  l_pd_close?: number;
   r_pd?: number;
   l_pd?: number;
   r_high?: number;
@@ -351,6 +355,8 @@ export interface FinalPrescriptionExam {
   r_diam?: number;
   l_diam?: number;
   comb_va?: string | number;
+  comb_pd_far?: number;
+  comb_pd_close?: number;
   comb_pd?: number;
   comb_high?: number;
   add_type?: string;
@@ -395,7 +401,15 @@ export interface Order {
   comb_va?: number;
   comb_high?: number;
   comb_pd?: number;
+  order_status?: string;
   order_data?: Record<string, unknown>;
+}
+
+export interface ClientOrdersContext {
+  latest_exam_id: number | null;
+  latest_regular_order_id: number | null;
+  latest_contact_order_id: number | null;
+  latest_exam_add_sources: Record<string, unknown>;
 }
 
  

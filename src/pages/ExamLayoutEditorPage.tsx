@@ -294,6 +294,8 @@ export default function ExamLayoutEditorPage() {
   const [isDefault, setIsDefault] = useState(false)
   const [layoutType, setLayoutType] = useState<string>("global")
   const [layoutClinicId, setLayoutClinicId] = useState<number | null>(currentClinic?.id ?? null)
+  const [isSaving, setIsSaving] = useState(false)
+  const isSavingRef = useRef(false)
 
   const [cardRows, setCardRows] = useState<CardRow[]>([
   ])
@@ -536,11 +538,16 @@ export default function ExamLayoutEditorPage() {
   }
 
   const handleSaveLayout = async () => {
+    if (isSavingRef.current) return
+
     if (!layoutName.trim()) {
       toast.error("נא להזין שם לפריסה")
       return
     }
 
+    isSavingRef.current = true
+    setIsSaving(true)
+    let shouldResetSaving = true
     try {
       const targetClinicId = layoutClinicId ?? currentClinic?.id ?? null
       const layoutData = {
@@ -565,6 +572,7 @@ export default function ExamLayoutEditorPage() {
       }
 
       if (result) {
+        shouldResetSaving = false
         toast.success(isNewMode ? "פריסה חדשה נוצרה בהצלחה" : "הפריסה עודכנה בהצלחה")
         navigate({ to: "/exam-layouts" })
       } else {
@@ -573,6 +581,11 @@ export default function ExamLayoutEditorPage() {
     } catch (error) {
       console.error('Error saving layout:', error)
       toast.error("שגיאה בשמירת הפריסה")
+    } finally {
+      if (shouldResetSaving) {
+        isSavingRef.current = false
+        setIsSaving(false)
+      }
     }
   }
 
@@ -649,8 +662,8 @@ export default function ExamLayoutEditorPage() {
             <Button variant="outline" onClick={() => navigate({ to: "/exam-layouts" })}>
               ביטול
             </Button>
-            <Button onClick={handleSaveLayout}>
-              שמור פריסה
+            <Button onClick={handleSaveLayout} disabled={isSaving}>
+              {isSaving ? "שומר..." : "שמור פריסה"}
             </Button>
           </div>
         </div>

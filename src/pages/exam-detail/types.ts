@@ -17,7 +17,7 @@ export interface CardRow {
 
 export interface LayoutTab {
   id: number;
-  layout_id: number;
+  layout_id: number | null;
   name: string;
   layout_data: string;
   isActive: boolean;

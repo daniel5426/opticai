@@ -1,29 +1,51 @@
 import React from "react"
 import { FilesTable } from "@/components/files-table"
 import { useParams } from "@tanstack/react-router"
-import { useClientData } from "@/contexts/ClientDataContext"
+import { useQueryClient } from "@tanstack/react-query"
+import {
+  clientQueryKeys,
+  removeQueryItemById,
+  replaceQueryItemById,
+  useClientFilesQuery,
+} from "@/hooks/client/useClientTabQueries"
+import { File } from "@/lib/db/schema-interface"
 
-export function ClientFilesTab() {
+interface ClientFilesTabProps {
+  enabled?: boolean
+}
+
+export function ClientFilesTab({ enabled = true }: ClientFilesTabProps) {
   const { clientId } = useParams({ from: "/clients/$clientId" })
-  const { files, loading, removeFile, updateFile, refreshFiles } = useClientData()
+  const clientIdNum = Number(clientId)
+  const queryClient = useQueryClient()
+  const filesQuery = useClientFilesQuery(clientIdNum, enabled)
+  const queryKey = clientQueryKeys.files(clientIdNum)
 
   const handleFileDeleted = (deletedFileId: number) => {
-    removeFile(deletedFileId)
+    queryClient.setQueryData<File[]>(queryKey, (current) =>
+      removeQueryItemById(current, deletedFileId),
+    )
   }
 
   const handleFileDeleteFailed = () => {
-    refreshFiles()
+    queryClient.invalidateQueries({ queryKey })
+  }
+
+  const handleFileUpdated = (file: File) => {
+    queryClient.setQueryData<File[]>(queryKey, (current) =>
+      replaceQueryItemById(current, file),
+    )
   }
 
   return (
     <FilesTable 
-      data={files} 
-      clientId={Number(clientId)} 
-      onFileUploaded={refreshFiles}
-      onFileUpdated={updateFile}
+      data={filesQuery.data || []} 
+      clientId={clientIdNum} 
+      onFileUploaded={() => queryClient.invalidateQueries({ queryKey })}
+      onFileUpdated={handleFileUpdated}
       onFileDeleted={handleFileDeleted}
       onFileDeleteFailed={handleFileDeleteFailed}
-      loading={loading.files}
+      loading={filesQuery.isLoading}
     />
   )
 } 

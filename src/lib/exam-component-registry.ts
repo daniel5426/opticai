@@ -101,6 +101,11 @@ export class ExamComponentRegistry {
       const dataToSave: Record<string, unknown> = {}
       
       for (const [key, data] of Object.entries(formData)) {
+        if (key === '__ui' && data && typeof data === 'object') {
+          dataToSave[key] = data
+          continue
+        }
+
         if (data && typeof data === 'object') {
           // Handle special cases for notes and cover-test with multiple instances
           let componentType: ExamComponentType | null = null

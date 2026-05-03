@@ -130,9 +130,6 @@ export function WelcomeComponent({ onControlCenterClick, onClinicEntranceClick }
           <h1 className="text-4xl font-bold text-slate-900 dark:text-slate-100 mb-4">
             ברוכים הבאים למערכת ניהול המרפאה
           </h1>
-          <p className="text-xl text-slate-600 dark:text-slate-400 max-w-2xl mx-auto">
-            בחרו את סוג הגישה המתאים לכם כדי להתחיל לעבוד עם המערכת
-          </p>
         </div>
 
         <div className="grid md:grid-cols-2 gap-6 max-w-2xl mx-auto">

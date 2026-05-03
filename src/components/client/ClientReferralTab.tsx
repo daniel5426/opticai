@@ -1,27 +1,42 @@
 import React from "react"
 import { useParams } from "@tanstack/react-router"
 import { ReferralTable } from "@/components/referral-table"
-import { useClientData } from "@/contexts/ClientDataContext"
+import { useQueryClient } from "@tanstack/react-query"
+import {
+  clientQueryKeys,
+  removeQueryItemById,
+  useClientReferralsQuery,
+} from "@/hooks/client/useClientTabQueries"
+import { Referral } from "@/lib/db/schema-interface"
 
-export function ClientReferralTab() {
+interface ClientReferralTabProps {
+  enabled?: boolean
+}
+
+export function ClientReferralTab({ enabled = true }: ClientReferralTabProps) {
   const { clientId } = useParams({ from: "/clients/$clientId" })
-  const { referrals, loading, removeReferral, refreshReferrals } = useClientData()
+  const clientIdNum = Number(clientId)
+  const queryClient = useQueryClient()
+  const referralsQuery = useClientReferralsQuery(clientIdNum, enabled)
+  const queryKey = clientQueryKeys.referrals(clientIdNum)
 
   const handleReferralDeleted = (deletedReferralId: number) => {
-    removeReferral(deletedReferralId)
+    queryClient.setQueryData<Referral[]>(queryKey, (current) =>
+      removeQueryItemById(current, deletedReferralId),
+    )
   }
 
   const handleReferralDeleteFailed = () => {
-    refreshReferrals()
+    queryClient.invalidateQueries({ queryKey })
   }
 
   return (
     <ReferralTable 
-      referrals={referrals} 
+      referrals={referralsQuery.data || []} 
       onReferralDeleted={handleReferralDeleted}
       onReferralDeleteFailed={handleReferralDeleteFailed}
-      clientId={Number(clientId)}
-      loading={loading.referrals}
+      clientId={clientIdNum}
+      loading={referralsQuery.isLoading}
     />
   )
 } 

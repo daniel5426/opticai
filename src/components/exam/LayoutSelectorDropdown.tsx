@@ -8,7 +8,6 @@ import type { ExamLayout } from "@/lib/db/schema-interface"
 type LayoutSelectorDropdownProps = {
   availableLayouts: ExamLayout[]
   onSelectLayout: (layoutId: number) => void | Promise<void>
-  onAddFullData?: () => void | Promise<void>
   onRequestLayouts?: () => void | Promise<void>
   isLoading?: boolean
   disabled?: boolean
@@ -33,7 +32,6 @@ const flattenLayouts = (nodes: ExamLayout[]): ExamLayout[] => {
 export const LayoutSelectorDropdown = ({
   availableLayouts,
   onSelectLayout,
-  onAddFullData,
   onRequestLayouts,
   isLoading,
   disabled,
@@ -51,8 +49,6 @@ export const LayoutSelectorDropdown = ({
       onRequestLayouts()
     }
   }
-
-  const FULL_DATA_ICON = "/icons/box.png";
 
   const renderNodes = (nodes: ExamLayout[]): React.ReactNode[] => {
     return nodes.flatMap(node => {
@@ -109,18 +105,6 @@ export const LayoutSelectorDropdown = ({
         <DropdownMenuItem dir="rtl" className="text-sm font-bold" disabled>
           הוספת פריסה
         </DropdownMenuItem>
-        {onAddFullData ? (
-          <DropdownMenuItem
-            dir="rtl"
-            className="text-sm"
-            onClick={onAddFullData}
-            disabled={isLoading}
-          >
-                        <img src={FULL_DATA_ICON} alt="כל הנתונים" style={{ width: "20px", height: "20px", objectFit: "contain" }} />
-
-            כל הנתונים
-          </DropdownMenuItem>
-        ) : null}
         {isLoading ? (
           <DropdownMenuItem dir="rtl" disabled className="text-sm">
             <Loader2 className="h-4 w-4 ml-2 animate-spin" />
@@ -137,4 +121,3 @@ export const LayoutSelectorDropdown = ({
     </DropdownMenu>
   )
 }
-

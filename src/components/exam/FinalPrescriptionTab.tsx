@@ -54,21 +54,42 @@ export function FinalPrescriptionTab({
     { key: "pris", ...EXAM_FIELDS.PRISM },
     { key: "base", ...EXAM_FIELDS.BASE, type: "select", options: BASE_VALUES_SIMPLE },
     { key: "ad", ...EXAM_FIELDS.ADD },
-    { key: "pd", ...EXAM_FIELDS.PD_FAR },
+    { key: "pd_far", ...EXAM_FIELDS.PD_FAR },
     { key: "pd_close", ...EXAM_FIELDS.PD_NEAR },
   ];
 
   const getFieldValue = (eye: "R" | "L" | "C", field: string) => {
     if (eye === "C") {
       const combField = `comb_${field}` as keyof FinalPrescriptionExam;
-      return finalPrescriptionData[combField]?.toString() || "";
+      const legacyCombField = field === "pd_far" ? "comb_pd" : undefined;
+      return (
+        finalPrescriptionData[combField]?.toString() ||
+        (legacyCombField
+          ? finalPrescriptionData[
+              legacyCombField as keyof FinalPrescriptionExam
+            ]?.toString()
+          : "") ||
+        ""
+      );
     }
     const eyeField = `${eye.toLowerCase()}_${field}` as keyof FinalPrescriptionExam;
-    return finalPrescriptionData[eyeField]?.toString() || "";
+    const legacyEyeField =
+      field === "pd_far"
+        ? `${eye.toLowerCase()}_pd`
+        : undefined;
+    return (
+      finalPrescriptionData[eyeField]?.toString() ||
+      (legacyEyeField
+        ? finalPrescriptionData[
+            legacyEyeField as keyof FinalPrescriptionExam
+          ]?.toString()
+        : "") ||
+      ""
+    );
   };
 
   const handleChange = (eye: "R" | "L" | "C", field: string, value: string) => {
-    if (field === "pd" || field === "pd_close") {
+    if (field === "pd_far" || field === "pd_close") {
       PDCalculationUtils.handlePDChange({
         eye,
         field,
@@ -169,12 +190,12 @@ export function FinalPrescriptionTab({
         return (
           <FastInput
             {...colProps}
-            max={key === "pd_close" ? PDFieldConfigProvider.getNearConfig(getFieldValue(eye, "pd")).max : colProps.max}
+            max={key === "pd_close" ? PDFieldConfigProvider.getNearConfig(getFieldValue(eye, "pd_far")).max : colProps.max}
             type="number" step={step}
             value={getFieldValue(eye, key)}
             onChange={(val) => handleChange(eye, key, val)}
             disabled={!isEditing}
-            debounceMs={key === "pd" || key === "pd_close" ? 0 : undefined}
+            debounceMs={key === "pd_far" || key === "pd_close" ? 0 : undefined}
             className={`h-8 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
           />
         );
@@ -219,7 +240,7 @@ export function FinalPrescriptionTab({
             {!hideEyeLabels && <div className="flex items-center justify-center h-8">
             </div>}
             {columns.map(({ key, step, ...colProps }) => {
-              if (key === 'pd' || key === 'pd_close') {
+              if (key === 'pd_far' || key === 'pd_close') {
                 const pdCombProps = EXAM_FIELDS.PD_COMB;
                 return (
                   <FastInput
@@ -230,7 +251,7 @@ export function FinalPrescriptionTab({
                     value={getFieldValue("C", key)}
                     onChange={(val) => handleChange("C", key, val)}
                     disabled={!isEditing}
-                    max={key === "pd_close" ? PDFieldConfigProvider.getNearConfig(getFieldValue("C", "pd")).max : pdCombProps.max}
+                    max={key === "pd_close" ? PDFieldConfigProvider.getNearConfig(getFieldValue("C", "pd_far")).max : pdCombProps.max}
                     debounceMs={0}
                     className={`h-8 text-xs ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
                   />

@@ -2,8 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from database import get_db
-from models import Client, Family, Clinic, User, OpticalExam, Appointment, Order, Referral, File, MedicalLog
-from schemas import ClientCreate, ClientUpdate, Client as ClientSchema
+from models import Client, Family, Clinic, User, OpticalExam, Appointment, Order, Referral, File, MedicalLog, ContactLensOrder, ExamLayoutInstance
+from schemas import ClientCreate, ClientUpdate, Client as ClientSchema, ClientOrdersContext
 from sqlalchemy import and_, func, or_
 from auth import get_current_user
 from utils.storage import upload_base64_image
@@ -130,6 +130,94 @@ def get_client(
     company_id = resolve_company_id(db, current_user)
     assert_clinic_belongs_to_company(db, client.clinic_id, company_id)
     return client
+
+def _has_value(value):
+    return value is not None and value != ""
+
+def _to_number_value(value):
+    if not _has_value(value):
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+def _collect_addition_add_sources(exam_data):
+    sources = {}
+    if not isinstance(exam_data, dict):
+        return sources
+
+    for key, value in exam_data.items():
+        if key != "addition" and not key.startswith("addition-"):
+            continue
+        if not isinstance(value, dict):
+            continue
+        for add_type in ("read", "int", "bif", "mul"):
+            r_value = _to_number_value(value.get(f"r_{add_type}"))
+            l_value = _to_number_value(value.get(f"l_{add_type}"))
+            if r_value is None and l_value is None:
+                continue
+            current = sources.get(add_type, {})
+            if r_value is not None:
+                current["r_ad"] = r_value
+            if l_value is not None:
+                current["l_ad"] = l_value
+            sources[add_type] = current
+    return sources
+
+@router.get("/{client_id}/orders-context", response_model=ClientOrdersContext)
+def get_client_orders_context(
+    client_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    client = db.query(Client).filter(Client.id == client_id).first()
+    if not client:
+        raise HTTPException(status_code=404, detail="Client not found")
+    company_id = resolve_company_id(db, current_user)
+    assert_clinic_belongs_to_company(db, client.clinic_id, company_id)
+
+    latest_exam = (
+        db.query(OpticalExam)
+        .filter(OpticalExam.client_id == client_id)
+        .order_by(OpticalExam.exam_date.desc().nulls_last(), OpticalExam.id.desc())
+        .first()
+    )
+    latest_regular_order = (
+        db.query(Order.id)
+        .filter(Order.client_id == client_id)
+        .order_by(Order.order_date.desc().nulls_last(), Order.id.desc())
+        .first()
+    )
+    latest_contact_order = (
+        db.query(ContactLensOrder.id)
+        .filter(ContactLensOrder.client_id == client_id)
+        .order_by(ContactLensOrder.order_date.desc().nulls_last(), ContactLensOrder.id.desc())
+        .first()
+    )
+
+    latest_exam_add_sources = {}
+    if latest_exam:
+        instances = (
+            db.query(ExamLayoutInstance.exam_data)
+            .filter(ExamLayoutInstance.exam_id == latest_exam.id)
+            .order_by(ExamLayoutInstance.order.asc().nulls_last(), ExamLayoutInstance.id.asc())
+            .all()
+        )
+        for (exam_data,) in instances:
+            instance_sources = _collect_addition_add_sources(exam_data or {})
+            for add_type, source in instance_sources.items():
+                latest_exam_add_sources[add_type] = {
+                    **latest_exam_add_sources.get(add_type, {}),
+                    **source,
+                }
+
+    return {
+        "latest_exam_id": latest_exam.id if latest_exam else None,
+        "latest_regular_order_id": latest_regular_order[0] if latest_regular_order else None,
+        "latest_contact_order_id": latest_contact_order[0] if latest_contact_order else None,
+        "latest_exam_add_sources": latest_exam_add_sources,
+    }
 
 @router.get("/", response_model=List[ClientSchema])
 def get_all_clients(

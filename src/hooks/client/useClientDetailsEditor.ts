@@ -7,12 +7,13 @@ import {
   normalizeClientForDraft,
   shouldClearStatusForHealthFund,
 } from "@/lib/client-details-editor"
+import { clientQueryKeys } from "@/hooks/client/useClientTabQueries"
 
 type ClientFieldValue = string | boolean | number | null
 
 export function useClientDetailsEditor(clientId: number) {
   const queryClient = useQueryClient()
-  const queryKey = useMemo(() => ["client", clientId] as const, [clientId])
+  const queryKey = useMemo(() => clientQueryKeys.client(clientId), [clientId])
   const [draftClient, setDraftClient] = useState<Client | null>(null)
   const [isEditing, setIsEditing] = useState(false)
 

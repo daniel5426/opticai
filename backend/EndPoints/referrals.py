@@ -114,7 +114,12 @@ def get_all_referrals(
 
 @router.get("/client/{client_id}", response_model=List[ReferralSchema])
 def get_referrals_by_client(client_id: int, db: Session = Depends(get_db)):
-    referrals = db.query(Referral).filter(Referral.client_id == client_id).all()
+    referrals = (
+        db.query(Referral)
+        .filter(Referral.client_id == client_id)
+        .order_by(Referral.date.desc().nulls_last(), Referral.id.desc())
+        .all()
+    )
     return referrals
 
 @router.put("/{referral_id}", response_model=ReferralSchema)

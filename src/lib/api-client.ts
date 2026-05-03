@@ -1,6 +1,6 @@
 import { 
   User, Company, Clinic, Client, Family, Settings, OpticalExam, Appointment, 
-  File, MedicalLog, Order, Billing, ExamLayout, ExamLayoutInstance,
+  File, MedicalLog, Order, ClientOrdersContext, Billing, ExamLayout, ExamLayoutInstance,
   LookupSupplier, LookupClinic, LookupOrderType, LookupReferralType,
   LookupLensModel, LookupColor, LookupMaterial, LookupCoating,
   LookupManufacturer, LookupFrameModel, LookupContactLensType,
@@ -668,6 +668,10 @@ class ApiClient {
 
   async getClient(id: number) {
     return this.request<Client>(`/clients/${id}`);
+  }
+
+  async getClientOrdersContext(id: number) {
+    return this.request<ClientOrdersContext>(`/clients/${id}/orders-context`);
   }
 
   async createClient(client: any) {

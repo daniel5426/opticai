@@ -1,33 +1,48 @@
 import React from "react"
 import { useParams } from "@tanstack/react-router"
 import { AppointmentsTable } from "@/components/appointments-table"
-import { useClientData } from "@/contexts/ClientDataContext"
+import { useQueryClient } from "@tanstack/react-query"
+import {
+  clientQueryKeys,
+  removeQueryItemById,
+  useClientAppointmentsQuery,
+} from "@/hooks/client/useClientTabQueries"
+import { Appointment } from "@/lib/db/schema-interface"
 
-export function ClientAppointmentsTab() {
+interface ClientAppointmentsTabProps {
+  enabled?: boolean
+}
+
+export function ClientAppointmentsTab({ enabled = true }: ClientAppointmentsTabProps) {
   const { clientId } = useParams({ from: "/clients/$clientId" })
-  const { appointments, loading, removeAppointment, refreshAppointments } = useClientData()
+  const clientIdNum = Number(clientId)
+  const queryClient = useQueryClient()
+  const appointmentsQuery = useClientAppointmentsQuery(clientIdNum, enabled)
+  const queryKey = clientQueryKeys.appointments(clientIdNum)
 
   const handleAppointmentChange = () => {
-    refreshAppointments()
+    queryClient.invalidateQueries({ queryKey })
   }
 
   const handleAppointmentDeleted = (deletedAppointmentId: number) => {
-    removeAppointment(deletedAppointmentId)
+    queryClient.setQueryData<Appointment[]>(queryKey, (current) =>
+      removeQueryItemById(current, deletedAppointmentId),
+    )
   }
 
   const handleAppointmentDeleteFailed = () => {
-    refreshAppointments()
+    queryClient.invalidateQueries({ queryKey })
   }
 
   return (
     <div className="space-y-4" style={{scrollbarWidth: 'none'}}>
       <AppointmentsTable 
-        data={appointments} 
-        clientId={Number(clientId)} 
+        data={appointmentsQuery.data || []} 
+        clientId={clientIdNum} 
         onAppointmentChange={handleAppointmentChange} 
         onAppointmentDeleted={handleAppointmentDeleted}
         onAppointmentDeleteFailed={handleAppointmentDeleteFailed}
-        loading={loading.appointments}
+        loading={appointmentsQuery.isLoading}
       />
     </div>
   )

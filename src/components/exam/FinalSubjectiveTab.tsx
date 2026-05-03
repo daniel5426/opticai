@@ -1,13 +1,12 @@
 import React, { useState, useRef } from "react"
 import { Card, CardContent } from "@/components/ui/card"
-import { VHCalculatorModal } from "@/components/ui/vh-calculator-modal"
 import { FinalSubjectiveExam } from "@/lib/db/schema-interface"
 import { ChevronUp, ChevronDown } from "lucide-react"
 import { EXAM_FIELDS, PDFieldConfigProvider } from "./data/exam-field-definitions"
 import { BASE_VALUES_SIMPLE, PDCalculationUtils } from "./data/exam-constants"
 import { VASelect } from "./shared/VASelect"
 import { NVJSelect } from "./shared/NVJSelect"
-import { FastInput, FastSelect, inputSyncManager } from "./shared/OptimizedInputs"
+import { FastInput, FastSelect } from "./shared/OptimizedInputs"
 import { usePrescriptionLogic } from "./shared/usePrescriptionLogic"
 import { CylTitle } from "./shared/CylTitle"
 import { useAxisWarning } from "./shared/useAxisWarning"
@@ -19,7 +18,6 @@ interface FinalSubjectiveTabProps {
   finalSubjectiveData: FinalSubjectiveExam;
   onFinalSubjectiveChange: (field: keyof FinalSubjectiveExam, value: string) => void;
   isEditing: boolean;
-  onVHConfirm: (rightPrisH: number, rightBaseH: string, rightPrisV: number, rightBaseV: string, leftPrisH: number, leftBaseH: string, leftPrisV: number, leftBaseV: string) => void;
   hideEyeLabels?: boolean;
 }
 
@@ -27,7 +25,6 @@ export function FinalSubjectiveTab({
   finalSubjectiveData,
   onFinalSubjectiveChange,
   isEditing,
-  onVHConfirm,
   hideEyeLabels = false
 }: FinalSubjectiveTabProps) {
   const [hoveredEye, setHoveredEye] = useState<"R" | "L" | null>(null);
@@ -260,13 +257,6 @@ export function FinalSubjectiveTab({
             {!hideEyeLabels && <div className="flex items-center justify-center h-8"></div>}
             {columns.map((col) => {
               const { key } = col;
-              if (key === 'pris') {
-                return (
-                  <div key="c-vh-calculator" className="flex justify-center">
-                    <VHCalculatorModal onConfirm={() => { }} onRawConfirm={onVHConfirm} disabled={!isEditing} />
-                  </div>
-                );
-              }
               if (key === 'va' || key === 'j' || key === 'pd_far' || key === 'pd_close') {
                 return (
                   <div key={`c-${key}`}>

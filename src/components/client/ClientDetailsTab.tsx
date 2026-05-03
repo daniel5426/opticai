@@ -609,23 +609,6 @@ export function ClientDetailsTab({
             <div className="grid grid-cols-1 @[900px]:grid-cols-2 gap-4" dir="rtl">
               <div className="space-y-2">
                 <ModernLabel>
-                  שם משפחה
-                  {isNewMode && <span className="text-red-500 mr-1">*</span>}
-                </ModernLabel>
-                <Input
-                  type="text"
-                  name="last_name"
-                  value={formData.last_name || ''}
-                  onChange={handleInputChange}
-                  disabled={!showEditableFields}
-                  className={`text-sm h-9 disabled:opacity-100 disabled:cursor-default`}
-                  placeholder={showEditableFields ? "הכנס שם משפחה" : ""}
-                  required={isNewMode}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <ModernLabel>
                   שם פרטי
                   {isNewMode && <span className="text-red-500 mr-1">*</span>}
                 </ModernLabel>
@@ -637,6 +620,23 @@ export function ClientDetailsTab({
                   disabled={!showEditableFields}
                   className={`text-sm h-9 disabled:opacity-100 disabled:cursor-default`}
                   placeholder={showEditableFields ? "הכנס שם פרטי" : ""}
+                  required={isNewMode}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <ModernLabel>
+                  שם משפחה
+                  {isNewMode && <span className="text-red-500 mr-1">*</span>}
+                </ModernLabel>
+                <Input
+                  type="text"
+                  name="last_name"
+                  value={formData.last_name || ''}
+                  onChange={handleInputChange}
+                  disabled={!showEditableFields}
+                  className={`text-sm h-9 disabled:opacity-100 disabled:cursor-default`}
+                  placeholder={showEditableFields ? "הכנס שם משפחה" : ""}
                   required={isNewMode}
                 />
               </div>

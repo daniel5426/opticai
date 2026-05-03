@@ -1,4 +1,4 @@
-import { useCallback, useRef } from "react";
+import { startTransition, useCallback, useRef } from "react";
 import { toast } from "sonner";
 import { ExamLayout, ExamLayoutInstance } from "@/lib/db/schema-interface";
 import { CardItem } from "@/components/exam/ExamCardRenderer";
@@ -6,17 +6,20 @@ import {
   addLayoutToExam,
   setActiveExamLayoutInstance,
   deleteExamLayoutInstance,
-  createExamLayoutInstance,
-  updateExamLayoutInstance,
   reorderExamLayoutInstances,
 } from "@/lib/db/exam-layouts-db";
 import { examComponentRegistry } from "@/lib/exam-component-registry";
 import { CardRow, LayoutTab } from "@/pages/exam-detail/types";
 import {
   collectLeafLayouts,
-  isNonEmptyComponent,
-  packCardsIntoRows,
+  createParsedLayoutCache,
   FULL_DATA_NAME,
+  isInternalFullDataTab,
+  isNonEmptyComponent,
+  isPersistableLayoutTab,
+  packCardsIntoRows,
+  VIRTUAL_FULL_DATA_TAB_ID,
+  isVirtualFullDataTabId,
 } from "@/pages/exam-detail/utils";
 
 interface UseLayoutTabsParams {
@@ -65,12 +68,20 @@ export function useLayoutTabs({
   fullDataSourcesRef,
   loadExamComponentData,
   initializeFormData,
-  applyLayoutStructure,
   setIsAddingLayouts,
   tempLayoutIdCounterRef,
   latestLoadIdRef,
 }: UseLayoutTabsParams) {
-  const isRegeneratingFullDataRef = useRef(false);
+  const parsedLayoutCacheRef = useRef(createParsedLayoutCache());
+
+  const applyParsedLayout = useCallback(
+    (instanceId: number | string, layoutData?: string) => {
+      const parsed = parsedLayoutCacheRef.current.get(instanceId, layoutData);
+      setCardRows(parsed.rows);
+      setCustomWidths(parsed.customWidths);
+    },
+    [setCardRows, setCustomWidths],
+  );
 
   // Get contributing instance IDs for full data aggregation
   const getContributingInstanceIds = useCallback(
@@ -80,7 +91,7 @@ export function useLayoutTabs({
       return layoutTabs
         .filter(
           (tab) =>
-            tab.name !== FULL_DATA_NAME &&
+            tab.layout_id != null &&
             (excludedKey === null || String(tab.id) !== excludedKey),
         )
         .map((tab) => String(tab.id));
@@ -96,9 +107,20 @@ export function useLayoutTabs({
         : null;
       const aggregated: Record<string, any> = {};
       const addedInstanceIds = new Set<string>();
+      const sourceBuckets =
+        activeInstanceId != null && !isVirtualFullDataTabId(activeInstanceId)
+          ? {
+              ...examFormDataByInstance,
+              [activeInstanceId]: examFormData,
+            }
+          : examFormDataByInstance;
 
-      Object.entries(examFormDataByInstance).forEach(([instanceKey, bucket]) => {
+      Object.entries(sourceBuckets).forEach(([instanceKey, bucket]) => {
         if (allowed && !allowed.has(instanceKey)) return;
+        const numericInstanceKey = Number(instanceKey);
+        const sourceInstanceId = Number.isFinite(numericInstanceKey)
+          ? numericInstanceKey
+          : instanceKey;
 
         const keys = Object.keys(bucket || {}).sort((a, b) => {
           const aHasHyphen = a.includes('-');
@@ -116,7 +138,11 @@ export function useLayoutTabs({
           if (instanceId && addedInstanceIds.has(instanceId)) return;
 
           if (isNonEmptyComponent(key, val)) {
-            aggregated[key] = val;
+            aggregated[key] = {
+              ...(val as any),
+              layout_instance_id:
+                (val as any)?.layout_instance_id ?? sourceInstanceId,
+            };
             if (instanceId) addedInstanceIds.add(instanceId);
           }
         });
@@ -124,7 +150,7 @@ export function useLayoutTabs({
 
       return aggregated;
     },
-    [examFormDataByInstance],
+    [activeInstanceId, examFormData, examFormDataByInstance],
   );
 
   // Build full data layout structure
@@ -203,7 +229,7 @@ export function useLayoutTabs({
 
   // Build full data bucket for an instance
   const buildFullDataBucket = useCallback(
-    (instanceId: number): Record<string, any> => {
+    (instanceId: number = VIRTUAL_FULL_DATA_TAB_ID): Record<string, any> => {
       const aggregated = aggregateAllData(getContributingInstanceIds(instanceId));
       const bucket: Record<string, any> = {};
       const sources: Record<string, number | string | null> = {};
@@ -244,14 +270,67 @@ export function useLayoutTabs({
     [aggregateAllData, getContributingInstanceIds, fullDataSourcesRef],
   );
 
+  const activateFullDataTab = useCallback(() => {
+    ++latestLoadIdRef.current;
+    const layoutData = buildFullDataLayoutData();
+    const bucket = layoutData
+      ? buildFullDataBucket(VIRTUAL_FULL_DATA_TAB_ID)
+      : {};
+    if (!layoutData) {
+      delete fullDataSourcesRef.current[VIRTUAL_FULL_DATA_TAB_ID];
+    }
+
+    setLayoutTabs((prev) => {
+      const withoutFullData = prev.filter((tab) => !isInternalFullDataTab(tab));
+      return [
+        ...withoutFullData.map((tab) => ({ ...tab, isActive: false })),
+        {
+          id: VIRTUAL_FULL_DATA_TAB_ID,
+          layout_id: null,
+          name: FULL_DATA_NAME,
+          layout_data: layoutData || "[]",
+          isActive: true,
+        },
+      ];
+    });
+    setActiveInstanceId(VIRTUAL_FULL_DATA_TAB_ID);
+    setExamFormDataByInstance((prev) => ({
+      ...prev,
+      [VIRTUAL_FULL_DATA_TAB_ID]: bucket,
+    }));
+    setExamFormData(bucket);
+
+    startTransition(() => {
+      applyParsedLayout(VIRTUAL_FULL_DATA_TAB_ID, layoutData || undefined);
+    });
+  }, [
+    buildFullDataLayoutData,
+    buildFullDataBucket,
+    setLayoutTabs,
+    setActiveInstanceId,
+    applyParsedLayout,
+    setExamFormData,
+    fullDataSourcesRef,
+    latestLoadIdRef,
+  ]);
+
   // Handle layout tab change
   const handleLayoutTabChange = useCallback(
-    async (tabId: number) => {
+    (tabId: number) => {
+      if (isVirtualFullDataTabId(tabId)) {
+        activateFullDataTab();
+        return;
+      }
+
       const selectedTab = layoutTabs.find((tab) => tab.id === tabId);
       if (!selectedTab) return;
+      if (selectedTab.layout_id == null) {
+        activateFullDataTab();
+        return;
+      }
 
       try {
-        const loadId = ++latestLoadIdRef.current;
+        ++latestLoadIdRef.current;
         const updatedTabs = layoutTabs.map((tab) => ({
           ...tab,
           isActive: tab.id === tabId,
@@ -260,29 +339,21 @@ export function useLayoutTabs({
         setLayoutTabs(updatedTabs);
         setActiveInstanceId(selectedTab.id);
 
-        const parsedLayout = JSON.parse(selectedTab.layout_data);
-        if (Array.isArray(parsedLayout)) {
-          setCardRows(parsedLayout);
-          setCustomWidths({});
-        } else {
-          setCardRows(parsedLayout.rows || []);
-          setCustomWidths(parsedLayout.customWidths || {});
-        }
+        startTransition(() => {
+          applyParsedLayout(selectedTab.id, selectedTab.layout_data);
 
-        const existingBucket = examFormDataByInstance[selectedTab.id];
-        if (selectedTab.name === FULL_DATA_NAME && selectedTab.layout_data) {
-          const refreshedBucket = buildFullDataBucket(selectedTab.id);
-          setExamFormDataByInstance((prev) => ({
-            ...prev,
-            [selectedTab.id]: refreshedBucket,
-          }));
-          setExamFormData(refreshedBucket);
-        } else if (existingBucket && Object.keys(existingBucket).length > 0) {
-          setExamFormData(existingBucket);
-        }
+          const existingBucket = examFormDataByInstance[selectedTab.id];
+          if (existingBucket && Object.keys(existingBucket).length > 0) {
+            setExamFormData(existingBucket);
+          } else {
+            setExamFormData({});
+          }
+        });
 
-        if (exam && exam.id && !isNewMode) {
-          await setActiveExamLayoutInstance(exam.id, tabId);
+        if (exam && exam.id && !isNewMode && selectedTab.layout_id != null) {
+          setActiveExamLayoutInstance(exam.id, tabId).catch((error) => {
+            console.error("Error saving active layout tab:", error);
+          });
         }
       } catch (error) {
         console.error("Error changing layout tab:", error);
@@ -294,12 +365,10 @@ export function useLayoutTabs({
       exam,
       isNewMode,
       examFormDataByInstance,
-      buildFullDataBucket,
+      activateFullDataTab,
+      applyParsedLayout,
       setLayoutTabs,
       setActiveInstanceId,
-      setCardRows,
-      setCustomWidths,
-      setExamFormDataByInstance,
       setExamFormData,
       latestLoadIdRef,
     ],
@@ -311,15 +380,18 @@ export function useLayoutTabs({
       if (index === undefined) return;
 
       const draggedTabId = Number(id);
-      const currentIndex = layoutTabs.findIndex((tab) => tab.id === draggedTabId);
+      const visibleTabs = layoutTabs.filter(isPersistableLayoutTab);
+      const hiddenTabs = layoutTabs.filter((tab) => !isPersistableLayoutTab(tab));
+      const currentIndex = visibleTabs.findIndex((tab) => tab.id === draggedTabId);
 
       if (currentIndex === -1 || currentIndex === index) return;
 
-      const newTabs = [...layoutTabs];
+      const newTabs = [...visibleTabs];
       const [removed] = newTabs.splice(currentIndex, 1);
       newTabs.splice(index, 0, removed);
+      const nextTabs = [...newTabs, ...hiddenTabs];
 
-      setLayoutTabs(newTabs);
+      setLayoutTabs(nextTabs);
       if (!exam || !exam.id || isNewMode) {
         return;
       }
@@ -386,7 +458,7 @@ export function useLayoutTabs({
         });
         if (activate) {
           setActiveInstanceId(newLayoutInstance.id || null);
-          applyLayoutStructure(layout.layout_data);
+          applyParsedLayout(newLayoutInstance.id || 0, layout.layout_data);
           if (newLayoutInstance.id) {
             await loadExamComponentData(newLayoutInstance.id, layout.layout_data, true);
           }
@@ -412,7 +484,7 @@ export function useLayoutTabs({
         initializeFormData(tempId, layout.layout_data, activate);
         if (activate) {
           setActiveInstanceId(tempId);
-          applyLayoutStructure(layout.layout_data);
+          applyParsedLayout(tempId, layout.layout_data);
         }
       }
       return { added: true, existed: false };
@@ -424,7 +496,7 @@ export function useLayoutTabs({
       handleLayoutTabChange,
       setLayoutTabs,
       setActiveInstanceId,
-      applyLayoutStructure,
+      applyParsedLayout,
       loadExamComponentData,
       initializeFormData,
       tempLayoutIdCounterRef,
@@ -495,191 +567,19 @@ export function useLayoutTabs({
     [handleSelectLayoutOption],
   );
 
-  // Handle add full data tab
   const handleAddFullDataTab = useCallback(async () => {
-    const existing = layoutTabs.find((t) => t.name === FULL_DATA_NAME);
-    if (existing) {
-      handleLayoutTabChange(existing.id);
-      return;
-    }
+    activateFullDataTab();
+  }, [activateFullDataTab]);
 
-    const layoutData = buildFullDataLayoutData();
-    if (!layoutData) {
-      toast.info("אין נתונים להצגה ");
-      return;
-    }
-    if (exam && exam.id && !isNewMode) {
-      const newInstance = await createExamLayoutInstance({
-        exam_id: exam.id,
-        layout_id: null,
-        is_active: true,
-        order: 0,
-        layout_data: layoutData,
-      } as any);
-      if (!newInstance || !newInstance.id) {
-        toast.error("שגיאה בהוספת פריסת הנתונים");
-        return;
-      }
-      const updatedTabs = layoutTabs.map((t) => ({ ...t, isActive: false }));
-      const newTab = {
-        id: newInstance.id || 0,
-        layout_id: null as any,
-        name: FULL_DATA_NAME,
-        layout_data: layoutData,
-        isActive: true,
-      };
-      setLayoutTabs([...updatedTabs, newTab]);
-      setActiveInstanceId(newInstance.id || null);
-      const seedBucket = buildFullDataBucket(newInstance.id!);
-      setExamFormDataByInstance((prev) => ({
-        ...prev,
-        [newInstance.id!]: seedBucket,
-      }));
-      setExamFormData(seedBucket);
-      try {
-        const parsed = JSON.parse(layoutData);
-        if (Array.isArray(parsed)) {
-          setCardRows(parsed);
-          setCustomWidths({});
-        } else {
-          setCardRows(parsed.rows || []);
-          setCustomWidths(parsed.customWidths || {});
-        }
-      } catch { }
-      toast.success("פריסת הנתונים הוספה לבדיקה");
-    } else {
-      const updatedTabs = layoutTabs.map((t) => ({ ...t, isActive: false }));
-      const tempId = -Date.now();
-      const newTab = {
-        id: tempId,
-        layout_id: 0,
-        name: FULL_DATA_NAME,
-        layout_data: layoutData,
-        isActive: true,
-      };
-      setLayoutTabs([...updatedTabs, newTab]);
-      setActiveInstanceId(tempId);
-      try {
-        const parsed = JSON.parse(layoutData);
-        if (Array.isArray(parsed)) {
-          setCardRows(parsed);
-          setCustomWidths({});
-        } else {
-          setCardRows(parsed.rows || []);
-          setCustomWidths(parsed.customWidths || {});
-        }
-      } catch { }
-      const seedBucket = buildFullDataBucket(tempId);
-      setExamFormData(seedBucket);
-      setExamFormDataByInstance((prev) => ({ ...prev, [tempId]: seedBucket }));
-      toast.success("פריסת הנתונים הוספה לבדיקה");
-    }
-  }, [
-    layoutTabs,
-    exam,
-    isNewMode,
-    buildFullDataLayoutData,
-    buildFullDataBucket,
-    handleLayoutTabChange,
-    setLayoutTabs,
-    setActiveInstanceId,
-    setExamFormDataByInstance,
-    setExamFormData,
-    setCardRows,
-    setCustomWidths,
-  ]);
-
-  const EMPTY_FULL_DATA_LAYOUT = JSON.stringify({ rows: [], customWidths: {} });
-
-  // Handle regenerate full data
   const handleRegenerateFullData = useCallback(async () => {
-    const active = layoutTabs.find((t) => t.isActive);
-    if (!active || active.name !== FULL_DATA_NAME) return;
-
-    isRegeneratingFullDataRef.current = true;
-    try {
-      const layoutData = buildFullDataLayoutData();
-      if (!layoutData) {
-        if (exam && exam.id && !isNewMode && active.id > 0) {
-          await updateExamLayoutInstance({
-            id: active.id,
-            exam_id: exam.id,
-            layout_id: null as any,
-            layout_data: EMPTY_FULL_DATA_LAYOUT,
-          } as any);
-        }
-        delete fullDataSourcesRef.current[active.id];
-        setExamFormDataByInstance((prev) => ({ ...prev, [active.id]: {} }));
-        setExamFormData({});
-        setLayoutTabs((prev) =>
-          prev.map((t) =>
-            t.id === active.id
-              ? { ...t, layout_data: EMPTY_FULL_DATA_LAYOUT }
-              : t,
-          ),
-        );
-        setCardRows([]);
-        setCustomWidths({});
-        toast.info("אין נתונים להצגה בפריסת הנתונים");
-        return;
-      }
-      if (exam && exam.id && !isNewMode && active.id > 0) {
-        await updateExamLayoutInstance({
-          id: active.id,
-          exam_id: exam.id,
-          layout_id: null as any,
-          layout_data: layoutData,
-        } as any);
-        const seedBucket = buildFullDataBucket(active.id);
-        setExamFormDataByInstance((prev) => ({
-          ...prev,
-          [active.id]: seedBucket,
-        }));
-        setExamFormData(seedBucket);
-      } else {
-        const seedBucket = buildFullDataBucket(active.id);
-        setExamFormDataByInstance((prev) => ({
-          ...prev,
-          [active.id]: seedBucket,
-        }));
-        setExamFormData(seedBucket);
-      }
-      const newTabs = layoutTabs.map((t) =>
-        t.id === active.id ? { ...t, layout_data: layoutData } : t,
-      );
-      setLayoutTabs(newTabs);
-      try {
-        const parsed = JSON.parse(layoutData);
-        if (Array.isArray(parsed)) {
-          setCardRows(parsed);
-          setCustomWidths({});
-        } else {
-          setCardRows(parsed.rows || []);
-          setCustomWidths(parsed.customWidths || {});
-        }
-      } catch { }
-      toast.success("פריסת הנתונים רועננה");
-    } finally {
-      isRegeneratingFullDataRef.current = false;
-    }
-  }, [
-    layoutTabs,
-    exam,
-    isNewMode,
-    buildFullDataLayoutData,
-    buildFullDataBucket,
-    fullDataSourcesRef,
-    setLayoutTabs,
-    setExamFormDataByInstance,
-    setExamFormData,
-    setCardRows,
-    setCustomWidths,
-  ]);
+    activateFullDataTab();
+  }, [activateFullDataTab]);
 
   // Handle remove layout tab
   const handleRemoveLayoutTab = useCallback(
     async (tabId: number) => {
-      if (layoutTabs.length <= 1) {
+      const removableTabs = layoutTabs.filter(isPersistableLayoutTab);
+      if (removableTabs.length <= 1) {
         toast.error("לא ניתן להסיר את הלשונית האחרונה");
         return;
       }
@@ -688,6 +588,7 @@ export function useLayoutTabs({
       if (tabIndex === -1) return;
 
       const tabToRemove = layoutTabs[tabIndex];
+      if (!isPersistableLayoutTab(tabToRemove)) return;
       const isActive = tabToRemove.isActive;
       delete fullDataSourcesRef.current[tabId];
 
@@ -698,32 +599,30 @@ export function useLayoutTabs({
       let newActiveTabId: number | null = null;
       let nextActiveFormData: Record<string, any> | null = null;
 
-      if (isActive && updatedTabs.length > 0) {
-        const newActiveIndex = Math.min(tabIndex, updatedTabs.length - 1);
-        const newActiveTab = { ...updatedTabs[newActiveIndex], isActive: true };
-        updatedTabs[newActiveIndex] = newActiveTab;
+      if (isActive && updatedTabs.some(isPersistableLayoutTab)) {
+        const realTabs = updatedTabs.filter(isPersistableLayoutTab);
+        const newActiveIndex = Math.min(tabIndex, realTabs.length - 1);
+        const selectedActiveTabId = realTabs[newActiveIndex].id;
+        const selectedUpdatedIndex = updatedTabs.findIndex(
+          (tab) => tab.id === selectedActiveTabId,
+        );
+        const newActiveTab = {
+          ...updatedTabs[selectedUpdatedIndex],
+          isActive: true,
+        };
+        updatedTabs[selectedUpdatedIndex] = newActiveTab;
         newActiveTabId = newActiveTab.id;
         nextActiveFormData = examFormDataByInstance[newActiveTabId] || {};
 
         setActiveInstanceId(newActiveTabId);
         setExamFormData(nextActiveFormData);
 
-        try {
-          const parsedLayout = JSON.parse(newActiveTab.layout_data);
-          if (Array.isArray(parsedLayout)) {
-            setCardRows(parsedLayout);
-            setCustomWidths({});
-          } else {
-            setCardRows(parsedLayout.rows || []);
-            setCustomWidths(parsedLayout.customWidths || {});
-          }
-        } catch (error) {
-          console.error("Error applying layout after tab removal:", error);
-        }
+        applyParsedLayout(newActiveTab.id, newActiveTab.layout_data);
       }
 
       // Update the tabs state immediately
       setLayoutTabs(updatedTabs);
+      parsedLayoutCacheRef.current.clear(tabId);
       setExamFormDataByInstance((prev) => {
         const next = { ...prev };
         delete next[tabId];
@@ -750,7 +649,11 @@ export function useLayoutTabs({
                 toast.error("שגיאה במחיקת פריסה מהשרת");
               }
 
-              if (isActive && newActiveTabId !== null) {
+              if (
+                isActive &&
+                newActiveTabId !== null &&
+                !isVirtualFullDataTabId(newActiveTabId)
+              ) {
                 // Return this promise so it can be caught by the chain if needed,
                 // though we mainly just want it to execute sequentially
                 return setActiveExamLayoutInstance(exam.id, newActiveTabId);
@@ -773,9 +676,8 @@ export function useLayoutTabs({
       setActiveInstanceId,
       setExamFormData,
       setExamFormDataByInstance,
-      setCardRows,
-      setCustomWidths,
       fullDataSourcesRef,
+      applyParsedLayout,
     ],
   );
 
@@ -792,6 +694,6 @@ export function useLayoutTabs({
     buildFullDataLayoutData,
     aggregateAllData,
     getContributingInstanceIds,
-    isRegeneratingFullData: isRegeneratingFullDataRef.current,
+    isRegeneratingFullData: false,
   };
 }

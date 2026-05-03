@@ -4,6 +4,7 @@ import { Settings, X, ArrowRight, ArrowDown, ArrowLeft, Copy, ClipboardPaste, Hi
 import { ExamFieldMapper, ExamComponentType, ExamDataType } from "@/lib/exam-field-mappings"
 import { CardItem } from "./ExamCardRenderer"
 import { inputSyncManager } from "./shared/OptimizedInputs"
+import { PDCalculationUtils } from "./data/exam-constants"
 
 interface ExamToolboxProps {
   isEditing: boolean
@@ -329,6 +330,24 @@ export function createToolboxActions(
 
     const sourcePrefix = fromEye === "R" ? "r_" : "l_"
     const targetPrefix = fromEye === "R" ? "l_" : "r_"
+    const targetEye = fromEye === "R" ? "L" : "R"
+
+    const copyPDField = (field: string, value: unknown) => {
+      const pdField = field.slice(2)
+      if (pdField !== "pd" && pdField !== "pd_far" && pdField !== "pd_close") return false
+
+      PDCalculationUtils.handlePDChange({
+        eye: targetEye,
+        field: pdField,
+        value: String(value ?? ""),
+        data,
+        onChange: (changedField, changedValue) => changeHandler(String(changedField), changedValue),
+        getRValue: (currentData, f) => parseFloat(currentData[`r_${f}`]?.toString() || "0") || 0,
+        getLValue: (currentData, f) => parseFloat(currentData[`l_${f}`]?.toString() || "0") || 0
+      })
+
+      return true
+    }
 
     Object.keys(data).forEach((field) => {
       if (!field.startsWith(sourcePrefix)) return
@@ -336,6 +355,7 @@ export function createToolboxActions(
       const targetField = `${targetPrefix}${field.slice(2)}`
       const value = data[field]
       if (value !== undefined) {
+        if (copyPDField(field, value)) return
         changeHandler(targetField, String(value ?? ""))
       }
     })

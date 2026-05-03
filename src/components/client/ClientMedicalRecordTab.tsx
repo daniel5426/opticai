@@ -1,39 +1,45 @@
-import React, { useState, ChangeEvent, useRef, useEffect } from "react";
+import React, { useState, ChangeEvent, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { PencilIcon, Plus, SaveIcon, TrashIcon } from "lucide-react";
 import { useParams } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   createMedicalLog as createMedicalLogApi,
   updateMedicalLog as updateMedicalLogApi,
   deleteMedicalLog as deleteMedicalLogApi,
 } from "@/lib/db/medical-logs-db";
 import { MedicalLog } from "@/lib/db/schema-interface";
-import { useClientData } from "@/contexts/ClientDataContext";
 import { useUser } from "@/contexts/UserContext";
 import { DateInput } from "@/components/ui/date";
+import {
+  clientQueryKeys,
+  removeQueryItemById,
+  replaceQueryItemById,
+  upsertQueryItemById,
+  useClientMedicalLogsQuery,
+} from "@/hooks/client/useClientTabQueries";
 
 type MedicalRecord = MedicalLog & {
   isEditing?: boolean;
-  isDatePickerOpen?: boolean;
-  tempDateValue?: string;
 };
 
-export const ClientMedicalRecordTab = () => {
+interface ClientMedicalRecordTabProps {
+  enabled?: boolean;
+}
+
+export const ClientMedicalRecordTab = ({ enabled = true }: ClientMedicalRecordTabProps) => {
   const { clientId } = useParams({ from: "/clients/$clientId" });
-  const {
-    medicalLogs,
-    loading,
-    addMedicalLog,
-    updateMedicalLog: updateMedicalLogInContext,
-    removeMedicalLog,
-  } = useClientData();
+  const clientIdNum = Number(clientId);
+  const queryClient = useQueryClient();
+  const medicalLogsQuery = useClientMedicalLogsQuery(clientIdNum, enabled);
+  const medicalLogs = medicalLogsQuery.data || [];
+  const queryKey = clientQueryKeys.medicalLogs(clientIdNum);
   const { currentClinic } = useUser();
   const [records, setRecords] = useState<MedicalRecord[]>([]);
   const [tempIdCounter, setTempIdCounter] = useState(-1);
-  const datePickerRefs = useRef<{ [key: number]: HTMLDivElement | null }>({});
 
   useEffect(() => {
     const sortedLogs = [...medicalLogs].sort((a, b) => {
@@ -49,67 +55,10 @@ export const ClientMedicalRecordTab = () => {
       const normalizedSaved = sortedLogs.map((log) => ({
         ...log,
         isEditing: false,
-        isDatePickerOpen: false,
       }));
       return [...tempRecords, ...normalizedSaved];
     });
   }, [medicalLogs]);
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      records.forEach((record) => {
-        if (record.isDatePickerOpen && record.id !== undefined) {
-          const pickerElement = datePickerRefs.current[record.id];
-          if (pickerElement && !pickerElement.contains(event.target as Node)) {
-            if (record.tempDateValue) {
-              const newDate = new Date(record.tempDateValue);
-              if (!isNaN(newDate.getTime())) {
-                setRecords((prevRecords) => {
-                  const updated = prevRecords.map((r) =>
-                    r.id === record.id
-                      ? {
-                          ...r,
-                          log_date: record.tempDateValue,
-                          isDatePickerOpen: false,
-                          tempDateValue: undefined,
-                        }
-                      : r,
-                  );
-                  const temps = updated.filter((r) => (r.id || 0) < 0);
-                  const saved = updated
-                    .filter((r) => (r.id || 0) > 0)
-                    .sort((a, b) => {
-                      const dateA = new Date(a.log_date || "").getTime();
-                      const dateB = new Date(b.log_date || "").getTime();
-                      if (dateB !== dateA) {
-                        return dateB - dateA;
-                      }
-                      return (b.id || 0) - (a.id || 0);
-                    });
-                  return [...temps, ...saved];
-                });
-                toast.success("תאריך הרשומה עודכן בהצלחה");
-                return;
-              }
-            }
-
-            setRecords((prevRecords) =>
-              prevRecords.map((r) =>
-                r.id === record.id
-                  ? { ...r, isDatePickerOpen: false, tempDateValue: undefined }
-                  : r,
-              ),
-            );
-          }
-        }
-      });
-    };
-
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, [records]);
 
   const addNewRecord = () => {
     const newTempId = tempIdCounter - 1;
@@ -121,7 +70,6 @@ export const ClientMedicalRecordTab = () => {
       log_date: new Date().toISOString().split("T")[0],
       log: "",
       isEditing: true,
-      isDatePickerOpen: false,
     };
     setRecords((prev) => {
       const updatedRecords = [newRecord, ...prev];
@@ -171,7 +119,9 @@ export const ClientMedicalRecordTab = () => {
               });
             return [...temps, ...saved];
           });
-          addMedicalLog(newLog);
+          queryClient.setQueryData<MedicalLog[]>(queryKey, (current) =>
+            upsertQueryItemById(current, newLog),
+          );
           toast.success("הרשומה נשמרה בהצלחה");
         } else {
           setRecords((prev) =>
@@ -208,7 +158,9 @@ export const ClientMedicalRecordTab = () => {
               });
             return [...temps, ...saved];
           });
-          updateMedicalLogInContext(updatedLog);
+          queryClient.setQueryData<MedicalLog[]>(queryKey, (current) =>
+            replaceQueryItemById(current, updatedLog),
+          );
           toast.success("הרשומה עודכנה בהצלחה");
         } else {
           setRecords((prev) =>
@@ -243,7 +195,9 @@ export const ClientMedicalRecordTab = () => {
         setRecords((prev) => prev.filter((record) => record.id !== id));
         const success = await deleteMedicalLogApi(id);
         if (success) {
-          removeMedicalLog(id);
+          queryClient.setQueryData<MedicalLog[]>(queryKey, (current) =>
+            removeQueryItemById(current, id),
+          );
           toast.success("הרשומה נמחקה בהצלחה");
         } else {
           setRecords(previous);
@@ -255,46 +209,16 @@ export const ClientMedicalRecordTab = () => {
     }
   };
 
-  const toggleDatePicker = (id: number) => {
-    const record = records.find((r) => r.id === id);
-    if (record) {
-      setRecords(
-        records.map((r) =>
-          r.id === id
-            ? {
-                ...r,
-                isDatePickerOpen: !r.isDatePickerOpen,
-                tempDateValue: !r.isDatePickerOpen
-                  ? r.log_date
-                  : r.tempDateValue,
-              }
-            : r,
-        ),
-      );
-    }
-  };
-
   const handleDateInputChange = (
     id: number,
     e: ChangeEvent<HTMLInputElement>,
   ) => {
     const inputValue = e.target.value;
-    setRecords(
-      records.map((record) =>
-        record.id === id ? { ...record, tempDateValue: inputValue } : record,
+    setRecords((prevRecords) =>
+      prevRecords.map((record) =>
+        record.id === id ? { ...record, log_date: inputValue } : record,
       ),
     );
-
-    if (inputValue.length === 10) {
-      const newDate = new Date(inputValue);
-      if (!isNaN(newDate.getTime())) {
-        setRecords((prevRecords) =>
-          prevRecords.map((record) =>
-            record.id === id ? { ...record, log_date: inputValue } : record,
-          ),
-        );
-      }
-    }
   };
 
   const formatDate = (dateString: string) => {
@@ -306,7 +230,7 @@ export const ClientMedicalRecordTab = () => {
     }).format(date);
   };
 
-  if (loading.medicalLogs) {
+  if (medicalLogsQuery.isLoading) {
     return <div className="flex h-32 items-center justify-center"></div>;
   }
 
@@ -333,43 +257,35 @@ export const ClientMedicalRecordTab = () => {
                   <div className="bg-primary/30 absolute top-6 right-3 h-[calc(100%+2rem-6px)] w-0.5" />
                 )}
 
-                <div className="relative h-6">
-                  <div className="bg-primary absolute right-3 z-10 -mr-3 flex h-6 w-6 items-center justify-center rounded-full">
+                <div
+                  className={
+                    record.isEditing ? "relative h-10" : "relative h-6"
+                  }
+                >
+                  <div className="bg-primary absolute top-1/2 right-3 z-10 -mr-3 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full">
                     <div className="bg-background h-2 w-2 rounded-full" />
                   </div>
 
                   <div className="absolute top-1/2 right-10 flex -translate-y-1/2 items-center">
-                    <div className="relative mr-3">
-                      <span
-                        className="text-muted-foreground hover:text-primary cursor-pointer text-sm"
-                        onClick={() =>
-                          record.id !== undefined && toggleDatePicker(record.id)
-                        }
-                      >
-                        {record.log_date
-                          ? formatDate(record.log_date)
-                          : "תאריך לא זמין"}
-                      </span>
-
-                      {record.isDatePickerOpen && record.id !== undefined && (
-                        <div
-                          className="bg-background absolute top-6 right-0 z-50 rounded-md border p-1 shadow-md"
-                          ref={(el) => {
-                            datePickerRefs.current[record.id!] = el;
-                          }}
+                    <div className="mr-3">
+                      {record.isEditing && record.id !== undefined ? (
+                        <DateInput
+                          name={`medical-log-date-${record.id}`}
+                          value={record.log_date || ""}
+                          onChange={(e) => handleDateInputChange(record.id!, e)}
+                          className="w-40 text-sm"
+                        />
+                      ) : (
+                        <span
+                          className="text-muted-foreground hover:text-primary cursor-pointer text-sm"
+                          onClick={() =>
+                            record.id !== undefined && editRecord(record.id)
+                          }
                         >
-                          <DateInput
-                            name={`medical-log-date-${record.id}`}
-                            value={
-                              record.tempDateValue || record.log_date || ""
-                            }
-                            onChange={(e) =>
-                              record.id !== undefined &&
-                              handleDateInputChange(record.id, e)
-                            }
-                            className="text-sm"
-                          />
-                        </div>
+                          {record.log_date
+                            ? formatDate(record.log_date)
+                            : "תאריך לא זמין"}
+                        </span>
                       )}
                     </div>
 

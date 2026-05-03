@@ -1,6 +1,35 @@
 /// <reference path="../../types/electron.d.ts" />
-import { Order, ContactLensOrderEntity } from './schema-interface';
+import { Order, ContactLensOrderEntity, ClientOrdersContext } from './schema-interface';
 import { apiClient } from '../api-client';
+
+export async function getClientOrdersContext(clientId: number): Promise<ClientOrdersContext> {
+  try {
+    const response = await apiClient.getClientOrdersContext(clientId);
+    if (response.error) {
+      console.error('Error getting client orders context:', response.error);
+      return {
+        latest_exam_id: null,
+        latest_regular_order_id: null,
+        latest_contact_order_id: null,
+        latest_exam_add_sources: {},
+      };
+    }
+    return response.data || {
+      latest_exam_id: null,
+      latest_regular_order_id: null,
+      latest_contact_order_id: null,
+      latest_exam_add_sources: {},
+    };
+  } catch (error) {
+    console.error('Error getting client orders context:', error);
+    return {
+      latest_exam_id: null,
+      latest_regular_order_id: null,
+      latest_contact_order_id: null,
+      latest_exam_add_sources: {},
+    };
+  }
+}
 
 export async function getOrdersByClientId(clientId: number): Promise<Order[]> {
   try {
@@ -13,7 +42,7 @@ export async function getOrdersByClientId(clientId: number): Promise<Order[]> {
       ...o,
       order_status: o?.order_status || o?.order_data?.details?.order_status || "",
     }));
-    const contactLensOrders = (clRes.data || []) as unknown as ContactLensOrder[];
+    const contactLensOrders = (clRes.data || []) as ContactLensOrderEntity[];
     const normalizedContactOrders: Order[] = contactLensOrders.map((cl: any) => ({
       id: cl.id,
       client_id: cl.client_id,
@@ -58,7 +87,7 @@ export async function getAllOrders(clinicId?: number): Promise<Order[]> {
       ...o,
       order_status: o?.order_status || o?.order_data?.details?.order_status || "",
     }));
-    const contactLensOrders = (clRes.data || []) as unknown as ContactLensOrder[];
+    const contactLensOrders = (clRes.data || []) as ContactLensOrderEntity[];
     const normalizedContactOrders: Order[] = contactLensOrders.map((cl: any) => ({
       id: cl.id,
       client_id: cl.client_id,

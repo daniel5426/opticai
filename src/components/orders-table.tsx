@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react"
+import React, { useState } from "react"
 import { useNavigate } from "@tanstack/react-router"
 import {
   Table,
@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
 import { Eye, Trash2, FileText } from "lucide-react"
-import { Order, User } from "@/lib/db/schema-interface"
+import { ClientOrdersContext, Order, User } from "@/lib/db/schema-interface"
 import { ClientSelectModal } from "@/components/ClientSelectModal"
 import { exportOrderToDocx } from "@/lib/order-docx"
 import {
@@ -24,12 +24,6 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { OrderPreviewModal } from "./orders/OrderPreviewModal"
 import { ExamCardPreviewModal } from "./exam/ExamCardPreviewModal"
-import { getExamPageData, getLatestExamByClientId } from "@/lib/db/exams-db"
-import {
-  getOrdersByClientId,
-  saveOrderData,
-  updateContactLensOrder,
-} from "@/lib/db/orders-db"
 import { ORDER_STATUS_OPTIONS } from "@/lib/order-status"
 import { Badge } from "@/components/ui/badge"
 
@@ -40,12 +34,10 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { DateSearchHelper } from "@/lib/date-search-helper"
 import { TableFiltersBar } from "@/components/table-filters-bar"
 import { ORDER_KIND_OPTIONS, ORDER_STATUS_FILTER_OPTIONS, type OrderKindFilter } from "@/lib/table-filters"
-import { getAllUsers } from "@/lib/db/users-db"
 import { SortableTableHead } from "@/components/sortable-table-head"
 import { SortColumns, SortState, sortRows } from "@/lib/table-sorting"
 import {
   ADDITION_ADD_TYPE_LABELS,
-  extractAdditionAddSourcesFromExamPageData,
   getAdditionAddTypeOptions,
   type AdditionAddSourceMap,
   type AdditionAddType,
@@ -54,8 +46,12 @@ import {
 interface OrdersTableProps {
   data: Order[]
   clientId: number
+  users: User[]
+  ordersContext?: ClientOrdersContext
+  ordersContextLoading?: boolean
   onOrderDeleted: (orderId: number) => void
   onOrderDeleteFailed: () => void
+  onOrderStatusChange: (order: Order, nextStatus: string) => Promise<void>
   loading: boolean
   pagination?: { page: number; pageSize: number; total: number; setPage: (p: number) => void }
   searchQuery?: string
@@ -71,8 +67,12 @@ interface OrdersTableProps {
 export function OrdersTable({
   data,
   clientId,
+  users,
+  ordersContext,
+  ordersContextLoading = false,
   onOrderDeleted,
   onOrderDeleteFailed,
+  onOrderStatusChange,
   loading,
   pagination,
   searchQuery: externalSearch,
@@ -91,14 +91,6 @@ export function OrdersTable({
   const [orderToDelete, setOrderToDelete] = useState<Order | null>(null)
   const [internalKindFilter, setInternalKindFilter] = useState<OrderKindFilter>("all")
   const [internalStatusFilter, setInternalStatusFilter] = useState("all")
-  const [users, setUsers] = useState<User[]>([])
-
-  // Preview and Import logic
-  const [latestExamId, setLatestExamId] = useState<number | null>(null)
-  const [latestExamAddSources, setLatestExamAddSources] = useState<AdditionAddSourceMap>({})
-  const [latestOrderId, setLatestOrderId] = useState<number | null>(null)
-  const [latestContactOrderId, setLatestContactOrderId] = useState<number | null>(null)
-  const [isLatestContextLoading, setIsLatestContextLoading] = useState(clientId > 0)
   const [isPreviewOrderOpen, setIsPreviewOrderOpen] = useState(false)
   const [previewOrderId, setPreviewOrderId] = useState<number | null>(null)
   const [previewOrderIsContact, setPreviewOrderIsContact] = useState(false)
@@ -106,31 +98,18 @@ export function OrdersTable({
   const [pendingSelection, setPendingSelection] = useState<{ type: 'contact' | 'regular' } | null>(null)
   const [isCardPreviewOpen, setIsCardPreviewOpen] = useState(false)
   const [cardPreviewType, setCardPreviewType] = useState<'final-prescription' | 'contact-lens-exam'>('final-prescription')
-  const [statusOverrides, setStatusOverrides] = useState<Record<number, string>>({})
   const [savingStatusIds, setSavingStatusIds] = useState<Record<number, boolean>>({})
   const searchValue = externalSearch !== undefined ? externalSearch : internalSearch
   const kindFilter = externalKindFilter ?? internalKindFilter
   const statusFilter = externalStatusFilter ?? internalStatusFilter
   const activeSort = sort ?? localSort
   const handleSortChange = onSortChange ?? setLocalSort
+  const latestExamId = ordersContext?.latest_exam_id ?? null
+  const latestOrderId = ordersContext?.latest_regular_order_id ?? null
+  const latestContactOrderId = ordersContext?.latest_contact_order_id ?? null
+  const latestExamAddSources = (ordersContext?.latest_exam_add_sources || {}) as AdditionAddSourceMap
+  const isLatestContextLoading = clientId > 0 && ordersContextLoading
   const latestExamAddTypeOptions = getAdditionAddTypeOptions(latestExamAddSources)
-
-  useEffect(() => {
-    let isActive = true
-
-    const loadUsers = async () => {
-      const usersData = await getAllUsers()
-      if (isActive) {
-        setUsers(usersData)
-      }
-    }
-
-    loadUsers()
-
-    return () => {
-      isActive = false
-    }
-  }, [])
 
   const usersById = React.useMemo(() => {
     return new Map(users.map((user) => [user.id, user]))
@@ -172,107 +151,6 @@ export function OrdersTable({
     }
     setInternalStatusFilter(value)
   }
-
-  useEffect(() => {
-    let isActive = true;
-
-    if (clientId > 0) {
-      setIsLatestContextLoading(true);
-      setLatestExamId(null);
-      setLatestExamAddSources({});
-
-      const fetchLatest = async () => {
-        try {
-          const [exam, allOrders] = await Promise.all([
-            getLatestExamByClientId(clientId),
-            getOrdersByClientId(clientId)
-          ]);
-
-          if (!isActive) return;
-
-          if (exam) {
-            const examId = exam.id || null;
-            console.log("Fetched latest exam ID:", exam.id);
-
-            if (examId) {
-              const pageData = await getExamPageData(examId);
-              if (!isActive) return;
-              setLatestExamId(examId);
-              setLatestExamAddSources(
-                extractAdditionAddSourcesFromExamPageData(pageData),
-              );
-            } else {
-              setLatestExamId(null);
-              setLatestExamAddSources({});
-            }
-          } else {
-            setLatestExamId(null);
-            setLatestExamAddSources({});
-            console.log("No latest exam found.");
-          }
-
-          if (allOrders.length > 0) {
-            // Sort all orders by date desc
-            const sorted = allOrders.sort((a, b) => {
-              const dateA = a.order_date ? new Date(a.order_date).getTime() : 0;
-              const dateB = b.order_date ? new Date(b.order_date).getTime() : 0;
-              return dateB - dateA;
-            });
-
-            const latestReg = sorted.find(o => !(o as any).__contact);
-            const latestCL = sorted.find(o => (o as any).__contact);
-
-            if (latestReg) {
-              setLatestOrderId(latestReg.id || null);
-              console.log("Fetched latest regular order ID:", latestReg.id);
-            } else {
-              setLatestOrderId(null);
-              console.log("No latest regular order found.");
-            }
-            if (latestCL) {
-              setLatestContactOrderId(latestCL.id || null);
-              console.log("Fetched latest contact order ID:", latestCL.id);
-            } else {
-              setLatestContactOrderId(null);
-              console.log("No latest contact order found.");
-            }
-          } else {
-            setLatestOrderId(null);
-            setLatestContactOrderId(null);
-            console.log("No orders found for client.");
-          }
-        } catch (error) {
-          if (!isActive) return;
-          console.error("Failed to fetch latest order/exam context:", error);
-          setLatestExamId(null);
-          setLatestExamAddSources({});
-          setLatestOrderId(null);
-          setLatestContactOrderId(null);
-        } finally {
-          if (isActive) {
-            setIsLatestContextLoading(false);
-          }
-        }
-      };
-      fetchLatest();
-    } else {
-      setIsLatestContextLoading(false);
-      setLatestExamId(null);
-      setLatestExamAddSources({});
-      setLatestOrderId(null);
-      setLatestContactOrderId(null);
-      console.log("Client ID is 0, resetting latest order/exam IDs.");
-    }
-
-    return () => {
-      isActive = false;
-    };
-  }, [clientId]);
-
-
-
-
-
   const openRegularOrderFromLatestExam = (addType?: AdditionAddType) => {
     if (!latestExamId) return;
     navigate({
@@ -376,7 +254,6 @@ export function OrdersTable({
       result = result.filter((order) => {
         if (!order.id) return false
         const effectiveStatus =
-          statusOverrides[order.id] ??
           (order as any).order_status ??
           (order as any)?.order_data?.details?.order_status ??
           ""
@@ -400,17 +277,16 @@ export function OrdersTable({
 
       return DateSearchHelper.matchesDate(searchLower, order.order_date)
     })
-  }, [data, getExaminerName, kindFilter, searchValue, statusFilter, statusOverrides])
+  }, [data, getExaminerName, kindFilter, searchValue, statusFilter])
 
   const getOrderStatus = React.useCallback((order: Order) => {
     if (!order.id) return "";
-    if (statusOverrides[order.id] !== undefined) return statusOverrides[order.id];
     return (
       (order as any).order_status ||
       (order as any)?.order_data?.details?.order_status ||
       ""
     );
-  }, [statusOverrides]);
+  }, []);
 
   const sortColumns = React.useMemo<SortColumns<Order>>(() => ({
     order_date: { getValue: (order) => order.order_date, type: "date" },
@@ -430,33 +306,13 @@ export function OrdersTable({
   const handleStatusChange = async (order: Order, nextStatus: string) => {
     if (!order.id) return;
     const orderId = order.id;
-    const previousStatus = getOrderStatus(order);
 
-    setStatusOverrides((prev) => ({ ...prev, [orderId]: nextStatus }));
     setSavingStatusIds((prev) => ({ ...prev, [orderId]: true }));
 
     try {
-      if ((order as any).__contact) {
-        const updated = await updateContactLensOrder({
-          ...(order as any),
-          order_status: nextStatus,
-        });
-        if (!updated) throw new Error("contact update failed");
-      } else {
-        const orderData = (order as any).order_data || {};
-        const details = orderData.details || {};
-        const saved = await saveOrderData(orderId, {
-          ...orderData,
-          details: {
-            ...details,
-            order_status: nextStatus,
-          },
-        });
-        if (!saved) throw new Error("order data save failed");
-      }
+      await onOrderStatusChange(order, nextStatus);
       toast.success("סטטוס הזמנה עודכן");
     } catch (error) {
-      setStatusOverrides((prev) => ({ ...prev, [orderId]: previousStatus }));
       toast.error("שגיאה בעדכון סטטוס הזמנה");
     } finally {
       setSavingStatusIds((prev) => ({ ...prev, [orderId]: false }));
@@ -504,12 +360,17 @@ export function OrdersTable({
               </>
             ) : (
               <>
-                <DropdownMenu dir="ltr">
-                  <DropdownMenuTrigger asChild>
-                    <Button disabled={isLatestContextLoading}>משקפיים</Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" dir="rtl">
-                    {latestExamId && (
+	                <DropdownMenu dir="ltr">
+	                  <DropdownMenuTrigger asChild>
+	                    <Button>משקפיים</Button>
+	                  </DropdownMenuTrigger>
+	                  <DropdownMenuContent align="end">
+	                    {isLatestContextLoading && (
+	                      <DropdownMenuItem disabled>
+	                        טוען אפשרויות ייבוא...
+	                      </DropdownMenuItem>
+	                    )}
+	                    {latestExamId && (
                       latestExamAddTypeOptions.length > 0 ? (
                         <DropdownMenuSub>
                           <DropdownMenuSubTrigger
@@ -532,7 +393,7 @@ export function OrdersTable({
                               <Eye className="h-4 w-4" />
                             </Button>
                           </DropdownMenuSubTrigger>
-                          <DropdownMenuSubContent side="right" alignOffset={-4}>
+	                          <DropdownMenuSubContent alignOffset={-4}>
                             {latestExamAddTypeOptions.map((type) => (
                               <DropdownMenuItem
                                 key={type}
@@ -597,14 +458,19 @@ export function OrdersTable({
                   </DropdownMenuContent>
                 </DropdownMenu>
 
-                <DropdownMenu dir="rtl">
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="secondary" disabled={isLatestContextLoading}>
-                      עדשות מגע
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    {latestExamId && (
+	                <DropdownMenu dir="rtl">
+	                  <DropdownMenuTrigger asChild>
+	                    <Button variant="secondary">
+	                      עדשות מגע
+	                    </Button>
+	                  </DropdownMenuTrigger>
+	                  <DropdownMenuContent align="end">
+	                    {isLatestContextLoading && (
+	                      <DropdownMenuItem disabled>
+	                        טוען אפשרויות ייבוא...
+	                      </DropdownMenuItem>
+	                    )}
+	                    {latestExamId && (
                       <DropdownMenuItem
                         className="flex items-center justify-between gap-4"
                         onClick={() => navigate({

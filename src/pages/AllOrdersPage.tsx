@@ -1,13 +1,14 @@
 import React, { useState, useEffect, useCallback } from "react"
 import { useSearch, useNavigate } from "@tanstack/react-router"
 import { SiteHeader } from "@/components/site-header"
-import { getPaginatedOrders } from "@/lib/db/orders-db"
+import { getPaginatedOrders, saveOrderDetailsComponent, updateContactLensOrder } from "@/lib/db/orders-db"
 import { Order } from "@/lib/db/schema-interface"
 import { OrdersTable } from "@/components/orders-table"
 import { useUser } from "@/contexts/UserContext"
 import { ALL_FILTER_VALUE } from "@/lib/table-filters"
 import { buildTableSearch } from "@/lib/list-page-search"
 import { parseSortSearch, sortToOrder, sortToSearch } from "@/lib/table-sorting"
+import { useUsersQuery } from "@/hooks/client/useClientTabQueries"
 
 export default function AllOrdersPage() {
   const { currentClinic } = useUser()
@@ -18,6 +19,7 @@ export default function AllOrdersPage() {
   const [pageSize] = useState(25)
   const [total, setTotal] = useState(0)
   const [searchInput, setSearchInput] = useState(search.q)
+  const usersQuery = useUsersQuery(currentClinic?.id)
   const activeSort = React.useMemo(
     () => parseSortSearch(search.sort, { key: "order_date", direction: "desc" }),
     [search.sort],
@@ -102,6 +104,45 @@ export default function AllOrdersPage() {
     loadData()
   }
 
+  const handleOrderStatusChange = async (order: Order, nextStatus: string) => {
+    if (!order.id) return
+    const previousOrders = orders
+    const orderData = (order as any).order_data || {}
+    const details = orderData.details || {}
+    const optimisticOrder = {
+      ...order,
+      order_status: nextStatus,
+      order_data: {
+        ...orderData,
+        details: {
+          ...details,
+          order_status: nextStatus,
+        },
+      },
+    }
+
+    setOrders((current) => current.map((item) => (item.id === order.id ? optimisticOrder : item)))
+
+    try {
+      if ((order as any).__contact) {
+        const updated = await updateContactLensOrder({
+          ...(order as any),
+          order_status: nextStatus,
+        })
+        if (!updated) throw new Error("contact update failed")
+      } else {
+        const saved = await saveOrderDetailsComponent(order.id, {
+          ...details,
+          order_status: nextStatus,
+        })
+        if (!saved) throw new Error("order status save failed")
+      }
+    } catch (error) {
+      setOrders(previousOrders)
+      throw error
+    }
+  }
+
   return (
     <>
       <SiteHeader title="הזמנות" />
@@ -112,8 +153,10 @@ export default function AllOrdersPage() {
         <OrdersTable 
           data={orders} 
           clientId={0} 
+          users={usersQuery.data || []}
           onOrderDeleted={handleOrderDeleted} 
           onOrderDeleteFailed={handleOrderDeleteFailed}
+          onOrderStatusChange={handleOrderStatusChange}
           searchQuery={searchInput}
           onSearchChange={setSearchInput}
           kindFilter={search.kind}

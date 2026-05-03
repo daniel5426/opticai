@@ -1,12 +1,10 @@
 import React, { useState, useRef } from "react"
 import { Card, CardContent } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { VHCalculatorModal } from "@/components/ui/vh-calculator-modal"
 import { SubjectiveExam } from "@/lib/db/schema-interface"
 import { VASelect } from "./shared/VASelect"
 import { ChevronUp, ChevronDown } from "lucide-react"
 
-import { FastInput, FastSelect, inputSyncManager } from "./shared/OptimizedInputs"
+import { FastInput, FastSelect } from "./shared/OptimizedInputs"
 import { EXAM_FIELDS, PDFieldConfigProvider } from "./data/exam-field-definitions"
 import { BASE_VALUES, PDCalculationUtils } from "./data/exam-constants"
 import { usePrescriptionLogic } from "./shared/usePrescriptionLogic"
@@ -20,7 +18,6 @@ interface SubjectiveTabProps {
   subjectiveData: SubjectiveExam;
   onSubjectiveChange: (field: keyof SubjectiveExam, value: string) => void;
   isEditing: boolean;
-  onVHConfirm: (rightPris: number, rightBase: number, leftPris: number, leftBase: number) => void;
   onMultifocalClick: () => void;
   hideEyeLabels?: boolean;
 }
@@ -29,7 +26,6 @@ export const SubjectiveTab = React.memo(function SubjectiveTab({
   subjectiveData,
   onSubjectiveChange,
   isEditing,
-  onVHConfirm,
   onMultifocalClick,
   hideEyeLabels = false
 }: SubjectiveTabProps) {
@@ -201,13 +197,7 @@ export const SubjectiveTab = React.memo(function SubjectiveTab({
             {!hideEyeLabels && <div className="flex items-center justify-center h-8">
             </div>}
             {columns.map(({ key }) => {
-              if (key === "pris") {
-                return (
-                  <div key={`c-${key}`} className="flex justify-center">
-                    <VHCalculatorModal onConfirm={onVHConfirm} disabled={!isEditing} />
-                  </div>
-                );
-              } else if (key === "va") {
+              if (key === "va") {
                 return (
                   <div key={`c-${key}`}>
                     <VASelect

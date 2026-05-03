@@ -66,6 +66,10 @@ export function shouldClearStatusForHealthFund(status: unknown, healthFund: unkn
   return !getClientStatusOptions(String(healthFund || "")).includes(normalizedStatus)
 }
 
+export function serializeClientDraftForUnsavedChanges(client: Client | null | undefined) {
+  return JSON.stringify(sortClientValue(client || {}))
+}
+
 function normalizeOptionValue(
   value: string | null | undefined,
   valueMap: Record<string, string>,
@@ -88,4 +92,27 @@ function trimClientStrings(client: Client): Client {
       typeof value === "string" ? value.trim() : value,
     ])
   ) as Client
+}
+
+function sortClientValue(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map(sortClientValue).filter(item => item !== undefined)
+  }
+
+  if (value && typeof value === "object") {
+    return Object.keys(value as Record<string, unknown>)
+      .sort()
+      .reduce<Record<string, unknown>>((acc, key) => {
+        const child = sortClientValue((value as Record<string, unknown>)[key])
+        if (child !== undefined) acc[key] = child
+        return acc
+      }, {})
+  }
+
+  if (typeof value === "string") {
+    const trimmed = value.trim()
+    return trimmed === "" ? undefined : trimmed
+  }
+
+  return value
 }

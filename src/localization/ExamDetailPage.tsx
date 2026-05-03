@@ -977,57 +977,7 @@ export default function ExamDetailPage({
     cardRows.map((row) => row.cards),
     {
       handleMultifocalOldRefraction: () => { },
-      handleVHConfirmOldRefraction: (
-        rightPris: number,
-        rightBase: number,
-        leftPris: number,
-        leftBase: number,
-      ) => {
-        const oldRefractionHandler = fieldHandlers["old-refraction"];
-        if (oldRefractionHandler) {
-          oldRefractionHandler("r_pris", rightPris.toString());
-          oldRefractionHandler("r_base", rightBase.toString());
-          oldRefractionHandler("l_pris", leftPris.toString());
-          oldRefractionHandler("l_base", leftBase.toString());
-        }
-      },
-      handleVHConfirm: (
-        rightPris: number,
-        rightBase: number,
-        leftPris: number,
-        leftBase: number,
-      ) => {
-        const subjectiveHandler = fieldHandlers["subjective"];
-        if (subjectiveHandler) {
-          subjectiveHandler("r_pris", rightPris.toString());
-          subjectiveHandler("r_base", rightBase.toString());
-          subjectiveHandler("l_pris", leftPris.toString());
-          subjectiveHandler("l_base", leftBase.toString());
-        }
-      },
       handleMultifocalSubjective: () => { },
-      handleFinalSubjectiveVHConfirm: (
-        rightPrisH: number,
-        rightBaseH: string,
-        rightPrisV: number,
-        rightBaseV: string,
-        leftPrisH: number,
-        leftBaseH: string,
-        leftPrisV: number,
-        leftBaseV: string,
-      ) => {
-        const finalSubjectiveHandler = fieldHandlers["final-subjective"];
-        if (finalSubjectiveHandler) {
-          finalSubjectiveHandler("r_pr_h", rightPrisH.toString());
-          finalSubjectiveHandler("r_base_h", rightBaseH);
-          finalSubjectiveHandler("r_pr_v", rightPrisV.toString());
-          finalSubjectiveHandler("r_base_v", rightBaseV);
-          finalSubjectiveHandler("l_pr_h", leftPrisH.toString());
-          finalSubjectiveHandler("l_base_h", leftBaseH);
-          finalSubjectiveHandler("l_pr_v", leftPrisV.toString());
-          finalSubjectiveHandler("l_base_v", leftBaseV);
-        }
-      },
       handleMultifocalOldRefractionExtension: () => { },
       coverTestTabs: computedCoverTestTabs as any,
       activeCoverTestTabs: activeCoverTestTabs as any,
