@@ -429,7 +429,7 @@ def get_users_by_clinic(
     if current_user.role_level >= CEO_LEVEL:
         if clinic.company_id != current_user.company_id:
             raise HTTPException(status_code=403, detail="Access denied")
-    elif current_user.role_level == MANAGER_LEVEL:
+    elif current_user.role_level >= WORKER_LEVEL:
         if current_user.clinic_id != clinic_id:
             raise HTTPException(status_code=403, detail="Access denied")
     else:

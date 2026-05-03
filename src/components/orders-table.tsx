@@ -9,7 +9,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
-import { Eye, Trash2, FileText } from "lucide-react"
+import { Eye, Trash2, FileText, Loader2 } from "lucide-react"
 import { ClientOrdersContext, Order, User } from "@/lib/db/schema-interface"
 import { ClientSelectModal } from "@/components/ClientSelectModal"
 import { exportOrderToDocx } from "@/lib/order-docx"
@@ -99,6 +99,7 @@ export function OrdersTable({
   const [isCardPreviewOpen, setIsCardPreviewOpen] = useState(false)
   const [cardPreviewType, setCardPreviewType] = useState<'final-prescription' | 'contact-lens-exam'>('final-prescription')
   const [savingStatusIds, setSavingStatusIds] = useState<Record<number, boolean>>({})
+  const [exportingDocxIds, setExportingDocxIds] = useState<Record<string, boolean>>({})
   const searchValue = externalSearch !== undefined ? externalSearch : internalSearch
   const kindFilter = externalKindFilter ?? internalKindFilter
   const statusFilter = externalStatusFilter ?? internalStatusFilter
@@ -220,13 +221,17 @@ export function OrdersTable({
   };
 
   const handleExportDocx = async (order: Order) => {
+    const isContact = Boolean((order as any).__contact);
+    const exportKey = order.id ? `${isContact ? "contact" : "regular"}:${order.id}` : "";
+
     try {
-      const isContact = Boolean((order as any).__contact);
       if (!order.id) {
         toast.error("לא ניתן לייצא הזמנה ללא מזהה");
         return;
       }
+      if (exportingDocxIds[exportKey]) return;
 
+      setExportingDocxIds((prev) => ({ ...prev, [exportKey]: true }));
       await exportOrderToDocx({
         orderId: order.id,
         kind: isContact ? "contact" : "regular",
@@ -235,6 +240,10 @@ export function OrdersTable({
     } catch (error) {
       console.error("Error exporting DOCX:", error);
       toast.error("שגיאה ביצירת הדוח");
+    } finally {
+      if (exportKey) {
+        setExportingDocxIds((prev) => ({ ...prev, [exportKey]: false }));
+      }
     }
   };
 
@@ -602,6 +611,9 @@ export function OrdersTable({
               ))
             ) : displayData.length > 0 ? (
               displayData.map((order) => {
+                const isExportingDocx = order.id
+                  ? Boolean(exportingDocxIds[`${(order as any).__contact ? "contact" : "regular"}:${order.id}`])
+                  : false;
                 return (
                   <TableRow
                     key={order.id}
@@ -683,13 +695,18 @@ export function OrdersTable({
                         <Button
                           variant="ghost"
                           className="h-8 w-8 p-0"
+                          disabled={isExportingDocx}
                           onClick={(e) => {
                             e.stopPropagation();
                             handleExportDocx(order);
                           }}
                           title="ייצוא לדוח Word"
                         >
-                          <FileText className="h-4 w-4" />
+                          {isExportingDocx ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <FileText className="h-4 w-4" />
+                          )}
                         </Button>
                         <Button
                           variant="ghost"

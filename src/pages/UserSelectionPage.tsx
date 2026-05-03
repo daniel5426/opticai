@@ -562,9 +562,11 @@ function UserLoginPanel({
         )}
       </Card>
 
-      <div className="text-center mt-6">
-        <p className="text-slate-500 dark:text-slate-400 text-xs">
-          לחץ ESC כדי לחזור • לחץ Enter כדי להתחבר
+      <div className="text-center mt-6" dir="rtl">
+        <p className="inline-flex flex-wrap items-center justify-center gap-x-2 text-slate-500 dark:text-slate-400 text-xs">
+          <span className="whitespace-nowrap">לחץ <bdi dir="ltr">ESC</bdi> כדי לחזור</span>
+          <span aria-hidden="true">•</span>
+          <span className="whitespace-nowrap">לחץ <bdi dir="ltr">Enter</bdi> כדי להתחבר</span>
         </p>
       </div>
     </div>

@@ -162,3 +162,27 @@ def test_clinic_user_cannot_create_order_for_other_company_client_or_clinic():
     assert response.status_code == 403
     with SessionLocal() as db:
         assert db.query(Order).count() == 0
+
+
+def test_clinic_user_can_list_users_for_own_clinic():
+    SessionLocal = _session_factory()
+    ids = _seed(SessionLocal)
+
+    with _client(SessionLocal, ids["clinic_user"]) as client:
+        response = client.get(f"/api/v1/users/clinic/{ids['clinic_a']}")
+
+    assert response.status_code == 200, response.text
+    usernames = {item["username"] for item in response.json()}
+    assert "clinic-user" in usernames
+    assert "ceo" in usernames
+    assert "other-user" not in usernames
+
+
+def test_clinic_user_cannot_list_users_for_other_clinic():
+    SessionLocal = _session_factory()
+    ids = _seed(SessionLocal)
+
+    with _client(SessionLocal, ids["clinic_user"]) as client:
+        response = client.get(f"/api/v1/users/clinic/{ids['clinic_b']}")
+
+    assert response.status_code == 403

@@ -5,6 +5,7 @@ import React, {
   useRef,
   useState,
 } from "react";
+import { createPortal } from "react-dom";
 import { cn } from "@/utils/tailwind";
 import { FastInput, inputSyncManager } from "./OptimizedInputs";
 import { ChevronDown } from "lucide-react";
@@ -36,7 +37,12 @@ export function ToggleTextNumberInput({
 }: ToggleTextNumberInputProps) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
   const measureRef = useRef<HTMLSpanElement>(null);
+  const [menuPosition, setMenuPosition] = useState<{
+    left: number;
+    top: number;
+  } | null>(null);
   const [textWidthPx, setTextWidthPx] = useState<number | null>(null);
   const [optimisticText, setOptimisticText] = useState<string | null>(null);
   const lastSelectionRef = useRef<{ label: string; ts: number } | null>(null);
@@ -94,7 +100,10 @@ export function ToggleTextNumberInput({
     const handlePointerDown = (event: PointerEvent) => {
       const target = event.target;
       if (!(target instanceof Node)) return;
-      if (!rootRef.current?.contains(target)) {
+      if (
+        !rootRef.current?.contains(target) &&
+        !menuRef.current?.contains(target)
+      ) {
         setOpen(false);
       }
     };
@@ -111,6 +120,31 @@ export function ToggleTextNumberInput({
     return () => {
       document.removeEventListener("pointerdown", handlePointerDown, true);
       document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [open]);
+
+  useLayoutEffect(() => {
+    if (!open) {
+      setMenuPosition(null);
+      return;
+    }
+
+    const updateMenuPosition = () => {
+      const rect = rootRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      setMenuPosition({
+        left: rect.left,
+        top: rect.bottom + 4,
+      });
+    };
+
+    updateMenuPosition();
+    window.addEventListener("resize", updateMenuPosition);
+    window.addEventListener("scroll", updateMenuPosition, true);
+
+    return () => {
+      window.removeEventListener("resize", updateMenuPosition);
+      window.removeEventListener("scroll", updateMenuPosition, true);
     };
   }, [open]);
 
@@ -201,7 +235,7 @@ export function ToggleTextNumberInput({
             aria-expanded={open}
             className={cn(
               "relative block h-full w-full border-none bg-transparent p-0 shadow-none",
-              "rounded-none focus-visible:outline-none focus-visible:ring-0 disabled:cursor-default",
+              "rounded-none focus-visible:ring-0 focus-visible:outline-none disabled:cursor-default",
               selectValue
                 ? "text-primary hover:bg-primary/5"
                 : "text-muted-foreground hover:bg-accent/70",
@@ -216,7 +250,7 @@ export function ToggleTextNumberInput({
           >
             <ChevronDown
               className={cn(
-                "absolute left-1/2 top-1/2 block size-2.5 shrink-0 -translate-x-1/2 -translate-y-[calc(50%+2px)] transform-gpu transition-transform duration-200 ease-out",
+                "absolute top-1/2 left-1/2 block size-2.5 shrink-0 -translate-x-1/2 -translate-y-[calc(50%+2px)] transform-gpu transition-transform duration-200 ease-out",
                 open && "rotate-180",
               )}
             />
@@ -244,37 +278,46 @@ export function ToggleTextNumberInput({
         disabled={disabled}
         className={cn(
           "w-full transition-all duration-200 ease-out",
-          isShownAsText ? "px-1.5 text-center font-medium" : "pl-1 pr-2",
+          isShownAsText ? "px-1.5 text-center font-medium" : "pr-2 pl-1",
           numericProps?.className,
         )}
       />
-      {open && textOptions.length > 0 && (
-        <div
-          role="listbox"
-          className="absolute left-0 top-[calc(100%+4px)] z-50 w-fit min-w-16 overflow-hidden rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-md"
-        >
-          {textOptions.map((opt) => (
-            <button
-              key={opt}
-              type="button"
-              role="option"
-              aria-selected={opt === selectValue}
-              dir="ltr"
-              className={cn(
-                "relative flex h-8 w-full min-w-14 cursor-default select-none items-center justify-center rounded-sm px-2 text-sm outline-none",
-                "hover:bg-accent hover:text-accent-foreground focus-visible:bg-accent focus-visible:text-accent-foreground",
-                opt === selectValue && "bg-accent/70 text-accent-foreground",
-              )}
-              onMouseDown={(event) => {
-                event.preventDefault();
-              }}
-              onClick={() => commitSelectChange(opt)}
-            >
-              {opt}
-            </button>
-          ))}
-        </div>
-      )}
+      {open &&
+        textOptions.length > 0 &&
+        menuPosition &&
+        createPortal(
+          <div
+            ref={menuRef}
+            role="listbox"
+            className="border-border bg-popover text-popover-foreground fixed z-[9999] w-fit min-w-16 overflow-hidden rounded-md border p-1 shadow-md"
+            style={{
+              left: menuPosition.left,
+              top: menuPosition.top,
+            }}
+          >
+            {textOptions.map((opt) => (
+              <button
+                key={opt}
+                type="button"
+                role="option"
+                aria-selected={opt === selectValue}
+                dir="ltr"
+                className={cn(
+                  "relative flex h-8 w-full min-w-14 cursor-default items-center justify-center rounded-sm px-2 text-sm outline-none select-none",
+                  "hover:bg-accent hover:text-accent-foreground focus-visible:bg-accent focus-visible:text-accent-foreground",
+                  opt === selectValue && "bg-accent/70 text-accent-foreground",
+                )}
+                onMouseDown={(event) => {
+                  event.preventDefault();
+                }}
+                onClick={() => commitSelectChange(opt)}
+              >
+                {opt}
+              </button>
+            ))}
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }

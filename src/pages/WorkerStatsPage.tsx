@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useRef } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { SiteHeader } from "@/components/site-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -21,6 +22,26 @@ import { User, WorkShift } from "@/lib/db/schema-interface";
 import { ROLE_LEVELS, isRoleAtLeast } from "@/lib/role-levels";
 import { useUser } from "@/contexts/UserContext";
 
+type WorkerStats = {
+  totalShifts: number;
+  totalMinutes: number;
+  averageMinutes: number;
+};
+
+type WorkShiftStatsResponse = {
+  total_shifts: number;
+  total_minutes: number;
+  average_minutes: number;
+};
+
+const workerStatsQueryKeys = {
+  users: ["worker-stats", "users"] as const,
+  dayShifts: (userId: number | null, date: string) =>
+    ["worker-stats", "day-shifts", userId, date] as const,
+  monthlyStats: (userId: number | null, year: number, month: number) =>
+    ["worker-stats", "monthly-stats", userId, year, month] as const,
+};
+
 const normalizeDisplayNumber = (
   value: number | null | undefined,
   fractionDigits = 0,
@@ -31,9 +52,49 @@ const normalizeDisplayNumber = (
   return Number(numericValue.toFixed(fractionDigits));
 };
 
+const emptyWorkerStats: WorkerStats = {
+  totalShifts: 0,
+  totalMinutes: 0,
+  averageMinutes: 0,
+};
+
+const getWorkerUsers = async () => {
+  const response = await apiClient.getUsers();
+  if (response.error) throw new Error(response.error);
+
+  return (response.data || []).filter((user) =>
+    isRoleAtLeast(user.role_level, ROLE_LEVELS.worker),
+  );
+};
+
+const getDayShifts = async (userId: number, date: string) => {
+  const response = await apiClient.getWorkShiftsByUserAndDate(userId, date);
+  if (response.error) throw new Error(response.error);
+
+  return response.data || [];
+};
+
+const getMonthlyStats = async (
+  userId: number,
+  year: number,
+  month: number,
+): Promise<WorkerStats> => {
+  const response = await apiClient.getWorkShiftStats(userId, year, month);
+  if (response.error) throw new Error(response.error);
+
+  const stats = response.data as WorkShiftStatsResponse | undefined;
+  if (!stats) return emptyWorkerStats;
+
+  return {
+    totalShifts: normalizeDisplayNumber(stats.total_shifts),
+    totalMinutes: normalizeDisplayNumber(stats.total_minutes),
+    averageMinutes: normalizeDisplayNumber(stats.average_minutes),
+  };
+};
+
 export default function WorkerStatsPage() {
   const { currentUser } = useUser();
-  const [users, setUsers] = useState<User[]>([]);
+  const queryClient = useQueryClient();
   const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
   const [selectedDate, setSelectedDate] = useState<string>(
     new Date().toISOString().split("T")[0],
@@ -44,13 +105,6 @@ export default function WorkerStatsPage() {
   const [selectedYear, setSelectedYear] = useState<number>(
     new Date().getFullYear(),
   );
-  const [userStats, setUserStats] = useState<{
-    totalShifts: number;
-    totalMinutes: number;
-    averageMinutes: number;
-  }>({ totalShifts: 0, totalMinutes: 0, averageMinutes: 0 });
-  const [dayShifts, setDayShifts] = useState<WorkShift[]>([]);
-  const [loading, setLoading] = useState(true);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isCreatingShift, setIsCreatingShift] = useState(false);
   const isCreatingShiftRef = useRef(false);
@@ -59,86 +113,98 @@ export default function WorkerStatsPage() {
     end_time: "",
   });
 
-  useEffect(() => {
-    const loadUsers = async () => {
-      try {
-        const response = await apiClient.getUsers();
-        if (response.data) {
-          const workers = response.data.filter((user) =>
-            isRoleAtLeast(user.role_level, ROLE_LEVELS.worker),
-          );
-          setUsers(workers);
-          if (workers.length > 0 && !selectedUserId) {
-            setSelectedUserId(workers[0].id!);
-          }
-        }
-      } catch (error) {
-        console.error("Error loading users:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
+  const usersQuery = useQuery({
+    queryKey: workerStatsQueryKeys.users,
+    queryFn: getWorkerUsers,
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
+    refetchInterval: 60_000,
+    refetchIntervalInBackground: false,
+  });
 
-    loadUsers();
-  }, [selectedUserId]);
+  const users = usersQuery.data || [];
+  const selectedUserExists =
+    selectedUserId !== null && users.some((user) => user.id === selectedUserId);
+  const effectiveSelectedUserId = selectedUserExists
+    ? selectedUserId
+    : (users[0]?.id ?? null);
 
-  const loadDayShifts = async () => {
-    if (!selectedUserId || !selectedDate) return;
+  const dayShiftsQuery = useQuery({
+    queryKey: workerStatsQueryKeys.dayShifts(
+      effectiveSelectedUserId,
+      selectedDate,
+    ),
+    queryFn: () => getDayShifts(effectiveSelectedUserId!, selectedDate),
+    enabled: !!effectiveSelectedUserId && !!selectedDate,
+    staleTime: 0,
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
+    refetchInterval: 15_000,
+    refetchIntervalInBackground: false,
+  });
 
-    try {
-      const response = await apiClient.getWorkShiftsByUserAndDate(
-        selectedUserId,
-        selectedDate,
-      );
-      if (response.data) {
-        setDayShifts(response.data);
-      } else {
-        setDayShifts([]);
-      }
-    } catch (error) {
-      console.error("Error loading day shifts:", error);
-      setDayShifts([]);
-    }
+  const monthlyStatsQuery = useQuery({
+    queryKey: workerStatsQueryKeys.monthlyStats(
+      effectiveSelectedUserId,
+      selectedYear,
+      selectedMonth,
+    ),
+    queryFn: () =>
+      getMonthlyStats(effectiveSelectedUserId!, selectedYear, selectedMonth),
+    enabled: !!effectiveSelectedUserId,
+    staleTime: 0,
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
+    refetchInterval: 30_000,
+    refetchIntervalInBackground: false,
+  });
+
+  const dayShifts = dayShiftsQuery.data || [];
+  const userStats = monthlyStatsQuery.data || emptyWorkerStats;
+
+  const invalidateSelectedWorkerData = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({
+        queryKey: workerStatsQueryKeys.dayShifts(
+          effectiveSelectedUserId,
+          selectedDate,
+        ),
+      }),
+      queryClient.invalidateQueries({
+        queryKey: workerStatsQueryKeys.monthlyStats(
+          effectiveSelectedUserId,
+          selectedYear,
+          selectedMonth,
+        ),
+      }),
+    ]);
   };
 
-  const loadUserStats = async () => {
-    if (!selectedUserId) return;
+  const createShiftMutation = useMutation({
+    mutationFn: async (
+      workShift: Omit<WorkShift, "id" | "created_at" | "updated_at">,
+    ) => {
+      const response = await apiClient.createWorkShift(workShift);
+      if (response.error) throw new Error(response.error);
+      return response.data;
+    },
+    onSuccess: async () => {
+      await invalidateSelectedWorkerData();
+    },
+  });
 
-    try {
-      const response = await apiClient.getWorkShiftStats(
-        selectedUserId,
-        selectedYear,
-        selectedMonth,
-      );
-      if (response.data) {
-        const stats = response.data as {
-          total_shifts: number;
-          total_minutes: number;
-          average_minutes: number;
-        };
-        setUserStats({
-          totalShifts: normalizeDisplayNumber(stats.total_shifts),
-          totalMinutes: normalizeDisplayNumber(stats.total_minutes),
-          averageMinutes: normalizeDisplayNumber(stats.average_minutes),
-        });
-      } else {
-        setUserStats({ totalShifts: 0, totalMinutes: 0, averageMinutes: 0 });
-      }
-    } catch (error) {
-      console.error("Error loading user stats:", error);
-      setUserStats({ totalShifts: 0, totalMinutes: 0, averageMinutes: 0 });
-    }
-  };
+  const deleteShiftMutation = useMutation({
+    mutationFn: async (shiftId: number) => {
+      const response = await apiClient.deleteWorkShift(shiftId);
+      if (response.error) throw new Error(response.error);
+      return response.data;
+    },
+    onSuccess: async () => {
+      await invalidateSelectedWorkerData();
+    },
+  });
 
-  useEffect(() => {
-    loadDayShifts();
-  }, [selectedUserId, selectedDate]);
-
-  useEffect(() => {
-    loadUserStats();
-  }, [selectedUserId, selectedMonth, selectedYear]);
-
-  if (loading) {
+  if (usersQuery.isLoading) {
     return (
       <>
         <SiteHeader title="יומן נוכחות" />
@@ -231,7 +297,6 @@ export default function WorkerStatsPage() {
     );
   }
 
-  const selectedUser = users.find((u) => u.id === selectedUserId);
   const formatDuration = (minutes: number) => {
     const totalMinutes = Math.max(0, normalizeDisplayNumber(minutes));
     if (!totalMinutes) return "0:00";
@@ -243,7 +308,11 @@ export default function WorkerStatsPage() {
 
   const handleCreateShift = async () => {
     if (isCreatingShiftRef.current) return;
-    if (!selectedUserId || !newShiftData.start_time || !newShiftData.end_time)
+    if (
+      !effectiveSelectedUserId ||
+      !newShiftData.start_time ||
+      !newShiftData.end_time
+    )
       return;
 
     isCreatingShiftRef.current = true;
@@ -258,7 +327,7 @@ export default function WorkerStatsPage() {
       );
 
       const shiftData = {
-        user_id: selectedUserId,
+        user_id: effectiveSelectedUserId,
         start_time: newShiftData.start_time,
         end_time: newShiftData.end_time,
         duration_minutes: durationMinutes,
@@ -266,13 +335,9 @@ export default function WorkerStatsPage() {
         status: "completed" as const,
       };
 
-      const response = await apiClient.createWorkShift(shiftData);
-      if (response.data) {
-        setIsCreateModalOpen(false);
-        setNewShiftData({ start_time: "", end_time: "" });
-        await loadDayShifts();
-        await loadUserStats();
-      }
+      await createShiftMutation.mutateAsync(shiftData);
+      setIsCreateModalOpen(false);
+      setNewShiftData({ start_time: "", end_time: "" });
     } catch (error) {
       console.error("Error creating shift:", error);
     } finally {
@@ -285,11 +350,7 @@ export default function WorkerStatsPage() {
     if (!shiftId) return;
 
     try {
-      const response = await apiClient.deleteWorkShift(shiftId);
-      if (!response.error) {
-        await loadDayShifts();
-        await loadUserStats();
-      }
+      await deleteShiftMutation.mutateAsync(shiftId);
     } catch (error) {
       console.error("Error deleting shift:", error);
     }
@@ -323,7 +384,8 @@ export default function WorkerStatsPage() {
             </Card>
           ) : (
             <Tabs
-              defaultValue={selectedUserId?.toString()}
+              value={effectiveSelectedUserId?.toString()}
+              onValueChange={(value) => setSelectedUserId(Number(value))}
               className="w-full"
               orientation="vertical"
             >

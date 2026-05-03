@@ -90,6 +90,7 @@ export default function ReferralDetailPage() {
     },
   });
   const [fieldErrors, setFieldErrors] = useState<{ date?: string }>({});
+  const [isExportInFlight, setIsExportInFlight] = useState(false);
 
   const [compactPrescription, setCompactPrescription] =
     useState<CompactPrescriptionExam | null>(null);
@@ -400,17 +401,22 @@ export default function ReferralDetailPage() {
   };
 
   const handleExportDocx = async () => {
+    if (isExportInFlight) return;
+
     try {
       if (!formData.id) {
         toast.error("לא ניתן לייצא הפניה לפני שמירה");
         return;
       }
 
+      setIsExportInFlight(true);
       await exportReferralToDocx({ referralId: formData.id });
       toast.success("הדוח יוצא בהצלחה");
     } catch (error) {
       console.error("Error exporting referral DOCX:", error);
       toast.error("שגיאה ביצירת הדוח");
+    } finally {
+      setIsExportInFlight(false);
     }
   };
 
@@ -545,9 +551,14 @@ export default function ReferralDetailPage() {
                     variant="outline"
                     size="icon"
                     onClick={handleExportDocx}
+                    disabled={isExportInFlight}
                     title="ייצוא לדוח Word"
                   >
-                    <FileText className="h-4 w-4" />
+                    {isExportInFlight ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <FileText className="h-4 w-4" />
+                    )}
                   </Button>
                 )}
                 <Button

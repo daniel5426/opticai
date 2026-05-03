@@ -20,7 +20,7 @@ if (process.env.NODE_ENV === 'production') {
   console.log('Loading development environment');
 }
 
-import { app, BrowserWindow, ipcMain, dialog, shell } from "electron";
+import { app, BrowserWindow, ipcMain, dialog, shell, Menu } from "electron";
 import { autoUpdater } from "electron-updater";
 import { GoogleOAuthService } from './lib/google/google-oauth';
 import { GoogleCalendarService } from './lib/google/google-calendar';
@@ -391,9 +391,24 @@ function createWindow() {
 
   
   const preload = path.join(__dirname, "preload.js");
+  if (isWindows) {
+    Menu.setApplicationMenu(null);
+  }
+
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
+    ...(isWindows
+      ? {
+          titleBarStyle: 'hidden' as const,
+          titleBarOverlay: {
+            color: '#00000000',
+            symbolColor: '#111827',
+            height: 32,
+          },
+          autoHideMenuBar: true,
+        }
+      : {}),
     webPreferences: {
       devTools: true, // Enable DevTools in both development and production for debugging
       contextIsolation: true,

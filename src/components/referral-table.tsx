@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { FileText, Plus, Trash2 } from "lucide-react";
+import { FileText, Loader2, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -61,6 +61,7 @@ export function ReferralTable({
   const navigate = useNavigate();
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [referralToDelete, setReferralToDelete] = useState<Referral | null>(null);
+  const [exportingDocxIds, setExportingDocxIds] = useState<Record<number, boolean>>({});
   const [selectedUrgency, setSelectedUrgency] = useState<string>(ALL_FILTER_VALUE);
   const [selectedReferralType, setSelectedReferralType] = useState<string>(ALL_FILTER_VALUE);
   const urgencyFilter = externalUrgencyFilter ?? selectedUrgency;
@@ -158,12 +159,18 @@ export function ReferralTable({
         toast.error("לא ניתן לייצא הפניה ללא מזהה");
         return;
       }
+      if (exportingDocxIds[referral.id]) return;
 
+      setExportingDocxIds((prev) => ({ ...prev, [referral.id!]: true }));
       await exportReferralToDocx({ referralId: referral.id });
       toast.success("הדוח יוצא בהצלחה");
     } catch (error) {
       console.error("Error exporting referral DOCX:", error);
       toast.error("שגיאה ביצירת הדוח");
+    } finally {
+      if (referral.id) {
+        setExportingDocxIds((prev) => ({ ...prev, [referral.id!]: false }));
+      }
     }
   };
 
@@ -262,12 +269,14 @@ export function ReferralTable({
                 </TableRow>
               ))
             ) : displayData.length > 0 ? (
-              displayData.map((referral) => (
-                <TableRow
-                  key={referral.id}
-                  className="cursor-pointer"
-                  onClick={() => handleRowClick(referral)}
-                >
+              displayData.map((referral) => {
+                const isExportingDocx = referral.id ? Boolean(exportingDocxIds[referral.id]) : false;
+                return (
+                  <TableRow
+                    key={referral.id}
+                    className="cursor-pointer"
+                    onClick={() => handleRowClick(referral)}
+                  >
                   <TableCell className="text-right">
                     {referral.date
                       ? new Date(referral.date).toLocaleDateString("he-IL")
@@ -301,13 +310,18 @@ export function ReferralTable({
                       <Button
                         variant="ghost"
                         className="h-8 w-8 p-0"
+                        disabled={isExportingDocx}
                         onClick={(e) => {
                           e.stopPropagation();
                           handleExportDocx(referral);
                         }}
                         title="ייצוא לדוח Word"
                       >
-                        <FileText className="h-4 w-4" />
+                        {isExportingDocx ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <FileText className="h-4 w-4" />
+                        )}
                       </Button>
                       <Button
                         variant="ghost"
@@ -323,8 +337,9 @@ export function ReferralTable({
                       </Button>
                     </div>
                   </TableCell>
-                </TableRow>
-              ))
+                  </TableRow>
+                );
+              })
             ) : (
               <TableRow>
                 <TableCell

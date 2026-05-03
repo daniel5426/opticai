@@ -22,7 +22,13 @@ export default function DragWindowRegion({ title }: DragWindowRegionProps) {
   
   return (
     <div className="bg-secondary border-sidebar-border">
-      <div className="bg-secondary flex w-screen items-center h-8 relative">
+      <div
+        className="bg-secondary flex w-screen items-center h-8 relative"
+        style={{
+          paddingRight:
+            "calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw))",
+        }}
+      >
         <div className="draglayer flex-1 bg-secondary px-1 flex items-center gap-2">
           <img 
             src={prysmLogo} 

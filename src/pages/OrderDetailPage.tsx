@@ -504,6 +504,7 @@ export default function OrderDetailPage({
     isEditing,
     isNewMode,
   });
+  const [isExportInFlight, setIsExportInFlight] = useState(false);
 
   const fieldHandlers = {
     [type]: (field: string, value: string) =>
@@ -1582,6 +1583,8 @@ export default function OrderDetailPage({
   };
 
   const handleExportDocx = async () => {
+    if (isExportInFlight) return;
+
     try {
       const orderIdToExport = isContactMode ? contactFormData?.id : formData?.id;
       if (!orderIdToExport) {
@@ -1589,6 +1592,7 @@ export default function OrderDetailPage({
         return;
       }
 
+      setIsExportInFlight(true);
       await exportOrderToDocx({
         orderId: orderIdToExport,
         kind: isContactMode ? "contact" : "regular",
@@ -1597,6 +1601,8 @@ export default function OrderDetailPage({
     } catch (error) {
       console.error("Error exporting DOCX:", error);
       toast.error("שגיאה ביצירת הדוח");
+    } finally {
+      setIsExportInFlight(false);
     }
   };
 
@@ -1801,9 +1807,14 @@ export default function OrderDetailPage({
                     variant="outline"
                     size="icon"
                     onClick={handleExportDocx}
+                    disabled={isExportInFlight}
                     title="ייצוא לדוח Word"
                   >
-                    <FileText className="h-4 w-4" />
+                    {isExportInFlight ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <FileText className="h-4 w-4" />
+                    )}
                   </Button>
                 )}
                 <Button

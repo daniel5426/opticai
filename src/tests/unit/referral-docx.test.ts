@@ -6,51 +6,33 @@ import type { LoadedReferralExportContext } from "@/lib/referral-docx";
 import { buildReferralPrintModel } from "@/lib/referral-docx";
 
 const referralTemplateKeys = [
-  "client_address",
-  "client_birth_date",
-  "client_id",
-  "client_name",
-  "clinic_address",
-  "clinic_email",
-  "clinic_name",
-  "clinic_phone",
-  "clinical_impression",
+  "client_contact",
+  "client_details",
+  "clinic_info",
+  "clinical_findings_text",
   "comb_pd",
   "comb_va",
-  "company_address",
-  "company_email",
-  "company_name",
-  "company_phone",
-  "examiner_name",
+  "company_info",
   "l_add",
   "l_ax",
   "l_base",
   "l_cyl",
-  "l_iop",
   "l_pd",
   "l_pris",
   "l_sph",
   "l_va",
-  "license_number",
-  "phone_home",
-  "phone_mobile",
   "r_add",
   "r_ax",
   "r_base",
   "r_cyl",
-  "r_iop",
   "r_pd",
   "r_pris",
   "r_sph",
   "r_va",
-  "recipient",
-  "referral_date",
+  "recipient_line",
+  "referral_details",
   "referral_notes",
-  "referral_number",
-  "referral_type",
-  "signer_name",
-  "signer_title",
-  "urgency_level",
+  "signature_text",
 ];
 
 function createReferralContext(): LoadedReferralExportContext {
@@ -144,7 +126,14 @@ describe("referral-docx print model", () => {
     expect(model.referral_date).toBe("30.4.2026");
     expect(model.urgency_level).toBe("דחוף");
     expect(model.client_name).toBe("הראל שלומי");
+    expect(model.company_info).toContain("אופטיקה הראל");
+    expect(model.clinic_info).toContain("clinic@example.com");
+    expect(model.referral_details).toContain("תאריך: 30.4.2026");
+    expect(model.recipient_line).toBe("לכבוד: הרופא המטפל");
+    expect(model.client_details).toContain("מטופל: הראל שלומי");
+    expect(model.client_contact).toContain("נייד: 050-0000000");
     expect(model.clinical_impression).toBe("חשד ליובש משמעותי");
+    expect(model.clinical_findings_text).toContain("הערכה / אבחנה: חשד ליובש משמעותי");
     expect(model.r_iop).toBe("17 mmHg");
     expect(model.r_sph).toBe("-5.00");
     expect(model.l_ax).toBe("145");
@@ -153,6 +142,7 @@ describe("referral-docx print model", () => {
     expect(model.referral_notes).toBe("נא בדיקת המשך.");
     expect(model.has_clinical_findings).toBe(true);
     expect(model.has_compact_prescription).toBe(true);
+    expect(model.signature_text).toContain("בברכה");
   });
 
   test("buildReferralPrintModel marks empty optional sections as hidden", () => {
