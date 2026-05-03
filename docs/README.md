@@ -1,6 +1,6 @@
 # Documentation System
 
-Last Updated: 2026-04-09
+Last Updated: 2026-05-04
 
 This directory is the canonical internal documentation hub for OpticAI.
 
@@ -29,6 +29,7 @@ This directory is the canonical internal documentation hub for OpticAI.
 - [`docs/design-docs/auth_and_session_current.md`](/Users/danielbenassaya/Code/personal/opticai/docs/design-docs/auth_and_session_current.md)
 - [`docs/design-docs/exam_layout_engine_current.md`](/Users/danielbenassaya/Code/personal/opticai/docs/design-docs/exam_layout_engine_current.md)
 - [`docs/design-docs/operations_integrations_current.md`](/Users/danielbenassaya/Code/personal/opticai/docs/design-docs/operations_integrations_current.md)
+- [`docs/product-specs/landing_page_app_overview.md`](/Users/danielbenassaya/Code/personal/opticai/docs/product-specs/landing_page_app_overview.md)
 - [`docs/generated/production_readiness_matrix.md`](/Users/danielbenassaya/Code/personal/opticai/docs/generated/production_readiness_matrix.md)
 - [`docs/generated/launch_blocker_matrix.md`](/Users/danielbenassaya/Code/personal/opticai/docs/generated/launch_blocker_matrix.md)
 - [`docs/exec-plans/active/production_readiness_launch_plan.md`](/Users/danielbenassaya/Code/personal/opticai/docs/exec-plans/active/production_readiness_launch_plan.md)
