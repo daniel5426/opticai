@@ -35,8 +35,6 @@ const regularTemplateKeys = [
   "l_ax",
   "l_base",
   "l_cyl",
-  "l_diam",
-  "l_high",
   "l_lens_coating",
   "l_lens_color",
   "l_lens_diameter",
@@ -47,7 +45,6 @@ const regularTemplateKeys = [
   "l_pris",
   "l_sph",
   "lens_tab_type",
-  "line_items_block",
   "manufacturing_lab",
   "multifocal_block",
   "optician_name",
@@ -63,8 +60,6 @@ const regularTemplateKeys = [
   "r_ax",
   "r_base",
   "r_cyl",
-  "r_diam",
-  "r_high",
   "r_lens_coating",
   "r_lens_color",
   "r_lens_diameter",
@@ -346,8 +341,6 @@ describe("order-docx print models", () => {
     expect(model.frame_width).toBe("52");
     expect(model.total_price).toContain('1,200.00');
     expect(model.balance_due).toContain('900.00');
-    expect(model.line_items_block).toContain("1.");
-    expect(model.line_items_block).toContain("4.");
     expect(model.multifocal_block).toContain("PA:");
   });
 

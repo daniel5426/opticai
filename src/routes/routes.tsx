@@ -14,7 +14,6 @@ import ExamDetailPage from "@/pages/ExamDetailPage";
 import ExamCreatePage from "@/pages/ExamCreatePage";
 import OrderDetailPage from "@/pages/OrderDetailPage";
 import OrderCreatePage from "@/pages/OrderCreatePage";
-import ContactLensCreatePage from "@/pages/ContactLensCreatePage";
 import AllReferralsPage from "@/pages/AllReferralsPage";
 import AllAppointmentsPage from "@/pages/AllAppointmentsPage";
 import AllFilesPage from "@/pages/AllFilesPage";
@@ -187,18 +186,6 @@ export const OrderCreateRoute = createRoute({
   component: OrderCreatePage,
 });
 
-export const ContactLensDetailRoute = createRoute({
-  getParentRoute: () => RootRoute,
-  path: "/clients/$clientId/contact-lenses/$contactLensId",
-  component: ExamDetailPage,
-});
-
-export const ContactLensCreateRoute = createRoute({
-  getParentRoute: () => RootRoute,
-  path: "/clients/$clientId/contact-lenses/new",
-  component: ContactLensCreatePage,
-});
-
 export const ReferralDetailRoute = createRoute({
   getParentRoute: () => RootRoute,
   path: "/clients/$clientId/referrals/$referralId",
@@ -368,8 +355,6 @@ export const rootTree = RootRoute.addChildren([
   ExamCreateRoute,
   OrderDetailRoute,
   OrderCreateRoute,
-  ContactLensDetailRoute,
-  ContactLensCreateRoute,
   ReferralDetailRoute,
   ReferralCreateRoute,
   AllExamsRoute,

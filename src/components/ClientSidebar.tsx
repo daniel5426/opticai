@@ -31,7 +31,6 @@ function detectCurrentPart(pathname: string, searchParams?: any, contextActiveTa
   if (pathname.includes('/exams/')) return 'exam'
   if (pathname.includes('/orders/')) return 'order'
   if (pathname.includes('/referrals/')) return 'referral'
-  if (pathname.includes('/contact-lenses/')) return 'contact_lens'
   if (pathname.includes('/appointments/')) return 'appointment'
   if (pathname.includes('/files/')) return 'file'
   if (pathname.includes('/medical/')) return 'medical'
@@ -45,7 +44,6 @@ function detectCurrentPart(pathname: string, searchParams?: any, contextActiveTa
         'exams': 'exam',
         'orders': 'order',
         'referrals': 'referral',
-        'contact-lenses': 'contact_lens',
         'appointments': 'appointment',
         'files': 'file',
         'medical': 'medical'
@@ -62,7 +60,6 @@ function detectCurrentPart(pathname: string, searchParams?: any, contextActiveTa
         'exams': 'exam',
         'orders': 'order',
         'referrals': 'referral',
-        'contact-lenses': 'contact_lens',
         'appointments': 'appointment',
         'files': 'file',
         'medical': 'medical'
@@ -82,7 +79,6 @@ function detectCurrentPart(pathname: string, searchParams?: any, contextActiveTa
           'exams': 'exam',
           'orders': 'order',
           'referrals': 'referral',
-          'contact-lenses': 'contact_lens',
           'appointments': 'appointment',
           'files': 'file',
           'medical': 'medical'
@@ -124,7 +120,6 @@ function AIInformationSection({
     exam: 'בדיקות',
     order: 'הזמנות',
     referral: 'הפניות',
-    contact_lens: 'עדשות מגע',
     appointment: 'תורים',
     file: 'מסמכים',
     medical: 'רפואי'

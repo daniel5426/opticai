@@ -305,7 +305,6 @@ def update_client_ai_states(
         "exam": "ai_exam_state",
         "order": "ai_order_state",
         "referral": "ai_referral_state",
-        "contact_lens": "ai_contact_lens_state",
         "appointment": "ai_appointment_state",
         "file": "ai_file_state",
         "medical": "ai_medical_state",
@@ -357,13 +356,12 @@ def get_all_client_data_for_ai(
     referrals = db.query(Referral).filter(Referral.client_id == client_id).all()
     files = db.query(File).filter(File.client_id == client_id).all()
     medical_logs = db.query(MedicalLog).filter(MedicalLog.client_id == client_id).order_by(MedicalLog.id.desc()).all()
-    contact_lenses = []
 
     try:
         print(
             f"[AI DEBUG] all-data-for-ai client_id={client_id} "
             f"exams={len(exams)} appointments={len(appointments)} orders={len(orders)} "
-            f"referrals={len(referrals)} files={len(files)} medical_logs={len(medical_logs)} contact_lenses={len(contact_lenses)}"
+            f"referrals={len(referrals)} files={len(files)} medical_logs={len(medical_logs)}"
         )
         if medical_logs:
             print("[AI DEBUG] medical_log_ids:", [ml.id for ml in medical_logs])
@@ -379,7 +377,6 @@ def get_all_client_data_for_ai(
         "referrals": referrals,
         "files": files,
         "medical_logs": medical_logs,
-        "contact_lenses": contact_lenses,
     }
 
 @router.get("/stats/company/{company_id}")

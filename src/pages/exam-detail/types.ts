@@ -7,7 +7,7 @@ export interface ExamDetailPageProps {
   examId?: string;
   onSave?: (exam: OpticalExam, ...examData: any[]) => void;
   onCancel?: () => void;
-  pageType?: "exam" | "contact-lens";
+  pageType?: "exam";
 }
 
 export interface CardRow {

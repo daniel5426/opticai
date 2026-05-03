@@ -11,7 +11,7 @@ export default function DragWindowRegion({ title }: DragWindowRegionProps) {
   const location = useLocation();
   
   // Only show search bar when in clinic routes (we'll handle user context in GlobalSearch)
-  const clinicRoutes = ['/dashboard', '/clients', '/exams', '/orders', '/appointments', '/settings', '/campaigns', '/files', '/referrals', '/contact-lenses', '/ai-assistant', '/exam-layouts', '/worker-stats', '/second-page'];
+  const clinicRoutes = ['/dashboard', '/clients', '/exams', '/orders', '/appointments', '/settings', '/campaigns', '/files', '/referrals', '/ai-assistant', '/exam-layouts', '/worker-stats', '/second-page'];
   const shouldShowSearch = clinicRoutes.some(route =>
     location.pathname.startsWith(route)
   );

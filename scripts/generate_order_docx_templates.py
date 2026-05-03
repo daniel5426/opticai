@@ -416,40 +416,6 @@ def notes_row(right_title: str, right_key: str, left_title: str, left_key: str) 
     )
 
 
-def expanded_billing_block() -> str:
-    return table(
-        [
-            row(
-                [
-                    cell(
-                        paragraph(run("שורות חיוב", bold=True, size=20, color="18181B"), align="right", spacing_after=0),
-                        width=PAGE_WIDTH,
-                        fill=LABEL_FILL,
-                        align="right",
-                        borders=False
-                    )
-                ]
-            ),
-            row(
-                [
-                    cell(
-                        paragraph(field("line_items_block", size=20), align="right", spacing_after=20),
-                        width=PAGE_WIDTH,
-                        fill=SUBTLE_FILL,
-                        vertical="top",
-                        margins=(120, 120, 180, 120),
-                        align="right",
-                        borders=False
-                    )
-                ],
-                height=980,
-            ),
-        ],
-        [PAGE_WIDTH],
-        borders=True
-    )
-
-
 def build_regular_xml() -> str:
     content = [
         header_block("הזמנה רגילה", "clinic_name"),
@@ -496,9 +462,9 @@ def build_regular_xml() -> str:
         section_title("מרשם"),
         eye_table(
             "עין",
-            ["SPH", "CYL", "AX", "PRISM", "BASE", "ADD", "DIAM", "HEIGHT", "PD"],
-            ["r_sph", "r_cyl", "r_ax", "r_pris", "r_base", "r_add", "r_diam", "r_high", "r_pd"],
-            ["l_sph", "l_cyl", "l_ax", "l_pris", "l_base", "l_add", "l_diam", "l_high", "l_pd"],
+            ["SPH", "CYL", "AX", "PRISM", "BASE", "ADD", "PD"],
+            ["r_sph", "r_cyl", "r_ax", "r_pris", "r_base", "r_add", "r_pd"],
+            ["l_sph", "l_cyl", "l_ax", "l_pris", "l_base", "l_add", "l_pd"],
         ),
         empty_paragraph(80),
         kv_table([("PD משולב", "comb_pd"), ("רב מוקדי", "multifocal_block")], pairs_per_row=2),
@@ -525,9 +491,6 @@ def build_regular_xml() -> str:
             ],
             pairs_per_row=3,
         ),
-        empty_paragraph(180),
-        section_title("פריטי חיוב"),
-        expanded_billing_block(),
         empty_paragraph(180),
         section_title("סיכום כספי"),
         metric_table(

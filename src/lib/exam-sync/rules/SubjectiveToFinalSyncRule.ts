@@ -12,14 +12,10 @@ export class SubjectiveToFinalSyncRule implements SyncRule {
     'l_cyl': 'l_cyl',
     'r_ax': 'r_ax',
     'l_ax': 'l_ax',
-    'r_pris': 'r_pr_h', // Note: partial mapping, Subjective has 'r_pris', Final might split H/V or use same? Checking schema...
-    // Schema check: 
-    // Subjective: r_pris, l_pris, r_base, l_base
-    // Final: r_pr_h, l_pr_h, r_base_h, l_base_h, r_pr_v, l_pr_v, r_base_v, l_base_v
-    
-    // Mapping base prism might be complex due to H/V split in Final. 
-    // For now, let's map the basic refraction params which are 1:1.
-    
+    'r_pris': 'r_pris',
+    'l_pris': 'l_pris',
+    'r_base': 'r_base',
+    'l_base': 'l_base',
     'r_va': 'r_va',
     'l_va': 'l_va',
     'r_pd_far': 'r_pd_far',

@@ -57,13 +57,12 @@ def _collect_all_client_data(db: Session, client_id: int) -> Dict[str, Any]:
         "referrals": _serialize_list(referrals),
         "files": _serialize_list(files),
         "medical_logs": _serialize_list(medical_logs),
-        "contact_lenses": [],
     }
 
 
 def _openai_chat(messages: List[Dict[str, str]], temperature: float = 1) -> str:
     chat = ChatOpenAI(
-        model="gpt-5-chat-latest",
+        model="gpt-5.4-mini-2026-03-17",
         api_key=settings.OPENAI_API_KEY,
         temperature=temperature,
     )
@@ -128,7 +127,6 @@ You are a medical assistant specializing in ophthalmology. Your job is to provid
 **Cross-domain insights:**
 - Allergies from MEDICAL (may prevent certain tests/drops)
 - Medications from MEDICAL (affect pupil dilation, eye pressure)
-- Previous complications from CONTACT_LENS (relevant to new fitting)
 - Urgent symptoms from REFERRAL (prioritize specific tests)
 - Recent complaints from APPOINTMENT notes
 - External test results from FILE (compare with current findings)
@@ -168,7 +166,6 @@ You are a medical assistant specializing in ophthalmology. Your job is to provid
 **Cross-domain insights:**
 - Abnormal findings from EXAM (high pressure, retinal changes)
 - Worsening patterns from MEDICAL (progressive vision loss)
-- Failed treatments from CONTACT_LENS (persistent infections)
 - Urgent symptoms from APPOINTMENT (flashes, floaters, pain)
 - Risk factors from MEDICAL (diabetes, hypertension, family history)
 
@@ -182,26 +179,6 @@ You are a medical assistant specializing in ophthalmology. Your job is to provid
 • דיווח על הבזקי אור ומחוזים - חשד לניתוק רשתית, הפנו מיד
 • סוכרת לא מאוזנת + שינויים בראייה - נדרשת בדיקת רשתית אצל רופא
 • הופנה 3 פעמים לגלאוקומה אך לא הגיע - דורש מעקב טלפוני דחוף
-
-### [CONTACT_LENS] - Contact Lens Workflow
-**Cross-domain insights:**
-- Allergies from MEDICAL (solutions, materials)
-- Dry eye from EXAM findings (affects lens comfort)
-- Lifestyle from CLIENT data (sports, work environment)
-- Past complications from MEDICAL (infections, inflammation)
-- Prescription stability from EXAM history
-
-**Pattern detection within CONTACT_LENS:**
-- Recurring infections (hygiene issue, wrong type?)
-- Comfort complaints pattern (material sensitivity?)
-- Replacement compliance (extending wear too long?)
-- Adaptation success/failure patterns
-
-**Example:**
-• עיניים יבשות מאוד בבדיקה - שקלו עדשות סיליקון היידרוג'ל
-• אלרגיה לחומרים משמרים - השתמשו בתמיסות ללא חומרים משמרים
-• ספורטאי פעיל - המליצו על עדשות חד-יומיות
-• 3 זיהומים בשנה האחרונה - חנכו מחדש על היגיינה או שקלו משקפיים
 
 ### [APPOINTMENT] - Scheduling Workflow
 **Cross-domain insights:**
@@ -244,7 +221,6 @@ You are a medical assistant specializing in ophthalmology. Your job is to provid
 ### [MEDICAL] - Medical History Workflow
 **Cross-domain insights:**
 - How conditions affect EXAM findings
-- Medication impact on CONTACT_LENS comfort
 - Risk factors requiring REFERRAL
 - Allergies affecting ORDERS (tints, coatings)
 
@@ -282,10 +258,6 @@ Provide 3-7 SHORT, ACTIONABLE points per domain. Write in Hebrew. Use bullet poi
 • Point requiring specialist attention
 [/REFERRAL]
 
-[CONTACT_LENS]
-• Point relevant to lens fitting
-[/CONTACT_LENS]
-
 [APPOINTMENT]
 • Point affecting scheduling
 [/APPOINTMENT]
@@ -319,7 +291,6 @@ Provide 3-7 SHORT, ACTIONABLE points per domain. Write in Hebrew. Use bullet poi
     client.ai_exam_state = _extract_section(content, "EXAM")
     client.ai_order_state = _extract_section(content, "ORDER")
     client.ai_referral_state = _extract_section(content, "REFERRAL")
-    client.ai_contact_lens_state = _extract_section(content, "CONTACT_LENS")
     client.ai_appointment_state = _extract_section(content, "APPOINTMENT")
     client.ai_file_state = _extract_section(content, "FILE")
     client.ai_medical_state = _extract_section(content, "MEDICAL")
@@ -374,19 +345,6 @@ def generate_part_state(
                 "תסמינים דחופים מתורים אחרונים (הבזקים, מחוזים)",
                 "גורמי סיכון מההיסטוריה הרפואית (סוכרת, לחץ דם)",
                 "כישלון בטיפולים קודמים"
-            ]
-        },
-        "contact_lens": {
-            "name": "התאמת עדשות מגע",
-            "instruction": "הצג מידע רלוונטי להתאמה וטיפול בעדשות מגע וזהה בעיות חוזרות",
-            "examples": [
-                "אלרגיות לתמיסות או חומרים מהרשומה הרפואית",
-                "עיניים יבשות או בעיות קרנית מבדיקות",
-                "סגנון חיים (ספורט, סביבת עבודה)",
-                "בעיות בעבר עם עדשות (זיהומים, דלקות)",
-                "יציבות המרשם מבדיקות אחרונות",
-                "זיהומים חוזרים → בעיית היגיינה או סוג עדשה לא מתאים",
-                "תלונות נוחות חוזרות → שקלו סוג אחר"
             ]
         },
         "appointment": {
@@ -624,4 +582,3 @@ def create_campaign_from_prompt(body: Dict[str, Any], db: Session = Depends(get_
     db.commit()
     db.refresh(db_campaign)
     return {"success": True, "data": CampaignSchema.model_validate(db_campaign).model_dump()}
-

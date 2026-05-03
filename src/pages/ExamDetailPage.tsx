@@ -9,7 +9,6 @@ import React, {
 import {
   useParams,
   useNavigate,
-  useLocation,
   useSearch,
 } from "@tanstack/react-router";
 import { SiteHeader } from "@/components/site-header";
@@ -94,45 +93,22 @@ export default function ExamDetailPage({
   onSave,
   onCancel,
 }: ExamDetailPageProps = {}) {
-  const location = useLocation();
-  const pageType =
-    propPageType ||
-    (location.pathname.includes("/contact-lenses") ? "contact-lens" : "exam");
+  const pageType = propPageType || "exam";
   const config = pageConfig[pageType];
 
   // Move all useParams calls to the top level, outside of any conditionals
   let routeClientId: string | undefined, routeExamId: string | undefined;
-  if (pageType === "exam") {
+  try {
+    const params = useParams({ from: "/clients/$clientId/exams/$examId" });
+    routeClientId = params.clientId;
+    routeExamId = params.examId;
+  } catch {
     try {
-      const params = useParams({ from: "/clients/$clientId/exams/$examId" });
+      const params = useParams({ from: "/clients/$clientId/exams/new" });
       routeClientId = params.clientId;
-      routeExamId = params.examId;
     } catch {
-      try {
-        const params = useParams({ from: "/clients/$clientId/exams/new" });
-        routeClientId = params.clientId;
-      } catch {
-        routeClientId = undefined;
-        routeExamId = undefined;
-      }
-    }
-  } else {
-    try {
-      const params = useParams({
-        from: "/clients/$clientId/contact-lenses/$contactLensId",
-      });
-      routeClientId = params.clientId;
-      routeExamId = params.contactLensId;
-    } catch {
-      try {
-        const params = useParams({
-          from: "/clients/$clientId/contact-lenses/new",
-        });
-        routeClientId = params.clientId;
-      } catch {
-        routeClientId = undefined;
-        routeExamId = undefined;
-      }
+      routeClientId = undefined;
+      routeExamId = undefined;
     }
   }
 
@@ -142,7 +118,7 @@ export default function ExamDetailPage({
   const isNewMode = mode === "new" || !examId;
 
   let layoutIdFromSearch: string | undefined;
-  if (pageType === "exam" && isNewMode) {
+  if (isNewMode) {
     try {
       const search = useSearch({ from: "/clients/$clientId/exams/new", strict: false });
       layoutIdFromSearch = (search as any)?.layoutId as string | undefined;

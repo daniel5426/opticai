@@ -305,14 +305,10 @@ export interface FinalSubjectiveExam {
   l_cyl?: number;
   r_ax?: number;
   l_ax?: number;
-  r_pr_h?: number;
-  l_pr_h?: number;
-  r_base_h?: string;
-  l_base_h?: string;
-  r_pr_v?: number;
-  l_pr_v?: number;
-  r_base_v?: string;
-  l_base_v?: string;
+  r_pris?: number;
+  l_pris?: number;
+  r_base?: string;
+  l_base?: string;
   r_va?: number;
   l_va?: number;
   r_j?: number;
@@ -324,6 +320,7 @@ export interface FinalSubjectiveExam {
   comb_pd_far?: number;
   comb_pd_close?: number;
   comb_va?: number;
+  comb_j?: number;
 }
 
 export interface FinalPrescriptionExam {

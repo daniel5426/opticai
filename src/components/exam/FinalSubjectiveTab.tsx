@@ -62,18 +62,6 @@ export function FinalSubjectiveTab({
       return finalSubjectiveData[field]?.toString() || "";
     }
 
-    if (key === "pris") {
-      const vVal = finalSubjectiveData[`${eye.toLowerCase()}_pr_v` as keyof FinalSubjectiveExam];
-      const hVal = finalSubjectiveData[`${eye.toLowerCase()}_pr_h` as keyof FinalSubjectiveExam];
-      return (vVal || hVal || "").toString();
-    }
-
-    if (key === "base") {
-      const vBase = finalSubjectiveData[`${eye.toLowerCase()}_base_v` as keyof FinalSubjectiveExam];
-      const hBase = finalSubjectiveData[`${eye.toLowerCase()}_base_h` as keyof FinalSubjectiveExam];
-      return (vBase || hBase || "").toString();
-    }
-
     const field = `${eye.toLowerCase()}_${key}` as keyof FinalSubjectiveExam;
     return finalSubjectiveData[field]?.toString() || "";
   };
@@ -95,30 +83,6 @@ export function FinalSubjectiveTab({
     if (eye === "C") {
       const field = `comb_${key}` as keyof FinalSubjectiveExam;
       onFinalSubjectiveChange(field, value);
-      return;
-    }
-
-    if (key === "pris") {
-      const currentBase = getFieldValue(eye, "base");
-      const isVertical = ["UP", "DOWN"].includes(currentBase);
-      const field = `${eye.toLowerCase()}_pr_${isVertical ? 'v' : 'h'}` as keyof FinalSubjectiveExam;
-      onFinalSubjectiveChange(field, value);
-      return;
-    }
-
-    if (key === "base") {
-      const isVertical = ["UP", "DOWN"].includes(value);
-      const targetPrisKey = `${eye.toLowerCase()}_pr_${isVertical ? 'v' : 'h'}` as keyof FinalSubjectiveExam;
-      const otherPrisKey = `${eye.toLowerCase()}_pr_${isVertical ? 'h' : 'v'}` as keyof FinalSubjectiveExam;
-      const targetBaseKey = `${eye.toLowerCase()}_base_${isVertical ? 'v' : 'h'}` as keyof FinalSubjectiveExam;
-      const otherBaseKey = `${eye.toLowerCase()}_base_${isVertical ? 'h' : 'v'}` as keyof FinalSubjectiveExam;
-
-      const currentPris = getFieldValue(eye, "pris");
-      onFinalSubjectiveChange(targetBaseKey, value);
-      onFinalSubjectiveChange(targetPrisKey, currentPris);
-
-      onFinalSubjectiveChange(otherBaseKey, "");
-      onFinalSubjectiveChange(otherPrisKey, "");
       return;
     }
 

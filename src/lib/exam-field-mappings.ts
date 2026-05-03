@@ -216,7 +216,7 @@ export class ExamFieldMapper {
       case 'subjective':
         return ['r_fa', 'r_fa_tuning', 'r_sph', 'r_cyl', 'r_ax', 'r_pris', 'r_base', 'r_va', 'r_pd_close', 'r_pd_far', 'l_fa', 'l_fa_tuning', 'l_sph', 'l_cyl', 'l_ax', 'l_pris', 'l_base', 'l_va', 'l_pd_close', 'l_pd_far', 'comb_fa', 'comb_fa_tuning', 'comb_va', 'comb_pd_close', 'comb_pd_far']
       case 'final-subjective':
-        return ['r_sph', 'r_cyl', 'r_ax', 'r_pr_h', 'r_base_h', 'r_pr_v', 'r_base_v', 'r_va', 'r_j', 'r_pd_close', 'r_pd_far', 'l_sph', 'l_cyl', 'l_ax', 'l_pr_h', 'l_base_h', 'l_pr_v', 'l_base_v', 'l_va', 'l_j', 'l_pd_close', 'l_pd_far', 'comb_va', 'comb_pd_close', 'comb_pd_far']
+        return ['r_sph', 'r_cyl', 'r_ax', 'r_pris', 'r_base', 'r_va', 'r_j', 'r_pd_close', 'r_pd_far', 'l_sph', 'l_cyl', 'l_ax', 'l_pris', 'l_base', 'l_va', 'l_j', 'l_pd_close', 'l_pd_far', 'comb_va', 'comb_j', 'comb_pd_close', 'comb_pd_far']
       case 'final-prescription':
         return ['r_sph', 'r_cyl', 'r_ax', 'r_pris', 'r_base', 'r_va', 'r_ad', 'r_pd_far', 'r_pd_close', 'r_high', 'r_diam', 'l_sph', 'l_cyl', 'l_ax', 'l_pris', 'l_base', 'l_va', 'l_ad', 'l_pd_far', 'l_pd_close', 'l_high', 'l_diam', 'comb_va', 'comb_pd_far', 'comb_pd_close', 'comb_high']
       case 'compact-prescription':
