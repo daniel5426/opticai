@@ -228,6 +228,7 @@
     },
     "win": {
       "icon": "images/prysm-icon.ico",
+      "verifyUpdateCodeSignature": false,
       "extraResources": [
         {
           "from": ".env.windows.production",
@@ -264,8 +265,7 @@
     "publish": {
       "provider": "github",
       "owner": "daniel5426",
-      "repo": "opticai",
-      "private": true
+      "repo": "opticai"
     }
   }
 }

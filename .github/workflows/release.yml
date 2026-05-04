@@ -52,7 +52,6 @@ jobs:
           cat > .env.production <<'EOF'
           VITE_API_URL=${{ secrets.VITE_API_URL }}
           DOWNLOAD_PAGE_URL=${{ secrets.DOWNLOAD_PAGE_URL }}
-          WINDOWS_UPDATE_FEED_URL=${{ secrets.WINDOWS_UPDATE_FEED_URL }}
           GOOGLE_DESKTOP_CLIENT_ID=${{ secrets.GOOGLE_DESKTOP_CLIENT_ID }}
           GOOGLE_DESKTOP_CLIENT_SECRET=${{ secrets.GOOGLE_DESKTOP_CLIENT_SECRET }}
           EOF
@@ -100,7 +99,6 @@ jobs:
           @"
           VITE_API_URL=${{ secrets.VITE_API_URL }}
           DOWNLOAD_PAGE_URL=${{ secrets.DOWNLOAD_PAGE_URL }}
-          WINDOWS_UPDATE_FEED_URL=${{ secrets.WINDOWS_UPDATE_FEED_URL }}
           GOOGLE_DESKTOP_CLIENT_ID=${{ secrets.GOOGLE_DESKTOP_CLIENT_ID }}
           GOOGLE_DESKTOP_CLIENT_SECRET=${{ secrets.GOOGLE_DESKTOP_CLIENT_SECRET }}
           "@ | Set-Content -Path .env.production -NoNewline
@@ -108,11 +106,12 @@ jobs:
           Copy-Item -Path .env.production -Destination .env.windows.production
 
       - name: Build for Windows
-        run: npm run build:win
+        run: |
+          npx vite build
+          npx electron-builder --win --publish never
         env:
           NODE_ENV: production
           NODE_OPTIONS: --max-old-space-size=4096
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Get version
         id: version
@@ -125,6 +124,8 @@ jobs:
           tag_name: v${{ steps.version.outputs.VERSION }}
           files: |
             release/Prysm-Setup-${{ steps.version.outputs.VERSION }}.exe
+            release/Prysm-Setup-${{ steps.version.outputs.VERSION }}.exe.blockmap
+            release/latest.yml
 
   finalize-release:
     needs: [build-macos, build-windows]
@@ -159,7 +160,7 @@ jobs:
             - **Windows**: \`Prysm-Setup-${version}.exe\`
             
             ### Auto-Update Support
-            This release includes automatic update support! The app will notify you when new versions are available.
+            This release includes update support. Windows builds can download and install updates in-app after the first manual install.
             
             ### Installation
             
@@ -174,7 +175,7 @@ jobs:
             1. Download \`Prysm-Setup-${version}.exe\`
             2. Run the installer
             3. Follow the installation wizard
-            4. The app will auto-update in the background
+            4. Future updates can be downloaded and installed from inside the app
             
             ### What's Changed
             See the commits for detailed changes.

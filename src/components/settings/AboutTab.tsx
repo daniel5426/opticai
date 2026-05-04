@@ -21,6 +21,7 @@ export function AboutTab() {
   const [latestVersion, setLatestVersion] = useState<string | null>(null);
   const [updateAvailable, setUpdateAvailable] = useState(false);
   const [checking, setChecking] = useState(false);
+  const [updateError, setUpdateError] = useState<string | null>(null);
   const [lastChecked, setLastChecked] = useState<Date | null>(null);
   const [downloadState, setDownloadState] = useState<DownloadState>({
     isDownloading: false,
@@ -32,28 +33,22 @@ export function AboutTab() {
     console.log('AboutTab: Component mounted, loading version and checking for updates');
     loadCurrentVersion();
 
-    if (!isWindows) {
-      const savedDownload = localStorage.getItem('downloaded-update');
-      if (savedDownload) {
-        try {
-          const parsed = JSON.parse(savedDownload);
-          setDownloadState(prev => ({
-            ...prev,
-            isDownloaded: true,
-            version: parsed.version,
-            progress: 100
-          }));
-        } catch (e) {
-          localStorage.removeItem('downloaded-update');
-        }
+    const savedDownload = localStorage.getItem('downloaded-update');
+    if (savedDownload) {
+      try {
+        const parsed = JSON.parse(savedDownload);
+        setDownloadState(prev => ({
+          ...prev,
+          isDownloaded: true,
+          version: parsed.version,
+          progress: 100
+        }));
+      } catch (e) {
+        localStorage.removeItem('downloaded-update');
       }
     }
 
     checkForUpdates();
-
-    if (isWindows) {
-      return;
-    }
 
     const cleanupProgress = window.electronAPI.onDownloadProgress((progress) => {
       console.log('AboutTab: Download progress:', progress);
@@ -84,7 +79,7 @@ export function AboutTab() {
       cleanupProgress();
       cleanupDownloaded();
     };
-  }, [isWindows]);
+  }, []);
 
   const loadCurrentVersion = async () => {
     try {
@@ -116,6 +111,7 @@ export function AboutTab() {
   const checkForUpdates = async (manual: boolean = false) => {
     try {
       setChecking(true);
+      setUpdateError(null);
       console.log('AboutTab: Starting update check, manual:', manual);
       if (manual) {
         toast.info('בודק עדכונים...');
@@ -159,12 +155,13 @@ export function AboutTab() {
         }
       }
 
-      if (result.error && manual) {
-        if (result.error.includes('ENOENT') || result.error.includes('app-update.yml')) {
+      if (result.error) {
+        setUpdateError(result.error);
+        if (manual && (result.error.includes('ENOENT') || result.error.includes('app-update.yml'))) {
           toast.error('קובץ עדכונים לא נמצא. נא לבנות מחדש את האפליקציה.');
-        } else if (result.error.includes('404') || result.error.includes('releases.atom')) {
+        } else if (manual && (result.error.includes('404') || result.error.includes('releases.atom'))) {
           toast.error('לא נמצאו עדכונים זמינים. ייתכן שזוהי הגרסה הראשונה או שהמאגר לא פורסם עדיין.');
-        } else {
+        } else if (manual) {
           toast.error(`שגיאה בבדיקת עדכונים: ${result.error}`);
         }
       }
@@ -179,12 +176,9 @@ export function AboutTab() {
   };
 
   const handleDownloadUpdate = async () => {
-    if (isWindows) {
-      return handleOpenUpdateDownloadPage();
-    }
-
     try {
       console.log('AboutTab: Starting download update');
+      setUpdateError(null);
       setDownloadState(prev => ({ ...prev, isDownloading: true, progress: 0 }));
       toast.info('מתחיל הורדת עדכון...');
 
@@ -193,23 +187,23 @@ export function AboutTab() {
       console.log('AboutTab: downloadUpdate result:', result);
 
       if (!result.success) {
-        toast.error(`שגיאה בהורדת עדכון: ${result.error}`);
+        const errorMessage = result.error || 'Unknown error';
+        setUpdateError(errorMessage);
+        toast.error(`שגיאה בהורדת עדכון: ${errorMessage}`);
         setDownloadState(prev => ({ ...prev, isDownloading: false, progress: 0 }));
       }
     } catch (error) {
       console.error('Error downloading update:', error);
+      setUpdateError(error instanceof Error ? error.message : 'Unknown error');
       toast.error('שגיאה בהורדת עדכון');
       setDownloadState(prev => ({ ...prev, isDownloading: false, progress: 0 }));
     }
   };
 
   const handleInstallUpdate = async () => {
-    if (isWindows) {
-      return handleOpenUpdateDownloadPage();
-    }
-
     try {
       console.log('AboutTab: Starting install update');
+      setUpdateError(null);
       toast.info('מתקין עדכון... האפליקציה תאותחל מחדש');
 
       console.log('AboutTab: Calling window.electronAPI.installUpdate()');
@@ -221,10 +215,13 @@ export function AboutTab() {
         localStorage.removeItem('downloaded-update');
       } else {
         console.error('AboutTab: Install update failed:', result?.error);
-        toast.error(result?.error || 'העדכון לא מוכן להתקנה. נא להוריד את העדכון תחילה.');
+        const errorMessage = result?.error || 'העדכון לא מוכן להתקנה. נא להוריד את העדכון תחילה.';
+        setUpdateError(errorMessage);
+        toast.error(errorMessage);
       }
     } catch (error) {
       console.error('AboutTab: Error installing update:', error);
+      setUpdateError(error instanceof Error ? error.message : 'Unknown error');
       toast.error('שגיאה בהתקנת עדכון');
     }
   };
@@ -303,26 +300,22 @@ export function AboutTab() {
             <div className="p-4 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
               <h4 className="text-sm font-medium text-blue-800 dark:text-blue-200 mb-3 text-right flex items-center gap-2 justify-end">
                 <IconAlertCircle className="h-4 w-4" />
-                {isWindows
-                  ? 'עדכון חדש זמין'
-                  : downloadState.isDownloaded 
-                    ? 'עדכון מוכן להתקנה' 
-                    : downloadState.isDownloading 
-                      ? 'מוריד עדכון...' 
-                      : 'עדכון חדש זמין'}
+                {downloadState.isDownloaded
+                  ? 'עדכון מוכן להתקנה'
+                  : downloadState.isDownloading
+                    ? 'מוריד עדכון...'
+                    : 'עדכון חדש זמין'}
               </h4>
               <div className="text-sm text-blue-700 dark:text-blue-300 text-right mb-4" dir="rtl">
-                {isWindows
-                  ? `גרסה ${latestVersion} זמינה. ב-Windows יש לסגור את Prysm, להוריד את המתקין החדש ולהפעיל אותו ידנית.`
-                  : downloadState.isDownloaded 
-                    ? `גרסה ${downloadState.version || latestVersion} הורדה בהצלחה ומוכנה להתקנה.`
-                    : downloadState.isDownloading
-                      ? `מוריד גרסה ${latestVersion}...`
-                      : `גרסה ${latestVersion} זמינה להורדה. מומלץ לעדכן לגרסה האחרונה כדי ליהנות מתכונות חדשות ותיקוני באגים.`
+                {downloadState.isDownloaded
+                  ? `גרסה ${downloadState.version || latestVersion} הורדה בהצלחה ומוכנה להתקנה.`
+                  : downloadState.isDownloading
+                    ? `מוריד גרסה ${latestVersion}...`
+                    : `גרסה ${latestVersion} זמינה להורדה. מומלץ לעדכן לגרסה האחרונה כדי ליהנות מתכונות חדשות ותיקוני באגים.`
                 }
               </div>
               
-              {!isWindows && downloadState.isDownloading && (
+              {downloadState.isDownloading && (
                 <div className="mb-4 space-y-2">
                   <div className="flex items-center justify-between text-xs text-blue-700 dark:text-blue-300">
                     <span>{downloadState.progress}%</span>
@@ -339,16 +332,7 @@ export function AboutTab() {
               )}
               
               <div className="flex gap-3 justify-end">
-                {isWindows ? (
-                  <Button
-                    onClick={handleOpenUpdateDownloadPage}
-                    size="sm"
-                    className="flex items-center gap-2"
-                  >
-                    <IconDownload className="h-4 w-4" />
-                    הורד את המתקין החדש
-                  </Button>
-                ) : downloadState.isDownloaded ? (
+                {downloadState.isDownloaded ? (
                   <Button
                     onClick={handleInstallUpdate}
                     size="sm"
@@ -388,6 +372,22 @@ export function AboutTab() {
                   </>
                 )}
               </div>
+            </div>
+          )}
+
+          {isWindows && updateError && (
+            <div className="p-4 border rounded-lg text-right" dir="rtl">
+              <div className="text-sm font-medium text-destructive mb-2">עדכון אוטומטי נכשל</div>
+              <div className="text-xs text-muted-foreground mb-3 break-words">{updateError}</div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleOpenUpdateDownloadPage}
+                className="flex items-center gap-2 ml-auto"
+              >
+                <IconDownload className="h-4 w-4" />
+                פתח הורדה ידנית
+              </Button>
             </div>
           )}
 
@@ -460,16 +460,11 @@ export function AboutTab() {
               variant="link"
               size="sm"
               onClick={() => {
-                if (isWindows) {
-                  handleOpenUpdateDownloadPage();
-                  return;
-                }
-
                 window.open('https://github.com/daniel5426/opticai/releases', '_blank');
               }}
               className="text-blue-600 dark:text-blue-400"
             >
-              {isWindows ? 'פתח דף הורדות' : 'הצג הערות שחרור'}
+              הצג הערות שחרור
             </Button>
           </div>
         </div>
