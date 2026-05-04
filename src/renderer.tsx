@@ -26,6 +26,12 @@ if (typeof window !== 'undefined' && !window.electronAPI) {
       console.warn('emailTestConnection is not implemented on web');
       return false;
     },
+    exportHtmlToPdf: async () => {
+      throw new Error('exportHtmlToPdf is only available in Electron');
+    },
+    printHtml: async () => {
+      throw new Error('printHtml is only available in Electron');
+    },
     // We can add more mocks here as needed
   };
 }
@@ -54,5 +60,3 @@ if (hot) {
     window.__APP_ROOT__ = undefined;
   });
 }
-
-

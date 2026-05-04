@@ -31,6 +31,7 @@ export interface RegularOrderPrintLineItem {
 
 export interface RegularOrderPrintModel {
   clinic_name: string;
+  clinic_info: string;
   delivery_clinic_name: string;
   order_number: string;
   bag_number: string;
@@ -103,6 +104,7 @@ export interface RegularOrderPrintModel {
 
 export interface ContactOrderPrintModel {
   clinic_name: string;
+  clinic_info: string;
   supply_clinic_name: string;
   order_number: string;
   order_date: string;
@@ -132,16 +134,14 @@ export interface ContactOrderPrintModel {
   l_material: string;
   l_color: string;
   l_quantity: string;
-  r_bc1: string;
-  r_bc2: string;
+  r_bc: string;
   r_oz: string;
   r_diam: string;
   r_sph: string;
   r_cyl: string;
   r_ax: string;
   r_read_add: string;
-  l_bc1: string;
-  l_bc2: string;
+  l_bc: string;
   l_oz: string;
   l_diam: string;
   l_sph: string;

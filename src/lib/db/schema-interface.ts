@@ -615,7 +615,6 @@ export interface ContactLensExam {
   comb_va?: number;
   // exam
   l_bc?: number;
-  l_bc_2?: number;
   l_oz?: number;
   l_diam?: number;
   l_sph?: number;
@@ -626,7 +625,6 @@ export interface ContactLensExam {
   l_j?: number;
 
   r_bc?: number;
-  r_bc_2?: number;
   r_oz?: number;
   r_diam?: number;
   r_sph?: number;

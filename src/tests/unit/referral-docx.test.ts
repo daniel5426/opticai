@@ -3,7 +3,9 @@ import path from "node:path";
 import PizZip from "pizzip";
 import { describe, expect, test, vi } from "vitest";
 import type { LoadedReferralExportContext } from "@/lib/referral-docx";
-import { buildReferralPrintModel } from "@/lib/referral-docx";
+import { buildReferralPrintModel, renderReferralPdfHtml } from "@/lib/referral-docx";
+
+const LTR_MARK = "\u200e";
 
 const referralTemplateKeys = [
   "client_contact",
@@ -12,7 +14,6 @@ const referralTemplateKeys = [
   "clinical_findings_text",
   "comb_pd",
   "comb_va",
-  "company_info",
   "l_add",
   "l_ax",
   "l_base",
@@ -131,11 +132,13 @@ describe("referral-docx print model", () => {
     expect(model.referral_details).toContain("תאריך: 30.4.2026");
     expect(model.recipient_line).toBe("לכבוד: הרופא המטפל");
     expect(model.client_details).toContain("מטופל: הראל שלומי");
+    expect(model.client_details).toContain("ת.ז: 123456789");
+    expect(model.client_details).not.toContain("מספר לקוח");
     expect(model.client_contact).toContain("נייד: 050-0000000");
     expect(model.clinical_impression).toBe("חשד ליובש משמעותי");
     expect(model.clinical_findings_text).toContain("הערכה / אבחנה: חשד ליובש משמעותי");
     expect(model.r_iop).toBe("17 mmHg");
-    expect(model.r_sph).toBe("-5.00");
+    expect(model.r_sph).toBe(`${LTR_MARK}-5.00${LTR_MARK}`);
     expect(model.l_ax).toBe("145");
     expect(model.comb_pd).toBe("62");
     expect(model.has_referral_notes).toBe(true);
@@ -155,6 +158,29 @@ describe("referral-docx print model", () => {
     expect(model.has_referral_notes).toBe(false);
     expect(model.has_clinical_findings).toBe(false);
     expect(model.has_compact_prescription).toBe(false);
+  });
+
+  test("renderReferralPdfHtml mirrors the referral template structure", () => {
+    const model = buildReferralPrintModel(createReferralContext());
+    const html = renderReferralPdfHtml(model, "logo.png");
+
+    expect(html).toContain('<html dir="rtl" lang="he">');
+    expect(html).toContain("מכתב הפניה");
+    expect(html).not.toContain("אופטיקה הראל");
+    expect(html).toContain("סניף: ירושלים");
+    expect(html).toContain("clinic@example.com");
+    expect(html).toContain("מס&#39; הפניה: 44");
+    expect(html).toContain("לכבוד: הרופא המטפל");
+    expect(html).toContain("מטופל: הראל שלומי");
+    expect(html).toContain("ת.ז: 123456789");
+    expect(html).not.toContain("מספר לקוח");
+    expect(html).toContain("הערות:");
+    expect(html).toContain("ממצאים קליניים:");
+    expect(html).toContain("מרשם / כרטיס בדיקה");
+    expect(html).toContain('<tr><th class="section-cell">עין</th>');
+    expect(html).toContain("VA משולב");
+    expect(html).toContain("PD משולב");
+    expect(html).toContain("בברכה");
   });
 });
 

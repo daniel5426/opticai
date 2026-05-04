@@ -19,7 +19,7 @@ os.environ.setdefault("TOKEN_ENCRYPTION_KEY", "development-encryption-key-for-te
 from auth import get_current_user
 from database import Base, get_db
 from main import app
-from models import Appointment, Client, Clinic, Company, ContactLensOrder, LookupColor, LookupVADecimal, LookupVAMeter, OpticalExam, Order, User
+from models import Appointment, Client, Clinic, Company, ContactLensOrder, LookupColor, LookupSupplier, LookupVADecimal, LookupVAMeter, OpticalExam, Order, User
 from services.lookup_defaults import VA_DECIMAL_VALUES, VA_METER_VALUES
 
 
@@ -587,6 +587,34 @@ def test_clinic_worker_can_create_update_and_delete_lookup_for_own_clinic():
     assert deleted.status_code == 200, deleted.text
     with SessionLocal() as db:
         assert db.get(LookupColor, lookup_id) is None
+
+
+def test_level_one_clinic_user_can_delete_supplier_lookup_for_own_clinic():
+    SessionLocal = _session_factory()
+    ids = _seed(SessionLocal)
+
+    with SessionLocal() as db:
+        legacy_worker = User(
+            company_id=ids["company_a"],
+            clinic_id=ids["clinic_a"],
+            username="legacy-worker",
+            role_level=1,
+            is_active=True,
+        )
+        supplier = LookupSupplier(clinic_id=ids["clinic_a"], name="Supplier")
+        db.add_all([legacy_worker, supplier])
+        db.commit()
+        legacy_worker_id = legacy_worker.id
+        supplier_id = supplier.id
+
+    with _client(SessionLocal, legacy_worker_id) as client:
+        deleted = client.delete(f"/api/v1/lookups/suppliers/{supplier_id}?clinic_id={ids['clinic_a']}")
+        other_clinic = client.delete(f"/api/v1/lookups/suppliers/{supplier_id}?clinic_id={ids['clinic_b']}")
+
+    assert deleted.status_code == 200, deleted.text
+    assert other_clinic.status_code == 403
+    with SessionLocal() as db:
+        assert db.get(LookupSupplier, supplier_id) is None
 
 
 def test_ceo_lookup_access_uses_selected_clinic_id():

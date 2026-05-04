@@ -134,7 +134,7 @@ export function buildReferralPrintModel(
   ]);
   const clientDetails = joinInline([
     labelValue("מטופל", clientName),
-    labelValue("ת.ז / מספר לקוח", toDisplayString(client?.national_id || client?.id || referral.client_id)),
+    labelValue("ת.ז", toDisplayString(client?.national_id || client?.id || referral.client_id)),
     labelValue("תאריך לידה", formatDate(client?.date_of_birth)),
   ]);
   const clientContact = joinInline([

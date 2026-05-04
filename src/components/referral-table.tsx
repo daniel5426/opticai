@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { FileText, Loader2, Plus, Trash2 } from "lucide-react";
+import { FileDown, FileText, Loader2, Plus, Printer, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -20,8 +20,14 @@ import { TableFiltersBar } from "@/components/table-filters-bar";
 import { ALL_FILTER_VALUE, REFERRAL_URGENCY_OPTIONS } from "@/lib/table-filters";
 import { SortableTableHead } from "@/components/sortable-table-head";
 import { SortColumns, SortState, sortRows } from "@/lib/table-sorting";
-import { exportReferralToDocx } from "@/lib/referral-docx";
+import { exportReferralToDocx, exportReferralToPdf, printReferralPdf } from "@/lib/referral-docx";
 import { DateSearchHelper } from "@/lib/date-search-helper";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 interface ReferralTableProps {
   referrals: Referral[];
@@ -63,6 +69,8 @@ export function ReferralTable({
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [referralToDelete, setReferralToDelete] = useState<Referral | null>(null);
   const [exportingDocxIds, setExportingDocxIds] = useState<Record<number, boolean>>({});
+  const [exportingPdfIds, setExportingPdfIds] = useState<Record<number, boolean>>({});
+  const [printingPdfIds, setPrintingPdfIds] = useState<Record<number, boolean>>({});
   const [selectedUrgency, setSelectedUrgency] = useState<string>(ALL_FILTER_VALUE);
   const [selectedReferralType, setSelectedReferralType] = useState<string>(ALL_FILTER_VALUE);
   const urgencyFilter = externalUrgencyFilter ?? selectedUrgency;
@@ -175,6 +183,52 @@ export function ReferralTable({
     }
   };
 
+  const handleExportPdf = async (referral: Referral) => {
+    try {
+      if (!referral.id) {
+        toast.error("לא ניתן לייצא הפניה ללא מזהה");
+        return;
+      }
+      if (exportingPdfIds[referral.id]) return;
+
+      setExportingPdfIds((prev) => ({ ...prev, [referral.id!]: true }));
+      await exportReferralToPdf({ referralId: referral.id });
+      toast.success("הדוח יוצא בהצלחה");
+    } catch (error) {
+      console.error("Error exporting referral PDF:", error);
+      toast.error("שגיאה ביצירת PDF");
+    } finally {
+      if (referral.id) {
+        setExportingPdfIds((prev) => ({ ...prev, [referral.id!]: false }));
+      }
+    }
+  };
+
+  const handlePrintPdf = async (referral: Referral) => {
+    try {
+      if (!referral.id) {
+        toast.error("לא ניתן להדפיס הפניה ללא מזהה");
+        return;
+      }
+      if (printingPdfIds[referral.id]) return;
+
+      setPrintingPdfIds((prev) => ({ ...prev, [referral.id!]: true }));
+      const result = await printReferralPdf({ referralId: referral.id });
+      if (result.success) {
+        toast.success("PDF נפתח להדפסה");
+      } else {
+        throw new Error(result.error || "Print failed");
+      }
+    } catch (error) {
+      console.error("Error printing referral PDF:", error);
+      toast.error("שגיאה בהדפסה");
+    } finally {
+      if (referral.id) {
+        setPrintingPdfIds((prev) => ({ ...prev, [referral.id!]: false }));
+      }
+    }
+  };
+
   return (
     <div className="space-y-2.5 mb-10" style={{ scrollbarWidth: "none" }}>
       <TableFiltersBar
@@ -272,6 +326,8 @@ export function ReferralTable({
             ) : displayData.length > 0 ? (
               displayData.map((referral) => {
                 const isExportingDocx = referral.id ? Boolean(exportingDocxIds[referral.id]) : false;
+                const isExportingPdf = referral.id ? Boolean(exportingPdfIds[referral.id]) : false;
+                const isPrintingPdf = referral.id ? Boolean(printingPdfIds[referral.id]) : false;
                 return (
                   <TableRow
                     key={referral.id}
@@ -311,19 +367,56 @@ export function ReferralTable({
                       <Button
                         variant="ghost"
                         className="h-8 w-8 p-0"
-                        disabled={isExportingDocx}
+                        disabled={isPrintingPdf}
                         onClick={(e) => {
                           e.stopPropagation();
-                          handleExportDocx(referral);
+                          handlePrintPdf(referral);
                         }}
-                        title="ייצוא לדוח Word"
+                        title="הדפסה"
                       >
-                        {isExportingDocx ? (
+                        {isPrintingPdf ? (
                           <Loader2 className="h-4 w-4 animate-spin" />
                         ) : (
-                          <FileText className="h-4 w-4" />
+                          <Printer className="h-4 w-4" />
                         )}
                       </Button>
+                      <DropdownMenu dir="rtl">
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            className="h-8 w-8 p-0"
+                            disabled={isExportingDocx || isExportingPdf}
+                            onClick={(e) => e.stopPropagation()}
+                            title="הורדה"
+                          >
+                            {isExportingDocx || isExportingPdf ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <FileDown className="h-4 w-4" />
+                            )}
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleExportPdf(referral);
+                            }}
+                          >
+                            <FileDown className="ml-2 h-4 w-4" />
+                            PDF
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleExportDocx(referral);
+                            }}
+                          >
+                            <FileText className="ml-2 h-4 w-4" />
+                            DOCX
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                       <Button
                         variant="ghost"
                         className="h-8 w-8 p-0"

@@ -17,6 +17,7 @@ import { NotificationsTab } from "@/components/settings/NotificationsTab"
 import { EmailTab } from "@/components/settings/EmailTab"
 import { DateRange } from "react-day-picker"
 import { ROLE_LEVELS, isRoleAtLeast } from "@/lib/role-levels"
+import { useQueryClient } from "@tanstack/react-query"
 
 import { UsersTab } from "@/components/settings/UsersTab"
 import { FieldDataTab } from "@/components/settings/FieldDataTab"
@@ -141,6 +142,7 @@ function sortSettingsValue(value: unknown): unknown {
 export default function SettingsPage() {
   const { settings, updateSettings: updateBaseSettings } = useSettings()
   const { currentUser, currentClinic, setCurrentUser } = useUser()
+  const queryClient = useQueryClient()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [saveSuccess, setSaveSuccess] = useState(false)
@@ -176,6 +178,11 @@ export default function SettingsPage() {
 
   const refreshLookupData = () => {
     if (currentLookupTable) {
+      if (currentClinic?.id) {
+        void queryClient.invalidateQueries({
+          queryKey: ["lookup", currentClinic.id, currentLookupTable],
+        })
+      }
       loadLookupData(currentLookupTable)
     }
   }

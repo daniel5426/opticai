@@ -5,11 +5,17 @@ import React, {
   useLayoutEffect,
   useCallback,
 } from "react";
-import { FileText, Loader2, Save, Edit } from "lucide-react";
+import { FileDown, FileText, Loader2, Save, Edit, Printer } from "lucide-react";
 import { useParams, useNavigate, useLocation } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { SiteHeader } from "@/components/site-header";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -49,7 +55,7 @@ import { inputSyncManager } from "@/components/exam/shared/OptimizedInputs";
 import { NotesCard } from "@/components/ui/notes-card";
 import { DateInput } from "@/components/ui/date";
 import { syncSavedClientReferral } from "@/hooks/client/clientTabCache";
-import { exportReferralToDocx } from "@/lib/referral-docx";
+import { exportReferralToDocx, exportReferralToPdf, printReferralPdf } from "@/lib/referral-docx";
 
 export default function ReferralDetailPage() {
   const location = useLocation();
@@ -91,6 +97,8 @@ export default function ReferralDetailPage() {
   });
   const [fieldErrors, setFieldErrors] = useState<{ date?: string }>({});
   const [isExportInFlight, setIsExportInFlight] = useState(false);
+  const [isPdfExportInFlight, setIsPdfExportInFlight] = useState(false);
+  const [isPrintInFlight, setIsPrintInFlight] = useState(false);
 
   const [compactPrescription, setCompactPrescription] =
     useState<CompactPrescriptionExam | null>(null);
@@ -404,19 +412,66 @@ export default function ReferralDetailPage() {
     if (isExportInFlight) return;
 
     try {
-      if (!formData.id) {
+      const referralIdToExport = Number(formData.id || referralId);
+      if (!referralIdToExport) {
         toast.error("לא ניתן לייצא הפניה לפני שמירה");
         return;
       }
 
       setIsExportInFlight(true);
-      await exportReferralToDocx({ referralId: formData.id });
+      await exportReferralToDocx({ referralId: referralIdToExport });
       toast.success("הדוח יוצא בהצלחה");
     } catch (error) {
       console.error("Error exporting referral DOCX:", error);
       toast.error("שגיאה ביצירת הדוח");
     } finally {
       setIsExportInFlight(false);
+    }
+  };
+
+  const handleExportPdf = async () => {
+    if (isPdfExportInFlight) return;
+
+    try {
+      const referralIdToExport = Number(formData.id || referralId);
+      if (!referralIdToExport) {
+        toast.error("לא ניתן לייצא הפניה לפני שמירה");
+        return;
+      }
+
+      setIsPdfExportInFlight(true);
+      await exportReferralToPdf({ referralId: referralIdToExport });
+      toast.success("הדוח יוצא בהצלחה");
+    } catch (error) {
+      console.error("Error exporting referral PDF:", error);
+      toast.error("שגיאה ביצירת PDF");
+    } finally {
+      setIsPdfExportInFlight(false);
+    }
+  };
+
+  const handlePrintPdf = async () => {
+    if (isPrintInFlight) return;
+
+    try {
+      const referralIdToExport = Number(formData.id || referralId);
+      if (!referralIdToExport) {
+        toast.error("לא ניתן להדפיס הפניה לפני שמירה");
+        return;
+      }
+
+      setIsPrintInFlight(true);
+      const result = await printReferralPdf({ referralId: referralIdToExport });
+      if (result.success) {
+        toast.success("PDF נפתח להדפסה");
+      } else {
+        throw new Error(result.error || "Print failed");
+      }
+    } catch (error) {
+      console.error("Error printing referral PDF:", error);
+      toast.error("שגיאה בהדפסה");
+    } finally {
+      setIsPrintInFlight(false);
     }
   };
 
@@ -547,19 +602,47 @@ export default function ReferralDetailPage() {
                   </Button>
                 )}
                 {!isNewReferral && (
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={handleExportDocx}
-                    disabled={isExportInFlight}
-                    title="ייצוא לדוח Word"
-                  >
-                    {isExportInFlight ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <FileText className="h-4 w-4" />
-                    )}
-                  </Button>
+                  <>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={handlePrintPdf}
+                      disabled={isPrintInFlight}
+                      title="הדפסה"
+                    >
+                      {isPrintInFlight ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Printer className="h-4 w-4" />
+                      )}
+                    </Button>
+                    <DropdownMenu dir="rtl">
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          disabled={isExportInFlight || isPdfExportInFlight}
+                          title="הורדה"
+                        >
+                          {isExportInFlight || isPdfExportInFlight ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <FileDown className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={handleExportPdf}>
+                          <FileDown className="ml-2 h-4 w-4" />
+                          PDF
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={handleExportDocx}>
+                          <FileText className="ml-2 h-4 w-4" />
+                          DOCX
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </>
                 )}
                 <Button
                   variant={isEditing ? "outline" : "default"}

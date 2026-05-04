@@ -1,3 +1,9 @@
+const LTR_MARK = "\u200e";
+
+function isolateLtrText(value: string): string {
+  return `${LTR_MARK}${value}${LTR_MARK}`;
+}
+
 export function formatDate(value?: string | Date | null): string {
   if (!value) return "";
   const date = value instanceof Date ? value : new Date(value);
@@ -20,7 +26,7 @@ export function formatOpticalNumber(value?: number | string | null): string {
   const num = typeof value === "number" ? value : Number(value);
   if (!Number.isFinite(num)) return String(value);
   if (num === 0) return "0.00";
-  return `${num > 0 ? "+" : ""}${num.toFixed(2)}`;
+  return isolateLtrText(`${num > 0 ? "+" : ""}${num.toFixed(2)}`);
 }
 
 export function formatPlainNumber(value?: number | string | null): string {

@@ -189,9 +189,20 @@ def section_title(title: str) -> str:
 
 
 def header_block(title: str, subtitle_key: str) -> str:
+    logo_width = 1700
+    title_width = PAGE_WIDTH // 2
+    spacer_width = PAGE_WIDTH - logo_width - title_width
     left_cell = cell(
         paragraph(logo(1000000, 1000000), align="left", spacing_after=0, bidi=False),
-        width=PAGE_WIDTH // 3,
+        width=logo_width,
+        borders=False,
+        fill=None,
+        margins=(0, 0, 0, 0),
+        vertical="center"
+    )
+    spacer_cell = cell(
+        "",
+        width=spacer_width,
         borders=False,
         fill=None,
         margins=(0, 0, 0, 0),
@@ -202,27 +213,31 @@ def header_block(title: str, subtitle_key: str) -> str:
     
     right_cell = cell(
         paragraph(title_run, align="right", spacing_after=40) + paragraph(subtitle_run, align="right", spacing_after=0),
-        width=(PAGE_WIDTH * 2) // 3,
+        width=title_width,
         borders=False,
         fill=None,
         margins=(0, 0, 0, 0),
         vertical="center"
     )
     
-    return table([row([left_cell, right_cell])], [PAGE_WIDTH // 3, (PAGE_WIDTH * 2) // 3], borders=False)
+    return table([row([left_cell, spacer_cell, right_cell])], [logo_width, spacer_width, title_width], borders=False)
 
 
-def metric_table(items: list[tuple[str, str]]) -> str:
-    widths = [1320, 1200, 1320, 1200, 1320, 1200, 1320, 1200]
+def metric_table(items: list[tuple[str, str]], *, pairs_per_row: int = 4) -> str:
+    label_width = 1200
+    value_width = (PAGE_WIDTH - (label_width * pairs_per_row)) // pairs_per_row
+    widths = []
+    for _ in range(pairs_per_row):
+        widths.extend([value_width, label_width])
     rows = []
-    for i in range(0, len(items), 4):
-        chunk = items[i : i + 4]
+    for i in range(0, len(items), pairs_per_row):
+        chunk = items[i : i + pairs_per_row]
         row_cells = []
         for label, key in reversed(chunk):
             row_cells.append(
                 cell(
                     paragraph(field(key, size=20), align="right", spacing_after=0),
-                    width=1320,
+                    width=value_width,
                     align="right",
                     borders=False,
                     fill=SUBTLE_FILL
@@ -231,21 +246,16 @@ def metric_table(items: list[tuple[str, str]]) -> str:
             row_cells.append(
                 cell(
                     paragraph(run(label, bold=True, size=18, color="52525B"), spacing_after=0),
-                    width=1200,
+                    width=label_width,
                     fill=LABEL_FILL,
                     align="right",
                     borders=False
                 )
             )
-        while len(row_cells) < 8:
-            row_cells.append(
-                cell(
-                    "",
-                    width=1320 if len(row_cells) % 2 == 0 else 1200,
-                    fill=SUBTLE_FILL if len(row_cells) % 2 == 0 else LABEL_FILL,
-                    borders=False
-                )
-            )
+        while len(chunk) < pairs_per_row:
+            row_cells.append(cell("", width=value_width, fill=SUBTLE_FILL, borders=False))
+            row_cells.append(cell("", width=label_width, fill=LABEL_FILL, borders=False))
+            chunk.append(("", ""))
         rows.append(row(row_cells))
     return table(rows, widths, borders=True)
 
@@ -422,7 +432,7 @@ def notes_row(right_title: str, right_key: str, left_title: str, left_key: str) 
 
 def build_regular_xml() -> str:
     content = [
-        header_block("הזמנה רגילה", "clinic_name"),
+        header_block("הזמנה רגילה", "clinic_info"),
         empty_paragraph(120),
         metric_table(
             [
@@ -441,7 +451,7 @@ def build_regular_xml() -> str:
         kv_table(
             [
                 ("שם לקוח", "client_name"),
-                ("מספר לקוח", "client_id"),
+                ("ת.ז", "client_id"),
                 ("נייד", "phone_mobile"),
                 ("טלפון בית", "phone_home"),
                 ("טלפון עבודה", "phone_work"),
@@ -502,7 +512,8 @@ def build_regular_xml() -> str:
                 ("סה\"כ", "total_price"),
                 ("שולם", "amount_paid"),
                 ("יתרה", "balance_due"),
-            ]
+            ],
+            pairs_per_row=3,
         ),
         empty_paragraph(60),
         section_title("הערות"),
@@ -520,7 +531,7 @@ def build_regular_xml() -> str:
 
 def build_contact_xml() -> str:
     content = [
-        header_block("הזמנת עדשות מגע", "clinic_name"),
+        header_block("הזמנת עדשות מגע", "clinic_info"),
         empty_paragraph(120),
         metric_table(
             [
@@ -539,7 +550,7 @@ def build_contact_xml() -> str:
         kv_table(
             [
                 ("שם לקוח", "client_name"),
-                ("מספר לקוח", "client_id"),
+                ("ת.ז", "client_id"),
                 ("נייד", "phone_mobile"),
                 ("טלפון בית", "phone_home"),
                 ("טלפון עבודה", "phone_work"),
@@ -568,9 +579,9 @@ def build_contact_xml() -> str:
         section_title("מרשם עדשות מגע"),
         eye_table(
             "עין",
-            ["BC1", "BC2", "OZ", "DIAM", "SPH", "CYL", "AX", "READ/ADD"],
-            ["r_bc1", "r_bc2", "r_oz", "r_diam", "r_sph", "r_cyl", "r_ax", "r_read_add"],
-            ["l_bc1", "l_bc2", "l_oz", "l_diam", "l_sph", "l_cyl", "l_ax", "l_read_add"],
+            ["BC", "OZ", "DIAM", "SPH", "CYL", "AX", "READ/ADD"],
+            ["r_bc", "r_oz", "r_diam", "r_sph", "r_cyl", "r_ax", "r_read_add"],
+            ["l_bc", "l_oz", "l_diam", "l_sph", "l_cyl", "l_ax", "l_read_add"],
         ),
         empty_paragraph(60),
         section_title("תמיסות"),
@@ -589,7 +600,8 @@ def build_contact_xml() -> str:
                 ("סה\"כ", "total_price"),
                 ("שולם", "amount_paid"),
                 ("יתרה", "balance_due"),
-            ]
+            ],
+            pairs_per_row=3,
         ),
         empty_paragraph(60),
         section_title("הערות"),
@@ -606,20 +618,30 @@ def build_contact_xml() -> str:
 
 
 def build_referral_xml() -> str:
+    logo_width = 1700
+    title_width = PAGE_WIDTH // 2
+    spacer_width = PAGE_WIDTH - logo_width - title_width
     left_cell = cell(
         paragraph(logo(1000000, 1000000), align="left", spacing_after=0, bidi=False),
-        width=PAGE_WIDTH // 3, borders=False, fill=None, margins=(0,0,0,0), vertical="center"
+        width=logo_width, borders=False, fill=None, margins=(0,0,0,0), vertical="center"
+    )
+    spacer_cell = cell(
+        "",
+        width=spacer_width, borders=False, fill=None, margins=(0,0,0,0), vertical="center"
     )
     title_run = run("מכתב הפניה", bold=True, size=32, color=HEADER_TEXT)
-    company_para = paragraph(field("#has_company_info") + field("company_info", bold=True, size=20, color="71717A") + field("/has_company_info"), align="right", spacing_after=0)
-    clinic_para = paragraph(field("#has_clinic_info") + field("clinic_info", size=20, color="71717A") + field("/has_clinic_info"), align="right", spacing_after=0)
+    clinic_para = paragraph(
+        field("#has_clinic_info") + run("סניף: ", bold=True, size=20, color="71717A") + field("clinic_info", size=20, color="71717A") + field("/has_clinic_info"),
+        align="right",
+        spacing_after=0
+    )
     right_cell = cell(
-        paragraph(title_run, align="right", spacing_after=40) + company_para + clinic_para,
-        width=(PAGE_WIDTH * 2) // 3, borders=False, fill=None, margins=(0,0,0,0), vertical="center"
+        paragraph(title_run, align="right", spacing_after=40) + clinic_para,
+        width=title_width, borders=False, fill=None, margins=(0,0,0,0), vertical="center"
     )
 
     content = [
-        table([row([left_cell, right_cell])], [PAGE_WIDTH // 3, (PAGE_WIDTH * 2) // 3], borders=False),
+        table([row([left_cell, spacer_cell, right_cell])], [logo_width, spacer_width, title_width], borders=False),
         empty_paragraph(120),
         
         paragraph(field("#has_referral_details"), spacing_after=0),
@@ -697,6 +719,8 @@ def replace_document_xml(docx_path: Path, xml_content: str) -> None:
     
     with zipfile.ZipFile(docx_path, "r") as source, zipfile.ZipFile(temp_path, "w") as target:
         for item in source.infolist():
+            if item.filename == "word/media/logo.png":
+                continue
             data = source.read(item.filename)
             if item.filename == "word/document.xml":
                 data = xml_content.encode("utf-8")
@@ -730,4 +754,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

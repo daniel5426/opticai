@@ -67,9 +67,15 @@ declare interface Window {
     // Medical Log operations
     getMedicalLogsByClient: (clientId: number) => Promise<any[]>;
     createMedicalLog: (logData: any) => Promise<any>;
+    exportHtmlToPdf?: (payload: {
+      html: string;
+      defaultFileName: string;
+    }) => Promise<{ success: boolean; canceled?: boolean; filePath?: string; error?: string }>;
+    printHtml?: (payload: {
+      html: string;
+      defaultFileName?: string;
+    }) => Promise<{ success: boolean; filePath?: string; error?: string }>;
   };
 }
 
 export {};
-
-

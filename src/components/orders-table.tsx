@@ -9,10 +9,10 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
-import { Eye, Trash2, FileText, Loader2 } from "lucide-react"
+import { Eye, Trash2, FileText, Loader2, FileDown, Printer } from "lucide-react"
 import { ClientOrdersContext, Order, User } from "@/lib/db/schema-interface"
 import { ClientSelectModal } from "@/components/ClientSelectModal"
-import { exportOrderToDocx } from "@/lib/order-docx"
+import { exportOrderToDocx, exportOrderToPdf, printOrderPdf } from "@/lib/order-docx"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -100,6 +100,8 @@ export function OrdersTable({
   const [cardPreviewType, setCardPreviewType] = useState<'final-prescription' | 'contact-lens-exam'>('final-prescription')
   const [savingStatusIds, setSavingStatusIds] = useState<Record<number, boolean>>({})
   const [exportingDocxIds, setExportingDocxIds] = useState<Record<string, boolean>>({})
+  const [exportingPdfIds, setExportingPdfIds] = useState<Record<string, boolean>>({})
+  const [printingPdfIds, setPrintingPdfIds] = useState<Record<string, boolean>>({})
   const searchValue = externalSearch !== undefined ? externalSearch : internalSearch
   const kindFilter = externalKindFilter ?? internalKindFilter
   const statusFilter = externalStatusFilter ?? internalStatusFilter
@@ -243,6 +245,68 @@ export function OrdersTable({
     } finally {
       if (exportKey) {
         setExportingDocxIds((prev) => ({ ...prev, [exportKey]: false }));
+      }
+    }
+  };
+
+  const handleExportPdf = async (order: Order) => {
+    const isContact = Boolean((order as any).__contact);
+    const exportKey = order.id ? `${isContact ? "contact" : "regular"}:${order.id}` : "";
+
+    try {
+      if (!order.id) {
+        toast.error("לא ניתן לייצא הזמנה ללא מזהה");
+        return;
+      }
+      if (exportingPdfIds[exportKey]) return;
+
+      setExportingPdfIds((prev) => ({ ...prev, [exportKey]: true }));
+      const result = await exportOrderToPdf({
+        orderId: order.id,
+        kind: isContact ? "contact" : "regular",
+      });
+      if (result.success) {
+        toast.success("PDF נוצר בהצלחה");
+      } else if (!result.canceled) {
+        throw new Error(result.error || "PDF export failed");
+      }
+    } catch (error) {
+      console.error("Error exporting PDF:", error);
+      toast.error("שגיאה ביצירת PDF");
+    } finally {
+      if (exportKey) {
+        setExportingPdfIds((prev) => ({ ...prev, [exportKey]: false }));
+      }
+    }
+  };
+
+  const handlePrintPdf = async (order: Order) => {
+    try {
+      if (!order.id) {
+        toast.error("לא ניתן להדפיס הזמנה ללא מזהה");
+        return;
+      }
+      const kind = (order as any).__contact ? "contact" : "regular";
+      const exportKey = `${kind}:${order.id}`;
+      if (printingPdfIds[exportKey]) return;
+
+      setPrintingPdfIds((prev) => ({ ...prev, [exportKey]: true }));
+      const result = await printOrderPdf({
+        orderId: order.id,
+        kind,
+      });
+      if (result.success) {
+        toast.success("PDF נפתח להדפסה");
+      } else {
+        throw new Error(result.error || "Print failed");
+      }
+    } catch (error) {
+      console.error("Error printing PDF:", error);
+      toast.error("שגיאה בהדפסה");
+    } finally {
+      if (order.id) {
+        const kind = (order as any).__contact ? "contact" : "regular";
+        setPrintingPdfIds((prev) => ({ ...prev, [`${kind}:${order.id}`]: false }));
       }
     }
   };
@@ -614,6 +678,12 @@ export function OrdersTable({
                 const isExportingDocx = order.id
                   ? Boolean(exportingDocxIds[`${(order as any).__contact ? "contact" : "regular"}:${order.id}`])
                   : false;
+                const isExportingPdf = order.id
+                  ? Boolean(exportingPdfIds[`${(order as any).__contact ? "contact" : "regular"}:${order.id}`])
+                  : false;
+                const isPrintingPdf = order.id
+                  ? Boolean(printingPdfIds[`${(order as any).__contact ? "contact" : "regular"}:${order.id}`])
+                  : false;
                 return (
                   <TableRow
                     key={order.id}
@@ -695,19 +765,56 @@ export function OrdersTable({
                         <Button
                           variant="ghost"
                           className="h-8 w-8 p-0"
-                          disabled={isExportingDocx}
+                          disabled={isPrintingPdf}
                           onClick={(e) => {
                             e.stopPropagation();
-                            handleExportDocx(order);
+                            handlePrintPdf(order);
                           }}
-                          title="ייצוא לדוח Word"
+                          title="הדפסה"
                         >
-                          {isExportingDocx ? (
+                          {isPrintingPdf ? (
                             <Loader2 className="h-4 w-4 animate-spin" />
                           ) : (
-                            <FileText className="h-4 w-4" />
+                            <Printer className="h-4 w-4" />
                           )}
                         </Button>
+                        <DropdownMenu dir="rtl">
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              className="h-8 w-8 p-0"
+                              disabled={isExportingDocx || isExportingPdf}
+                              onClick={(e) => e.stopPropagation()}
+                              title="הורדה"
+                            >
+                              {isExportingDocx || isExportingPdf ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <FileDown className="h-4 w-4" />
+                              )}
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleExportPdf(order);
+                              }}
+                            >
+                              <FileDown className="ml-2 h-4 w-4" />
+                              PDF
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleExportDocx(order);
+                              }}
+                            >
+                              <FileText className="ml-2 h-4 w-4" />
+                              DOCX
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                         <Button
                           variant="ghost"
                           className="h-8 w-8 p-0"

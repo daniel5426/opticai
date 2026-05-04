@@ -21,7 +21,7 @@ function getClientLabel(context: LoadedOrderExportContext) {
   const client = context.client;
   return {
     name: [client?.first_name, client?.last_name].filter(Boolean).join(" ").trim(),
-    id: toDisplayString(client?.id),
+    id: toDisplayString(client?.national_id || client?.id),
     address: formatAddress([
       [client?.address_street, client?.address_number].filter(Boolean).join(" ").trim(),
       client?.address_city,
@@ -45,6 +45,23 @@ function getClinicName(
     return context.clinicsById[clinicId].name || fallback || "";
   }
   return fallback || "";
+}
+
+function getClinicInfo(
+  context: LoadedOrderExportContext,
+  clinicId?: number | null,
+  fallback?: string | null,
+) {
+  const clinic = clinicId ? context.clinicsById[clinicId] : undefined;
+  const clinicName = getClinicName(context, clinicId, fallback);
+  const clinicAddress = formatAddress([
+    clinic?.clinic_address,
+    clinic?.clinic_city || clinic?.location,
+    clinic?.clinic_postal_code,
+  ]);
+  return [clinicName, clinicAddress, formatPhone(clinic?.phone_number), toDisplayString(clinic?.email)]
+    .filter(Boolean)
+    .join(" | ");
 }
 
 function getLineItemsBlock(lineItems: OrderLineItem[]) {
@@ -144,6 +161,7 @@ export function buildRegularOrderPrintModel(
   const client = getClientLabel(context);
   const money = getOperationalMoneyBlock(context);
   const clinicName = getClinicName(context, order.clinic_id, order.clinic?.name || order.clinic_name);
+  const clinicInfo = getClinicInfo(context, order.clinic_id, clinicName);
   const deliveryClinicName = getClinicName(
     context,
     details.delivery_clinic_id,
@@ -152,6 +170,7 @@ export function buildRegularOrderPrintModel(
 
   return {
     clinic_name: clinicName,
+    clinic_info: clinicInfo,
     delivery_clinic_name:
       deliveryClinicName && deliveryClinicName !== clinicName ? deliveryClinicName : "",
     order_number: toDisplayString(order.id),
@@ -233,9 +252,11 @@ export function buildContactOrderPrintModel(
   const contactExam = orderData["contact-lens-exam"] || {};
   const client = getClientLabel(context);
   const money = getOperationalMoneyBlock(context);
+  const clinicName = getClinicName(context, order.clinic_id, "");
 
   return {
-    clinic_name: getClinicName(context, order.clinic_id, ""),
+    clinic_name: clinicName,
+    clinic_info: getClinicInfo(context, order.clinic_id, clinicName),
     supply_clinic_name: getClinicName(
       context,
       order.supply_in_clinic_id,
@@ -269,16 +290,14 @@ export function buildContactOrderPrintModel(
     l_material: getLensValue(contactDetails.l_material, order.l_material),
     l_color: getLensValue(contactDetails.l_color, order.l_color),
     l_quantity: formatPlainNumber(contactDetails.l_quantity ?? order.l_quantity ?? order.l_order_quantity),
-    r_bc1: formatPlainNumber(contactExam.r_bc),
-    r_bc2: formatPlainNumber(contactExam.r_bc_2 ?? contactExam.r_bc2),
+    r_bc: formatPlainNumber(contactExam.r_bc),
     r_oz: formatPlainNumber(contactExam.r_oz),
     r_diam: formatPlainNumber(contactExam.r_diam),
     r_sph: formatOpticalNumber(contactExam.r_sph),
     r_cyl: formatOpticalNumber(contactExam.r_cyl),
     r_ax: formatAxis(contactExam.r_ax),
     r_read_add: formatOpticalNumber(contactExam.r_read_ad),
-    l_bc1: formatPlainNumber(contactExam.l_bc),
-    l_bc2: formatPlainNumber(contactExam.l_bc_2 ?? contactExam.l_bc2),
+    l_bc: formatPlainNumber(contactExam.l_bc),
     l_oz: formatPlainNumber(contactExam.l_oz),
     l_diam: formatPlainNumber(contactExam.l_diam),
     l_sph: formatOpticalNumber(contactExam.l_sph),

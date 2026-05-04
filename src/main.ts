@@ -393,6 +393,11 @@ function createWindow() {
   return mainWindow;
 }
 
+function sanitizePdfFileName(fileName: string) {
+  const sanitized = fileName.replace(/[<>:"/\\|?*\u0000-\u001f]/g, "_").trim();
+  return sanitized.toLowerCase().endsWith(".pdf") ? sanitized : `${sanitized || "document"}.pdf`;
+}
+
 function setupIpcHandlers() {
   // Generic DB Handler for all database operations - DEPRECATED
   // This has been replaced with direct API calls using apiClient
@@ -407,6 +412,101 @@ function setupIpcHandlers() {
 
   ipcMain.handle('open-url-in-chrome', async (_event, url: string) => {
     return openUrlInChrome(url);
+  });
+
+  ipcMain.handle('export-html-to-pdf', async (_event, payload: { html: string; defaultFileName: string }) => {
+    const pdfWindow = new BrowserWindow({
+      show: false,
+      webPreferences: {
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: true,
+      },
+    });
+
+    try {
+      await pdfWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(payload.html)}`);
+      await pdfWindow.webContents.executeJavaScript(
+        "document.fonts && document.fonts.ready ? document.fonts.ready.then(() => true) : true",
+      );
+
+      const pdfData = await pdfWindow.webContents.printToPDF({
+        pageSize: "A4",
+        printBackground: true,
+        preferCSSPageSize: true,
+      });
+
+      const defaultPath = path.join(app.getPath("documents"), sanitizePdfFileName(payload.defaultFileName));
+      const result = await dialog.showSaveDialog(mainWindow || undefined, {
+        title: "שמירת PDF",
+        defaultPath,
+        filters: [{ name: "PDF", extensions: ["pdf"] }],
+      });
+
+      if (result.canceled || !result.filePath) {
+        return { success: false, canceled: true };
+      }
+
+      await fs.promises.writeFile(result.filePath, pdfData);
+      await shell.openPath(result.filePath);
+
+      return { success: true, filePath: result.filePath };
+    } catch (error) {
+      console.error("Error exporting HTML to PDF:", error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    } finally {
+      if (!pdfWindow.isDestroyed()) {
+        pdfWindow.close();
+      }
+    }
+  });
+
+  ipcMain.handle('print-html', async (_event, payload: { html: string; defaultFileName?: string }) => {
+    const printWindow = new BrowserWindow({
+      show: false,
+      webPreferences: {
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: true,
+      },
+    });
+
+    try {
+      await printWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(payload.html)}`);
+      await printWindow.webContents.executeJavaScript(
+        "document.fonts && document.fonts.ready ? document.fonts.ready.then(() => true) : true",
+      );
+
+      const pdfData = await printWindow.webContents.printToPDF({
+        pageSize: "A4",
+        printBackground: true,
+        preferCSSPageSize: true,
+      });
+
+      const tempDir = await fs.promises.mkdtemp(path.join(app.getPath("temp"), "opticai-print-"));
+      const filePath = path.join(tempDir, sanitizePdfFileName(payload.defaultFileName || "print-preview.pdf"));
+      await fs.promises.writeFile(filePath, pdfData);
+
+      const openError = await shell.openPath(filePath);
+      if (openError) {
+        return { success: false, error: openError };
+      }
+
+      return { success: true, filePath };
+    } catch (error) {
+      console.error("Error printing HTML:", error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    } finally {
+      if (!printWindow.isDestroyed()) {
+        printWindow.close();
+      }
+    }
   });
 
   // Server Mode operations removed - using FastAPI backend instead

@@ -101,7 +101,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { FileText, Loader2, Save, Edit } from "lucide-react";
+import { FileDown, FileText, Loader2, Save, Edit, Printer } from "lucide-react";
 import { BillingTab } from "@/components/BillingTab";
 import { useUser } from "@/contexts/UserContext";
 import { getAllUsers } from "@/lib/db/users-db";
@@ -120,7 +120,13 @@ import { useClientSidebar } from "@/contexts/ClientSidebarContext";
 import { Skeleton } from "@/components/ui/skeleton";
 import RegularOrderTab from "@/components/orders/RegularOrderTab";
 import ContactOrderTab from "@/components/orders/ContactOrderTab";
-import { exportOrderToDocx } from "@/lib/order-docx";
+import { exportOrderToDocx, exportOrderToPdf, printOrderPdf } from "@/lib/order-docx";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { UnsavedChangesDialog } from "@/components/unsaved-changes-dialog";
 import { useUnsavedChanges } from "@/hooks/shared/useUnsavedChanges";
 import { UI_CONFIG } from "@/config/ui-config";
@@ -505,6 +511,8 @@ export default function OrderDetailPage({
     isNewMode,
   });
   const [isExportInFlight, setIsExportInFlight] = useState(false);
+  const [isPdfExportInFlight, setIsPdfExportInFlight] = useState(false);
+  const [isPrintInFlight, setIsPrintInFlight] = useState(false);
 
   const fieldHandlers = {
     [type]: (field: string, value: string) =>
@@ -1586,7 +1594,9 @@ export default function OrderDetailPage({
     if (isExportInFlight) return;
 
     try {
-      const orderIdToExport = isContactMode ? contactFormData?.id : formData?.id;
+      const orderIdToExport = Number(
+        isContactMode ? contactFormData?.id || orderId : formData?.id || order?.id || orderId,
+      );
       if (!orderIdToExport) {
         toast.error("לא ניתן לייצא הזמנה לפני שמירה");
         return;
@@ -1603,6 +1613,66 @@ export default function OrderDetailPage({
       toast.error("שגיאה ביצירת הדוח");
     } finally {
       setIsExportInFlight(false);
+    }
+  };
+
+  const handleExportPdf = async () => {
+    if (isPdfExportInFlight) return;
+
+    try {
+      const orderIdToExport = Number(
+        isContactMode ? contactFormData?.id || orderId : formData?.id || order?.id || orderId,
+      );
+      if (!orderIdToExport) {
+        toast.error("לא ניתן לייצא הזמנה לפני שמירה");
+        return;
+      }
+
+      setIsPdfExportInFlight(true);
+      const result = await exportOrderToPdf({
+        orderId: orderIdToExport,
+        kind: isContactMode ? "contact" : "regular",
+      });
+      if (result.success) {
+        toast.success("PDF נוצר בהצלחה");
+      } else if (!result.canceled) {
+        throw new Error(result.error || "PDF export failed");
+      }
+    } catch (error) {
+      console.error("Error exporting PDF:", error);
+      toast.error("שגיאה ביצירת PDF");
+    } finally {
+      setIsPdfExportInFlight(false);
+    }
+  };
+
+  const handlePrintPdf = async () => {
+    if (isPrintInFlight) return;
+
+    try {
+      const orderIdToExport = Number(
+        isContactMode ? contactFormData?.id || orderId : formData?.id || order?.id || orderId,
+      );
+      if (!orderIdToExport) {
+        toast.error("לא ניתן להדפיס הזמנה לפני שמירה");
+        return;
+      }
+
+      setIsPrintInFlight(true);
+      const result = await printOrderPdf({
+        orderId: orderIdToExport,
+        kind: isContactMode ? "contact" : "regular",
+      });
+      if (result.success) {
+        toast.success("PDF נפתח להדפסה");
+      } else {
+        throw new Error(result.error || "Print failed");
+      }
+    } catch (error) {
+      console.error("Error printing PDF:", error);
+      toast.error("שגיאה בהדפסה");
+    } finally {
+      setIsPrintInFlight(false);
     }
   };
 
@@ -1803,19 +1873,47 @@ export default function OrderDetailPage({
                   </Button>
                 )}
                 {!isNewMode && (
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={handleExportDocx}
-                    disabled={isExportInFlight}
-                    title="ייצוא לדוח Word"
-                  >
-                    {isExportInFlight ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <FileText className="h-4 w-4" />
-                    )}
-                  </Button>
+                  <>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={handlePrintPdf}
+                      disabled={isPrintInFlight}
+                      title="הדפסה"
+                    >
+                      {isPrintInFlight ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Printer className="h-4 w-4" />
+                      )}
+                    </Button>
+                    <DropdownMenu dir="rtl">
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          disabled={isExportInFlight || isPdfExportInFlight}
+                          title="הורדה"
+                        >
+                          {isExportInFlight || isPdfExportInFlight ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <FileDown className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={handleExportPdf}>
+                          <FileDown className="ml-2 h-4 w-4" />
+                          PDF
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={handleExportDocx}>
+                          <FileText className="ml-2 h-4 w-4" />
+                          DOCX
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </>
                 )}
                 <Button
                   variant={isEditing ? "outline" : "default"}

@@ -3,9 +3,13 @@ import type { LoadedOrderExportContext } from "@/lib/order-docx";
 import {
   buildContactOrderPrintModel,
   buildRegularOrderPrintModel,
+  renderContactOrderPdfHtml,
+  renderRegularOrderPdfHtml,
 } from "@/lib/order-docx";
 import { forceRtlDocxXml } from "@/lib/docx-rtl";
 import { extractTemplatePlaceholders } from "@/lib/order-docx/template-audit";
+
+const LTR_MARK = "\u200e";
 
 const regularTemplateKeys = [
   "advisor_name",
@@ -16,7 +20,7 @@ const regularTemplateKeys = [
   "client_address",
   "client_id",
   "client_name",
-  "clinic_name",
+  "clinic_info",
   "clinic_notes",
   "comb_pd",
   "delivered_by",
@@ -82,15 +86,14 @@ const contactTemplateKeys = [
   "client_address",
   "client_id",
   "client_name",
-  "clinic_name",
+  "clinic_info",
   "clinic_notes",
   "deliverer_name",
   "delivery_date",
   "disinfection_solution",
   "guaranteed_date",
   "l_ax",
-  "l_bc1",
-  "l_bc2",
+  "l_bc",
   "l_color",
   "l_cyl",
   "l_diam",
@@ -111,8 +114,7 @@ const contactTemplateKeys = [
   "phone_work",
   "priority",
   "r_ax",
-  "r_bc1",
-  "r_bc2",
+  "r_bc",
   "r_color",
   "r_cyl",
   "r_diam",
@@ -214,6 +216,7 @@ function createRegularContext(): LoadedOrderExportContext {
     } as any,
     client: {
       id: 7,
+      national_id: "123456789",
       first_name: "רון",
       last_name: "כהן",
       address_street: "הרצל",
@@ -239,7 +242,14 @@ function createRegularContext(): LoadedOrderExportContext {
       { description: "נרתיק", sku: "C1", quantity: 1, price: 0, line_total: 0, billings_id: 1 },
     ],
     clinicsById: {
-      1: { id: 1, name: 'ירושלים' } as any,
+      1: {
+        id: 1,
+        name: "ירושלים",
+        clinic_address: "יפו 12",
+        clinic_city: "ירושלים",
+        phone_number: "02-2222222",
+        email: "clinic@example.com",
+      } as any,
       2: { id: 2, name: 'תל אביב' } as any,
     },
   };
@@ -284,7 +294,6 @@ function createContactContext(): LoadedOrderExportContext {
         },
         "contact-lens-exam": {
           r_bc: 8.5,
-          r_bc_2: 8.7,
           r_oz: 14.2,
           r_diam: 14.1,
           r_sph: -1.25,
@@ -303,6 +312,7 @@ function createContactContext(): LoadedOrderExportContext {
     } as any,
     client: {
       id: 7,
+      national_id: "123456789",
       first_name: "רון",
       last_name: "כהן",
       address_street: "הרצל",
@@ -323,7 +333,14 @@ function createContactContext(): LoadedOrderExportContext {
     },
     lineItems: [],
     clinicsById: {
-      1: { id: 1, name: "ירושלים" } as any,
+      1: {
+        id: 1,
+        name: "ירושלים",
+        clinic_address: "יפו 12",
+        clinic_city: "ירושלים",
+        phone_number: "02-2222222",
+        email: "clinic@example.com",
+      } as any,
       2: { id: 2, name: "תל אביב" } as any,
     },
   };
@@ -334,14 +351,35 @@ describe("order-docx print models", () => {
     const model = buildRegularOrderPrintModel(createRegularContext());
 
     expect(model.clinic_name).toBe("ירושלים");
+    expect(model.clinic_info).toContain("clinic@example.com");
     expect(model.delivery_clinic_name).toBe("תל אביב");
+    expect(model.client_id).toBe("123456789");
     expect(model.optician_name).toBe("אורן לוי");
     expect(model.r_lens_supplier).toBe("ספק ימין");
     expect(model.l_lens_supplier).toBe("ספק שמאל");
+    expect(model.r_sph).toBe(`${LTR_MARK}+1.25${LTR_MARK}`);
+    expect(model.l_sph).toBe(`${LTR_MARK}-1.00${LTR_MARK}`);
     expect(model.frame_width).toBe("52");
     expect(model.total_price).toContain('1,200.00');
     expect(model.balance_due).toContain('900.00');
     expect(model.multifocal_block).toContain("PA:");
+  });
+
+  test("renderRegularOrderPdfHtml mirrors the order template structure", () => {
+    const html = renderRegularOrderPdfHtml(buildRegularOrderPrintModel(createRegularContext()), "");
+
+    expect(html).toContain('html dir="rtl"');
+    expect(html).toContain("הזמנה רגילה");
+    expect(html).toContain("סניף: ירושלים | יפו 12, ירושלים | 02-2222222 | clinic@example.com");
+    expect(html).toContain("פרטי לקוח");
+    expect(html).toContain("ת.ז");
+    expect(html).toContain("123456789");
+    expect(html).not.toContain("מספר לקוח");
+    expect(html).toContain("מרשם");
+    expect(html).toContain("רון כהן");
+    expect(html).toContain("+1.25");
+    expect(html).toContain("<tr><th class=\"section-cell\">עין</th>");
+    expect(html).toContain("<th class=\"label\">מס&#39; הזמנה</th>");
   });
 
   test("buildRegularOrderPrintModel falls back to legacy generic lens fields", () => {
@@ -367,12 +405,33 @@ describe("order-docx print models", () => {
     const model = buildContactOrderPrintModel(createContactContext());
 
     expect(model.clinic_name).toBe("ירושלים");
+    expect(model.clinic_info).toContain("clinic@example.com");
     expect(model.supply_clinic_name).toBe("תל אביב");
+    expect(model.client_id).toBe("123456789");
     expect(model.r_lens_type).toBe("יומית");
     expect(model.l_quantity).toBe("1");
-    expect(model.r_bc2).toBe("8.7");
-    expect(model.l_bc2).toBe("");
+    expect(model.r_sph).toBe(`${LTR_MARK}-1.25${LTR_MARK}`);
+    expect(model.r_read_add).toBe(`${LTR_MARK}+1.50${LTR_MARK}`);
+    expect(model.r_bc).toBe("8.5");
+    expect(model.l_bc).toBe("8.6");
     expect(model.amount_paid).toContain("150.00");
+  });
+
+  test("renderContactOrderPdfHtml mirrors the contact order template structure", () => {
+    const html = renderContactOrderPdfHtml(buildContactOrderPrintModel(createContactContext()), "");
+
+    expect(html).toContain('html dir="rtl"');
+    expect(html).toContain("הזמנת עדשות מגע");
+    expect(html).toContain("סניף: ירושלים | יפו 12, ירושלים | 02-2222222 | clinic@example.com");
+    expect(html).toContain("פרטי עדשות");
+    expect(html).toContain("ת.ז");
+    expect(html).toContain("123456789");
+    expect(html).not.toContain("מספר לקוח");
+    expect(html).toContain("מרשם עדשות מגע");
+    expect(html).toContain("R-Model");
+    expect(html).toContain("-1.25");
+    expect(html).toContain("<tr><th class=\"section-cell\">עין</th>");
+    expect(html).toContain("<th class=\"label\">מס&#39; הזמנה</th>");
   });
 
   test("buildContactOrderPrintModel falls back to legacy top-level fields", () => {
