@@ -12,11 +12,16 @@ type WindowControlsSide = "left" | "right";
 interface WindowControlsOverlay {
   getTitlebarAreaRect: () => DOMRect;
   addEventListener: (type: "geometrychange", listener: EventListener) => void;
-  removeEventListener: (type: "geometrychange", listener: EventListener) => void;
+  removeEventListener: (
+    type: "geometrychange",
+    listener: EventListener,
+  ) => void;
 }
 
 function getWindowControlsOverlay() {
-  return (navigator as Navigator & { windowControlsOverlay?: WindowControlsOverlay }).windowControlsOverlay;
+  return (
+    navigator as Navigator & { windowControlsOverlay?: WindowControlsOverlay }
+  ).windowControlsOverlay;
 }
 
 function getFallbackWindowControlsSide(): WindowControlsSide {
@@ -38,7 +43,7 @@ function getWindowControlsSide(): WindowControlsSide {
 
 function useWindowControlsSide(): WindowControlsSide {
   const [controlsSide, setControlsSide] = useState<WindowControlsSide>(() =>
-    typeof navigator === "undefined" ? "left" : getWindowControlsSide()
+    typeof navigator === "undefined" ? "left" : getWindowControlsSide(),
   );
 
   useEffect(() => {
@@ -60,16 +65,16 @@ function useWindowControlsSide(): WindowControlsSide {
 
 function BrandMark() {
   return (
-    <div className="draglayer flex h-full items-center gap-2 bg-transparent px-3 pt-[6px]">
-      <span className="select-none pt-[2px] text-[17px] font-semibold text-sidebar-foreground">
-        Prysm
-      </span>
+    <div className="draglayer flex h-full items-center bg-transparent px-3 pt-[6px]">
       <img
         src={prysmLogo}
         alt="Prysm Logo"
-        className="h-6 w-9 select-none object-contain"
+        className="h-6 w-9 object-contain select-none"
         draggable={false}
       />
+      <span className="text-sidebar-foreground pt-[2px] text-[17px] font-semibold select-none">
+        Prysm
+      </span>
     </div>
   );
 }
@@ -77,33 +82,49 @@ function BrandMark() {
 export default function DragWindowRegion({ title }: DragWindowRegionProps) {
   const location = useLocation();
   const controlsSide = useWindowControlsSide();
-  
-  const hiddenSearchRoutes = ['/control-center', '/user-selection', '/auth/callback', '/oauth/callback'];
-  const shouldShowSearch = !hiddenSearchRoutes.some(route =>
-    location.pathname.startsWith(route)
+
+  const hiddenSearchRoutes = [
+    "/control-center",
+    "/user-selection",
+    "/auth/callback",
+    "/oauth/callback",
+  ];
+  const shouldShowSearch = !hiddenSearchRoutes.some((route) =>
+    location.pathname.startsWith(route),
   );
-  
+
   return (
     <div className="bg-secondary border-sidebar-border">
       <div
         dir="ltr"
-        className="bg-secondary flex w-screen items-center h-8 relative"
-        style={{
-          paddingLeft: "env(titlebar-area-x, 0px)",
-          paddingRight:
-            "calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw))",
-        }}
+        className="bg-secondary relative flex h-8 w-screen items-center"
+        style={
+          {
+            paddingLeft: "env(titlebar-area-x, 0px)",
+            paddingRight:
+              "calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw))",
+            WebkitAppRegion: "drag",
+          } as React.CSSProperties
+        }
       >
         {controlsSide === "right" && <BrandMark />}
-        <div className="draglayer flex-1 bg-secondary px-1 flex items-center gap-2">
+        <div className="draglayer bg-secondary flex flex-1 items-center gap-2 px-1">
           {title && (
-            <div className="flex items-center select-none whitespace-nowrap text-[16px] text-sidebar-foreground/70 font-medium px-2">
+            <div className="text-sidebar-foreground/70 flex items-center px-2 text-[16px] font-medium whitespace-nowrap select-none">
               {title}
             </div>
           )}
         </div>
         {shouldShowSearch && (
-          <div className="absolute left-1/2 transform -translate-x-1/2 pointer-events-auto z-10" style={{ pointerEvents: 'auto', WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+          <div
+            className="pointer-events-auto absolute left-1/2 z-10 -translate-x-1/2 transform"
+            style={
+              {
+                pointerEvents: "auto",
+                WebkitAppRegion: "no-drag",
+              } as React.CSSProperties
+            }
+          >
             <GlobalSearch />
           </div>
         )}

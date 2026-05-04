@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react'
+import React, { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react'
 import { Input } from './input'
 import { Button } from './button'
 import { Card } from './card'
@@ -66,8 +66,6 @@ export const LookupSelect = React.memo(function LookupSelect({
     isCreating: creating
   } = useLookupData(lookupType)
 
-  const [filteredOptions, setFilteredOptions] = useState<LookupItem[]>([])
-
   const handleSync = useCallback(() => {
     const val = inputValueRef.current;
     if (typeof onChange === 'function' && val !== lastSentValueRef.current) {
@@ -103,15 +101,13 @@ export const LookupSelect = React.memo(function LookupSelect({
     }
   }, [handleSync])
 
-  useEffect(() => {
-    if (!inputValue.trim()) {
-      setFilteredOptions(options)
-    } else {
-      const filtered = options.filter(option =>
-        option.name.toLowerCase().includes(inputValue.toLowerCase())
-      )
-      setFilteredOptions(filtered)
-    }
+  const filteredOptions = useMemo(() => {
+    const normalizedInput = inputValue.trim().toLowerCase()
+    if (!normalizedInput) return options
+
+    return options.filter(option =>
+      option.name.toLowerCase().includes(normalizedInput)
+    )
   }, [inputValue, options])
 
   useEffect(() => {

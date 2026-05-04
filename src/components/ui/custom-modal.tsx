@@ -1,4 +1,5 @@
 import React, { useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { X, Loader2 } from 'lucide-react'
 import { Button } from './button'
 
@@ -78,7 +79,7 @@ export function CustomModal({ isOpen, onClose, title, subtitle, description, chi
 
   if (!isOpen) return null
 
-  return (
+  return createPortal(
     <div
       ref={overlayRef}
       className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"
@@ -151,6 +152,7 @@ export function CustomModal({ isOpen, onClose, title, subtitle, description, chi
         )}
 
       </div>
-    </div>
+    </div>,
+    document.body
   )
-} 
+}

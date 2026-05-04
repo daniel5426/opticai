@@ -3,6 +3,31 @@ import PizZip from "pizzip";
 import { saveAs } from "file-saver";
 import { forceRtlDocxZip } from "@/lib/docx-rtl";
 
+function hasUrlProtocol(path: string): boolean {
+  return /^[a-z][a-z\d+.-]*:/i.test(path);
+}
+
+export function resolveDocxTemplateUrl(
+  templatePath: string,
+  options?: { locationProtocol?: string; moduleUrl?: string },
+): string {
+  if (!templatePath.startsWith("/") || hasUrlProtocol(templatePath)) {
+    return templatePath;
+  }
+
+  const locationProtocol =
+    options?.locationProtocol ??
+    (typeof window !== "undefined" ? window.location.protocol : "");
+
+  if (locationProtocol !== "file:") {
+    return templatePath;
+  }
+
+  const moduleUrl = options?.moduleUrl ?? import.meta.url;
+  const relativeTemplatePath = templatePath.replace(/^\/+/, "");
+  return new URL(`../${relativeTemplatePath}`, moduleUrl).toString();
+}
+
 /**
  * DocxGenerator - Service class for generating DOCX files from templates
  */
@@ -23,7 +48,7 @@ export class DocxGenerator {
   ): Promise<void> {
     try {
       const template = templatePath || this.templatePath;
-      const response = await fetch(template);
+      const response = await fetch(resolveDocxTemplateUrl(template));
       if (!response.ok) {
         throw new Error(`Failed to load template: HTTP ${response.status}`);
       }
