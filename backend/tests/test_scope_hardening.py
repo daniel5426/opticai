@@ -19,7 +19,7 @@ os.environ.setdefault("TOKEN_ENCRYPTION_KEY", "development-encryption-key-for-te
 from auth import get_current_user
 from database import Base, get_db
 from main import app
-from models import Client, Clinic, Company, ContactLensOrder, LookupColor, LookupVADecimal, LookupVAMeter, OpticalExam, Order, User
+from models import Appointment, Client, Clinic, Company, ContactLensOrder, LookupColor, LookupVADecimal, LookupVAMeter, OpticalExam, Order, User
 from services.lookup_defaults import VA_DECIMAL_VALUES, VA_METER_VALUES
 
 
@@ -383,6 +383,155 @@ def test_clinic_user_can_list_same_company_clinics_only():
     assert same_company.status_code == 200, same_company.text
     assert [clinic["id"] for clinic in same_company.json()] == [ids["clinic_a"], ids["clinic_a2"]]
     assert other_company.status_code == 403
+
+
+def test_authenticated_company_creation_is_disabled_and_company_list_is_scoped():
+    SessionLocal = _session_factory()
+    ids = _seed(SessionLocal)
+
+    with _client(SessionLocal, ids["ceo"]) as client:
+        create = client.post(
+            "/api/v1/companies/",
+            json={"name": "C", "owner_full_name": "Owner C"},
+        )
+        listed = client.get("/api/v1/companies/")
+
+    assert create.status_code == 410
+    assert listed.status_code == 200, listed.text
+    assert [company["id"] for company in listed.json()] == [ids["company_a"]]
+
+
+def test_ceo_cannot_access_other_company_company_routes():
+    SessionLocal = _session_factory()
+    ids = _seed(SessionLocal)
+
+    with _client(SessionLocal, ids["ceo"]) as client:
+        get_response = client.get(f"/api/v1/companies/{ids['company_b']}")
+        put_response = client.put(
+            f"/api/v1/companies/{ids['company_b']}",
+            json={"name": "B updated"},
+        )
+        delete_response = client.delete(f"/api/v1/companies/{ids['company_b']}")
+
+    assert get_response.status_code == 403
+    assert put_response.status_code == 403
+    assert delete_response.status_code == 403
+
+
+def test_ceo_clinic_routes_are_limited_to_own_company():
+    SessionLocal = _session_factory()
+    ids = _seed(SessionLocal)
+
+    with _client(SessionLocal, ids["ceo"]) as client:
+        listed = client.get("/api/v1/clinics/")
+        own = client.get(f"/api/v1/clinics/{ids['clinic_a2']}")
+        other = client.get(f"/api/v1/clinics/{ids['clinic_b']}")
+        delete_other = client.delete(f"/api/v1/clinics/{ids['clinic_b']}")
+
+    assert listed.status_code == 200, listed.text
+    assert [clinic["id"] for clinic in listed.json()] == [ids["clinic_a"], ids["clinic_a2"]]
+    assert own.status_code == 200, own.text
+    assert other.status_code == 403
+    assert delete_other.status_code == 403
+
+
+def test_ceo_user_routes_are_limited_to_own_company():
+    SessionLocal = _session_factory()
+    ids = _seed(SessionLocal)
+
+    with _client(SessionLocal, ids["ceo"]) as client:
+        get_other = client.get(f"/api/v1/users/{ids['other_user']}")
+        company_other = client.get(f"/api/v1/users/company/{ids['company_b']}")
+        update_other = client.put(
+            f"/api/v1/users/{ids['other_user']}",
+            json={"username": "other-updated", "company_id": ids["company_b"], "role_level": 2},
+        )
+        delete_other = client.delete(f"/api/v1/users/{ids['other_user']}")
+
+    assert get_other.status_code == 403
+    assert company_other.status_code == 403
+    assert update_other.status_code == 403
+    assert delete_other.status_code == 403
+
+
+def test_worker_select_rejects_other_clinic_and_can_fetch_company_ceo():
+    SessionLocal = _session_factory()
+    ids = _seed(SessionLocal)
+
+    with _client(SessionLocal, ids["clinic_user"]) as client:
+        select_other = client.get(f"/api/v1/users/select?clinic_id={ids['clinic_a2']}")
+        get_ceo = client.get(f"/api/v1/users/{ids['ceo']}")
+        get_ceo_by_username = client.get("/api/v1/users/username/ceo")
+        get_other_clinic_user = client.get(f"/api/v1/users/{ids['other_user']}")
+
+    assert select_other.status_code == 403
+    assert get_ceo.status_code == 200, get_ceo.text
+    assert get_ceo.json()["id"] == ids["ceo"]
+    assert get_ceo_by_username.status_code == 200, get_ceo_by_username.text
+    assert get_ceo_by_username.json()["id"] == ids["ceo"]
+    assert get_other_clinic_user.status_code == 403
+
+
+def test_manager_cannot_promote_change_company_or_move_user_outside_own_clinic():
+    SessionLocal = _session_factory()
+    ids = _seed(SessionLocal)
+
+    with _client(SessionLocal, ids["clinic_manager"]) as client:
+        promote = client.put(
+            f"/api/v1/users/{ids['clinic_peer']}",
+            json={"username": "clinic-peer", "company_id": ids["company_a"], "role_level": 4},
+        )
+        change_company = client.put(
+            f"/api/v1/users/{ids['clinic_peer']}",
+            json={"username": "clinic-peer", "company_id": ids["company_b"], "role_level": 2},
+        )
+        move_clinic = client.put(
+            f"/api/v1/users/{ids['clinic_peer']}",
+            json={"username": "clinic-peer", "company_id": ids["company_a"], "clinic_id": ids["clinic_a2"], "role_level": 2},
+        )
+
+    assert promote.status_code == 403
+    assert change_company.status_code == 403
+    assert move_clinic.status_code == 403
+
+
+def test_ceo_cannot_access_other_company_exams_dashboard_or_appointment_stats():
+    SessionLocal = _session_factory()
+    ids = _seed(SessionLocal)
+    with SessionLocal() as db:
+        own_exam = OpticalExam(
+            client_id=ids["client_a"],
+            clinic_id=ids["clinic_a"],
+            user_id=ids["ceo"],
+            exam_date=date(2026, 5, 3),
+            test_name="own",
+        )
+        other_exam = OpticalExam(
+            client_id=ids["client_b"],
+            clinic_id=ids["clinic_b"],
+            user_id=ids["other_user"],
+            exam_date=date(2026, 5, 3),
+            test_name="other",
+        )
+        db.add_all([own_exam, other_exam])
+        db.commit()
+        own_exam_id = own_exam.id
+        other_exam_id = other_exam.id
+
+    with _client(SessionLocal, ids["ceo"]) as client:
+        own_exam_response = client.get(f"/api/v1/exams/{own_exam_id}")
+        other_exam_response = client.get(f"/api/v1/exams/{other_exam_id}")
+        other_clinic_list = client.get(f"/api/v1/exams/?clinic_id={ids['clinic_b']}")
+        other_enriched = client.get(f"/api/v1/exams/enriched?clinic_id={ids['clinic_b']}")
+        other_dashboard = client.get(f"/api/v1/dashboard/home?clinic_id={ids['clinic_b']}")
+        other_stats = client.get(f"/api/v1/appointments/stats/company/{ids['company_b']}")
+
+    assert own_exam_response.status_code == 200, own_exam_response.text
+    assert other_exam_response.status_code == 403
+    assert other_clinic_list.status_code == 403
+    assert other_enriched.status_code == 403
+    assert other_dashboard.status_code == 403
+    assert other_stats.status_code == 403
 
 
 def test_lookup_crud_is_scoped_to_requested_clinic():

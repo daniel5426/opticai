@@ -8,7 +8,7 @@ from auth import get_current_user, get_password_hash
 from models import User
 from services.default_exam_layouts import ensure_default_exam_layouts_for_clinic
 from services.lookup_defaults import seed_default_lookup_values_for_clinic
-from security.scope import assert_company_access
+from security.scope import assert_clinic_scope, assert_company_access, require_company_admin, resolve_company_id
 import uuid
 
 
@@ -39,6 +39,7 @@ def create_clinic(
         clinic.unique_id = str(uuid.uuid4())
 
     clinic_payload = clinic.dict()
+    assert_company_access(db, current_user, clinic_payload["company_id"])
     clinic_payload.pop("has_entry_pin", None)
     clinic_payload.pop("remove_entry_pin", None)
     entry_pin = (clinic_payload.pop("entry_pin", None) or "").strip()
@@ -66,7 +67,7 @@ def get_clinics(
     current_user: User = Depends(get_current_user)
 ):
     if current_user.role_level >= CEO_LEVEL:
-        clinics = db.query(Clinic).all()
+        clinics = db.query(Clinic).filter(Clinic.company_id == resolve_company_id(db, current_user)).all()
     else:
         clinics = db.query(Clinic).filter(Clinic.id == current_user.clinic_id).all()
     return clinics
@@ -80,9 +81,7 @@ def get_clinic(
     clinic = db.query(Clinic).filter(Clinic.id == clinic_id).first()
     if clinic is None:
         raise HTTPException(status_code=404, detail="Clinic not found")
-    
-    if current_user.role_level < CEO_LEVEL and current_user.clinic_id != clinic_id:
-        raise HTTPException(status_code=403, detail="Access denied")
+    assert_clinic_scope(db, current_user, clinic_id)
     
     return clinic
 
@@ -133,8 +132,11 @@ def update_clinic(
     db_clinic = db.query(Clinic).filter(Clinic.id == clinic_id).first()
     if db_clinic is None:
         raise HTTPException(status_code=404, detail="Clinic not found")
+    assert_clinic_scope(db, current_user, clinic_id)
     
     update_data = clinic.dict(exclude_unset=True)
+    if "company_id" in update_data:
+        assert_company_access(db, current_user, update_data["company_id"])
     entry_pin = update_data.pop("entry_pin", None)
     remove_entry_pin = bool(update_data.pop("remove_entry_pin", False))
     if entry_pin is not None:
@@ -167,15 +169,10 @@ def delete_clinic(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    if current_user.role_level < CEO_LEVEL:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only company CEOs can delete clinics"
-        )
-    
     db_clinic = db.query(Clinic).filter(Clinic.id == clinic_id).first()
     if db_clinic is None:
         raise HTTPException(status_code=404, detail="Clinic not found")
+    require_company_admin(db, current_user, db_clinic.company_id)
     
     db.delete(db_clinic)
     db.commit()

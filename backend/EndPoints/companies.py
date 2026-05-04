@@ -8,6 +8,7 @@ from schemas import CompanyCreate, CompanyUpdate, Company as CompanySchema
 from auth import get_current_user
 from models import User
 from utils.storage import upload_base64_image
+from security.scope import assert_company_access, require_company_admin, resolve_company_id
 
 
 CEO_LEVEL = 4
@@ -33,38 +34,18 @@ def create_company_public(
 
 @router.post("/", response_model=CompanySchema)
 def create_company(data: CompanyCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    if current_user.role_level < CEO_LEVEL:
-        raise HTTPException(status_code=403, detail="Only company CEOs can create companies")
-    
-    try:
-        payload = data.dict()
-        if payload.get('logo_path'):
-            try:
-                payload['logo_path'] = upload_base64_image(payload['logo_path'], f"companies")
-            except Exception:
-                pass
-        db_company = Company(**payload)
-        db.add(db_company)
-        db.commit()
-        db.refresh(db_company)
-        return db_company
-    except IntegrityError:
-        db.rollback()
-        existing = db.query(Company).filter(Company.name == data.name).first()
-        if existing:
-            return existing
-        raise
+    raise HTTPException(
+        status_code=status.HTTP_410_GONE,
+        detail="Authenticated company creation is disabled; use registration setup",
+    )
 
 @router.get("/", response_model=List[CompanySchema])
 def get_companies(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    if current_user.role_level >= CEO_LEVEL:
-        companies = db.query(Company).all()
-    else:
-        companies = db.query(Company).join(Clinic).filter(Clinic.id == current_user.clinic_id).all()
-    return companies
+    company_id = resolve_company_id(db, current_user)
+    return db.query(Company).filter(Company.id == company_id).all()
 
 @router.get("/{company_id}", response_model=CompanySchema)
 def get_company(
@@ -76,11 +57,7 @@ def get_company(
     if company is None:
         raise HTTPException(status_code=404, detail="Company not found")
     
-    if current_user.role_level < CEO_LEVEL and current_user.clinic_id:
-        clinic = db.query(Clinic).filter(Clinic.id == current_user.clinic_id).first()
-        if not clinic or clinic.company_id != company_id:
-            raise HTTPException(status_code=403, detail="Access denied")
-    
+    assert_company_access(db, current_user, company_id)
     return company
 
 @router.put("/{company_id}", response_model=CompanySchema)
@@ -90,12 +67,7 @@ def update_company(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    if current_user.role_level < CEO_LEVEL:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only company CEOs can update companies"
-        )
-    
+    require_company_admin(db, current_user, company_id)
     db_company = db.query(Company).filter(Company.id == company_id).first()
     if db_company is None:
         raise HTTPException(status_code=404, detail="Company not found")
@@ -119,12 +91,7 @@ def delete_company(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    if current_user.role_level < CEO_LEVEL:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only company CEOs can delete companies"
-        )
-    
+    require_company_admin(db, current_user, company_id)
     db_company = db.query(Company).filter(Company.id == company_id).first()
     if db_company is None:
         raise HTTPException(status_code=404, detail="Company not found")

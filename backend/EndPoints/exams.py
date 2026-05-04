@@ -10,7 +10,12 @@ from schemas import OpticalExam as OpticalExamSchema, OpticalExamCreate
 from auth import get_current_user
 from .exam_layouts import build_layout_tree
 from utils.date_search import DateSearchHelper
-from security.scope import apply_clinic_user_scope
+from security.scope import (
+    apply_clinic_user_scope,
+    assert_clinic_scope,
+    get_allowed_clinic_ids,
+    get_scoped_client,
+)
 
 router = APIRouter(prefix="/exams", tags=["exams"])
 
@@ -35,17 +40,14 @@ def get_enriched_exams(
         Client.last_name.label('client_last_name')
     ).outerjoin(User, OpticalExam.user_id == User.id).outerjoin(Client, OpticalExam.client_id == Client.id)
 
+    allowed_clinic_ids = get_allowed_clinic_ids(db, current_user, clinic_id)
+    base_query = base_query.filter(OpticalExam.clinic_id.in_(allowed_clinic_ids))
+
     # Apply filters
     if type:
         base_query = base_query.filter(OpticalExam.type == type)
-    if clinic_id:
-        base_query = base_query.filter(OpticalExam.clinic_id == clinic_id)
     if test_name and test_name != "all":
         base_query = base_query.filter(OpticalExam.test_name == test_name)
-
-    # Apply role-based access control
-    if current_user.role_level < 4:
-        base_query = base_query.filter(OpticalExam.clinic_id == current_user.clinic_id)
 
     # Apply search
     if search:
@@ -113,16 +115,12 @@ def get_exams(
 ):
     """Get all exams with optional filtering"""
     query = db.query(OpticalExam)
+    allowed_clinic_ids = get_allowed_clinic_ids(db, current_user, clinic_id)
+    query = query.filter(OpticalExam.clinic_id.in_(allowed_clinic_ids))
     
     # Apply filters
     if type:
         query = query.filter(OpticalExam.type == type)
-    if clinic_id:
-        query = query.filter(OpticalExam.clinic_id == clinic_id)
-    
-    # Apply role-based access control
-    if current_user.role_level < 4:
-        query = query.filter(OpticalExam.clinic_id == current_user.clinic_id)
     
     return query.all()
 
@@ -166,9 +164,7 @@ def get_exam(
     if not exam:
         raise HTTPException(status_code=404, detail="Exam not found")
     
-    # Apply role-based access control
-    if current_user.role_level < 4 and exam.clinic_id != current_user.clinic_id:
-        raise HTTPException(status_code=403, detail="Access denied")
+    assert_clinic_scope(db, current_user, exam.clinic_id)
     
     return exam
 
@@ -185,9 +181,7 @@ def get_exam_with_layouts(
     if not exam:
         raise HTTPException(status_code=404, detail="Exam not found")
     
-    # Apply role-based access control
-    if current_user.role_level < 4 and exam.clinic_id != current_user.clinic_id:
-        raise HTTPException(status_code=403, detail="Access denied")
+    assert_clinic_scope(db, current_user, exam.clinic_id)
     
     # Get all layout instances for this exam
     layout_instances = db.query(ExamLayoutInstance).filter(
@@ -224,8 +218,7 @@ def get_exam_page_data(
     exam = db.query(OpticalExam).filter(OpticalExam.id == exam_id).first()
     if not exam:
         raise HTTPException(status_code=404, detail="Exam not found")
-    if current_user.role_level < 4 and exam.clinic_id != current_user.clinic_id:
-        raise HTTPException(status_code=403, detail="Access denied")
+    assert_clinic_scope(db, current_user, exam.clinic_id)
     # One roundtrip: fetch instances joined with layouts
     pairs = (
         db.query(ExamLayoutInstance, ExamLayout)
@@ -316,9 +309,7 @@ def update_exam(
     if not db_exam:
         raise HTTPException(status_code=404, detail="Exam not found")
     
-    # Apply role-based access control
-    if current_user.role_level < 4 and db_exam.clinic_id != current_user.clinic_id:
-        raise HTTPException(status_code=403, detail="Access denied")
+    assert_clinic_scope(db, current_user, db_exam.clinic_id)
     
     try:
         update_fields = exam_update.dict(exclude_unset=True)
@@ -364,9 +355,7 @@ def delete_exam(
     if not db_exam:
         raise HTTPException(status_code=404, detail="Exam not found")
     
-    # Apply role-based access control
-    if current_user.role_level < 4 and db_exam.clinic_id != current_user.clinic_id:
-        raise HTTPException(status_code=403, detail="Access denied")
+    assert_clinic_scope(db, current_user, db_exam.clinic_id)
     
     try:
         client_id = db_exam.client_id
@@ -394,14 +383,11 @@ def get_exams_by_client(
     current_user: User = Depends(get_current_user)
 ):
     """Get all exams for a specific client"""
+    get_scoped_client(db, current_user, client_id)
     query = db.query(OpticalExam).filter(OpticalExam.client_id == client_id)
     
     # Apply filters
     if type:
         query = query.filter(OpticalExam.type == type)
-    
-    # Apply role-based access control
-    if current_user.role_level < 4:
-        query = query.filter(OpticalExam.clinic_id == current_user.clinic_id)
     
     return query.order_by(OpticalExam.exam_date.desc().nulls_last(), OpticalExam.id.desc()).all() 

@@ -75,6 +75,20 @@ def list_company_clinic_ids(db: Session, company_id: int) -> list[int]:
     return [r[0] for r in rows]
 
 
+def user_belongs_to_company(db: Session, user: User, company_id: int) -> bool:
+    if user.company_id == company_id:
+        return True
+    if user.clinic_id is None:
+        return False
+    row = (
+        db.query(Clinic.id)
+        .filter(Clinic.id == user.clinic_id)
+        .filter(Clinic.company_id == company_id)
+        .first()
+    )
+    return bool(row)
+
+
 def normalize_clinic_id_for_company(
     db: Session,
     current_user: User,
@@ -127,13 +141,40 @@ def get_assignable_user(db: Session, current_user: User, user_id: int) -> User:
         raise HTTPException(status_code=404, detail="User not found")
 
     company_id = resolve_company_id(db, current_user)
-    if target.company_id != company_id:
+    if not user_belongs_to_company(db, target, company_id):
         raise HTTPException(status_code=403, detail="Access denied")
 
     if (current_user.role_level or 1) >= CEO_LEVEL:
         return target
 
+    if (target.role_level or 1) >= CEO_LEVEL:
+        return target
+
     if target.clinic_id is None:
+        return target
+
+    if current_user.clinic_id is not None and target.clinic_id == current_user.clinic_id:
+        return target
+
+    raise HTTPException(status_code=403, detail="Access denied")
+
+
+def get_visible_user(db: Session, current_user: User, user_id: int) -> User:
+    target = db.query(User).filter(User.id == user_id).first()
+    if not target:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    company_id = resolve_company_id(db, current_user)
+    if not user_belongs_to_company(db, target, company_id):
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    if (current_user.role_level or 1) >= CEO_LEVEL:
+        return target
+
+    if target.id == current_user.id:
+        return target
+
+    if (target.role_level or 1) >= CEO_LEVEL:
         return target
 
     if current_user.clinic_id is not None and target.clinic_id == current_user.clinic_id:
@@ -241,12 +282,11 @@ def get_scoped_user(db: Session, current_user: User, user_id: int) -> User:
     target = db.query(User).filter(User.id == user_id).first()
     if not target:
         raise HTTPException(status_code=404, detail="User not found")
+    company_id = resolve_company_id(db, current_user)
+    if not user_belongs_to_company(db, target, company_id):
+        raise HTTPException(status_code=403, detail="Access denied")
     if (current_user.role_level or 1) >= CEO_LEVEL:
-        if target.company_id == resolve_company_id(db, current_user):
-            return target
-        if target.clinic_id:
-            assert_clinic_belongs_to_company(db, target.clinic_id, resolve_company_id(db, current_user))
-            return target
+        return target
     elif (current_user.role_level or 1) >= MANAGER_LEVEL:
         if target.id == current_user.id or (target.clinic_id and target.clinic_id == current_user.clinic_id):
             return target

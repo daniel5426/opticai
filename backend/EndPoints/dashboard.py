@@ -6,6 +6,7 @@ from database import get_db
 from models import Appointment, Client, User, Settings
 from auth import get_current_user
 from sqlalchemy import and_
+from security.scope import assert_clinic_scope
 
 
 CEO_LEVEL = 4
@@ -20,10 +21,7 @@ def get_home_dashboard(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    # Authorization and clinic scoping
-    if current_user.role_level < CEO_LEVEL:
-        if not current_user.clinic_id or current_user.clinic_id != clinic_id:
-            raise HTTPException(status_code=403, detail="Access denied for this clinic")
+    assert_clinic_scope(db, current_user, clinic_id)
 
     # Appointments in range with only required fields
     filters = [Appointment.clinic_id == clinic_id]
@@ -146,5 +144,4 @@ def get_home_dashboard(
         "settings": settings,
         "users": users,
     }
-
 

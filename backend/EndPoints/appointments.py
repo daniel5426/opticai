@@ -17,6 +17,7 @@ from security.scope import (
     normalize_client_id,
     normalize_clinic_id_for_company,
     normalize_user_id,
+    require_company_admin,
     resolve_company_id,
 )
 
@@ -340,8 +341,7 @@ def get_company_appointments_stats(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    if current_user.role_level < CEO_LEVEL:
-        raise HTTPException(status_code=403, detail="Access denied")
+    require_company_admin(db, current_user, company_id)
     month_expr = func.date_trunc('month', Appointment.date)
     month_str = func.to_char(month_expr, 'YYYY-MM')
     rows = (
