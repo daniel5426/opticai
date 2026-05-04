@@ -564,7 +564,7 @@ def test_lookup_crud_is_scoped_to_requested_clinic():
     assert other_created.json()["clinic_id"] == ids["clinic_b"]
 
 
-def test_clinic_worker_can_create_and_update_lookup_for_own_clinic():
+def test_clinic_worker_can_create_update_and_delete_lookup_for_own_clinic():
     SessionLocal = _session_factory()
     ids = _seed(SessionLocal)
 
@@ -580,11 +580,13 @@ def test_clinic_worker_can_create_and_update_lookup_for_own_clinic():
             f"/api/v1/lookups/colors/{lookup_id}?clinic_id={ids['clinic_a']}",
             json={"name": "Dark Green"},
         )
-        delete_attempt = client.delete(f"/api/v1/lookups/colors/{lookup_id}?clinic_id={ids['clinic_a']}")
+        deleted = client.delete(f"/api/v1/lookups/colors/{lookup_id}?clinic_id={ids['clinic_a']}")
 
     assert updated.status_code == 200, updated.text
     assert updated.json()["name"] == "Dark Green"
-    assert delete_attempt.status_code == 403
+    assert deleted.status_code == 200, deleted.text
+    with SessionLocal() as db:
+        assert db.get(LookupColor, lookup_id) is None
 
 
 def test_ceo_lookup_access_uses_selected_clinic_id():

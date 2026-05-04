@@ -55,7 +55,7 @@ def _require_lookup_edit(current_user: User) -> None:
 
 
 def _require_lookup_delete(current_user: User) -> None:
-    if (current_user.role_level or 1) < 3:
+    if (current_user.role_level or 1) < 2:
         raise HTTPException(status_code=403, detail="Access denied")
 
 
