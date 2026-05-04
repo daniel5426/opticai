@@ -160,11 +160,11 @@ export default function SettingsPage() {
 
   const loadLookupData = async (tableName: string) => {
     const tableKey = tableName as keyof typeof lookupTables
-    if (!lookupTables[tableKey]) return
+    if (!lookupTables[tableKey] || !currentClinic?.id) return
 
     try {
       setLoadingLookup(true)
-      const data = await lookupTables[tableKey].getAll()
+      const data = await lookupTables[tableKey].getAll(currentClinic.id)
       setLookupData(prev => ({ ...prev, [tableName]: data }))
     } catch (error) {
       console.error(`Error loading ${tableName} data:`, error)
@@ -186,6 +186,13 @@ export default function SettingsPage() {
       loadLookupData(tableName)
     }
   }
+
+  useEffect(() => {
+    setLookupData({})
+    if (currentLookupTable && currentClinic?.id) {
+      loadLookupData(currentLookupTable)
+    }
+  }, [currentClinic?.id])
 
   const [localSettings, setLocalSettings] = useState<Settings>({
     clinic_logo_path: '',
@@ -969,10 +976,11 @@ export default function SettingsPage() {
                     />
                   </TabsContent>
 
-                  <TabsContent value="field-data" className="space-y-6 mt-0">
-                    <FieldDataTab
-                      currentLookupTable={currentLookupTable}
-                      lookupData={lookupData}
+	                  <TabsContent value="field-data" className="space-y-6 mt-0">
+	                    <FieldDataTab
+	                      clinicId={currentClinic?.id}
+	                      currentLookupTable={currentLookupTable}
+	                      lookupData={lookupData}
                       isLoading={loadingLookup}
                       onSelectTable={selectLookupTable}
                       onRefresh={refreshLookupData}

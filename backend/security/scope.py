@@ -118,7 +118,28 @@ def get_allowed_clinic_ids(db: Session, current_user: User, clinic_id: Optional[
 def normalize_user_id(db: Session, current_user: User, user_id: Optional[int]) -> int:
     if user_id is None or user_id <= 0:
         return current_user.id
-    return get_scoped_user(db, current_user, user_id).id
+    return get_assignable_user(db, current_user, user_id).id
+
+
+def get_assignable_user(db: Session, current_user: User, user_id: int) -> User:
+    target = db.query(User).filter(User.id == user_id).first()
+    if not target:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    company_id = resolve_company_id(db, current_user)
+    if target.company_id != company_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    if (current_user.role_level or 1) >= CEO_LEVEL:
+        return target
+
+    if target.clinic_id is None:
+        return target
+
+    if current_user.clinic_id is not None and target.clinic_id == current_user.clinic_id:
+        return target
+
+    raise HTTPException(status_code=403, detail="Access denied")
 
 
 def normalize_client_id(db: Session, current_user: User, client_id: int, clinic_id: Optional[int] = None) -> int:

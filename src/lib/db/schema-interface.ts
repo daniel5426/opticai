@@ -775,126 +775,147 @@ export interface EmailLog {
 
 export interface LookupSupplier {
   id?: number;
+  clinic_id?: number;
   name: string;
   created_at?: string;
 }
 
 export interface LookupClinic {
   id?: number;
+  clinic_id?: number;
   name: string;
   created_at?: string;
 }
 
 export interface LookupOrderType {
   id?: number;
+  clinic_id?: number;
   name: string;
   created_at?: string;
 }
 
 export interface LookupReferralType {
   id?: number;
+  clinic_id?: number;
   name: string;
   created_at?: string;
 }
 
 export interface LookupLensModel {
   id?: number;
+  clinic_id?: number;
   name: string;
   created_at?: string;
 }
 
 export interface LookupColor {
   id?: number;
+  clinic_id?: number;
   name: string;
   created_at?: string;
 }
 
 export interface LookupMaterial {
   id?: number;
+  clinic_id?: number;
   name: string;
   created_at?: string;
 }
 
 export interface LookupCoating {
   id?: number;
+  clinic_id?: number;
   name: string;
   created_at?: string;
 }
 
 export interface LookupManufacturer {
   id?: number;
+  clinic_id?: number;
   name: string;
   created_at?: string;
 }
 
 export interface LookupFrameModel {
   id?: number;
+  clinic_id?: number;
   name: string;
   created_at?: string;
 }
 
 export interface LookupContactLensType {
   id?: number;
+  clinic_id?: number;
   name: string;
   created_at?: string;
 }
 
 export interface LookupContactEyeLensType {
   id?: number;
+  clinic_id?: number;
   name: string;
   created_at?: string;
 }
 
 export interface LookupContactEyeMaterial {
   id?: number;
+  clinic_id?: number;
   name: string;
   created_at?: string;
 }
 
 export interface LookupContactLensModel {
   id?: number;
+  clinic_id?: number;
   name: string;
   created_at?: string;
 }
 
 export interface LookupCleaningSolution {
   id?: number;
+  clinic_id?: number;
   name: string;
   created_at?: string;
 }
 
 export interface LookupDisinfectionSolution {
   id?: number;
+  clinic_id?: number;
   name: string;
   created_at?: string;
 }
 
 export interface LookupRinsingSolution {
   id?: number;
+  clinic_id?: number;
   name: string;
   created_at?: string;
 }
 
 export interface LookupManufacturingLab {
   id?: number;
+  clinic_id?: number;
   name: string;
   created_at?: string;
 }
 
 export interface LookupAdvisor {
   id?: number;
+  clinic_id?: number;
   name: string;
   created_at?: string;
 }
 
 export interface LookupVAMeter {
   id?: number;
+  clinic_id?: number;
   name: string;
   created_at?: string;
 }
 
 export interface LookupVADecimal {
   id?: number;
+  clinic_id?: number;
   name: string;
   created_at?: string;
 }

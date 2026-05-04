@@ -1545,8 +1545,8 @@ class ApiClient {
   }
 
   // Lookup Tables - Generic methods for all lookup tables
-  async getLookupTable(tableName: string) {
-    return this.request(`/lookups/${tableName}`);
+  async getLookupTable(tableName: string, clinicId: number) {
+    return this.request(`/lookups/${tableName}?clinic_id=${clinicId}`);
   }
 
   async createLookupItem(tableName: string, item: any) {
@@ -1556,22 +1556,22 @@ class ApiClient {
     });
   }
 
-  async updateLookupItem(tableName: string, id: number, item: any) {
-    return this.request(`/lookups/${tableName}/${id}`, {
+  async updateLookupItem(tableName: string, id: number, clinicId: number, item: any) {
+    return this.request(`/lookups/${tableName}/${id}?clinic_id=${clinicId}`, {
       method: 'PUT',
       body: JSON.stringify(item),
     });
   }
 
-  async deleteLookupItem(tableName: string, id: number) {
-    return this.request(`/lookups/${tableName}/${id}`, {
+  async deleteLookupItem(tableName: string, id: number, clinicId: number) {
+    return this.request(`/lookups/${tableName}/${id}?clinic_id=${clinicId}`, {
       method: 'DELETE',
     });
   }
 
   // Specific lookup methods for backward compatibility
-  async getLookupSuppliers() {
-    return this.request<LookupSupplier[]>('/lookups/suppliers');
+  async getLookupSuppliers(clinicId: number) {
+    return this.request<LookupSupplier[]>(`/lookups/suppliers?clinic_id=${clinicId}`);
   }
 
   async createLookupSupplier(supplier: any) {
@@ -1581,15 +1581,15 @@ class ApiClient {
     });
   }
 
-  async updateLookupSupplier(id: number, supplier: any) {
-    return this.request<LookupSupplier>(`/lookups/suppliers/${id}`, {
+  async updateLookupSupplier(id: number, clinicId: number, supplier: any) {
+    return this.request<LookupSupplier>(`/lookups/suppliers/${id}?clinic_id=${clinicId}`, {
       method: 'PUT',
       body: JSON.stringify(supplier),
     });
   }
 
-  async deleteLookupSupplier(id: number) {
-    return this.request(`/lookups/suppliers/${id}`, {
+  async deleteLookupSupplier(id: number, clinicId: number) {
+    return this.request(`/lookups/suppliers/${id}?clinic_id=${clinicId}`, {
       method: 'DELETE',
     });
   }

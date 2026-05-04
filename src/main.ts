@@ -160,12 +160,36 @@ async function openUrlInChrome(url: string) {
     throw new Error('Only HTTP and HTTPS URLs can be opened in Chrome');
   }
 
+  const targetUrl = parsedUrl.toString();
+  const getWindowsChromeExecutables = () => {
+    const installRoots = [
+      process.env.ProgramFiles,
+      process.env['PROGRAMFILES(X86)'],
+      process.env.ProgramW6432,
+      process.env.LOCALAPPDATA,
+    ].filter(Boolean) as string[];
+
+    return [...new Set(installRoots.map((root) => path.join(root, 'Google', 'Chrome', 'Application', 'chrome.exe')))]
+      .filter((chromePath) => fs.existsSync(chromePath));
+  };
+
+  const spawnDetached = (command: string, args: string[]) => new Promise<void>((resolve, reject) => {
+    const child = spawn(command, args, {
+      detached: true,
+      stdio: 'ignore',
+      windowsHide: true,
+    });
+
+    child.once('error', reject);
+    child.once('spawn', resolve);
+    child.unref();
+  });
+
   const openWithChrome = () => new Promise<void>((resolve, reject) => {
-    const targetUrl = parsedUrl.toString();
     const candidates = process.platform === 'darwin'
       ? [{ command: 'open', args: ['-a', 'Google Chrome', targetUrl] }]
       : process.platform === 'win32'
-        ? [{ command: 'cmd', args: ['/c', 'start', '', 'chrome', targetUrl] }]
+        ? getWindowsChromeExecutables().map((command) => ({ command, args: [targetUrl] }))
         : [
             { command: 'google-chrome', args: [targetUrl] },
             { command: 'google-chrome-stable', args: [targetUrl] },
@@ -182,6 +206,11 @@ async function openUrlInChrome(url: string) {
       }
 
       index += 1;
+      if (process.platform === 'win32') {
+        spawnDetached(candidate.command, candidate.args).then(resolve, tryNext);
+        return;
+      }
+
       const child = spawn(candidate.command, candidate.args, {
         detached: true,
         stdio: 'ignore',
@@ -206,7 +235,7 @@ async function openUrlInChrome(url: string) {
     await openWithChrome();
   } catch (error) {
     console.warn('[ExternalLink] Failed to open Chrome, falling back to default browser:', error);
-    await shell.openExternal(parsedUrl.toString());
+    await shell.openExternal(targetUrl);
   }
 
   return true;

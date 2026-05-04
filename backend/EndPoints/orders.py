@@ -12,7 +12,6 @@ from models import Clinic
 from security.scope import (
     apply_clinic_user_scope,
     assert_clinic_belongs_to_company,
-    assert_clinic_scope,
     get_allowed_clinic_ids,
     get_scoped_billing,
     get_scoped_client,
@@ -350,8 +349,19 @@ def _prepare_model_payload(db: Session, current_user: User, model, data: Dict[st
             except (TypeError, ValueError):
                 raise HTTPException(status_code=422, detail=f"Invalid date for {column.name}")
     payload = apply_clinic_user_scope(db, current_user, payload)
-    if payload.get("supply_in_clinic_id") is not None:
-        assert_clinic_scope(db, current_user, payload["supply_in_clinic_id"])
+    if "supply_in_clinic_id" in payload:
+        if payload["supply_in_clinic_id"] == "":
+            payload["supply_in_clinic_id"] = None
+        elif payload["supply_in_clinic_id"] is not None:
+            try:
+                payload["supply_in_clinic_id"] = int(payload["supply_in_clinic_id"])
+            except (TypeError, ValueError):
+                raise HTTPException(status_code=422, detail="Invalid supply_in_clinic_id")
+            assert_clinic_belongs_to_company(
+                db,
+                payload["supply_in_clinic_id"],
+                resolve_company_id(db, current_user),
+            )
     return payload
 
 

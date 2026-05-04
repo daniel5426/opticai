@@ -64,6 +64,7 @@ from backend.models import (
     LookupDisinfectionSolution,
     LookupRinsingSolution,
 )
+from backend.services.lookup_defaults import seed_default_lookup_values_for_clinic
 
 
 # ------------------------------
@@ -514,6 +515,8 @@ def get_or_create_clinic(db: Session, company: Company, branch_code: str) -> Cli
         is_active=True,
     )
     db.add(clinic)
+    db.flush()
+    seed_default_lookup_values_for_clinic(db, clinic.id)
     db.commit()
     db.refresh(clinic)
     return clinic
@@ -545,16 +548,24 @@ def get_or_create_default_exam_layout(db: Session, clinic: Optional[Clinic]) -> 
 # Lookup upsert helpers
 # ------------------------------
 
-def upsert_lookup_simple(db: Session, model, name: str):
+def upsert_lookup_simple(db: Session, model, name: str, clinic_id: int):
     if not name:
         return None
     name = name.strip()
     if not name:
         return None
-    existing = db.execute(select(model).where(model.name == name)).scalars().first()
+    existing = (
+        db.execute(
+            select(model)
+            .where(model.clinic_id == clinic_id)
+            .where(model.name == name)
+        )
+        .scalars()
+        .first()
+    )
     if existing:
         return existing
-    obj = model(name=name)
+    obj = model(clinic_id=clinic_id, name=name)
     db.add(obj)
     db.commit()
     db.refresh(obj)
@@ -1237,4 +1248,3 @@ def is_client_account(row: Dict[str, Any]) -> bool:
     val = str(raw).strip(" '\"").upper()
     # Treat common legacy labels as clients
     return val in ("A", "CUST", "CUSTOMER")
-

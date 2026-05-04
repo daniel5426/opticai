@@ -1,7 +1,13 @@
 import csv
 import json
 
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
+
+from backend.database import Base
 from backend.migration import migrate_csv_to_postgres as migration
+from backend.models import Clinic, Company, LookupColor
 
 
 def test_numeric_parsing_distinguishes_general_and_optical_values():
@@ -66,3 +72,33 @@ def test_write_legacy_blob_file_persists_content(tmp_path, monkeypatch):
     assert mime_type == "application/pdf"
     assert saved_name == "report.pdf"
     assert (tmp_path / "abc123.pdf").read_bytes() == bytes.fromhex("255044462d312e340a")
+
+
+def test_migrate_lookups_imports_into_selected_clinic(tmp_path):
+    csv_path = tmp_path / "optic_tv_lens_color.csv"
+    with csv_path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=["name"])
+        writer.writeheader()
+        writer.writerow({"name": "Blue"})
+
+    engine = create_engine(
+        "sqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+    Base.metadata.create_all(bind=engine)
+
+    with SessionLocal() as db:
+        company = Company(name="A", owner_full_name="Owner A")
+        db.add(company)
+        db.flush()
+        selected = Clinic(company_id=company.id, name="Selected", unique_id="selected")
+        other = Clinic(company_id=company.id, name="Other", unique_id="other")
+        db.add_all([selected, other])
+        db.commit()
+
+        migration.migrate_lookups(db, str(tmp_path), [selected.id])
+
+        assert db.query(LookupColor).filter_by(clinic_id=selected.id, name="Blue").count() == 1
+        assert db.query(LookupColor).filter_by(clinic_id=other.id, name="Blue").count() == 0

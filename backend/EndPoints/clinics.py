@@ -7,6 +7,8 @@ from schemas import ClinicCreate, ClinicUpdate, Clinic as ClinicSchema
 from auth import get_current_user, get_password_hash
 from models import User
 from services.default_exam_layouts import ensure_default_exam_layouts_for_clinic
+from services.lookup_defaults import seed_default_lookup_values_for_clinic
+from security.scope import assert_company_access
 import uuid
 
 
@@ -53,6 +55,7 @@ def create_clinic(
     db.add(db_clinic)
     db.flush()
     ensure_default_exam_layouts_for_clinic(db, db_clinic.id)
+    seed_default_lookup_values_for_clinic(db, db_clinic.id)
     db.commit()
     db.refresh(db_clinic)
     return db_clinic
@@ -105,14 +108,8 @@ def get_clinics_by_company(
     if not company:
         raise HTTPException(status_code=404, detail="Company not found")
     
-    # Check permissions
-    if current_user.role_level >= CEO_LEVEL:
-        # CEO can see all clinics in their company
-        clinics = db.query(Clinic).filter(Clinic.company_id == company_id).all()
-    else:
-        raise HTTPException(status_code=403, detail="Access denied")
-    
-    return clinics
+    assert_company_access(db, current_user, company_id)
+    return db.query(Clinic).filter(Clinic.company_id == company_id).all()
 
 @router.put("/{clinic_id}", response_model=ClinicSchema)
 def update_clinic(

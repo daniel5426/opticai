@@ -10,6 +10,7 @@ from schemas import OpticalExam as OpticalExamSchema, OpticalExamCreate
 from auth import get_current_user
 from .exam_layouts import build_layout_tree
 from utils.date_search import DateSearchHelper
+from security.scope import apply_clinic_user_scope
 
 router = APIRouter(prefix="/exams", tags=["exams"])
 
@@ -133,19 +134,8 @@ def create_exam(
 ):
     """Create a new exam"""
     try:
-        # Set clinic_id if not provided
-        if not exam.clinic_id:
-            exam.clinic_id = current_user.clinic_id
-        
-        # Set user_id if not provided
-        if not exam.user_id:
-            exam.user_id = current_user.id
-        
-        # Apply role-based access control
-        if current_user.role_level < 4 and exam.clinic_id != current_user.clinic_id:
-            raise HTTPException(status_code=403, detail="Can only create exams in your clinic")
-        
-        db_exam = OpticalExam(**exam.dict())
+        payload = apply_clinic_user_scope(db, current_user, exam.dict())
+        db_exam = OpticalExam(**payload)
         db.add(db_exam)
         db.commit()
         db.refresh(db_exam)
@@ -331,7 +321,20 @@ def update_exam(
         raise HTTPException(status_code=403, detail="Access denied")
     
     try:
-        for field, value in exam_update.dict(exclude_unset=True).items():
+        update_fields = exam_update.dict(exclude_unset=True)
+        if update_fields:
+            candidate = {
+                "client_id": db_exam.client_id,
+                "clinic_id": db_exam.clinic_id,
+                "user_id": db_exam.user_id,
+            }
+            candidate.update({k: update_fields[k] for k in candidate.keys() & update_fields.keys()})
+            scoped = apply_clinic_user_scope(db, current_user, candidate)
+            for key in ("client_id", "clinic_id", "user_id"):
+                if key in update_fields:
+                    update_fields[key] = scoped[key]
+
+        for field, value in update_fields.items():
             setattr(db_exam, field, value)
         
         db.commit()

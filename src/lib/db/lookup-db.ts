@@ -24,9 +24,10 @@ import {
 import { apiClient } from '../api-client';
 
 // Generic lookup functions
-async function getLookupItems<T>(tableName: string): Promise<T[]> {
+async function getLookupItems<T>(tableName: string, clinicId?: number): Promise<T[]> {
+  if (!clinicId) return [];
   try {
-    const response = await apiClient.getLookupTable(tableName);
+    const response = await apiClient.getLookupTable(tableName, clinicId);
     if (response.error) {
       console.error(`Error getting ${tableName}:`, response.error);
       return [];
@@ -58,7 +59,11 @@ async function updateLookupItem<T>(tableName: string, data: any): Promise<T | nu
       console.error(`Error updating ${tableName}: No ID provided`);
       return null;
     }
-    const response = await apiClient.updateLookupItem(tableName, data.id, data);
+    if (!data.clinic_id) {
+      console.error(`Error updating ${tableName}: No clinic ID provided`);
+      return null;
+    }
+    const response = await apiClient.updateLookupItem(tableName, data.id, data.clinic_id, data);
     if (response.error) {
       console.error(`Error updating ${tableName}:`, response.error);
       return null;
@@ -70,9 +75,10 @@ async function updateLookupItem<T>(tableName: string, data: any): Promise<T | nu
   }
 }
 
-async function deleteLookupItem(tableName: string, id: number): Promise<boolean> {
+async function deleteLookupItem(tableName: string, id: number, clinicId?: number): Promise<boolean> {
+  if (!clinicId) return false;
   try {
-    const response = await apiClient.deleteLookupItem(tableName, id);
+    const response = await apiClient.deleteLookupItem(tableName, id, clinicId);
     if (response.error) {
       console.error(`Error deleting ${tableName}:`, response.error);
       return false;
@@ -441,152 +447,99 @@ export async function deleteLookupVADecimal(id: number): Promise<boolean> {
   return deleteLookupItem('va-decimal', id);
 }
 
+function makeLookupTable<T>(tableName: string, displayName: string) {
+  return {
+    getAll: (clinicId?: number) => getLookupItems<T>(tableName, clinicId),
+    create: (data: any) => createLookupItem<T>(tableName, data),
+    update: (data: any) => updateLookupItem<T>(tableName, data),
+    delete: (id: number, clinicId?: number) => deleteLookupItem(tableName, id, clinicId),
+    displayName,
+  }
+}
+
 export const lookupTables = {
   supplier: {
-    getAll: getAllLookupSuppliers,
-    create: createLookupSupplier,
-    update: updateLookupSupplier,
-    delete: deleteLookupSupplier,
+    ...makeLookupTable<LookupSupplier>('suppliers', 'ספקים'),
     displayName: 'ספקים'
   },
   clinic: {
-    getAll: getAllLookupClinics,
-    create: createLookupClinic,
-    update: updateLookupClinic,
-    delete: deleteLookupClinic,
+    ...makeLookupTable<LookupClinic>('clinics', 'מרפאות/סניפים'),
     displayName: 'מרפאות/סניפים'
   },
   orderType: {
-    getAll: getAllLookupOrderTypes,
-    create: createLookupOrderType,
-    update: updateLookupOrderType,
-    delete: deleteLookupOrderType,
+    ...makeLookupTable<LookupOrderType>('order-types', 'סוגי הזמנות'),
     displayName: 'סוגי הזמנות'
   },
   referralType: {
-    getAll: getAllLookupReferralTypes,
-    create: createLookupReferralType,
-    update: updateLookupReferralType,
-    delete: deleteLookupReferralType,
+    ...makeLookupTable<LookupReferralType>('referral-types', 'סוגי הפניות'),
     displayName: 'סוגי הפניות'
   },
   lensModel: {
-    getAll: getAllLookupLensModels,
-    create: createLookupLensModel,
-    update: updateLookupLensModel,
-    delete: deleteLookupLensModel,
+    ...makeLookupTable<LookupLensModel>('lens-models', 'דגמי עדשות'),
     displayName: 'דגמי עדשות'
   },
   color: {
-    getAll: getAllLookupColors,
-    create: createLookupColor,
-    update: updateLookupColor,
-    delete: deleteLookupColor,
+    ...makeLookupTable<LookupColor>('colors', 'צבעים'),
     displayName: 'צבעים'
   },
   material: {
-    getAll: getAllLookupMaterials,
-    create: createLookupMaterial,
-    update: updateLookupMaterial,
-    delete: deleteLookupMaterial,
+    ...makeLookupTable<LookupMaterial>('materials', 'חומרים'),
     displayName: 'חומרים'
   },
   coating: {
-    getAll: getAllLookupCoatings,
-    create: createLookupCoating,
-    update: updateLookupCoating,
-    delete: deleteLookupCoating,
+    ...makeLookupTable<LookupCoating>('coatings', 'ציפויים'),
     displayName: 'ציפויים'
   },
   manufacturer: {
-    getAll: getAllLookupManufacturers,
-    create: createLookupManufacturer,
-    update: updateLookupManufacturer,
-    delete: deleteLookupManufacturer,
+    ...makeLookupTable<LookupManufacturer>('manufacturers', 'יצרנים'),
     displayName: 'יצרנים'
   },
   frameModel: {
-    getAll: getAllLookupFrameModels,
-    create: createLookupFrameModel,
-    update: updateLookupFrameModel,
-    delete: deleteLookupFrameModel,
+    ...makeLookupTable<LookupFrameModel>('frame-models', 'דגמי מסגרות'),
     displayName: 'דגמי מסגרות'
   },
   contactLensType: {
-    getAll: getAllLookupContactLensTypes,
-    create: createLookupContactLensType,
-    update: updateLookupContactLensType,
-    delete: deleteLookupContactLensType,
+    ...makeLookupTable<LookupContactLensType>('contact-lens-types', 'סוגי עדשות מגע'),
     displayName: 'סוגי עדשות מגע'
   },
   contactEyeLensType: {
-    getAll: getAllLookupContactEyeLensTypes,
-    create: createLookupContactEyeLensType,
-    update: updateLookupContactEyeLensType,
-    delete: deleteLookupContactEyeLensType,
+    ...makeLookupTable<LookupContactEyeLensType>('contact-eye-lens-types', 'סוגי עדשות מגע לעין'),
     displayName: 'סוגי עדשות מגע לעין'
   },
   contactEyeMaterial: {
-    getAll: getAllLookupContactEyeMaterials,
-    create: createLookupContactEyeMaterial,
-    update: updateLookupContactEyeMaterial,
-    delete: deleteLookupContactEyeMaterial,
+    ...makeLookupTable<LookupContactEyeMaterial>('contact-eye-materials', 'חומרי עדשות מגע'),
     displayName: 'חומרי עדשות מגע'
   },
   contactLensModel: {
-    getAll: getAllLookupContactLensModels,
-    create: createLookupContactLensModel,
-    update: updateLookupContactLensModel,
-    delete: deleteLookupContactLensModel,
+    ...makeLookupTable<LookupContactLensModel>('contact-lens-models', 'דגמי עדשות מגע'),
     displayName: 'דגמי עדשות מגע'
   },
   cleaningSolution: {
-    getAll: getAllLookupCleaningSolutions,
-    create: createLookupCleaningSolution,
-    update: updateLookupCleaningSolution,
-    delete: deleteLookupCleaningSolution,
+    ...makeLookupTable<LookupCleaningSolution>('cleaning-solutions', 'תמיסות ניקוי'),
     displayName: 'תמיסות ניקוי'
   },
   disinfectionSolution: {
-    getAll: getAllLookupDisinfectionSolutions,
-    create: createLookupDisinfectionSolution,
-    update: updateLookupDisinfectionSolution,
-    delete: deleteLookupDisinfectionSolution,
+    ...makeLookupTable<LookupDisinfectionSolution>('disinfection-solutions', 'תמיסות חיטוי'),
     displayName: 'תמיסות חיטוי'
   },
   rinsingSolution: {
-    getAll: getAllLookupRinsingSolutions,
-    create: createLookupRinsingSolution,
-    update: updateLookupRinsingSolution,
-    delete: deleteLookupRinsingSolution,
+    ...makeLookupTable<LookupRinsingSolution>('rinsing-solutions', 'תמיסות שטיפה'),
     displayName: 'תמיסות שטיפה'
   },
   manufacturingLab: {
-    getAll: getAllLookupManufacturingLabs,
-    create: createLookupManufacturingLab,
-    update: updateLookupManufacturingLab,
-    delete: deleteLookupManufacturingLab,
+    ...makeLookupTable<LookupManufacturingLab>('manufacturing-labs', 'מעבדות ייצור'),
     displayName: 'מעבדות ייצור'
   },
   advisor: {
-    getAll: getAllLookupAdvisors,
-    create: createLookupAdvisor,
-    update: updateLookupAdvisor,
-    delete: deleteLookupAdvisor,
+    ...makeLookupTable<LookupAdvisor>('advisors', 'יועצים'),
     displayName: 'יועצים'
   },
   vaMeter: {
-    getAll: getAllLookupVAMeters,
-    create: createLookupVAMeter,
-    update: updateLookupVAMeter,
-    delete: deleteLookupVAMeter,
+    ...makeLookupTable<LookupVAMeter>('va-meter', 'חדות ראייה - מטר'),
     displayName: 'חדות ראייה - מטר'
   },
   vaDecimal: {
-    getAll: getAllLookupVADecimals,
-    create: createLookupVADecimal,
-    update: updateLookupVADecimal,
-    delete: deleteLookupVADecimal,
+    ...makeLookupTable<LookupVADecimal>('va-decimal', 'חדות ראייה - דצימלי'),
     displayName: 'חדות ראייה - דצימלי'
   }
-} 
+}

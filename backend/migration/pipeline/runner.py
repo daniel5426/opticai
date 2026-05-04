@@ -48,9 +48,6 @@ def migrate(csv_dir: str, company_id: Optional[int] = None, clinic_id: Optional[
         
         admin_user = get_or_create_admin_user(db, company)
 
-        # Lookups first to satisfy FKs and choices
-        migrate_lookups(db, csv_dir)
-
         # Clinics map (from accounts)
         branch_codes = collect_branch_codes(csv_dir)
         branch_to_clinic: Dict[str, int] = {}
@@ -62,6 +59,11 @@ def migrate(csv_dir: str, company_id: Optional[int] = None, clinic_id: Optional[
             for bc in branch_codes:
                 clinic_obj = get_or_create_clinic(db, company, bc)
                 branch_to_clinic[bc] = clinic_obj.id
+
+        lookup_clinic_ids = list(branch_to_clinic.values())
+        if clinic_id is not None and not lookup_clinic_ids:
+            lookup_clinic_ids = [clinic_id]
+        migrate_lookups(db, csv_dir, lookup_clinic_ids)
 
         # Clients and families
         account_to_client, _ = migrate_clients_and_families(db, csv_dir, company, return_only=return_only_clients, target_clinic_id=clinic_id)

@@ -11,6 +11,7 @@ import { Loader2 } from 'lucide-react'
 
 interface LookupItem {
   id?: number
+  clinic_id?: number
   name: string
   created_at?: string
 }

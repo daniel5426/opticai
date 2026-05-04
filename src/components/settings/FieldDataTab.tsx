@@ -4,6 +4,7 @@ import { LookupTableManager } from "@/components/LookupTableManager"
 import { lookupTables } from "@/lib/db/lookup-db"
 
 interface FieldDataTabProps {
+  clinicId?: number
   currentLookupTable: string | null
   lookupData: { [key: string]: any[] }
   isLoading: boolean
@@ -12,6 +13,7 @@ interface FieldDataTabProps {
 }
 
 export function FieldDataTab({ 
+  clinicId,
   currentLookupTable, 
   lookupData, 
   isLoading,
@@ -58,9 +60,9 @@ export function FieldDataTab({
               items={lookupData[currentLookupTable] || []}
               isLoading={isLoading}
               onRefresh={onRefresh}
-              onCreate={lookupTables[currentLookupTable as keyof typeof lookupTables].create}
-              onUpdate={lookupTables[currentLookupTable as keyof typeof lookupTables].update}
-              onDelete={lookupTables[currentLookupTable as keyof typeof lookupTables].delete}
+              onCreate={(data) => clinicId ? lookupTables[currentLookupTable as keyof typeof lookupTables].create({ ...data, clinic_id: clinicId }) : Promise.resolve(null)}
+              onUpdate={(data) => clinicId ? lookupTables[currentLookupTable as keyof typeof lookupTables].update({ ...data, clinic_id: data.clinic_id || clinicId }) : Promise.resolve(null)}
+              onDelete={(id) => clinicId ? lookupTables[currentLookupTable as keyof typeof lookupTables].delete(id, clinicId) : Promise.resolve(false)}
             />
           ) : (
             <Card className="">
@@ -77,5 +79,3 @@ export function FieldDataTab({
     </div>
   )
 }
-
-

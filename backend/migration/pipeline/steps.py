@@ -1,9 +1,14 @@
 from .common import *
 
 
-def migrate_lookups(db: Session, csv_dir: str):
+def migrate_lookups(db: Session, csv_dir: str, clinic_ids: List[int]):
     t0 = time.time()
-    print("[lookups] starting...", flush=True)
+    target_clinic_ids = sorted(set(clinic_ids))
+    if not target_clinic_ids:
+        print("[lookups] no target clinics; skipping", flush=True)
+        return
+
+    print(f"[lookups] starting for clinics {target_clinic_ids}...", flush=True)
     simple_mappings: List[Tuple[str, Any]] = [
         ("optic_tv_lens_supplier.csv", LookupSupplier),
         ("optic_tv_lens_model.csv", LookupLensModel),
@@ -28,7 +33,8 @@ def migrate_lookups(db: Session, csv_dir: str):
         print(f"[lookups] {filename}: {len(rows)} rows", flush=True)
         for r in rows:
             name = (r.get("name") or "").strip()
-            upsert_lookup_simple(db, model, name)
+            for clinic_id in target_clinic_ids:
+                upsert_lookup_simple(db, model, name, clinic_id)
     print(f"[lookups] done in {time.time()-t0:.2f}s", flush=True)
 
 
@@ -1274,4 +1280,3 @@ def migrate_appointments(db: Session, csv_dir: str, account_to_client: Dict[str,
         db.bulk_save_objects(batch_a, return_defaults=True)
     db.commit()
     print(f"[appointments] inserted total: {count}, took {time.time()-t0:.2f}s", flush=True)
-

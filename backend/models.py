@@ -1,5 +1,5 @@
 from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text, Float, ForeignKey, Date, JSON, Index, UniqueConstraint
-from sqlalchemy.orm import relationship, backref
+from sqlalchemy.orm import declared_attr, relationship, backref
 from sqlalchemy.sql import func, false
 from database import Base
 
@@ -595,152 +595,107 @@ class CampaignClientExecution(Base):
     error_message = Column(Text)
     channel = Column(String)  # email, sms, whatsapp
 
-class LookupSupplier(Base):
+class ClinicScopedLookupMixin:
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    @declared_attr
+    def clinic_id(cls):
+        return Column(Integer, ForeignKey("clinics.id", ondelete="CASCADE"), nullable=False, index=True)
+
+    @declared_attr
+    def __table_args__(cls):
+        table_name = cls.__tablename__
+        return (
+            UniqueConstraint("clinic_id", "name", name=f"uq_{table_name}_clinic_name"),
+            Index(f"ix_{table_name}_clinic_name", "clinic_id", "name"),
+            Index(f"ix_{table_name}_clinic_id_id", "clinic_id", "id"),
+        )
+
+
+class LookupSupplier(ClinicScopedLookupMixin, Base):
     __tablename__ = "lookup_supplier"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String, nullable=False, unique=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-class LookupClinic(Base):
+
+class LookupClinic(ClinicScopedLookupMixin, Base):
     __tablename__ = "lookup_clinic"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String, nullable=False, unique=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-class LookupOrderType(Base):
+
+class LookupOrderType(ClinicScopedLookupMixin, Base):
     __tablename__ = "lookup_order_type"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String, nullable=False, unique=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-class LookupReferralType(Base):
+
+class LookupReferralType(ClinicScopedLookupMixin, Base):
     __tablename__ = "lookup_referral_type"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String, nullable=False, unique=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-class LookupLensModel(Base):
+
+class LookupLensModel(ClinicScopedLookupMixin, Base):
     __tablename__ = "lookup_lens_model"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String, nullable=False, unique=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-class LookupColor(Base):
+
+class LookupColor(ClinicScopedLookupMixin, Base):
     __tablename__ = "lookup_color"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String, nullable=False, unique=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-class LookupMaterial(Base):
+
+class LookupMaterial(ClinicScopedLookupMixin, Base):
     __tablename__ = "lookup_material"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String, nullable=False, unique=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-class LookupCoating(Base):
+
+class LookupCoating(ClinicScopedLookupMixin, Base):
     __tablename__ = "lookup_coating"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String, nullable=False, unique=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-class LookupManufacturer(Base):
+
+class LookupManufacturer(ClinicScopedLookupMixin, Base):
     __tablename__ = "lookup_manufacturer"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String, nullable=False, unique=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-class LookupFrameModel(Base):
+
+class LookupFrameModel(ClinicScopedLookupMixin, Base):
     __tablename__ = "lookup_frame_model"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String, nullable=False, unique=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-class LookupContactLensType(Base):
+
+class LookupContactLensType(ClinicScopedLookupMixin, Base):
     __tablename__ = "lookup_contact_lens_type"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String, nullable=False, unique=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-class LookupContactEyeLensType(Base):
+
+class LookupContactEyeLensType(ClinicScopedLookupMixin, Base):
     __tablename__ = "lookup_contact_eye_lens_type"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String, nullable=False, unique=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-class LookupContactEyeMaterial(Base):
+
+class LookupContactEyeMaterial(ClinicScopedLookupMixin, Base):
     __tablename__ = "lookup_contact_eye_material"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String, nullable=False, unique=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-class LookupContactLensModel(Base):
+
+class LookupContactLensModel(ClinicScopedLookupMixin, Base):
     __tablename__ = "lookup_contact_lens_model"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String, nullable=False, unique=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-class LookupCleaningSolution(Base):
+
+class LookupCleaningSolution(ClinicScopedLookupMixin, Base):
     __tablename__ = "lookup_cleaning_solution"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String, nullable=False, unique=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-class LookupDisinfectionSolution(Base):
+
+class LookupDisinfectionSolution(ClinicScopedLookupMixin, Base):
     __tablename__ = "lookup_disinfection_solution"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String, nullable=False, unique=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-class LookupRinsingSolution(Base):
+
+class LookupRinsingSolution(ClinicScopedLookupMixin, Base):
     __tablename__ = "lookup_rinsing_solution"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String, nullable=False, unique=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-class LookupManufacturingLab(Base):
+
+class LookupManufacturingLab(ClinicScopedLookupMixin, Base):
     __tablename__ = "lookup_manufacturing_lab"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String, nullable=False, unique=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-class LookupAdvisor(Base):
+
+class LookupAdvisor(ClinicScopedLookupMixin, Base):
     __tablename__ = "lookup_advisor"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String, nullable=False, unique=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now()) 
 
-class LookupVAMeter(Base):
+
+class LookupVAMeter(ClinicScopedLookupMixin, Base):
     __tablename__ = "lookup_va_meter"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String, nullable=False, unique=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-class LookupVADecimal(Base):
+
+class LookupVADecimal(ClinicScopedLookupMixin, Base):
     __tablename__ = "lookup_va_decimal"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String, nullable=False, unique=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 
 # Indexes to speed up common client list queries

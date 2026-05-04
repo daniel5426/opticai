@@ -31,6 +31,7 @@ from schemas import Clinic as ClinicSchema
 from schemas import Company as CompanySchema
 from schemas import User as UserSchema
 from services.default_exam_layouts import ensure_default_exam_layouts_for_clinic
+from services.lookup_defaults import seed_default_lookup_values_for_clinic
 
 router = APIRouter(prefix="/auth", tags=["authentication"])
 optional_security = HTTPBearer(auto_error=False)
@@ -349,6 +350,7 @@ async def register_complete(
         pending.used_at = utcnow()
         db.flush()
         ensure_default_exam_layouts_for_clinic(db, clinic.id)
+        seed_default_lookup_values_for_clinic(db, clinic.id)
         session_payload = create_auth_session(db, user, request=request)
         db.commit()
         db.refresh(user)

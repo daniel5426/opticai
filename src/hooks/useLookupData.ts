@@ -1,8 +1,10 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { lookupTables } from '@/lib/db/lookup-db'
+import { useUser } from '@/contexts/UserContext'
 
 interface LookupItem {
   id?: number
+  clinic_id?: number
   name: string
   created_at?: string
 }
@@ -18,6 +20,8 @@ interface UseLookupDataResult {
 
 export function useLookupData(tableName: string): UseLookupDataResult {
   const queryClient = useQueryClient()
+  const { currentClinic } = useUser()
+  const clinicId = currentClinic?.id
   const table = lookupTables[tableName as keyof typeof lookupTables]
 
   const {
@@ -26,23 +30,25 @@ export function useLookupData(tableName: string): UseLookupDataResult {
     isError,
     refetch
   } = useQuery({
-    queryKey: ['lookup', tableName],
+    queryKey: ['lookup', clinicId, tableName],
     queryFn: async () => {
       if (!table) throw new Error('טבלה לא נמצאה')
-      return (await table.getAll()) || []
+      if (!clinicId) return []
+      return (await table.getAll(clinicId)) || []
     },
-    enabled: !!table
+    enabled: !!table && !!clinicId
   })
 
   const mutation = useMutation({
     mutationFn: async (name: string) => {
       if (!table) throw new Error('טבלה לא נמצאה')
-      const newItem = await table.create({ name: name.trim() })
+      if (!clinicId) throw new Error('מרפאה לא נבחרה')
+      const newItem = await table.create({ clinic_id: clinicId, name: name.trim() })
       if (!newItem) throw new Error('שגיאה ביצירת פריט')
       return newItem
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['lookup', tableName] })
+      queryClient.invalidateQueries({ queryKey: ['lookup', clinicId, tableName] })
     }
   })
 
