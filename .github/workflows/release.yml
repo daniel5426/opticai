@@ -11,30 +11,8 @@ permissions:
   packages: write
 
 jobs:
-  create-release:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    outputs:
-      upload_url: ${{ steps.create_release.outputs.upload_url }}
-      release_id: ${{ steps.create_release.outputs.id }}
-    steps:
-      - name: Create Release
-        id: create_release
-        uses: softprops/action-gh-release@v1
-        with:
-          tag_name: ${{ github.ref_name }}
-          name: Release ${{ github.ref_name }}
-          draft: true  # Keep as draft until all builds complete
-          prerelease: false
-          generate_release_notes: true
-          token: ${{ secrets.GITHUB_TOKEN }}
-
   build-macos:
-    needs: create-release
     runs-on: macos-latest
-    permissions:
-      contents: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -57,30 +35,29 @@ jobs:
           EOF
 
       - name: Build for macOS arm64
-        run: npm run build:mac:arm64
+        run: |
+          npx vite build
+          npx electron-builder --mac --arm64 --publish never
         env:
           NODE_ENV: production
           NODE_OPTIONS: --max-old-space-size=4096
           CSC_IDENTITY_AUTO_DISCOVERY: false
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Get version
         id: version
         run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
 
       - name: Upload macOS arm64 artifacts
-        uses: softprops/action-gh-release@v1
+        uses: actions/upload-artifact@v4
         with:
-          tag_name: v${{ steps.version.outputs.VERSION }}
-          files: |
+          name: macos-release
+          path: |
             release/*.zip
             release/latest-mac.yml
+          if-no-files-found: error
 
   build-windows:
-    needs: create-release
     runs-on: windows-latest
-    permissions:
-      contents: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -119,15 +96,16 @@ jobs:
         run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
 
       - name: Upload Windows artifacts
-        uses: softprops/action-gh-release@v1
+        uses: actions/upload-artifact@v4
         with:
-          tag_name: v${{ steps.version.outputs.VERSION }}
-          files: |
+          name: windows-release
+          path: |
             release/Prysm-Setup-${{ steps.version.outputs.VERSION }}.exe
             release/Prysm-Setup-${{ steps.version.outputs.VERSION }}.exe.blockmap
             release/latest.yml
+          if-no-files-found: error
 
-  finalize-release:
+  publish-release:
     needs: [build-macos, build-windows]
     runs-on: ubuntu-latest
     permissions:
@@ -135,54 +113,53 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
-        
-      - name: Update release notes
-        uses: actions/github-script@v6
+
+      - name: Get version
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Download release artifacts
+        uses: actions/download-artifact@v4
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            const version = context.ref.replace('refs/tags/v', '');
-            const { data: release } = await github.rest.repos.getReleaseByTag({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              tag: `v${version}`
-            });
-            
-            await github.rest.repos.updateRelease({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              release_id: release.id,
-              body: `## 🎉 Release v${version}
-            
+          path: release-artifacts
+
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ steps.version.outputs.VERSION }}
+          name: Release v${{ steps.version.outputs.VERSION }}
+          draft: false
+          prerelease: false
+          make_latest: true
+          generate_release_notes: true
+          body: |
+            ## Release v${{ steps.version.outputs.VERSION }}
+
             ### Downloads
-            - **macOS Apple Silicon (M1/M2/M3)**: \`Prysm-darwin-arm64-${version}.zip\`
-            - **macOS Intel**: \`Prysm-darwin-x64-${version}.zip\`
-            - **Windows**: \`Prysm-Setup-${version}.exe\`
-            
+            - **macOS Apple Silicon (M1/M2/M3)**: `Prysm-darwin-arm64-${{ steps.version.outputs.VERSION }}.zip`
+            - **macOS Intel**: `Prysm-darwin-x64-${{ steps.version.outputs.VERSION }}.zip`
+            - **Windows**: `Prysm-Setup-${{ steps.version.outputs.VERSION }}.exe`
+
             ### Auto-Update Support
             This release includes update support. Windows builds can download and install updates in-app after the first manual install.
-            
+
             ### Installation
-            
+
             #### macOS
-            1. Download the appropriate ZIP for your Mac (Apple Silicon or Intel)
-            2. Extract the ZIP file
-            3. Move Prysm.app to your Applications folder
-            4. **First time opening**: Right-click Prysm.app → "Open" → "Open" (bypasses Gatekeeper)
-            5. **Alternative**: Run \`xattr -cr /Applications/Prysm.app\` in Terminal
-            
+            1. Download the appropriate ZIP for your Mac.
+            2. Extract the ZIP file.
+            3. Move Prysm.app to your Applications folder.
+            4. First time opening: right-click Prysm.app, then choose Open.
+
             #### Windows
-            1. Download \`Prysm-Setup-${version}.exe\`
-            2. Run the installer
-            3. Follow the installation wizard
-            4. Future updates can be downloaded and installed from inside the app
-            
-            ### What's Changed
-            See the commits for detailed changes.
-            
-            ---
-            
-            **Full Changelog**: https://github.com/${context.repo.owner}/${context.repo.repo}/compare/v${parseFloat(version) - 0.1}...v${version}`,
-              draft: false,  // Publish the release (required for electron-updater)
-              make_latest: true  // Mark as latest release
-            });
+            1. Download `Prysm-Setup-${{ steps.version.outputs.VERSION }}.exe`.
+            2. Run the installer.
+            3. Future updates can be downloaded and installed from inside the app.
+          files: |
+            release-artifacts/macos-release/*.zip
+            release-artifacts/macos-release/latest-mac.yml
+            release-artifacts/windows-release/Prysm-Setup-${{ steps.version.outputs.VERSION }}.exe
+            release-artifacts/windows-release/Prysm-Setup-${{ steps.version.outputs.VERSION }}.exe.blockmap
+            release-artifacts/windows-release/latest.yml
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
