@@ -20,7 +20,7 @@ git push origin main --follow-tags
 '''
 
 [[actions]]
-name = "push to deployment"
+name = "push to production"
 icon = "tool"
 command = '''
 cd /Users/danielbenassaya/Code/personal/opticai && \
