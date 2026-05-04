@@ -19,9 +19,13 @@ function getWindowControlsOverlay() {
   return (navigator as Navigator & { windowControlsOverlay?: WindowControlsOverlay }).windowControlsOverlay;
 }
 
+function getFallbackWindowControlsSide(): WindowControlsSide {
+  return navigator.userAgent.includes("Windows") ? "right" : "left";
+}
+
 function getWindowControlsSide(): WindowControlsSide {
   const overlay = getWindowControlsOverlay();
-  if (!overlay) return "left";
+  if (!overlay) return getFallbackWindowControlsSide();
 
   const rect = overlay.getTitlebarAreaRect();
   const viewportWidth = window.innerWidth;
@@ -29,7 +33,7 @@ function getWindowControlsSide(): WindowControlsSide {
   if (rect.x > 0) return "left";
   if (rect.x + rect.width < viewportWidth - 1) return "right";
 
-  return "left";
+  return getFallbackWindowControlsSide();
 }
 
 function useWindowControlsSide(): WindowControlsSide {
@@ -74,9 +78,8 @@ export default function DragWindowRegion({ title }: DragWindowRegionProps) {
   const location = useLocation();
   const controlsSide = useWindowControlsSide();
   
-  // Only show search bar when in clinic routes (we'll handle user context in GlobalSearch)
-  const clinicRoutes = ['/dashboard', '/clients', '/exams', '/orders', '/appointments', '/settings', '/campaigns', '/files', '/referrals', '/ai-assistant', '/exam-layouts', '/worker-stats', '/second-page'];
-  const shouldShowSearch = clinicRoutes.some(route =>
+  const hiddenSearchRoutes = ['/control-center', '/user-selection', '/auth/callback', '/oauth/callback'];
+  const shouldShowSearch = !hiddenSearchRoutes.some(route =>
     location.pathname.startsWith(route)
   );
   
