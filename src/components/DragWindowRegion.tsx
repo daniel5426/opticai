@@ -86,6 +86,7 @@ export default function DragWindowRegion({ title }: DragWindowRegionProps) {
   return (
     <div className="bg-secondary border-sidebar-border">
       <div
+        dir="ltr"
         className="bg-secondary flex w-screen items-center h-8 relative"
         style={{
           paddingLeft: "env(titlebar-area-x, 0px)",
