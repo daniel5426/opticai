@@ -11,7 +11,7 @@ icon = "run"
 command = "railway up --ci --project fb97ce50-fb72-4612-bfd1-c6d8a7bed9cb --environment production --service opticai --message \"Manual production deploy 59d62289ff2f45835da71a41f206049325322bca"
 
 [[actions]]
-name = "release"
+name = "release to prod"
 icon = "tool"
 command = '''
 cd /Users/danielbenassaya/Code/personal/opticai && \
