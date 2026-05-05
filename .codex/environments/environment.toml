@@ -35,3 +35,11 @@ gh workflow run backend-railway.yml --repo daniel5426/opticai --ref main -f envi
 name = "open app on mac"
 icon = "tool"
 command = "find ~/Downloads/app -name \"*.app\" -type d -exec xattr -dr com.apple.quarantine {} +"
+
+[[actions]]
+name = "realese staging"
+icon = "tool"
+command = '''
+cd /Users/danielbenassaya/Code/personal/opticai && \
+gh workflow run staging-electron.yml --ref main
+'''

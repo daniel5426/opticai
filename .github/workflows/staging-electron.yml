@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 env:
   VITE_API_URL: https://staging-api.prysm.co.il/api/v1
@@ -115,3 +115,29 @@ jobs:
           path: release/Prysm-Staging-Setup-*.exe
           if-no-files-found: error
           retention-days: 14
+
+  publish-public-staging-download:
+    needs: [build-macos-staging, build-windows-staging]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download staging artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: staging-artifacts
+
+      - name: Publish public staging prerelease
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: staging-${{ github.run_number }}
+          name: Staging Build ${{ github.run_number }}
+          draft: false
+          prerelease: true
+          make_latest: false
+          generate_release_notes: false
+          body: |
+            Public staging build for testing.
+
+            This is not a production release. The app installs as "Prysm Staging", uses the staging API, and has auto-update disabled.
+          files: |
+            staging-artifacts/prysm-staging-macos-arm64-${{ github.sha }}/*.zip
+            staging-artifacts/prysm-staging-windows-x64-${{ github.sha }}/Prysm-Staging-Setup-*.exe
