@@ -1,606 +1,553 @@
-import React, { useState, useEffect, useRef, useLayoutEffect } from "react"
-import { useParams, useNavigate, useSearch } from "@tanstack/react-router"
-import { SiteHeader } from "@/components/site-header"
-import { Button } from "@/components/ui/button"
-import { Card } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { toast } from "sonner"
-import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerTrigger } from "@/components/ui/drawer"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
+import { Edit, Eye, EyeOff, Plus, Trash2 } from "lucide-react";
+import { toast } from "sonner";
+import { SiteHeader } from "@/components/site-header";
+import { Button } from "@/components/ui/button";
 import {
-  DndContext,
-  closestCenter,
-  KeyboardSensor,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  DragOverlay,
-  DragStartEvent,
-  DragEndEvent,
-  UniqueIdentifier
-} from "@dnd-kit/core"
+  Drawer,
+  DrawerContent,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerTrigger,
+} from "@/components/ui/drawer";
+import { Input } from "@/components/ui/input";
 import {
-  arrayMove,
-  SortableContext,
-  sortableKeyboardCoordinates,
-  verticalListSortingStrategy
-} from "@dnd-kit/sortable"
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
-  useSortable
-} from "@dnd-kit/sortable"
-import { CSS } from "@dnd-kit/utilities"
-import { GripVertical, Plus, Edit, Trash2 } from "lucide-react"
-import { ExamCardRenderer, CardItem, calculateCardWidth, hasNoteCard, DetailProps, getColumnCount, getMaxWidth } from "@/components/exam/ExamCardRenderer"
-import { getExamLayoutById, createExamLayout, updateExamLayout } from "@/lib/db/exam-layouts-db"
-import { examComponentRegistry } from "@/lib/exam-component-registry"
-import { Eye, EyeOff } from "lucide-react"
-import { useUser } from "@/contexts/UserContext"
-import { useRowWidthTracking } from "@/hooks/shared/useRowWidthTracking"
+  ExamCardRenderer,
+  CardItem,
+  hasNoteCard,
+} from "@/components/exam/ExamCardRenderer";
+import {
+  getExamLayoutById,
+  createExamLayout,
+  updateExamLayout,
+} from "@/lib/db/exam-layouts-db";
+import { examComponentRegistry } from "@/lib/exam-component-registry";
+import { cn } from "@/lib/utils";
+import { useUser } from "@/contexts/UserContext";
+import {
+  EXAM_LAYOUT_GRID_COLUMNS,
+  GridLayoutItem,
+  canPlaceGridItem,
+  clampResizeWidth,
+  clampResizeLeft,
+  computeCardGridCols,
+  normalizeGridItem,
+  parseLayoutData,
+  serializeGridLayoutData,
+  sortGridItems,
+} from "@/pages/exam-detail/utils";
 
-interface CardRow {
-  id: string
-  cards: CardItem[]
-}
+type InteractionState =
+  | {
+      type: "drag";
+      id: string;
+      originalItem: GridLayoutItem;
+      offsetCols: number;
+    }
+  | {
+      type: "resize";
+      id: string;
+      originalItem: GridLayoutItem;
+      startX: number;
+      startW: number;
+      edge: "left" | "right";
+    };
 
-interface DraggableCardProps {
-  id: string
-  children: React.ReactNode
-  isEditing: boolean
-}
-
-export function DraggableCard({ id, children, isEditing }: DraggableCardProps) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id })
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition: transition || "transform 150ms ease",
-    opacity: isDragging ? 0.1 : 1,
-  }
-
-  return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      className="relative group/row w-full"
-    >
-      {isEditing && (
-        <div
-          {...attributes}
-          {...listeners}
-          className="absolute top-2 left-2 z-10 p-1 rounded-md bg-background/80 backdrop-blur-sm border opacity-0 group-hover/row:opacity-100 transition-opacity duration-200 cursor-grab active:cursor-grabbing hover:bg-accent"
-        >
-          <GripVertical className="h-4 w-4 text-muted-foreground" />
-        </div>
-      )}
-      {children}
-    </div>
-  )
-}
+const INTERACTIVE_CARD_SELECTOR =
+  "button,a,[role='button'],[contenteditable='true'],[data-resize-handle]";
 
 interface AddComponentDrawerProps {
-  isEditing: boolean
-  onAddComponent: (componentType: CardItem['type']) => boolean
+  selectedType: CardItem["type"] | null;
+  onSelectComponent: (componentType: CardItem["type"]) => void;
 }
 
-function AddComponentDrawer({ isEditing, onAddComponent }: AddComponentDrawerProps) {
-  const [isOpen, setIsOpen] = useState(false)
-
-  if (!isEditing) return null
-
-  // Generate component list from registry
-  const registeredComponents = examComponentRegistry.getLayoutEditorTypes().map(type => {
-    const config = examComponentRegistry.getConfig(type);
-    return {
-      id: type,
-      label: type.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' '),
-      description: config?.name || type
-    };
-  });
-
-  const eyeComponents = [
-    ...registeredComponents
-  ] as const
-
-  const handleSelectComponent = (componentType: CardItem['type']) => {
-    const success = onAddComponent(componentType)
-    setIsOpen(false)
-    if (success) {
-      toast.success(`${eyeComponents.find(c => c.id === componentType)?.description} נוסף לשורה`)
-    }
-  }
+function AddComponentDrawer({
+  selectedType,
+  onSelectComponent,
+}: AddComponentDrawerProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const registeredComponents = examComponentRegistry
+    .getLayoutEditorTypes()
+    .map((type) => {
+      const config = examComponentRegistry.getConfig(type);
+      return {
+        id: type,
+        label: type
+          .split("-")
+          .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+          .join(" "),
+        description: config?.name || type,
+      };
+    });
 
   return (
     <Drawer open={isOpen} onOpenChange={setIsOpen}>
       <DrawerTrigger asChild>
-        <Button variant="outline" size="sm" className="h-8 w-8 p-0">
+        <Button
+          variant={selectedType ? "default" : "outline"}
+          size="sm"
+          className="gap-2"
+        >
           <Plus className="h-4 w-4" />
+          {selectedType ? "רכיב נבחר" : "הוסף רכיב"}
         </Button>
       </DrawerTrigger>
       <DrawerContent className="max-h-[60vh]">
         <DrawerHeader>
-          <DrawerTitle className="text-center">הוסף רכיב לשורה</DrawerTitle>
+          <DrawerTitle className="text-center">בחר רכיב להוספה</DrawerTitle>
         </DrawerHeader>
-        <div className="p-4 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 overflow-y-auto" style={{ scrollbarWidth: 'none' }}>
-          {eyeComponents.map((component) => (
+        <div
+          className="grid grid-cols-2 gap-4 overflow-y-auto p-4 md:grid-cols-3 lg:grid-cols-4"
+          style={{ scrollbarWidth: "none" }}
+        >
+          {registeredComponents.map((component) => (
             <Button
               key={component.id}
-              variant="outline"
+              variant={selectedType === component.id ? "default" : "outline"}
               className="h-auto flex-col items-center justify-center p-4 text-center"
-              onClick={() => handleSelectComponent(component.id as CardItem['type'])}
+              onClick={() => {
+                onSelectComponent(component.id as CardItem["type"]);
+                setIsOpen(false);
+              }}
             >
-              <span className="font-semibold text-lg mb-1">{component.description}</span>
-              <span className="text-sm text-muted-foreground">{component.label}</span>
+              <span className="mb-1 text-lg font-semibold">
+                {component.description}
+              </span>
+              <span className="text-muted-foreground text-sm">
+                {component.label}
+              </span>
             </Button>
           ))}
         </div>
       </DrawerContent>
     </Drawer>
-  )
-}
-
-interface AddRowButtonProps {
-  onAddRow: () => void
-  isEditing: boolean
-}
-
-function AddRowButton({ onAddRow, isEditing }: AddRowButtonProps) {
-  if (!isEditing) return null
-
-  return (
-    <div className="flex justify-center py-4">
-      <Button
-        variant="outline"
-        className="w-full max-w-md border-2 border-dashed border-muted-foreground/25 hover:border-muted-foreground/50 bg-muted/10 hover:bg-muted/20"
-        onClick={onAddRow}
-      >
-        <Plus className="h-4 w-4 mr-2" />
-        הוסף שורה חדשה
-      </Button>
-    </div>
-  )
-}
-
-interface CardResizerProps {
-  rowId: string
-  leftCardId: string
-  rightCardId: string
-  leftCardType: CardItem['type']
-  rightCardType: CardItem['type']
-  isEditing: boolean
-  cardCount: number
-  onResize: (rowId: string, leftCardId: string, rightCardId: string, leftWidth: number, pxPerCol: number) => void
-  leftCardWidth: number
-  rightCardWidth: number
-  pxPerCol: number
-}
-
-function CardResizer({ rowId, leftCardId, rightCardId, leftCardType, rightCardType, isEditing, cardCount, onResize, leftCardWidth, rightCardWidth, pxPerCol }: CardResizerProps) {
-  const [isDragging, setIsDragging] = useState(false)
-  const [isHovering, setIsHovering] = useState(false)
-
-  const MIN_WIDTH = 15
-
-  const handleMouseDown = (e: React.MouseEvent) => {
-    if (!isEditing) return
-    e.preventDefault()
-    e.stopPropagation()
-
-    const resizerElement = e.currentTarget as HTMLElement
-    const leftCardElement = resizerElement.previousElementSibling as HTMLElement
-    const rightCardElement = resizerElement.nextElementSibling as HTMLElement
-    const cardsContainer = resizerElement.parentElement
-    if (!cardsContainer || !leftCardElement || !rightCardElement) return
-
-    setIsDragging(true)
-
-    const startX = e.clientX
-    const containerWidth = cardsContainer.getBoundingClientRect().width
-    const startLeftWidth = leftCardElement.getBoundingClientRect().width
-
-    // Get max width constraints (in pixels)
-    const leftMaxWidthPx = getMaxWidth(leftCardType, 'editor')
-    const rightMaxWidthPx = getMaxWidth(rightCardType, 'editor')
-
-    // Convert pixel constraints to percentages
-    const leftMaxWidthPercent = leftMaxWidthPx ? (leftMaxWidthPx / pxPerCol) * 100 : null
-    const rightMaxWidthPercent = rightMaxWidthPx ? (rightMaxWidthPx / pxPerCol) * 100 : null
-
-    // Use logical widths from props
-    const originalCombinedPercent = leftCardWidth + rightCardWidth
-
-    const handleMouseMove = (moveEvent: MouseEvent) => {
-      const deltaX = moveEvent.clientX - startX
-      const deltaPercent = (deltaX / containerWidth) * 100;
-      const newLeftPercent = leftCardWidth + deltaPercent;
-
-      // Calculate constraints
-      let minLeft = MIN_WIDTH
-      let maxLeft = originalCombinedPercent - MIN_WIDTH
-
-      const clampedLeft = Math.max(minLeft, Math.min(newLeftPercent, maxLeft))
-      onResize(rowId, leftCardId, rightCardId, clampedLeft, pxPerCol)
-    }
-
-    const handleMouseUp = () => {
-      setIsDragging(false)
-      document.removeEventListener('mousemove', handleMouseMove)
-      document.removeEventListener('mouseup', handleMouseUp)
-      document.body.style.cursor = 'default'
-      document.body.style.userSelect = 'auto'
-    }
-
-    document.body.style.cursor = 'col-resize'
-    document.body.style.userSelect = 'none'
-
-    document.addEventListener('mousemove', handleMouseMove)
-    document.addEventListener('mouseup', handleMouseUp)
-  }
-
-  if (!isEditing) return null
-
-  return (
-    <div dir="ltr"
-      className={`flex mx-[-17px] items-center justify-center w-5 cursor-col-resize z-20 relative self-stretch hover:bg-gray-100/50 rounded-sm transition-colors duration-200`}
-      onMouseDown={handleMouseDown}
-      onMouseEnter={() => setIsHovering(true)}
-      onMouseLeave={() => setIsHovering(false)}
-      title="גרור לשינוי רוחב"
-    >
-      <div className={`h-16 w-1 rounded-full bg-gray-400 hover:cursor-col-resize transition-opacity duration-200 ${isHovering ? 'opacity-100' : 'opacity-0'}`}></div>
-    </div>
-  )
+  );
 }
 
 export default function ExamLayoutEditorPage() {
-  const navigate = useNavigate()
-  const { currentClinic } = useUser()
+  const navigate = useNavigate();
+  const { currentClinic } = useUser();
 
-  // Handle both route cases safely
-  let params: { layoutId?: string } = {}
-  let search: { name?: string } = {}
+  let params: { layoutId?: string } = {};
+  let search: { name?: string } = {};
 
   try {
-    // Try to get layoutId parameter if we're on the detail route
-    const routeParams = useParams({ strict: false })
-    if ('layoutId' in routeParams) {
-      params = routeParams as { layoutId: string }
+    const routeParams = useParams({ strict: false });
+    if ("layoutId" in routeParams) {
+      params = routeParams as { layoutId: string };
     }
   } catch {
-    // If we can't get params, we're likely on the /new route
+    params = {};
   }
 
   try {
-    // Try to get search parameters if we're on the new route
-    const routeSearch = useSearch({ strict: false })
-    search = routeSearch as { name?: string }
+    search = useSearch({ strict: false }) as { name?: string };
   } catch {
-    // If we can't get search, continue with empty search
+    search = {};
   }
 
-  const isNewMode = !params.layoutId || params.layoutId === "new"
-  const [loading, setLoading] = useState(!isNewMode)
-  const [layoutName, setLayoutName] = useState(isNewMode ? (search.name || "פריסה חדשה") : "")
+  const isNewMode = !params.layoutId || params.layoutId === "new";
+  const [loading, setLoading] = useState(!isNewMode);
+  const [layoutName, setLayoutName] = useState(
+    isNewMode ? search.name || "פריסה חדשה" : "",
+  );
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [isDefault, setIsDefault] = useState(false);
+  const [layoutType, setLayoutType] = useState<string>("global");
+  const [layoutClinicId, setLayoutClinicId] = useState<number | null>(
+    currentClinic?.id ?? null,
+  );
+  const [isSaving, setIsSaving] = useState(false);
+  const [selectedType, setSelectedType] = useState<CardItem["type"] | null>(
+    null,
+  );
+  const [items, setItems] = useState<GridLayoutItem[]>([]);
+  const [invalidItemId, setInvalidItemId] = useState<string | null>(null);
+  const isSavingRef = useRef(false);
+  const itemsRef = useRef<GridLayoutItem[]>([]);
+  const laneRefs = useRef<Record<number, HTMLDivElement | null>>({});
+  const interactionRef = useRef<InteractionState | null>(null);
 
-  const [isEditingName, setIsEditingName] = useState(false)
-  const [isEditing, setIsEditing] = useState(true)
-  const [activeId, setActiveId] = useState<UniqueIdentifier | null>(null)
-  const [isDefault, setIsDefault] = useState(false)
-  const [layoutType, setLayoutType] = useState<string>("global")
-  const [layoutClinicId, setLayoutClinicId] = useState<number | null>(currentClinic?.id ?? null)
-  const [isSaving, setIsSaving] = useState(false)
-  const isSavingRef = useRef(false)
-
-  const [cardRows, setCardRows] = useState<CardRow[]>([
-  ])
-
-  const [customWidths, setCustomWidths] = useState<Record<string, Record<string, number>>>({})
-
-  const { rowWidths, rowRefs } = useRowWidthTracking(cardRows)
-
-  const handleToggleEyeLabels = (rowIndex: number, cardId: string) => {
-    setCardRows(prevRows =>
-      prevRows.map((row, rIdx) => {
-        if (rIdx === rowIndex) {
-          return {
-            ...row,
-            cards: row.cards.map(card =>
-              card.id === cardId ? { ...card, showEyeLabels: !card.showEyeLabels } : card
-            )
-          }
-        }
-        return row
-      })
-    )
-  }
-
-  const handleCardTitleChange = (rowIndex: number, cardId: string, title: string) => {
-    setCardRows(prevRows =>
-      prevRows.map((row, rIdx) => {
-        if (rIdx === rowIndex) {
-          return {
-            ...row,
-            cards: row.cards.map(card =>
-              card.id === cardId ? { ...card, title } : card
-            )
-          }
-        }
-        return row
-      })
-    )
-  }
+  useEffect(() => {
+    itemsRef.current = items;
+  }, [items]);
 
   useEffect(() => {
     if (isNewMode) {
-      setLayoutClinicId(currentClinic?.id ?? null)
+      setLayoutClinicId(currentClinic?.id ?? null);
     }
-  }, [isNewMode, currentClinic?.id])
+  }, [isNewMode, currentClinic?.id]);
 
   useEffect(() => {
     const loadLayout = async () => {
-      if (isNewMode || !params.layoutId) return
+      if (isNewMode || !params.layoutId) return;
 
       try {
-        setLoading(true)
-        const layout = await getExamLayoutById(Number(params.layoutId))
+        setLoading(true);
+        const layout = await getExamLayoutById(Number(params.layoutId));
         if (layout) {
-          setLayoutName(layout.name)
-          setIsDefault(layout.is_default ?? false)
-          setLayoutType(layout.type || "global")
-          setLayoutClinicId(layout.clinic_id ?? null)
-          if (layout.layout_data) {
-            const parsedLayout = JSON.parse(layout.layout_data)
-            if (Array.isArray(parsedLayout)) {
-              setCardRows(parsedLayout)
-              setCustomWidths({})
-            } else {
-              setCardRows(parsedLayout.rows || [])
-              setCustomWidths(parsedLayout.customWidths || {})
-            }
-          }
+          setLayoutName(layout.name);
+          setIsDefault(layout.is_default ?? false);
+          setLayoutType(layout.type || "global");
+          setLayoutClinicId(layout.clinic_id ?? null);
+          const parsed = parseLayoutData(layout.layout_data || "[]");
+          setItems(parsed.items);
         }
       } catch (error) {
-        console.error('Error loading layout:', error)
-        toast.error('שגיאה בטעינת הפריסה')
+        console.error("Error loading layout:", error);
+        toast.error("שגיאה בטעינת הפריסה");
       } finally {
-        setLoading(false)
+        setLoading(false);
       }
-    }
+    };
 
-    loadLayout()
-  }, [params.layoutId, isNewMode])
+    loadLayout();
+  }, [params.layoutId, isNewMode]);
 
-  const handleCardResize = (rowId: string, leftCardId: string, rightCardId: string, leftWidth: number, pxPerCol: number) => {
-    setCustomWidths(prev => {
-      const newWidths = { ...prev }
-      if (!newWidths[rowId]) {
-        newWidths[rowId] = {}
-      }
+  const lanes = useMemo(() => {
+    const maxLane = items.reduce((max, item) => Math.max(max, item.y), 0);
+    return Array.from({ length: maxLane + 2 }, (_, index) => index);
+  }, [items]);
 
-      // Find the row to get current card widths
-      const row = cardRows.find(r => r.id === rowId)
-      if (!row) return prev
+  const groupedItems = useMemo(() => {
+    const map = new Map<number, GridLayoutItem[]>();
+    sortGridItems(items).forEach((item) => {
+      const laneItems = map.get(item.y) || [];
+      laneItems.push(item);
+      map.set(item.y, laneItems);
+    });
+    return map;
+  }, [items]);
 
-      // Calculate current widths for all cards
-      const currentWidths = calculateCardWidth(row.cards, rowId, prev)
-
-      // Find the left and right cards to get their types
-      const leftCard = row.cards.find(card => card.id === leftCardId)
-      const rightCard = row.cards.find(card => card.id === rightCardId)
-      if (!leftCard || !rightCard) return prev
-
-      const leftIndex = row.cards.findIndex(card => card.id === leftCardId)
-      const rightIndex = row.cards.findIndex(card => card.id === rightCardId)
-
-      if (leftIndex !== -1 && rightIndex !== -1) {
-        // Get the original combined width of left and right cards
-        const originalCombinedWidth = currentWidths[leftCardId] + currentWidths[rightCardId]
-
-        // Use the new requested left width directly
-        newWidths[rowId][leftCardId] = leftWidth
-
-        // Right card gets what's left from their combined original width
-        let rightWidth = originalCombinedWidth - leftWidth
-
-        newWidths[rowId][rightCardId] = Math.max(15, rightWidth) // Minimum 15% width
-
-        // Preserve widths of other cards by setting them as custom widths
-        row.cards.forEach(card => {
-          if (card.id !== leftCardId && card.id !== rightCardId) {
-            newWidths[rowId][card.id] = currentWidths[card.id]
-          }
-        })
-      }
-
-      return newWidths
-    })
-  }
-
-  const canAddToRow = (rowCards: CardItem[], newType: CardItem['type']): boolean => {
-    // Anamnesis cards cannot be added if other cards exist
-    if (newType === 'anamnesis') {
-      if (rowCards.length > 0) return false;
-    }
-    // If there's already an anamnesis card, no other cards can be added
-    if (rowCards.some(card => card.type === 'anamnesis')) return false;
-
-    // Allow multiple 'cover-test' and 'notes' cards in the same row
-    if (newType === 'cover-test' || newType === 'notes') {
-      return rowCards.length < 3;
-    }
-
-    // Regular rules for other cards
-    if (rowCards.some(card => card.type === newType)) return false
-
-    return rowCards.length < 3
-  }
-
-  const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: 8,
-      },
-    }),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    })
-  )
-
-  const handleDragStart = (event: DragStartEvent) => {
-    setActiveId(event.active.id)
-  }
-
-  const handleDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event
-    setActiveId(null)
-
-    if (!over || active.id === over.id) return
-
-    setCardRows(prevRows => {
-      const oldIndex = prevRows.findIndex(row => row.id === active.id)
-      const newIndex = prevRows.findIndex(row => row.id === over.id)
-
-      return arrayMove(prevRows, oldIndex, newIndex)
-    })
-  }
-
-  const handleAddComponent = (rowIndex: number, componentType: CardItem['type']): boolean => {
-    const targetRow = cardRows[rowIndex]
-    if (!canAddToRow(targetRow.cards, componentType)) {
-      toast.error("לא ניתן להוסיף רכיב זה לשורה הזו")
-      return false
-    }
-
-    const newCardId = `${componentType}-${Date.now()}`
-    const newCard = { id: newCardId, type: componentType }
-
-    setCardRows(prevRows =>
-      prevRows.map((row, index) => {
-        if (index === rowIndex) {
-          return { ...row, cards: [...row.cards, newCard] }
-        }
-        return row
-      })
-    )
-
-    setCustomWidths(prev => {
-      const newWidths = { ...prev }
-      delete newWidths[targetRow.id]
-      return newWidths
-    })
-
-    return true
-  }
-
-  const handleAddRow = () => {
-    const newRowId = `row-${Date.now()}`
-    const newRow: CardRow = {
-      id: newRowId,
-      cards: []
-    }
-
-    setCardRows(prevRows => [...prevRows, newRow])
-    toast.success("שורה חדשה נוספה")
-  }
-
-  const handleRemoveCard = (rowIndex: number, cardId: string) => {
-    const targetRow = cardRows[rowIndex]
-    const newCards = targetRow.cards.filter(card => card.id !== cardId)
-    let toastMessage = "הרכיב הוסר"
-
-    if (newCards.length === 0 && cardRows.length > 1) {
-      setCardRows(prevRows => prevRows.filter((_, i) => i !== rowIndex))
-      toastMessage = "הרכיב והשורה הריקה הוסרו"
-    } else {
-      setCardRows(prevRows =>
-        prevRows.map((row, index) => {
-          if (index === rowIndex) {
-            return { ...row, cards: newCards }
-          }
-          return row
-        })
+  const getLaneFromPointer = useCallback((clientY: number) => {
+    const entries = Object.entries(laneRefs.current)
+      .map(([lane, el]) => ({ lane: Number(lane), el }))
+      .filter((entry): entry is { lane: number; el: HTMLDivElement } =>
+        Boolean(entry.el),
       )
+      .sort((a, b) => a.lane - b.lane);
+
+    for (const entry of entries) {
+      const rect = entry.el.getBoundingClientRect();
+      if (clientY >= rect.top && clientY <= rect.bottom) return entry.lane;
     }
 
-    setCustomWidths(prev => {
-      const newWidths = { ...prev }
-      delete newWidths[targetRow.id]
-      return newWidths
-    })
+    const first = entries[0];
+    const last = entries[entries.length - 1];
+    if (!first || !last) return 0;
+    if (clientY < first.el.getBoundingClientRect().top) return first.lane;
+    return last.lane;
+  }, []);
 
-    toast.success(toastMessage)
-  }
+  const getColumnFromPointer = useCallback(
+    (lane: number, clientX: number, offsetCols = 0) => {
+      const laneEl = laneRefs.current[lane];
+      if (!laneEl) return 0;
+      const rect = laneEl.getBoundingClientRect();
+      const colWidth = rect.width / EXAM_LAYOUT_GRID_COLUMNS;
+      return Math.round((clientX - rect.left) / colWidth - offsetCols);
+    },
+    [],
+  );
+
+  const canAddComponentType = (componentType: CardItem["type"]) => {
+    if (componentType === "anamnesis") return items.length === 0;
+    if (items.some((item) => item.type === "anamnesis")) return false;
+    if (componentType === "cover-test" || componentType === "notes")
+      return true;
+    return !items.some((item) => item.type === componentType);
+  };
+
+  const handlePlaceSelected = (event: React.MouseEvent, lane: number) => {
+    if (!selectedType) return;
+    if ((event.target as HTMLElement).closest("[data-grid-card]")) return;
+    if (!canAddComponentType(selectedType)) {
+      toast.error("לא ניתן להוסיף רכיב זה לפריסה");
+      return;
+    }
+
+    const width = computeCardGridCols(selectedType);
+    const x = Math.max(
+      0,
+      Math.min(
+        EXAM_LAYOUT_GRID_COLUMNS - width,
+        getColumnFromPointer(lane, event.clientX),
+      ),
+    );
+    const id = `${selectedType}-${Date.now()}`;
+    const item = normalizeGridItem({
+      id,
+      type: selectedType,
+      x,
+      y: lane,
+      w: width,
+      showEyeLabels: x === 0,
+    });
+
+    if (!canPlaceGridItem(item, items)) {
+      toast.error("המיקום תפוס");
+      return;
+    }
+
+    setItems((prev) => sortGridItems([...prev, item]));
+    setSelectedType(null);
+  };
+
+  const updateItem = (
+    id: string,
+    updater: (item: GridLayoutItem) => GridLayoutItem,
+  ) => {
+    const next = itemsRef.current.map((item) =>
+      item.id === id ? updater(item) : item,
+    );
+    itemsRef.current = next;
+    setItems(next);
+  };
+
+  const finishInteraction = useCallback(() => {
+    const interaction = interactionRef.current;
+    if (!interaction) return;
+
+    const current = itemsRef.current.find((item) => item.id === interaction.id);
+    if (!current) return;
+
+    const finalItem =
+      interaction.type === "resize" && interaction.edge === "left"
+        ? {
+            ...current,
+            ...clampResizeLeft(
+              interaction.originalItem,
+              itemsRef.current,
+              Math.round(current.x),
+            ),
+          }
+        : normalizeGridItem(current);
+
+    const valid = canPlaceGridItem(
+      finalItem,
+      itemsRef.current,
+      EXAM_LAYOUT_GRID_COLUMNS,
+      finalItem.id,
+    );
+    if (!valid) {
+      updateItem(interaction.id, () => interaction.originalItem);
+    } else {
+      updateItem(interaction.id, () => normalizeGridItem(finalItem));
+    }
+
+    interactionRef.current = null;
+    setInvalidItemId(null);
+    document.body.style.userSelect = "";
+    document.body.style.cursor = "";
+  }, []);
+
+  useEffect(() => {
+    const handlePointerMove = (event: PointerEvent) => {
+      const interaction = interactionRef.current;
+      if (!interaction) return;
+
+      if (interaction.type === "drag") {
+        const lane = getLaneFromPointer(event.clientY);
+        const original = interaction.originalItem;
+        const x = Math.max(
+          0,
+          Math.min(
+            EXAM_LAYOUT_GRID_COLUMNS - original.w,
+            getColumnFromPointer(lane, event.clientX, interaction.offsetCols),
+          ),
+        );
+        const candidate = normalizeGridItem({ ...original, x, y: lane });
+        const valid = canPlaceGridItem(
+          candidate,
+          itemsRef.current,
+          EXAM_LAYOUT_GRID_COLUMNS,
+          original.id,
+        );
+        setInvalidItemId(valid ? null : original.id);
+        updateItem(original.id, () => candidate);
+        return;
+      }
+
+      const laneEl = laneRefs.current[interaction.originalItem.y];
+      if (!laneEl) return;
+      const colWidth =
+        laneEl.getBoundingClientRect().width / EXAM_LAYOUT_GRID_COLUMNS;
+      const deltaCols = (event.clientX - interaction.startX) / colWidth;
+
+      if (interaction.edge === "left") {
+        const resized = clampResizeLeft(
+          interaction.originalItem,
+          itemsRef.current,
+          interaction.originalItem.x + deltaCols,
+        );
+        updateItem(interaction.id, (item) => ({
+          ...item,
+          x: resized.x,
+          w: resized.w,
+        }));
+        return;
+      }
+
+      const requestedWidth = interaction.startW + deltaCols;
+      const clampedWidth = clampResizeWidth(
+        interaction.originalItem,
+        itemsRef.current,
+        requestedWidth,
+      );
+      updateItem(interaction.id, (item) => ({
+        ...item,
+        w: clampedWidth,
+      }));
+    };
+
+    const handlePointerUp = () => finishInteraction();
+
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", handlePointerUp);
+    return () => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+    };
+  }, [finishInteraction, getColumnFromPointer, getLaneFromPointer]);
+
+  const handleDragStart = (event: React.PointerEvent, item: GridLayoutItem) => {
+    if (event.button !== 0) return;
+    const target = event.target as HTMLElement;
+    if (target.closest(INTERACTIVE_CARD_SELECTOR)) return;
+    const laneEl = laneRefs.current[item.y];
+    const cardEl = (event.currentTarget as HTMLElement).closest(
+      "[data-grid-card]",
+    ) as HTMLElement | null;
+    if (!laneEl || !cardEl) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    const colWidth =
+      laneEl.getBoundingClientRect().width / EXAM_LAYOUT_GRID_COLUMNS;
+    const offsetCols =
+      (event.clientX - cardEl.getBoundingClientRect().left) / colWidth;
+    interactionRef.current = {
+      type: "drag",
+      id: item.id,
+      originalItem: { ...item },
+      offsetCols,
+    };
+    document.body.style.userSelect = "none";
+    document.body.style.cursor = "grabbing";
+  };
+
+  const handleResizeStart = (
+    event: React.PointerEvent,
+    item: GridLayoutItem,
+    edge: "left" | "right",
+  ) => {
+    event.preventDefault();
+    event.stopPropagation();
+    interactionRef.current = {
+      type: "resize",
+      id: item.id,
+      originalItem: { ...item },
+      startX: event.clientX,
+      startW: item.w,
+      edge,
+    };
+    document.body.style.userSelect = "none";
+    document.body.style.cursor = "col-resize";
+  };
+
+  const handleRemoveCard = (id: string) => {
+    setItems((prev) => prev.filter((item) => item.id !== id));
+    toast.success("הרכיב הוסר");
+  };
+
+  const handleToggleEyeLabels = (id: string) => {
+    setItems((prev) =>
+      prev.map((item) =>
+        item.id === id ? { ...item, showEyeLabels: !item.showEyeLabels } : item,
+      ),
+    );
+  };
+
+  const handleCardTitleChange = (id: string, title: string) => {
+    setItems((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, title } : item)),
+    );
+  };
 
   const handleSaveLayout = async () => {
-    if (isSavingRef.current) return
-
+    if (isSavingRef.current) return;
     if (!layoutName.trim()) {
-      toast.error("נא להזין שם לפריסה")
-      return
+      toast.error("נא להזין שם לפריסה");
+      return;
     }
 
-    isSavingRef.current = true
-    setIsSaving(true)
-    let shouldResetSaving = true
+    isSavingRef.current = true;
+    setIsSaving(true);
+    let shouldResetSaving = true;
+
     try {
-      const targetClinicId = layoutClinicId ?? currentClinic?.id ?? null
+      const targetClinicId = layoutClinicId ?? currentClinic?.id ?? null;
       const layoutData = {
         ...(targetClinicId !== null ? { clinic_id: targetClinicId } : {}),
         name: layoutName,
-        layout_data: JSON.stringify({
-          rows: cardRows,
-          customWidths: customWidths
-        }),
+        layout_data: serializeGridLayoutData(items),
         is_default: isDefault,
-        type: layoutType
-      }
+        type: layoutType,
+      };
 
-      let result
-      if (isNewMode || !params.layoutId) {
-        result = await createExamLayout(layoutData)
-      } else {
-        result = await updateExamLayout({
-          id: Number(params.layoutId),
-          ...layoutData
-        })
-      }
+      const result =
+        isNewMode || !params.layoutId
+          ? await createExamLayout(layoutData)
+          : await updateExamLayout({
+              id: Number(params.layoutId),
+              ...layoutData,
+            });
 
       if (result) {
-        shouldResetSaving = false
-        toast.success(isNewMode ? "פריסה חדשה נוצרה בהצלחה" : "הפריסה עודכנה בהצלחה")
-        navigate({ to: "/exam-layouts" })
+        shouldResetSaving = false;
+        toast.success(
+          isNewMode ? "פריסה חדשה נוצרה בהצלחה" : "הפריסה עודכנה בהצלחה",
+        );
+        navigate({ to: "/exam-layouts" });
       } else {
-        toast.error("שגיאה בשמירת הפריסה")
+        toast.error("שגיאה בשמירת הפריסה");
       }
     } catch (error) {
-      console.error('Error saving layout:', error)
-      toast.error("שגיאה בשמירת הפריסה")
+      console.error("Error saving layout:", error);
+      toast.error("שגיאה בשמירת הפריסה");
     } finally {
       if (shouldResetSaving) {
-        isSavingRef.current = false
-        setIsSaving(false)
+        isSavingRef.current = false;
+        setIsSaving(false);
       }
     }
-  }
+  };
 
   if (loading) {
     return (
-      <>
-        <SiteHeader
-          title={layoutName}
-          parentTitle="פריסות בדיקה"
-          parentLink="/exam-layouts"
-          grandparentTitle="הגדרות"
-          grandparentLink="/settings"
-        />
-      </>
-    )
+      <SiteHeader
+        title={layoutName}
+        parentTitle="פריסות בדיקה"
+        parentLink="/exam-layouts"
+        grandparentTitle="הגדרות"
+        grandparentLink="/settings"
+      />
+    );
   }
 
   return (
@@ -612,21 +559,19 @@ export default function ExamLayoutEditorPage() {
         grandparentTitle="הגדרות"
         grandparentLink="/settings"
       />
-      <div className="flex flex-col flex-1 p-4 lg:pt-4 lg:p-6 mb-10" dir="rtl">
-        <div className="flex justify-between items-center mb-6">
-          <div className="flex items-center gap-4">
+      <div className="flex flex-1 flex-col p-4 lg:p-6" dir="rtl">
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
+          <div className="flex flex-wrap items-center gap-4">
             <div className="flex items-center gap-2">
               {isEditingName ? (
                 <Input
                   value={layoutName}
-                  onChange={(e) => setLayoutName(e.target.value)}
+                  onChange={(event) => setLayoutName(event.target.value)}
                   onBlur={() => setIsEditingName(false)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      setIsEditingName(false)
-                    }
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") setIsEditingName(false);
                   }}
-                  className="text-xl font-semibold border-none p-0 h-auto focus-visible:ring-0"
+                  className="h-auto border-none p-0 text-xl font-semibold focus-visible:ring-0"
                   autoFocus
                 />
               ) : (
@@ -647,19 +592,32 @@ export default function ExamLayoutEditorPage() {
             <div className="flex items-center gap-2">
               <span className="text-sm font-medium">סוג:</span>
               <Select value={layoutType} onValueChange={setLayoutType}>
-                <SelectTrigger className="w-[140px] h-9">
+                <SelectTrigger className="h-9 w-[140px]">
                   <SelectValue placeholder="בחר סוג" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="global">כללי</SelectItem>
-                  <SelectItem value="glass" dir="rtl">משקפיים</SelectItem>
-                  <SelectItem value="contact lens" dir="rtl">עדשות מגע</SelectItem>
+                  <SelectItem value="glass" dir="rtl">
+                    משקפיים
+                  </SelectItem>
+                  <SelectItem value="contact lens" dir="rtl">
+                    עדשות מגע
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
+
+            <AddComponentDrawer
+              selectedType={selectedType}
+              onSelectComponent={setSelectedType}
+            />
           </div>
+
           <div className="flex gap-2">
-            <Button variant="outline" onClick={() => navigate({ to: "/exam-layouts" })}>
+            <Button
+              variant="outline"
+              onClick={() => navigate({ to: "/exam-layouts" })}
+            >
               ביטול
             </Button>
             <Button onClick={handleSaveLayout} disabled={isSaving}>
@@ -668,169 +626,126 @@ export default function ExamLayoutEditorPage() {
           </div>
         </div>
 
-        <div className="mb-4 p-4 bg-blue-50 rounded-lg border">
-          <p className="text-sm text-blue-800">
-            <strong>הוראות שימוש:</strong> גרור שורות לשינוי הסדר, השתמש בכפתור + להוספת רכיבים לשורות קיימות, לחץ על אייקון הפח להסרת רכיבים, גרור את אייקון הגרירה בין רכיבים לשינוי רוחב, והוסף שורות חדשות בכפתור למטה.
-          </p>
+        <div className="mb-4 rounded-lg border bg-blue-50 p-4 text-sm text-blue-800">
+          בחר רכיב ואז לחץ על תא פנוי כדי להוסיף אותו. גרור כרטיסים בין תאים
+          ושורות, וגרור את אחד מקצוות הכרטיס כדי לשנות רוחב.
         </div>
 
-        <DndContext
-          sensors={sensors}
-          collisionDetection={closestCenter}
-          onDragStart={handleDragStart}
-          onDragEnd={handleDragEnd}
-        >
-          <div className="space-y-4" style={{ scrollbarWidth: 'none' }}>
-            <SortableContext items={cardRows.map(row => row.id)} strategy={verticalListSortingStrategy}>
-              {cardRows.map((row, rowIndex) => {
-                const pxPerCol = rowWidths[row.id] || 1680
-                const cardWidths = calculateCardWidth(row.cards, row.id, customWidths, pxPerCol, 'editor')
-
-                return (
-                  <DraggableCard
-                    key={row.id}
-                    id={row.id}
-                    isEditing={isEditing}
-                  >
-                    <div
-                      className="flex gap-4 w-full items-start"
-                      ref={el => { rowRefs.current[row.id] = el }}
-                    >
-                      <div className="flex-shrink-0">
-                        <AddComponentDrawer
-                          isEditing={isEditing}
-                          onAddComponent={(componentType) => handleAddComponent(rowIndex, componentType)}
-                        />
-                      </div>
-                      <div className="flex gap-4 flex-1" dir="ltr">
-                        {row.cards.length === 0 ? (
-                          <div className="flex-1 border-2 border-dashed border-gray-300 rounded-lg p-8 text-center text-gray-500">
-                            שורה ריקה - השתמש בכפתור + להוספת רכיבים
-                          </div>
-                        ) : (
-                          row.cards.map((card, index) => (
-                            <React.Fragment key={card.id}>
-                              <div
-                                style={{
-                                  width: `${cardWidths[card.id]}%`,
-                                  minWidth: row.cards.length > 1 ? '200px' : 'auto'
-                                }}
-                                className="relative group/card"
-                              >
-                                {isEditing && (
-                                  <button
-                                    onClick={() => handleRemoveCard(rowIndex, card.id)}
-                                    className="absolute top-2 right-2 z-10 p-1 rounded-md bg-red-500/80 hover:bg-red-600 text-white opacity-0 group-hover/card:opacity-100 transition-opacity duration-200"
-                                    title="הסר רכיב"
-                                  >
-                                    <Trash2 className="h-3 w-3" />
-                                  </button>
-                                )}
-                                {index > 0 && ( // Only show for cards not first in row
-                                  <button
-                                    onClick={() => handleToggleEyeLabels(rowIndex, card.id)}
-                                    className="absolute top-2 left-2 z-10 p-1 rounded-md bg-background/80 hover:bg-accent text-muted-foreground opacity-0 group-hover/card:opacity-100 transition-opacity duration-200"
-                                    title={card.showEyeLabels ? "הסתר תוויות עין" : "הצג תוויות עין"}
-                                  >
-                                    {card.showEyeLabels ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
-                                  </button>
-                                )}
-                                <ExamCardRenderer
-                                  item={card}
-                                  rowCards={row.cards}
-                                  isEditing={isEditing}
-                                  mode="editor"
-                                  hideEyeLabels={index > 0}
-                                  matchHeight={hasNoteCard(row.cards) && row.cards.length > 1}
-                                  onTitleChange={(title) => handleCardTitleChange(rowIndex, card.id, title)}
-                                />
-                              </div>
-
-                              {index < row.cards.length - 1 && (() => {
-                                const leftCard = row.cards[index];
-                                const rightCard = row.cards[index + 1];
-                                const leftCol = getColumnCount(leftCard.type, 'editor');
-                                const rightCol = getColumnCount(rightCard.type, 'editor');
-                                if (typeof leftCol === 'number' && typeof rightCol === 'number') {
-                                  const leftCardWidth = cardWidths[leftCard.id] || 0;
-                                  const rightCardWidth = cardWidths[rightCard.id] || 0;
-                                  return (
-                                    <CardResizer
-                                      rowId={row.id}
-                                      leftCardId={leftCard.id}
-                                      rightCardId={rightCard.id}
-                                      leftCardType={leftCard.type}
-                                      rightCardType={rightCard.type}
-                                      isEditing={isEditing}
-                                      cardCount={row.cards.length}
-                                      onResize={handleCardResize}
-                                      leftCardWidth={leftCardWidth}
-                                      rightCardWidth={rightCardWidth}
-                                      pxPerCol={pxPerCol}
-                                    />
-                                  )
-                                }
-                                return null;
-                              })()}
-                            </React.Fragment>
-                          ))
-                        )}
-                      </div>
-                    </div>
-                  </DraggableCard>
-                )
-              })}
-            </SortableContext>
-
-            <AddRowButton onAddRow={handleAddRow} isEditing={isEditing} />
-          </div>
-
-          <DragOverlay>
-            {activeId ? (
-              <div className="w-full">
-                {(() => {
-                  const row = cardRows.find(r => r.id === activeId)
-                  if (!row) return null
-                  const pxPerCol = rowWidths[row.id] || 1680
-                  const cardWidths = calculateCardWidth(row.cards, row.id, customWidths, pxPerCol)
+        <div className="border-border overflow-hidden border-y" dir="ltr">
+          {lanes.map((lane) => {
+            const laneItems = groupedItems.get(lane) || [];
+            return (
+              <div
+                key={lane}
+                ref={(el) => {
+                  laneRefs.current[lane] = el;
+                }}
+                className={cn(
+                  "border-border grid min-h-[118px] w-full gap-4 border-b p-3 transition-colors last:border-b-0",
+                  selectedType && "hover:bg-primary/5 cursor-crosshair",
+                )}
+                style={{
+                  gridTemplateColumns: `repeat(${EXAM_LAYOUT_GRID_COLUMNS}, minmax(0, 1fr))`,
+                  alignItems: "start",
+                }}
+                onClick={(event) => handlePlaceSelected(event, lane)}
+              >
+                {laneItems.map((item) => {
+                  const renderStart = Math.floor(item.x);
+                  const renderEnd = Math.ceil(item.x + item.w);
+                  const renderSpan = Math.max(1, renderEnd - renderStart);
+                  const renderWidth = `${Math.min(100, (item.w / renderSpan) * 100)}%`;
+                  const renderMarginLeft = `${Math.max(
+                    0,
+                    ((item.x - renderStart) / renderSpan) * 100,
+                  )}%`;
                   return (
-                    <div className="flex gap-4 w-full">
-                      <div className="flex-shrink-0">
-                        <AddComponentDrawer
-                          isEditing={isEditing}
-                          onAddComponent={() => false}
-                        />
+                    <div
+                      key={item.id}
+                      data-grid-card
+                      onPointerDown={(event) => handleDragStart(event, item)}
+                      className={cn(
+                        "group/card relative min-w-0 cursor-grab transition-opacity active:cursor-grabbing",
+                        invalidItemId === item.id &&
+                          "ring-destructive opacity-60 ring-2",
+                      )}
+                      style={{
+                        gridColumn: `${renderStart + 1} / span ${renderSpan}`,
+                        gridRow: 1,
+                        width: renderWidth,
+                        marginLeft: renderMarginLeft,
+                      }}
+                    >
+                      <div
+                        data-resize-handle
+                        onPointerDown={(event) =>
+                          handleResizeStart(event, item, "left")
+                        }
+                        className="absolute top-4 bottom-4 -left-2 z-10 w-4 cursor-col-resize opacity-0 transition-opacity group-hover/card:opacity-100"
+                        title="שנה רוחב משמאל"
+                      >
+                        <div className="mx-auto h-full w-1 rounded-full bg-gray-400" />
                       </div>
-                      <div className="flex gap-4 flex-1" dir="ltr">
-                        {row.cards.map((card, index) => (
-                          <div
-                            key={card.id}
-                            style={{
-                              width: `${cardWidths[card.id]}%`,
-                              minWidth: row.cards.length > 1 ? '200px' : 'auto'
-                            }}
-                            className="relative group/card"
-                          >
-
-                            <ExamCardRenderer
-                              item={card}
-                              rowCards={row.cards}
-                              isEditing={isEditing}
-                              mode="editor"
-                              hideEyeLabels={index > 0}
-                              matchHeight={false}
-                            />
-                          </div>
-                        ))}
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveCard(item.id)}
+                        className="absolute top-2 right-2 z-20 rounded-md bg-red-500/80 p-1 text-white opacity-0 transition-opacity group-hover/card:opacity-100 hover:bg-red-600"
+                        title="הסר רכיב"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleToggleEyeLabels(item.id)}
+                        className="bg-background/80 text-muted-foreground hover:bg-accent absolute top-2 left-10 z-20 rounded-md p-1 opacity-0 transition-opacity group-hover/card:opacity-100"
+                        title={
+                          item.showEyeLabels
+                            ? "הסתר תוויות עין"
+                            : "הצג תוויות עין"
+                        }
+                      >
+                        {item.showEyeLabels ? (
+                          <Eye className="h-3 w-3" />
+                        ) : (
+                          <EyeOff className="h-3 w-3" />
+                        )}
+                      </button>
+                      <div
+                        data-resize-handle
+                        onPointerDown={(event) =>
+                          handleResizeStart(event, item, "right")
+                        }
+                        className="absolute top-4 -right-2 bottom-4 z-10 w-4 cursor-col-resize opacity-0 transition-opacity group-hover/card:opacity-100"
+                        title="שנה רוחב מימין"
+                      >
+                        <div className="mx-auto h-full w-1 rounded-full bg-gray-400" />
                       </div>
+                      <ExamCardRenderer
+                        item={item}
+                        rowCards={laneItems}
+                        isEditing
+                        mode="editor"
+                        hideEyeLabels={item.showEyeLabels === false}
+                        matchHeight={
+                          hasNoteCard(laneItems) && laneItems.length > 1
+                        }
+                        onTitleChange={(title) =>
+                          handleCardTitleChange(item.id, title)
+                        }
+                      />
                     </div>
-                  )
-                })()}
+                  );
+                })}
+                {laneItems.length === 0 && (
+                  <div className="text-muted-foreground col-span-full flex min-h-[88px] items-center justify-center rounded-md text-sm">
+                    {selectedType ? "לחץ כאן כדי למקם את הרכיב" : "שורה פנויה"}
+                  </div>
+                )}
               </div>
-            ) : null}
-          </DragOverlay>
-        </DndContext>
+            );
+          })}
+        </div>
       </div>
     </>
-  )
-} 
+  );
+}

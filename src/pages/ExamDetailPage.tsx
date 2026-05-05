@@ -6,19 +6,11 @@ import React, {
   useMemo,
   useLayoutEffect,
 } from "react";
-import {
-  useParams,
-  useNavigate,
-  useSearch,
-} from "@tanstack/react-router";
+import { useParams, useNavigate, useSearch } from "@tanstack/react-router";
 import { SiteHeader } from "@/components/site-header";
 import { getExamPageData } from "@/lib/db/exams-db";
 import { getOrdersByClientId } from "@/lib/db/orders-db";
-import {
-  OpticalExam,
-  Client,
-  ExamLayout,
-} from "@/lib/db/schema-interface";
+import { OpticalExam, Client, ExamLayout } from "@/lib/db/schema-interface";
 import { getAllExamLayouts, getExamLayoutById } from "@/lib/db/exam-layouts-db";
 import { Button } from "@/components/ui/button";
 import { Edit, Save, Loader2 } from "lucide-react";
@@ -33,7 +25,10 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import { useUser } from "@/contexts/UserContext";
-import { createDetailProps, DetailProps } from "@/components/exam/ExamCardRenderer";
+import {
+  createDetailProps,
+  DetailProps,
+} from "@/components/exam/ExamCardRenderer";
 import { createToolboxActions } from "@/components/exam/ExamToolbox";
 import { examComponentRegistry } from "@/lib/exam-component-registry";
 import { ExamComponentType } from "@/lib/exam-field-mappings";
@@ -55,11 +50,16 @@ import {
   normalizeFieldValue,
   shallowEqual,
   parseLayoutData,
+  type GridLayoutItem,
+  legacyRowsToGridItems,
   VIRTUAL_FULL_DATA_TAB_ID,
   isVirtualFullDataTabId,
   resolveFullDataSourceInstanceId,
 } from "./exam-detail/utils";
-import { EXAM_DATA_UI_KEY, ensureLayoutDataForRows } from "@/lib/exam-ui-metadata";
+import {
+  EXAM_DATA_UI_KEY,
+  ensureLayoutDataForRows,
+} from "@/lib/exam-ui-metadata";
 
 // Import new hooks
 import { useLayoutTabs } from "@/hooks/exam/useLayoutTabs";
@@ -69,7 +69,10 @@ import { useExamClipboard } from "@/hooks/exam/useExamClipboard";
 import { useExamSave } from "@/hooks/exam/useExamSave";
 
 // Import new components
-import { ExamLoadingState, ExamNotFoundState } from "@/components/exam/ExamLoadingState";
+import {
+  ExamLoadingState,
+  ExamNotFoundState,
+} from "@/components/exam/ExamLoadingState";
 import { ExamLayoutTabs } from "@/components/exam/ExamLayoutTabs";
 import { ExamLayoutRenderer } from "@/components/exam/ExamLayoutRenderer";
 
@@ -120,7 +123,10 @@ export default function ExamDetailPage({
   let layoutIdFromSearch: string | undefined;
   if (isNewMode) {
     try {
-      const search = useSearch({ from: "/clients/$clientId/exams/new", strict: false });
+      const search = useSearch({
+        from: "/clients/$clientId/exams/new",
+        strict: false,
+      });
       layoutIdFromSearch = (search as any)?.layoutId as string | undefined;
     } catch {
       layoutIdFromSearch = undefined;
@@ -153,7 +159,9 @@ export default function ExamDetailPage({
   }, []);
 
   // Form data state
-  const [examComponentData, setExamComponentData] = useState<Record<string, any>>({});
+  const [examComponentData, setExamComponentData] = useState<
+    Record<string, any>
+  >({});
   const [examFormData, setExamFormData] = useState<Record<string, any>>({});
   const [examFormDataByInstance, setExamFormDataByInstance] = useState<
     Record<number | string, Record<string, any>>
@@ -168,17 +176,17 @@ export default function ExamDetailPage({
   const [formData, setFormData] = useState<Partial<OpticalExam>>(
     isNewMode
       ? {
-        client_id: Number(clientId),
-        exam_date: new Date().toISOString().split("T")[0],
-        test_name: "",
-        user_id: currentUser?.id,
-        dominant_eye: null,
-        type: config.dbType,
-      }
+          client_id: Number(clientId),
+          exam_date: new Date().toISOString().split("T")[0],
+          test_name: "",
+          user_id: currentUser?.id,
+          dominant_eye: null,
+          type: config.dbType,
+        }
       : {},
   );
 
-  const [cardRows, setCardRows] = useState<CardRow[]>([
+  const initialCardRows: CardRow[] = [
     {
       id: "row-2",
       cards: [{ id: "old-refraction-1", type: "old-refraction" }],
@@ -191,7 +199,12 @@ export default function ExamDetailPage({
     },
     { id: "row-6", cards: [{ id: "addition-1", type: "addition" }] },
     { id: "row-7", cards: [{ id: "notes-1", type: "notes" }] },
-  ]);
+  ];
+
+  const [cardRows, setCardRows] = useState<CardRow[]>(initialCardRows);
+  const [gridItems, setGridItems] = useState<GridLayoutItem[]>(() =>
+    legacyRowsToGridItems(initialCardRows),
+  );
 
   const [customWidths, setCustomWidths] = useState<
     Record<string, Record<string, number>>
@@ -256,35 +269,33 @@ export default function ExamDetailPage({
     layoutData?: string,
   ) => {
     const initialData: Record<string, any> = {};
-    const baseDataByInstance: Record<string, any> = { layout_instance_id: instanceKey };
+    const baseDataByInstance: Record<string, any> = {
+      layout_instance_id: instanceKey,
+    };
 
     if (layoutData) {
-      try {
-        const parsedLayout = JSON.parse(layoutData);
-        const rows = Array.isArray(parsedLayout)
-          ? parsedLayout
-          : parsedLayout.rows || [];
+      const rows = parseLayoutData(layoutData).rows;
 
-        rows.forEach((row: any) => {
-          row.cards?.forEach((card: any) => {
-            const type = card.type as ExamComponentType;
-            const cardId = card.id;
-            const key = `${type}-${cardId}`;
+      rows.forEach((row: any) => {
+        row.cards?.forEach((card: any) => {
+          const type = card.type as ExamComponentType;
+          const cardId = card.id;
+          const key = `${type}-${cardId}`;
 
-            const instanceData: any = { ...baseDataByInstance, card_instance_id: cardId };
-            if (card.title) {
-              instanceData.title = card.title;
-            }
-            initialData[key] = instanceData;
+          const instanceData: any = {
+            ...baseDataByInstance,
+            card_instance_id: cardId,
+          };
+          if (card.title) {
+            instanceData.title = card.title;
+          }
+          initialData[key] = instanceData;
 
-            if (!initialData[type]) {
-              initialData[type] = instanceData;
-            }
-          });
+          if (!initialData[type]) {
+            initialData[type] = instanceData;
+          }
         });
-      } catch (error) {
-        console.error("Error parsing layout data:", error);
-      }
+      });
     }
 
     examComponentRegistry.getAllTypes().forEach((type) => {
@@ -310,6 +321,7 @@ export default function ExamDetailPage({
     const parsed = parseLayoutData(layoutData);
     setCardRows(parsed.rows);
     setCustomWidths(parsed.customWidths);
+    setGridItems(parsed.items);
   };
 
   const loadExamComponentData = async (
@@ -326,8 +338,7 @@ export default function ExamDetailPage({
 
       if (layoutData) {
         try {
-          const parsedLayout = JSON.parse(layoutData);
-          const rows = Array.isArray(parsedLayout) ? parsedLayout : (parsedLayout.rows || []);
+          const rows = parseLayoutData(layoutData).rows;
 
           rows.forEach((row: any) => {
             row.cards?.forEach((card: any) => {
@@ -347,7 +358,7 @@ export default function ExamDetailPage({
                 formDataLocal[key] = {
                   ...(instanceData as Record<string, any>),
                   card_instance_id: cardId,
-                  layout_instance_id: layoutInstanceId
+                  layout_instance_id: layoutInstanceId,
                 };
 
                 if (!formDataLocal[type]) {
@@ -357,7 +368,7 @@ export default function ExamDetailPage({
                 const emptyData = {
                   layout_instance_id: layoutInstanceId,
                   card_instance_id: cardId,
-                  title: card.title
+                  title: card.title,
                 };
                 formDataLocal[key] = emptyData;
                 if (!formDataLocal[type]) formDataLocal[type] = emptyData;
@@ -379,13 +390,18 @@ export default function ExamDetailPage({
             });
           });
         } catch (error) {
-          console.error("Error parsing layout data in loadExamComponentData:", error);
+          console.error(
+            "Error parsing layout data in loadExamComponentData:",
+            error,
+          );
         }
       }
 
       examComponentRegistry.getAllTypes().forEach((type) => {
         if (!formDataLocal[type]) {
-          formDataLocal[type] = data[type] || { layout_instance_id: layoutInstanceId };
+          formDataLocal[type] = data[type] || {
+            layout_instance_id: layoutInstanceId,
+          };
         }
       });
 
@@ -458,7 +474,10 @@ export default function ExamDetailPage({
 
           const currentActiveInstanceId = activeInstanceIdRef.current;
 
-          if (nextEntry.layout_instance_id == null && currentActiveInstanceId != null) {
+          if (
+            nextEntry.layout_instance_id == null &&
+            currentActiveInstanceId != null
+          ) {
             nextEntry.layout_instance_id = currentActiveInstanceId;
           }
 
@@ -469,7 +488,11 @@ export default function ExamDetailPage({
           }
 
           const result = { ...prev, [key]: nextEntry };
-          if (key !== baseType && (!prev[baseType] || prev[baseType].card_instance_id === nextEntry.card_instance_id)) {
+          if (
+            key !== baseType &&
+            (!prev[baseType] ||
+              prev[baseType].card_instance_id === nextEntry.card_instance_id)
+          ) {
             result[baseType] = nextEntry;
           }
 
@@ -480,7 +503,7 @@ export default function ExamDetailPage({
                 userSettings: currentUser as any,
                 activeInstanceData: result, // result is the new active state
                 otherInstancesData: examFormDataByInstanceRef.current,
-                activeInstanceId: activeInstanceIdRef.current
+                activeInstanceId: activeInstanceIdRef.current,
               };
 
               const change = {
@@ -488,7 +511,7 @@ export default function ExamDetailPage({
                 fieldName: field,
                 newValue: normalized,
                 instanceId: key,
-                layoutInstanceId: activeInstanceIdRef.current || 0
+                layoutInstanceId: activeInstanceIdRef.current || 0,
               };
 
               // Process sync rules
@@ -501,26 +524,36 @@ export default function ExamDetailPage({
                 // If update is for ACTIVE instance, merge into `result`
                 if (instanceIdNum === activeInstanceIdRef.current) {
                   Object.entries(components).forEach(([compKey, fields]) => {
-                    if (!result[compKey]) result[compKey] = { layout_instance_id: activeInstanceIdRef.current };
+                    if (!result[compKey])
+                      result[compKey] = {
+                        layout_instance_id: activeInstanceIdRef.current,
+                      };
                     result[compKey] = { ...result[compKey], ...fields };
                   });
                 } else {
                   // Queue external update
                   setTimeout(() => {
-                    setExamFormDataByInstance(prevInstance => {
+                    setExamFormDataByInstance((prevInstance) => {
                       const next = { ...prevInstance };
                       if (!next[instanceIdNum]) next[instanceIdNum] = {};
 
-                      Object.entries(components).forEach(([compKey, fields]) => {
-                        if (!next[instanceIdNum][compKey]) next[instanceIdNum][compKey] = { layout_instance_id: instanceIdNum };
-                        next[instanceIdNum][compKey] = { ...next[instanceIdNum][compKey], ...fields };
-                      });
+                      Object.entries(components).forEach(
+                        ([compKey, fields]) => {
+                          if (!next[instanceIdNum][compKey])
+                            next[instanceIdNum][compKey] = {
+                              layout_instance_id: instanceIdNum,
+                            };
+                          next[instanceIdNum][compKey] = {
+                            ...next[instanceIdNum][compKey],
+                            ...fields,
+                          };
+                        },
+                      );
                       return next;
                     });
                   }, 0);
                 }
               });
-
             } catch (e) {
               console.error("Error in sync logic:", e);
             }
@@ -548,7 +581,9 @@ export default function ExamDetailPage({
               const coverKey = `cover-test-${cardId}-${tabId}`;
               handlers[coverKey] = (field, value) => {
                 setExamFormData((prev) => {
-                  const tabIndex = (computedCoverTestTabs[cardId] || []).indexOf(tabId);
+                  const tabIndex = (
+                    computedCoverTestTabs[cardId] || []
+                  ).indexOf(tabId);
                   const prevTab = prev[coverKey] || {};
                   const normalized = normalizeFieldValue(prevTab[field], value);
                   const nextTab = {
@@ -556,7 +591,8 @@ export default function ExamDetailPage({
                     card_instance_id: tabId,
                     card_id: cardId,
                     tab_index: tabIndex,
-                    layout_instance_id: prevTab.layout_instance_id ?? activeInstanceId,
+                    layout_instance_id:
+                      prevTab.layout_instance_id ?? activeInstanceId,
                   };
                   if (normalized === undefined) {
                     delete nextTab[field];
@@ -573,7 +609,9 @@ export default function ExamDetailPage({
               const oldRefKey = `old-refraction-${cardId}-${tabId}`;
               handlers[oldRefKey] = (field, value) => {
                 setExamFormData((prev) => {
-                  const tabIndex = (computedOldRefractionTabs[cardId] || []).indexOf(tabId);
+                  const tabIndex = (
+                    computedOldRefractionTabs[cardId] || []
+                  ).indexOf(tabId);
                   const prevTab = prev[oldRefKey] || {};
                   const normalized = normalizeFieldValue(prevTab[field], value);
                   const nextTab = {
@@ -581,7 +619,8 @@ export default function ExamDetailPage({
                     card_instance_id: tabId,
                     card_id: cardId,
                     tab_index: tabIndex,
-                    layout_instance_id: prevTab.layout_instance_id ?? activeInstanceId,
+                    layout_instance_id:
+                      prevTab.layout_instance_id ?? activeInstanceId,
                   };
                   if (normalized === undefined) {
                     delete nextTab[field];
@@ -605,7 +644,7 @@ export default function ExamDetailPage({
     syncManager,
     cardRows,
     computedCoverTestTabs,
-    computedOldRefractionTabs
+    computedOldRefractionTabs,
   ]);
 
   const examFormDataRef = useRef(examFormData);
@@ -616,7 +655,10 @@ export default function ExamDetailPage({
   const getExamFormData = useCallback(() => examFormDataRef.current, []);
 
   // const fieldHandlers = createFieldHandlers(); (removed)
-  const toolboxActions = useMemo(() => createToolboxActions(getExamFormData, fieldHandlers), [getExamFormData, fieldHandlers]);
+  const toolboxActions = useMemo(
+    () => createToolboxActions(getExamFormData, fieldHandlers),
+    [getExamFormData, fieldHandlers],
+  );
 
   // Clipboard hook
   const {
@@ -654,6 +696,7 @@ export default function ExamDetailPage({
     setExamFormData,
     setCardRows,
     setCustomWidths,
+    setGridItems,
     layoutMap,
     fullDataSourcesRef,
     loadExamComponentData,
@@ -709,7 +752,8 @@ export default function ExamDetailPage({
       )
         return;
 
-      const hasOldRefraction = Object.keys(computedOldRefractionTabs).length > 0;
+      const hasOldRefraction =
+        Object.keys(computedOldRefractionTabs).length > 0;
       if (!hasOldRefraction) return;
 
       autoImportAttemptedRef.current = true;
@@ -730,24 +774,32 @@ export default function ExamDetailPage({
         const isContact =
           latestOrder.type === "עדשות מגע" || (latestOrder as any).__contact;
         let orderDataRaw = latestOrder.order_data || {};
-        if (typeof orderDataRaw === 'string') {
-          try { orderDataRaw = JSON.parse(orderDataRaw); } catch(e) {}
+        if (typeof orderDataRaw === "string") {
+          try {
+            orderDataRaw = JSON.parse(orderDataRaw);
+          } catch (e) {}
         }
         const orderData = orderDataRaw as Record<string, any>;
 
         let sourceData: any = {};
         if (isContact) {
-          sourceData = (orderData["contact-lens-exam"] && Object.keys(orderData["contact-lens-exam"]).length > 0)
-            ? orderData["contact-lens-exam"]
-            : (orderData["final-prescription"] && Object.keys(orderData["final-prescription"]).length > 0)
-              ? orderData["final-prescription"]
-              : orderData;
-        } else {
-          sourceData = (orderData["final-prescription"] && Object.keys(orderData["final-prescription"]).length > 0)
-            ? orderData["final-prescription"]
-            : (orderData["contact-lens-exam"] && Object.keys(orderData["contact-lens-exam"]).length > 0)
+          sourceData =
+            orderData["contact-lens-exam"] &&
+            Object.keys(orderData["contact-lens-exam"]).length > 0
               ? orderData["contact-lens-exam"]
-              : orderData;
+              : orderData["final-prescription"] &&
+                  Object.keys(orderData["final-prescription"]).length > 0
+                ? orderData["final-prescription"]
+                : orderData;
+        } else {
+          sourceData =
+            orderData["final-prescription"] &&
+            Object.keys(orderData["final-prescription"]).length > 0
+              ? orderData["final-prescription"]
+              : orderData["contact-lens-exam"] &&
+                  Object.keys(orderData["contact-lens-exam"]).length > 0
+                ? orderData["contact-lens-exam"]
+                : orderData;
         }
 
         setExamFormData((prev) => {
@@ -833,7 +885,6 @@ export default function ExamDetailPage({
     activeOldRefractionTabs,
   ]);
 
-
   // Effects
   useEffect(() => {
     setSidebarActiveTab(config.sidebarTab);
@@ -911,6 +962,7 @@ export default function ExamDetailPage({
                 const parsedLayout = parseLayoutData(layoutDataStr);
                 setCardRows(parsedLayout.rows);
                 setCustomWidths(parsedLayout.customWidths);
+                setGridItems(parsedLayout.items);
 
                 const initialFormDataByInstance: Record<number, any> = {};
                 regularInstances.forEach((instanceData: any) => {
@@ -922,7 +974,8 @@ export default function ExamDetailPage({
                       instanceData.layout?.layout_data ||
                       instanceData.instance?.layout_data ||
                       "[]";
-                    const instanceRows = parseLayoutData(instanceLayoutData).rows;
+                    const instanceRows =
+                      parseLayoutData(instanceLayoutData).rows;
                     const normalized = ensureLayoutDataForRows(
                       instanceData.exam_data,
                       instanceRows,
@@ -937,10 +990,7 @@ export default function ExamDetailPage({
                 const activeExamData =
                   initialFormDataByInstance[chosen.instance.id];
 
-                if (
-                  activeExamData &&
-                  Object.keys(activeExamData).length > 0
-                ) {
+                if (activeExamData && Object.keys(activeExamData).length > 0) {
                   setExamFormData(activeExamData);
                 } else if (chosen.layout && chosen.layout.layout_data) {
                   await loadExamComponentData(
@@ -955,6 +1005,7 @@ export default function ExamDetailPage({
               setActiveInstanceId(VIRTUAL_FULL_DATA_TAB_ID);
               setCardRows([]);
               setCustomWidths({});
+              setGridItems([]);
               setExamFormData({});
               setExamFormDataByInstance({});
             }
@@ -971,7 +1022,8 @@ export default function ExamDetailPage({
               if (layout.id != null) map.set(layout.id, layout);
             });
             const fromTree = map.get(selectedLayoutId);
-            const selectedLayout = fromTree || (await getExamLayoutById(selectedLayoutId));
+            const selectedLayout =
+              fromTree || (await getExamLayoutById(selectedLayoutId));
 
             if (selectedLayout) {
               setFormData((prev) => ({
@@ -981,13 +1033,16 @@ export default function ExamDetailPage({
 
               const layoutsToOpen = selectedLayout.is_group
                 ? collectLeafLayouts(fromTree || selectedLayout).filter(
-                  (layout) => layout.id && !layout.is_group,
-                )
+                    (layout) => layout.id && !layout.is_group,
+                  )
                 : [selectedLayout];
 
               if (layoutsToOpen.length > 0) {
                 const tempTabs: LayoutTab[] = [];
-                const buckets: Record<number | string, Record<string, any>> = {};
+                const buckets: Record<
+                  number | string,
+                  Record<string, any>
+                > = {};
                 let activeTempId: number | null = null;
 
                 layoutsToOpen.forEach((layout, idx) => {
@@ -1024,7 +1079,14 @@ export default function ExamDetailPage({
       }
     };
     loadData();
-  }, [clientId, examId, isNewMode, config.dbType, currentClinic?.id, layoutIdFromSearch]);
+  }, [
+    clientId,
+    examId,
+    isNewMode,
+    config.dbType,
+    currentClinic?.id,
+    layoutIdFromSearch,
+  ]);
 
   useEffect(() => {
     if (!loading && !baselineInitializedRef.current) {
@@ -1159,15 +1221,13 @@ export default function ExamDetailPage({
         }
       });
 
-      const fullDataTabsByCard = (examFormData as any)?.[EXAM_DATA_UI_KEY]?.tabsByCard;
+      const fullDataTabsByCard = (examFormData as any)?.[EXAM_DATA_UI_KEY]
+        ?.tabsByCard;
       if (fullDataTabsByCard && typeof fullDataTabsByCard === "object") {
         Object.entries(fullDataTabsByCard).forEach(([tabsKey, tabs]) => {
           if (!Array.isArray(tabs)) return;
           const [type, cardId] = tabsKey.split(":");
-          if (
-            (type !== "old-refraction" && type !== "cover-test") ||
-            !cardId
-          ) {
+          if ((type !== "old-refraction" && type !== "cover-test") || !cardId) {
             return;
           }
 
@@ -1209,10 +1269,9 @@ export default function ExamDetailPage({
                 ...existingTabsByCard,
                 [tabsKey]: tabs.map((tab: any, index: number) => ({
                   id: tab.id,
-                  index:
-                    Number.isFinite(Number(tab.index))
-                      ? Number(tab.index)
-                      : index,
+                  index: Number.isFinite(Number(tab.index))
+                    ? Number(tab.index)
+                    : index,
                   ...(tab.type ? { type: tab.type } : {}),
                 })),
               },
@@ -1262,41 +1321,57 @@ export default function ExamDetailPage({
   };
 
   // Build detail props
-  const detailProps = useMemo(() => createDetailProps(
-    isEditing,
-    isNewMode,
-    exam,
-    formData,
-    examFormData,
-    fieldHandlers,
-    handleInputChange,
-    handleSelectChange,
-    setFormData,
-    (value: string) => { },
-    toolboxActions,
-    cardRows.map((row) => row.cards),
-    {
-      handleMultifocalOldRefraction: () => { },
-      handleMultifocalSubjective: () => { },
-      handleMultifocalOldRefractionExtension: () => { },
-      coverTestTabs: computedCoverTestTabs as any,
-      activeCoverTestTabs: activeCoverTestTabs as any,
-      setActiveCoverTestTabs: setActiveCoverTestTabs as any,
-      addCoverTestTab: addCoverTestTab as any,
-      removeCoverTestTab: removeCoverTestTab as any,
-      oldRefractionTabs: computedOldRefractionTabs as any,
-      activeOldRefractionTabs: activeOldRefractionTabs as any,
-      setActiveOldRefractionTabs: setActiveOldRefractionTabs as any,
-      addOldRefractionTab: addOldRefractionTab as any,
-      removeOldRefractionTab: removeOldRefractionTab as any,
-      duplicateOldRefractionTab: duplicateOldRefractionTab as any,
-      updateOldRefractionTabType: updateOldRefractionTabType as any,
-      layoutInstanceId: activeInstanceId,
-      setExamFormData: setExamFormData,
-    } as any,
-  ), [
-    isEditing, isNewMode, exam, formData, examFormData, fieldHandlers, toolboxActions, cardRows, computedCoverTestTabs, activeCoverTestTabs, computedOldRefractionTabs, activeOldRefractionTabs, activeInstanceId
-  ]);
+  const detailProps = useMemo(
+    () =>
+      createDetailProps(
+        isEditing,
+        isNewMode,
+        exam,
+        formData,
+        examFormData,
+        fieldHandlers,
+        handleInputChange,
+        handleSelectChange,
+        setFormData,
+        (value: string) => {},
+        toolboxActions,
+        cardRows.map((row) => row.cards),
+        {
+          handleMultifocalOldRefraction: () => {},
+          handleMultifocalSubjective: () => {},
+          handleMultifocalOldRefractionExtension: () => {},
+          coverTestTabs: computedCoverTestTabs as any,
+          activeCoverTestTabs: activeCoverTestTabs as any,
+          setActiveCoverTestTabs: setActiveCoverTestTabs as any,
+          addCoverTestTab: addCoverTestTab as any,
+          removeCoverTestTab: removeCoverTestTab as any,
+          oldRefractionTabs: computedOldRefractionTabs as any,
+          activeOldRefractionTabs: activeOldRefractionTabs as any,
+          setActiveOldRefractionTabs: setActiveOldRefractionTabs as any,
+          addOldRefractionTab: addOldRefractionTab as any,
+          removeOldRefractionTab: removeOldRefractionTab as any,
+          duplicateOldRefractionTab: duplicateOldRefractionTab as any,
+          updateOldRefractionTabType: updateOldRefractionTabType as any,
+          layoutInstanceId: activeInstanceId,
+          setExamFormData: setExamFormData,
+        } as any,
+      ),
+    [
+      isEditing,
+      isNewMode,
+      exam,
+      formData,
+      examFormData,
+      fieldHandlers,
+      toolboxActions,
+      cardRows,
+      computedCoverTestTabs,
+      activeCoverTestTabs,
+      computedOldRefractionTabs,
+      activeOldRefractionTabs,
+      activeInstanceId,
+    ],
+  );
 
   const detailPropsWithOverrides: DetailProps = {
     ...detailProps,
@@ -1386,45 +1461,53 @@ export default function ExamDetailPage({
   // Header actions
   const headerActions = (
     <>
-      {!isNewMode && (<><LayoutSelectorDropdown
-        availableLayouts={availableLayouts}
-        onSelectLayout={handleSelectLayoutOption}
-        onRequestLayouts={handleRequestLayouts}
-        isLoading={isAddingLayouts}
-      />
-        {exam?.id && (
-          <DropdownMenu dir="ltr">
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" className="h-9 px-4">
-                הזמנה
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" dir="rtl">
-              {currentExamAddTypeOptions.length > 0 ? (
-                <DropdownMenuSub>
-                  <DropdownMenuSubTrigger hideIcon>רגילה</DropdownMenuSubTrigger>
-                  <DropdownMenuSubContent side="right">
-                    {currentExamAddTypeOptions.map((type) => (
-                      <DropdownMenuItem
-                        key={type}
-                        onClick={() => openRegularOrderFromCurrentExam(type)}
-                      >
-                        {ADDITION_ADD_TYPE_LABELS[type]}
-                      </DropdownMenuItem>
-                    ))}
-                  </DropdownMenuSubContent>
-                </DropdownMenuSub>
-              ) : (
-                <DropdownMenuItem onClick={() => openRegularOrderFromCurrentExam()}>
-                  רגילה
+      {!isNewMode && (
+        <>
+          <LayoutSelectorDropdown
+            availableLayouts={availableLayouts}
+            onSelectLayout={handleSelectLayoutOption}
+            onRequestLayouts={handleRequestLayouts}
+            isLoading={isAddingLayouts}
+          />
+          {exam?.id && (
+            <DropdownMenu dir="ltr">
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="h-9 px-4">
+                  הזמנה
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" dir="rtl">
+                {currentExamAddTypeOptions.length > 0 ? (
+                  <DropdownMenuSub>
+                    <DropdownMenuSubTrigger hideIcon>
+                      רגילה
+                    </DropdownMenuSubTrigger>
+                    <DropdownMenuSubContent side="right">
+                      {currentExamAddTypeOptions.map((type) => (
+                        <DropdownMenuItem
+                          key={type}
+                          onClick={() => openRegularOrderFromCurrentExam(type)}
+                        >
+                          {ADDITION_ADD_TYPE_LABELS[type]}
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuSubContent>
+                  </DropdownMenuSub>
+                ) : (
+                  <DropdownMenuItem
+                    onClick={() => openRegularOrderFromCurrentExam()}
+                  >
+                    רגילה
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuItem onClick={openContactLensOrderFromCurrentExam}>
+                  עדשות מגע
                 </DropdownMenuItem>
-              )}
-              <DropdownMenuItem onClick={openContactLensOrderFromCurrentExam}>
-                עדשות מגע
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        )}</>)}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+        </>
+      )}
 
       {isNewMode && onCancel && (
         <Button
@@ -1459,12 +1542,16 @@ export default function ExamDetailPage({
 
   // Render loading state
   if (loading || !currentClient) {
-    return <ExamLoadingState activeTab={activeTab} onTabChange={handleTabChange} />;
+    return (
+      <ExamLoadingState activeTab={activeTab} onTabChange={handleTabChange} />
+    );
   }
 
   // Render not found state
   if (!isNewMode && !loading && !exam) {
-    return <ExamNotFoundState activeTab={activeTab} onTabChange={handleTabChange} />;
+    return (
+      <ExamNotFoundState activeTab={activeTab} onTabChange={handleTabChange} />
+    );
   }
 
   // Main render
@@ -1509,6 +1596,7 @@ export default function ExamDetailPage({
             <ExamLayoutRenderer
               cardRows={cardRows}
               customWidths={customWidths}
+              gridItems={gridItems}
               rowWidths={rowWidths}
               rowRefs={rowRefs}
               isEditing={isEditing}

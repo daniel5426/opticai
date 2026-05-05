@@ -1,7 +1,12 @@
 import { describe, expect, test } from "vitest";
 import {
   createParsedLayoutCache,
+  findCollision,
   FULL_DATA_NAME,
+  clampResizeLeft,
+  clampResizeWidth,
+  gridItemsToRowsForMetadata,
+  legacyRowsToGridItems,
   VIRTUAL_FULL_DATA_TAB_ID,
   isInternalFullDataTab,
   isPersistableLayoutTab,
@@ -46,11 +51,7 @@ describe("exam ui metadata", () => {
 
     expect(normalized.changed).toBe(true);
     expect(
-      getTabsForCard(
-        normalized.examData,
-        "old-refraction",
-        "old-refraction-1",
-      ),
+      getTabsForCard(normalized.examData, "old-refraction", "old-refraction-1"),
     ).toEqual([
       { id: "tab-a", index: 0, type: "רחוק" },
       { id: "tab-b", index: 1, type: "קרוב" },
@@ -238,6 +239,111 @@ describe("parsed layout cache", () => {
 
     expect(parsed.rows).toEqual(rows);
     expect(parsed.customWidths).toEqual({});
+    expect(parsed.isLegacy).toBe(true);
+    expect(parsed.items).toMatchObject([
+      { id: "old-refraction-1", type: "old-refraction", x: 0, y: 0, w: 12 },
+      { id: "cover-test-1", type: "cover-test", x: 12, y: 0, w: 6 },
+    ]);
+  });
+
+  test("parseLayoutData handles v2 grid layouts", () => {
+    const layout = {
+      version: 2,
+      grid: { columns: 24 },
+      items: [
+        {
+          id: "notes-1",
+          type: "notes",
+          x: 6,
+          y: 2,
+          w: 8,
+          title: "Plan",
+          showEyeLabels: false,
+        },
+      ],
+    };
+
+    const parsed = parseLayoutData(JSON.stringify(layout));
+
+    expect(parsed.isLegacy).toBe(false);
+    expect(parsed.items).toEqual(layout.items);
+    expect(parsed.rows).toEqual([
+      {
+        id: "lane-2",
+        cards: [
+          { id: "notes-1", type: "notes", title: "Plan", showEyeLabels: false },
+        ],
+      },
+    ]);
+  });
+
+  test("legacyRowsToGridItems preserves custom widths and eye-label defaults", () => {
+    const layoutRows: CardRow[] = [
+      {
+        id: "row-a",
+        cards: [
+          { id: "objective-1", type: "objective" },
+          { id: "notes-1", type: "notes", title: "Notes" },
+        ],
+      },
+    ];
+
+    const items = legacyRowsToGridItems(layoutRows, {
+      "row-a": { "objective-1": 25, "notes-1": 75 },
+    });
+
+    expect(items).toMatchObject([
+      { id: "objective-1", x: 0, y: 0, w: 6, showEyeLabels: true },
+      {
+        id: "notes-1",
+        x: 6,
+        y: 0,
+        w: 18,
+        title: "Notes",
+        showEyeLabels: false,
+      },
+    ]);
+  });
+
+  test("grid collision and resize helpers enforce no overlap", () => {
+    const items = [
+      { id: "a", type: "objective", x: 0, y: 0, w: 6 },
+      { id: "b", type: "notes", x: 8, y: 0, w: 6 },
+    ] as any;
+
+    expect(
+      findCollision(
+        { id: "c", type: "addition", x: 5, y: 0, w: 4 },
+        items as any,
+      )?.id,
+    ).toBe("a");
+    expect(
+      findCollision(
+        { id: "c", type: "addition", x: 6, y: 0, w: 2 },
+        items as any,
+      ),
+    ).toBeUndefined();
+    expect(clampResizeWidth(items[0], items as any, 20)).toBe(8);
+    expect(clampResizeLeft(items[1], items as any, 2)).toEqual({
+      x: 6,
+      w: 8,
+    });
+    expect(clampResizeLeft(items[1], items as any, 7)).toEqual({
+      x: 7,
+      w: 7,
+    });
+  });
+
+  test("gridItemsToRowsForMetadata sorts by lane and column", () => {
+    const rowsFromGrid = gridItemsToRowsForMetadata([
+      { id: "b", type: "notes", x: 8, y: 1, w: 4 },
+      { id: "a", type: "objective", x: 2, y: 1, w: 4 },
+      { id: "c", type: "addition", x: 0, y: 2, w: 4 },
+    ] as any);
+
+    expect(rowsFromGrid.map((row) => row.cards.map((card) => card.id))).toEqual(
+      [["a", "b"], ["c"]],
+    );
   });
 });
 

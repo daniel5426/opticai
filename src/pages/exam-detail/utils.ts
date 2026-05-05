@@ -3,6 +3,24 @@ import { CardItem, getColumnCount } from "@/components/exam/ExamCardRenderer";
 import { examComponentRegistry } from "@/lib/exam-component-registry";
 import type { CardRow } from "./types";
 
+export const EXAM_LAYOUT_VERSION = 2;
+export const EXAM_LAYOUT_GRID_COLUMNS = 24;
+export const LEGACY_LAYOUT_COLUMNS = 16;
+
+export interface GridLayoutItem extends CardItem {
+  x: number;
+  y: number;
+  w: number;
+}
+
+export interface GridLayoutData {
+  version: typeof EXAM_LAYOUT_VERSION;
+  grid: {
+    columns: number;
+  };
+  items: GridLayoutItem[];
+}
+
 export const flattenExamLayouts = (nodes: ExamLayout[]): ExamLayout[] => {
   const list: ExamLayout[] = [];
   nodes.forEach((node) => {
@@ -95,7 +113,14 @@ export const isNonEmptyComponent = (key: string, value: any) => {
   if (!value || typeof value !== "object") return false;
 
   // Skip technical keys that aren't components
-  if (key === 'layout_instance_id' || key === 'id' || key === 'exam_id' || key === 'created_at' || key === 'updated_at' || key === '__ui') {
+  if (
+    key === "layout_instance_id" ||
+    key === "id" ||
+    key === "exam_id" ||
+    key === "created_at" ||
+    key === "updated_at" ||
+    key === "__ui"
+  ) {
     return false;
   }
 
@@ -161,7 +186,8 @@ export const isNonEmptyComponent = (key: string, value: any) => {
   if (key.startsWith("notes-") || key === "notes") {
     const v = value as any;
     const hasNote = isMeaningfulValue(v.note);
-    const hasCustomTitle = isMeaningfulValue(v.title) && v.title !== "הערות" && v.title !== "Notes";
+    const hasCustomTitle =
+      isMeaningfulValue(v.title) && v.title !== "הערות" && v.title !== "Notes";
     return hasNote || hasCustomTitle;
   }
 
@@ -181,9 +207,7 @@ export const isNonEmptyComponent = (key: string, value: any) => {
     key.startsWith("retinoscop-dilation-") ||
     key === "retinoscop-dilation"
   ) {
-    return specialRetinoscop.some((k) =>
-      isMeaningfulValue((value as any)[k]),
-    );
+    return specialRetinoscop.some((k) => isMeaningfulValue((value as any)[k]));
   }
 
   // For everything else, check if any non-ignored field has a value
@@ -207,8 +231,204 @@ export const computeCardCols = (type: CardItem["type"]): number => {
   return 1;
 };
 
+export const computeCardGridCols = (
+  type: CardItem["type"],
+  columns = EXAM_LAYOUT_GRID_COLUMNS,
+) => {
+  const legacyCols = computeCardCols(type);
+  return Math.max(
+    1,
+    Math.min(
+      columns,
+      Math.round((legacyCols / LEGACY_LAYOUT_COLUMNS) * columns),
+    ),
+  );
+};
+
+const normalizeGridNumber = (value: unknown, fallback: number) => {
+  const numberValue = Number(value);
+  return Number.isFinite(numberValue) ? Math.round(numberValue) : fallback;
+};
+
+export const normalizeGridItem = (
+  item: GridLayoutItem,
+  columns = EXAM_LAYOUT_GRID_COLUMNS,
+): GridLayoutItem => {
+  const fallbackWidth = computeCardGridCols(item.type, columns);
+  const w = Math.max(
+    1,
+    Math.min(columns, normalizeGridNumber(item.w, fallbackWidth)),
+  );
+  const x = Math.max(0, Math.min(columns - w, normalizeGridNumber(item.x, 0)));
+  const y = Math.max(0, normalizeGridNumber(item.y, 0));
+  return {
+    ...item,
+    x,
+    y,
+    w,
+  };
+};
+
+export const sortGridItems = (items: GridLayoutItem[]) =>
+  [...items].sort((a, b) => {
+    if (a.y !== b.y) return a.y - b.y;
+    if (a.x !== b.x) return a.x - b.x;
+    return a.id.localeCompare(b.id);
+  });
+
+export const gridItemsToRowsForMetadata = (
+  items: GridLayoutItem[],
+): CardRow[] => {
+  const rowsByLane = new Map<number, CardItem[]>();
+
+  sortGridItems(items).forEach((item) => {
+    const cards = rowsByLane.get(item.y) || [];
+    const { x, y, w, ...card } = item;
+    cards.push(card);
+    rowsByLane.set(item.y, cards);
+  });
+
+  return Array.from(rowsByLane.entries())
+    .sort(([a], [b]) => a - b)
+    .map(([lane, cards]) => ({
+      id: `lane-${lane}`,
+      cards,
+    }));
+};
+
+export const legacyRowsToGridItems = (
+  rows: CardRow[],
+  customWidths: Record<string, Record<string, number>> = {},
+  columns = EXAM_LAYOUT_GRID_COLUMNS,
+): GridLayoutItem[] => {
+  const items: GridLayoutItem[] = [];
+
+  rows.forEach((row, y) => {
+    let x = 0;
+    const rowCustomWidths = customWidths[row.id] || {};
+
+    row.cards.forEach((card, index) => {
+      const isLast = index === row.cards.length - 1;
+      const customPercent = rowCustomWidths[card.id];
+      const rawWidth =
+        typeof customPercent === "number"
+          ? Math.round((customPercent / 100) * columns)
+          : computeCardGridCols(card.type, columns);
+      const remaining = columns - x;
+      const w = Math.max(1, Math.min(remaining, isLast ? rawWidth : rawWidth));
+
+      items.push(
+        normalizeGridItem(
+          {
+            ...card,
+            showEyeLabels: card.showEyeLabels ?? index === 0,
+            x,
+            y,
+            w,
+          },
+          columns,
+        ),
+      );
+
+      x = Math.min(columns, x + w);
+    });
+  });
+
+  return items;
+};
+
+export const packCardsIntoGridItems = (
+  cards: { id: string; type: CardItem["type"]; title?: string }[],
+  columns = EXAM_LAYOUT_GRID_COLUMNS,
+) => {
+  const rows = packCardsIntoRows(cards);
+  return legacyRowsToGridItems(rows, {}, columns);
+};
+
+export const createGridLayoutData = (
+  items: GridLayoutItem[],
+  columns = EXAM_LAYOUT_GRID_COLUMNS,
+): GridLayoutData => ({
+  version: EXAM_LAYOUT_VERSION,
+  grid: { columns },
+  items: sortGridItems(items.map((item) => normalizeGridItem(item, columns))),
+});
+
+export const serializeGridLayoutData = (
+  items: GridLayoutItem[],
+  columns = EXAM_LAYOUT_GRID_COLUMNS,
+) => JSON.stringify(createGridLayoutData(items, columns));
+
+export const findCollision = (
+  candidate: GridLayoutItem,
+  items: GridLayoutItem[],
+  excludeId?: string,
+) => {
+  const candidateEnd = candidate.x + candidate.w;
+  return items.find((item) => {
+    if (item.id === excludeId || item.y !== candidate.y) return false;
+    const itemEnd = item.x + item.w;
+    return candidate.x < itemEnd && candidateEnd > item.x;
+  });
+};
+
+export const canPlaceGridItem = (
+  candidate: GridLayoutItem,
+  items: GridLayoutItem[],
+  columns = EXAM_LAYOUT_GRID_COLUMNS,
+  excludeId?: string,
+) => {
+  const normalized = normalizeGridItem(candidate, columns);
+  if (normalized.x < 0 || normalized.x + normalized.w > columns) return false;
+  return !findCollision(normalized, items, excludeId);
+};
+
+export const clampResizeWidth = (
+  item: GridLayoutItem,
+  items: GridLayoutItem[],
+  requestedWidth: number,
+  columns = EXAM_LAYOUT_GRID_COLUMNS,
+) => {
+  const nextBlockingItem = items
+    .filter(
+      (other) =>
+        other.id !== item.id && other.y === item.y && other.x >= item.x,
+    )
+    .sort((a, b) => a.x - b.x)[0];
+  const maxByNeighbor = nextBlockingItem
+    ? nextBlockingItem.x - item.x
+    : columns - item.x;
+  return Math.max(1, Math.min(requestedWidth, maxByNeighbor));
+};
+
+export const clampResizeLeft = (
+  item: GridLayoutItem,
+  items: GridLayoutItem[],
+  requestedX: number,
+  columns = EXAM_LAYOUT_GRID_COLUMNS,
+) => {
+  const rightEdge = item.x + item.w;
+  const previousBlockingItem = items
+    .filter(
+      (other) =>
+        other.id !== item.id &&
+        other.y === item.y &&
+        other.x + other.w <= item.x,
+    )
+    .sort((a, b) => b.x + b.w - (a.x + a.w))[0];
+  const minX = previousBlockingItem
+    ? previousBlockingItem.x + previousBlockingItem.w
+    : 0;
+  const maxX = Math.min(columns, rightEdge) - 1;
+  const x = Math.max(minX, Math.min(requestedX, maxX));
+  return {
+    x,
+    w: rightEdge - x,
+  };
+};
+
 export const packCardsIntoRows = (
-  cards: { id: string; type: CardItem["type"] }[],
+  cards: { id: string; type: CardItem["type"]; title?: string }[],
 ) => {
   const items = cards.map((c) => ({ ...c, cols: computeCardCols(c.type) }));
 
@@ -263,13 +483,23 @@ export const packCardsIntoRows = (
       // No suitable row, create a new one
       rows.push({
         id: `row-${rows.length + 1}`,
-        cards: [{ id: item.id, type: item.type }],
+        cards: [
+          {
+            id: item.id,
+            type: item.type,
+            ...(item.title ? { title: item.title } : {}),
+          },
+        ],
         used: item.cols,
       });
     } else {
       // Place in the best row for balance
       const row = rows[bestIdx];
-      row.cards.push({ id: item.id, type: item.type });
+      row.cards.push({
+        id: item.id,
+        type: item.type,
+        ...(item.title ? { title: item.title } : {}),
+      });
       row.used += item.cols;
     }
   });
@@ -280,25 +510,63 @@ export const packCardsIntoRows = (
 export interface ParsedLayoutData {
   rows: CardRow[];
   customWidths: Record<string, Record<string, number>>;
+  grid: GridLayoutData;
+  items: GridLayoutItem[];
+  isLegacy: boolean;
 }
 
 export const parseLayoutData = (layoutData?: string): ParsedLayoutData => {
   if (!layoutData) {
-    return { rows: [], customWidths: {} };
+    const grid = createGridLayoutData([]);
+    return { rows: [], customWidths: {}, grid, items: [], isLegacy: false };
   }
 
   try {
     const parsed = JSON.parse(layoutData);
     if (Array.isArray(parsed)) {
-      return { rows: parsed, customWidths: {} };
+      const items = legacyRowsToGridItems(parsed, {});
+      return {
+        rows: parsed,
+        customWidths: {},
+        grid: createGridLayoutData(items),
+        items,
+        isLegacy: true,
+      };
     }
+
+    if (
+      parsed?.version === EXAM_LAYOUT_VERSION &&
+      Array.isArray(parsed.items)
+    ) {
+      const columns = Number(parsed.grid?.columns) || EXAM_LAYOUT_GRID_COLUMNS;
+      const items = sortGridItems(
+        parsed.items.map((item: GridLayoutItem) =>
+          normalizeGridItem(item, columns),
+        ),
+      );
+      return {
+        rows: gridItemsToRowsForMetadata(items),
+        customWidths: {},
+        grid: createGridLayoutData(items, columns),
+        items,
+        isLegacy: false,
+      };
+    }
+
+    const rows = parsed.rows || [];
+    const customWidths = parsed.customWidths || {};
+    const items = legacyRowsToGridItems(rows, customWidths);
     return {
-      rows: parsed.rows || [],
-      customWidths: parsed.customWidths || {},
+      rows,
+      customWidths,
+      grid: createGridLayoutData(items),
+      items,
+      isLegacy: true,
     };
   } catch (error) {
     console.error("Error parsing layout structure:", error);
-    return { rows: [], customWidths: {} };
+    const grid = createGridLayoutData([]);
+    return { rows: [], customWidths: {}, grid, items: [], isLegacy: false };
   }
 };
 
@@ -332,8 +600,11 @@ export const createParsedLayoutCache = () => {
 export const FULL_DATA_NAME = "כל הנתונים";
 export const VIRTUAL_FULL_DATA_TAB_ID = -1;
 
-export const isVirtualFullDataTabId = (id: number | string | null | undefined) =>
-  id === VIRTUAL_FULL_DATA_TAB_ID || String(id) === String(VIRTUAL_FULL_DATA_TAB_ID);
+export const isVirtualFullDataTabId = (
+  id: number | string | null | undefined,
+) =>
+  id === VIRTUAL_FULL_DATA_TAB_ID ||
+  String(id) === String(VIRTUAL_FULL_DATA_TAB_ID);
 
 export type LayoutTabLike = {
   id: number | string | null | undefined;

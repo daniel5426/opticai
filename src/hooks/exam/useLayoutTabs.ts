@@ -14,10 +14,12 @@ import {
   collectLeafLayouts,
   createParsedLayoutCache,
   FULL_DATA_NAME,
+  GridLayoutItem,
   isInternalFullDataTab,
   isNonEmptyComponent,
   isPersistableLayoutTab,
-  packCardsIntoRows,
+  packCardsIntoGridItems,
+  serializeGridLayoutData,
   VIRTUAL_FULL_DATA_TAB_ID,
   isVirtualFullDataTabId,
 } from "@/pages/exam-detail/utils";
@@ -32,13 +34,24 @@ interface UseLayoutTabsParams {
   setActiveInstanceId: React.Dispatch<React.SetStateAction<number | null>>;
   examFormData: Record<string, any>;
   examFormDataByInstance: Record<number | string, Record<string, any>>;
-  setExamFormDataByInstance: React.Dispatch<React.SetStateAction<Record<number | string, Record<string, any>>>>;
+  setExamFormDataByInstance: React.Dispatch<
+    React.SetStateAction<Record<number | string, Record<string, any>>>
+  >;
   setExamFormData: React.Dispatch<React.SetStateAction<Record<string, any>>>;
   setCardRows: React.Dispatch<React.SetStateAction<CardRow[]>>;
-  setCustomWidths: React.Dispatch<React.SetStateAction<Record<string, Record<string, number>>>>;
+  setCustomWidths: React.Dispatch<
+    React.SetStateAction<Record<string, Record<string, number>>>
+  >;
+  setGridItems?: React.Dispatch<React.SetStateAction<GridLayoutItem[]>>;
   layoutMap: Map<number, ExamLayout>;
-  fullDataSourcesRef: React.MutableRefObject<Record<number, Record<string, number | string | null>>>;
-  loadExamComponentData: (layoutInstanceId: number, layoutData?: string, setCurrent?: boolean) => Promise<void>;
+  fullDataSourcesRef: React.MutableRefObject<
+    Record<number, Record<string, number | string | null>>
+  >;
+  loadExamComponentData: (
+    layoutInstanceId: number,
+    layoutData?: string,
+    setCurrent?: boolean,
+  ) => Promise<void>;
   initializeFormData: (
     instanceKey: number,
     layoutData?: string,
@@ -64,6 +77,7 @@ export function useLayoutTabs({
   setExamFormData,
   setCardRows,
   setCustomWidths,
+  setGridItems,
   layoutMap,
   fullDataSourcesRef,
   loadExamComponentData,
@@ -79,8 +93,9 @@ export function useLayoutTabs({
       const parsed = parsedLayoutCacheRef.current.get(instanceId, layoutData);
       setCardRows(parsed.rows);
       setCustomWidths(parsed.customWidths);
+      setGridItems?.(parsed.items);
     },
-    [setCardRows, setCustomWidths],
+    [setCardRows, setCustomWidths, setGridItems],
   );
 
   // Get contributing instance IDs for full data aggregation
@@ -123,8 +138,8 @@ export function useLayoutTabs({
           : instanceKey;
 
         const keys = Object.keys(bucket || {}).sort((a, b) => {
-          const aHasHyphen = a.includes('-');
-          const bHasHyphen = b.includes('-');
+          const aHasHyphen = a.includes("-");
+          const bHasHyphen = b.includes("-");
           if (aHasHyphen && !bHasHyphen) return -1;
           if (!aHasHyphen && bHasHyphen) return 1;
           return 0;
@@ -132,7 +147,8 @@ export function useLayoutTabs({
 
         keys.forEach((key) => {
           const val = bucket[key];
-          if (!val || typeof val !== "object" || (val as any)?.__deleted) return;
+          if (!val || typeof val !== "object" || (val as any)?.__deleted)
+            return;
 
           const instanceId = (val as any)?.card_instance_id;
           if (instanceId && addedInstanceIds.has(instanceId)) return;
@@ -159,7 +175,8 @@ export function useLayoutTabs({
     const entries = Object.entries(aggregated);
     if (entries.length === 0) return null;
 
-    const cardDefs: { id: string; type: CardItem["type"]; title?: string }[] = [];
+    const cardDefs: { id: string; type: CardItem["type"]; title?: string }[] =
+      [];
     const addedStandard = new Set<string>();
     const addedCoverCards = new Set<string>();
     const addedOldRefractionCards = new Set<string>();
@@ -179,7 +196,9 @@ export function useLayoutTabs({
           (value as any)?.card_id ||
           (tabId && suffix.endsWith(`-${tabId}`)
             ? suffix.slice(0, -(String(tabId).length + 1))
-            : dashIndex >= 0 ? suffix.slice(0, dashIndex) : suffix);
+            : dashIndex >= 0
+              ? suffix.slice(0, dashIndex)
+              : suffix);
         if (addedCoverCards.has(id)) return;
         addedCoverCards.add(id);
         cardDefs.push({ id, type: "cover-test" });
@@ -192,7 +211,9 @@ export function useLayoutTabs({
           (value as any)?.card_id ||
           (tabId && suffix.endsWith(`-${tabId}`)
             ? suffix.slice(0, -(String(tabId).length + 1))
-            : dashIndex >= 0 ? suffix.slice(0, dashIndex) : suffix);
+            : dashIndex >= 0
+              ? suffix.slice(0, dashIndex)
+              : suffix);
         if (addedOldRefractionCards.has(id)) return;
         addedOldRefractionCards.add(id);
         cardDefs.push({ id, type: "old-refraction" });
@@ -219,18 +240,15 @@ export function useLayoutTabs({
     });
 
     if (cardDefs.length === 0) return null;
-    const rows = packCardsIntoRows(cardDefs);
-    const layout = {
-      rows,
-      customWidths: {} as Record<string, Record<string, number>>,
-    };
-    return JSON.stringify(layout);
+    return serializeGridLayoutData(packCardsIntoGridItems(cardDefs));
   }, [aggregateAllData, getContributingInstanceIds]);
 
   // Build full data bucket for an instance
   const buildFullDataBucket = useCallback(
     (instanceId: number = VIRTUAL_FULL_DATA_TAB_ID): Record<string, any> => {
-      const aggregated = aggregateAllData(getContributingInstanceIds(instanceId));
+      const aggregated = aggregateAllData(
+        getContributingInstanceIds(instanceId),
+      );
       const bucket: Record<string, any> = {};
       const sources: Record<string, number | string | null> = {};
 
@@ -381,8 +399,12 @@ export function useLayoutTabs({
 
       const draggedTabId = Number(id);
       const visibleTabs = layoutTabs.filter(isPersistableLayoutTab);
-      const hiddenTabs = layoutTabs.filter((tab) => !isPersistableLayoutTab(tab));
-      const currentIndex = visibleTabs.findIndex((tab) => tab.id === draggedTabId);
+      const hiddenTabs = layoutTabs.filter(
+        (tab) => !isPersistableLayoutTab(tab),
+      );
+      const currentIndex = visibleTabs.findIndex(
+        (tab) => tab.id === draggedTabId,
+      );
 
       if (currentIndex === -1 || currentIndex === index) return;
 
@@ -460,7 +482,11 @@ export function useLayoutTabs({
           setActiveInstanceId(newLayoutInstance.id || null);
           applyParsedLayout(newLayoutInstance.id || 0, layout.layout_data);
           if (newLayoutInstance.id) {
-            await loadExamComponentData(newLayoutInstance.id, layout.layout_data, true);
+            await loadExamComponentData(
+              newLayoutInstance.id,
+              layout.layout_data,
+              true,
+            );
           }
         }
       } else {
@@ -638,9 +664,8 @@ export function useLayoutTabs({
         if (exam && exam.id && !isNewMode) {
           // Chain the operations to avoid server-side concurrency issues (StaleDataError)
           // where set-active tries to update a row that is being deleted
-          const deletePromise = tabId > 0
-            ? deleteExamLayoutInstance(tabId)
-            : Promise.resolve(true);
+          const deletePromise =
+            tabId > 0 ? deleteExamLayoutInstance(tabId) : Promise.resolve(true);
 
           deletePromise
             .then((success) => {
