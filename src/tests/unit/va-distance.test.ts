@@ -6,6 +6,7 @@ import {
   displayMeterVAForDistance,
   normalizeVATestDistance,
 } from "@/components/exam/shared/VASelect";
+import { sortVAOptions } from "@/components/exam/data/exam-constants";
 
 describe("VA test distance conversion", () => {
   test("displays canonical 6m acuity at the configured test distance", () => {
@@ -47,5 +48,15 @@ describe("VA test distance conversion", () => {
     expect(normalizeVATestDistance(1)).toBe(6);
     expect(normalizeVATestDistance(7)).toBe(6);
     expect(normalizeVATestDistance("4")).toBe(4);
+  });
+
+  test("sorts lookup-backed VA options in ascending acuity order", () => {
+    expect(sortVAOptions(["6/6", "6/120", "6/12", "6/190"])).toEqual([
+      "6/190",
+      "6/120",
+      "6/12",
+      "6/6",
+    ]);
+    expect(sortVAOptions(["1.2", "-0.1", "0.6"])).toEqual(["-0.1", "0.6", "1.2"]);
   });
 });

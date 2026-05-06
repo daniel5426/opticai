@@ -329,8 +329,8 @@ describe("parsed layout cache", () => {
       w: 8,
     });
     expect(clampResizeLeft(items[1], items as any, 7)).toEqual({
-      x: 7,
-      w: 7,
+      x: 6,
+      w: 8,
     });
   });
 

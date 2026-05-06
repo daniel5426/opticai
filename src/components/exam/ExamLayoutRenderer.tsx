@@ -95,13 +95,16 @@ export function ExamLayoutRenderer({
     [layoutItems],
   );
 
-  const lanes = useMemo(
-    () =>
-      Array.from(new Set(layoutItems.map((item) => item.y))).sort(
-        (a, b) => a - b,
-      ),
-    [layoutItems],
-  );
+  const lanes = useMemo(() => {
+    const maxLane = layoutItems.reduce(
+      (max, item) => Math.max(max, item.y),
+      -1,
+    );
+    return Array.from(
+      { length: Math.max(0, maxLane + 1) },
+      (_, index) => index,
+    );
+  }, [layoutItems]);
   const [visibleRowCount, setVisibleRowCount] = useState(() =>
     Math.min(3, lanes.length),
   );
@@ -198,6 +201,7 @@ export function ExamLayoutRenderer({
     >
       <ExamGridLayout
         items={visibleItems}
+        lanes={lanes.slice(0, visibleRowCount)}
         renderItem={(item, cardIndex, laneItems) => {
           const rowIndex = lanes.findIndex((lane) => lane === item.y);
           return (

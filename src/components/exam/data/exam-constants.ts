@@ -58,6 +58,38 @@ export const NV_J_VALUES = [
   'J1+'
 ] as const;
 
+const VA_METER_OPTION_REGEX = /^(\d+(?:\.\d+)?)\/(\d+(?:\.\d+)?)$/;
+
+function getVAOptionSortValue(value: string): number | null {
+  const meterMatch = value.match(VA_METER_OPTION_REGEX);
+  if (meterMatch) {
+    const numerator = Number(meterMatch[1]);
+    const denominator = Number(meterMatch[2]);
+    if (Number.isFinite(numerator) && Number.isFinite(denominator) && denominator > 0) {
+      return numerator / denominator;
+    }
+  }
+
+  const decimalValue = Number(value);
+  return Number.isFinite(decimalValue) ? decimalValue : null;
+}
+
+export function sortVAOptions<T extends string>(options: readonly T[]): T[] {
+  return [...options].sort((a, b) => {
+    const aValue = getVAOptionSortValue(a);
+    const bValue = getVAOptionSortValue(b);
+
+    if (aValue !== null && bValue !== null && aValue !== bValue) {
+      return aValue - bValue;
+    }
+
+    if (aValue !== null && bValue === null) return -1;
+    if (aValue === null && bValue !== null) return 1;
+
+    return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
+  });
+}
+
 // Base Values (בסיס)
 export const BASE_VALUES = [
   'IN',

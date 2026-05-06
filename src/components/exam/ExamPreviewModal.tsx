@@ -83,6 +83,22 @@ export function ExamPreviewModal({
     );
   }, [oldRefractionTabs, activeOldRefractionTabs]);
 
+  const previewItems = useMemo(
+    () => (gridItems.length ? gridItems : legacyRowsToGridItems(cardRows)),
+    [gridItems, cardRows],
+  );
+
+  const previewLanes = useMemo(() => {
+    const maxLane = previewItems.reduce(
+      (max, item) => Math.max(max, item.y),
+      -1,
+    );
+    return Array.from(
+      { length: Math.max(0, maxLane + 1) },
+      (_, index) => index,
+    );
+  }, [previewItems]);
+
   useEffect(() => {
     if (isOpen && examId) {
       loadData(examId);
@@ -270,9 +286,8 @@ export function ExamPreviewModal({
           <div className="mt-4 overflow-x-hidden">
             {cardRows.length > 0 ? (
               <ExamGridLayout
-                items={
-                  gridItems.length ? gridItems : legacyRowsToGridItems(cardRows)
-                }
+                items={previewItems}
+                lanes={previewLanes}
                 renderItem={(item, cardIndex, laneItems) => (
                   <ExamCardRenderer
                     item={item}

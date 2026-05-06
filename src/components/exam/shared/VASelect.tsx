@@ -1,7 +1,7 @@
 import React, { useRef, useEffect, useState, memo, useCallback, useContext } from "react"
 import { UI_CONFIG } from "@/config/ui-config"
 import { cn } from "@/utils/tailwind"
-import { VA_METER_VALUES, VA_DECIMAL_VALUES } from "../data/exam-constants"
+import { VA_METER_VALUES, VA_DECIMAL_VALUES, sortVAOptions } from "../data/exam-constants"
 import { useUser } from "@/contexts/UserContext"
 import { SettingsContext } from "@/contexts/SettingsContext"
 import { useLookupData } from "@/hooks/useLookupData"
@@ -120,7 +120,7 @@ export function canonicalizeMeterVAForDistance(value: string): string {
 
 export function buildMeterVAOptionsForDistance(canonicalOptions: readonly string[], testDistance: number) {
   const displayToCanonicalOption = new Map<string, string>()
-  const options = canonicalOptions
+  const options = sortVAOptions(canonicalOptions)
     .filter(isMeterVAValue)
     .map(option => {
       const displayOption = displayMeterVAForDistance(option, testDistance)
@@ -196,10 +196,11 @@ export const VASelect = memo(function VASelect({
   const canonicalOptions: readonly string[] = dynamicOptions.length > 0
     ? dynamicOptions
     : (mode === "meter" ? VA_METER_VALUES : VA_DECIMAL_VALUES)
+  const sortedCanonicalOptions = sortVAOptions(canonicalOptions)
   const meterOptions = mode === "meter"
-    ? buildMeterVAOptionsForDistance(canonicalOptions, vaTestDistance)
+    ? buildMeterVAOptionsForDistance(sortedCanonicalOptions, vaTestDistance)
     : null
-  const options: readonly string[] = meterOptions?.options || canonicalOptions
+  const options: readonly string[] = meterOptions?.options || sortedCanonicalOptions
   const displayToCanonicalOption = meterOptions?.displayToCanonicalOption
     
   const selectValue = options.includes(localBase) ? localBase : ""

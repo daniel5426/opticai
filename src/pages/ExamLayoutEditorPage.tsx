@@ -50,6 +50,7 @@ import {
   serializeGridLayoutData,
   sortGridItems,
 } from "@/pages/exam-detail/utils";
+import { EXAM_LAYOUT_LANE_MIN_HEIGHT_PX } from "@/components/exam/ExamGridLayout";
 
 type InteractionState =
   | {
@@ -69,17 +70,22 @@ type InteractionState =
 
 const INTERACTIVE_CARD_SELECTOR =
   "button,a,[role='button'],[contenteditable='true'],[data-resize-handle]";
+const EDGE_SCROLL_ZONE_PX = 96;
+const EDGE_SCROLL_STEP_PX = 18;
 
 interface AddComponentDrawerProps {
   selectedType: CardItem["type"] | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
   onSelectComponent: (componentType: CardItem["type"]) => void;
 }
 
 function AddComponentDrawer({
   selectedType,
+  open,
+  onOpenChange,
   onSelectComponent,
 }: AddComponentDrawerProps) {
-  const [isOpen, setIsOpen] = useState(false);
   const registeredComponents = examComponentRegistry
     .getLayoutEditorTypes()
     .map((type) => {
@@ -95,7 +101,7 @@ function AddComponentDrawer({
     });
 
   return (
-    <Drawer open={isOpen} onOpenChange={setIsOpen}>
+    <Drawer open={open} onOpenChange={onOpenChange}>
       <DrawerTrigger asChild>
         <Button
           variant={selectedType ? "default" : "outline"}
@@ -106,7 +112,10 @@ function AddComponentDrawer({
           {selectedType ? "רכיב נבחר" : "הוסף רכיב"}
         </Button>
       </DrawerTrigger>
-      <DrawerContent className="max-h-[60vh]">
+      <DrawerContent
+        className="max-h-[60vh]"
+        onCloseAutoFocus={(event) => event.preventDefault()}
+      >
         <DrawerHeader>
           <DrawerTitle className="text-center">בחר רכיב להוספה</DrawerTitle>
         </DrawerHeader>
@@ -121,7 +130,6 @@ function AddComponentDrawer({
               className="h-auto flex-col items-center justify-center p-4 text-center"
               onClick={() => {
                 onSelectComponent(component.id as CardItem["type"]);
-                setIsOpen(false);
               }}
             >
               <span className="mb-1 text-lg font-semibold">
@@ -175,12 +183,25 @@ export default function ExamLayoutEditorPage() {
   const [selectedType, setSelectedType] = useState<CardItem["type"] | null>(
     null,
   );
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [pendingPlacement, setPendingPlacement] = useState<{
+    lane: number;
+    x: number;
+  } | null>(null);
   const [items, setItems] = useState<GridLayoutItem[]>([]);
   const [invalidItemId, setInvalidItemId] = useState<string | null>(null);
+  const [highlightedItemId, setHighlightedItemId] = useState<string | null>(
+    null,
+  );
   const isSavingRef = useRef(false);
   const itemsRef = useRef<GridLayoutItem[]>([]);
   const laneRefs = useRef<Record<number, HTMLDivElement | null>>({});
   const interactionRef = useRef<InteractionState | null>(null);
+  const highlightTimeoutRef = useRef<number | null>(null);
+  const suppressNextRowClickRef = useRef(false);
+  const dragPointerRef = useRef<{ x: number; y: number } | null>(null);
+  const autoScrollFrameRef = useRef<number | null>(null);
+  const scrollContainerRef = useRef<HTMLElement | Window | null>(null);
 
   useEffect(() => {
     itemsRef.current = items;
@@ -264,47 +285,131 @@ export default function ExamLayoutEditorPage() {
     [],
   );
 
-  const canAddComponentType = (componentType: CardItem["type"]) => {
-    if (componentType === "anamnesis") return items.length === 0;
-    if (items.some((item) => item.type === "anamnesis")) return false;
-    if (componentType === "cover-test" || componentType === "notes")
+  const getComponentLabel = useCallback((componentType: CardItem["type"]) => {
+    const config = examComponentRegistry.getConfig(componentType);
+    return config?.name || componentType;
+  }, []);
+
+  const findBlockingDuplicate = useCallback(
+    (componentType: CardItem["type"]) => {
+      if (componentType === "cover-test" || componentType === "notes")
+        return null;
+      return (
+        itemsRef.current.find((item) => item.type === componentType) || null
+      );
+    },
+    [],
+  );
+
+  const highlightItemTemporarily = useCallback((id: string) => {
+    if (highlightTimeoutRef.current) {
+      window.clearTimeout(highlightTimeoutRef.current);
+    }
+    setHighlightedItemId(id);
+    highlightTimeoutRef.current = window.setTimeout(() => {
+      setHighlightedItemId(null);
+      highlightTimeoutRef.current = null;
+    }, 1000);
+  }, []);
+
+  useEffect(
+    () => () => {
+      if (highlightTimeoutRef.current) {
+        window.clearTimeout(highlightTimeoutRef.current);
+      }
+    },
+    [],
+  );
+
+  const handleDuplicateComponent = useCallback(
+    (componentType: CardItem["type"]) => {
+      const duplicate = findBlockingDuplicate(componentType);
+      if (!duplicate) return false;
+      highlightItemTemporarily(duplicate.id);
+      toast.error(
+        `${getComponentLabel(componentType)} כבר קיים בפריסה. כדי להשתמש בו, הזז או שנה את הכרטיס המסומן.`,
+      );
       return true;
-    return !items.some((item) => item.type === componentType);
+    },
+    [findBlockingDuplicate, getComponentLabel, highlightItemTemporarily],
+  );
+
+  const placeComponentAt = useCallback(
+    (componentType: CardItem["type"], lane: number, x: number) => {
+      if (handleDuplicateComponent(componentType)) {
+        setPendingPlacement(null);
+        setDrawerOpen(false);
+        return;
+      }
+
+      const width = computeCardGridCols(componentType);
+      const clampedX = Math.max(
+        0,
+        Math.min(EXAM_LAYOUT_GRID_COLUMNS - width, x),
+      );
+      const id = `${componentType}-${Date.now()}`;
+      const item = normalizeGridItem({
+        id,
+        type: componentType,
+        x: clampedX,
+        y: lane,
+        w: width,
+        showEyeLabels: clampedX === 0,
+      });
+
+      if (!canPlaceGridItem(item, itemsRef.current)) {
+        toast.error("המיקום שבחרת תפוס. לחץ על מקום פנוי אחר בשורה.");
+        return;
+      }
+
+      const next = sortGridItems([...itemsRef.current, item]);
+      itemsRef.current = next;
+      setItems(next);
+      setSelectedType(null);
+      setPendingPlacement(null);
+      setDrawerOpen(false);
+    },
+    [getComponentLabel, handleDuplicateComponent],
+  );
+
+  const handleSelectComponent = (componentType: CardItem["type"]) => {
+    if (pendingPlacement) {
+      placeComponentAt(
+        componentType,
+        pendingPlacement.lane,
+        pendingPlacement.x,
+      );
+      return;
+    }
+    if (handleDuplicateComponent(componentType)) {
+      setPendingPlacement(null);
+      setDrawerOpen(false);
+      return;
+    }
+    setSelectedType(componentType);
+    setDrawerOpen(false);
   };
 
   const handlePlaceSelected = (event: React.MouseEvent, lane: number) => {
-    if (!selectedType) return;
+    if (suppressNextRowClickRef.current) {
+      suppressNextRowClickRef.current = false;
+      return;
+    }
     if ((event.target as HTMLElement).closest("[data-grid-card]")) return;
-    if (!canAddComponentType(selectedType)) {
-      toast.error("לא ניתן להוסיף רכיב זה לפריסה");
+    const x = getColumnFromPointer(lane, event.clientX);
+    const selectedWidth = selectedType ? computeCardGridCols(selectedType) : 1;
+    const clampedX =
+      selectedType === null
+        ? Math.max(0, Math.min(EXAM_LAYOUT_GRID_COLUMNS - 1, x))
+        : Math.max(0, Math.min(EXAM_LAYOUT_GRID_COLUMNS - selectedWidth, x));
+
+    if (selectedType) {
+      placeComponentAt(selectedType, lane, clampedX);
       return;
     }
 
-    const width = computeCardGridCols(selectedType);
-    const x = Math.max(
-      0,
-      Math.min(
-        EXAM_LAYOUT_GRID_COLUMNS - width,
-        getColumnFromPointer(lane, event.clientX),
-      ),
-    );
-    const id = `${selectedType}-${Date.now()}`;
-    const item = normalizeGridItem({
-      id,
-      type: selectedType,
-      x,
-      y: lane,
-      w: width,
-      showEyeLabels: x === 0,
-    });
-
-    if (!canPlaceGridItem(item, items)) {
-      toast.error("המיקום תפוס");
-      return;
-    }
-
-    setItems((prev) => sortGridItems([...prev, item]));
-    setSelectedType(null);
+    setPendingPlacement({ lane, x: clampedX });
+    setDrawerOpen(true);
   };
 
   const updateItem = (
@@ -317,6 +422,33 @@ export default function ExamLayoutEditorPage() {
     itemsRef.current = next;
     setItems(next);
   };
+
+  const updateDragPosition = useCallback(
+    (clientX: number, clientY: number) => {
+      const interaction = interactionRef.current;
+      if (!interaction || interaction.type !== "drag") return;
+
+      const lane = getLaneFromPointer(clientY);
+      const original = interaction.originalItem;
+      const x = Math.max(
+        0,
+        Math.min(
+          EXAM_LAYOUT_GRID_COLUMNS - original.w,
+          getColumnFromPointer(lane, clientX, interaction.offsetCols),
+        ),
+      );
+      const candidate = normalizeGridItem({ ...original, x, y: lane });
+      const valid = canPlaceGridItem(
+        candidate,
+        itemsRef.current,
+        EXAM_LAYOUT_GRID_COLUMNS,
+        original.id,
+      );
+      setInvalidItemId(valid ? null : original.id);
+      updateItem(original.id, () => candidate);
+    },
+    [getColumnFromPointer, getLaneFromPointer],
+  );
 
   const finishInteraction = useCallback(() => {
     const interaction = interactionRef.current;
@@ -350,10 +482,88 @@ export default function ExamLayoutEditorPage() {
     }
 
     interactionRef.current = null;
+    dragPointerRef.current = null;
+    scrollContainerRef.current = null;
+    if (autoScrollFrameRef.current !== null) {
+      window.cancelAnimationFrame(autoScrollFrameRef.current);
+      autoScrollFrameRef.current = null;
+    }
+    suppressNextRowClickRef.current = true;
+    window.setTimeout(() => {
+      suppressNextRowClickRef.current = false;
+    }, 80);
     setInvalidItemId(null);
     document.body.style.userSelect = "";
     document.body.style.cursor = "";
   }, []);
+
+  const getScrollContainer = useCallback((element: HTMLElement | null) => {
+    let current = element?.parentElement ?? null;
+
+    while (current) {
+      const style = window.getComputedStyle(current);
+      const overflowY = style.overflowY;
+      if (
+        (overflowY === "auto" || overflowY === "scroll") &&
+        current.scrollHeight > current.clientHeight
+      ) {
+        return current;
+      }
+      current = current.parentElement;
+    }
+
+    return window;
+  }, []);
+
+  const startAutoScrollLoop = useCallback(() => {
+    if (autoScrollFrameRef.current !== null) return;
+
+    const stepAutoScroll = () => {
+      const interaction = interactionRef.current;
+      const pointer = dragPointerRef.current;
+      const scrollContainer = scrollContainerRef.current;
+      if (interaction?.type !== "drag" || !pointer || !scrollContainer) {
+        autoScrollFrameRef.current = null;
+        return;
+      }
+
+      const containerRect =
+        scrollContainer === window
+          ? { top: 0, bottom: window.innerHeight }
+          : scrollContainer.getBoundingClientRect();
+
+      let didScroll = false;
+      if (pointer.y > containerRect.bottom - EDGE_SCROLL_ZONE_PX) {
+        if (scrollContainer === window) {
+          window.scrollBy({ top: EDGE_SCROLL_STEP_PX, behavior: "auto" });
+        } else {
+          scrollContainer.scrollBy({
+            top: EDGE_SCROLL_STEP_PX,
+            behavior: "auto",
+          });
+        }
+        didScroll = true;
+      } else if (pointer.y < containerRect.top + EDGE_SCROLL_ZONE_PX) {
+        if (scrollContainer === window) {
+          window.scrollBy({ top: -EDGE_SCROLL_STEP_PX, behavior: "auto" });
+        } else {
+          scrollContainer.scrollBy({
+            top: -EDGE_SCROLL_STEP_PX,
+            behavior: "auto",
+          });
+        }
+        didScroll = true;
+      }
+
+      if (didScroll) {
+        updateDragPosition(pointer.x, pointer.y);
+      }
+
+      autoScrollFrameRef.current = window.requestAnimationFrame(stepAutoScroll);
+    };
+
+    autoScrollFrameRef.current = window.requestAnimationFrame(stepAutoScroll);
+  }, [updateDragPosition]);
 
   useEffect(() => {
     const handlePointerMove = (event: PointerEvent) => {
@@ -361,24 +571,9 @@ export default function ExamLayoutEditorPage() {
       if (!interaction) return;
 
       if (interaction.type === "drag") {
-        const lane = getLaneFromPointer(event.clientY);
-        const original = interaction.originalItem;
-        const x = Math.max(
-          0,
-          Math.min(
-            EXAM_LAYOUT_GRID_COLUMNS - original.w,
-            getColumnFromPointer(lane, event.clientX, interaction.offsetCols),
-          ),
-        );
-        const candidate = normalizeGridItem({ ...original, x, y: lane });
-        const valid = canPlaceGridItem(
-          candidate,
-          itemsRef.current,
-          EXAM_LAYOUT_GRID_COLUMNS,
-          original.id,
-        );
-        setInvalidItemId(valid ? null : original.id);
-        updateItem(original.id, () => candidate);
+        dragPointerRef.current = { x: event.clientX, y: event.clientY };
+        startAutoScrollLoop();
+        updateDragPosition(event.clientX, event.clientY);
         return;
       }
 
@@ -419,10 +614,14 @@ export default function ExamLayoutEditorPage() {
     window.addEventListener("pointermove", handlePointerMove);
     window.addEventListener("pointerup", handlePointerUp);
     return () => {
+      if (autoScrollFrameRef.current !== null) {
+        window.cancelAnimationFrame(autoScrollFrameRef.current);
+        autoScrollFrameRef.current = null;
+      }
       window.removeEventListener("pointermove", handlePointerMove);
       window.removeEventListener("pointerup", handlePointerUp);
     };
-  }, [finishInteraction, getColumnFromPointer, getLaneFromPointer]);
+  }, [finishInteraction, startAutoScrollLoop, updateDragPosition]);
 
   const handleDragStart = (event: React.PointerEvent, item: GridLayoutItem) => {
     if (event.button !== 0) return;
@@ -447,6 +646,9 @@ export default function ExamLayoutEditorPage() {
       originalItem: { ...item },
       offsetCols,
     };
+    dragPointerRef.current = { x: event.clientX, y: event.clientY };
+    scrollContainerRef.current = getScrollContainer(laneEl);
+    startAutoScrollLoop();
     document.body.style.userSelect = "none";
     document.body.style.cursor = "grabbing";
   };
@@ -488,6 +690,51 @@ export default function ExamLayoutEditorPage() {
       prev.map((item) => (item.id === id ? { ...item, title } : item)),
     );
   };
+
+  const handleDeleteLane = useCallback(
+    (lane: number) => {
+      const lastLane = lanes[lanes.length - 1];
+      if (lane === lastLane) return;
+
+      const next = sortGridItems(
+        itemsRef.current
+          .filter((item) => item.y !== lane)
+          .map((item) => (item.y > lane ? { ...item, y: item.y - 1 } : item)),
+      );
+
+      itemsRef.current = next;
+      setItems(next);
+      setPendingPlacement((current) => {
+        if (!current) return null;
+        if (current.lane === lane) return null;
+        if (current.lane > lane) {
+          return { ...current, lane: current.lane - 1 };
+        }
+        return current;
+      });
+      toast.success("השורה נמחקה");
+    },
+    [lanes],
+  );
+
+  const handleInsertLane = useCallback((afterLane: number) => {
+    const next = sortGridItems(
+      itemsRef.current.map((item) =>
+        item.y > afterLane ? { ...item, y: item.y + 1 } : item,
+      ),
+    );
+
+    itemsRef.current = next;
+    setItems(next);
+    setPendingPlacement((current) => {
+      if (!current) return null;
+      if (current.lane > afterLane) {
+        return { ...current, lane: current.lane + 1 };
+      }
+      return current;
+    });
+    toast.success("השורה נוספה");
+  }, []);
 
   const handleSaveLayout = async () => {
     if (isSavingRef.current) return;
@@ -559,7 +806,7 @@ export default function ExamLayoutEditorPage() {
         grandparentTitle="הגדרות"
         grandparentLink="/settings"
       />
-      <div className="flex flex-1 flex-col p-4 lg:p-6" dir="rtl">
+      <div className="flex flex-1 flex-col p-4 pb-32 lg:p-6 lg:pb-40" dir="rtl">
         <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
           <div className="flex flex-wrap items-center gap-4">
             <div className="flex items-center gap-2">
@@ -609,7 +856,12 @@ export default function ExamLayoutEditorPage() {
 
             <AddComponentDrawer
               selectedType={selectedType}
-              onSelectComponent={setSelectedType}
+              open={drawerOpen}
+              onOpenChange={(open) => {
+                setDrawerOpen(open);
+                if (!open) setPendingPlacement(null);
+              }}
+              onSelectComponent={handleSelectComponent}
             />
           </div>
 
@@ -627,13 +879,17 @@ export default function ExamLayoutEditorPage() {
         </div>
 
         <div className="mb-4 rounded-lg border bg-blue-50 p-4 text-sm text-blue-800">
-          בחר רכיב ואז לחץ על תא פנוי כדי להוסיף אותו. גרור כרטיסים בין תאים
+          לחץ על שורה כדי לבחור רכיב ולהוסיף אותו שם. גרור כרטיסים בין תאים
           ושורות, וגרור את אחד מקצוות הכרטיס כדי לשנות רוחב.
         </div>
 
-        <div className="border-border overflow-hidden border-y" dir="ltr">
+        <div
+          className="border-border overflow-hidden rounded-md border"
+          dir="ltr"
+        >
           {lanes.map((lane) => {
             const laneItems = groupedItems.get(lane) || [];
+            const isLastLane = lane === lanes[lanes.length - 1];
             return (
               <div
                 key={lane}
@@ -641,15 +897,33 @@ export default function ExamLayoutEditorPage() {
                   laneRefs.current[lane] = el;
                 }}
                 className={cn(
-                  "border-border grid min-h-[118px] w-full gap-4 border-b p-3 transition-colors last:border-b-0",
+                  "border-border group/row relative grid w-full gap-4 border-b p-3 transition-colors last:border-b-0",
                   selectedType && "hover:bg-primary/5 cursor-crosshair",
                 )}
                 style={{
+                  minHeight:
+                    laneItems.length === 0
+                      ? EXAM_LAYOUT_LANE_MIN_HEIGHT_PX
+                      : undefined,
                   gridTemplateColumns: `repeat(${EXAM_LAYOUT_GRID_COLUMNS}, minmax(0, 1fr))`,
                   alignItems: "start",
                 }}
                 onClick={(event) => handlePlaceSelected(event, lane)}
               >
+                {!isLastLane && (
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      handleDeleteLane(lane);
+                    }}
+                    className="bg-background/90 text-muted-foreground hover:bg-destructive hover:text-destructive-foreground absolute top-2 left-2 z-20 rounded-md p-1 opacity-0 transition-opacity group-hover/row:opacity-100"
+                    title="מחק שורה"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                )}
                 {laneItems.map((item) => {
                   const renderStart = Math.floor(item.x);
                   const renderEnd = Math.ceil(item.x + item.w);
@@ -666,6 +940,8 @@ export default function ExamLayoutEditorPage() {
                       onPointerDown={(event) => handleDragStart(event, item)}
                       className={cn(
                         "group/card relative min-w-0 cursor-grab transition-opacity active:cursor-grabbing",
+                        highlightedItemId === item.id &&
+                          "ring-primary ring-2 ring-offset-2",
                         invalidItemId === item.id &&
                           "ring-destructive opacity-60 ring-2",
                       )}
@@ -737,8 +1013,27 @@ export default function ExamLayoutEditorPage() {
                   );
                 })}
                 {laneItems.length === 0 && (
-                  <div className="text-muted-foreground col-span-full flex min-h-[88px] items-center justify-center rounded-md text-sm">
-                    {selectedType ? "לחץ כאן כדי למקם את הרכיב" : "שורה פנויה"}
+                  <div className="text-muted-foreground col-span-full flex min-h-[168px] items-center justify-center rounded-md text-sm">
+                    {selectedType
+                      ? "לחץ כאן כדי למקם את הרכיב"
+                      : "שורה פנויה - לחץ כדי להוסיף רכיב"}
+                  </div>
+                )}
+                {!isLastLane && (
+                  <div className="group/separator absolute right-0 bottom-0 left-0 z-20 h-6 translate-y-1/2">
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        handleInsertLane(lane);
+                      }}
+                      className="bg-background text-foreground border-border hover:bg-accent pointer-events-none absolute top-1/2 left-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center gap-1 rounded-full border px-3 py-1 text-xs opacity-0 shadow-sm transition-opacity group-hover/separator:pointer-events-auto group-hover/separator:opacity-100"
+                      title="הוסף שורה"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      <span>הוסף שורה</span>
+                    </button>
                   </div>
                 )}
               </div>

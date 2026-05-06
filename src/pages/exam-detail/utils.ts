@@ -219,7 +219,7 @@ export const isNonEmptyComponent = (key: string, value: any) => {
 };
 
 export const pxToCols = (px: number) => {
-  const pxPerCol = 1680 / 16;
+  const pxPerCol = 1880 / 16;
   return Math.max(1, Math.min(16, Math.round(px / pxPerCol)));
 };
 
@@ -245,6 +245,26 @@ export const computeCardGridCols = (
   );
 };
 
+const CARD_MIN_GRID_COL_OVERRIDES: Partial<Record<CardItem["type"], number>> = {
+  "stereo-test": 4,
+  rg: 6,
+  "maddox-rod": 8,
+  "contact-lens-diameters": 4,
+  "schirmer-test": 4,
+  "corneal-topography": 8,
+  keratometer: 7,
+  "diopter-adjustment-panel": 8,
+};
+
+export const computeCardMinGridCols = (
+  type: CardItem["type"],
+  columns = EXAM_LAYOUT_GRID_COLUMNS,
+) => {
+  const baseWidth = computeCardGridCols(type, columns);
+  const overrideWidth = CARD_MIN_GRID_COL_OVERRIDES[type];
+  return overrideWidth ? Math.max(baseWidth, overrideWidth) : baseWidth;
+};
+
 const normalizeGridNumber = (value: unknown, fallback: number) => {
   const numberValue = Number(value);
   return Number.isFinite(numberValue) ? Math.round(numberValue) : fallback;
@@ -255,8 +275,9 @@ export const normalizeGridItem = (
   columns = EXAM_LAYOUT_GRID_COLUMNS,
 ): GridLayoutItem => {
   const fallbackWidth = computeCardGridCols(item.type, columns);
+  const minWidth = computeCardMinGridCols(item.type, columns);
   const w = Math.max(
-    1,
+    minWidth,
     Math.min(columns, normalizeGridNumber(item.w, fallbackWidth)),
   );
   const x = Math.max(0, Math.min(columns - w, normalizeGridNumber(item.x, 0)));
@@ -398,7 +419,11 @@ export const clampResizeWidth = (
   const maxByNeighbor = nextBlockingItem
     ? nextBlockingItem.x - item.x
     : columns - item.x;
-  return Math.max(1, Math.min(requestedWidth, maxByNeighbor));
+  const minWidth = Math.min(
+    computeCardMinGridCols(item.type, columns),
+    maxByNeighbor,
+  );
+  return Math.max(minWidth, Math.min(requestedWidth, maxByNeighbor));
 };
 
 export const clampResizeLeft = (
@@ -419,7 +444,8 @@ export const clampResizeLeft = (
   const minX = previousBlockingItem
     ? previousBlockingItem.x + previousBlockingItem.w
     : 0;
-  const maxX = Math.min(columns, rightEdge) - 1;
+  const maxX =
+    Math.min(columns, rightEdge) - computeCardMinGridCols(item.type, columns);
   const x = Math.max(minX, Math.min(requestedX, maxX));
   return {
     x,

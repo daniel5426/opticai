@@ -825,7 +825,7 @@ export default function RegularOrderTab({
                   <CardContent className="space-y-3 pt-4">
                     <div className="grid grid-cols-4 gap-3">
                       <div className="col-span-1">
-                        <Label className={labelClass}>סתטוס הזמנה</Label>
+                        <Label className={labelClass}>סטטוס הזמנה</Label>
                         <Select
                           dir="rtl"
                           disabled={!isEditing}
