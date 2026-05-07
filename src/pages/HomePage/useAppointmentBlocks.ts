@@ -6,7 +6,7 @@ import { timeToMinutes } from "./utils"
 interface UseAppointmentBlocksProps {
   getAppointmentsForDate: (date: Date) => Appointment[]
   clientsMap: Map<number, Client>
-  workStartHour: number
+  workStartMinutes: number
   getAppointmentDuration: (appointment: Appointment) => number
   resizeData: any
 }
@@ -14,7 +14,7 @@ interface UseAppointmentBlocksProps {
 export function useAppointmentBlocks({
   getAppointmentsForDate,
   clientsMap,
-  workStartHour,
+  workStartMinutes,
   getAppointmentDuration,
   resizeData
 }: UseAppointmentBlocksProps) {
@@ -39,9 +39,8 @@ export function useAppointmentBlocks({
         // For top resize, we use the current appointment.time as it represents the new start time
       }
 
-      const [hours, minutes] = startTime.split(':').map(Number)
-      const startMinutes = (hours - workStartHour) * 60 + minutes
-      const top = (startMinutes / 60) * HOUR_HEIGHT
+      const startOffsetMinutes = timeToMinutes(startTime) - workStartMinutes
+      const top = (startOffsetMinutes / 60) * HOUR_HEIGHT
 
       // Calculate height based on appointment duration and resize state
       const appointmentDuration = getAppointmentDuration(appointment)
@@ -164,8 +163,7 @@ export function useAppointmentBlocks({
     })
 
     return blocks
-  }, [getAppointmentsForDate, resizeData, workStartHour, clientsMap, getAppointmentDuration])
+  }, [getAppointmentsForDate, resizeData, workStartMinutes, clientsMap, getAppointmentDuration])
 
   return { getAppointmentBlocks }
 }
-

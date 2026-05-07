@@ -41,6 +41,9 @@ export async function getOrdersByClientId(clientId: number): Promise<Order[]> {
     const normalizedOrders: Order[] = orders.map((o: any) => ({
       ...o,
       order_status: o?.order_status || o?.order_data?.details?.order_status || "",
+      billing_id: o?.billing_id,
+      billing_total_after_discount: o?.billing_total_after_discount,
+      billing_prepayment_amount: o?.billing_prepayment_amount,
     }));
     const contactLensOrders = (clRes.data || []) as ContactLensOrderEntity[];
     const normalizedContactOrders: Order[] = contactLensOrders.map((cl: any) => ({
@@ -51,6 +54,9 @@ export async function getOrdersByClientId(clientId: number): Promise<Order[]> {
       type: cl.type || 'עדשות מגע',
       user_id: cl.user_id,
       order_status: cl.order_status,
+      billing_id: cl.billing_id,
+      billing_total_after_discount: cl.billing_total_after_discount,
+      billing_prepayment_amount: cl.billing_prepayment_amount,
       order_data: cl.order_data,
       comb_va: undefined,
       comb_high: undefined,
@@ -86,6 +92,9 @@ export async function getAllOrders(clinicId?: number): Promise<Order[]> {
     const normalizedOrders: Order[] = orders.map((o: any) => ({
       ...o,
       order_status: o?.order_status || o?.order_data?.details?.order_status || "",
+      billing_id: o?.billing_id,
+      billing_total_after_discount: o?.billing_total_after_discount,
+      billing_prepayment_amount: o?.billing_prepayment_amount,
     }));
     const contactLensOrders = (clRes.data || []) as ContactLensOrderEntity[];
     const normalizedContactOrders: Order[] = contactLensOrders.map((cl: any) => ({
@@ -96,6 +105,9 @@ export async function getAllOrders(clinicId?: number): Promise<Order[]> {
       type: cl.type || 'עדשות מגע',
       user_id: cl.user_id,
       order_status: cl.order_status,
+      billing_id: cl.billing_id,
+      billing_total_after_discount: cl.billing_total_after_discount,
+      billing_prepayment_amount: cl.billing_prepayment_amount,
       order_data: cl.order_data,
       comb_va: undefined,
       comb_high: undefined,

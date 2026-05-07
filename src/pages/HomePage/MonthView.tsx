@@ -36,11 +36,15 @@ export function MonthView({
         const dayAppointments = getAppointmentsForDate(date)
         const isCurrentMonth = date.getMonth() === currentDate.getMonth()
         const isCurrentDay = isToday(date)
+        const dayBorderClass = [
+          index % 7 !== 0 ? 'border-r' : '',
+          index < visibleDates.length - 7 ? 'border-b' : ''
+        ].filter(Boolean).join(' ')
 
         return (
           <div
             key={index}
-            className={`min-h-[120px] p-1 border-b border-r relative ${!isCurrentMonth ? 'bg-muted/30 text-muted-foreground' : ''
+            className={`min-h-[120px] p-1 ${dayBorderClass} relative ${!isCurrentMonth ? 'bg-muted/30 text-muted-foreground' : ''
               } ${isCurrentDay ? 'bg-primary/5' : ''} hover:bg-muted/50 cursor-pointer`}
             onClick={() => {
               onDateClick(date)
@@ -107,4 +111,3 @@ export function MonthView({
     </div>
   )
 }
-

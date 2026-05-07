@@ -177,6 +177,9 @@ describe("referral-docx print model", () => {
     expect(html).toContain("הערות:");
     expect(html).toContain("ממצאים קליניים:");
     expect(html).toContain("מרשם / כרטיס בדיקה");
+    expect(html).not.toContain("background: #f4f4f5");
+    expect(html).not.toContain("background: #fafafa");
+    expect(html).not.toContain("background: #18181b");
     expect(html).toContain('<tr><th class="section-cell">עין</th>');
     expect(html).toContain("VA משולב");
     expect(html).toContain("PD משולב");

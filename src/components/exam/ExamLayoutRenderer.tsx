@@ -140,6 +140,26 @@ export function ExamLayoutRenderer({
     [layoutItems, visibleLaneSet],
   );
 
+  const layoutRows = useMemo(
+    () => {
+      const sortedItems = sortGridItems(layoutItems);
+      return lanes.map((lane) =>
+        sortedItems
+          .filter((item) => item.y === lane)
+          .map(({ x, y, w, ...card }) => card),
+      );
+    },
+    [lanes, layoutItems],
+  );
+
+  const detailPropsWithLayoutRows = useMemo(
+    () => ({
+      ...detailProps,
+      allRows: layoutRows,
+    }),
+    [detailProps, layoutRows],
+  );
+
   const getCardKey = (card: CardItem) => {
     if (card.type === "cover-test") {
       const activeTabIndex = activeCoverTestTabs[card.id] ?? 0;
@@ -216,7 +236,7 @@ export function ExamLayoutRenderer({
                 rowCards={laneItems}
                 isEditing={isEditing}
                 mode="detail"
-                detailProps={detailProps}
+                detailProps={detailPropsWithLayoutRows}
                 hideEyeLabels={item.showEyeLabels === false}
                 matchHeight={hasNoteCard(laneItems) && laneItems.length > 1}
                 currentRowIndex={rowIndex}

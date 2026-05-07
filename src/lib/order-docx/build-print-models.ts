@@ -1,4 +1,5 @@
 import type { ContactLensOrderEntity, OrderLineItem } from "@/lib/db/schema-interface";
+import { getBillingPaymentStatus } from "@/lib/billing-payment-status";
 import {
   formatAddress,
   formatAxis,
@@ -123,6 +124,7 @@ function getOperationalMoneyBlock(context: LoadedOrderExportContext) {
     total: formatCurrency(total),
     paid: formatCurrency(paid),
     balance: formatCurrency(balance),
+    paymentStatus: getBillingPaymentStatus(total, paid),
   };
 }
 
@@ -238,6 +240,7 @@ export function buildRegularOrderPrintModel(
     total_price: money.total,
     amount_paid: money.paid,
     balance_due: money.balance,
+    payment_status: money.paymentStatus,
     clinic_notes: toDisplayString(details.notes || order.notes),
     supplier_notes: toDisplayString(details.lens_order_notes),
   };
@@ -310,6 +313,7 @@ export function buildContactOrderPrintModel(
     total_price: money.total,
     amount_paid: money.paid,
     balance_due: money.balance,
+    payment_status: money.paymentStatus,
     clinic_notes: toDisplayString(order.notes),
     supplier_notes: toDisplayString(order.supplier_notes),
   };

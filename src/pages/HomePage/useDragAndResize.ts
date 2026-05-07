@@ -7,8 +7,8 @@ import { toast } from "sonner"
 
 interface UseDragAndResizeProps {
   calendarRef: React.RefObject<HTMLDivElement | null>
-  workStartHour: number
-  workEndHour: number
+  workStartMinutes: number
+  workEndMinutes: number
   getAppointmentDuration: (appointment: Appointment) => number
   isUserOnVacation: (userId?: number, dateStr?: string) => boolean
   visibleDates: Date[]
@@ -18,8 +18,8 @@ interface UseDragAndResizeProps {
 
 export function useDragAndResize({
   calendarRef,
-  workStartHour,
-  workEndHour,
+  workStartMinutes,
+  workEndMinutes,
   getAppointmentDuration,
   isUserOnVacation,
   visibleDates,
@@ -104,25 +104,15 @@ export function useDragAndResize({
     const totalMinutesFromTop = Math.max(0, (y / HOUR_HEIGHT) * 60)
     const snappedMinutes = Math.round(totalMinutesFromTop / 15) * 15
 
-    const targetHour = Math.floor(snappedMinutes / 60) + workStartHour
-    const targetMinute = snappedMinutes % 60
-
     const appointmentDuration = draggedData ? getAppointmentDuration(draggedData.appointment) : 30
     const appointmentDurationMinutes = appointmentDuration
-
-    const workStartMinutes = workStartHour * 60
-    const workEndMinutes = workEndHour * 60
     const maxAllowedStartMinutes = workEndMinutes - appointmentDurationMinutes
-    
-    const targetMinutesFromWorkStart = (targetHour - workStartHour) * 60 + targetMinute
-    
-    const clampedMinutesFromWorkStart = Math.max(0, Math.min(maxAllowedStartMinutes - workStartMinutes, targetMinutesFromWorkStart))
-    
-    const clampedHour = Math.floor(clampedMinutesFromWorkStart / 60) + workStartHour
-    const clampedMinute = clampedMinutesFromWorkStart % 60
 
-    const newTime = `${Math.floor(clampedHour).toString().padStart(2, '0')}:${Math.floor(clampedMinute).toString().padStart(2, '0')}`
+    const targetStartMinutes = workStartMinutes + snappedMinutes
+    const clampedStartMinutes = Math.max(workStartMinutes, Math.min(maxAllowedStartMinutes, targetStartMinutes))
+    const clampedMinutesFromWorkStart = clampedStartMinutes - workStartMinutes
 
+    const newTime = minutesToTime(clampedStartMinutes)
     const visualY = (clampedMinutesFromWorkStart / 60) * HOUR_HEIGHT
 
     return {
@@ -131,7 +121,7 @@ export function useDragAndResize({
       date: targetDate,
       time: newTime
     }
-  }, [calendarRef, draggedData, visibleDates, workStartHour, workEndHour, getAppointmentDuration])
+  }, [calendarRef, draggedData, visibleDates, workStartMinutes, workEndMinutes, getAppointmentDuration])
 
   const calculateResizePosition = useCallback((e: MouseEvent) => {
     if (!calendarRef.current || !resizeData) return null
@@ -153,25 +143,20 @@ export function useDragAndResize({
     const totalMinutesFromTop = Math.max(0, (y / HOUR_HEIGHT) * 60)
     const snappedMinutes = Math.round(totalMinutesFromTop / 5) * 5
 
-    const targetHour = Math.floor(snappedMinutes / 60) + workStartHour
-    const targetMinute = snappedMinutes % 60
-
-    const clampedHour = Math.max(workStartHour, Math.min(workEndHour, targetHour))
-    const clampedMinute = clampedHour === workEndHour ? 0 : targetMinute
-
-    const newTime = `${Math.floor(clampedHour).toString().padStart(2, '0')}:${Math.floor(clampedMinute).toString().padStart(2, '0')}`
+    const targetMinutes = workStartMinutes + snappedMinutes
+    const clampedMinutes = Math.max(workStartMinutes, Math.min(workEndMinutes, targetMinutes))
+    const newTime = minutesToTime(clampedMinutes)
 
     if (resizeData.type === 'top') {
       const originalEndMinutes = timeToMinutes(resizeData.originalEnd)
       const newStartMinutes = timeToMinutes(newTime)
-      if (newStartMinutes < originalEndMinutes && newStartMinutes >= workStartHour * 60) {
+      if (newStartMinutes < originalEndMinutes && newStartMinutes >= workStartMinutes) {
         return { startTime: newTime, endTime: resizeData.originalEnd }
       }
     } else {
       const originalStartMinutes = timeToMinutes(resizeData.originalStart)
       const newEndMinutes = timeToMinutes(newTime)
-      const maxEndMinutes = workEndHour * 60
-      const clampedEndMinutes = Math.min(newEndMinutes, maxEndMinutes)
+      const clampedEndMinutes = Math.min(newEndMinutes, workEndMinutes)
       const clampedEndTime = minutesToTime(clampedEndMinutes)
       
       if (clampedEndMinutes > originalStartMinutes) {
@@ -180,7 +165,7 @@ export function useDragAndResize({
     }
 
     return null
-  }, [calendarRef, resizeData, workStartHour, workEndHour])
+  }, [calendarRef, resizeData, workStartMinutes, workEndMinutes])
 
   const handleMouseMove = (e: MouseEvent) => {
     if (calendarRef.current && !resizeData) {
@@ -396,4 +381,3 @@ export function useDragAndResize({
     handleResizeStart
   }
 }
-

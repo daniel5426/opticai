@@ -120,22 +120,19 @@ const PDF_CSS = `
     text-align: right;
     font-weight: 400;
   }
-  th, .label {
-    background: #f4f4f5;
-    color: #52525b;
-    font-weight: 700;
-  }
-  .value {
-    background: #fafafa;
-    color: #18181b;
-    font-size: 12px;
-  }
-  .section-cell {
-    background: #18181b;
-    color: #fff;
-    text-align: center;
-    font-weight: 700;
-  }
+	  th, .label {
+	    color: #52525b;
+	    font-weight: 700;
+	  }
+	  .value {
+	    color: #18181b;
+	    font-size: 12px;
+	  }
+	  .section-cell {
+	    color: #18181b;
+	    text-align: center;
+	    font-weight: 700;
+	  }
   .center { text-align: center; }
   .ltr {
     direction: ltr;
@@ -336,7 +333,8 @@ export function renderRegularOrderPdfHtml(data: RegularOrderPrintModel, logoUrl?
       ['סה"כ', data.total_price],
       ["שולם", data.amount_paid],
       ["יתרה", data.balance_due],
-    ], 3),
+      ["סטטוס תשלום", data.payment_status],
+    ], 4),
     sectionTitle("הערות"),
     notesRow("הערות קליניות", data.clinic_notes, "הערות לספק", data.supplier_notes),
   ].join("");
@@ -396,7 +394,8 @@ export function renderContactOrderPdfHtml(data: ContactOrderPrintModel, logoUrl?
       ['סה"כ', data.total_price],
       ["שולם", data.amount_paid],
       ["יתרה", data.balance_due],
-    ], 3),
+      ["סטטוס תשלום", data.payment_status],
+    ], 4),
     sectionTitle("הערות"),
     notesRow("הערות קליניות", data.clinic_notes, "הערות לספק", data.supplier_notes),
   ].join("");

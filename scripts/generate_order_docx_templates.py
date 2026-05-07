@@ -240,21 +240,21 @@ def metric_table(items: list[tuple[str, str]], *, pairs_per_row: int = 4) -> str
                     width=value_width,
                     align="right",
                     borders=False,
-                    fill=SUBTLE_FILL
+                    fill=None
                 )
             )
             row_cells.append(
                 cell(
                     paragraph(run(label, bold=True, size=18, color="52525B"), spacing_after=0),
                     width=label_width,
-                    fill=LABEL_FILL,
+                    fill=None,
                     align="right",
                     borders=False
                 )
             )
         while len(chunk) < pairs_per_row:
-            row_cells.append(cell("", width=value_width, fill=SUBTLE_FILL, borders=False))
-            row_cells.append(cell("", width=label_width, fill=LABEL_FILL, borders=False))
+            row_cells.append(cell("", width=value_width, fill=None, borders=False))
+            row_cells.append(cell("", width=label_width, fill=None, borders=False))
             chunk.append(("", ""))
         rows.append(row(row_cells))
     return table(rows, widths, borders=True)
@@ -277,21 +277,21 @@ def kv_table(pairs: list[tuple[str, str]], *, pairs_per_row: int = 2) -> str:
                     width=value_width,
                     align="right",
                     borders=False,
-                    fill=SUBTLE_FILL
+                    fill=None
                 )
             )
             row_cells.append(
                 cell(
                     paragraph(run(label, bold=True, size=18, color="52525B"), spacing_after=0),
                     width=label_width,
-                    fill=LABEL_FILL,
+                    fill=None,
                     align="right",
                     borders=False
                 )
             )
         while len(chunk) < pairs_per_row:
-            row_cells.append(cell("", width=value_width, fill=SUBTLE_FILL, borders=False))
-            row_cells.append(cell("", width=label_width, fill=LABEL_FILL, borders=False))
+            row_cells.append(cell("", width=value_width, fill=None, borders=False))
+            row_cells.append(cell("", width=label_width, fill=None, borders=False))
             chunk.append(("", ""))
         rows.append(row(row_cells))
     return table(rows, widths, borders=True)
@@ -308,16 +308,16 @@ def eye_table(row_label_title: str, labels: list[str], right_keys: list[str], le
                     cell(
                         paragraph(run(label, bold=True, size=18, color="52525B"), align="center", spacing_after=0),
                         width=value_width,
-                        fill=LABEL_FILL,
+                        fill=None,
                         align="center",
                         borders=False
                     )
                     for label in reversed(labels)
                 ],
                 cell(
-                    paragraph(run(row_label_title, bold=True, size=18, color="FFFFFF"), align="center", spacing_after=0),
+                    paragraph(run(row_label_title, bold=True, size=18, color="18181B"), align="center", spacing_after=0),
                     width=eye_width,
-                    fill=SECTION_FILL,
+                    fill=None,
                     align="center",
                     borders=False
                 ),
@@ -334,14 +334,14 @@ def eye_table(row_label_title: str, labels: list[str], right_keys: list[str], le
                             width=value_width,
                             align="center",
                             borders=False,
-                            fill=SUBTLE_FILL
+                            fill=None
                         )
                         for key in reversed(keys)
                     ],
                     cell(
                         paragraph(run(eye_label, bold=True, size=20), align="center", spacing_after=0),
                         width=eye_width,
-                        fill=LABEL_FILL,
+                        fill=None,
                         align="center",
                         borders=False
                     ),
@@ -362,16 +362,16 @@ def comparison_table(headers: list[str], right_keys: list[str], left_keys: list[
                     cell(
                         paragraph(run(header, bold=True, size=18, color="52525B"), align="center", spacing_after=0),
                         width=value_width,
-                        fill=LABEL_FILL,
+                        fill=None,
                         align="center",
                         borders=False
                     )
                     for header in reversed(headers)
                 ],
                 cell(
-                    paragraph(run("עין", bold=True, size=18, color="FFFFFF"), align="center", spacing_after=0),
+                    paragraph(run("עין", bold=True, size=18, color="18181B"), align="center", spacing_after=0),
                     width=eye_width,
-                    fill=SECTION_FILL,
+                    fill=None,
                     align="center",
                     borders=False
                 ),
@@ -388,14 +388,14 @@ def comparison_table(headers: list[str], right_keys: list[str], left_keys: list[
                             width=value_width,
                             align="center",
                             borders=False,
-                            fill=SUBTLE_FILL
+                            fill=None
                         )
                         for key in reversed(keys)
                     ],
                     cell(
                         paragraph(run(eye_label, bold=True, size=20), align="center", spacing_after=0),
                         width=eye_width,
-                        fill=LABEL_FILL,
+                        fill=None,
                         align="center",
                         borders=False
                     ),
@@ -419,8 +419,8 @@ def notes_row(right_title: str, right_key: str, left_title: str, left_key: str) 
         [
             row(
                 [
-                    cell(left_cell, width=half_width, fill=SUBTLE_FILL, vertical="top", margins=(80, 120, 80, 120), borders=False),
-                    cell(right_cell, width=half_width, fill=SUBTLE_FILL, vertical="top", margins=(80, 120, 80, 120), borders=False),
+                    cell(left_cell, width=half_width, fill=None, vertical="top", margins=(80, 120, 80, 120), borders=False),
+                    cell(right_cell, width=half_width, fill=None, vertical="top", margins=(80, 120, 80, 120), borders=False),
                 ],
                 
             )
@@ -512,8 +512,9 @@ def build_regular_xml() -> str:
                 ("סה\"כ", "total_price"),
                 ("שולם", "amount_paid"),
                 ("יתרה", "balance_due"),
+                ("סטטוס תשלום", "payment_status"),
             ],
-            pairs_per_row=3,
+            pairs_per_row=4,
         ),
         empty_paragraph(60),
         section_title("הערות"),
@@ -600,8 +601,9 @@ def build_contact_xml() -> str:
                 ("סה\"כ", "total_price"),
                 ("שולם", "amount_paid"),
                 ("יתרה", "balance_due"),
+                ("סטטוס תשלום", "payment_status"),
             ],
-            pairs_per_row=3,
+            pairs_per_row=4,
         ),
         empty_paragraph(60),
         section_title("הערות"),
@@ -666,7 +668,7 @@ def build_referral_xml() -> str:
                 cell(
                     paragraph(run("הערות:", bold=True, size=22, color="18181B"), align="right", spacing_after=40) +
                     paragraph(field("referral_notes", size=22), align="right", spacing_after=0),
-                    width=PAGE_WIDTH, borders=False, fill=SUBTLE_FILL, margins=(80, 160, 80, 160)
+                    width=PAGE_WIDTH, borders=False, fill=None, margins=(80, 160, 80, 160)
                 )
             ])
         ], [PAGE_WIDTH], borders=True),
@@ -679,7 +681,7 @@ def build_referral_xml() -> str:
                 cell(
                     paragraph(run("ממצאים קליניים:", bold=True, size=22, color="18181B"), align="right", spacing_after=40) +
                     paragraph(field("clinical_findings_text", size=22), align="right", spacing_after=0),
-                    width=PAGE_WIDTH, borders=False, fill=SUBTLE_FILL, margins=(80, 160, 80, 160)
+                    width=PAGE_WIDTH, borders=False, fill=None, margins=(80, 160, 80, 160)
                 )
             ])
         ], [PAGE_WIDTH], borders=True),

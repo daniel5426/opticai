@@ -23,6 +23,26 @@ from security.scope import (
 
 router = APIRouter(prefix="/orders", tags=["orders"])
 
+
+def _attach_billing_summaries(db: Session, orders: list, *, contact: bool = False) -> None:
+    order_ids = [order.id for order in orders if order.id]
+    if not order_ids:
+        return
+
+    billing_query = db.query(Billing)
+    if contact:
+        billings = billing_query.filter(Billing.contact_lens_id.in_(order_ids)).all()
+        billing_by_order_id = {billing.contact_lens_id: billing for billing in billings}
+    else:
+        billings = billing_query.filter(Billing.order_id.in_(order_ids)).all()
+        billing_by_order_id = {billing.order_id: billing for billing in billings}
+
+    for order in orders:
+        billing = billing_by_order_id.get(order.id)
+        setattr(order, "billing_id", billing.id if billing else None)
+        setattr(order, "billing_total_after_discount", billing.total_after_discount if billing else None)
+        setattr(order, "billing_prepayment_amount", billing.prepayment_amount if billing else None)
+
 @router.get("/paginated")
 def get_orders_paginated(
     clinic_id: Optional[int] = Query(None, description="Filter by clinic ID"),
@@ -82,7 +102,12 @@ def get_orders_paginated(
     if status and status != "all":
         cl_filters.append(ContactLensOrder.order_status == status)
 
-    orders_from = Order.__table__.outerjoin(User.__table__, Order.user_id == User.id).outerjoin(Client.__table__, Order.client_id == Client.id)
+    orders_from = (
+        Order.__table__
+        .outerjoin(User.__table__, Order.user_id == User.id)
+        .outerjoin(Client.__table__, Order.client_id == Client.id)
+        .outerjoin(Billing.__table__, Billing.order_id == Order.id)
+    )
     orders_select = select(
         Order.id.label('id'),
         Order.client_id.label('client_id'),
@@ -96,11 +121,19 @@ def get_orders_paginated(
         literal(False).label('__contact'),
         func.coalesce(User.full_name, User.username).label('username'),
         (func.concat(Client.first_name, ' ', Client.last_name)).label('clientName'),
+        Billing.id.label('billing_id'),
+        Billing.total_after_discount.label('billing_total_after_discount'),
+        Billing.prepayment_amount.label('billing_prepayment_amount'),
     ).select_from(orders_from)
     if order_filters:
         orders_select = orders_select.where(*order_filters)
 
-    cl_from = ContactLensOrder.__table__.outerjoin(User.__table__, ContactLensOrder.user_id == User.id).outerjoin(Client.__table__, ContactLensOrder.client_id == Client.id)
+    cl_from = (
+        ContactLensOrder.__table__
+        .outerjoin(User.__table__, ContactLensOrder.user_id == User.id)
+        .outerjoin(Client.__table__, ContactLensOrder.client_id == Client.id)
+        .outerjoin(Billing.__table__, Billing.contact_lens_id == ContactLensOrder.id)
+    )
     cl_select = select(
         ContactLensOrder.id.label('id'),
         ContactLensOrder.client_id.label('client_id'),
@@ -114,6 +147,9 @@ def get_orders_paginated(
         literal(True).label('__contact'),
         func.coalesce(User.full_name, User.username).label('username'),
         (func.concat(Client.first_name, ' ', Client.last_name)).label('clientName'),
+        Billing.id.label('billing_id'),
+        Billing.total_after_discount.label('billing_total_after_discount'),
+        Billing.prepayment_amount.label('billing_prepayment_amount'),
     ).select_from(cl_from)
     if cl_filters:
         cl_select = cl_select.where(*cl_filters)
@@ -137,6 +173,7 @@ def get_orders_paginated(
         "kind": merged_subq.c["__contact"],
         "client": merged_subq.c["clientName"],
         "examiner": merged_subq.c.username,
+        "payment_status": merged_subq.c.billing_prepayment_amount,
         "status": merged_subq.c.order_status,
     }
     order_key, _, order_direction = (order or "date_desc").rpartition("_")
@@ -192,6 +229,7 @@ def get_all_orders(
     for order in orders:
         details = ((order.order_data or {}).get("details") or {}) if isinstance(order.order_data, dict) else {}
         setattr(order, "order_status", details.get("order_status"))
+    _attach_billing_summaries(db, orders)
     return orders
 
 @router.get("/client/{client_id}", response_model=List[OrderSchema])
@@ -210,6 +248,7 @@ def get_orders_by_client(
     for order in orders:
         details = ((order.order_data or {}).get("details") or {}) if isinstance(order.order_data, dict) else {}
         setattr(order, "order_status", details.get("order_status"))
+    _attach_billing_summaries(db, orders)
     return orders
 
 @router.put("/{order_id}", response_model=OrderSchema)
@@ -516,7 +555,9 @@ def get_all_contact_lens_orders(
 ):
     allowed_clinic_ids = get_allowed_clinic_ids(db, current_user, clinic_id)
     query = db.query(ContactLensOrder).filter(ContactLensOrder.clinic_id.in_(allowed_clinic_ids))
-    return query.all()
+    orders = query.all()
+    _attach_billing_summaries(db, orders, contact=True)
+    return orders
 
 @cl_router.get("/client/{client_id}", response_model=List[ContactLensOrderSchema])
 def get_contact_lens_orders_by_client(
@@ -525,12 +566,14 @@ def get_contact_lens_orders_by_client(
     current_user: User = Depends(get_current_user),
 ):
     get_scoped_client(db, current_user, client_id)
-    return (
+    orders = (
         db.query(ContactLensOrder)
         .filter(ContactLensOrder.client_id == client_id)
         .order_by(ContactLensOrder.order_date.desc().nulls_last(), ContactLensOrder.id.desc())
         .all()
     )
+    _attach_billing_summaries(db, orders, contact=True)
+    return orders
 
 @cl_router.put("/{order_id}", response_model=ContactLensOrderSchema)
 def update_contact_lens_order(

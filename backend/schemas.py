@@ -415,6 +415,9 @@ class OrderUpdate(OrderBase):
 class Order(OrderBase):
     id: int
     order_status: Optional[str] = None
+    billing_id: Optional[int] = None
+    billing_total_after_discount: Optional[float] = None
+    billing_prepayment_amount: Optional[float] = None
     
     class Config:
         from_attributes = True
@@ -468,6 +471,9 @@ class ContactLensOrderUpdate(ContactLensOrderBase):
 
 class ContactLensOrder(ContactLensOrderBase):
     id: int
+    billing_id: Optional[int] = None
+    billing_total_after_discount: Optional[float] = None
+    billing_prepayment_amount: Optional[float] = None
     class Config:
         from_attributes = True
 

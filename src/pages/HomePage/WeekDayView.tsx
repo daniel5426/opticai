@@ -9,8 +9,8 @@ import { getAppointmentTimeRange } from "./utils"
 
 interface WeekDayViewProps {
   visibleDates: Date[]
-  timeSlots: { time: string; hour: number }[]
-  totalWorkHours: number
+  timeSlots: { time: string; startMinutes: number; durationMinutes: number }[]
+  totalWorkMinutes: number
   currentUser: User | null
   clients: Client[]
   getAppointmentBlocks: (date: Date) => AppointmentBlock[]
@@ -32,7 +32,7 @@ interface WeekDayViewProps {
 export function WeekDayView({
   visibleDates,
   timeSlots,
-  totalWorkHours,
+  totalWorkMinutes,
   currentUser,
   clients,
   getAppointmentBlocks,
@@ -50,10 +50,12 @@ export function WeekDayView({
   calendarRef,
   suppressClickRef
 }: WeekDayViewProps) {
+  const calendarHeight = (totalWorkMinutes / 60) * 95
+
   return (
     <div className="flex flex-col rounded-t-xl" style={{ 
-      height: 'calc(100vh - 200px)',
-      maxHeight: `${50 + (totalWorkHours * 95)}px`
+      height: 'calc(100vh - 190px)',
+      maxHeight: `${50 + calendarHeight}px`
     }} ref={calendarRef}>
       {/* Fixed header */}
       <div className="flex bg-card rounded-t-xl border-b sticky top-0">
@@ -100,12 +102,16 @@ export function WeekDayView({
 
       {/* Scrollable content */}
       <div className="flex-1 overflow-y-auto" style={{ scrollbarWidth: 'none' }}>
-        <div className="flex" style={{ height: `${totalWorkHours * 95}px` }}>
+        <div className="flex" style={{ height: `${calendarHeight}px` }}>
           {/* Time column */}
           <div className="w-16">
             {timeSlots.map((slot, index) => (
-              <div key={slot.time} className={`h-[95px] border-l flex items-start justify-center pt-1 ${index === timeSlots.length - 1 ? '' : 'border-b'
-                }`}>
+              <div
+                key={slot.time}
+                className={`border-l flex items-start justify-center pt-1 ${index === timeSlots.length - 1 ? '' : 'border-b'
+                  }`}
+                style={{ height: `${(slot.durationMinutes / 60) * 95}px` }}
+              >
                 <span className="text-xs text-muted-foreground">{slot.time}</span>
               </div>
             ))}
@@ -122,19 +128,20 @@ export function WeekDayView({
                     {timeSlots.map((slot, slotIndex) => (
                       <div
                         key={`${dateIndex}-${slotIndex}`}
-                        className={`h-[95px] hover:bg-muted/30 cursor-pointer relative ${dateIndex < visibleDates.length - 1 ? "border-l" : ""
+                        className={`hover:bg-muted/30 cursor-pointer relative ${dateIndex < visibleDates.length - 1 ? "border-l" : ""
                           } ${slotIndex === timeSlots.length - 1 ? '' : 'border-b'}`}
+                        style={{ height: `${(slot.durationMinutes / 60) * 95}px` }}
                         onClick={() => handleTimeSlotClick(date, slot.time)}
                       >
                         {/* Current time indicator */}
                         {isToday(date) && (
                           (() => {
                             const now = new Date()
-                            const currentHour = getHours(now)
-                            const currentMinute = getMinutes(now)
+                            const currentMinutes = getHours(now) * 60 + getMinutes(now)
+                            const slotEndMinutes = slot.startMinutes + slot.durationMinutes
 
-                            if (currentHour === slot.hour) {
-                              const topOffset = (currentMinute / 60) * 95
+                            if (currentMinutes >= slot.startMinutes && currentMinutes < slotEndMinutes) {
+                              const topOffset = ((currentMinutes - slot.startMinutes) / 60) * 95
                               return (
                                 <div
                                   className="absolute left-0 right-0 h-0.5 bg-red-500 z-10"
@@ -367,4 +374,3 @@ export function WeekDayView({
     </div>
   )
 }
-

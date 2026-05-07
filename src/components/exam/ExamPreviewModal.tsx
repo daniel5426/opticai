@@ -14,6 +14,10 @@ import {
   legacyRowsToGridItems,
   parseLayoutData,
 } from "@/pages/exam-detail/utils";
+import {
+  ensureLayoutDataForRows,
+  getTabsForCard,
+} from "@/lib/exam-ui-metadata";
 
 interface ExamPreviewModalProps {
   isOpen: boolean;
@@ -65,9 +69,17 @@ export function ExamPreviewModal({
   const [activeOldRefractionTabs, setActiveOldRefractionTabs] = useState<
     Record<string, string>
   >({});
+  const [activeCoverTestTabs, setActiveCoverTestTabs] = useState<
+    Record<string, number>
+  >({});
 
   const oldRefractionTabs = useMemo(
     () => buildOldRefractionTabs(cardRows, examFormData),
+    [cardRows, examFormData],
+  );
+
+  const coverTestTabs = useMemo(
+    () => buildCoverTestTabs(cardRows, examFormData),
     [cardRows, examFormData],
   );
 
@@ -111,6 +123,7 @@ export function ExamPreviewModal({
       setExamFormData({});
       setExamFormDataByInstance({});
       setActiveOldRefractionTabs({});
+      setActiveCoverTestTabs({});
       setActiveInstanceId(null);
     }
   }, [isOpen, examId]);
@@ -150,7 +163,15 @@ export function ExamPreviewModal({
 
         const dataByInstance: Record<number, Record<string, any>> = {};
         instances.forEach((inst: any) => {
-          dataByInstance[inst.instance.id] = inst.exam_data || {};
+          const rawExamData = inst.exam_data || {};
+          const layoutData =
+            inst.instance.layout_data || inst.layout?.layout_data || "";
+          const rows = parseLayoutData(layoutData).rows;
+          dataByInstance[inst.instance.id] =
+            rawExamData && typeof rawExamData === "object"
+              ? ensureLayoutDataForRows(rawExamData, rows, inst.instance.id)
+                  .examData
+              : {};
         });
         setExamFormDataByInstance(dataByInstance);
 
@@ -188,6 +209,7 @@ export function ExamPreviewModal({
     applyLayoutStructure(tab.layout_data);
     setExamFormData(examFormDataByInstance[id] || {});
     setActiveOldRefractionTabs({});
+    setActiveCoverTestTabs({});
   };
 
   const headerContent = useMemo(
@@ -311,6 +333,9 @@ export function ExamPreviewModal({
                       oldRefractionTabs,
                       activeOldRefractionTabs: resolvedActiveOldRefractionTabs,
                       setActiveOldRefractionTabs,
+                      coverTestTabs,
+                      activeCoverTestTabs,
+                      setActiveCoverTestTabs,
                     }}
                     hideEyeLabels={item.showEyeLabels === false}
                     matchHeight={hasNoteCard(laneItems) && laneItems.length > 1}
@@ -330,31 +355,37 @@ export function ExamPreviewModal({
   );
 }
 
-function buildOldRefractionTabs(
+function buildTabsByCard(
   cardRows: CardRow[],
   examFormData: Record<string, any>,
+  type: "cover-test" | "old-refraction",
 ): Record<string, string[]> {
   const cardIds = cardRows.flatMap((row) =>
-    row.cards
-      .filter((card) => card.type === "old-refraction")
-      .map((card) => card.id),
+    row.cards.filter((card) => card.type === type).map((card) => card.id),
   );
 
   return Object.fromEntries(
     cardIds
       .map((cardId) => {
-        const prefix = `old-refraction-${cardId}-`;
-        const tabs = Object.entries(examFormData)
-          .filter(([key]) => key.startsWith(prefix))
-          .map(([key, value]) => ({
-            id: key.slice(prefix.length),
-            index: Number((value as any)?.tab_index ?? 0) || 0,
-          }))
-          .sort((a, b) => a.index - b.index)
-          .map((tab) => tab.id);
-
+        const tabs = getTabsForCard(examFormData, type, cardId).map(
+          (tab) => tab.id,
+        );
         return [cardId, tabs] as const;
       })
       .filter(([, tabs]) => tabs.length > 0),
   );
+}
+
+function buildCoverTestTabs(
+  cardRows: CardRow[],
+  examFormData: Record<string, any>,
+): Record<string, string[]> {
+  return buildTabsByCard(cardRows, examFormData, "cover-test");
+}
+
+function buildOldRefractionTabs(
+  cardRows: CardRow[],
+  examFormData: Record<string, any>,
+): Record<string, string[]> {
+  return buildTabsByCard(cardRows, examFormData, "old-refraction");
 }

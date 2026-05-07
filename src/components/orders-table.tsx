@@ -9,6 +9,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { Eye, Trash2, FileText, Loader2, FileDown, Printer } from "lucide-react"
 import { ClientOrdersContext, Order, User } from "@/lib/db/schema-interface"
 import { ClientSelectModal } from "@/components/ClientSelectModal"
@@ -29,6 +30,7 @@ import { Badge } from "@/components/ui/badge"
 
 import { CustomModal } from "@/components/ui/custom-modal"
 import { deleteOrder, deleteContactLensOrder } from "@/lib/db/orders-db"
+import { createBilling, updateBilling } from "@/lib/db/billing-db"
 import { toast } from "sonner"
 import { Skeleton } from "@/components/ui/skeleton"
 import { DateSearchHelper } from "@/lib/date-search-helper"
@@ -42,6 +44,7 @@ import {
   type AdditionAddSourceMap,
   type AdditionAddType,
 } from "@/lib/addition-add-sources"
+import { formatBillingAmount, getBillingPaymentStatus } from "@/lib/billing-payment-status"
 
 interface OrdersTableProps {
   data: Order[]
@@ -99,6 +102,10 @@ export function OrdersTable({
   const [isCardPreviewOpen, setIsCardPreviewOpen] = useState(false)
   const [cardPreviewType, setCardPreviewType] = useState<'final-prescription' | 'contact-lens-exam'>('final-prescription')
   const [savingStatusIds, setSavingStatusIds] = useState<Record<number, boolean>>({})
+  const [savingPaymentStatusIds, setSavingPaymentStatusIds] = useState<Record<number, boolean>>({})
+  const [paymentDropdownOrderId, setPaymentDropdownOrderId] = useState<number | null>(null)
+  const [paidDrafts, setPaidDrafts] = useState<Record<number, string>>({})
+  const [billingOverrides, setBillingOverrides] = useState<Record<number, { billing_id?: number; total_after_discount?: number; prepayment_amount?: number }>>({})
   const [exportingDocxIds, setExportingDocxIds] = useState<Record<string, boolean>>({})
   const [exportingPdfIds, setExportingPdfIds] = useState<Record<string, boolean>>({})
   const [printingPdfIds, setPrintingPdfIds] = useState<Record<string, boolean>>({})
@@ -361,14 +368,37 @@ export function OrdersTable({
     );
   }, []);
 
+  const getPaymentStatus = React.useCallback((order: Order) => {
+    if (!order.id) return "";
+    const override = billingOverrides[order.id];
+    const total = Number(override?.total_after_discount ?? (order as any).billing_total_after_discount) || 0;
+    if (total <= 0) return "ללא מחיר";
+    return getBillingPaymentStatus(total, override?.prepayment_amount ?? (order as any).billing_prepayment_amount);
+  }, [billingOverrides]);
+
+  const getBillingId = React.useCallback((order: Order) => {
+    if (!order.id) return undefined;
+    return billingOverrides[order.id]?.billing_id || (order as any).billing_id;
+  }, [billingOverrides]);
+
+  const getBillingTotal = React.useCallback((order: Order) => {
+    if (!order.id) return 0;
+    return Number(billingOverrides[order.id]?.total_after_discount ?? (order as any).billing_total_after_discount) || 0;
+  }, [billingOverrides]);
+
+  const getBillingPaid = React.useCallback((order: Order) => {
+    if (!order.id) return 0;
+    return Number(billingOverrides[order.id]?.prepayment_amount ?? (order as any).billing_prepayment_amount) || 0;
+  }, [billingOverrides]);
+
   const sortColumns = React.useMemo<SortColumns<Order>>(() => ({
     order_date: { getValue: (order) => order.order_date, type: "date" },
     type: { getValue: (order) => order.type },
     kind: { getValue: (order) => ((order as any).__contact ? "עדשות מגע" : "הזמנה רגילה") },
     client: { getValue: (order) => (order as any).clientName },
-    examiner: { getValue: getExaminerName },
+    payment_status: { getValue: getPaymentStatus },
     status: { getValue: getOrderStatus },
-  }), [getExaminerName, getOrderStatus])
+  }), [getOrderStatus, getPaymentStatus])
 
   const displayData = React.useMemo(() => {
     return onSortChange ? filteredData : sortRows(filteredData, activeSort, sortColumns)
@@ -389,6 +419,55 @@ export function OrdersTable({
       toast.error("שגיאה בעדכון סטטוס הזמנה");
     } finally {
       setSavingStatusIds((prev) => ({ ...prev, [orderId]: false }));
+    }
+  };
+
+  const handlePaymentPaidSave = async (order: Order) => {
+    if (!order.id) return;
+    const orderId = order.id;
+    const previous = billingOverrides[orderId];
+    const billingId = getBillingId(order);
+    const total = getBillingTotal(order);
+    const draft = paidDrafts[orderId] ?? String(getBillingPaid(order));
+    const paid = Number.parseFloat(draft);
+    const nextPaid = Number.isFinite(paid) ? paid : 0;
+
+    setSavingPaymentStatusIds((prev) => ({ ...prev, [orderId]: true }));
+    setBillingOverrides((prev) => ({
+      ...prev,
+      [orderId]: { billing_id: billingId, total_after_discount: total, prepayment_amount: nextPaid },
+    }));
+
+    try {
+      const saved = billingId
+        ? await updateBilling({ id: billingId, prepayment_amount: nextPaid })
+        : await createBilling(
+            (order as any).__contact
+              ? { contact_lens_id: orderId, prepayment_amount: nextPaid }
+              : { order_id: orderId, prepayment_amount: nextPaid },
+          );
+
+      if (!saved) throw new Error("paid amount save failed");
+      setBillingOverrides((prev) => ({
+        ...prev,
+        [orderId]: {
+          billing_id: saved.id || billingId,
+          total_after_discount: saved.total_after_discount ?? total,
+          prepayment_amount: saved.prepayment_amount ?? nextPaid,
+        },
+      }));
+      setPaymentDropdownOrderId(null);
+      toast.success("תשלום עודכן");
+    } catch (error) {
+      setBillingOverrides((prev) => {
+        const next = { ...prev };
+        if (previous) next[orderId] = previous;
+        else delete next[orderId];
+        return next;
+      });
+      toast.error("שגיאה בעדכון תשלום");
+    } finally {
+      setSavingPaymentStatusIds((prev) => ({ ...prev, [orderId]: false }));
     }
   };
 
@@ -657,7 +736,7 @@ export function OrdersTable({
               <SortableTableHead sortKey="type" sort={activeSort} onSortChange={handleSortChange} className="text-right">סוג הזמנה</SortableTableHead>
               <SortableTableHead sortKey="kind" sort={activeSort} onSortChange={handleSortChange} className="text-right">סוג</SortableTableHead>
               {clientId === 0 && <SortableTableHead sortKey="client" sort={activeSort} onSortChange={handleSortChange} className="text-right">לקוח</SortableTableHead>}
-              <SortableTableHead sortKey="examiner" sort={activeSort} onSortChange={handleSortChange} className="text-right">בודק</SortableTableHead>
+              <SortableTableHead sortKey="payment_status" sort={activeSort} onSortChange={handleSortChange} className="text-right">תשלום</SortableTableHead>
               <SortableTableHead sortKey="status" sort={activeSort} onSortChange={handleSortChange} className="text-right">סטטוס</SortableTableHead>
               <TableHead className="w-[80px] text-right"></TableHead>
             </TableRow>
@@ -684,6 +763,7 @@ export function OrdersTable({
                 const isPrintingPdf = order.id
                   ? Boolean(printingPdfIds[`${(order as any).__contact ? "contact" : "regular"}:${order.id}`])
                   : false;
+                const hasBillingPrice = getBillingTotal(order) > 0;
                 return (
                   <TableRow
                     key={order.id}
@@ -715,7 +795,84 @@ export function OrdersTable({
                         }}
                       >{(order as any).clientName || ''}</TableCell>
                     )}
-                    <TableCell>{getExaminerName(order)}</TableCell>
+                    <TableCell>
+                      {hasBillingPrice ? (
+                        <DropdownMenu
+                          dir="rtl"
+                          open={paymentDropdownOrderId === order.id}
+                          onOpenChange={(open) => {
+                            if (!order.id) return;
+                            if (open) {
+                              setPaymentDropdownOrderId(order.id);
+                              setPaidDrafts((prev) => ({
+                                ...prev,
+                                [order.id!]: String(getBillingPaid(order) || ""),
+                              }));
+                            } else {
+                              setPaymentDropdownOrderId(null);
+                            }
+                          }}
+                        >
+                          <DropdownMenuTrigger asChild>
+                            <button
+                              type="button"
+                              className="cursor-pointer"
+                              onClick={(e) => e.stopPropagation()}
+                              disabled={!!savingPaymentStatusIds[order.id || -1]}
+                            >
+                              <Badge variant="outline" className="hover:bg-accent/70">
+                                {savingPaymentStatusIds[order.id || -1]
+                                  ? "שומר..."
+                                  : getPaymentStatus(order) || "ללא סטטוס"}
+                              </Badge>
+                            </button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent
+                            align="start"
+                            className="w-72 p-3"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <div className="grid grid-cols-2 gap-3">
+                              <div>
+                                <div className="mb-1 text-xs text-muted-foreground">שולם</div>
+                                <Input
+                                  type="number"
+                                  step="0.01"
+                                  value={order.id ? paidDrafts[order.id] ?? "" : ""}
+                                  onChange={(e) => {
+                                    if (!order.id) return;
+                                    setPaidDrafts((prev) => ({ ...prev, [order.id!]: e.target.value }));
+                                  }}
+                                  className="h-9"
+                                />
+                              </div>
+                              <div>
+                                <div className="mb-1 text-xs text-muted-foreground">סה"כ</div>
+                                <div className="flex h-9 items-center rounded-md border bg-muted/30 px-3 text-sm">
+                                  {formatBillingAmount(getBillingTotal(order))}
+                                </div>
+                              </div>
+                            </div>
+                            <div className="mt-3 flex justify-start">
+                              <Button
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handlePaymentPaidSave(order);
+                                }}
+                                disabled={!!savingPaymentStatusIds[order.id || -1]}
+                              >
+                                {savingPaymentStatusIds[order.id || -1] ? "שומר..." : "שמור"}
+                              </Button>
+                            </div>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      ) : (
+                        <Badge variant="outline" className="cursor-default text-muted-foreground">
+                          ללא מחיר
+                        </Badge>
+                      )}
+                    </TableCell>
                     <TableCell>
                       <DropdownMenu dir="rtl">
                         <DropdownMenuTrigger asChild>

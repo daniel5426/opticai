@@ -404,6 +404,42 @@ export const canPlaceGridItem = (
   return !findCollision(normalized, items, excludeId);
 };
 
+export const findNearestAvailableGridX = (
+  lane: number,
+  requestedX: number,
+  width: number,
+  items: GridLayoutItem[],
+  columns = EXAM_LAYOUT_GRID_COLUMNS,
+) => {
+  const clampedWidth = Math.max(1, Math.min(columns, Math.round(width)));
+  const maxX = Math.max(0, columns - clampedWidth);
+  const targetX = Math.max(0, Math.min(maxX, Math.round(requestedX)));
+  const laneItems = items.filter((item) => item.y === lane);
+
+  let bestX: number | null = null;
+  let bestDistance = Number.POSITIVE_INFINITY;
+
+  for (let x = 0; x <= maxX; x += 1) {
+    const candidateEnd = x + clampedWidth;
+    const collides = laneItems.some((item) => {
+      const itemEnd = item.x + item.w;
+      return x < itemEnd && candidateEnd > item.x;
+    });
+    if (collides) continue;
+
+    const distance = Math.abs(x - targetX);
+    if (
+      distance < bestDistance ||
+      (distance === bestDistance && x < (bestX ?? x + 1))
+    ) {
+      bestX = x;
+      bestDistance = distance;
+    }
+  }
+
+  return bestX;
+};
+
 export const clampResizeWidth = (
   item: GridLayoutItem,
   items: GridLayoutItem[],

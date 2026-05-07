@@ -154,6 +154,15 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
     // Sync with controlled value changes
     React.useEffect(() => {
       const newVal = extractValue(props.value ?? props.defaultValue)
+
+      if (!isNumericInput) {
+        const formattedValue = formatValue(newVal)
+        if (localValue !== formattedValue) {
+          setLocalValue(formattedValue)
+        }
+        return
+      }
+
       const currentNumeric = parseSignedNumber(localValue)
       const newNumeric = typeof newVal === "string" ? parseSignedNumber(newVal) : newVal
 

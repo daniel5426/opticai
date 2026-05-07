@@ -43,6 +43,7 @@ import { WeekDayView } from "./HomePage/WeekDayView"
 import { AppointmentModal } from "./HomePage/AppointmentModal"
 import { useAppointmentBlocks } from "./HomePage/useAppointmentBlocks"
 import { useDragAndResize } from "./HomePage/useDragAndResize"
+import { useSettings } from "@/hooks/useSettings"
 
 
 export default function HomePage() {
@@ -50,9 +51,10 @@ export default function HomePage() {
   const [view, setView] = useState<CalendarView>('week')
   const [appointments, setAppointments] = useState<Appointment[]>([])
   const [clients, setClients] = useState<Client[]>([])
-  const [settings, setSettings] = useState<Settings | null>(null)
+  const [dashboardSettings, setDashboardSettings] = useState<Settings | null>(null)
   const [loading, setLoading] = useState(true)
   const { currentUser, currentClinic } = useUser()
+  const { settings } = useSettings()
 
   const [users, setUsers] = useState<User[]>([])
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
@@ -95,7 +97,7 @@ export default function HomePage() {
         const data = await getDashboardHome(currentClinic.id, s, e)
         setAppointments(data.appointments)
         setClients(data.clients)
-        setSettings(data.settings)
+        setDashboardSettings(data.settings)
         const mergedUsers = (() => {
           const list = data.users || []
           if (currentUser?.id && !list.some(u => u.id === currentUser.id)) {
@@ -163,15 +165,16 @@ export default function HomePage() {
     }
   }, [isCreateModalOpen, isClientSelectOpen])
 
-  const WORK_START = settings?.work_start_time || "08:00"
-  const WORK_END = settings?.work_end_time || "18:00"
-  const APPOINTMENT_DURATION = settings?.appointment_duration || 30
-  const BREAK_START = settings?.break_start_time || ""
-  const BREAK_END = settings?.break_end_time || ""
+  const activeSettings = settings || dashboardSettings
+  const WORK_START = activeSettings?.work_start_time || "08:00"
+  const WORK_END = activeSettings?.work_end_time || "18:00"
+  const APPOINTMENT_DURATION = activeSettings?.appointment_duration || 30
+  const BREAK_START = activeSettings?.break_start_time || ""
+  const BREAK_END = activeSettings?.break_end_time || ""
 
-  const workStartHour = parseInt(WORK_START.split(':')[0])
-  const workEndHour = parseInt(WORK_END.split(':')[0])
-  const totalWorkHours = workEndHour - workStartHour
+  const workStartMinutes = timeToMinutes(WORK_START)
+  const workEndMinutes = timeToMinutes(WORK_END)
+  const totalWorkMinutes = Math.max(0, workEndMinutes - workStartMinutes)
 
   // Memoized user color mapping with conflict resolution
   const userColorMap = useMemo(() => {
@@ -283,8 +286,8 @@ export default function HomePage() {
     handleResizeStart
   } = useDragAndResize({
     calendarRef,
-    workStartHour,
-    workEndHour,
+    workStartMinutes,
+    workEndMinutes,
     getAppointmentDuration,
     isUserOnVacation,
     visibleDates,
@@ -321,21 +324,24 @@ export default function HomePage() {
   const { getAppointmentBlocks } = useAppointmentBlocks({
     getAppointmentsForDate,
     clientsMap,
-    workStartHour,
+    workStartMinutes,
     getAppointmentDuration,
     resizeData
   })
 
   // Memoized time slots for the grid
   const timeSlots = useMemo(() => {
-    return Array.from({ length: totalWorkHours }, (_, i) => {
-      const hour = workStartHour + i
+    const slotCount = Math.ceil(totalWorkMinutes / 60)
+    return Array.from({ length: slotCount }, (_, i) => {
+      const startMinutes = workStartMinutes + i * 60
+      const durationMinutes = Math.min(60, workEndMinutes - startMinutes)
       return {
-        time: `${hour.toString().padStart(2, '0')}:00`,
-        hour: hour
+        time: minutesToTime(startMinutes),
+        startMinutes,
+        durationMinutes
       }
-    })
-  }, [totalWorkHours, workStartHour])
+    }).filter(slot => slot.durationMinutes > 0)
+  }, [totalWorkMinutes, workStartMinutes, workEndMinutes])
 
   // Form and modal handlers
   const resetAllForms = useCallback(() => {
@@ -626,7 +632,7 @@ export default function HomePage() {
   return (
     <>
       <SiteHeader title={ "לוח זמנים"} />
-      <div className="flex flex-col bg-muted/50 flex-1 gap-6" dir="rtl" style={{ scrollbarWidth: 'none' }}>
+      <div className="flex flex-col bg-muted/50 flex-1" dir="rtl" style={{ scrollbarWidth: 'none' }}>
         {/* Calendar Header */}
         <CalendarHeader
           currentDate={currentDate}
@@ -665,7 +671,7 @@ export default function HomePage() {
                   <WeekDayView
                     visibleDates={visibleDates}
                     timeSlots={timeSlots}
-                    totalWorkHours={totalWorkHours}
+                    totalWorkMinutes={totalWorkMinutes}
                     currentUser={currentUser}
                     clients={clients}
                     getAppointmentBlocks={getAppointmentBlocks}

@@ -222,7 +222,7 @@ export class ExamFieldMapper {
       case 'compact-prescription':
         return ['r_sph', 'r_cyl', 'r_ax', 'r_pris', 'r_base', 'r_va', 'r_ad', 'r_pd', 'l_sph', 'l_cyl', 'l_ax', 'l_pris', 'l_base', 'l_va', 'l_ad', 'l_pd', 'comb_va', 'comb_pd']
       case 'addition':
-        return ['r_fcc', 'r_read', 'r_int', 'r_bif', 'r_mul', 'r_j', 'r_iop', 'l_fcc', 'l_read', 'l_int', 'l_bif', 'l_mul', 'l_j', 'l_iop']
+        return ['r_fcc', 'r_read', 'r_int', 'r_bif', 'r_mul', 'r_j', 'r_iop', 'l_fcc', 'l_read', 'l_int', 'l_bif', 'l_mul', 'l_j', 'l_iop', 'comb_j']
       case 'retinoscop':
         return ['r_sph', 'r_cyl', 'r_ax', 'r_reflex', 'r_pd_far', 'r_pd_close', 'l_sph', 'l_cyl', 'l_ax', 'l_reflex', 'l_pd_far', 'l_pd_close', 'comb_pd_far', 'comb_pd_close', 'method']
       case 'retinoscop-dilation':

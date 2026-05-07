@@ -55,6 +55,7 @@ const regularTemplateKeys = [
   "order_date",
   "order_number",
   "order_status",
+  "payment_status",
   "phone_home",
   "phone_mobile",
   "phone_work",
@@ -109,6 +110,7 @@ const contactTemplateKeys = [
   "order_date",
   "order_number",
   "order_status",
+  "payment_status",
   "phone_home",
   "phone_mobile",
   "phone_work",
@@ -360,8 +362,9 @@ describe("order-docx print models", () => {
     expect(model.r_sph).toBe(`${LTR_MARK}+1.25${LTR_MARK}`);
     expect(model.l_sph).toBe(`${LTR_MARK}-1.00${LTR_MARK}`);
     expect(model.frame_width).toBe("52");
-    expect(model.total_price).toContain('1,200.00');
-    expect(model.balance_due).toContain('900.00');
+    expect(model.total_price).toBe(`${LTR_MARK}1,200.00${LTR_MARK} ש"ח`);
+    expect(model.balance_due).toBe(`${LTR_MARK}900.00${LTR_MARK} ש"ח`);
+    expect(model.payment_status).toBe("שולם חלקית");
     expect(model.multifocal_block).toContain("PA:");
   });
 
@@ -378,6 +381,9 @@ describe("order-docx print models", () => {
     expect(html).toContain("מרשם");
     expect(html).toContain("רון כהן");
     expect(html).toContain("+1.25");
+    expect(html).not.toContain("background: #f4f4f5");
+    expect(html).not.toContain("background: #fafafa");
+    expect(html).not.toContain("background: #18181b");
     expect(html).toContain("<tr><th class=\"section-cell\">עין</th>");
     expect(html).toContain("<th class=\"label\">מס&#39; הזמנה</th>");
   });
@@ -414,7 +420,8 @@ describe("order-docx print models", () => {
     expect(model.r_read_add).toBe(`${LTR_MARK}+1.50${LTR_MARK}`);
     expect(model.r_bc).toBe("8.5");
     expect(model.l_bc).toBe("8.6");
-    expect(model.amount_paid).toContain("150.00");
+    expect(model.amount_paid).toBe(`${LTR_MARK}150.00${LTR_MARK} ש"ח`);
+    expect(model.payment_status).toBe("שולם חלקית");
   });
 
   test("renderContactOrderPdfHtml mirrors the contact order template structure", () => {
@@ -430,6 +437,9 @@ describe("order-docx print models", () => {
     expect(html).toContain("מרשם עדשות מגע");
     expect(html).toContain("R-Model");
     expect(html).toContain("-1.25");
+    expect(html).not.toContain("background: #f4f4f5");
+    expect(html).not.toContain("background: #fafafa");
+    expect(html).not.toContain("background: #18181b");
     expect(html).toContain("<tr><th class=\"section-cell\">עין</th>");
     expect(html).toContain("<th class=\"label\">מס&#39; הזמנה</th>");
   });

@@ -8,6 +8,7 @@ import { Link, useLocation, useNavigate } from "@tanstack/react-router"
 import { User, Phone, IdCard, Calendar , Hash} from "lucide-react"
 import { Client } from "@/lib/db/schema-interface"
 import { useClientSidebar } from "@/contexts/ClientSidebarContext"
+import { useNavigationGuard } from "@/contexts/NavigationGuardContext"
 
 interface SiteHeaderProps {
   title: string
@@ -81,6 +82,8 @@ export function SiteHeader({ title, backLink, parentTitle, parentLink, grandpare
   const [headerContainer, setHeaderContainer] = useState<HTMLElement | null>(null)
   const location = useLocation()
   const navigate = useNavigate()
+  const { runGuard } = useNavigationGuard()
+  const clientIdFromPath = location.pathname.match(/^\/clients\/([^/]+)/)?.[1]
 
   // Check if we're on the main ClientDetailPage or a sub-route
   const isOnClientDetailPage = currentClient && location.pathname === `/clients/${currentClient.id}`
@@ -105,6 +108,24 @@ export function SiteHeader({ title, backLink, parentTitle, parentLink, grandpare
         search: { tab: lastTab }
       })
     }
+  }
+
+  const handleTabClick = (value: string) => {
+    const clientId = currentClient?.id ? String(currentClient.id) : clientIdFromPath
+    const isActiveClientSubRoute =
+      tabs?.activeTab === value &&
+      clientId &&
+      location.pathname.startsWith(`/clients/${clientId}/`)
+
+    if (!isActiveClientSubRoute) return
+
+    runGuard(() => {
+      navigate({
+        to: "/clients/$clientId",
+        params: { clientId },
+        search: { tab: value },
+      })
+    })
   }
 
   useEffect(() => {
@@ -235,12 +256,14 @@ export function SiteHeader({ title, backLink, parentTitle, parentLink, grandpare
                 <TabsTrigger 
                   className="data-[state=active]:text-foreground data-[state=active]:bg-accent data-[state=inactive]:text-muted-foreground data-[state=inactive]:bg-transparent flex-none whitespace-nowrap" 
                   value="details"
+                  onClick={() => handleTabClick("details")}
                 >
                   פרטים אישיים
                 </TabsTrigger>
                 <TabsTrigger 
                   className="data-[state=active]:text-foreground data-[state=active]:bg-accent data-[state=inactive]:text-muted-foreground data-[state=inactive]:bg-transparent flex-none whitespace-nowrap" 
                   value="medical"
+                  onClick={() => handleTabClick("medical")}
                 >
                   גליון רפואי
                 </TabsTrigger>
@@ -248,30 +271,35 @@ export function SiteHeader({ title, backLink, parentTitle, parentLink, grandpare
                 <TabsTrigger 
                   className="data-[state=active]:text-foreground data-[state=active]:bg-accent data-[state=inactive]:text-muted-foreground data-[state=inactive]:bg-transparent flex-none whitespace-nowrap" 
                   value="exams"
+                  onClick={() => handleTabClick("exams")}
                 >
                   בדיקות
                 </TabsTrigger>
                 <TabsTrigger 
                   className="data-[state=active]:text-foreground data-[state=active]:bg-accent data-[state=inactive]:text-muted-foreground data-[state=inactive]:bg-transparent flex-none whitespace-nowrap" 
                   value="orders"
+                  onClick={() => handleTabClick("orders")}
                 >
                   הזמנות
                 </TabsTrigger>
                 <TabsTrigger 
                   className="data-[state=active]:text-foreground data-[state=active]:bg-accent data-[state=inactive]:text-muted-foreground data-[state=inactive]:bg-transparent flex-none whitespace-nowrap" 
                   value="referrals"
+                  onClick={() => handleTabClick("referrals")}
                 >
                   הפניות
                 </TabsTrigger>
                 <TabsTrigger 
                   className="data-[state=active]:text-foreground data-[state=active]:bg-accent data-[state=inactive]:text-muted-foreground data-[state=inactive]:bg-transparent flex-none whitespace-nowrap" 
                   value="appointments"
+                  onClick={() => handleTabClick("appointments")}
                 >
                   תורים
                 </TabsTrigger>
                 <TabsTrigger 
                   className="data-[state=active]:text-foreground data-[state=active]:bg-accent data-[state=inactive]:text-muted-foreground data-[state=inactive]:bg-transparent flex-none whitespace-nowrap" 
                   value="files"
+                  onClick={() => handleTabClick("files")}
                 >
                   מסמכים
                 </TabsTrigger>

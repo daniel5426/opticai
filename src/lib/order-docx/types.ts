@@ -98,6 +98,7 @@ export interface RegularOrderPrintModel {
   total_price: string;
   amount_paid: string;
   balance_due: string;
+  payment_status: string;
   clinic_notes: string;
   supplier_notes: string;
 }
@@ -154,6 +155,7 @@ export interface ContactOrderPrintModel {
   total_price: string;
   amount_paid: string;
   balance_due: string;
+  payment_status: string;
   clinic_notes: string;
   supplier_notes: string;
 }

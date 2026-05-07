@@ -399,6 +399,9 @@ export interface Order {
   comb_high?: number;
   comb_pd?: number;
   order_status?: string;
+  billing_id?: number;
+  billing_total_after_discount?: number;
+  billing_prepayment_amount?: number;
   order_data?: Record<string, unknown>;
 }
 
@@ -587,6 +590,9 @@ export interface ContactLensOrderEntity {
   rinsing_solution?: string;
   notes?: string;
   supplier_notes?: string;
+  billing_id?: number;
+  billing_total_after_discount?: number;
+  billing_prepayment_amount?: number;
 
 }
 
@@ -656,6 +662,7 @@ export interface ContactLensOrder {
 export interface Billing {
   id?: number;
   order_id?: number;
+  contact_lens_id?: number;
   total_before_discount?: number;
   discount_amount?: number;
   discount_percent?: number;

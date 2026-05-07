@@ -2,6 +2,7 @@ import { describe, expect, test } from "vitest";
 import {
   createParsedLayoutCache,
   findCollision,
+  findNearestAvailableGridX,
   FULL_DATA_NAME,
   clampResizeLeft,
   clampResizeWidth,
@@ -332,6 +333,18 @@ describe("parsed layout cache", () => {
       x: 6,
       w: 8,
     });
+  });
+
+  test("findNearestAvailableGridX finds the closest opening in the lane", () => {
+    const items = [
+      { id: "a", type: "objective", x: 0, y: 0, w: 6 },
+      { id: "b", type: "notes", x: 12, y: 0, w: 6 },
+    ] as any;
+
+    expect(findNearestAvailableGridX(0, 4, 4, items as any)).toBe(6);
+    expect(findNearestAvailableGridX(0, 10, 4, items as any)).toBe(8);
+    expect(findNearestAvailableGridX(0, 22, 4, items as any)).toBe(20);
+    expect(findNearestAvailableGridX(0, 4, 8, items as any)).toBeNull();
   });
 
   test("gridItemsToRowsForMetadata sorts by lane and column", () => {

@@ -51,8 +51,14 @@ export function ExamToolbox({
     return null
   }
 
+  const getCurrentRow = () => {
+    const row = allRows[currentRowIndex]
+    return Array.isArray(row) ? row : []
+  }
+
   const canCopyLeft = () => {
-    const currentRow = allRows[currentRowIndex]
+    const currentRow = getCurrentRow()
+    if (currentCardIndex <= 0 || currentRow.length === 0) return false
 
     // Get all available component types to the left of current card
     const cardsToTheLeft = currentRow.slice(0, currentCardIndex)
@@ -66,7 +72,8 @@ export function ExamToolbox({
   }
 
   const canCopyRight = () => {
-    const currentRow = allRows[currentRowIndex]
+    const currentRow = getCurrentRow()
+    if (currentCardIndex < 0 || currentRow.length === 0) return false
 
     // Get all available component types to the right of current card
     const cardsToTheRight = currentRow.slice(currentCardIndex + 1)
@@ -82,7 +89,10 @@ export function ExamToolbox({
   const canCopyBelow = () => {
     if (currentRowIndex >= allRows.length - 1) return false
 
-    const belowRow = allRows[currentRowIndex + 1]
+    const belowRow = allRows
+      .slice(currentRowIndex + 1)
+      .find((row) => Array.isArray(row) && row.length > 0)
+    if (!belowRow) return false
 
     // Get all available component types in the below row
     const availableComponentsInBelowRow = belowRow

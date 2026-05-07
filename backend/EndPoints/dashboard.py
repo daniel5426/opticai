@@ -96,7 +96,6 @@ def get_home_dashboard(
             Settings.break_end_time,
         )
         .filter(Settings.clinic_id == clinic_id)
-        .order_by(Settings.id.desc())
         .first()
     )
     settings = None
@@ -144,4 +143,3 @@ def get_home_dashboard(
         "settings": settings,
         "users": users,
     }
-

@@ -58,4 +58,23 @@ describe("ExamFieldMapper", () => {
       comb_j: "",
     });
   });
+
+  test("copies addition combined J value", () => {
+    const copied = ExamFieldMapper.copyData(
+      {
+        r_j: "J1",
+        l_j: "J2",
+        comb_j: "J1+",
+      },
+      {},
+      "addition",
+      "addition",
+    );
+
+    expect(copied).toMatchObject({
+      r_j: "J1",
+      l_j: "J2",
+      comb_j: "J1+",
+    });
+  });
 });

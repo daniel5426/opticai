@@ -15,10 +15,11 @@ export function formatCurrency(value?: number | string | null): string {
   if (value === undefined || value === null || value === "") return "";
   const num = typeof value === "number" ? value : Number(value);
   if (!Number.isFinite(num)) return "";
-  return `${num.toLocaleString("he-IL", {
+  const amount = num.toLocaleString("en-US", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
-  })} ש"ח`;
+  });
+  return `${isolateLtrText(amount)} ש"ח`;
 }
 
 export function formatOpticalNumber(value?: number | string | null): string {
