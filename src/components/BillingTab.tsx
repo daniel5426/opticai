@@ -176,14 +176,13 @@ export function BillingTab({
           <div className="overflow-x-auto border-x border-t  rounded-md">
             <table className="w-full table-fixed rounded-md">
               <colgroup>
-                <col style={{ width: '26%' }} />
+                <col style={{ width: '32%' }} />
                 <col style={{ width: '10%' }} />
                 <col style={{ width: '10%' }} />
                 <col style={{ width: '8%' }} />
                 <col style={{ width: '10%' }} />
-                <col style={{ width: '12%' }} />
                 <col style={{ width: '8%' }} />
-                <col style={{ width: '16%' }} />
+                <col style={{ width: '22%' }} />
               </colgroup>
               <thead>
                 <tr className="border-b">
@@ -192,7 +191,6 @@ export function BillingTab({
                   <th className="text-right p-2 text-sm font-medium">מחיר</th>
                   <th className="text-right p-2 text-sm font-medium">כמות</th>
                   <th className="text-right p-2 text-sm font-medium">הנחה</th>
-                  <th className="text-right p-2 text-sm font-medium">סיפק ע"י</th>
                   <th className="text-right p-2 text-sm font-medium">סופק</th>
                   <th className="text-right p-2 text-sm font-medium">סה"כ</th>
                 </tr>
@@ -258,24 +256,6 @@ export function BillingTab({
                         />
                       ) : (
                         <span className="block w-full text-sm truncate">{item.discount}</span>
-                      )}
-                    </td>
-                    <td className="p-2">
-                      {isEditing ? (
-                        <Select
-                          value={item.supplied_by || ''}
-                          onValueChange={(value) => handleLineItemChange(item.id!, 'supplied_by', value)}
-                        >
-                          <SelectTrigger className="h-8 text-xs w-full">
-                            <SelectValue placeholder="בחר" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="חנות" className="text-sm">חנות</SelectItem>
-                            <SelectItem value="לקוח" className="text-sm">לקוח</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      ) : (
-                        <span className="block w-full text-sm truncate">{item.supplied_by}</span>
                       )}
                     </td>
                     <td className="p-2">
@@ -411,7 +391,7 @@ export function BillingTab({
                 </div>
               </div>
               <div>
-                <Label className="text-sm">יתרה</Label>
+                <Label className="text-sm">יתרה לתשלום</Label>
                 <div className="mt-1.5 flex h-10 items-center rounded-md border bg-muted/30 px-3 text-sm">
                   {formatBillingAmount(balanceDue)}
                 </div>
