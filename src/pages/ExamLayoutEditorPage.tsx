@@ -45,6 +45,7 @@ import {
   clampResizeWidth,
   clampResizeLeft,
   computeCardGridCols,
+  computeCardMinGridCols,
   findNearestAvailableGridX,
   normalizeGridItem,
   parseLayoutData,
@@ -343,7 +344,7 @@ export default function ExamLayoutEditorPage() {
         return;
       }
 
-      const width = computeCardGridCols(componentType);
+      const width = computeCardMinGridCols(componentType);
       const preferredX = Math.max(
         0,
         Math.min(EXAM_LAYOUT_GRID_COLUMNS - width, x),
@@ -403,7 +404,9 @@ export default function ExamLayoutEditorPage() {
     }
     if ((event.target as HTMLElement).closest("[data-grid-card]")) return;
     const x = getColumnFromPointer(lane, event.clientX);
-    const selectedWidth = selectedType ? computeCardGridCols(selectedType) : 1;
+    const selectedWidth = selectedType
+      ? computeCardMinGridCols(selectedType)
+      : 1;
     const clampedX =
       selectedType === null
         ? Math.max(0, Math.min(EXAM_LAYOUT_GRID_COLUMNS - 1, x))
