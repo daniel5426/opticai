@@ -1,12 +1,19 @@
-name: Backend Railway Deploy
+name: Web Railway Deploy
 
 on:
   push:
     branches:
       - main
     paths:
-      - "backend/**"
-      - ".github/workflows/backend-railway.yml"
+      - "src/**"
+      - "public/**"
+      - "index.html"
+      - "package.json"
+      - "package-lock.json"
+      - "vite.renderer.config.mts"
+      - "railway.json"
+      - "scripts/serve-web.mjs"
+      - ".github/workflows/web-railway.yml"
   workflow_dispatch:
     inputs:
       environment:
@@ -28,25 +35,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          python-version: "3.12.8"
+          node-version: "20"
 
-      - name: Install backend dependencies
-        working-directory: backend
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install -r requirements.txt pytest
+      - name: Install dependencies
+        run: npm ci
 
-      - name: Run backend release-gate tests
-        env:
-          PYTHONPATH: ${{ github.workspace }}:${{ github.workspace }}/backend
-        run: >
-          python -m pytest
-          backend/tests/test_production_hardening.py
-          backend/tests/test_files_api.py
-          backend/tests/test_default_exam_layout_seeds.py
+      - name: Build web
+        run: npm run build:web
 
   deploy-staging:
     if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.environment == 'staging')
@@ -60,7 +58,7 @@ jobs:
       - name: Install Railway CLI
         run: npm install -g @railway/cli
 
-      - name: Deploy backend to Railway staging
+      - name: Deploy web to Railway staging
         env:
           RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_TOKEN_STAGING }}
         run: |
@@ -68,8 +66,8 @@ jobs:
             --ci \
             --project fb97ce50-fb72-4612-bfd1-c6d8a7bed9cb \
             --environment staging \
-            --service opticai \
-            --message "Staging backend deploy $GITHUB_SHA"
+            --service prysm-web-staging \
+            --message "Staging web deploy $GITHUB_SHA"
 
   deploy-production:
     if: github.event_name == 'workflow_dispatch' && inputs.environment == 'production'
@@ -83,7 +81,7 @@ jobs:
       - name: Install Railway CLI
         run: npm install -g @railway/cli
 
-      - name: Deploy backend to Railway production
+      - name: Deploy web to Railway production
         env:
           RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_TOKEN_PRODUCTION }}
         run: |
@@ -91,5 +89,5 @@ jobs:
             --ci \
             --project fb97ce50-fb72-4612-bfd1-c6d8a7bed9cb \
             --environment production \
-            --service opticai \
-            --message "Production backend deploy $GITHUB_SHA"
+            --service prysm-web \
+            --message "Production web deploy $GITHUB_SHA"

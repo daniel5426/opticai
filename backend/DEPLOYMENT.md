@@ -1,16 +1,19 @@
 # Backend Deployment Guide (Railway)
 
-Last Updated: 2026-05-02
+Last Updated: 2026-05-11
 
 ## Runtime
 
 - Railway project: `opticai`
-- Service: `opticai`
+- Backend service: `opticai`
+- Production web service: `prysm-web`
+- Staging web service: `prysm-web-staging`
 - Environments:
   - `staging` -> Supabase `opticai`
   - `production` -> Supabase `opticai-prod`
 - Production API: `https://api.prysm.co.il`
 - Staging API: `https://staging-api.prysm.co.il`
+- Staging web: `https://prysm-web-staging-staging.up.railway.app`
 
 Railway builds only `backend/`. Config-as-code lives in `backend/railway.json`.
 
@@ -40,7 +43,9 @@ Google, WhatsApp, and Facebook variables are optional unless the release touches
 ## Deploy Flow
 
 - Pushes to `main` deploy backend changes to Railway `staging` through GitHub Actions.
-- Production deploys are manual from the `Backend Railway Deploy` workflow.
+- Pushes to `main` deploy web changes to Railway `staging` through GitHub Actions.
+- Production deploys are manual from the `Backend Railway Deploy` and `Web Railway Deploy` workflows.
+- Railway production services must not autodeploy from `main`; they are pinned to the non-working trigger branch `manual-production-only` so production only changes through explicit workflow dispatch.
 - Keep Heroku live until Railway production and a new desktop build are verified.
 
 Manual CLI deploys, when needed:
@@ -48,6 +53,8 @@ Manual CLI deploys, when needed:
 ```bash
 railway up --ci --project fb97ce50-fb72-4612-bfd1-c6d8a7bed9cb --environment staging --service opticai --message "Manual staging deploy"
 railway up --ci --project fb97ce50-fb72-4612-bfd1-c6d8a7bed9cb --environment production --service opticai --message "Manual production deploy"
+railway up --ci --project fb97ce50-fb72-4612-bfd1-c6d8a7bed9cb --environment staging --service prysm-web-staging --message "Manual staging web deploy"
+railway up --ci --project fb97ce50-fb72-4612-bfd1-c6d8a7bed9cb --environment production --service prysm-web --message "Manual production web deploy"
 ```
 
 ## DNS
