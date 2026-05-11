@@ -256,13 +256,20 @@ const CARD_MIN_GRID_COL_OVERRIDES: Partial<Record<CardItem["type"], number>> = {
   "diopter-adjustment-panel": 8,
 };
 
+const CARD_MIN_GRID_COL_SCALE = 0.75;
+
+const scaleMinGridCols = (cols: number) =>
+  Math.max(1, Math.ceil(cols * CARD_MIN_GRID_COL_SCALE));
+
 export const computeCardMinGridCols = (
   type: CardItem["type"],
   columns = EXAM_LAYOUT_GRID_COLUMNS,
 ) => {
-  const baseWidth = computeCardGridCols(type, columns);
+  const baseWidth = scaleMinGridCols(computeCardGridCols(type, columns));
   const overrideWidth = CARD_MIN_GRID_COL_OVERRIDES[type];
-  return overrideWidth ? Math.max(baseWidth, overrideWidth) : baseWidth;
+  return overrideWidth
+    ? Math.max(baseWidth, scaleMinGridCols(overrideWidth))
+    : baseWidth;
 };
 
 const normalizeGridNumber = (value: unknown, fallback: number) => {
@@ -273,13 +280,18 @@ const normalizeGridNumber = (value: unknown, fallback: number) => {
 export const normalizeGridItem = (
   item: GridLayoutItem,
   columns = EXAM_LAYOUT_GRID_COLUMNS,
+  options: { enforceMinWidth?: boolean } = {},
 ): GridLayoutItem => {
+  const { enforceMinWidth = true } = options;
   const fallbackWidth = computeCardGridCols(item.type, columns);
   const minWidth = computeCardMinGridCols(item.type, columns);
-  const w = Math.max(
-    minWidth,
-    Math.min(columns, normalizeGridNumber(item.w, fallbackWidth)),
+  const rawWidth = Math.min(
+    columns,
+    normalizeGridNumber(item.w, fallbackWidth),
   );
+  const w = enforceMinWidth
+    ? Math.max(minWidth, rawWidth)
+    : Math.max(1, rawWidth);
   const x = Math.max(0, Math.min(columns - w, normalizeGridNumber(item.x, 0)));
   const y = Math.max(0, normalizeGridNumber(item.y, 0));
   return {
@@ -348,6 +360,7 @@ export const legacyRowsToGridItems = (
             w,
           },
           columns,
+          { enforceMinWidth: false },
         ),
       );
 
@@ -438,6 +451,41 @@ export const findNearestAvailableGridX = (
   }
 
   return bestX;
+};
+
+export const findNearestAvailableGridPlacement = (
+  lane: number,
+  requestedX: number,
+  preferredWidth: number,
+  minWidth: number,
+  items: GridLayoutItem[],
+  columns = EXAM_LAYOUT_GRID_COLUMNS,
+) => {
+  const clampedPreferredWidth = Math.max(
+    1,
+    Math.min(columns, Math.round(preferredWidth)),
+  );
+  const clampedMinWidth = Math.max(
+    1,
+    Math.min(clampedPreferredWidth, Math.round(minWidth)),
+  );
+
+  for (
+    let width = clampedPreferredWidth;
+    width >= clampedMinWidth;
+    width -= 1
+  ) {
+    const x = findNearestAvailableGridX(
+      lane,
+      requestedX,
+      width,
+      items,
+      columns,
+    );
+    if (x !== null) return { x, w: width };
+  }
+
+  return null;
 };
 
 export const clampResizeWidth = (
@@ -603,7 +651,7 @@ export const parseLayoutData = (layoutData?: string): ParsedLayoutData => {
       const columns = Number(parsed.grid?.columns) || EXAM_LAYOUT_GRID_COLUMNS;
       const items = sortGridItems(
         parsed.items.map((item: GridLayoutItem) =>
-          normalizeGridItem(item, columns),
+          normalizeGridItem(item, columns, { enforceMinWidth: false }),
         ),
       );
       return {

@@ -46,7 +46,7 @@ import {
   clampResizeLeft,
   computeCardGridCols,
   computeCardMinGridCols,
-  findNearestAvailableGridX,
+  findNearestAvailableGridPlacement,
   normalizeGridItem,
   parseLayoutData,
   serializeGridLayoutData,
@@ -344,18 +344,23 @@ export default function ExamLayoutEditorPage() {
         return;
       }
 
-      const width = computeCardMinGridCols(componentType);
+      const minWidth = computeCardMinGridCols(componentType);
+      const preferredWidth = Math.max(
+        minWidth,
+        computeCardGridCols(componentType),
+      );
       const preferredX = Math.max(
         0,
-        Math.min(EXAM_LAYOUT_GRID_COLUMNS - width, x),
+        Math.min(EXAM_LAYOUT_GRID_COLUMNS - minWidth, x),
       );
-      const resolvedX = findNearestAvailableGridX(
+      const placement = findNearestAvailableGridPlacement(
         lane,
         preferredX,
-        width,
+        preferredWidth,
+        minWidth,
         itemsRef.current,
       );
-      if (resolvedX === null) {
+      if (placement === null) {
         toast.error("אין מספיק מקום פנוי בשורה עבור הרכיב הזה.");
         return;
       }
@@ -363,10 +368,10 @@ export default function ExamLayoutEditorPage() {
       const item = normalizeGridItem({
         id,
         type: componentType,
-        x: resolvedX,
+        x: placement.x,
         y: lane,
-        w: width,
-        showEyeLabels: resolvedX === 0,
+        w: placement.w,
+        showEyeLabels: placement.x === 0,
       });
 
       const next = sortGridItems([...itemsRef.current, item]);

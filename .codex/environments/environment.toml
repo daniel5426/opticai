@@ -43,3 +43,11 @@ command = '''
 cd /Users/danielbenassaya/Code/personal/opticai && \
 gh workflow run staging-electron.yml --ref main
 '''
+
+[[actions]]
+name = "duplicate account to stag"
+icon = "tool"
+command = '''
+cd /Users/danielbenassaya/Code/personal/opticai
+PYTHONPATH=backend backend/.venv/bin/python backend/scripts/duplicate_account_to_staging.py meravgertner71@gmail.com
+'''

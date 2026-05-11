@@ -3,6 +3,7 @@ import {
   createParsedLayoutCache,
   findCollision,
   findNearestAvailableGridX,
+  findNearestAvailableGridPlacement,
   FULL_DATA_NAME,
   clampResizeLeft,
   clampResizeWidth,
@@ -13,6 +14,7 @@ import {
   isPersistableLayoutTab,
   parseLayoutData,
   resolveFullDataSourceInstanceId,
+  serializeGridLayoutData,
 } from "@/pages/exam-detail/utils";
 import {
   ensureLayoutDataForRows,
@@ -306,6 +308,24 @@ describe("parsed layout cache", () => {
     ]);
   });
 
+  test("legacy undersized layout widths are preserved until save", () => {
+    const layoutRows: CardRow[] = [
+      {
+        id: "row-a",
+        cards: [{ id: "objective-1", type: "objective" }],
+      },
+    ];
+
+    const items = legacyRowsToGridItems(layoutRows, {
+      "row-a": { "objective-1": 8 },
+    });
+
+    expect(items[0]).toMatchObject({ id: "objective-1", w: 2 });
+
+    const savedLayout = JSON.parse(serializeGridLayoutData(items));
+    expect(savedLayout.items[0].w).toBeGreaterThan(items[0].w);
+  });
+
   test("grid collision and resize helpers enforce no overlap", () => {
     const items = [
       { id: "a", type: "objective", x: 0, y: 0, w: 6 },
@@ -330,8 +350,8 @@ describe("parsed layout cache", () => {
       w: 8,
     });
     expect(clampResizeLeft(items[1], items as any, 7)).toEqual({
-      x: 6,
-      w: 8,
+      x: 7,
+      w: 7,
     });
   });
 
@@ -345,6 +365,23 @@ describe("parsed layout cache", () => {
     expect(findNearestAvailableGridX(0, 10, 4, items as any)).toBe(8);
     expect(findNearestAvailableGridX(0, 22, 4, items as any)).toBe(20);
     expect(findNearestAvailableGridX(0, 4, 8, items as any)).toBeNull();
+  });
+
+  test("findNearestAvailableGridPlacement prefers default width before shrinking", () => {
+    const items = [
+      { id: "a", type: "objective", x: 0, y: 0, w: 6 },
+      { id: "b", type: "notes", x: 15, y: 0, w: 9 },
+    ] as any;
+
+    expect(findNearestAvailableGridPlacement(0, 6, 8, 4, items as any)).toEqual(
+      { x: 6, w: 8 },
+    );
+    expect(
+      findNearestAvailableGridPlacement(0, 8, 12, 4, items as any),
+    ).toEqual({ x: 6, w: 9 });
+    expect(
+      findNearestAvailableGridPlacement(0, 8, 12, 10, items as any),
+    ).toBeNull();
   });
 
   test("gridItemsToRowsForMetadata sorts by lane and column", () => {

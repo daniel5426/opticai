@@ -338,7 +338,7 @@ export function BillingTab({
 	                    step="0.01"
 	                    value={billingFormData.total_before_discount || ''}
 	                    onChange={handleBillingInputChange}
-	                    disabled={!isEditing}
+	                    disabled
 	                    placeholder="0.00"
 	                  />
 	                </div>
@@ -379,7 +379,7 @@ export function BillingTab({
 	                    step="0.01"
 	                    value={billingFormData.total_after_discount || ''}
 	                    onChange={handleBillingInputChange}
-	                    disabled={!isEditing}
+	                    disabled
 	                    placeholder="0.00"
 	                  />
 	                </div>
