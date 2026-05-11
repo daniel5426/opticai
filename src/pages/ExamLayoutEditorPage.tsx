@@ -47,6 +47,7 @@ import {
   computeCardGridCols,
   computeCardMinGridCols,
   findNearestAvailableGridPlacement,
+  getExamLayoutSizeScale,
   normalizeGridItem,
   parseLayoutData,
   serializeGridLayoutData,
@@ -204,10 +205,21 @@ export default function ExamLayoutEditorPage() {
   const dragPointerRef = useRef<{ x: number; y: number } | null>(null);
   const autoScrollFrameRef = useRef<number | null>(null);
   const scrollContainerRef = useRef<HTMLElement | Window | null>(null);
+  const [layoutSizeScale, setLayoutSizeScale] = useState(1);
 
   useEffect(() => {
     itemsRef.current = items;
   }, [items]);
+
+  useEffect(() => {
+    const updateScale = () => {
+      setLayoutSizeScale(getExamLayoutSizeScale(window.innerWidth));
+    };
+
+    updateScale();
+    window.addEventListener("resize", updateScale);
+    return () => window.removeEventListener("resize", updateScale);
+  }, []);
 
   useEffect(() => {
     if (isNewMode) {
@@ -344,10 +356,18 @@ export default function ExamLayoutEditorPage() {
         return;
       }
 
-      const minWidth = computeCardMinGridCols(componentType);
+      const minWidth = computeCardMinGridCols(
+        componentType,
+        EXAM_LAYOUT_GRID_COLUMNS,
+        layoutSizeScale,
+      );
       const preferredWidth = Math.max(
         minWidth,
-        computeCardGridCols(componentType),
+        computeCardGridCols(
+          componentType,
+          EXAM_LAYOUT_GRID_COLUMNS,
+          layoutSizeScale,
+        ),
       );
       const preferredX = Math.max(
         0,
@@ -365,14 +385,18 @@ export default function ExamLayoutEditorPage() {
         return;
       }
       const id = `${componentType}-${Date.now()}`;
-      const item = normalizeGridItem({
-        id,
-        type: componentType,
-        x: placement.x,
-        y: lane,
-        w: placement.w,
-        showEyeLabels: placement.x === 0,
-      });
+      const item = normalizeGridItem(
+        {
+          id,
+          type: componentType,
+          x: placement.x,
+          y: lane,
+          w: placement.w,
+          showEyeLabels: placement.x === 0,
+        },
+        EXAM_LAYOUT_GRID_COLUMNS,
+        { sizeScale: layoutSizeScale },
+      );
 
       const next = sortGridItems([...itemsRef.current, item]);
       itemsRef.current = next;
@@ -381,7 +405,7 @@ export default function ExamLayoutEditorPage() {
       setPendingPlacement(null);
       setDrawerOpen(false);
     },
-    [getComponentLabel, handleDuplicateComponent],
+    [getComponentLabel, handleDuplicateComponent, layoutSizeScale],
   );
 
   const handleSelectComponent = (componentType: CardItem["type"]) => {
@@ -410,7 +434,11 @@ export default function ExamLayoutEditorPage() {
     if ((event.target as HTMLElement).closest("[data-grid-card]")) return;
     const x = getColumnFromPointer(lane, event.clientX);
     const selectedWidth = selectedType
-      ? computeCardMinGridCols(selectedType)
+      ? computeCardMinGridCols(
+          selectedType,
+          EXAM_LAYOUT_GRID_COLUMNS,
+          layoutSizeScale,
+        )
       : 1;
     const clampedX =
       selectedType === null
@@ -451,17 +479,22 @@ export default function ExamLayoutEditorPage() {
           getColumnFromPointer(lane, clientX, interaction.offsetCols),
         ),
       );
-      const candidate = normalizeGridItem({ ...original, x, y: lane });
+      const candidate = normalizeGridItem(
+        { ...original, x, y: lane },
+        EXAM_LAYOUT_GRID_COLUMNS,
+        { sizeScale: layoutSizeScale },
+      );
       const valid = canPlaceGridItem(
         candidate,
         itemsRef.current,
         EXAM_LAYOUT_GRID_COLUMNS,
         original.id,
+        layoutSizeScale,
       );
       setInvalidItemId(valid ? null : original.id);
       updateItem(original.id, () => candidate);
     },
-    [getColumnFromPointer, getLaneFromPointer],
+    [getColumnFromPointer, getLaneFromPointer, layoutSizeScale],
   );
 
   const finishInteraction = useCallback(() => {
@@ -479,20 +512,29 @@ export default function ExamLayoutEditorPage() {
               interaction.originalItem,
               itemsRef.current,
               Math.round(current.x),
+              EXAM_LAYOUT_GRID_COLUMNS,
+              layoutSizeScale,
             ),
           }
-        : normalizeGridItem(current);
+        : normalizeGridItem(current, EXAM_LAYOUT_GRID_COLUMNS, {
+            sizeScale: layoutSizeScale,
+          });
 
     const valid = canPlaceGridItem(
       finalItem,
       itemsRef.current,
       EXAM_LAYOUT_GRID_COLUMNS,
       finalItem.id,
+      layoutSizeScale,
     );
     if (!valid) {
       updateItem(interaction.id, () => interaction.originalItem);
     } else {
-      updateItem(interaction.id, () => normalizeGridItem(finalItem));
+      updateItem(interaction.id, () =>
+        normalizeGridItem(finalItem, EXAM_LAYOUT_GRID_COLUMNS, {
+          sizeScale: layoutSizeScale,
+        }),
+      );
     }
 
     interactionRef.current = null;
@@ -509,7 +551,7 @@ export default function ExamLayoutEditorPage() {
     setInvalidItemId(null);
     document.body.style.userSelect = "";
     document.body.style.cursor = "";
-  }, []);
+  }, [layoutSizeScale]);
 
   const getScrollContainer = useCallback((element: HTMLElement | null) => {
     let current = element?.parentElement ?? null;
@@ -602,6 +644,8 @@ export default function ExamLayoutEditorPage() {
           interaction.originalItem,
           itemsRef.current,
           interaction.originalItem.x + deltaCols,
+          EXAM_LAYOUT_GRID_COLUMNS,
+          layoutSizeScale,
         );
         updateItem(interaction.id, (item) => ({
           ...item,
@@ -616,6 +660,8 @@ export default function ExamLayoutEditorPage() {
         interaction.originalItem,
         itemsRef.current,
         requestedWidth,
+        EXAM_LAYOUT_GRID_COLUMNS,
+        layoutSizeScale,
       );
       updateItem(interaction.id, (item) => ({
         ...item,
@@ -635,7 +681,12 @@ export default function ExamLayoutEditorPage() {
       window.removeEventListener("pointermove", handlePointerMove);
       window.removeEventListener("pointerup", handlePointerUp);
     };
-  }, [finishInteraction, startAutoScrollLoop, updateDragPosition]);
+  }, [
+    finishInteraction,
+    layoutSizeScale,
+    startAutoScrollLoop,
+    updateDragPosition,
+  ]);
 
   const handleDragStart = (event: React.PointerEvent, item: GridLayoutItem) => {
     if (event.button !== 0) return;
@@ -766,7 +817,9 @@ export default function ExamLayoutEditorPage() {
       const layoutData = {
         ...(targetClinicId !== null ? { clinic_id: targetClinicId } : {}),
         name: layoutName,
-        layout_data: serializeGridLayoutData(items),
+        layout_data: serializeGridLayoutData(items, EXAM_LAYOUT_GRID_COLUMNS, {
+          sizeScale: layoutSizeScale,
+        }),
         is_default: isDefault,
         type: layoutType,
       };

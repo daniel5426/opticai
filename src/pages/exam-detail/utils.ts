@@ -5,7 +5,13 @@ import type { CardRow } from "./types";
 
 export const EXAM_LAYOUT_VERSION = 2;
 export const EXAM_LAYOUT_GRID_COLUMNS = 24;
+export const EXAM_LAYOUT_REFERENCE_WIDTH_PX = 1280;
 export const LEGACY_LAYOUT_COLUMNS = 16;
+
+export const getExamLayoutSizeScale = (width: number) =>
+  width > EXAM_LAYOUT_REFERENCE_WIDTH_PX
+    ? EXAM_LAYOUT_REFERENCE_WIDTH_PX / width
+    : 1;
 
 export interface GridLayoutItem extends CardItem {
   x: number;
@@ -234,13 +240,14 @@ export const computeCardCols = (type: CardItem["type"]): number => {
 export const computeCardGridCols = (
   type: CardItem["type"],
   columns = EXAM_LAYOUT_GRID_COLUMNS,
+  sizeScale = 1,
 ) => {
   const legacyCols = computeCardCols(type);
   return Math.max(
     1,
     Math.min(
       columns,
-      Math.round((legacyCols / LEGACY_LAYOUT_COLUMNS) * columns),
+      Math.round((legacyCols / LEGACY_LAYOUT_COLUMNS) * columns * sizeScale),
     ),
   );
 };
@@ -256,19 +263,15 @@ const CARD_MIN_GRID_COL_OVERRIDES: Partial<Record<CardItem["type"], number>> = {
   "diopter-adjustment-panel": 8,
 };
 
-const CARD_MIN_GRID_COL_SCALE = 0.75;
-
-const scaleMinGridCols = (cols: number) =>
-  Math.max(1, Math.ceil(cols * CARD_MIN_GRID_COL_SCALE));
-
 export const computeCardMinGridCols = (
   type: CardItem["type"],
   columns = EXAM_LAYOUT_GRID_COLUMNS,
+  sizeScale = 1,
 ) => {
-  const baseWidth = scaleMinGridCols(computeCardGridCols(type, columns));
+  const baseWidth = computeCardGridCols(type, columns, sizeScale);
   const overrideWidth = CARD_MIN_GRID_COL_OVERRIDES[type];
   return overrideWidth
-    ? Math.max(baseWidth, scaleMinGridCols(overrideWidth))
+    ? Math.max(baseWidth, Math.ceil(overrideWidth * sizeScale))
     : baseWidth;
 };
 
@@ -277,14 +280,19 @@ const normalizeGridNumber = (value: unknown, fallback: number) => {
   return Number.isFinite(numberValue) ? Math.round(numberValue) : fallback;
 };
 
+type GridItemNormalizeOptions = {
+  enforceMinWidth?: boolean;
+  sizeScale?: number;
+};
+
 export const normalizeGridItem = (
   item: GridLayoutItem,
   columns = EXAM_LAYOUT_GRID_COLUMNS,
-  options: { enforceMinWidth?: boolean } = {},
+  options: GridItemNormalizeOptions = {},
 ): GridLayoutItem => {
-  const { enforceMinWidth = true } = options;
-  const fallbackWidth = computeCardGridCols(item.type, columns);
-  const minWidth = computeCardMinGridCols(item.type, columns);
+  const { enforceMinWidth = true, sizeScale = 1 } = options;
+  const fallbackWidth = computeCardGridCols(item.type, columns, sizeScale);
+  const minWidth = computeCardMinGridCols(item.type, columns, sizeScale);
   const rawWidth = Math.min(
     columns,
     normalizeGridNumber(item.w, fallbackWidth),
@@ -382,16 +390,20 @@ export const packCardsIntoGridItems = (
 export const createGridLayoutData = (
   items: GridLayoutItem[],
   columns = EXAM_LAYOUT_GRID_COLUMNS,
+  options: GridItemNormalizeOptions = {},
 ): GridLayoutData => ({
   version: EXAM_LAYOUT_VERSION,
   grid: { columns },
-  items: sortGridItems(items.map((item) => normalizeGridItem(item, columns))),
+  items: sortGridItems(
+    items.map((item) => normalizeGridItem(item, columns, options)),
+  ),
 });
 
 export const serializeGridLayoutData = (
   items: GridLayoutItem[],
   columns = EXAM_LAYOUT_GRID_COLUMNS,
-) => JSON.stringify(createGridLayoutData(items, columns));
+  options: GridItemNormalizeOptions = {},
+) => JSON.stringify(createGridLayoutData(items, columns, options));
 
 export const findCollision = (
   candidate: GridLayoutItem,
@@ -411,8 +423,9 @@ export const canPlaceGridItem = (
   items: GridLayoutItem[],
   columns = EXAM_LAYOUT_GRID_COLUMNS,
   excludeId?: string,
+  sizeScale = 1,
 ) => {
-  const normalized = normalizeGridItem(candidate, columns);
+  const normalized = normalizeGridItem(candidate, columns, { sizeScale });
   if (normalized.x < 0 || normalized.x + normalized.w > columns) return false;
   return !findCollision(normalized, items, excludeId);
 };
@@ -493,6 +506,7 @@ export const clampResizeWidth = (
   items: GridLayoutItem[],
   requestedWidth: number,
   columns = EXAM_LAYOUT_GRID_COLUMNS,
+  sizeScale = 1,
 ) => {
   const nextBlockingItem = items
     .filter(
@@ -504,7 +518,7 @@ export const clampResizeWidth = (
     ? nextBlockingItem.x - item.x
     : columns - item.x;
   const minWidth = Math.min(
-    computeCardMinGridCols(item.type, columns),
+    computeCardMinGridCols(item.type, columns, sizeScale),
     maxByNeighbor,
   );
   return Math.max(minWidth, Math.min(requestedWidth, maxByNeighbor));
@@ -515,6 +529,7 @@ export const clampResizeLeft = (
   items: GridLayoutItem[],
   requestedX: number,
   columns = EXAM_LAYOUT_GRID_COLUMNS,
+  sizeScale = 1,
 ) => {
   const rightEdge = item.x + item.w;
   const previousBlockingItem = items
@@ -529,7 +544,8 @@ export const clampResizeLeft = (
     ? previousBlockingItem.x + previousBlockingItem.w
     : 0;
   const maxX =
-    Math.min(columns, rightEdge) - computeCardMinGridCols(item.type, columns);
+    Math.min(columns, rightEdge) -
+    computeCardMinGridCols(item.type, columns, sizeScale);
   const x = Math.max(minX, Math.min(requestedX, maxX));
   return {
     x,
@@ -657,7 +673,7 @@ export const parseLayoutData = (layoutData?: string): ParsedLayoutData => {
       return {
         rows: gridItemsToRowsForMetadata(items),
         customWidths: {},
-        grid: createGridLayoutData(items, columns),
+        grid: createGridLayoutData(items, columns, { enforceMinWidth: false }),
         items,
         isLegacy: false,
       };

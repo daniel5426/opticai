@@ -1,9 +1,12 @@
 import { describe, expect, test } from "vitest";
 import {
+  computeCardGridCols,
+  computeCardMinGridCols,
   createParsedLayoutCache,
   findCollision,
   findNearestAvailableGridX,
   findNearestAvailableGridPlacement,
+  getExamLayoutSizeScale,
   FULL_DATA_NAME,
   clampResizeLeft,
   clampResizeWidth,
@@ -350,8 +353,8 @@ describe("parsed layout cache", () => {
       w: 8,
     });
     expect(clampResizeLeft(items[1], items as any, 7)).toEqual({
-      x: 7,
-      w: 7,
+      x: 6,
+      w: 8,
     });
   });
 
@@ -382,6 +385,33 @@ describe("parsed layout cache", () => {
     expect(
       findNearestAvailableGridPlacement(0, 8, 12, 10, items as any),
     ).toBeNull();
+  });
+
+  test("card default and minimum columns scale down on wider screens", () => {
+    const scale = getExamLayoutSizeScale(1920);
+
+    expect(scale).toBeCloseTo(2 / 3);
+    expect(computeCardGridCols("subjective", 24, scale)).toBeLessThan(
+      computeCardGridCols("subjective"),
+    );
+    expect(computeCardMinGridCols("keratometer", 24, scale)).toBeLessThan(
+      computeCardMinGridCols("keratometer"),
+    );
+  });
+
+  test("serializeGridLayoutData preserves widths below unscaled default when saving with screen scale", () => {
+    const scale = getExamLayoutSizeScale(1920);
+    const width = computeCardMinGridCols("subjective", 24, scale);
+    const savedLayout = JSON.parse(
+      serializeGridLayoutData(
+        [{ id: "subjective-1", type: "subjective", x: 0, y: 0, w: width }],
+        24,
+        { sizeScale: scale },
+      ),
+    );
+
+    expect(width).toBeLessThan(computeCardGridCols("subjective"));
+    expect(savedLayout.items[0].w).toBe(width);
   });
 
   test("gridItemsToRowsForMetadata sorts by lane and column", () => {
