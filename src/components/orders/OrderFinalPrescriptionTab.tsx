@@ -75,6 +75,15 @@ export function OrderFinalPrescriptionTab({
     { key: "ad", ...EXAM_FIELDS.ADD },
     { key: "pd_far", ...EXAM_FIELDS.PD_FAR },
     { key: "pd_close", ...EXAM_FIELDS.PD_NEAR },
+    {
+      key: "high",
+      label: "גובה",
+      step: "0.5",
+      min: 0,
+      max: 50,
+      suffix: "mm",
+      showPlus: false,
+    },
   ];
 
   const getFieldValue = (eye: "R" | "L" | "C", field: string) => {
@@ -286,7 +295,7 @@ export function OrderFinalPrescriptionTab({
           </div>
 
           <div
-            className={`grid ${hideEyeLabels ? "grid-cols-[repeat(8,1fr)]" : "grid-cols-[20px_repeat(8,1fr)]"} items-center gap-2`}
+            className={`grid ${hideEyeLabels ? "grid-cols-[repeat(9,1fr)]" : "grid-cols-[20px_repeat(9,1fr)]"} items-center gap-2`}
           >
             {!hideEyeLabels && <div></div>}
             {columns.map(({ key, label }) => (
