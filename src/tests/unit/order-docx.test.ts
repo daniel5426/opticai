@@ -39,6 +39,7 @@ const regularTemplateKeys = [
   "l_ax",
   "l_base",
   "l_cyl",
+  "l_high",
   "l_lens_coating",
   "l_lens_color",
   "l_lens_diameter",
@@ -65,6 +66,7 @@ const regularTemplateKeys = [
   "r_ax",
   "r_base",
   "r_cyl",
+  "r_high",
   "r_lens_coating",
   "r_lens_color",
   "r_lens_diameter",
@@ -385,6 +387,7 @@ describe("order-docx print models", () => {
     expect(html).not.toContain("background: #fafafa");
     expect(html).not.toContain("background: #18181b");
     expect(html).toContain("<tr><th class=\"section-cell\">עין</th>");
+    expect(html).toContain("<th class=\"label center\">גובה</th>");
     expect(html).toContain("<th class=\"label\">מס&#39; הזמנה</th>");
   });
 

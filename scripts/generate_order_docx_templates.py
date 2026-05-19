@@ -476,9 +476,9 @@ def build_regular_xml() -> str:
         section_title("מרשם"),
         eye_table(
             "עין",
-            ["SPH", "CYL", "AX", "PRISM", "BASE", "ADD", "PD"],
-            ["r_sph", "r_cyl", "r_ax", "r_pris", "r_base", "r_add", "r_pd"],
-            ["l_sph", "l_cyl", "l_ax", "l_pris", "l_base", "l_add", "l_pd"],
+            ["גובה", "PD", "ADD", "BASE", "PRISM", "AX", "CYL", "SPH"],
+            ["r_high", "r_pd", "r_add", "r_base", "r_pris", "r_ax", "r_cyl", "r_sph"],
+            ["l_high", "l_pd", "l_add", "l_base", "l_pris", "l_ax", "l_cyl", "l_sph"],
         ),
         empty_paragraph(40),
         kv_table([("PD משולב", "comb_pd"), ("רב מוקדי", "multifocal_block")], pairs_per_row=2),

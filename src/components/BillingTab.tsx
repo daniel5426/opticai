@@ -21,11 +21,24 @@ import {
 
 const roundToTwoDecimals = (value: number) => Math.round(value * 100) / 100;
 
+const isFiniteNumber = (value: number | undefined | null): value is number =>
+  typeof value === "number" && Number.isFinite(value);
+
+const toSafeNumber = (value: number | undefined | null) =>
+  isFiniteNumber(value) ? value : 0;
+
+const parseNumberInput = (value: string) => {
+  const numValue = parseFloat(value);
+  return value === "" || !Number.isFinite(numValue)
+    ? undefined
+    : roundToTwoDecimals(numValue);
+};
+
 const formatNumberInputValue = (
   value: number | undefined | null,
   blankZero = false,
 ) =>
-  value === undefined || value === null || (blankZero && value === 0)
+  !isFiniteNumber(value) || (blankZero && value === 0)
     ? ""
     : String(roundToTwoDecimals(value));
 
@@ -60,28 +73,35 @@ export function BillingTab({
     if (!isEditing) return;
 
     const sum = orderLineItems.reduce(
-      (acc, item) => acc + (item.line_total || 0),
+      (acc, item) => acc + toSafeNumber(item.line_total),
       0,
     );
-    if (Math.abs(sum - (billingFormData.total_before_discount || 0)) > 0.01) {
+    if (
+      Math.abs(sum - toSafeNumber(billingFormData.total_before_discount)) > 0.01
+    ) {
       setBillingFormData((prev) => {
         const next = { ...prev, total_before_discount: sum };
         // Recalculate after discount
-        if (next.discount_percent) {
+        if (sum <= 0) {
+          next.discount_amount = 0;
+          next.discount_percent = 0;
+          next.total_after_discount = 0;
+        } else if (toSafeNumber(next.discount_percent) > 0) {
           const discountAmount = roundToTwoDecimals(
-            (sum * next.discount_percent) / 100,
+            (sum * toSafeNumber(next.discount_percent)) / 100,
           );
           next.discount_amount = discountAmount;
           next.total_after_discount = roundToTwoDecimals(sum - discountAmount);
-        } else if (next.discount_amount) {
+        } else if (toSafeNumber(next.discount_amount) > 0) {
           next.total_after_discount = roundToTwoDecimals(
-            sum - next.discount_amount,
+            sum - toSafeNumber(next.discount_amount),
           );
-          const discountPercent = (next.discount_amount / sum) * 100;
-          next.discount_percent = isNaN(discountPercent)
-            ? undefined
-            : roundToTwoDecimals(discountPercent);
+          const discountPercent =
+            sum > 0 ? (toSafeNumber(next.discount_amount) / sum) * 100 : 0;
+          next.discount_percent = roundToTwoDecimals(discountPercent);
         } else {
+          next.discount_amount = 0;
+          next.discount_percent = 0;
           next.total_after_discount = roundToTwoDecimals(sum);
         }
         return next;
@@ -103,60 +123,69 @@ export function BillingTab({
       "installment_count",
     ];
     if (numericFields.includes(name)) {
-      const numValue = parseFloat(value);
+      const parsedValue = parseNumberInput(value);
       setBillingFormData((prev) => {
-        const roundedValue = roundToTwoDecimals(numValue);
-        const emptyValue =
+        const inputValue =
           name === "discount_amount" || name === "discount_percent"
-            ? 0
-            : undefined;
+            ? (parsedValue ?? 0)
+            : parsedValue;
         const newData = {
           ...prev,
-          [name]: value === "" || isNaN(numValue) ? emptyValue : roundedValue,
+          [name]: inputValue,
         };
+        const totalBefore = toSafeNumber(newData.total_before_discount);
+        const discountAmount = toSafeNumber(newData.discount_amount);
+        const discountPercent = toSafeNumber(newData.discount_percent);
 
-        if (name === "discount_amount" && newData.total_before_discount) {
-          const discountPercent =
-            (roundedValue / newData.total_before_discount) * 100;
-          newData.discount_percent = isNaN(discountPercent)
-            ? undefined
-            : roundToTwoDecimals(discountPercent);
-          newData.total_after_discount = roundToTwoDecimals(
-            newData.total_before_discount - roundedValue,
-          );
-        } else if (
-          name === "discount_percent" &&
-          newData.total_before_discount
-        ) {
-          const discountAmount =
-            (newData.total_before_discount * roundedValue) / 100;
-          const roundedDiscountAmount = roundToTwoDecimals(discountAmount);
-          newData.discount_amount = isNaN(discountAmount)
-            ? undefined
-            : roundedDiscountAmount;
-          newData.total_after_discount = roundToTwoDecimals(
-            newData.total_before_discount - roundedDiscountAmount,
-          );
+        if (name === "discount_amount") {
+          if (discountAmount > 0 && totalBefore > 0) {
+            const nextDiscountPercent = (discountAmount / totalBefore) * 100;
+            newData.discount_percent = roundToTwoDecimals(nextDiscountPercent);
+            newData.total_after_discount = roundToTwoDecimals(
+              totalBefore - discountAmount,
+            );
+          } else {
+            newData.discount_amount = 0;
+            newData.discount_percent = 0;
+            newData.total_after_discount = roundToTwoDecimals(totalBefore);
+          }
+        } else if (name === "discount_percent") {
+          if (discountPercent > 0 && totalBefore > 0) {
+            const nextDiscountAmount = roundToTwoDecimals(
+              (totalBefore * discountPercent) / 100,
+            );
+            newData.discount_amount = nextDiscountAmount;
+            newData.total_after_discount = roundToTwoDecimals(
+              totalBefore - nextDiscountAmount,
+            );
+          } else {
+            newData.discount_amount = 0;
+            newData.discount_percent = 0;
+            newData.total_after_discount = roundToTwoDecimals(totalBefore);
+          }
         } else if (name === "total_before_discount") {
-          if (newData.discount_percent) {
+          const roundedTotalBefore = roundToTwoDecimals(totalBefore);
+          if (discountPercent > 0) {
             const discountAmount = roundToTwoDecimals(
-              (roundedValue * newData.discount_percent) / 100,
+              (roundedTotalBefore * discountPercent) / 100,
             );
             newData.discount_amount = discountAmount;
             newData.total_after_discount = roundToTwoDecimals(
-              roundedValue - discountAmount,
+              roundedTotalBefore - discountAmount,
             );
-          } else if (newData.discount_amount) {
+          } else if (discountAmount > 0) {
             newData.total_after_discount = roundToTwoDecimals(
-              roundedValue - newData.discount_amount,
+              roundedTotalBefore - discountAmount,
             );
             const discountPercent =
-              (newData.discount_amount / roundedValue) * 100;
+              roundedTotalBefore > 0
+                ? (discountAmount / roundedTotalBefore) * 100
+                : 0;
             newData.discount_percent = roundToTwoDecimals(discountPercent);
           } else {
             newData.discount_amount = 0;
             newData.discount_percent = 0;
-            newData.total_after_discount = roundedValue;
+            newData.total_after_discount = roundedTotalBefore;
           }
         }
 
@@ -178,11 +207,7 @@ export function BillingTab({
           const updatedItem = { ...item };
           const numericFields = ["price", "quantity", "discount"];
           if (numericFields.includes(field)) {
-            const numValue = parseFloat(value);
-            (updatedItem as any)[field] =
-              value === "" || isNaN(numValue)
-                ? undefined
-                : roundToTwoDecimals(numValue);
+            (updatedItem as any)[field] = parseNumberInput(value);
           } else if (field === "supplied") {
             (updatedItem as any)[field] = value === "true";
           } else {
@@ -194,9 +219,9 @@ export function BillingTab({
             field === "quantity" ||
             field === "discount"
           ) {
-            const price = updatedItem.price || 0;
-            const quantity = updatedItem.quantity || 0;
-            const discount = updatedItem.discount || 0;
+            const price = toSafeNumber(updatedItem.price);
+            const quantity = toSafeNumber(updatedItem.quantity);
+            const discount = toSafeNumber(updatedItem.discount);
             updatedItem.line_total = roundToTwoDecimals(
               price * quantity - discount,
             );
@@ -412,7 +437,9 @@ export function BillingTab({
                     <td className="p-2">
                       <div className="flex items-center justify-between gap-2">
                         <span className="block min-w-0 flex-1 truncate text-sm">
-                          {item.line_total?.toFixed(2)}
+                          {isFiniteNumber(item.line_total)
+                            ? item.line_total.toFixed(2)
+                            : ""}
                         </span>
                         <Button
                           variant="ghost"
@@ -495,6 +522,7 @@ export function BillingTab({
                   step="0.01"
                   value={formatNumberInputValue(
                     billingFormData.discount_amount ?? 0,
+                    true,
                   )}
                   onChange={handleBillingInputChange}
                   disabled={!isEditing}
@@ -510,6 +538,7 @@ export function BillingTab({
                   step="0.01"
                   value={formatNumberInputValue(
                     billingFormData.discount_percent ?? 0,
+                    true,
                   )}
                   onChange={handleBillingInputChange}
                   disabled={!isEditing}

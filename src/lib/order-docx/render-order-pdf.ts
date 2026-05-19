@@ -304,9 +304,9 @@ export function renderRegularOrderPdfHtml(data: RegularOrderPrintModel, logoUrl?
     sectionTitle("מרשם"),
     eyeTable(
       "עין",
-      ["SPH", "CYL", "AX", "PRISM", "BASE", "ADD", "PD"],
-      [data.r_sph, data.r_cyl, data.r_ax, data.r_pris, data.r_base, data.r_add, data.r_pd],
-      [data.l_sph, data.l_cyl, data.l_ax, data.l_pris, data.l_base, data.l_add, data.l_pd],
+      ["גובה", "PD", "ADD", "BASE", "PRISM", "AX", "CYL", "SPH"],
+      [data.r_high, data.r_pd, data.r_add, data.r_base, data.r_pris, data.r_ax, data.r_cyl, data.r_sph],
+      [data.l_high, data.l_pd, data.l_add, data.l_base, data.l_pris, data.l_ax, data.l_cyl, data.l_sph],
     ),
     '<div class="spacer"></div>',
     kvTable([["PD משולב", data.comb_pd], ["רב מוקדי", data.multifocal_block]], 2),

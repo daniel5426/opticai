@@ -2,10 +2,16 @@ import React, { useState, useEffect, useMemo } from "react";
 import { CustomModal } from "@/components/ui/custom-modal";
 import { getOrderById, getContactLensOrderById } from "@/lib/db/orders-db";
 import { getAllUsers } from "@/lib/db/users-db";
-import { Order, ContactLensOrder, User } from "@/lib/db/schema-interface";
+import {
+    Order,
+    ContactLensOrder,
+    FinalPrescriptionExam,
+    User,
+} from "@/lib/db/schema-interface";
 import {
     ExamCardRenderer,
 } from "@/components/exam/ExamCardRenderer";
+import { OrderFinalPrescriptionTab } from "@/components/orders/OrderFinalPrescriptionTab";
 import { Loader2, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -213,24 +219,10 @@ export function OrderPreviewModal({
             const frame = activeTab?.frame || {};
             return (
                 <div className="space-y-4">
-                    <ExamCardRenderer
-                        item={{ id: "final-prescription", type: "final-prescription" }}
-                        rowCards={[{ id: "final-prescription", type: "final-prescription" }]}
+                    <OrderFinalPrescriptionTab
+                        finalPrescriptionData={fpData as FinalPrescriptionExam}
+                        onFinalPrescriptionChange={() => { }}
                         isEditing={false}
-                        mode="detail"
-                        detailProps={{
-                            isEditing: false,
-                            isNewMode: false,
-                            exam: null,
-                            formData: {},
-                            examFormData: { "final-prescription": fpData },
-                            fieldHandlers: {},
-                            handleInputChange: () => { },
-                            handleSelectChange: () => { },
-                            setFormData: () => { },
-                            handleNotesChange: () => { },
-                            allRows: [[{ id: "final-prescription", type: "final-prescription" }]]
-                        }}
                         hideEyeLabels={false}
                     />
                     <div className="rounded-md border bg-accent/20 p-4">
