@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { DateInput } from "@/components/ui/date"
 import { Eye, Trash2, FileText, Loader2, FileDown, Printer } from "lucide-react"
 import { BillingPayment, ClientOrdersContext, Order, User } from "@/lib/db/schema-interface"
 import { ClientSelectModal } from "@/components/ClientSelectModal"
@@ -44,7 +45,9 @@ import {
   type AdditionAddSourceMap,
   type AdditionAddType,
 } from "@/lib/addition-add-sources"
-import { formatBillingAmount, getBillingPaymentStatus } from "@/lib/billing-payment-status"
+import { formatBillingAmount, getBillingBalance, getBillingPaymentStatus } from "@/lib/billing-payment-status"
+
+const MONEY_STEP = "0.01";
 
 function getLocalDateInputValue() {
   const now = new Date();
@@ -110,10 +113,8 @@ export function OrdersTable({
   const [savingStatusIds, setSavingStatusIds] = useState<Record<number, boolean>>({})
   const [savingPaymentStatusIds, setSavingPaymentStatusIds] = useState<Record<number, boolean>>({})
   const [paymentDropdownOrderId, setPaymentDropdownOrderId] = useState<number | null>(null)
-  const [paidDrafts, setPaidDrafts] = useState<Record<number, string>>({})
   const [newPaymentDrafts, setNewPaymentDrafts] = useState<Record<number, string>>({})
   const [paymentDateDrafts, setPaymentDateDrafts] = useState<Record<number, string>>({})
-  const [editingPaidIds, setEditingPaidIds] = useState<Record<number, boolean>>({})
   const [paymentHistory, setPaymentHistory] = useState<Record<number, BillingPayment[]>>({})
   const [billingOverrides, setBillingOverrides] = useState<Record<number, { billing_id?: number; total_after_discount?: number; prepayment_amount?: number }>>({})
   const [exportingDocxIds, setExportingDocxIds] = useState<Record<string, boolean>>({})
@@ -501,7 +502,6 @@ export function OrdersTable({
           prepayment_amount: nextPaid,
         },
       }));
-      setPaidDrafts((prev) => ({ ...prev, [orderId]: String(nextPaid || "") }));
       setPaymentHistory((prev) => ({
         ...prev,
         [orderId]: [savedPayment, ...(prev[orderId] || [])],
@@ -535,32 +535,6 @@ export function OrdersTable({
     if (saved) {
       setNewPaymentDrafts((prev) => ({ ...prev, [orderId]: "" }));
       setPaymentDateDrafts((prev) => ({ ...prev, [orderId]: getLocalDateInputValue() }));
-    }
-  };
-
-  const handlePaidTotalAdjustmentSave = async (order: Order) => {
-    if (!order.id) return;
-    const orderId = order.id;
-    const draft = paidDrafts[orderId] ?? String(getBillingPaid(order));
-    const nextPaid = Number.parseFloat(draft);
-    if (!Number.isFinite(nextPaid) || nextPaid < 0) {
-      toast.error("יש להזין סכום שולם תקין");
-      return;
-    }
-    const delta = nextPaid - getBillingPaid(order);
-    if (Math.abs(delta) < 0.01) {
-      setEditingPaidIds((prev) => ({ ...prev, [orderId]: false }));
-      return;
-    }
-    const saved = await applyPaymentChange(
-      order,
-      delta,
-      getLocalDateInputValue(),
-      "adjustment",
-      "סכום שולם עודכן",
-    );
-    if (saved) {
-      setEditingPaidIds((prev) => ({ ...prev, [orderId]: false }));
     }
   };
 
@@ -897,20 +871,14 @@ export function OrdersTable({
                             if (!order.id) return;
                             if (open) {
                               setPaymentDropdownOrderId(order.id);
-                              setPaidDrafts((prev) => ({
-                                ...prev,
-                                [order.id!]: String(getBillingPaid(order) || ""),
-                              }));
                               setNewPaymentDrafts((prev) => ({ ...prev, [order.id!]: "" }));
                               setPaymentDateDrafts((prev) => ({
                                 ...prev,
                                 [order.id!]: prev[order.id!] || getLocalDateInputValue(),
                               }));
-                              setEditingPaidIds((prev) => ({ ...prev, [order.id!]: false }));
                               void loadPaymentHistory(order);
                             } else {
                               setPaymentDropdownOrderId(null);
-                              setEditingPaidIds((prev) => ({ ...prev, [order.id!]: false }));
                             }
                           }}
                         >
@@ -933,92 +901,29 @@ export function OrdersTable({
                             className="w-80 p-3"
                             onClick={(e) => e.stopPropagation()}
                           >
-                            <div className="mb-3 flex items-center justify-between rounded-md bg-muted/40 px-3 py-2 text-sm">
-                              <span className="text-muted-foreground">שולם / סה"כ</span>
-                              <span className="font-medium tabular-nums">
-                                {formatBillingAmount(getBillingPaid(order))} / {formatBillingAmount(getBillingTotal(order))}
-                              </span>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-3">
-                              <div>
-                                <div className="mb-1 text-xs text-muted-foreground">שולם</div>
-                                {order.id && editingPaidIds[order.id] ? (
-                                  <Input
-                                    type="number"
-                                    step="0.01"
-                                    value={paidDrafts[order.id] ?? ""}
-                                    onChange={(e) => {
-                                      if (!order.id) return;
-                                      setPaidDrafts((prev) => ({ ...prev, [order.id!]: e.target.value }));
-                                    }}
-                                    className="h-9"
-                                    autoFocus
-                                  />
-                                ) : (
-                                  <button
-                                    type="button"
-                                    className="flex h-9 w-full items-center rounded-md border bg-muted/30 px-3 text-right text-sm tabular-nums"
-                                    onDoubleClick={(e) => {
-                                      e.stopPropagation();
-                                      if (!order.id) return;
-                                      setEditingPaidIds((prev) => ({ ...prev, [order.id!]: true }));
-                                      setPaidDrafts((prev) => ({
-                                        ...prev,
-                                        [order.id!]: String(getBillingPaid(order) || ""),
-                                      }));
-                                    }}
-                                  >
-                                    {formatBillingAmount(getBillingPaid(order))}
-                                  </button>
-                                )}
+                            <div className="mb-3 rounded-md border bg-muted/30 px-3 py-2 text-sm">
+                              <div className="flex items-center justify-between gap-3">
+                                <span className="text-muted-foreground">שולם / סה"כ</span>
+                                <span className="font-medium tabular-nums">
+                                  {formatBillingAmount(getBillingPaid(order))} / {formatBillingAmount(getBillingTotal(order))}
+                                </span>
                               </div>
-                              <div>
-                                <div className="mb-1 text-xs text-muted-foreground">סה"כ</div>
-                                <div className="flex h-9 items-center rounded-md border bg-muted/30 px-3 text-sm tabular-nums">
-                                  {formatBillingAmount(getBillingTotal(order))}
-                                </div>
+                              <div className="mt-1 flex items-center justify-between gap-3 border-t pt-1">
+                                <span className="text-muted-foreground">יתרה לתשלום</span>
+                                <span className="font-medium tabular-nums">
+                                  {formatBillingAmount(getBillingBalance(getBillingTotal(order), getBillingPaid(order)))}
+                                </span>
                               </div>
                             </div>
 
-                            {order.id && editingPaidIds[order.id] && (
-                              <div className="mt-3 flex justify-start gap-2">
-                                <Button
-                                  size="sm"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handlePaidTotalAdjustmentSave(order);
-                                  }}
-                                  disabled={!!savingPaymentStatusIds[order.id || -1]}
-                                >
-                                  {savingPaymentStatusIds[order.id || -1] ? "שומר..." : "שמור שינוי"}
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    if (!order.id) return;
-                                    setEditingPaidIds((prev) => ({ ...prev, [order.id!]: false }));
-                                    setPaidDrafts((prev) => ({
-                                      ...prev,
-                                      [order.id!]: String(getBillingPaid(order) || ""),
-                                    }));
-                                  }}
-                                >
-                                  ביטול
-                                </Button>
-                              </div>
-                            )}
-
-                            <div className="mt-4 border-t pt-3">
+                            <div className="border-t pt-3">
                               <div className="mb-2 text-xs font-medium text-muted-foreground">תשלום חדש</div>
                               <div className="grid grid-cols-2 gap-3">
                                 <div>
                                   <div className="mb-1 text-xs text-muted-foreground">סכום</div>
                                   <Input
                                     type="number"
-                                    step="0.01"
+                                    step={MONEY_STEP}
                                     value={order.id ? newPaymentDrafts[order.id] ?? "" : ""}
                                     onChange={(e) => {
                                       if (!order.id) return;
@@ -1029,8 +934,8 @@ export function OrdersTable({
                                 </div>
                                 <div>
                                   <div className="mb-1 text-xs text-muted-foreground">תאריך</div>
-                                  <Input
-                                    type="date"
+                                  <DateInput
+                                    name="payment_date"
                                     value={order.id ? paymentDateDrafts[order.id] ?? getLocalDateInputValue() : ""}
                                     onChange={(e) => {
                                       if (!order.id) return;

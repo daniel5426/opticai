@@ -176,6 +176,28 @@ def create_billing_payment(
     return db_payment
 
 
+@router.delete("/{billing_id}/payments/{payment_id}")
+def delete_billing_payment(
+    billing_id: int,
+    payment_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    db_billing = get_scoped_billing(db, current_user, billing_id)
+    db_payment = (
+        db.query(BillingPayment)
+        .filter(BillingPayment.id == payment_id, BillingPayment.billing_id == billing_id)
+        .first()
+    )
+    if not db_payment:
+        raise HTTPException(status_code=404, detail="Billing payment not found")
+
+    db_billing.prepayment_amount = (db_billing.prepayment_amount or 0) - db_payment.amount
+    db.delete(db_payment)
+    db.commit()
+    return {"message": "Billing payment deleted successfully"}
+
+
 @router.put("/{billing_id}", response_model=BillingSchema)
 def update_billing(
     billing_id: int,

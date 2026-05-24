@@ -784,3 +784,41 @@ def test_billing_payment_negative_amount_requires_adjustment_kind():
     assert accepted.status_code == 200, accepted.text
     with SessionLocal() as db:
         assert db.get(Billing, billing_id).prepayment_amount == 75
+
+
+def test_billing_payment_delete_reverses_paid_total():
+    SessionLocal = _session_factory()
+    ids = _seed(SessionLocal)
+
+    with SessionLocal() as db:
+        order = Order(
+            client_id=ids["client_a"],
+            clinic_id=ids["clinic_a"],
+            user_id=ids["clinic_user"],
+            order_date=date(2026, 5, 24),
+            type="regular",
+            order_data={},
+        )
+        db.add(order)
+        db.flush()
+        billing = Billing(order_id=order.id, total_after_discount=500, prepayment_amount=175)
+        db.add(billing)
+        db.flush()
+        payment = BillingPayment(
+            billing_id=billing.id,
+            amount=75,
+            paid_at=date(2026, 5, 24),
+            kind="payment",
+        )
+        db.add(payment)
+        db.commit()
+        billing_id = billing.id
+        payment_id = payment.id
+
+    with _client(SessionLocal, ids["clinic_user"]) as client:
+        response = client.delete(f"/api/v1/billing/{billing_id}/payments/{payment_id}")
+
+    assert response.status_code == 200, response.text
+    with SessionLocal() as db:
+        assert db.get(Billing, billing_id).prepayment_amount == 100
+        assert db.get(BillingPayment, payment_id) is None

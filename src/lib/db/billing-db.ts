@@ -107,6 +107,20 @@ export async function createBillingPayment(
   }
 }
 
+export async function deleteBillingPayment(billingId: number, paymentId: number): Promise<boolean> {
+  try {
+    const response = await apiClient.deleteBillingPayment(billingId, paymentId);
+    if ((response as any).error) {
+      console.error('Error deleting billing payment:', (response as any).error);
+      return false;
+    }
+    return true;
+  } catch (error) {
+    console.error('Error deleting billing payment:', error);
+    return false;
+  }
+}
+
 export async function createOrderLineItem(orderLineItem: Omit<OrderLineItem, 'id'>): Promise<OrderLineItem | null> {
   try {
     const response = await apiClient.createOrderLineItem(orderLineItem);

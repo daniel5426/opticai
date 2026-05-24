@@ -11,8 +11,11 @@ import {
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { NotesCard } from "@/components/ui/notes-card";
-import { Plus, Trash2 } from "lucide-react";
-import { Billing, OrderLineItem } from "@/lib/db/schema-interface";
+import { CustomModal } from "@/components/ui/custom-modal";
+import { History, Loader2, Plus, Trash2 } from "lucide-react";
+import { Billing, BillingPayment, OrderLineItem } from "@/lib/db/schema-interface";
+import { deleteBillingPayment, getBillingPayments } from "@/lib/db/billing-db";
+import { toast } from "sonner";
 import {
   formatBillingAmount,
   getBillingBalance,
@@ -26,6 +29,10 @@ const isFiniteNumber = (value: number | undefined | null): value is number =>
 
 const toSafeNumber = (value: number | undefined | null) =>
   isFiniteNumber(value) ? value : 0;
+
+const MONEY_STEP = "0.01";
+const PERCENT_STEP = "0.01";
+const WHOLE_NUMBER_STEP = "1";
 
 const parseNumberInput = (value: string) => {
   const numValue = parseFloat(value);
@@ -41,6 +48,13 @@ const formatNumberInputValue = (
   !isFiniteNumber(value) || (blankZero && value === 0)
     ? ""
     : String(roundToTwoDecimals(value));
+
+const formatPaymentDate = (value?: string | null) => {
+  if (!value) return "";
+  const [year, month, day] = value.split("T")[0].split("-");
+  if (!year || !month || !day) return value;
+  return `${day}/${month}/${year}`;
+};
 
 interface BillingTabProps {
   billingFormData: Billing;
@@ -67,6 +81,46 @@ export function BillingTab({
     billingFormData.total_after_discount,
     billingFormData.prepayment_amount,
   );
+  const [isPaymentHistoryOpen, setIsPaymentHistoryOpen] = React.useState(false);
+  const [paymentHistory, setPaymentHistory] = React.useState<BillingPayment[]>([]);
+  const [paymentHistoryLoading, setPaymentHistoryLoading] = React.useState(false);
+  const [deletingPaymentIds, setDeletingPaymentIds] = React.useState<Record<number, boolean>>({});
+
+  const loadPaymentHistory = React.useCallback(async () => {
+    if (!billingFormData.id) {
+      setPaymentHistory([]);
+      return;
+    }
+    setPaymentHistoryLoading(true);
+    try {
+      const payments = await getBillingPayments(billingFormData.id);
+      setPaymentHistory(payments);
+    } finally {
+      setPaymentHistoryLoading(false);
+    }
+  }, [billingFormData.id]);
+
+  const openPaymentHistory = () => {
+    setIsPaymentHistoryOpen(true);
+    void loadPaymentHistory();
+  };
+
+  const handleDeletePayment = async (payment: BillingPayment) => {
+    if (!billingFormData.id || !payment.id) return;
+    setDeletingPaymentIds((prev) => ({ ...prev, [payment.id!]: true }));
+    const success = await deleteBillingPayment(billingFormData.id, payment.id);
+    if (success) {
+      setPaymentHistory((prev) => prev.filter((item) => item.id !== payment.id));
+      setBillingFormData((prev) => ({
+        ...prev,
+        prepayment_amount: roundToTwoDecimals(toSafeNumber(prev.prepayment_amount) - payment.amount),
+      }));
+      toast.success("התשלום נמחק");
+    } else {
+      toast.error("שגיאה במחיקת תשלום");
+    }
+    setDeletingPaymentIds((prev) => ({ ...prev, [payment.id!]: false }));
+  };
 
   // Auto-calculate total from line items
   React.useEffect(() => {
@@ -350,7 +404,7 @@ export function BillingTab({
                       {isEditing ? (
                         <Input
                           type="number"
-                          step="0.01"
+                          step={MONEY_STEP}
                           value={formatNumberInputValue(item.price, true)}
                           onChange={(e) =>
                             handleLineItemChange(
@@ -371,6 +425,7 @@ export function BillingTab({
                       {isEditing ? (
                         <Input
                           type="number"
+                          step={WHOLE_NUMBER_STEP}
                           value={formatNumberInputValue(item.quantity, true)}
                           onChange={(e) =>
                             handleLineItemChange(
@@ -391,7 +446,7 @@ export function BillingTab({
                       {isEditing ? (
                         <Input
                           type="number"
-                          step="0.01"
+                          step={MONEY_STEP}
                           value={formatNumberInputValue(item.discount, true)}
                           onChange={(e) =>
                             handleLineItemChange(
@@ -470,6 +525,7 @@ export function BillingTab({
                   <Input
                     name="installment_count"
                     type="number"
+                    step={WHOLE_NUMBER_STEP}
                     value={formatNumberInputValue(
                       billingFormData.installment_count,
                       true,
@@ -481,12 +537,24 @@ export function BillingTab({
                 </div>
               </div>
               <div>
-                <Label className="text-sm">שולם</Label>
+                <div className="flex items-center justify-between">
+                  <Label className="text-sm">שולם</Label>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 w-7 p-0"
+                    onClick={openPaymentHistory}
+                    aria-label="היסטוריית תשלומים"
+                  >
+                    <History className="h-4 w-4" />
+                  </Button>
+                </div>
                 <div className="mt-1.5">
                   <Input
                     name="prepayment_amount"
                     type="number"
-                    step="0.01"
+                    step={MONEY_STEP}
                     value={formatNumberInputValue(
                       billingFormData.prepayment_amount,
                       true,
@@ -503,7 +571,7 @@ export function BillingTab({
                   <Input
                     name="total_before_discount"
                     type="number"
-                    step="0.01"
+                    step={MONEY_STEP}
                     value={formatNumberInputValue(
                       billingFormData.total_before_discount,
                       true,
@@ -519,7 +587,7 @@ export function BillingTab({
                 <Input
                   name="discount_amount"
                   type="number"
-                  step="0.01"
+                  step={MONEY_STEP}
                   value={formatNumberInputValue(
                     billingFormData.discount_amount ?? 0,
                     true,
@@ -535,7 +603,7 @@ export function BillingTab({
                 <Input
                   name="discount_percent"
                   type="number"
-                  step="0.01"
+                  step={PERCENT_STEP}
                   value={formatNumberInputValue(
                     billingFormData.discount_percent ?? 0,
                     true,
@@ -553,7 +621,7 @@ export function BillingTab({
                   <Input
                     name="total_after_discount"
                     type="number"
-                    step="0.01"
+                    step={MONEY_STEP}
                     value={formatNumberInputValue(
                       billingFormData.total_after_discount,
                       true,
@@ -592,6 +660,64 @@ export function BillingTab({
           />
         </div>
       </div>
+
+      <CustomModal
+        isOpen={isPaymentHistoryOpen}
+        onClose={() => setIsPaymentHistoryOpen(false)}
+        title="היסטוריית תשלומים"
+        width="max-w-xl"
+      >
+        {paymentHistoryLoading ? (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="h-5 w-5 animate-spin" />
+          </div>
+        ) : paymentHistory.length > 0 ? (
+          <div className="overflow-hidden rounded-md border">
+            <table className="w-full text-sm">
+              <thead className="bg-muted/40">
+                <tr>
+                  <th className="px-3 py-2 text-right font-medium">תאריך</th>
+                  <th className="px-3 py-2 text-right font-medium">סכום</th>
+                  <th className="px-3 py-2 text-right font-medium">סוג</th>
+                  <th className="w-10 px-2 py-2"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {paymentHistory.map((payment) => (
+                  <tr key={payment.id} className="border-t">
+                    <td className="px-3 py-2">{formatPaymentDate(payment.paid_at)}</td>
+                    <td className="px-3 py-2 tabular-nums">{formatBillingAmount(payment.amount)}</td>
+                    <td className="px-3 py-2">
+                      {payment.kind === "adjustment" ? "תיקון" : "תשלום"}
+                    </td>
+                    <td className="px-2 py-2">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 w-7 p-0 text-destructive hover:text-destructive"
+                        onClick={() => handleDeletePayment(payment)}
+                        disabled={payment.id ? deletingPaymentIds[payment.id] : true}
+                        aria-label="מחיקת תשלום"
+                      >
+                        {payment.id && deletingPaymentIds[payment.id] ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Trash2 className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="py-8 text-center text-sm text-muted-foreground">
+            אין היסטוריית תשלומים
+          </div>
+        )}
+      </CustomModal>
     </div>
   );
 }

@@ -1207,6 +1207,12 @@ class ApiClient {
     });
   }
 
+  async deleteBillingPayment(billingId: number, paymentId: number) {
+    return this.request(`/billing/${billingId}/payments/${paymentId}`, {
+      method: 'DELETE',
+    });
+  }
+
   // Order Line Items
   async getOrderLineItems(billingId: number) {
     return this.request<OrderLineItem[]>(`/order-line-items/billing/${billingId}`);
