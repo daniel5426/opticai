@@ -1,6 +1,6 @@
 import { 
   User, Company, Clinic, Client, Family, Settings, OpticalExam, Appointment, 
-  File, MedicalLog, Order, ClientOrdersContext, Billing, ExamLayout, ExamLayoutInstance,
+  File, MedicalLog, Order, ClientOrdersContext, Billing, BillingPayment, ExamLayout, ExamLayoutInstance,
   LookupSupplier, LookupClinic, LookupOrderType, LookupReferralType,
   LookupLensModel, LookupColor, LookupMaterial, LookupCoating,
   LookupManufacturer, LookupFrameModel, LookupContactLensType,
@@ -1193,6 +1193,17 @@ class ApiClient {
     return this.request<Billing>(`/billing/${id}`, {
       method: 'PUT',
       body: JSON.stringify(billing),
+    });
+  }
+
+  async getBillingPayments(billingId: number) {
+    return this.request<BillingPayment[]>(`/billing/${billingId}/payments`);
+  }
+
+  async createBillingPayment(billingId: number, payment: any) {
+    return this.request<BillingPayment>(`/billing/${billingId}/payments`, {
+      method: 'POST',
+      body: JSON.stringify(payment),
     });
   }
 

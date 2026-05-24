@@ -672,6 +672,15 @@ export interface Billing {
   notes?: string;
 }
 
+export interface BillingPayment {
+  id?: number;
+  billing_id?: number;
+  amount: number;
+  paid_at: string;
+  kind?: "payment" | "adjustment";
+  created_at?: string;
+}
+
 export interface OrderLineItem {
   id?: number;
   billings_id: number;

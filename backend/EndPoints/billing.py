@@ -3,7 +3,7 @@ from sqlalchemy import or_
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from database import get_db
-from models import Billing, Order, OrderLineItem, ContactLensOrder, User
+from models import Billing, BillingPayment, Order, OrderLineItem, ContactLensOrder, User
 from auth import get_current_user
 from security.scope import (
     get_allowed_clinic_ids,
@@ -15,6 +15,8 @@ from security.scope import (
 )
 from schemas import (
     BillingCreate,
+    BillingPayment as BillingPaymentSchema,
+    BillingPaymentCreate,
     BillingUpdate,
     Billing as BillingSchema,
     OrderLineItem as OrderLineItemSchema,
@@ -133,6 +135,45 @@ def get_billing(
     current_user: User = Depends(get_current_user),
 ):
     return get_scoped_billing(db, current_user, billing_id)
+
+
+@router.get("/{billing_id}/payments", response_model=List[BillingPaymentSchema])
+def get_billing_payments(
+    billing_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    get_scoped_billing(db, current_user, billing_id)
+    return (
+        db.query(BillingPayment)
+        .filter(BillingPayment.billing_id == billing_id)
+        .order_by(BillingPayment.paid_at.desc(), BillingPayment.id.desc())
+        .all()
+    )
+
+
+@router.post("/{billing_id}/payments", response_model=BillingPaymentSchema)
+def create_billing_payment(
+    billing_id: int,
+    payment: BillingPaymentCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    db_billing = get_scoped_billing(db, current_user, billing_id)
+    if payment.kind == "payment" and payment.amount <= 0:
+        raise HTTPException(status_code=422, detail="Payment amount must be positive")
+    if payment.kind == "adjustment" and payment.amount == 0:
+        raise HTTPException(status_code=422, detail="Adjustment amount must not be zero")
+    next_paid = (db_billing.prepayment_amount or 0) + payment.amount
+    if next_paid < 0:
+        raise HTTPException(status_code=422, detail="Paid amount cannot be negative")
+
+    db_payment = BillingPayment(billing_id=billing_id, **payment.dict())
+    db_billing.prepayment_amount = next_paid
+    db.add(db_payment)
+    db.commit()
+    db.refresh(db_payment)
+    return db_payment
 
 
 @router.put("/{billing_id}", response_model=BillingSchema)

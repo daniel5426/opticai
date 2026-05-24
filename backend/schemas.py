@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field, field_validator
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Literal
 from datetime import datetime, date
 from sqlalchemy import Column, Integer, String, DateTime, Boolean, ForeignKey, Date, Float, Text
 from sqlalchemy.ext.declarative import declarative_base
@@ -690,6 +690,22 @@ class Billing(BillingBase):
     
     class Config:
         from_attributes = True
+
+
+class BillingPaymentCreate(BaseModel):
+    amount: float
+    paid_at: date
+    kind: Literal["payment", "adjustment"] = "payment"
+
+
+class BillingPayment(BillingPaymentCreate):
+    id: int
+    billing_id: int
+    created_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
 
 # Chat schemas
 class ChatBase(BaseModel):

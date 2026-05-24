@@ -28,6 +28,7 @@ os.environ.setdefault("APP_ENV", "development")
 
 from models import (  # noqa: E402
     Appointment,
+    AuthSession,
     Billing,
     Campaign,
     CampaignClientExecution,
@@ -35,6 +36,7 @@ from models import (  # noqa: E402
     ChatMessage,
     Client,
     Clinic,
+    ClinicDeviceTrust,
     Company,
     ContactLensOrder,
     EmailLog,
@@ -43,6 +45,7 @@ from models import (  # noqa: E402
     Family,
     File,
     MedicalLog,
+    MigrationSourceLink,
     OpticalExam,
     Order,
     OrderLineItem,
@@ -137,20 +140,158 @@ def _find_account(source: Session, ceo_email: str) -> tuple[Company, User]:
     raise SystemExit(f"No production account found for CEO/contact email {email}.")
 
 
-def _ensure_no_login_conflicts(source: Session, target: Session, company_id: int) -> None:
-    users = source.scalars(select(User).where(User.company_id == company_id)).all()
+def _login_conflicts(target: Session, users: list[User]) -> tuple[set[int], list[str]]:
     emails = [user.email for user in users if user.email]
     usernames = [user.username for user in users if user.username]
     conflicts: list[str] = []
+    company_ids: set[int] = set()
     if emails:
-        conflicts.extend(f"email:{value}" for value in target.scalars(select(User.email).where(User.email.in_(emails))).all())
+        rows = target.scalars(select(User).where(User.email.in_(emails))).all()
+        conflicts.extend(f"email:{row.email}" for row in rows)
+        company_ids.update(row.company_id for row in rows)
     if usernames:
-        conflicts.extend(
-            f"username:{value}" for value in target.scalars(select(User.username).where(User.username.in_(usernames))).all()
+        rows = target.scalars(select(User).where(User.username.in_(usernames))).all()
+        conflicts.extend(f"username:{row.username}" for row in rows)
+        company_ids.update(row.company_id for row in rows)
+    return company_ids, sorted(set(conflicts))
+
+
+def _delete_rows(target: Session, model: type[Any], *filters: Any) -> int:
+    if not filters:
+        return 0
+    return target.query(model).filter(*filters).delete(synchronize_session=False)
+
+
+def _delete_target_accounts(target: Session, company_ids: set[int]) -> None:
+    if not company_ids:
+        return
+
+    clinic_ids = list(target.scalars(select(Clinic.id).where(Clinic.company_id.in_(company_ids))))
+    user_ids = list(target.scalars(select(User.id).where(User.company_id.in_(company_ids))))
+    client_ids = list(target.scalars(select(Client.id).where(Client.company_id.in_(company_ids))))
+    exam_ids = list(target.scalars(select(OpticalExam.id).where(OpticalExam.client_id.in_(client_ids)))) if client_ids else []
+    order_ids = list(target.scalars(select(Order.id).where(Order.client_id.in_(client_ids)))) if client_ids else []
+    contact_order_ids = (
+        list(target.scalars(select(ContactLensOrder.id).where(ContactLensOrder.client_id.in_(client_ids))))
+        if client_ids
+        else []
+    )
+    referral_ids = list(target.scalars(select(Referral.id).where(Referral.client_id.in_(client_ids)))) if client_ids else []
+    appointment_ids = (
+        list(target.scalars(select(Appointment.id).where(Appointment.client_id.in_(client_ids)))) if client_ids else []
+    )
+    campaign_ids = list(target.scalars(select(Campaign.id).where(Campaign.clinic_id.in_(clinic_ids)))) if clinic_ids else []
+    chat_ids = list(target.scalars(select(Chat.id).where(Chat.clinic_id.in_(clinic_ids)))) if clinic_ids else []
+    layout_ids = (
+        list(target.scalars(select(ExamLayout.id).where(ExamLayout.clinic_id.in_(clinic_ids)))) if clinic_ids else []
+    )
+    billing_filters = []
+    if order_ids:
+        billing_filters.append(Billing.order_id.in_(order_ids))
+    if contact_order_ids:
+        billing_filters.append(Billing.contact_lens_id.in_(contact_order_ids))
+    billing_ids = list(target.scalars(select(Billing.id).where(or_(*billing_filters)))) if billing_filters else []
+
+    deleted: dict[str, int] = {}
+    if appointment_ids:
+        deleted["email_logs"] = _delete_rows(target, EmailLog, EmailLog.appointment_id.in_(appointment_ids))
+    if billing_ids:
+        deleted["order_line_item"] = _delete_rows(target, OrderLineItem, OrderLineItem.billings_id.in_(billing_ids))
+        deleted["billings"] = _delete_rows(target, Billing, Billing.id.in_(billing_ids))
+    if referral_ids:
+        deleted["referral_eye"] = _delete_rows(target, ReferralEye, ReferralEye.referral_id.in_(referral_ids))
+    if exam_ids:
+        deleted["exam_layout_instances"] = _delete_rows(
+            target,
+            ExamLayoutInstance,
+            ExamLayoutInstance.exam_id.in_(exam_ids),
         )
+    if campaign_ids:
+        deleted["campaign_client_executions"] = _delete_rows(
+            target,
+            CampaignClientExecution,
+            CampaignClientExecution.campaign_id.in_(campaign_ids),
+        )
+    if client_ids:
+        deleted["campaign_client_executions"] = deleted.get("campaign_client_executions", 0) + _delete_rows(
+            target,
+            CampaignClientExecution,
+            CampaignClientExecution.client_id.in_(client_ids),
+        )
+        deleted["files"] = _delete_rows(target, File, File.client_id.in_(client_ids))
+        deleted["medical_logs"] = _delete_rows(target, MedicalLog, MedicalLog.client_id.in_(client_ids))
+        deleted["optical_exams"] = _delete_rows(target, OpticalExam, OpticalExam.client_id.in_(client_ids))
+        deleted["orders"] = _delete_rows(target, Order, Order.client_id.in_(client_ids))
+        deleted["contact_lens_orders"] = _delete_rows(
+            target,
+            ContactLensOrder,
+            ContactLensOrder.client_id.in_(client_ids),
+        )
+        deleted["referrals"] = _delete_rows(target, Referral, Referral.client_id.in_(client_ids))
+        deleted["appointments"] = _delete_rows(target, Appointment, Appointment.client_id.in_(client_ids))
+        deleted["clients"] = _delete_rows(target, Client, Client.id.in_(client_ids))
+    if user_ids:
+        deleted["auth_sessions"] = _delete_rows(target, AuthSession, AuthSession.user_id.in_(user_ids))
+        deleted["work_shifts"] = _delete_rows(target, WorkShift, WorkShift.user_id.in_(user_ids))
+    if chat_ids:
+        deleted["chat_messages"] = _delete_rows(target, ChatMessage, ChatMessage.chat_id.in_(chat_ids))
+        deleted["chats"] = _delete_rows(target, Chat, Chat.id.in_(chat_ids))
+    if layout_ids:
+        target.query(ExamLayout).filter(ExamLayout.id.in_(layout_ids)).update(
+            {ExamLayout.parent_layout_id: None},
+            synchronize_session=False,
+        )
+        deleted["exam_layouts"] = _delete_rows(target, ExamLayout, ExamLayout.id.in_(layout_ids))
+    if clinic_ids:
+        deleted["settings"] = _delete_rows(target, Settings, Settings.clinic_id.in_(clinic_ids))
+        for model in LOOKUP_MODELS:
+            count = _delete_rows(target, model, model.clinic_id.in_(clinic_ids))
+            deleted["lookups"] = deleted.get("lookups", 0) + count
+        deleted["campaigns"] = _delete_rows(target, Campaign, Campaign.clinic_id.in_(clinic_ids))
+        deleted["clinic_device_trusts"] = _delete_rows(
+            target,
+            ClinicDeviceTrust,
+            ClinicDeviceTrust.clinic_id.in_(clinic_ids),
+        )
+        deleted["migration_source_links"] = _delete_rows(
+            target,
+            MigrationSourceLink,
+            MigrationSourceLink.clinic_id.in_(clinic_ids),
+        )
+    deleted["auth_sessions"] = deleted.get("auth_sessions", 0) + _delete_rows(
+        target,
+        AuthSession,
+        AuthSession.company_id.in_(company_ids),
+    )
+    deleted["clinic_device_trusts"] = deleted.get("clinic_device_trusts", 0) + _delete_rows(
+        target,
+        ClinicDeviceTrust,
+        ClinicDeviceTrust.company_id.in_(company_ids),
+    )
+    deleted["families"] = _delete_rows(target, Family, Family.company_id.in_(company_ids))
+    deleted["users"] = _delete_rows(target, User, User.company_id.in_(company_ids))
+    if clinic_ids:
+        deleted["clinics"] = _delete_rows(target, Clinic, Clinic.id.in_(clinic_ids))
+    deleted["companies"] = _delete_rows(target, Company, Company.id.in_(company_ids))
+
+    summary = ", ".join(f"{name}:{count}" for name, count in deleted.items() if count)
+    print(f"Deleted existing target account data for company ids {sorted(company_ids)}.")
+    if summary:
+        print(f"Deleted rows: {summary}")
+
+
+def _prepare_target_for_copy(target: Session, users: list[User]) -> None:
+    company_ids, conflicts = _login_conflicts(target, users)
     if conflicts:
-        preview = ", ".join(sorted(set(conflicts))[:20])
-        raise SystemExit(f"Target already has conflicting login values. Delete/rename them first: {preview}")
+        preview = ", ".join(conflicts[:20])
+        print(f"Target has conflicting login values; deleting matching target account data first: {preview}")
+        _delete_target_accounts(target, company_ids)
+        target.flush()
+
+    _, remaining = _login_conflicts(target, users)
+    if remaining:
+        preview = ", ".join(remaining[:20])
+        raise SystemExit(f"Target still has conflicting login values after cleanup: {preview}")
 
 
 def _mapped(mapping: dict[int, int], value: int | None) -> int | None:
@@ -249,9 +390,9 @@ def duplicate_account(args: argparse.Namespace) -> None:
             print("Dry run only. Re-run with --execute to copy this account.")
             return
 
-        _ensure_no_login_conflicts(source, target, company.id)
-
         try:
+            _prepare_target_for_copy(target, users)
+
             copied_company = _copy_row(
                 target,
                 company,

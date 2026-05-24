@@ -1,5 +1,5 @@
 /// <reference path="../../types/electron.d.ts" />
-import { Billing, OrderLineItem } from './schema-interface';
+import { Billing, BillingPayment, OrderLineItem } from './schema-interface';
 import { apiClient } from '../api-client';
 
 export async function getBillingByOrderId(orderId: number): Promise<Billing | null> {
@@ -76,6 +76,37 @@ export async function updateBilling(billing: Billing): Promise<Billing | null> {
   }
 }
 
+export async function getBillingPayments(billingId: number): Promise<BillingPayment[]> {
+  try {
+    const response = await apiClient.getBillingPayments(billingId);
+    if ((response as any).error) {
+      console.error('Error getting billing payments:', (response as any).error);
+      return [];
+    }
+    return (response as any).data || [];
+  } catch (error) {
+    console.error('Error getting billing payments:', error);
+    return [];
+  }
+}
+
+export async function createBillingPayment(
+  billingId: number,
+  payment: Omit<BillingPayment, 'id' | 'billing_id' | 'created_at'>,
+): Promise<BillingPayment | null> {
+  try {
+    const response = await apiClient.createBillingPayment(billingId, payment);
+    if ((response as any).error) {
+      console.error('Error creating billing payment:', (response as any).error);
+      return null;
+    }
+    return (response as any).data || null;
+  } catch (error) {
+    console.error('Error creating billing payment:', error);
+    return null;
+  }
+}
+
 export async function createOrderLineItem(orderLineItem: Omit<OrderLineItem, 'id'>): Promise<OrderLineItem | null> {
   try {
     const response = await apiClient.createOrderLineItem(orderLineItem);
@@ -117,4 +148,4 @@ export async function deleteOrderLineItem(orderLineItemId: number): Promise<bool
     console.error('Error deleting order line item:', error);
     return false;
   }
-} 
+}

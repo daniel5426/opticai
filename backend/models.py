@@ -371,6 +371,18 @@ class Billing(Base):
     installment_count = Column(Integer)
     notes = Column(Text)
 
+
+class BillingPayment(Base):
+    __tablename__ = "billing_payments"
+
+    id = Column(Integer, primary_key=True, index=True)
+    billing_id = Column(Integer, ForeignKey("billings.id"), nullable=False, index=True)
+    amount = Column(Float, nullable=False)
+    paid_at = Column(Date, nullable=False)
+    kind = Column(String, nullable=False, default="payment")
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
 class OrderLineItem(Base):
     __tablename__ = "order_line_item"
     

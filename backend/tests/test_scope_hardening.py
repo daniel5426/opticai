@@ -19,7 +19,7 @@ os.environ.setdefault("TOKEN_ENCRYPTION_KEY", "development-encryption-key-for-te
 from auth import get_current_user
 from database import Base, get_db
 from main import app
-from models import Appointment, Client, Clinic, Company, ContactLensOrder, LookupColor, LookupSupplier, LookupVADecimal, LookupVAMeter, OpticalExam, Order, User
+from models import Appointment, Billing, BillingPayment, Client, Clinic, Company, ContactLensOrder, LookupColor, LookupSupplier, LookupVADecimal, LookupVAMeter, OpticalExam, Order, User
 from services.lookup_defaults import VA_DECIMAL_VALUES, VA_METER_VALUES
 
 
@@ -682,3 +682,105 @@ def test_new_clinic_creation_seeds_only_va_defaults():
         assert db.query(LookupVAMeter).filter(LookupVAMeter.clinic_id == clinic_id).count() == len(VA_METER_VALUES)
         assert db.query(LookupVADecimal).filter(LookupVADecimal.clinic_id == clinic_id).count() == len(VA_DECIMAL_VALUES)
         assert db.query(LookupColor).filter(LookupColor.clinic_id == clinic_id).count() == 0
+
+
+def test_billing_payment_creation_updates_paid_total():
+    SessionLocal = _session_factory()
+    ids = _seed(SessionLocal)
+
+    with SessionLocal() as db:
+        order = Order(
+            client_id=ids["client_a"],
+            clinic_id=ids["clinic_a"],
+            user_id=ids["clinic_user"],
+            order_date=date(2026, 5, 24),
+            type="regular",
+            order_data={},
+        )
+        db.add(order)
+        db.flush()
+        billing = Billing(order_id=order.id, total_after_discount=500, prepayment_amount=100)
+        db.add(billing)
+        db.commit()
+        billing_id = billing.id
+
+    with _client(SessionLocal, ids["clinic_user"]) as client:
+        response = client.post(
+            f"/api/v1/billing/{billing_id}/payments",
+            json={"amount": 75, "paid_at": "2026-05-24", "kind": "payment"},
+        )
+
+    assert response.status_code == 200, response.text
+    with SessionLocal() as db:
+        billing = db.get(Billing, billing_id)
+        assert billing.prepayment_amount == 175
+        payment = db.query(BillingPayment).filter(BillingPayment.billing_id == billing_id).one()
+        assert payment.amount == 75
+        assert payment.paid_at == date(2026, 5, 24)
+
+
+def test_billing_payment_routes_are_scoped():
+    SessionLocal = _session_factory()
+    ids = _seed(SessionLocal)
+
+    with SessionLocal() as db:
+        order = Order(
+            client_id=ids["client_b"],
+            clinic_id=ids["clinic_b"],
+            user_id=ids["other_user"],
+            order_date=date(2026, 5, 24),
+            type="regular",
+            order_data={},
+        )
+        db.add(order)
+        db.flush()
+        billing = Billing(order_id=order.id, total_after_discount=500, prepayment_amount=100)
+        db.add(billing)
+        db.commit()
+        billing_id = billing.id
+
+    with _client(SessionLocal, ids["ceo"]) as client:
+        listed = client.get(f"/api/v1/billing/{billing_id}/payments")
+        created = client.post(
+            f"/api/v1/billing/{billing_id}/payments",
+            json={"amount": 75, "paid_at": "2026-05-24", "kind": "payment"},
+        )
+
+    assert listed.status_code == 403
+    assert created.status_code == 403
+
+
+def test_billing_payment_negative_amount_requires_adjustment_kind():
+    SessionLocal = _session_factory()
+    ids = _seed(SessionLocal)
+
+    with SessionLocal() as db:
+        order = Order(
+            client_id=ids["client_a"],
+            clinic_id=ids["clinic_a"],
+            user_id=ids["clinic_user"],
+            order_date=date(2026, 5, 24),
+            type="regular",
+            order_data={},
+        )
+        db.add(order)
+        db.flush()
+        billing = Billing(order_id=order.id, total_after_discount=500, prepayment_amount=100)
+        db.add(billing)
+        db.commit()
+        billing_id = billing.id
+
+    with _client(SessionLocal, ids["clinic_user"]) as client:
+        rejected = client.post(
+            f"/api/v1/billing/{billing_id}/payments",
+            json={"amount": -25, "paid_at": "2026-05-24", "kind": "payment"},
+        )
+        accepted = client.post(
+            f"/api/v1/billing/{billing_id}/payments",
+            json={"amount": -25, "paid_at": "2026-05-24", "kind": "adjustment"},
+        )
+
+    assert rejected.status_code == 422
+    assert accepted.status_code == 200, accepted.text
+    with SessionLocal() as db:
+        assert db.get(Billing, billing_id).prepayment_amount == 75

@@ -11,7 +11,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Eye, Trash2, FileText, Loader2, FileDown, Printer } from "lucide-react"
-import { ClientOrdersContext, Order, User } from "@/lib/db/schema-interface"
+import { BillingPayment, ClientOrdersContext, Order, User } from "@/lib/db/schema-interface"
 import { ClientSelectModal } from "@/components/ClientSelectModal"
 import { exportOrderToDocx, exportOrderToPdf, printOrderPdf } from "@/lib/order-docx"
 import {
@@ -30,7 +30,7 @@ import { Badge } from "@/components/ui/badge"
 
 import { CustomModal } from "@/components/ui/custom-modal"
 import { deleteOrder, deleteContactLensOrder } from "@/lib/db/orders-db"
-import { createBilling, updateBilling } from "@/lib/db/billing-db"
+import { createBilling, createBillingPayment, getBillingPayments } from "@/lib/db/billing-db"
 import { toast } from "sonner"
 import { Skeleton } from "@/components/ui/skeleton"
 import { DateSearchHelper } from "@/lib/date-search-helper"
@@ -45,6 +45,12 @@ import {
   type AdditionAddType,
 } from "@/lib/addition-add-sources"
 import { formatBillingAmount, getBillingPaymentStatus } from "@/lib/billing-payment-status"
+
+function getLocalDateInputValue() {
+  const now = new Date();
+  const offsetMs = now.getTimezoneOffset() * 60_000;
+  return new Date(now.getTime() - offsetMs).toISOString().slice(0, 10);
+}
 
 interface OrdersTableProps {
   data: Order[]
@@ -105,6 +111,10 @@ export function OrdersTable({
   const [savingPaymentStatusIds, setSavingPaymentStatusIds] = useState<Record<number, boolean>>({})
   const [paymentDropdownOrderId, setPaymentDropdownOrderId] = useState<number | null>(null)
   const [paidDrafts, setPaidDrafts] = useState<Record<number, string>>({})
+  const [newPaymentDrafts, setNewPaymentDrafts] = useState<Record<number, string>>({})
+  const [paymentDateDrafts, setPaymentDateDrafts] = useState<Record<number, string>>({})
+  const [editingPaidIds, setEditingPaidIds] = useState<Record<number, boolean>>({})
+  const [paymentHistory, setPaymentHistory] = useState<Record<number, BillingPayment[]>>({})
   const [billingOverrides, setBillingOverrides] = useState<Record<number, { billing_id?: number; total_after_discount?: number; prepayment_amount?: number }>>({})
   const [exportingDocxIds, setExportingDocxIds] = useState<Record<string, boolean>>({})
   const [exportingPdfIds, setExportingPdfIds] = useState<Record<string, boolean>>({})
@@ -422,42 +432,82 @@ export function OrdersTable({
     }
   };
 
-  const handlePaymentPaidSave = async (order: Order) => {
+  const loadPaymentHistory = async (order: Order) => {
     if (!order.id) return;
     const orderId = order.id;
-    const previous = billingOverrides[orderId];
     const billingId = getBillingId(order);
+    if (!billingId) return;
+    const payments = await getBillingPayments(billingId);
+    setPaymentHistory((prev) => ({ ...prev, [orderId]: payments }));
+  };
+
+  const ensureBillingForPayment = async (order: Order) => {
+    if (!order.id) return null;
+    const billingId = getBillingId(order);
+    if (billingId) return billingId;
+
     const total = getBillingTotal(order);
-    const draft = paidDrafts[orderId] ?? String(getBillingPaid(order));
-    const paid = Number.parseFloat(draft);
-    const nextPaid = Number.isFinite(paid) ? paid : 0;
+    const saved = await createBilling(
+      (order as any).__contact
+        ? { contact_lens_id: order.id, total_after_discount: total }
+        : { order_id: order.id, total_after_discount: total },
+    );
+    if (!saved?.id) return null;
+    setBillingOverrides((prev) => ({
+      ...prev,
+      [order.id!]: {
+        billing_id: saved.id,
+        total_after_discount: saved.total_after_discount ?? total,
+        prepayment_amount: saved.prepayment_amount ?? getBillingPaid(order),
+      },
+    }));
+    return saved.id;
+  };
+
+  const applyPaymentChange = async (
+    order: Order,
+    amount: number,
+    paidAt: string,
+    kind: "payment" | "adjustment",
+    successMessage: string,
+  ) => {
+    if (!order.id) return null;
+    const orderId = order.id;
+    const previous = billingOverrides[orderId];
+    const total = getBillingTotal(order);
+    const currentPaid = getBillingPaid(order);
+    const nextPaid = currentPaid + amount;
 
     setSavingPaymentStatusIds((prev) => ({ ...prev, [orderId]: true }));
     setBillingOverrides((prev) => ({
       ...prev,
-      [orderId]: { billing_id: billingId, total_after_discount: total, prepayment_amount: nextPaid },
+      [orderId]: { billing_id: getBillingId(order), total_after_discount: total, prepayment_amount: nextPaid },
     }));
 
     try {
-      const saved = billingId
-        ? await updateBilling({ id: billingId, prepayment_amount: nextPaid })
-        : await createBilling(
-            (order as any).__contact
-              ? { contact_lens_id: orderId, prepayment_amount: nextPaid }
-              : { order_id: orderId, prepayment_amount: nextPaid },
-          );
-
-      if (!saved) throw new Error("paid amount save failed");
+      const billingId = await ensureBillingForPayment(order);
+      if (!billingId) throw new Error("billing creation failed");
+      const savedPayment = await createBillingPayment(billingId, {
+        amount,
+        paid_at: paidAt,
+        kind,
+      });
+      if (!savedPayment) throw new Error("payment save failed");
       setBillingOverrides((prev) => ({
         ...prev,
         [orderId]: {
-          billing_id: saved.id || billingId,
-          total_after_discount: saved.total_after_discount ?? total,
-          prepayment_amount: saved.prepayment_amount ?? nextPaid,
+          billing_id: billingId,
+          total_after_discount: total,
+          prepayment_amount: nextPaid,
         },
       }));
-      setPaymentDropdownOrderId(null);
-      toast.success("תשלום עודכן");
+      setPaidDrafts((prev) => ({ ...prev, [orderId]: String(nextPaid || "") }));
+      setPaymentHistory((prev) => ({
+        ...prev,
+        [orderId]: [savedPayment, ...(prev[orderId] || [])],
+      }));
+      toast.success(successMessage);
+      return savedPayment;
     } catch (error) {
       setBillingOverrides((prev) => {
         const next = { ...prev };
@@ -466,8 +516,51 @@ export function OrdersTable({
         return next;
       });
       toast.error("שגיאה בעדכון תשלום");
+      return null;
     } finally {
       setSavingPaymentStatusIds((prev) => ({ ...prev, [orderId]: false }));
+    }
+  };
+
+  const handleNewPaymentSave = async (order: Order) => {
+    if (!order.id) return;
+    const orderId = order.id;
+    const amount = Number.parseFloat(newPaymentDrafts[orderId] ?? "");
+    const paidAt = paymentDateDrafts[orderId] || getLocalDateInputValue();
+    if (!Number.isFinite(amount) || amount <= 0) {
+      toast.error("יש להזין סכום תשלום חיובי");
+      return;
+    }
+    const saved = await applyPaymentChange(order, amount, paidAt, "payment", "תשלום נוסף נשמר");
+    if (saved) {
+      setNewPaymentDrafts((prev) => ({ ...prev, [orderId]: "" }));
+      setPaymentDateDrafts((prev) => ({ ...prev, [orderId]: getLocalDateInputValue() }));
+    }
+  };
+
+  const handlePaidTotalAdjustmentSave = async (order: Order) => {
+    if (!order.id) return;
+    const orderId = order.id;
+    const draft = paidDrafts[orderId] ?? String(getBillingPaid(order));
+    const nextPaid = Number.parseFloat(draft);
+    if (!Number.isFinite(nextPaid) || nextPaid < 0) {
+      toast.error("יש להזין סכום שולם תקין");
+      return;
+    }
+    const delta = nextPaid - getBillingPaid(order);
+    if (Math.abs(delta) < 0.01) {
+      setEditingPaidIds((prev) => ({ ...prev, [orderId]: false }));
+      return;
+    }
+    const saved = await applyPaymentChange(
+      order,
+      delta,
+      getLocalDateInputValue(),
+      "adjustment",
+      "סכום שולם עודכן",
+    );
+    if (saved) {
+      setEditingPaidIds((prev) => ({ ...prev, [orderId]: false }));
     }
   };
 
@@ -808,8 +901,16 @@ export function OrdersTable({
                                 ...prev,
                                 [order.id!]: String(getBillingPaid(order) || ""),
                               }));
+                              setNewPaymentDrafts((prev) => ({ ...prev, [order.id!]: "" }));
+                              setPaymentDateDrafts((prev) => ({
+                                ...prev,
+                                [order.id!]: prev[order.id!] || getLocalDateInputValue(),
+                              }));
+                              setEditingPaidIds((prev) => ({ ...prev, [order.id!]: false }));
+                              void loadPaymentHistory(order);
                             } else {
                               setPaymentDropdownOrderId(null);
+                              setEditingPaidIds((prev) => ({ ...prev, [order.id!]: false }));
                             }
                           }}
                         >
@@ -829,42 +930,146 @@ export function OrdersTable({
                           </DropdownMenuTrigger>
                           <DropdownMenuContent
                             align="start"
-                            className="w-72 p-3"
+                            className="w-80 p-3"
                             onClick={(e) => e.stopPropagation()}
                           >
+                            <div className="mb-3 flex items-center justify-between rounded-md bg-muted/40 px-3 py-2 text-sm">
+                              <span className="text-muted-foreground">שולם / סה"כ</span>
+                              <span className="font-medium tabular-nums">
+                                {formatBillingAmount(getBillingPaid(order))} / {formatBillingAmount(getBillingTotal(order))}
+                              </span>
+                            </div>
+
                             <div className="grid grid-cols-2 gap-3">
                               <div>
                                 <div className="mb-1 text-xs text-muted-foreground">שולם</div>
-                                <Input
-                                  type="number"
-                                  step="0.01"
-                                  value={order.id ? paidDrafts[order.id] ?? "" : ""}
-                                  onChange={(e) => {
-                                    if (!order.id) return;
-                                    setPaidDrafts((prev) => ({ ...prev, [order.id!]: e.target.value }));
-                                  }}
-                                  className="h-9"
-                                />
+                                {order.id && editingPaidIds[order.id] ? (
+                                  <Input
+                                    type="number"
+                                    step="0.01"
+                                    value={paidDrafts[order.id] ?? ""}
+                                    onChange={(e) => {
+                                      if (!order.id) return;
+                                      setPaidDrafts((prev) => ({ ...prev, [order.id!]: e.target.value }));
+                                    }}
+                                    className="h-9"
+                                    autoFocus
+                                  />
+                                ) : (
+                                  <button
+                                    type="button"
+                                    className="flex h-9 w-full items-center rounded-md border bg-muted/30 px-3 text-right text-sm tabular-nums"
+                                    onDoubleClick={(e) => {
+                                      e.stopPropagation();
+                                      if (!order.id) return;
+                                      setEditingPaidIds((prev) => ({ ...prev, [order.id!]: true }));
+                                      setPaidDrafts((prev) => ({
+                                        ...prev,
+                                        [order.id!]: String(getBillingPaid(order) || ""),
+                                      }));
+                                    }}
+                                  >
+                                    {formatBillingAmount(getBillingPaid(order))}
+                                  </button>
+                                )}
                               </div>
                               <div>
                                 <div className="mb-1 text-xs text-muted-foreground">סה"כ</div>
-                                <div className="flex h-9 items-center rounded-md border bg-muted/30 px-3 text-sm">
+                                <div className="flex h-9 items-center rounded-md border bg-muted/30 px-3 text-sm tabular-nums">
                                   {formatBillingAmount(getBillingTotal(order))}
                                 </div>
                               </div>
                             </div>
-                            <div className="mt-3 flex justify-start">
-                              <Button
-                                size="sm"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handlePaymentPaidSave(order);
-                                }}
-                                disabled={!!savingPaymentStatusIds[order.id || -1]}
-                              >
-                                {savingPaymentStatusIds[order.id || -1] ? "שומר..." : "שמור"}
-                              </Button>
+
+                            {order.id && editingPaidIds[order.id] && (
+                              <div className="mt-3 flex justify-start gap-2">
+                                <Button
+                                  size="sm"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handlePaidTotalAdjustmentSave(order);
+                                  }}
+                                  disabled={!!savingPaymentStatusIds[order.id || -1]}
+                                >
+                                  {savingPaymentStatusIds[order.id || -1] ? "שומר..." : "שמור שינוי"}
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (!order.id) return;
+                                    setEditingPaidIds((prev) => ({ ...prev, [order.id!]: false }));
+                                    setPaidDrafts((prev) => ({
+                                      ...prev,
+                                      [order.id!]: String(getBillingPaid(order) || ""),
+                                    }));
+                                  }}
+                                >
+                                  ביטול
+                                </Button>
+                              </div>
+                            )}
+
+                            <div className="mt-4 border-t pt-3">
+                              <div className="mb-2 text-xs font-medium text-muted-foreground">תשלום חדש</div>
+                              <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                  <div className="mb-1 text-xs text-muted-foreground">סכום</div>
+                                  <Input
+                                    type="number"
+                                    step="0.01"
+                                    value={order.id ? newPaymentDrafts[order.id] ?? "" : ""}
+                                    onChange={(e) => {
+                                      if (!order.id) return;
+                                      setNewPaymentDrafts((prev) => ({ ...prev, [order.id!]: e.target.value }));
+                                    }}
+                                    className="h-9"
+                                  />
+                                </div>
+                                <div>
+                                  <div className="mb-1 text-xs text-muted-foreground">תאריך</div>
+                                  <Input
+                                    type="date"
+                                    value={order.id ? paymentDateDrafts[order.id] ?? getLocalDateInputValue() : ""}
+                                    onChange={(e) => {
+                                      if (!order.id) return;
+                                      setPaymentDateDrafts((prev) => ({ ...prev, [order.id!]: e.target.value }));
+                                    }}
+                                    className="h-9"
+                                  />
+                                </div>
+                              </div>
+                              <div className="mt-3 flex justify-start">
+                                <Button
+                                  size="sm"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleNewPaymentSave(order);
+                                  }}
+                                  disabled={!!savingPaymentStatusIds[order.id || -1]}
+                                >
+                                  {savingPaymentStatusIds[order.id || -1] ? "שומר..." : "הוסף תשלום"}
+                                </Button>
+                              </div>
                             </div>
+
+                            {order.id && (paymentHistory[order.id] || []).length > 0 && (
+                              <div className="mt-4 border-t pt-3">
+                                <div className="mb-2 text-xs font-medium text-muted-foreground">תשלומים אחרונים</div>
+                                <div className="space-y-1.5 text-xs">
+                                  {(paymentHistory[order.id] || []).slice(0, 3).map((payment) => (
+                                    <div key={payment.id} className="flex items-center justify-between">
+                                      <span className="text-muted-foreground">
+                                        {payment.paid_at ? new Date(payment.paid_at).toLocaleDateString("he-IL") : ""}
+                                        {payment.kind === "adjustment" ? " · תיקון" : ""}
+                                      </span>
+                                      <span className="tabular-nums">{formatBillingAmount(payment.amount)}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
                           </DropdownMenuContent>
                         </DropdownMenu>
                       ) : (
