@@ -16,6 +16,20 @@ export async function getBillingByOrderId(orderId: number): Promise<Billing | nu
   }
 }
 
+export async function getBillingById(billingId: number): Promise<Billing | null> {
+  try {
+    const response = await apiClient.getBilling(billingId);
+    if (response.error) {
+      console.error('Error getting billing:', response.error);
+      return null;
+    }
+    return response.data || null;
+  } catch (error) {
+    console.error('Error getting billing:', error);
+    return null;
+  }
+}
+
 export async function getOrderLineItemsByBillingId(billingId: number): Promise<OrderLineItem[]> {
   try {
     const response = await apiClient.getOrderLineItems(billingId);

@@ -343,14 +343,20 @@ export function ReferralTable({
                     {referral.type || "-"}
                   </TableCell>
                   {clientId === 0 && (
-                    <TableCell className="cursor-pointer text-blue-600 hover:underline"
-                      onClick={e => {
-                        e.stopPropagation();
-                        if (referral.client_id) {
-                          navigate({ to: "/clients/$clientId", params: { clientId: String(referral.client_id) }, search: { tab: 'referrals' } })
-                        }
-                      }}
-                    >{referral.client_full_name || ''}</TableCell>
+                    <TableCell className="text-right">
+                      <button
+                        type="button"
+                        className="text-blue-600 hover:underline"
+                        onClick={e => {
+                          e.stopPropagation();
+                          if (referral.client_id) {
+                            navigate({ to: "/clients/$clientId", params: { clientId: String(referral.client_id) }, search: { tab: 'referrals' } })
+                          }
+                        }}
+                      >
+                        {referral.client_full_name || ''}
+                      </button>
+                    </TableCell>
                   )}
                   <TableCell className="text-right">
                     {referral.urgency_level ? (

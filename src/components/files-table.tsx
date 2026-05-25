@@ -465,6 +465,7 @@ export function FilesTable({
                   {clientId === 0 && (
                     <TableCell>
                       <button
+                        type="button"
                         onClick={() => navigate({
                           to: "/clients/$clientId",
                           params: { clientId: String(file.client_id) },

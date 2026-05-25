@@ -9,6 +9,7 @@ import { ALL_FILTER_VALUE } from "@/lib/table-filters"
 import { buildTableSearch } from "@/lib/list-page-search"
 import { parseSortSearch, sortToOrder, sortToSearch } from "@/lib/table-sorting"
 import { useUsersQuery } from "@/hooks/client/useClientTabQueries"
+import { onBillingPaymentsChanged } from "@/lib/billing-events"
 
 export default function AllOrdersPage() {
   const { currentClinic } = useUser()
@@ -86,6 +87,12 @@ export default function AllOrdersPage() {
       loadData()
     }
   }, [loadData, currentClinic])
+
+  useEffect(() => {
+    return onBillingPaymentsChanged(() => {
+      if (currentClinic) void loadData()
+    })
+  }, [currentClinic, loadData])
 
   const handleOrderDeleted = (deletedOrderId: number) => {
     setOrders(prevOrders => prevOrders.filter(order => order.id !== deletedOrderId))

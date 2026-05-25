@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Link, useNavigate } from "@tanstack/react-router";
+import { useNavigate } from "@tanstack/react-router";
 import {
   Table,
   TableBody,
@@ -350,20 +350,23 @@ export function ExamsTable({
                   </TableCell>
                   <TableCell>{exam.test_name}</TableCell>
                   {clientId === 0 && (
-                    <TableCell
-                      className="cursor-pointer text-blue-600 hover:underline"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (exam.client_id) {
-                          navigate({
-                            to: "/clients/$clientId",
-                            params: { clientId: String(exam.client_id) },
-                            search: { tab: "exams" },
-                          });
-                        }
-                      }}
-                    >
-                      {exam.clientName}
+                    <TableCell>
+                      <button
+                        type="button"
+                        className="text-blue-600 hover:underline"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (exam.client_id) {
+                            navigate({
+                              to: "/clients/$clientId",
+                              params: { clientId: String(exam.client_id) },
+                              search: { tab: "exams" },
+                            });
+                          }
+                        }}
+                      >
+                        {exam.clientName}
+                      </button>
                     </TableCell>
                   )}
                   <TableCell>{exam.clinic}</TableCell>

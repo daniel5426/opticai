@@ -124,18 +124,21 @@ const AppointmentTableRow = React.memo(function AppointmentTableRow({
         {appointment.time}
       </TableCell>
       {clientId === 0 && (
-        <TableCell
-          className="cursor-pointer text-blue-600 hover:underline"
-          onClick={(e) => {
-            e.stopPropagation();
-            navigate({
-              to: "/clients/$clientId",
-              params: { clientId: String(appointment.client_id) },
-              search: { tab: "appointments" },
-            });
-          }}
-        >
-          {appointment.client_full_name || ""}
+        <TableCell>
+          <button
+            type="button"
+            className="text-blue-600 hover:underline"
+            onClick={(e) => {
+              e.stopPropagation();
+              navigate({
+                to: "/clients/$clientId",
+                params: { clientId: String(appointment.client_id) },
+                search: { tab: "appointments" },
+              });
+            }}
+          >
+            {appointment.client_full_name || ""}
+          </button>
         </TableCell>
       )}
       <TableCell onClick={() => onEdit(appointment)} className="cursor-pointer">

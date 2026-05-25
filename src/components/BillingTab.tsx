@@ -1,6 +1,7 @@
 import React from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { DateInput } from "@/components/ui/date";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -13,14 +14,28 @@ import { Button } from "@/components/ui/button";
 import { NotesCard } from "@/components/ui/notes-card";
 import { CustomModal } from "@/components/ui/custom-modal";
 import { History, Loader2, Plus, Trash2 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Billing, BillingPayment, OrderLineItem } from "@/lib/db/schema-interface";
-import { deleteBillingPayment, getBillingPayments } from "@/lib/db/billing-db";
+import {
+  createBillingPayment,
+  deleteBillingPayment,
+  getBillingById,
+  getBillingPayments,
+} from "@/lib/db/billing-db";
 import { toast } from "sonner";
 import {
   formatBillingAmount,
   getBillingBalance,
   getBillingPaymentStatus,
 } from "@/lib/billing-payment-status";
+import {
+  emitBillingPaymentsChanged,
+  onBillingPaymentsChanged,
+} from "@/lib/billing-events";
 
 const roundToTwoDecimals = (value: number) => Math.round(value * 100) / 100;
 
@@ -33,6 +48,12 @@ const toSafeNumber = (value: number | undefined | null) =>
 const MONEY_STEP = "0.01";
 const PERCENT_STEP = "0.01";
 const WHOLE_NUMBER_STEP = "1";
+
+function getLocalDateInputValue() {
+  const now = new Date();
+  const offsetMs = now.getTimezoneOffset() * 60_000;
+  return new Date(now.getTime() - offsetMs).toISOString().slice(0, 10);
+}
 
 const parseNumberInput = (value: string) => {
   const numValue = parseFloat(value);
@@ -85,40 +106,128 @@ export function BillingTab({
   const [paymentHistory, setPaymentHistory] = React.useState<BillingPayment[]>([]);
   const [paymentHistoryLoading, setPaymentHistoryLoading] = React.useState(false);
   const [deletingPaymentIds, setDeletingPaymentIds] = React.useState<Record<number, boolean>>({});
+  const [newPaymentAmount, setNewPaymentAmount] = React.useState("");
+  const [newPaymentDate, setNewPaymentDate] = React.useState(getLocalDateInputValue);
+  const [savingNewPayment, setSavingNewPayment] = React.useState(false);
+  const [isPaymentDropdownOpen, setIsPaymentDropdownOpen] = React.useState(false);
+  const paymentRefreshRequestRef = React.useRef(0);
 
-  const loadPaymentHistory = React.useCallback(async () => {
-    if (!billingFormData.id) {
+  const refreshPaymentState = React.useCallback(async () => {
+    const billingId = billingFormData.id;
+    if (!billingId) {
       setPaymentHistory([]);
-      return;
+      return null;
     }
+    const requestId = ++paymentRefreshRequestRef.current;
     setPaymentHistoryLoading(true);
     try {
-      const payments = await getBillingPayments(billingFormData.id);
+      const [payments, latestBilling] = await Promise.all([
+        getBillingPayments(billingId),
+        getBillingById(billingId),
+      ]);
+      if (requestId !== paymentRefreshRequestRef.current) return null;
+
       setPaymentHistory(payments);
+      const prepaymentAmount =
+        latestBilling?.prepayment_amount ?? billingFormData.prepayment_amount ?? 0;
+      setBillingFormData((prev) =>
+        prev.id === billingId
+          ? { ...prev, prepayment_amount: prepaymentAmount }
+          : prev,
+      );
+      return { payments, prepaymentAmount };
     } finally {
-      setPaymentHistoryLoading(false);
+      if (requestId === paymentRefreshRequestRef.current) {
+        setPaymentHistoryLoading(false);
+      }
     }
-  }, [billingFormData.id]);
+  }, [billingFormData.id, billingFormData.prepayment_amount, setBillingFormData]);
 
   const openPaymentHistory = () => {
     setIsPaymentHistoryOpen(true);
-    void loadPaymentHistory();
+    void refreshPaymentState();
+  };
+
+  React.useEffect(() => {
+    return onBillingPaymentsChanged((detail) => {
+      if (!billingFormData.id || detail.billingId !== billingFormData.id) return;
+      setBillingFormData((prev) =>
+        prev.id === detail.billingId
+          ? { ...prev, prepayment_amount: detail.prepaymentAmount }
+          : prev,
+      );
+      if (detail.payments) {
+        setPaymentHistory(detail.payments);
+      } else if (isPaymentHistoryOpen) {
+        void refreshPaymentState();
+      }
+    });
+  }, [billingFormData.id, isPaymentHistoryOpen, refreshPaymentState, setBillingFormData]);
+
+  const handleAddPayment = async () => {
+    const billingId = billingFormData.id;
+    if (!billingId) {
+      toast.error("יש לשמור את ההזמנה לפני הוספת תשלום");
+      return;
+    }
+
+    const amount = Number.parseFloat(newPaymentAmount);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      toast.error("יש להזין סכום תשלום חיובי");
+      return;
+    }
+
+    setSavingNewPayment(true);
+    try {
+      const savedPayment = await createBillingPayment(billingId, {
+        amount: roundToTwoDecimals(amount),
+        paid_at: newPaymentDate || getLocalDateInputValue(),
+        kind: "payment",
+      });
+      if (!savedPayment) throw new Error("payment save failed");
+
+      const refreshed = await refreshPaymentState();
+      if (refreshed) {
+        emitBillingPaymentsChanged({
+          billingId,
+          prepaymentAmount: refreshed.prepaymentAmount,
+          payments: refreshed.payments,
+          orderId: billingFormData.order_id,
+          contactLensId: billingFormData.contact_lens_id,
+        });
+      }
+      setNewPaymentAmount("");
+      setNewPaymentDate(getLocalDateInputValue());
+      toast.success("תשלום נוסף נשמר");
+    } catch (error) {
+      toast.error("שגיאה בעדכון תשלום");
+    } finally {
+      setSavingNewPayment(false);
+    }
   };
 
   const handleDeletePayment = async (payment: BillingPayment) => {
     if (!billingFormData.id || !payment.id) return;
     setDeletingPaymentIds((prev) => ({ ...prev, [payment.id!]: true }));
-    const success = await deleteBillingPayment(billingFormData.id, payment.id);
-    if (success) {
-      setPaymentHistory((prev) => prev.filter((item) => item.id !== payment.id));
-      setBillingFormData((prev) => ({
-        ...prev,
-        prepayment_amount: roundToTwoDecimals(toSafeNumber(prev.prepayment_amount) - payment.amount),
-      }));
-      toast.success("התשלום נמחק");
-    } else {
+    const billingId = billingFormData.id;
+    const success = await deleteBillingPayment(billingId, payment.id);
+    if (!success) {
       toast.error("שגיאה במחיקת תשלום");
+      setDeletingPaymentIds((prev) => ({ ...prev, [payment.id!]: false }));
+      return;
     }
+
+    const refreshed = await refreshPaymentState();
+    if (refreshed) {
+      emitBillingPaymentsChanged({
+        billingId,
+        prepaymentAmount: refreshed.prepaymentAmount,
+        payments: refreshed.payments,
+        orderId: billingFormData.order_id,
+        contactLensId: billingFormData.contact_lens_id,
+      });
+    }
+    toast.success("התשלום נמחק");
     setDeletingPaymentIds((prev) => ({ ...prev, [payment.id!]: false }));
   };
 
@@ -632,16 +741,112 @@ export function BillingTab({
                   />
                 </div>
               </div>
-              <div>
-                <Label className="text-sm">סטטוס תשלום</Label>
-                <div className="bg-muted/30 mt-1.5 flex h-10 items-center rounded-md border px-3 text-sm">
-                  {paymentStatus}
-                </div>
-              </div>
-              <div>
-                <Label className="text-sm">יתרה לתשלום</Label>
-                <div className="bg-muted/30 mt-1.5 flex h-10 items-center rounded-md border px-3 text-sm">
-                  {formatBillingAmount(balanceDue)}
+              <div className="md:col-span-3">
+                <div>
+                  <DropdownMenu
+                    dir="rtl"
+                    open={isPaymentDropdownOpen}
+                    onOpenChange={(open) => {
+                      setIsPaymentDropdownOpen(open);
+                      if (open) {
+                        setNewPaymentAmount("");
+                        setNewPaymentDate((prev) => prev || getLocalDateInputValue());
+                        void refreshPaymentState();
+                      }
+                    }}
+                  >
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        type="button"
+                        className="h-10 w-full"
+                        disabled={savingNewPayment || !billingFormData.id}
+                      >
+                        {savingNewPayment ? (
+                          <Loader2 className="ml-1 h-4 w-4 animate-spin" />
+                        ) : (
+                          <Plus className="ml-1 h-4 w-4" />
+                        )}
+                        הוסף תשלום
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start" className="w-80 p-3">
+                      <div className="mb-3 rounded-md border bg-muted/30 px-3 py-2 text-sm">
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="text-muted-foreground">שולם / סה"כ</span>
+                          <span className="font-medium tabular-nums">
+                            {formatBillingAmount(billingFormData.prepayment_amount)} /{" "}
+                            {formatBillingAmount(billingFormData.total_after_discount)}
+                          </span>
+                        </div>
+                        <div className="mt-1 flex items-center justify-between gap-3 border-t pt-1">
+                          <span className="text-muted-foreground">יתרה לתשלום</span>
+                          <span className="font-medium tabular-nums">
+                            {formatBillingAmount(balanceDue)}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="border-t pt-3">
+                        <div className="mb-2 text-xs font-medium text-muted-foreground">
+                          תשלום חדש
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <div className="mb-1 text-xs text-muted-foreground">סכום</div>
+                            <Input
+                              type="number"
+                              step={MONEY_STEP}
+                              value={newPaymentAmount}
+                              onChange={(e) => setNewPaymentAmount(e.target.value)}
+                              className="h-9"
+                            />
+                          </div>
+                          <div>
+                            <div className="mb-1 text-xs text-muted-foreground">תאריך</div>
+                            <DateInput
+                              name="new_payment_date"
+                              value={newPaymentDate}
+                              onChange={(e) => setNewPaymentDate(e.target.value)}
+                              className="h-9"
+                            />
+                          </div>
+                        </div>
+                        <div className="mt-3 flex justify-start">
+                          <Button
+                            size="sm"
+                            onClick={handleAddPayment}
+                            disabled={savingNewPayment}
+                          >
+                            {savingNewPayment ? "שומר..." : "הוסף תשלום"}
+                          </Button>
+                        </div>
+                      </div>
+
+                      {paymentHistory.length > 0 && (
+                        <div className="mt-4 border-t pt-3">
+                          <div className="mb-2 text-xs font-medium text-muted-foreground">
+                            תשלומים אחרונים
+                          </div>
+                          <div className="space-y-1.5 text-xs">
+                            {paymentHistory.slice(0, 3).map((payment) => (
+                              <div
+                                key={payment.id}
+                                className="flex items-center justify-between"
+                              >
+                                <span className="text-muted-foreground">
+                                  {formatPaymentDate(payment.paid_at)}
+                                  {payment.kind === "adjustment" ? " · תיקון" : ""}
+                                </span>
+                                <span className="tabular-nums">
+                                  {formatBillingAmount(payment.amount)}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
               </div>
             </div>

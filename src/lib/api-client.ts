@@ -1170,6 +1170,10 @@ class ApiClient {
   
 
   // Billing
+  async getBilling(id: number) {
+    return this.request<Billing>(`/billing/${id}`);
+  }
+
   async getBillingByOrder(orderId: number) {
     return this.request<Billing>(`/billing/order/${orderId}`);
   }

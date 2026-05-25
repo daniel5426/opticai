@@ -17,6 +17,7 @@ import {
   saveOrderDetailsComponent,
   updateContactLensOrder,
 } from "@/lib/db/orders-db"
+import { onBillingPaymentsChanged } from "@/lib/billing-events"
 
 interface ClientOrdersTabProps {
   enabled?: boolean
@@ -32,6 +33,13 @@ export function ClientOrdersTab({ enabled = true }: ClientOrdersTabProps) {
   const usersQuery = useUsersQuery(currentClinic?.id, enabled)
   const [searchQuery, setSearchQuery] = useState("")
   const ordersQueryKey = clientQueryKeys.orders(clientIdNum)
+
+  React.useEffect(() => {
+    return onBillingPaymentsChanged(() => {
+      queryClient.invalidateQueries({ queryKey: ordersQueryKey })
+      queryClient.invalidateQueries({ queryKey: clientQueryKeys.ordersContext(clientIdNum) })
+    })
+  }, [clientIdNum, ordersQueryKey, queryClient])
 
   const handleOrderDeleted = (deletedOrderId: number) => {
     queryClient.setQueryData<Order[]>(ordersQueryKey, (current) =>

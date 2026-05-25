@@ -46,6 +46,10 @@ import {
   type AdditionAddType,
 } from "@/lib/addition-add-sources"
 import { formatBillingAmount, getBillingBalance, getBillingPaymentStatus } from "@/lib/billing-payment-status"
+import {
+  emitBillingPaymentsChanged,
+  onBillingPaymentsChanged,
+} from "@/lib/billing-events"
 
 const MONEY_STEP = "0.01";
 
@@ -402,6 +406,45 @@ export function OrdersTable({
     return Number(billingOverrides[order.id]?.prepayment_amount ?? (order as any).billing_prepayment_amount) || 0;
   }, [billingOverrides]);
 
+  React.useEffect(() => {
+    return onBillingPaymentsChanged((detail) => {
+      const matchingOrders = data.filter((order) => {
+        if (!order.id) return false;
+        const isContact = Boolean((order as any).__contact);
+        return (
+          (order as any).billing_id === detail.billingId ||
+          (!isContact && detail.orderId === order.id) ||
+          (isContact && detail.contactLensId === order.id)
+        );
+      });
+      if (matchingOrders.length === 0) return;
+
+      setBillingOverrides((prev) => {
+        const next = { ...prev };
+        matchingOrders.forEach((order) => {
+          next[order.id!] = {
+            billing_id: detail.billingId,
+            total_after_discount:
+              prev[order.id!]?.total_after_discount ??
+              (Number((order as any).billing_total_after_discount) || 0),
+            prepayment_amount: detail.prepaymentAmount,
+          };
+        });
+        return next;
+      });
+
+      if (detail.payments) {
+        setPaymentHistory((prev) => {
+          const next = { ...prev };
+          matchingOrders.forEach((order) => {
+            next[order.id!] = detail.payments!;
+          });
+          return next;
+        });
+      }
+    });
+  }, [data]);
+
   const sortColumns = React.useMemo<SortColumns<Order>>(() => ({
     order_date: { getValue: (order) => order.order_date, type: "date" },
     type: { getValue: (order) => order.type },
@@ -506,6 +549,13 @@ export function OrdersTable({
         ...prev,
         [orderId]: [savedPayment, ...(prev[orderId] || [])],
       }));
+      emitBillingPaymentsChanged({
+        billingId,
+        prepaymentAmount: nextPaid,
+        payments: [savedPayment, ...(paymentHistory[orderId] || [])],
+        orderId: (order as any).__contact ? undefined : order.id,
+        contactLensId: (order as any).__contact ? order.id : undefined,
+      });
       toast.success(successMessage);
       return savedPayment;
     } catch (error) {
@@ -855,12 +905,18 @@ export function OrdersTable({
                     <TableCell>{order.type}</TableCell>
                     <TableCell>{(order as any).__contact ? 'עדשות מגע' : 'הזמנה רגילה'}</TableCell>
                     {clientId === 0 && (
-                      <TableCell className="cursor-pointer text-blue-600 hover:underline"
-                        onClick={e => {
-                          e.stopPropagation();
-                          navigate({ to: "/clients/$clientId", params: { clientId: String(order.client_id) }, search: { tab: 'orders' } })
-                        }}
-                      >{(order as any).clientName || ''}</TableCell>
+                      <TableCell>
+                        <button
+                          type="button"
+                          className="text-blue-600 hover:underline"
+                          onClick={e => {
+                            e.stopPropagation();
+                            navigate({ to: "/clients/$clientId", params: { clientId: String(order.client_id) }, search: { tab: 'orders' } })
+                          }}
+                        >
+                          {(order as any).clientName || ''}
+                        </button>
+                      </TableCell>
                     )}
                     <TableCell>
                       {hasBillingPrice ? (
