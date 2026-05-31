@@ -346,11 +346,55 @@ def read_csv_streaming(csv_dir: str, filename: str, max_items: Optional[int] = N
 
 
 def build_default_migrated_layout_data() -> str:
-    rows = []
+    legacy_columns = {
+        "old-ref": 3,
+        "old-refraction": 8,
+        "old-refraction-extension": 12,
+        "objective": 4,
+        "subjective": 8,
+        "final-subjective": 9,
+        "final-prescription": 8,
+        "compact-prescription": 8,
+        "addition": 6,
+        "retinoscop": 6,
+        "retinoscop-dilation": 6,
+        "uncorrected-va": 3,
+        "keratometer": 3,
+        "keratometer-full": 9,
+        "corneal-topography": 1,
+        "cover-test": 4,
+        "notes": 5,
+        "anamnesis": 11,
+        "schirmer-test": 2,
+        "contact-lens-diameters": 2,
+        "contact-lens-details": 10,
+        "keratometer-contact-lens": 6,
+        "contact-lens-exam": 7,
+        "old-contact-lenses": 13,
+        "over-refraction": 9,
+        "sensation-vision-stability": 5,
+        "fusion-range": 5,
+        "maddox-rod": 5,
+        "stereo-test": 2,
+        "rg": 3,
+        "ocular-motor-assessment": 5,
+    }
+    grid_columns = 24
+    items = []
     for idx, component_type in enumerate(MIGRATED_LAYOUT_COMPONENTS, start=1):
-        card = {"id": f"{component_type}-1", "type": component_type}
-        rows.append({"id": f"row-{idx}", "cards": [card]})
-    return json.dumps({"rows": rows, "customWidths": {}})
+        legacy_width = legacy_columns.get(component_type, 1)
+        width = max(1, min(grid_columns, int((legacy_width / 16) * grid_columns + 0.5)))
+        items.append(
+            {
+                "id": f"{component_type}-1",
+                "type": component_type,
+                "showEyeLabels": True,
+                "x": 0,
+                "y": idx - 1,
+                "w": width,
+            }
+        )
+    return json.dumps({"version": 2, "grid": {"columns": grid_columns}, "items": items})
 
 
 def get_migrated_card_id(component_type: str) -> str:
@@ -482,18 +526,37 @@ def get_clinic_by_id(db: Session, clinic_id: int) -> Optional[Clinic]:
     return db.get(Clinic, clinic_id)
 
 
-def get_or_create_admin_user(db: Session, company: Company) -> User:
-    user = db.execute(select(User).where(User.role_level == 4)).scalars().first()
+def get_clinic_by_unique_id(db: Session, clinic_unique_id: str) -> Optional[Clinic]:
+    return db.execute(select(Clinic).where(Clinic.unique_id == clinic_unique_id)).scalars().first()
+
+
+def resolve_existing_clinic(db: Session, clinic_identifier: str) -> Optional[Clinic]:
+    identifier = clean_legacy_text(clinic_identifier)
+    if not identifier:
+        return None
+    if identifier.isdigit():
+        clinic = get_clinic_by_id(db, int(identifier))
+        if clinic:
+            return clinic
+    return get_clinic_by_unique_id(db, identifier)
+
+
+def get_or_create_admin_user(db: Session, company: Company, clinic: Optional[Clinic] = None) -> User:
+    query = select(User).where(User.company_id == company.id, User.role_level == 4)
+    if clinic is not None:
+        query = query.where(User.clinic_id == clinic.id)
+    user = db.execute(query).scalars().first()
     if user:
         return user
+    username = "admin" if clinic is None else f"migration-admin-{clinic.id}"
     user = User(
         company_id=company.id,
-        clinic_id=None,
-        full_name="System Administrator",
-        username="admin",
-        email="admin@opticai.local",
+        clinic_id=clinic.id if clinic else None,
+        full_name="Migration Administrator" if clinic else "System Administrator",
+        username=username,
+        email=f"{username}@opticai.local",
         phone=None,
-        password="admin",
+        password_hash=None,
         role_level=4,
         is_active=True,
     )

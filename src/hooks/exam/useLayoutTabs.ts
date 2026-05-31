@@ -103,15 +103,31 @@ export function useLayoutTabs({
     (excludeInstanceId?: number | string) => {
       const excludedKey =
         excludeInstanceId == null ? null : String(excludeInstanceId);
-      return layoutTabs
-        .filter(
-          (tab) =>
-            tab.layout_id != null &&
-            (excludedKey === null || String(tab.id) !== excludedKey),
-        )
-        .map((tab) => String(tab.id));
+      const visibleLayoutInstanceIds = new Set(
+        layoutTabs
+          .filter((tab) => tab.layout_id != null)
+          .map((tab) => String(tab.id)),
+      );
+      const contributingIds = new Set<string>();
+
+      visibleLayoutInstanceIds.forEach((id) => {
+        if (excludedKey === null || id !== excludedKey) {
+          contributingIds.add(id);
+        }
+      });
+
+      Object.entries(examFormDataByInstance).forEach(([instanceId, bucket]) => {
+        if (isVirtualFullDataTabId(instanceId)) return;
+        if (excludedKey !== null && instanceId === excludedKey) return;
+        if (visibleLayoutInstanceIds.has(instanceId)) return;
+        if (!bucket || Object.keys(bucket).length === 0) return;
+
+        contributingIds.add(instanceId);
+      });
+
+      return Array.from(contributingIds);
     },
-    [layoutTabs],
+    [layoutTabs, examFormDataByInstance],
   );
 
   // Aggregate all data from all instances

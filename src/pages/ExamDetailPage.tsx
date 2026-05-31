@@ -49,7 +49,10 @@ import {
   sortKeysDeep,
   normalizeFieldValue,
   shallowEqual,
+  isNonEmptyComponent,
   parseLayoutData,
+  packCardsIntoGridItems,
+  serializeGridLayoutData,
   type GridLayoutItem,
   legacyRowsToGridItems,
   VIRTUAL_FULL_DATA_TAB_ID,
@@ -87,6 +90,77 @@ import {
   type AdditionAddSourceMap,
   type AdditionAddType,
 } from "@/lib/addition-add-sources";
+
+const buildFullDataLayoutDataFromExamData = (
+  examData: Record<string, any>,
+): string => {
+  const cardDefs: { id: string; type: any; title?: string }[] = [];
+  const added = new Set<string>();
+  const registeredTypes = examComponentRegistry.getAllTypes();
+
+  const resolveTabbedCardId = (
+    type: "cover-test" | "old-refraction",
+    key: string,
+    value: any,
+  ) => {
+    if (value?.card_id) return String(value.card_id);
+    if (key === type) return type;
+
+    const suffix = key.slice(type.length + 1);
+    const tabId = value?.card_instance_id;
+    if (tabId != null && String(tabId) !== "" && suffix.endsWith(`-${tabId}`)) {
+      return suffix.slice(0, -String(tabId).length - 1) || suffix;
+    }
+    return suffix;
+  };
+
+  Object.entries(examData).forEach(([key, value]) => {
+    if (!isNonEmptyComponent(key, value)) return;
+
+    let type: string | null = null;
+    let cardId: string | null = null;
+
+    if (key.startsWith("notes-")) {
+      type = "notes";
+      cardId = key.replace("notes-", "");
+    } else if (key.startsWith("cover-test-")) {
+      type = "cover-test";
+      cardId = resolveTabbedCardId("cover-test", key, value);
+    } else if (key.startsWith("old-refraction-")) {
+      type = "old-refraction";
+      cardId = resolveTabbedCardId("old-refraction", key, value);
+    } else {
+      for (const registeredType of registeredTypes) {
+        if (key === registeredType) {
+          type = registeredType;
+          cardId =
+            registeredType === "cover-test" ||
+            registeredType === "old-refraction"
+              ? (value as any)?.card_id || registeredType
+              : (value as any)?.card_instance_id || registeredType;
+          break;
+        }
+        if (key.startsWith(`${registeredType}-`)) {
+          type = registeredType;
+          cardId =
+            (value as any)?.card_id || key.replace(`${registeredType}-`, "");
+          break;
+        }
+      }
+    }
+
+    if (!type || !cardId) return;
+    const uniqueKey = `${type}:${cardId}`;
+    if (added.has(uniqueKey)) return;
+    added.add(uniqueKey);
+    const title = (value as any)?.title;
+    cardDefs.push({ id: cardId, type, ...(title ? { title } : {}) });
+  });
+
+  return cardDefs.length
+    ? serializeGridLayoutData(packCardsIntoGridItems(cardDefs))
+    : "[]";
+};
 
 export default function ExamDetailPage({
   mode = "view",
@@ -913,6 +987,9 @@ export default function ExamDetailPage({
             const regularInstances = (instances || []).filter(
               (e: any) => e?.instance?.layout_id != null,
             );
+            const noLayoutInstances = (instances || []).filter(
+              (e: any) => e?.instance?.layout_id == null,
+            );
             const layoutInstances = regularInstances.map(
               (e: any) => e.instance,
             );
@@ -985,6 +1062,25 @@ export default function ExamDetailPage({
                       normalized.examData;
                   }
                 });
+                noLayoutInstances.forEach((instanceData: any) => {
+                  if (
+                    instanceData?.instance?.id &&
+                    instanceData.exam_data &&
+                    typeof instanceData.exam_data === "object" &&
+                    Object.keys(instanceData.exam_data).length > 0
+                  ) {
+                    const sourceLayoutRows = parseLayoutData(
+                      instanceData.instance?.layout_data || "[]",
+                    ).rows;
+                    const normalized = ensureLayoutDataForRows(
+                      instanceData.exam_data,
+                      sourceLayoutRows,
+                      instanceData.instance.id,
+                    );
+                    initialFormDataByInstance[instanceData.instance.id] =
+                      normalized.examData;
+                  }
+                });
                 setExamFormDataByInstance(initialFormDataByInstance);
 
                 const activeExamData =
@@ -1001,6 +1097,58 @@ export default function ExamDetailPage({
                 }
               }
             } else {
+              const source =
+                noLayoutInstances.find(
+                  (e: any) => e?.instance?.id === chosen_active_instance_id,
+                ) || noLayoutInstances[0];
+              if (
+                source?.instance?.id &&
+                source.exam_data &&
+                typeof source.exam_data === "object"
+              ) {
+                const sourceInstanceId = source.instance.id;
+                const sourceLayoutDataStr = source.instance.layout_data || "[]";
+                const sourceParsedLayout = parseLayoutData(sourceLayoutDataStr);
+                const normalized = ensureLayoutDataForRows(
+                  source.exam_data,
+                  sourceParsedLayout.rows,
+                  sourceInstanceId,
+                );
+                const fullDataLayoutData = buildFullDataLayoutDataFromExamData(
+                  normalized.examData,
+                );
+                const parsedFullDataLayout =
+                  parseLayoutData(fullDataLayoutData);
+                const sources: Record<string, number> = {};
+                const fullDataBucket = Object.fromEntries(
+                  Object.entries(normalized.examData).map(([key, value]) => {
+                    if (value && typeof value === "object") {
+                      sources[key] = sourceInstanceId;
+                      return [
+                        key,
+                        {
+                          ...(value as Record<string, any>),
+                          layout_instance_id: VIRTUAL_FULL_DATA_TAB_ID,
+                          source_layout_instance_id: sourceInstanceId,
+                        },
+                      ];
+                    }
+                    return [key, value];
+                  }),
+                );
+                fullDataSourcesRef.current[VIRTUAL_FULL_DATA_TAB_ID] = sources;
+                setLayoutTabs([]);
+                setActiveInstanceId(VIRTUAL_FULL_DATA_TAB_ID);
+                setCardRows(parsedFullDataLayout.rows);
+                setCustomWidths(parsedFullDataLayout.customWidths);
+                setGridItems(parsedFullDataLayout.items);
+                setExamFormData(fullDataBucket);
+                setExamFormDataByInstance({
+                  [sourceInstanceId]: normalized.examData,
+                  [VIRTUAL_FULL_DATA_TAB_ID]: fullDataBucket,
+                });
+                return;
+              }
               setLayoutTabs([]);
               setActiveInstanceId(VIRTUAL_FULL_DATA_TAB_ID);
               setCardRows([]);

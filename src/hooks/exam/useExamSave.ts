@@ -42,8 +42,12 @@ interface UseExamSaveParams {
   setExam: React.Dispatch<React.SetStateAction<OpticalExam | null>>;
   examFormData: Record<string, any>;
   examFormDataByInstance: Record<number | string, Record<string, any>>;
-  setExamFormDataByInstance: React.Dispatch<React.SetStateAction<Record<number | string, Record<string, any>>>>;
-  fullDataSourcesRef: React.MutableRefObject<Record<number, Record<string, number | string | null>>>;
+  setExamFormDataByInstance: React.Dispatch<
+    React.SetStateAction<Record<number | string, Record<string, any>>>
+  >;
+  fullDataSourcesRef: React.MutableRefObject<
+    Record<number, Record<string, number | string | null>>
+  >;
   layoutTabs: LayoutTab[];
   setLayoutTabs: React.Dispatch<React.SetStateAction<LayoutTab[]>>;
   activeInstanceId: number | null;
@@ -89,17 +93,25 @@ export function useExamSave({
 }: UseExamSaveParams) {
   const queryClient = useQueryClient();
 
-  // Use refs to ensure handleSave (which is a stable callback) can access the 
+  // Use refs to ensure handleSave (which is a stable callback) can access the
   // MOST RECENT data even after calling inputSyncManager.flush().
   const formDataRef = useRef(formData);
   const examFormDataRef = useRef(examFormData);
   const examFormDataByInstanceRef = useRef(examFormDataByInstance);
   const layoutTabsRef = useRef(layoutTabs);
 
-  useLayoutEffect(() => { formDataRef.current = formData; }, [formData]);
-  useLayoutEffect(() => { examFormDataRef.current = examFormData; }, [examFormData]);
-  useLayoutEffect(() => { examFormDataByInstanceRef.current = examFormDataByInstance; }, [examFormDataByInstance]);
-  useLayoutEffect(() => { layoutTabsRef.current = layoutTabs; }, [layoutTabs]);
+  useLayoutEffect(() => {
+    formDataRef.current = formData;
+  }, [formData]);
+  useLayoutEffect(() => {
+    examFormDataRef.current = examFormData;
+  }, [examFormData]);
+  useLayoutEffect(() => {
+    examFormDataByInstanceRef.current = examFormDataByInstance;
+  }, [examFormDataByInstance]);
+  useLayoutEffect(() => {
+    layoutTabsRef.current = layoutTabs;
+  }, [layoutTabs]);
 
   const handleSave = useCallback(async () => {
     if (!formRef.current || isSaveInFlight) return;
@@ -107,7 +119,7 @@ export function useExamSave({
     // Flush any pending updates from optimized components
     inputSyncManager.flush();
 
-    // After flush, we MUST read from the refs because the local state variables 
+    // After flush, we MUST read from the refs because the local state variables
     // (formData, examFormData, etc.) still hold the "old" values from the previous render.
     const currentFormData = formDataRef.current;
     const currentExamFormData = examFormDataRef.current;
@@ -120,7 +132,9 @@ export function useExamSave({
       realLayoutTabs.some((tab) => tab.id === currentActiveInstanceId);
     const tabsToPersist = realLayoutTabs.map((tab, index) => ({
       ...tab,
-      isActive: hasActiveRealTab ? tab.id === currentActiveInstanceId : index === 0,
+      isActive: hasActiveRealTab
+        ? tab.id === currentActiveInstanceId
+        : index === 0,
     }));
     const saveBuckets: Record<number | string, Record<string, any>> = {
       ...currentExamFormDataByInstance,
@@ -134,7 +148,8 @@ export function useExamSave({
     }
 
     if (isVirtualFullDataTabId(currentActiveInstanceId)) {
-      const sources = fullDataSourcesRef.current[VIRTUAL_FULL_DATA_TAB_ID] || {};
+      const sources =
+        fullDataSourcesRef.current[VIRTUAL_FULL_DATA_TAB_ID] || {};
       const keys = new Set([
         ...Object.keys(sources),
         ...Object.keys(currentExamFormData),
@@ -297,11 +312,24 @@ export function useExamSave({
 
           setExamFormDataByInstance(saveBuckets);
 
-          for (const tab of tabsToPersist) {
-            if (tab.id > 0) {
-              const bucket = saveBuckets[tab.id] || {};
-              await examComponentRegistry.saveAllData(tab.id, bucket);
+          const instanceIdsToSave = new Set<number>();
+          tabsToPersist.forEach((tab) => {
+            if (tab.id > 0) instanceIdsToSave.add(tab.id);
+          });
+          Object.keys(saveBuckets).forEach((instanceId) => {
+            const numericInstanceId = Number(instanceId);
+            if (
+              Number.isFinite(numericInstanceId) &&
+              numericInstanceId > 0 &&
+              !isVirtualFullDataTabId(numericInstanceId)
+            ) {
+              instanceIdsToSave.add(numericInstanceId);
             }
+          });
+
+          for (const instanceId of instanceIdsToSave) {
+            const bucket = saveBuckets[instanceId] || {};
+            await examComponentRegistry.saveAllData(instanceId, bucket);
           }
 
           if (updatedExam) {
@@ -315,7 +343,7 @@ export function useExamSave({
               examFormDataByInstance: saveBuckets,
             });
             syncSavedClientExam(queryClient, updatedExam, config.dbType);
-            
+
             toast.success(config.saveSuccessUpdate);
             setIsEditing(false);
           } else {

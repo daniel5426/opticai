@@ -1,12 +1,63 @@
 from .common import *
 from .steps import *
+from sqlalchemy.engine import make_url
+
+from backend.config import settings
 
 
-def migrate(csv_dir: str, company_id: Optional[int] = None, clinic_id: Optional[int] = None):
+PRODUCTION_CONFIRMATION = "MOVE_CSV_MIGRATION_TO_PRODUCTION"
+
+
+def resolve_migration_db_mode(db_mode: Optional[str] = None) -> str:
+    mode = (db_mode or os.environ.get("MIGRATION_DB_MODE") or "staging").strip().lower()
+    if mode not in {"staging", "production"}:
+        raise ValueError("MIGRATION_DB_MODE must be 'staging' or 'production'")
+    if mode == "production" and os.environ.get("CONFIRM_PRODUCTION_MIGRATION") != PRODUCTION_CONFIRMATION:
+        raise RuntimeError(
+            "Production CSV migration is blocked. Set "
+            f"CONFIRM_PRODUCTION_MIGRATION={PRODUCTION_CONFIRMATION} to run it."
+        )
+    return mode
+
+
+def print_database_target(mode: str) -> None:
+    url = make_url(settings.DATABASE_URL)
+    print(
+        "[db] "
+        f"mode={mode} backend={url.get_backend_name()} driver={url.drivername} "
+        f"host={url.host} port={url.port} database={url.database} username={url.username}"
+    )
+
+
+def resolve_target_clinic_ref(
+    clinic_identifier: Optional[str] = None,
+    clinic_id: Optional[int] = None,
+) -> str:
+    target = clinic_identifier or os.environ.get("TARGET_CLINIC_ID")
+    if target is None and clinic_id is not None:
+        target = str(clinic_id)
+    if target is None:
+        target = os.environ.get("CLINIC_ID")
+    target = clean_legacy_text(target)
+    if not target:
+        raise ValueError("TARGET_CLINIC_ID is required for CSV migration")
+    return target
+
+
+def migrate(
+    csv_dir: str,
+    company_id: Optional[int] = None,
+    clinic_id: Optional[int] = None,
+    clinic_identifier: Optional[str] = None,
+    db_mode: Optional[str] = None,
+):
+    mode = resolve_migration_db_mode(db_mode)
+    clinic_ref = resolve_target_clinic_ref(clinic_identifier, clinic_id)
     db = SessionLocal()
     try:
+        print_database_target(mode)
         # Optional performance mode for Postgres
-        perf_mode = True
+        perf_mode = os.environ.get("MIGRATION_PERF", "0").lower() in ("1", "true", "yes", "y")
         return_only_clients = os.environ.get("RETURN_ONLY_CLIENTS", "0").lower() in ("1", "true", "yes", "y")
         if perf_mode:
             try:
@@ -18,52 +69,36 @@ def migrate(csv_dir: str, company_id: Optional[int] = None, clinic_id: Optional[
             except Exception as e:
                 print(f"[perf] Failed to enable fast settings: {e}")
         
-        if clinic_id is not None:
-            clinic = get_clinic_by_id(db, clinic_id)
-            if not clinic:
-                raise ValueError(f"Clinic with id {clinic_id} not found")
-            if company_id is not None:
-                if clinic.company_id != company_id:
-                    raise ValueError(f"Clinic {clinic_id} does not belong to company {company_id}")
-                company = get_company_by_id(db, company_id)
-                if not company:
-                    raise ValueError(f"Company with id {company_id} not found")
-            else:
-                company = get_company_by_id(db, clinic.company_id)
-                if not company:
-                    raise ValueError(f"Company with id {clinic.company_id} (from clinic) not found")
-                company_id = company.id
-            print(f"Using company: {company.name} (id: {company.id})")
-            print(f"Using clinic: {clinic.name} (id: {clinic.id})")
-        elif company_id is not None:
+        clinic = resolve_existing_clinic(db, clinic_ref)
+        if not clinic:
+            raise ValueError(f"Clinic '{clinic_ref}' not found")
+        if not clinic.is_active:
+            raise ValueError(f"Clinic '{clinic_ref}' is inactive")
+        if company_id is not None and clinic.company_id != company_id:
+            raise ValueError(f"Clinic {clinic.id} does not belong to company {company_id}")
+        if company_id is not None:
             company = get_company_by_id(db, company_id)
             if not company:
                 raise ValueError(f"Company with id {company_id} not found")
-            print(f"Using company: {company.name} (id: {company.id})")
-            clinic = None
         else:
-            company = get_or_create_company(db)
-            print(f"Using/created company: {company.name} (id: {company.id})")
-            clinic = None
+            company = get_company_by_id(db, clinic.company_id)
+            if not company:
+                raise ValueError(f"Company with id {clinic.company_id} (from clinic) not found")
+            company_id = company.id
+        clinic_id = clinic.id
+        print(f"Using company: {company.name} (id: {company.id})")
+        print(f"Using clinic: {clinic.name} (id: {clinic.id}, unique_id: {clinic.unique_id})")
         
-        admin_user = get_or_create_admin_user(db, company)
+        admin_user = get_or_create_admin_user(db, company, clinic)
 
-        # Clinics map (from accounts)
+        # All source branches are imported into the selected existing clinic.
         branch_codes = collect_branch_codes(csv_dir)
-        branch_to_clinic: Dict[str, int] = {}
-        if clinic_id is not None:
-            for bc in branch_codes:
-                branch_to_clinic[bc] = clinic_id
-            print(f"Mapping all branch codes to clinic {clinic_id}")
-        else:
-            for bc in branch_codes:
-                clinic_obj = get_or_create_clinic(db, company, bc)
-                branch_to_clinic[bc] = clinic_obj.id
+        branch_to_clinic: Dict[Any, int] = {None: clinic_id, "": clinic_id}
+        for bc in branch_codes:
+            branch_to_clinic[bc] = clinic_id
+        print(f"Mapping all branch codes to clinic {clinic_id}")
 
-        lookup_clinic_ids = list(branch_to_clinic.values())
-        if clinic_id is not None and not lookup_clinic_ids:
-            lookup_clinic_ids = [clinic_id]
-        migrate_lookups(db, csv_dir, lookup_clinic_ids)
+        migrate_lookups(db, csv_dir, [clinic_id])
 
         # Clients and families
         account_to_client, _ = migrate_clients_and_families(db, csv_dir, company, return_only=return_only_clients, target_clinic_id=clinic_id)
@@ -506,19 +541,18 @@ def main():
     # Prefer ENV; fallback to new CSV folder under migration
     default_dir = os.environ.get(
         "LEGACY_CSV_DIR",
-        os.path.abspath(os.path.join(os.path.dirname(__file__), "csv_files_new")),
+        os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "csv_files_new")),
     )
     print(f"Using CSV directory: {default_dir}")
     
+    db_mode = resolve_migration_db_mode()
+    print_database_target(db_mode)
     company_id = int(os.environ["COMPANY_ID"]) if os.environ.get("COMPANY_ID") else None
-    clinic_id = int(os.environ["CLINIC_ID"]) if os.environ.get("CLINIC_ID") else None
+    clinic_ref = resolve_target_clinic_ref()
     
     if company_id is not None:
         print(f"Target company ID: {company_id}")
-    if clinic_id is not None:
-        print(f"Target clinic ID: {clinic_id}")
-    if company_id is None and clinic_id is not None:
-        print("Warning: CLINIC_ID specified without COMPANY_ID. Company will be auto-detected from clinic.")
+    print(f"Target clinic identifier: {clinic_ref}")
     
     # Quick sanity: show row counts for key files
     for name in [
@@ -538,9 +572,11 @@ def main():
     import sys
     
     if len(sys.argv) > 1 and sys.argv[1] == "cleanup":
-        if clinic_id is None:
-            print("Error: CLINIC_ID is required for cleanup")
-            sys.exit(1)
+        with SessionLocal() as db:
+            clinic = resolve_existing_clinic(db, clinic_ref)
+            if not clinic:
+                raise ValueError(f"Clinic '{clinic_ref}' not found")
+            clinic_id = clinic.id
         keep_clients = os.environ.get("KEEP_CLIENTS", "0").lower() in ("1", "true", "yes", "y")
         if keep_clients:
             print(f"Running cleanup for clinic {clinic_id} (keeping clients)...")
@@ -548,7 +584,7 @@ def main():
             print(f"Running cleanup for clinic {clinic_id}...")
         cleanup_clinic_migration(clinic_id, company_id=company_id, keep_clients=keep_clients)
     else:
-        migrate(default_dir, company_id=company_id, clinic_id=clinic_id)
+        migrate(default_dir, company_id=company_id, clinic_identifier=clinic_ref, db_mode=db_mode)
 
 
 if __name__ == "__main__":

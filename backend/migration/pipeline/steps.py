@@ -31,10 +31,27 @@ def migrate_lookups(db: Session, csv_dir: str, clinic_ids: List[int]):
     for filename, model in simple_mappings:
         rows = read_csv(csv_dir, filename)
         print(f"[lookups] {filename}: {len(rows)} rows", flush=True)
-        for r in rows:
-            name = (r.get("name") or "").strip()
-            for clinic_id in target_clinic_ids:
-                upsert_lookup_simple(db, model, name, clinic_id)
+        names = sorted(
+            {
+                clean_legacy_text(r.get("name"))
+                for r in rows
+                if clean_legacy_text(r.get("name"))
+            }
+        )
+        if not names:
+            continue
+        for clinic_id in target_clinic_ids:
+            existing_names = {
+                row[0]
+                for row in db.query(model.name)
+                .filter(model.clinic_id == clinic_id)
+                .filter(model.name.in_(names))
+                .all()
+            }
+            missing_names = [name for name in names if name not in existing_names]
+            if missing_names:
+                db.add_all(model(clinic_id=clinic_id, name=name) for name in missing_names)
+        db.flush()
     print(f"[lookups] done in {time.time()-t0:.2f}s", flush=True)
 
 
@@ -48,6 +65,15 @@ def collect_branch_codes(csv_dir: str) -> List[str]:
             seen.add(bc)
     print(f"[accounts] distinct branch codes: {len(codes)}", flush=True)
     return codes
+
+
+def resolve_migration_clinic_id(branch_to_clinic: Dict[Any, int], branch_code: Any) -> Optional[int]:
+    return (
+        branch_to_clinic.get(branch_code)
+        or branch_to_clinic.get(clean_legacy_text(branch_code))
+        or branch_to_clinic.get(None)
+        or branch_to_clinic.get("")
+    )
 
 
 def migrate_clients_and_families(db: Session, csv_dir: str, company: Company, return_only: bool = False, target_clinic_id: Optional[int] = None) -> Tuple[Dict[str, int], Dict[str, int]]:
@@ -157,11 +183,13 @@ def migrate_clients_and_families(db: Session, csv_dir: str, company: Company, re
         return account_to_client, head_to_family
 
     # Create clinics first based on branch codes present
-    branch_to_clinic: Dict[str, int] = {}
+    branch_to_clinic: Dict[Any, int] = {}
     if target_clinic_id is not None:
         branch_codes = collect_branch_codes(csv_dir)
         for bc in branch_codes:
             branch_to_clinic[bc] = target_clinic_id
+        branch_to_clinic[None] = target_clinic_id
+        branch_to_clinic[""] = target_clinic_id
         print(f"[accounts] mapping all branch codes to target clinic {target_clinic_id}", flush=True)
     else:
         for bc in collect_branch_codes(csv_dir):
@@ -201,6 +229,7 @@ def migrate_clients_and_families(db: Session, csv_dir: str, company: Company, re
     family_count = 0
     pending = 0
     batch_families: List[Tuple[Family, str]] = []
+    family_batch_size = int(os.environ.get("MIGRATION_FAMILY_BATCH_SIZE", "1000"))
     rows_iter = read_csv_streaming(csv_dir, "account.csv")
     for r in rows_iter:
         if not is_client_account(r):
@@ -209,7 +238,7 @@ def migrate_clients_and_families(db: Session, csv_dir: str, company: Company, re
         if head:
             head = str(head).strip()
         if head and head not in head_to_family:
-            clinic_id = branch_to_clinic.get(r.get("branch_code"))
+            clinic_id = resolve_migration_clinic_id(branch_to_clinic, r.get("branch_code"))
             # Use preferred last name for family name
             family_last = None
             pref = head_name_pref.get(head)
@@ -226,7 +255,7 @@ def migrate_clients_and_families(db: Session, csv_dir: str, company: Company, re
             )
             batch_families.append((fam, head))
             pending += 1
-            if pending % 5000 == 0:
+            if pending % family_batch_size == 0:
                 families_only = [f[0] for f in batch_families]
                 db.bulk_save_objects(families_only, return_defaults=True)
                 db.flush()
@@ -250,13 +279,13 @@ def migrate_clients_and_families(db: Session, csv_dir: str, company: Company, re
     pending = 0
     batch_clients: List[Tuple[Dict[str, Any], str, int]] = []
     rows_iter = read_csv_streaming(csv_dir, "account.csv")
-    batch_size = min(30000, int(os.environ.get("CSV_MAX_ROWS", "5000")))
+    batch_size = int(os.environ.get("MIGRATION_CLIENT_BATCH_SIZE", "1000"))
     try:
         for r in rows_iter:
             if not is_client_account(r):
                 continue
             bc = r.get("branch_code")
-            clinic_id = branch_to_clinic.get(bc)
+            clinic_id = resolve_migration_clinic_id(branch_to_clinic, bc)
 
             gender = None
             sx = (r.get("sex") or "").strip()
@@ -368,8 +397,6 @@ def migrate_optical_exams(db: Session, csv_dir: str, account_to_client: Dict[str
     expanded_rows = load_expanded_eye_tests(csv_dir, valid_account_codes)
     print(f"[exams] loaded {len(expanded_rows)} expanded exam rows", flush=True)
     
-    clinic_to_layout: Dict[int, int] = {}
-
     count = 0
     pending = 0
     batch_exams: List[Tuple[OpticalExam, Dict[str, Any], Optional[int]]] = []
@@ -402,10 +429,8 @@ def migrate_optical_exams(db: Session, csv_dir: str, account_to_client: Dict[str
                 sample_missing_codes.append((account_code, "null_client_id"))
             continue
 
-        branch_code = r.get("branch_code") or None
-        clinic_id = None
-        if branch_code and branch_code in branch_to_clinic:
-            clinic_id = branch_to_clinic[branch_code]
+        branch_code = r.get("branch_code")
+        clinic_id = resolve_migration_clinic_id(branch_to_clinic, branch_code)
 
         exam_date = parse_date(r.get("test_date"))
         exam_code_value = r.get("code")
@@ -448,20 +473,9 @@ def migrate_optical_exams(db: Session, csv_dir: str, account_to_client: Dict[str
                 for exam_obj, exam_data, exam_clinic_id in batch_exams:
                     if exam_obj not in saved_exams:
                         continue
-                    if exam_clinic_id:
-                        if exam_clinic_id not in clinic_to_layout:
-                            clinic = db.get(Clinic, exam_clinic_id)
-                            layout = get_or_create_default_exam_layout(db, clinic)
-                            clinic_to_layout[exam_clinic_id] = layout.id
-                        layout_id = clinic_to_layout[exam_clinic_id]
-                    else:
-                        if None not in clinic_to_layout:
-                            layout = get_or_create_default_exam_layout(db, None)
-                            clinic_to_layout[None] = layout.id
-                        layout_id = clinic_to_layout[None]
                     layout_instance = ExamLayoutInstance(
                         exam_id=exam_obj.id,
-                        layout_id=layout_id,
+                        layout_id=None,
                         is_active=True,
                         order=0,
                         exam_data=exam_data,
@@ -485,20 +499,9 @@ def migrate_optical_exams(db: Session, csv_dir: str, account_to_client: Dict[str
             for exam_obj, exam_data, exam_clinic_id in batch_exams:
                 if exam_obj not in saved_exams:
                     continue
-                if exam_clinic_id:
-                    if exam_clinic_id not in clinic_to_layout:
-                        clinic = db.get(Clinic, exam_clinic_id)
-                        layout = get_or_create_default_exam_layout(db, clinic)
-                        clinic_to_layout[exam_clinic_id] = layout.id
-                    layout_id = clinic_to_layout[exam_clinic_id]
-                else:
-                    if None not in clinic_to_layout:
-                        layout = get_or_create_default_exam_layout(db, None)
-                        clinic_to_layout[None] = layout.id
-                    layout_id = clinic_to_layout[None]
                 layout_instance = ExamLayoutInstance(
                     exam_id=exam_obj.id,
-                    layout_id=layout_id,
+                    layout_id=None,
                     is_active=True,
                     order=0,
                     exam_data=exam_data,
@@ -535,11 +538,11 @@ def migrate_contact_lens_orders(db: Session, csv_dir: str, account_to_client: Di
         if client_id is None:
             skipped_count += 1
             continue
-        clinic_id = branch_to_clinic.get(r.get("branch_code"))
+        clinic_id = resolve_migration_clinic_id(branch_to_clinic, r.get("branch_code"))
         order_date = parse_date(r.get("presc_date"))
 
         supply_branch = r.get("supply_branch")
-        supply_in_clinic_id = branch_to_clinic.get(supply_branch) if supply_branch in (branch_to_clinic or {}) else None
+        supply_in_clinic_id = resolve_migration_clinic_id(branch_to_clinic, supply_branch)
 
         order_status = clean_legacy_text(r.get("order_status"))
         advisor = clean_legacy_text(r.get("advisor_code"))
@@ -789,7 +792,7 @@ def migrate_regular_orders(db: Session, csv_dir: str, account_to_client: Dict[st
             continue
 
         client_id = account_to_client[account_code]
-        clinic_id = branch_to_clinic.get(r.get("branch_code"))
+        clinic_id = resolve_migration_clinic_id(branch_to_clinic, r.get("branch_code"))
         order_date = parse_date(r.get("presc_date"))
         dominant_eye_raw = clean_legacy_text(r.get("dominant_eye"))
         dominant_eye = dominant_eye_raw.upper() if dominant_eye_raw and dominant_eye_raw.upper() in {"R", "L"} else None
@@ -1113,7 +1116,7 @@ def migrate_referrals(db: Session, csv_dir: str, account_to_client: Dict[str, in
         if not account_code or account_code not in account_to_client:
             continue
         client_id = account_to_client[account_code]
-        clinic_id = branch_to_clinic.get(r.get("branch_code"))
+        clinic_id = resolve_migration_clinic_id(branch_to_clinic, r.get("branch_code"))
         date = parse_date(r.get("reference_date"))
         recipient = r.get("address_to") or None
         notes = r.get("reference_remark") or None
@@ -1162,7 +1165,7 @@ def migrate_files(db: Session, csv_dir: str, account_to_client: Dict[str, int], 
         if not account_code or account_code not in account_to_client:
             continue
         client_id = account_to_client[account_code]
-        clinic_id = branch_to_clinic.get(r.get("branch_code"))
+        clinic_id = resolve_migration_clinic_id(branch_to_clinic, r.get("branch_code"))
         upload_date = parse_date(r.get("file_date"))
         raw_filename = r.get("file_description")
         if raw_filename and raw_filename.strip():
@@ -1182,7 +1185,9 @@ def migrate_files(db: Session, csv_dir: str, account_to_client: Dict[str, int], 
             client_id=client_id,
             clinic_id=clinic_id,
             file_name=saved_name or file_name,
-            file_path=saved_path or f"/legacy/{r.get('code') or file_name}",
+            original_file_name=file_name,
+            storage_bucket="legacy-local",
+            storage_key=saved_path or f"legacy/{r.get('code') or file_name}",
             file_size=file_size,
             file_type=file_type,
             upload_date=datetime.combine(upload_date, datetime.min.time()) if upload_date else None,
@@ -1215,7 +1220,7 @@ def migrate_medical_logs(db: Session, csv_dir: str, account_to_client: Dict[str,
         if not account_code or account_code not in account_to_client:
             continue
         client_id = account_to_client[account_code]
-        clinic_id = branch_to_clinic.get(r.get("branch_code"))
+        clinic_id = resolve_migration_clinic_id(branch_to_clinic, r.get("branch_code"))
         log_date = parse_date(r.get("memo_date"))
         log = r.get("memo_remark") or ""
 
@@ -1252,7 +1257,7 @@ def migrate_appointments(db: Session, csv_dir: str, account_to_client: Dict[str,
         if not account_code or account_code not in account_to_client:
             continue
         client_id = account_to_client[account_code]
-        clinic_id = branch_to_clinic.get(r.get("branch_code"))
+        clinic_id = resolve_migration_clinic_id(branch_to_clinic, r.get("branch_code"))
         date = parse_date(r.get("line_date"))
         time_str = (r.get("line_time") or "").strip() or None
         note = r.get("line_remark") or None

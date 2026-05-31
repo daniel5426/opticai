@@ -245,8 +245,14 @@ def test_upsert_glasses_exams_rerun_updates_and_keeps_dual_trace():
     assert len(instances) == 1
     assert exams[0].dominant_eye == "L"
     assert instances[0].exam_data["notes-notes-1"]["note"].startswith("Comments: updated")
-    layout_rows = json.loads(instances[0].layout_data)["rows"]
-    assert [row["cards"][0]["type"] for row in layout_rows] == ["notes"]
+    layout = json.loads(instances[0].layout_data)
+    assert layout["version"] == 2
+    assert layout["grid"]["columns"] == 24
+    assert [item["type"] for item in layout["items"]] == [
+        "final-subjective",
+        "final-prescription",
+        "notes",
+    ]
     assert exam_links["tblCrdGlassChecks:PerId=123|CheckDate=11/26/00 00:00:00"].target_id == exams[0].id
     assert instance_links["tblCrdGlassChecks:PerId=123|CheckDate=11/26/00 00:00:00"].target_id == instances[0].id
 
@@ -292,10 +298,13 @@ def test_upsert_glasses_exams_recreates_deleted_targets_and_repoints_dual_trace(
 
     recreated_exam = db.query(OpticalExam).one()
     recreated_instance = db.query(ExamLayoutInstance).one()
+    exam_links = load_trace_links(db, clinic_id=clinic.id, target_model="OpticalExam")
+    instance_links = load_trace_links(db, clinic_id=clinic.id, target_model="ExamLayoutInstance")
+    raw_ref = "tblCrdGlassChecks:PerId=123|CheckDate=11/26/00 00:00:00"
 
     assert counters.recreated == 1
-    assert recreated_exam.id != original_exam.id
-    assert recreated_instance.id != original_instance.id
+    assert exam_links[raw_ref].target_id == recreated_exam.id
+    assert instance_links[raw_ref].target_id == recreated_instance.id
 
 
 def test_order_exact_matching_does_not_fallback():

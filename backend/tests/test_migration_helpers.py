@@ -54,7 +54,9 @@ def test_build_exam_data_uses_current_keys():
 
 def test_default_layout_contains_expected_cards():
     layout = json.loads(migration.build_default_migrated_layout_data())
-    card_ids = [card["id"] for row in layout["rows"] for card in row["cards"]]
+    assert layout["version"] == 2
+    assert layout["grid"]["columns"] == 24
+    card_ids = [item["id"] for item in layout["items"]]
     assert "old-refraction-1" in card_ids
     assert "sensation-vision-stability-1" in card_ids
 
@@ -102,3 +104,40 @@ def test_migrate_lookups_imports_into_selected_clinic(tmp_path):
 
         assert db.query(LookupColor).filter_by(clinic_id=selected.id, name="Blue").count() == 1
         assert db.query(LookupColor).filter_by(clinic_id=other.id, name="Blue").count() == 0
+
+
+def test_resolve_existing_clinic_accepts_unique_id():
+    engine = create_engine(
+        "sqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+    Base.metadata.create_all(bind=engine)
+
+    with SessionLocal() as db:
+        company = Company(name="A", owner_full_name="Owner A")
+        db.add(company)
+        db.flush()
+        clinic = Clinic(
+            company_id=company.id,
+            name="Selected",
+            unique_id="fec7a931df1047a7b75f0bf32b0c02c6",
+        )
+        db.add(clinic)
+        db.commit()
+
+        resolved = migration.resolve_existing_clinic(
+            db,
+            "fec7a931df1047a7b75f0bf32b0c02c6",
+        )
+
+        assert resolved.id == clinic.id
+
+
+def test_resolve_migration_clinic_id_falls_back_to_target_clinic():
+    branch_to_clinic = {None: 23, "": 23, "A": 23}
+
+    assert migration.resolve_migration_clinic_id(branch_to_clinic, "A") == 23
+    assert migration.resolve_migration_clinic_id(branch_to_clinic, None) == 23
+    assert migration.resolve_migration_clinic_id(branch_to_clinic, "") == 23

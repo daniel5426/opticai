@@ -67,6 +67,31 @@ describe("exam ui metadata", () => {
     ).toEqual([{ id: "cover-a", index: 0 }]);
   });
 
+  test("backfills default old-refraction type into legacy tab data", () => {
+    const legacyData = {
+      "old-refraction-old-refraction-1-legacy": {
+        card_id: "old-refraction-1",
+        card_instance_id: "legacy",
+        tab_index: 0,
+        r_sph: "-1.50",
+      },
+    };
+
+    const normalized = ensureTabsMetadataForRows(legacyData, rows);
+
+    expect(normalized.changed).toBe(true);
+    expect(
+      getTabsForCard(normalized.examData, "old-refraction", "old-refraction-1"),
+    ).toEqual([{ id: "legacy", index: 0, type: "רחוק" }]);
+    expect(
+      normalized.examData["old-refraction-old-refraction-1-legacy"],
+    ).toMatchObject({
+      r_sph: "-1.50",
+      r_glasses_type: "רחוק",
+      l_glasses_type: "רחוק",
+    });
+  });
+
   test("setTabsForCard writes stable __ui metadata without touching values", () => {
     const data = {
       "cover-test-cover-test-1-a": { fv_1: "2" },

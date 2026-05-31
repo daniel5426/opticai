@@ -1,3 +1,4 @@
+import base64
 from pathlib import Path
 from typing import List, Optional
 from uuid import uuid4
@@ -23,6 +24,7 @@ router = APIRouter(prefix="/files", tags=["files"])
 
 MAX_UPLOAD_BYTES = 25 * 1024 * 1024
 DEFAULT_CONTENT_TYPE = "application/octet-stream"
+LEGACY_LOCAL_BUCKET = "legacy-local"
 
 ALLOWED_EXTENSIONS = {
     "pdf",
@@ -230,6 +232,17 @@ def require_storage_metadata(file: FileModel) -> tuple[str, str]:
     return file.storage_bucket, file.storage_key
 
 
+def build_legacy_local_data_url(file: FileModel, storage_key: str) -> str:
+    path = Path(storage_key).expanduser()
+    if not path.is_absolute():
+        raise HTTPException(status_code=404, detail="Migrated file path is invalid")
+    if not path.exists() or not path.is_file():
+        raise HTTPException(status_code=404, detail="Migrated file object not found")
+    content_type = file.file_type or DEFAULT_CONTENT_TYPE
+    encoded = base64.b64encode(path.read_bytes()).decode("ascii")
+    return f"data:{content_type};base64,{encoded}"
+
+
 @router.post("/", response_model=FileSchema)
 async def create_file(
     client_id: int = Form(...),
@@ -412,7 +425,8 @@ def delete_file(
     file = get_scoped_file(db, current_user, file_id)
     client_id = file.client_id
     storage_bucket, storage_key = require_storage_metadata(file)
-    storage.remove(storage_bucket, storage_key)
+    if storage_bucket != LEGACY_LOCAL_BUCKET:
+        storage.remove(storage_bucket, storage_key)
     db.delete(file)
     db.commit()
     bump_client_updated_date(db, client_id)
@@ -428,4 +442,6 @@ def get_file_download_url(
 ):
     file = get_scoped_file(db, current_user, file_id)
     storage_bucket, storage_key = require_storage_metadata(file)
+    if storage_bucket == LEGACY_LOCAL_BUCKET:
+        return {"url": build_legacy_local_data_url(file, storage_key)}
     return {"url": storage.create_signed_url(storage_bucket, storage_key, 3600)}

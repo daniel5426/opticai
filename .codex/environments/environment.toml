@@ -56,3 +56,8 @@ PYTHONPATH=backend backend/.venv/bin/python backend/scripts/duplicate_account_to
 name = "nn"
 icon = "tool"
 command = "(cd backend && source .venv/bin/activate && python3 main.py) & npm run dev"
+
+[[actions]]
+name = "p"
+icon = "tool"
+command = "(lsof -ti tcp:8000; lsof -ti tcp:5173) | xargs kill"

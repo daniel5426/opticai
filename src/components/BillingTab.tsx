@@ -1,4 +1,5 @@
 import React from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { DateInput } from "@/components/ui/date";
@@ -35,6 +36,7 @@ import {
 import {
   emitBillingPaymentsChanged,
   onBillingPaymentsChanged,
+  type BillingPaymentsChangedDetail,
 } from "@/lib/billing-events";
 
 const roundToTwoDecimals = (value: number) => Math.round(value * 100) / 100;
@@ -77,6 +79,12 @@ const formatPaymentDate = (value?: string | null) => {
   return `${day}/${month}/${year}`;
 };
 
+const isClientOrdersKey = (queryKey: readonly unknown[]) =>
+  queryKey[0] === "client" && queryKey[2] === "orders";
+
+const isClientOrdersContextKey = (queryKey: readonly unknown[]) =>
+  queryKey[0] === "client" && queryKey[2] === "orders-context";
+
 interface BillingTabProps {
   billingFormData: Billing;
   setBillingFormData: React.Dispatch<React.SetStateAction<Billing>>;
@@ -94,6 +102,7 @@ export function BillingTab({
   isEditing,
   handleDeleteOrderLineItem,
 }: BillingTabProps) {
+  const queryClient = useQueryClient();
   const paymentStatus = getBillingPaymentStatus(
     billingFormData.total_after_discount,
     billingFormData.prepayment_amount,
@@ -148,6 +157,53 @@ export function BillingTab({
     void refreshPaymentState();
   };
 
+  const syncPaymentChangeToOrderCaches = React.useCallback(
+    (detail: BillingPaymentsChangedDetail) => {
+      queryClient.setQueriesData(
+        {
+          predicate: (query) => isClientOrdersKey(query.queryKey),
+        },
+        (current: unknown) => {
+          if (!Array.isArray(current)) return current;
+
+          return current.map((order) => {
+            if (!order || typeof order !== "object") return order;
+            const row = order as Record<string, unknown>;
+            const rowId = Number(row.id);
+            const isContact = Boolean(row.__contact);
+            const matches =
+              Number(row.billing_id) === detail.billingId ||
+              (!isContact && detail.orderId === rowId) ||
+              (isContact && detail.contactLensId === rowId);
+
+            if (!matches) return order;
+
+            return {
+              ...row,
+              billing_id: detail.billingId,
+              billing_prepayment_amount: detail.prepaymentAmount,
+            };
+          });
+        },
+      );
+
+      void queryClient.invalidateQueries({
+        predicate: (query) =>
+          isClientOrdersKey(query.queryKey) ||
+          isClientOrdersContextKey(query.queryKey),
+      });
+    },
+    [queryClient],
+  );
+
+  const notifyPaymentChange = React.useCallback(
+    (detail: BillingPaymentsChangedDetail) => {
+      syncPaymentChangeToOrderCaches(detail);
+      emitBillingPaymentsChanged(detail);
+    },
+    [syncPaymentChangeToOrderCaches],
+  );
+
   React.useEffect(() => {
     return onBillingPaymentsChanged((detail) => {
       if (!billingFormData.id || detail.billingId !== billingFormData.id) return;
@@ -188,7 +244,7 @@ export function BillingTab({
 
       const refreshed = await refreshPaymentState();
       if (refreshed) {
-        emitBillingPaymentsChanged({
+        notifyPaymentChange({
           billingId,
           prepaymentAmount: refreshed.prepaymentAmount,
           payments: refreshed.payments,
@@ -219,7 +275,7 @@ export function BillingTab({
 
     const refreshed = await refreshPaymentState();
     if (refreshed) {
-      emitBillingPaymentsChanged({
+      notifyPaymentChange({
         billingId,
         prepaymentAmount: refreshed.prepaymentAmount,
         payments: refreshed.payments,

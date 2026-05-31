@@ -36,6 +36,8 @@ const TAB_DEFAULTS_BY_TYPE: Record<
   },
 };
 
+const DEFAULT_OLD_REFRACTION_TYPE = "רחוק";
+
 export const getTabsByCardKey = (
   type: TabMetadataComponentType,
   cardId: string,
@@ -62,6 +64,73 @@ export const sortTabMetadata = (tabs: ExamCardTabMetadata[]) =>
     if (indexDiff !== 0) return indexDiff;
     return String(a.id).localeCompare(String(b.id));
   });
+
+const getOldRefractionTabType = (
+  data: Record<string, any> | null | undefined,
+) => {
+  const rightType = data?.r_glasses_type;
+  const leftType = data?.l_glasses_type;
+  const type =
+    rightType != null && String(rightType).trim() !== "" ? rightType : leftType;
+  return type != null && String(type).trim() !== ""
+    ? String(type)
+    : DEFAULT_OLD_REFRACTION_TYPE;
+};
+
+const normalizeTabMetadataDefaults = (
+  examData: Record<string, any>,
+  type: TabMetadataComponentType,
+  cardId: string,
+  tabs: ExamCardTabMetadata[],
+) => {
+  if (type !== "old-refraction") return tabs;
+
+  return tabs.map((tab) => {
+    const tabData = examData[getTabDataKey(type, cardId, tab.id)];
+    return {
+      ...tab,
+      type: tab.type || getOldRefractionTabType(tabData),
+    };
+  });
+};
+
+const backfillOldRefractionTabDataDefaults = (
+  examData: Record<string, any>,
+  cardId: string,
+  tabs: ExamCardTabMetadata[],
+) => {
+  let next = examData;
+  let changed = false;
+
+  tabs.forEach((tab) => {
+    const key = getTabDataKey("old-refraction", cardId, tab.id);
+    const tabData = next[key];
+    if (!tabData || typeof tabData !== "object") return;
+
+    const tabType = tab.type || getOldRefractionTabType(tabData);
+    const hasRightType =
+      tabData.r_glasses_type != null &&
+      String(tabData.r_glasses_type).trim() !== "";
+    const hasLeftType =
+      tabData.l_glasses_type != null &&
+      String(tabData.l_glasses_type).trim() !== "";
+
+    if (hasRightType && hasLeftType) return;
+
+    if (!changed) {
+      next = { ...next };
+      changed = true;
+    }
+
+    next[key] = {
+      ...tabData,
+      ...(!hasRightType ? { r_glasses_type: tabType } : {}),
+      ...(!hasLeftType ? { l_glasses_type: tabType } : {}),
+    };
+  });
+
+  return { examData: next, changed };
+};
 
 export const getMetadataTabsForCard = (
   examData: Record<string, any>,
@@ -97,7 +166,7 @@ export const deriveLegacyTabsForCard = (
         id,
         index: Number(data.tab_index ?? 0) || 0,
         ...(type === "old-refraction"
-          ? { type: data.r_glasses_type || data.l_glasses_type || undefined }
+          ? { type: getOldRefractionTabType(data) }
           : {}),
       };
     })
@@ -169,11 +238,31 @@ export const ensureTabsMetadataForRows = (
 
   (["cover-test", "old-refraction"] as const).forEach((type) => {
     collectCardIdsByType(cardRows, type).forEach((cardId) => {
-      if (getMetadataTabsForCard(next, type, cardId)) return;
-      const legacyTabs = deriveLegacyTabsForCard(next, type, cardId);
-      if (legacyTabs.length === 0) return;
-      next = setTabsForCard(next, type, cardId, legacyTabs);
-      changed = true;
+      const metadataTabs = getMetadataTabsForCard(next, type, cardId);
+      const rawTabs =
+        metadataTabs ?? deriveLegacyTabsForCard(next, type, cardId);
+      if (rawTabs.length === 0) return;
+
+      const tabs = normalizeTabMetadataDefaults(next, type, cardId, rawTabs);
+      const missingMetadata = !metadataTabs;
+      const missingOldRefractionTypes =
+        type === "old-refraction" &&
+        rawTabs.some((tab, index) => tab.type !== tabs[index].type);
+
+      if (missingMetadata || missingOldRefractionTypes) {
+        next = setTabsForCard(next, type, cardId, tabs);
+        changed = true;
+      }
+
+      if (type === "old-refraction") {
+        const backfilled = backfillOldRefractionTabDataDefaults(
+          next,
+          cardId,
+          tabs,
+        );
+        next = backfilled.examData;
+        changed = changed || backfilled.changed;
+      }
     });
   });
 
@@ -220,8 +309,7 @@ export const ensureLayoutDataForRows = (
         ) {
           cardData = {
             ...baseData,
-            layout_instance_id:
-              baseData.layout_instance_id ?? layoutInstanceId,
+            layout_instance_id: baseData.layout_instance_id ?? layoutInstanceId,
             card_instance_id: card.id,
           };
         } else {
