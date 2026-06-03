@@ -1,9 +1,6 @@
 from sqlalchemy.orm import Session
 
-try:
-    from backend.models import Clinic, LookupVADecimal, LookupVAMeter
-except ModuleNotFoundError:
-    from models import Clinic, LookupVADecimal, LookupVAMeter
+from models import Clinic, LookupVADecimal, LookupVAMeter
 
 
 VA_METER_VALUES = [
