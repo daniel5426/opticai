@@ -88,6 +88,7 @@ interface AppointmentsTableProps {
   };
   searchQuery?: string;
   onSearchChange?: (q: string) => void;
+  serverFiltered?: boolean;
   examTypeFilter?: string;
   onExamTypeFilterChange?: (value: string) => void;
   dateScopeFilter?: string;
@@ -190,6 +191,7 @@ export function AppointmentsTable({
   pagination,
   searchQuery: externalSearch,
   onSearchChange,
+  serverFiltered = false,
   examTypeFilter: externalExamTypeFilter,
   onExamTypeFilterChange,
   dateScopeFilter: externalDateScopeFilter,
@@ -326,13 +328,14 @@ export function AppointmentsTable({
 
     return allAppointments.filter((appointment) => {
       if (
+        !serverFiltered &&
         examTypeFilter !== ALL_FILTER_VALUE &&
         appointment.exam_name !== examTypeFilter
       ) {
         return false;
       }
 
-      if (dateScopeFilter !== ALL_FILTER_VALUE && appointment.date) {
+      if (!serverFiltered && dateScopeFilter !== ALL_FILTER_VALUE && appointment.date) {
         const appointmentDate = new Date(appointment.date);
         appointmentDate.setHours(0, 0, 0, 0);
 
@@ -350,7 +353,7 @@ export function AppointmentsTable({
         }
       }
 
-      const searchLower = searchValue.toLowerCase().trim();
+      const searchLower = serverFiltered ? "" : searchValue.toLowerCase().trim();
       if (!searchLower) {
         return true;
       }
@@ -369,7 +372,7 @@ export function AppointmentsTable({
         ) || DateSearchHelper.matchesDate(searchLower, appointment.date)
       );
     });
-  }, [allAppointments, dateScopeFilter, examTypeFilter, searchValue]);
+  }, [allAppointments, dateScopeFilter, examTypeFilter, searchValue, serverFiltered]);
 
   const uniqueExamTypes = React.useMemo(() => {
     const types = new Set(

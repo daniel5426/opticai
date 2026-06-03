@@ -37,6 +37,7 @@ interface FilesTableProps {
   pagination?: { page: number; pageSize: number; total: number; setPage: (p: number) => void }
   searchQuery?: string
   onSearchChange?: (query: string) => void
+  serverFiltered?: boolean
   fileCategoryFilter?: string
   onFileCategoryFilterChange?: (value: string) => void
   sort?: SortState
@@ -55,6 +56,7 @@ export function FilesTable({
   pagination,
   searchQuery: externalSearch,
   onSearchChange,
+  serverFiltered = false,
   fileCategoryFilter: externalFileCategoryFilter,
   onFileCategoryFilterChange,
   sort,
@@ -320,11 +322,11 @@ export function FilesTable({
 
   const filteredData = React.useMemo(() => {
     return data.filter((file) => {
-      if (fileCategoryFilter !== ALL_FILTER_VALUE && normalizeFileCategory(file.file_type) !== fileCategoryFilter) {
+      if (!serverFiltered && fileCategoryFilter !== ALL_FILTER_VALUE && normalizeFileCategory(file.file_type) !== fileCategoryFilter) {
         return false
       }
 
-      const normalizedSearch = searchValue.toLowerCase().trim()
+      const normalizedSearch = serverFiltered ? "" : searchValue.toLowerCase().trim()
       if (!normalizedSearch) {
         return true
       }
@@ -341,7 +343,7 @@ export function FilesTable({
         DateSearchHelper.matchesDate(normalizedSearch, file.upload_date)
       )
     })
-  }, [data, fileCategoryFilter, searchValue])
+  }, [data, fileCategoryFilter, searchValue, serverFiltered])
 
   const sortColumns = React.useMemo<SortColumns<FileType>>(() => ({
     file_name: { getValue: (file) => file.file_name },

@@ -8,7 +8,7 @@ import { ClientSelectModal } from "@/components/ClientSelectModal"
 import { useUser } from "@/contexts/UserContext"
 import { Button } from "@/components/ui/button"
 import { ALL_FILTER_VALUE } from "@/lib/table-filters"
-import { buildTableSearch } from "@/lib/list-page-search"
+import { TABLE_SEARCH_DEBOUNCE_MS, buildTableSearch } from "@/lib/list-page-search"
 import { parseSortSearch, sortToOrder, sortToSearch } from "@/lib/table-sorting"
 
 export default function AllExamsPage() {
@@ -54,7 +54,7 @@ export default function AllExamsPage() {
         to: "/exams",
         search: buildSearchState({ q: searchInput.trim(), page: 1 }),
       })
-    }, 400)
+    }, TABLE_SEARCH_DEBOUNCE_MS)
     return () => clearTimeout(t)
   }, [buildSearchState, navigate, search.q, searchInput])
 
@@ -117,6 +117,7 @@ export default function AllExamsPage() {
           onExamDeleteFailed={handleExamDeleteFailed} 
           searchQuery={searchInput}
           onSearchChange={setSearchInput}
+          serverFiltered={true}
           testNameFilter={search.testName}
           onTestNameFilterChange={(value) =>
             navigate({

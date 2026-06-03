@@ -72,6 +72,7 @@ interface OrdersTableProps {
   pagination?: { page: number; pageSize: number; total: number; setPage: (p: number) => void }
   searchQuery?: string
   onSearchChange?: (q: string) => void
+  serverFiltered?: boolean
   kindFilter?: OrderKindFilter
   onKindFilterChange?: (value: OrderKindFilter) => void
   statusFilter?: string
@@ -93,6 +94,7 @@ export function OrdersTable({
   pagination,
   searchQuery: externalSearch,
   onSearchChange,
+  serverFiltered = false,
   kindFilter: externalKindFilter,
   onKindFilterChange,
   statusFilter: externalStatusFilter,
@@ -336,7 +338,7 @@ export function OrdersTable({
   const filteredData = React.useMemo(() => {
     let result = data
 
-    if (kindFilter !== "all") {
+    if (!serverFiltered && kindFilter !== "all") {
       result = result.filter((order) => {
         const isContact = Boolean((order as any).__contact)
         if (kindFilter === "contact") return isContact
@@ -345,7 +347,7 @@ export function OrdersTable({
       })
     }
 
-    if (statusFilter !== "all") {
+    if (!serverFiltered && statusFilter !== "all") {
       result = result.filter((order) => {
         if (!order.id) return false
         const effectiveStatus =
@@ -356,7 +358,7 @@ export function OrdersTable({
       })
     }
 
-    const searchLower = searchValue.toLowerCase().trim()
+    const searchLower = serverFiltered ? "" : searchValue.toLowerCase().trim()
     if (!searchLower) {
       return result
     }
@@ -372,7 +374,7 @@ export function OrdersTable({
 
       return DateSearchHelper.matchesDate(searchLower, order.order_date)
     })
-  }, [data, getExaminerName, kindFilter, searchValue, statusFilter])
+  }, [data, getExaminerName, kindFilter, searchValue, statusFilter, serverFiltered])
 
   const getOrderStatus = React.useCallback((order: Order) => {
     if (!order.id) return "";

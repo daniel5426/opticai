@@ -6,7 +6,7 @@ import { Order } from "@/lib/db/schema-interface"
 import { OrdersTable } from "@/components/orders-table"
 import { useUser } from "@/contexts/UserContext"
 import { ALL_FILTER_VALUE } from "@/lib/table-filters"
-import { buildTableSearch } from "@/lib/list-page-search"
+import { TABLE_SEARCH_DEBOUNCE_MS, buildTableSearch } from "@/lib/list-page-search"
 import { parseSortSearch, sortToOrder, sortToSearch } from "@/lib/table-sorting"
 import { useUsersQuery } from "@/hooks/client/useClientTabQueries"
 import { onBillingPaymentsChanged } from "@/lib/billing-events"
@@ -57,7 +57,7 @@ export default function AllOrdersPage() {
         to: "/orders",
         search: buildSearchState({ q: searchInput.trim(), page: 1 }),
       })
-    }, 400)
+    }, TABLE_SEARCH_DEBOUNCE_MS)
     return () => clearTimeout(t)
   }, [buildSearchState, navigate, search.q, searchInput])
 
@@ -166,6 +166,7 @@ export default function AllOrdersPage() {
           onOrderStatusChange={handleOrderStatusChange}
           searchQuery={searchInput}
           onSearchChange={setSearchInput}
+          serverFiltered={true}
           kindFilter={search.kind}
           onKindFilterChange={(value) =>
             navigate({

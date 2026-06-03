@@ -1,3 +1,5 @@
+export const TABLE_SEARCH_DEBOUNCE_MS = 300
+
 export function buildTableSearch<T extends Record<string, unknown>>(
   values: T,
   defaults: Partial<T> = {},

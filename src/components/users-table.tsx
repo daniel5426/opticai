@@ -34,6 +34,7 @@ interface UsersTableProps {
   onUserUpdateFailed?: () => void
   searchQuery?: string
   onSearchChange?: (query: string) => void
+  serverFiltered?: boolean
   hideSearch?: boolean
   hideNewButton?: boolean
   onNewUser?: () => void
@@ -58,6 +59,7 @@ export function UsersTable({
   onUserUpdateFailed,
   searchQuery: externalSearchQuery,
   onSearchChange,
+  serverFiltered = false,
   hideSearch = false,
   hideNewButton = false,
   onNewUser,
@@ -123,15 +125,15 @@ export function UsersTable({
   const filteredData = React.useMemo(() => {
     let result = data
     
-    if (clinicScopeFilter === "current" && currentClinicId) {
+    if (!serverFiltered && clinicScopeFilter === "current" && currentClinicId) {
        result = result.filter(u => u.clinic_id === currentClinicId)
     }
 
-    if (roleFilter !== ALL_FILTER_VALUE) {
+    if (!serverFiltered && roleFilter !== ALL_FILTER_VALUE) {
       result = result.filter(u => u.role_level === Number(roleFilter))
     }
 
-    if (searchQuery) {
+    if (!serverFiltered && searchQuery) {
       result = result.filter((user) =>
         user.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         user.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -142,7 +144,7 @@ export function UsersTable({
       )
     }
     return result
-  }, [clinicScopeFilter, currentClinicId, data, roleFilter, searchQuery])
+  }, [clinicScopeFilter, currentClinicId, data, roleFilter, searchQuery, serverFiltered])
 
   const displayData = React.useMemo(() => {
     return onSortChange ? filteredData : sortRows(filteredData, activeSort, sortColumns)

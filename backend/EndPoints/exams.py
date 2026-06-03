@@ -1,15 +1,15 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import select
-from sqlalchemy import or_
 from sqlalchemy import func
+from sqlalchemy import or_
 from typing import List, Optional
 from database import get_db
 from models import OpticalExam, User, Client
 from schemas import OpticalExam as OpticalExamSchema, OpticalExamCreate
 from auth import get_current_user
 from .exam_layouts import build_layout_tree
-from utils.date_search import DateSearchHelper
+from utils.table_search import build_all_terms_search_condition, search_blob, spaced_concat
 from security.scope import (
     apply_clinic_user_scope,
     assert_clinic_scope,
@@ -49,23 +49,17 @@ def get_enriched_exams(
     if test_name and test_name != "all":
         base_query = base_query.filter(OpticalExam.test_name == test_name)
 
-    # Apply search
-    if search:
-        like = f"%{search.strip()}%"
-        search_conditions = [
-            func.concat(Client.first_name, ' ', Client.last_name).ilike(like),
-            User.username.ilike(like),
-            User.full_name.ilike(like),
-            OpticalExam.test_name.ilike(like),
-            OpticalExam.clinic.ilike(like),
-        ]
-        
-        date_search_conditions = DateSearchHelper.build_date_search_conditions(
-            OpticalExam.exam_date, search
-        )
-        search_conditions.extend(date_search_conditions)
-        
-        base_query = base_query.filter(or_(*search_conditions))
+    search_condition = build_all_terms_search_condition(
+        search,
+        text_expressions=[
+            search_blob(Client.first_name, Client.last_name, Client.national_id, Client.phone_mobile, Client.email),
+            search_blob(User.full_name, User.username, User.email, User.phone),
+            search_blob(OpticalExam.test_name, OpticalExam.clinic),
+        ],
+        date_columns=[OpticalExam.exam_date],
+    )
+    if search_condition is not None:
+        base_query = base_query.filter(search_condition)
 
     # Count total before pagination
     total = base_query.count()
@@ -73,7 +67,7 @@ def get_enriched_exams(
     order_columns = {
         "exam_date": OpticalExam.exam_date,
         "test_name": OpticalExam.test_name,
-        "client": func.concat(Client.first_name, ' ', Client.last_name),
+        "client": spaced_concat(Client.first_name, Client.last_name),
         "clinic": OpticalExam.clinic,
         "examiner": func.coalesce(User.full_name, User.username),
     }

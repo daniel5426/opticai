@@ -6,7 +6,7 @@ from database import get_db
 from models import Order, Client, User, Billing, OrderLineItem, ContactLensOrder
 from sqlalchemy import Date, func
 from schemas import OrderCreate, OrderUpdate, Order as OrderSchema, BillingCreate, BillingUpdate, Billing as BillingSchema, OrderLineItemCreate, OrderLineItemUpdate, OrderLineItem as OrderLineItemSchema, ContactLensOrderCreate, ContactLensOrderUpdate, ContactLensOrder as ContactLensOrderSchema
-from utils.date_search import DateSearchHelper
+from utils.table_search import build_all_terms_search_condition, search_blob, spaced_concat
 from auth import get_current_user
 from models import Clinic
 from security.scope import (
@@ -55,28 +55,23 @@ def get_orders_paginated(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    from sqlalchemy import or_, func, String, literal
+    from sqlalchemy import literal
     from sqlalchemy import union_all, select
 
-    like = f"%{search.strip()}%" if search else None
-    
     allowed_clinic_ids = get_allowed_clinic_ids(db, current_user, clinic_id)
 
     order_filters = [Order.clinic_id.in_(allowed_clinic_ids)]
-    if like:
-        date_search_conditions = DateSearchHelper.build_date_search_conditions(
-            Order.order_date, search
-        )
-        
-        order_filters.append(
-            or_(
-                Order.type.ilike(like),
-                func.concat(Client.first_name, ' ', Client.last_name).ilike(like),
-                User.full_name.ilike(like),
-                User.username.ilike(like),
-                *date_search_conditions,
-            )
-        )
+    order_search_condition = build_all_terms_search_condition(
+        search,
+        text_expressions=[
+            search_blob(Order.type),
+            search_blob(Client.first_name, Client.last_name, Client.national_id, Client.phone_mobile, Client.email),
+            search_blob(User.full_name, User.username, User.email, User.phone),
+        ],
+        date_columns=[Order.order_date],
+    )
+    if order_search_condition is not None:
+        order_filters.append(order_search_condition)
         
     if status and status != "all":
         order_filters.append(
@@ -84,20 +79,17 @@ def get_orders_paginated(
         )
 
     cl_filters = [ContactLensOrder.clinic_id.in_(allowed_clinic_ids)]
-    if like:
-        date_search_conditions_cl = DateSearchHelper.build_date_search_conditions(
-            ContactLensOrder.order_date, search
-        )
-        
-        cl_filters.append(
-            or_(
-                ContactLensOrder.type.ilike(like),
-                func.concat(Client.first_name, ' ', Client.last_name).ilike(like),
-                User.full_name.ilike(like),
-                User.username.ilike(like),
-                *date_search_conditions_cl,
-            )
-        )
+    contact_search_condition = build_all_terms_search_condition(
+        search,
+        text_expressions=[
+            search_blob(ContactLensOrder.type),
+            search_blob(Client.first_name, Client.last_name, Client.national_id, Client.phone_mobile, Client.email),
+            search_blob(User.full_name, User.username, User.email, User.phone),
+        ],
+        date_columns=[ContactLensOrder.order_date],
+    )
+    if contact_search_condition is not None:
+        cl_filters.append(contact_search_condition)
         
     if status and status != "all":
         cl_filters.append(ContactLensOrder.order_status == status)
@@ -120,7 +112,7 @@ def get_orders_paginated(
         literal(None).label('comb_pd'),
         literal(False).label('__contact'),
         func.coalesce(User.full_name, User.username).label('username'),
-        (func.concat(Client.first_name, ' ', Client.last_name)).label('clientName'),
+        spaced_concat(Client.first_name, Client.last_name).label('clientName'),
         Billing.id.label('billing_id'),
         Billing.total_after_discount.label('billing_total_after_discount'),
         Billing.prepayment_amount.label('billing_prepayment_amount'),
@@ -146,7 +138,7 @@ def get_orders_paginated(
         literal(None).label('comb_pd'),
         literal(True).label('__contact'),
         func.coalesce(User.full_name, User.username).label('username'),
-        (func.concat(Client.first_name, ' ', Client.last_name)).label('clientName'),
+        spaced_concat(Client.first_name, Client.last_name).label('clientName'),
         Billing.id.label('billing_id'),
         Billing.total_after_discount.label('billing_total_after_discount'),
         Billing.prepayment_amount.label('billing_prepayment_amount'),

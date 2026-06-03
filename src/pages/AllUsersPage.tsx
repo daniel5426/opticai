@@ -8,7 +8,7 @@ import { User } from "@/lib/db/schema-interface"
 import { useUser } from "@/contexts/UserContext"
 import { ROLE_LEVELS, isRoleAtLeast } from '@/lib/role-levels'
 import { ALL_FILTER_VALUE } from "@/lib/table-filters"
-import { buildTableSearch } from "@/lib/list-page-search"
+import { TABLE_SEARCH_DEBOUNCE_MS, buildTableSearch } from "@/lib/list-page-search"
 import { parseSortSearch, sortToOrder, sortToSearch } from "@/lib/table-sorting"
 
 interface UserWithClinic extends User {
@@ -63,7 +63,7 @@ export default function AllUsersPage() {
         to: "/users",
         search: buildSearchState({ q: searchInput.trim(), page: 1 }),
       })
-    }, 400)
+    }, TABLE_SEARCH_DEBOUNCE_MS)
     return () => clearTimeout(t)
   }, [navigate, search.q, searchInput])
 
@@ -179,6 +179,7 @@ export default function AllUsersPage() {
               loading={loading}
               searchQuery={searchInput}
               onSearchChange={setSearchInput}
+              serverFiltered={true}
               roleFilter={search.role}
               onRoleFilterChange={(value) =>
                 navigate({

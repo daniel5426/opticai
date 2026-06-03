@@ -38,6 +38,7 @@ interface ReferralTableProps {
   pagination?: { page: number; pageSize: number; total: number; setPage: (p: number) => void };
   searchQuery?: string;
   onSearchChange?: (query: string) => void;
+  serverFiltered?: boolean;
   urgencyFilter?: string;
   onUrgencyFilterChange?: (value: string) => void;
   referralTypeFilter?: string;
@@ -55,6 +56,7 @@ export function ReferralTable({
   pagination,
   searchQuery: externalSearch,
   onSearchChange,
+  serverFiltered = false,
   urgencyFilter: externalUrgencyFilter,
   onUrgencyFilterChange,
   referralTypeFilter: externalReferralTypeFilter,
@@ -108,14 +110,14 @@ export function ReferralTable({
 
   const filteredReferrals = React.useMemo(() => {
     return referrals.filter((referral) => {
-      if (urgencyFilter !== ALL_FILTER_VALUE && referral.urgency_level !== urgencyFilter) {
+      if (!serverFiltered && urgencyFilter !== ALL_FILTER_VALUE && referral.urgency_level !== urgencyFilter) {
         return false;
       }
-      if (referralTypeFilter !== ALL_FILTER_VALUE && referral.type !== referralTypeFilter) {
+      if (!serverFiltered && referralTypeFilter !== ALL_FILTER_VALUE && referral.type !== referralTypeFilter) {
         return false;
       }
 
-      const normalizedSearch = searchValue.toLowerCase().trim();
+      const normalizedSearch = serverFiltered ? "" : searchValue.toLowerCase().trim();
       if (!normalizedSearch) {
         return true;
       }
@@ -128,7 +130,7 @@ export function ReferralTable({
         referral.client_full_name?.toLowerCase().includes(normalizedSearch)
       );
     });
-  }, [referralTypeFilter, referrals, searchValue, urgencyFilter]);
+  }, [referralTypeFilter, referrals, searchValue, urgencyFilter, serverFiltered]);
 
   const displayData = React.useMemo(() => {
     return onSortChange ? filteredReferrals : sortRows(filteredReferrals, activeSort, sortColumns);

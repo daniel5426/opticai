@@ -12,7 +12,7 @@ import { Users, PlusIcon } from "lucide-react"
 import { useUser } from "@/contexts/UserContext"
 import { TableFiltersBar } from "@/components/table-filters-bar"
 import { ALL_FILTER_VALUE } from "@/lib/table-filters"
-import { buildTableSearch } from "@/lib/list-page-search"
+import { TABLE_SEARCH_DEBOUNCE_MS, buildTableSearch } from "@/lib/list-page-search"
 import { GuardedRouterLink } from "@/components/GuardedRouterLink"
 import { parseSortSearch, sortToOrder, sortToSearch } from "@/lib/table-sorting"
 
@@ -68,21 +68,9 @@ export default function ClientsPage() {
         to: "/clients",
         search: buildSearchState({ q: searchInput.trim(), page: 1 }),
       })
-    }, 400)
+    }, TABLE_SEARCH_DEBOUNCE_MS)
     return () => clearTimeout(t)
   }, [navigate, search.q, searchInput])
-
-  // Show loading instantly while waiting for debounced server search
-  useEffect(() => {
-    if (!currentClinic) return
-    if (isFamilyMode) {
-      setFamiliesLoading(true)
-      setFamilies([])
-    } else {
-      setClientsLoading(true)
-      setClients([])
-    }
-  }, [currentClinic, isFamilyMode, searchInput])
 
   const loadClients = async () => {
     try {
@@ -304,6 +292,7 @@ export default function ClientsPage() {
                       searchQuery={searchInput}
                       onSearchChange={setSearchInput}
                       hideSearch={true}
+                      serverFiltered={true}
                       loading={familiesLoading}
                       sort={activeSort}
                       onSortChange={(sort) =>
@@ -345,6 +334,7 @@ export default function ClientsPage() {
                 onClientDeleteFailed={handleClientDeleteFailed}
                 searchQuery={searchInput}
                 onSearchChange={setSearchInput}
+                serverFiltered={true}
                 genderFilter={search.gender}
                 onGenderFilterChange={(value) =>
                   navigate({

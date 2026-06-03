@@ -9,7 +9,7 @@ from schemas import UserCreate, UserUpdate, User as UserSchema, UserPublic, User
 from auth import decrypt_secret, encrypt_secret, get_current_user, get_password_hash
 from models import User as UserModel
 from utils.storage import upload_base64_image
-from utils.date_search import DateSearchHelper
+from utils.table_search import build_all_terms_search_condition, search_blob
 from security.scope import (
     assert_clinic_belongs_to_company,
     get_allowed_clinic_ids,
@@ -194,22 +194,18 @@ def get_users_paginated(
         get_allowed_clinic_ids(db, current_user, clinic_id)
         base = base.filter(User.clinic_id == clinic_id)
     
-    # Apply search filtering
-    if search:
-        like = f"%{search.strip()}%"
-        date_search_conditions = [
-            *DateSearchHelper.build_date_search_conditions(User.created_at, search),
-            *DateSearchHelper.build_date_search_conditions(User.updated_at, search),
-        ]
-        base = base.filter(
-            or_(
-                User.full_name.ilike(like),
-                User.username.ilike(like),
-                User.email.ilike(like),
-                User.phone.ilike(like),
-                *date_search_conditions,
-            )
-        )
+    search_condition = build_all_terms_search_condition(
+        search,
+        text_expressions=[
+            search_blob(User.full_name, User.username, User.email, User.phone),
+        ],
+        date_columns=[
+            User.created_at,
+            User.updated_at,
+        ],
+    )
+    if search_condition is not None:
+        base = base.filter(search_condition)
     if role_level is not None:
         base = base.filter(User.role_level == role_level)
 

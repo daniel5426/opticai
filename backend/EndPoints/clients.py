@@ -4,9 +4,9 @@ from typing import List, Optional
 from database import get_db
 from models import Client, Family, Clinic, User, OpticalExam, Appointment, Order, Referral, File, MedicalLog, ContactLensOrder, ExamLayoutInstance
 from schemas import ClientCreate, ClientUpdate, Client as ClientSchema, ClientOrdersContext
-from sqlalchemy import and_, func, or_
+from sqlalchemy import and_, func
 from auth import get_current_user
-from utils.date_search import DateSearchHelper
+from utils.table_search import build_all_terms_search_condition, search_blob
 from utils.storage import upload_base64_image
 from security.scope import (
     assert_company_scope,
@@ -50,28 +50,26 @@ def get_clients_paginated(
     if gender and gender != "all":
         base = base.filter(Client.gender == gender)
 
-    # Apply search filtering server-side to avoid fetching entire tables
-    if search:
-        search = search.strip()
-        if search:
-            like = f"%{search}%"
-            date_search_conditions = [
-                *DateSearchHelper.build_date_search_conditions(Client.date_of_birth, search),
-                *DateSearchHelper.build_date_search_conditions(Client.file_creation_date, search),
-                *DateSearchHelper.build_date_search_conditions(Client.membership_end, search),
-                *DateSearchHelper.build_date_search_conditions(Client.service_end, search),
-            ]
-            base = base.filter(
-                or_(
-                    Client.first_name.ilike(like),
-                    Client.last_name.ilike(like),
-                    func.concat(Client.first_name, ' ', Client.last_name).ilike(like),
-                    Client.national_id.ilike(like),
-                    Client.phone_mobile.ilike(like),
-                    Client.email.ilike(like),
-                    *date_search_conditions,
-                )
-            )
+    search_condition = build_all_terms_search_condition(
+        search,
+        text_expressions=[
+            search_blob(
+                Client.first_name,
+                Client.last_name,
+                Client.national_id,
+                Client.phone_mobile,
+                Client.email,
+            ),
+        ],
+        date_columns=[
+            Client.date_of_birth,
+            Client.file_creation_date,
+            Client.membership_end,
+            Client.service_end,
+        ],
+    )
+    if search_condition is not None:
+        base = base.filter(search_condition)
 
     total = base.count()
 

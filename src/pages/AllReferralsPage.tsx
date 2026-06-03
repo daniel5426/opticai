@@ -6,7 +6,7 @@ import { Referral } from "@/lib/db/schema-interface"
 import { ReferralTable } from "@/components/referral-table"
 import { useUser } from "@/contexts/UserContext"
 import { ALL_FILTER_VALUE } from "@/lib/table-filters"
-import { buildTableSearch } from "@/lib/list-page-search"
+import { TABLE_SEARCH_DEBOUNCE_MS, buildTableSearch } from "@/lib/list-page-search"
 import { parseSortSearch, sortToOrder, sortToSearch } from "@/lib/table-sorting"
 
 export default function AllReferralsPage() {
@@ -53,7 +53,7 @@ export default function AllReferralsPage() {
         to: "/referrals",
         search: buildSearchState({ q: searchInput.trim(), page: 1 }),
       })
-    }, 400)
+    }, TABLE_SEARCH_DEBOUNCE_MS)
     return () => clearTimeout(t)
   }, [navigate, search.q, searchInput])
 
@@ -116,6 +116,7 @@ export default function AllReferralsPage() {
           loading={loading}
           searchQuery={searchInput}
           onSearchChange={setSearchInput}
+          serverFiltered={true}
           urgencyFilter={search.urgency}
           onUrgencyFilterChange={(value) =>
             navigate({

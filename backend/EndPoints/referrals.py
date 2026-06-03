@@ -6,7 +6,7 @@ from models import Referral, Client, User, ReferralEye, Clinic
 from sqlalchemy import func
 from schemas import ReferralCreate, ReferralUpdate, Referral as ReferralSchema
 from auth import get_current_user
-from utils.date_search import DateSearchHelper
+from utils.table_search import build_all_terms_search_condition, search_blob, spaced_concat
 from security.scope import (
     apply_clinic_user_scope,
     get_allowed_clinic_ids,
@@ -28,11 +28,10 @@ def get_referrals_paginated(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    from sqlalchemy import or_, func, String
     base = (
         db.query(
             Referral,
-            func.concat(Client.first_name, ' ', Client.last_name).label('client_full_name'),
+            spaced_concat(Client.first_name, Client.last_name).label('client_full_name'),
             func.coalesce(User.full_name, User.username).label('examiner_name')
         )
         .outerjoin(Client, Client.id == Referral.client_id)
@@ -44,26 +43,22 @@ def get_referrals_paginated(
         base = base.filter(Referral.urgency_level == urgency_level)
     if referral_type and referral_type != "all":
         base = base.filter(Referral.type == referral_type)
-    if search:
-        like = f"%{search.strip()}%"
-        date_search_conditions = DateSearchHelper.build_date_search_conditions(
-            Referral.date, search
-        )
-        base = base.filter(
-            or_(
-                Referral.type.ilike(like),
-                Referral.recipient.ilike(like),
-                Referral.urgency_level.ilike(like),
-                func.concat(Client.first_name, ' ', Client.last_name).ilike(like),
-                func.coalesce(User.full_name, User.username).ilike(like),
-                *date_search_conditions,
-            )
-        )
+    search_condition = build_all_terms_search_condition(
+        search,
+        text_expressions=[
+            search_blob(Referral.type, Referral.recipient, Referral.urgency_level),
+            search_blob(Client.first_name, Client.last_name, Client.national_id, Client.phone_mobile, Client.email),
+            search_blob(User.full_name, User.username, User.email, User.phone),
+        ],
+        date_columns=[Referral.date],
+    )
+    if search_condition is not None:
+        base = base.filter(search_condition)
     order_columns = {
         "date": Referral.date,
         "id": Referral.id,
         "type": Referral.type,
-        "client": func.concat(Client.first_name, ' ', Client.last_name),
+        "client": spaced_concat(Client.first_name, Client.last_name),
         "urgency": Referral.urgency_level,
         "recipient": Referral.recipient,
     }

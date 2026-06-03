@@ -246,6 +246,12 @@ def create_composite_client_id(clinic_id: Optional[int], account_code: str) -> i
     account_code_clean = "".join(ch for ch in str(account_code) if ch.isdigit())
     if not account_code_clean:
         raise ValueError(f"account_code '{account_code}' cannot be converted to numeric ID")
+    client_id_prefix = os.environ.get("MIGRATION_CLIENT_ID_PREFIX")
+    if client_id_prefix is not None:
+        prefix_clean = "".join(ch for ch in str(client_id_prefix) if ch.isdigit())
+        if not prefix_clean:
+            raise ValueError("MIGRATION_CLIENT_ID_PREFIX must contain at least one digit")
+        return int(f"{prefix_clean}{account_code_clean}")
     return int(f"{clinic_id}{account_code_clean}")
 
 

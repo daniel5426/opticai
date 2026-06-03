@@ -6,7 +6,7 @@ from database import get_db
 from models import Appointment, Client, User, Clinic
 from schemas import AppointmentCreate, AppointmentUpdate, Appointment as AppointmentSchema
 from auth import get_current_user
-from utils.date_search import DateSearchHelper
+from utils.table_search import build_all_terms_search_condition, search_blob, spaced_concat
 from sqlalchemy import func
 from security.scope import (
     apply_clinic_user_scope,
@@ -83,12 +83,11 @@ def get_appointments_paginated(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    from sqlalchemy import or_, func, String
     # Build base query with joins to include client and user names
     base = (
         db.query(
             Appointment,
-            func.concat(Client.first_name, ' ', Client.last_name).label('client_full_name'),
+            spaced_concat(Client.first_name, Client.last_name).label('client_full_name'),
             func.coalesce(User.full_name, User.username).label('examiner_name')
         )
         .outerjoin(Client, Client.id == Appointment.client_id)
@@ -105,28 +104,23 @@ def get_appointments_paginated(
         base = base.filter(Appointment.date > today)
     elif date_scope == "past":
         base = base.filter(Appointment.date < today)
-    if search:
-        like = f"%{search.strip()}%"
-        date_search_conditions = DateSearchHelper.build_date_search_conditions(
-            Appointment.date, search
-        )
-        base = base.filter(
-            or_(
-                func.cast(Appointment.date, String).ilike(like),
-                Appointment.time.ilike(like),
-                Appointment.exam_name.ilike(like),
-                Appointment.note.ilike(like),
-                func.concat(Client.first_name, ' ', Client.last_name).ilike(like),
-                func.coalesce(User.full_name, User.username).ilike(like),
-                *date_search_conditions,
-            )
-        )
+    search_condition = build_all_terms_search_condition(
+        search,
+        text_expressions=[
+            search_blob(Appointment.time, Appointment.exam_name, Appointment.note),
+            search_blob(Client.first_name, Client.last_name, Client.national_id, Client.phone_mobile, Client.email),
+            search_blob(User.full_name, User.username, User.email, User.phone),
+        ],
+        date_columns=[Appointment.date],
+    )
+    if search_condition is not None:
+        base = base.filter(search_condition)
     
     order_columns = {
         "date": Appointment.date,
         "time": Appointment.time,
         "id": Appointment.id,
-        "client": func.concat(Client.first_name, ' ', Client.last_name),
+        "client": spaced_concat(Client.first_name, Client.last_name),
         "exam_name": Appointment.exam_name,
         "examiner": func.coalesce(User.full_name, User.username),
         "note": Appointment.note,
@@ -158,7 +152,7 @@ def get_appointment(
     row = (
         db.query(
             Appointment,
-            func.concat(Client.first_name, ' ', Client.last_name).label('client_full_name'),
+            spaced_concat(Client.first_name, Client.last_name).label('client_full_name'),
             func.coalesce(User.full_name, User.username).label('examiner_name')
         )
         .outerjoin(Client, Client.id == Appointment.client_id)
@@ -183,7 +177,7 @@ def get_all_appointments(
     base = (
         db.query(
             Appointment,
-            func.concat(Client.first_name, ' ', Client.last_name).label('client_full_name'),
+            spaced_concat(Client.first_name, Client.last_name).label('client_full_name'),
             func.coalesce(User.full_name, User.username).label('examiner_name')
         )
         .outerjoin(Client, Client.id == Appointment.client_id)
@@ -210,7 +204,7 @@ def get_appointments_by_client(
     rows = (
         db.query(
             Appointment,
-            func.concat(Client.first_name, ' ', Client.last_name).label('client_full_name'),
+            spaced_concat(Client.first_name, Client.last_name).label('client_full_name'),
             func.coalesce(User.full_name, User.username).label('examiner_name')
         )
         .outerjoin(Client, Client.id == Appointment.client_id)
@@ -237,7 +231,7 @@ def get_appointments_by_user(
     rows = (
         db.query(
             Appointment,
-            func.concat(Client.first_name, ' ', Client.last_name).label('client_full_name'),
+            spaced_concat(Client.first_name, Client.last_name).label('client_full_name'),
             func.coalesce(User.full_name, User.username).label('examiner_name')
         )
         .outerjoin(Client, Client.id == Appointment.client_id)

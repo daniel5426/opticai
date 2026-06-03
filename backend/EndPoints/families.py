@@ -1,13 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from sqlalchemy import func, or_
+from sqlalchemy import func
 from typing import List, Optional
 from database import get_db
 from models import Family, Client
 from schemas import FamilyCreate, FamilyUpdate, Family as FamilySchema, FamilyWithMembers
 from auth import get_current_user
 from models import User
-from utils.date_search import DateSearchHelper
+from utils.table_search import build_all_terms_search_condition, search_blob
 from security.scope import (
     get_allowed_clinic_ids,
     get_scoped_client,
@@ -39,12 +39,13 @@ def get_families_paginated(
         
     count_q = count_q.filter(Family.clinic_id.in_(allowed_clinic_ids))
         
-    if search:
-        like = f"%{search.strip()}%"
-        date_search_conditions = DateSearchHelper.build_date_search_conditions(
-            Family.created_date, search
-        )
-        count_q = count_q.filter(or_(Family.name.ilike(like), *date_search_conditions))
+    search_condition = build_all_terms_search_condition(
+        search,
+        text_expressions=[search_blob(Family.name)],
+        date_columns=[Family.created_date],
+    )
+    if search_condition is not None:
+        count_q = count_q.filter(search_condition)
 
     total = count_q.scalar() or 0
 
@@ -63,12 +64,8 @@ def get_families_paginated(
 
     base = base.filter(Family.clinic_id.in_(allowed_clinic_ids))
         
-    if search:
-        like = f"%{search.strip()}%"
-        date_search_conditions = DateSearchHelper.build_date_search_conditions(
-            Family.created_date, search
-        )
-        base = base.filter(or_(Family.name.ilike(like), *date_search_conditions))
+    if search_condition is not None:
+        base = base.filter(search_condition)
 
     base = base.group_by(Family.id, Family.clinic_id, Family.name, Family.created_date, Family.notes, Family.company_id)
 

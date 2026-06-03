@@ -6,7 +6,7 @@ import { File } from "@/lib/db/schema-interface"
 import { FilesTable } from "@/components/files-table"
 import { useUser } from "@/contexts/UserContext"
 import { ALL_FILTER_VALUE } from "@/lib/table-filters"
-import { buildTableSearch } from "@/lib/list-page-search"
+import { TABLE_SEARCH_DEBOUNCE_MS, buildTableSearch } from "@/lib/list-page-search"
 import { parseSortSearch, sortToOrder, sortToSearch } from "@/lib/table-sorting"
 
 export default function AllFilesPage() {
@@ -51,7 +51,7 @@ export default function AllFilesPage() {
         to: "/files",
         search: buildSearchState({ q: searchInput.trim(), page: 1 }),
       })
-    }, 400)
+    }, TABLE_SEARCH_DEBOUNCE_MS)
     return () => clearTimeout(t)
   }, [navigate, search.q, searchInput])
 
@@ -122,6 +122,7 @@ export default function AllFilesPage() {
           onFileDeleteFailed={handleFileDeleteFailed}
           searchQuery={searchInput}
           onSearchChange={setSearchInput}
+          serverFiltered={true}
           fileCategoryFilter={search.fileCategory}
           onFileCategoryFilterChange={(value) =>
             navigate({

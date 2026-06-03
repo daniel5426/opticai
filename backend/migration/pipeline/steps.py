@@ -525,6 +525,7 @@ def migrate_contact_lens_orders(db: Session, csv_dir: str, account_to_client: Di
     count = 0
     skipped_count = 0
     pending = 0
+    commit_batch_size = int(os.environ.get("MIGRATION_ORDER_COMMIT_BATCH_SIZE", "1000"))
     for r in rows_iter:
         raw_account_code = r.get("account_code")
         if raw_account_code is None:
@@ -774,6 +775,9 @@ def migrate_contact_lens_orders(db: Session, csv_dir: str, account_to_client: Di
         count += 1
         if count % 1000 == 0:
             print(f"[cl_orders] inserted: {count}", flush=True)
+        if commit_batch_size > 0 and count % commit_batch_size == 0:
+            db.commit()
+            db.close()
     db.commit()
     print(f"[cl_orders] inserted total: {count}, skipped: {skipped_count}, took {time.time()-t0:.2f}s", flush=True)
     return presc_code_to_order_id
@@ -784,11 +788,19 @@ def migrate_regular_orders(db: Session, csv_dir: str, account_to_client: Dict[st
     rows_iter = read_csv_streaming(csv_dir, "optic_glasses_presc.csv")
     count = 0
     skipped_count = 0
+    commit_batch_size = int(os.environ.get("MIGRATION_ORDER_COMMIT_BATCH_SIZE", "1000"))
+    resume_skip_rows = int(os.environ.get("MIGRATION_REGULAR_ORDER_SKIP_ROWS", "0") or "0")
+    seen_valid_rows = 0
+    if resume_skip_rows > 0:
+        print(f"[orders] resume mode: skipping first {resume_skip_rows} valid source rows", flush=True)
 
     for r in rows_iter:
         account_code = clean_legacy_text(r.get("account_code"))
         if not account_code or account_code not in account_to_client:
             skipped_count += 1
+            continue
+        seen_valid_rows += 1
+        if seen_valid_rows <= resume_skip_rows:
             continue
 
         client_id = account_to_client[account_code]
@@ -960,6 +972,9 @@ def migrate_regular_orders(db: Session, csv_dir: str, account_to_client: Dict[st
         count += 1
         if count % 1000 == 0:
             print(f"[orders] inserted: {count}", flush=True)
+        if commit_batch_size > 0 and count % commit_batch_size == 0:
+            db.commit()
+            db.close()
 
     db.commit()
     print(f"[orders] inserted total: {count}, skipped: {skipped_count}, took {time.time()-t0:.2f}s", flush=True)

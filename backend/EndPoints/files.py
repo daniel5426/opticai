@@ -18,7 +18,7 @@ from security.scope import (
     get_scoped_file,
 )
 from services.file_storage_service import FileStorageService, get_file_storage_service
-from utils.date_search import DateSearchHelper
+from utils.table_search import build_all_terms_search_condition, search_blob, spaced_concat
 
 router = APIRouter(prefix="/files", tags=["files"])
 
@@ -309,7 +309,7 @@ def get_files_paginated(
     base = (
         db.query(
             FileModel,
-            func.concat(Client.first_name, " ", Client.last_name).label("client_full_name"),
+            spaced_concat(Client.first_name, Client.last_name).label("client_full_name"),
         )
         .outerjoin(Client, Client.id == FileModel.client_id)
         .filter(FileModel.clinic_id.in_(allowed_clinic_ids))
@@ -317,25 +317,19 @@ def get_files_paginated(
     file_category_filter = build_file_category_filter(file_category or "")
     if file_category_filter is not None:
         base = base.filter(file_category_filter)
-    if search:
-        like = f"%{search.strip()}%"
-        date_search_conditions = DateSearchHelper.build_date_search_conditions(
-            FileModel.upload_date, search
-        )
+    search_condition = build_all_terms_search_condition(
+        search,
+        text_expressions=[
+            search_blob(FileModel.file_name, FileModel.original_file_name, FileModel.file_type, FileModel.notes),
+            search_blob(Client.first_name, Client.last_name, Client.national_id, Client.phone_mobile, Client.email),
+            search_blob(User.full_name, User.username, User.email, User.phone),
+        ],
+        date_columns=[FileModel.upload_date],
+    )
+    if search_condition is not None:
         base = (
             base.outerjoin(User, User.id == FileModel.uploaded_by)
-            .filter(
-                or_(
-                    FileModel.file_name.ilike(like),
-                    FileModel.original_file_name.ilike(like),
-                    FileModel.file_type.ilike(like),
-                    FileModel.notes.ilike(like),
-                    func.concat(Client.first_name, " ", Client.last_name).ilike(like),
-                    User.full_name.ilike(like),
-                    User.username.ilike(like),
-                    *date_search_conditions,
-                )
-            )
+            .filter(search_condition)
         )
     order_columns = {
         "upload_date": FileModel.upload_date,
@@ -343,7 +337,7 @@ def get_files_paginated(
         "file_name": FileModel.file_name,
         "type": FileModel.file_type,
         "file_size": FileModel.file_size,
-        "client": func.concat(Client.first_name, " ", Client.last_name),
+        "client": spaced_concat(Client.first_name, Client.last_name),
     }
     order_key, _, order_direction = (order or "upload_date_desc").rpartition("_")
     order_column = order_columns.get(order_key, FileModel.upload_date)

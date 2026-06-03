@@ -53,6 +53,7 @@ interface ExamsTableProps {
   };
   searchQuery?: string;
   onSearchChange?: (q: string) => void;
+  serverFiltered?: boolean;
   testNameFilter?: string;
   onTestNameFilterChange?: (value: string) => void;
   sort?: SortState;
@@ -84,6 +85,7 @@ export function ExamsTable({
   pagination,
   searchQuery: externalSearch,
   onSearchChange,
+  serverFiltered = false,
   testNameFilter: externalTestNameFilter,
   onTestNameFilterChange,
   sort,
@@ -142,11 +144,11 @@ export function ExamsTable({
   const filteredData = React.useMemo(() => {
     let result = data;
 
-    if (testNameFilter !== ALL_FILTER_VALUE) {
+    if (!serverFiltered && testNameFilter !== ALL_FILTER_VALUE) {
       result = result.filter((exam) => exam.test_name === testNameFilter);
     }
 
-    const searchLower = searchValue.toLowerCase().trim();
+    const searchLower = serverFiltered ? "" : searchValue.toLowerCase().trim();
     if (!searchLower) {
       return result;
     }
@@ -166,7 +168,7 @@ export function ExamsTable({
 
       return DateSearchHelper.matchesDate(searchLower, exam.exam_date);
     });
-  }, [data, searchValue, testNameFilter]);
+  }, [data, searchValue, testNameFilter, serverFiltered]);
 
   const displayData = React.useMemo(() => {
     return onSortChange ? filteredData : sortRows(filteredData, activeSort, sortColumns);

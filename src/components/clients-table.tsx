@@ -29,6 +29,7 @@ interface ClientsTableProps {
   showFamilyColumn?: boolean
   searchQuery?: string
   onSearchChange?: (query: string) => void
+  serverFiltered?: boolean
   hideSearch?: boolean
   hideNewButton?: boolean
   compactMode?: boolean
@@ -49,6 +50,7 @@ export function ClientsTable({
   showFamilyColumn = false,
   searchQuery: externalSearchQuery,
   onSearchChange,
+  serverFiltered = false,
   hideSearch = false,
   hideNewButton = false,
   compactMode = false,
@@ -110,11 +112,11 @@ export function ClientsTable({
       }
     }
 
-    if (genderFilter !== "all") {
+    if (!serverFiltered && genderFilter !== "all") {
       filtered = filtered.filter(client => client.gender === genderFilter)
     }
 
-    if (searchQuery && filtered.length > 0) {
+    if (!serverFiltered && searchQuery && filtered.length > 0) {
       filtered = filtered.filter((client) => {
         const searchableFields = [
           client.first_name,
@@ -137,7 +139,7 @@ export function ClientsTable({
     }
 
     return filtered
-  }, [data, searchQuery, selectedFamilyId, showFamilyColumn, genderFilter])
+  }, [data, searchQuery, selectedFamilyId, showFamilyColumn, genderFilter, serverFiltered])
 
   const displayData = React.useMemo(() => {
     return onSortChange ? filteredData : sortRows(filteredData, activeSort, sortColumns)

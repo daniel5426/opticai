@@ -5,7 +5,7 @@ import { ExamLayoutsTable } from "@/components/exam-layouts-table"
 import { getAllExamLayouts } from "@/lib/db/exam-layouts-db"
 import { ExamLayout } from "@/lib/db/schema-interface"
 import { ALL_FILTER_VALUE } from "@/lib/table-filters"
-import { buildTableSearch } from "@/lib/list-page-search"
+import { TABLE_SEARCH_DEBOUNCE_MS, buildTableSearch } from "@/lib/list-page-search"
 
 export default function ExamLayoutsPage() {
   const search = useSearch({ from: "/exam-layouts" })
@@ -39,7 +39,7 @@ export default function ExamLayoutsPage() {
         to: "/exam-layouts",
         search: buildSearchState({ q: searchInput.trim() }),
       })
-    }, 400)
+    }, TABLE_SEARCH_DEBOUNCE_MS)
     return () => clearTimeout(t)
   }, [navigate, search.q, searchInput])
 

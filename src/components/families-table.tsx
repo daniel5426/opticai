@@ -28,6 +28,7 @@ interface FamiliesTableProps {
   selectedFamilyId?: number | null
   searchQuery?: string
   onSearchChange?: (query: string) => void
+  serverFiltered?: boolean
   hideSearch?: boolean
   loading?: boolean
   pagination?: { page: number; pageSize: number; total: number; setPage: (p: number) => void }
@@ -46,6 +47,7 @@ export function FamiliesTable({
   selectedFamilyId,
   searchQuery: externalSearchQuery,
   onSearchChange,
+  serverFiltered = false,
   hideSearch = false,
   loading = false,
   pagination,
@@ -91,14 +93,14 @@ export function FamiliesTable({
       result = result.filter(f => f.clinic_id === currentClinicId);
     }
 
-    if (!isExternalSearch && searchQuery) {
+    if (!serverFiltered && !isExternalSearch && searchQuery) {
       result = result.filter((family) =>
         family.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         DateSearchHelper.matchesDate(searchQuery, family.created_date)
       )
     }
     return result
-  }, [data, searchQuery, isExternalSearch, showCurrentClinicOnly, currentClinicId])
+  }, [data, searchQuery, isExternalSearch, showCurrentClinicOnly, currentClinicId, serverFiltered])
 
   const displayData = React.useMemo(() => {
     return onSortChange ? filteredData : sortRows(filteredData, activeSort, sortColumns)
