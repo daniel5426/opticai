@@ -8,7 +8,7 @@ import { User } from "@/lib/db/schema-interface"
 import { useUser } from "@/contexts/UserContext"
 import { ROLE_LEVELS, isRoleAtLeast } from '@/lib/role-levels'
 import { ALL_FILTER_VALUE } from "@/lib/table-filters"
-import { TABLE_SEARCH_DEBOUNCE_MS, buildTableSearch } from "@/lib/list-page-search"
+import { TABLE_SEARCH_DEBOUNCE_MS, buildTableSearch, useLatestTableSearchRequest } from "@/lib/list-page-search"
 import { parseSortSearch, sortToOrder, sortToSearch } from "@/lib/table-sorting"
 
 interface UserWithClinic extends User {
@@ -26,14 +26,21 @@ export default function AllUsersPage() {
   const [isUserModalOpen, setIsUserModalOpen] = useState(false)
   const [editingUser, setEditingUser] = useState<UserWithClinic | null>(null)
   const [searchInput, setSearchInput] = useState(search.q)
+  const { startSearchRequest, updateLatestSearch } = useLatestTableSearchRequest(searchInput)
   const activeSort = React.useMemo(
     () => parseSortSearch(search.sort, { key: "id", direction: "desc" }),
     [search.sort],
   )
 
   useEffect(() => {
+    updateLatestSearch(search.q)
     setSearchInput(search.q)
-  }, [search.q])
+  }, [search.q, updateLatestSearch])
+
+  const handleSearchInputChange = (value: string) => {
+    updateLatestSearch(value)
+    setSearchInput(value)
+  }
 
   const buildSearchState = (
     overrides?: Partial<{ q: string; page: number; role: string; clinicScope: string; sort: string }>
@@ -68,6 +75,7 @@ export default function AllUsersPage() {
   }, [navigate, search.q, searchInput])
 
   const loadUsers = async () => {
+    const canCommit = startSearchRequest(search.q)
     try {
       setLoading(true)
       const offset = (search.page - 1) * pageSize
@@ -82,18 +90,21 @@ export default function AllUsersPage() {
             ? currentClinic.id
             : undefined,
       })
+      if (!canCommit()) return
       setUsers(items as UserWithClinic[])
       setTotal(total)
     } catch (error) {
       console.error('Error loading users:', error)
     } finally {
-      setLoading(false)
+      if (canCommit()) {
+        setLoading(false)
+      }
     }
   }
 
   useEffect(() => {
     loadUsers()
-  }, [activeSort, currentClinic?.id, pageSize, search.clinicScope, search.page, search.q, search.role])
+  }, [activeSort, currentClinic?.id, pageSize, search.clinicScope, search.page, search.q, search.role, startSearchRequest])
 
   const handleUserDeleted = (userId: number) => {
     setUsers(prevUsers => prevUsers.filter(user => user.id !== userId))
@@ -178,7 +189,7 @@ export default function AllUsersPage() {
               onEditUser={handleEditUser}
               loading={loading}
               searchQuery={searchInput}
-              onSearchChange={setSearchInput}
+              onSearchChange={handleSearchInputChange}
               serverFiltered={true}
               roleFilter={search.role}
               onRoleFilterChange={(value) =>

@@ -6,7 +6,7 @@ import { Appointment } from "@/lib/db/schema-interface"
 import { AppointmentsTable } from "@/components/appointments-table"
 import { useUser } from "@/contexts/UserContext"
 import { ALL_FILTER_VALUE } from "@/lib/table-filters"
-import { TABLE_SEARCH_DEBOUNCE_MS, buildTableSearch } from "@/lib/list-page-search"
+import { TABLE_SEARCH_DEBOUNCE_MS, buildTableSearch, useLatestTableSearchRequest } from "@/lib/list-page-search"
 import { parseSortSearch, sortToOrder, sortToSearch } from "@/lib/table-sorting"
 
 export default function AllAppointmentsPage() {
@@ -18,14 +18,21 @@ export default function AllAppointmentsPage() {
   const [pageSize] = useState(25)
   const [total, setTotal] = useState(0)
   const [searchInput, setSearchInput] = useState(search.q)
+  const { startSearchRequest, updateLatestSearch } = useLatestTableSearchRequest(searchInput)
   const activeSort = React.useMemo(
     () => parseSortSearch(search.sort, { key: "date", direction: "desc" }),
     [search.sort],
   )
 
   useEffect(() => {
+    updateLatestSearch(search.q)
     setSearchInput(search.q)
-  }, [search.q])
+  }, [search.q, updateLatestSearch])
+
+  const handleSearchInputChange = (value: string) => {
+    updateLatestSearch(value)
+    setSearchInput(value)
+  }
 
   const buildSearchState = (overrides?: Partial<{ q: string; page: number; dateScope: string; examName: string; sort: string }>) =>
     buildTableSearch(
@@ -58,6 +65,7 @@ export default function AllAppointmentsPage() {
   }, [navigate, search.q, searchInput])
 
   const loadData = async () => {
+    const canCommit = startSearchRequest(search.q)
     try {
       setLoading(true)
       const offset = (search.page - 1) * pageSize
@@ -69,12 +77,15 @@ export default function AllAppointmentsPage() {
         dateScope: search.dateScope !== ALL_FILTER_VALUE ? search.dateScope : undefined,
         examName: search.examName !== ALL_FILTER_VALUE ? search.examName : undefined,
       })
+      if (!canCommit()) return
       setAppointments(items)
       setTotal(total)
     } catch (error) {
       console.error('Error loading data:', error)
     } finally {
-      setLoading(false)
+      if (canCommit()) {
+        setLoading(false)
+      }
     }
   }
 
@@ -82,7 +93,7 @@ export default function AllAppointmentsPage() {
     if (currentClinic) {
       loadData()
     }
-  }, [activeSort, currentClinic, pageSize, search.dateScope, search.examName, search.page, search.q])
+  }, [activeSort, currentClinic, pageSize, search.dateScope, search.examName, search.page, search.q, startSearchRequest])
 
   const handleAppointmentDeleted = (deletedAppointmentId: number) => {
     setAppointments(prevAppointments => prevAppointments.filter(appointment => appointment.id !== deletedAppointmentId))
@@ -119,7 +130,7 @@ export default function AllAppointmentsPage() {
           onAppointmentDeleted={handleAppointmentDeleted}
           onAppointmentDeleteFailed={handleAppointmentDeleteFailed}
           searchQuery={searchInput}
-          onSearchChange={setSearchInput}
+          onSearchChange={handleSearchInputChange}
           serverFiltered={true}
           dateScopeFilter={search.dateScope}
           onDateScopeFilterChange={(value) =>

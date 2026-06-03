@@ -8,7 +8,7 @@ import { ClientSelectModal } from "@/components/ClientSelectModal"
 import { useUser } from "@/contexts/UserContext"
 import { Button } from "@/components/ui/button"
 import { ALL_FILTER_VALUE } from "@/lib/table-filters"
-import { TABLE_SEARCH_DEBOUNCE_MS, buildTableSearch } from "@/lib/list-page-search"
+import { TABLE_SEARCH_DEBOUNCE_MS, buildTableSearch, useLatestTableSearchRequest } from "@/lib/list-page-search"
 import { parseSortSearch, sortToOrder, sortToSearch } from "@/lib/table-sorting"
 
 export default function AllExamsPage() {
@@ -20,14 +20,21 @@ export default function AllExamsPage() {
   const [pageSize] = useState(25)
   const [total, setTotal] = useState(0)
   const [searchInput, setSearchInput] = useState(search.q)
+  const { startSearchRequest, updateLatestSearch } = useLatestTableSearchRequest(searchInput)
   const activeSort = React.useMemo(
     () => parseSortSearch(search.sort, { key: "exam_date", direction: "desc" }),
     [search.sort],
   )
 
   useEffect(() => {
+    updateLatestSearch(search.q)
     setSearchInput(search.q)
-  }, [search.q])
+  }, [search.q, updateLatestSearch])
+
+  const handleSearchInputChange = (value: string) => {
+    updateLatestSearch(value)
+    setSearchInput(value)
+  }
 
   const buildSearchState = useCallback((overrides?: Partial<{ q: string; page: number; testName: string; sort: string }>) => {
     return buildTableSearch(
@@ -59,6 +66,7 @@ export default function AllExamsPage() {
   }, [buildSearchState, navigate, search.q, searchInput])
 
   const loadData = useCallback(async () => {
+    const canCommit = startSearchRequest(search.q)
     try {
       setLoading(true)
       const offset = (search.page - 1) * pageSize
@@ -69,14 +77,17 @@ export default function AllExamsPage() {
         q: search.q || undefined,
         testName: search.testName !== ALL_FILTER_VALUE ? search.testName : undefined,
       })
+      if (!canCommit()) return
       setExams(items)
       setTotal(total)
     } catch (error) {
       console.error('Error loading data:', error)
     } finally {
-      setLoading(false)
+      if (canCommit()) {
+        setLoading(false)
+      }
     }
-  }, [activeSort, currentClinic, pageSize, search.page, search.q, search.testName])
+  }, [activeSort, currentClinic, pageSize, search.page, search.q, search.testName, startSearchRequest])
 
   useEffect(() => {
     if (currentClinic) {
@@ -116,7 +127,7 @@ export default function AllExamsPage() {
           onExamDeleted={handleExamDeleted} 
           onExamDeleteFailed={handleExamDeleteFailed} 
           searchQuery={searchInput}
-          onSearchChange={setSearchInput}
+          onSearchChange={handleSearchInputChange}
           serverFiltered={true}
           testNameFilter={search.testName}
           onTestNameFilterChange={(value) =>

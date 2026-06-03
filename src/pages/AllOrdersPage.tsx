@@ -6,7 +6,7 @@ import { Order } from "@/lib/db/schema-interface"
 import { OrdersTable } from "@/components/orders-table"
 import { useUser } from "@/contexts/UserContext"
 import { ALL_FILTER_VALUE } from "@/lib/table-filters"
-import { TABLE_SEARCH_DEBOUNCE_MS, buildTableSearch } from "@/lib/list-page-search"
+import { TABLE_SEARCH_DEBOUNCE_MS, buildTableSearch, useLatestTableSearchRequest } from "@/lib/list-page-search"
 import { parseSortSearch, sortToOrder, sortToSearch } from "@/lib/table-sorting"
 import { useUsersQuery } from "@/hooks/client/useClientTabQueries"
 import { onBillingPaymentsChanged } from "@/lib/billing-events"
@@ -20,6 +20,7 @@ export default function AllOrdersPage() {
   const [pageSize] = useState(25)
   const [total, setTotal] = useState(0)
   const [searchInput, setSearchInput] = useState(search.q)
+  const { startSearchRequest, updateLatestSearch } = useLatestTableSearchRequest(searchInput)
   const usersQuery = useUsersQuery(currentClinic?.id)
   const activeSort = React.useMemo(
     () => parseSortSearch(search.sort, { key: "order_date", direction: "desc" }),
@@ -27,8 +28,14 @@ export default function AllOrdersPage() {
   )
 
   useEffect(() => {
+    updateLatestSearch(search.q)
     setSearchInput(search.q)
-  }, [search.q])
+  }, [search.q, updateLatestSearch])
+
+  const handleSearchInputChange = (value: string) => {
+    updateLatestSearch(value)
+    setSearchInput(value)
+  }
 
   const buildSearchState = useCallback((overrides?: Partial<{ q: string; page: number; kind: string; status: string; sort: string }>) => {
     return buildTableSearch(
@@ -62,6 +69,7 @@ export default function AllOrdersPage() {
   }, [buildSearchState, navigate, search.q, searchInput])
 
   const loadData = useCallback(async () => {
+    const canCommit = startSearchRequest(search.q)
     try {
       setLoading(true)
       const offset = (search.page - 1) * pageSize
@@ -73,14 +81,17 @@ export default function AllOrdersPage() {
         kind: search.kind !== ALL_FILTER_VALUE ? search.kind : undefined,
         status: search.status !== ALL_FILTER_VALUE ? search.status : undefined,
       })
+      if (!canCommit()) return
       setOrders(items)
       setTotal(total)
     } catch (error) {
       console.error('Error loading data:', error)
     } finally {
-      setLoading(false)
+      if (canCommit()) {
+        setLoading(false)
+      }
     }
-  }, [activeSort, currentClinic, pageSize, search.kind, search.page, search.q, search.status])
+  }, [activeSort, currentClinic, pageSize, search.kind, search.page, search.q, search.status, startSearchRequest])
 
   useEffect(() => {
     if (currentClinic) {
@@ -165,7 +176,7 @@ export default function AllOrdersPage() {
           onOrderDeleteFailed={handleOrderDeleteFailed}
           onOrderStatusChange={handleOrderStatusChange}
           searchQuery={searchInput}
-          onSearchChange={setSearchInput}
+          onSearchChange={handleSearchInputChange}
           serverFiltered={true}
           kindFilter={search.kind}
           onKindFilterChange={(value) =>

@@ -6,7 +6,7 @@ import { File } from "@/lib/db/schema-interface"
 import { FilesTable } from "@/components/files-table"
 import { useUser } from "@/contexts/UserContext"
 import { ALL_FILTER_VALUE } from "@/lib/table-filters"
-import { TABLE_SEARCH_DEBOUNCE_MS, buildTableSearch } from "@/lib/list-page-search"
+import { TABLE_SEARCH_DEBOUNCE_MS, buildTableSearch, useLatestTableSearchRequest } from "@/lib/list-page-search"
 import { parseSortSearch, sortToOrder, sortToSearch } from "@/lib/table-sorting"
 
 export default function AllFilesPage() {
@@ -18,14 +18,21 @@ export default function AllFilesPage() {
   const [pageSize] = useState(25)
   const [total, setTotal] = useState(0)
   const [searchInput, setSearchInput] = useState(search.q)
+  const { startSearchRequest, updateLatestSearch } = useLatestTableSearchRequest(searchInput)
   const activeSort = React.useMemo(
     () => parseSortSearch(search.sort, { key: "upload_date", direction: "desc" }),
     [search.sort],
   )
 
   useEffect(() => {
+    updateLatestSearch(search.q)
     setSearchInput(search.q)
-  }, [search.q])
+  }, [search.q, updateLatestSearch])
+
+  const handleSearchInputChange = (value: string) => {
+    updateLatestSearch(value)
+    setSearchInput(value)
+  }
 
   const buildSearchState = (overrides?: Partial<{ q: string; page: number; fileCategory: string; sort: string }>) =>
     buildTableSearch(
@@ -56,6 +63,7 @@ export default function AllFilesPage() {
   }, [navigate, search.q, searchInput])
 
   const loadFiles = async () => {
+    const canCommit = startSearchRequest(search.q)
     try {
       setLoading(true)
       const offset = (search.page - 1) * pageSize
@@ -66,12 +74,15 @@ export default function AllFilesPage() {
         q: search.q || undefined,
         fileCategory: search.fileCategory !== ALL_FILTER_VALUE ? search.fileCategory : undefined,
       })
+      if (!canCommit()) return
       setFiles(items)
       setTotal(total)
     } catch (error) {
       console.error('Error loading files:', error)
     } finally {
-      setLoading(false)
+      if (canCommit()) {
+        setLoading(false)
+      }
     }
   }
 
@@ -79,7 +90,7 @@ export default function AllFilesPage() {
     if (currentClinic) {
       loadFiles()
     }
-  }, [activeSort, currentClinic, pageSize, search.fileCategory, search.page, search.q])
+  }, [activeSort, currentClinic, pageSize, search.fileCategory, search.page, search.q, startSearchRequest])
 
   const handleFileDeleted = (deletedFileId: number) => {
     setFiles(prevFiles => prevFiles.filter(file => file.id !== deletedFileId))
@@ -121,7 +132,7 @@ export default function AllFilesPage() {
           onFileDeleted={handleFileDeleted}
           onFileDeleteFailed={handleFileDeleteFailed}
           searchQuery={searchInput}
-          onSearchChange={setSearchInput}
+          onSearchChange={handleSearchInputChange}
           serverFiltered={true}
           fileCategoryFilter={search.fileCategory}
           onFileCategoryFilterChange={(value) =>

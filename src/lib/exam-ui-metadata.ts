@@ -37,6 +37,29 @@ const TAB_DEFAULTS_BY_TYPE: Record<
 };
 
 const DEFAULT_OLD_REFRACTION_TYPE = "רחוק";
+const OLD_REFRACTION_PREFIX = "old-refraction-";
+const OLD_REFRACTION_EXTENSION_PREFIX = "old-refraction-extension";
+
+const OLD_REFRACTION_CONTENT_FIELDS = [
+  "r_sph",
+  "r_cyl",
+  "r_ax",
+  "r_pris",
+  "r_base",
+  "r_va",
+  "r_ad",
+  "r_j",
+  "l_sph",
+  "l_cyl",
+  "l_ax",
+  "l_pris",
+  "l_base",
+  "l_va",
+  "l_ad",
+  "l_j",
+  "comb_va",
+  "comb_j",
+];
 
 export const getTabsByCardKey = (
   type: TabMetadataComponentType,
@@ -229,6 +252,154 @@ const collectCardIdsByType = (
   return ids;
 };
 
+const isMeaningfulOldRefractionData = (
+  data: Record<string, any> | null | undefined,
+) =>
+  !!data &&
+  OLD_REFRACTION_CONTENT_FIELDS.some((field) => {
+    const value = data[field];
+    return value != null && String(value).trim() !== "";
+  });
+
+const isOldRefractionTabDataKey = (key: string) =>
+  key.startsWith(OLD_REFRACTION_PREFIX) &&
+  !key.startsWith(OLD_REFRACTION_EXTENSION_PREFIX);
+
+const buildOldRefractionMetadataKeyMap = (examData: Record<string, any>) => {
+  const keyToCardId = new Map<string, string>();
+  const tabsByCard = getExamDataUi(examData).tabsByCard || {};
+
+  Object.entries(tabsByCard).forEach(([key, tabs]) => {
+    if (!key.startsWith("old-refraction:") || !Array.isArray(tabs)) return;
+    const cardId = key.slice("old-refraction:".length);
+    tabs.forEach((tab) => {
+      if (tab?.id) {
+        keyToCardId.set(
+          getTabDataKey("old-refraction", cardId, tab.id),
+          cardId,
+        );
+      }
+    });
+  });
+
+  return keyToCardId;
+};
+
+const resolveOldRefractionCardIdFromKey = (
+  key: string,
+  data: Record<string, any>,
+  metadataKeyMap: Map<string, string>,
+) => {
+  if (typeof data.card_id === "string" && data.card_id.trim() !== "") {
+    return data.card_id;
+  }
+
+  const metadataCardId = metadataKeyMap.get(key);
+  if (metadataCardId) return metadataCardId;
+
+  if (!isOldRefractionTabDataKey(key)) return null;
+  const suffix = key.slice(OLD_REFRACTION_PREFIX.length);
+  const tabId = data.card_instance_id;
+  if (tabId != null && String(tabId) !== "" && suffix.endsWith(`-${tabId}`)) {
+    return suffix.slice(0, -String(tabId).length - 1) || suffix;
+  }
+
+  return null;
+};
+
+const rebindOrphanedOldRefractionTabsForRows = (
+  examData: Record<string, any>,
+  cardRows: CardRow[],
+) => {
+  const visibleCardIds = collectCardIdsByType(cardRows, "old-refraction");
+  if (visibleCardIds.length === 0) return { examData, changed: false };
+
+  const visibleCardIdSet = new Set(visibleCardIds);
+  const emptyTargetCardIds = visibleCardIds.filter(
+    (cardId) => getTabsForCard(examData, "old-refraction", cardId).length === 0,
+  );
+  if (emptyTargetCardIds.length === 0) return { examData, changed: false };
+
+  const metadataKeyMap = buildOldRefractionMetadataKeyMap(examData);
+  const sourceOrderByCardId = new Map<string, number>();
+
+  Object.entries(examData).forEach(([key, value], order) => {
+    if (!isOldRefractionTabDataKey(key)) return;
+    if (!value || typeof value !== "object") return;
+
+    const cardId = resolveOldRefractionCardIdFromKey(
+      key,
+      value as Record<string, any>,
+      metadataKeyMap,
+    );
+    if (!cardId || visibleCardIdSet.has(cardId)) return;
+    if (!sourceOrderByCardId.has(cardId))
+      sourceOrderByCardId.set(cardId, order);
+  });
+
+  const sourceGroups = Array.from(sourceOrderByCardId.entries())
+    .map(([cardId, order]) => {
+      const tabs = getTabsForCard(examData, "old-refraction", cardId).filter(
+        (tab) => {
+          const key = getTabDataKey("old-refraction", cardId, tab.id);
+          return !!examData[key] && typeof examData[key] === "object";
+        },
+      );
+      const hasMeaningfulData = tabs.some((tab) =>
+        isMeaningfulOldRefractionData(
+          examData[getTabDataKey("old-refraction", cardId, tab.id)],
+        ),
+      );
+      return { cardId, order, tabs, hasMeaningfulData };
+    })
+    .filter((group) => group.tabs.length > 0 && group.hasMeaningfulData)
+    .sort((a, b) => a.order - b.order);
+
+  if (sourceGroups.length === 0) return { examData, changed: false };
+
+  let next = examData;
+  let changed = false;
+
+  emptyTargetCardIds.forEach((targetCardId, index) => {
+    const sourceGroup = sourceGroups[index];
+    if (!sourceGroup) return;
+
+    if (!changed) {
+      next = { ...next };
+      changed = true;
+    }
+
+    const movedTabs: ExamCardTabMetadata[] = [];
+
+    sourceGroup.tabs.forEach((tab, tabIndex) => {
+      const sourceKey = getTabDataKey(
+        "old-refraction",
+        sourceGroup.cardId,
+        tab.id,
+      );
+      const targetKey = getTabDataKey("old-refraction", targetCardId, tab.id);
+      const sourceData = next[sourceKey];
+      if (!sourceData || typeof sourceData !== "object") return;
+
+      delete next[sourceKey];
+      next[targetKey] = {
+        ...(sourceData as Record<string, any>),
+        card_id: targetCardId,
+        card_instance_id: tab.id,
+        tab_index: tabIndex,
+      };
+      movedTabs.push({ ...tab, index: tabIndex });
+    });
+
+    if (movedTabs.length > 0) {
+      next = setTabsForCard(next, "old-refraction", sourceGroup.cardId, []);
+      next = setTabsForCard(next, "old-refraction", targetCardId, movedTabs);
+    }
+  });
+
+  return { examData: next, changed };
+};
+
 export const ensureTabsMetadataForRows = (
   examData: Record<string, any>,
   cardRows: CardRow[],
@@ -275,8 +446,12 @@ export const ensureLayoutDataForRows = (
   layoutInstanceId: number,
 ) => {
   const normalizedTabs = ensureTabsMetadataForRows(examData, cardRows);
-  let next = normalizedTabs.examData;
-  let changed = normalizedTabs.changed;
+  const recoveredOldRefraction = rebindOrphanedOldRefractionTabsForRows(
+    normalizedTabs.examData,
+    cardRows,
+  );
+  let next = recoveredOldRefraction.examData;
+  let changed = normalizedTabs.changed || recoveredOldRefraction.changed;
   const firstCardKeyByType: Record<string, string> = {};
 
   const ensureMutable = () => {

@@ -12,7 +12,7 @@ import { Users, PlusIcon } from "lucide-react"
 import { useUser } from "@/contexts/UserContext"
 import { TableFiltersBar } from "@/components/table-filters-bar"
 import { ALL_FILTER_VALUE } from "@/lib/table-filters"
-import { TABLE_SEARCH_DEBOUNCE_MS, buildTableSearch } from "@/lib/list-page-search"
+import { TABLE_SEARCH_DEBOUNCE_MS, buildTableSearch, useLatestTableSearchRequest } from "@/lib/list-page-search"
 import { GuardedRouterLink } from "@/components/GuardedRouterLink"
 import { parseSortSearch, sortToOrder, sortToSearch } from "@/lib/table-sorting"
 
@@ -32,6 +32,7 @@ export default function ClientsPage() {
   const [isFamilyModalOpen, setIsFamilyModalOpen] = useState(false)
   const [editingFamily, setEditingFamily] = useState<Family | null>(null)
   const [searchInput, setSearchInput] = useState(search.q)
+  const { startSearchRequest, updateLatestSearch } = useLatestTableSearchRequest(searchInput)
   const isFamilyMode = search.mode === "families"
   const activeSort = React.useMemo(
     () => parseSortSearch(search.sort, { key: "id", direction: "desc" }),
@@ -39,8 +40,14 @@ export default function ClientsPage() {
   )
 
   useEffect(() => {
+    updateLatestSearch(search.q)
     setSearchInput(search.q)
-  }, [search.q])
+  }, [search.q, updateLatestSearch])
+
+  const handleSearchInputChange = (value: string) => {
+    updateLatestSearch(value)
+    setSearchInput(value)
+  }
 
   const buildSearchState = (overrides?: Partial<{ mode: string; q: string; page: number; gender: string; sort: string }>) =>
     buildTableSearch(
@@ -73,6 +80,7 @@ export default function ClientsPage() {
   }, [navigate, search.q, searchInput])
 
   const loadClients = async () => {
+    const canCommit = startSearchRequest(search.q)
     try {
       setClientsLoading(true)
       const offset = (search.page - 1) * pageSize
@@ -86,16 +94,20 @@ export default function ClientsPage() {
           gender: search.gender !== ALL_FILTER_VALUE ? search.gender : undefined,
         }
       )
+      if (!canCommit()) return
       setClients(items)
       setClientsTotal(total)
     } catch (error) {
       console.error('Error loading clients:', error)
     } finally {
-      setClientsLoading(false)
+      if (canCommit()) {
+        setClientsLoading(false)
+      }
     }
   }
 
   const loadFamilies = async () => {
+    const canCommit = startSearchRequest(search.q)
     try {
       setFamiliesLoading(true)
       const offset = (search.page - 1) * pageSize
@@ -105,12 +117,15 @@ export default function ClientsPage() {
         order: sortToOrder(activeSort, "id_desc"),
         search: search.q || undefined,
       })
+      if (!canCommit()) return
       setFamilies(items)
       setFamiliesTotal(total)
     } catch (error) {
       console.error('Error loading families:', error)
     } finally {
-      setFamiliesLoading(false)
+      if (canCommit()) {
+        setFamiliesLoading(false)
+      }
     }
   }
 
@@ -126,7 +141,7 @@ export default function ClientsPage() {
     if (currentClinic) {
       loadData()
     }
-  }, [activeSort, currentClinic, pageSize, isFamilyMode, search.gender, search.page, search.q])
+  }, [activeSort, currentClinic, pageSize, isFamilyMode, search.gender, search.page, search.q, startSearchRequest])
 
   const handleClientDeleted = (clientId: number) => {
     setClients(prevClients => prevClients.filter(client => client.id !== clientId))
@@ -258,7 +273,7 @@ export default function ClientsPage() {
               <div className="space-y-2.5">
                 <TableFiltersBar
                   searchValue={searchInput}
-                  onSearchChange={setSearchInput}
+                  onSearchChange={handleSearchInputChange}
                   searchPlaceholder="חיפוש משפחות…"
                   actions={
                     <>
@@ -290,7 +305,7 @@ export default function ClientsPage() {
                       onFamilyDeleteFailed={handleFamilyDeleteFailed}
                       selectedFamilyId={selectedFamily?.id}
                       searchQuery={searchInput}
-                      onSearchChange={setSearchInput}
+                      onSearchChange={handleSearchInputChange}
                       hideSearch={true}
                       serverFiltered={true}
                       loading={familiesLoading}
@@ -333,7 +348,7 @@ export default function ClientsPage() {
                 onClientDeleted={handleClientDeleted}
                 onClientDeleteFailed={handleClientDeleteFailed}
                 searchQuery={searchInput}
-                onSearchChange={setSearchInput}
+                onSearchChange={handleSearchInputChange}
                 serverFiltered={true}
                 genderFilter={search.gender}
                 onGenderFilterChange={(value) =>

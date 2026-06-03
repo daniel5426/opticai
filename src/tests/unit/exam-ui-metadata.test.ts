@@ -245,6 +245,135 @@ describe("exam ui metadata", () => {
       r_sph: "-2.00",
     });
   });
+
+  test("rebinds orphaned old-refraction tabs to a re-added card", () => {
+    const data = {
+      "old-refraction-old-refraction-old-tab-a": {
+        layout_instance_id: 42,
+        card_id: "old-refraction-old",
+        card_instance_id: "tab-a",
+        tab_index: 0,
+        r_glasses_type: "רחוק",
+        l_glasses_type: "רחוק",
+        r_sph: "-1.25",
+      },
+      __ui: {
+        tabsByCard: {
+          "old-refraction:old-refraction-old": [
+            { id: "tab-a", index: 0, type: "רחוק" },
+          ],
+        },
+      },
+    };
+    const layoutRows: CardRow[] = [
+      {
+        id: "row-1",
+        cards: [{ id: "old-refraction-new", type: "old-refraction" }],
+      },
+    ];
+
+    const normalized = ensureLayoutDataForRows(data, layoutRows, 42);
+
+    expect(normalized.changed).toBe(true);
+    expect(
+      normalized.examData["old-refraction-old-refraction-old-tab-a"],
+    ).toBeUndefined();
+    expect(
+      normalized.examData["old-refraction-old-refraction-new-tab-a"],
+    ).toMatchObject({
+      layout_instance_id: 42,
+      card_id: "old-refraction-new",
+      card_instance_id: "tab-a",
+      tab_index: 0,
+      r_sph: "-1.25",
+    });
+    expect(
+      getTabsForCard(
+        normalized.examData,
+        "old-refraction",
+        "old-refraction-new",
+      ),
+    ).toEqual([{ id: "tab-a", index: 0, type: "רחוק" }]);
+    expect(
+      getTabsForCard(
+        normalized.examData,
+        "old-refraction",
+        "old-refraction-old",
+      ),
+    ).toEqual([]);
+  });
+
+  test("rebinds multiple orphaned old-refraction card groups in stable order", () => {
+    const data = {
+      "old-refraction-old-a-tab-a": {
+        layout_instance_id: 42,
+        card_id: "old-a",
+        card_instance_id: "tab-a",
+        tab_index: 0,
+        r_sph: "-1.00",
+      },
+      "old-refraction-old-b-tab-b": {
+        layout_instance_id: 42,
+        card_id: "old-b",
+        card_instance_id: "tab-b",
+        tab_index: 0,
+        l_sph: "-2.00",
+      },
+    };
+    const layoutRows: CardRow[] = [
+      {
+        id: "row-1",
+        cards: [
+          { id: "new-a", type: "old-refraction" },
+          { id: "new-b", type: "old-refraction" },
+        ],
+      },
+    ];
+
+    const normalized = ensureLayoutDataForRows(data, layoutRows, 42);
+
+    expect(normalized.examData["old-refraction-new-a-tab-a"]).toMatchObject({
+      card_id: "new-a",
+      card_instance_id: "tab-a",
+      r_sph: "-1.00",
+    });
+    expect(normalized.examData["old-refraction-new-b-tab-b"]).toMatchObject({
+      card_id: "new-b",
+      card_instance_id: "tab-b",
+      l_sph: "-2.00",
+    });
+    expect(normalized.examData["old-refraction-old-a-tab-a"]).toBeUndefined();
+    expect(normalized.examData["old-refraction-old-b-tab-b"]).toBeUndefined();
+  });
+
+  test("does not treat old-refraction-extension data as orphaned old-refraction tabs", () => {
+    const data = {
+      "old-refraction-extension-old-refraction-extension-1": {
+        layout_instance_id: 42,
+        card_instance_id: "old-refraction-extension-1",
+        r_sph: "-3.00",
+      },
+    };
+    const layoutRows: CardRow[] = [
+      {
+        id: "row-1",
+        cards: [{ id: "old-refraction-new", type: "old-refraction" }],
+      },
+    ];
+
+    const normalized = ensureLayoutDataForRows(data, layoutRows, 42);
+
+    expect(
+      normalized.examData[
+        "old-refraction-extension-old-refraction-extension-1"
+      ],
+    ).toEqual(data["old-refraction-extension-old-refraction-extension-1"]);
+    expect(
+      normalized.examData[
+        "old-refraction-old-refraction-new-old-refraction-extension-1"
+      ],
+    ).toBeUndefined();
+  });
 });
 
 describe("parsed layout cache", () => {

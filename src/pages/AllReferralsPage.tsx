@@ -6,7 +6,7 @@ import { Referral } from "@/lib/db/schema-interface"
 import { ReferralTable } from "@/components/referral-table"
 import { useUser } from "@/contexts/UserContext"
 import { ALL_FILTER_VALUE } from "@/lib/table-filters"
-import { TABLE_SEARCH_DEBOUNCE_MS, buildTableSearch } from "@/lib/list-page-search"
+import { TABLE_SEARCH_DEBOUNCE_MS, buildTableSearch, useLatestTableSearchRequest } from "@/lib/list-page-search"
 import { parseSortSearch, sortToOrder, sortToSearch } from "@/lib/table-sorting"
 
 export default function AllReferralsPage() {
@@ -18,14 +18,21 @@ export default function AllReferralsPage() {
   const [pageSize] = useState(25)
   const [total, setTotal] = useState(0)
   const [searchInput, setSearchInput] = useState(search.q)
+  const { startSearchRequest, updateLatestSearch } = useLatestTableSearchRequest(searchInput)
   const activeSort = React.useMemo(
     () => parseSortSearch(search.sort, { key: "date", direction: "desc" }),
     [search.sort],
   )
 
   useEffect(() => {
+    updateLatestSearch(search.q)
     setSearchInput(search.q)
-  }, [search.q])
+  }, [search.q, updateLatestSearch])
+
+  const handleSearchInputChange = (value: string) => {
+    updateLatestSearch(value)
+    setSearchInput(value)
+  }
 
   const buildSearchState = (overrides?: Partial<{ q: string; page: number; urgency: string; referralType: string; sort: string }>) =>
     buildTableSearch(
@@ -58,6 +65,7 @@ export default function AllReferralsPage() {
   }, [navigate, search.q, searchInput])
 
   const loadData = async () => {
+    const canCommit = startSearchRequest(search.q)
     try {
       setLoading(true)
       const offset = (search.page - 1) * pageSize
@@ -69,12 +77,15 @@ export default function AllReferralsPage() {
         urgencyLevel: search.urgency !== ALL_FILTER_VALUE ? search.urgency : undefined,
         referralType: search.referralType !== ALL_FILTER_VALUE ? search.referralType : undefined,
       })
+      if (!canCommit()) return
       setReferrals(items)
       setTotal(total)
     } catch (error) {
       console.error('Error loading data:', error)
     } finally {
-      setLoading(false)
+      if (canCommit()) {
+        setLoading(false)
+      }
     }
   }
 
@@ -82,7 +93,7 @@ export default function AllReferralsPage() {
     if (currentClinic) {
       loadData()
     }
-  }, [activeSort, currentClinic, pageSize, search.page, search.q, search.referralType, search.urgency])
+  }, [activeSort, currentClinic, pageSize, search.page, search.q, search.referralType, search.urgency, startSearchRequest])
 
   const handleReferralDeleted = (deletedReferralId: number) => {
     setReferrals(prevReferrals => prevReferrals.filter(referral => referral.id !== deletedReferralId))
@@ -115,7 +126,7 @@ export default function AllReferralsPage() {
           clientId={0}
           loading={loading}
           searchQuery={searchInput}
-          onSearchChange={setSearchInput}
+          onSearchChange={handleSearchInputChange}
           serverFiltered={true}
           urgencyFilter={search.urgency}
           onUrgencyFilterChange={(value) =>
