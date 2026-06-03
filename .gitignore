@@ -17,10 +17,8 @@ supabase/.temp/
 *.sqlite3
 *.sqlite3-*
 random-files-finding-db/
+backend/migration/
 backend/optic_db_data_csv/
-backend/migration/csv_files_new/
-backend/migration/csv_subset_first_1000_company11/
-backend/migration/optitech/
 
 # Python
 __pycache__/
