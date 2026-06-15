@@ -75,6 +75,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
   openExternalAuthUrl: (url: string) => ipcRenderer.invoke('open-external-auth-url', url),
   openUrlInChrome: (url: string) => ipcRenderer.invoke('open-url-in-chrome', url),
+  softOpticScan: () => ipcRenderer.invoke('softoptic-scan'),
+  softOpticExport: (payload: { candidate: any; sqlAnywhereBin?: string; includeDocuments?: boolean }) => ipcRenderer.invoke('softoptic-export', payload),
+  softOpticUploadBundle: (payload: { apiBaseUrl: string; jobId: string; zipPath: string; accessToken: string }) => ipcRenderer.invoke('softoptic-upload-bundle', payload),
   exportHtmlToPdf: (payload: { html: string; defaultFileName: string }) => ipcRenderer.invoke('export-html-to-pdf', payload),
   printHtml: (payload: { html: string; defaultFileName?: string }) => ipcRenderer.invoke('print-html', payload),
   onUserLogoutBeforeClose: (callback: () => Promise<void> | void) => {

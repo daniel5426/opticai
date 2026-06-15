@@ -15,6 +15,7 @@ from schemas import (
 )
 from auth import get_current_user
 from security.scope import get_allowed_clinic_ids, normalize_clinic_id_for_company, resolve_company_id, assert_clinic_belongs_to_company
+from services.prescription_search_index import rebuild_exam_instance_index
 
 router = APIRouter(prefix="/exam-layouts", tags=["exam-layouts"])
 
@@ -478,6 +479,8 @@ def create_exam_layout_instance(
     db.add(instance)
     db.commit()
     db.refresh(instance)
+    rebuild_exam_instance_index(db, instance)
+    db.commit()
     return {
         "id": instance.id,
         "exam_id": instance.exam_id,
@@ -641,7 +644,8 @@ def update_exam_layout_instance(
     for field, value in instance_data.items():
         if hasattr(instance, field):
             setattr(instance, field, value)
-    
+    if "exam_data" in instance_data:
+        rebuild_exam_instance_index(db, instance)
     db.commit()
     db.refresh(instance)
     

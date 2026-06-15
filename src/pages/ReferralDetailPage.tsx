@@ -9,6 +9,7 @@ import { FileDown, FileText, Loader2, Save, Edit, Printer } from "lucide-react";
 import { useParams, useNavigate, useLocation } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { SiteHeader } from "@/components/site-header";
+import { UnsavedChangesDialog } from "@/components/unsaved-changes-dialog";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -52,10 +53,13 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useClientSidebar } from "@/contexts/ClientSidebarContext";
 import { useUser } from "@/contexts/UserContext";
 import { inputSyncManager } from "@/components/exam/shared/OptimizedInputs";
+import { useKeyboardSave } from "@/hooks/shared/useKeyboardSave";
+import { useUnsavedChanges } from "@/hooks/shared/useUnsavedChanges";
 import { NotesCard } from "@/components/ui/notes-card";
 import { DateInput } from "@/components/ui/date";
 import { syncSavedClientReferral } from "@/hooks/client/clientTabCache";
 import { exportReferralToDocx, exportReferralToPdf, printReferralPdf } from "@/lib/referral-docx";
+import { sortKeysDeep } from "./exam-detail/utils";
 
 export default function ReferralDetailPage() {
   const location = useLocation();
@@ -112,6 +116,32 @@ export default function ReferralDetailPage() {
   useLayoutEffect(() => {
     compactPrescriptionFormDataRef.current = compactPrescriptionFormData;
   }, [compactPrescriptionFormData]);
+
+  const getSerializedState = useCallback(
+    () =>
+      JSON.stringify({
+        formData: sortKeysDeep(formData),
+        compactPrescriptionFormData: sortKeysDeep(compactPrescriptionFormData),
+      }),
+    [formData, compactPrescriptionFormData],
+  );
+
+  const {
+    hasUnsavedChanges,
+    showUnsavedDialog,
+    isSaveInFlight,
+    setIsSaveInFlight,
+    handleNavigationAttempt,
+    handleUnsavedConfirm,
+    handleUnsavedCancel,
+    setBaseline,
+    baselineInitializedRef,
+    allowNavigationRef,
+  } = useUnsavedChanges({
+    getSerializedState,
+    isEditing,
+    isNewMode: isNewReferral,
+  });
 
   const getExamFormData = useCallback(
     () => ({ [type]: compactPrescriptionFormDataRef.current }),
@@ -265,6 +295,13 @@ export default function ReferralDetailPage() {
     loadReferralData();
   }, [referralId, isNewReferral, clientIdFromRoute, currentClient]);
 
+  useEffect(() => {
+    if (!loading && !baselineInitializedRef.current) {
+      const timer = window.setTimeout(() => setBaseline(), 100);
+      return () => window.clearTimeout(timer);
+    }
+  }, [loading, setBaseline, baselineInitializedRef]);
+
   const handleInputChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
   ) => {
@@ -300,15 +337,15 @@ export default function ReferralDetailPage() {
       ? clientIdFromRoute
       : formData.client_id?.toString();
     if (clientId && value !== "referrals") {
-      navigate({
-        to: "/clients/$clientId",
-        params: { clientId: String(clientId) },
-        search: { tab: value },
+      handleNavigationAttempt(() => {
+        navigate({
+          to: "/clients/$clientId",
+          params: { clientId: String(clientId) },
+          search: { tab: value },
+        });
       });
     }
   };
-
-  const [isSaveInFlight, setIsSaveInFlight] = useState(false);
 
   const handleSave = async () => {
     if (isSaveInFlight) return;
@@ -355,6 +392,13 @@ export default function ReferralDetailPage() {
           syncSavedClientReferral(queryClient, created);
           toast.success("ההפניה נשמרה בהצלחה");
           setIsEditing(false);
+          allowNavigationRef.current = true;
+          setBaseline({
+            formData: sortKeysDeep(created),
+            compactPrescriptionFormData: sortKeysDeep(
+              finalReferralData["compact-prescription"],
+            ),
+          });
           if (clientIdFromRoute) {
             navigate({
               to: `/clients/${clientIdFromRoute}`,
@@ -371,6 +415,12 @@ export default function ReferralDetailPage() {
           syncSavedClientReferral(queryClient, savedReferral);
           toast.success("ההפניה נשמרה בהצלחה");
           setIsEditing(false);
+          setBaseline({
+            formData: sortKeysDeep(savedReferral),
+            compactPrescriptionFormData: sortKeysDeep(
+              finalReferralData["compact-prescription"],
+            ),
+          });
         } else {
           toast.error("שגיאה בשמירת ההפניה");
         }
@@ -393,20 +443,29 @@ export default function ReferralDetailPage() {
   };
 
   const handleCancel = () => {
-    if (isNewReferral && clientIdFromRoute) {
-      navigate({
-        to: `/clients/${clientIdFromRoute}`,
-        search: { tab: "referrals" },
-      });
-    } else if (formData.client_id) {
-      navigate({
-        to: `/clients/${formData.client_id}`,
-        search: { tab: "referrals" },
-      });
-    } else {
-      navigate({ to: "/clients" });
-    }
+    handleNavigationAttempt(() => {
+      if (isNewReferral && clientIdFromRoute) {
+        navigate({
+          to: `/clients/${clientIdFromRoute}`,
+          search: { tab: "referrals" },
+        });
+      } else if (formData.client_id) {
+        navigate({
+          to: `/clients/${formData.client_id}`,
+          search: { tab: "referrals" },
+        });
+      } else {
+        navigate({ to: "/clients" });
+      }
+    });
   };
+
+  useKeyboardSave({
+    enabled: !loading && (isEditing || isNewReferral),
+    isSaving: isSaveInFlight,
+    canSave: Boolean(currentClinic?.id || !isNewReferral),
+    onSave: handleSave,
+  });
 
   const handleExportDocx = async () => {
     if (isExportInFlight) return;
@@ -579,6 +638,7 @@ export default function ReferralDetailPage() {
           currentClient?.id ? `/clients/${currentClient.id}` : "/clients"
         }
         examInfo={isNewReferral ? "הפניה חדשה" : `הפניה מס' ${referralId}`}
+        hasUnsavedChanges={hasUnsavedChanges}
         tabs={{
           activeTab,
           onTabChange: handleTabChange,
@@ -825,7 +885,11 @@ export default function ReferralDetailPage() {
                   </div>
                 </Card>
 
-                <div className="relative">
+                <div
+                  className="relative"
+                  data-clinical-nav-scope="true"
+                  data-clinical-nav-card="true"
+                >
                   <CompactPrescriptionTab
                     data={compactPrescriptionFormData}
                     onChange={(field, value) =>
@@ -873,6 +937,11 @@ export default function ReferralDetailPage() {
           </div>
         </div>
       </ClientSpaceLayout>
+      <UnsavedChangesDialog
+        open={showUnsavedDialog}
+        onConfirm={handleUnsavedConfirm}
+        onCancel={handleUnsavedCancel}
+      />
     </>
   );
 }

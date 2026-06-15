@@ -4,6 +4,7 @@ import { Separator } from "@/components/ui/separator"
 import { SidebarTrigger, useSidebar } from "@/components/ui/sidebar"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Link, useLocation, useNavigate } from "@tanstack/react-router"
 import { User, Phone, IdCard, Calendar , Hash} from "lucide-react"
 import { Client } from "@/lib/db/schema-interface"
@@ -19,6 +20,7 @@ interface SiteHeaderProps {
   grandparentLink?: string
   clientBackLink?: string
   examInfo?: string
+  hasUnsavedChanges?: boolean
   tabs?: {
     activeTab: string
     onTabChange: (value: string) => void
@@ -75,7 +77,23 @@ function ClientTooltip({ client }: { client: Client }) {
   )
 }
 
-export function SiteHeader({ title, backLink, parentTitle, parentLink, grandparentTitle, grandparentLink, clientBackLink, examInfo, tabs }: SiteHeaderProps) {
+function UnsavedHeaderDot() {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span
+          aria-label="יש שינויים שלא נשמרו"
+          className="block h-2 w-2 rounded-full bg-amber-500 shadow-[0_0_0_3px_rgba(245,158,11,0.16)]"
+        />
+      </TooltipTrigger>
+      <TooltipContent side="bottom" align="center">
+        יש שינויים שלא נשמרו
+      </TooltipContent>
+    </Tooltip>
+  )
+}
+
+export function SiteHeader({ title, backLink, parentTitle, parentLink, grandparentTitle, grandparentLink, clientBackLink, examInfo, hasUnsavedChanges, tabs }: SiteHeaderProps) {
   const { currentClient, toggleSidebar } = useClientSidebar()
   const displayName = currentClient ? `${currentClient.first_name} ${currentClient.last_name}`.trim() : ''
   const [isHovering, setIsHovering] = useState(false)
@@ -243,6 +261,7 @@ export function SiteHeader({ title, backLink, parentTitle, parentLink, grandpare
           ) : (
             <h1 className="text-base font-medium">{title}</h1>
           )}
+          {hasUnsavedChanges && <UnsavedHeaderDot />}
         </div>
 
         {/* Left side - Tabs (in RTL, this appears on the left) */}

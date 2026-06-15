@@ -38,6 +38,7 @@ import { useClientSidebar } from "@/contexts/ClientSidebarContext";
 import { apiClient } from "@/lib/api-client";
 import { UnsavedChangesDialog } from "@/components/unsaved-changes-dialog";
 import { useUnsavedChanges } from "@/hooks/shared/useUnsavedChanges";
+import { useKeyboardSave } from "@/hooks/shared/useKeyboardSave";
 import { useRowWidthTracking } from "@/hooks/shared/useRowWidthTracking";
 import { ExamDetailsCard } from "@/components/exam/ExamDetailsCard";
 import { LayoutSelectorDropdown } from "@/components/exam/LayoutSelectorDropdown";
@@ -315,6 +316,7 @@ export default function ExamDetailPage({
   );
 
   const {
+    hasUnsavedChanges,
     showUnsavedDialog,
     isSaveInFlight,
     setIsSaveInFlight,
@@ -809,6 +811,13 @@ export default function ExamDetailPage({
     allowNavigationRef,
     navigate,
     onSave,
+  });
+
+  useKeyboardSave({
+    enabled: !loading && (isEditing || isNewMode),
+    isSaving: isSaveInFlight,
+    canSave: Boolean(currentClinic?.id && currentUser),
+    onSave: handleSave,
   });
 
   const { currentClient, setActiveTab: setSidebarActiveTab } =
@@ -1709,6 +1718,7 @@ export default function ExamDetailPage({
         title="לקוחות"
         backLink="/clients"
         examInfo={isNewMode ? config.newTitle : config.headerInfo(examId || "")}
+        hasUnsavedChanges={hasUnsavedChanges}
         tabs={{ activeTab, onTabChange: handleTabChange }}
       />
       <ClientSpaceLayout>

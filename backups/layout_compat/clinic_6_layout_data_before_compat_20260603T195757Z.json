@@ -1,0 +1,8 @@
+{
+  "clinic_id": 6,
+  "database_host": "aws-0-eu-central-1.pooler.supabase.com",
+  "database": "postgres",
+  "created_at": "20260603T195757Z",
+  "affected_exam_layouts": [],
+  "affected_exam_layout_instances": []
+}

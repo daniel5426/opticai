@@ -216,6 +216,7 @@ export function ExamLayoutRenderer({
 
   return (
     <div
+      data-clinical-nav-scope="true"
       className="no-scrollbar"
       style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
     >
@@ -226,6 +227,7 @@ export function ExamLayoutRenderer({
           const rowIndex = lanes.findIndex((lane) => lane === item.y);
           return (
             <div
+              data-clinical-nav-card="true"
               style={{
                 contentVisibility: "auto",
                 containIntrinsicSize: "0 190px",

@@ -8,7 +8,7 @@ from fastapi.middleware.gzip import GZipMiddleware
 import logging
 from fastapi.middleware.cors import CORSMiddleware
 import config
-from EndPoints import auth, companies, clinics, users, clients, families, appointments, medical_logs, orders, referrals, files, settings, work_shifts, lookups, campaigns, billing, chats, email_logs, exam_layouts, exams, unified_exam_data, ai, ai_sidebar, control_center, dashboard, search, whatsapp_webhook, whatsapp
+from EndPoints import auth, companies, clinics, users, clients, families, appointments, medical_logs, orders, referrals, files, settings, work_shifts, lookups, campaigns, billing, chats, email_logs, exam_layouts, exams, unified_exam_data, ai, ai_sidebar, control_center, dashboard, search, whatsapp_webhook, whatsapp, softoptic_migration
 import httpx
 import json
 from fastapi.responses import StreamingResponse
@@ -85,6 +85,7 @@ app.include_router(dashboard.router, prefix=config.settings.API_V1_STR)
 app.include_router(search.router, prefix=config.settings.API_V1_STR)
 app.include_router(whatsapp_webhook.router, prefix=config.settings.API_V1_STR)
 app.include_router(whatsapp.router, prefix=config.settings.API_V1_STR)
+app.include_router(softoptic_migration.router, prefix=config.settings.API_V1_STR)
 
 
 @app.get("/health")

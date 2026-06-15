@@ -47,6 +47,9 @@ export const AxisWarningInput = React.memo(function AxisWarningInput({
                 value={value}
                 aria-invalid={ariaInvalid}
                 warningMessage={warningMessage}
+                data-clinical-nav-item="true"
+                data-clinical-nav-kind="number"
+                data-clinical-nav-step={props.step?.toString()}
                 onChange={(e) => onValueChange(eye, field, e.target.value)}
                 onInput={(e) => onValueChange(eye, field, e.currentTarget.value)}
                 onBlur={(e) => {

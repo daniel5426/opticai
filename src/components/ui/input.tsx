@@ -3,6 +3,11 @@ import { UI_CONFIG } from "@/config/ui-config"
 import { cn } from "@/utils/tailwind"
 import { ChevronUp, ChevronDown, Info } from "lucide-react"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import {
+  focusClinicalNavSibling,
+  isInClinicalNavScope,
+  normalizeClinicalNumberInput,
+} from "@/lib/clinical-input-navigation"
 
 interface InputProps extends React.ComponentProps<"input"> {
   /** Show + sign for positive numbers. Only works with type="number" */
@@ -178,6 +183,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
 
     const timerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
     const intervalRef = React.useRef<ReturnType<typeof setInterval> | null>(null)
+    const suppressClinicalAutoAdvanceRef = React.useRef(false)
 
     const stopStep = () => {
       if (timerRef.current) clearTimeout(timerRef.current)
@@ -232,8 +238,12 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
       }
 
       // Trigger both input and change events
+      suppressClinicalAutoAdvanceRef.current = true
       input.dispatchEvent(new Event('input', { bubbles: true }))
       input.dispatchEvent(new Event('change', { bubbles: true }))
+      window.setTimeout(() => {
+        suppressClinicalAutoAdvanceRef.current = false
+      }, 0)
     }, [isNumericInput, showPlus, props.disabled, props.step, props.min, props.max, stepPrecision])
 
     const startStep = (increment: boolean) => {
@@ -247,6 +257,48 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
     }
 
     const showButtons = type === "number" && !props.disabled
+
+    const isAtNavigationBoundary = (
+      input: HTMLInputElement,
+      direction: "next" | "previous",
+    ) => {
+      if (input.selectionStart !== input.selectionEnd) return false
+      const caret = input.selectionStart ?? 0
+      return direction === "next" ? caret >= input.value.length : caret <= 0
+    }
+
+    const handleDecimalSeparatorDelete = (input: HTMLInputElement, key: string) => {
+      if (!isNumericInput || !isInClinicalNavScope(input)) return false
+      if (input.dataset.clinicalNavKind !== "number") return false
+      if (key !== "Backspace" && key !== "Delete") return false
+      if (input.selectionStart !== input.selectionEnd) return false
+
+      const value = input.value
+      const dotIndex = value.indexOf(".")
+      if (dotIndex < 0) return false
+
+      const caret = input.selectionStart ?? 0
+      const wouldDeleteDot =
+        (key === "Backspace" && caret === dotIndex + 1) ||
+        (key === "Delete" && caret === dotIndex)
+      if (!wouldDeleteDot) return false
+
+      const digitBeforeDotIndex = dotIndex - 1
+      if (digitBeforeDotIndex < 0 || !/\d/.test(value[digitBeforeDotIndex])) {
+        return false
+      }
+
+      const nextValue =
+        value.slice(0, digitBeforeDotIndex) + value.slice(dotIndex + 1)
+      const nativeValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")?.set
+      nativeValueSetter?.call(input, nextValue)
+      setLocalValue(nextValue)
+      const nextCaret = Math.min(digitBeforeDotIndex, nextValue.length)
+      input.setSelectionRange(nextCaret, nextCaret)
+      input.dispatchEvent(new Event("input", { bubbles: true }))
+      input.dispatchEvent(new Event("change", { bubbles: true }))
+      return true
+    }
 
     const numericValue = isNumericInput ? parseSignedNumber(localValue) : NaN
     const minValue = props.min !== undefined ? parseFloat(props.min as string) : undefined
@@ -322,6 +374,16 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
 
             if (isNumericInput) {
               val = cleanSignedNumberInput(val)
+              e.currentTarget.value = val
+              const normalized = normalizeClinicalNumberInput(e.currentTarget)
+              val = normalized.value
+
+              if (normalized.shouldAdvance && !suppressClinicalAutoAdvanceRef.current) {
+                const input = e.currentTarget
+                window.setTimeout(() => {
+                  focusClinicalNavSibling(input, "next")
+                }, 0)
+              }
             }
 
             e.currentTarget.value = val
@@ -338,6 +400,36 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
             props.onChange?.(e)
           }}
           onKeyDown={(e) => {
+            if (handleDecimalSeparatorDelete(e.currentTarget, e.key)) {
+              e.preventDefault()
+              return
+            }
+            if (isInClinicalNavScope(e.currentTarget)) {
+              if (
+                e.key === "ArrowRight" &&
+                isAtNavigationBoundary(e.currentTarget, "next")
+              ) {
+                e.preventDefault()
+                focusClinicalNavSibling(e.currentTarget, "next")
+                return
+              }
+              if (
+                e.key === "ArrowLeft" &&
+                isAtNavigationBoundary(e.currentTarget, "previous")
+              ) {
+                e.preventDefault()
+                focusClinicalNavSibling(e.currentTarget, "previous")
+                return
+              }
+              if (
+                e.key === " " &&
+                e.currentTarget.dataset.clinicalNavKind === "number"
+              ) {
+                e.preventDefault()
+                focusClinicalNavSibling(e.currentTarget, "next")
+                return
+              }
+            }
             if (isNumericInput) {
               if (e.key === "ArrowUp") {
                 e.preventDefault()

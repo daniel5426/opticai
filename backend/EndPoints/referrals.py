@@ -13,6 +13,7 @@ from security.scope import (
     get_scoped_client,
     get_scoped_referral,
 )
+from services.prescription_search_index import delete_source_index_rows, rebuild_referral_index
 
 router = APIRouter(prefix="/referrals", tags=["referrals"])
 
@@ -89,6 +90,8 @@ def create_referral(
     db.add(db_referral)
     db.commit()
     db.refresh(db_referral)
+    rebuild_referral_index(db, db_referral)
+    db.commit()
     # bump client_updated_date
     try:
         if db_referral.client_id:
@@ -155,7 +158,7 @@ def update_referral(
                 update_fields[key] = scoped[key]
     for field, value in update_fields.items():
         setattr(db_referral, field, value)
-    
+    rebuild_referral_index(db, db_referral)
     db.commit()
     # bump client_updated_date
     try:
@@ -177,6 +180,7 @@ def delete_referral(
 ):
     referral = get_scoped_referral(db, current_user, referral_id)
     client_id = referral.client_id
+    delete_source_index_rows(db, "referral", referral.id)
     db.delete(referral)
     db.commit()
     # bump client_updated_date
@@ -215,6 +219,7 @@ async def save_referral_data(
     except Exception as e:
         raise HTTPException(status_code=422, detail=f"Invalid JSON: {str(e)}")
     referral.referral_data = data
+    rebuild_referral_index(db, referral)
     db.commit()
     # bump client_updated_date
     try:
@@ -257,6 +262,7 @@ async def save_referral_component_data(
     data = referral.referral_data or {}
     data[component_type] = component_data
     referral.referral_data = data
+    rebuild_referral_index(db, referral)
     db.commit()
     # bump client_updated_date
     try:

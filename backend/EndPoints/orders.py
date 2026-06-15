@@ -20,6 +20,11 @@ from security.scope import (
     normalize_client_id,
     resolve_company_id,
 )
+from services.prescription_search_index import (
+    delete_source_index_rows,
+    rebuild_contact_lens_order_index,
+    rebuild_order_index,
+)
 
 router = APIRouter(prefix="/orders", tags=["orders"])
 
@@ -194,6 +199,8 @@ def create_order(
     db.add(db_order)
     db.commit()
     db.refresh(db_order)
+    rebuild_order_index(db, db_order)
+    db.commit()
     # bump client_updated_date
     try:
         if db_order.client_id:
@@ -254,7 +261,7 @@ def update_order(
     update_fields = _prepare_update_payload(db, current_user, db_order, Order, order.dict(exclude_unset=True))
     for field, value in update_fields.items():
         setattr(db_order, field, value)
-    
+    rebuild_order_index(db, db_order)
     db.commit()
     # bump client_updated_date
     try:
@@ -272,6 +279,7 @@ def update_order(
 def delete_order(order_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     order = get_scoped_order(db, current_user, order_id)
     client_id = order.client_id
+    delete_source_index_rows(db, "order", order.id)
     db.delete(order)
     db.commit()
     # bump client_updated_date
@@ -306,6 +314,7 @@ async def save_order_data(
     except Exception as e:
         raise HTTPException(status_code=422, detail=f"Invalid JSON: {str(e)}")
     order.order_data = data
+    rebuild_order_index(db, order)
     db.commit()
     # bump client_updated_date
     try:
@@ -348,6 +357,7 @@ async def save_order_component_data(
     data = order.order_data or {}
     data[component_type] = component_data
     order.order_data = data
+    rebuild_order_index(db, order)
     db.commit()
     # bump client_updated_date
     try:
@@ -436,6 +446,8 @@ def upsert_order_full(
         db.add(db_order)
         db.commit()
         db.refresh(db_order)
+    rebuild_order_index(db, db_order)
+    db.commit()
 
     billing_result = None
     if isinstance(billing_data, dict):
@@ -525,6 +537,8 @@ def create_contact_lens_order(
     db.add(db_order)
     db.commit()
     db.refresh(db_order)
+    rebuild_contact_lens_order_index(db, db_order)
+    db.commit()
     try:
         if db_order.client_id:
             client = db.query(Client).filter(Client.id == db_order.client_id).first()
@@ -578,6 +592,7 @@ def update_contact_lens_order(
     update_fields = _prepare_update_payload(db, current_user, db_order, ContactLensOrder, order.dict(exclude_unset=True))
     for field, value in update_fields.items():
         setattr(db_order, field, value)
+    rebuild_contact_lens_order_index(db, db_order)
     db.commit()
     try:
         if db_order.client_id:
@@ -598,6 +613,7 @@ def delete_contact_lens_order(
 ):
     order = get_scoped_contact_lens_order(db, current_user, order_id)
     client_id = order.client_id
+    delete_source_index_rows(db, "contact_lens_order", order.id)
     db.delete(order)
     db.commit()
     try:
@@ -640,6 +656,8 @@ def upsert_contact_lens_order_full(
         db.add(db_order)
         db.commit()
         db.refresh(db_order)
+    rebuild_contact_lens_order_index(db, db_order)
+    db.commit()
 
     billing_result = None
     if isinstance(billing_data, dict):

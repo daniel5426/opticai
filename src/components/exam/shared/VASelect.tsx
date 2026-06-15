@@ -8,6 +8,11 @@ import { useLookupData } from "@/hooks/useLookupData"
 import { inputSyncManager } from "./OptimizedInputs"
 import { flushSync } from 'react-dom'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import {
+  focusClinicalNavSibling,
+  isClinicalPrintableKey,
+  isInClinicalNavScope,
+} from "@/lib/clinical-input-navigation"
 
 interface VASelectProps {
   value: string
@@ -184,6 +189,7 @@ export const VASelect = memo(function VASelect({
 
   // Local state for immediate UI feedback
   const [localBase, setLocalBase] = useState(currentBase)
+  const [open, setOpen] = useState(false)
 
   // Sync local state when external value changes
   useEffect(() => {
@@ -259,7 +265,9 @@ export const VASelect = memo(function VASelect({
           value={selectValue}
           onValueChange={handleValueChange}
           disabled={disabled || isLoadingLookup}
+          open={open}
           onOpenChange={(open) => {
+            setOpen(open)
             const container = document.querySelector('[data-slot="va-select"]:hover') || 
                               document.activeElement?.closest('[data-slot="va-select"]');
             
@@ -282,6 +290,29 @@ export const VASelect = memo(function VASelect({
             className="border-none focus:ring-0 focus:ring-offset-0 h-full w-full bg-transparent shadow-none px-2"
             size="sm"
             centered
+            data-clinical-nav-item="true"
+            data-clinical-nav-kind="select"
+            onKeyDown={(event) => {
+              if (!isInClinicalNavScope(event.currentTarget)) return
+              if (event.key === "ArrowRight") {
+                event.preventDefault()
+                focusClinicalNavSibling(event.currentTarget, "next")
+                return
+              }
+              if (event.key === "ArrowLeft") {
+                event.preventDefault()
+                focusClinicalNavSibling(event.currentTarget, "previous")
+                return
+              }
+              if (event.key === " ") {
+                event.preventDefault()
+                focusClinicalNavSibling(event.currentTarget, "next")
+                return
+              }
+              if (event.key === "ArrowDown" || event.key === "ArrowUp" || isClinicalPrintableKey(event.nativeEvent)) {
+                setOpen(true)
+              }
+            }}
           >
             <SelectValue placeholder="" />
           </SelectTrigger>

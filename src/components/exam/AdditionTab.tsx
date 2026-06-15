@@ -99,7 +99,6 @@ export function AdditionTab({
                 <FastInput
                   key={`r-${key}`}
                   type="number"
-                  showPlus={true}
                   {...fieldProps}
                   value={getFieldValue("R", key)}
                   onChange={(val) => handleChange("R", key, val)}
@@ -147,7 +146,6 @@ export function AdditionTab({
                 <FastInput
                   key={`l-${key}`}
                   type="number"
-                  showPlus={true}
                   {...fieldProps}
                   value={getFieldValue("L", key)}
                   onChange={(val) => handleChange("L", key, val)}

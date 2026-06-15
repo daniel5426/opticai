@@ -17,10 +17,13 @@ interface WeekDayViewProps {
   getUserColor: (userId?: number) => string
   getAppointmentDuration: (appointment: Appointment) => number
   getDynamicTimeRange: (appointment: Appointment) => string
-  handleTimeSlotClick: (date: Date, time: string) => void
+  handleTimeSlotClick: (date: Date, time: string, event?: React.MouseEvent) => void
   handleMouseDown: (e: React.MouseEvent, appointment: Appointment) => void
   handleResizeStart: (e: React.MouseEvent, appointment: Appointment, type: 'top' | 'bottom') => void
   openEditDialog: (appointment: Appointment) => void
+  onAppointmentContextMenu: (e: React.MouseEvent, appointment: Appointment) => void
+  onAppointmentSelect: (appointment: Appointment) => void
+  isMoveMode: boolean
   draggedBlockId: number | null
   dragPosition: DragPosition | null
   resizeData: ResizeData | null
@@ -43,6 +46,9 @@ export function WeekDayView({
   handleMouseDown,
   handleResizeStart,
   openEditDialog,
+  onAppointmentContextMenu,
+  onAppointmentSelect,
+  isMoveMode,
   draggedBlockId,
   dragPosition,
   resizeData,
@@ -51,9 +57,26 @@ export function WeekDayView({
   suppressClickRef
 }: WeekDayViewProps) {
   const calendarHeight = (totalWorkMinutes / 60) * 95
+  const handleMoveModeColumnClick = (event: React.MouseEvent<HTMLDivElement>, date: Date) => {
+    if (!isMoveMode) return
+    const rect = event.currentTarget.getBoundingClientRect()
+    const y = Math.max(0, event.clientY - rect.top)
+    let offset = 0
+    const clickedSlot = timeSlots.find((slot) => {
+      const height = (slot.durationMinutes / 60) * 95
+      const isMatch = y >= offset && y < offset + height
+      offset += height
+      return isMatch
+    }) || timeSlots[timeSlots.length - 1]
+
+    if (!clickedSlot) return
+    event.preventDefault()
+    event.stopPropagation()
+    handleTimeSlotClick(date, clickedSlot.time, event)
+  }
 
   return (
-    <div className="flex flex-col rounded-t-xl" style={{ 
+    <div className={`flex flex-col rounded-t-xl ${isMoveMode ? 'ring-4 ring-yellow-300/70 ring-offset-2 ring-offset-background' : ''}`} style={{
       height: 'calc(100vh - 190px)',
       maxHeight: `${50 + calendarHeight}px`
     }} ref={calendarRef}>
@@ -122,7 +145,11 @@ export function WeekDayView({
             {visibleDates.map((date, dateIndex) => {
               const dayBlocks = getAppointmentBlocks(date)
               return (
-                <div key={dateIndex} className="relative">
+                <div
+                  key={dateIndex}
+                  className="relative"
+                  onClickCapture={(event) => handleMoveModeColumnClick(event, date)}
+                >
                   {/* Time slots */}
                   <div className="relative">
                     {timeSlots.map((slot, slotIndex) => (
@@ -131,7 +158,7 @@ export function WeekDayView({
                         className={`hover:bg-muted/30 cursor-pointer relative ${dateIndex < visibleDates.length - 1 ? "border-l" : ""
                           } ${slotIndex === timeSlots.length - 1 ? '' : 'border-b'}`}
                         style={{ height: `${(slot.durationMinutes / 60) * 95}px` }}
-                        onClick={() => handleTimeSlotClick(date, slot.time)}
+                        onClick={(e) => handleTimeSlotClick(date, slot.time, e)}
                       >
                         {/* Current time indicator */}
                         {isToday(date) && (
@@ -248,6 +275,7 @@ export function WeekDayView({
                             borderColor: 'rgba(255, 255, 255, 0.3)'
                           }}
                           title={getDynamicTimeRange(block)}
+                          onContextMenu={(e) => onAppointmentContextMenu(e, block)}
                         >
                           {/* Top resize handle */}
                           <div
@@ -286,6 +314,7 @@ export function WeekDayView({
                               }
                               e.preventDefault()
                               e.stopPropagation()
+                              onAppointmentSelect(block)
                               openEditDialog(block)
                             }}
                           >

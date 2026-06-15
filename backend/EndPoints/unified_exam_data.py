@@ -6,6 +6,7 @@ from models import ExamLayoutInstance
 # Unified exam data now stored on ExamLayoutInstance.exam_data
 from auth import get_current_user
 from models import User
+from services.prescription_search_index import rebuild_exam_instance_index
 import json
 
 router = APIRouter(prefix="/unified-exam-data", tags=["Unified Exam Data"])
@@ -76,6 +77,7 @@ async def save_exam_data(
     
     # Upsert directly on instance row
     layout_instance.exam_data = exam_data
+    rebuild_exam_instance_index(db, layout_instance)
     db.commit()
     db.refresh(layout_instance)
     print(f"DEBUG: Upserted exam data on instance")
@@ -103,6 +105,7 @@ async def delete_exam_data(
     
     # Clear instance JSON
     layout_instance.exam_data = {}
+    rebuild_exam_instance_index(db, layout_instance)
     db.commit()
     return {"success": True, "message": "Exam data cleared successfully"}
 
@@ -158,6 +161,7 @@ async def save_exam_component_data(
     merged = dict(layout_instance.exam_data or {})
     merged[component_type] = component_data
     layout_instance.exam_data = merged
+    rebuild_exam_instance_index(db, layout_instance)
     db.commit()
     db.refresh(layout_instance)
     return {"success": True, "message": f"{component_type} data saved successfully"}

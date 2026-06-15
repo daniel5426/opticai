@@ -23,6 +23,7 @@ import { UsersTab } from "@/components/settings/UsersTab"
 import { FieldDataTab } from "@/components/settings/FieldDataTab"
 import { PersonalProfileTab } from "@/components/settings/PersonalProfileTab"
 import { AboutTab } from "@/components/settings/AboutTab"
+import { SoftOpticMigrationTab } from "@/components/settings/SoftOpticMigrationTab"
 import { UnsavedChangesDialog } from "@/components/unsaved-changes-dialog"
 import { useUnsavedChanges } from "@/hooks/shared/useUnsavedChanges"
 
@@ -983,6 +984,12 @@ export default function SettingsPage() {
                     />
                   </TabsContent>
 
+                  {isRoleAtLeast(currentUser?.role_level, ROLE_LEVELS.manager) && (
+                    <TabsContent value="migration" className="space-y-6 mt-0">
+                      <SoftOpticMigrationTab clinicId={currentClinic?.id} />
+                    </TabsContent>
+                  )}
+
 	                  <TabsContent value="field-data" className="space-y-6 mt-0">
 	                    <FieldDataTab
 	                      clinicId={currentClinic?.id}
@@ -1028,6 +1035,9 @@ export default function SettingsPage() {
                     <TabsTrigger value="personal-profile" className="w-full justify-end text-right">פרופיל אישי</TabsTrigger>
                     {isRoleAtLeast(currentUser?.role_level, ROLE_LEVELS.manager) && (
                       <TabsTrigger value="users" className="w-full justify-end text-right">ניהול משתמשים</TabsTrigger>
+                    )}
+                    {isRoleAtLeast(currentUser?.role_level, ROLE_LEVELS.manager) && (
+                      <TabsTrigger value="migration" className="w-full justify-end text-right">העברת נתונים</TabsTrigger>
                     )}
                     <TabsTrigger value="field-data" className="w-full justify-end text-right">ניהול נתוני שדות</TabsTrigger>
                     <TabsTrigger value="about" className="w-full justify-end text-right">אודות האפליקציה</TabsTrigger>

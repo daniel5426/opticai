@@ -19,6 +19,12 @@ supabase/.temp/
 random-files-finding-db/
 backend/migration/
 backend/optic_db_data_csv/
+!backend/migration/
+backend/migration/*
+!backend/migration/migrate_csv_to_postgres.py
+!backend/migration/pipeline/
+!backend/migration/pipeline/*.py
+backend/migration/pipeline/migrated_files/
 
 # Python
 __pycache__/

@@ -33,7 +33,6 @@ export function SortableTableHead({
         onClick={() => onSortChange(toggleSort(sort, sortKey))}
         className={cn(
           "inline-flex h-8 items-center gap-1 rounded-md px-1 text-right hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-          "rtl:flex-row-reverse",
         )}
       >
         <span>{children}</span>

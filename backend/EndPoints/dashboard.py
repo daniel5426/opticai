@@ -39,6 +39,7 @@ def get_home_dashboard(
             Appointment.time,
             Appointment.duration,
             Appointment.exam_name,
+            Appointment.exam_layout_id,
             Appointment.note,
         )
         .filter(and_(*filters))
@@ -54,6 +55,7 @@ def get_home_dashboard(
             "time": r.time,
             "duration": r.duration,
             "exam_name": r.exam_name,
+            "exam_layout_id": r.exam_layout_id,
             "note": r.note,
         }
         for r in appts_rows

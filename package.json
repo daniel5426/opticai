@@ -187,6 +187,10 @@
       {
         "from": "app-update.yml",
         "to": "app-update.yml"
+      },
+      {
+        "from": "docs/migration_wizzard_doc/export_opticsoft_csv.ps1",
+        "to": "migration_wizard/export_opticsoft_csv.ps1"
       }
     ],
     "mac": {

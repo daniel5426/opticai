@@ -3,12 +3,15 @@ import { useNavigate } from '@tanstack/react-router'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Card, CardContent } from '@/components/ui/card'
+import { CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Search, X, User, Eye, ShoppingCart, FileText, Users, Calendar, Mail, Phone, MapPin, Hash } from 'lucide-react'
-import { Client, OpticalExam, MedicalLog, Family, Referral, Appointment, Campaign, Clinic } from '@/lib/db/schema-interface'
+import { Search, User, Eye, FileText, Users, Calendar, Mail, History, Glasses, ChevronDown, ChevronUp } from 'lucide-react'
+import { Client, OpticalExam, MedicalLog, Family, Referral, Appointment, Campaign, Clinic, RecentClientVisit, PrescriptionSearchResult } from '@/lib/db/schema-interface'
 import { useUser } from '@/contexts/UserContext'
 import { apiClient } from '@/lib/api-client'
+import { toast } from 'sonner'
+import { FastInput } from '@/components/exam/shared/OptimizedInputs'
+import { EXAM_FIELDS, FieldConfig } from '@/components/exam/data/exam-field-definitions'
 
 interface SearchResult {
   id: string
@@ -40,6 +43,27 @@ export function GlobalSearch({ onClose }: GlobalSearchProps) {
   const [results, setResults] = useState<SearchResult[]>([])
   const [loading, setLoading] = useState(false)
   const [isOpen, setIsOpen] = useState(false)
+  const [activePanel, setActivePanel] = useState<'search' | 'recent' | 'prescription' | null>(null)
+  const [recentClients, setRecentClients] = useState<RecentClientVisit[]>([])
+  const [recentLoading, setRecentLoading] = useState(false)
+  const [prescriptionResults, setPrescriptionResults] = useState<PrescriptionSearchResult[]>([])
+  const [prescriptionTotal, setPrescriptionTotal] = useState(0)
+  const [prescriptionLoading, setPrescriptionLoading] = useState(false)
+  const [hoveredPrescriptionEye, setHoveredPrescriptionEye] = useState<'R' | 'L' | null>(null)
+  const [prescriptionForm, setPrescriptionForm] = useState({
+    r_sph: '',
+    r_cyl: '',
+    r_ax: '',
+    r_add: '',
+    r_va: '',
+    r_pd: '',
+    l_sph: '',
+    l_cyl: '',
+    l_ax: '',
+    l_add: '',
+    l_va: '',
+    l_pd: '',
+  })
   const [page, setPage] = useState(1)
   const [total, setTotal] = useState(0)
   const pageSize = 50
@@ -80,6 +104,7 @@ export function GlobalSearch({ onClose }: GlobalSearchProps) {
   useEffect(() => {
     const run = async () => {
       if (!isOpen) return
+      if (activePanel && activePanel !== 'search') return
       if (!currentClinic?.id) return
       const q = debouncedQuery.trim()
       if (q.length < 2) {
@@ -112,7 +137,7 @@ export function GlobalSearch({ onClose }: GlobalSearchProps) {
       }
     }
     run()
-  }, [isOpen, currentClinic?.id, debouncedQuery, page])
+  }, [activePanel, isOpen, currentClinic?.id, debouncedQuery, page])
 
   const normalizeDate = (dateStr: string): string => {
     return dateStr.replace(/[.-]/g, '-')
@@ -534,8 +559,125 @@ export function GlobalSearch({ onClose }: GlobalSearchProps) {
     }
     
     setIsOpen(false)
+    setActivePanel(null)
     setQuery('')
     onClose?.()
+  }
+
+  const handleClientClick = (clientId?: number) => {
+    if (!clientId) return
+    navigate({
+      to: '/clients/$clientId',
+      params: { clientId: String(clientId) },
+      search: { tab: 'details' },
+    })
+    setIsOpen(false)
+    setActivePanel(null)
+    setQuery('')
+    onClose?.()
+  }
+
+  const openRecentPanel = async () => {
+    setQuery('')
+    setResults([])
+    setActivePanel('recent')
+    setIsOpen(true)
+    if (!currentClinic?.id) return
+    setRecentLoading(true)
+    try {
+      const response = await apiClient.getRecentClients(currentClinic.id, 10)
+      setRecentClients(response.data || [])
+    } catch (error) {
+      console.error('Recent clients error:', error)
+      setRecentClients([])
+    } finally {
+      setRecentLoading(false)
+    }
+  }
+
+  const openPrescriptionPanel = () => {
+    setQuery('')
+    setResults([])
+    setActivePanel('prescription')
+    setIsOpen(true)
+  }
+
+  type PrescriptionSearchField = 'sph' | 'cyl' | 'ax' | 'add' | 'va' | 'pd'
+  type PrescriptionSearchColumn = FieldConfig & { key: PrescriptionSearchField }
+
+  const prescriptionColumns: PrescriptionSearchColumn[] = [
+    { key: 'sph', ...EXAM_FIELDS.SPH },
+    { key: 'cyl', ...EXAM_FIELDS.CYL },
+    { key: 'ax', ...EXAM_FIELDS.AXIS },
+    { key: 'add', ...EXAM_FIELDS.ADD },
+    { key: 'va', label: 'VA', type: 'text' },
+    { key: 'pd', ...EXAM_FIELDS.PD_COMB },
+  ]
+
+  const updatePrescriptionField = (key: keyof typeof prescriptionForm, value: string) => {
+    setPrescriptionForm(prev => ({ ...prev, [key]: value }))
+  }
+
+  const copyPrescriptionEyeRow = (fromEye: 'R' | 'L') => {
+    const sourcePrefix = fromEye === 'R' ? 'r' : 'l'
+    const targetPrefix = fromEye === 'R' ? 'l' : 'r'
+    setPrescriptionForm(prev => {
+      const next = { ...prev }
+      prescriptionColumns.forEach(({ key }) => {
+        const sourceKey = `${sourcePrefix}_${key}` as keyof typeof prescriptionForm
+        const targetKey = `${targetPrefix}_${key}` as keyof typeof prescriptionForm
+        next[targetKey] = prev[sourceKey]
+      })
+      return next
+    })
+  }
+
+  const parseNumber = (value: string): number | undefined => {
+    if (value.trim() === '') return undefined
+    const parsed = Number(value)
+    return Number.isFinite(parsed) ? parsed : undefined
+  }
+
+  const buildEyeCriteria = (prefix: 'r' | 'l') => {
+    const parsedAx = prescriptionForm[`${prefix}_ax`].trim() === ''
+      ? undefined
+      : Number.parseInt(prescriptionForm[`${prefix}_ax`], 10)
+    const criteria = {
+      sph: parseNumber(prescriptionForm[`${prefix}_sph`]),
+      cyl: parseNumber(prescriptionForm[`${prefix}_cyl`]),
+      ax: Number.isFinite(parsedAx) ? parsedAx : undefined,
+      add: parseNumber(prescriptionForm[`${prefix}_add`]),
+      va: prescriptionForm[`${prefix}_va`].trim() || undefined,
+      pd: parseNumber(prescriptionForm[`${prefix}_pd`]),
+    }
+    return Object.fromEntries(Object.entries(criteria).filter(([, value]) => value !== undefined))
+  }
+
+  const runPrescriptionSearch = async () => {
+    if (!currentClinic?.id) return
+    const right = buildEyeCriteria('r')
+    const left = buildEyeCriteria('l')
+    if (!Object.keys(right).length && !Object.keys(left).length) {
+      toast.error('יש להזין לפחות שדה מרשם אחד')
+      return
+    }
+    setPrescriptionLoading(true)
+    try {
+      const response = await apiClient.searchPrescription({
+        clinic_id: currentClinic.id,
+        right: Object.keys(right).length ? right : undefined,
+        left: Object.keys(left).length ? left : undefined,
+        limit: 50,
+        offset: 0,
+      })
+      setPrescriptionResults(response.data?.items || [])
+      setPrescriptionTotal(response.data?.total || 0)
+    } catch (error) {
+      console.error('Prescription search error:', error)
+      toast.error('שגיאה בחיפוש מרשם')
+    } finally {
+      setPrescriptionLoading(false)
+    }
   }
 
   const getResultIcon = (type: SearchResult['type']) => {
@@ -584,30 +726,208 @@ export function GlobalSearch({ onClose }: GlobalSearchProps) {
           type="text"
           placeholder="חיפוש גלובלי..."
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          onFocus={() => setIsOpen(true)}
-          className="w-lg pr-10 pl-3 text-sm pointer-events-auto h-7 border-1 border-cyan-800/30"
+          onChange={(e) => {
+            setQuery(e.target.value)
+            setActivePanel('search')
+          }}
+          onFocus={() => {
+            setActivePanel(query.trim() ? 'search' : null)
+            setIsOpen(true)
+          }}
+          className="w-lg pr-10 pl-24 text-sm pointer-events-auto h-7 border-1 border-cyan-800/30"
           style={{ direction: 'rtl', pointerEvents: 'auto' }}
         />
-        {query && (
+        <div className="absolute left-1 top-1/2 flex -translate-y-1/2 items-center gap-1">
           <Button
             variant="ghost"
-            size="sm"
-            className="absolute left-1 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0"
-            onClick={() => {
-              setQuery('')
-              setResults([])
-            }}
+            size="icon"
+            className="h-6 w-6"
+            title="לקוחות אחרונים"
+            onClick={openRecentPanel}
           >
-            <X className="h-3 w-3" />
+            <History className="h-3.5 w-3.5" />
           </Button>
-        )}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6"
+            title="חיפוש לפי מרשם"
+            onClick={openPrescriptionPanel}
+          >
+            <Glasses className="h-3.5 w-3.5" />
+          </Button>
+        </div>
       </div>
 
-      {isOpen && (query || results.length > 0) && (
-        <Card dir="rtl" className="absolute top-full pb-0 pt-0 left-0 right-0 mt-1 z-50 max-h-96 overflow-hidden shadow-lg">
-          <CardContent className="p-0">
-            {loading ? (
+      {isOpen && (activePanel || query || results.length > 0) && (
+        <div
+          dir="rtl"
+          className={`absolute top-full mt-1 z-50 rounded-xl border border-slate-300/80 bg-card text-card-foreground ring-1 ring-black/10 ${
+            activePanel === 'prescription'
+              ? 'left-1/2 w-[720px] max-w-[min(720px,90vw)] -translate-x-1/2'
+              : 'left-0 right-0 max-h-96'
+          }`}
+          style={{
+            boxShadow: '0 18px 34px -18px rgba(15, 23, 42, 0.36), 16px 14px 30px -26px rgba(15, 23, 42, 0.24), -16px 14px 30px -26px rgba(15, 23, 42, 0.24)',
+          }}
+        >
+          <CardContent className="overflow-hidden rounded-xl p-0">
+            {activePanel === 'recent' ? (
+              <div className="max-h-96 overflow-auto" style={{ scrollbarWidth: 'none' }}>
+                {recentLoading ? (
+                  Array.from({ length: 4 }).map((_, idx) => (
+                    <div key={idx} className="p-3 border-b last:border-b-0">
+                      <Skeleton className="h-4 w-40 mb-2" />
+                      <Skeleton className="h-3 w-24" />
+                    </div>
+                  ))
+                ) : recentClients.length > 0 ? (
+                  recentClients.map((visit) => (
+                    <button
+                      key={visit.id}
+                      type="button"
+                      className="block w-full border-b p-3 text-right transition-colors last:border-b-0 hover:bg-muted"
+                      onClick={() => handleClientClick(visit.client_id)}
+                    >
+                      <div className="flex items-center gap-3">
+                        <User className="h-4 w-4 text-muted-foreground" />
+                        <div className="min-w-0">
+                          <div className="truncate text-sm font-medium">
+                            {`${visit.client?.first_name || ''} ${visit.client?.last_name || ''}`.trim() || `לקוח ${visit.client_id}`}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {visit.client?.phone_mobile || visit.client?.national_id || ''}
+                          </div>
+                        </div>
+                      </div>
+                    </button>
+                  ))
+                ) : (
+                  <div className="p-4 text-center text-sm text-muted-foreground">אין לקוחות אחרונים</div>
+                )}
+              </div>
+            ) : activePanel === 'prescription' ? (
+              <div className="space-y-3 p-3">
+                <div className="examcard rounded-md border bg-card px-4 py-3" dir="ltr">
+                  <div className="space-y-3">
+                    <div className="text-center">
+                      <h3 className="text-sm font-medium text-muted-foreground">Prescription Search</h3>
+                    </div>
+                    <div className="grid grid-cols-[20px_repeat(6,minmax(58px,1fr))] items-center gap-2">
+                      <div />
+                      {prescriptionColumns.map(({ key, label }) => (
+                        <div key={key} className="flex h-4 items-center justify-center">
+                          <span className="text-center text-xs font-medium text-muted-foreground">{label}</span>
+                        </div>
+                      ))}
+
+                      <div className="flex items-center justify-center">
+                        <span
+                          className="cursor-pointer rounded-full px-2 text-base font-medium hover:bg-accent"
+                          onMouseEnter={() => setHoveredPrescriptionEye('R')}
+                          onMouseLeave={() => setHoveredPrescriptionEye(null)}
+                          onClick={() => copyPrescriptionEyeRow('R')}
+                          title="Copy R eye down to L"
+                        >
+                          {hoveredPrescriptionEye === 'R' ? <ChevronDown size={16} /> : 'R'}
+                        </span>
+                      </div>
+                      {prescriptionColumns.map(({ key, step, type, min, max, showPlus, suffix, center }) => {
+                        const formKey = `r_${key}` as keyof typeof prescriptionForm
+                        return (
+                          <FastInput
+                            key={formKey}
+                            value={prescriptionForm[formKey]}
+                            onChange={(value) => updatePrescriptionField(formKey, value)}
+                            debounceMs={0}
+                            type={type === 'text' ? 'text' : 'number'}
+                            step={step}
+                            min={min}
+                            max={max}
+                            showPlus={showPlus}
+                            suffix={suffix}
+                            center={center}
+                            dir="ltr"
+                            className="h-8 bg-white text-xs disabled:cursor-default disabled:opacity-100"
+                          />
+                        )
+                      })}
+
+                      <div className="flex items-center justify-center">
+                        <span
+                          className="cursor-pointer rounded-full px-2 text-base font-medium hover:bg-accent"
+                          onMouseEnter={() => setHoveredPrescriptionEye('L')}
+                          onMouseLeave={() => setHoveredPrescriptionEye(null)}
+                          onClick={() => copyPrescriptionEyeRow('L')}
+                          title="Copy L eye up to R"
+                        >
+                          {hoveredPrescriptionEye === 'L' ? <ChevronUp size={16} /> : 'L'}
+                        </span>
+                      </div>
+                      {prescriptionColumns.map(({ key, step, type, min, max, showPlus, suffix, center }) => {
+                        const formKey = `l_${key}` as keyof typeof prescriptionForm
+                        return (
+                          <FastInput
+                            key={formKey}
+                            value={prescriptionForm[formKey]}
+                            onChange={(value) => updatePrescriptionField(formKey, value)}
+                            debounceMs={0}
+                            type={type === 'text' ? 'text' : 'number'}
+                            step={step}
+                            min={min}
+                            max={max}
+                            showPlus={showPlus}
+                            suffix={suffix}
+                            center={center}
+                            dir="ltr"
+                            className="h-8 bg-white text-xs disabled:cursor-default disabled:opacity-100"
+                          />
+                        )
+                      })}
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between">
+                  <div className="text-xs text-muted-foreground">
+                    {prescriptionTotal ? `${prescriptionTotal} תוצאות` : ''}
+                  </div>
+                  <Button size="sm" onClick={runPrescriptionSearch} disabled={prescriptionLoading}>
+                    חפש
+                  </Button>
+                </div>
+                <div className="max-h-72 overflow-auto rounded-md border" style={{ scrollbarWidth: 'none' }}>
+                  {prescriptionLoading ? (
+                    Array.from({ length: 4 }).map((_, idx) => (
+                      <div key={idx} className="border-b p-3 last:border-b-0">
+                        <Skeleton className="h-4 w-40 mb-2" />
+                        <Skeleton className="h-3 w-28" />
+                      </div>
+                    ))
+                  ) : prescriptionResults.length > 0 ? (
+                    prescriptionResults.map((result) => (
+                      <button
+                        key={`${result.source_type}-${result.source_id}-${result.client_id}`}
+                        type="button"
+                        className="block w-full border-b p-3 text-right transition-colors last:border-b-0 hover:bg-muted"
+                        onClick={() => handleClientClick(result.client_id)}
+                      >
+                        <div className="flex items-center gap-3">
+                          <Glasses className="h-4 w-4 text-muted-foreground" />
+                          <div className="min-w-0">
+                            <div className="truncate text-sm font-medium">{result.client_full_name}</div>
+                            <div className="text-xs text-muted-foreground">
+                              {[result.source_date, result.card_type, result.phone_mobile || result.national_id].filter(Boolean).join(' · ')}
+                            </div>
+                          </div>
+                        </div>
+                      </button>
+                    ))
+                  ) : (
+                    <div className="p-4 text-center text-sm text-muted-foreground">אין תוצאות מרשם</div>
+                  )}
+                </div>
+              </div>
+            ) : loading ? (
               <div className="max-h-96 overflow-auto" style={{ scrollbarWidth: 'none' }}>
                 {Array.from({ length: 6 }).map((_, idx) => (
                   <div key={idx} className="p-3 border-b last:border-b-0">
@@ -673,7 +993,7 @@ export function GlobalSearch({ onClose }: GlobalSearchProps) {
               </div>
             ) : null}
           </CardContent>
-        </Card>
+        </div>
       )}
     </div>
   )

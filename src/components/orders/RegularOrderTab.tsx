@@ -398,6 +398,7 @@ export default function RegularOrderTab({
   return (
     <form
       ref={formRef}
+      data-clinical-nav-scope="true"
       className="no-scrollbar pt-4 pb-10"
       style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
     >
@@ -533,7 +534,7 @@ export default function RegularOrderTab({
             </Card>
           </div>
 
-          <div className="relative h-full lg:col-span-3">
+          <div className="relative h-full lg:col-span-3" data-clinical-nav-card="true">
             {isEditing && (
               <ExamToolbox
                 isEditing={isEditing}

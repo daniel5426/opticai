@@ -62,16 +62,6 @@ function forwardAuthCallbackUrl(url: string) {
   }
 }
 
-const singleInstanceLock = app.requestSingleInstanceLock();
-if (!singleInstanceLock) {
-  app.quit();
-} else {
-  app.on('second-instance', (_event, argv) => {
-    const callbackUrl = argv.find(arg => arg.startsWith(`${AUTH_PROTOCOL}://auth/callback`));
-    if (callbackUrl) forwardAuthCallbackUrl(callbackUrl);
-  });
-}
-
 app.on('open-url', (event, url) => {
   event.preventDefault();
   forwardAuthCallbackUrl(url);
@@ -126,6 +116,17 @@ function configureAppStoragePaths() {
 }
 
 configureAppStoragePaths();
+
+const singleInstanceLock = app.requestSingleInstanceLock();
+if (!singleInstanceLock) {
+  app.quit();
+} else {
+  app.on('second-instance', (_event, argv) => {
+    const callbackUrl = argv.find(arg => arg.startsWith(`${AUTH_PROTOCOL}://auth/callback`));
+    if (callbackUrl) forwardAuthCallbackUrl(callbackUrl);
+  });
+}
+
 app.setAsDefaultProtocolClient(AUTH_PROTOCOL);
 
 function getWindowsDownloadPageUrl() {
@@ -383,7 +384,7 @@ function createWindow() {
   });
 
   if (inDevelopment) {
-    mainWindow.loadURL('http://localhost:5173');
+    mainWindow.loadURL('http://localhost:5126');
   } else {
     mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
   }
@@ -396,6 +397,268 @@ function createWindow() {
 function sanitizePdfFileName(fileName: string) {
   const sanitized = fileName.replace(/[<>:"/\\|?*\u0000-\u001f]/g, "_").trim();
   return sanitized.toLowerCase().endsWith(".pdf") ? sanitized : `${sanitized || "document"}.pdf`;
+}
+
+type SoftOpticCandidate = {
+  id: string;
+  kind: "dsn" | "db-file";
+  label: string;
+  dsn?: string;
+  dbFile?: string;
+  logFile?: string;
+  documentPath?: string;
+  sizeBytes?: number;
+  modifiedAt?: string;
+  score: number;
+  recommended: boolean;
+  reasons: string[];
+};
+
+function runProcess(command: string, args: string[], options: { cwd?: string } = {}): Promise<{ stdout: string; stderr: string }> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, {
+      cwd: options.cwd,
+      windowsHide: true,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    let stdout = "";
+    let stderr = "";
+    child.stdout?.on("data", chunk => { stdout += chunk.toString(); });
+    child.stderr?.on("data", chunk => { stderr += chunk.toString(); });
+    child.on("error", reject);
+    child.on("close", code => {
+      if (code === 0) resolve({ stdout, stderr });
+      else reject(new Error(stderr || stdout || `${command} exited with ${code}`));
+    });
+  });
+}
+
+function getSoftOpticExporterPath() {
+  const packaged = process.resourcesPath
+    ? path.join(process.resourcesPath, "migration_wizard", "export_opticsoft_csv.ps1")
+    : "";
+  if (packaged && fs.existsSync(packaged)) return packaged;
+  return path.join(process.cwd(), "docs", "migration_wizzard_doc", "export_opticsoft_csv.ps1");
+}
+
+function getFileInfo(filePath: string) {
+  try {
+    const stat = fs.statSync(filePath);
+    return {
+      sizeBytes: stat.size,
+      modifiedAt: stat.mtime.toISOString(),
+    };
+  } catch {
+    return {};
+  }
+}
+
+function scoreSoftOpticCandidate(candidate: Omit<SoftOpticCandidate, "score" | "recommended">): number {
+  let score = 0;
+  const dbFile = (candidate.dbFile || "").toLowerCase();
+  if ((candidate.dsn || "").toUpperCase() === "RRDB") score += 50;
+  if (dbFile === "c:\\rr\\data\\rrdb.db") score += 45;
+  if (dbFile.endsWith("\\rrdb.db")) score += 20;
+  if (candidate.logFile && fs.existsSync(candidate.logFile)) score += 10;
+  if (candidate.documentPath && fs.existsSync(candidate.documentPath)) score += 5;
+  if (candidate.modifiedAt) score += 5;
+  return score;
+}
+
+async function scanSoftOpticCandidates(): Promise<{ supported: boolean; candidates: SoftOpticCandidate[]; error?: string }> {
+  if (process.platform !== "win32") {
+    return { supported: false, candidates: [], error: "SoftOptic import is available only on Windows" };
+  }
+
+  const candidatesByKey = new Map<string, Omit<SoftOpticCandidate, "score" | "recommended">>();
+  const addCandidate = (candidate: Omit<SoftOpticCandidate, "score" | "recommended">) => {
+    const key = candidate.dsn ? `dsn:${candidate.dsn}` : `db:${candidate.dbFile?.toLowerCase()}`;
+    if (!key) return;
+    candidatesByKey.set(key, candidate);
+  };
+
+  const knownDbFiles = [
+    "C:\\RR\\Data\\RRDB.db",
+    "C:\\RR\\DATA\\RRDB.DB",
+    path.join(os.homedir(), "Downloads", "old_db", "back", "RRDB.db"),
+  ];
+  for (const dbFile of knownDbFiles) {
+    if (!fs.existsSync(dbFile)) continue;
+    const logFile = path.join(path.dirname(dbFile), "rrdb.log");
+    addCandidate({
+      id: `db-${Buffer.from(dbFile).toString("base64url")}`,
+      kind: "db-file",
+      label: path.basename(dbFile),
+      dbFile,
+      logFile: fs.existsSync(logFile) ? logFile : undefined,
+      documentPath: fs.existsSync("C:\\RR\\Document") ? "C:\\RR\\Document" : undefined,
+      ...getFileInfo(dbFile),
+      reasons: ["נמצא במסלול מוכר של OpticSoft"],
+    });
+  }
+
+  try {
+    const { stdout } = await runProcess("reg", ["query", "HKLM\\SOFTWARE\\WOW6432Node\\ODBC\\ODBC.INI\\RRDB", "/s"]);
+    const driverMatch = stdout.match(/Driver\s+REG_\w+\s+(.+)/i);
+    const dbMatch = stdout.match(/(?:DatabaseFile|Database|DBF)\s+REG_\w+\s+(.+)/i);
+    const dbFile = dbMatch?.[1]?.trim();
+    addCandidate({
+      id: "dsn-RRDB",
+      kind: "dsn",
+      label: "RRDB",
+      dsn: "RRDB",
+      dbFile: dbFile && fs.existsSync(dbFile) ? dbFile : "C:\\RR\\Data\\RRDB.db",
+      logFile: fs.existsSync("C:\\RR\\Data\\rrdb.log") ? "C:\\RR\\Data\\rrdb.log" : undefined,
+      documentPath: fs.existsSync("C:\\RR\\Document") ? "C:\\RR\\Document" : undefined,
+      ...(dbFile && fs.existsSync(dbFile) ? getFileInfo(dbFile) : getFileInfo("C:\\RR\\Data\\RRDB.db")),
+      reasons: [
+        "נמצא DSN בשם RRDB",
+        ...(driverMatch?.[1] ? [`דרייבר: ${driverMatch[1].trim()}`] : []),
+      ],
+    });
+  } catch {
+    // DSN might not exist; known file candidates still cover copied DB flow.
+  }
+
+  const scored = [...candidatesByKey.values()].map(candidate => {
+    const score = scoreSoftOpticCandidate(candidate);
+    return { ...candidate, score, recommended: false };
+  });
+  const maxScore = Math.max(0, ...scored.map(candidate => candidate.score));
+  const candidates = scored
+    .map(candidate => ({ ...candidate, recommended: candidate.score === maxScore && maxScore > 0 }))
+    .sort((a, b) => b.score - a.score);
+
+  return { supported: true, candidates };
+}
+
+async function countFileRows(filePath: string) {
+  if (!fs.existsSync(filePath)) return 0;
+  const readline = await import("readline");
+  const stream = fs.createReadStream(filePath, { encoding: "utf-8" });
+  const reader = readline.createInterface({ input: stream, crlfDelay: Infinity });
+  let lines = 0;
+  for await (const line of reader) {
+    if (line.trim()) lines += 1;
+  }
+  return Math.max(0, lines - 1);
+}
+
+async function countFiles(rootPath?: string) {
+  if (!rootPath || !fs.existsSync(rootPath)) return 0;
+  let count = 0;
+  const entries = await fs.promises.readdir(rootPath, { recursive: true, withFileTypes: true });
+  for (const entry of entries) {
+    if (entry.isFile()) count += 1;
+  }
+  return count;
+}
+
+async function exportSoftOpticCandidate(candidate: SoftOpticCandidate, sqlAnywhereBin?: string, includeDocuments = false) {
+  if (process.platform !== "win32") {
+    return { success: false, error: "SoftOptic import is available only on Windows" };
+  }
+
+  const exporterPath = getSoftOpticExporterPath();
+  if (!fs.existsSync(exporterPath)) {
+    return { success: false, error: "SoftOptic exporter script is missing" };
+  }
+
+  const outputDir = path.join(app.getPath("temp"), `softoptic_export_${Date.now()}`);
+  await fs.promises.mkdir(outputDir, { recursive: true });
+
+  const args = [
+    "-NoProfile",
+    "-ExecutionPolicy",
+    "Bypass",
+    "-File",
+    exporterPath,
+    "-OutputDir",
+    outputDir,
+  ];
+  if (candidate.kind === "dsn" && candidate.dsn) {
+    args.push("-Dsn", candidate.dsn);
+  } else if (candidate.dbFile) {
+    args.push("-DbFile", candidate.dbFile);
+  }
+  if (sqlAnywhereBin) {
+    args.push("-SqlAnywhereBin", sqlAnywhereBin);
+  }
+
+  try {
+    await runProcess("powershell.exe", args, { cwd: outputDir });
+    if (includeDocuments && candidate.documentPath && fs.existsSync(candidate.documentPath)) {
+      const targetDocuments = path.join(outputDir, "documents");
+      await fs.promises.cp(candidate.documentPath, targetDocuments, { recursive: true, force: true });
+    }
+
+    const manifestPath = path.join(outputDir, "manifest.json");
+    const manifest = fs.existsSync(manifestPath)
+      ? JSON.parse(await fs.promises.readFile(manifestPath, "utf-8"))
+      : {};
+    const summary = {
+      clients: await countFileRows(path.join(outputDir, "account.csv")),
+      exams: await countFileRows(path.join(outputDir, "optic_eye_tests.csv")),
+      glasses_orders: await countFileRows(path.join(outputDir, "optic_glasses_presc.csv")),
+      contact_lens_orders: await countFileRows(path.join(outputDir, "optic_contact_presc.csv")),
+      appointments: await countFileRows(path.join(outputDir, "diary_timetab.csv")),
+      notes: await countFileRows(path.join(outputDir, "account_memos.csv")),
+      referrals: await countFileRows(path.join(outputDir, "optic_reference.csv")),
+      embedded_files: await countFileRows(path.join(outputDir, "account_files_blob.csv")),
+      external_documents: includeDocuments ? await countFiles(candidate.documentPath) : 0,
+      includeDocuments,
+      manifest,
+      exportedAt: new Date().toISOString(),
+      outputDir,
+    };
+
+    const zipPath = `${outputDir}.zip`;
+    await runProcess("powershell.exe", [
+      "-NoProfile",
+      "-ExecutionPolicy",
+      "Bypass",
+      "-Command",
+      `Compress-Archive -Path '${outputDir.replace(/'/g, "''")}\\*' -DestinationPath '${zipPath.replace(/'/g, "''")}' -Force`,
+    ]);
+    return { success: true, outputDir, zipPath, summary };
+  } catch (error) {
+    return {
+      success: false,
+      outputDir,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
+async function uploadSoftOpticBundle(payload: { apiBaseUrl: string; jobId: string; zipPath: string; accessToken: string }) {
+  try {
+    if (!payload.accessToken) {
+      return { success: false, error: "Missing authorization token" };
+    }
+    if (!payload.zipPath || !fs.existsSync(payload.zipPath)) {
+      return { success: false, error: "SoftOptic ZIP file was not found" };
+    }
+    const openAsBlob = (fs as any).openAsBlob;
+    if (typeof openAsBlob !== "function") {
+      return { success: false, error: "This Electron runtime cannot stream local files for upload" };
+    }
+    const blob = await openAsBlob(payload.zipPath, { type: "application/zip" });
+    const formData = new FormData();
+    formData.append("bundle", blob, path.basename(payload.zipPath));
+    const baseUrl = payload.apiBaseUrl.replace(/\/$/, "");
+    const response = await fetch(`${baseUrl}/migration/softoptic/imports/${encodeURIComponent(payload.jobId)}/bundle`, {
+      method: "PUT",
+      headers: { Authorization: `Bearer ${payload.accessToken}` },
+      body: formData as any,
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      return { success: false, error: data?.detail || data?.error || `Upload failed (${response.status})` };
+    }
+    return { success: true, data };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : String(error) };
+  }
 }
 
 function setupIpcHandlers() {
@@ -412,6 +675,18 @@ function setupIpcHandlers() {
 
   ipcMain.handle('open-url-in-chrome', async (_event, url: string) => {
     return openUrlInChrome(url);
+  });
+
+  ipcMain.handle('softoptic-scan', async () => {
+    return scanSoftOpticCandidates();
+  });
+
+  ipcMain.handle('softoptic-export', async (_event, payload: { candidate: SoftOpticCandidate; sqlAnywhereBin?: string; includeDocuments?: boolean }) => {
+    return exportSoftOpticCandidate(payload.candidate, payload.sqlAnywhereBin, Boolean(payload.includeDocuments));
+  });
+
+  ipcMain.handle('softoptic-upload-bundle', async (_event, payload: { apiBaseUrl: string; jobId: string; zipPath: string; accessToken: string }) => {
+    return uploadSoftOpticBundle(payload);
   });
 
   ipcMain.handle('export-html-to-pdf', async (_event, payload: { html: string; defaultFileName: string }) => {

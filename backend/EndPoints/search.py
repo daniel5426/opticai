@@ -1,13 +1,112 @@
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, aliased
 from sqlalchemy import or_, func, literal, cast, String, case
 from typing import Optional
 from database import get_db
-from models import Client, OpticalExam, MedicalLog, Family, Referral, Appointment, Campaign, User
+from models import Client, OpticalExam, MedicalLog, Family, Referral, Appointment, Campaign, User, PrescriptionSearchIndex
+from schemas import PrescriptionSearchRequest, PrescriptionSearchResponse
 from auth import get_current_user
 from security.scope import get_allowed_clinic_ids
 
 router = APIRouter(prefix="/search", tags=["search"])
+
+
+def _criteria_fields(criteria):
+    if not criteria:
+        return {}
+    return {
+        key: value
+        for key, value in criteria.dict(exclude_none=True).items()
+        if value not in (None, "")
+    }
+
+
+def _apply_prescription_criteria(query, alias, criteria):
+    for field, value in criteria.items():
+        query = query.filter(getattr(alias, field) == value)
+    return query
+
+
+@router.post("/prescription", response_model=PrescriptionSearchResponse)
+def prescription_search(
+    request: PrescriptionSearchRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    right_criteria = _criteria_fields(request.right)
+    left_criteria = _criteria_fields(request.left)
+    if not right_criteria and not left_criteria:
+        return {"items": [], "total": 0}
+
+    allowed_clinic_ids = get_allowed_clinic_ids(db, current_user, request.clinic_id)
+    if not allowed_clinic_ids:
+        return {"items": [], "total": 0}
+
+    right_index = aliased(PrescriptionSearchIndex)
+    left_index = aliased(PrescriptionSearchIndex)
+    primary = right_index if right_criteria else left_index
+
+    query = (
+        db.query(
+            Client.id.label("client_id"),
+            func.concat(func.coalesce(Client.first_name, ""), literal(" "), func.coalesce(Client.last_name, "")).label("client_full_name"),
+            Client.national_id.label("national_id"),
+            Client.phone_mobile.label("phone_mobile"),
+            primary.source_type.label("source_type"),
+            primary.source_id.label("source_id"),
+            primary.source_date.label("source_date"),
+            primary.card_type.label("card_type"),
+        )
+        .join(primary, primary.client_id == Client.id)
+        .filter(Client.clinic_id.in_(allowed_clinic_ids))
+        .filter(Client.merged_into_client_id.is_(None))
+        .filter(primary.clinic_id.in_(allowed_clinic_ids))
+    )
+
+    matched_eyes = []
+    if right_criteria:
+        query = query.filter(right_index.eye == "R")
+        query = _apply_prescription_criteria(query, right_index, right_criteria)
+        matched_eyes.append("R")
+    if left_criteria:
+        if right_criteria:
+            query = query.join(
+                left_index,
+                (left_index.client_id == Client.id)
+                & (left_index.source_type == right_index.source_type)
+                & (left_index.source_id == right_index.source_id),
+            )
+        query = query.filter(left_index.eye == "L")
+        query = query.filter(left_index.clinic_id.in_(allowed_clinic_ids))
+        query = _apply_prescription_criteria(query, left_index, left_criteria)
+        matched_eyes.append("L")
+
+    total = query.distinct().count()
+    rows = (
+        query.order_by(primary.source_date.desc().nulls_last(), primary.source_id.desc())
+        .offset(max(0, request.offset))
+        .limit(min(max(1, request.limit), 100))
+        .distinct()
+        .all()
+    )
+
+    return {
+        "items": [
+            {
+                "client_id": row.client_id,
+                "client_full_name": row.client_full_name.strip(),
+                "national_id": row.national_id,
+                "phone_mobile": row.phone_mobile,
+                "source_type": row.source_type,
+                "source_id": row.source_id,
+                "source_date": row.source_date,
+                "card_type": row.card_type,
+                "matched_eyes": matched_eyes,
+            }
+            for row in rows
+        ],
+        "total": total,
+    }
 
 
 @router.get("")
@@ -74,6 +173,7 @@ def unified_search(
     if client_condition is not None:
         clients_filter.append(client_condition)
     clients_filter.append(Client.clinic_id.in_(allowed_clinic_ids))
+    clients_filter.append(Client.merged_into_client_id.is_(None))
 
     clients_q = db.query(
         literal("client").label("type"),
@@ -273,4 +373,3 @@ def unified_search(
     ]
 
     return {"items": items, "total": total}
-

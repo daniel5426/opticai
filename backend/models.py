@@ -183,6 +183,39 @@ class MigrationSourceLink(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
+class SoftOpticMigrationJob(Base):
+    __tablename__ = "softoptic_migration_jobs"
+
+    id = Column(String, primary_key=True)
+    clinic_id = Column(Integer, ForeignKey("clinics.id"), nullable=False, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    status = Column(String, nullable=False, default="queued", index=True)
+    step = Column(String, nullable=False, default="queued")
+    progress = Column(Integer, nullable=False, default=0)
+    include_documents = Column(Boolean, nullable=False, default=False)
+    source_metadata = Column(JSON, nullable=False, default=dict)
+    export_summary = Column(JSON, nullable=False, default=dict)
+    validation_summary = Column(JSON, nullable=False, default=dict)
+    import_summary = Column(JSON, nullable=False, default=dict)
+    checkpoint = Column(JSON, nullable=False, default=dict)
+    warnings = Column(JSON, nullable=False, default=list)
+    errors = Column(JSON, nullable=False, default=list)
+    error = Column(Text)
+    bundle_path = Column(Text)
+    bundle_storage_bucket = Column(String)
+    bundle_storage_key = Column(Text)
+    locked_by = Column(String, index=True)
+    lease_until = Column(DateTime(timezone=True), index=True)
+    heartbeat_at = Column(DateTime(timezone=True))
+    pause_requested = Column(Boolean, nullable=False, default=False)
+    attempt_count = Column(Integer, nullable=False, default=0)
+    last_error_at = Column(DateTime(timezone=True))
+    started_at = Column(DateTime(timezone=True))
+    finished_at = Column(DateTime(timezone=True))
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
 class Family(Base):
     __tablename__ = "families"
     
@@ -244,9 +277,44 @@ class Client(Base):
     ai_appointment_state = Column(String)
     ai_file_state = Column(String)
     ai_medical_state = Column(String)
+    merged_into_client_id = Column(Integer, ForeignKey("clients.id", ondelete="SET NULL"), nullable=True)
+    merged_at = Column(DateTime(timezone=True), nullable=True)
+    merged_by_user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    merge_snapshot = Column(JSON, nullable=True)
     
     clinic = relationship("Clinic", back_populates="clients")
     family = relationship("Family", back_populates="clients")
+
+class RecentClientVisit(Base):
+    __tablename__ = "recent_client_visits"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    clinic_id = Column(Integer, ForeignKey("clinics.id", ondelete="CASCADE"), nullable=False)
+    client_id = Column(Integer, ForeignKey("clients.id", ondelete="CASCADE"), nullable=False)
+    visited_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+class PrescriptionSearchIndex(Base):
+    __tablename__ = "prescription_search_index"
+
+    id = Column(Integer, primary_key=True, index=True)
+    source_type = Column(String, nullable=False)
+    source_id = Column(Integer, nullable=False)
+    client_id = Column(Integer, ForeignKey("clients.id", ondelete="CASCADE"), nullable=False)
+    clinic_id = Column(Integer, ForeignKey("clinics.id", ondelete="CASCADE"), nullable=False)
+    exam_id = Column(Integer, ForeignKey("optical_exams.id", ondelete="CASCADE"), nullable=True)
+    layout_instance_id = Column(Integer, ForeignKey("exam_layout_instances.id", ondelete="CASCADE"), nullable=True)
+    card_type = Column(String)
+    source_date = Column(Date)
+    eye = Column(String, nullable=False)
+    sph = Column(Float)
+    cyl = Column(Float)
+    ax = Column(Integer)
+    add = Column(Float)
+    va = Column(String)
+    pd = Column(Float)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
 class Settings(Base):
     __tablename__ = "settings"
@@ -507,6 +575,7 @@ class Appointment(Base):
     time = Column(String)
     duration = Column(Integer, default=30)
     exam_name = Column(String)
+    exam_layout_id = Column(Integer, ForeignKey("exam_layouts.id", ondelete="SET NULL"), nullable=True)
     note = Column(Text)
     google_calendar_event_id = Column(String)
 
@@ -718,6 +787,12 @@ Index('ix_clients_clinic_id', Client.clinic_id)
 Index('ix_clients_clinic_id_id_desc', Client.clinic_id, Client.id.desc())
 Index('ix_clients_family_id', Client.family_id)
 Index('ix_clients_family_id_id', Client.family_id, Client.id)
+Index('ix_clients_merged_into_client_id', Client.merged_into_client_id)
+Index('ix_recent_client_visits_user_clinic_visited', RecentClientVisit.user_id, RecentClientVisit.clinic_id, RecentClientVisit.visited_at.desc())
+Index('uq_recent_client_visits_user_clinic_client', RecentClientVisit.user_id, RecentClientVisit.clinic_id, RecentClientVisit.client_id, unique=True)
+Index('ix_prescription_search_client', PrescriptionSearchIndex.client_id)
+Index('ix_prescription_search_clinic_eye_values', PrescriptionSearchIndex.clinic_id, PrescriptionSearchIndex.eye, PrescriptionSearchIndex.sph, PrescriptionSearchIndex.cyl, PrescriptionSearchIndex.ax)
+Index('ix_prescription_search_source', PrescriptionSearchIndex.source_type, PrescriptionSearchIndex.source_id)
 
 # Indexes for referrals table
 Index('ix_referrals_clinic_id', Referral.clinic_id)
@@ -758,6 +833,7 @@ Index('ix_users_is_active', User.is_active)
 Index('ix_settings_clinic_id', Settings.clinic_id)
 Index('ix_migration_source_links_source', MigrationSourceLink.source_system, MigrationSourceLink.source_table, MigrationSourceLink.clinic_id)
 Index('ix_migration_source_links_target', MigrationSourceLink.target_model, MigrationSourceLink.target_id)
+Index('ix_softoptic_migration_jobs_clinic_created', SoftOpticMigrationJob.clinic_id, SoftOpticMigrationJob.created_at.desc())
 
 Index('ix_exam_layout_instances_exam_id', ExamLayoutInstance.exam_id)
 Index('ix_exam_layout_instances_exam_id_is_active', ExamLayoutInstance.exam_id, ExamLayoutInstance.is_active)

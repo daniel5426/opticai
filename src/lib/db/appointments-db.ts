@@ -169,6 +169,10 @@ export async function createAppointment(appointment: Omit<Appointment, 'id'>): P
     if (appointment.exam_name && appointment.exam_name !== '') {
       appointmentData.exam_name = appointment.exam_name;
     }
+
+    if (appointment.exam_layout_id) {
+      appointmentData.exam_layout_id = appointment.exam_layout_id;
+    }
     
     if (appointment.note && appointment.note !== '') {
       appointmentData.note = appointment.note;

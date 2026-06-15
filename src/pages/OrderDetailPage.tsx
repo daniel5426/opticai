@@ -129,6 +129,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { UnsavedChangesDialog } from "@/components/unsaved-changes-dialog";
 import { useUnsavedChanges } from "@/hooks/shared/useUnsavedChanges";
+import { useKeyboardSave } from "@/hooks/shared/useKeyboardSave";
 import { UI_CONFIG } from "@/config/ui-config";
 import { inputSyncManager } from "@/components/exam/shared/OptimizedInputs";
 import { flushSync } from "react-dom";
@@ -1590,6 +1591,13 @@ export default function OrderDetailPage({
     }
   };
 
+  useKeyboardSave({
+    enabled: !loading && (isEditing || isNewMode),
+    isSaving: isSaveInFlight,
+    canSave: Boolean(currentClinic?.id && currentUser),
+    onSave: handleSave,
+  });
+
   const handleExportDocx = async () => {
     if (isExportInFlight) return;
 
@@ -1828,6 +1836,7 @@ export default function OrderDetailPage({
         backLink="/clients"
         clientBackLink={`/clients/${clientId}`}
         examInfo={isNewMode ? "הזמנה חדשה" : `הזמנה מס' ${orderId}`}
+        hasUnsavedChanges={hasUnsavedChanges}
         tabs={{
           activeTab,
           onTabChange: handleTabChange,

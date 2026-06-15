@@ -22,6 +22,7 @@ import { UnsavedChangesDialog } from "@/components/unsaved-changes-dialog"
 import { useUnsavedChanges } from "@/hooks/shared/useUnsavedChanges"
 import { serializeClientDraftForUnsavedChanges } from "@/lib/client-details-editor"
 import { ClientTabName, prefetchClientTab } from "@/hooks/client/useClientTabQueries"
+import { apiClient } from "@/lib/api-client"
 
 export default function ClientDetailPage() {
   const { clientId } = useParams({ from: "/clients/$clientId" })
@@ -102,6 +103,13 @@ export default function ClientDetailPage() {
   useEffect(() => {
     if (editor.serverClient) updateCurrentClient(editor.serverClient)
   }, [editor.serverClient, updateCurrentClient])
+
+  useEffect(() => {
+    if (!clientIdNum || Number.isNaN(clientIdNum)) return
+    apiClient.markClientVisited(clientIdNum).catch((error) => {
+      console.error("Error marking recent client visit:", error)
+    })
+  }, [clientIdNum])
 
   useEffect(() => {
     if (!editor.isEditing) {

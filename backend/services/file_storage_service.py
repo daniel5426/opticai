@@ -1,4 +1,5 @@
 import logging
+from pathlib import Path
 from typing import Optional
 
 from fastapi import HTTPException
@@ -29,6 +30,30 @@ class FileStorageService:
         except Exception as exc:
             logger.exception("Supabase file upload failed bucket=%s key=%s", bucket, key)
             raise HTTPException(status_code=502, detail=f"Storage upload failed: {exc}") from exc
+
+    def upload_path(self, bucket: str, key: str, path: Path, content_type: str) -> None:
+        try:
+            self.client.storage.from_(bucket).upload(
+                file=path,
+                path=key,
+                file_options={"content-type": content_type, "upsert": "false"},
+            )
+        except HTTPException:
+            raise
+        except Exception as exc:
+            logger.exception("Supabase file upload failed bucket=%s key=%s", bucket, key)
+            raise HTTPException(status_code=502, detail=f"Storage upload failed: {exc}") from exc
+
+    def download_to_path(self, bucket: str, key: str, path: Path) -> None:
+        try:
+            data = self.client.storage.from_(bucket).download(key)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(data)
+        except HTTPException:
+            raise
+        except Exception as exc:
+            logger.exception("Supabase file download failed bucket=%s key=%s", bucket, key)
+            raise HTTPException(status_code=502, detail=f"Storage download failed: {exc}") from exc
 
     def remove(self, bucket: str, key: str) -> None:
         try:

@@ -2,11 +2,17 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from "react"
 import { SiteHeader } from "@/components/site-header"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Loader2 } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+import { CustomModal } from "@/components/ui/custom-modal"
+import { Loader2, Clipboard, Copy, Move, Play, Trash2, UserPlus, Users } from "lucide-react"
 import { createAppointment, updateAppointment, deleteAppointment } from "@/lib/db/appointments-db"
-import { getClientById } from "@/lib/db/clients-db"
+import { createClient, getClientById } from "@/lib/db/clients-db"
+import { getAllExamLayouts } from "@/lib/db/exam-layouts-db"
 import { getDashboardHome } from "@/lib/db/dashboard-db"
-import { Appointment, Client, Settings, User } from "@/lib/db/schema-interface"
+import { Appointment, Client, ExamLayout, Settings, User } from "@/lib/db/schema-interface"
 import {
   format,
   isToday,
@@ -27,6 +33,7 @@ import {
 import { ClientSelectModal } from "@/components/ClientSelectModal"
 import { toast } from "sonner"
 import { useUser } from "@/contexts/UserContext"
+import { useNavigate } from "@tanstack/react-router"
 import { CalendarView, AppointmentBlock, DragData, DragPosition, ResizeData } from "./HomePage/types"
 import { 
   timeToMinutes, 
@@ -45,6 +52,13 @@ import { useAppointmentBlocks } from "./HomePage/useAppointmentBlocks"
 import { useDragAndResize } from "./HomePage/useDragAndResize"
 import { useSettings } from "@/hooks/useSettings"
 
+function flattenActiveExamLayouts(layouts: ExamLayout[]): ExamLayout[] {
+  return layouts.flatMap((layout) => {
+    const children = layout.children ? flattenActiveExamLayouts(layout.children) : []
+    if (layout.is_group) return layout.is_active !== false ? children : []
+    return layout.is_active === false || !layout.id ? [] : [{ ...layout, children: undefined }]
+  })
+}
 
 export default function HomePage() {
   const [currentDate, setCurrentDate] = useState<Date>(new Date())
@@ -52,9 +66,11 @@ export default function HomePage() {
   const [appointments, setAppointments] = useState<Appointment[]>([])
   const [clients, setClients] = useState<Client[]>([])
   const [dashboardSettings, setDashboardSettings] = useState<Settings | null>(null)
+  const [activeExamLayouts, setActiveExamLayouts] = useState<ExamLayout[]>([])
   const [loading, setLoading] = useState(true)
   const { currentUser, currentClinic } = useUser()
   const { settings } = useSettings()
+  const navigate = useNavigate()
 
   const [users, setUsers] = useState<User[]>([])
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
@@ -66,21 +82,61 @@ export default function HomePage() {
     time: undefined,
     duration: 30,
     exam_name: undefined,
+    exam_layout_id: null,
     note: undefined
   })
 
   useEffect(() => {
     if (currentUser?.id) {
       setFormData(prev => ({ ...prev, user_id: currentUser.id }))
+      setNewClientFormData(prev => ({ ...prev, user_id: currentUser.id }))
     }
   }, [currentUser?.id])
 
+  useEffect(() => {
+    const loadExamLayouts = async () => {
+      if (!currentClinic?.id) {
+        setActiveExamLayouts([])
+        return
+      }
+      try {
+        const layouts = await getAllExamLayouts(currentClinic.id)
+        setActiveExamLayouts(flattenActiveExamLayouts(layouts))
+      } catch (error) {
+        console.error("Error loading exam layouts:", error)
+        setActiveExamLayouts([])
+      }
+    }
+    loadExamLayouts()
+  }, [currentClinic?.id])
+
   const [isClientSelectOpen, setIsClientSelectOpen] = useState(false)
+  const [isNewClientAppointmentOpen, setIsNewClientAppointmentOpen] = useState(false)
   const [selectedClient, setSelectedClient] = useState<Client | null>(null)
   const [editingAppointment, setEditingAppointment] = useState<Appointment | null>(null)
+  const [copiedAppointment, setCopiedAppointment] = useState<Appointment | null>(null)
+  const [movingAppointment, setMovingAppointment] = useState<Appointment | null>(null)
+  const [selectedAppointmentForCopy, setSelectedAppointmentForCopy] = useState<Appointment | null>(null)
+  const [slotMenu, setSlotMenu] = useState<{ x: number; y: number; date: Date; time: string } | null>(null)
+  const [appointmentMenu, setAppointmentMenu] = useState<{ x: number; y: number; appointment: Appointment } | null>(null)
   const [saving, setSaving] = useState(false)
+  const [isSavingNewClientAppointment, setIsSavingNewClientAppointment] = useState(false)
+  const [newClientFormData, setNewClientFormData] = useState({
+    first_name: "",
+    last_name: "",
+    phone_mobile: "",
+    email: "",
+    user_id: currentUser?.id,
+    date: "",
+    time: "",
+    duration: 30,
+    exam_name: "",
+    exam_layout_id: null as number | null,
+    note: "",
+  })
 
   const calendarRef = useRef<HTMLDivElement | null>(null)
+  const calendarMoveScopeRef = useRef<HTMLDivElement | null>(null)
   const loadedStartRef = useRef<Date | null>(null)
   const loadedEndRef = useRef<Date | null>(null)
   const loadedClinicIdRef = useRef<number | null>(null)
@@ -352,13 +408,77 @@ export default function HomePage() {
       time: undefined,
       duration: APPOINTMENT_DURATION,
       exam_name: undefined,
+      exam_layout_id: null,
       note: undefined
     })
     setSelectedClient(null)
   }, [currentUser?.id, APPOINTMENT_DURATION])
 
   // Handle time slot click for creating appointments
-  const handleTimeSlotClick = useCallback((date: Date, time: string) => {
+  const moveAppointmentToSlot = useCallback(async (appointment: Appointment, date: Date, time: string) => {
+    if (!appointment.id) return
+    const dateStr = format(date, 'yyyy-MM-dd')
+    const movedAppointment = {
+      ...appointment,
+      clinic_id: appointment.clinic_id || currentClinic?.id,
+      date: dateStr,
+      time,
+    }
+    const originalAppointment = { ...appointment }
+
+    setMovingAppointment(null)
+    setAppointments(prev => prev.map(apt => apt.id === appointment.id ? movedAppointment : apt))
+
+    try {
+      if (isUserOnVacation(movedAppointment.user_id, dateStr)) {
+        toast.error('לא ניתן להעביר תור ליום חופשה של המשתמש')
+        setAppointments(prev => prev.map(apt => apt.id === appointment.id ? originalAppointment : apt))
+        return
+      }
+
+      const result = await updateAppointment(movedAppointment)
+      if (result) {
+        setAppointments(prev => prev.map(apt => apt.id === appointment.id ? { ...apt, ...result } : apt))
+        toast.success("התור הועבר בהצלחה")
+      } else {
+        toast.error("שגיאה בהעברת התור")
+        setAppointments(prev => prev.map(apt => apt.id === appointment.id ? originalAppointment : apt))
+      }
+    } catch (error) {
+      console.error("Error moving appointment:", error)
+      toast.error("שגיאה בהעברת התור")
+      setAppointments(prev => prev.map(apt => apt.id === appointment.id ? originalAppointment : apt))
+    }
+  }, [currentClinic?.id, isUserOnVacation])
+
+  const pasteAppointmentToSlot = useCallback(async (date: Date, time: string) => {
+    if (!copiedAppointment) return
+    const appointmentData = {
+      client_id: copiedAppointment.client_id,
+      clinic_id: currentClinic?.id || copiedAppointment.clinic_id,
+      user_id: copiedAppointment.user_id,
+      date: format(date, 'yyyy-MM-dd'),
+      time,
+      duration: copiedAppointment.duration || APPOINTMENT_DURATION,
+      exam_name: copiedAppointment.exam_name,
+      exam_layout_id: copiedAppointment.exam_layout_id || null,
+      note: copiedAppointment.note,
+    }
+    try {
+      const result = await createAppointment(appointmentData)
+      if (result) {
+        setAppointments(prev => [...prev, result])
+        toast.success("התור הודבק בהצלחה")
+      } else {
+        toast.error("שגיאה בהדבקת התור")
+      }
+    } catch (error) {
+      console.error("Error pasting appointment:", error)
+      toast.error("שגיאה בהדבקת התור")
+    }
+  }, [APPOINTMENT_DURATION, copiedAppointment, currentClinic?.id])
+
+  const prepareSlotAppointmentData = useCallback((date: Date, time: string) => {
     const dateStr = format(date, 'yyyy-MM-dd')
     setSelectedTimeSlot({ date, time })
     resetAllForms()
@@ -369,14 +489,32 @@ export default function HomePage() {
       time: time,
       duration: APPOINTMENT_DURATION,
       exam_name: '',
+      exam_layout_id: null,
       note: ''
     })
-    setIsClientSelectOpen(true)
   }, [resetAllForms, currentUser?.id, APPOINTMENT_DURATION])
+
+  const handleTimeSlotClick = useCallback((date: Date, time: string, event?: React.MouseEvent) => {
+    event?.preventDefault()
+    event?.stopPropagation()
+    setAppointmentMenu(null)
+    if (movingAppointment) {
+      moveAppointmentToSlot(movingAppointment, date, time)
+      return
+    }
+    prepareSlotAppointmentData(date, time)
+    setSlotMenu({
+      x: event?.clientX ?? window.innerWidth / 2,
+      y: event?.clientY ?? window.innerHeight / 2,
+      date,
+      time,
+    })
+  }, [movingAppointment, moveAppointmentToSlot, prepareSlotAppointmentData])
 
   const closeAllDialogs = useCallback(() => {
     setIsCreateModalOpen(false)
     setIsClientSelectOpen(false)
+    setIsNewClientAppointmentOpen(false)
     setEditingAppointment(null)
     resetAllForms()
   }, [resetAllForms])
@@ -392,6 +530,7 @@ export default function HomePage() {
         time: appointment.time || '',
         duration: appointment.duration || APPOINTMENT_DURATION,
         exam_name: appointment.exam_name || '',
+        exam_layout_id: appointment.exam_layout_id || null,
         note: appointment.note || ''
       })
       // Try to resolve client from local map first
@@ -424,6 +563,7 @@ export default function HomePage() {
           time: selectedTimeSlot.time,
           duration: APPOINTMENT_DURATION,
           exam_name: '',
+          exam_layout_id: null,
           note: ''
         }))
         setIsClientSelectOpen(false)
@@ -468,6 +608,7 @@ export default function HomePage() {
           time: formData.time,
           duration: formData.duration,
           exam_name: formData.exam_name,
+          exam_layout_id: formData.exam_layout_id,
           note: formData.note
         }
         
@@ -512,6 +653,176 @@ export default function HomePage() {
     const { name, value } = e.target
     setFormData(prev => ({ ...prev, [name]: value }))
   }, [])
+
+  const handleNewClientInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target
+    setNewClientFormData(prev => ({ ...prev, [name]: value }))
+  }, [])
+
+  const handleExamLayoutChange = useCallback((layoutId: number | null) => {
+    const layout = activeExamLayouts.find(item => item.id === layoutId)
+    setFormData(prev => ({
+      ...prev,
+      exam_layout_id: layout?.id || null,
+      exam_name: layout?.name || prev.exam_name || '',
+    }))
+  }, [activeExamLayouts])
+
+  const handleNewClientExamLayoutChange = useCallback((layoutId: number | null) => {
+    const layout = activeExamLayouts.find(item => item.id === layoutId)
+    setNewClientFormData(prev => ({
+      ...prev,
+      exam_layout_id: layout?.id || null,
+      exam_name: layout?.name || prev.exam_name,
+    }))
+  }, [activeExamLayouts])
+
+  const openExistingClientFlowFromSlot = useCallback(() => {
+    setSlotMenu(null)
+    setIsClientSelectOpen(true)
+  }, [])
+
+  const openNewClientFlowFromSlot = useCallback(() => {
+    setSlotMenu(null)
+    setNewClientFormData({
+      first_name: "",
+      last_name: "",
+      phone_mobile: "",
+      email: "",
+      user_id: currentUser?.id,
+      date: formData.date || format(selectedTimeSlot.date, 'yyyy-MM-dd'),
+      time: formData.time || selectedTimeSlot.time,
+      duration: formData.duration || APPOINTMENT_DURATION,
+      exam_name: "",
+      exam_layout_id: null,
+      note: "",
+    })
+    setIsNewClientAppointmentOpen(true)
+  }, [APPOINTMENT_DURATION, currentUser?.id, formData.date, formData.duration, formData.time, selectedTimeSlot])
+
+  const handleSaveNewClientAndAppointment = useCallback(async () => {
+    if (!newClientFormData.first_name.trim() || !newClientFormData.last_name.trim()) {
+      toast.error("שם פרטי ושם משפחה הם שדות חובה")
+      return
+    }
+    try {
+      setIsSavingNewClientAppointment(true)
+      const newClient = await createClient({
+        first_name: newClientFormData.first_name,
+        last_name: newClientFormData.last_name,
+        phone_mobile: newClientFormData.phone_mobile,
+        email: newClientFormData.email,
+        clinic_id: currentClinic?.id,
+      })
+      if (!newClient?.id) {
+        toast.error("שגיאה ביצירת הלקוח")
+        return
+      }
+
+      const result = await createAppointment({
+        client_id: newClient.id,
+        clinic_id: currentClinic?.id,
+        user_id: newClientFormData.user_id,
+        date: newClientFormData.date,
+        time: newClientFormData.time,
+        duration: newClientFormData.duration,
+        exam_name: newClientFormData.exam_name,
+        exam_layout_id: newClientFormData.exam_layout_id,
+        note: newClientFormData.note,
+      })
+      if (result) {
+        setClients(prev => [...prev, newClient])
+        setAppointments(prev => [...prev, result])
+        toast.success("לקוח חדש ותור נוצרו בהצלחה")
+        closeAllDialogs()
+      } else {
+        toast.error("שגיאה ביצירת התור")
+      }
+    } catch (error) {
+      console.error("Error creating client appointment from calendar:", error)
+      toast.error("שגיאה ביצירת לקוח ותור")
+    } finally {
+      setIsSavingNewClientAppointment(false)
+    }
+  }, [closeAllDialogs, currentClinic?.id, newClientFormData])
+
+  const handleCopyAppointment = useCallback((appointment: Appointment) => {
+    setCopiedAppointment(appointment)
+    setSelectedAppointmentForCopy(appointment)
+    setAppointmentMenu(null)
+    toast.success("התור הועתק")
+  }, [])
+
+  const handleStartMoveAppointment = useCallback((appointment: Appointment) => {
+    setMovingAppointment(appointment)
+    setAppointmentMenu(null)
+    toast.info("בחר מיקום חדש לתור")
+  }, [])
+
+  const handleStartExam = useCallback((appointment?: Appointment | null) => {
+    const target = appointment || editingAppointment || formData
+    if (!target.client_id || !target.exam_layout_id) {
+      toast.error("יש לבחור סוג בדיקה לפני התחלת בדיקה")
+      return
+    }
+    setAppointmentMenu(null)
+    navigate({
+      to: "/clients/$clientId/exams/new",
+      params: { clientId: String(target.client_id) },
+      search: { layoutId: String(target.exam_layout_id) },
+    })
+  }, [editingAppointment, formData, navigate])
+
+  const handleAppointmentContextMenu = useCallback((event: React.MouseEvent, appointment: Appointment) => {
+    event.preventDefault()
+    event.stopPropagation()
+    setSelectedAppointmentForCopy(appointment)
+    setSlotMenu(null)
+    setAppointmentMenu({
+      x: event.clientX,
+      y: event.clientY,
+      appointment,
+    })
+  }, [])
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "c") {
+        const activeElement = document.activeElement
+        const isTyping =
+          activeElement instanceof HTMLInputElement ||
+          activeElement instanceof HTMLTextAreaElement ||
+          activeElement?.getAttribute("contenteditable") === "true"
+        if (isTyping || !selectedAppointmentForCopy) return
+        event.preventDefault()
+        handleCopyAppointment(selectedAppointmentForCopy)
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown)
+    return () => window.removeEventListener("keydown", handleKeyDown)
+  }, [handleCopyAppointment, selectedAppointmentForCopy])
+
+  useEffect(() => {
+    const handleDocumentMouseDown = (event: MouseEvent) => {
+      const target = event.target as Node
+      if (
+        movingAppointment &&
+        calendarMoveScopeRef.current &&
+        !calendarMoveScopeRef.current.contains(target)
+      ) {
+        setMovingAppointment(null)
+      }
+      if (slotMenu || appointmentMenu) {
+        const menuElement = (target as HTMLElement).closest?.("[data-calendar-menu]")
+        if (!menuElement) {
+          setSlotMenu(null)
+          setAppointmentMenu(null)
+        }
+      }
+    }
+    document.addEventListener("mousedown", handleDocumentMouseDown)
+    return () => document.removeEventListener("mousedown", handleDocumentMouseDown)
+  }, [appointmentMenu, movingAppointment, slotMenu])
 
   
   // Memoized statistics calculations
@@ -632,7 +943,7 @@ export default function HomePage() {
   return (
     <>
       <SiteHeader title={ "לוח זמנים"} />
-      <div className="flex flex-col bg-muted/50 flex-1" dir="rtl" style={{ scrollbarWidth: 'none' }}>
+      <div ref={calendarMoveScopeRef} className="flex flex-col bg-muted/50 flex-1" dir="rtl" style={{ scrollbarWidth: 'none' }}>
         {/* Calendar Header */}
         <CalendarHeader
           currentDate={currentDate}
@@ -682,6 +993,9 @@ export default function HomePage() {
                     handleMouseDown={handleMouseDown}
                     handleResizeStart={handleResizeStart}
                     openEditDialog={openEditDialog}
+                    onAppointmentContextMenu={handleAppointmentContextMenu}
+                    onAppointmentSelect={setSelectedAppointmentForCopy}
+                    isMoveMode={Boolean(movingAppointment)}
                     draggedBlockId={draggedBlockId}
                     dragPosition={dragPosition}
                     resizeData={resizeData}
@@ -708,13 +1022,172 @@ export default function HomePage() {
           editingAppointment={editingAppointment}
           selectedClient={selectedClient}
           formData={formData}
-                users={users}
+          users={users}
+          examLayouts={activeExamLayouts}
           saving={saving}
           onInputChange={handleInputChange}
           onSave={handleSaveAppointment}
           onDelete={handleDeleteAppointment}
           onUserChange={(userId) => setFormData(prev => ({ ...prev, user_id: userId }))}
+          onExamLayoutChange={handleExamLayoutChange}
+          onStartExam={() => handleStartExam()}
         />
+
+        {slotMenu && (
+          <div
+            data-calendar-menu
+            className="fixed z-50 min-w-52 rounded-md border bg-card p-1 text-sm shadow-lg"
+            style={{ left: slotMenu.x, top: slotMenu.y }}
+            dir="rtl"
+          >
+            {copiedAppointment && (
+              <button
+                type="button"
+                className="flex w-full items-center gap-2 rounded-sm px-3 py-2 text-right hover:bg-muted"
+                onClick={() => {
+                  pasteAppointmentToSlot(slotMenu.date, slotMenu.time)
+                  setSlotMenu(null)
+                }}
+              >
+                <Clipboard className="h-4 w-4" />
+                הדבק תור
+              </button>
+            )}
+            <button
+              type="button"
+              className="flex w-full items-center gap-2 rounded-sm px-3 py-2 text-right hover:bg-muted"
+              onClick={openExistingClientFlowFromSlot}
+            >
+              <Users className="h-4 w-4" />
+              תור מלקוח קיים
+            </button>
+            <button
+              type="button"
+              className="flex w-full items-center gap-2 rounded-sm px-3 py-2 text-right hover:bg-muted"
+              onClick={openNewClientFlowFromSlot}
+            >
+              <UserPlus className="h-4 w-4" />
+              תור מלקוח חדש
+            </button>
+          </div>
+        )}
+
+        {appointmentMenu && (
+          <div
+            data-calendar-menu
+            className="fixed z-50 min-w-44 rounded-md border bg-card p-1 text-sm shadow-lg"
+            style={{ left: appointmentMenu.x, top: appointmentMenu.y }}
+            dir="rtl"
+          >
+            <button
+              type="button"
+              className="flex w-full items-center gap-2 rounded-sm px-3 py-2 text-right hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={!appointmentMenu.appointment.exam_layout_id}
+              onClick={() => handleStartExam(appointmentMenu.appointment)}
+            >
+              <Play className="h-4 w-4" />
+              התחל בדיקה
+            </button>
+            <button
+              type="button"
+              className="flex w-full items-center gap-2 rounded-sm px-3 py-2 text-right hover:bg-muted"
+              onClick={() => handleCopyAppointment(appointmentMenu.appointment)}
+            >
+              <Copy className="h-4 w-4" />
+              העתק
+            </button>
+            <button
+              type="button"
+              className="flex w-full items-center gap-2 rounded-sm px-3 py-2 text-right hover:bg-muted"
+              onClick={() => handleStartMoveAppointment(appointmentMenu.appointment)}
+            >
+              <Move className="h-4 w-4" />
+              העבר
+            </button>
+            <button
+              type="button"
+              className="flex w-full items-center gap-2 rounded-sm px-3 py-2 text-right text-destructive hover:bg-destructive/10"
+              onClick={() => {
+                handleDeleteAppointment(appointmentMenu.appointment.id!)
+                setAppointmentMenu(null)
+              }}
+            >
+              <Trash2 className="h-4 w-4" />
+              מחק
+            </button>
+          </div>
+        )}
+
+        <CustomModal
+          isOpen={isNewClientAppointmentOpen}
+          onClose={closeAllDialogs}
+          title="לקוח חדש ותור"
+          className="sm:max-w-[500px]"
+        >
+          <div className="grid max-h-[60vh] gap-4 overflow-auto p-1" style={{ scrollbarWidth: "none" }}>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="calendar-new-first-name" className="block text-right">שם פרטי *</Label>
+                <Input id="calendar-new-first-name" name="first_name" value={newClientFormData.first_name} onChange={handleNewClientInputChange} dir="rtl" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="calendar-new-last-name" className="block text-right">שם משפחה *</Label>
+                <Input id="calendar-new-last-name" name="last_name" value={newClientFormData.last_name} onChange={handleNewClientInputChange} dir="rtl" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="calendar-new-email" className="block text-right">אימייל</Label>
+                <Input id="calendar-new-email" name="email" type="email" value={newClientFormData.email} onChange={handleNewClientInputChange} dir="rtl" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="calendar-new-phone" className="block text-right">טלפון נייד</Label>
+                <Input id="calendar-new-phone" name="phone_mobile" value={newClientFormData.phone_mobile} onChange={handleNewClientInputChange} dir="rtl" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label className="block text-right">תאריך</Label>
+                <Input name="date" type="date" value={newClientFormData.date} onChange={handleNewClientInputChange} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="calendar-new-time" className="block text-right">שעה</Label>
+                <Input id="calendar-new-time" name="time" type="time" value={newClientFormData.time} onChange={handleNewClientInputChange} />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label className="block text-right">סוג בדיקה</Label>
+                <select
+                  className="h-9 w-full rounded-md border border-input bg-card px-3 text-sm"
+                  value={newClientFormData.exam_layout_id ? String(newClientFormData.exam_layout_id) : ""}
+                  onChange={(event) => handleNewClientExamLayoutChange(event.target.value ? Number(event.target.value) : null)}
+                  dir="rtl"
+                >
+                  <option value="">בחר סוג בדיקה</option>
+                  {activeExamLayouts.map(layout => (
+                    <option key={layout.id} value={layout.id}>{layout.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="calendar-new-duration" className="block text-right">משך</Label>
+                <Input id="calendar-new-duration" name="duration" type="number" value={newClientFormData.duration} onChange={handleNewClientInputChange} />
+              </div>
+            </div>
+            <div className="space-y-2 pb-2">
+              <Label htmlFor="calendar-new-note" className="block text-right">הערות</Label>
+              <Textarea id="calendar-new-note" name="note" value={newClientFormData.note} onChange={handleNewClientInputChange} dir="rtl" />
+            </div>
+          </div>
+          <div className="mt-4 flex justify-start gap-2">
+            <Button onClick={handleSaveNewClientAndAppointment} disabled={isSavingNewClientAppointment}>
+              {isSavingNewClientAppointment && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              שמור
+            </Button>
+            <Button variant="outline" onClick={closeAllDialogs}>ביטול</Button>
+          </div>
+        </CustomModal>
       </div>
     </>
   )

@@ -92,6 +92,54 @@ export interface Client {
   ai_appointment_state?: string;
   ai_file_state?: string;
   ai_medical_state?: string;
+  merged_into_client_id?: number | null;
+  merged_at?: string | null;
+  merged_by_user_id?: number | null;
+  merge_snapshot?: Record<string, unknown> | null;
+}
+
+export interface RecentClientVisit {
+  id: number;
+  user_id: number;
+  clinic_id: number;
+  client_id: number;
+  visited_at: string;
+  client?: Client;
+}
+
+export interface PrescriptionEyeCriteria {
+  sph?: number;
+  cyl?: number;
+  ax?: number;
+  add?: number;
+  va?: string;
+  pd?: number;
+}
+
+export interface PrescriptionSearchCriteria {
+  clinic_id?: number;
+  right?: PrescriptionEyeCriteria;
+  left?: PrescriptionEyeCriteria;
+  limit?: number;
+  offset?: number;
+}
+
+export interface PrescriptionSearchResult {
+  client_id: number;
+  client_full_name: string;
+  national_id?: string | null;
+  phone_mobile?: string | null;
+  source_type: string;
+  source_id: number;
+  source_date?: string | null;
+  card_type?: string | null;
+  matched_eyes: string[];
+}
+
+export interface ClientMergeResult {
+  canonical_client_id: number;
+  merged_client_ids: number[];
+  reassigned_counts: Record<string, number>;
 }
 
 export interface Family {
@@ -456,6 +504,7 @@ export interface Appointment {
   time?: string;
   duration?: number;
   exam_name?: string;
+  exam_layout_id?: number | null;
   note?: string;
   google_calendar_event_id?: string;
   client_full_name?: string;

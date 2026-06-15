@@ -174,6 +174,7 @@ export default function ContactOrderTab({
   return (
     <form
       ref={formRef}
+      data-clinical-nav-scope="true"
       className="no-scrollbar pt-4 pb-10"
       style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
     >
@@ -296,7 +297,7 @@ export default function ContactOrderTab({
           </div>
 
           <div className="flex flex-col gap-4 lg:col-span-3">
-            <div className="relative">
+            <div className="relative" data-clinical-nav-card="true">
               <ExamToolbox
                 isEditing={isEditing}
                 mode="detail"
@@ -324,7 +325,7 @@ export default function ContactOrderTab({
               />
             </div>
 
-            <div className="relative">
+            <div className="relative" data-clinical-nav-card="true">
               <ExamToolbox
                 isEditing={isEditing}
                 mode="detail"
@@ -354,7 +355,7 @@ export default function ContactOrderTab({
           </div>
         </div>
 
-        <div className="w-full" dir="rtl">
+        <div className="w-full" dir="rtl" data-clinical-nav-card="true">
           <ContactLensOrderTab
             contactLensOrder={contactFormData}
             onContactLensOrderChange={(field: any, value: any) =>

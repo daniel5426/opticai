@@ -2,6 +2,7 @@ import * as React from "react"
 import { useNavigate } from "@tanstack/react-router"
 import { Client } from "@/lib/db/schema-interface"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   Table,
   TableBody,
@@ -40,6 +41,10 @@ interface ClientsTableProps {
   toolbarActions?: React.ReactNode
   sort?: SortState
   onSortChange?: (sort: SortState) => void
+  mergeMode?: boolean
+  selectedMergeClientIds?: number[]
+  selectedMergeClients?: Client[]
+  onToggleMergeClient?: (client: Client) => void
 }
 
 export function ClientsTable({ 
@@ -61,6 +66,10 @@ export function ClientsTable({
   toolbarActions,
   sort,
   onSortChange,
+  mergeMode = false,
+  selectedMergeClientIds = [],
+  selectedMergeClients = [],
+  onToggleMergeClient,
 }: ClientsTableProps) {
   const [internalSearchQuery, setInternalSearchQuery] = React.useState("")
   const [selectedGender, setSelectedGender] = React.useState<string>("all")
@@ -168,10 +177,16 @@ export function ClientsTable({
   }
 
   const handleRowClick = (clientId: number | undefined) => {
-    if (clientId !== undefined) {
-      navigate({ to: "/clients/$clientId", params: { clientId: String(clientId) }, search: { tab: "details" } })
+    if (clientId === undefined) return
+    if (mergeMode) {
+      const client = displayData.find(item => item.id === clientId) || selectedMergeClients.find(item => item.id === clientId)
+      if (client) onToggleMergeClient?.(client)
+      return
     }
+    navigate({ to: "/clients/$clientId", params: { clientId: String(clientId) }, search: { tab: "details" } })
   }
+
+  const columnsCount = (compactMode ? (showFamilyColumn ? 6 : 5) : (showFamilyColumn ? 9 : 8)) + (mergeMode ? 1 : 0)
 
   return (
     <div className="space-y-2.5 mb-10" dir="rtl" style={{ scrollbarWidth: 'none' }}>
@@ -217,6 +232,7 @@ export function ClientsTable({
         >
           <TableHeader className="sticky top-0 bg-card">
             <TableRow>
+              {mergeMode && <TableHead className="w-[44px] !p-0 text-right sticky top-0 z-20 bg-card"></TableHead>}
               <SortableTableHead sortKey="id" sort={activeSort} onSortChange={handleSortChange} className="text-right sticky top-0 z-20 bg-card">מס' לקוח</SortableTableHead>
               <SortableTableHead sortKey="first_name" sort={activeSort} onSortChange={handleSortChange} className="text-right sticky top-0 z-20 bg-card">שם פרטי</SortableTableHead>
               <SortableTableHead sortKey="last_name" sort={activeSort} onSortChange={handleSortChange} className="text-right sticky top-0 z-20 bg-card">שם משפחה</SortableTableHead>
@@ -229,9 +245,38 @@ export function ClientsTable({
             </TableRow>
           </TableHeader>
           <TableBody>
+            {mergeMode && selectedMergeClients.length > 0 && (
+              <TableRow className="sticky top-10 z-10 bg-muted/90 hover:bg-muted/90">
+                <TableCell colSpan={columnsCount} className="!p-0">
+                  <div className="flex flex-wrap items-center gap-2 px-4 py-2 text-xs">
+                    <span className="font-medium text-muted-foreground">לקוחות שנבחרו למיזוג</span>
+                    {selectedMergeClients.map((client) => (
+                      <button
+                        key={`selected-${client.id}`}
+                        type="button"
+                        className="inline-flex max-w-[240px] items-center gap-2 rounded-md border bg-background px-2 py-1 text-right hover:bg-accent"
+                        onClick={() => onToggleMergeClient?.(client)}
+                      >
+                        <Checkbox checked={true} className="pointer-events-none h-3.5 w-3.5" />
+                        <span className="truncate">
+                          {client.id} · {[client.first_name, client.last_name].filter(Boolean).join(" ") || "ללא שם"}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </TableCell>
+              </TableRow>
+            )}
             {loading ? (
               Array.from({ length: 14 }).map((_, i) => (
                 <TableRow key={i}>
+                  {mergeMode && (
+                    <TableCell className="w-[44px] !p-0">
+                      <div className="flex h-full min-h-9 items-center justify-center">
+                        <Skeleton className="h-4 w-4 my-2" />
+                      </div>
+                    </TableCell>
+                  )}
                   <TableCell>
                     <Skeleton className="w-[20%] h-4 my-2" />
                   </TableCell>
@@ -276,6 +321,17 @@ export function ClientsTable({
                   className="cursor-pointer"
                   onClick={() => handleRowClick(client.id)}
                 >
+                  {mergeMode && (
+                    <TableCell className="w-[44px] !p-0">
+                      <div className="flex h-full min-h-9 items-center justify-center">
+                        <Checkbox
+                          checked={client.id ? selectedMergeClientIds.includes(client.id) : false}
+                          onClick={(event) => event.stopPropagation()}
+                          onCheckedChange={() => onToggleMergeClient?.(client)}
+                        />
+                      </div>
+                    </TableCell>
+                  )}
                   <TableCell className="font-medium">{client.id}</TableCell>
                   <TableCell>{client.first_name || ""}</TableCell>
                   <TableCell>{client.last_name || ""}</TableCell>
@@ -302,7 +358,7 @@ export function ClientsTable({
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={compactMode ? (showFamilyColumn ? 6 : 5) : (showFamilyColumn ? 9 : 8)} className="h-24 text-center text-muted-foreground">
+                <TableCell colSpan={columnsCount} className="h-24 text-center text-muted-foreground">
                   {showFamilyColumn && !selectedFamilyId ? 'בחר משפחה כדי לראות את חבריה' : 
                    selectedFamilyId ? 'לא נמצאו לקוחות במשפחה זו' : 'לא נמצאו לקוחות לתצוגה'}
                 </TableCell>

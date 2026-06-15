@@ -245,9 +245,33 @@ class Client(ClientBase):
     ai_appointment_state: Optional[str] = None
     ai_file_state: Optional[str] = None
     ai_medical_state: Optional[str] = None
+    merged_into_client_id: Optional[int] = None
+    merged_at: Optional[datetime] = None
+    merged_by_user_id: Optional[int] = None
+    merge_snapshot: Optional[Dict[str, Any]] = None
     
     class Config:
         from_attributes = True
+
+class RecentClientVisit(BaseModel):
+    id: int
+    user_id: int
+    clinic_id: int
+    client_id: int
+    visited_at: datetime
+    client: Optional[Client] = None
+
+    class Config:
+        from_attributes = True
+
+class ClientMergeRequest(BaseModel):
+    canonical_client_id: int
+    duplicate_client_ids: List[int]
+
+class ClientMergeResult(BaseModel):
+    canonical_client_id: int
+    merged_client_ids: List[int]
+    reassigned_counts: Dict[str, int]
 
 class ClientOrdersContext(BaseModel):
     latest_exam_id: Optional[int] = None
@@ -357,6 +381,7 @@ class AppointmentBase(BaseModel):
     time: Optional[str] = None
     duration: Optional[int] = 30
     exam_name: Optional[str] = None
+    exam_layout_id: Optional[int] = None
     note: Optional[str] = None
     google_calendar_event_id: Optional[str] = None
 
@@ -610,6 +635,36 @@ class CampaignClientExecution(CampaignClientExecutionBase):
 
     class Config:
         from_attributes = True
+
+class PrescriptionEyeCriteria(BaseModel):
+    sph: Optional[float] = None
+    cyl: Optional[float] = None
+    ax: Optional[int] = None
+    add: Optional[float] = None
+    va: Optional[str] = None
+    pd: Optional[float] = None
+
+class PrescriptionSearchRequest(BaseModel):
+    clinic_id: Optional[int] = None
+    right: Optional[PrescriptionEyeCriteria] = None
+    left: Optional[PrescriptionEyeCriteria] = None
+    limit: int = 50
+    offset: int = 0
+
+class PrescriptionSearchResult(BaseModel):
+    client_id: int
+    client_full_name: str
+    national_id: Optional[str] = None
+    phone_mobile: Optional[str] = None
+    source_type: str
+    source_id: int
+    source_date: Optional[date] = None
+    card_type: Optional[str] = None
+    matched_eyes: List[str] = Field(default_factory=list)
+
+class PrescriptionSearchResponse(BaseModel):
+    items: List[PrescriptionSearchResult]
+    total: int
 
 # Contact Lens schemas
 class ContactLensBase(BaseModel):

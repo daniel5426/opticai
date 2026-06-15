@@ -13,6 +13,12 @@ import {
 import { cn } from "@/utils/tailwind";
 import { flushSync } from 'react-dom';
 import { UI_CONFIG } from '@/config/ui-config';
+import {
+    focusClinicalNavSibling,
+    isClinicalPrintableKey,
+    isInClinicalNavScope,
+    normalizeClinicalNumberInput,
+} from "@/lib/clinical-input-navigation";
 
 /**
  * A select component that adjusts its width based on the selected value.
@@ -196,6 +202,9 @@ export function useOptimizedInput<T extends HTMLInputElement | HTMLTextAreaEleme
 
         const onInputInternal = (e: Event) => {
             const target = e.target as T;
+            if (target instanceof HTMLInputElement) {
+                normalizeClinicalNumberInput(target);
+            }
             let val = target.value;
 
             localValueRef.current = val;
@@ -350,7 +359,21 @@ export const FastInput = memo(function FastInput({
     ...props
 }: FastInputProps) {
     const { inputRef } = useOptimizedInput<HTMLInputElement>(value, onChange, debounceMs, undefined, onInput);
-    return <Input {...props} ref={inputRef} defaultValue={value} suffix={suffix} showPlus={showPlus} prefix={prefix} center={center} />;
+    const navKind = props.type === "number" ? "number" : "input";
+    return (
+        <Input
+            {...props}
+            ref={inputRef}
+            defaultValue={value}
+            suffix={suffix}
+            showPlus={showPlus}
+            prefix={prefix}
+            center={center}
+            data-clinical-nav-item="true"
+            data-clinical-nav-kind={navKind}
+            data-clinical-nav-step={props.step?.toString()}
+        />
+    );
 });
 
 interface FastTextareaProps extends Omit<React.ComponentProps<typeof Textarea>, 'value' | 'onChange' | 'onInput'> {
@@ -494,13 +517,17 @@ export const FastSelect = memo(function FastSelect({
     ...props
 }: FastSelectProps) {
     const { localValue, handleValueChange } = useOptimizedSelect(value, onChange, debounceMs);
+    const [open, setOpen] = useState(false);
 
     return (
         <Select 
             {...props} 
             value={localValue} 
             onValueChange={handleValueChange}
+            open={open}
             onOpenChange={(open) => {
+                setOpen(open);
+                props.onOpenChange?.(open);
                 if (!open) {
                     // Force blur on the active element if it's a select trigger to prevent persistent focus ring
                     setTimeout(() => {
@@ -512,7 +539,35 @@ export const FastSelect = memo(function FastSelect({
                 }
             }}
         >
-            <SelectTrigger disabled={props.disabled} size={size} className={triggerClassName + " text-center" } centered={center}>
+            <SelectTrigger
+                disabled={props.disabled}
+                size={size}
+                className={triggerClassName + " text-center" }
+                centered={center}
+                data-clinical-nav-item="true"
+                data-clinical-nav-kind="select"
+                onKeyDown={(event) => {
+                    if (!isInClinicalNavScope(event.currentTarget)) return;
+                    if (event.key === "ArrowRight") {
+                        event.preventDefault();
+                        focusClinicalNavSibling(event.currentTarget, "next");
+                        return;
+                    }
+                    if (event.key === "ArrowLeft") {
+                        event.preventDefault();
+                        focusClinicalNavSibling(event.currentTarget, "previous");
+                        return;
+                    }
+                    if (event.key === " ") {
+                        event.preventDefault();
+                        focusClinicalNavSibling(event.currentTarget, "next");
+                        return;
+                    }
+                    if (event.key === "ArrowDown" || event.key === "ArrowUp" || isClinicalPrintableKey(event.nativeEvent)) {
+                        setOpen(true);
+                    }
+                }}
+            >
                 <SelectValue placeholder={placeholder} className="center-value self-center justify-center" />
             </SelectTrigger>
             <SelectContent className="min-w-16 w-fit justify-center items-center">

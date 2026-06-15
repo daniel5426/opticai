@@ -18,7 +18,8 @@ import {
   OcularMotorAssessmentExam, OldRefractionExam, OldRefractionExtensionExam,
   ObjectiveExam, SubjectiveExam, AdditionExam, FinalSubjectiveExam,
   FinalPrescriptionExam, RetinoscopExam, RetinoscopDilationExam,
-  CompactPrescriptionExam
+  CompactPrescriptionExam, RecentClientVisit, PrescriptionSearchCriteria,
+  PrescriptionSearchResult, ClientMergeResult
 } from './db/schema-interface';
 
 function normalizeApiBaseUrl(rawUrl?: string): string {
@@ -580,6 +581,30 @@ class ApiClient {
     if (options?.gender && options.gender !== 'all') params.append('gender', options.gender);
     const qs = params.toString();
     return this.request<{ items: Client[]; total: number }>(`/clients/paginated${qs ? `?${qs}` : ''}`);
+  }
+
+  async getRecentClients(clinicId?: number, limit: number = 10) {
+    const params = new URLSearchParams();
+    if (clinicId) params.append('clinic_id', String(clinicId));
+    params.append('limit', String(limit));
+    const qs = params.toString();
+    return this.request<RecentClientVisit[]>(`/clients/recent${qs ? `?${qs}` : ''}`);
+  }
+
+  async markClientVisited(clientId: number) {
+    return this.request<{ success: boolean; visited_at: string }>(`/clients/${clientId}/recent-visit`, {
+      method: 'POST',
+    });
+  }
+
+  async mergeClients(canonicalClientId: number, duplicateClientIds: number[]) {
+    return this.request<ClientMergeResult>('/clients/merge', {
+      method: 'POST',
+      body: JSON.stringify({
+        canonical_client_id: canonicalClientId,
+        duplicate_client_ids: duplicateClientIds,
+      }),
+    });
   }
 
   // Referrals pagination
@@ -1734,6 +1759,13 @@ class ApiClient {
     return this.request<{ items: Array<{ type: string; id: number; title: string; subtitle?: string; description?: string; client_id?: number }>; total: number }>(`/search?${qs}`);
   }
 
+  async searchPrescription(criteria: PrescriptionSearchCriteria) {
+    return this.request<{ items: PrescriptionSearchResult[]; total: number }>('/search/prescription', {
+      method: 'POST',
+      body: JSON.stringify(criteria),
+    });
+  }
+
   // Control Center aggregated endpoints
   async getControlCenterDashboard(companyId: number) {
     return this.request(`/control-center/dashboard/${companyId}`);
@@ -2031,6 +2063,60 @@ class ApiClient {
       method: 'POST',
       body: JSON.stringify({ company_id: companyId, access_token: accessToken }),
     });
+  }
+
+  async createSoftOpticImport(data: {
+    clinicId: number;
+    sourceMetadata: Record<string, any>;
+    exportSummary: Record<string, any>;
+    includeDocuments: boolean;
+  }) {
+    return this.request('/migration/softoptic/imports', {
+      method: 'POST',
+      body: JSON.stringify({
+        clinic_id: data.clinicId,
+        source_metadata: data.sourceMetadata || {},
+        export_summary: data.exportSummary || {},
+        include_documents: data.includeDocuments,
+      }),
+    });
+  }
+
+  async uploadSoftOpticBundle(jobId: string, zipPath: string) {
+    if (!window.electronAPI?.softOpticUploadBundle) {
+      return { error: 'SoftOptic bundle upload is available only in the Electron app' };
+    }
+    if (this.token && this.isTokenExpiringSoon(this.token)) {
+      await this.refreshTokenIfPossible();
+    }
+    return window.electronAPI.softOpticUploadBundle({
+      apiBaseUrl: this.baseUrl,
+      jobId,
+      zipPath,
+      accessToken: this.token || '',
+    });
+  }
+
+  async getSoftOpticImport(jobId: string) {
+    return this.request(`/migration/softoptic/imports/${jobId}`);
+  }
+
+  async listSoftOpticImports(clinicId: number, activeOnly = false) {
+    const params = new URLSearchParams({ clinic_id: String(clinicId), limit: '5' });
+    if (activeOnly) params.set('active_only', 'true');
+    return this.request(`/migration/softoptic/imports?${params.toString()}`);
+  }
+
+  async pauseSoftOpticImport(jobId: string) {
+    return this.request(`/migration/softoptic/imports/${jobId}/pause`, { method: 'POST' });
+  }
+
+  async resumeSoftOpticImport(jobId: string) {
+    return this.request(`/migration/softoptic/imports/${jobId}/resume`, { method: 'POST' });
+  }
+
+  async cancelSoftOpticImport(jobId: string) {
+    return this.request(`/migration/softoptic/imports/${jobId}/cancel`, { method: 'POST' });
   }
 }
 

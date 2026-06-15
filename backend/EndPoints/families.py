@@ -57,7 +57,7 @@ def get_families_paginated(
         Family.notes,
         func.count(Client.id).label('member_count'),
         Family.company_id
-    ).outerjoin(Client, Client.family_id == Family.id)
+    ).outerjoin(Client, (Client.family_id == Family.id) & (Client.merged_into_client_id.is_(None)))
 
     if effective_company_id is not None:
         base = base.filter(Family.company_id == effective_company_id)
@@ -92,6 +92,7 @@ def get_families_paginated(
         members = (
             db.query(Client)
             .filter(Client.family_id.in_(family_ids))
+            .filter(Client.merged_into_client_id.is_(None))
             .all()
         )
         for m in members:
@@ -175,6 +176,7 @@ def get_all_families(
                 Client.email,
             )
             .filter(Client.family_id.in_(family_ids))
+            .filter(Client.merged_into_client_id.is_(None))
             .all()
         )
         for member in members:
@@ -243,7 +245,7 @@ def get_family_members(
 ):
     get_scoped_family(db, current_user, family_id)
     
-    members = db.query(Client).filter(Client.family_id == family_id).all()
+    members = db.query(Client).filter(Client.family_id == family_id).filter(Client.merged_into_client_id.is_(None)).all()
     return [
         {
             "id": member.id,

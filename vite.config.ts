@@ -84,6 +84,7 @@ export default defineConfig(({ mode }) => {
       },
     },
     server: {
+      port: 5126,
       watch: {
         ignored: ['**/qdrant_storage/**', '**/release/**', '**/dist-electron/**'],
       },

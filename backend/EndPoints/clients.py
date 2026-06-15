@@ -1,9 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.encoders import jsonable_encoder
 from sqlalchemy.orm import Session
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from typing import List, Optional
+from datetime import datetime, timezone
 from database import get_db
-from models import Client, Family, Clinic, User, OpticalExam, Appointment, Order, Referral, File, MedicalLog, ContactLensOrder, ExamLayoutInstance
-from schemas import ClientCreate, ClientUpdate, Client as ClientSchema, ClientOrdersContext
+from models import Client, Family, Clinic, User, OpticalExam, Appointment, Order, Referral, File, MedicalLog, ContactLensOrder, ExamLayoutInstance, CampaignClientExecution, RecentClientVisit, PrescriptionSearchIndex
+from schemas import ClientCreate, ClientUpdate, Client as ClientSchema, ClientOrdersContext, ClientMergeRequest, ClientMergeResult
 from sqlalchemy import and_, func
 from auth import get_current_user
 from utils.table_search import build_all_terms_search_condition, search_blob
@@ -47,6 +50,7 @@ def get_clients_paginated(
     )
     allowed_clinic_ids = get_allowed_clinic_ids(db, current_user, clinic_id)
     base = base.filter(Client.clinic_id.in_(allowed_clinic_ids))
+    base = base.filter(Client.merged_into_client_id.is_(None))
     if gender and gender != "all":
         base = base.filter(Client.gender == gender)
 
@@ -128,6 +132,109 @@ def create_client(
     db.commit()
     db.refresh(db_client)
     return db_client
+
+@router.get("/recent")
+def get_recent_clients(
+    clinic_id: Optional[int] = Query(None),
+    limit: int = Query(10, ge=1, le=50),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    allowed_clinic_ids = get_allowed_clinic_ids(db, current_user, clinic_id)
+    if not allowed_clinic_ids:
+        return []
+    rows = (
+        db.query(RecentClientVisit, Client)
+        .join(Client, Client.id == RecentClientVisit.client_id)
+        .filter(RecentClientVisit.user_id == current_user.id)
+        .filter(RecentClientVisit.clinic_id.in_(allowed_clinic_ids))
+        .filter(Client.merged_into_client_id.is_(None))
+        .order_by(RecentClientVisit.visited_at.desc())
+        .limit(limit)
+        .all()
+    )
+    return [
+        {
+            "id": visit.id,
+            "user_id": visit.user_id,
+            "clinic_id": visit.clinic_id,
+            "client_id": visit.client_id,
+            "visited_at": visit.visited_at,
+            "client": client,
+        }
+        for visit, client in rows
+    ]
+
+def _client_snapshot(client: Client) -> dict:
+    return jsonable_encoder({
+        column.name: getattr(client, column.name)
+        for column in Client.__table__.columns
+        if column.name != "merge_snapshot"
+    })
+
+@router.post("/merge", response_model=ClientMergeResult)
+def merge_clients(
+    request: ClientMergeRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    duplicate_ids = list(dict.fromkeys(request.duplicate_client_ids))
+    if request.canonical_client_id in duplicate_ids:
+        duplicate_ids.remove(request.canonical_client_id)
+    if not duplicate_ids:
+        raise HTTPException(status_code=422, detail="At least one duplicate client is required")
+
+    all_ids = [request.canonical_client_id, *duplicate_ids]
+    clients = (
+        db.query(Client)
+        .filter(Client.id.in_(all_ids))
+        .with_for_update()
+        .all()
+    )
+    by_id = {client.id: client for client in clients}
+    if len(by_id) != len(all_ids):
+        raise HTTPException(status_code=404, detail="One or more clients were not found")
+
+    canonical = by_id[request.canonical_client_id]
+    get_scoped_client(db, current_user, canonical.id)
+    if canonical.merged_into_client_id:
+        raise HTTPException(status_code=422, detail="Canonical client is already merged")
+
+    company_id = canonical.company_id
+    for duplicate_id in duplicate_ids:
+        duplicate = by_id[duplicate_id]
+        get_scoped_client(db, current_user, duplicate.id)
+        if duplicate.company_id != company_id:
+            raise HTTPException(status_code=422, detail="Clients must belong to the same company")
+        if duplicate.merged_into_client_id:
+            raise HTTPException(status_code=422, detail="One or more duplicate clients are already merged")
+
+    reassigned_counts = {}
+    for model in (OpticalExam, Appointment, Order, ContactLensOrder, Referral, File, MedicalLog, CampaignClientExecution, PrescriptionSearchIndex):
+        count = (
+            db.query(model)
+            .filter(model.client_id.in_(duplicate_ids))
+            .update({"client_id": canonical.id}, synchronize_session=False)
+        )
+        reassigned_counts[model.__tablename__] = count
+
+    db.query(RecentClientVisit).filter(RecentClientVisit.client_id.in_(duplicate_ids)).delete(synchronize_session=False)
+
+    now = datetime.now(timezone.utc)
+    for duplicate_id in duplicate_ids:
+        duplicate = by_id[duplicate_id]
+        duplicate.merged_into_client_id = canonical.id
+        duplicate.merged_at = now
+        duplicate.merged_by_user_id = current_user.id
+        duplicate.merge_snapshot = _client_snapshot(duplicate)
+
+    canonical.client_updated_date = func.now()
+    db.commit()
+    return {
+        "canonical_client_id": canonical.id,
+        "merged_client_ids": duplicate_ids,
+        "reassigned_counts": reassigned_counts,
+    }
 
 @router.get("/{client_id}", response_model=ClientSchema)
 def get_client(
@@ -232,8 +339,36 @@ def get_all_clients(
     current_user: User = Depends(get_current_user)
 ):
     allowed_clinic_ids = get_allowed_clinic_ids(db, current_user, clinic_id)
-    query = db.query(Client).filter(Client.clinic_id.in_(allowed_clinic_ids))
+    query = db.query(Client).filter(Client.clinic_id.in_(allowed_clinic_ids)).filter(Client.merged_into_client_id.is_(None))
     return query.all()
+
+@router.post("/{client_id}/recent-visit")
+def mark_recent_client_visit(
+    client_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    client = get_scoped_client(db, current_user, client_id)
+    if client.merged_into_client_id:
+        raise HTTPException(status_code=422, detail="Cannot mark merged client as recent")
+
+    stmt = (
+        pg_insert(RecentClientVisit)
+        .values(
+            user_id=current_user.id,
+            clinic_id=client.clinic_id,
+            client_id=client.id,
+            visited_at=func.now(),
+        )
+        .on_conflict_do_update(
+            index_elements=["user_id", "clinic_id", "client_id"],
+            set_={"visited_at": func.now()},
+        )
+        .returning(RecentClientVisit.id, RecentClientVisit.visited_at)
+    )
+    visit = db.execute(stmt).mappings().one()
+    db.commit()
+    return {"success": True, "visited_at": visit["visited_at"]}
 
 
 @router.put("/{client_id}", response_model=ClientSchema)
@@ -284,7 +419,7 @@ def get_family_members(
     if not client.family_id:
         return []
     
-    return db.query(Client).filter(Client.family_id == client.family_id).all()
+    return db.query(Client).filter(Client.family_id == client.family_id).filter(Client.merged_into_client_id.is_(None)).all()
 
 @router.put("/{client_id}/update-date")
 def update_client_updated_date(

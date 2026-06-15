@@ -95,6 +95,41 @@ export interface ElectronAPI {
   getAppVersion: () => Promise<string>;
   openExternalAuthUrl: (url: string) => Promise<boolean>;
   openUrlInChrome: (url: string) => Promise<boolean>;
+  softOpticScan: () => Promise<{
+    supported: boolean;
+    candidates: Array<{
+      id: string;
+      kind: "dsn" | "db-file";
+      label: string;
+      dsn?: string;
+      dbFile?: string;
+      logFile?: string;
+      documentPath?: string;
+      sizeBytes?: number;
+      modifiedAt?: string;
+      score: number;
+      recommended: boolean;
+      reasons: string[];
+    }>;
+    error?: string;
+  }>;
+  softOpticExport: (payload: {
+    candidate: any;
+    sqlAnywhereBin?: string;
+    includeDocuments?: boolean;
+  }) => Promise<{
+    success: boolean;
+    outputDir?: string;
+    zipPath?: string;
+    summary?: Record<string, any>;
+    error?: string;
+  }>;
+  softOpticUploadBundle: (payload: {
+    apiBaseUrl: string;
+    jobId: string;
+    zipPath: string;
+    accessToken: string;
+  }) => Promise<{ success: boolean; data?: any; error?: string }>;
   exportHtmlToPdf: (payload: {
     html: string;
     defaultFileName: string;

@@ -48,7 +48,7 @@ class Settings:
     # CORS
     BACKEND_CORS_ORIGINS: list = _csv_env(
         "BACKEND_CORS_ORIGINS",
-        "http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174"
+        "http://localhost:5126,http://127.0.0.1:5126,http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174"
     )
     ALLOW_WILDCARD_CORS_IN_PRODUCTION: bool = os.getenv(
         "ALLOW_WILDCARD_CORS_IN_PRODUCTION",
