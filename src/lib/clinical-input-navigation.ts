@@ -128,10 +128,13 @@ export function normalizeClinicalNumberInput(input: HTMLInputElement) {
   }
 
   if (precision > 0) {
+    const integerPart = unsigned.split(".")[0] ?? "";
     const decimalPart = unsigned.split(".")[1] ?? "";
     return {
       value: input.value,
-      shouldAdvance: decimalPart.length >= precision,
+      shouldAdvance:
+        integerPart.replace(/\D/g, "").length > 0 &&
+        decimalPart.length >= precision,
     };
   }
 
