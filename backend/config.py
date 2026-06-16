@@ -44,6 +44,7 @@ class Settings:
     TOKEN_ENCRYPTION_KEY: str = os.getenv("TOKEN_ENCRYPTION_KEY", "")
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "15"))
+    CLINIC_TRUST_EXPIRE_DAYS: int = int(os.getenv("CLINIC_TRUST_EXPIRE_DAYS", "3650"))
     
     # CORS
     BACKEND_CORS_ORIGINS: list = _csv_env(

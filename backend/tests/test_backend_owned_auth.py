@@ -1,5 +1,6 @@
 import os
 import sys
+from datetime import timedelta
 from pathlib import Path
 
 import pytest
@@ -17,15 +18,16 @@ os.environ.setdefault("DATABASE_URL", "sqlite:///:memory:")
 os.environ.setdefault("SECRET_KEY", "development-secret-for-tests-only")
 os.environ.setdefault("TOKEN_ENCRYPTION_KEY", "development-encryption-key-for-tests")
 
-from auth import get_password_hash
+from auth import get_password_hash, utcnow
 from database import Base, get_db
 from EndPoints import auth as auth_endpoint
 from EndPoints import clinics as clinics_endpoint
-from models import Clinic, ExamLayout, User
+from models import Clinic, ClinicDeviceTrust, ExamLayout, User
 
 
 @pytest.fixture()
 def client_and_db():
+    auth_endpoint._attempts.clear()
     engine = create_engine(
         "sqlite://",
         connect_args={"check_same_thread": False},
@@ -138,6 +140,14 @@ def test_clinic_trust_quick_login_and_pin_version_revoke(client_and_db):
         db.close()
 
     trust_token = create_clinic_trust(client, session_factory, clinic_id)
+
+    db = session_factory()
+    try:
+        trust = db.query(ClinicDeviceTrust).filter(ClinicDeviceTrust.device_id == "device-1").one()
+        assert trust.expires_at > utcnow() + timedelta(days=3000)
+    finally:
+        db.close()
+
     quick = client.post(
         "/api/v1/auth/login/quick",
         json={"username": "worker", "device_id": "device-1"},

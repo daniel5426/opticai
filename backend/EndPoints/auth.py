@@ -36,7 +36,7 @@ from services.lookup_defaults import seed_default_lookup_values_for_clinic
 router = APIRouter(prefix="/auth", tags=["authentication"])
 optional_security = HTTPBearer(auto_error=False)
 CEO_LEVEL = 4
-TRUST_EXPIRE_DAYS = 30
+TRUST_EXPIRE_DAYS = settings.CLINIC_TRUST_EXPIRE_DAYS
 SETUP_EXPIRE_HOURS = 24
 
 _attempts: dict[str, list[float]] = {}
