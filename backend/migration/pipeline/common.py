@@ -45,6 +45,7 @@ from models import (
     File,
     Appointment,
     Billing,
+    BillingPayment,
     OrderLineItem,
     Order,
     LookupSupplier,
@@ -231,6 +232,17 @@ def parse_bool_flag(value: Optional[str]) -> Optional[bool]:
     if s in ("0", "false", "f", "no", "n"):
         return False
     return None
+
+
+def normalize_j_value(value: Optional[str]) -> Optional[str]:
+    s = clean_legacy_text(value)
+    if s is None:
+        return None
+    if re.fullmatch(r"(?i)j\d+\+?", s):
+        return "J" + s[1:]
+    if re.fullmatch(r"\d+", s):
+        return f"J{s}"
+    return s
 
 
 def to_iso_date_string(value: Optional[str]) -> Optional[str]:
@@ -810,8 +822,8 @@ def _build_objective_component(row: Dict[str, Any], expanded: Optional[Dict[str,
         "l_cyl": _get_optical_float(expanded, row, ["obj_l_cyl"], ["ob_left_cyl"]),
         "r_ax": _get_int(expanded, row, ["obj_r_ax"], ["ob_right_ax"]),
         "l_ax": _get_int(expanded, row, ["obj_l_ax"], ["ob_left_ax"]),
-        "r_se": _get_optical_float(expanded, row, ["ob_right_se"]),
-        "l_se": _get_optical_float(expanded, row, ["ob_left_se"]),
+        "r_se": _get_optical_float(expanded, row, ["ob_right_se"], ["ob_right_se"]),
+        "l_se": _get_optical_float(expanded, row, ["ob_left_se"], ["ob_left_se"]),
     }
     if any(v is not None for v in data.values()):
         return data
@@ -863,8 +875,8 @@ def _build_addition_component(row: Dict[str, Any], expanded: Optional[Dict[str, 
         "l_bif": _get_float(expanded, row, ["add_left_bif", "sub_l_bif"], ["add_left_bif"]),
         "r_mul": _get_float(expanded, row, ["add_right_mul", "sub_r_mul"], ["add_right_mul"]),
         "l_mul": _get_float(expanded, row, ["add_left_mul", "sub_l_mul"], ["add_left_mul"]),
-        "r_j": _get_str(expanded, row, ["add_right_j", "sub_r_j"], ["add_right_j"]),
-        "l_j": _get_str(expanded, row, ["add_left_j", "sub_l_j"], ["add_left_j"]),
+        "r_j": normalize_j_value(_get_str(expanded, row, ["add_right_j", "sub_r_j"], ["add_right_j"])),
+        "l_j": normalize_j_value(_get_str(expanded, row, ["add_left_j", "sub_l_j"], ["add_left_j"])),
         "r_iop": _get_float(expanded, row, ["bio_r_iop"], ["iop_right"]),
         "l_iop": _get_float(expanded, row, ["bio_l_iop"], ["iop_left"]),
     }

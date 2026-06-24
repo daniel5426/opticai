@@ -77,6 +77,90 @@ def resolve_migration_clinic_id(branch_to_clinic: Dict[Any, int], branch_code: A
     )
 
 
+def _build_lookup_code_name_map(csv_dir: str, filename: str) -> Dict[str, str]:
+    lookup: Dict[str, str] = {}
+    for row in read_csv_streaming(csv_dir, filename):
+        name = clean_legacy_text(row.get("name"))
+        if not name:
+            continue
+        for key in ("code", "id", "key"):
+            value = clean_legacy_text(row.get(key))
+            if value:
+                lookup[value] = name
+    return lookup
+
+
+def _group_presc_price_rows(csv_dir: str) -> Dict[str, List[Dict[str, Any]]]:
+    rows_by_presc_code: Dict[str, List[Dict[str, Any]]] = {}
+    for row in read_csv_streaming(csv_dir, "optic_presc_prices.csv"):
+        presc_code = clean_legacy_text(row.get("presc_code"))
+        if presc_code:
+            rows_by_presc_code.setdefault(presc_code, []).append(row)
+    return rows_by_presc_code
+
+
+def _normalize_installment_count(value: Any) -> Optional[int]:
+    count = parse_int(value)
+    return count if count is not None and count > 0 else None
+
+
+def _normalize_supplied_by(value: Any, *, ui_default: bool = False) -> Tuple[Optional[str], Optional[str]]:
+    raw = clean_legacy_text(value)
+    if raw is None:
+        return ("חנות" if ui_default else None), None
+    if raw == "0":
+        return "חנות", None
+    if raw in {"חנות", "לקוח"}:
+        return raw, None
+    if raw in {"1", "2"}:
+        return "לקוח", None
+    return ("חנות" if ui_default else raw), raw
+
+
+def _add_advance_payment(db: Session, billing: Billing, advance_sum: Optional[float], paid_at: Optional[Any]) -> None:
+    if advance_sum is None or advance_sum <= 0:
+        return
+    payment_date = paid_at or datetime.utcnow().date()
+    db.add(
+        BillingPayment(
+            billing_id=billing.id,
+            amount=advance_sum,
+            paid_at=payment_date,
+            kind="payment",
+        )
+    )
+
+
+def _add_presc_price_line_items(db: Session, billing: Billing, presc_rows: List[Dict[str, Any]]) -> int:
+    added = 0
+    for row in presc_rows:
+        description = clean_legacy_text(row.get("item_name")) or "Item"
+        price = parse_float(row.get("item_price"))
+        quantity = parse_float(row.get("item_qty")) or 1.0
+        discount = parse_float(row.get("line_discount"))
+        line_total = parse_float(row.get("line_after_discount"))
+        if line_total is None and price is not None:
+            line_total = (price * quantity) - (discount or 0.0)
+        supplied_by, _legacy_supplied_by = _normalize_supplied_by(row.get("supplyby"), ui_default=False)
+        db.add(
+            OrderLineItem(
+                billings_id=billing.id,
+                sku=clean_legacy_text(row.get("item_code"))
+                or clean_legacy_text(row.get("bar_code"))
+                or clean_legacy_text(row.get("code")),
+                description=description,
+                supplied_by=supplied_by,
+                supplied=parse_bool_flag(row.get("supplied")),
+                price=price,
+                quantity=quantity,
+                discount=discount,
+                line_total=line_total,
+            )
+        )
+        added += 1
+    return added
+
+
 def migrate_clients_and_families(db: Session, csv_dir: str, company: Company, return_only: bool = False, target_clinic_id: Optional[int] = None) -> Tuple[Dict[str, int], Dict[str, int]]:
     # Returns: account_code -> client_id, head_of_family -> family_id
     t0 = time.time()
@@ -522,6 +606,7 @@ def migrate_contact_lens_orders(db: Session, csv_dir: str, account_to_client: Di
     valid_account_codes = set(account_to_client.keys())
     print(f"[cl_orders] filtering orders to {len(valid_account_codes)} valid account codes", flush=True)
     rows_iter = read_csv_streaming(csv_dir, "optic_contact_presc.csv")
+    presc_price_rows = _group_presc_price_rows(csv_dir)
     presc_code_to_order_id: Dict[str, int] = {}
     count = 0
     skipped_count = 0
@@ -629,6 +714,7 @@ def migrate_contact_lens_orders(db: Session, csv_dir: str, account_to_client: Di
 
         details_block = {
             "l_lens_type": l_lens_type,
+            "l_type": l_lens_type,
             "l_model": l_model,
             "l_supplier": l_supplier,
             "l_material": l_material,
@@ -636,6 +722,7 @@ def migrate_contact_lens_orders(db: Session, csv_dir: str, account_to_client: Di
             "l_quantity": l_quantity,
             "l_order_quantity": l_order_quantity,
             "r_lens_type": r_lens_type,
+            "r_type": r_lens_type,
             "r_model": r_model,
             "r_supplier": r_supplier,
             "r_material": r_material,
@@ -721,7 +808,7 @@ def migrate_contact_lens_orders(db: Session, csv_dir: str, account_to_client: Di
             total_sum = parse_float(r.get("total_sum"))
             discount_sum = parse_float(r.get("discount_sum"))
             advance_sum = parse_float(r.get("advance_sum"))
-            num_payments = parse_int(r.get("num_payments"))
+            num_payments = _normalize_installment_count(r.get("num_payments"))
             if any(v is not None for v in (total_sum, discount_sum, advance_sum, num_payments)):
                 billing = Billing(
                     order_id=None,
@@ -737,40 +824,43 @@ def migrate_contact_lens_orders(db: Session, csv_dir: str, account_to_client: Di
                 db.add(billing)
                 db.flush()
 
-                right_price = parse_float(r.get("right_lens_price"))
-                left_price = parse_float(r.get("left_lens_price"))
-                rl_discount = parse_float(r.get("rlens_discount"))
-                ll_discount = parse_float(r.get("llens_discount"))
-                right_qty = parse_int(r.get("right_qty")) or 0
-                left_qty = parse_int(r.get("left_qty")) or 0
+                source_price_rows = presc_price_rows.get(code or "", [])
+                if not _add_presc_price_line_items(db, billing, source_price_rows):
+                    right_price = parse_float(r.get("right_lens_price"))
+                    left_price = parse_float(r.get("left_lens_price"))
+                    rl_discount = parse_float(r.get("rlens_discount"))
+                    ll_discount = parse_float(r.get("llens_discount"))
+                    right_qty = parse_int(r.get("right_qty")) or 0
+                    left_qty = parse_int(r.get("left_qty")) or 0
 
-                if right_price is not None and right_qty > 0:
-                    oli = OrderLineItem(
-                        billings_id=billing.id,
-                        sku=None,
-                        description=r.get("right_model") or r.get("right_type") or "Right lens",
-                        supplied_by=r.get("right_manuf") or None,
-                        supplied=None,
-                        price=right_price,
-                        quantity=float(right_qty),
-                        discount=rl_discount,
-                        line_total=(right_price * float(right_qty)) - (rl_discount or 0.0),
-                    )
-                    db.add(oli)
+                    if right_price is not None and right_qty > 0:
+                        oli = OrderLineItem(
+                            billings_id=billing.id,
+                            sku=None,
+                            description=r.get("right_model") or r.get("right_type") or "Right lens",
+                            supplied_by=r.get("right_manuf") or None,
+                            supplied=None,
+                            price=right_price,
+                            quantity=float(right_qty),
+                            discount=rl_discount,
+                            line_total=(right_price * float(right_qty)) - (rl_discount or 0.0),
+                        )
+                        db.add(oli)
 
-                if left_price is not None and left_qty > 0:
-                    oli = OrderLineItem(
-                        billings_id=billing.id,
-                        sku=None,
-                        description=r.get("left_model") or r.get("left_type") or "Left lens",
-                        supplied_by=r.get("left_manuf") or None,
-                        supplied=None,
-                        price=left_price,
-                        quantity=float(left_qty),
-                        discount=ll_discount,
-                        line_total=(left_price * float(left_qty)) - (ll_discount or 0.0),
-                    )
-                    db.add(oli)
+                    if left_price is not None and left_qty > 0:
+                        oli = OrderLineItem(
+                            billings_id=billing.id,
+                            sku=None,
+                            description=r.get("left_model") or r.get("left_type") or "Left lens",
+                            supplied_by=r.get("left_manuf") or None,
+                            supplied=None,
+                            price=left_price,
+                            quantity=float(left_qty),
+                            discount=ll_discount,
+                            line_total=(left_price * float(left_qty)) - (ll_discount or 0.0),
+                        )
+                        db.add(oli)
+                _add_advance_payment(db, billing, advance_sum, order_date)
         except Exception:
             pass
         count += 1
@@ -786,6 +876,8 @@ def migrate_contact_lens_orders(db: Session, csv_dir: str, account_to_client: Di
 def migrate_regular_orders(db: Session, csv_dir: str, account_to_client: Dict[str, int], branch_to_clinic: Dict[str, int], admin_user_id: int):
     t0 = time.time()
     rows_iter = read_csv_streaming(csv_dir, "optic_glasses_presc.csv")
+    order_type_lookup = _build_lookup_code_name_map(csv_dir, "optic_tv_order_type.csv")
+    presc_price_rows = _group_presc_price_rows(csv_dir)
     count = 0
     skipped_count = 0
     commit_batch_size = int(os.environ.get("MIGRATION_ORDER_COMMIT_BATCH_SIZE", "1000"))
@@ -808,7 +900,13 @@ def migrate_regular_orders(db: Session, csv_dir: str, account_to_client: Dict[st
         order_date = parse_date(r.get("presc_date"))
         dominant_eye_raw = clean_legacy_text(r.get("dominant_eye"))
         dominant_eye = dominant_eye_raw.upper() if dominant_eye_raw and dominant_eye_raw.upper() in {"R", "L"} else None
-        order_type = clean_legacy_text(r.get("order_type")) or clean_legacy_text(r.get("glasses_function")) or "glasses"
+        raw_order_type = clean_legacy_text(r.get("order_type"))
+        order_type = (
+            order_type_lookup.get(raw_order_type or "")
+            or raw_order_type
+            or clean_legacy_text(r.get("glasses_function"))
+            or "glasses"
+        )
 
         frame_width, frame_bridge, frame_height = parse_frame_dimensions(r.get("frame_size"))
 
@@ -838,21 +936,34 @@ def migrate_regular_orders(db: Session, csv_dir: str, account_to_client: Dict[st
             "comb_high": None,
         }
 
+        lens_supplier = clean_legacy_text(r.get("lens_supplier"))
+        lens_material = clean_legacy_text(r.get("lens_mater"))
+        lens_color = clean_legacy_text(r.get("lens_color"))
+        lens_coating = clean_legacy_text(r.get("lens_coat"))
         lens = {
             "right_model": clean_legacy_text(r.get("lens_model_right")),
             "left_model": clean_legacy_text(r.get("lens_model_left")),
-            "color": clean_legacy_text(r.get("lens_color")),
-            "coating": clean_legacy_text(r.get("lens_coat")),
-            "material": clean_legacy_text(r.get("lens_mater")),
-            "supplier": clean_legacy_text(r.get("lens_supplier")),
+            "right_supplier": lens_supplier,
+            "left_supplier": lens_supplier,
+            "right_material": lens_material,
+            "left_material": lens_material,
+            "right_color": lens_color,
+            "left_color": lens_color,
+            "right_coating": lens_coating,
+            "left_coating": lens_coating,
+            "color": lens_color,
+            "coating": lens_coating,
+            "material": lens_material,
+            "supplier": lens_supplier,
         }
 
+        frame_supplied_by, legacy_frame_supplied_by = _normalize_supplied_by(r.get("frame_supply_by"), ui_default=True)
         frame = {
             "color": clean_legacy_text(r.get("frame_color")),
             "supplier": clean_legacy_text(r.get("frame_supplier")),
             "model": clean_legacy_text(r.get("frame_model")),
             "manufacturer": clean_legacy_text(r.get("frame_manuf")),
-            "supplied_by": clean_legacy_text(r.get("frame_supply_by")),
+            "supplied_by": frame_supplied_by,
             "bridge": frame_bridge if frame_bridge is not None else parse_float(r.get("frame_bridge")),
             "width": frame_width if frame_width is not None else parse_float(r.get("frame_width")),
             "height": frame_height if frame_height is not None else parse_float(r.get("frame_height")),
@@ -879,6 +990,8 @@ def migrate_regular_orders(db: Session, csv_dir: str, account_to_client: Dict[st
             "notes": notes,
             "lens_order_notes": lens_order_notes,
         }
+        if legacy_frame_supplied_by:
+            details["legacy_frame_supply_by"] = legacy_frame_supplied_by
 
         order_data: Dict[str, Any] = {}
         if any(v is not None for v in final_prescription.values()):
@@ -887,6 +1000,17 @@ def migrate_regular_orders(db: Session, csv_dir: str, account_to_client: Dict[st
             order_data["lens"] = lens
         if any(v is not None for v in frame.values()):
             order_data["frame"] = frame
+        if any(v is not None for v in lens.values()) or any(v is not None for v in frame.values()):
+            tab_id = f"migration-{clean_legacy_text(r.get('code')) or count + 1}"
+            order_data["lens_frame_tabs"] = [
+                {
+                    "id": tab_id,
+                    "type": clean_legacy_text(r.get("glasses_function")) or "רחוק",
+                    "lens": lens,
+                    "frame": frame,
+                }
+            ]
+            order_data["active_lens_frame_tab_id"] = tab_id
         if any(v is not None for v in details.values()):
             order_data["details"] = details
 
@@ -905,7 +1029,7 @@ def migrate_regular_orders(db: Session, csv_dir: str, account_to_client: Dict[st
         total_sum = parse_float(r.get("total_sum"))
         discount_sum = parse_float(r.get("discount_sum"))
         advance_sum = parse_float(r.get("advance_sum"))
-        num_payments = parse_int(r.get("num_payments"))
+        num_payments = _normalize_installment_count(r.get("num_payments"))
 
         if any(v is not None for v in (total_sum, discount_sum, advance_sum, num_payments)):
             billing = Billing(
@@ -921,53 +1045,57 @@ def migrate_regular_orders(db: Session, csv_dir: str, account_to_client: Dict[st
             db.add(billing)
             db.flush()
 
-            line_items = [
-                (
-                    clean_legacy_text(r.get("lens_model_right")) or clean_legacy_text(r.get("right_lens_type")) or "Right lens",
-                    clean_legacy_text(r.get("lens_supplier")),
-                    parse_float(r.get("right_lens_price")),
-                    1.0,
-                    parse_float(r.get("rlens_discount")),
-                ),
-                (
-                    clean_legacy_text(r.get("lens_model_left")) or clean_legacy_text(r.get("left_lens_type")) or "Left lens",
-                    clean_legacy_text(r.get("lens_supplier")),
-                    parse_float(r.get("left_lens_price")),
-                    1.0,
-                    parse_float(r.get("llens_discount")),
-                ),
-                (
-                    clean_legacy_text(r.get("frame_model")) or "Frame",
-                    clean_legacy_text(r.get("frame_supplier")),
-                    parse_float(r.get("frame_price")),
-                    1.0,
-                    parse_float(r.get("frame_discount")),
-                ),
-                (
-                    "Supplements",
-                    None,
-                    parse_float(r.get("supplements_price")),
-                    1.0,
-                    None,
-                ),
-            ]
-
-            for description, supplied_by, price, quantity, discount in line_items:
-                if price is None:
-                    continue
-                db.add(
-                    OrderLineItem(
-                        billings_id=billing.id,
-                        sku=None,
-                        description=description,
-                        supplied_by=supplied_by,
-                        supplied=None,
-                        price=price,
-                        quantity=quantity,
-                        discount=discount,
-                        line_total=(price * quantity) - (discount or 0.0),
+            presc_code = clean_legacy_text(r.get("code"))
+            source_price_rows = presc_price_rows.get(presc_code or "", [])
+            if not _add_presc_price_line_items(db, billing, source_price_rows):
+                line_items = [
+                    (
+                        clean_legacy_text(r.get("lens_model_right")) or clean_legacy_text(r.get("right_lens_type")) or "Right lens",
+                        clean_legacy_text(r.get("lens_supplier")),
+                        parse_float(r.get("right_lens_price")),
+                        1.0,
+                        parse_float(r.get("rlens_discount")),
+                    ),
+                    (
+                        clean_legacy_text(r.get("lens_model_left")) or clean_legacy_text(r.get("left_lens_type")) or "Left lens",
+                        clean_legacy_text(r.get("lens_supplier")),
+                        parse_float(r.get("left_lens_price")),
+                        1.0,
+                        parse_float(r.get("llens_discount")),
+                    ),
+                    (
+                        clean_legacy_text(r.get("frame_model")) or "Frame",
+                        clean_legacy_text(r.get("frame_supplier")),
+                        parse_float(r.get("frame_price")),
+                        1.0,
+                        parse_float(r.get("frame_discount")),
+                    ),
+                    (
+                        "Supplements",
+                        None,
+                        parse_float(r.get("supplements_price")),
+                        1.0,
+                        None,
                     )
-                )
+                ]
+
+                for description, supplied_by, price, quantity, discount in line_items:
+                    if price is None:
+                        continue
+                    db.add(
+                        OrderLineItem(
+                            billings_id=billing.id,
+                            sku=None,
+                            description=description,
+                            supplied_by=supplied_by,
+                            supplied=None,
+                            price=price,
+                            quantity=quantity,
+                            discount=discount,
+                            line_total=(price * quantity) - (discount or 0.0),
+                        )
+                    )
+            _add_advance_payment(db, billing, advance_sum, order_date)
 
         count += 1
         if count % 1000 == 0:
@@ -1064,6 +1192,8 @@ def enrich_from_contact_lens_chk(db: Session, csv_dir: str, account_to_client: D
                 })
                 if not details_block.get("r_lens_type"):
                     details_block["r_lens_type"] = r.get("lens_type") or None
+                if not details_block.get("r_type"):
+                    details_block["r_type"] = details_block.get("r_lens_type")
                 if not details_block.get("r_model"):
                     details_block["r_model"] = r.get("lens_model") or None
                 if not details_block.get("r_supplier"):
@@ -1079,6 +1209,8 @@ def enrich_from_contact_lens_chk(db: Session, csv_dir: str, account_to_client: D
                 })
                 if not details_block.get("l_lens_type"):
                     details_block["l_lens_type"] = r.get("lens_type") or None
+                if not details_block.get("l_type"):
+                    details_block["l_type"] = details_block.get("l_lens_type")
                 if not details_block.get("l_model"):
                     details_block["l_model"] = r.get("lens_model") or None
                 if not details_block.get("l_supplier"):
@@ -1303,12 +1435,80 @@ def migrate_files(
     print(f"[files] inserted total: {count}, took {time.time()-t0:.2f}s", flush=True)
 
 
+def build_medical_log_text(row: Dict[str, Any]) -> Optional[str]:
+    parts = []
+    for field in ("memo_reason", "memo_remark"):
+        value = clean_legacy_text(row.get(field))
+        if value and value not in parts:
+            parts.append(value)
+    return "\n".join(parts) if parts else None
+
+
+def normalize_account_chart_text(value: Optional[str]) -> Optional[str]:
+    text_value = clean_legacy_text(value)
+    if not text_value:
+        return None
+    return (
+        text_value.replace("\\x0d", "\r")
+        .replace("\\x0D", "\r")
+        .replace("\\x0a", "\n")
+        .replace("\\x0A", "\n")
+        .replace("\\r", "\r")
+        .replace("\\n", "\n")
+    )
+
+
+def parse_account_chart_entries(row: Dict[str, Any]) -> List[Tuple[Optional[datetime.date], str]]:
+    chart_text = normalize_account_chart_text(row.get("chart_text"))
+    if not chart_text:
+        return []
+
+    entries: List[Dict[str, Any]] = []
+    date_line_re = re.compile(r"^\s*(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})(?:\s+|$)(.*)$")
+    for raw_line in chart_text.replace("\r\n", "\n").replace("\r", "\n").split("\n"):
+        line = raw_line.strip()
+        if not line:
+            continue
+        match = date_line_re.match(line)
+        if match:
+            body = clean_legacy_text(match.group(2)) or ""
+            if body:
+                entries.append({"date": parse_date(match.group(1)), "log": body})
+            continue
+        if entries:
+            entries[-1]["log"] = f"{entries[-1]['log']}\n{line}"
+        else:
+            entries.append({"date": None, "log": line})
+
+    return [(entry["date"], entry["log"]) for entry in entries if clean_legacy_text(entry.get("log"))]
+
+
 def migrate_medical_logs(db: Session, csv_dir: str, account_to_client: Dict[str, int], branch_to_clinic: Dict[str, int], admin_user_id: int):
     t0 = time.time()
     rows_iter = read_csv_streaming(csv_dir, "account_memos.csv")
     count = 0
+    chart_count = 0
     pending = 0
+    skipped_empty = 0
     batch_m: List[MedicalLog] = []
+
+    def stage_log(client_id: int, clinic_id: Optional[int], log_date: Optional[datetime.date], log: str) -> None:
+        nonlocal pending
+        batch_m.append(
+            MedicalLog(
+                client_id=client_id,
+                clinic_id=clinic_id,
+                user_id=admin_user_id,
+                log_date=log_date,
+                log=log,
+            )
+        )
+        pending += 1
+        if pending % 5000 == 0:
+            db.bulk_save_objects(batch_m, return_defaults=True)
+            db.flush()
+            batch_m.clear()
+
     for r in rows_iter:
         account_code = str(r.get("account_code")) if r.get("account_code") else None
         if not account_code or account_code not in account_to_client:
@@ -1316,28 +1516,38 @@ def migrate_medical_logs(db: Session, csv_dir: str, account_to_client: Dict[str,
         client_id = account_to_client[account_code]
         clinic_id = resolve_migration_clinic_id(branch_to_clinic, r.get("branch_code"))
         log_date = parse_date(r.get("memo_date"))
-        log = r.get("memo_remark") or ""
+        log = build_medical_log_text(r)
+        if not log:
+            skipped_empty += 1
+            continue
 
-        m = MedicalLog(
-            client_id=client_id,
-            clinic_id=clinic_id,
-            user_id=admin_user_id,
-            log_date=log_date,
-            log=log,
-        )
-        batch_m.append(m)
-        pending += 1
-        if pending % 5000 == 0:
-            db.bulk_save_objects(batch_m, return_defaults=True)
-            db.flush()
-            batch_m.clear()
+        stage_log(client_id, clinic_id, log_date, log)
         count += 1
         if count % 1000 == 0:
             print(f"[memos] staged: {count}", flush=True)
+
+    client_clinic_ids = {
+        client.id: client.clinic_id
+        for client in db.query(Client.id, Client.clinic_id)
+        .filter(Client.id.in_(account_to_client.values()))
+        .all()
+    }
+    for r in read_csv_streaming(csv_dir, "account_chart.csv"):
+        account_code = str(r.get("account_code")) if r.get("account_code") else None
+        if not account_code or account_code not in account_to_client:
+            continue
+        client_id = account_to_client[account_code]
+        clinic_id = client_clinic_ids.get(client_id)
+        for log_date, log in parse_account_chart_entries(r):
+            stage_log(client_id, clinic_id, log_date, log)
+            chart_count += 1
+            if chart_count % 1000 == 0:
+                print(f"[charts] staged: {chart_count}", flush=True)
+
     if batch_m:
         db.bulk_save_objects(batch_m, return_defaults=True)
     db.commit()
-    print(f"[memos] inserted total: {count}, took {time.time()-t0:.2f}s", flush=True)
+    print(f"[memos] inserted total: {count}, chart entries: {chart_count}, skipped empty: {skipped_empty}, took {time.time()-t0:.2f}s", flush=True)
 
 
 def migrate_appointments(db: Session, csv_dir: str, account_to_client: Dict[str, int], branch_to_clinic: Dict[str, int], admin_user_id: int):

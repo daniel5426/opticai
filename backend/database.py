@@ -2,17 +2,36 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import QueuePool
+from sqlalchemy.pool import NullPool, QueuePool
 from fastapi import HTTPException
 from config import settings
 
 database_url = settings.DATABASE_URL
 parsed_url = make_url(database_url)
 
+
+def _uses_supabase_transaction_pooler() -> bool:
+    return (
+        parsed_url.get_backend_name() != "sqlite"
+        and parsed_url.host is not None
+        and parsed_url.host.endswith(".pooler.supabase.com")
+        and parsed_url.port == 6543
+    )
+
 if parsed_url.get_backend_name() == "sqlite":
     engine = create_engine(
         database_url,
         connect_args={"check_same_thread": False},
+    )
+elif _uses_supabase_transaction_pooler():
+    engine = create_engine(
+        database_url,
+        poolclass=NullPool,
+        pool_pre_ping=True,
+        connect_args={
+            "connect_timeout": 10,
+            "options": "-c statement_timeout=30000"
+        }
     )
 else:
     engine = create_engine(

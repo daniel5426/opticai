@@ -1,15 +1,28 @@
 import csv
 import zipfile
+from datetime import date
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from database import Base
-from models import Client, Clinic, Company, MigrationSourceLink, SoftOpticMigrationJob, User
+from models import (
+    Billing,
+    BillingPayment,
+    Client,
+    Clinic,
+    Company,
+    MigrationSourceLink,
+    Order,
+    OrderLineItem,
+    SoftOpticMigrationJob,
+    User,
+)
 from services.softoptic_migration_service import (
     SOFTOPTIC_SOURCE_SYSTEM,
     assert_safe_to_import,
+    cleanup_previous_softoptic_import,
     run_softoptic_import,
     validate_export_bundle,
 )
@@ -154,3 +167,45 @@ def test_untracked_existing_data_blocks_import(tmp_path):
             assert False, "expected guard to block"
         except RuntimeError as exc:
             assert "untracked data" in str(exc)
+
+
+def test_cleanup_deletes_billing_payments_before_billings(tmp_path):
+    SessionLocal = _session_factory()
+    bundle_path, _ = _write_bundle(tmp_path)
+
+    with SessionLocal() as db:
+        _, clinic = _seed_job(db, bundle_path)
+        client = Client(company_id=clinic.company_id, clinic_id=clinic.id, first_name="A")
+        db.add(client)
+        db.flush()
+        order = Order(client_id=client.id, clinic_id=clinic.id, user_id=None, order_data={})
+        db.add(order)
+        db.flush()
+        billing = Billing(order_id=order.id, prepayment_amount=22.0)
+        db.add(billing)
+        db.flush()
+        db.add(BillingPayment(billing_id=billing.id, amount=22.0, paid_at=date(2026, 6, 15), kind="payment"))
+        db.add(OrderLineItem(billings_id=billing.id, description="Item", price=22.0))
+        db.add(
+            MigrationSourceLink(
+                source_system=SOFTOPTIC_SOURCE_SYSTEM,
+                source_table="Order",
+                raw_row_ref=f"job1:Order:{order.id}",
+                source_primary_key_parts=[["id", str(order.id)]],
+                target_model="Order",
+                target_id=order.id,
+                clinic_id=clinic.id,
+                company_id=clinic.company_id,
+                payload={"job_id": "job1"},
+            )
+        )
+        db.commit()
+
+        deleted = cleanup_previous_softoptic_import(db, clinic.id, storage=None)
+
+        assert deleted["BillingPayment"] == 1
+        assert deleted["OrderLineItem"] == 1
+        assert deleted["Billing"] == 1
+        assert db.query(BillingPayment).count() == 0
+        assert db.query(Billing).count() == 0
+        assert db.query(Order).count() == 0

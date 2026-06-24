@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 from models import (
     Appointment,
     Billing,
+    BillingPayment,
     Client,
     Clinic,
     ContactLensOrder,
@@ -414,6 +415,7 @@ def cleanup_previous_softoptic_import(db: Session, clinic_id: int, storage: Opti
     if billing_filters:
         billing_ids = [row[0] for row in billing_query.filter(or_(*billing_filters)).all()]
     if billing_ids:
+        deleted["BillingPayment"] = db.query(BillingPayment).filter(BillingPayment.billing_id.in_(billing_ids)).delete(synchronize_session=False)
         deleted["OrderLineItem"] = db.query(OrderLineItem).filter(OrderLineItem.billings_id.in_(billing_ids)).delete(synchronize_session=False)
         deleted["Billing"] = db.query(Billing).filter(Billing.id.in_(billing_ids)).delete(synchronize_session=False)
 
