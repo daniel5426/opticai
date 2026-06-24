@@ -204,7 +204,8 @@ $manifest = [PSCustomObject]@{
     table_count = $tables.Count
     tables = $manifestRows
 }
-$manifest | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $OutputDir "manifest.json") -Encoding utf8
+$manifestJson = $manifest | ConvertTo-Json -Depth 5
+[System.IO.File]::WriteAllText((Join-Path $OutputDir "manifest.json"), $manifestJson, $utf8NoBom)
 
 Write-Host "Export complete: $OutputDir"
 Write-Host "Tables exported: $($tables.Count)"

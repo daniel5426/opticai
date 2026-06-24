@@ -502,20 +502,23 @@ async function scanSoftOpticCandidates(): Promise<{ supported: boolean; candidat
     const driverMatch = stdout.match(/Driver\s+REG_\w+\s+(.+)/i);
     const dbMatch = stdout.match(/(?:DatabaseFile|Database|DBF)\s+REG_\w+\s+(.+)/i);
     const dbFile = dbMatch?.[1]?.trim();
-    addCandidate({
-      id: "dsn-RRDB",
-      kind: "dsn",
-      label: "RRDB",
-      dsn: "RRDB",
-      dbFile: dbFile && fs.existsSync(dbFile) ? dbFile : "C:\\RR\\Data\\RRDB.db",
-      logFile: fs.existsSync("C:\\RR\\Data\\rrdb.log") ? "C:\\RR\\Data\\rrdb.log" : undefined,
-      documentPath: fs.existsSync("C:\\RR\\Document") ? "C:\\RR\\Document" : undefined,
-      ...(dbFile && fs.existsSync(dbFile) ? getFileInfo(dbFile) : getFileInfo("C:\\RR\\Data\\RRDB.db")),
-      reasons: [
-        "נמצא DSN בשם RRDB",
-        ...(driverMatch?.[1] ? [`דרייבר: ${driverMatch[1].trim()}`] : []),
-      ],
-    });
+    const dbFileExists = Boolean(dbFile && fs.existsSync(dbFile));
+    if (!dbFile || dbFileExists) {
+      addCandidate({
+        id: "dsn-RRDB",
+        kind: "dsn",
+        label: "RRDB",
+        dsn: "RRDB",
+        dbFile: dbFileExists ? dbFile : undefined,
+        logFile: fs.existsSync("C:\\RR\\Data\\rrdb.log") ? "C:\\RR\\Data\\rrdb.log" : undefined,
+        documentPath: fs.existsSync("C:\\RR\\Document") ? "C:\\RR\\Document" : undefined,
+        ...(dbFileExists && dbFile ? getFileInfo(dbFile) : {}),
+        reasons: [
+          "נמצא DSN בשם RRDB",
+          ...(driverMatch?.[1] ? [`דרייבר: ${driverMatch[1].trim()}`] : []),
+        ],
+      });
+    }
   } catch {
     // DSN might not exist; known file candidates still cover copied DB flow.
   }
@@ -593,8 +596,11 @@ async function exportSoftOpticCandidate(candidate: SoftOpticCandidate, sqlAnywhe
     }
 
     const manifestPath = path.join(outputDir, "manifest.json");
-    const manifest = fs.existsSync(manifestPath)
-      ? JSON.parse(await fs.promises.readFile(manifestPath, "utf-8"))
+    const manifestText = fs.existsSync(manifestPath)
+      ? await fs.promises.readFile(manifestPath, "utf-8")
+      : "";
+    const manifest = manifestText
+      ? JSON.parse(manifestText.replace(/^\uFEFF/, ""))
       : {};
     const summary = {
       clients: await countFileRows(path.join(outputDir, "account.csv")),
