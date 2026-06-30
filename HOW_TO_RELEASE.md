@@ -34,17 +34,19 @@ Before production backend deploy:
 ## 2. Deploy Backend
 
 Pushes to `main` deploy backend changes to Railway `staging` through `.github/workflows/backend-railway.yml`.
+The workflow deploys both the backend API service and the SoftOptic worker from the same commit.
 
 Production backend deploy is manual:
 
 1. Open GitHub Actions.
 2. Run `Backend Railway Deploy`.
 3. Choose `production`.
-4. Verify:
+4. Verify the API and worker:
 
 ```bash
 curl https://api.prysm.co.il/health
 curl https://api.prysm.co.il/health/database
+railway logs --environment production --service softoptic-migration-worker-Z2hA --lines 100 --json
 ```
 
 Staging verification:
@@ -52,7 +54,10 @@ Staging verification:
 ```bash
 curl https://staging-api.prysm.co.il/health
 curl https://staging-api.prysm.co.il/health/database
+railway logs --environment staging --service softoptic-migration-worker --lines 100 --json
 ```
+
+Worker logs should show `SoftOptic migration worker started id=...` and must not show `npm run start:web`.
 
 ## 3. Smoke Test
 

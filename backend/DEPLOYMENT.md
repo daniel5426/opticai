@@ -6,6 +6,8 @@ Last Updated: 2026-05-11
 
 - Railway project: `opticai`
 - Backend service: `opticai`
+- Production SoftOptic worker service: `softoptic-migration-worker-Z2hA`
+- Staging SoftOptic worker service: `softoptic-migration-worker`
 - Production web service: `prysm-web`
 - Staging web service: `prysm-web-staging`
 - Environments:
@@ -15,7 +17,11 @@ Last Updated: 2026-05-11
 - Staging API: `https://staging-api.prysm.co.il`
 - Staging web: `https://prysm-web-staging-staging.up.railway.app`
 
-Railway builds only `backend/`. Config-as-code lives in `backend/railway.json`.
+Railway builds the backend API and SoftOptic workers from `backend/`.
+The API starts with `uvicorn main:app --host 0.0.0.0 --port $PORT`.
+The SoftOptic workers start with `python -m workers.softoptic_migration_worker`.
+Config-as-code for the API lives in `backend/railway.json`.
+Config-as-code for the workers lives in `backend/railway.worker.json`; worker services must use that config file and must not run `safe_migrate.py`.
 
 Production uses Supabase direct Postgres over IPv6 because the `opticai-prod` Supabase pooler endpoint timed out from Railway during migration. Keep `ipv6EgressEnabled` enabled in Railway config.
 
@@ -43,6 +49,7 @@ Google, WhatsApp, and Facebook variables are optional unless the release touches
 ## Deploy Flow
 
 - Pushes to `main` deploy backend changes to Railway `staging` through GitHub Actions.
+- Backend deploys must update both `opticai` and the environment's SoftOptic worker from the same commit.
 - Pushes to `main` deploy web changes to Railway `staging` through GitHub Actions.
 - Production deploys are manual from the `Backend Railway Deploy` and `Web Railway Deploy` workflows.
 - Railway production services must not autodeploy from `main`; they are pinned to the non-working trigger branch `manual-production-only` so production only changes through explicit workflow dispatch.
@@ -52,7 +59,9 @@ Manual CLI deploys, when needed:
 
 ```bash
 railway up --ci --project fb97ce50-fb72-4612-bfd1-c6d8a7bed9cb --environment staging --service opticai --message "Manual staging deploy"
+railway up --ci --project fb97ce50-fb72-4612-bfd1-c6d8a7bed9cb --environment staging --service softoptic-migration-worker --message "Manual staging SoftOptic worker deploy"
 railway up --ci --project fb97ce50-fb72-4612-bfd1-c6d8a7bed9cb --environment production --service opticai --message "Manual production deploy"
+railway up --ci --project fb97ce50-fb72-4612-bfd1-c6d8a7bed9cb --environment production --service softoptic-migration-worker-Z2hA --message "Manual production SoftOptic worker deploy"
 railway up --ci --project fb97ce50-fb72-4612-bfd1-c6d8a7bed9cb --environment staging --service prysm-web-staging --message "Manual staging web deploy"
 railway up --ci --project fb97ce50-fb72-4612-bfd1-c6d8a7bed9cb --environment production --service prysm-web --message "Manual production web deploy"
 ```
@@ -83,6 +92,15 @@ curl https://staging-api.prysm.co.il/health/database
 curl https://api.prysm.co.il/health
 curl https://api.prysm.co.il/health/database
 ```
+
+SoftOptic worker verification:
+
+```bash
+railway logs --environment staging --service softoptic-migration-worker --lines 100 --json
+railway logs --environment production --service softoptic-migration-worker-Z2hA --lines 100 --json
+```
+
+Worker logs should show `SoftOptic migration worker started id=...` and must not show `npm run start:web`.
 
 Before production deploys with migrations:
 

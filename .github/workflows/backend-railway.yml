@@ -47,6 +47,8 @@ jobs:
           backend/tests/test_production_hardening.py
           backend/tests/test_files_api.py
           backend/tests/test_default_exam_layout_seeds.py
+          backend/tests/test_migration_helpers.py
+          backend/tests/test_softoptic_migration_service.py
 
   deploy-staging:
     if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.environment == 'staging')
@@ -71,6 +73,17 @@ jobs:
             --service opticai \
             --message "Staging backend deploy $GITHUB_SHA"
 
+      - name: Deploy SoftOptic worker to Railway staging
+        env:
+          RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_TOKEN_STAGING }}
+        run: |
+          railway up \
+            --ci \
+            --project fb97ce50-fb72-4612-bfd1-c6d8a7bed9cb \
+            --environment staging \
+            --service softoptic-migration-worker \
+            --message "Staging SoftOptic worker deploy $GITHUB_SHA"
+
   deploy-production:
     if: github.event_name == 'workflow_dispatch' && inputs.environment == 'production'
     needs: test
@@ -93,3 +106,14 @@ jobs:
             --environment production \
             --service opticai \
             --message "Production backend deploy $GITHUB_SHA"
+
+      - name: Deploy SoftOptic worker to Railway production
+        env:
+          RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_TOKEN_PRODUCTION }}
+        run: |
+          railway up \
+            --ci \
+            --project fb97ce50-fb72-4612-bfd1-c6d8a7bed9cb \
+            --environment production \
+            --service softoptic-migration-worker-Z2hA \
+            --message "Production SoftOptic worker deploy $GITHUB_SHA"

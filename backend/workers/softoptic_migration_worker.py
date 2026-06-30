@@ -43,7 +43,7 @@ def run_once(worker_name: str) -> bool:
         return True
     except Exception:
         logger.exception("SoftOptic worker iteration failed")
-        return True
+        return False
     finally:
         db.close()
 
