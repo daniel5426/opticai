@@ -631,6 +631,7 @@ def create_job(
     source_metadata: dict[str, Any],
     export_summary: dict[str, Any],
     include_documents: bool,
+    client_import_limit: Optional[int] = None,
 ) -> SoftOpticMigrationJob:
     job = SoftOpticMigrationJob(
         id=job_id,
@@ -641,6 +642,7 @@ def create_job(
         step="ממתין להעלאת קובץ",
         progress=6,
         include_documents=include_documents,
+        client_import_limit=client_import_limit,
         source_metadata=source_metadata,
         export_summary=export_summary,
         validation_summary={},
@@ -798,16 +800,18 @@ def run_softoptic_import(
         for branch_code in branch_codes:
             branch_to_clinic[branch_code] = job.clinic_id
 
+        account_to_client: dict[str, int] = {}
         if not phase_completed(job, "clients"):
             before = _snapshot_clinic_rows(db, job.clinic_id)
             on_progress(step="ייבוא לקוחות ומשפחות", progress=42, heartbeat=True)
             migrate_lookups(db, csv_root, [job.clinic_id])
-            migrate_clients_and_families(
+            account_to_client, _ = migrate_clients_and_families(
                 db,
                 csv_root,
                 clinic.company,
                 return_only=False,
                 target_clinic_id=job.clinic_id,
+                max_clients=job.client_import_limit,
             )
             tracked = _track_new_rows(
                 db,
@@ -817,17 +821,22 @@ def run_softoptic_import(
                 job_id=job.id,
             )
             import_summary["tracked_counts"] = _merge_counts(import_summary.get("tracked_counts", {}), tracked)
+            if job.client_import_limit:
+                import_summary["client_import_limit"] = job.client_import_limit
+                import_summary["client_imported_count"] = len(account_to_client)
             on_progress(import_summary=import_summary, heartbeat=True)
             if mark_checkpoint(db, job, phase="clients", step="ייבוא לקוחות ומשפחות", progress=52):
                 return
 
-        account_to_client, _ = migrate_clients_and_families(
-            db,
-            csv_root,
-            clinic.company,
-            return_only=True,
-            target_clinic_id=job.clinic_id,
-        )
+        if not account_to_client:
+            account_to_client, _ = migrate_clients_and_families(
+                db,
+                csv_root,
+                clinic.company,
+                return_only=True,
+                target_clinic_id=job.clinic_id,
+                max_clients=job.client_import_limit,
+            )
 
         presc_code_to_order_id = {}
         if not phase_completed(job, "clinical"):
@@ -934,6 +943,7 @@ def job_to_dict(job: SoftOpticMigrationJob) -> dict[str, Any]:
         "step": job.step,
         "progress": job.progress,
         "include_documents": bool(job.include_documents),
+        "client_import_limit": job.client_import_limit,
         "source_metadata": job.source_metadata or {},
         "export_summary": job.export_summary or {},
         "validation_summary": job.validation_summary or {},

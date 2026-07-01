@@ -43,6 +43,10 @@ def create_softoptic_import(
     clinic = db.query(Clinic).filter(Clinic.id == clinic_id).first()
     if not clinic or not clinic.is_active:
         raise HTTPException(status_code=404, detail="Clinic not found")
+    client_import_limit = payload.get("client_import_limit")
+    if client_import_limit is not None:
+        if not isinstance(client_import_limit, int) or client_import_limit < 1:
+            raise HTTPException(status_code=422, detail="client_import_limit must be a positive integer")
 
     job_id = uuid4().hex
     job = create_job(
@@ -53,6 +57,7 @@ def create_softoptic_import(
         source_metadata=payload.get("source_metadata") if isinstance(payload.get("source_metadata"), dict) else {},
         export_summary=payload.get("export_summary") if isinstance(payload.get("export_summary"), dict) else {},
         include_documents=bool(payload.get("include_documents")),
+        client_import_limit=client_import_limit,
     )
     return job_to_dict(job)
 

@@ -2070,6 +2070,7 @@ class ApiClient {
     sourceMetadata: Record<string, any>;
     exportSummary: Record<string, any>;
     includeDocuments: boolean;
+    clientImportLimit?: number | null;
   }) {
     return this.request('/migration/softoptic/imports', {
       method: 'POST',
@@ -2078,6 +2079,7 @@ class ApiClient {
         source_metadata: data.sourceMetadata || {},
         export_summary: data.exportSummary || {},
         include_documents: data.includeDocuments,
+        client_import_limit: data.clientImportLimit ?? null,
       }),
     });
   }

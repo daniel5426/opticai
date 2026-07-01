@@ -82,8 +82,15 @@ export function SoftOpticMigrationTab({ clinicId }: SoftOpticMigrationTabProps) 
   const [exportSummary, setExportSummary] = useState<Record<string, any> | null>(null)
   const [zipPath, setZipPath] = useState<string | null>(null)
   const [includeDocuments, setIncludeDocuments] = useState<boolean | null>(null)
+  const [clientImportLimit, setClientImportLimit] = useState("")
+  const [exportJobId, setExportJobId] = useState<string | null>(null)
   const [job, setJob] = useState<any>(null)
   const [error, setError] = useState<string | null>(null)
+
+  const exportStorageKey = useMemo(
+    () => clinicId ? `softoptic-export-job:${clinicId}` : null,
+    [clinicId],
+  )
 
   const selectedCandidate = useMemo(() => {
     if (selectedId === "manual" && manualDbPath.trim()) {
@@ -122,6 +129,58 @@ export function SoftOpticMigrationTab({ clinicId }: SoftOpticMigrationTabProps) 
       cancelled = true
     }
   }, [clinicId, job?.id])
+
+  useEffect(() => {
+    if (!exportStorageKey || exportJobId) return
+    const savedJobId = window.localStorage.getItem(exportStorageKey)
+    if (savedJobId) setExportJobId(savedJobId)
+  }, [exportJobId, exportStorageKey])
+
+  useEffect(() => {
+    if (!exportJobId || !window.electronAPI?.softOpticExportStatus) return
+    let cancelled = false
+
+    const applyStatus = (status: any) => {
+      if (!status || cancelled) return
+      if (status.candidate) {
+        setCandidates(current => current.some(candidate => candidate.id === status.candidate.id) ? current : [status.candidate, ...current])
+        setSelectedId(status.candidate.id)
+      }
+      if (typeof status.includeDocuments === "boolean") {
+        setIncludeDocuments(status.includeDocuments)
+      }
+      setProgress(status.progress || 0)
+      setStepText(status.step || "ייצוא נתונים")
+      if (status.status === "completed") {
+        setExportSummary(status.summary || {})
+        setZipPath(status.zipPath || null)
+        setPhase("ready")
+      } else if (status.status === "failed") {
+        setError(status.error || "הייצוא נכשל")
+        setPhase("failed")
+      } else {
+        setPhase("exporting")
+      }
+    }
+
+    const poll = async () => {
+      const status = await window.electronAPI.softOpticExportStatus({ jobId: exportJobId })
+      applyStatus(status)
+      return status
+    }
+
+    poll()
+    const interval = window.setInterval(async () => {
+      const status = await poll()
+      if (status?.status && status.status !== "running") {
+        window.clearInterval(interval)
+      }
+    }, 1500)
+    return () => {
+      cancelled = true
+      window.clearInterval(interval)
+    }
+  }, [exportJobId])
 
   useEffect(() => {
     if (!job?.id || !["uploading", "importing", "paused"].includes(phase)) return
@@ -189,6 +248,22 @@ export function SoftOpticMigrationTab({ clinicId }: SoftOpticMigrationTabProps) 
     setPhase("exporting")
     setProgress(35)
     setStepText("ייצוא נתונים")
+    if (window.electronAPI.softOpticStartExport) {
+      const started = await window.electronAPI.softOpticStartExport({
+        clinicId,
+        candidate: selectedCandidate,
+        sqlAnywhereBin: sqlAnywhereBin.trim() || undefined,
+        includeDocuments,
+      })
+      if (!started.success || !started.jobId) {
+        setError(started.error || "הייצוא נכשל")
+        setPhase("failed")
+        return
+      }
+      setExportJobId(started.jobId)
+      if (exportStorageKey) window.localStorage.setItem(exportStorageKey, started.jobId)
+      return
+    }
     const result = await window.electronAPI.softOpticExport({
       candidate: selectedCandidate,
       sqlAnywhereBin: sqlAnywhereBin.trim() || undefined,
@@ -208,6 +283,12 @@ export function SoftOpticMigrationTab({ clinicId }: SoftOpticMigrationTabProps) 
 
   const uploadAndImport = async () => {
     if (!clinicId || !selectedCandidate || !zipPath || includeDocuments === null) return
+    const trimmedLimit = clientImportLimit.trim()
+    const parsedLimit = trimmedLimit ? Number.parseInt(trimmedLimit, 10) : null
+    if (trimmedLimit && (!Number.isFinite(parsedLimit) || !parsedLimit || parsedLimit < 1)) {
+      toast.error("יש להזין מגבלת לקוחות תקינה")
+      return
+    }
     setPhase("uploading")
     setProgress(60)
     setStepText("העלאה")
@@ -216,6 +297,7 @@ export function SoftOpticMigrationTab({ clinicId }: SoftOpticMigrationTabProps) 
       sourceMetadata: selectedCandidate,
       exportSummary: exportSummary || {},
       includeDocuments,
+      clientImportLimit: parsedLimit,
     })
     if (createResponse.error || !createResponse.data) {
       setError(createResponse.error || "יצירת פעולת הייבוא נכשלה")
@@ -231,6 +313,8 @@ export function SoftOpticMigrationTab({ clinicId }: SoftOpticMigrationTabProps) 
     }
     const uploadedJob = (uploadResponse as any).data
     setJob(uploadedJob)
+    setExportJobId(null)
+    if (exportStorageKey) window.localStorage.removeItem(exportStorageKey)
     setPhase("importing")
     setProgress(uploadedJob?.progress || 65)
     setStepText(uploadedJob?.step || "ממתין לעובד ייבוא")
@@ -279,8 +363,11 @@ export function SoftOpticMigrationTab({ clinicId }: SoftOpticMigrationTabProps) 
     setExportSummary(null)
     setZipPath(null)
     setIncludeDocuments(null)
+    setClientImportLimit("")
+    setExportJobId(null)
     setJob(null)
     setError(null)
+    if (exportStorageKey) window.localStorage.removeItem(exportStorageKey)
   }
 
   const busy = ["scanning", "exporting", "uploading"].includes(phase)
@@ -439,6 +526,17 @@ export function SoftOpticMigrationTab({ clinicId }: SoftOpticMigrationTabProps) 
               <div className="font-medium">ייבוא נתונים + מסמכים מותאמים</div>
               <div className="mt-1 text-xs text-muted-foreground">רק מסמכים שניתן לשייך בוודאות ללקוח יועלו.</div>
             </button>
+          </div>
+
+          <div className="space-y-2 rounded-md border p-3">
+            <Label className="block text-right">מגבלת לקוחות בשלב הייבוא</Label>
+            <Input
+              value={clientImportLimit}
+              onChange={event => setClientImportLimit(event.target.value.replace(/[^\d]/g, ""))}
+              placeholder="ללא מגבלה"
+              inputMode="numeric"
+              dir="ltr"
+            />
           </div>
         </CardContent>
       </Card>

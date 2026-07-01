@@ -3,6 +3,7 @@ import dotenv from 'dotenv';
 import fs from 'fs';
 import path from "path";
 import { spawn } from "child_process";
+import { randomUUID } from "crypto";
 
 // Load the appropriate .env file based on environment
 if (process.env.NODE_ENV === 'production') {
@@ -414,6 +415,72 @@ type SoftOpticCandidate = {
   reasons: string[];
 };
 
+type SoftOpticExportStatus = {
+  jobId: string;
+  status: "running" | "completed" | "failed";
+  phase: "exporting" | "ready" | "failed";
+  progress: number;
+  step: string;
+  clinicId?: number;
+  candidate: SoftOpticCandidate;
+  sqlAnywhereBin?: string;
+  includeDocuments: boolean;
+  startedAt: string;
+  updatedAt: string;
+  outputDir?: string;
+  zipPath?: string;
+  summary?: Record<string, any>;
+  error?: string;
+};
+
+const activeSoftOpticExportJobs = new Set<string>();
+
+function getSoftOpticExportJobsPath() {
+  return path.join(app.getPath("userData"), "softoptic-export-jobs.json");
+}
+
+async function readSoftOpticExportJobs(): Promise<Record<string, SoftOpticExportStatus>> {
+  try {
+    const text = await fs.promises.readFile(getSoftOpticExportJobsPath(), "utf-8");
+    const parsed = JSON.parse(text);
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+async function writeSoftOpticExportJobs(jobs: Record<string, SoftOpticExportStatus>) {
+  const entries = Object.entries(jobs)
+    .sort(([, a], [, b]) => String(b.updatedAt).localeCompare(String(a.updatedAt)))
+    .slice(0, 20);
+  await fs.promises.mkdir(path.dirname(getSoftOpticExportJobsPath()), { recursive: true });
+  await fs.promises.writeFile(getSoftOpticExportJobsPath(), JSON.stringify(Object.fromEntries(entries), null, 2), "utf-8");
+}
+
+async function saveSoftOpticExportStatus(status: SoftOpticExportStatus) {
+  const jobs = await readSoftOpticExportJobs();
+  jobs[status.jobId] = { ...status, updatedAt: new Date().toISOString() };
+  await writeSoftOpticExportJobs(jobs);
+}
+
+async function getSoftOpticExportStatus(jobId: string): Promise<SoftOpticExportStatus | null> {
+  const jobs = await readSoftOpticExportJobs();
+  const status = jobs[jobId];
+  if (!status) return null;
+  if (status.status === "running" && !activeSoftOpticExportJobs.has(jobId)) {
+    const failed = {
+      ...status,
+      status: "failed" as const,
+      phase: "failed" as const,
+      step: "ייצוא הופסק",
+      error: "Extraction was interrupted before it completed",
+    };
+    await saveSoftOpticExportStatus(failed);
+    return failed;
+  }
+  return status;
+}
+
 function runProcess(command: string, args: string[], options: { cwd?: string } = {}): Promise<{ stdout: string; stderr: string }> {
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, {
@@ -636,6 +703,76 @@ async function exportSoftOpticCandidate(candidate: SoftOpticCandidate, sqlAnywhe
   }
 }
 
+async function startSoftOpticExportJob(payload: {
+  clinicId?: number;
+  candidate: SoftOpticCandidate;
+  sqlAnywhereBin?: string;
+  includeDocuments?: boolean;
+}) {
+  const now = new Date().toISOString();
+  const jobId = randomUUID();
+  const status: SoftOpticExportStatus = {
+    jobId,
+    status: "running",
+    phase: "exporting",
+    progress: 35,
+    step: "ייצוא נתונים",
+    clinicId: payload.clinicId,
+    candidate: payload.candidate,
+    sqlAnywhereBin: payload.sqlAnywhereBin,
+    includeDocuments: Boolean(payload.includeDocuments),
+    startedAt: now,
+    updatedAt: now,
+  };
+  activeSoftOpticExportJobs.add(jobId);
+  await saveSoftOpticExportStatus(status);
+
+  void (async () => {
+    try {
+      const result = await exportSoftOpticCandidate(
+        payload.candidate,
+        payload.sqlAnywhereBin,
+        Boolean(payload.includeDocuments),
+      );
+      if (!result.success || !result.zipPath) {
+        await saveSoftOpticExportStatus({
+          ...status,
+          status: "failed",
+          phase: "failed",
+          progress: 35,
+          step: "ייצוא נכשל",
+          outputDir: result.outputDir,
+          error: result.error || "SoftOptic export failed",
+        });
+        return;
+      }
+      await saveSoftOpticExportStatus({
+        ...status,
+        status: "completed",
+        phase: "ready",
+        progress: 52,
+        step: "סיכום",
+        outputDir: result.outputDir,
+        zipPath: result.zipPath,
+        summary: result.summary || {},
+      });
+    } catch (error) {
+      await saveSoftOpticExportStatus({
+        ...status,
+        status: "failed",
+        phase: "failed",
+        progress: 35,
+        step: "ייצוא נכשל",
+        error: error instanceof Error ? error.message : String(error),
+      });
+    } finally {
+      activeSoftOpticExportJobs.delete(jobId);
+    }
+  })();
+
+  return { success: true, jobId, status };
+}
+
 async function uploadSoftOpticBundle(payload: { apiBaseUrl: string; jobId: string; zipPath: string; accessToken: string }) {
   try {
     if (!payload.accessToken) {
@@ -689,6 +826,14 @@ function setupIpcHandlers() {
 
   ipcMain.handle('softoptic-export', async (_event, payload: { candidate: SoftOpticCandidate; sqlAnywhereBin?: string; includeDocuments?: boolean }) => {
     return exportSoftOpticCandidate(payload.candidate, payload.sqlAnywhereBin, Boolean(payload.includeDocuments));
+  });
+
+  ipcMain.handle('softoptic-start-export', async (_event, payload: { clinicId?: number; candidate: SoftOpticCandidate; sqlAnywhereBin?: string; includeDocuments?: boolean }) => {
+    return startSoftOpticExportJob(payload);
+  });
+
+  ipcMain.handle('softoptic-export-status', async (_event, payload: { jobId: string }) => {
+    return getSoftOpticExportStatus(payload.jobId);
   });
 
   ipcMain.handle('softoptic-upload-bundle', async (_event, payload: { apiBaseUrl: string; jobId: string; zipPath: string; accessToken: string }) => {

@@ -124,6 +124,20 @@ export interface ElectronAPI {
     summary?: Record<string, any>;
     error?: string;
   }>;
+  softOpticStartExport: (payload: {
+    clinicId?: number;
+    candidate: any;
+    sqlAnywhereBin?: string;
+    includeDocuments?: boolean;
+  }) => Promise<{
+    success: boolean;
+    jobId?: string;
+    status?: Record<string, any>;
+    error?: string;
+  }>;
+  softOpticExportStatus: (payload: {
+    jobId: string;
+  }) => Promise<Record<string, any> | null>;
   softOpticUploadBundle: (payload: {
     apiBaseUrl: string;
     jobId: string;

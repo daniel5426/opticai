@@ -24,6 +24,7 @@ from services.softoptic_migration_service import (
     assert_safe_to_import,
     cleanup_previous_softoptic_import,
     run_softoptic_import,
+    update_job,
     validate_export_bundle,
 )
 
@@ -39,7 +40,7 @@ def _session_factory():
     return SessionLocal
 
 
-def _write_bundle(tmp_path, first_name="שם"):
+def _write_bundle(tmp_path, first_name="שם", client_count=1):
     export_dir = tmp_path / "export"
     export_dir.mkdir()
     with (export_dir / "account.csv").open("w", newline="", encoding="utf-8") as handle:
@@ -55,23 +56,25 @@ def _write_bundle(tmp_path, first_name="שם"):
             ],
         )
         writer.writeheader()
-        writer.writerow(
-            {
-                "account_code": "101",
-                "account_type": "CUST",
-                "branch_code": "A",
-                "head_of_family": "101",
-                "first_name": first_name,
-                "last_name": "כהן",
-            }
-        )
+        for index in range(client_count):
+            account_code = str(101 + index)
+            writer.writerow(
+                {
+                    "account_code": account_code,
+                    "account_type": "CUST",
+                    "branch_code": "A",
+                    "head_of_family": account_code,
+                    "first_name": first_name,
+                    "last_name": "כהן",
+                }
+            )
     bundle_path = tmp_path / "bundle.zip"
     with zipfile.ZipFile(bundle_path, "w") as archive:
         archive.write(export_dir / "account.csv", "account.csv")
     return bundle_path, export_dir
 
 
-def _seed_job(db, bundle_path, job_id="job1"):
+def _seed_job(db, bundle_path, job_id="job1", client_import_limit=None):
     company = Company(name="A", owner_full_name="Owner")
     db.add(company)
     db.flush()
@@ -94,6 +97,7 @@ def _seed_job(db, bundle_path, job_id="job1"):
         warnings=[],
         errors=[],
         bundle_path=str(bundle_path),
+        client_import_limit=client_import_limit,
     )
     db.add(job)
     db.commit()
@@ -167,6 +171,28 @@ def test_untracked_existing_data_blocks_import(tmp_path):
             assert False, "expected guard to block"
         except RuntimeError as exc:
             assert "untracked data" in str(exc)
+
+
+def test_softoptic_import_respects_client_import_limit(tmp_path):
+    SessionLocal = _session_factory()
+    bundle_path, _ = _write_bundle(tmp_path, client_count=3)
+
+    with SessionLocal() as db:
+        job, clinic = _seed_job(db, bundle_path, client_import_limit=1)
+
+        def on_progress(**kwargs):
+            current = db.get(SoftOpticMigrationJob, job.id)
+            if current:
+                update_job(db, current, **kwargs)
+
+        run_softoptic_import(db, job=job, storage=None, on_progress=on_progress)
+
+        imported_clients = db.query(Client).filter_by(clinic_id=clinic.id).all()
+        assert len(imported_clients) == 1
+        assert imported_clients[0].id == int(f"{clinic.id}101")
+        db.refresh(job)
+        assert job.import_summary["client_import_limit"] == 1
+        assert job.import_summary["client_imported_count"] == 1
 
 
 def test_cleanup_deletes_billing_payments_before_billings(tmp_path):

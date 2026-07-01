@@ -68,6 +68,30 @@ def collect_branch_codes(csv_dir: str) -> List[str]:
     return codes
 
 
+def collect_limited_client_account_codes(csv_dir: str, max_clients: Optional[int]) -> Optional[Set[str]]:
+    if max_clients is None or max_clients < 1:
+        return None
+    account_codes: Set[str] = set()
+    for row in read_csv_streaming(csv_dir, "account.csv"):
+        if not is_client_account(row):
+            continue
+        account_code = clean_legacy_text(row.get("account_code"))
+        if not account_code or account_code in account_codes:
+            continue
+        account_codes.add(account_code)
+        if len(account_codes) >= max_clients:
+            break
+    print(f"[accounts] limiting import to {len(account_codes)} client accounts", flush=True)
+    return account_codes
+
+
+def account_allowed(row: Dict[str, Any], allowed_account_codes: Optional[Set[str]]) -> bool:
+    if allowed_account_codes is None:
+        return True
+    account_code = clean_legacy_text(row.get("account_code"))
+    return bool(account_code and account_code in allowed_account_codes)
+
+
 def resolve_migration_clinic_id(branch_to_clinic: Dict[Any, int], branch_code: Any) -> Optional[int]:
     return (
         branch_to_clinic.get(branch_code)
@@ -161,16 +185,27 @@ def _add_presc_price_line_items(db: Session, billing: Billing, presc_rows: List[
     return added
 
 
-def migrate_clients_and_families(db: Session, csv_dir: str, company: Company, return_only: bool = False, target_clinic_id: Optional[int] = None) -> Tuple[Dict[str, int], Dict[str, int]]:
+def migrate_clients_and_families(
+    db: Session,
+    csv_dir: str,
+    company: Company,
+    return_only: bool = False,
+    target_clinic_id: Optional[int] = None,
+    max_clients: Optional[int] = None,
+) -> Tuple[Dict[str, int], Dict[str, int]]:
     # Returns: account_code -> client_id, head_of_family -> family_id
     t0 = time.time()
     account_to_client: Dict[str, int] = {}
     head_to_family: Dict[str, int] = {}
     row_count = 0
+    allowed_account_codes = collect_limited_client_account_codes(csv_dir, max_clients)
 
     if return_only:
         print("[accounts] return_only mode enabled — mapping existing clients", flush=True)
-        all_clients = db.execute(select(Client)).scalars().all()
+        client_query = select(Client)
+        if target_clinic_id is not None:
+            client_query = client_query.where(Client.clinic_id == target_clinic_id)
+        all_clients = db.execute(client_query).scalars().all()
         by_national_id: Dict[str, List[Client]] = {}
         by_email: Dict[str, List[Client]] = {}
         by_mobile: Dict[str, List[Client]] = {}
@@ -241,6 +276,8 @@ def migrate_clients_and_families(db: Session, csv_dir: str, company: Company, re
             row_count += 1
             if not is_client_account(r):
                 continue
+            if not account_allowed(r, allowed_account_codes):
+                continue
             acc = r.get("account_code")
             if acc is None:
                 continue
@@ -252,6 +289,8 @@ def migrate_clients_and_families(db: Session, csv_dir: str, company: Company, re
         rows_iter = read_csv_streaming(csv_dir, "account.csv")
         for r in rows_iter:
             if not is_client_account(r):
+                continue
+            if not account_allowed(r, allowed_account_codes):
                 continue
             head = r.get("head_of_family")
             if not head or head in head_to_family:
@@ -291,6 +330,8 @@ def migrate_clients_and_families(db: Session, csv_dir: str, company: Company, re
         row_count += 1
         if not is_client_account(r):
             continue
+        if not account_allowed(r, allowed_account_codes):
+            continue
         head = r.get("head_of_family")
         if head:
             head = str(head).strip()
@@ -318,6 +359,8 @@ def migrate_clients_and_families(db: Session, csv_dir: str, company: Company, re
     rows_iter = read_csv_streaming(csv_dir, "account.csv")
     for r in rows_iter:
         if not is_client_account(r):
+            continue
+        if not account_allowed(r, allowed_account_codes):
             continue
         head = r.get("head_of_family")
         if head:
@@ -368,6 +411,8 @@ def migrate_clients_and_families(db: Session, csv_dir: str, company: Company, re
     try:
         for r in rows_iter:
             if not is_client_account(r):
+                continue
+            if not account_allowed(r, allowed_account_codes):
                 continue
             bc = r.get("branch_code")
             clinic_id = resolve_migration_clinic_id(branch_to_clinic, bc)
@@ -1286,7 +1331,6 @@ def migrate_referrals(db: Session, csv_dir: str, account_to_client: Dict[str, in
         if pending % 1000 == 0:
             db.flush()
             pending = 0
-        db.flush()
 
         # Attach prescription notes into referral_data if available
         if prescription_notes:
@@ -1299,22 +1343,30 @@ def migrate_referrals(db: Session, csv_dir: str, account_to_client: Dict[str, in
     print(f"[referrals] inserted total: {count}, took {time.time()-t0:.2f}s", flush=True)
 
 
-def _find_external_document(documents_dir: Optional[str], account_code: str, file_code: str, file_name: str) -> Optional[Path]:
+def _external_document_candidates(documents_dir: Optional[str]) -> List[Path]:
     if not documents_dir:
-        return None
+        return []
     root = Path(documents_dir)
     if not root.exists() or not root.is_dir():
+        return []
+    return [candidate for candidate in root.rglob("*") if candidate.is_file()]
+
+
+def _find_external_document(candidates: List[Path], documents_dir: Optional[str], account_code: str, file_code: str, file_name: str) -> Optional[Path]:
+    if not candidates:
         return None
     code = clean_legacy_text(file_code)
     name = clean_legacy_text(file_name)
     name_stem = Path(name).stem.lower() if name else ""
     account = clean_legacy_text(account_code)
     best: Optional[Path] = None
-    for candidate in root.rglob("*"):
-        if not candidate.is_file():
-            continue
+    root = Path(documents_dir) if documents_dir else None
+    for candidate in candidates:
         lowered_name = candidate.name.lower()
-        lowered_parts = {part.lower() for part in candidate.parts}
+        try:
+            lowered_parts = {part.lower() for part in candidate.relative_to(root).parts} if root else {part.lower() for part in candidate.parts}
+        except Exception:
+            lowered_parts = {part.lower() for part in candidate.parts}
         if code and code.lower() in lowered_name:
             return candidate
         if name_stem and name_stem in lowered_name:
@@ -1357,6 +1409,7 @@ def migrate_files(
     t0 = time.time()
     file_blob_map = load_file_blob_map(csv_dir)
     rows_iter = read_csv_streaming(csv_dir, "account_files.csv")
+    external_candidates = _external_document_candidates(documents_dir)
     count = 0
     pending = 0
     batch: List[File] = []
@@ -1382,7 +1435,7 @@ def migrate_files(
         )
         external_path = None
         if not saved_path:
-            external_path = _find_external_document(documents_dir, account_code, file_code, file_name)
+            external_path = _find_external_document(external_candidates, documents_dir, account_code, file_code, file_name)
             if external_path:
                 saved_path = str(external_path)
                 saved_name = external_path.name

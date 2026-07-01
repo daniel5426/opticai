@@ -194,6 +194,7 @@ class SoftOpticMigrationJob(Base):
     step = Column(String, nullable=False, default="queued")
     progress = Column(Integer, nullable=False, default=0)
     include_documents = Column(Boolean, nullable=False, default=False)
+    client_import_limit = Column(Integer)
     source_metadata = Column(JSON, nullable=False, default=dict)
     export_summary = Column(JSON, nullable=False, default=dict)
     validation_summary = Column(JSON, nullable=False, default=dict)
