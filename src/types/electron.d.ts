@@ -144,6 +144,9 @@ export interface ElectronAPI {
     zipPath: string;
     accessToken: string;
   }) => Promise<{ success: boolean; data?: any; error?: string }>;
+  softOpticUploadStatus: (payload: {
+    jobId: string;
+  }) => Promise<Record<string, any> | null>;
   exportHtmlToPdf: (payload: {
     html: string;
     defaultFileName: string;

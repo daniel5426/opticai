@@ -601,25 +601,77 @@ async def store_bundle_upload(
         raise HTTPException(status_code=409, detail="Migration job is not awaiting upload")
     temp_path = await save_upload_to_temp(upload, job.id)
     try:
-        bucket = os.environ.get("SOFTOPTIC_MIGRATION_BUNDLE_BUCKET") or config.settings.SUPABASE_BUCKET or "opticai"
-        key = f"clinics/{job.clinic_id}/softoptic-migrations/{job.id}/bundle.zip"
+        bucket, key = softoptic_bundle_storage_location(job)
         storage.upload_path(bucket, key, temp_path, SOFTOPTIC_BUNDLE_CONTENT_TYPE)
-        job.bundle_storage_bucket = bucket
-        job.bundle_storage_key = key
-        job.bundle_path = None
-        job.status = "queued"
-        job.step = "ממתין לעובד ייבוא"
-        job.progress = 12
-        job.pause_requested = False
-        job.error = None
-        job.errors = []
-        job.updated_at = utcnow()
-        db.add(job)
-        db.commit()
-        db.refresh(job)
-        return job
+        return mark_bundle_uploaded(db, job=job, bucket=bucket, key=key)
     finally:
         temp_path.unlink(missing_ok=True)
+
+
+def softoptic_bundle_storage_location(job: SoftOpticMigrationJob) -> tuple[str, str]:
+    bucket = os.environ.get("SOFTOPTIC_MIGRATION_BUNDLE_BUCKET") or config.settings.SUPABASE_BUCKET or "opticai"
+    key = f"clinics/{job.clinic_id}/softoptic-migrations/{job.id}/bundle.zip"
+    return bucket, key
+
+
+def prepare_bundle_direct_upload(
+    db: Session,
+    *,
+    job: SoftOpticMigrationJob,
+    storage: FileStorageService,
+    expires_in: int = 3600,
+) -> dict[str, Any]:
+    if job.status != "awaiting_upload":
+        raise HTTPException(status_code=409, detail="Migration job is not awaiting upload")
+    bucket, key = softoptic_bundle_storage_location(job)
+    signed_upload_url = storage.create_signed_upload_url(bucket, key)
+    return {
+        "bucket": bucket,
+        "key": key,
+        "signed_upload_url": signed_upload_url,
+        "expires_in": expires_in,
+    }
+
+
+def complete_bundle_direct_upload(
+    db: Session,
+    *,
+    job: SoftOpticMigrationJob,
+    bucket: str,
+    key: str,
+    storage: FileStorageService,
+) -> SoftOpticMigrationJob:
+    if job.status != "awaiting_upload":
+        raise HTTPException(status_code=409, detail="Migration job is not awaiting upload")
+    expected_bucket, expected_key = softoptic_bundle_storage_location(job)
+    if bucket != expected_bucket or key != expected_key:
+        raise HTTPException(status_code=400, detail="Migration bundle location does not match this job")
+    if not storage.exists(bucket, key):
+        raise HTTPException(status_code=409, detail="Migration bundle was not found in storage")
+    return mark_bundle_uploaded(db, job=job, bucket=bucket, key=key)
+
+
+def mark_bundle_uploaded(
+    db: Session,
+    *,
+    job: SoftOpticMigrationJob,
+    bucket: str,
+    key: str,
+) -> SoftOpticMigrationJob:
+    job.bundle_storage_bucket = bucket
+    job.bundle_storage_key = key
+    job.bundle_path = None
+    job.status = "queued"
+    job.step = "ממתין לעובד ייבוא"
+    job.progress = 12
+    job.pause_requested = False
+    job.error = None
+    job.errors = []
+    job.updated_at = utcnow()
+    db.add(job)
+    db.commit()
+    db.refresh(job)
+    return job
 
 
 def create_job(

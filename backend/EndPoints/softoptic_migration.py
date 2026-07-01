@@ -10,8 +10,10 @@ from security.scope import assert_clinic_scope
 from services.file_storage_service import FileStorageService, get_file_storage_service
 from services.softoptic_migration_service import (
     cancel_job,
+    complete_bundle_direct_upload,
     create_job,
     job_to_dict,
+    prepare_bundle_direct_upload,
     request_pause,
     resume_job,
     store_bundle_upload,
@@ -93,6 +95,42 @@ async def upload_softoptic_bundle(
         raise HTTPException(status_code=404, detail="Migration job not found")
     assert_clinic_scope(db, current_user, job.clinic_id)
     job = await store_bundle_upload(db, job=job, upload=bundle, storage=storage)
+    return job_to_dict(job)
+
+
+@router.post("/imports/{job_id}/bundle-upload-url")
+def create_softoptic_bundle_upload_url(
+    job_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    storage: FileStorageService = Depends(get_file_storage_service),
+):
+    require_manager(current_user)
+    job = db.get(SoftOpticMigrationJob, job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Migration job not found")
+    assert_clinic_scope(db, current_user, job.clinic_id)
+    return prepare_bundle_direct_upload(db, job=job, storage=storage)
+
+
+@router.post("/imports/{job_id}/bundle-upload-complete")
+def complete_softoptic_bundle_upload(
+    job_id: str,
+    payload: dict = Body(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    storage: FileStorageService = Depends(get_file_storage_service),
+):
+    require_manager(current_user)
+    job = db.get(SoftOpticMigrationJob, job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Migration job not found")
+    assert_clinic_scope(db, current_user, job.clinic_id)
+    bucket = payload.get("bucket")
+    key = payload.get("key")
+    if not isinstance(bucket, str) or not bucket or not isinstance(key, str) or not key:
+        raise HTTPException(status_code=422, detail="bucket and key are required")
+    job = complete_bundle_direct_upload(db, job=job, bucket=bucket, key=key, storage=storage)
     return job_to_dict(job)
 
 

@@ -2099,6 +2099,13 @@ class ApiClient {
     });
   }
 
+  async getSoftOpticUploadStatus(jobId: string) {
+    if (!window.electronAPI?.softOpticUploadStatus) {
+      return null;
+    }
+    return window.electronAPI.softOpticUploadStatus({ jobId });
+  }
+
   async getSoftOpticImport(jobId: string) {
     return this.request(`/migration/softoptic/imports/${jobId}`);
   }

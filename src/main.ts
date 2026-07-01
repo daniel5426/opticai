@@ -4,6 +4,8 @@ import fs from 'fs';
 import path from "path";
 import { spawn } from "child_process";
 import { randomUUID } from "crypto";
+import http from "http";
+import https from "https";
 
 // Load the appropriate .env file based on environment
 if (process.env.NODE_ENV === 'production') {
@@ -435,8 +437,27 @@ type SoftOpticExportStatus = {
 
 const activeSoftOpticExportJobs = new Set<string>();
 
+type SoftOpticUploadStatus = {
+  jobId: string;
+  status: "preparing" | "uploading" | "finalizing" | "completed" | "failed";
+  progress: number;
+  step: string;
+  zipPath: string;
+  bucket?: string;
+  key?: string;
+  transferredBytes?: number;
+  totalBytes?: number;
+  startedAt: string;
+  updatedAt: string;
+  error?: string;
+};
+
 function getSoftOpticExportJobsPath() {
   return path.join(app.getPath("userData"), "softoptic-export-jobs.json");
+}
+
+function getSoftOpticUploadJobsPath() {
+  return path.join(app.getPath("userData"), "softoptic-upload-jobs.json");
 }
 
 async function readSoftOpticExportJobs(): Promise<Record<string, SoftOpticExportStatus>> {
@@ -479,6 +500,35 @@ async function getSoftOpticExportStatus(jobId: string): Promise<SoftOpticExportS
     return failed;
   }
   return status;
+}
+
+async function readSoftOpticUploadJobs(): Promise<Record<string, SoftOpticUploadStatus>> {
+  try {
+    const text = await fs.promises.readFile(getSoftOpticUploadJobsPath(), "utf-8");
+    const parsed = JSON.parse(text);
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+async function writeSoftOpticUploadJobs(jobs: Record<string, SoftOpticUploadStatus>) {
+  const entries = Object.entries(jobs)
+    .sort(([, a], [, b]) => String(b.updatedAt).localeCompare(String(a.updatedAt)))
+    .slice(0, 20);
+  await fs.promises.mkdir(path.dirname(getSoftOpticUploadJobsPath()), { recursive: true });
+  await fs.promises.writeFile(getSoftOpticUploadJobsPath(), JSON.stringify(Object.fromEntries(entries), null, 2), "utf-8");
+}
+
+async function saveSoftOpticUploadStatus(status: SoftOpticUploadStatus) {
+  const jobs = await readSoftOpticUploadJobs();
+  jobs[status.jobId] = { ...status, updatedAt: new Date().toISOString() };
+  await writeSoftOpticUploadJobs(jobs);
+}
+
+async function getSoftOpticUploadStatus(jobId: string): Promise<SoftOpticUploadStatus | null> {
+  const jobs = await readSoftOpticUploadJobs();
+  return jobs[jobId] || null;
 }
 
 function runProcess(command: string, args: string[], options: { cwd?: string } = {}): Promise<{ stdout: string; stderr: string }> {
@@ -773,34 +823,208 @@ async function startSoftOpticExportJob(payload: {
   return { success: true, jobId, status };
 }
 
+function uploadFileToSignedUrl(
+  signedUploadUrl: string,
+  zipPath: string,
+  totalBytes: number,
+  onProgress: (transferredBytes: number) => void,
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const url = new URL(signedUploadUrl);
+    const transport = url.protocol === "http:" ? http : https;
+    const boundary = `----opticai-softoptic-${randomUUID()}`;
+    const filename = path.basename(zipPath);
+    const preamble = Buffer.from(
+      `--${boundary}\r\n` +
+        `Content-Disposition: form-data; name="file"; filename="${filename.replace(/"/g, "%22")}"\r\n` +
+        `Content-Type: ${SOFTOPTIC_BUNDLE_CONTENT_TYPE}\r\n\r\n`,
+      "utf-8",
+    );
+    const closing = Buffer.from(`\r\n--${boundary}--\r\n`, "utf-8");
+    const request = transport.request(
+      url,
+      {
+        method: "PUT",
+        headers: {
+          "Content-Type": `multipart/form-data; boundary=${boundary}`,
+          "Content-Length": String(preamble.length + totalBytes + closing.length),
+        },
+      },
+      response => {
+        const chunks: Buffer[] = [];
+        response.on("data", chunk => chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)));
+        response.on("end", () => {
+          const body = Buffer.concat(chunks).toString("utf-8");
+          if (response.statusCode && response.statusCode >= 200 && response.statusCode < 300) {
+            resolve();
+            return;
+          }
+          reject(new Error(body || `Storage upload failed (${response.statusCode || "unknown"})`));
+        });
+      },
+    );
+
+    request.on("error", reject);
+    const stream = fs.createReadStream(zipPath);
+    let transferred = 0;
+    request.write(preamble);
+    stream.on("data", chunk => {
+      transferred += chunk.length;
+      onProgress(transferred);
+    });
+    stream.on("error", error => {
+      request.destroy(error);
+      reject(error);
+    });
+    stream.on("end", () => {
+      request.end(closing);
+    });
+    stream.pipe(request, { end: false });
+  });
+}
+
+const SOFTOPTIC_BUNDLE_CONTENT_TYPE = "application/zip";
+
 async function uploadSoftOpticBundle(payload: { apiBaseUrl: string; jobId: string; zipPath: string; accessToken: string }) {
+  const now = new Date().toISOString();
+  const baseStatus: SoftOpticUploadStatus = {
+    jobId: payload.jobId,
+    status: "preparing",
+    progress: 0,
+    step: "Preparing upload",
+    zipPath: payload.zipPath,
+    startedAt: now,
+    updatedAt: now,
+  };
+  let uploadProgressSavePromise: Promise<void | undefined> = Promise.resolve();
   try {
     if (!payload.accessToken) {
       return { success: false, error: "Missing authorization token" };
     }
     if (!payload.zipPath || !fs.existsSync(payload.zipPath)) {
+      await saveSoftOpticUploadStatus({
+        ...baseStatus,
+        status: "failed",
+        step: "Upload failed",
+        error: "SoftOptic ZIP file was not found",
+      });
       return { success: false, error: "SoftOptic ZIP file was not found" };
     }
-    const openAsBlob = (fs as any).openAsBlob;
-    if (typeof openAsBlob !== "function") {
-      return { success: false, error: "This Electron runtime cannot stream local files for upload" };
-    }
-    const blob = await openAsBlob(payload.zipPath, { type: "application/zip" });
-    const formData = new FormData();
-    formData.append("bundle", blob, path.basename(payload.zipPath));
-    const baseUrl = payload.apiBaseUrl.replace(/\/$/, "");
-    const response = await fetch(`${baseUrl}/migration/softoptic/imports/${encodeURIComponent(payload.jobId)}/bundle`, {
-      method: "PUT",
-      headers: { Authorization: `Bearer ${payload.accessToken}` },
-      body: formData as any,
+    const stat = await fs.promises.stat(payload.zipPath);
+    await saveSoftOpticUploadStatus({
+      ...baseStatus,
+      totalBytes: stat.size,
     });
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      return { success: false, error: data?.detail || data?.error || `Upload failed (${response.status})` };
+
+    const baseUrl = payload.apiBaseUrl.replace(/\/$/, "");
+    const uploadUrlResponse = await fetch(`${baseUrl}/migration/softoptic/imports/${encodeURIComponent(payload.jobId)}/bundle-upload-url`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${payload.accessToken}` },
+    });
+    const uploadTarget = await uploadUrlResponse.json().catch(() => ({}));
+    if (!uploadUrlResponse.ok) {
+      const error = uploadTarget?.detail || uploadTarget?.error || `Signed upload URL failed (${uploadUrlResponse.status})`;
+      await saveSoftOpticUploadStatus({ ...baseStatus, status: "failed", step: "Upload failed", totalBytes: stat.size, error });
+      return { success: false, error };
     }
+    if (!uploadTarget?.signed_upload_url || !uploadTarget?.bucket || !uploadTarget?.key) {
+      const error = "Backend did not return a complete signed upload target";
+      await saveSoftOpticUploadStatus({ ...baseStatus, status: "failed", step: "Upload failed", totalBytes: stat.size, error });
+      return { success: false, error };
+    }
+
+    await saveSoftOpticUploadStatus({
+      ...baseStatus,
+      status: "uploading",
+      progress: 0,
+      step: "Uploading bundle",
+      bucket: uploadTarget.bucket,
+      key: uploadTarget.key,
+      totalBytes: stat.size,
+    });
+    let lastProgressPersistAt = 0;
+    let lastProgressPersistedBytes = 0;
+    await uploadFileToSignedUrl(uploadTarget.signed_upload_url, payload.zipPath, stat.size, transferredBytes => {
+      const nowMs = Date.now();
+      const minByteDelta = Math.max(1024 * 1024, Math.floor(stat.size / 100));
+      if (transferredBytes < stat.size && nowMs - lastProgressPersistAt < 500 && transferredBytes - lastProgressPersistedBytes < minByteDelta) {
+        return;
+      }
+      lastProgressPersistAt = nowMs;
+      lastProgressPersistedBytes = transferredBytes;
+      uploadProgressSavePromise = uploadProgressSavePromise
+        .then(() =>
+          saveSoftOpticUploadStatus({
+            ...baseStatus,
+            status: "uploading",
+            progress: stat.size ? Math.min(99, Math.round((transferredBytes / stat.size) * 100)) : 0,
+            step: "Uploading bundle",
+            bucket: uploadTarget.bucket,
+            key: uploadTarget.key,
+            transferredBytes,
+            totalBytes: stat.size,
+          }),
+        )
+        .catch(() => undefined);
+    });
+    await uploadProgressSavePromise;
+
+    await saveSoftOpticUploadStatus({
+      ...baseStatus,
+      status: "finalizing",
+      progress: 99,
+      step: "Finalizing upload",
+      bucket: uploadTarget.bucket,
+      key: uploadTarget.key,
+      transferredBytes: stat.size,
+      totalBytes: stat.size,
+    });
+    const finalizeResponse = await fetch(`${baseUrl}/migration/softoptic/imports/${encodeURIComponent(payload.jobId)}/bundle-upload-complete`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${payload.accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ bucket: uploadTarget.bucket, key: uploadTarget.key }),
+    });
+    const data = await finalizeResponse.json().catch(() => ({}));
+    if (!finalizeResponse.ok) {
+      const error = data?.detail || data?.error || `Upload finalization failed (${finalizeResponse.status})`;
+      await saveSoftOpticUploadStatus({
+        ...baseStatus,
+        status: "failed",
+        progress: 99,
+        step: "Upload finalization failed",
+        bucket: uploadTarget.bucket,
+        key: uploadTarget.key,
+        transferredBytes: stat.size,
+        totalBytes: stat.size,
+        error,
+      });
+      return { success: false, error };
+    }
+
+    await saveSoftOpticUploadStatus({
+      ...baseStatus,
+      status: "completed",
+      progress: 100,
+      step: "Upload completed",
+      bucket: uploadTarget.bucket,
+      key: uploadTarget.key,
+      transferredBytes: stat.size,
+      totalBytes: stat.size,
+    });
     return { success: true, data };
   } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : String(error) };
+    const message = error instanceof Error ? error.message : String(error);
+    await uploadProgressSavePromise;
+    await saveSoftOpticUploadStatus({
+      ...baseStatus,
+      status: "failed",
+      step: "Upload failed",
+      error: message,
+    });
+    return { success: false, error: message };
   }
 }
 
@@ -838,6 +1062,10 @@ function setupIpcHandlers() {
 
   ipcMain.handle('softoptic-upload-bundle', async (_event, payload: { apiBaseUrl: string; jobId: string; zipPath: string; accessToken: string }) => {
     return uploadSoftOpticBundle(payload);
+  });
+
+  ipcMain.handle('softoptic-upload-status', async (_event, payload: { jobId: string }) => {
+    return getSoftOpticUploadStatus(payload.jobId);
   });
 
   ipcMain.handle('export-html-to-pdf', async (_event, payload: { html: string; defaultFileName: string }) => {

@@ -80,6 +80,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   softOpticStartExport: (payload: { clinicId?: number; candidate: any; sqlAnywhereBin?: string; includeDocuments?: boolean }) => ipcRenderer.invoke('softoptic-start-export', payload),
   softOpticExportStatus: (payload: { jobId: string }) => ipcRenderer.invoke('softoptic-export-status', payload),
   softOpticUploadBundle: (payload: { apiBaseUrl: string; jobId: string; zipPath: string; accessToken: string }) => ipcRenderer.invoke('softoptic-upload-bundle', payload),
+  softOpticUploadStatus: (payload: { jobId: string }) => ipcRenderer.invoke('softoptic-upload-status', payload),
   exportHtmlToPdf: (payload: { html: string; defaultFileName: string }) => ipcRenderer.invoke('export-html-to-pdf', payload),
   printHtml: (payload: { html: string; defaultFileName?: string }) => ipcRenderer.invoke('print-html', payload),
   onUserLogoutBeforeClose: (callback: () => Promise<void> | void) => {

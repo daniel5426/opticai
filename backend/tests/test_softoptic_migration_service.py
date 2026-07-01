@@ -22,8 +22,11 @@ from models import (
 from services.softoptic_migration_service import (
     SOFTOPTIC_SOURCE_SYSTEM,
     assert_safe_to_import,
+    complete_bundle_direct_upload,
     cleanup_previous_softoptic_import,
+    prepare_bundle_direct_upload,
     run_softoptic_import,
+    softoptic_bundle_storage_location,
     update_job,
     validate_export_bundle,
 )
@@ -103,6 +106,21 @@ def _seed_job(db, bundle_path, job_id="job1", client_import_limit=None):
     db.commit()
     db.refresh(job)
     return job, clinic
+
+
+class FakeStorage:
+    def __init__(self, exists=True):
+        self.exists_result = exists
+        self.upload_url_calls = []
+        self.exists_calls = []
+
+    def create_signed_upload_url(self, bucket, key):
+        self.upload_url_calls.append((bucket, key))
+        return f"https://storage.example/upload/{bucket}/{key}"
+
+    def exists(self, bucket, key):
+        self.exists_calls.append((bucket, key))
+        return self.exists_result
 
 
 def test_validate_export_bundle_counts_required_csv(tmp_path):
@@ -193,6 +211,76 @@ def test_softoptic_import_respects_client_import_limit(tmp_path):
         db.refresh(job)
         assert job.import_summary["client_import_limit"] == 1
         assert job.import_summary["client_imported_count"] == 1
+
+
+def test_prepare_bundle_direct_upload_requires_awaiting_upload(tmp_path):
+    SessionLocal = _session_factory()
+    bundle_path, _ = _write_bundle(tmp_path)
+
+    with SessionLocal() as db:
+        job, _ = _seed_job(db, bundle_path)
+
+        try:
+            prepare_bundle_direct_upload(db, job=job, storage=FakeStorage())
+            assert False, "expected non-awaiting job to be rejected"
+        except Exception as exc:
+            assert getattr(exc, "status_code", None) == 409
+
+
+def test_prepare_bundle_direct_upload_returns_expected_location(tmp_path):
+    SessionLocal = _session_factory()
+    bundle_path, _ = _write_bundle(tmp_path)
+
+    with SessionLocal() as db:
+        job, _ = _seed_job(db, bundle_path)
+        job.status = "awaiting_upload"
+        db.commit()
+        storage = FakeStorage()
+
+        result = prepare_bundle_direct_upload(db, job=job, storage=storage)
+        expected_bucket, expected_key = softoptic_bundle_storage_location(job)
+
+        assert result["bucket"] == expected_bucket
+        assert result["key"] == expected_key
+        assert result["signed_upload_url"].endswith(f"{expected_bucket}/{expected_key}")
+        assert storage.upload_url_calls == [(expected_bucket, expected_key)]
+
+
+def test_complete_bundle_direct_upload_rejects_missing_object(tmp_path):
+    SessionLocal = _session_factory()
+    bundle_path, _ = _write_bundle(tmp_path)
+
+    with SessionLocal() as db:
+        job, _ = _seed_job(db, bundle_path)
+        job.status = "awaiting_upload"
+        db.commit()
+        bucket, key = softoptic_bundle_storage_location(job)
+
+        try:
+            complete_bundle_direct_upload(db, job=job, bucket=bucket, key=key, storage=FakeStorage(exists=False))
+            assert False, "expected missing storage object to be rejected"
+        except Exception as exc:
+            assert getattr(exc, "status_code", None) == 409
+
+
+def test_complete_bundle_direct_upload_queues_job(tmp_path):
+    SessionLocal = _session_factory()
+    bundle_path, _ = _write_bundle(tmp_path)
+
+    with SessionLocal() as db:
+        job, _ = _seed_job(db, bundle_path)
+        job.status = "awaiting_upload"
+        db.commit()
+        bucket, key = softoptic_bundle_storage_location(job)
+
+        updated = complete_bundle_direct_upload(db, job=job, bucket=bucket, key=key, storage=FakeStorage())
+
+        assert updated.status == "queued"
+        assert updated.progress == 12
+        assert updated.step == "ממתין לעובד ייבוא"
+        assert updated.bundle_storage_bucket == bucket
+        assert updated.bundle_storage_key == key
+        assert updated.bundle_path is None
 
 
 def test_cleanup_deletes_billing_payments_before_billings(tmp_path):

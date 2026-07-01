@@ -85,6 +85,8 @@ export function SoftOpticMigrationTab({ clinicId }: SoftOpticMigrationTabProps) 
   const [clientImportLimit, setClientImportLimit] = useState("")
   const [exportJobId, setExportJobId] = useState<string | null>(null)
   const [job, setJob] = useState<any>(null)
+  const [uploadStatus, setUploadStatus] = useState<any>(null)
+  const [uploadInFlight, setUploadInFlight] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const exportStorageKey = useMemo(
@@ -121,6 +123,9 @@ export function SoftOpticMigrationTab({ clinicId }: SoftOpticMigrationTabProps) 
       } else if (activeJob.status === "failed") {
         setPhase("failed")
         setError(activeJob.error || null)
+      } else if (activeJob.status === "awaiting_upload") {
+        setPhase("uploading")
+        setStepText("העלאה הופסקה - ניתן לנסות שוב")
       } else if (["queued", "running"].includes(activeJob.status)) {
         setPhase("importing")
       }
@@ -183,7 +188,36 @@ export function SoftOpticMigrationTab({ clinicId }: SoftOpticMigrationTabProps) 
   }, [exportJobId])
 
   useEffect(() => {
-    if (!job?.id || !["uploading", "importing", "paused"].includes(phase)) return
+    if (!job?.id || !window.electronAPI?.softOpticUploadStatus || phase !== "uploading") return
+    let cancelled = false
+
+    const applyUploadStatus = async () => {
+      const status = await apiClient.getSoftOpticUploadStatus(job.id)
+      if (!status || cancelled) return
+      setUploadStatus(status)
+      if (["preparing", "uploading", "finalizing"].includes(status.status)) {
+        const uploadProgress = Number(status.progress || 0)
+        setProgress(Math.max(60, Math.min(90, 60 + Math.round(uploadProgress * 0.3))))
+        setStepText(status.status === "finalizing" ? "מסיים העלאה" : "מעלה קובץ")
+      } else if (status.status === "failed") {
+        setError(status.error || "העלאה נכשלה")
+        setStepText("העלאה הופסקה - ניתן לנסות שוב")
+      } else if (status.status === "completed") {
+        setProgress(90)
+        setStepText("העלאה הושלמה")
+      }
+    }
+
+    applyUploadStatus()
+    const interval = window.setInterval(applyUploadStatus, 750)
+    return () => {
+      cancelled = true
+      window.clearInterval(interval)
+    }
+  }, [job?.id, phase])
+
+  useEffect(() => {
+    if (!job?.id || !["importing", "paused"].includes(phase)) return
     const interval = window.setInterval(async () => {
       const response = await apiClient.getSoftOpticImport(job.id)
       if (response.data) {
@@ -282,42 +316,56 @@ export function SoftOpticMigrationTab({ clinicId }: SoftOpticMigrationTabProps) 
   }
 
   const uploadAndImport = async () => {
-    if (!clinicId || !selectedCandidate || !zipPath || includeDocuments === null) return
+    if (!clinicId || !zipPath || includeDocuments === null) return
+    const reusableJob = job?.status === "awaiting_upload" ? job : null
+    if (!reusableJob && !selectedCandidate) return
     const trimmedLimit = clientImportLimit.trim()
     const parsedLimit = trimmedLimit ? Number.parseInt(trimmedLimit, 10) : null
     if (trimmedLimit && (!Number.isFinite(parsedLimit) || !parsedLimit || parsedLimit < 1)) {
       toast.error("יש להזין מגבלת לקוחות תקינה")
       return
     }
+    setError(null)
+    setUploadInFlight(true)
+    setUploadStatus(null)
     setPhase("uploading")
     setProgress(60)
     setStepText("העלאה")
-    const createResponse = await apiClient.createSoftOpticImport({
-      clinicId,
-      sourceMetadata: selectedCandidate,
-      exportSummary: exportSummary || {},
-      includeDocuments,
-      clientImportLimit: parsedLimit,
-    })
-    if (createResponse.error || !createResponse.data) {
-      setError(createResponse.error || "יצירת פעולת הייבוא נכשלה")
-      setPhase("failed")
-      return
+    try {
+      let importJob = reusableJob
+      if (!importJob) {
+        const createResponse = await apiClient.createSoftOpticImport({
+          clinicId,
+          sourceMetadata: selectedCandidate!,
+          exportSummary: exportSummary || {},
+          includeDocuments,
+          clientImportLimit: parsedLimit,
+        })
+        if (createResponse.error || !createResponse.data) {
+          setError(createResponse.error || "יצירת פעולת הייבוא נכשלה")
+          setPhase("failed")
+          return
+        }
+        importJob = createResponse.data
+        setJob(importJob)
+      }
+      const uploadResponse = await apiClient.uploadSoftOpticBundle(importJob.id, zipPath)
+      if (uploadResponse.error || !(uploadResponse as any).success) {
+        setError(uploadResponse.error || "העלאה נכשלה")
+        setPhase("failed")
+        setJob(importJob)
+        return
+      }
+      const uploadedJob = (uploadResponse as any).data
+      setJob(uploadedJob)
+      setExportJobId(null)
+      if (exportStorageKey) window.localStorage.removeItem(exportStorageKey)
+      setPhase("importing")
+      setProgress(uploadedJob?.progress || 65)
+      setStepText(uploadedJob?.step || "ממתין לעובד ייבוא")
+    } finally {
+      setUploadInFlight(false)
     }
-    setJob(createResponse.data)
-    const uploadResponse = await apiClient.uploadSoftOpticBundle((createResponse.data as any).id, zipPath)
-    if (uploadResponse.error || !(uploadResponse as any).success) {
-      setError(uploadResponse.error || "העלאה נכשלה")
-      setPhase("failed")
-      return
-    }
-    const uploadedJob = (uploadResponse as any).data
-    setJob(uploadedJob)
-    setExportJobId(null)
-    if (exportStorageKey) window.localStorage.removeItem(exportStorageKey)
-    setPhase("importing")
-    setProgress(uploadedJob?.progress || 65)
-    setStepText(uploadedJob?.step || "ממתין לעובד ייבוא")
   }
 
   const pauseJob = async () => {
@@ -366,11 +414,20 @@ export function SoftOpticMigrationTab({ clinicId }: SoftOpticMigrationTabProps) 
     setClientImportLimit("")
     setExportJobId(null)
     setJob(null)
+    setUploadStatus(null)
+    setUploadInFlight(false)
     setError(null)
     if (exportStorageKey) window.localStorage.removeItem(exportStorageKey)
   }
 
-  const busy = ["scanning", "exporting", "uploading"].includes(phase)
+  const busy = ["scanning", "exporting"].includes(phase) || uploadInFlight
+  const canUpload = Boolean(
+    clinicId &&
+    zipPath &&
+    includeDocuments !== null &&
+    (selectedCandidate || job?.status === "awaiting_upload") &&
+    (phase === "ready" || job?.status === "awaiting_upload"),
+  )
 
   return (
     <div className="space-y-5" dir="rtl">
@@ -393,6 +450,11 @@ export function SoftOpticMigrationTab({ clinicId }: SoftOpticMigrationTabProps) 
               <span dir="ltr">{progress}%</span>
             </div>
             <Progress value={progress} />
+            {phase === "uploading" && uploadStatus?.totalBytes && (
+              <p className="text-right text-xs text-muted-foreground" dir="ltr">
+                {formatBytes(uploadStatus.transferredBytes)} / {formatBytes(uploadStatus.totalBytes)}
+              </p>
+            )}
           </div>
 
           <div className="grid grid-cols-3 gap-2 lg:grid-cols-9">
@@ -419,9 +481,9 @@ export function SoftOpticMigrationTab({ clinicId }: SoftOpticMigrationTabProps) 
               <FileArchive className="ml-2 h-4 w-4" />
               ייצא נתונים
             </Button>
-            <Button onClick={uploadAndImport} disabled={busy || phase !== "ready" || !zipPath}>
+            <Button onClick={uploadAndImport} disabled={busy || !canUpload}>
               <UploadCloud className="ml-2 h-4 w-4" />
-              בדוק וייבא
+              {job?.status === "awaiting_upload" ? "נסה העלאה שוב" : "בדוק וייבא"}
             </Button>
             {job && phase === "importing" && (
               <Button variant="outline" onClick={pauseJob}>
