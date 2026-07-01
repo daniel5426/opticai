@@ -127,6 +127,8 @@
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
     "cors": "^2.8.5",
+    "csv-parse": "^7.0.0",
+    "csv-stringify": "^6.8.0",
     "date-fns": "^4.1.0",
     "devextreme": "^25.1.6",
     "devextreme-react": "^25.1.6",

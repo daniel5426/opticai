@@ -117,6 +117,7 @@ export interface ElectronAPI {
     candidate: any;
     sqlAnywhereBin?: string;
     includeDocuments?: boolean;
+    clientImportLimit?: number | null;
   }) => Promise<{
     success: boolean;
     outputDir?: string;
@@ -129,6 +130,7 @@ export interface ElectronAPI {
     candidate: any;
     sqlAnywhereBin?: string;
     includeDocuments?: boolean;
+    clientImportLimit?: number | null;
   }) => Promise<{
     success: boolean;
     jobId?: string;

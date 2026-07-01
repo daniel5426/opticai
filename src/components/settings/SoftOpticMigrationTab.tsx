@@ -109,6 +109,16 @@ export function SoftOpticMigrationTab({ clinicId }: SoftOpticMigrationTabProps) 
     return candidates.find(candidate => candidate.id === selectedId) || null
   }, [candidates, manualDbPath, selectedId])
 
+  const parseClientImportLimit = () => {
+    const trimmedLimit = clientImportLimit.trim()
+    const parsedLimit = trimmedLimit ? Number.parseInt(trimmedLimit, 10) : null
+    if (trimmedLimit && (!Number.isFinite(parsedLimit) || !parsedLimit || parsedLimit < 1)) {
+      toast.error("יש להזין מגבלת לקוחות תקינה")
+      return undefined
+    }
+    return parsedLimit
+  }
+
   useEffect(() => {
     if (!clinicId || job?.id) return
     let cancelled = false
@@ -153,6 +163,9 @@ export function SoftOpticMigrationTab({ clinicId }: SoftOpticMigrationTabProps) 
       }
       if (typeof status.includeDocuments === "boolean") {
         setIncludeDocuments(status.includeDocuments)
+      }
+      if (status.clientImportLimit != null) {
+        setClientImportLimit(String(status.clientImportLimit))
       }
       setProgress(status.progress || 0)
       setStepText(status.step || "ייצוא נתונים")
@@ -278,6 +291,8 @@ export function SoftOpticMigrationTab({ clinicId }: SoftOpticMigrationTabProps) 
       toast.error("יש לבחור אם לייבא מסמכים")
       return
     }
+    const parsedLimit = parseClientImportLimit()
+    if (parsedLimit === undefined) return
     setError(null)
     setPhase("exporting")
     setProgress(35)
@@ -288,6 +303,7 @@ export function SoftOpticMigrationTab({ clinicId }: SoftOpticMigrationTabProps) 
         candidate: selectedCandidate,
         sqlAnywhereBin: sqlAnywhereBin.trim() || undefined,
         includeDocuments,
+        clientImportLimit: parsedLimit,
       })
       if (!started.success || !started.jobId) {
         setError(started.error || "הייצוא נכשל")
@@ -302,6 +318,7 @@ export function SoftOpticMigrationTab({ clinicId }: SoftOpticMigrationTabProps) 
       candidate: selectedCandidate,
       sqlAnywhereBin: sqlAnywhereBin.trim() || undefined,
       includeDocuments,
+      clientImportLimit: parsedLimit,
     })
     if (!result.success || !result.zipPath) {
       setError(result.error || "הייצוא נכשל")
@@ -319,12 +336,9 @@ export function SoftOpticMigrationTab({ clinicId }: SoftOpticMigrationTabProps) 
     if (!clinicId || !zipPath || includeDocuments === null) return
     const reusableJob = job?.status === "awaiting_upload" ? job : null
     if (!reusableJob && !selectedCandidate) return
-    const trimmedLimit = clientImportLimit.trim()
-    const parsedLimit = trimmedLimit ? Number.parseInt(trimmedLimit, 10) : null
-    if (trimmedLimit && (!Number.isFinite(parsedLimit) || !parsedLimit || parsedLimit < 1)) {
-      toast.error("יש להזין מגבלת לקוחות תקינה")
-      return
-    }
+    const parsedLimit = parseClientImportLimit()
+    if (parsedLimit === undefined) return
+    const effectiveLimit = typeof exportSummary?.clientImportLimit === "number" ? exportSummary.clientImportLimit : parsedLimit
     setError(null)
     setUploadInFlight(true)
     setUploadStatus(null)
@@ -339,7 +353,7 @@ export function SoftOpticMigrationTab({ clinicId }: SoftOpticMigrationTabProps) 
           sourceMetadata: selectedCandidate!,
           exportSummary: exportSummary || {},
           includeDocuments,
-          clientImportLimit: parsedLimit,
+          clientImportLimit: effectiveLimit,
         })
         if (createResponse.error || !createResponse.data) {
           setError(createResponse.error || "יצירת פעולת הייבוא נכשלה")
@@ -421,6 +435,7 @@ export function SoftOpticMigrationTab({ clinicId }: SoftOpticMigrationTabProps) 
   }
 
   const busy = ["scanning", "exporting"].includes(phase) || uploadInFlight
+  const limitLocked = !["idle", "scanning", "selecting"].includes(phase) || Boolean(exportJobId) || Boolean(job?.id)
   const canUpload = Boolean(
     clinicId &&
     zipPath &&
@@ -591,12 +606,13 @@ export function SoftOpticMigrationTab({ clinicId }: SoftOpticMigrationTabProps) 
           </div>
 
           <div className="space-y-2 rounded-md border p-3">
-            <Label className="block text-right">מגבלת לקוחות בשלב הייבוא</Label>
+            <Label className="block text-right">מגבלת לקוחות לייצוא ולייבוא</Label>
             <Input
               value={clientImportLimit}
               onChange={event => setClientImportLimit(event.target.value.replace(/[^\d]/g, ""))}
               placeholder="ללא מגבלה"
               inputMode="numeric"
+              disabled={limitLocked}
               dir="ltr"
             />
           </div>
