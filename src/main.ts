@@ -732,18 +732,20 @@ async function exportSoftOpticCandidate(
     const pruneSummary = normalizedLimit
       ? await pruneSoftOpticExport({
           outputDir,
+          targetDir: `${outputDir}_pruned`,
           clientImportLimit: normalizedLimit,
           includeDocuments,
           documentRoot: candidate.documentPath,
         })
       : null;
+    const bundleDir = pruneSummary?.outputDir || outputDir;
 
     if (!normalizedLimit && includeDocuments && candidate.documentPath && fs.existsSync(candidate.documentPath)) {
-      const targetDocuments = path.join(outputDir, "documents");
+      const targetDocuments = path.join(bundleDir, "documents");
       await fs.promises.cp(candidate.documentPath, targetDocuments, { recursive: true, force: true });
     }
 
-    const manifestPath = path.join(outputDir, "manifest.json");
+    const manifestPath = path.join(bundleDir, "manifest.json");
     const manifestText = fs.existsSync(manifestPath)
       ? await fs.promises.readFile(manifestPath, "utf-8")
       : "";
@@ -751,14 +753,14 @@ async function exportSoftOpticCandidate(
       ? JSON.parse(manifestText.replace(/^\uFEFF/, ""))
       : {};
     const summary = {
-      clients: await countFileRows(path.join(outputDir, "account.csv")),
-      exams: await countFileRows(path.join(outputDir, "optic_eye_tests.csv")),
-      glasses_orders: await countFileRows(path.join(outputDir, "optic_glasses_presc.csv")),
-      contact_lens_orders: await countFileRows(path.join(outputDir, "optic_contact_presc.csv")),
-      appointments: await countFileRows(path.join(outputDir, "diary_timetab.csv")),
-      notes: await countFileRows(path.join(outputDir, "account_memos.csv")),
-      referrals: await countFileRows(path.join(outputDir, "optic_reference.csv")),
-      embedded_files: await countFileRows(path.join(outputDir, "account_files_blob.csv")),
+      clients: await countFileRows(path.join(bundleDir, "account.csv")),
+      exams: await countFileRows(path.join(bundleDir, "optic_eye_tests.csv")),
+      glasses_orders: await countFileRows(path.join(bundleDir, "optic_glasses_presc.csv")),
+      contact_lens_orders: await countFileRows(path.join(bundleDir, "optic_contact_presc.csv")),
+      appointments: await countFileRows(path.join(bundleDir, "diary_timetab.csv")),
+      notes: await countFileRows(path.join(bundleDir, "account_memos.csv")),
+      referrals: await countFileRows(path.join(bundleDir, "optic_reference.csv")),
+      embedded_files: await countFileRows(path.join(bundleDir, "account_files_blob.csv")),
       external_documents: includeDocuments
         ? (pruneSummary ? pruneSummary.copiedExternalDocuments : await countFiles(candidate.documentPath))
         : 0,
@@ -768,17 +770,18 @@ async function exportSoftOpticCandidate(
       manifest,
       exportedAt: new Date().toISOString(),
       outputDir,
+      bundleDir,
     };
 
-    const zipPath = `${outputDir}.zip`;
+    const zipPath = `${bundleDir}.zip`;
     await runProcess("powershell.exe", [
       "-NoProfile",
       "-ExecutionPolicy",
       "Bypass",
       "-Command",
-      `Compress-Archive -Path '${outputDir.replace(/'/g, "''")}\\*' -DestinationPath '${zipPath.replace(/'/g, "''")}' -Force`,
+      `Compress-Archive -Path '${bundleDir.replace(/'/g, "''")}\\*' -DestinationPath '${zipPath.replace(/'/g, "''")}' -Force`,
     ]);
-    return { success: true, outputDir, zipPath, summary };
+    return { success: true, outputDir: bundleDir, zipPath, summary };
   } catch (error) {
     return {
       success: false,

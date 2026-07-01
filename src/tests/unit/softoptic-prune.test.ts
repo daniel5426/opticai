@@ -133,19 +133,25 @@ describe("pruneSoftOpticExport", () => {
       includeDocuments: true,
       documentRoot,
     });
+    const prunedDir = result.outputDir!;
+    tempDirs.push(prunedDir);
 
     expect(result.selectedClientCount).toBe(2);
-    expect(readRows(outputDir, "account.csv").map(row => row.account_code)).toEqual(["101", "102"]);
-    expect(readRows(outputDir, "optic_eye_tests.csv").map(row => row.code)).toEqual(["e1", "e2"]);
-    expect(readRows(outputDir, "optic_exp_eyetests.csv").map(row => row.code)).toEqual(["e1x"]);
-    expect(readRows(outputDir, "optic_presc_prices.csv").map(row => row.presc_code)).toEqual(["cp1", "gp2", "rp2"]);
-    expect(readRows(outputDir, "account_files_blob.csv").map(row => row.code)).toEqual(["f1", "f2"]);
-    expect(readRows(outputDir, "optic_tv_lens_supplier.csv")).toHaveLength(2);
-    expect(readRows(outputDir, "random_unused.csv")).toEqual([]);
-    expect(fs.existsSync(path.join(outputDir, "_raw_cp1255"))).toBe(false);
-    expect(fs.existsSync(path.join(outputDir, "documents", "101", "f1.pdf"))).toBe(true);
-    expect(fs.existsSync(path.join(outputDir, "documents", "misc", "Beta.pdf"))).toBe(true);
-    expect(fs.existsSync(path.join(outputDir, "documents", "104", "f4.pdf"))).toBe(false);
+    expect(result.sourceOutputDir).toBe(outputDir);
+    expect(prunedDir).not.toBe(outputDir);
+    expect(readRows(outputDir, "account.csv").map(row => row.account_code)).toEqual(["101", "102", "103", "104"]);
+    expect(fs.existsSync(path.join(outputDir, "_raw_cp1255"))).toBe(true);
+    expect(readRows(prunedDir, "account.csv").map(row => row.account_code)).toEqual(["101", "102"]);
+    expect(readRows(prunedDir, "optic_eye_tests.csv").map(row => row.code)).toEqual(["e1", "e2"]);
+    expect(readRows(prunedDir, "optic_exp_eyetests.csv").map(row => row.code)).toEqual(["e1x"]);
+    expect(readRows(prunedDir, "optic_presc_prices.csv").map(row => row.presc_code)).toEqual(["cp1", "gp2", "rp2"]);
+    expect(readRows(prunedDir, "account_files_blob.csv").map(row => row.code)).toEqual(["f1", "f2"]);
+    expect(readRows(prunedDir, "optic_tv_lens_supplier.csv")).toHaveLength(2);
+    expect(readRows(prunedDir, "random_unused.csv")).toEqual([]);
+    expect(fs.existsSync(path.join(prunedDir, "_raw_cp1255"))).toBe(false);
+    expect(fs.existsSync(path.join(prunedDir, "documents", "101", "f1.pdf"))).toBe(true);
+    expect(fs.existsSync(path.join(prunedDir, "documents", "misc", "Beta.pdf"))).toBe(true);
+    expect(fs.existsSync(path.join(prunedDir, "documents", "104", "f4.pdf"))).toBe(false);
     expect(result.copiedExternalDocuments).toBe(2);
   });
 
@@ -161,6 +167,7 @@ describe("pruneSoftOpticExport", () => {
     const result = await pruneSoftOpticExport({ outputDir, clientImportLimit: null });
 
     expect(result.limited).toBe(false);
+    expect(result.outputDir).toBe(outputDir);
     expect(fs.readFileSync(path.join(outputDir, "account.csv"), "utf8")).toBe(before);
   });
 });
