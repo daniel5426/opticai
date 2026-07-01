@@ -37,18 +37,6 @@ type WizardPhase =
   | "completed"
   | "failed"
 
-const STEP_LABELS = [
-  "איתור מסד נתונים",
-  "בחירת מקור",
-  "ייצוא נתונים",
-  "סיכום",
-  "העלאה",
-  "בדיקת תקינות",
-  "החלפת ייבוא קודם",
-  "ייבוא",
-  "סיום",
-]
-
 const SUMMARY_LABELS: Record<string, string> = {
   clients: "לקוחות",
   exams: "בדיקות",
@@ -470,14 +458,6 @@ export function SoftOpticMigrationTab({ clinicId }: SoftOpticMigrationTabProps) 
                 {formatBytes(uploadStatus.transferredBytes)} / {formatBytes(uploadStatus.totalBytes)}
               </p>
             )}
-          </div>
-
-          <div className="grid grid-cols-3 gap-2 lg:grid-cols-9">
-            {STEP_LABELS.map(label => (
-              <div key={label} className="rounded-md border px-2 py-1 text-center text-[11px] text-muted-foreground">
-                {label}
-              </div>
-            ))}
           </div>
 
           {error && (
