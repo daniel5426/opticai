@@ -17,6 +17,7 @@ import { KeratometerTab } from "@/components/exam/KeratometerTab";
 import { KeratometerFullTab } from "@/components/exam/KeratometerFullTab";
 import { CornealTopographyTab } from "@/components/exam/CornealTopographyTab";
 import { CoverTestTab } from "@/components/exam/CoverTestTab";
+import { CoverTestV2Tab } from "@/components/exam/CoverTestV2Tab";
 import { AnamnesisTab } from "@/components/exam/AnamnesisTab";
 import { SchirmerTestTab } from "@/components/exam/SchirmerTestTab";
 import { ContactLensDiametersTab } from "@/components/exam/ContactLensDiametersTab";
@@ -42,6 +43,7 @@ import {
   KeratometerFullExam,
   CornealTopographyExam,
   CoverTestExam,
+  CoverTestV2Exam,
   AnamnesisExam,
   NotesExam,
   SchirmerTestExam,
@@ -57,6 +59,7 @@ import {
   StereoTestExam,
   RGExam,
   OcularMotorAssessmentExam,
+  OPCExam,
   DiopterAdjustmentPanel,
   OldContactLenses,
   OverRefraction,
@@ -76,6 +79,7 @@ import { MaddoxRodTab } from "@/components/exam/MaddoxRodTab";
 import { StereoTestTab } from "@/components/exam/StereoTestTab";
 import { RGTab } from "@/components/exam/RGTab";
 import { OcularMotorAssessmentTab } from "@/components/exam/OcularMotorAssessmentTab";
+import { OPCTab } from "@/components/exam/OPCTab";
 import { v4 as uuidv4 } from "uuid";
 import { ExamDetailsCard } from "@/components/exam/ExamDetailsCard";
 import { NotesCard } from "@/components/ui/notes-card";
@@ -122,6 +126,7 @@ const componentsDontHaveMiddleRow: CardItem["type"][] = [
   "stereo-test",
   "rg",
   "ocular-motor-assessment",
+  "opc",
 ];
 
 const componentsWithEyeRowCopy: CardItem["type"][] = [
@@ -171,6 +176,7 @@ export interface CardItem {
     | "keratometer-full"
     | "corneal-topography"
     | "cover-test"
+    | "cover-test-v2"
     | "notes"
     | "anamnesis"
     | "schirmer-test"
@@ -185,6 +191,7 @@ export interface CardItem {
     | "stereo-test"
     | "rg"
     | "ocular-motor-assessment"
+    | "opc"
     | "old-contact-lenses"
     | "over-refraction";
   showEyeLabels?: boolean;
@@ -291,6 +298,8 @@ const getExamFormData = (
       return { layout_instance_id: 0 } as CornealTopographyExam;
     case "cover-test":
       return { layout_instance_id: 0 } as CoverTestExam;
+    case "cover-test-v2":
+      return { layout_instance_id: 0 } as CoverTestV2Exam;
     case "anamnesis":
       return { layout_instance_id: 0 } as AnamnesisExam;
     case "notes":
@@ -319,6 +328,8 @@ const getExamFormData = (
       return { layout_instance_id: 0 } as RGExam;
     case "ocular-motor-assessment":
       return { layout_instance_id: 0 } as OcularMotorAssessmentExam;
+    case "opc":
+      return { layout_instance_id: 0 } as OPCExam;
     case "old-contact-lenses":
       return { layout_instance_id: 0 } as OldContactLenses;
     case "over-refraction":
@@ -475,6 +486,8 @@ export const getColumnCount = (
       return 1;
     case "cover-test":
       return 4;
+    case "cover-test-v2":
+      return 8;
     case "notes":
       return 5;
     case "anamnesis":
@@ -505,6 +518,8 @@ export const getColumnCount = (
       return 3;
     case "ocular-motor-assessment":
       return 5;
+    case "opc":
+      return 7;
     default:
       return 1;
   }
@@ -958,6 +973,7 @@ export const ExamCardRenderer = React.memo<RenderCardProps>(
       layout_instance_id: 0,
     };
     const emptyCoverTestData: CoverTestExam = { layout_instance_id: 0 };
+    const emptyCoverTestV2Data: CoverTestV2Exam = { layout_instance_id: 0 };
     const emptyAnamnesisData: AnamnesisExam = { layout_instance_id: 0 };
     const emptyNotesData: NotesExam = { layout_instance_id: 0 };
     const emptySchirmerTestData: SchirmerTestExam = { layout_instance_id: 0 };
@@ -993,6 +1009,7 @@ export const ExamCardRenderer = React.memo<RenderCardProps>(
     const emptyOcularMotorAssessmentData: OcularMotorAssessmentExam = {
       layout_instance_id: 0,
     };
+    const emptyOPCData: OPCExam = { layout_instance_id: 0 };
     const emptyDiopterAdjustmentPanelData: DiopterAdjustmentPanel = {
       layout_instance_id: 0,
     };
@@ -1065,6 +1082,8 @@ export const ExamCardRenderer = React.memo<RenderCardProps>(
           return emptyCornealTopographyData;
         case "cover-test":
           return emptyCoverTestData;
+        case "cover-test-v2":
+          return emptyCoverTestV2Data;
         case "anamnesis":
           return emptyAnamnesisData;
         case "notes":
@@ -1089,6 +1108,8 @@ export const ExamCardRenderer = React.memo<RenderCardProps>(
           return emptyMaddoxRodData;
         case "ocular-motor-assessment":
           return emptyOcularMotorAssessmentData;
+        case "opc":
+          return emptyOPCData;
         case "old-contact-lenses":
           return emptyOldContactLensesData;
         case "over-refraction":
@@ -1718,6 +1739,23 @@ export const ExamCardRenderer = React.memo<RenderCardProps>(
         );
       }
 
+      case "cover-test-v2":
+        return (
+          <div className={`relative h-full ${matchHeight ? "flex flex-col" : ""}`}>
+            {toolbox}
+            <CoverTestV2Tab
+              coverTestData={
+                getExamData("cover-test-v2", item.id) as CoverTestV2Exam
+              }
+              onCoverTestChange={getChangeHandler(
+                "cover-test-v2",
+                item.id,
+              ) as (field: keyof CoverTestV2Exam, value: string) => void}
+              isEditing={mode === "detail" ? detailProps!.isEditing : false}
+            />
+          </div>
+        );
+
       case "anamnesis":
         return (
           <div
@@ -2111,6 +2149,25 @@ export const ExamCardRenderer = React.memo<RenderCardProps>(
                 "ocular-motor-assessment",
                 item.id,
               )}
+              isEditing={mode === "detail" ? detailProps!.isEditing : false}
+              needsMiddleSpacer={
+                hasSiblingWithMiddleRow &&
+                componentsDontHaveMiddleRow.includes(item.type)
+              }
+            />
+          </div>
+        );
+
+      case "opc":
+        return (
+          <div className="relative">
+            {toolbox}
+            <OPCTab
+              opcData={getExamData("opc", item.id) as OPCExam}
+              onOPCChange={getChangeHandler("opc", item.id) as (
+                field: keyof OPCExam,
+                value: string,
+              ) => void}
               isEditing={mode === "detail" ? detailProps!.isEditing : false}
               needsMiddleSpacer={
                 hasSiblingWithMiddleRow &&

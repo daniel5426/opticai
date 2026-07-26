@@ -1105,6 +1105,27 @@ export interface CoverTestExam {
   nv_2?: number;
 }
 
+export interface CoverTestV2Exam {
+  id?: number;
+  layout_instance_id: number;
+  cc_far_horizontal_prism?: number;
+  cc_far_horizontal_deviation?: string;
+  cc_near_horizontal_prism?: number;
+  cc_near_horizontal_deviation?: string;
+  cc_far_vertical_prism?: number;
+  cc_far_vertical_deviation?: string;
+  cc_near_vertical_prism?: number;
+  cc_near_vertical_deviation?: string;
+  sc_far_horizontal_prism?: number;
+  sc_far_horizontal_deviation?: string;
+  sc_near_horizontal_prism?: number;
+  sc_near_horizontal_deviation?: string;
+  sc_far_vertical_prism?: number;
+  sc_far_vertical_deviation?: string;
+  sc_near_vertical_prism?: number;
+  sc_near_vertical_deviation?: string;
+}
+
 export interface DiopterAdjustmentPanel {
   id?: number;
   layout_instance_id: number;
@@ -1233,6 +1254,15 @@ export interface OcularMotorAssessmentExam {
   ocular_motility?: string;
   acc_od?: number;
   acc_os?: number;
+  npc_break?: number;
+  npc_recovery?: number;
+}
+
+export interface OPCExam {
+  id?: number;
+  layout_instance_id: number;
+  ocular_motility?: string;
+  eye_out_at_break?: "OS Out" | "OD Out" | "OU Out" | "None";
   npc_break?: number;
   npc_recovery?: number;
 }

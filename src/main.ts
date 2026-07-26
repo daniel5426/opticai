@@ -752,9 +752,13 @@ async function exportSoftOpticCandidate(
     const manifest = manifestText
       ? JSON.parse(manifestText.replace(/^\uFEFF/, ""))
       : {};
+    const [legacyExamRows, expandedExamRows] = await Promise.all([
+      countFileRows(path.join(bundleDir, "optic_eye_tests.csv")),
+      countFileRows(path.join(bundleDir, "optic_exp_eyetests.csv")),
+    ]);
     const summary = {
       clients: await countFileRows(path.join(bundleDir, "account.csv")),
-      exams: await countFileRows(path.join(bundleDir, "optic_eye_tests.csv")),
+      exams: Math.max(legacyExamRows, expandedExamRows),
       glasses_orders: await countFileRows(path.join(bundleDir, "optic_glasses_presc.csv")),
       contact_lens_orders: await countFileRows(path.join(bundleDir, "optic_contact_presc.csv")),
       appointments: await countFileRows(path.join(bundleDir, "diary_timetab.csv")),

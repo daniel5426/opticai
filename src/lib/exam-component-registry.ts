@@ -112,6 +112,8 @@ export class ExamComponentRegistry {
           
           if (key.startsWith('notes-')) {
             componentType = 'notes'
+          } else if (key.startsWith('cover-test-v2-')) {
+            componentType = 'cover-test-v2'
           } else if (key.startsWith('cover-test-')) {
             componentType = 'cover-test'
           } else {
@@ -120,7 +122,10 @@ export class ExamComponentRegistry {
               componentType = key as ExamComponentType
             } else {
               // Try to find if any registered type is a prefix followed by a hyphen
-              for (const type of this.components.keys()) {
+              const typesBySpecificity = Array.from(this.components.keys()).sort(
+                (a, b) => b.length - a.length,
+              )
+              for (const type of typesBySpecificity) {
                 if (key.startsWith(`${type}-`)) {
                   componentType = type
                   break
@@ -402,8 +407,15 @@ examComponentRegistry.register('ocular-motor-assessment', {
 })
 
 examComponentRegistry.register('cover-test', {
-  name: 'בדיקת כיסוי',
+  name: 'בדיקת כיסוי (ישן)',
   component: () => import('../components/exam/CoverTestTab'),
+  order: 32,
+  showInLayoutEditor: false
+})
+
+examComponentRegistry.register('cover-test-v2', {
+  name: 'בדיקת כיסוי',
+  component: () => import('../components/exam/CoverTestV2Tab'),
   order: 32,
   showInLayoutEditor: true
 })
@@ -412,5 +424,12 @@ examComponentRegistry.register('diopter-adjustment-panel', {
   name: 'פנל תיקון דיופטר',
   component: () => import('../components/exam/DiopterAdjustmentPanelTab'),
   order: 33,
+  showInLayoutEditor: true
+})
+
+examComponentRegistry.register('opc', {
+  name: 'OPC',
+  component: () => import('../components/exam/OPCTab'),
+  order: 34,
   showInLayoutEditor: true
 })

@@ -14,8 +14,10 @@ from backend.models import (
     Clinic,
     Company,
     ContactLensOrder,
+    ExamLayoutInstance,
     LookupColor,
     MedicalLog,
+    OpticalExam,
     Order,
     OrderLineItem,
     User,
@@ -66,6 +68,57 @@ def test_build_exam_data_uses_current_keys():
     assert "sensation-vision-stability-sensation-vision-stability-1" in exam_data
     assert exam_data["objective-objective-1"]["r_se"] == 5.25
     assert exam_data["objective-objective-1"]["l_se"] == -0.5
+
+
+def test_migrate_optical_exams_includes_expanded_only_rows(tmp_path):
+    with (tmp_path / "optic_eye_tests.csv").open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=["code", "account_code", "branch_code", "test_date", "test_reason"])
+        writer.writeheader()
+        writer.writerow({"code": "1", "account_code": "101", "branch_code": "A", "test_date": "2020-01-01", "test_reason": "Legacy"})
+
+    with (tmp_path / "optic_exp_eyetests.csv").open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(
+            handle,
+            fieldnames=["code", "account_code", "branch_code", "test_date", "test_reason", "sub_r_sph"],
+        )
+        writer.writeheader()
+        writer.writerow({"code": "1", "account_code": "101", "branch_code": "A", "test_date": "2020-01-01", "sub_r_sph": "+0100"})
+        writer.writerow({"code": "2", "account_code": "101", "branch_code": "A", "test_date": "2021-02-03", "test_reason": "Expanded", "sub_r_sph": "+0200"})
+
+    engine = create_engine(
+        "sqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+    Base.metadata.create_all(bind=engine)
+
+    with SessionLocal() as db:
+        company = Company(name="A", owner_full_name="Owner A")
+        db.add(company)
+        db.flush()
+        clinic = Clinic(company_id=company.id, name="Selected", unique_id="selected")
+        db.add(clinic)
+        db.flush()
+        user = User(company_id=company.id, clinic_id=clinic.id, username="admin", role_level=5)
+        client = Client(id=101, company_id=company.id, clinic_id=clinic.id, first_name="Test")
+        db.add_all([user, client])
+        db.commit()
+
+        migration.migrate_optical_exams(
+            db,
+            str(tmp_path),
+            {"101": client.id},
+            {"A": clinic.id},
+            user.id,
+        )
+
+        exams = db.query(OpticalExam).order_by(OpticalExam.exam_date).all()
+        assert len(exams) == 2
+        assert exams[1].test_name == "Expanded"
+        assert str(exams[1].exam_date) == "2021-02-03"
+        instance = db.query(ExamLayoutInstance).filter_by(exam_id=exams[1].id).one()
+        assert instance.exam_data["subjective-subjective-1"]["r_sph"] == 2.0
 
 
 def test_addition_j_values_are_normalized():

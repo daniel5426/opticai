@@ -16,6 +16,7 @@ import {
   KeratometerFullExam,
   CornealTopographyExam,
   CoverTestExam,
+  CoverTestV2Exam,
   SchirmerTestExam,
   ContactLensDiameters,
   ContactLensDetails,
@@ -25,7 +26,8 @@ import {
   MaddoxRodExam,
   StereoTestExam,
   RGExam,
-  OcularMotorAssessmentExam
+  OcularMotorAssessmentExam,
+  OPCExam
 } from './db/schema-interface'
 
 export type ExamComponentType =
@@ -45,6 +47,7 @@ export type ExamComponentType =
   | 'keratometer-full'
   | 'corneal-topography'
   | 'cover-test'
+  | 'cover-test-v2'
   | 'schirmer-test'
   | 'anamnesis'
   | 'notes'
@@ -61,7 +64,8 @@ export type ExamComponentType =
   | 'maddox-rod'
   | 'stereo-test'
   | 'rg'
-  | 'ocular-motor-assessment';
+  | 'ocular-motor-assessment'
+  | 'opc';
 
 export const fullExamsList: ExamComponentType[] = [
   'old-ref',
@@ -80,6 +84,7 @@ export const fullExamsList: ExamComponentType[] = [
   'keratometer-full',
   'corneal-topography',
   'cover-test',
+  'cover-test-v2',
   'schirmer-test',
   'anamnesis',
   'notes',
@@ -97,6 +102,7 @@ export const fullExamsList: ExamComponentType[] = [
   'stereo-test',
   'rg',
   'ocular-motor-assessment',
+  'opc',
 ];
 
 export const examComponentTypeToExamFields: Record<ExamComponentType, ExamComponentType[]> = {
@@ -116,6 +122,7 @@ export const examComponentTypeToExamFields: Record<ExamComponentType, ExamCompon
   'keratometer-full': [],
   'corneal-topography': [],
   'cover-test': [],
+  'cover-test-v2': [],
   'schirmer-test': [],
   'anamnesis': [],
   'notes': [],
@@ -133,9 +140,10 @@ export const examComponentTypeToExamFields: Record<ExamComponentType, ExamCompon
   'stereo-test': [],
   'rg': [],
   'ocular-motor-assessment': [],
+  'opc': [],
 };
 
-export type ExamDataType = OpticalExam | OldRefExam | OldRefractionExam | OldRefractionExtensionExam | ObjectiveExam | SubjectiveExam | FinalSubjectiveExam | FinalPrescriptionExam | CompactPrescriptionExam | AdditionExam | RetinoscopExam | RetinoscopDilationExam | UncorrectedVAExam | KeratometerExam | KeratometerFullExam | CornealTopographyExam | CoverTestExam | SchirmerTestExam | ContactLensDiameters | ContactLensDetails | KeratometerContactLens | ContactLensExam | ContactLensOrder | StereoTestExam | RGExam
+export type ExamDataType = OpticalExam | OldRefExam | OldRefractionExam | OldRefractionExtensionExam | ObjectiveExam | SubjectiveExam | FinalSubjectiveExam | FinalPrescriptionExam | CompactPrescriptionExam | AdditionExam | RetinoscopExam | RetinoscopDilationExam | UncorrectedVAExam | KeratometerExam | KeratometerFullExam | CornealTopographyExam | CoverTestExam | CoverTestV2Exam | SchirmerTestExam | ContactLensDiameters | ContactLensDetails | KeratometerContactLens | ContactLensExam | ContactLensOrder | StereoTestExam | RGExam | OPCExam
 
 export interface FieldMapping {
   [sourceField: string]: string | null
@@ -163,6 +171,7 @@ export class ExamFieldMapper {
     'keratometer-full': fullExamsList,
     'corneal-topography': fullExamsList,
     'cover-test': ['cover-test', 'uncorrected-va'],
+    'cover-test-v2': ['cover-test-v2'],
     'schirmer-test': [],
     'anamnesis': [],
     'notes': [],
@@ -180,6 +189,7 @@ export class ExamFieldMapper {
     'stereo-test': ['stereo-test'],
     'rg': ['rg'],
     'ocular-motor-assessment': ['ocular-motor-assessment'],
+    'opc': ['opc'],
   }
 
   private static explicitMappings: Partial<Record<ExamComponentType, ComponentFieldMappings>> = {
@@ -242,6 +252,17 @@ export class ExamFieldMapper {
         return ['l_note', 'r_note', 'title']
       case 'cover-test':
         return ['deviation_type', 'deviation_direction', 'fv_1', 'fv_2', 'nv_1', 'nv_2']
+      case 'cover-test-v2':
+        return [
+          'cc_far_horizontal_prism', 'cc_far_horizontal_deviation',
+          'cc_near_horizontal_prism', 'cc_near_horizontal_deviation',
+          'cc_far_vertical_prism', 'cc_far_vertical_deviation',
+          'cc_near_vertical_prism', 'cc_near_vertical_deviation',
+          'sc_far_horizontal_prism', 'sc_far_horizontal_deviation',
+          'sc_near_horizontal_prism', 'sc_near_horizontal_deviation',
+          'sc_far_vertical_prism', 'sc_far_vertical_deviation',
+          'sc_near_vertical_prism', 'sc_near_vertical_deviation',
+        ]
       case 'schirmer-test':
         return ['r_mm', 'l_mm', 'r_but', 'l_but']
       case 'notes':
@@ -297,6 +318,8 @@ export class ExamFieldMapper {
         return [
           'ocular_motility', 'acc_od', 'acc_os', 'npc_break', 'npc_recovery'
         ];
+      case 'opc':
+        return ['ocular_motility', 'eye_out_at_break', 'npc_break', 'npc_recovery'];
       default:
         return []
     }

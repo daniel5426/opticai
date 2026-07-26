@@ -2,6 +2,7 @@ import React from "react"
 import { Card } from "@/components/ui/card"
 import { OcularMotorAssessmentExam } from "@/lib/db/schema-interface"
 import { FastInput } from "./shared/OptimizedInputs"
+import { EXAM_FIELDS } from "./data/exam-field-definitions"
 
 interface OcularMotorAssessmentTabProps {
   ocularMotorAssessmentData: OcularMotorAssessmentExam;
@@ -83,9 +84,13 @@ export const OcularMotorAssessmentTab: React.FC<OcularMotorAssessmentTabProps> =
               <FastInput
                 type="number"
                 name="npc_break"
-                value={String(ocularMotorAssessmentData.npc_break || '')}
+                value={String(ocularMotorAssessmentData.npc_break ?? '')}
                 onChange={(val) => onOcularMotorAssessmentChange('npc_break', val)}
                 disabled={!isEditing}
+                min={EXAM_FIELDS.NPC_DISTANCE.min}
+                max={EXAM_FIELDS.NPC_DISTANCE.max}
+                step={EXAM_FIELDS.NPC_DISTANCE.step}
+                suffix={EXAM_FIELDS.NPC_DISTANCE.suffix}
                 className={`text-xs h-8 ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
               />
             </div>
@@ -97,9 +102,13 @@ export const OcularMotorAssessmentTab: React.FC<OcularMotorAssessmentTabProps> =
               <FastInput
                 type="number"
                 name="npc_recovery"
-                value={String(ocularMotorAssessmentData.npc_recovery || '')}
+                value={String(ocularMotorAssessmentData.npc_recovery ?? '')}
                 onChange={(val) => onOcularMotorAssessmentChange('npc_recovery', val)}
                 disabled={!isEditing}
+                min={EXAM_FIELDS.NPC_DISTANCE.min}
+                max={EXAM_FIELDS.NPC_DISTANCE.max}
+                step={EXAM_FIELDS.NPC_DISTANCE.step}
+                suffix={EXAM_FIELDS.NPC_DISTANCE.suffix}
                 className={`text-xs h-8 ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
               />
             </div>

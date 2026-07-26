@@ -88,6 +88,7 @@ SOFTOPTIC_BUNDLE_CONTENT_TYPE = "application/zip"
 REQUIRED_CSV_FILES = ("account.csv",)
 OPTIONAL_CSV_FILES = (
     "optic_eye_tests.csv",
+    "optic_exp_eyetests.csv",
     "optic_glasses_presc.csv",
     "optic_contact_presc.csv",
     "optic_contact_lens_chk.csv",
@@ -316,6 +317,7 @@ def validate_export_bundle(extract_dir: Path) -> dict[str, Any]:
         "counts": {
             "clients": tables.get("account.csv", 0),
             "exams": tables.get("optic_eye_tests.csv", 0),
+            "expanded_exams": tables.get("optic_exp_eyetests.csv", 0),
             "glasses_orders": tables.get("optic_glasses_presc.csv", 0),
             "contact_lens_orders": tables.get("optic_contact_presc.csv", 0),
             "appointments": tables.get("diary_timetab.csv", 0),

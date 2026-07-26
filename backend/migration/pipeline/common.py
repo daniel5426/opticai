@@ -1286,16 +1286,10 @@ def load_expanded_eye_tests(csv_dir: str, valid_account_codes: Set[str]) -> Dict
     if rows_iter is None:
         return mapping
     for row in rows_iter:
-        account_code = row.get("account_code")
-        if account_code is None:
-            continue
-        account_code_str = str(account_code).strip()
+        account_code_str = clean_legacy_text(row.get("account_code"))
         if not account_code_str or account_code_str not in valid_account_codes:
             continue
-        code_value = row.get("code")
-        if code_value is None:
-            continue
-        code_str = str(code_value).strip()
+        code_str = clean_legacy_text(row.get("code"))
         if not code_str or code_str in mapping:
             continue
         mapping[code_str] = row

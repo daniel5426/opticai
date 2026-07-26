@@ -204,6 +204,9 @@ export function useLayoutTabs({
       if (key.startsWith("notes-")) {
         type = "notes";
         cardId = key.replace("notes-", "");
+      } else if (key.startsWith("cover-test-v2-")) {
+        type = "cover-test-v2";
+        cardId = key.slice("cover-test-v2-".length);
       } else if (key.startsWith("cover-test-")) {
         const suffix = key.slice("cover-test-".length);
         const dashIndex = suffix.indexOf("-");

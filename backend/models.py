@@ -104,7 +104,7 @@ class AuthSession(Base):
     __tablename__ = "auth_sessions"
 
     id = Column(String, primary_key=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
     clinic_id = Column(Integer, ForeignKey("clinics.id"), index=True)
     refresh_token_hash = Column(String, nullable=False, unique=True, index=True)
@@ -267,7 +267,7 @@ class Client(Base):
     notes = Column(Text)
     hidden_note = Column(Text)
     profile_picture = Column(String)
-    family_id = Column(Integer, ForeignKey("families.id"))
+    family_id = Column(Integer, ForeignKey("families.id", ondelete="SET NULL"))
     family_role = Column(String)
     ai_updated_date = Column(DateTime(timezone=True))
     client_updated_date = Column(DateTime(timezone=True), server_default=func.now())
@@ -430,8 +430,8 @@ class Billing(Base):
     __tablename__ = "billings"
     
     id = Column(Integer, primary_key=True, index=True)
-    order_id = Column(Integer, ForeignKey("orders.id"))
-    contact_lens_id = Column(Integer, ForeignKey("contact_lens_orders.id"))
+    order_id = Column(Integer, ForeignKey("orders.id", ondelete="CASCADE"))
+    contact_lens_id = Column(Integer, ForeignKey("contact_lens_orders.id", ondelete="CASCADE"))
     total_before_discount = Column(Float)
     discount_amount = Column(Float)
     discount_percent = Column(Float)
@@ -445,7 +445,7 @@ class BillingPayment(Base):
     __tablename__ = "billing_payments"
 
     id = Column(Integer, primary_key=True, index=True)
-    billing_id = Column(Integer, ForeignKey("billings.id"), nullable=False, index=True)
+    billing_id = Column(Integer, ForeignKey("billings.id", ondelete="CASCADE"), nullable=False, index=True)
     amount = Column(Float, nullable=False)
     paid_at = Column(Date, nullable=False)
     kind = Column(String, nullable=False, default="payment")
@@ -456,7 +456,7 @@ class OrderLineItem(Base):
     __tablename__ = "order_line_item"
     
     id = Column(Integer, primary_key=True, index=True)
-    billings_id = Column(Integer, ForeignKey("billings.id"), nullable=False)
+    billings_id = Column(Integer, ForeignKey("billings.id", ondelete="CASCADE"), nullable=False)
     sku = Column(String)
     description = Column(String)
     supplied_by = Column(String)
@@ -551,7 +551,7 @@ class ReferralEye(Base):
     __tablename__ = "referral_eye"
     
     id = Column(Integer, primary_key=True, index=True)
-    referral_id = Column(Integer, ForeignKey("referrals.id"), nullable=False)
+    referral_id = Column(Integer, ForeignKey("referrals.id", ondelete="CASCADE"), nullable=False)
     eye = Column(String)
     sph = Column(Float)
     cyl = Column(Float)
@@ -619,7 +619,7 @@ class EmailLog(Base):
     __tablename__ = "email_logs"
     
     id = Column(Integer, primary_key=True, index=True)
-    appointment_id = Column(Integer, ForeignKey("appointments.id"), nullable=False)
+    appointment_id = Column(Integer, ForeignKey("appointments.id", ondelete="CASCADE"), nullable=False)
     email_address = Column(String, nullable=False)
     sent_at = Column(DateTime(timezone=True), server_default=func.now())
     success = Column(Boolean, nullable=False)
@@ -670,8 +670,8 @@ class CampaignClientExecution(Base):
     __tablename__ = "campaign_client_executions"
     
     id = Column(Integer, primary_key=True, index=True)
-    campaign_id = Column(Integer, ForeignKey("campaigns.id"), nullable=False)
-    client_id = Column(Integer, ForeignKey("clients.id", ondelete="SET NULL"), nullable=False)
+    campaign_id = Column(Integer, ForeignKey("campaigns.id", ondelete="CASCADE"), nullable=False)
+    client_id = Column(Integer, ForeignKey("clients.id", ondelete="CASCADE"), nullable=False)
     executed_at = Column(DateTime(timezone=True), server_default=func.now())
     status = Column(String, default="success")  # success, failed
     error_message = Column(Text)

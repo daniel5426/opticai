@@ -1,5 +1,7 @@
 ### Exam Data JSON Structure (ExamLayoutInstance.exam_data)
 
+Last Updated: 2026-07-26
+
 This document describes the JSON structure stored in `exam_layout_instances.exam_data`.
 
 At a high level, `exam_data` is a single JSON object (dictionary) that aggregates all component data for one layout instance. Each entry corresponds either to a single-instance component (keyed by its component type) or to a multi-instance component (keyed by a composite key). Every component value contains a `layout_instance_id` and the domain fields for that component.
@@ -7,7 +9,7 @@ At a high level, `exam_data` is a single JSON object (dictionary) that aggregate
 ### Top-level shape
 
 - `exam_data`: object where keys are component identifiers and values are component payloads
-  - Single-instance component keys: the component type slug, e.g. `"subjective"`, `"final-prescription"`, `"addition"`, etc.
+- Standard component keys: `<component-type>-<cardId>`, e.g. `"subjective-subjective-1"`. A base component-type key can appear in legacy data/UI state and is accepted for compatibility.
   - Multi-instance component keys:
     - Notes: `"notes-<cardId>"`
     - Cover Test: `"cover-test-<cardId>-<tabId>"`
@@ -23,7 +25,7 @@ Notes and Cover Test are special because the same layout can contain multiple No
 
 ### Key naming
 
-- Single-instance: `<component-type>` (kebab-case), e.g. `"old-refraction"`, `"objective"`, `"subjective"`, `"final-subjective"`, `"final-prescription"`, `"compact-prescription"`, `"addition"`, `"retinoscop"`, `"retinoscop-dilation"`, `"uncorrected-va"`, `"keratometer"`, `"keratometer-full"`, `"corneal-topography"`, `"anamnesis"`, `"schirmer-test"`, `"contact-lens-diameters"`, `"contact-lens-details"`, `"keratometer-contact-lens"`, `"contact-lens-exam"`, `"contact-lens-order"`, `"sensation-vision-stability"`, `"diopter-adjustment-panel"`, `"fusion-range"`, `"maddox-rod"`, `"stereo-test"`, `"rg"`, `"ocular-motor-assessment"`, `"old-contact-lenses"`, `"over-refraction"`.
+- Standard cards: `<component-type>-<cardId>` (kebab-case), including `"opc"` and `"cover-test-v2"`. Base keys may appear for legacy compatibility.
 - Notes: `notes-<cardId>`
   - One entry per Notes card instance in the layout.
 - Cover Test: `cover-test-<cardId>-<tabId>`
@@ -105,7 +107,7 @@ Below are the payload shapes for each component key. All payloads include `layou
   - `l_note?, r_note?` (strings)
   - `title?` (string; sourced from layout card title when present)
 
-- cover-test (CoverTestExam) — multi-instance & tabbed
+- cover-test (CoverTestExam) — legacy, multi-instance & tabbed
   - Key format: `cover-test-<cardId>-<tabId>` (one entry per tab)
   - Fields:
     - `card_id?: string` (the layout card id)
@@ -176,6 +178,16 @@ Below are the payload shapes for each component key. All payloads include `layou
   - `ocular_motility?: string`
   - `acc_od?, acc_os?, npc_break?, npc_recovery?`
 
+- opc (OPCExam)
+  - `ocular_motility?: string`
+  - `eye_out_at_break?: "OS Out" | "OD Out" | "OU Out" | "None"`
+  - `npc_break?, npc_recovery?` (0–99 cm, 0.5 cm step)
+
+- cover-test-v2 (CoverTestV2Exam)
+  - Standard single-card key: `cover-test-v2-<cardId>`
+  - Independent CC and SC values: each has Far/Near × Horizontal/Vertical `prism` and `deviation` fields.
+  - Prism fields are 0–99Δ with 0.5Δ precision. Horizontal deviation options are Esotropia, Exotropia, Ortho, Esophoria, Exophoria. Vertical options are Hypertropia, Hypotropia, Hyperphoria, Hypophoria, Iso.
+
 - old-contact-lenses (OldContactLenses)
   - Left eye: `l_bc?, l_diam?, l_sph?, l_cyl?, l_ax?, l_va?, l_j?`
   - Right eye: `r_bc?, r_diam?, r_sph?, r_cyl?, r_ax?, r_va?, r_j?`
@@ -196,12 +208,12 @@ Minimal with a few single-instance components and a single Notes card:
   "subjective": {
     "layout_instance_id": 123,
     "r_sph": -1.25,
-    "l_sph": -1.00
+    "l_sph": -1.0
   },
   "final-prescription": {
     "layout_instance_id": 123,
     "r_sph": -1.25,
-    "l_sph": -1.00,
+    "l_sph": -1.0,
     "r_va": 6,
     "l_va": 6
   },
@@ -246,6 +258,7 @@ Cover Test with tabs (two tabs under one card):
 ```
 
 Notes on multi-instance behavior:
+
 - Notes: one JSON entry per Notes card in the layout, keyed by `notes-<cardId>`.
 - Cover Test: one JSON entry per tab of each Cover Test card, keyed by `cover-test-<cardId>-<tabId>` with `tab_index` ordering.
 
@@ -275,7 +288,7 @@ Top-level keys used by the app:
 Component payload schemas
 
 - final-prescription (FinalPrescriptionExam)
-  - Same fields as defined in the Exam Data section (r_/l_ values, pris/base strings, combined metrics). Does not require `layout_instance_id` here.
+  - Same fields as defined in the Exam Data section (r*/l* values, pris/base strings, combined metrics). Does not require `layout_instance_id` here.
 
 - lens (custom lens block for regular orders)
   - `right_model?, left_model?, color?, coating?, material?, supplier?` (strings)
@@ -313,7 +326,7 @@ Regular order with final prescription and lens/frame/details:
 {
   "final-prescription": {
     "r_sph": -1.25,
-    "l_sph": -1.00,
+    "l_sph": -1.0,
     "r_va": 6,
     "l_va": 6
   },
@@ -359,16 +372,16 @@ Contact lens order:
   "contact-lens-exam": {
     "l_bc": 8.6,
     "l_diam": 14.0,
-    "l_sph": -2.00,
+    "l_sph": -2.0,
     "r_bc": 8.6,
     "r_diam": 14.0,
-    "r_sph": -2.50,
+    "r_sph": -2.5,
     "comb_va": 6
   },
   "keratometer-contact-lens": {
     "l_rh": 43.25,
-    "l_rv": 44.00,
-    "r_rh": 43.00,
+    "l_rv": 44.0,
+    "r_rh": 43.0,
     "r_rv": 43.75
   },
   "schirmer-test": {
@@ -383,5 +396,3 @@ Contact lens order:
   }
 }
 ```
-
-

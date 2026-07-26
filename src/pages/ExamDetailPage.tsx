@@ -124,6 +124,9 @@ const buildFullDataLayoutDataFromExamData = (
     if (key.startsWith("notes-")) {
       type = "notes";
       cardId = key.replace("notes-", "");
+    } else if (key.startsWith("cover-test-v2-")) {
+      type = "cover-test-v2";
+      cardId = key.slice("cover-test-v2-".length);
     } else if (key.startsWith("cover-test-")) {
       type = "cover-test";
       cardId = resolveTabbedCardId("cover-test", key, value);

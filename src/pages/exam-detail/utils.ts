@@ -197,7 +197,9 @@ export const isNonEmptyComponent = (key: string, value: any) => {
     return hasNote || hasCustomTitle;
   }
 
-  if (key.startsWith("cover-test-")) {
+  if (key.startsWith("cover-test-v2-")) {
+    // The replacement Cover Test is a standard single-instance card.
+  } else if (key.startsWith("cover-test-")) {
     return specialCover.some((k) => isMeaningfulValue((value as any)[k]));
   }
 

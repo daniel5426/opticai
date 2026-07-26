@@ -531,10 +531,25 @@ def migrate_optical_exams(db: Session, csv_dir: str, account_to_client: Dict[str
     pending = 0
     batch_exams: List[Tuple[OpticalExam, Dict[str, Any], Optional[int]]] = []
     batch_instances: List[ExamLayoutInstance] = []
-    rows_iter = read_csv_streaming(csv_dir, "optic_eye_tests.csv")
+    def iter_exam_rows():
+        seen_codes: Set[str] = set()
+        for row in read_csv_streaming(csv_dir, "optic_eye_tests.csv"):
+            code = clean_legacy_text(row.get("code"))
+            if code:
+                seen_codes.add(code)
+            yield row, expanded_rows.get(code) if code else None
+
+        expanded_only_count = 0
+        for code, expanded_row in expanded_rows.items():
+            if code in seen_codes:
+                continue
+            expanded_only_count += 1
+            yield expanded_row, expanded_row
+        print(f"[exams] added {expanded_only_count} expanded-only exam rows", flush=True)
+
     skipped_count = 0
     sample_missing_codes = []
-    for r in rows_iter:
+    for r, expanded_row in iter_exam_rows():
         raw_account_code = r.get("account_code")
         if raw_account_code is None:
             skipped_count += 1
@@ -563,11 +578,6 @@ def migrate_optical_exams(db: Session, csv_dir: str, account_to_client: Dict[str
         clinic_id = resolve_migration_clinic_id(branch_to_clinic, branch_code)
 
         exam_date = parse_date(r.get("test_date"))
-        exam_code_value = r.get("code")
-        expanded_row = None
-        if exam_code_value is not None:
-            expanded_row = expanded_rows.get(str(exam_code_value).strip())
-        
         dominant_eye_raw = r.get("dominant_eye")
         dominant_eye = None
         if dominant_eye_raw:
