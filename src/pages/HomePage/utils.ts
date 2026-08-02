@@ -36,6 +36,13 @@ export function hslToHex(h: number, s: number, l: number): string {
 }
 
 // Time conversion helpers
+export function formatAppointmentTime(time: string): string {
+  const match = time.match(/^(\d{1,2}):(\d{2})/)
+  if (!match) return time
+
+  return `${match[1].padStart(2, '0')}:${match[2]}`
+}
+
 export function timeToMinutes(time: string): number {
   const [hours, minutes] = time.split(':').map(Number)
   return hours * 60 + minutes
@@ -63,7 +70,7 @@ export function getAppointmentTimeRange(startTime: string, duration: number) {
   const endHours = Math.floor(endMinutes / 60)
   const endMins = endMinutes % 60
 
-  return `${startTime} - ${endHours.toString().padStart(2, '0')}:${endMins.toString().padStart(2, '0')}`
+  return `${formatAppointmentTime(startTime)} - ${endHours.toString().padStart(2, '0')}:${endMins.toString().padStart(2, '0')}`
 }
 
 // User color mapping with conflict resolution
@@ -115,4 +122,3 @@ export function isUserOnVacation(users: User[], userId?: number, dateStr?: strin
   ]
   return allVacations.some(d => d === dateStr)
 }
-

@@ -68,6 +68,10 @@ class Clinic(ClinicBase):
     id: int
     company_id: int
     entry_pin_version: int = 1
+    maintenance_mode: bool = False
+    maintenance_reason: Optional[str] = None
+    maintenance_job_id: Optional[str] = None
+    maintenance_started_at: Optional[datetime] = None
     created_at: datetime
     updated_at: Optional[datetime] = None
     
@@ -95,6 +99,7 @@ class UserBase(BaseModel):
     added_vacation_dates: Optional[List[str]] = None
     sync_subjective_to_final_subjective: bool = False
     import_order_to_old_refraction_default: bool = False
+    clinical_auto_advance_enabled: bool = True
     auth_provider: Optional[str] = "email"
 
 class UserCreate(UserBase):
@@ -114,6 +119,7 @@ class UserUpdate(UserBase):
     va_format: Optional[str] = None
     cyl_format: Optional[str] = None
     sync_subjective_to_final_subjective: Optional[bool] = None
+    clinical_auto_advance_enabled: Optional[bool] = None
     auth_provider: Optional[str] = None
     google_access_token: Optional[str] = None
     google_refresh_token: Optional[str] = None

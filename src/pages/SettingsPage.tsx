@@ -23,7 +23,8 @@ import { UsersTab } from "@/components/settings/UsersTab"
 import { FieldDataTab } from "@/components/settings/FieldDataTab"
 import { PersonalProfileTab } from "@/components/settings/PersonalProfileTab"
 import { AboutTab } from "@/components/settings/AboutTab"
-import { SoftOpticMigrationTab } from "@/components/settings/SoftOpticMigrationTab"
+import { MigrationTab } from "@/components/settings/MigrationTab"
+import { ClinicDataPruneTab } from "@/components/settings/ClinicDataPruneTab"
 import { UnsavedChangesDialog } from "@/components/unsaved-changes-dialog"
 import { useUnsavedChanges } from "@/hooks/shared/useUnsavedChanges"
 
@@ -84,6 +85,7 @@ const PROFILE_SNAPSHOT_FIELDS: (keyof User)[] = [
   "cyl_format",
   "sync_subjective_to_final_subjective",
   "import_order_to_old_refraction_default",
+  "clinical_auto_advance_enabled",
 ]
 
 function pickSnapshotFields<T extends object>(
@@ -233,7 +235,8 @@ export default function SettingsPage() {
     va_format: 'meter',
     cyl_format: 'minus',
     sync_subjective_to_final_subjective: false,
-    import_order_to_old_refraction_default: false
+    import_order_to_old_refraction_default: false,
+    clinical_auto_advance_enabled: true,
   })
   const [profileColorUpdateTimeout, setProfileColorUpdateTimeout] = useState<NodeJS.Timeout | null>(null)
 
@@ -337,7 +340,8 @@ export default function SettingsPage() {
           va_format: currentUser.va_format || 'meter',
           cyl_format: currentUser.cyl_format || 'minus',
           sync_subjective_to_final_subjective: currentUser.sync_subjective_to_final_subjective || false,
-          import_order_to_old_refraction_default: currentUser.import_order_to_old_refraction_default || false
+          import_order_to_old_refraction_default: currentUser.import_order_to_old_refraction_default || false,
+          clinical_auto_advance_enabled: currentUser.clinical_auto_advance_enabled !== false,
         })
       }
     }
@@ -456,7 +460,8 @@ export default function SettingsPage() {
           va_format: personalProfile.va_format,
           cyl_format: personalProfile.cyl_format,
           sync_subjective_to_final_subjective: personalProfile.sync_subjective_to_final_subjective,
-          import_order_to_old_refraction_default: personalProfile.import_order_to_old_refraction_default
+          import_order_to_old_refraction_default: personalProfile.import_order_to_old_refraction_default,
+          clinical_auto_advance_enabled: personalProfile.clinical_auto_advance_enabled,
         }
       }
 
@@ -517,7 +522,8 @@ export default function SettingsPage() {
           va_format: updatedUser.va_format ?? personalProfile.va_format ?? 'meter',
           cyl_format: updatedUser.cyl_format ?? personalProfile.cyl_format ?? 'minus',
           sync_subjective_to_final_subjective: updatedUser.sync_subjective_to_final_subjective ?? personalProfile.sync_subjective_to_final_subjective ?? false,
-          import_order_to_old_refraction_default: updatedUser.import_order_to_old_refraction_default ?? personalProfile.import_order_to_old_refraction_default ?? false
+          import_order_to_old_refraction_default: updatedUser.import_order_to_old_refraction_default ?? personalProfile.import_order_to_old_refraction_default ?? false,
+          clinical_auto_advance_enabled: updatedUser.clinical_auto_advance_enabled ?? personalProfile.clinical_auto_advance_enabled ?? true,
         }
 
         nextProfile = newProfile
@@ -986,7 +992,13 @@ export default function SettingsPage() {
 
                   {isRoleAtLeast(currentUser?.role_level, ROLE_LEVELS.manager) && (
                     <TabsContent value="migration" className="space-y-6 mt-0">
-                      <SoftOpticMigrationTab clinicId={currentClinic?.id} />
+                      <MigrationTab clinicId={currentClinic?.id} />
+                    </TabsContent>
+                  )}
+
+                  {isRoleAtLeast(currentUser?.role_level, ROLE_LEVELS.ceo) && (
+                    <TabsContent value="danger-zone" className="space-y-6 mt-0">
+                      <ClinicDataPruneTab clinicId={currentClinic?.id} clinicName={currentClinic?.name || currentClinic?.clinic_name} />
                     </TabsContent>
                   )}
 
@@ -1040,6 +1052,9 @@ export default function SettingsPage() {
                       <TabsTrigger value="migration" className="w-full justify-end text-right">העברת נתונים</TabsTrigger>
                     )}
                     <TabsTrigger value="field-data" className="w-full justify-end text-right">ניהול נתוני שדות</TabsTrigger>
+                    {isRoleAtLeast(currentUser?.role_level, ROLE_LEVELS.ceo) && (
+                      <TabsTrigger value="danger-zone" className="w-full justify-end text-right text-destructive">אזור מסוכן</TabsTrigger>
+                    )}
                     <TabsTrigger value="about" className="w-full justify-end text-right">אודות האפליקציה</TabsTrigger>
                   </TabsList>
                 </div>

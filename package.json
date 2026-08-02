@@ -193,6 +193,10 @@
       {
         "from": "docs/migration_wizzard_doc/export_opticsoft_csv.ps1",
         "to": "migration_wizard/export_opticsoft_csv.ps1"
+      },
+      {
+        "from": "docs/migration_wizzard_doc/export_optitech_csv.ps1",
+        "to": "migration_wizard/export_optitech_csv.ps1"
       }
     ],
     "mac": {

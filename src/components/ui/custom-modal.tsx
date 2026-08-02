@@ -16,11 +16,12 @@ interface CustomModalProps {
   confirmText?: string
   cancelText?: string
   showCloseButton?: boolean
+  dismissible?: boolean
   isLoading?: boolean
   headerContent?: React.ReactNode
 }
 
-export function CustomModal({ isOpen, onClose, title, subtitle, description, children, className = '', width = 'max-w-lg', onConfirm, confirmText = 'אישור', cancelText = 'ביטול', showCloseButton = true, isLoading = false, headerContent }: CustomModalProps) {
+export function CustomModal({ isOpen, onClose, title, subtitle, description, children, className = '', width = 'max-w-lg', onConfirm, confirmText = 'אישור', cancelText = 'ביטול', showCloseButton = true, dismissible = true, isLoading = false, headerContent }: CustomModalProps) {
   const modalRef = useRef<HTMLDivElement>(null)
   const overlayRef = useRef<HTMLDivElement>(null)
 
@@ -56,7 +57,7 @@ export function CustomModal({ isOpen, onClose, title, subtitle, description, chi
 
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isOpen) {
+      if (e.key === 'Escape' && isOpen && dismissible) {
         e.preventDefault()
         onClose()
       }
@@ -69,10 +70,10 @@ export function CustomModal({ isOpen, onClose, title, subtitle, description, chi
     return () => {
       document.removeEventListener('keydown', handleEscape)
     }
-  }, [isOpen, onClose])
+  }, [dismissible, isOpen, onClose])
 
   const handleOverlayClick = (e: React.MouseEvent) => {
-    if (e.target === overlayRef.current) {
+    if (e.target === overlayRef.current && dismissible) {
       onClose()
     }
   }
@@ -89,7 +90,7 @@ export function CustomModal({ isOpen, onClose, title, subtitle, description, chi
     >
       <div
         ref={modalRef}
-        className={`bg-card rounded-lg shadow-lg w-1/2 ${width} max-h-[90vh] overflow-hidden flex flex-col ${className}`}
+        className={`bg-card rounded-lg shadow-lg w-full ${width} max-h-[90vh] overflow-hidden flex flex-col ${className}`}
         onClick={(e) => e.stopPropagation()}
         tabIndex={-1}
       >
@@ -114,7 +115,7 @@ export function CustomModal({ isOpen, onClose, title, subtitle, description, chi
           {/* Left side: Header content + close button */}
           <div className="flex-1 flex items-center justify-end gap-2">
             {headerContent}
-            {showCloseButton &&
+            {showCloseButton && dismissible &&
               (<Button
                 variant="ghost"
                 size="sm"

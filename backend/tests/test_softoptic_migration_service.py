@@ -175,20 +175,22 @@ def test_softoptic_import_tracks_and_replaces_previous_run(tmp_path):
         assert db.query(MigrationSourceLink).filter_by(source_system=SOFTOPTIC_SOURCE_SYSTEM, clinic_id=clinic.id).count() > 0
 
 
-def test_untracked_existing_data_blocks_import(tmp_path):
+def test_populated_clinic_data_is_allowed_and_preserved(tmp_path):
     SessionLocal = _session_factory()
     bundle_path, _ = _write_bundle(tmp_path)
 
     with SessionLocal() as db:
-        _, clinic = _seed_job(db, bundle_path)
-        db.add(Client(company_id=clinic.company_id, clinic_id=clinic.id, first_name="Existing"))
+        job, clinic = _seed_job(db, bundle_path)
+        existing = Client(company_id=clinic.company_id, clinic_id=clinic.id, first_name="Existing")
+        db.add(existing)
         db.commit()
+        existing_id = existing.id
 
-        try:
-            assert_safe_to_import(db, clinic.id)
-            assert False, "expected guard to block"
-        except RuntimeError as exc:
-            assert "untracked data" in str(exc)
+        assert_safe_to_import(db, clinic.id)
+        run_softoptic_import(db, job=job, storage=None, on_progress=lambda **kwargs: None)
+
+        assert db.get(Client, existing_id).first_name == "Existing"
+        assert db.query(Client).filter_by(clinic_id=clinic.id).count() == 2
 
 
 def test_softoptic_import_respects_client_import_limit(tmp_path):

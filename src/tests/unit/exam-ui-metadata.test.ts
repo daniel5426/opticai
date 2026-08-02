@@ -16,6 +16,7 @@ import {
   isInternalFullDataTab,
   isPersistableLayoutTab,
   parseLayoutData,
+  packCardsIntoGridItems,
   resolveFullDataSourceInstanceId,
   serializeGridLayoutData,
 } from "@/pages/exam-detail/utils";
@@ -481,6 +482,27 @@ describe("parsed layout cache", () => {
 
     const savedLayout = JSON.parse(serializeGridLayoutData(items));
     expect(savedLayout.items[0].w).toBeGreaterThan(items[0].w);
+  });
+
+  test("automatic layouts enforce canonical minimum widths without collisions", () => {
+    const items = packCardsIntoGridItems([
+      { id: "schirmer-1", type: "schirmer-test" },
+      { id: "rg-1", type: "rg" },
+      { id: "stereo-1", type: "stereo-test" },
+      { id: "diameters-1", type: "contact-lens-diameters" },
+      { id: "keratometer-1", type: "keratometer" },
+    ]);
+
+    items.forEach((item) => {
+      expect(item.w).toBeGreaterThanOrEqual(
+        computeCardMinGridCols(item.type),
+      );
+      expect(item.x + item.w).toBeLessThanOrEqual(24);
+      expect(findCollision(item, items, item.id)).toBeUndefined();
+    });
+
+    expect(items.find((item) => item.id === "schirmer-1")?.w).toBe(4);
+    expect(items.find((item) => item.id === "rg-1")?.w).toBe(6);
   });
 
   test("grid collision and resize helpers enforce no overlap", () => {

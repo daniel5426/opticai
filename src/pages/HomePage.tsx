@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { DateInput } from "@/components/ui/date"
+import { TimeInput } from "@/components/ui/time"
 import { CustomModal } from "@/components/ui/custom-modal"
 import { Loader2, Clipboard, Copy, Move, Play, Trash2, UserPlus, Users } from "lucide-react"
 import { createAppointment, updateAppointment, deleteAppointment } from "@/lib/db/appointments-db"
@@ -1147,12 +1149,12 @@ export default function HomePage() {
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label className="block text-right">תאריך</Label>
-                <Input name="date" type="date" value={newClientFormData.date} onChange={handleNewClientInputChange} />
+                <Label htmlFor="calendar-new-time" className="block text-right">שעה</Label>
+                <TimeInput id="calendar-new-time" name="time" value={newClientFormData.time} onChange={handleNewClientInputChange} />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="calendar-new-time" className="block text-right">שעה</Label>
-                <Input id="calendar-new-time" name="time" type="time" value={newClientFormData.time} onChange={handleNewClientInputChange} />
+                <Label className="block text-right">תאריך</Label>
+                <DateInput name="date" value={newClientFormData.date} onChange={handleNewClientInputChange} className="justify-end" />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4">

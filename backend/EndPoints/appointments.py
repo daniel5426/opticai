@@ -14,9 +14,7 @@ from security.scope import (
     get_scoped_appointment,
     get_scoped_client,
     get_scoped_user,
-    normalize_client_id,
     normalize_clinic_id_for_company,
-    normalize_user_id,
     require_company_admin,
     resolve_company_id,
 )
@@ -40,25 +38,24 @@ def create_appointment(
         if not appointment.client_id:
             raise HTTPException(status_code=422, detail="client_id is required")
         
+        # apply_clinic_user_scope already validates and normalizes the clinic, client,
+        # and assigned user. Re-running those checks here adds remote DB round trips.
         payload = apply_clinic_user_scope(db, current_user, appointment.dict())
-        payload["user_id"] = normalize_user_id(db, current_user, payload.get("user_id"))
-        payload["client_id"] = normalize_client_id(db, current_user, payload["client_id"], payload["clinic_id"])
         
         print(f"Creating appointment with final data: {payload}")
         db_appointment = Appointment(**payload)
         db.add(db_appointment)
+        db.flush()
+
+        # Keep the appointment write and client AI invalidation atomic. This avoids a
+        # second commit on the critical save path and prevents stale client AI state.
+        client = db.query(Client).filter(Client.id == db_appointment.client_id).first()
+        if client:
+            client.client_updated_date = func.now()
+            client.ai_appointment_state = None
+
         db.commit()
         db.refresh(db_appointment)
-        # bump client_updated_date and clear ai_appointment_state to avoid stale AI
-        try:
-            if db_appointment.client_id:
-                client = db.query(Client).filter(Client.id == db_appointment.client_id).first()
-                if client:
-                    client.client_updated_date = func.now()
-                    client.ai_appointment_state = None
-                    db.commit()
-        except Exception:
-            pass
         print(f"Successfully created appointment with ID: {db_appointment.id}")
         return db_appointment
     except HTTPException:

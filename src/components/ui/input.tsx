@@ -3,6 +3,7 @@ import { UI_CONFIG } from "@/config/ui-config"
 import { cn } from "@/utils/tailwind"
 import { ChevronUp, ChevronDown, Info } from "lucide-react"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { useUser } from "@/contexts/UserContext"
 import {
   focusClinicalNavSibling,
   isInClinicalNavScope,
@@ -115,6 +116,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
     warningMessage,
     ...props
   }, ref) => {
+    const { currentUser } = useUser()
     const internalRef = React.useRef<HTMLInputElement>(null)
     React.useImperativeHandle(ref, () => internalRef.current!)
 
@@ -375,7 +377,10 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
             if (isNumericInput) {
               val = cleanSignedNumberInput(val)
               e.currentTarget.value = val
-              const normalized = normalizeClinicalNumberInput(e.currentTarget)
+              const autoAdvanceEnabled = currentUser?.clinical_auto_advance_enabled !== false
+              const normalized = autoAdvanceEnabled
+                ? normalizeClinicalNumberInput(e.currentTarget)
+                : { value: val, shouldAdvance: false }
               val = normalized.value
 
               if (normalized.shouldAdvance && !suppressClinicalAutoAdvanceRef.current) {

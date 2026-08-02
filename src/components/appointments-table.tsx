@@ -51,6 +51,7 @@ import { UserSelect } from "@/components/ui/user-select";
 import { useUser } from "@/contexts/UserContext";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DateInput } from "@/components/ui/date";
+import { TimeInput } from "@/components/ui/time";
 import {
   getClientById,
   getAllClients,
@@ -1022,31 +1023,25 @@ export function AppointmentsTable({
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="new-date" className="block text-right">
+              <Label htmlFor="new-time" className="block text-right">
+                שעה
+              </Label>
+              <TimeInput
+                id="new-time"
+                name="time"
+                value={newClientFormData.time}
+                onChange={handleNewClientInputChange}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="block text-right">
                 תאריך
               </Label>
               <DateInput
                 name="date"
                 value={newClientFormData.date}
                 onChange={handleNewClientInputChange}
-                className="text-right"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="new-time" className="block text-right">
-                שעה
-              </Label>
-              <Input
-                id="new-time"
-                name="time"
-                type="time"
-                value={newClientFormData.time}
-                onChange={handleNewClientInputChange}
-                style={{
-                  textAlign: "right",
-                  direction: "rtl",
-                  paddingLeft: "55%",
-                }}
+                className="justify-end"
               />
             </div>
           </div>

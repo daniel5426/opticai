@@ -13,6 +13,7 @@ import {
 import { cn } from "@/utils/tailwind";
 import { flushSync } from 'react-dom';
 import { UI_CONFIG } from '@/config/ui-config';
+import { useUser } from "@/contexts/UserContext";
 import {
     focusClinicalNavSibling,
     isClinicalPrintableKey,
@@ -124,6 +125,7 @@ export function useOptimizedInput<T extends HTMLInputElement | HTMLTextAreaEleme
     onBlurOverride?: () => void,
     onInput?: (val: string) => void
 ) {
+    const { currentUser } = useUser();
     const inputRef = useRef<T>(null);
     const lastSentValueRef = useRef(value);
     const localValueRef = useRef(value);
@@ -202,7 +204,10 @@ export function useOptimizedInput<T extends HTMLInputElement | HTMLTextAreaEleme
 
         const onInputInternal = (e: Event) => {
             const target = e.target as T;
-            if (target instanceof HTMLInputElement) {
+            if (
+                target instanceof HTMLInputElement &&
+                currentUser?.clinical_auto_advance_enabled !== false
+            ) {
                 normalizeClinicalNumberInput(target);
             }
             let val = target.value;
@@ -244,7 +249,7 @@ export function useOptimizedInput<T extends HTMLInputElement | HTMLTextAreaEleme
                 handleSync();
             }
         };
-    }, [debounceMs]);
+    }, [debounceMs, currentUser?.clinical_auto_advance_enabled]);
 
     return { inputRef, lastSentValueRef };
 }

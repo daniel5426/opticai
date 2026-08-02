@@ -385,8 +385,55 @@ export const packCardsIntoGridItems = (
   cards: { id: string; type: CardItem["type"]; title?: string }[],
   columns = EXAM_LAYOUT_GRID_COLUMNS,
 ) => {
-  const rows = packCardsIntoRows(cards);
-  return legacyRowsToGridItems(rows, {}, columns);
+  const items = cards
+    .map((card, sourceIndex) => ({
+      ...card,
+      sourceIndex,
+      w: computeCardMinGridCols(card.type, columns),
+    }))
+    .sort((a, b) => b.w - a.w || a.sourceIndex - b.sourceIndex);
+
+  const totalWidth = items.reduce((sum, item) => sum + item.w, 0);
+  const minimumLaneCount = Math.max(1, Math.ceil(totalWidth / columns));
+  const targetWidth = Math.ceil(totalWidth / minimumLaneCount);
+  const lanes: Array<{ items: typeof items; used: number }> = [];
+
+  items.forEach((item) => {
+    let bestLaneIndex = -1;
+    let bestDistance = Number.POSITIVE_INFINITY;
+
+    lanes.forEach((lane, laneIndex) => {
+      if (lane.items.length >= 3 || lane.used + item.w > columns) return;
+
+      const distance = Math.abs(targetWidth - (lane.used + item.w));
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        bestLaneIndex = laneIndex;
+      }
+    });
+
+    if (bestLaneIndex === -1) {
+      lanes.push({ items: [item], used: item.w });
+      return;
+    }
+
+    lanes[bestLaneIndex].items.push(item);
+    lanes[bestLaneIndex].used += item.w;
+  });
+
+  return lanes.flatMap((lane, y) => {
+    let x = 0;
+    return lane.items.map(({ sourceIndex: _sourceIndex, ...item }, index) => {
+      const gridItem: GridLayoutItem = {
+        ...item,
+        showEyeLabels: index === 0,
+        x,
+        y,
+      };
+      x += item.w;
+      return gridItem;
+    });
+  });
 };
 
 export const createGridLayoutData = (
@@ -553,86 +600,6 @@ export const clampResizeLeft = (
     x,
     w: rightEdge - x,
   };
-};
-
-export const packCardsIntoRows = (
-  cards: { id: string; type: CardItem["type"]; title?: string }[],
-) => {
-  const items = cards.map((c) => ({ ...c, cols: computeCardCols(c.type) }));
-
-  // Calculate ideal target columns per row
-  const totalCols = items.reduce((sum, item) => sum + item.cols, 0);
-  const minRowsNeeded = Math.ceil(totalCols / 16);
-  const targetColsPerRow = Math.ceil(totalCols / minRowsNeeded);
-
-  // Sort descending by size
-  items.sort((a, b) => b.cols - a.cols);
-
-  const rows: {
-    id: string;
-    cards: { id: string; type: CardItem["type"]; title?: string }[];
-    used: number;
-  }[] = [];
-
-  items.forEach((item) => {
-    let bestIdx = -1;
-    let bestScore = -Infinity;
-
-    rows.forEach((row, idx) => {
-      if (row.cards.length < 3 && row.used + item.cols <= 16) {
-        // Calculate how close this placement gets us to the target balance
-        const newUsed = row.used + item.cols;
-
-        // Score based on how close to target this row would be
-        const distanceFromTarget = Math.abs(targetColsPerRow - newUsed);
-
-        // Also consider overall variance reduction
-        const currentVariance = rows.reduce(
-          (sum, r) => sum + Math.pow(r.used - targetColsPerRow, 2),
-          0,
-        );
-        const newVariance = rows.reduce((sum, r, i) => {
-          const used = i === idx ? newUsed : r.used;
-          return sum + Math.pow(used - targetColsPerRow, 2);
-        }, 0);
-
-        // Higher score is better: prefer placements that reduce variance and get close to target
-        const score =
-          (currentVariance - newVariance) * 100 - distanceFromTarget;
-
-        if (score > bestScore) {
-          bestScore = score;
-          bestIdx = idx;
-        }
-      }
-    });
-
-    if (bestIdx === -1) {
-      // No suitable row, create a new one
-      rows.push({
-        id: `row-${rows.length + 1}`,
-        cards: [
-          {
-            id: item.id,
-            type: item.type,
-            ...(item.title ? { title: item.title } : {}),
-          },
-        ],
-        used: item.cols,
-      });
-    } else {
-      // Place in the best row for balance
-      const row = rows[bestIdx];
-      row.cards.push({
-        id: item.id,
-        type: item.type,
-        ...(item.title ? { title: item.title } : {}),
-      });
-      row.used += item.cols;
-    }
-  });
-
-  return rows.map((r) => ({ id: r.id, cards: r.cards }));
 };
 
 export interface ParsedLayoutData {

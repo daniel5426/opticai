@@ -405,7 +405,8 @@ function sanitizePdfFileName(fileName: string) {
 
 type SoftOpticCandidate = {
   id: string;
-  kind: "dsn" | "db-file";
+  kind: "dsn" | "db-file" | "access-db";
+  sourceSystem?: "softoptic" | "optitech";
   label: string;
   dsn?: string;
   dbFile?: string;
@@ -417,6 +418,8 @@ type SoftOpticCandidate = {
   recommended: boolean;
   reasons: string[];
 };
+
+type MigrationSourceSystem = "softoptic" | "optitech";
 
 type SoftOpticExportStatus = {
   jobId: string;
@@ -558,6 +561,105 @@ function getSoftOpticExporterPath() {
     : "";
   if (packaged && fs.existsSync(packaged)) return packaged;
   return path.join(process.cwd(), "docs", "migration_wizzard_doc", "export_opticsoft_csv.ps1");
+}
+
+function getOptiTechExporterPath() {
+  const packaged = process.resourcesPath
+    ? path.join(process.resourcesPath, "migration_wizard", "export_optitech_csv.ps1")
+    : "";
+  if (packaged && fs.existsSync(packaged)) return packaged;
+  return path.join(process.cwd(), "docs", "migration_wizzard_doc", "export_optitech_csv.ps1");
+}
+
+function getWindowsPowerShellPath() {
+  const x86PowerShell = "C:\\Windows\\SysWOW64\\WindowsPowerShell\\v1.0\\powershell.exe";
+  return fs.existsSync(x86PowerShell) ? x86PowerShell : "powershell.exe";
+}
+
+async function scanOptiTechCandidates(): Promise<{ supported: boolean; candidates: SoftOpticCandidate[]; error?: string }> {
+  if (process.platform !== "win32") {
+    return { supported: false, candidates: [], error: "OptiTech import is available only on Windows" };
+  }
+  const discovered = new Set<string>();
+  const knownPaths = [
+    "C:\\opt\\optData.xns",
+    "C:\\OptiTech\\optData.xns",
+    "C:\\Program Files (x86)\\OptiTech\\optData.xns",
+  ];
+  knownPaths.filter(candidate => fs.existsSync(candidate)).forEach(candidate => discovered.add(candidate));
+  try {
+    const { stdout } = await runProcess(getWindowsPowerShellPath(), [
+      "-NoProfile",
+      "-ExecutionPolicy", "Bypass",
+      "-Command",
+      "Get-PSDrive -PSProvider FileSystem | ForEach-Object { Get-ChildItem -LiteralPath $_.Root -Filter optData.xns -File -Recurse -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName }",
+    ]);
+    stdout.split(/\r?\n/).map(value => value.trim()).filter(Boolean).forEach(candidate => discovered.add(candidate));
+  } catch {
+    // Manual selection remains available when recursive drive discovery is restricted.
+  }
+  const candidates = [...discovered].map((dbFile, index) => {
+    const documentPath = path.join(path.dirname(dbFile), "Scans");
+    const info = getFileInfo(dbFile);
+    const likelyBackup = /(?:backup|bak|\\d{2}[-_]\\d{2}[-_]\\d{2,4})/i.test(dbFile);
+    const score = (likelyBackup ? 0 : 30) + (documentPath && fs.existsSync(documentPath) ? 15 : 0) + (info.modifiedAt ? 5 : 0);
+    return {
+      id: `optitech-${Buffer.from(dbFile).toString("base64url")}`,
+      sourceSystem: "optitech" as const,
+      kind: "access-db" as const,
+      label: path.basename(dbFile),
+      dbFile,
+      documentPath: fs.existsSync(documentPath) ? documentPath : undefined,
+      ...info,
+      score,
+      recommended: false,
+      reasons: [
+        likelyBackup ? "The path looks like a backup" : "Found an OptiTech database",
+        ...(fs.existsSync(documentPath) ? ["Found an adjacent Scans directory"] : []),
+      ],
+    };
+  }).sort((a, b) => b.score - a.score || String(b.modifiedAt || "").localeCompare(String(a.modifiedAt || "")));
+  if (candidates[0]) candidates[0].recommended = true;
+  return { supported: true, candidates };
+}
+
+async function exportOptiTechCandidate(candidate: SoftOpticCandidate, includeDocuments = false) {
+  if (process.platform !== "win32") return { success: false, error: "OptiTech import is available only on Windows" };
+  if (!candidate.dbFile || !fs.existsSync(candidate.dbFile)) return { success: false, error: "OptiTech database was not found" };
+  const exporterPath = getOptiTechExporterPath();
+  if (!fs.existsSync(exporterPath)) return { success: false, error: "OptiTech exporter script is missing" };
+  const outputDir = path.join(app.getPath("temp"), `optitech_export_${Date.now()}`);
+  await fs.promises.mkdir(outputDir, { recursive: true });
+  const args = [
+    "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", exporterPath,
+    "-DbFile", candidate.dbFile,
+    "-OutputDir", outputDir,
+  ];
+  if (candidate.documentPath) args.push("-ScansDir", candidate.documentPath);
+  if (includeDocuments) args.push("-IncludeDocuments");
+  try {
+    await runProcess(getWindowsPowerShellPath(), args, { cwd: outputDir });
+    const manifest = JSON.parse(await fs.promises.readFile(path.join(outputDir, "manifest.json"), "utf-8"));
+    const tableCounts = Object.fromEntries((manifest.tables || []).map((table: any) => [table.name, table.row_count]));
+    const summary = {
+      clients: tableCounts.tblPerData || 0,
+      exams: (tableCounts.tblCrdGlassChecks || 0) + (tableCounts.tblCrdClensChecks || 0),
+      orders: tableCounts.tblCrdBuysWorks || 0,
+      files: tableCounts.tblPerPicture || 0,
+      appointments: tableCounts.tblClndrApt || 0,
+      external_documents: manifest.documents?.file_count || 0,
+      sourceFingerprint: manifest.source_fingerprint,
+      manifest,
+    };
+    const zipPath = `${outputDir}.zip`;
+    await runProcess(getWindowsPowerShellPath(), [
+      "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command",
+      `Compress-Archive -Path '${outputDir.replace(/'/g, "''")}\\*' -DestinationPath '${zipPath.replace(/'/g, "''")}' -Force`,
+    ]);
+    return { success: true, outputDir, zipPath, summary };
+  } catch (error) {
+    return { success: false, outputDir, error: error instanceof Error ? error.message : String(error) };
+  }
 }
 
 function getFileInfo(filePath: string) {
@@ -874,6 +976,59 @@ async function startSoftOpticExportJob(payload: {
   return { success: true, jobId, status };
 }
 
+async function startMigrationExportJob(payload: {
+  sourceSystem: MigrationSourceSystem;
+  clinicId?: number;
+  candidate: SoftOpticCandidate;
+  sqlAnywhereBin?: string;
+  includeDocuments?: boolean;
+  clientImportLimit?: number | null;
+}) {
+  if (payload.sourceSystem === "softoptic") return startSoftOpticExportJob(payload);
+  const now = new Date().toISOString();
+  const jobId = randomUUID();
+  const status: SoftOpticExportStatus = {
+    jobId,
+    status: "running",
+    phase: "exporting",
+    progress: 35,
+    step: "ייצוא נתוני OptiTech",
+    clinicId: payload.clinicId,
+    candidate: payload.candidate,
+    includeDocuments: Boolean(payload.includeDocuments),
+    startedAt: now,
+    updatedAt: now,
+  };
+  activeSoftOpticExportJobs.add(jobId);
+  await saveSoftOpticExportStatus(status);
+  void (async () => {
+    try {
+      const result = await exportOptiTechCandidate(payload.candidate, Boolean(payload.includeDocuments));
+      await saveSoftOpticExportStatus(result.success && result.zipPath ? {
+        ...status,
+        status: "completed",
+        phase: "ready",
+        progress: 52,
+        step: "סיכום",
+        outputDir: result.outputDir,
+        zipPath: result.zipPath,
+        summary: result.summary || {},
+      } : {
+        ...status,
+        status: "failed",
+        phase: "failed",
+        progress: 35,
+        step: "ייצוא נכשל",
+        outputDir: result.outputDir,
+        error: result.error || "OptiTech export failed",
+      });
+    } finally {
+      activeSoftOpticExportJobs.delete(jobId);
+    }
+  })();
+  return { success: true, jobId, status };
+}
+
 function uploadFileToSignedUrl(
   signedUploadUrl: string,
   zipPath: string,
@@ -968,7 +1123,7 @@ async function uploadSoftOpticBundle(payload: { apiBaseUrl: string; jobId: strin
     });
 
     const baseUrl = payload.apiBaseUrl.replace(/\/$/, "");
-    const uploadUrlResponse = await fetch(`${baseUrl}/migration/softoptic/imports/${encodeURIComponent(payload.jobId)}/bundle-upload-url`, {
+    const uploadUrlResponse = await fetch(`${baseUrl}/migration/imports/${encodeURIComponent(payload.jobId)}/bundle-upload-url`, {
       method: "POST",
       headers: { Authorization: `Bearer ${payload.accessToken}` },
     });
@@ -1030,7 +1185,7 @@ async function uploadSoftOpticBundle(payload: { apiBaseUrl: string; jobId: strin
       transferredBytes: stat.size,
       totalBytes: stat.size,
     });
-    const finalizeResponse = await fetch(`${baseUrl}/migration/softoptic/imports/${encodeURIComponent(payload.jobId)}/bundle-upload-complete`, {
+    const finalizeResponse = await fetch(`${baseUrl}/migration/imports/${encodeURIComponent(payload.jobId)}/bundle-upload-complete`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${payload.accessToken}`,
@@ -1116,6 +1271,31 @@ function setupIpcHandlers() {
   });
 
   ipcMain.handle('softoptic-upload-status', async (_event, payload: { jobId: string }) => {
+    return getSoftOpticUploadStatus(payload.jobId);
+  });
+
+  ipcMain.handle('migration-scan', async (_event, payload: { sourceSystem: MigrationSourceSystem }) => {
+    return payload.sourceSystem === "optitech" ? scanOptiTechCandidates() : scanSoftOpticCandidates();
+  });
+
+  ipcMain.handle('migration-start-export', async (_event, payload: {
+    sourceSystem: MigrationSourceSystem;
+    clinicId?: number;
+    candidate: SoftOpticCandidate;
+    sqlAnywhereBin?: string;
+    includeDocuments?: boolean;
+    clientImportLimit?: number | null;
+  }) => startMigrationExportJob(payload));
+
+  ipcMain.handle('migration-export-status', async (_event, payload: { jobId: string }) => {
+    return getSoftOpticExportStatus(payload.jobId);
+  });
+
+  ipcMain.handle('migration-upload-bundle', async (_event, payload: { apiBaseUrl: string; jobId: string; zipPath: string; accessToken: string }) => {
+    return uploadSoftOpticBundle(payload);
+  });
+
+  ipcMain.handle('migration-upload-status', async (_event, payload: { jobId: string }) => {
     return getSoftOpticUploadStatus(payload.jobId);
   });
 

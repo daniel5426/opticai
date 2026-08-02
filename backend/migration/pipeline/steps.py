@@ -202,75 +202,6 @@ def migrate_clients_and_families(
 
     if return_only:
         print("[accounts] return_only mode enabled — mapping existing clients", flush=True)
-        client_query = select(Client)
-        if target_clinic_id is not None:
-            client_query = client_query.where(Client.clinic_id == target_clinic_id)
-        all_clients = db.execute(client_query).scalars().all()
-        by_national_id: Dict[str, List[Client]] = {}
-        by_email: Dict[str, List[Client]] = {}
-        by_mobile: Dict[str, List[Client]] = {}
-        by_home: Dict[str, List[Client]] = {}
-        by_work: Dict[str, List[Client]] = {}
-        by_name_dob: Dict[Tuple[str, str, Optional[datetime.date]], List[Client]] = {}
-
-        def norm_phone(s: Optional[str]) -> Optional[str]:
-            if not s:
-                return None
-            digits = "".join(ch for ch in str(s) if ch.isdigit())
-            return digits or None
-
-        def norm_email(s: Optional[str]) -> Optional[str]:
-            if not s:
-                return None
-            s2 = str(s).strip().lower()
-            return s2 or None
-
-        for c in all_clients:
-            if c.national_id:
-                by_national_id.setdefault(c.national_id, []).append(c)
-            em = norm_email(c.email)
-            if em:
-                by_email.setdefault(em, []).append(c)
-            m = norm_phone(c.phone_mobile)
-            if m:
-                by_mobile.setdefault(m, []).append(c)
-            h = norm_phone(c.phone_home)
-            if h:
-                by_home.setdefault(h, []).append(c)
-            w = norm_phone(c.phone_work)
-            if w:
-                by_work.setdefault(w, []).append(c)
-            fn = (c.first_name or "").strip()
-            ln = (c.last_name or "").strip()
-            key = (fn, ln, c.date_of_birth)
-            by_name_dob.setdefault(key, []).append(c)
-
-        def find_client_for_row(r: Dict[str, Any]) -> Optional[Client]:
-            nid = (r.get("id_number") or None)
-            if nid and nid in by_national_id:
-                return by_national_id[nid][0]
-            em = norm_email(r.get("e_mail"))
-            if em and em in by_email:
-                return by_email[em][0]
-            m = norm_phone(r.get("mobile_phone"))
-            if m and m in by_mobile:
-                return by_mobile[m][0]
-            h = norm_phone(r.get("phone1"))
-            if h and h in by_home:
-                return by_home[h][0]
-            w = norm_phone(r.get("phone2"))
-            if w and w in by_work:
-                return by_work[w][0]
-            fn = (r.get("first_name") or "").strip()
-            ln = (r.get("last_name") or "").strip()
-            dob = parse_date(r.get("birth_date"))
-            key = (fn, ln, dob)
-            if fn or ln:
-                cand = by_name_dob.get(key)
-                if cand:
-                    return cand[0]
-            return None
-
         rows_iter = read_csv_streaming(csv_dir, "account.csv")
         for r in rows_iter:
             row_count += 1
@@ -279,12 +210,19 @@ def migrate_clients_and_families(
             if not account_allowed(r, allowed_account_codes):
                 continue
             acc = r.get("account_code")
-            if acc is None:
+            if acc is None or target_clinic_id is None:
                 continue
-            client = find_client_for_row(r)
-            if client is None:
+            account_code = str(acc).strip()
+            if not account_code:
                 continue
-            account_to_client[str(acc)] = client.id
+            try:
+                target_id = create_composite_client_id(target_clinic_id, account_code)
+            except ValueError:
+                continue
+            client = db.get(Client, target_id)
+            if client is None or client.clinic_id != target_clinic_id:
+                continue
+            account_to_client[account_code] = client.id
 
         rows_iter = read_csv_streaming(csv_dir, "account.csv")
         for r in rows_iter:

@@ -2127,6 +2127,96 @@ class ApiClient {
   async cancelSoftOpticImport(jobId: string) {
     return this.request(`/migration/softoptic/imports/${jobId}/cancel`, { method: 'POST' });
   }
+
+  async createMigrationImport(data: {
+    clinicId: number;
+    sourceSystem: 'softoptic' | 'optitech';
+    sourceMetadata: Record<string, any>;
+    exportSummary: Record<string, any>;
+    includeDocuments: boolean;
+    clientImportLimit?: number | null;
+    bundleFormatVersion?: number | null;
+    sourceFingerprint?: string | null;
+  }) {
+    return this.request('/migration/imports', {
+      method: 'POST',
+      body: JSON.stringify({
+        clinic_id: data.clinicId,
+        source_system: data.sourceSystem,
+        source_metadata: data.sourceMetadata || {},
+        export_summary: data.exportSummary || {},
+        bundle_format_version: data.bundleFormatVersion ?? null,
+        source_fingerprint: data.sourceFingerprint ?? null,
+        options: {
+          include_documents: data.includeDocuments,
+          client_import_limit: data.clientImportLimit ?? null,
+        },
+      }),
+    });
+  }
+
+  async listMigrationImports(
+    clinicId: number,
+    sourceSystem?: 'softoptic' | 'optitech',
+    activeOnly = false,
+  ) {
+    const params = new URLSearchParams({ clinic_id: String(clinicId), limit: '10' });
+    if (sourceSystem) params.set('source_system', sourceSystem);
+    if (activeOnly) params.set('active_only', 'true');
+    return this.request(`/migration/imports?${params.toString()}`);
+  }
+
+  async getMigrationImport(jobId: string) {
+    return this.request(`/migration/imports/${jobId}`);
+  }
+
+  async uploadMigrationBundle(jobId: string, zipPath: string) {
+    const uploader = window.electronAPI?.migrationUploadBundle || window.electronAPI?.softOpticUploadBundle;
+    if (!uploader) return { error: 'Migration upload is available only in the Electron app' };
+    if (this.token && this.isTokenExpiringSoon(this.token)) await this.refreshTokenIfPossible();
+    return uploader({ apiBaseUrl: this.baseUrl, jobId, zipPath, accessToken: this.token || '' });
+  }
+
+  async getMigrationUploadStatus(jobId: string) {
+    const reader = window.electronAPI?.migrationUploadStatus || window.electronAPI?.softOpticUploadStatus;
+    return reader ? reader({ jobId }) : null;
+  }
+
+  async pauseMigrationImport(jobId: string) {
+    return this.request(`/migration/imports/${jobId}/pause`, { method: 'POST' });
+  }
+
+  async resumeMigrationImport(jobId: string) {
+    return this.request(`/migration/imports/${jobId}/resume`, { method: 'POST' });
+  }
+
+  async cancelMigrationImport(jobId: string) {
+    return this.request(`/migration/imports/${jobId}/cancel`, { method: 'POST' });
+  }
+
+  async previewClinicDataPrune(clinicId: number, section?: string) {
+    const query = section ? `?section=${encodeURIComponent(section)}` : '';
+    return this.request(`/clinics/${clinicId}/data-prune/preview${query}`, { method: 'POST' });
+  }
+
+  async getActiveClinicDataPrune(clinicId: number) {
+    return this.request(`/clinics/${clinicId}/data-prune/active`);
+  }
+
+  async startClinicDataPrune(clinicId: number, clinicName: string, confirmationToken: string) {
+    return this.request(`/clinics/${clinicId}/data-prune`, {
+      method: 'POST',
+      body: JSON.stringify({ clinic_name: clinicName, confirmation_token: confirmationToken }),
+    });
+  }
+
+  async getClinicDataPrune(clinicId: number, jobId: string) {
+    return this.request(`/clinics/${clinicId}/data-prune/${jobId}`);
+  }
+
+  async resumeClinicDataPrune(clinicId: number, jobId: string) {
+    return this.request(`/clinics/${clinicId}/data-prune/${jobId}/resume`, { method: 'POST' });
+  }
 }
 
 export const apiClient = new ApiClient(); 

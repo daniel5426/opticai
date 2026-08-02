@@ -356,16 +356,9 @@ def _core_counts(db: Session, clinic_id: int) -> dict[str, int]:
 
 
 def assert_safe_to_import(db: Session, clinic_id: int) -> None:
-    links = _existing_softoptic_links(db, clinic_id)
-    if links:
-        return
-    counts = _core_counts(db, clinic_id)
-    non_empty = {name: count for name, count in counts.items() if count > 0}
-    if non_empty:
-        raise RuntimeError(
-            "Clinic already contains untracked data. Create an empty clinic or clean it manually before SoftOptic import. "
-            f"Counts: {non_empty}"
-        )
+    # Populated clinics are supported. Existing unlinked rows are deliberately
+    # left untouched; legacy SoftOptic rows are replaced through source links.
+    return None
 
 
 def _ids_by_model(links: Iterable[MigrationSourceLink]) -> dict[str, list[int]]:
@@ -612,7 +605,8 @@ async def store_bundle_upload(
 
 def softoptic_bundle_storage_location(job: SoftOpticMigrationJob) -> tuple[str, str]:
     bucket = os.environ.get("SOFTOPTIC_MIGRATION_BUNDLE_BUCKET") or config.settings.SUPABASE_BUCKET or "opticai"
-    key = f"clinics/{job.clinic_id}/softoptic-migrations/{job.id}/bundle.zip"
+    source_system = getattr(job, "source_system", None) or SOFTOPTIC_SOURCE_SYSTEM
+    key = f"clinics/{job.clinic_id}/{source_system}-migrations/{job.id}/bundle.zip"
     return bucket, key
 
 
@@ -686,9 +680,15 @@ def create_job(
     export_summary: dict[str, Any],
     include_documents: bool,
     client_import_limit: Optional[int] = None,
+    source_system: str = SOFTOPTIC_SOURCE_SYSTEM,
+    bundle_format_version: Optional[int] = None,
+    source_fingerprint: Optional[str] = None,
 ) -> SoftOpticMigrationJob:
     job = SoftOpticMigrationJob(
         id=job_id,
+        source_system=source_system,
+        bundle_format_version=bundle_format_version,
+        source_fingerprint=source_fingerprint,
         clinic_id=clinic.id,
         company_id=clinic.company_id,
         user_id=current_user.id,
@@ -746,8 +746,13 @@ def resume_job(db: Session, job: SoftOpticMigrationJob) -> SoftOpticMigrationJob
 
 
 def cancel_job(db: Session, job: SoftOpticMigrationJob) -> SoftOpticMigrationJob:
-    destructive_started = bool(set((job.checkpoint or {}).get("completed_phases", [])) & {"cleanup", "clients", "clinical", "supplemental"})
-    if job.status not in {"awaiting_upload", "queued", "paused"} or destructive_started:
+    checkpoint = job.checkpoint or {}
+    destructive_started = bool(
+        set(checkpoint.get("completed_phases", [])) & {"cleanup", "clients", "clinical", "supplemental"}
+        or checkpoint.get("optitech_phase2_started")
+        or checkpoint.get("optitech_phase3_started")
+    )
+    if job.status not in {"awaiting_upload", "queued", "running", "paused"} or destructive_started:
         raise HTTPException(status_code=409, detail="Migration can no longer be cancelled safely")
     update_job(db, job, status="cancelled", step="בוטל", progress=job.progress)
     return job
@@ -837,7 +842,11 @@ def run_softoptic_import(
         if not phase_completed(job, "cleanup"):
             on_progress(step="החלפת ייבוא קודם", progress=35, heartbeat=True)
             assert_safe_to_import(db, job.clinic_id)
-            deleted = cleanup_previous_softoptic_import(db, job.clinic_id, storage)
+            deleted = (
+                cleanup_previous_softoptic_import(db, job.clinic_id, storage)
+                if _existing_softoptic_links(db, job.clinic_id)
+                else {}
+            )
             import_summary["deleted_previous"] = deleted
             on_progress(import_summary=import_summary, heartbeat=True)
             if mark_checkpoint(db, job, phase="cleanup", step="החלפת ייבוא קודם", progress=38):
@@ -990,6 +999,9 @@ def run_softoptic_import(
 def job_to_dict(job: SoftOpticMigrationJob) -> dict[str, Any]:
     return {
         "id": job.id,
+        "source_system": getattr(job, "source_system", None) or SOFTOPTIC_SOURCE_SYSTEM,
+        "bundle_format_version": getattr(job, "bundle_format_version", None),
+        "source_fingerprint": getattr(job, "source_fingerprint", None),
         "clinic_id": job.clinic_id,
         "company_id": job.company_id,
         "user_id": job.user_id,

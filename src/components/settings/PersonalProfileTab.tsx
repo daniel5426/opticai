@@ -426,6 +426,22 @@ export function PersonalProfileTab({
                 כאשר אפשרות זו פעילה, בעת פתיחת בדיקה חדשה, נתוני ההזמנה האחרונה של הלקוח ייטענו אוטומטית לתוך כרטיס המרשם הישן.
               </p>
             </div>
+
+            <div className="flex flex-col gap-2 items-end border-t pt-4">
+              <div className="flex items-center justify-end gap-2">
+                <Label htmlFor="clinical-auto-advance" className="text-right text-sm font-medium cursor-pointer">
+                  מעבר אוטומטי בשדות בדיקה
+                </Label>
+                <Switch
+                  id="clinical-auto-advance"
+                  checked={personalProfile.clinical_auto_advance_enabled !== false}
+                  onCheckedChange={(checked) => onProfileChange('clinical_auto_advance_enabled', checked)}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground text-right w-full">
+                כאשר אפשרות זו פעילה, מילוי ערך יעבור אוטומטית לשדה הבא ויעצב ערכים עשרוניים בזמן ההקלדה. ניווט באמצעות המקלדת נשאר זמין תמיד.
+              </p>
+            </div>
           </div>
         </CardContent>
       </Card>

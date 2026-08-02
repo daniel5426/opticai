@@ -70,8 +70,11 @@ def require_company_admin(db: Session, current_user: User, company_id: int) -> N
         raise HTTPException(status_code=403, detail="Access denied")
 
 
-def list_company_clinic_ids(db: Session, company_id: int) -> list[int]:
-    rows = db.query(Clinic.id).filter(Clinic.company_id == company_id).all()
+def list_company_clinic_ids(db: Session, company_id: int, *, include_maintenance: bool = False) -> list[int]:
+    query = db.query(Clinic.id).filter(Clinic.company_id == company_id)
+    if not include_maintenance:
+        query = query.filter(Clinic.maintenance_mode.is_(False))
+    rows = query.all()
     return [r[0] for r in rows]
 
 
@@ -106,19 +109,29 @@ def resolve_company_id(db: Session, current_user: User) -> int:
     return get_user_company_id(db, current_user)
 
 
-def assert_clinic_scope(db: Session, current_user: User, clinic_id: Optional[int]) -> None:
+def assert_clinic_scope(
+    db: Session,
+    current_user: User,
+    clinic_id: Optional[int],
+    *,
+    allow_maintenance: bool = False,
+) -> None:
     if clinic_id is None:
         raise HTTPException(status_code=403, detail="Access denied")
     company_id = resolve_company_id(db, current_user)
     assert_clinic_belongs_to_company(db, clinic_id, company_id)
     if (current_user.role_level or 1) < CEO_LEVEL and current_user.clinic_id != clinic_id:
         raise HTTPException(status_code=403, detail="Access denied")
+    if not allow_maintenance:
+        maintenance_mode = db.query(Clinic.maintenance_mode).filter(Clinic.id == clinic_id).scalar()
+        if maintenance_mode:
+            raise HTTPException(status_code=423, detail="Clinic is in maintenance mode")
 
 
 def get_allowed_clinic_ids(db: Session, current_user: User, clinic_id: Optional[int] = None) -> list[int]:
     company_id = resolve_company_id(db, current_user)
     if clinic_id is not None:
-        assert_clinic_belongs_to_company(db, clinic_id, company_id)
+        assert_clinic_scope(db, current_user, clinic_id)
         if (current_user.role_level or 1) < CEO_LEVEL and current_user.clinic_id != clinic_id:
             raise HTTPException(status_code=403, detail="Access denied")
         return [clinic_id]
@@ -126,6 +139,7 @@ def get_allowed_clinic_ids(db: Session, current_user: User, clinic_id: Optional[
         return list_company_clinic_ids(db, company_id)
     if current_user.clinic_id is None:
         raise HTTPException(status_code=403, detail="Access denied")
+    assert_clinic_scope(db, current_user, current_user.clinic_id)
     return [current_user.clinic_id]
 
 

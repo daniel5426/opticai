@@ -49,6 +49,10 @@ class Clinic(Base):
     entry_pin_hash = Column(String)
     entry_pin_version = Column(Integer, nullable=False, default=1)
     is_active = Column(Boolean, default=True)
+    maintenance_mode = Column(Boolean, nullable=False, default=False)
+    maintenance_reason = Column(String)
+    maintenance_job_id = Column(String)
+    maintenance_started_at = Column(DateTime(timezone=True))
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     
@@ -90,6 +94,7 @@ class User(Base):
     added_vacation_dates = Column(JSON, default=list)
     sync_subjective_to_final_subjective = Column(Boolean, default=False)
     import_order_to_old_refraction_default = Column(Boolean, default=False)
+    clinical_auto_advance_enabled = Column(Boolean, nullable=False, default=True)
     auth_provider = Column(String, default="email") # "email", "google"
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
@@ -187,6 +192,9 @@ class SoftOpticMigrationJob(Base):
     __tablename__ = "softoptic_migration_jobs"
 
     id = Column(String, primary_key=True)
+    source_system = Column(String, nullable=False, default="softoptic", index=True)
+    bundle_format_version = Column(Integer)
+    source_fingerprint = Column(String, index=True)
     clinic_id = Column(Integer, ForeignKey("clinics.id"), nullable=False, index=True)
     company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
@@ -216,6 +224,53 @@ class SoftOpticMigrationJob(Base):
     finished_at = Column(DateTime(timezone=True))
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+
+# The physical table name is intentionally retained for rolling compatibility
+# with already deployed SoftOptic API and worker processes.
+MigrationJob = SoftOpticMigrationJob
+
+
+class ClinicDataPruneJob(Base):
+    __tablename__ = "clinic_data_prune_jobs"
+
+    id = Column(String, primary_key=True)
+    clinic_id = Column(Integer, ForeignKey("clinics.id"), nullable=False, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+    requested_by_user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    status = Column(String, nullable=False, default="queued", index=True)
+    step = Column(String, nullable=False, default="queued")
+    progress = Column(Integer, nullable=False, default=0)
+    checkpoint = Column(JSON, nullable=False, default=dict)
+    preview_counts = Column(JSON, nullable=False, default=dict)
+    deleted_counts = Column(JSON, nullable=False, default=dict)
+    warnings = Column(JSON, nullable=False, default=list)
+    error = Column(Text)
+    locked_by = Column(String, index=True)
+    lease_until = Column(DateTime(timezone=True), index=True)
+    heartbeat_at = Column(DateTime(timezone=True))
+    attempt_count = Column(Integer, nullable=False, default=0)
+    started_at = Column(DateTime(timezone=True))
+    finished_at = Column(DateTime(timezone=True))
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+
+class ClinicDataPruneStorageObject(Base):
+    __tablename__ = "clinic_data_prune_storage_objects"
+    __table_args__ = (
+        UniqueConstraint("job_id", "bucket", "storage_key", name="uq_prune_storage_job_object"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    job_id = Column(String, ForeignKey("clinic_data_prune_jobs.id", ondelete="CASCADE"), nullable=False, index=True)
+    bucket = Column(String, nullable=False)
+    storage_key = Column(Text, nullable=False)
+    status = Column(String, nullable=False, default="pending", index=True)
+    attempt_count = Column(Integer, nullable=False, default=0)
+    error = Column(Text)
+    deleted_at = Column(DateTime(timezone=True))
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 class Family(Base):
     __tablename__ = "families"
@@ -835,6 +890,8 @@ Index('ix_settings_clinic_id', Settings.clinic_id)
 Index('ix_migration_source_links_source', MigrationSourceLink.source_system, MigrationSourceLink.source_table, MigrationSourceLink.clinic_id)
 Index('ix_migration_source_links_target', MigrationSourceLink.target_model, MigrationSourceLink.target_id)
 Index('ix_softoptic_migration_jobs_clinic_created', SoftOpticMigrationJob.clinic_id, SoftOpticMigrationJob.created_at.desc())
+Index('ix_softoptic_migration_jobs_source_status', SoftOpticMigrationJob.source_system, SoftOpticMigrationJob.status)
+Index('ix_clinic_data_prune_jobs_clinic_created', ClinicDataPruneJob.clinic_id, ClinicDataPruneJob.created_at.desc())
 
 Index('ix_exam_layout_instances_exam_id', ExamLayoutInstance.exam_id)
 Index('ix_exam_layout_instances_exam_id_is_active', ExamLayoutInstance.exam_id, ExamLayoutInstance.is_active)

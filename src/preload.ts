@@ -81,6 +81,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   softOpticExportStatus: (payload: { jobId: string }) => ipcRenderer.invoke('softoptic-export-status', payload),
   softOpticUploadBundle: (payload: { apiBaseUrl: string; jobId: string; zipPath: string; accessToken: string }) => ipcRenderer.invoke('softoptic-upload-bundle', payload),
   softOpticUploadStatus: (payload: { jobId: string }) => ipcRenderer.invoke('softoptic-upload-status', payload),
+  migrationScan: (payload: { sourceSystem: "softoptic" | "optitech" }) => ipcRenderer.invoke('migration-scan', payload),
+  migrationStartExport: (payload: any) => ipcRenderer.invoke('migration-start-export', payload),
+  migrationExportStatus: (payload: { jobId: string }) => ipcRenderer.invoke('migration-export-status', payload),
+  migrationUploadBundle: (payload: { apiBaseUrl: string; jobId: string; zipPath: string; accessToken: string }) => ipcRenderer.invoke('migration-upload-bundle', payload),
+  migrationUploadStatus: (payload: { jobId: string }) => ipcRenderer.invoke('migration-upload-status', payload),
   exportHtmlToPdf: (payload: { html: string; defaultFileName: string }) => ipcRenderer.invoke('export-html-to-pdf', payload),
   printHtml: (payload: { html: string; defaultFileName?: string }) => ipcRenderer.invoke('print-html', payload),
   onUserLogoutBeforeClose: (callback: () => Promise<void> | void) => {

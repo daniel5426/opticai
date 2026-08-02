@@ -25,6 +25,12 @@ backend/migration/*
 !backend/migration/pipeline/
 !backend/migration/pipeline/*.py
 backend/migration/pipeline/migrated_files/
+!backend/migration/optitech/
+backend/migration/optitech/*
+!backend/migration/optitech/__init__.py
+!backend/migration/optitech/src/
+!backend/migration/optitech/src/*.py
+backend/migration/optitech/src/.gitkeep
 
 # Python
 __pycache__/

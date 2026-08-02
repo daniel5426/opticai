@@ -4,6 +4,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { getJewishHolidayName } from "@/lib/jewish-holidays"
 import { Appointment, User } from "@/lib/db/schema-interface"
 import { CalendarView } from "./types"
+import { formatAppointmentTime } from "./utils"
 
 interface MonthViewProps {
   visibleDates: Date[]
@@ -94,9 +95,9 @@ export function MonthView({
                 <div
                   key={appointment.id}
                   className="text-xs p-1 bg-primary/20 text-primary rounded truncate"
-                  title={`${appointment.time} - ${appointment.exam_name}`}
+                  title={`${formatAppointmentTime(appointment.time || '')} - ${appointment.exam_name}`}
                 >
-                  {appointment.time} {appointment.exam_name}
+                  {formatAppointmentTime(appointment.time || '')} {appointment.exam_name}
                 </div>
               ))}
               {dayAppointments.length > 3 && (

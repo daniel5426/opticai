@@ -80,6 +80,11 @@ declare interface Window {
     softOpticStartExport?: (payload: { clinicId?: number; candidate: any; sqlAnywhereBin?: string; includeDocuments?: boolean }) => Promise<any>;
     softOpticExportStatus?: (payload: { jobId: string }) => Promise<any>;
     softOpticUploadBundle?: (payload: { apiBaseUrl: string; jobId: string; zipPath: string; accessToken: string }) => Promise<any>;
+    migrationScan?: (payload: { sourceSystem: "softoptic" | "optitech" }) => Promise<any>;
+    migrationStartExport?: (payload: any) => Promise<any>;
+    migrationExportStatus?: (payload: { jobId: string }) => Promise<any>;
+    migrationUploadBundle?: (payload: { apiBaseUrl: string; jobId: string; zipPath: string; accessToken: string }) => Promise<any>;
+    migrationUploadStatus?: (payload: { jobId: string }) => Promise<any>;
   };
 }
 

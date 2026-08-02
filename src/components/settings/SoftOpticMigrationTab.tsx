@@ -57,9 +57,10 @@ function formatBytes(value?: number) {
 
 interface SoftOpticMigrationTabProps {
   clinicId?: number
+  sourceSystem?: "softoptic" | "optitech"
 }
 
-export function SoftOpticMigrationTab({ clinicId }: SoftOpticMigrationTabProps) {
+export function SoftOpticMigrationTab({ clinicId, sourceSystem = "softoptic" }: SoftOpticMigrationTabProps) {
   const [phase, setPhase] = useState<WizardPhase>("idle")
   const [progress, setProgress] = useState(0)
   const [stepText, setStepText] = useState("מוכן להתחלה")
@@ -78,8 +79,8 @@ export function SoftOpticMigrationTab({ clinicId }: SoftOpticMigrationTabProps) 
   const [error, setError] = useState<string | null>(null)
 
   const exportStorageKey = useMemo(
-    () => clinicId ? `softoptic-export-job:${clinicId}` : null,
-    [clinicId],
+    () => clinicId ? `migration-export-job:${clinicId}:${sourceSystem}` : null,
+    [clinicId, sourceSystem],
   )
 
   const selectedCandidate = useMemo(() => {
@@ -110,7 +111,7 @@ export function SoftOpticMigrationTab({ clinicId }: SoftOpticMigrationTabProps) 
   useEffect(() => {
     if (!clinicId || job?.id) return
     let cancelled = false
-    apiClient.listSoftOpticImports(clinicId, true).then(response => {
+    apiClient.listMigrationImports(clinicId, sourceSystem, true).then(response => {
       if (cancelled || !Array.isArray(response.data) || response.data.length === 0) return
       const activeJob = response.data[0] as any
       setJob(activeJob)
@@ -131,7 +132,7 @@ export function SoftOpticMigrationTab({ clinicId }: SoftOpticMigrationTabProps) 
     return () => {
       cancelled = true
     }
-  }, [clinicId, job?.id])
+  }, [clinicId, job?.id, sourceSystem])
 
   useEffect(() => {
     if (!exportStorageKey || exportJobId) return
@@ -140,7 +141,8 @@ export function SoftOpticMigrationTab({ clinicId }: SoftOpticMigrationTabProps) 
   }, [exportJobId, exportStorageKey])
 
   useEffect(() => {
-    if (!exportJobId || !window.electronAPI?.softOpticExportStatus) return
+    const exportStatusReader = window.electronAPI?.migrationExportStatus || window.electronAPI?.softOpticExportStatus
+    if (!exportJobId || !exportStatusReader) return
     let cancelled = false
 
     const applyStatus = (status: any) => {
@@ -170,7 +172,7 @@ export function SoftOpticMigrationTab({ clinicId }: SoftOpticMigrationTabProps) 
     }
 
     const poll = async () => {
-      const status = await window.electronAPI.softOpticExportStatus({ jobId: exportJobId })
+      const status = await exportStatusReader({ jobId: exportJobId })
       applyStatus(status)
       return status
     }
@@ -193,7 +195,7 @@ export function SoftOpticMigrationTab({ clinicId }: SoftOpticMigrationTabProps) 
     let cancelled = false
 
     const applyUploadStatus = async () => {
-      const status = await apiClient.getSoftOpticUploadStatus(job.id)
+      const status = await apiClient.getMigrationUploadStatus(job.id)
       if (!status || cancelled) return
       setUploadStatus(status)
       if (["preparing", "uploading", "finalizing"].includes(status.status)) {
@@ -220,7 +222,7 @@ export function SoftOpticMigrationTab({ clinicId }: SoftOpticMigrationTabProps) 
   useEffect(() => {
     if (!job?.id || !["importing", "paused"].includes(phase)) return
     const interval = window.setInterval(async () => {
-      const response = await apiClient.getSoftOpticImport(job.id)
+      const response = await apiClient.getMigrationImport(job.id)
       if (response.data) {
         const nextJob = response.data as any
         setJob(nextJob)
@@ -252,7 +254,9 @@ export function SoftOpticMigrationTab({ clinicId }: SoftOpticMigrationTabProps) 
     setProgress(10)
     setStepText("איתור מסד נתונים")
     try {
-      const result = await window.electronAPI.softOpticScan()
+      const result = window.electronAPI.migrationScan
+        ? await window.electronAPI.migrationScan({ sourceSystem })
+        : await window.electronAPI.softOpticScan()
       if (!result.supported) {
         setError(result.error || "הייבוא זמין רק באפליקציית Windows")
         setPhase("failed")
@@ -285,8 +289,17 @@ export function SoftOpticMigrationTab({ clinicId }: SoftOpticMigrationTabProps) 
     setPhase("exporting")
     setProgress(35)
     setStepText("ייצוא נתונים")
-    if (window.electronAPI.softOpticStartExport) {
-      const started = await window.electronAPI.softOpticStartExport({
+    if (window.electronAPI.migrationStartExport || window.electronAPI.softOpticStartExport) {
+      const started = window.electronAPI.migrationStartExport
+        ? await window.electronAPI.migrationStartExport({
+            sourceSystem,
+            clinicId,
+            candidate: selectedCandidate,
+            sqlAnywhereBin: sqlAnywhereBin.trim() || undefined,
+            includeDocuments,
+            clientImportLimit: parsedLimit,
+          })
+        : await window.electronAPI.softOpticStartExport!({
         clinicId,
         candidate: selectedCandidate,
         sqlAnywhereBin: sqlAnywhereBin.trim() || undefined,
@@ -336,12 +349,34 @@ export function SoftOpticMigrationTab({ clinicId }: SoftOpticMigrationTabProps) 
     try {
       let importJob = reusableJob
       if (!importJob) {
-        const createResponse = await apiClient.createSoftOpticImport({
+        const safeExportSummary = {
+          clients: exportSummary?.clients || 0,
+          exams: exportSummary?.exams || 0,
+          glasses_orders: exportSummary?.glasses_orders || exportSummary?.orders || 0,
+          contact_lens_orders: exportSummary?.contact_lens_orders || 0,
+          appointments: exportSummary?.appointments || 0,
+          notes: exportSummary?.notes || 0,
+          referrals: exportSummary?.referrals || 0,
+          files: exportSummary?.files || exportSummary?.embedded_files || 0,
+          external_documents: exportSummary?.external_documents || 0,
+          include_documents: includeDocuments,
+          client_import_limit: effectiveLimit,
+          manifest: exportSummary?.manifest || {},
+        }
+        const createResponse = await apiClient.createMigrationImport({
           clinicId,
-          sourceMetadata: selectedCandidate!,
-          exportSummary: exportSummary || {},
+          sourceSystem,
+          sourceMetadata: {
+            kind: selectedCandidate!.kind,
+            label: selectedCandidate!.label,
+            sizeBytes: selectedCandidate!.sizeBytes,
+            modifiedAt: selectedCandidate!.modifiedAt,
+          },
+          exportSummary: safeExportSummary,
           includeDocuments,
           clientImportLimit: effectiveLimit,
+          bundleFormatVersion: Number(exportSummary?.manifest?.format_version || 0) || null,
+          sourceFingerprint: exportSummary?.sourceFingerprint || exportSummary?.manifest?.source_fingerprint || null,
         })
         if (createResponse.error || !createResponse.data) {
           setError(createResponse.error || "יצירת פעולת הייבוא נכשלה")
@@ -351,7 +386,7 @@ export function SoftOpticMigrationTab({ clinicId }: SoftOpticMigrationTabProps) 
         importJob = createResponse.data
         setJob(importJob)
       }
-      const uploadResponse = await apiClient.uploadSoftOpticBundle(importJob.id, zipPath)
+      const uploadResponse = await apiClient.uploadMigrationBundle(importJob.id, zipPath)
       if (uploadResponse.error || !(uploadResponse as any).success) {
         setError(uploadResponse.error || "העלאה נכשלה")
         setPhase("failed")
@@ -372,7 +407,7 @@ export function SoftOpticMigrationTab({ clinicId }: SoftOpticMigrationTabProps) 
 
   const pauseJob = async () => {
     if (!job?.id) return
-    const response = await apiClient.pauseSoftOpticImport(job.id)
+    const response = await apiClient.pauseMigrationImport(job.id)
     if (response.data) {
       setJob(response.data)
       setPhase("paused")
@@ -384,7 +419,7 @@ export function SoftOpticMigrationTab({ clinicId }: SoftOpticMigrationTabProps) 
 
   const resumeJob = async () => {
     if (!job?.id) return
-    const response = await apiClient.resumeSoftOpticImport(job.id)
+    const response = await apiClient.resumeMigrationImport(job.id)
     if (response.data) {
       setJob(response.data)
       setPhase("importing")
@@ -396,7 +431,7 @@ export function SoftOpticMigrationTab({ clinicId }: SoftOpticMigrationTabProps) 
 
   const cancelJob = async () => {
     if (!job?.id) return
-    const response = await apiClient.cancelSoftOpticImport(job.id)
+    const response = await apiClient.cancelMigrationImport(job.id)
     if (response.data) {
       setJob(response.data)
       setPhase("failed")
@@ -438,7 +473,7 @@ export function SoftOpticMigrationTab({ clinicId }: SoftOpticMigrationTabProps) 
         <CardHeader>
           <div className="flex items-center justify-between gap-3">
             <div className="text-right">
-              <CardTitle>ייבוא מאופטיק-סופט</CardTitle>
+              <CardTitle>{sourceSystem === "optitech" ? "ייבוא מ-OptiTech" : "ייבוא מאופטיק-סופט"}</CardTitle>
               <p className="mt-1 text-sm text-muted-foreground">
                 העברת לקוחות, בדיקות, הזמנות, תורים ומסמכים למרפאה הנוכחית.
               </p>
@@ -551,11 +586,11 @@ export function SoftOpticMigrationTab({ clinicId }: SoftOpticMigrationTabProps) 
                   setManualDbPath(event.target.value)
                   setSelectedId("manual")
                 }}
-                placeholder="C:\\RR\\Data\\RRDB.db"
+                placeholder={sourceSystem === "optitech" ? "C:\\opt\\optData.xns" : "C:\\RR\\Data\\RRDB.db"}
                 dir="ltr"
               />
             </div>
-            <div className="space-y-2">
+            {sourceSystem === "softoptic" && <div className="space-y-2">
               <Label className="block text-right">תיקיית SQL Anywhere</Label>
               <Input
                 value={sqlAnywhereBin}
@@ -563,7 +598,7 @@ export function SoftOpticMigrationTab({ clinicId }: SoftOpticMigrationTabProps) 
                 placeholder="C:\\Program Files (x86)\\RRProg\\ASA\\Win32"
                 dir="ltr"
               />
-            </div>
+            </div>}
           </div>
 
           <div className="grid gap-3 rounded-md border p-3 md:grid-cols-2">

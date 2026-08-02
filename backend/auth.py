@@ -10,8 +10,6 @@ from cryptography.fernet import Fernet, InvalidToken
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
-from sqlalchemy import text
-from sqlalchemy.exc import DatabaseError, OperationalError, TimeoutError
 from sqlalchemy.orm import Session
 
 from config import settings
@@ -63,14 +61,6 @@ def decrypt_secret(value: Optional[str]) -> Optional[str]:
         return _fernet().decrypt(value.encode("utf-8")).decode("utf-8")
     except InvalidToken:
         return None
-
-
-def check_database_connection(db: Session) -> bool:
-    try:
-        db.execute(text("SELECT 1"))
-        return True
-    except (OperationalError, DatabaseError, TimeoutError):
-        return False
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
@@ -163,12 +153,6 @@ def get_current_auth_session(
     credentials: HTTPAuthorizationCredentials = Depends(security),
     db: Session = Depends(get_db),
 ) -> AuthSession:
-    if not check_database_connection(db):
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Database service temporarily unavailable",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
     try:
         payload = jwt.decode(
             credentials.credentials,

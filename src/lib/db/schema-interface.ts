@@ -805,6 +805,7 @@ export interface User {
   added_vacation_dates?: string[];
   sync_subjective_to_final_subjective?: boolean;
   import_order_to_old_refraction_default?: boolean;
+  clinical_auto_advance_enabled?: boolean;
   auth_provider?: 'email' | 'google';
   created_at?: string;
   updated_at?: string;
