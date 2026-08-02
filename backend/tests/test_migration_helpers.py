@@ -45,6 +45,38 @@ def test_read_csv_no_limit_by_default(tmp_path, monkeypatch):
     assert len(rows) == 1005
 
 
+def test_read_csv_preserves_quoted_commas_when_dialect_disables_doublequote(tmp_path, monkeypatch):
+    class IncorrectlySniffedDialect(csv.excel):
+        doublequote = False
+
+    csv_path = tmp_path / "optic_exp_eyetests.csv"
+    with csv_path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=["code", "anam_remarks", "anam_medicine"])
+        writer.writeheader()
+        writer.writerow(
+            {
+                "code": "1",
+                "anam_remarks": 'First "quoted", second sentence',
+                "anam_medicine": "medicine",
+            }
+        )
+
+    monkeypatch.setattr(
+        "backend.migration.pipeline.common._detect_csv_encoding_and_dialect",
+        lambda _path: ("utf-8", IncorrectlySniffedDialect),
+    )
+
+    rows = migration.read_csv(str(tmp_path), "optic_exp_eyetests.csv")
+
+    assert rows == [
+        {
+            "code": "1",
+            "anam_remarks": 'First "quoted", second sentence',
+            "anam_medicine": "medicine",
+        }
+    ]
+
+
 def test_build_exam_data_uses_current_keys():
     row = {
         "or_right_sph": "'-0150'",

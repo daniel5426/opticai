@@ -337,7 +337,10 @@ def read_csv(csv_dir: str, filename: str, max_items: Optional[int] = None) -> Li
     max_rows = _resolve_csv_max_rows(max_items)
     result = []
     with open(path, "r", newline="", encoding=encoding, errors="ignore" if encoding == "latin-1" else "strict") as f:
-        reader = csv.DictReader(f, dialect=dialect)
+        # SoftOptic exports use standard doubled double quotes inside quoted
+        # text fields. csv.Sniffer can incorrectly infer doublequote=False,
+        # which shifts every field after a comma in that text.
+        reader = csv.DictReader(f, dialect=dialect, doublequote=True)
         for count, row in enumerate(reader):
             if max_rows is not None and count >= max_rows:
                 print(f"[csv] {filename}: reached max_rows limit ({max_rows}), stopping", flush=True)
@@ -353,7 +356,9 @@ def read_csv_streaming(csv_dir: str, filename: str, max_items: Optional[int] = N
     encoding, dialect = _detect_csv_encoding_and_dialect(path)
     max_rows = _resolve_csv_max_rows(max_items)
     with open(path, "r", newline="", encoding=encoding, errors="ignore" if encoding == "latin-1" else "strict") as f:
-        reader = csv.DictReader(f, dialect=dialect)
+        # See read_csv: keep the detected delimiter, but require standard
+        # doubled-quote handling for SoftOptic text fields.
+        reader = csv.DictReader(f, dialect=dialect, doublequote=True)
         count = 0
         for row in reader:
             if max_rows is not None and count >= max_rows:
