@@ -45,6 +45,7 @@ export class DocxGenerator {
     data: Record<string, any>,
     fileName?: string,
     templatePath?: string,
+    options?: { preserveTemplateDirection?: boolean },
   ): Promise<void> {
     try {
       const template = templatePath || this.templatePath;
@@ -63,7 +64,9 @@ export class DocxGenerator {
 
       doc.render(data);
       const renderedZip = doc.getZip();
-      forceRtlDocxZip(renderedZip);
+      if (!options?.preserveTemplateDirection) {
+        forceRtlDocxZip(renderedZip);
+      }
 
       const out = renderedZip.generate({
         type: "blob",

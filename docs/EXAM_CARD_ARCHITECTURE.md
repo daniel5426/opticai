@@ -131,7 +131,7 @@ Follow this checklist for every new or changed card. The current exam system is 
 
 | Variant                   | Type                                            | Persistence behavior                                            |
 | ------------------------- | ----------------------------------------------- | --------------------------------------------------------------- |
-| Standard layout card      | Most cards, including `opc` and `cover-test-v2` | One payload per layout card: `<type>-<cardId>`                  |
+| Standard layout card      | Most cards, including `npc` and `cover-test-v2` | One payload per layout card: `<type>-<cardId>`                  |
 | Notes                     | `notes`                                         | Multiple cards: `notes-<cardId>`                                |
 | Legacy tabbed cards       | `cover-test`, `old-refraction`                  | Multiple payloads and UI tab metadata                           |
 | Hidden legacy replacement | `cover-test`                                    | Renders existing layouts only; not offered in the layout editor |

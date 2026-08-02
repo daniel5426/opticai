@@ -18,7 +18,7 @@ describe("exam card extension contract", () => {
       step: "0.5",
       suffix: "Δ",
     });
-    expect(EXAM_FIELDS.OPC_RESULT.options).toEqual([
+    expect(EXAM_FIELDS.NPC_RESULT.options).toEqual([
       "OS Out",
       "OD Out",
       "OU Out",
@@ -29,7 +29,7 @@ describe("exam card extension contract", () => {
   test("offers only the replacement Cover Test in the layout editor", () => {
     const layoutTypes = examComponentRegistry.getLayoutEditorTypes();
 
-    expect(layoutTypes).toContain("opc");
+    expect(layoutTypes).toContain("npc");
     expect(layoutTypes).toContain("cover-test-v2");
     expect(layoutTypes).not.toContain("cover-test");
   });
@@ -54,7 +54,7 @@ describe("exam card extension contract", () => {
   });
 
   test("gives both cards stable layout widths", () => {
-    expect(getColumnCount("opc", "detail")).toBe(7);
+    expect(getColumnCount("npc", "detail")).toBe(7);
     expect(getColumnCount("cover-test-v2", "detail")).toBe(8);
   });
 });

@@ -1,4 +1,8 @@
 import { CardRow } from "@/pages/exam-detail/types";
+import {
+  normalizeNpcExamData,
+  normalizeNpcExamDataKey,
+} from "@/lib/npc-compatibility";
 
 export const EXAM_DATA_UI_KEY = "__ui";
 
@@ -445,13 +449,20 @@ export const ensureLayoutDataForRows = (
   cardRows: CardRow[],
   layoutInstanceId: number,
 ) => {
-  const normalizedTabs = ensureTabsMetadataForRows(examData, cardRows);
+  const hasLegacyNpcData = Object.keys(examData).some(
+    (key) => normalizeNpcExamDataKey(key) !== key,
+  );
+  const normalizedTabs = ensureTabsMetadataForRows(
+    normalizeNpcExamData(examData),
+    cardRows,
+  );
   const recoveredOldRefraction = rebindOrphanedOldRefractionTabsForRows(
     normalizedTabs.examData,
     cardRows,
   );
   let next = recoveredOldRefraction.examData;
-  let changed = normalizedTabs.changed || recoveredOldRefraction.changed;
+  let changed =
+    hasLegacyNpcData || normalizedTabs.changed || recoveredOldRefraction.changed;
   const firstCardKeyByType: Record<string, string> = {};
 
   const ensureMutable = () => {

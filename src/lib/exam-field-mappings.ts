@@ -27,7 +27,7 @@ import {
   StereoTestExam,
   RGExam,
   OcularMotorAssessmentExam,
-  OPCExam
+  NPCExam
 } from './db/schema-interface'
 
 export type ExamComponentType =
@@ -65,7 +65,7 @@ export type ExamComponentType =
   | 'stereo-test'
   | 'rg'
   | 'ocular-motor-assessment'
-  | 'opc';
+  | 'npc';
 
 export const fullExamsList: ExamComponentType[] = [
   'old-ref',
@@ -102,7 +102,7 @@ export const fullExamsList: ExamComponentType[] = [
   'stereo-test',
   'rg',
   'ocular-motor-assessment',
-  'opc',
+  'npc',
 ];
 
 export const examComponentTypeToExamFields: Record<ExamComponentType, ExamComponentType[]> = {
@@ -140,10 +140,10 @@ export const examComponentTypeToExamFields: Record<ExamComponentType, ExamCompon
   'stereo-test': [],
   'rg': [],
   'ocular-motor-assessment': [],
-  'opc': [],
+  'npc': [],
 };
 
-export type ExamDataType = OpticalExam | OldRefExam | OldRefractionExam | OldRefractionExtensionExam | ObjectiveExam | SubjectiveExam | FinalSubjectiveExam | FinalPrescriptionExam | CompactPrescriptionExam | AdditionExam | RetinoscopExam | RetinoscopDilationExam | UncorrectedVAExam | KeratometerExam | KeratometerFullExam | CornealTopographyExam | CoverTestExam | CoverTestV2Exam | SchirmerTestExam | ContactLensDiameters | ContactLensDetails | KeratometerContactLens | ContactLensExam | ContactLensOrder | StereoTestExam | RGExam | OPCExam
+export type ExamDataType = OpticalExam | OldRefExam | OldRefractionExam | OldRefractionExtensionExam | ObjectiveExam | SubjectiveExam | FinalSubjectiveExam | FinalPrescriptionExam | CompactPrescriptionExam | AdditionExam | RetinoscopExam | RetinoscopDilationExam | UncorrectedVAExam | KeratometerExam | KeratometerFullExam | CornealTopographyExam | CoverTestExam | CoverTestV2Exam | SchirmerTestExam | ContactLensDiameters | ContactLensDetails | KeratometerContactLens | ContactLensExam | ContactLensOrder | StereoTestExam | RGExam | NPCExam
 
 export interface FieldMapping {
   [sourceField: string]: string | null
@@ -189,7 +189,7 @@ export class ExamFieldMapper {
     'stereo-test': ['stereo-test'],
     'rg': ['rg'],
     'ocular-motor-assessment': ['ocular-motor-assessment'],
-    'opc': ['opc'],
+    'npc': ['npc'],
   }
 
   private static explicitMappings: Partial<Record<ExamComponentType, ComponentFieldMappings>> = {
@@ -318,7 +318,7 @@ export class ExamFieldMapper {
         return [
           'ocular_motility', 'acc_od', 'acc_os', 'npc_break', 'npc_recovery'
         ];
-      case 'opc':
+      case 'npc':
         return ['ocular_motility', 'eye_out_at_break', 'npc_break', 'npc_recovery'];
       default:
         return []

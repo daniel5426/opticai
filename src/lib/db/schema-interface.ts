@@ -1259,7 +1259,7 @@ export interface OcularMotorAssessmentExam {
   npc_recovery?: number;
 }
 
-export interface OPCExam {
+export interface NPCExam {
   id?: number;
   layout_instance_id: number;
   ocular_motility?: string;

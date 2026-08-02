@@ -12,9 +12,9 @@ import sys
 from typing import Any
 
 from dotenv import load_dotenv
-from sqlalchemy import create_engine, or_, select
+from sqlalchemy import create_engine, func, inspect, or_, select
 from sqlalchemy.engine import make_url
-from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.orm import Session, load_only, sessionmaker
 
 ROOT = Path(__file__).resolve().parents[1]
 PROJECT_ROOT = ROOT.parent
@@ -103,12 +103,42 @@ def _session_factory(database_url: str) -> sessionmaker[Session]:
     return sessionmaker(bind=create_engine(database_url, **kwargs), autocommit=False, autoflush=False)
 
 
+def _source_columns(source: Session, model: type[Any]) -> set[str]:
+    cache_key = "duplicate_account_source_columns"
+    cache = source.info.setdefault(cache_key, {})
+    table = model.__table__
+    key = (table.schema, table.name)
+    if key not in cache:
+        cache[key] = {column["name"] for column in inspect(source.get_bind()).get_columns(table.name, schema=table.schema)}
+    return cache[key]
+
+
+def _source_scalars(source: Session, model: type[Any], statement: Any) -> Any:
+    """Load only source columns that exist in production's older schema."""
+    source_columns = _source_columns(source, model)
+    mapped_columns = {column.name for column in model.__table__.columns}
+    missing_columns = sorted(mapped_columns - source_columns)
+    if missing_columns:
+        reported_key = "duplicate_account_reported_missing_source_columns"
+        reported = source.info.setdefault(reported_key, set())
+        table_name = model.__table__.name
+        if table_name not in reported:
+            print(
+                f"Source table {table_name} is missing newer columns "
+                f"({', '.join(missing_columns)}); staging defaults will be used."
+            )
+            reported.add(table_name)
+    attributes = [getattr(model, column.name) for column in model.__table__.columns if column.name in source_columns]
+    return source.scalars(statement.options(load_only(*attributes)))
+
+
 def _values(obj: Any, *, skip: set[str] | None = None) -> dict[str, Any]:
     ignored = {"id", *(skip or set())}
+    unloaded = inspect(obj).unloaded
     return {
         column.name: copy.deepcopy(getattr(obj, column.name))
         for column in obj.__table__.columns
-        if column.name not in ignored
+        if column.name not in ignored and column.name not in unloaded
     }
 
 
@@ -123,16 +153,18 @@ def _copy_row(target: Session, obj: Any, **overrides: Any) -> Any:
 
 def _find_account(source: Session, ceo_email: str) -> tuple[Company, User]:
     email = ceo_email.strip().lower()
-    user = source.scalars(select(User).where(User.email == email).order_by(User.role_level.desc())).first()
+    user = _source_scalars(source, User, select(User).where(User.email == email).order_by(User.role_level.desc())).first()
     if user and user.company_id:
-        company = source.get(Company, user.company_id)
+        company = _source_scalars(source, Company, select(Company).where(Company.id == user.company_id)).first()
         if company:
             return company, user
 
-    company = source.scalars(select(Company).where(Company.contact_email == email)).first()
+    company = _source_scalars(source, Company, select(Company).where(Company.contact_email == email)).first()
     if company:
-        user = source.scalars(
-            select(User).where(User.company_id == company.id).order_by(User.role_level.desc())
+        user = _source_scalars(
+            source,
+            User,
+            select(User).where(User.company_id == company.id).order_by(User.role_level.desc()),
         ).first()
         if user:
             return company, user
@@ -312,7 +344,7 @@ def _unique_clinic_id(target: Session, source_unique_id: str, source_id: int) ->
 
 def _print_counts(source: Session, company_id: int, clinic_ids: list[int], user_ids: list[int], client_ids: list[int]) -> None:
     def count(model: Any, *filters: Any) -> int:
-        return len(source.scalars(select(model).where(*filters)).all())
+        return source.scalar(select(func.count()).select_from(model).where(*filters)) or 0
 
     exam_ids = list(source.scalars(select(OpticalExam.id).where(OpticalExam.client_id.in_(client_ids)))) if client_ids else []
     order_ids = list(source.scalars(select(Order.id).where(Order.client_id.in_(client_ids)))) if client_ids else []
@@ -373,11 +405,11 @@ def duplicate_account(args: argparse.Namespace) -> None:
 
     with Source() as source, Target() as target:
         company, ceo_user = _find_account(source, args.ceo_email)
-        clinics = source.scalars(select(Clinic).where(Clinic.company_id == company.id).order_by(Clinic.id)).all()
+        clinics = _source_scalars(source, Clinic, select(Clinic).where(Clinic.company_id == company.id).order_by(Clinic.id)).all()
         clinic_ids = [clinic.id for clinic in clinics]
-        users = source.scalars(select(User).where(User.company_id == company.id).order_by(User.id)).all()
+        users = _source_scalars(source, User, select(User).where(User.company_id == company.id).order_by(User.id)).all()
         user_ids = [user.id for user in users]
-        clients = source.scalars(select(Client).where(Client.company_id == company.id).order_by(Client.id)).all()
+        clients = _source_scalars(source, Client, select(Client).where(Client.company_id == company.id).order_by(Client.id)).all()
         client_ids = [client.id for client in clients]
 
         print(f"Source: {_redacted_url(source_url)}")
@@ -426,7 +458,7 @@ def duplicate_account(args: argparse.Namespace) -> None:
                 )
                 user_map[user.id] = copied.id
 
-            for settings in source.scalars(select(Settings).where(Settings.clinic_id.in_(clinic_ids))).all():
+            for settings in _source_scalars(source, Settings, select(Settings).where(Settings.clinic_id.in_(clinic_ids))).all():
                 _copy_row(
                     target,
                     settings,
@@ -435,11 +467,11 @@ def duplicate_account(args: argparse.Namespace) -> None:
                 )
 
             for model in LOOKUP_MODELS:
-                for row in source.scalars(select(model).where(model.clinic_id.in_(clinic_ids))).all():
+                for row in _source_scalars(source, model, select(model).where(model.clinic_id.in_(clinic_ids))).all():
                     _copy_row(target, row, clinic_id=clinic_map[row.clinic_id])
 
             layout_map: dict[int, int] = {}
-            layouts = source.scalars(select(ExamLayout).where(ExamLayout.clinic_id.in_(clinic_ids)).order_by(ExamLayout.id)).all()
+            layouts = _source_scalars(source, ExamLayout, select(ExamLayout).where(ExamLayout.clinic_id.in_(clinic_ids)).order_by(ExamLayout.id)).all()
             for layout in layouts:
                 copied = _copy_row(
                     target,
@@ -454,7 +486,7 @@ def duplicate_account(args: argparse.Namespace) -> None:
             target.flush()
 
             family_map: dict[int, int] = {}
-            for family in source.scalars(select(Family).where(Family.clinic_id.in_(clinic_ids)).order_by(Family.id)).all():
+            for family in _source_scalars(source, Family, select(Family).where(Family.clinic_id.in_(clinic_ids)).order_by(Family.id)).all():
                 copied = _copy_row(
                     target,
                     family,
@@ -474,7 +506,7 @@ def duplicate_account(args: argparse.Namespace) -> None:
                 )
                 client_map[client.id] = copied.id
 
-            for log in source.scalars(select(MedicalLog).where(MedicalLog.client_id.in_(client_ids))).all():
+            for log in _source_scalars(source, MedicalLog, select(MedicalLog).where(MedicalLog.client_id.in_(client_ids))).all():
                 _copy_row(
                     target,
                     log,
@@ -484,7 +516,7 @@ def duplicate_account(args: argparse.Namespace) -> None:
                 )
 
             exam_map: dict[int, int] = {}
-            for exam in source.scalars(select(OpticalExam).where(OpticalExam.client_id.in_(client_ids)).order_by(OpticalExam.id)).all():
+            for exam in _source_scalars(source, OpticalExam, select(OpticalExam).where(OpticalExam.client_id.in_(client_ids)).order_by(OpticalExam.id)).all():
                 copied = _copy_row(
                     target,
                     exam,
@@ -495,7 +527,7 @@ def duplicate_account(args: argparse.Namespace) -> None:
                 exam_map[exam.id] = copied.id
 
             if exam_map:
-                for instance in source.scalars(select(ExamLayoutInstance).where(ExamLayoutInstance.exam_id.in_(exam_map.keys()))).all():
+                for instance in _source_scalars(source, ExamLayoutInstance, select(ExamLayoutInstance).where(ExamLayoutInstance.exam_id.in_(exam_map.keys()))).all():
                     _copy_row(
                         target,
                         instance,
@@ -504,7 +536,7 @@ def duplicate_account(args: argparse.Namespace) -> None:
                     )
 
             order_map: dict[int, int] = {}
-            for order in source.scalars(select(Order).where(Order.client_id.in_(client_ids)).order_by(Order.id)).all():
+            for order in _source_scalars(source, Order, select(Order).where(Order.client_id.in_(client_ids)).order_by(Order.id)).all():
                 copied = _copy_row(
                     target,
                     order,
@@ -515,7 +547,7 @@ def duplicate_account(args: argparse.Namespace) -> None:
                 order_map[order.id] = copied.id
 
             contact_order_map: dict[int, int] = {}
-            for order in source.scalars(select(ContactLensOrder).where(ContactLensOrder.client_id.in_(client_ids)).order_by(ContactLensOrder.id)).all():
+            for order in _source_scalars(source, ContactLensOrder, select(ContactLensOrder).where(ContactLensOrder.client_id.in_(client_ids)).order_by(ContactLensOrder.id)).all():
                 copied = _copy_row(
                     target,
                     order,
@@ -532,7 +564,7 @@ def duplicate_account(args: argparse.Namespace) -> None:
             if contact_order_map:
                 billing_filters.append(Billing.contact_lens_id.in_(contact_order_map.keys()))
             billing_map: dict[int, int] = {}
-            billings = source.scalars(select(Billing).where(or_(*billing_filters))).all() if billing_filters else []
+            billings = _source_scalars(source, Billing, select(Billing).where(or_(*billing_filters))).all() if billing_filters else []
             for billing in billings:
                 copied = _copy_row(
                     target,
@@ -543,11 +575,11 @@ def duplicate_account(args: argparse.Namespace) -> None:
                 billing_map[billing.id] = copied.id
 
             if billing_map:
-                for item in source.scalars(select(OrderLineItem).where(OrderLineItem.billings_id.in_(billing_map.keys()))).all():
+                for item in _source_scalars(source, OrderLineItem, select(OrderLineItem).where(OrderLineItem.billings_id.in_(billing_map.keys()))).all():
                     _copy_row(target, item, billings_id=billing_map[item.billings_id])
 
             referral_map: dict[int, int] = {}
-            for referral in source.scalars(select(Referral).where(Referral.client_id.in_(client_ids)).order_by(Referral.id)).all():
+            for referral in _source_scalars(source, Referral, select(Referral).where(Referral.client_id.in_(client_ids)).order_by(Referral.id)).all():
                 copied = _copy_row(
                     target,
                     referral,
@@ -558,11 +590,11 @@ def duplicate_account(args: argparse.Namespace) -> None:
                 referral_map[referral.id] = copied.id
 
             if referral_map:
-                for eye in source.scalars(select(ReferralEye).where(ReferralEye.referral_id.in_(referral_map.keys()))).all():
+                for eye in _source_scalars(source, ReferralEye, select(ReferralEye).where(ReferralEye.referral_id.in_(referral_map.keys()))).all():
                     _copy_row(target, eye, referral_id=referral_map[eye.referral_id])
 
             appointment_map: dict[int, int] = {}
-            for appointment in source.scalars(select(Appointment).where(Appointment.client_id.in_(client_ids)).order_by(Appointment.id)).all():
+            for appointment in _source_scalars(source, Appointment, select(Appointment).where(Appointment.client_id.in_(client_ids)).order_by(Appointment.id)).all():
                 copied = _copy_row(
                     target,
                     appointment,
@@ -574,17 +606,19 @@ def duplicate_account(args: argparse.Namespace) -> None:
                 appointment_map[appointment.id] = copied.id
 
             if appointment_map:
-                for log in source.scalars(select(EmailLog).where(EmailLog.appointment_id.in_(appointment_map.keys()))).all():
+                for log in _source_scalars(source, EmailLog, select(EmailLog).where(EmailLog.appointment_id.in_(appointment_map.keys()))).all():
                     _copy_row(target, log, appointment_id=appointment_map[log.appointment_id])
 
             campaign_map: dict[int, int] = {}
-            for campaign in source.scalars(select(Campaign).where(Campaign.clinic_id.in_(clinic_ids)).order_by(Campaign.id)).all():
+            for campaign in _source_scalars(source, Campaign, select(Campaign).where(Campaign.clinic_id.in_(clinic_ids)).order_by(Campaign.id)).all():
                 copied = _copy_row(target, campaign, clinic_id=_mapped(clinic_map, campaign.clinic_id), active=False)
                 campaign_map[campaign.id] = copied.id
 
             if campaign_map:
-                for execution in source.scalars(
-                    select(CampaignClientExecution).where(CampaignClientExecution.campaign_id.in_(campaign_map.keys()))
+                for execution in _source_scalars(
+                    source,
+                    CampaignClientExecution,
+                    select(CampaignClientExecution).where(CampaignClientExecution.campaign_id.in_(campaign_map.keys())),
                 ).all():
                     if execution.client_id in client_map:
                         _copy_row(
@@ -594,19 +628,19 @@ def duplicate_account(args: argparse.Namespace) -> None:
                             client_id=client_map[execution.client_id],
                         )
 
-            for shift in source.scalars(select(WorkShift).where(WorkShift.user_id.in_(user_ids))).all():
+            for shift in _source_scalars(source, WorkShift, select(WorkShift).where(WorkShift.user_id.in_(user_ids))).all():
                 _copy_row(target, shift, user_id=user_map[shift.user_id])
 
             chat_map: dict[int, int] = {}
-            for chat in source.scalars(select(Chat).where(Chat.clinic_id.in_(clinic_ids)).order_by(Chat.id)).all():
+            for chat in _source_scalars(source, Chat, select(Chat).where(Chat.clinic_id.in_(clinic_ids)).order_by(Chat.id)).all():
                 copied = _copy_row(target, chat, clinic_id=_mapped(clinic_map, chat.clinic_id))
                 chat_map[chat.id] = copied.id
             if chat_map:
-                for message in source.scalars(select(ChatMessage).where(ChatMessage.chat_id.in_(chat_map.keys()))).all():
+                for message in _source_scalars(source, ChatMessage, select(ChatMessage).where(ChatMessage.chat_id.in_(chat_map.keys()))).all():
                     _copy_row(target, message, chat_id=chat_map[message.chat_id])
 
             if args.include_file_metadata:
-                for file in source.scalars(select(File).where(File.client_id.in_(client_ids))).all():
+                for file in _source_scalars(source, File, select(File).where(File.client_id.in_(client_ids))).all():
                     _copy_row(
                         target,
                         file,

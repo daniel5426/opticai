@@ -15,6 +15,33 @@ SECTION_FILL = "18181B" # Zinc 900
 HEADER_TEXT = "18181B"
 SUBTLE_FILL = "FAFAFA" # Zinc 50
 
+FIELD_VARIANTS = {
+    "compact": {
+        "label_size": 13,
+        "value_size": 18,
+        "value_bold": False,
+        "align": "right",
+        "label_after": 4,
+        "margins": (28, 100, 28, 100),
+    },
+    "balanced": {
+        "label_size": 14,
+        "value_size": 20,
+        "value_bold": False,
+        "align": "left",
+        "label_after": 3,
+        "margins": (20, 95, 20, 95),
+    },
+    "centered": {
+        "label_size": 14,
+        "value_size": 19,
+        "value_bold": True,
+        "align": "center",
+        "label_after": 6,
+        "margins": (34, 100, 34, 100),
+    },
+}
+
 
 def xml(text: str) -> str:
     return escape(text)
@@ -147,7 +174,14 @@ def row(cells: list[str], *, height: int | None = None) -> str:
     return f"<w:tr>{tr_pr}{''.join(cells)}</w:tr>"
 
 
-def table(rows: list[str], widths: list[int], *, layout: str = "fixed", borders: bool = True) -> str:
+def table(
+    rows: list[str],
+    widths: list[int],
+    *,
+    layout: str = "fixed",
+    borders: bool = True,
+    bidi_visual: bool | None = None,
+) -> str:
     grid = "".join(f'<w:gridCol w:w="{width}"/>' for width in widths)
     tbl_borders = ""
     if borders:
@@ -168,6 +202,7 @@ def table(rows: list[str], widths: list[int], *, layout: str = "fixed", borders:
         '<w:tblW w:w="5000" w:type="pct"/>'
         f'<w:tblLayout w:type="{layout}"/>'
         '<w:jc w:val="right"/>'
+        f'{f"<w:bidiVisual w:val=\"{1 if bidi_visual else 0}\"/>" if bidi_visual is not None else ""}'
         f'{tbl_borders}'
         '<w:tblCellMar><w:top w:w="0" w:type="dxa"/><w:right w:w="0" w:type="dxa"/>'
         '<w:bottom w:w="0" w:type="dxa"/><w:left w:w="0" w:type="dxa"/></w:tblCellMar>'
@@ -180,10 +215,10 @@ def table(rows: list[str], widths: list[int], *, layout: str = "fixed", borders:
 
 def section_title(title: str) -> str:
     return paragraph(
-        run(title, bold=True, size=20, color="18181B"),
-        align="center",
-        spacing_before=120,
-        spacing_after=40,
+        run(title, bold=True, size=22, color="18181B"),
+        align="left",
+        spacing_before=40,
+        spacing_after=12,
         keep_next=True
     )
 
@@ -212,7 +247,7 @@ def header_block(title: str, subtitle_key: str) -> str:
     subtitle_run = run("סניף: ", bold=True, size=20, color="71717A") + field(subtitle_key, size=20, color="71717A")
     
     right_cell = cell(
-        paragraph(title_run, align="right", spacing_after=40) + paragraph(subtitle_run, align="right", spacing_after=0),
+        paragraph(title_run, align="left", spacing_after=40) + paragraph(subtitle_run, align="left", spacing_after=0),
         width=title_width,
         borders=False,
         fill=None,
@@ -220,47 +255,73 @@ def header_block(title: str, subtitle_key: str) -> str:
         vertical="center"
     )
     
-    return table([row([left_cell, spacer_cell, right_cell])], [logo_width, spacer_width, title_width], borders=False)
+    return table(
+        [row([left_cell, spacer_cell, right_cell])],
+        [logo_width, spacer_width, title_width],
+        borders=False,
+        bidi_visual=False,
+    )
 
 
-def metric_table(items: list[tuple[str, str]], *, pairs_per_row: int = 4) -> str:
-    label_width = 1200
-    value_width = (PAGE_WIDTH - (label_width * pairs_per_row)) // pairs_per_row
-    widths = []
-    for _ in range(pairs_per_row):
-        widths.extend([value_width, label_width])
+def metric_table(
+    items: list[tuple[str, str]],
+    *,
+    pairs_per_row: int = 4,
+    variant: str = "balanced",
+) -> str:
+    return combined_field_table(items, columns=pairs_per_row, variant=variant)
+
+
+def combined_field_table(
+    items: list[tuple[str, str]],
+    *,
+    columns: int = 3,
+    variant: str = "balanced",
+) -> str:
+    style = FIELD_VARIANTS[variant]
+    field_width = PAGE_WIDTH // columns
+    widths = [field_width] * columns
     rows = []
-    for i in range(0, len(items), pairs_per_row):
-        chunk = items[i : i + pairs_per_row]
+    for i in range(0, len(items), columns):
+        chunk = items[i : i + columns]
         row_cells = []
-        for label, key in reversed(chunk):
+        for label, key in chunk:
             row_cells.append(
                 cell(
-                    paragraph(field(key, size=20), align="right", spacing_after=0),
-                    width=value_width,
-                    align="right",
+                    paragraph(
+                        run(label, bold=True, size=style["label_size"], color="52525B"),
+                        align=style["align"],
+                        spacing_after=style["label_after"],
+                    )
+                    + paragraph(
+                        field(key, size=style["value_size"], bold=style["value_bold"]),
+                        align=style["align"],
+                        spacing_after=0,
+                    ),
+                    width=field_width,
+                    align=style["align"],
                     borders=False,
-                    fill=None
-                )
-            )
-            row_cells.append(
-                cell(
-                    paragraph(run(label, bold=True, size=18, color="52525B"), spacing_after=0),
-                    width=label_width,
                     fill=None,
-                    align="right",
-                    borders=False
+                    margins=style["margins"],
                 )
             )
-        while len(chunk) < pairs_per_row:
-            row_cells.append(cell("", width=value_width, fill=None, borders=False))
-            row_cells.append(cell("", width=label_width, fill=None, borders=False))
+        while len(chunk) < columns:
+            row_cells.append(cell("", width=field_width, fill=None, borders=False, margins=style["margins"]))
             chunk.append(("", ""))
         rows.append(row(row_cells))
     return table(rows, widths, borders=True)
 
 
-def kv_table(pairs: list[tuple[str, str]], *, pairs_per_row: int = 2) -> str:
+def kv_table(
+    pairs: list[tuple[str, str]],
+    *,
+    pairs_per_row: int = 2,
+    variant: str = "balanced",
+) -> str:
+    return combined_field_table(pairs, columns=pairs_per_row, variant=variant)
+
+
+def legacy_kv_table(pairs: list[tuple[str, str]], *, pairs_per_row: int = 2) -> str:
     label_width = 1200
     value_width = 3840 if pairs_per_row == 2 else 2160
     widths = []
@@ -271,24 +332,8 @@ def kv_table(pairs: list[tuple[str, str]], *, pairs_per_row: int = 2) -> str:
         chunk = pairs[i : i + pairs_per_row]
         row_cells = []
         for label, key in reversed(chunk):
-            row_cells.append(
-                cell(
-                    paragraph(field(key, size=20), align="right", spacing_after=0),
-                    width=value_width,
-                    align="right",
-                    borders=False,
-                    fill=None
-                )
-            )
-            row_cells.append(
-                cell(
-                    paragraph(run(label, bold=True, size=18, color="52525B"), spacing_after=0),
-                    width=label_width,
-                    fill=None,
-                    align="right",
-                    borders=False
-                )
-            )
+            row_cells.append(cell(paragraph(field(key, size=20), spacing_after=0), width=value_width, borders=False))
+            row_cells.append(cell(paragraph(run(label, bold=True, size=18, color="52525B"), spacing_after=0), width=label_width, borders=False))
         while len(chunk) < pairs_per_row:
             row_cells.append(cell("", width=value_width, fill=None, borders=False))
             row_cells.append(cell("", width=label_width, fill=None, borders=False))
@@ -300,27 +345,27 @@ def kv_table(pairs: list[tuple[str, str]], *, pairs_per_row: int = 2) -> str:
 def eye_table(row_label_title: str, labels: list[str], right_keys: list[str], left_keys: list[str]) -> str:
     eye_width = 1100
     value_width = (PAGE_WIDTH - eye_width) // len(labels)
-    widths = [value_width] * len(labels) + [eye_width]
+    widths = [eye_width] + [value_width] * len(labels)
     rows = [
         row(
             [
+                cell(
+                    paragraph(run(row_label_title, bold=True, size=18, color="18181B"), align="center", spacing_after=0),
+                    width=eye_width,
+                    fill=LABEL_FILL,
+                    align="center",
+                    borders=False
+                ),
                 *[
                     cell(
                         paragraph(run(label, bold=True, size=18, color="52525B"), align="center", spacing_after=0),
                         width=value_width,
-                        fill=None,
+                        fill=LABEL_FILL,
                         align="center",
                         borders=False
                     )
-                    for label in reversed(labels)
+                    for label in labels
                 ],
-                cell(
-                    paragraph(run(row_label_title, bold=True, size=18, color="18181B"), align="center", spacing_after=0),
-                    width=eye_width,
-                    fill=None,
-                    align="center",
-                    borders=False
-                ),
             ]
         )
     ]
@@ -328,6 +373,13 @@ def eye_table(row_label_title: str, labels: list[str], right_keys: list[str], le
         rows.append(
             row(
                 [
+                    cell(
+                        paragraph(run(eye_label, bold=True, size=20), align="center", spacing_after=0),
+                        width=eye_width,
+                        fill=LABEL_FILL,
+                        align="center",
+                        borders=False
+                    ),
                     *[
                         cell(
                             paragraph(field(key, size=20), align="center", spacing_after=0),
@@ -336,104 +388,42 @@ def eye_table(row_label_title: str, labels: list[str], right_keys: list[str], le
                             borders=False,
                             fill=None
                         )
-                        for key in reversed(keys)
+                        for key in keys
                     ],
-                    cell(
-                        paragraph(run(eye_label, bold=True, size=20), align="center", spacing_after=0),
-                        width=eye_width,
-                        fill=None,
-                        align="center",
-                        borders=False
-                    ),
                 ]
             )
         )
-    return table(rows, widths, borders=True)
+    return table(rows, widths, borders=True, bidi_visual=True)
 
 
 def comparison_table(headers: list[str], right_keys: list[str], left_keys: list[str]) -> str:
-    eye_width = 1100
-    value_width = (PAGE_WIDTH - eye_width) // len(headers)
-    widths = [value_width] * len(headers) + [eye_width]
-    rows = [
-        row(
-            [
-                *[
-                    cell(
-                        paragraph(run(header, bold=True, size=18, color="52525B"), align="center", spacing_after=0),
-                        width=value_width,
-                        fill=None,
-                        align="center",
-                        borders=False
-                    )
-                    for header in reversed(headers)
-                ],
-                cell(
-                    paragraph(run("עין", bold=True, size=18, color="18181B"), align="center", spacing_after=0),
-                    width=eye_width,
-                    fill=None,
-                    align="center",
-                    borders=False
-                ),
-            ]
-        )
-    ]
-    for eye_label, keys in [("ימין", right_keys), ("שמאל", left_keys)]:
-        rows.append(
-            row(
-                [
-                    *[
-                        cell(
-                            paragraph(field(key, size=20), align="center", spacing_after=0),
-                            width=value_width,
-                            align="center",
-                            borders=False,
-                            fill=None
-                        )
-                        for key in reversed(keys)
-                    ],
-                    cell(
-                        paragraph(run(eye_label, bold=True, size=20), align="center", spacing_after=0),
-                        width=eye_width,
-                        fill=None,
-                        align="center",
-                        borders=False
-                    ),
-                ]
-            )
-        )
-    return table(rows, widths, borders=True)
+    return eye_table("עין", headers, right_keys, left_keys)
 
 
 def notes_row(right_title: str, right_key: str, left_title: str, left_key: str) -> str:
     half_width = PAGE_WIDTH // 2
     right_cell = (
-        paragraph(run(right_title, bold=True, size=20, color="18181B"), align="right", spacing_after=40, keep_next=True)
-        + paragraph(field(right_key, size=20), align="right", spacing_after=20)
+        paragraph(run(right_title, bold=True, size=20, color="18181B"), align="left", spacing_after=40, keep_next=True)
+        + paragraph(field(right_key, size=20), align="left", spacing_after=20)
     )
     left_cell = (
-        paragraph(run(left_title, bold=True, size=20, color="18181B"), align="right", spacing_after=40, keep_next=True)
-        + paragraph(field(left_key, size=20), align="right", spacing_after=20)
+        paragraph(run(left_title, bold=True, size=20, color="18181B"), align="left", spacing_after=40, keep_next=True)
+        + paragraph(field(left_key, size=20), align="left", spacing_after=20)
     )
     return table(
-        [
-            row(
-                [
-                    cell(left_cell, width=half_width, fill=None, vertical="top", margins=(80, 120, 80, 120), borders=False),
-                    cell(right_cell, width=half_width, fill=None, vertical="top", margins=(80, 120, 80, 120), borders=False),
-                ],
-                
-            )
-        ],
+        [row([
+            cell(left_cell, width=half_width, fill=None, vertical="top", margins=(80, 120, 80, 120), borders=False),
+            cell(right_cell, width=half_width, fill=None, vertical="top", margins=(80, 120, 80, 120), borders=False),
+        ])],
         [half_width, half_width],
-        borders=True
+        borders=True,
     )
 
 
-def build_regular_xml() -> str:
+def build_regular_xml(variant: str = "balanced") -> str:
     content = [
         header_block("הזמנה רגילה", "clinic_info"),
-        empty_paragraph(120),
+        empty_paragraph(20),
         metric_table(
             [
                 ("מס' הזמנה", "order_number"),
@@ -444,9 +434,10 @@ def build_regular_xml() -> str:
                 ("עדיפות", "priority"),
                 ("אספקה", "delivery_clinic_name"),
                 ("הובטח", "promised_date"),
-            ]
+            ],
+            variant=variant,
         ),
-        empty_paragraph(60),
+        empty_paragraph(20),
         section_title("פרטי לקוח"),
         kv_table(
             [
@@ -458,8 +449,9 @@ def build_regular_xml() -> str:
                 ("כתובת", "client_address"),
             ],
             pairs_per_row=3,
+            variant=variant,
         ),
-        empty_paragraph(60),
+        empty_paragraph(20),
         section_title("צוות ותפעול"),
         kv_table(
             [
@@ -471,8 +463,9 @@ def build_regular_xml() -> str:
                 ("סוג טאב", "lens_tab_type"),
             ],
             pairs_per_row=3,
+            variant=variant,
         ),
-        empty_paragraph(60),
+        empty_paragraph(20),
         section_title("מרשם"),
         eye_table(
             "עין",
@@ -480,16 +473,16 @@ def build_regular_xml() -> str:
             ["r_high", "r_pd", "r_add", "r_base", "r_pris", "r_ax", "r_cyl", "r_sph"],
             ["l_high", "l_pd", "l_add", "l_base", "l_pris", "l_ax", "l_cyl", "l_sph"],
         ),
-        empty_paragraph(40),
-        kv_table([("PD משולב", "comb_pd"), ("רב מוקדי", "multifocal_block")], pairs_per_row=2),
-        empty_paragraph(60),
+        empty_paragraph(20),
+        kv_table([("PD משולב", "comb_pd"), ("רב מוקדי", "multifocal_block")], pairs_per_row=2, variant=variant),
+        empty_paragraph(20),
         section_title("פרטי עדשות"),
         comparison_table(
             ["דגם", "ספק", "חומר", "ציפוי", "צבע", "קוטר"],
             ["r_lens_model", "r_lens_supplier", "r_lens_material", "r_lens_coating", "r_lens_color", "r_lens_diameter"],
             ["l_lens_model", "l_lens_supplier", "l_lens_material", "l_lens_coating", "l_lens_color", "l_lens_diameter"],
         ),
-        empty_paragraph(60),
+        empty_paragraph(20),
         section_title("מסגרת"),
         kv_table(
             [
@@ -504,8 +497,9 @@ def build_regular_xml() -> str:
                 ("סופק על ידי", "frame_supplied_by"),
             ],
             pairs_per_row=3,
+            variant=variant,
         ),
-        empty_paragraph(60),
+        empty_paragraph(20),
         section_title("סיכום כספי"),
         metric_table(
             [
@@ -515,9 +509,9 @@ def build_regular_xml() -> str:
                 ("סטטוס תשלום", "payment_status"),
             ],
             pairs_per_row=4,
+            variant=variant,
         ),
-        empty_paragraph(60),
-        section_title("הערות"),
+        empty_paragraph(20),
         notes_row("הערות קליניות", "clinic_notes", "הערות לספק", "supplier_notes"),
     ]
     return (
@@ -530,10 +524,10 @@ def build_regular_xml() -> str:
     )
 
 
-def build_contact_xml() -> str:
+def build_contact_xml(variant: str = "balanced") -> str:
     content = [
         header_block("הזמנת עדשות מגע", "clinic_info"),
-        empty_paragraph(120),
+        empty_paragraph(20),
         metric_table(
             [
                 ("מס' הזמנה", "order_number"),
@@ -544,9 +538,10 @@ def build_contact_xml() -> str:
                 ("הובטח", "guaranteed_date"),
                 ("אושר", "approval_date"),
                 ("נמסר", "delivery_date"),
-            ]
+            ],
+            variant=variant,
         ),
-        empty_paragraph(60),
+        empty_paragraph(20),
         section_title("פרטי לקוח"),
         kv_table(
             [
@@ -558,8 +553,9 @@ def build_contact_xml() -> str:
                 ("כתובת", "client_address"),
             ],
             pairs_per_row=3,
+            variant=variant,
         ),
-        empty_paragraph(60),
+        empty_paragraph(20),
         section_title("צוות ותפעול"),
         kv_table(
             [
@@ -568,15 +564,16 @@ def build_contact_xml() -> str:
                 ("מוסר עבודה", "deliverer_name"),
             ],
             pairs_per_row=3,
+            variant=variant,
         ),
-        empty_paragraph(60),
+        empty_paragraph(20),
         section_title("פרטי עדשות"),
         comparison_table(
             ["סוג", "דגם", "ספק", "חומר", "צבע", "כמות"],
             ["r_lens_type", "r_model", "r_supplier", "r_material", "r_color", "r_quantity"],
             ["l_lens_type", "l_model", "l_supplier", "l_material", "l_color", "l_quantity"],
         ),
-        empty_paragraph(60),
+        empty_paragraph(20),
         section_title("מרשם עדשות מגע"),
         eye_table(
             "עין",
@@ -584,7 +581,7 @@ def build_contact_xml() -> str:
             ["r_bc", "r_oz", "r_diam", "r_sph", "r_cyl", "r_ax", "r_read_add"],
             ["l_bc", "l_oz", "l_diam", "l_sph", "l_cyl", "l_ax", "l_read_add"],
         ),
-        empty_paragraph(60),
+        empty_paragraph(20),
         section_title("תמיסות"),
         kv_table(
             [
@@ -593,8 +590,9 @@ def build_contact_xml() -> str:
                 ("שטיפה", "rinsing_solution"),
             ],
             pairs_per_row=3,
+            variant=variant,
         ),
-        empty_paragraph(60),
+        empty_paragraph(20),
         section_title("סיכום כספי"),
         metric_table(
             [
@@ -604,9 +602,9 @@ def build_contact_xml() -> str:
                 ("סטטוס תשלום", "payment_status"),
             ],
             pairs_per_row=4,
+            variant=variant,
         ),
-        empty_paragraph(60),
-        section_title("הערות"),
+        empty_paragraph(20),
         notes_row("הערות קליניות", "clinic_notes", "הערות לספק", "supplier_notes"),
     ]
     return (
@@ -697,7 +695,7 @@ def build_referral_xml() -> str:
             ["l_sph", "l_cyl", "l_ax", "l_pris", "l_base", "l_va", "l_add", "l_pd"],
         ),
         empty_paragraph(40),
-        kv_table([("VA משולב", "comb_va"), ("PD משולב", "comb_pd")], pairs_per_row=2),
+        legacy_kv_table([("VA משולב", "comb_va"), ("PD משולב", "comb_pd")], pairs_per_row=2),
         empty_paragraph(120),
         paragraph(field("/has_compact_prescription"), spacing_after=0),
         
@@ -746,8 +744,11 @@ def replace_document_xml(docx_path: Path, xml_content: str) -> None:
 
 
 def main() -> None:
-    replace_document_xml(TEMPLATES_DIR / "regular-order.docx", build_regular_xml())
-    replace_document_xml(TEMPLATES_DIR / "contact-order.docx", build_contact_xml())
+    regular_path = TEMPLATES_DIR / "regular-order.docx"
+    contact_path = TEMPLATES_DIR / "contact-order.docx"
+    replace_document_xml(regular_path, build_regular_xml())
+    shutil.copyfile(regular_path, contact_path)
+    replace_document_xml(contact_path, build_contact_xml())
     referral_path = TEMPLATES_DIR / "referral.docx"
     if not referral_path.exists():
         shutil.copyfile(TEMPLATES_DIR / "regular-order.docx", referral_path)

@@ -1,6 +1,7 @@
 import { ExamLayout } from "@/lib/db/schema-interface";
 import { CardItem, getColumnCount } from "@/components/exam/ExamCardRenderer";
 import { examComponentRegistry } from "@/lib/exam-component-registry";
+import { normalizeNpcComponentType } from "@/lib/npc-compatibility";
 import type { CardRow } from "./types";
 
 export const EXAM_LAYOUT_VERSION = 2;
@@ -26,6 +27,20 @@ export interface GridLayoutData {
   };
   items: GridLayoutItem[];
 }
+
+const normalizeNpcLayoutRows = (rows: CardRow[]): CardRow[] =>
+  rows.map((row) => ({
+    ...row,
+    cards: row.cards.map((card) => ({
+      ...card,
+      type: normalizeNpcComponentType(String(card.type)) as CardItem["type"],
+    })),
+  }));
+
+const normalizeNpcGridItem = (item: GridLayoutItem): GridLayoutItem => ({
+  ...item,
+  type: normalizeNpcComponentType(String(item.type)) as CardItem["type"],
+});
 
 export const flattenExamLayouts = (nodes: ExamLayout[]): ExamLayout[] => {
   const list: ExamLayout[] = [];
@@ -444,7 +459,9 @@ export const createGridLayoutData = (
   version: EXAM_LAYOUT_VERSION,
   grid: { columns },
   items: sortGridItems(
-    items.map((item) => normalizeGridItem(item, columns, options)),
+    items.map((item) =>
+      normalizeGridItem(normalizeNpcGridItem(item), columns, options),
+    ),
   ),
 });
 
@@ -619,9 +636,10 @@ export const parseLayoutData = (layoutData?: string): ParsedLayoutData => {
   try {
     const parsed = JSON.parse(layoutData);
     if (Array.isArray(parsed)) {
-      const items = legacyRowsToGridItems(parsed, {});
+      const rows = normalizeNpcLayoutRows(parsed);
+      const items = legacyRowsToGridItems(rows, {});
       return {
-        rows: parsed,
+        rows,
         customWidths: {},
         grid: createGridLayoutData(items),
         items,
@@ -636,7 +654,9 @@ export const parseLayoutData = (layoutData?: string): ParsedLayoutData => {
       const columns = Number(parsed.grid?.columns) || EXAM_LAYOUT_GRID_COLUMNS;
       const items = sortGridItems(
         parsed.items.map((item: GridLayoutItem) =>
-          normalizeGridItem(item, columns, { enforceMinWidth: false }),
+          normalizeGridItem(normalizeNpcGridItem(item), columns, {
+            enforceMinWidth: false,
+          }),
         ),
       );
       return {
@@ -648,7 +668,7 @@ export const parseLayoutData = (layoutData?: string): ParsedLayoutData => {
       };
     }
 
-    const rows = parsed.rows || [];
+    const rows = normalizeNpcLayoutRows(parsed.rows || []);
     const customWidths = parsed.customWidths || {};
     const items = legacyRowsToGridItems(rows, customWidths);
     return {

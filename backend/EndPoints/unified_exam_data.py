@@ -11,6 +11,27 @@ import json
 
 router = APIRouter(prefix="/unified-exam-data", tags=["Unified Exam Data"])
 
+
+def _normalize_npc_key(key: str) -> str:
+    return "npc" + key[3:] if key == "opc" or key.startswith("opc-") else key
+
+
+def _legacy_npc_key(key: str) -> str:
+    return "opc" + key[3:] if key == "npc" or key.startswith("npc-") else key
+
+
+def _normalize_npc_exam_data(exam_data: Dict[str, Any]) -> Dict[str, Any]:
+    """Upgrade legacy OPC JSON keys while preserving canonical NPC values."""
+    normalized = {
+        key: value
+        for key, value in exam_data.items()
+        if _normalize_npc_key(key) == key
+    }
+    for key, value in exam_data.items():
+        normalized.setdefault(_normalize_npc_key(key), value)
+    return normalized
+
+
 @router.get("/{layout_instance_id}")
 async def get_exam_data(
     layout_instance_id: int,
@@ -32,7 +53,7 @@ async def get_exam_data(
         )
     
     # Return instance-level JSON
-    return layout_instance.exam_data or {}
+    return _normalize_npc_exam_data(layout_instance.exam_data or {})
 
 @router.post("/{layout_instance_id}")
 async def save_exam_data(
@@ -75,8 +96,8 @@ async def save_exam_data(
             detail="Layout instance not found"
         )
     
-    # Upsert directly on instance row
-    layout_instance.exam_data = exam_data
+    # Upsert directly on instance row, upgrading legacy OPC keys to NPC.
+    layout_instance.exam_data = _normalize_npc_exam_data(exam_data)
     rebuild_exam_instance_index(db, layout_instance)
     db.commit()
     db.refresh(layout_instance)
@@ -131,6 +152,12 @@ async def get_exam_component_data(
         )
     
     data = layout_instance.exam_data or {}
+    canonical_component_type = _normalize_npc_key(component_type)
+    if canonical_component_type in data:
+        return data[canonical_component_type]
+    legacy_component_type = _legacy_npc_key(canonical_component_type)
+    if legacy_component_type in data:
+        return data[legacy_component_type]
     if component_type not in data:
         return None
     return data[component_type]
@@ -158,8 +185,8 @@ async def save_exam_component_data(
         )
     
     # Update the specific component on instance JSON
-    merged = dict(layout_instance.exam_data or {})
-    merged[component_type] = component_data
+    merged = _normalize_npc_exam_data(dict(layout_instance.exam_data or {}))
+    merged[_normalize_npc_key(component_type)] = component_data
     layout_instance.exam_data = merged
     rebuild_exam_instance_index(db, layout_instance)
     db.commit()

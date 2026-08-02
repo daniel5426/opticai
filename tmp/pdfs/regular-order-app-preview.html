@@ -1,0 +1,338 @@
+<!doctype html>
+    <html dir="rtl" lang="he">
+      <head>
+        <meta charset="utf-8" />
+        <title>הזמנה רגילה</title>
+        <style>
+  @page { size: A4; margin: 10mm 15.8mm; }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    padding: 0;
+    direction: rtl;
+    color: #18181b;
+    font-family: Assistant, Arial, sans-serif;
+    font-size: 12px;
+    line-height: 1.4;
+  }
+  body {
+    background: #fff;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .header {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+  .logo-wrap {
+    text-align: left;
+  }
+  .logo {
+    width: 128px;
+    height: 128px;
+    object-fit: contain;
+  }
+  h1 {
+    margin: 0 0 6px;
+    font-size: 26px;
+    line-height: 1.1;
+    font-weight: 700;
+    text-align: right;
+  }
+  .branch {
+    color: #71717a;
+    font-size: 12px;
+    font-weight: 700;
+    text-align: right;
+  }
+  .spacer { height: 4px; }
+  h2 {
+    margin: 7px 0 2px;
+    font-size: 14px;
+    line-height: 1.2;
+    text-align: right;
+    font-weight: 700;
+    break-after: avoid;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+    border: 1px solid #e4e4e7;
+    break-inside: avoid;
+    margin: 0;
+  }
+  td, th {
+    border: 1px solid #e4e4e7;
+    padding: 5px 8px;
+    height: 29px;
+    vertical-align: middle;
+    text-align: right;
+    font-weight: 400;
+  }
+	  th, .label {
+	    color: #52525b;
+	    font-weight: 700;
+	  }
+	  .value {
+	    color: #18181b;
+	    font-size: 12px;
+	  }
+	  .section-cell {
+	    color: #18181b;
+	    text-align: center;
+	    font-weight: 700;
+	  }
+  .center { text-align: center; }
+  .eye-table {
+    direction: rtl;
+  }
+  .eye-table tr:first-child > *,
+  .eye-table tr > :first-child {
+    background: #f4f4f5;
+  }
+  .field-cell {
+    height: 36px;
+    padding: 2px 8px 3px;
+    vertical-align: middle;
+  }
+  .field-label {
+    color: #52525b;
+    font-size: 10px;
+    line-height: 1.2;
+    font-weight: 700;
+    margin-bottom: 0;
+  }
+  .field-value {
+    color: #18181b;
+    font-size: 13px;
+    line-height: 1.25;
+    min-height: 14px;
+  }
+  .ltr {
+    direction: ltr;
+    unicode-bidi: isolate;
+  }
+  .notes td {
+    vertical-align: top;
+    height: 72px;
+    padding: 7px 9px;
+  }
+  .note-title {
+    font-size: 12px;
+    font-weight: 700;
+    margin-bottom: 6px;
+  }
+  .note-body {
+    white-space: pre-wrap;
+    font-size: 12px;
+  }
+</style>
+      </head>
+      <body>
+        <header class="header">
+          <div>
+            <h1>הזמנה רגילה</h1>
+            <div class="branch">סניף: ירושלים | יפו 12, ירושלים | 02-2222222</div>
+          </div>
+          <div class="logo-wrap"><img class="logo" src="" /></div>
+        </header>
+        <div class="spacer"></div><table class="field-table"><tr>
+        <td class="field-cell">
+          <div class="field-label">מס&#39; הזמנה</div>
+          <div class="field-value value ltr">2026-001</div>
+        </td>
+      
+        <td class="field-cell">
+          <div class="field-label">מס&#39; שקית</div>
+          <div class="field-value value ltr">B-204</div>
+        </td>
+      
+        <td class="field-cell">
+          <div class="field-label">תאריך הזמנה</div>
+          <div class="field-value value">10/04/2026</div>
+        </td>
+      </tr><tr>
+        <td class="field-cell">
+          <div class="field-label">תאריך אישור</div>
+          <div class="field-value value">11/04/2026</div>
+        </td>
+      
+        <td class="field-cell">
+          <div class="field-label">סטטוס</div>
+          <div class="field-value value">מוכן</div>
+        </td>
+      
+        <td class="field-cell">
+          <div class="field-label">עדיפות</div>
+          <div class="field-value value">רגיל</div>
+        </td>
+      </tr><tr>
+        <td class="field-cell">
+          <div class="field-label">אספקה</div>
+          <div class="field-value value">תל אביב</div>
+        </td>
+      
+        <td class="field-cell">
+          <div class="field-label">הובטח</div>
+          <div class="field-value value">17/04/2026</div>
+        </td>
+      <td class="field-cell"></td></tr></table><h2>פרטי לקוח</h2><table class="field-table"><tr>
+        <td class="field-cell">
+          <div class="field-label">שם לקוח</div>
+          <div class="field-value value">רון כהן</div>
+        </td>
+      
+        <td class="field-cell">
+          <div class="field-label">ת.ז</div>
+          <div class="field-value value">123456789</div>
+        </td>
+      
+        <td class="field-cell">
+          <div class="field-label">נייד</div>
+          <div class="field-value value ltr">050-1234567</div>
+        </td>
+      </tr><tr>
+        <td class="field-cell">
+          <div class="field-label">טלפון בית</div>
+          <div class="field-value value ltr">02-2222222</div>
+        </td>
+      
+        <td class="field-cell">
+          <div class="field-label">טלפון עבודה</div>
+          <div class="field-value value ltr">03-5550101</div>
+        </td>
+      
+        <td class="field-cell">
+          <div class="field-label">כתובת</div>
+          <div class="field-value value">רחוב יפו 12, ירושלים</div>
+        </td>
+      </tr></table><h2>צוות ותפעול</h2><table class="field-table"><tr>
+        <td class="field-cell">
+          <div class="field-label">אופטומטריסט</div>
+          <div class="field-value value">אורן לוי</div>
+        </td>
+      
+        <td class="field-cell">
+          <div class="field-label">יועץ</div>
+          <div class="field-value value">דנה ישראלי</div>
+        </td>
+      
+        <td class="field-cell">
+          <div class="field-label">נמסר על ידי</div>
+          <div class="field-value value">מאיה לוי</div>
+        </td>
+      </tr><tr>
+        <td class="field-cell">
+          <div class="field-label">תאריך מסירה</div>
+          <div class="field-value value">17/04/2026</div>
+        </td>
+      
+        <td class="field-cell">
+          <div class="field-label">מעבדה</div>
+          <div class="field-value value">אופטיקה לייב</div>
+        </td>
+      
+        <td class="field-cell">
+          <div class="field-label">סוג טאב</div>
+          <div class="field-value value">רב מוקדי</div>
+        </td>
+      </tr></table><h2>מרשם</h2><table class="eye-table">
+    <tr><th class="section-cell">עין</th><th class="label center">גובה</th><th class="label center">PD</th><th class="label center">ADD</th><th class="label center">BASE</th><th class="label center">PRISM</th><th class="label center">AX</th><th class="label center">CYL</th><th class="label center">SPH</th></tr>
+    <tr><th class="label center">ימין</th><td class="value center">18</td><td class="value center">31</td><td class="value ltr center">‎+1.50‎</td><td class="value center">IN</td><td class="value center">0.00</td><td class="value center">090</td><td class="value ltr center">‎-0.50‎</td><td class="value ltr center">‎+1.25‎</td></tr>
+    <tr><th class="label center">שמאל</th><td class="value center">18</td><td class="value center">31</td><td class="value ltr center">‎+1.50‎</td><td class="value center">IN</td><td class="value center">0.00</td><td class="value center">080</td><td class="value ltr center">‎-0.25‎</td><td class="value ltr center">‎-1.00‎</td></tr>
+  </table><div class="spacer"></div><table class="field-table"><tr>
+        <td class="field-cell">
+          <div class="field-label">PD משולב</div>
+          <div class="field-value value">62</div>
+        </td>
+      
+        <td class="field-cell">
+          <div class="field-label">רב מוקדי</div>
+          <div class="field-value value">PA: 14 מ״מ</div>
+        </td>
+      </tr></table><h2>פרטי עדשות</h2><table class="eye-table">
+    <tr><th class="section-cell">עין</th><th class="label center">דגם</th><th class="label center">ספק</th><th class="label center">חומר</th><th class="label center">ציפוי</th><th class="label center">צבע</th><th class="label center">קוטר</th></tr>
+    <tr><th class="label center">ימין</th><td class="value center">ClearView Pro</td><td class="value center">VisionLab</td><td class="value center">1.67</td><td class="value center">Blue Guard</td><td class="value center">שקוף</td><td class="value center">70</td></tr>
+    <tr><th class="label center">שמאל</th><td class="value center">ClearView Pro</td><td class="value center">VisionLab</td><td class="value center">1.67</td><td class="value center">Blue Guard</td><td class="value center">שקוף</td><td class="value center">70</td></tr>
+  </table><h2>מסגרת</h2><table class="field-table"><tr>
+        <td class="field-cell">
+          <div class="field-label">ספק</div>
+          <div class="field-value value">OptiFrame</div>
+        </td>
+      
+        <td class="field-cell">
+          <div class="field-label">מותג</div>
+          <div class="field-value value">RayLite</div>
+        </td>
+      
+        <td class="field-cell">
+          <div class="field-label">דגם</div>
+          <div class="field-value value">Urban 210</div>
+        </td>
+      </tr><tr>
+        <td class="field-cell">
+          <div class="field-label">צבע</div>
+          <div class="field-value value">שחור מט</div>
+        </td>
+      
+        <td class="field-cell">
+          <div class="field-label">רוחב</div>
+          <div class="field-value value">52</div>
+        </td>
+      
+        <td class="field-cell">
+          <div class="field-label">גשר</div>
+          <div class="field-value value">18</div>
+        </td>
+      </tr><tr>
+        <td class="field-cell">
+          <div class="field-label">גובה</div>
+          <div class="field-value value">41</div>
+        </td>
+      
+        <td class="field-cell">
+          <div class="field-label">אורך זרוע</div>
+          <div class="field-value value">140</div>
+        </td>
+      
+        <td class="field-cell">
+          <div class="field-label">סופק על ידי</div>
+          <div class="field-value value">החנות</div>
+        </td>
+      </tr></table><h2>סיכום כספי</h2><table class="field-table"><tr>
+        <td class="field-cell">
+          <div class="field-label">סה&quot;כ</div>
+          <div class="field-value value">1,200.00 ש&quot;ח</div>
+        </td>
+      
+        <td class="field-cell">
+          <div class="field-label">שולם</div>
+          <div class="field-value value">300.00 ש&quot;ח</div>
+        </td>
+      
+        <td class="field-cell">
+          <div class="field-label">יתרה</div>
+          <div class="field-value value">900.00 ש&quot;ח</div>
+        </td>
+      
+        <td class="field-cell">
+          <div class="field-label">סטטוס תשלום</div>
+          <div class="field-value value">שולם חלקית</div>
+        </td>
+      </tr></table><table class="notes">
+    <tr>
+      <td class="value">
+        <div class="note-title">הערות קליניות</div>
+        <div class="note-body">יש לוודא התאמה מלאה לפני המסירה.</div>
+      </td>
+      <td class="value">
+        <div class="note-title">הערות לספק</div>
+        <div class="note-body">נא לארוז עם מטלית ניקוי.</div>
+      </td>
+    </tr>
+  </table>
+      </body>
+    </html>

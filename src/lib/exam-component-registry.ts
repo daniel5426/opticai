@@ -1,6 +1,7 @@
 // @ts-nocheck
 import { apiClient } from './api-client'
 import { ExamComponentType } from './exam-field-mappings'
+import { normalizeNpcExamData } from './npc-compatibility'
 
 const normalizeComponentFieldValue = (previous: unknown, rawValue: string): unknown => {
   const trimmed = typeof rawValue === "string" ? rawValue.trim() : rawValue
@@ -87,7 +88,7 @@ export class ExamComponentRegistry {
   async loadAllData(layoutInstanceId: number): Promise<Record<string, unknown>> {
     try {
       const response = await apiClient.getUnifiedExamData(layoutInstanceId)
-      const data = response.data || Object.create(null)
+      const data = normalizeNpcExamData(response.data || Object.create(null))
       console.log(`DiopterAdjustmentPanel: Loaded data for layout ${layoutInstanceId}:`, data)
       return data
     } catch (error) {
@@ -99,8 +100,9 @@ export class ExamComponentRegistry {
   async saveAllData(layoutInstanceId: number, formData: Record<string, unknown>): Promise<Record<string, unknown>> {
     try {
       const dataToSave: Record<string, unknown> = {}
+      const canonicalFormData = normalizeNpcExamData(formData)
       
-      for (const [key, data] of Object.entries(formData)) {
+      for (const [key, data] of Object.entries(canonicalFormData)) {
         if (key === '__ui' && data && typeof data === 'object') {
           dataToSave[key] = data
           continue
@@ -427,9 +429,9 @@ examComponentRegistry.register('diopter-adjustment-panel', {
   showInLayoutEditor: true
 })
 
-examComponentRegistry.register('opc', {
-  name: 'OPC',
-  component: () => import('../components/exam/OPCTab'),
+examComponentRegistry.register('npc', {
+  name: 'NPC',
+  component: () => import('../components/exam/NPCTab'),
   order: 34,
   showInLayoutEditor: true
 })

@@ -59,7 +59,7 @@ import {
   StereoTestExam,
   RGExam,
   OcularMotorAssessmentExam,
-  OPCExam,
+  NPCExam,
   DiopterAdjustmentPanel,
   OldContactLenses,
   OverRefraction,
@@ -79,7 +79,7 @@ import { MaddoxRodTab } from "@/components/exam/MaddoxRodTab";
 import { StereoTestTab } from "@/components/exam/StereoTestTab";
 import { RGTab } from "@/components/exam/RGTab";
 import { OcularMotorAssessmentTab } from "@/components/exam/OcularMotorAssessmentTab";
-import { OPCTab } from "@/components/exam/OPCTab";
+import { NPCTab } from "@/components/exam/NPCTab";
 import { v4 as uuidv4 } from "uuid";
 import { ExamDetailsCard } from "@/components/exam/ExamDetailsCard";
 import { NotesCard } from "@/components/ui/notes-card";
@@ -126,7 +126,7 @@ const componentsDontHaveMiddleRow: CardItem["type"][] = [
   "stereo-test",
   "rg",
   "ocular-motor-assessment",
-  "opc",
+  "npc",
 ];
 
 const componentsWithEyeRowCopy: CardItem["type"][] = [
@@ -191,7 +191,7 @@ export interface CardItem {
     | "stereo-test"
     | "rg"
     | "ocular-motor-assessment"
-    | "opc"
+    | "npc"
     | "old-contact-lenses"
     | "over-refraction";
   showEyeLabels?: boolean;
@@ -328,8 +328,8 @@ const getExamFormData = (
       return { layout_instance_id: 0 } as RGExam;
     case "ocular-motor-assessment":
       return { layout_instance_id: 0 } as OcularMotorAssessmentExam;
-    case "opc":
-      return { layout_instance_id: 0 } as OPCExam;
+    case "npc":
+      return { layout_instance_id: 0 } as NPCExam;
     case "old-contact-lenses":
       return { layout_instance_id: 0 } as OldContactLenses;
     case "over-refraction":
@@ -518,7 +518,7 @@ export const getColumnCount = (
       return 3;
     case "ocular-motor-assessment":
       return 5;
-    case "opc":
+    case "npc":
       return 7;
     default:
       return 1;
@@ -1009,7 +1009,7 @@ export const ExamCardRenderer = React.memo<RenderCardProps>(
     const emptyOcularMotorAssessmentData: OcularMotorAssessmentExam = {
       layout_instance_id: 0,
     };
-    const emptyOPCData: OPCExam = { layout_instance_id: 0 };
+    const emptyNPCData: NPCExam = { layout_instance_id: 0 };
     const emptyDiopterAdjustmentPanelData: DiopterAdjustmentPanel = {
       layout_instance_id: 0,
     };
@@ -1108,8 +1108,8 @@ export const ExamCardRenderer = React.memo<RenderCardProps>(
           return emptyMaddoxRodData;
         case "ocular-motor-assessment":
           return emptyOcularMotorAssessmentData;
-        case "opc":
-          return emptyOPCData;
+        case "npc":
+          return emptyNPCData;
         case "old-contact-lenses":
           return emptyOldContactLensesData;
         case "over-refraction":
@@ -2158,14 +2158,14 @@ export const ExamCardRenderer = React.memo<RenderCardProps>(
           </div>
         );
 
-      case "opc":
+      case "npc":
         return (
           <div className="relative">
             {toolbox}
-            <OPCTab
-              opcData={getExamData("opc", item.id) as OPCExam}
-              onOPCChange={getChangeHandler("opc", item.id) as (
-                field: keyof OPCExam,
+            <NPCTab
+              npcData={getExamData("npc", item.id) as NPCExam}
+              onNPCChange={getChangeHandler("npc", item.id) as (
+                field: keyof NPCExam,
                 value: string,
               ) => void}
               isEditing={mode === "detail" ? detailProps!.isEditing : false}

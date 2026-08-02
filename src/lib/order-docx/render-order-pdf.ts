@@ -72,7 +72,7 @@ const PDF_CSS = `
     display: grid;
     grid-template-columns: 1fr 1fr;
     align-items: center;
-    margin-bottom: 14px;
+    margin-bottom: 8px;
   }
   .logo-wrap {
     text-align: left;
@@ -95,10 +95,10 @@ const PDF_CSS = `
     font-weight: 700;
     text-align: right;
   }
-  .spacer { height: 9px; }
+  .spacer { height: 4px; }
   h2 {
-    margin: 12px 0 5px;
-    font-size: 13px;
+    margin: 7px 0 2px;
+    font-size: 14px;
     line-height: 1.2;
     text-align: right;
     font-weight: 700;
@@ -134,6 +134,31 @@ const PDF_CSS = `
 	    font-weight: 700;
 	  }
   .center { text-align: center; }
+  .eye-table {
+    direction: rtl;
+  }
+  .eye-table tr:first-child > *,
+  .eye-table tr > :first-child {
+    background: #f4f4f5;
+  }
+  .field-cell {
+    height: 36px;
+    padding: 2px 8px 3px;
+    vertical-align: middle;
+  }
+  .field-label {
+    color: #52525b;
+    font-size: 10px;
+    line-height: 1.2;
+    font-weight: 700;
+    margin-bottom: 0;
+  }
+  .field-value {
+    color: #18181b;
+    font-size: 13px;
+    line-height: 1.25;
+    min-height: 14px;
+  }
   .ltr {
     direction: ltr;
     unicode-bidi: isolate;
@@ -191,38 +216,23 @@ function valueClass(value?: string | null) {
   return /[\u200e+-]\d/.test(value || "") ? "value ltr" : "value";
 }
 
-function metricTable(items: FieldPair[], pairsPerRow = 4) {
-  const rows = chunk(items, pairsPerRow)
+function combinedFieldTable(items: FieldPair[], columns = 3) {
+  const rows = chunk(items, columns)
     .map((rowItems) => {
       const cells = rowItems.map(([label, value]) => `
-        <th class="label">${htmlText(label)}</th>
-        <td class="${valueClass(value)}">${htmlText(value)}</td>
+        <td class="field-cell">
+          <div class="field-label">${htmlText(label)}</div>
+          <div class="field-value ${valueClass(value)}">${htmlText(value)}</div>
+        </td>
       `);
-      while (cells.length < pairsPerRow) {
-        cells.push('<th class="label"></th><td class="value"></td>');
+      while (cells.length < columns) {
+        cells.push('<td class="field-cell"></td>');
       }
       return `<tr>${cells.join("")}</tr>`;
     })
     .join("");
 
-  return `<table>${rows}</table>`;
-}
-
-function kvTable(pairs: FieldPair[], pairsPerRow = 2) {
-  const rows = chunk(pairs, pairsPerRow)
-    .map((rowPairs) => {
-      const cells = rowPairs.map(([label, value]) => `
-        <th class="label">${htmlText(label)}</th>
-        <td class="${valueClass(value)}">${htmlText(value)}</td>
-      `);
-      while (cells.length < pairsPerRow) {
-        cells.push('<th class="label"></th><td class="value"></td>');
-      }
-      return `<tr>${cells.join("")}</tr>`;
-    })
-    .join("");
-
-  return `<table>${rows}</table>`;
+  return `<table class="field-table">${rows}</table>`;
 }
 
 function eyeTable(
@@ -239,7 +249,7 @@ function eyeTable(
       .map((value) => `<td class="${valueClass(value)} center">${htmlText(value)}</td>`)
       .join("");
 
-  return `<table>
+  return `<table class="eye-table">
     <tr><th class="section-cell">${htmlText(rowLabelTitle)}</th>${headerCells}</tr>
     <tr><th class="label center">ימין</th>${valueCells(rightValues)}</tr>
     <tr><th class="label center">שמאל</th>${valueCells(leftValues)}</tr>
@@ -273,7 +283,7 @@ function notesRow(
 export function renderRegularOrderPdfHtml(data: RegularOrderPrintModel, logoUrl?: string): string {
   const body = [
     '<div class="spacer"></div>',
-    metricTable([
+    combinedFieldTable([
       ["מס' הזמנה", data.order_number],
       ["מס' שקית", data.bag_number],
       ["תאריך הזמנה", data.order_date],
@@ -284,7 +294,7 @@ export function renderRegularOrderPdfHtml(data: RegularOrderPrintModel, logoUrl?
       ["הובטח", data.promised_date],
     ]),
     sectionTitle("פרטי לקוח"),
-    kvTable([
+    combinedFieldTable([
       ["שם לקוח", data.client_name],
       ["ת.ז", data.client_id],
       ["נייד", data.phone_mobile],
@@ -293,7 +303,7 @@ export function renderRegularOrderPdfHtml(data: RegularOrderPrintModel, logoUrl?
       ["כתובת", data.client_address],
     ], 3),
     sectionTitle("צוות ותפעול"),
-    kvTable([
+    combinedFieldTable([
       ["אופטומטריסט", data.optician_name],
       ["יועץ", data.advisor_name],
       ["נמסר על ידי", data.delivered_by],
@@ -309,7 +319,7 @@ export function renderRegularOrderPdfHtml(data: RegularOrderPrintModel, logoUrl?
       [data.l_high, data.l_pd, data.l_add, data.l_base, data.l_pris, data.l_ax, data.l_cyl, data.l_sph],
     ),
     '<div class="spacer"></div>',
-    kvTable([["PD משולב", data.comb_pd], ["רב מוקדי", data.multifocal_block]], 2),
+    combinedFieldTable([["PD משולב", data.comb_pd], ["רב מוקדי", data.multifocal_block]], 2),
     sectionTitle("פרטי עדשות"),
     comparisonTable(
       ["דגם", "ספק", "חומר", "ציפוי", "צבע", "קוטר"],
@@ -317,7 +327,7 @@ export function renderRegularOrderPdfHtml(data: RegularOrderPrintModel, logoUrl?
       [data.l_lens_model, data.l_lens_supplier, data.l_lens_material, data.l_lens_coating, data.l_lens_color, data.l_lens_diameter],
     ),
     sectionTitle("מסגרת"),
-    kvTable([
+    combinedFieldTable([
       ["ספק", data.frame_supplier],
       ["מותג", data.frame_brand],
       ["דגם", data.frame_model],
@@ -329,13 +339,12 @@ export function renderRegularOrderPdfHtml(data: RegularOrderPrintModel, logoUrl?
       ["סופק על ידי", data.frame_supplied_by],
     ], 3),
     sectionTitle("סיכום כספי"),
-    metricTable([
+    combinedFieldTable([
       ['סה"כ', data.total_price],
       ["שולם", data.amount_paid],
       ["יתרה", data.balance_due],
       ["סטטוס תשלום", data.payment_status],
     ], 4),
-    sectionTitle("הערות"),
     notesRow("הערות קליניות", data.clinic_notes, "הערות לספק", data.supplier_notes),
   ].join("");
 
@@ -345,7 +354,7 @@ export function renderRegularOrderPdfHtml(data: RegularOrderPrintModel, logoUrl?
 export function renderContactOrderPdfHtml(data: ContactOrderPrintModel, logoUrl?: string): string {
   const body = [
     '<div class="spacer"></div>',
-    metricTable([
+    combinedFieldTable([
       ["מס' הזמנה", data.order_number],
       ["תאריך הזמנה", data.order_date],
       ["סטטוס", data.order_status],
@@ -356,7 +365,7 @@ export function renderContactOrderPdfHtml(data: ContactOrderPrintModel, logoUrl?
       ["נמסר", data.delivery_date],
     ]),
     sectionTitle("פרטי לקוח"),
-    kvTable([
+    combinedFieldTable([
       ["שם לקוח", data.client_name],
       ["ת.ז", data.client_id],
       ["נייד", data.phone_mobile],
@@ -365,7 +374,7 @@ export function renderContactOrderPdfHtml(data: ContactOrderPrintModel, logoUrl?
       ["כתובת", data.client_address],
     ], 3),
     sectionTitle("צוות ותפעול"),
-    kvTable([
+    combinedFieldTable([
       ["אופטומטריסט", data.optician_name],
       ["יועץ", data.advisor_name],
       ["מוסר עבודה", data.deliverer_name],
@@ -384,19 +393,18 @@ export function renderContactOrderPdfHtml(data: ContactOrderPrintModel, logoUrl?
       [data.l_bc, data.l_oz, data.l_diam, data.l_sph, data.l_cyl, data.l_ax, data.l_read_add],
     ),
     sectionTitle("תמיסות"),
-    kvTable([
+    combinedFieldTable([
       ["ניקוי", data.cleaning_solution],
       ["חיטוי", data.disinfection_solution],
       ["שטיפה", data.rinsing_solution],
     ], 3),
     sectionTitle("סיכום כספי"),
-    metricTable([
+    combinedFieldTable([
       ['סה"כ', data.total_price],
       ["שולם", data.amount_paid],
       ["יתרה", data.balance_due],
       ["סטטוס תשלום", data.payment_status],
     ], 4),
-    sectionTitle("הערות"),
     notesRow("הערות קליניות", data.clinic_notes, "הערות לספק", data.supplier_notes),
   ].join("");
 

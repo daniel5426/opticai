@@ -383,12 +383,16 @@ describe("order-docx print models", () => {
     expect(html).toContain("מרשם");
     expect(html).toContain("רון כהן");
     expect(html).toContain("+1.25");
-    expect(html).not.toContain("background: #f4f4f5");
+    expect(html).toContain("background: #f4f4f5");
     expect(html).not.toContain("background: #fafafa");
     expect(html).not.toContain("background: #18181b");
+    expect(html).toContain('class="field-table"');
+    expect(html).toContain('<div class="field-label">מס&#39; הזמנה</div>');
+    expect(html).toContain('<table class="eye-table">');
     expect(html).toContain("<tr><th class=\"section-cell\">עין</th>");
     expect(html).toContain("<th class=\"label center\">גובה</th>");
-    expect(html).toContain("<th class=\"label\">מס&#39; הזמנה</th>");
+    expect(html).toContain("<th class=\"label center\">דגם</th>");
+    expect(html).not.toContain("<th class=\"label\">מס&#39; הזמנה</th>");
   });
 
   test("buildRegularOrderPrintModel falls back to legacy generic lens fields", () => {
@@ -440,11 +444,15 @@ describe("order-docx print models", () => {
     expect(html).toContain("מרשם עדשות מגע");
     expect(html).toContain("R-Model");
     expect(html).toContain("-1.25");
-    expect(html).not.toContain("background: #f4f4f5");
+    expect(html).toContain("background: #f4f4f5");
     expect(html).not.toContain("background: #fafafa");
     expect(html).not.toContain("background: #18181b");
+    expect(html).toContain('class="field-table"');
+    expect(html).toContain('<div class="field-label">מס&#39; הזמנה</div>');
+    expect(html).toContain('<table class="eye-table">');
     expect(html).toContain("<tr><th class=\"section-cell\">עין</th>");
-    expect(html).toContain("<th class=\"label\">מס&#39; הזמנה</th>");
+    expect(html).toContain("<th class=\"label center\">סוג</th>");
+    expect(html).not.toContain("<th class=\"label\">מס&#39; הזמנה</th>");
   });
 
   test("buildContactOrderPrintModel falls back to legacy top-level fields", () => {

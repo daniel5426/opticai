@@ -1,22 +1,22 @@
 import React from "react";
 import { Card, CardContent } from "@/components/ui/card";
-import { OPCExam } from "@/lib/db/schema-interface";
+import { NPCExam } from "@/lib/db/schema-interface";
 import { EXAM_FIELDS } from "./data/exam-field-definitions";
 import { FastInput, FastSelect } from "./shared/OptimizedInputs";
 
-interface OPCTabProps {
-  opcData: OPCExam;
-  onOPCChange: (field: keyof OPCExam, value: string) => void;
+interface NPCTabProps {
+  npcData: NPCExam;
+  onNPCChange: (field: keyof NPCExam, value: string) => void;
   isEditing: boolean;
   needsMiddleSpacer?: boolean;
 }
 
-export function OPCTab({
-  opcData,
-  onOPCChange,
+export function NPCTab({
+  npcData,
+  onNPCChange,
   isEditing,
   needsMiddleSpacer = false,
-}: OPCTabProps) {
+}: NPCTabProps) {
   return (
     <Card className="examcard w-full p-4 pt-3">
       <CardContent className="p-0">
@@ -34,8 +34,8 @@ export function OPCTab({
             <FastInput
               type="text"
               name="ocular_motility"
-              value={opcData.ocular_motility || ""}
-              onChange={(value) => onOPCChange("ocular_motility", value)}
+              value={npcData.ocular_motility || ""}
+              onChange={(value) => onNPCChange("ocular_motility", value)}
               disabled={!isEditing}
               className={`h-8 pt-1 text-xs ${isEditing ? "bg-white" : "bg-accent/50"} disabled:cursor-default disabled:opacity-100`}
             />
@@ -44,15 +44,15 @@ export function OPCTab({
           <div className="col-span-1 flex flex-col">
             <div className="flex h-4 items-center justify-center text-center">
               <label className="text-muted-foreground text-xs font-medium">
-                {EXAM_FIELDS.OPC_RESULT.label}
+                {EXAM_FIELDS.NPC_RESULT.label}
               </label>
             </div>
             <div className="h-1" />
             <FastSelect
-              value={opcData.eye_out_at_break || ""}
-              onChange={(value) => onOPCChange("eye_out_at_break", value)}
+              value={npcData.eye_out_at_break || ""}
+              onChange={(value) => onNPCChange("eye_out_at_break", value)}
               disabled={!isEditing}
-              options={EXAM_FIELDS.OPC_RESULT.options || []}
+              options={EXAM_FIELDS.NPC_RESULT.options || []}
               placeholder="Select"
               size="xs"
               center
@@ -78,8 +78,8 @@ export function OPCTab({
                   <FastInput
                     type="number"
                     name={field}
-                    value={String(opcData[field] ?? "")}
-                    onChange={(value) => onOPCChange(field, value)}
+                    value={String(npcData[field] ?? "")}
+                    onChange={(value) => onNPCChange(field, value)}
                     disabled={!isEditing}
                     min={EXAM_FIELDS.NPC_DISTANCE.min}
                     max={EXAM_FIELDS.NPC_DISTANCE.max}

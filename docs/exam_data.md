@@ -25,7 +25,7 @@ Notes and Cover Test are special because the same layout can contain multiple No
 
 ### Key naming
 
-- Standard cards: `<component-type>-<cardId>` (kebab-case), including `"opc"` and `"cover-test-v2"`. Base keys may appear for legacy compatibility.
+- Standard cards: `<component-type>-<cardId>` (kebab-case), including `"npc"` and `"cover-test-v2"`. Base keys may appear for legacy compatibility. Legacy `"opc"` keys are read and upgraded to `"npc"` on save.
 - Notes: `notes-<cardId>`
   - One entry per Notes card instance in the layout.
 - Cover Test: `cover-test-<cardId>-<tabId>`
@@ -178,7 +178,7 @@ Below are the payload shapes for each component key. All payloads include `layou
   - `ocular_motility?: string`
   - `acc_od?, acc_os?, npc_break?, npc_recovery?`
 
-- opc (OPCExam)
+- npc (NPCExam; legacy `opc` is read-compatible)
   - `ocular_motility?: string`
   - `eye_out_at_break?: "OS Out" | "OD Out" | "OU Out" | "None"`
   - `npc_break?, npc_recovery?` (0–99 cm, 0.5 cm step)

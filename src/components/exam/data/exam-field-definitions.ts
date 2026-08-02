@@ -70,7 +70,7 @@ export const EXAM_FIELDS = {
     suffix: "cm",
     showPlus: false,
   } as FieldConfig,
-  OPC_RESULT: {
+  NPC_RESULT: {
     label: "Result",
     type: "select",
     options: ["OS Out", "OD Out", "OU Out", "None"],

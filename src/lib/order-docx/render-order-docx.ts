@@ -34,5 +34,6 @@ export async function renderOrderDocx({
     data,
     buildFileName(kind, data),
     TEMPLATE_PATHS[kind],
+    { preserveTemplateDirection: true },
   );
 }
