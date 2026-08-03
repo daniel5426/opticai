@@ -187,6 +187,7 @@ def build_source_ref(
         table_name=table_name,
         primary_key_parts=primary_key_parts,
         raw_row_ref=raw_row_ref,
+        raw_payload={str(key): value for key, value in row.items()},
     )
 
 
@@ -195,6 +196,7 @@ class SourceRef:
     table_name: str
     primary_key_parts: Tuple[PrimaryKeyPart, ...]
     raw_row_ref: Optional[str] = None
+    raw_payload: Mapping[str, Any] = field(default_factory=dict, compare=False, repr=False)
 
     def as_dict(self) -> Dict[str, Any]:
         return {

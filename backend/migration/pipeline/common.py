@@ -4,8 +4,9 @@ import csv
 import json
 import re
 import uuid
+import hashlib
 import mimetypes
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import time
 from typing import Dict, Optional, Any, List, Tuple, Iterator, Generator, Set
 from functools import lru_cache
@@ -64,6 +65,7 @@ from models import (
     LookupCleaningSolution,
     LookupDisinfectionSolution,
     LookupRinsingSolution,
+    MigrationSourceLink,
 )
 from services.lookup_defaults import seed_default_lookup_values_for_clinic
 
@@ -76,6 +78,78 @@ MIGRATED_FILES_DIR = os.environ.get(
     "LEGACY_FILES_OUTPUT_DIR",
     os.path.abspath(os.path.join(os.path.dirname(__file__), "migrated_files")),
 )
+
+
+def _source_snapshot_json(value: Any) -> Any:
+    """Return a JSON-safe copy of a parsed source row without normalization."""
+    if isinstance(value, dict):
+        return {str(key): _source_snapshot_json(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_source_snapshot_json(item) for item in value]
+    if isinstance(value, datetime):
+        return value.isoformat()
+    return value
+
+
+def _source_snapshot_hash(payload: Dict[str, Any]) -> str:
+    canonical = json.dumps(
+        payload,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+        default=str,
+    )
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def record_raw_source_link(
+    db: Session,
+    trace_context: Optional[Dict[str, Any]],
+    *,
+    target_model: str,
+    target_id: int,
+    clinic_id: Optional[int],
+    source_table: str,
+    source_row: Dict[str, Any],
+    identifier_fields: Tuple[str, ...] = (),
+    row_number: Optional[int] = None,
+    payload: Optional[Dict[str, Any]] = None,
+) -> None:
+    """Store the exact parsed input row that created a migrated record."""
+    if not trace_context or target_id is None or clinic_id is None:
+        return
+
+    raw_payload = _source_snapshot_json(dict(source_row))
+    primary_key_parts = [
+        [field, str(source_row.get(field) or "")]
+        for field in identifier_fields
+        if source_row.get(field) not in (None, "")
+    ]
+    if not primary_key_parts:
+        primary_key_parts = [["row_sha256", _source_snapshot_hash(raw_payload)]]
+    if row_number is not None:
+        primary_key_parts.append(["row_number", str(row_number)])
+    raw_row_ref = f"{source_table}:" + ":".join(
+        f"{field}={value}" for field, value in primary_key_parts
+    )
+
+    db.add(
+        MigrationSourceLink(
+            source_system=trace_context["source_system"],
+            source_table=source_table,
+            raw_row_ref=raw_row_ref,
+            source_primary_key_parts=primary_key_parts,
+            target_model=target_model,
+            target_id=target_id,
+            clinic_id=clinic_id,
+            company_id=trace_context["company_id"],
+            migration_job_id=trace_context["migration_job_id"],
+            raw_payload=raw_payload,
+            raw_payload_sha256=_source_snapshot_hash(raw_payload),
+            raw_captured_at=datetime.now(timezone.utc),
+            payload=payload or {"job_id": trace_context["migration_job_id"]},
+        )
+    )
 
 MIGRATED_LAYOUT_COMPONENTS: List[str] = [
     "old-ref",

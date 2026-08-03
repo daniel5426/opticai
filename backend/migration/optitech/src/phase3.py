@@ -1360,6 +1360,7 @@ def upsert_glasses_exams(
     layout_id: int,
     layout_data: str,
     unmapped_report: Dict[str, Dict[str, Dict[str, Any]]],
+    migration_job_id: Optional[str] = None,
     commit_each_batch: bool = False,
 ) -> Tuple[DomainCounters, List[Dict[str, Any]], List[Dict[str, Any]], Dict[Tuple[int, str], GlassesOrderMatch]]:
     counters = DomainCounters()
@@ -1507,6 +1508,7 @@ def upsert_glasses_exams(
                 clinic_id=clinic.id,
                 company_id=clinic.company_id,
                 payload=exam_trace_payload,
+                migration_job_id=migration_job_id,
                 existing_link=item["exam_link"],
             )
             exam_links[saved_exam_link.raw_row_ref] = saved_exam_link
@@ -1532,6 +1534,7 @@ def upsert_glasses_exams(
                 clinic_id=clinic.id,
                 company_id=clinic.company_id,
                 payload=instance_trace_payload,
+                migration_job_id=migration_job_id,
                 existing_link=item["instance_link"],
             )
             instance_links[saved_instance_link.raw_row_ref] = saved_instance_link
@@ -1555,6 +1558,7 @@ def upsert_contact_lens_exams(
     layout_data: str,
     catalog: LookupCatalog,
     unmapped_report: Dict[str, Dict[str, Dict[str, Any]]],
+    migration_job_id: Optional[str] = None,
     commit_each_batch: bool = False,
 ) -> Tuple[DomainCounters, List[Dict[str, Any]], List[Dict[str, Any]], Dict[Tuple[int, str], ContactLensOrderMatch]]:
     counters = DomainCounters()
@@ -1714,6 +1718,7 @@ def upsert_contact_lens_exams(
                 clinic_id=clinic.id,
                 company_id=clinic.company_id,
                 payload=exam_trace_payload,
+                migration_job_id=migration_job_id,
                 existing_link=item["exam_link"],
             )
             exam_links[saved_exam_link.raw_row_ref] = saved_exam_link
@@ -1739,6 +1744,7 @@ def upsert_contact_lens_exams(
                 clinic_id=clinic.id,
                 company_id=clinic.company_id,
                 payload=instance_trace_payload,
+                migration_job_id=migration_job_id,
                 existing_link=item["instance_link"],
             )
             instance_links[saved_instance_link.raw_row_ref] = saved_instance_link
@@ -1768,6 +1774,7 @@ def upsert_orders(
     glasses_matches: Mapping[Tuple[int, str], GlassesOrderMatch],
     contact_lens_matches: Mapping[Tuple[int, str], ContactLensOrderMatch],
     unmapped_report: Dict[str, Dict[str, Dict[str, Any]]],
+    migration_job_id: Optional[str] = None,
     commit_each_batch: bool = False,
 ) -> Tuple[DomainCounters, List[Dict[str, Any]], List[Dict[str, Any]]]:
     counters = DomainCounters()
@@ -1939,6 +1946,7 @@ def upsert_orders(
                 clinic_id=clinic.id,
                 company_id=clinic.company_id,
                 payload=trace_payload,
+                migration_job_id=migration_job_id,
                 existing_link=item["link"],
             )
             if item["target_model"] == "Order":
@@ -2373,6 +2381,7 @@ def execute_phase3(
     domains: Optional[Sequence[str]] = None,
     report_dir: Optional[Path] = None,
     storage: Optional[Any] = None,
+    migration_job_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     try:
         from database import SessionLocal
@@ -2414,6 +2423,7 @@ def execute_phase3(
                 layout_id=glasses_layout.id,
                 layout_data=glasses_layout.layout_data,
                 unmapped_report=unmapped_report,
+                migration_job_id=migration_job_id,
                 commit_each_batch=not dry_run,
             )
             summary["glasses_exams"] = counters.as_dict()
@@ -2432,6 +2442,7 @@ def execute_phase3(
                 layout_data=contact_lens_layout.layout_data,
                 catalog=catalog,
                 unmapped_report=unmapped_report,
+                migration_job_id=migration_job_id,
                 commit_each_batch=not dry_run,
             )
             summary["contact_lens_exams"] = counters.as_dict()
@@ -2458,6 +2469,7 @@ def execute_phase3(
                 glasses_matches=glasses_matches,
                 contact_lens_matches=contact_lens_matches,
                 unmapped_report=unmapped_report,
+                migration_job_id=migration_job_id,
                 commit_each_batch=not dry_run,
             )
             summary["orders"] = counters.as_dict()

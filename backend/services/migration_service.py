@@ -77,6 +77,7 @@ def run_optitech_import(
     from migration.optitech.src.phase2 import execute_phase2
     from migration.optitech.src.phase3 import execute_phase3
     from migration.optitech.src.reader import use_bundle_paths
+    from migration.optitech.src.trace import clear_stale_raw_snapshots
 
     temp_dir = Path(tempfile.mkdtemp(prefix=f"optitech_{job.id}_"))
     try:
@@ -112,7 +113,11 @@ def run_optitech_import(
                     checkpoint={"optitech_phase2_started": True},
                     heartbeat=True,
                 )
-                result = execute_phase2(target_clinic_id=job.clinic_id, report_dir=reports_dir / "phase2")
+                result = execute_phase2(
+                    target_clinic_id=job.clinic_id,
+                    report_dir=reports_dir / "phase2",
+                    migration_job_id=job.id,
+                )
                 summaries["phase2"] = result["summary"]
                 completed.add("optitech_phase2")
                 checkpoint["completed_phases"] = sorted(completed)
@@ -131,12 +136,21 @@ def run_optitech_import(
                     target_clinic_id=job.clinic_id,
                     report_dir=reports_dir / "phase3",
                     storage=storage,
+                    migration_job_id=job.id,
                 )
                 summaries["phase3"] = result["summary"]
                 completed.add("optitech_phase3")
                 checkpoint["completed_phases"] = sorted(completed)
                 on_progress(import_summary=summaries, checkpoint=checkpoint, progress=96, heartbeat=True)
 
+        cleared_raw_snapshots = clear_stale_raw_snapshots(
+            db,
+            clinic_id=job.clinic_id,
+            migration_job_id=job.id,
+        )
+        if cleared_raw_snapshots:
+            summaries["stale_raw_snapshots_cleared"] = cleared_raw_snapshots
+        db.commit()
         on_progress(status="completed", step="Completed", progress=100, import_summary=summaries)
     except Exception as exc:
         db.rollback()

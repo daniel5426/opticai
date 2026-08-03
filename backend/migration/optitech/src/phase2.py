@@ -415,6 +415,7 @@ def upsert_clients(
     clinic_id: int,
     company_id: int,
     unmapped_report: Dict[str, Dict[str, Dict[str, Any]]],
+    migration_job_id: Optional[str] = None,
 ) -> Tuple[DomainCounters, List[Dict[str, Any]]]:
     counters = DomainCounters()
     skipped_rows: List[Dict[str, Any]] = []
@@ -471,6 +472,7 @@ def upsert_clients(
                 clinic_id=clinic_id,
                 company_id=company_id,
                 payload=trace_payload,
+                migration_job_id=migration_job_id,
                 existing_link=link,
             )
             links_by_raw_ref[saved_link.raw_row_ref] = saved_link
@@ -575,6 +577,7 @@ def execute_phase2(
     users_only: bool = False,
     cleanup_only: bool = False,
     report_dir: Optional[Path] = None,
+    migration_job_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     if clients_only and users_only:
         raise ValueError("Cannot use --clients-only and --users-only together")
@@ -636,6 +639,7 @@ def execute_phase2(
                 clinic_id=clinic.id,
                 company_id=clinic.company_id,
                 unmapped_report=unmapped_report,
+                migration_job_id=migration_job_id,
             )
             skipped_rows.extend(client_skipped_rows)
             summary["expected_client_source_rows"] = len(client_seeds)

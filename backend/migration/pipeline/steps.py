@@ -114,12 +114,13 @@ def _build_lookup_code_name_map(csv_dir: str, filename: str) -> Dict[str, str]:
     return lookup
 
 
-def _group_presc_price_rows(csv_dir: str) -> Dict[str, List[Dict[str, Any]]]:
-    rows_by_presc_code: Dict[str, List[Dict[str, Any]]] = {}
-    for row in read_csv_streaming(csv_dir, "optic_presc_prices.csv"):
+def _group_presc_price_rows(csv_dir: str) -> Dict[str, List[Tuple[Dict[str, Any], int]]]:
+    """Group untouched parsed price rows, retaining their CSV position."""
+    rows_by_presc_code: Dict[str, List[Tuple[Dict[str, Any], int]]] = {}
+    for row_number, row in enumerate(read_csv_streaming(csv_dir, "optic_presc_prices.csv"), start=2):
         presc_code = clean_legacy_text(row.get("presc_code"))
         if presc_code:
-            rows_by_presc_code.setdefault(presc_code, []).append(row)
+            rows_by_presc_code.setdefault(presc_code, []).append((row, row_number))
     return rows_by_presc_code
 
 
@@ -192,6 +193,7 @@ def migrate_clients_and_families(
     return_only: bool = False,
     target_clinic_id: Optional[int] = None,
     max_clients: Optional[int] = None,
+    trace_context: Optional[Dict[str, Any]] = None,
 ) -> Tuple[Dict[str, int], Dict[str, int]]:
     # Returns: account_code -> client_id, head_of_family -> family_id
     t0 = time.time()
@@ -279,6 +281,7 @@ def migrate_clients_and_families(
         if not last_name:
             continue
         priority = 1
+        source_price_rows_to_trace: List[Tuple[Dict[str, Any], int]] = []
         try:
             if str(r.get("account_code")).strip() == head:
                 priority = 0
@@ -343,11 +346,11 @@ def migrate_clients_and_families(
     # Second pass: create clients
     client_count = 0
     pending = 0
-    batch_clients: List[Tuple[Dict[str, Any], str, int]] = []
+    batch_clients: List[Tuple[Dict[str, Any], str, int, Dict[str, Any], Optional[int]]] = []
     rows_iter = read_csv_streaming(csv_dir, "account.csv")
     batch_size = int(os.environ.get("MIGRATION_CLIENT_BATCH_SIZE", "1000"))
     try:
-        for r in rows_iter:
+        for row_number, r in enumerate(rows_iter, start=2):
             if not is_client_account(r):
                 continue
             if not account_allowed(r, allowed_account_codes):
@@ -412,7 +415,7 @@ def migrate_clients_and_families(
                 "file_location": r.get("file_location") or None,
                 "family_id": head_to_family.get(str(r.get("head_of_family")).strip() if r.get("head_of_family") else None),
             }
-            batch_clients.append((client_dict, account_code, composite_id))
+            batch_clients.append((client_dict, account_code, composite_id, r, row_number))
             pending += 1
             if pending % batch_size == 0:
                 print(f"[accounts] flushing batch of {len(batch_clients)} clients", flush=True)
@@ -420,8 +423,19 @@ def migrate_clients_and_families(
                 db.bulk_insert_mappings(Client, clients_dicts)
                 db.flush()
                 
-                for _, acc_code, comp_id in batch_clients:
+                for client_dict, acc_code, comp_id, source_row, source_row_number in batch_clients:
                     account_to_client[acc_code] = comp_id
+                    record_raw_source_link(
+                        db,
+                        trace_context,
+                        target_model="Client",
+                        target_id=comp_id,
+                        clinic_id=client_dict.get("clinic_id"),
+                        source_table="account.csv",
+                        source_row=source_row,
+                        identifier_fields=("account_code",),
+                        row_number=source_row_number,
+                    )
                 
                 batch_clients.clear()
                 pending = 0
@@ -436,8 +450,19 @@ def migrate_clients_and_families(
             db.flush()
             print(f"[accounts] mapping {len(batch_clients)} client IDs", flush=True)
             
-            for _, acc_code, comp_id in batch_clients:
+            for client_dict, acc_code, comp_id, source_row, source_row_number in batch_clients:
                 account_to_client[acc_code] = comp_id
+                record_raw_source_link(
+                    db,
+                    trace_context,
+                    target_model="Client",
+                    target_id=comp_id,
+                    clinic_id=client_dict.get("clinic_id"),
+                    source_table="account.csv",
+                    source_row=source_row,
+                    identifier_fields=("account_code",),
+                    row_number=source_row_number,
+                )
             
             print(f"[accounts] committing final batch", flush=True)
         db.commit()
@@ -457,7 +482,14 @@ def migrate_clients_and_families(
     return account_to_client, head_to_family
 
 
-def migrate_optical_exams(db: Session, csv_dir: str, account_to_client: Dict[str, int], branch_to_clinic: Dict[str, int], admin_user_id: int):
+def migrate_optical_exams(
+    db: Session,
+    csv_dir: str,
+    account_to_client: Dict[str, int],
+    branch_to_clinic: Dict[str, int],
+    admin_user_id: int,
+    trace_context: Optional[Dict[str, Any]] = None,
+):
     t0 = time.time()
     valid_account_codes = set(account_to_client.keys())
     sample_mapping_keys = list(valid_account_codes)[:5] if valid_account_codes else []
@@ -467,7 +499,7 @@ def migrate_optical_exams(db: Session, csv_dir: str, account_to_client: Dict[str
     
     count = 0
     pending = 0
-    batch_exams: List[Tuple[OpticalExam, Dict[str, Any], Optional[int]]] = []
+    batch_exams: List[Tuple[OpticalExam, Dict[str, Any], Optional[int], Dict[str, Any], Optional[Dict[str, Any]], bool]] = []
     batch_instances: List[ExamLayoutInstance] = []
     def iter_exam_rows():
         seen_codes: Set[str] = set()
@@ -475,19 +507,19 @@ def migrate_optical_exams(db: Session, csv_dir: str, account_to_client: Dict[str
             code = clean_legacy_text(row.get("code"))
             if code:
                 seen_codes.add(code)
-            yield row, expanded_rows.get(code) if code else None
+            yield row, expanded_rows.get(code) if code else None, True
 
         expanded_only_count = 0
         for code, expanded_row in expanded_rows.items():
             if code in seen_codes:
                 continue
             expanded_only_count += 1
-            yield expanded_row, expanded_row
+            yield expanded_row, expanded_row, False
         print(f"[exams] added {expanded_only_count} expanded-only exam rows", flush=True)
 
     skipped_count = 0
     sample_missing_codes = []
-    for r, expanded_row in iter_exam_rows():
+    for r, expanded_row, has_base_source in iter_exam_rows():
         raw_account_code = r.get("account_code")
         if raw_account_code is None:
             skipped_count += 1
@@ -540,7 +572,7 @@ def migrate_optical_exams(db: Session, csv_dir: str, account_to_client: Dict[str
             type="exam",
         )
         data = build_exam_data_from_eye_tests(r, expanded_row)
-        batch_exams.append((exam, data, clinic_id))
+        batch_exams.append((exam, data, clinic_id, r, expanded_row, has_base_source))
         pending += 1
         if pending % 5000 == 0:
             exams_only = [e[0] for e in batch_exams if e[0].client_id is not None]
@@ -548,9 +580,21 @@ def migrate_optical_exams(db: Session, csv_dir: str, account_to_client: Dict[str
                 db.bulk_save_objects(exams_only, return_defaults=True)
                 db.flush()
                 saved_exams = set(exams_only)
-                for exam_obj, exam_data, exam_clinic_id in batch_exams:
+                for exam_obj, exam_data, exam_clinic_id, source_row, expanded_source_row, has_base_source in batch_exams:
                     if exam_obj not in saved_exams:
                         continue
+                    if has_base_source:
+                        record_raw_source_link(
+                            db, trace_context, target_model="OpticalExam", target_id=exam_obj.id,
+                            clinic_id=exam_clinic_id, source_table="optic_eye_tests.csv",
+                            source_row=source_row, identifier_fields=("code", "account_code"),
+                        )
+                    if expanded_source_row:
+                        record_raw_source_link(
+                            db, trace_context, target_model="OpticalExam", target_id=exam_obj.id,
+                            clinic_id=exam_clinic_id, source_table="optic_exp_eyetests.csv",
+                            source_row=expanded_source_row, identifier_fields=("code", "account_code"),
+                        )
                     layout_instance = ExamLayoutInstance(
                         exam_id=exam_obj.id,
                         layout_id=None,
@@ -574,9 +618,21 @@ def migrate_optical_exams(db: Session, csv_dir: str, account_to_client: Dict[str
             db.bulk_save_objects(exams_only, return_defaults=True)
             db.flush()
             saved_exams = set(exams_only)
-            for exam_obj, exam_data, exam_clinic_id in batch_exams:
+            for exam_obj, exam_data, exam_clinic_id, source_row, expanded_source_row, has_base_source in batch_exams:
                 if exam_obj not in saved_exams:
                     continue
+                if has_base_source:
+                    record_raw_source_link(
+                        db, trace_context, target_model="OpticalExam", target_id=exam_obj.id,
+                        clinic_id=exam_clinic_id, source_table="optic_eye_tests.csv",
+                        source_row=source_row, identifier_fields=("code", "account_code"),
+                    )
+                if expanded_source_row:
+                    record_raw_source_link(
+                        db, trace_context, target_model="OpticalExam", target_id=exam_obj.id,
+                        clinic_id=exam_clinic_id, source_table="optic_exp_eyetests.csv",
+                        source_row=expanded_source_row, identifier_fields=("code", "account_code"),
+                    )
                 layout_instance = ExamLayoutInstance(
                     exam_id=exam_obj.id,
                     layout_id=None,
@@ -594,7 +650,14 @@ def migrate_optical_exams(db: Session, csv_dir: str, account_to_client: Dict[str
     print(f"[exams] inserted total: {count}, skipped: {skipped_count}{debug_msg}, took {time.time()-t0:.2f}s", flush=True)
 
 
-def migrate_contact_lens_orders(db: Session, csv_dir: str, account_to_client: Dict[str, int], branch_to_clinic: Dict[str, int], admin_user_id: int) -> Dict[str, int]:
+def migrate_contact_lens_orders(
+    db: Session,
+    csv_dir: str,
+    account_to_client: Dict[str, int],
+    branch_to_clinic: Dict[str, int],
+    admin_user_id: int,
+    trace_context: Optional[Dict[str, Any]] = None,
+) -> Dict[str, int]:
     t0 = time.time()
     valid_account_codes = set(account_to_client.keys())
     print(f"[cl_orders] filtering orders to {len(valid_account_codes)} valid account codes", flush=True)
@@ -794,6 +857,11 @@ def migrate_contact_lens_orders(db: Session, csv_dir: str, account_to_client: Di
             pending = 0
         db.flush()
         code = str(r.get("code")) if r.get("code") else None
+        record_raw_source_link(
+            db, trace_context, target_model="ContactLensOrder", target_id=order.id,
+            clinic_id=clinic_id, source_table="optic_contact_presc.csv", source_row=r,
+            identifier_fields=("code", "account_code"),
+        )
         if code:
             presc_code_to_order_id[code] = order.id
 
@@ -818,7 +886,10 @@ def migrate_contact_lens_orders(db: Session, csv_dir: str, account_to_client: Di
                 db.flush()
 
                 source_price_rows = presc_price_rows.get(code or "", [])
-                if not _add_presc_price_line_items(db, billing, source_price_rows):
+                used_source_price_rows = _add_presc_price_line_items(
+                    db, billing, [row for row, _ in source_price_rows]
+                )
+                if not used_source_price_rows:
                     right_price = parse_float(r.get("right_lens_price"))
                     left_price = parse_float(r.get("left_lens_price"))
                     rl_discount = parse_float(r.get("rlens_discount"))
@@ -854,8 +925,18 @@ def migrate_contact_lens_orders(db: Session, csv_dir: str, account_to_client: Di
                         )
                         db.add(oli)
                 _add_advance_payment(db, billing, advance_sum, order_date)
+                if used_source_price_rows:
+                    source_price_rows_to_trace = source_price_rows
         except Exception:
             pass
+        for source_price_row, source_price_row_number in source_price_rows_to_trace:
+            record_raw_source_link(
+                db, trace_context, target_model="ContactLensOrder", target_id=order.id,
+                clinic_id=clinic_id, source_table="optic_presc_prices.csv",
+                source_row=source_price_row,
+                identifier_fields=("presc_code", "code", "item_code"),
+                row_number=source_price_row_number,
+            )
         count += 1
         if count % 1000 == 0:
             print(f"[cl_orders] inserted: {count}", flush=True)
@@ -866,7 +947,14 @@ def migrate_contact_lens_orders(db: Session, csv_dir: str, account_to_client: Di
     return presc_code_to_order_id
 
 
-def migrate_regular_orders(db: Session, csv_dir: str, account_to_client: Dict[str, int], branch_to_clinic: Dict[str, int], admin_user_id: int):
+def migrate_regular_orders(
+    db: Session,
+    csv_dir: str,
+    account_to_client: Dict[str, int],
+    branch_to_clinic: Dict[str, int],
+    admin_user_id: int,
+    trace_context: Optional[Dict[str, Any]] = None,
+):
     t0 = time.time()
     rows_iter = read_csv_streaming(csv_dir, "optic_glasses_presc.csv")
     order_type_lookup = _build_lookup_code_name_map(csv_dir, "optic_tv_order_type.csv")
@@ -1018,6 +1106,11 @@ def migrate_regular_orders(db: Session, csv_dir: str, account_to_client: Dict[st
         )
         db.add(order)
         db.flush()
+        record_raw_source_link(
+            db, trace_context, target_model="Order", target_id=order.id,
+            clinic_id=clinic_id, source_table="optic_glasses_presc.csv", source_row=r,
+            identifier_fields=("code", "account_code"),
+        )
 
         total_sum = parse_float(r.get("total_sum"))
         discount_sum = parse_float(r.get("discount_sum"))
@@ -1040,7 +1133,10 @@ def migrate_regular_orders(db: Session, csv_dir: str, account_to_client: Dict[st
 
             presc_code = clean_legacy_text(r.get("code"))
             source_price_rows = presc_price_rows.get(presc_code or "", [])
-            if not _add_presc_price_line_items(db, billing, source_price_rows):
+            used_source_price_rows = _add_presc_price_line_items(
+                db, billing, [row for row, _ in source_price_rows]
+            )
+            if not used_source_price_rows:
                 line_items = [
                     (
                         clean_legacy_text(r.get("lens_model_right")) or clean_legacy_text(r.get("right_lens_type")) or "Right lens",
@@ -1088,6 +1184,15 @@ def migrate_regular_orders(db: Session, csv_dir: str, account_to_client: Dict[st
                             line_total=(price * quantity) - (discount or 0.0),
                         )
                     )
+            if used_source_price_rows:
+                for source_price_row, source_price_row_number in source_price_rows:
+                    record_raw_source_link(
+                        db, trace_context, target_model="Order", target_id=order.id,
+                        clinic_id=clinic_id, source_table="optic_presc_prices.csv",
+                        source_row=source_price_row,
+                        identifier_fields=("presc_code", "code", "item_code"),
+                        row_number=source_price_row_number,
+                    )
             _add_advance_payment(db, billing, advance_sum, order_date)
 
         count += 1
@@ -1100,12 +1205,18 @@ def migrate_regular_orders(db: Session, csv_dir: str, account_to_client: Dict[st
     print(f"[orders] inserted total: {count}, skipped: {skipped_count}, took {time.time()-t0:.2f}s", flush=True)
 
 
-def enrich_from_contact_lens_chk(db: Session, csv_dir: str, account_to_client: Dict[str, int], presc_code_to_order_id: Dict[str, int]):
+def enrich_from_contact_lens_chk(
+    db: Session,
+    csv_dir: str,
+    account_to_client: Dict[str, int],
+    presc_code_to_order_id: Dict[str, int],
+    trace_context: Optional[Dict[str, Any]] = None,
+):
     t0 = time.time()
     rows_iter = read_csv_streaming(csv_dir, "optic_contact_lens_chk.csv")
     updated_exams = 0
     updated_orders = 0
-    for r in rows_iter:
+    for row_number, r in enumerate(rows_iter, start=2):
         account_code = str(r.get("account_code")) if r.get("account_code") else None
         if not account_code or account_code not in account_to_client:
             continue
@@ -1167,6 +1278,13 @@ def enrich_from_contact_lens_chk(db: Session, csv_dir: str, account_to_client: D
                     li.exam_data = data
                     db.add(li)
                     updated_exams += 1
+                    record_raw_source_link(
+                        db, trace_context, target_model="OpticalExam", target_id=exam.id,
+                        clinic_id=exam.clinic_id, source_table="optic_contact_lens_chk.csv",
+                        source_row=r,
+                        identifier_fields=("contact_presc_code", "account_code", "last_action", "tested_eye"),
+                        row_number=row_number,
+                    )
 
         if order:
             data = dict(order.order_data or {})
@@ -1228,6 +1346,13 @@ def enrich_from_contact_lens_chk(db: Session, csv_dir: str, account_to_client: D
             order.order_data = data
             db.add(order)
             updated_orders += 1
+            record_raw_source_link(
+                db, trace_context, target_model="ContactLensOrder", target_id=order.id,
+                clinic_id=order.clinic_id, source_table="optic_contact_lens_chk.csv",
+                source_row=r,
+                identifier_fields=("contact_presc_code", "account_code", "last_action", "tested_eye"),
+                row_number=row_number,
+            )
 
     db.commit()
     print(f"[cl_chk] enriched exams: {updated_exams}, orders: {updated_orders}, took {time.time()-t0:.2f}s", flush=True)

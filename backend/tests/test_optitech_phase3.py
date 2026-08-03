@@ -216,6 +216,7 @@ def test_upsert_glasses_exams_rerun_updates_and_keeps_dual_trace():
         layout_id=glasses_layout.id,
         layout_data=glasses_layout.layout_data,
         unmapped_report={},
+        migration_job_id="job-1",
     )
     db.commit()
 
@@ -231,6 +232,7 @@ def test_upsert_glasses_exams_rerun_updates_and_keeps_dual_trace():
         layout_id=glasses_layout.id,
         layout_data=glasses_layout.layout_data,
         unmapped_report={},
+        migration_job_id="job-2",
     )
     db.commit()
 
@@ -255,6 +257,8 @@ def test_upsert_glasses_exams_rerun_updates_and_keeps_dual_trace():
     ]
     assert exam_links["tblCrdGlassChecks:PerId=123|CheckDate=11/26/00 00:00:00"].target_id == exams[0].id
     assert instance_links["tblCrdGlassChecks:PerId=123|CheckDate=11/26/00 00:00:00"].target_id == instances[0].id
+    assert exam_links["tblCrdGlassChecks:PerId=123|CheckDate=11/26/00 00:00:00"].raw_payload["Comments"] == "updated"
+    assert instance_links["tblCrdGlassChecks:PerId=123|CheckDate=11/26/00 00:00:00"].migration_job_id == "job-2"
 
 
 def test_upsert_glasses_exams_recreates_deleted_targets_and_repoints_dual_trace():
@@ -341,14 +345,19 @@ def test_order_exact_matching_does_not_fallback():
         glasses_matches=mismatched_exam,
         contact_lens_matches={},
         unmapped_report={},
+        migration_job_id="order-job",
     )
     db.commit()
 
     order = db.query(Order).one()
+    order_links = load_trace_links(db, clinic_id=clinic.id, target_model="Order")
 
     assert counters.created == 1
     assert "final-prescription" not in (order.order_data or {})
     assert any(item["dependency"] == "glasses_exam_exact_match" for item in unresolved)
+    order_link = order_links["tblCrdBuysWorks:WorkId=1"]
+    assert order_link.raw_payload["WorkId"] == "1"
+    assert order_link.migration_job_id == "order-job"
 
 
 def test_copy_scan_if_needed_is_deterministic(tmp_path, monkeypatch):

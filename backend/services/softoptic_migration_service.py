@@ -138,6 +138,10 @@ CORE_MODELS: Dict[str, Any] = {
     "Appointment": Appointment,
 }
 
+# These records receive row-level source links in the transformation functions.
+# Keep generic tracking for their counts, but never add a second synthetic link.
+RAW_CAPTURED_TARGET_MODELS = {"Client", "OpticalExam", "Order", "ContactLensOrder"}
+
 
 def utcnow() -> datetime:
     return datetime.utcnow()
@@ -469,6 +473,8 @@ def _track_new_rows(
         current_ids = _clinic_ids(db, model, clinic_id)
         new_ids = sorted(current_ids - before.get(target_model, set()))
         counts[target_model] = len(new_ids)
+        if target_model in RAW_CAPTURED_TARGET_MODELS:
+            continue
         for target_id in new_ids:
             db.add(
                 MigrationSourceLink(
@@ -480,6 +486,7 @@ def _track_new_rows(
                     target_id=target_id,
                     clinic_id=clinic_id,
                     company_id=company_id,
+                    migration_job_id=job_id,
                     payload={"job_id": job_id},
                 )
             )
@@ -498,6 +505,7 @@ def _track_new_rows(
                 target_id=row.id,
                 clinic_id=clinic_id,
                 company_id=company_id,
+                migration_job_id=job_id,
                 payload={"job_id": job_id, "exam_id": row.exam_id},
             )
         )
@@ -525,6 +533,7 @@ def _track_new_rows(
                 target_id=row.id,
                 clinic_id=clinic_id,
                 company_id=company_id,
+                migration_job_id=job_id,
                 payload={"job_id": job_id},
             )
         )
@@ -542,6 +551,7 @@ def _track_new_rows(
                 target_id=row.id,
                 clinic_id=clinic_id,
                 company_id=company_id,
+                migration_job_id=job_id,
                 payload={"job_id": job_id},
             )
         )
@@ -862,6 +872,11 @@ def run_softoptic_import(
         branch_to_clinic: Dict[Any, int] = {None: job.clinic_id, "": job.clinic_id}
         for branch_code in branch_codes:
             branch_to_clinic[branch_code] = job.clinic_id
+        trace_context = {
+            "source_system": SOFTOPTIC_SOURCE_SYSTEM,
+            "company_id": job.company_id,
+            "migration_job_id": job.id,
+        }
 
         account_to_client: dict[str, int] = {}
         if not phase_completed(job, "clients"):
@@ -875,6 +890,7 @@ def run_softoptic_import(
                 return_only=False,
                 target_clinic_id=job.clinic_id,
                 max_clients=job.client_import_limit,
+                trace_context=trace_context,
             )
             tracked = _track_new_rows(
                 db,
@@ -905,10 +921,10 @@ def run_softoptic_import(
         if not phase_completed(job, "clinical"):
             before = _snapshot_clinic_rows(db, job.clinic_id)
             on_progress(step="ייבוא בדיקות והזמנות", progress=58, heartbeat=True)
-            migrate_optical_exams(db, csv_root, account_to_client, branch_to_clinic, admin_user.id)
-            presc_code_to_order_id = migrate_contact_lens_orders(db, csv_root, account_to_client, branch_to_clinic, admin_user.id)
-            migrate_regular_orders(db, csv_root, account_to_client, branch_to_clinic, admin_user.id)
-            enrich_from_contact_lens_chk(db, csv_root, account_to_client, presc_code_to_order_id)
+            migrate_optical_exams(db, csv_root, account_to_client, branch_to_clinic, admin_user.id, trace_context)
+            presc_code_to_order_id = migrate_contact_lens_orders(db, csv_root, account_to_client, branch_to_clinic, admin_user.id, trace_context)
+            migrate_regular_orders(db, csv_root, account_to_client, branch_to_clinic, admin_user.id, trace_context)
+            enrich_from_contact_lens_chk(db, csv_root, account_to_client, presc_code_to_order_id, trace_context)
             tracked = _track_new_rows(
                 db,
                 before=before,

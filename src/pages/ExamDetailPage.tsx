@@ -42,6 +42,7 @@ import { useKeyboardSave } from "@/hooks/shared/useKeyboardSave";
 import { useRowWidthTracking } from "@/hooks/shared/useRowWidthTracking";
 import { ExamDetailsCard } from "@/components/exam/ExamDetailsCard";
 import { LayoutSelectorDropdown } from "@/components/exam/LayoutSelectorDropdown";
+import { ImportedSourceDataDialog } from "@/components/migration/ImportedSourceDataDialog";
 import { ExamDetailPageProps, CardRow, LayoutTab } from "./exam-detail/types";
 import { pageConfig } from "./exam-detail/constants";
 import {
@@ -1629,6 +1630,7 @@ export default function ExamDetailPage({
             onRequestLayouts={handleRequestLayouts}
             isLoading={isAddingLayouts}
           />
+          <ImportedSourceDataDialog recordType="exam" recordId={exam?.id} />
           {exam?.id && (
             <DropdownMenu dir="ltr">
               <DropdownMenuTrigger asChild>

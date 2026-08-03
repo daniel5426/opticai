@@ -3,13 +3,15 @@ from __future__ import annotations
 from pathlib import Path
 import sys
 
+import pytest
+
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from backend.migration.optitech.src import phase2, records
-from backend.migration.optitech.src.trace import load_trace_index
+from backend.migration.optitech.src.trace import clear_stale_raw_snapshots, load_trace_index
 from models import Base, Client, Clinic, Company
 
 
@@ -154,3 +156,90 @@ def test_client_trace_recreates_deleted_target_and_repoints_trace():
     assert db.query(Client).count() == 1
     assert recreated_client.first_name == "Noa"
     assert links_by_raw_ref["tblPerData:PerId=777"].target_id == recreated_client.id
+
+
+def test_client_trace_retains_raw_source_only_for_job_backed_imports():
+    db = _build_session()
+    company, clinic = _create_company_and_clinic(db)
+    raw_row = {"PerId": "123", "FirstName": " Dana ", "CellPhone": "050-111", "Unused": ""}
+    seed = records.normalize_client_row(raw_row)
+
+    phase2.upsert_clients(
+        db,
+        client_seeds=[seed],
+        family_target_ids={},
+        clinic_id=clinic.id,
+        company_id=company.id,
+        unmapped_report={},
+        migration_job_id="migration-job-1",
+    )
+    db.commit()
+    links_by_raw_ref, _ = load_trace_index(db, clinic_id=clinic.id, target_model="Client")
+    link = links_by_raw_ref["tblPerData:PerId=123"]
+
+    assert link.raw_payload == raw_row
+    assert link.migration_job_id == "migration-job-1"
+    assert link.raw_payload_sha256
+    assert "raw_payload" not in link.payload["normalized_seed"]["source_ref"]
+
+    client = db.get(Client, link.target_id)
+    client.first_name = "Edited after import"
+    db.commit()
+    assert db.get(type(link), link.id).raw_payload == raw_row
+
+
+def test_completed_optitech_reimport_clears_stale_raw_snapshots():
+    db = _build_session()
+    company, clinic = _create_company_and_clinic(db)
+    first_row = {"PerId": "123", "FirstName": "First"}
+    stale_row = {"PerId": "456", "FirstName": "Stale"}
+
+    phase2.upsert_clients(
+        db,
+        client_seeds=[records.normalize_client_row(first_row), records.normalize_client_row(stale_row)],
+        family_target_ids={},
+        clinic_id=clinic.id,
+        company_id=company.id,
+        unmapped_report={},
+        migration_job_id="job-1",
+    )
+    db.commit()
+
+    phase2.upsert_clients(
+        db,
+        client_seeds=[records.normalize_client_row({"PerId": "123", "FirstName": "Current"})],
+        family_target_ids={},
+        clinic_id=clinic.id,
+        company_id=company.id,
+        unmapped_report={},
+        migration_job_id="job-2",
+    )
+    clear_stale_raw_snapshots(db, clinic_id=clinic.id, migration_job_id="job-2")
+    db.commit()
+
+    links, _ = load_trace_index(db, clinic_id=clinic.id, target_model="Client")
+    assert links["tblPerData:PerId=123"].migration_job_id == "job-2"
+    assert links["tblPerData:PerId=456"].raw_payload is None
+
+
+def test_trace_write_failure_aborts_the_import_unit(monkeypatch):
+    db = _build_session()
+    company, clinic = _create_company_and_clinic(db)
+    seed = records.normalize_client_row({"PerId": "321", "FirstName": "Failure case"})
+
+    def fail_trace_write(*args, **kwargs):
+        raise RuntimeError("source snapshot write failed")
+
+    monkeypatch.setattr(phase2, "upsert_source_link", fail_trace_write)
+    with pytest.raises(RuntimeError, match="source snapshot write failed"):
+        phase2.upsert_clients(
+            db,
+            client_seeds=[seed],
+            family_target_ids={},
+            clinic_id=clinic.id,
+            company_id=company.id,
+            unmapped_report={},
+            migration_job_id="job-failure",
+        )
+    db.rollback()
+    assert db.query(Client).count() == 0

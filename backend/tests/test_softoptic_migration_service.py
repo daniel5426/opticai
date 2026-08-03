@@ -150,6 +150,15 @@ def test_softoptic_import_tracks_and_replaces_previous_run(tmp_path):
             .count()
             == 1
         )
+        first_client_link = (
+            db.query(MigrationSourceLink)
+            .filter_by(source_system=SOFTOPTIC_SOURCE_SYSTEM, clinic_id=clinic.id, target_model="Client")
+            .one()
+        )
+        assert first_client_link.raw_payload["first_name"] == "שם"
+        assert first_client_link.raw_payload["account_code"] == "101"
+        assert len(first_client_link.raw_payload_sha256) == 64
+        assert first_client_link.migration_job_id == job.id
 
         second_job = SoftOpticMigrationJob(
             id="job2",
@@ -173,6 +182,12 @@ def test_softoptic_import_tracks_and_replaces_previous_run(tmp_path):
 
         assert db.query(Client).filter_by(clinic_id=clinic.id).count() == 1
         assert db.query(MigrationSourceLink).filter_by(source_system=SOFTOPTIC_SOURCE_SYSTEM, clinic_id=clinic.id).count() > 0
+        latest_client_link = (
+            db.query(MigrationSourceLink)
+            .filter_by(source_system=SOFTOPTIC_SOURCE_SYSTEM, clinic_id=clinic.id, target_model="Client")
+            .one()
+        )
+        assert latest_client_link.migration_job_id == second_job.id
 
 
 def test_populated_clinic_data_is_allowed_and_preserved(tmp_path):

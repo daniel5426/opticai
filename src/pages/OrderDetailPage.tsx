@@ -134,6 +134,7 @@ import { UI_CONFIG } from "@/config/ui-config";
 import { inputSyncManager } from "@/components/exam/shared/OptimizedInputs";
 import { flushSync } from "react-dom";
 import { syncSavedClientOrder } from "@/hooks/client/clientTabCache";
+import { ImportedSourceDataDialog } from "@/components/migration/ImportedSourceDataDialog";
 
 interface OrderDetailPageProps {
   mode?: "view" | "edit" | "new";
@@ -1883,6 +1884,10 @@ export default function OrderDetailPage({
                 )}
                 {!isNewMode && (
                   <>
+                    <ImportedSourceDataDialog
+                      recordType={isContactMode ? "contact_lens_order" : "order"}
+                      recordId={isContactMode ? (contactFormData as any)?.id : order?.id}
+                    />
                     <Button
                       variant="outline"
                       size="icon"

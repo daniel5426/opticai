@@ -185,6 +185,17 @@ class MigrationSourceLink(Base):
     clinic_id = Column(Integer, ForeignKey("clinics.id"), nullable=False)
     company_id = Column(Integer, ForeignKey("companies.id"), nullable=False)
     payload = Column(JSON, nullable=False, default=dict)
+    # Exact parsed migration-source rows. These remain separate from the editable
+    # clinical/profile data and are intentionally nullable for pre-feature links.
+    migration_job_id = Column(
+        String,
+        ForeignKey("softoptic_migration_jobs.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    raw_payload = Column(JSON, nullable=True)
+    raw_payload_sha256 = Column(String, nullable=True)
+    raw_captured_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 

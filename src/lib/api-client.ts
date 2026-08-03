@@ -2170,6 +2170,35 @@ class ApiClient {
     return this.request(`/migration/imports/${jobId}`);
   }
 
+  async getMigrationSourceDataSummary(
+    recordType: 'client' | 'exam' | 'order' | 'contact_lens_order',
+    recordId: number,
+  ) {
+    return this.request<{
+      available: boolean;
+      source_systems: string[];
+      row_count: number;
+      latest_raw_captured_at: string | null;
+    }>(`/migration-source-data/${recordType}/${recordId}/summary`);
+  }
+
+  async getMigrationSourceData(
+    recordType: 'client' | 'exam' | 'order' | 'contact_lens_order',
+    recordId: number,
+  ) {
+    return this.request<{
+      rows: Array<{
+        source_system: string;
+        source_table: string;
+        raw_row_ref: string;
+        migration_job_id: string | null;
+        raw_payload: Record<string, unknown>;
+        raw_payload_sha256: string | null;
+        raw_captured_at: string | null;
+      }>;
+    }>(`/migration-source-data/${recordType}/${recordId}`);
+  }
+
   async uploadMigrationBundle(jobId: string, zipPath: string) {
     const uploader = window.electronAPI?.migrationUploadBundle || window.electronAPI?.softOpticUploadBundle;
     if (!uploader) return { error: 'Migration upload is available only in the Electron app' };

@@ -1,12 +1,14 @@
 from __future__ import annotations
 
-from dataclasses import asdict, is_dataclass
-from datetime import date, datetime
+from dataclasses import fields, is_dataclass
+from datetime import date, datetime, timezone
+import hashlib
+import json
 from pathlib import Path
 import sys
 from typing import Any, Dict, Iterable, Mapping, Optional, Sequence, Tuple, Type
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 CURRENT_FILE = Path(__file__).resolve()
@@ -63,11 +65,27 @@ TARGET_MODELS: Dict[str, Type[Any]] = {
     "MedicalLog": MedicalLog,
     "Appointment": Appointment,
 }
+RAW_SNAPSHOT_TARGET_MODELS: Tuple[str, ...] = (
+    "Client",
+    "OpticalExam",
+    "ExamLayoutInstance",
+    "Order",
+    "ContactLensOrder",
+)
 
 
 def to_jsonable(value: Any) -> Any:
+    if isinstance(value, SourceRef):
+        # Raw source data is deliberately retained only in raw_payload, never in
+        # the existing normalized/mapping diagnostics payload.
+        return value.as_dict()
     if is_dataclass(value):
-        return {key: to_jsonable(item) for key, item in asdict(value).items()}
+        # Do not call asdict(): it recursively strips SourceRef's type before
+        # the branch above can exclude its raw snapshot from diagnostics.
+        return {
+            item.name: to_jsonable(getattr(value, item.name))
+            for item in fields(value)
+        }
     if isinstance(value, (date, datetime)):
         return value.isoformat()
     if isinstance(value, Path):
@@ -77,6 +95,17 @@ def to_jsonable(value: Any) -> Any:
     if isinstance(value, (list, tuple, set)):
         return [to_jsonable(item) for item in value]
     return value
+
+
+def raw_payload_hash(raw_payload: Mapping[str, Any]) -> str:
+    canonical = json.dumps(
+        to_jsonable(raw_payload),
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+        default=str,
+    )
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
 def build_trace_payload(
@@ -226,6 +255,7 @@ def upsert_source_link(
     clinic_id: int,
     company_id: int,
     payload: Mapping[str, Any],
+    migration_job_id: Optional[str] = None,
     source_system: str = OPTITECH_SOURCE_SYSTEM,
     existing_link: Optional[MigrationSourceLink] = None,
 ) -> MigrationSourceLink:
@@ -243,6 +273,10 @@ def upsert_source_link(
             clinic_id=clinic_id,
             company_id=company_id,
             payload=to_jsonable(payload),
+            migration_job_id=migration_job_id,
+            raw_payload=to_jsonable(source_ref.raw_payload) if migration_job_id else None,
+            raw_payload_sha256=raw_payload_hash(source_ref.raw_payload) if migration_job_id else None,
+            raw_captured_at=datetime.now(timezone.utc) if migration_job_id else None,
         )
         db.add(link)
     else:
@@ -253,7 +287,44 @@ def upsert_source_link(
         link.target_id = target_id
         link.company_id = company_id
         link.payload = to_jsonable(payload)
+        if migration_job_id:
+            link.migration_job_id = migration_job_id
+            link.raw_payload = to_jsonable(source_ref.raw_payload)
+            link.raw_payload_sha256 = raw_payload_hash(source_ref.raw_payload)
+            link.raw_captured_at = datetime.now(timezone.utc)
     return link
+
+
+def clear_stale_raw_snapshots(
+    db: Session,
+    *,
+    clinic_id: int,
+    migration_job_id: str,
+    source_system: str = OPTITECH_SOURCE_SYSTEM,
+) -> int:
+    """Keep only snapshots written by the successfully completed import job."""
+    return (
+        db.query(MigrationSourceLink)
+        .filter(MigrationSourceLink.source_system == source_system)
+        .filter(MigrationSourceLink.clinic_id == clinic_id)
+        .filter(MigrationSourceLink.target_model.in_(RAW_SNAPSHOT_TARGET_MODELS))
+        .filter(MigrationSourceLink.raw_payload.is_not(None))
+        .filter(
+            or_(
+                MigrationSourceLink.migration_job_id.is_(None),
+                MigrationSourceLink.migration_job_id != migration_job_id,
+            )
+        )
+        .update(
+            {
+                MigrationSourceLink.migration_job_id: None,
+                MigrationSourceLink.raw_payload: None,
+                MigrationSourceLink.raw_payload_sha256: None,
+                MigrationSourceLink.raw_captured_at: None,
+            },
+            synchronize_session=False,
+        )
+    )
 
 
 def cleanup_phase2_rows(

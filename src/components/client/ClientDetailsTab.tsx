@@ -17,6 +17,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { CityLookupInput } from "@/components/ui/city-lookup-input"
 import { DateInput } from "@/components/ui/date"
 import { NotesCard } from "@/components/ui/notes-card"
+import { ImportedSourceDataDialog } from "@/components/migration/ImportedSourceDataDialog"
 import {
   CLIENT_GENDER_OPTIONS,
   CLIENT_HEALTH_FUNDS,
@@ -337,6 +338,7 @@ export function ClientDetailsTab({
       {mode === 'view' && onStartEdit && onSave && (
         <div className="flex justify-between items-center mb-4">
           <div className="flex gap-2">
+            <ImportedSourceDataDialog recordType="client" recordId={draft.id} />
             {isEditing && onCancelEdit && (
               <Button
                 type="button"
