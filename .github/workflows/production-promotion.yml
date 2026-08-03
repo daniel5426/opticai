@@ -140,18 +140,9 @@ jobs:
       - name: Install Railway CLI
         run: npm install -g @railway/cli
 
-      - name: Link Railway production context
-        env:
-          RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_TOKEN_PRODUCTION }}
-        run: |
-          railway link \
-            --project "$RAILWAY_PROJECT_ID" \
-            --environment production \
-            --service opticai
-
       - name: Deploy API, worker, and web in order
         env:
-          RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_TOKEN_PRODUCTION }}
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN_PRODUCTION }}
           RELEASE_SHA: ${{ needs.validate.outputs.sha }}
         shell: bash
         run: |
