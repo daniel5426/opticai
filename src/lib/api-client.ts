@@ -21,6 +21,7 @@ import {
   CompactPrescriptionExam, RecentClientVisit, PrescriptionSearchCriteria,
   PrescriptionSearchResult, ClientMergeResult
 } from './db/schema-interface';
+import { CalendarHoliday } from './clinic-holidays';
 
 function normalizeApiBaseUrl(rawUrl?: string): string {
   const fallback = 'http://localhost:8001/api/v1';
@@ -477,6 +478,24 @@ class ApiClient {
 
   async deleteClinic(id: number) {
     return this.request(`/clinics/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // Clinic holidays
+  async getClinicHolidays(clinicId: number, year: number) {
+    return this.request<CalendarHoliday[]>(`/clinic-holidays/?clinic_id=${clinicId}&year=${year}`);
+  }
+
+  async saveClinicHoliday(clinicId: number, data: { holiday_date: string; name: string }) {
+    return this.request<CalendarHoliday>(`/clinic-holidays/?clinic_id=${clinicId}`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteClinicHoliday(holidayId: number) {
+    return this.request(`/clinic-holidays/${holidayId}`, {
       method: 'DELETE',
     });
   }

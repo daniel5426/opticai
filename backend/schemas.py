@@ -78,6 +78,33 @@ class Clinic(ClinicBase):
     class Config:
         from_attributes = True
 
+
+class ClinicHolidayOverrideCreate(BaseModel):
+    holiday_date: date
+    name: str = Field(min_length=1, max_length=160)
+
+
+class ClinicHolidayOverrideUpdate(BaseModel):
+    name: str = Field(min_length=1, max_length=160)
+
+
+class ClinicHolidayOverride(ClinicHolidayOverrideCreate):
+    id: int
+    clinic_id: int
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+class CalendarHoliday(BaseModel):
+    id: Optional[int] = None
+    date: date
+    name: str
+    source: Literal["official", "clinic"]
+
+
 class UserBase(BaseModel):
     company_id: int
     full_name: Optional[str] = None

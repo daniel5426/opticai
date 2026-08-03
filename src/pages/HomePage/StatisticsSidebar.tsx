@@ -5,7 +5,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { CalendarDays, Clock } from "lucide-react"
 import { format } from "date-fns"
 import { he } from "date-fns/locale"
-import { isJewishHoliday, getJewishHolidayName } from "@/lib/jewish-holidays"
+import { CalendarHoliday } from "@/lib/clinic-holidays"
 import { User } from "@/lib/db/schema-interface"
 
 interface StatisticsSidebarProps {
@@ -16,6 +16,7 @@ interface StatisticsSidebarProps {
   totalSlots: number
   appointmentDuration: number
   currentUser: User | null
+  holidaysByDate: Record<string, CalendarHoliday>
 }
 
 export function StatisticsSidebar({
@@ -25,7 +26,8 @@ export function StatisticsSidebar({
   todayFreeSlots,
   totalSlots,
   appointmentDuration,
-  currentUser
+  currentUser,
+  holidaysByDate
 }: StatisticsSidebarProps) {
   return (
     <div className="w-72 space-y-4">
@@ -45,7 +47,7 @@ export function StatisticsSidebar({
                   ...(currentUser?.system_vacation_dates || []),
                   ...(currentUser?.added_vacation_dates || [])
                 ].includes(dateStr)
-                const isHoliday = isJewishHoliday(dateStr)
+                const holiday = holidaysByDate[dateStr]
                 return (
                   <div className="relative">
                     <CalendarDayButton {...props} />
@@ -61,14 +63,14 @@ export function StatisticsSidebar({
                         </Tooltip>
                       </TooltipProvider>
                     )}
-                    {!isVacation && isHoliday && (
+                    {!isVacation && holiday && (
                       <TooltipProvider>
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-blue-500" />
                           </TooltipTrigger>
                           <TooltipContent side="top" align="end">
-                            {getJewishHolidayName(dateStr) || 'חג'}
+                            {holiday.name}
                           </TooltipContent>
                         </Tooltip>
                       </TooltipProvider>
@@ -111,4 +113,3 @@ export function StatisticsSidebar({
     </div>
   )
 }
-

@@ -7,7 +7,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { isJewishHoliday, getJewishHolidayName } from "@/lib/jewish-holidays";
+import { CalendarHoliday } from "@/lib/clinic-holidays";
 import { User, Client, Appointment } from "@/lib/db/schema-interface";
 import { AppointmentBlock, DragPosition, ResizeData, DragData } from "./types";
 import { formatAppointmentTime, getAppointmentTimeRange } from "./utils";
@@ -84,6 +84,7 @@ interface WeekDayViewProps {
   timeSlots: { time: string; startMinutes: number; durationMinutes: number }[];
   totalWorkMinutes: number;
   currentUser: User | null;
+  holidaysByDate: Record<string, CalendarHoliday>;
   clients: Client[];
   getAppointmentBlocks: (date: Date) => AppointmentBlock[];
   getUserColor: (userId?: number) => string;
@@ -120,6 +121,7 @@ export function WeekDayView({
   timeSlots,
   totalWorkMinutes,
   currentUser,
+  holidaysByDate,
   clients,
   getAppointmentBlocks,
   getUserColor,
@@ -186,7 +188,7 @@ export function WeekDayView({
               ...(currentUser?.system_vacation_dates || []),
               ...(currentUser?.added_vacation_dates || []),
             ].includes(dateStr);
-            const holiday = isJewishHoliday(dateStr);
+            const holiday = holidaysByDate[dateStr];
             return (
               <div
                 key={dateIndex}
@@ -214,7 +216,7 @@ export function WeekDayView({
                         <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-blue-500" />
                       </TooltipTrigger>
                       <TooltipContent side="top" align="end">
-                        {getJewishHolidayName(dateStr) || "חג"}
+                        {holiday.name}
                       </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>

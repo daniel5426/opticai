@@ -24,6 +24,7 @@ import { FieldDataTab } from "@/components/settings/FieldDataTab"
 import { PersonalProfileTab } from "@/components/settings/PersonalProfileTab"
 import { AboutTab } from "@/components/settings/AboutTab"
 import { MigrationTab } from "@/components/settings/MigrationTab"
+import { ClinicHolidaysTab } from "@/components/settings/ClinicHolidaysTab"
 import { ClinicDataPruneTab } from "@/components/settings/ClinicDataPruneTab"
 import { UnsavedChangesDialog } from "@/components/unsaved-changes-dialog"
 import { useUnsavedChanges } from "@/hooks/shared/useUnsavedChanges"
@@ -997,6 +998,12 @@ export default function SettingsPage() {
                     </TabsContent>
                   )}
 
+                  {isRoleAtLeast(currentUser?.role_level, ROLE_LEVELS.manager) && (
+                    <TabsContent value="clinic-holidays" className="space-y-6 mt-0">
+                      <ClinicHolidaysTab clinicId={currentClinic?.id} />
+                    </TabsContent>
+                  )}
+
                   {isRoleAtLeast(currentUser?.role_level, ROLE_LEVELS.ceo) && (
                     <TabsContent value="danger-zone" className="space-y-6 mt-0">
                       <ClinicDataPruneTab clinicId={currentClinic?.id} clinicName={currentClinic?.name || currentClinic?.clinic_name} />
@@ -1051,6 +1058,9 @@ export default function SettingsPage() {
                     )}
                     {isWindowsElectron && isRoleAtLeast(currentUser?.role_level, ROLE_LEVELS.manager) && (
                       <TabsTrigger value="migration" className="w-full justify-end text-right">העברת נתונים</TabsTrigger>
+                    )}
+                    {isRoleAtLeast(currentUser?.role_level, ROLE_LEVELS.manager) && (
+                      <TabsTrigger value="clinic-holidays" className="w-full justify-end text-right">חגים</TabsTrigger>
                     )}
                     <TabsTrigger value="field-data" className="w-full justify-end text-right">ניהול נתוני שדות</TabsTrigger>
                     {isRoleAtLeast(currentUser?.role_level, ROLE_LEVELS.ceo) && (

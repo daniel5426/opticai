@@ -53,6 +53,8 @@ import { AppointmentModal } from "./HomePage/AppointmentModal"
 import { useAppointmentBlocks } from "./HomePage/useAppointmentBlocks"
 import { useDragAndResize } from "./HomePage/useDragAndResize"
 import { useSettings } from "@/hooks/useSettings"
+import { apiClient } from "@/lib/api-client"
+import { CalendarHoliday, holidaysByDate } from "@/lib/clinic-holidays"
 
 function flattenActiveExamLayouts(layouts: ExamLayout[]): ExamLayout[] {
   return layouts.flatMap((layout) => {
@@ -69,6 +71,7 @@ export default function HomePage() {
   const [clients, setClients] = useState<Client[]>([])
   const [dashboardSettings, setDashboardSettings] = useState<Settings | null>(null)
   const [activeExamLayouts, setActiveExamLayouts] = useState<ExamLayout[]>([])
+  const [calendarHolidays, setCalendarHolidays] = useState<CalendarHoliday[]>([])
   const [loading, setLoading] = useState(true)
   const { currentUser, currentClinic } = useUser()
   const { settings } = useSettings()
@@ -142,6 +145,29 @@ export default function HomePage() {
   const loadedStartRef = useRef<Date | null>(null)
   const loadedEndRef = useRef<Date | null>(null)
   const loadedClinicIdRef = useRef<number | null>(null)
+
+  const calendarHolidayMap = useMemo(() => holidaysByDate(calendarHolidays), [calendarHolidays])
+
+  useEffect(() => {
+    if (!currentClinic?.id) {
+      setCalendarHolidays([])
+      return
+    }
+    let cancelled = false
+    const year = currentDate.getFullYear()
+    const years = [year - 1, year, year + 1]
+    void Promise.all(years.map(async targetYear => {
+      const response = await apiClient.getClinicHolidays(currentClinic.id, targetYear)
+      if (response.error) throw new Error(response.error)
+      return response.data || []
+    })).then(results => {
+      if (cancelled) return
+      setCalendarHolidays(results.flat())
+    }).catch(error => {
+      if (!cancelled) console.error("Error loading clinic holidays:", error)
+    })
+    return () => { cancelled = true }
+  }, [currentClinic?.id, currentDate.getFullYear()])
   
 
   const loadData = useCallback(async (startDate: Date, endDate: Date) => {
@@ -965,6 +991,7 @@ export default function HomePage() {
             totalSlots={workScheduleInfo.TOTAL_SLOTS}
             appointmentDuration={APPOINTMENT_DURATION}
             currentUser={currentUser}
+            holidaysByDate={calendarHolidayMap}
           />
 
           {/* Main Calendar View */}
@@ -977,6 +1004,7 @@ export default function HomePage() {
                     currentDate={currentDate}
                     getAppointmentsForDate={getAppointmentsForDate}
                     currentUser={currentUser}
+                    holidaysByDate={calendarHolidayMap}
                     onDateClick={setCurrentDate}
                     onViewChange={setView}
                   />
@@ -986,6 +1014,7 @@ export default function HomePage() {
                     timeSlots={timeSlots}
                     totalWorkMinutes={totalWorkMinutes}
                     currentUser={currentUser}
+                    holidaysByDate={calendarHolidayMap}
                     clients={clients}
                     getAppointmentBlocks={getAppointmentBlocks}
                     getUserColor={getUserColor}

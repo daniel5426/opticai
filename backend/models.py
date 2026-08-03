@@ -61,6 +61,7 @@ class Clinic(Base):
     clients = relationship("Client", back_populates="clinic")
     families = relationship("Family", back_populates="clinic")
     settings = relationship("Settings", back_populates="clinic")
+    holiday_overrides = relationship("ClinicHolidayOverride", back_populates="clinic", cascade="all, delete-orphan")
 
     @property
     def has_entry_pin(self):
@@ -104,6 +105,23 @@ class User(Base):
     @property
     def has_password(self):
         return bool(self.password_hash and self.password_hash.strip())
+
+
+class ClinicHolidayOverride(Base):
+    __tablename__ = "clinic_holiday_overrides"
+    __table_args__ = (
+        UniqueConstraint("clinic_id", "holiday_date", name="uq_clinic_holiday_overrides_clinic_date"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    clinic_id = Column(Integer, ForeignKey("clinics.id", ondelete="CASCADE"), nullable=False, index=True)
+    holiday_date = Column(Date, nullable=False)
+    name = Column(String(160), nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+    clinic = relationship("Clinic", back_populates="holiday_overrides")
+
 
 class AuthSession(Base):
     __tablename__ = "auth_sessions"
