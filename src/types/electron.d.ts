@@ -8,6 +8,8 @@ interface IpcRenderer {
 }
 
 export interface ElectronAPI {
+  platform: string;
+
   // Generic DB Operation
   db: (method: string, ...args: any[]) => Promise<any>;
 

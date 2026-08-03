@@ -22,6 +22,8 @@ contextBridge.exposeInMainWorld('electronWindow', {
 
 // Expose APIs to renderer process
 contextBridge.exposeInMainWorld('electronAPI', {
+  platform: process.platform,
+
   // Generic DB Operation
   db: (method: string, ...args: any[]) => ipcRenderer.invoke('db-operation', method, ...args),
 

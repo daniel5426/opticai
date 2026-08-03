@@ -146,6 +146,7 @@ export default function SettingsPage() {
   const { settings, updateSettings: updateBaseSettings } = useSettings()
   const { currentUser, currentClinic, setCurrentUser } = useUser()
   const queryClient = useQueryClient()
+  const isWindowsElectron = window.electronAPI?.platform === "win32"
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [saveSuccess, setSaveSuccess] = useState(false)
@@ -990,7 +991,7 @@ export default function SettingsPage() {
                     />
                   </TabsContent>
 
-                  {isRoleAtLeast(currentUser?.role_level, ROLE_LEVELS.manager) && (
+                  {isWindowsElectron && isRoleAtLeast(currentUser?.role_level, ROLE_LEVELS.manager) && (
                     <TabsContent value="migration" className="space-y-6 mt-0">
                       <MigrationTab clinicId={currentClinic?.id} />
                     </TabsContent>
@@ -1048,7 +1049,7 @@ export default function SettingsPage() {
                     {isRoleAtLeast(currentUser?.role_level, ROLE_LEVELS.manager) && (
                       <TabsTrigger value="users" className="w-full justify-end text-right">ניהול משתמשים</TabsTrigger>
                     )}
-                    {isRoleAtLeast(currentUser?.role_level, ROLE_LEVELS.manager) && (
+                    {isWindowsElectron && isRoleAtLeast(currentUser?.role_level, ROLE_LEVELS.manager) && (
                       <TabsTrigger value="migration" className="w-full justify-end text-right">העברת נתונים</TabsTrigger>
                     )}
                     <TabsTrigger value="field-data" className="w-full justify-end text-right">ניהול נתוני שדות</TabsTrigger>
