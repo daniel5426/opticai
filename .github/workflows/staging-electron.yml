@@ -64,11 +64,6 @@ jobs:
           EXPECTED_SHA: ${{ steps.release.outputs.sha }}
         shell: bash
         run: |
-          railway link \
-            --project "$RAILWAY_PROJECT_ID" \
-            --environment staging \
-            --service opticai
-
           wait_for_service() {
             local service="$1"
             shift
