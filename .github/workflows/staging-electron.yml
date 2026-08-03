@@ -60,7 +60,7 @@ jobs:
 
       - name: Wait for Railway staging auto-deploys
         env:
-          RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_TOKEN_STAGING }}
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN_STAGING }}
           EXPECTED_SHA: ${{ steps.release.outputs.sha }}
         shell: bash
         run: |
@@ -71,9 +71,15 @@ jobs:
 
           wait_for_service() {
             local service="$1"
+            shift
             local status
             local commit
             local deployments
+
+            if git diff --quiet "$EXPECTED_SHA^" "$EXPECTED_SHA" -- "$@"; then
+              echo "$service: no watched files changed; no Railway deployment is expected"
+              return 0
+            fi
 
             for attempt in {1..30}; do
               deployments="$(railway deployment list \
@@ -104,9 +110,10 @@ jobs:
             return 1
           }
 
-          wait_for_service opticai
-          wait_for_service softoptic-migration-worker
-          wait_for_service prysm-web-staging
+          wait_for_service opticai backend
+          wait_for_service softoptic-migration-worker backend
+          wait_for_service prysm-web-staging \
+            src public index.html package.json package-lock.json vite.renderer.config.mts railway.json scripts/serve-web.mjs
 
       - name: Verify staging health
         shell: bash
