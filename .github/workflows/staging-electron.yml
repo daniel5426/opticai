@@ -1,23 +1,141 @@
-name: Staging Electron Build
+name: Verify Staging and Build Desktop
 
 on:
   workflow_dispatch:
+    inputs:
+      sha:
+        description: "Full Git SHA already auto-deployed to Railway staging"
+        required: true
+        type: string
 
 permissions:
   contents: write
+
+concurrency:
+  group: staging-release
+  cancel-in-progress: false
 
 env:
   VITE_API_URL: https://staging-api.prysm.co.il/api/v1
   APP_ENVIRONMENT: staging
   APP_PROFILE_NAME: Prysm Staging
   AUTH_PROTOCOL: prysm-staging
+  RAILWAY_PROJECT_ID: fb97ce50-fb72-4612-bfd1-c6d8a7bed9cb
 
 jobs:
+  verify-staging:
+    runs-on: ubuntu-latest
+    outputs:
+      sha: ${{ steps.release.outputs.sha }}
+    steps:
+      - name: Checkout tested commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.sha }}
+
+      - name: Validate requested commit
+        id: release
+        env:
+          REQUESTED_SHA: ${{ inputs.sha }}
+          DISPATCH_SHA: ${{ github.sha }}
+        shell: bash
+        run: |
+          checked_out_sha="$(git rev-parse HEAD)"
+          if [[ ! "$REQUESTED_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "A full 40-character lowercase Git SHA is required" >&2
+            exit 1
+          fi
+          if [[ "$checked_out_sha" != "$REQUESTED_SHA" ]]; then
+            echo "Checked out $checked_out_sha instead of requested $REQUESTED_SHA" >&2
+            exit 1
+          fi
+          if [[ "$DISPATCH_SHA" != "$REQUESTED_SHA" ]]; then
+            echo "Workflow ref resolves to $DISPATCH_SHA, not requested $REQUESTED_SHA" >&2
+            exit 1
+          fi
+          echo "sha=$checked_out_sha" >> "$GITHUB_OUTPUT"
+
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli
+
+      - name: Wait for Railway staging auto-deploys
+        env:
+          RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_TOKEN_STAGING }}
+          EXPECTED_SHA: ${{ steps.release.outputs.sha }}
+        shell: bash
+        run: |
+          railway link \
+            --project "$RAILWAY_PROJECT_ID" \
+            --environment staging \
+            --service opticai
+
+          wait_for_service() {
+            local service="$1"
+            local status
+            local commit
+            local deployments
+
+            for attempt in {1..30}; do
+              deployments="$(railway deployment list \
+                --service "$service" \
+                --environment staging \
+                --limit 1 \
+                --json)"
+              status="$(jq -r '.[0].status // "UNKNOWN"' <<<"$deployments")"
+              commit="$(jq -r '.[0].meta.commitHash // ""' <<<"$deployments")"
+              echo "$service: status=$status commit=${commit:-unknown}"
+
+              if [[ "$commit" == "$EXPECTED_SHA" ]]; then
+                case "$status" in
+                  SUCCESS|SKIPPED)
+                    return 0
+                    ;;
+                  FAILED|CRASHED|REMOVED)
+                    echo "$service staging deployment failed with status $status" >&2
+                    return 1
+                    ;;
+                esac
+              fi
+
+              sleep 10
+            done
+
+            echo "$service did not finish auto-deploying $EXPECTED_SHA within five minutes" >&2
+            return 1
+          }
+
+          wait_for_service opticai
+          wait_for_service softoptic-migration-worker
+          wait_for_service prysm-web-staging
+
+      - name: Verify staging health
+        shell: bash
+        run: |
+          retry_health() {
+            local url="$1"
+            for attempt in {1..18}; do
+              if curl --fail --silent --show-error --max-time 20 "$url"; then
+                echo
+                return 0
+              fi
+              sleep 10
+            done
+            echo "Health check failed: $url" >&2
+            return 1
+          }
+
+          retry_health https://staging-api.prysm.co.il/health
+          retry_health https://staging-api.prysm.co.il/health/database
+          retry_health https://prysm-web-staging-staging.up.railway.app/health
+
   build-macos-staging:
+    needs: verify-staging
     runs-on: macos-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.sha }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -57,7 +175,7 @@ jobs:
       - name: Upload macOS staging artifact
         uses: actions/upload-artifact@v4
         with:
-          name: prysm-staging-macos-arm64-${{ github.sha }}
+          name: prysm-staging-macos-arm64-${{ needs.verify-staging.outputs.sha }}
           path: |
             release/*.zip
             release/latest-mac.yml
@@ -65,10 +183,13 @@ jobs:
           retention-days: 14
 
   build-windows-staging:
+    needs: verify-staging
     runs-on: windows-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.sha }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -111,13 +232,13 @@ jobs:
       - name: Upload Windows staging artifact
         uses: actions/upload-artifact@v4
         with:
-          name: prysm-staging-windows-x64-${{ github.sha }}
+          name: prysm-staging-windows-x64-${{ needs.verify-staging.outputs.sha }}
           path: release/Prysm-Staging-Setup-*.exe
           if-no-files-found: error
           retention-days: 14
 
   publish-public-staging-download:
-    needs: [build-macos-staging, build-windows-staging]
+    needs: [verify-staging, build-macos-staging, build-windows-staging]
     runs-on: ubuntu-latest
     steps:
       - name: Download staging artifacts
@@ -138,6 +259,8 @@ jobs:
             Public staging build for testing.
 
             This is not a production release. The app installs as "Prysm Staging", uses the staging API, and has auto-update disabled.
+
+            Verified commit: `${{ needs.verify-staging.outputs.sha }}`
           files: |
-            staging-artifacts/prysm-staging-macos-arm64-${{ github.sha }}/*.zip
-            staging-artifacts/prysm-staging-windows-x64-${{ github.sha }}/Prysm-Staging-Setup-*.exe
+            staging-artifacts/prysm-staging-macos-arm64-${{ needs.verify-staging.outputs.sha }}/*.zip
+            staging-artifacts/prysm-staging-windows-x64-${{ needs.verify-staging.outputs.sha }}/Prysm-Staging-Setup-*.exe

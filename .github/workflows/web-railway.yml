@@ -1,4 +1,4 @@
-name: Web Railway Deploy
+name: Web CI
 
 on:
   push:
@@ -14,16 +14,20 @@ on:
       - "railway.json"
       - "scripts/serve-web.mjs"
       - ".github/workflows/web-railway.yml"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "src/**"
+      - "public/**"
+      - "index.html"
+      - "package.json"
+      - "package-lock.json"
+      - "vite.renderer.config.mts"
+      - "railway.json"
+      - "scripts/serve-web.mjs"
+      - ".github/workflows/web-railway.yml"
   workflow_dispatch:
-    inputs:
-      environment:
-        description: "Railway environment to deploy"
-        required: true
-        default: "staging"
-        type: choice
-        options:
-          - staging
-          - production
 
 permissions:
   contents: read
@@ -45,49 +49,3 @@ jobs:
 
       - name: Build web
         run: npm run build:web
-
-  deploy-staging:
-    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.environment == 'staging')
-    needs: test
-    runs-on: ubuntu-latest
-    environment: staging
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Install Railway CLI
-        run: npm install -g @railway/cli
-
-      - name: Deploy web to Railway staging
-        env:
-          RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_TOKEN_STAGING }}
-        run: |
-          railway up \
-            --ci \
-            --project fb97ce50-fb72-4612-bfd1-c6d8a7bed9cb \
-            --environment staging \
-            --service prysm-web-staging \
-            --message "Staging web deploy $GITHUB_SHA"
-
-  deploy-production:
-    if: github.event_name == 'workflow_dispatch' && inputs.environment == 'production'
-    needs: test
-    runs-on: ubuntu-latest
-    environment: production
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Install Railway CLI
-        run: npm install -g @railway/cli
-
-      - name: Deploy web to Railway production
-        env:
-          RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_TOKEN_PRODUCTION }}
-        run: |
-          railway up \
-            --ci \
-            --project fb97ce50-fb72-4612-bfd1-c6d8a7bed9cb \
-            --environment production \
-            --service prysm-web \
-            --message "Production web deploy $GITHUB_SHA"

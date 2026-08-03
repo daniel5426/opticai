@@ -48,22 +48,27 @@ Google, WhatsApp, and Facebook variables are optional unless the release touches
 
 ## Deploy Flow
 
-- Pushes to `main` deploy backend changes to Railway `staging` through GitHub Actions.
-- Backend deploys must update both `opticai` and the environment's SoftOptic worker from the same commit.
-- Pushes to `main` deploy web changes to Railway `staging` through GitHub Actions.
-- Production deploys are manual from the `Backend Railway Deploy` and `Web Railway Deploy` workflows.
+- Pushes to `main` auto-deploy staging directly through Railway's GitHub integration.
+- Staging auto-deploy is enabled for `opticai`, `softoptic-migration-worker`, and `prysm-web-staging`; watch paths prevent unrelated services from rebuilding.
+- The `Backend CI` and `Web CI` workflows test pushes and pull requests but do not deploy.
+- After Railway staging finishes, manually run `Verify Staging and Build Desktop` with the full tested Git SHA. It verifies all staging deployments and health endpoints before publishing the staging desktop prerelease.
+- Production promotion is manual from `Promote Tested Commit to Production`. It requires the staging-verified SHA and confirmation of a fresh production database backup.
+- Production deploy order is API (including Alembic), health checks, SoftOptic worker, then web. All services use the same tested commit.
+- Desktop production releases remain tag-driven through `Release Build` and must only be tagged after the production promotion and smoke test succeed.
 - Railway production services must not autodeploy from `main`; they are pinned to the non-working trigger branch `manual-production-only` so production only changes through explicit workflow dispatch.
 - Keep Heroku live until Railway production and a new desktop build are verified.
+
+Do not add `railway up` staging steps back to GitHub Actions while Railway staging auto-deploy is enabled. Running both mechanisms creates duplicate deployments, `SKIPPED` results, and misleading CI failures when Railway cannot stream logs.
 
 Manual CLI deploys, when needed:
 
 ```bash
-railway up --ci --project fb97ce50-fb72-4612-bfd1-c6d8a7bed9cb --environment staging --service opticai --message "Manual staging deploy"
-railway up --ci --project fb97ce50-fb72-4612-bfd1-c6d8a7bed9cb --environment staging --service softoptic-migration-worker --message "Manual staging SoftOptic worker deploy"
-railway up --ci --project fb97ce50-fb72-4612-bfd1-c6d8a7bed9cb --environment production --service opticai --message "Manual production deploy"
-railway up --ci --project fb97ce50-fb72-4612-bfd1-c6d8a7bed9cb --environment production --service softoptic-migration-worker-Z2hA --message "Manual production SoftOptic worker deploy"
-railway up --ci --project fb97ce50-fb72-4612-bfd1-c6d8a7bed9cb --environment staging --service prysm-web-staging --message "Manual staging web deploy"
-railway up --ci --project fb97ce50-fb72-4612-bfd1-c6d8a7bed9cb --environment production --service prysm-web --message "Manual production web deploy"
+railway up --detach --project fb97ce50-fb72-4612-bfd1-c6d8a7bed9cb --environment staging --service opticai --message "Manual staging deploy"
+railway up --detach --project fb97ce50-fb72-4612-bfd1-c6d8a7bed9cb --environment staging --service softoptic-migration-worker --message "Manual staging SoftOptic worker deploy"
+railway up --detach --project fb97ce50-fb72-4612-bfd1-c6d8a7bed9cb --environment production --service opticai --message "Manual production deploy"
+railway up --detach --project fb97ce50-fb72-4612-bfd1-c6d8a7bed9cb --environment production --service softoptic-migration-worker-Z2hA --message "Manual production SoftOptic worker deploy"
+railway up --detach --project fb97ce50-fb72-4612-bfd1-c6d8a7bed9cb --environment staging --service prysm-web-staging --message "Manual staging web deploy"
+railway up --detach --project fb97ce50-fb72-4612-bfd1-c6d8a7bed9cb --environment production --service prysm-web --message "Manual production web deploy"
 ```
 
 ## DNS
@@ -102,8 +107,9 @@ railway logs --environment production --service softoptic-migration-worker-Z2hA 
 
 Worker logs should show `SoftOptic migration worker started id=...` and must not show `npm run start:web`.
 
-Before production deploys with migrations:
+Before production promotion:
 
 1. Confirm a fresh Supabase production backup exists.
-2. Confirm the current released desktop build works against staging.
-3. Confirm migrations are backward-compatible.
+2. Confirm `Verify Staging and Build Desktop` succeeded for the exact SHA being promoted.
+3. Confirm the current released desktop build works against staging.
+4. Confirm migrations are backward-compatible.

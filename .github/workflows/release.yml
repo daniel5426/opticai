@@ -7,18 +7,71 @@ on:
 
 # Add permissions for the workflow
 permissions:
+  actions: read
   contents: write
   packages: write
 
+concurrency:
+  group: desktop-release-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
+  validate-release:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Validate tag and package versions
+        id: version
+        shell: bash
+        run: |
+          tag_version="${GITHUB_REF#refs/tags/v}"
+          package_version="$(node -p "require('./package.json').version")"
+          lock_version="$(node -p "require('./package-lock.json').version")"
+
+          if [[ "$tag_version" != "$package_version" ]]; then
+            echo "Tag v$tag_version does not match package.json version $package_version" >&2
+            exit 1
+          fi
+          if [[ "$package_version" != "$lock_version" ]]; then
+            echo "package.json version $package_version does not match package-lock.json version $lock_version" >&2
+            exit 1
+          fi
+
+          echo "version=$tag_version" >> "$GITHUB_OUTPUT"
+
+      - name: Require successful production promotion
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          production_run_id="$(gh run list \
+            --repo "$GITHUB_REPOSITORY" \
+            --workflow production-promotion.yml \
+            --commit "$GITHUB_SHA" \
+            --event workflow_dispatch \
+            --status success \
+            --limit 1 \
+            --json databaseId \
+            --jq '.[0].databaseId // empty')"
+
+          if [[ -z "$production_run_id" ]]; then
+            echo "No successful production promotion found for $GITHUB_SHA" >&2
+            exit 1
+          fi
+          echo "Using production promotion run $production_run_id"
+
   build-macos:
+    needs: validate-release
     runs-on: macos-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: '20'
           
@@ -34,20 +87,16 @@ jobs:
           GOOGLE_DESKTOP_CLIENT_SECRET=${{ secrets.GOOGLE_DESKTOP_CLIENT_SECRET }}
           EOF
 
-      - name: Build for macOS arm64
+      - name: Build for macOS Intel and Apple Silicon
         run: |
           npx vite build
-          npx electron-builder --mac --arm64 --publish never
+          npx electron-builder --mac --x64 --arm64 --publish never
         env:
           NODE_ENV: production
           NODE_OPTIONS: --max-old-space-size=4096
           CSC_IDENTITY_AUTO_DISCOVERY: false
 
-      - name: Get version
-        id: version
-        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
-
-      - name: Upload macOS arm64 artifacts
+      - name: Upload macOS artifacts
         uses: actions/upload-artifact@v4
         with:
           name: macos-release
@@ -57,13 +106,14 @@ jobs:
           if-no-files-found: error
 
   build-windows:
+    needs: validate-release
     runs-on: windows-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: '20'
           
@@ -90,33 +140,24 @@ jobs:
           NODE_ENV: production
           NODE_OPTIONS: --max-old-space-size=4096
 
-      - name: Get version
-        id: version
-        shell: bash
-        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
-
       - name: Upload Windows artifacts
         uses: actions/upload-artifact@v4
         with:
           name: windows-release
           path: |
-            release/Prysm-Setup-${{ steps.version.outputs.VERSION }}.exe
-            release/Prysm-Setup-${{ steps.version.outputs.VERSION }}.exe.blockmap
+            release/Prysm-Setup-${{ needs.validate-release.outputs.version }}.exe
+            release/Prysm-Setup-${{ needs.validate-release.outputs.version }}.exe.blockmap
             release/latest.yml
           if-no-files-found: error
 
   publish-release:
-    needs: [build-macos, build-windows]
+    needs: [validate-release, build-macos, build-windows]
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
-
-      - name: Get version
-        id: version
-        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+        uses: actions/checkout@v4
 
       - name: Download release artifacts
         uses: actions/download-artifact@v4
@@ -124,21 +165,21 @@ jobs:
           path: release-artifacts
 
       - name: Publish GitHub release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ steps.version.outputs.VERSION }}
-          name: Release v${{ steps.version.outputs.VERSION }}
+          tag_name: v${{ needs.validate-release.outputs.version }}
+          name: Release v${{ needs.validate-release.outputs.version }}
           draft: false
           prerelease: false
           make_latest: true
           generate_release_notes: true
           body: |
-            ## Release v${{ steps.version.outputs.VERSION }}
+            ## Release v${{ needs.validate-release.outputs.version }}
 
             ### Downloads
-            - **macOS Apple Silicon (M1/M2/M3)**: `Prysm-darwin-arm64-${{ steps.version.outputs.VERSION }}.zip`
-            - **macOS Intel**: `Prysm-darwin-x64-${{ steps.version.outputs.VERSION }}.zip`
-            - **Windows**: `Prysm-Setup-${{ steps.version.outputs.VERSION }}.exe`
+            - **macOS Apple Silicon**: `Prysm-mac-arm64-${{ needs.validate-release.outputs.version }}.zip`
+            - **macOS Intel**: `Prysm-mac-x64-${{ needs.validate-release.outputs.version }}.zip`
+            - **Windows**: `Prysm-Setup-${{ needs.validate-release.outputs.version }}.exe`
 
             ### Auto-Update Support
             This release includes update support. Windows builds can download and install updates in-app after the first manual install.
@@ -152,14 +193,14 @@ jobs:
             4. First time opening: right-click Prysm.app, then choose Open.
 
             #### Windows
-            1. Download `Prysm-Setup-${{ steps.version.outputs.VERSION }}.exe`.
+            1. Download `Prysm-Setup-${{ needs.validate-release.outputs.version }}.exe`.
             2. Run the installer.
             3. Future updates can be downloaded and installed from inside the app.
           files: |
             release-artifacts/macos-release/*.zip
             release-artifacts/macos-release/latest-mac.yml
-            release-artifacts/windows-release/Prysm-Setup-${{ steps.version.outputs.VERSION }}.exe
-            release-artifacts/windows-release/Prysm-Setup-${{ steps.version.outputs.VERSION }}.exe.blockmap
+            release-artifacts/windows-release/Prysm-Setup-${{ needs.validate-release.outputs.version }}.exe
+            release-artifacts/windows-release/Prysm-Setup-${{ needs.validate-release.outputs.version }}.exe.blockmap
             release-artifacts/windows-release/latest.yml
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

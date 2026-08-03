@@ -1,0 +1,245 @@
+name: Promote Tested Commit to Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: "Full Git SHA verified by the staging release workflow"
+        required: true
+        type: string
+      production_backup_confirmed:
+        description: "Confirm a fresh production database backup exists"
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: production-promotion
+  cancel-in-progress: false
+
+env:
+  RAILWAY_PROJECT_ID: fb97ce50-fb72-4612-bfd1-c6d8a7bed9cb
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    outputs:
+      sha: ${{ steps.release.outputs.sha }}
+      version: ${{ steps.release.outputs.version }}
+    steps:
+      - name: Require production backup confirmation
+        if: inputs.production_backup_confirmed != true
+        run: |
+          echo "A fresh production database backup must be confirmed before promotion." >&2
+          exit 1
+
+      - name: Checkout tested commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.sha }}
+
+      - name: Validate requested commit and version
+        id: release
+        env:
+          REQUESTED_SHA: ${{ inputs.sha }}
+          DISPATCH_SHA: ${{ github.sha }}
+        shell: bash
+        run: |
+          checked_out_sha="$(git rev-parse HEAD)"
+          if [[ ! "$REQUESTED_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "A full 40-character lowercase Git SHA is required" >&2
+            exit 1
+          fi
+          if [[ "$checked_out_sha" != "$REQUESTED_SHA" ]]; then
+            echo "Checked out $checked_out_sha instead of requested $REQUESTED_SHA" >&2
+            exit 1
+          fi
+          if [[ "$DISPATCH_SHA" != "$REQUESTED_SHA" ]]; then
+            echo "Workflow ref resolves to $DISPATCH_SHA, not requested $REQUESTED_SHA" >&2
+            exit 1
+          fi
+
+          package_version="$(node -p "require('./package.json').version")"
+          lock_version="$(node -p "require('./package-lock.json').version")"
+          if [[ "$package_version" != "$lock_version" ]]; then
+            echo "package.json version $package_version does not match package-lock.json version $lock_version" >&2
+            exit 1
+          fi
+
+          echo "sha=$checked_out_sha" >> "$GITHUB_OUTPUT"
+          echo "version=$package_version" >> "$GITHUB_OUTPUT"
+
+      - name: Require successful staging verification
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_SHA: ${{ steps.release.outputs.sha }}
+        run: |
+          staging_run_id="$(gh run list \
+            --repo "$GITHUB_REPOSITORY" \
+            --workflow staging-electron.yml \
+            --commit "$RELEASE_SHA" \
+            --event workflow_dispatch \
+            --status success \
+            --limit 1 \
+            --json databaseId \
+            --jq '.[0].databaseId // empty')"
+
+          if [[ -z "$staging_run_id" ]]; then
+            echo "No successful staging verification found for $RELEASE_SHA" >&2
+            exit 1
+          fi
+          echo "Using staging verification run $staging_run_id"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Build web
+        run: npm run build:web
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12.8"
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt pytest
+
+      - name: Run backend release-gate tests
+        env:
+          PYTHONPATH: ${{ github.workspace }}:${{ github.workspace }}/backend
+        run: >
+          python -m pytest
+          backend/tests/test_production_hardening.py
+          backend/tests/test_files_api.py
+          backend/tests/test_default_exam_layout_seeds.py
+          backend/tests/test_migration_helpers.py
+          backend/tests/test_softoptic_migration_service.py
+
+  deploy-production:
+    needs: validate
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Checkout tested commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.validate.outputs.sha }}
+
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli
+
+      - name: Link Railway production context
+        env:
+          RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_TOKEN_PRODUCTION }}
+        run: |
+          railway link \
+            --project "$RAILWAY_PROJECT_ID" \
+            --environment production \
+            --service opticai
+
+      - name: Deploy API, worker, and web in order
+        env:
+          RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_TOKEN_PRODUCTION }}
+          RELEASE_SHA: ${{ needs.validate.outputs.sha }}
+        shell: bash
+        run: |
+          deploy_and_wait() {
+            local service="$1"
+            local label="$2"
+            local message="Production $label deploy $RELEASE_SHA"
+            local deployments
+            local deployment_id=""
+            local status=""
+
+            railway up \
+              --detach \
+              --project "$RAILWAY_PROJECT_ID" \
+              --environment production \
+              --service "$service" \
+              --message "$message"
+
+            for attempt in {1..60}; do
+              deployments="$(railway deployment list \
+                --service "$service" \
+                --environment production \
+                --limit 20 \
+                --json)"
+              deployment_id="$(jq -r --arg message "$message" \
+                '[.[] | select(.meta.cliMessage == $message)][0].id // ""' \
+                <<<"$deployments")"
+
+              if [[ -n "$deployment_id" ]]; then
+                status="$(jq -r --arg id "$deployment_id" \
+                  '.[] | select(.id == $id) | .status' \
+                  <<<"$deployments")"
+                echo "$service: deployment=$deployment_id status=$status"
+                case "$status" in
+                  SUCCESS|SKIPPED)
+                    return 0
+                    ;;
+                  FAILED|CRASHED|REMOVED)
+                    echo "$service production deployment failed with status $status" >&2
+                    return 1
+                    ;;
+                esac
+              else
+                echo "$service: waiting for Railway to register the deployment"
+              fi
+
+              sleep 10
+            done
+
+            echo "$service production deployment did not finish within ten minutes" >&2
+            return 1
+          }
+
+          retry_health() {
+            local url="$1"
+            for attempt in {1..18}; do
+              if curl --fail --silent --show-error --max-time 20 "$url"; then
+                echo
+                return 0
+              fi
+              sleep 10
+            done
+            echo "Health check failed: $url" >&2
+            return 1
+          }
+
+          deploy_and_wait opticai API
+          retry_health https://api.prysm.co.il/health
+          retry_health https://api.prysm.co.il/health/database
+
+          deploy_and_wait softoptic-migration-worker-Z2hA worker
+          railway logs \
+            --service softoptic-migration-worker-Z2hA \
+            --environment production \
+            --lines 30 \
+            --json || true
+
+          deploy_and_wait prysm-web web
+
+      - name: Record promoted release
+        env:
+          RELEASE_SHA: ${{ needs.validate.outputs.sha }}
+          RELEASE_VERSION: ${{ needs.validate.outputs.version }}
+        run: |
+          {
+            echo "## Production promotion complete"
+            echo
+            echo "- Commit: \`$RELEASE_SHA\`"
+            echo "- Desktop candidate version: \`$RELEASE_VERSION\`"
+            echo "- API, database, worker, and web deployments succeeded or were safely skipped because their watched files were unchanged."
+          } >> "$GITHUB_STEP_SUMMARY"
