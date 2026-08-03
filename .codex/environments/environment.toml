@@ -10,7 +10,9 @@ name = "push to stag"
 icon = "run"
 command = '''
 cd /Users/danielbenassaya/Code/personal/opticai && \
-MSG="${MSG:-Push to staging}" && \
+npm version patch --no-git-tag-version && \
+VERSION="$(node -p "require('./package.json').version")" && \
+MSG="${MSG:-Prepare v$VERSION for staging}" && \
 git add -A && \
 git commit -m "$MSG" && \
 git push origin main'''
@@ -41,10 +43,6 @@ name = "realese staging"
 icon = "tool"
 command = '''
 cd /Users/danielbenassaya/Code/personal/opticai && \
-npm version patch --no-git-tag-version && \
-git add package.json package-lock.json && \
-git commit -m "Prepare v$(node -p "require('./package.json').version")" && \
-git push origin main && \
 gh workflow run staging-electron.yml --repo daniel5426/opticai --ref main -f sha="$(git rev-parse HEAD)"'''
 
 [[actions]]
