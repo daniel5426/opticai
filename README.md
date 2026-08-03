@@ -8,7 +8,7 @@ OpticAI is a Windows-first Electron desktop application for optical clinics. It 
 - Clinic operations: clients, appointments, exams, orders, referrals, files, settings
 - Company/admin surfaces: control center dashboard, clinics, users, settings
 - Assistive and growth surfaces: AI assistant, campaigns, worker stats
-- Desktop-only capabilities: updater flow, Google OAuth callback handling, email/campaign schedulers, DOCX generation; Windows-only data migration tools
+- Desktop-only capabilities: updater flow, Google OAuth callback handling, email/campaign schedulers, DOCX generation
 
 ## Architecture
 - Renderer: React 19, TanStack Router, Tailwind 4, shadcn/ui
