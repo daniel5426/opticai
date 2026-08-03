@@ -8,28 +8,28 @@ script = ""
 [[actions]]
 name = "push to stag"
 icon = "run"
-command = "railway up --ci --project fb97ce50-fb72-4612-bfd1-c6d8a7bed9cb --environment production --service opticai --message \"Manual production deploy 59d62289ff2f45835da71a41f206049325322bca"
+command = '''
+cd /Users/danielbenassaya/Code/personal/opticai && \
+MSG="${MSG:-Push to staging}" && \
+git add -A && \
+git commit -m "$MSG" && \
+git push origin main'''
 
 [[actions]]
 name = "release to prod"
 icon = "tool"
 command = '''
 cd /Users/danielbenassaya/Code/personal/opticai && \
-npm version patch && \
-git push origin main --follow-tags
-'''
+VERSION="$(node -p "require('./package.json').version")" && \
+git tag -a "v$VERSION" -m "Release v$VERSION" && \
+git push origin "v$VERSION"'''
 
 [[actions]]
 name = "push to production"
 icon = "tool"
 command = '''
 cd /Users/danielbenassaya/Code/personal/opticai && \
-MSG="${MSG:-Ship backend to production}" && \
-git add -A && \
-git commit -m "$MSG" && \
-git push origin main && \
-gh workflow run backend-railway.yml --repo daniel5426/opticai --ref main -f environment=production
-'''
+gh workflow run production-promotion.yml --repo daniel5426/opticai --ref main -f sha="$(git rev-parse HEAD)" -f production_backup_confirmed=true'''
 
 [[actions]]
 name = "open app on mac"
@@ -41,16 +41,18 @@ name = "realese staging"
 icon = "tool"
 command = '''
 cd /Users/danielbenassaya/Code/personal/opticai && \
-gh workflow run staging-electron.yml --ref main
-'''
+npm version patch --no-git-tag-version && \
+git add package.json package-lock.json && \
+git commit -m "Prepare v$(node -p "require('./package.json').version")" && \
+git push origin main && \
+gh workflow run staging-electron.yml --repo daniel5426/opticai --ref main -f sha="$(git rev-parse HEAD)"'''
 
 [[actions]]
 name = "duplicate account to stag"
 icon = "tool"
 command = '''
 cd /Users/danielbenassaya/Code/personal/opticai
-PYTHONPATH=backend backend/.venv/bin/python backend/scripts/duplicate_account_to_staging.py meravgertner71@gmail.com
-'''
+PYTHONPATH=backend backend/.venv/bin/python backend/scripts/duplicate_account_to_staging.py meravgertner71@gmail.com'''
 
 [[actions]]
 name = "nn"
