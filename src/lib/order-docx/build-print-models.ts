@@ -233,7 +233,8 @@ export function buildRegularOrderPrintModel(
     frame_bridge: formatPlainNumber(frame.bridge),
     frame_height: formatPlainNumber(frame.height),
     frame_length: formatPlainNumber(frame.length),
-    frame_supplied_by: toDisplayString(frame.supplied_by),
+    // Existing orders may omit this because the editor displays "חנות" as its default.
+    frame_supplied_by: getLensValue(frame.supplied_by, "חנות"),
     promised_date: formatDate(details.promised_date),
     line_items_block: getLineItemsBlock(context.lineItems),
     line_items_rows: getLineItemRows(context.lineItems),

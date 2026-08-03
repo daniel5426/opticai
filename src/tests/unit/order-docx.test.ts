@@ -363,11 +363,21 @@ describe("order-docx print models", () => {
     expect(model.l_lens_supplier).toBe("ספק שמאל");
     expect(model.r_sph).toBe(`${LTR_MARK}+1.25${LTR_MARK}`);
     expect(model.l_sph).toBe(`${LTR_MARK}-1.00${LTR_MARK}`);
+    expect(model.r_ax).toBe("90");
+    expect(model.l_ax).toBe("80");
     expect(model.frame_width).toBe("52");
+    expect(model.frame_supplied_by).toBe("חנות");
     expect(model.total_price).toBe(`${LTR_MARK}1,200.00${LTR_MARK} ש"ח`);
     expect(model.balance_due).toBe(`${LTR_MARK}900.00${LTR_MARK} ש"ח`);
     expect(model.payment_status).toBe("שולם חלקית");
     expect(model.multifocal_block).toContain("PA:");
+  });
+
+  test("buildRegularOrderPrintModel uses the editor default for missing frame supplier", () => {
+    const context = createRegularContext();
+    delete (context.order as any).order_data.lens_frame_tabs[0].frame.supplied_by;
+
+    expect(buildRegularOrderPrintModel(context).frame_supplied_by).toBe("חנות");
   });
 
   test("renderRegularOrderPdfHtml mirrors the order template structure", () => {

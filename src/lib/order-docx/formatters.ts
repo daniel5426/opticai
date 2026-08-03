@@ -45,7 +45,7 @@ export function formatAxis(value?: number | string | null): string {
   if (value === undefined || value === null || value === "") return "";
   const num = typeof value === "number" ? value : Number(value);
   if (!Number.isFinite(num)) return "";
-  return String(Math.trunc(num)).padStart(3, "0");
+  return String(Math.trunc(num));
 }
 
 export function formatPhone(value?: string | null): string {
