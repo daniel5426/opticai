@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import argparse
 from collections import Counter, defaultdict
+from contextvars import ContextVar
 from dataclasses import dataclass
 from pathlib import Path
 import re
 import sys
-from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
+from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
 CURRENT_FILE = Path(__file__).resolve()
 for path in (CURRENT_FILE.parents[4], CURRENT_FILE.parents[3]):
@@ -24,6 +25,7 @@ except ModuleNotFoundError:
     from backend.models import Client, Clinic, Family, User
 
 from .reader import iter_exported_rows
+from .lookups import LookupCatalog, ensure_lookup_extracts, load_lookup_catalog, lookup_name
 from .records import (
     NormalizedClientSeed,
     NormalizedFamilySeed,
@@ -36,6 +38,7 @@ from .trace import (
     OPTITECH_SOURCE_SYSTEM,
     build_trace_payload,
     cleanup_phase2_rows,
+    can_resume_source_link,
     load_trace_index,
     upsert_source_link,
 )
@@ -61,6 +64,10 @@ INACTIVE_USER_NAMES = {
 }
 FAMILY_NAME_KEY_PATTERN = re.compile(r"[\s'\"`׳״-]+")
 UPSERT_BATCH_SIZE = 1000
+_batch_progress_callback: ContextVar[Optional[Callable[[str, Dict[str, int]], None]]] = ContextVar(
+    "optitech_phase2_batch_progress_callback",
+    default=None,
+)
 
 
 @dataclass
@@ -79,6 +86,12 @@ class DomainCounters:
             "recreated": self.recreated,
             "skipped": self.skipped,
         }
+
+
+def emit_batch_progress(domain: str, counters: DomainCounters) -> None:
+    callback = _batch_progress_callback.get()
+    if callback:
+        callback(domain, counters.as_dict())
 
 
 def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
@@ -182,7 +195,14 @@ def client_payload_from_seed(
     clinic_id: int,
     company_id: int,
     family_target_id: Optional[int],
+    catalog: Optional[LookupCatalog] = None,
 ) -> Dict[str, Any]:
+    catalog = catalog or {}
+    referrer_parts = [
+        lookup_name(catalog, "tblRefs", seed.referral_id),
+        lookup_name(catalog, "tblRefsSub1", seed.referral_sub1_id),
+        lookup_name(catalog, "tblRefsSub2", seed.referral_sub2_id),
+    ]
     return {
         "company_id": company_id,
         "clinic_id": clinic_id,
@@ -192,7 +212,7 @@ def client_payload_from_seed(
         "national_id": seed.national_id,
         "date_of_birth": seed.date_of_birth,
         "health_fund": None,
-        "address_city": None,
+        "address_city": lookup_name(catalog, "tblCitys", seed.city_id),
         "address_street": seed.address,
         "address_number": None,
         "postal_code": seed.postal_code,
@@ -210,7 +230,7 @@ def client_payload_from_seed(
         "blocked_checks": None,
         "blocked_credit": None,
         "sorting_group": None,
-        "referring_party": None,
+        "referring_party": " / ".join(part for part in referrer_parts if part) or None,
         "file_location": None,
         "occupation": seed.occupation,
         "status": None,
@@ -228,6 +248,8 @@ def client_unmapped_fields(seed: NormalizedClientSeed) -> Dict[str, Any]:
         "discount_id": seed.discount_id,
         "group_id": seed.group_id,
         "referral_id": seed.referral_id,
+        "referral_sub1_id": seed.referral_sub1_id,
+        "referral_sub2_id": seed.referral_sub2_id,
         "mailing_list": seed.mailing_list,
         "wants_laser": seed.wants_laser,
         "laser_date": seed.laser_date,
@@ -250,9 +272,10 @@ def map_user_role(source_role_level: Optional[int]) -> int:
     return 2
 
 
-def build_username(seed: NormalizedUserSeed) -> str:
+def build_username(seed: NormalizedUserSeed, source_fingerprint: Optional[str] = None) -> str:
     legacy_user_id = seed.legacy_user_id if seed.legacy_user_id is not None else "unknown"
-    return f"optitech-user-{legacy_user_id}"
+    namespace = re.sub(r"[^a-zA-Z0-9]", "", source_fingerprint or "source")[:12].lower() or "source"
+    return f"optitech-{namespace}-user-{legacy_user_id}"
 
 
 def user_payload_from_seed(
@@ -260,18 +283,19 @@ def user_payload_from_seed(
     *,
     clinic_id: int,
     company_id: int,
+    source_fingerprint: Optional[str] = None,
 ) -> Dict[str, Any]:
     full_name = build_user_full_name(seed)
     return {
         "company_id": company_id,
         "clinic_id": clinic_id,
         "full_name": full_name,
-        "username": build_username(seed),
+        "username": build_username(seed, source_fingerprint),
         "email": None,
         "phone": seed.phone_mobile or seed.phone_home,
         "password": None,
         "role_level": map_user_role(seed.role_level),
-        "is_active": full_name not in INACTIVE_USER_NAMES,
+        "is_active": False,
         "auth_provider": "email",
     }
 
@@ -348,6 +372,7 @@ def upsert_families(
     clinic_id: int,
     company_id: int,
     unmapped_report: Dict[str, Dict[str, Dict[str, Any]]],
+    migration_job_id: Optional[str] = None,
 ) -> Tuple[Dict[int, int], DomainCounters]:
     counters = DomainCounters()
     family_target_ids: Dict[int, int] = {}
@@ -367,6 +392,11 @@ def upsert_families(
             record_unmapped_values(unmapped_report, domain="families", values=unmapped_fields)
 
             link = links_by_raw_ref.get(seed.source_ref.raw_row_ref or "")
+            if link and not can_resume_source_link(link, migration_job_id):
+                counters.skipped += 1
+                if link.target_id in targets_by_id:
+                    family_target_ids[seed.legacy_family_id] = link.target_id
+                continue
             family = targets_by_id.get(link.target_id) if link else None
             if family is None:
                 family = Family(**payload)
@@ -397,6 +427,7 @@ def upsert_families(
                 clinic_id=clinic_id,
                 company_id=company_id,
                 payload=trace_payload,
+                migration_job_id=migration_job_id,
                 existing_link=link,
             )
             links_by_raw_ref[saved_link.raw_row_ref] = saved_link
@@ -404,6 +435,7 @@ def upsert_families(
 
         if pending_creates or pending_updates:
             db.flush()
+        emit_batch_progress("families", counters)
     return family_target_ids, counters
 
 
@@ -416,6 +448,7 @@ def upsert_clients(
     company_id: int,
     unmapped_report: Dict[str, Dict[str, Dict[str, Any]]],
     migration_job_id: Optional[str] = None,
+    catalog: Optional[LookupCatalog] = None,
 ) -> Tuple[DomainCounters, List[Dict[str, Any]]]:
     counters = DomainCounters()
     skipped_rows: List[Dict[str, Any]] = []
@@ -437,11 +470,22 @@ def upsert_clients(
                 clinic_id=clinic_id,
                 company_id=company_id,
                 family_target_id=family_target_id,
+                catalog=catalog,
             )
             unmapped_fields = client_unmapped_fields(seed)
             record_unmapped_values(unmapped_report, domain="clients", values=unmapped_fields)
 
             link = links_by_raw_ref.get(seed.source_ref.raw_row_ref)
+            if link and not can_resume_source_link(link, migration_job_id):
+                counters.skipped += 1
+                skipped_rows.append(
+                    {
+                        "domain": "clients",
+                        "reason": "existing_non_resumable_import",
+                        "source_per_id": seed.source_per_id,
+                    }
+                )
+                continue
             client = targets_by_id.get(link.target_id) if link else None
             if client is None:
                 client = Client(**payload)
@@ -479,6 +523,7 @@ def upsert_clients(
 
         if pending_creates or pending_updates:
             db.flush()
+        emit_batch_progress("clients", counters)
     return counters, skipped_rows
 
 
@@ -489,6 +534,8 @@ def upsert_users(
     clinic_id: int,
     company_id: int,
     unmapped_report: Dict[str, Dict[str, Dict[str, Any]]],
+    source_fingerprint: Optional[str] = None,
+    migration_job_id: Optional[str] = None,
 ) -> Tuple[DomainCounters, List[Dict[str, Any]], List[Dict[str, Any]]]:
     counters = DomainCounters()
     skipped_rows: List[Dict[str, Any]] = []
@@ -505,11 +552,26 @@ def upsert_users(
                 skipped_rows.append({"domain": "users", "reason": "sentinel_user_id_zero", "source_user_id": 0})
                 continue
             counters.processed += 1
-            payload = user_payload_from_seed(seed, clinic_id=clinic_id, company_id=company_id)
+            payload = user_payload_from_seed(
+                seed,
+                clinic_id=clinic_id,
+                company_id=company_id,
+                source_fingerprint=source_fingerprint,
+            )
             unmapped_fields = user_unmapped_fields(seed)
             record_unmapped_values(unmapped_report, domain="users", values=unmapped_fields)
 
             link = links_by_raw_ref.get(seed.source_ref.raw_row_ref or "")
+            if link and not can_resume_source_link(link, migration_job_id):
+                counters.skipped += 1
+                skipped_rows.append(
+                    {
+                        "domain": "users",
+                        "reason": "existing_non_resumable_import",
+                        "source_user_id": seed.source_user_id,
+                    }
+                )
+                continue
             user = targets_by_id.get(link.target_id) if link else None
             existing_user_id = user.id if user is not None else None
             ensure_username_available(db, payload["username"], existing_user_id=existing_user_id)
@@ -542,6 +604,7 @@ def upsert_users(
                 clinic_id=clinic_id,
                 company_id=company_id,
                 payload=trace_payload,
+                migration_job_id=migration_job_id,
                 existing_link=link,
             )
             links_by_raw_ref[saved_link.raw_row_ref] = saved_link
@@ -558,6 +621,7 @@ def upsert_users(
 
         if pending_creates or pending_updates:
             db.flush()
+        emit_batch_progress("users", counters)
     return counters, skipped_rows, user_username_map
 
 
@@ -578,16 +642,22 @@ def execute_phase2(
     cleanup_only: bool = False,
     report_dir: Optional[Path] = None,
     migration_job_id: Optional[str] = None,
+    source_fingerprint: Optional[str] = None,
+    on_batch_progress: Optional[Callable[[str, Dict[str, int]], None]] = None,
 ) -> Dict[str, Any]:
     if clients_only and users_only:
         raise ValueError("Cannot use --clients-only and --users-only together")
 
     report_dir = report_dir or default_report_dir()
     db = SessionLocal()
+    progress_token = _batch_progress_callback.set(on_batch_progress)
     try:
         clinic = resolve_target_binding(db, target_clinic_id)
+        ensure_lookup_extracts()
+        catalog = load_lookup_catalog()
         summary: Dict[str, Any] = {
             "source_system": OPTITECH_SOURCE_SYSTEM,
+            "mapping_version": 2,
             "target_clinic_id": clinic.id,
             "target_company_id": clinic.company_id,
             "dry_run": dry_run,
@@ -631,6 +701,7 @@ def execute_phase2(
                 clinic_id=clinic.id,
                 company_id=clinic.company_id,
                 unmapped_report=unmapped_report,
+                migration_job_id=migration_job_id,
             )
             client_counters, client_skipped_rows = upsert_clients(
                 db,
@@ -640,6 +711,7 @@ def execute_phase2(
                 company_id=clinic.company_id,
                 unmapped_report=unmapped_report,
                 migration_job_id=migration_job_id,
+                catalog=catalog,
             )
             skipped_rows.extend(client_skipped_rows)
             summary["expected_client_source_rows"] = len(client_seeds)
@@ -656,6 +728,8 @@ def execute_phase2(
                 clinic_id=clinic.id,
                 company_id=clinic.company_id,
                 unmapped_report=unmapped_report,
+                source_fingerprint=source_fingerprint,
+                migration_job_id=migration_job_id,
             )
             skipped_rows.extend(user_skipped_rows)
             summary["expected_user_source_rows"] = len([seed for seed in user_seeds if seed.legacy_user_id != 0])
@@ -688,6 +762,7 @@ def execute_phase2(
         db.rollback()
         raise
     finally:
+        _batch_progress_callback.reset(progress_token)
         db.close()
 
 

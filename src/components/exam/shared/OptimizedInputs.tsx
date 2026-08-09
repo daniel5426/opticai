@@ -507,6 +507,7 @@ interface FastSelectProps extends Omit<React.ComponentProps<typeof Select>, 'val
     triggerClassName?: string;
     size?: "default" | "sm" | "xs";
     center?: boolean;
+    allowImportedValue?: boolean;
 }
 
 
@@ -519,10 +520,13 @@ export const FastSelect = memo(function FastSelect({
     triggerClassName,
     size = "default",
     center,
+    allowImportedValue = false,
     ...props
 }: FastSelectProps) {
     const { localValue, handleValueChange } = useOptimizedSelect(value, onChange, debounceMs);
     const [open, setOpen] = useState(false);
+    const knownValues = options.map((opt) => typeof opt === "string" ? opt : opt.value);
+    const importedValue = allowImportedValue && localValue && !knownValues.includes(localValue) ? localValue : null;
 
     return (
         <Select 
@@ -576,6 +580,11 @@ export const FastSelect = memo(function FastSelect({
                 <SelectValue placeholder={placeholder} className="center-value self-center justify-center" />
             </SelectTrigger>
             <SelectContent className="min-w-16 w-fit justify-center items-center">
+                {importedValue && (
+                    <SelectItem value={importedValue} className="justify-center">
+                        {importedValue} (I)
+                    </SelectItem>
+                )}
                 {options.map((opt) => {
                     const val = typeof opt === 'string' ? opt : opt.value;
                     const label = typeof opt === 'string' ? opt : opt.label;

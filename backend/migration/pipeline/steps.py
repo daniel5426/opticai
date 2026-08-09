@@ -85,6 +85,63 @@ def collect_limited_client_account_codes(csv_dir: str, max_clients: Optional[int
     return account_codes
 
 
+def _load_incoming_source_referrers(csv_dir: str) -> Dict[str, str]:
+    """Resolve the latest active legacy acquisition/referrer path per client."""
+    level_a = {
+        clean_legacy_text(row.get("code")): clean_legacy_text(row.get("source_name"))
+        for row in read_csv_streaming(csv_dir, "optic_tv_incoming_source_a.csv")
+        if clean_legacy_text(row.get("code")) and clean_legacy_text(row.get("source_name"))
+    }
+    level_b = {
+        (clean_legacy_text(row.get("level_a")), clean_legacy_text(row.get("code"))): clean_legacy_text(row.get("source_name"))
+        for row in read_csv_streaming(csv_dir, "optic_tv_incoming_source_b.csv")
+        if clean_legacy_text(row.get("code")) and clean_legacy_text(row.get("source_name"))
+    }
+    level_c = {
+        (
+            clean_legacy_text(row.get("level_a")),
+            clean_legacy_text(row.get("level_b")),
+            clean_legacy_text(row.get("code")),
+        ): clean_legacy_text(row.get("source_name"))
+        for row in read_csv_streaming(csv_dir, "optic_tv_incoming_source_c.csv")
+        if clean_legacy_text(row.get("code")) and clean_legacy_text(row.get("source_name"))
+    }
+
+    latest: Dict[str, Tuple[Tuple[str, int], Dict[str, Any]]] = {}
+    for row in read_csv_streaming(csv_dir, "account_incoming_source.csv"):
+        if parse_bool_flag(row.get("is_active")) is not True:
+            continue
+        account_code = clean_legacy_text(row.get("account_code"))
+        if not account_code:
+            continue
+        source_date = parse_date(row.get("source_date"))
+        code = parse_int(row.get("code")) or -1
+        rank = (source_date.isoformat() if source_date else "", code)
+        if account_code not in latest or rank > latest[account_code][0]:
+            latest[account_code] = (rank, row)
+
+    resolved: Dict[str, str] = {}
+    for account_code, (_, row) in latest.items():
+        a = clean_legacy_text(row.get("level_a"))
+        b = clean_legacy_text(row.get("level_b"))
+        c = clean_legacy_text(row.get("level_c"))
+        names = [
+            level_a.get(a),
+            level_b.get((a, b)),
+            level_c.get((a, b, c)),
+        ]
+        path = " / ".join(name for name in names if name)
+        remark = clean_legacy_text(row.get("source_remark"))
+        value = f"{path} — {remark}" if path and remark else path or remark
+        if value:
+            resolved[account_code] = value
+    return resolved
+
+
+def load_incoming_source_referrers(csv_dir: str) -> Dict[str, str]:
+    return _load_incoming_source_referrers(csv_dir)
+
+
 def account_allowed(row: Dict[str, Any], allowed_account_codes: Optional[Set[str]]) -> bool:
     if allowed_account_codes is None:
         return True
@@ -343,6 +400,8 @@ def migrate_clients_and_families(
             head_to_family[head_val] = fam_obj.id
     db.flush()
 
+    incoming_referrers = _load_incoming_source_referrers(csv_dir)
+
     # Second pass: create clients
     client_count = 0
     pending = 0
@@ -365,13 +424,9 @@ def migrate_clients_and_families(
             elif sx == "2":
                 gender = "female"
 
-            address_number = None
-            house_num = r.get("house_num")
-            apt = r.get("apartment_num")
-            if house_num:
-                address_number = str(house_num)
-                if apt:
-                    address_number = f"{address_number}/{apt}"
+            house_num = clean_legacy_text(r.get("house_num"))
+            apt = clean_legacy_text(r.get("apartment_num"))
+            address_number = f"{house_num}/{apt}" if house_num and apt else house_num or apt
 
             raw_account_code = r.get("account_code")
             if raw_account_code is None:
@@ -402,15 +457,17 @@ def migrate_clients_and_families(
                 "phone_home": r.get("phone1") or None,
                 "phone_work": r.get("phone2") or None,
                 "phone_mobile": r.get("mobile_phone") or None,
+                "additional_phone": r.get("phone3") or None,
                 "email": r.get("e_mail") or None,
                 "price_list": None,
                 "discount_percent": parse_int(r.get("discount_precent")) or 0,
                 "blocked_checks": parse_bool_flag(r.get("check_blocked")),
                 "blocked_credit": parse_bool_flag(r.get("credit_blocked")),
                 "sorting_group": r.get("acc_sort_group") or None,
+                "referring_party": incoming_referrers.get(account_code),
                 "file_creation_date": parse_date(r.get("open_date")),
                 "occupation": r.get("occupation") or None,
-                "status": r.get("account_status") or None,
+                "status": None,
                 "notes": r.get("remarks") or None,
                 "file_location": r.get("file_location") or None,
                 "family_id": head_to_family.get(str(r.get("head_of_family")).strip() if r.get("head_of_family") else None),
@@ -495,6 +552,11 @@ def migrate_optical_exams(
     sample_mapping_keys = list(valid_account_codes)[:5] if valid_account_codes else []
     print(f"[exams] filtering exams to {len(valid_account_codes)} valid account codes, sample keys: {sample_mapping_keys}", flush=True)
     expanded_rows = load_expanded_eye_tests(csv_dir, valid_account_codes)
+    device_rows = {
+        clean_legacy_text(row.get("code")): row
+        for row in read_csv_streaming(csv_dir, "optic_device_data.csv")
+        if clean_legacy_text(row.get("code"))
+    }
     print(f"[exams] loaded {len(expanded_rows)} expanded exam rows", flush=True)
     
     count = 0
@@ -572,6 +634,12 @@ def migrate_optical_exams(
             type="exam",
         )
         data = build_exam_data_from_eye_tests(r, expanded_row)
+        source_code = clean_legacy_text(r.get("code"))
+        device_row = device_rows.get(source_code) if source_code else None
+        if device_row:
+            keratometer = build_keratometer(device_row)
+            if keratometer:
+                data.update(build_component_entry("keratometer", keratometer))
         batch_exams.append((exam, data, clinic_id, r, expanded_row, has_base_source))
         pending += 1
         if pending % 5000 == 0:
@@ -644,10 +712,35 @@ def migrate_optical_exams(
             if batch_instances:
                 db.bulk_save_objects(batch_instances, return_defaults=True)
     db.commit()
+    contact_fit_count = 0
+    for row_number, row in enumerate(read_csv_streaming(csv_dir, "optic_contact_fit.csv"), start=2):
+        account_code = clean_legacy_text(row.get("account_code"))
+        if not account_code or account_code not in account_to_client:
+            continue
+        clinic_id = resolve_migration_clinic_id(branch_to_clinic, row.get("branch_code"))
+        exam = OpticalExam(
+            client_id=account_to_client[account_code], clinic_id=clinic_id, user_id=admin_user_id,
+            exam_date=parse_date(row.get("fit_date")), test_name="Migrated Contact Fit", type="contact_fit",
+        )
+        db.add(exam)
+        db.flush()
+        db.add(ExamLayoutInstance(
+            exam_id=exam.id, layout_id=None, is_active=True, order=0,
+            exam_data=build_contact_fit_exam_data(row), layout_data=build_contact_fit_layout_data(),
+        ))
+        record_raw_source_link(
+            db, trace_context, target_model="OpticalExam", target_id=exam.id, clinic_id=clinic_id,
+            source_table="optic_contact_fit.csv", source_row=row,
+            identifier_fields=("code", "account_code", "fit_date"), row_number=row_number,
+        )
+        contact_fit_count += 1
+        if contact_fit_count % 500 == 0:
+            db.commit()
+    db.commit()
     debug_msg = ""
     if sample_missing_codes:
         debug_msg = f", sample missing codes: {sample_missing_codes[:3]}"
-    print(f"[exams] inserted total: {count}, skipped: {skipped_count}{debug_msg}, took {time.time()-t0:.2f}s", flush=True)
+    print(f"[exams] inserted total: {count}, contact fits: {contact_fit_count}, skipped: {skipped_count}{debug_msg}, took {time.time()-t0:.2f}s", flush=True)
 
 
 def migrate_contact_lens_orders(
@@ -816,15 +909,15 @@ def migrate_contact_lens_orders(
             data["contact-lens-exam"] = exam_block
 
         ker_block = {
-            "l_rv": parse_float(r.get("cr_left_rv")),
-            "l_rh": parse_float(r.get("cr_left_rh")),
-            "l_avg": parse_float(r.get("cr_left_avg")),
+            "l_rv": keratometer_mm(r.get("cr_left_rv")),
+            "l_rh": keratometer_mm(r.get("cr_left_rh")),
+            "l_avg": keratometer_mm(r.get("cr_left_avg")),
             "l_cyl": parse_float(r.get("cr_left_cyl")),
             "l_ax": parse_int(r.get("cr_left_ax")),
             "l_ecc": parse_float(r.get("cr_left_ecc")),
-            "r_rv": parse_float(r.get("cr_right_rv")),
-            "r_rh": parse_float(r.get("cr_right_rh")),
-            "r_avg": parse_float(r.get("cr_right_avg")),
+            "r_rv": keratometer_mm(r.get("cr_right_rv")),
+            "r_rh": keratometer_mm(r.get("cr_right_rh")),
+            "r_avg": keratometer_mm(r.get("cr_right_avg")),
             "r_cyl": parse_float(r.get("cr_right_cyl")),
             "r_ax": parse_int(r.get("cr_right_ax")),
             "r_ecc": parse_float(r.get("cr_right_ecc")),

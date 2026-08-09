@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text, Float, ForeignKey, Date, JSON, Index, UniqueConstraint
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text, Float, ForeignKey, Date, JSON, Index, UniqueConstraint, CheckConstraint
 from sqlalchemy.orm import declared_attr, relationship, backref
 from sqlalchemy.sql import func, false
 from database import Base
@@ -174,10 +174,90 @@ class PendingCompanySetup(Base):
     google_account_email = Column(String)
     google_access_token = Column(Text)
     google_refresh_token = Column(Text)
+    selected_plan_code = Column(String(32))
+    email_verified_at = Column(DateTime(timezone=True))
+    wizard_state = Column(String(32), nullable=False, default="account")
+    company_payload = Column(JSON)
+    clinic_payload = Column(JSON)
     expires_at = Column(DateTime(timezone=True), nullable=False, index=True)
     used_at = Column(DateTime(timezone=True))
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+
+class Subscription(Base):
+    __tablename__ = "subscriptions"
+    __table_args__ = (
+        UniqueConstraint("company_id", name="uq_subscriptions_company_id"),
+        CheckConstraint(
+            "status IN ('pending_checkout','trialing','active','legacy_active','past_due','read_only','cancelled')",
+            name="ck_subscriptions_status",
+        ),
+    )
+
+    id = Column(String, primary_key=True)
+    company_id = Column(Integer, ForeignKey("companies.id", ondelete="CASCADE"), nullable=False, index=True)
+    stripe_customer_id = Column(String, unique=True, index=True)
+    stripe_subscription_id = Column(String, unique=True, index=True)
+    stripe_price_id = Column(String)
+    plan_code = Column(String(32), nullable=False)
+    pending_plan_code = Column(String(32))
+    status = Column(String(32), nullable=False, default="pending_checkout", index=True)
+    clinic_limit = Column(Integer)
+    staff_limit = Column(Integer)
+    trial_starts_at = Column(DateTime(timezone=True))
+    trial_ends_at = Column(DateTime(timezone=True))
+    current_period_starts_at = Column(DateTime(timezone=True))
+    current_period_ends_at = Column(DateTime(timezone=True))
+    grace_ends_at = Column(DateTime(timezone=True))
+    cancel_at_period_end = Column(Boolean, nullable=False, default=False)
+    cancelled_at = Column(DateTime(timezone=True))
+    pending_change_at = Column(DateTime(timezone=True))
+    trial_consumed_at = Column(DateTime(timezone=True))
+    enterprise_clinic_limit = Column(Integer)
+    enterprise_staff_limit = Column(Integer)
+    stripe_event_created_at = Column(DateTime(timezone=True))
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+
+class BillingWebhookEvent(Base):
+    __tablename__ = "billing_webhook_events"
+
+    id = Column(String, primary_key=True)
+    stripe_event_id = Column(String, nullable=False, unique=True, index=True)
+    event_type = Column(String, nullable=False)
+    processing_state = Column(String(24), nullable=False, default="processing")
+    stripe_created_at = Column(DateTime(timezone=True))
+    processed_at = Column(DateTime(timezone=True))
+    error_text = Column(Text)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class TermsAcceptance(Base):
+    __tablename__ = "terms_acceptances"
+
+    id = Column(String, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id", ondelete="CASCADE"), nullable=False, index=True)
+    terms_version = Column(String(64), nullable=False)
+    privacy_version = Column(String(64), nullable=False)
+    accepted_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    ip_address = Column(String)
+    user_agent = Column(Text)
+
+
+class AuthActionToken(Base):
+    __tablename__ = "auth_action_tokens"
+
+    id = Column(String, primary_key=True)
+    token_hash = Column(String, nullable=False, unique=True, index=True)
+    purpose = Column(String(32), nullable=False, index=True)
+    pending_setup_id = Column(String, ForeignKey("pending_company_setups.id", ondelete="CASCADE"), index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    expires_at = Column(DateTime(timezone=True), nullable=False, index=True)
+    consumed_at = Column(DateTime(timezone=True))
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
 class MigrationSourceLink(Base):
     __tablename__ = "migration_source_links"
@@ -333,6 +413,7 @@ class Client(Base):
     phone_home = Column(String)
     phone_work = Column(String)
     phone_mobile = Column(String)
+    additional_phone = Column(String)
     fax = Column(String)
     email = Column(String)
     service_center = Column(String)
@@ -616,6 +697,212 @@ class ContactLensOrder(Base):
 # so to understand the structure of the order data read the file docs/exam_data.md
 
 
+class CatalogProduct(Base):
+    __tablename__ = "catalog_products"
+    __table_args__ = (
+        UniqueConstraint("company_id", "category", "normalized_key", name="uq_catalog_products_company_category_key"),
+        CheckConstraint("category IN ('frame', 'contact_lens')", name="ck_catalog_products_category"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id", ondelete="CASCADE"), nullable=False, index=True)
+    category = Column(String(32), nullable=False, index=True)
+    brand = Column(String(160))
+    model = Column(String(160), nullable=False)
+    product_type = Column(String(120))
+    material = Column(String(120))
+    preferred_supplier = Column(String(160))
+    replacement_schedule = Column(String(120))
+    normalized_key = Column(String(512), nullable=False)
+    archived_at = Column(DateTime(timezone=True))
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    variants = relationship("CatalogVariant", back_populates="product")
+
+
+class CatalogVariant(Base):
+    __tablename__ = "catalog_variants"
+    __table_args__ = (
+        UniqueConstraint("company_id", "normalized_fingerprint", name="uq_catalog_variants_company_fingerprint"),
+        UniqueConstraint("company_id", "sku", name="uq_catalog_variants_company_sku"),
+        UniqueConstraint("company_id", "barcode", name="uq_catalog_variants_company_barcode"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id", ondelete="CASCADE"), nullable=False, index=True)
+    product_id = Column(Integer, ForeignKey("catalog_products.id", ondelete="RESTRICT"), nullable=False, index=True)
+    attributes = Column(JSON, nullable=False, default=dict)
+    normalized_fingerprint = Column(String(1024), nullable=False)
+    sku = Column(String(120))
+    barcode = Column(String(160))
+    default_cost = Column(Float)
+    default_retail = Column(Float)
+    currency = Column(String(3), nullable=False, default="ILS", server_default="ILS")
+    is_stockable = Column(Boolean, nullable=False, default=True, server_default="true")
+    archived_at = Column(DateTime(timezone=True))
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    product = relationship("CatalogProduct", back_populates="variants")
+
+
+class InventoryBalance(Base):
+    __tablename__ = "inventory_balances"
+    __table_args__ = (
+        UniqueConstraint("clinic_id", "variant_id", name="uq_inventory_balances_clinic_variant"),
+        CheckConstraint("on_hand >= 0", name="ck_inventory_balances_on_hand_nonnegative"),
+        CheckConstraint("reserved >= 0", name="ck_inventory_balances_reserved_nonnegative"),
+        CheckConstraint("reserved <= on_hand", name="ck_inventory_balances_reserved_not_above_on_hand"),
+        CheckConstraint("reorder_point >= 0", name="ck_inventory_balances_reorder_nonnegative"),
+        CheckConstraint("target_quantity >= 0", name="ck_inventory_balances_target_nonnegative"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id", ondelete="CASCADE"), nullable=False, index=True)
+    clinic_id = Column(Integer, ForeignKey("clinics.id", ondelete="CASCADE"), nullable=False, index=True)
+    variant_id = Column(Integer, ForeignKey("catalog_variants.id", ondelete="RESTRICT"), nullable=False, index=True)
+    on_hand = Column(Integer, nullable=False, default=0, server_default="0")
+    reserved = Column(Integer, nullable=False, default=0, server_default="0")
+    reorder_point = Column(Integer, nullable=False, default=0, server_default="0")
+    target_quantity = Column(Integer, nullable=False, default=0, server_default="0")
+    version = Column(Integer, nullable=False, default=1, server_default="1")
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+
+class InventoryMovement(Base):
+    __tablename__ = "inventory_movements"
+    __table_args__ = (
+        UniqueConstraint("company_id", "idempotency_key", name="uq_inventory_movements_company_idempotency"),
+        CheckConstraint("on_hand_delta <> 0 OR reserved_delta <> 0", name="ck_inventory_movements_nonzero_delta"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id", ondelete="CASCADE"), nullable=False, index=True)
+    clinic_id = Column(Integer, ForeignKey("clinics.id", ondelete="CASCADE"), nullable=False, index=True)
+    variant_id = Column(Integer, ForeignKey("catalog_variants.id", ondelete="RESTRICT"), nullable=False, index=True)
+    balance_id = Column(Integer, ForeignKey("inventory_balances.id", ondelete="RESTRICT"), nullable=False, index=True)
+    movement_type = Column(String(40), nullable=False, index=True)
+    on_hand_delta = Column(Integer, nullable=False, default=0, server_default="0")
+    reserved_delta = Column(Integer, nullable=False, default=0, server_default="0")
+    reason = Column(Text, nullable=False)
+    actor_user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), index=True)
+    order_id = Column(Integer, ForeignKey("orders.id", ondelete="SET NULL"), index=True)
+    contact_lens_order_id = Column(Integer, ForeignKey("contact_lens_orders.id", ondelete="SET NULL"), index=True)
+    idempotency_key = Column(String(160))
+    movement_metadata = Column(JSON, nullable=False, default=dict)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
+
+
+class OrderInventoryAllocation(Base):
+    __tablename__ = "order_inventory_allocations"
+    __table_args__ = (
+        UniqueConstraint("order_id", "component", name="uq_order_inventory_allocations_order_component"),
+        UniqueConstraint("contact_lens_order_id", "component", name="uq_order_inventory_allocations_contact_component"),
+        CheckConstraint(
+            "(order_id IS NOT NULL AND contact_lens_order_id IS NULL) OR "
+            "(order_id IS NULL AND contact_lens_order_id IS NOT NULL)",
+            name="ck_order_inventory_allocations_one_order",
+        ),
+        CheckConstraint("quantity > 0", name="ck_order_inventory_allocations_quantity_positive"),
+        CheckConstraint("fulfillment_source IN ('inventory', 'supplier_ordered')", name="ck_order_inventory_allocations_source"),
+        CheckConstraint(
+            "lifecycle_state IN ('reserved', 'supplier_ordered', 'consumed', 'released', 'detached')",
+            name="ck_order_inventory_allocations_state",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id", ondelete="CASCADE"), nullable=False, index=True)
+    clinic_id = Column(Integer, ForeignKey("clinics.id", ondelete="CASCADE"), nullable=False, index=True)
+    variant_id = Column(Integer, ForeignKey("catalog_variants.id", ondelete="RESTRICT"), nullable=False, index=True)
+    order_id = Column(Integer, ForeignKey("orders.id", ondelete="CASCADE"), index=True)
+    contact_lens_order_id = Column(Integer, ForeignKey("contact_lens_orders.id", ondelete="CASCADE"), index=True)
+    component = Column(String(32), nullable=False)
+    quantity = Column(Integer, nullable=False, default=1, server_default="1")
+    fulfillment_source = Column(String(32), nullable=False)
+    lifecycle_state = Column(String(32), nullable=False)
+    snapshot_fingerprint = Column(String(1024))
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+    consumed_at = Column(DateTime(timezone=True))
+    released_at = Column(DateTime(timezone=True))
+
+
+class CatalogDiscoveryRun(Base):
+    __tablename__ = "catalog_discovery_runs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id", ondelete="CASCADE"), nullable=False, index=True)
+    created_by_user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), index=True)
+    status = Column(String(32), nullable=False, default="review", server_default="review")
+    summary = Column(JSON, nullable=False, default=dict)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    confirmed_at = Column(DateTime(timezone=True))
+
+
+class CatalogDiscoveryCandidate(Base):
+    __tablename__ = "catalog_discovery_candidates"
+    __table_args__ = (
+        UniqueConstraint("run_id", "normalized_fingerprint", name="uq_catalog_discovery_candidates_run_fingerprint"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    run_id = Column(Integer, ForeignKey("catalog_discovery_runs.id", ondelete="CASCADE"), nullable=False, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id", ondelete="CASCADE"), nullable=False, index=True)
+    category = Column(String(32), nullable=False)
+    product_data = Column(JSON, nullable=False, default=dict)
+    variant_attributes = Column(JSON, nullable=False, default=dict)
+    normalized_fingerprint = Column(String(1024), nullable=False)
+    occurrence_count = Column(Integer, nullable=False, default=0, server_default="0")
+    source_summary = Column(JSON, nullable=False, default=dict)
+    needs_details = Column(Boolean, nullable=False, default=False, server_default="false")
+    selected = Column(Boolean, nullable=False, default=False, server_default="false")
+    suggested_variant_id = Column(Integer, ForeignKey("catalog_variants.id", ondelete="SET NULL"))
+    confirmed_variant_id = Column(Integer, ForeignKey("catalog_variants.id", ondelete="SET NULL"))
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class CatalogOrderObservation(Base):
+    __tablename__ = "catalog_order_observations"
+    __table_args__ = (
+        UniqueConstraint("order_id", "component", name="uq_catalog_observations_order_component"),
+        UniqueConstraint("contact_lens_order_id", "component", name="uq_catalog_observations_contact_component"),
+        CheckConstraint(
+            "(order_id IS NOT NULL AND contact_lens_order_id IS NULL) OR "
+            "(order_id IS NULL AND contact_lens_order_id IS NOT NULL)",
+            name="ck_catalog_observations_one_order",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id", ondelete="CASCADE"), nullable=False, index=True)
+    clinic_id = Column(Integer, ForeignKey("clinics.id", ondelete="CASCADE"), nullable=False, index=True)
+    variant_id = Column(Integer, ForeignKey("catalog_variants.id", ondelete="RESTRICT"), nullable=False, index=True)
+    order_id = Column(Integer, ForeignKey("orders.id", ondelete="CASCADE"), index=True)
+    contact_lens_order_id = Column(Integer, ForeignKey("contact_lens_orders.id", ondelete="CASCADE"), index=True)
+    component = Column(String(32), nullable=False)
+    observed_on = Column(Date)
+    quantity = Column(Integer, nullable=False, default=1, server_default="1")
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class InventoryCompanySettings(Base):
+    __tablename__ = "inventory_company_settings"
+    __table_args__ = (
+        UniqueConstraint("company_id", name="uq_inventory_company_settings_company"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id", ondelete="CASCADE"), nullable=False, index=True)
+    discovery_intro_acknowledged_at = Column(DateTime(timezone=True))
+    default_reorder_point = Column(Integer, nullable=False, default=0, server_default="0")
+    default_target_quantity = Column(Integer, nullable=False, default=0, server_default="0")
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+
 class Referral(Base):
     __tablename__ = "referrals"
     
@@ -870,6 +1157,7 @@ Index('ix_families_company_clinic_name', Family.company_id, Family.clinic_id, Fa
 Index('ix_families_clinic_name', Family.clinic_id, Family.name)
 Index('ix_clients_clinic_id', Client.clinic_id)
 Index('ix_clients_clinic_id_id_desc', Client.clinic_id, Client.id.desc())
+Index('ix_clients_clinic_file_creation_date', Client.clinic_id, Client.file_creation_date)
 Index('ix_clients_family_id', Client.family_id)
 Index('ix_clients_family_id_id', Client.family_id, Client.id)
 Index('ix_clients_merged_into_client_id', Client.merged_into_client_id)
@@ -907,6 +1195,10 @@ Index('ix_appointments_client_id', Appointment.client_id)
 Index('ix_appointments_clinic_date', Appointment.clinic_id, Appointment.date.desc())
 Index('ix_appointments_clinic_date_time', Appointment.clinic_id, Appointment.date, Appointment.time)
 Index('ix_appointments_user_id', Appointment.user_id)
+Index('ix_billing_payments_paid_at_billing_id', BillingPayment.paid_at, BillingPayment.billing_id)
+Index('ix_work_shifts_user_date', WorkShift.user_id, WorkShift.date)
+Index('ix_inventory_movements_clinic_type_created', InventoryMovement.clinic_id, InventoryMovement.movement_type, InventoryMovement.created_at)
+Index('ix_catalog_observations_clinic_date_variant', CatalogOrderObservation.clinic_id, CatalogOrderObservation.observed_on, CatalogOrderObservation.variant_id)
 
 # Indexes for families table
 Index('ix_families_clinic_id', Family.clinic_id)

@@ -60,6 +60,7 @@ export interface Client {
   phone_home?: string;
   phone_work?: string;
   phone_mobile?: string;
+  additional_phone?: string;
   fax?: string;
   email?: string;
   service_center?: string;
@@ -170,7 +171,7 @@ export interface OpticalExam {
   exam_date?: string;
   test_name?: string;
   dominant_eye?: string | null;
-  type?: 'opticlens' | 'exam';
+  type?: 'opticlens' | 'exam' | 'contact_fit';
 }
 
 export interface NotesExam {
@@ -184,33 +185,33 @@ export interface NotesExam {
 export interface OldRefractionExam {
   id?: number;
   layout_instance_id: number;
-  r_sph?: number;
-  l_sph?: number;
+  r_sph?: number | string;
+  l_sph?: number | string;
   r_cyl?: number;
   l_cyl?: number;
   r_ax?: number;
   l_ax?: number;
   r_pris?: number;
   l_pris?: number;
-  r_base?: number;
-  l_base?: number;
-  r_va?: number;
-  l_va?: number;
+  r_base?: number | string;
+  l_base?: number | string;
+  r_va?: number | string;
+  l_va?: number | string;
   r_ad?: number;
   l_ad?: number;
   r_glasses_type?: string;
   l_glasses_type?: string;
-  r_j?: number;
-  l_j?: number;
-  comb_j?: number;
-  comb_va?: number;
+  r_j?: number | string;
+  l_j?: number | string;
+  comb_j?: number | string;
+  comb_va?: number | string;
 }
 
 export interface OldRefractionExtensionExam {
   id?: number;
   layout_instance_id: number;
-  r_sph?: number;
-  l_sph?: number;
+  r_sph?: number | string;
+  l_sph?: number | string;
   r_cyl?: number;
   l_cyl?: number;
   r_ax?: number;
@@ -223,19 +224,22 @@ export interface OldRefractionExtensionExam {
   l_pr_v?: number;
   r_base_v?: string;
   l_base_v?: string;
-  r_va?: number;
-  l_va?: number;
+  r_va?: number | string;
+  l_va?: number | string;
   r_ad?: number;
   l_ad?: number;
-  r_j?: number;
-  l_j?: number;
+  r_j?: number | string;
+  l_j?: number | string;
+  comb_j?: number | string;
   r_pd_far?: number;
   l_pd_far?: number;
   r_pd_close?: number;
   l_pd_close?: number;
-  comb_va?: number;
+  comb_va?: number | string;
   comb_pd_far?: number;
   comb_pd_close?: number;
+  r_glasses_type?: string;
+  l_glasses_type?: string;
 }
 
 export interface ObjectiveExam {
@@ -530,7 +534,7 @@ export interface OldContactLenses {
   r_supplier?: string;
   l_supplier?: string;
 
-  l_bc?: number;
+  l_bc?: number | string;
   l_diam?: number;
   l_sph?: number;
   l_cyl?: number;
@@ -538,7 +542,7 @@ export interface OldContactLenses {
   l_va?: number;
   l_j?: number;
 
-  r_bc?: number;
+  r_bc?: number | string;
   r_diam?: number;
   r_sph?: number;
   r_cyl?: number;
@@ -667,27 +671,28 @@ export interface KeratometerContactLens {
 export interface ContactLensExam {
   id?: number;
   layout_instance_id: number;
-  comb_va?: number;
+  comb_va?: number | string;
+  comb_j?: number | string;
   // exam
-  l_bc?: number;
+  l_bc?: number | string;
   l_oz?: number;
   l_diam?: number;
-  l_sph?: number;
+  l_sph?: number | string;
   l_cyl?: number;
   l_ax?: number;
-  l_read_ad?: number;
-  l_va?: number;
-  l_j?: number;
+  l_read_ad?: number | string;
+  l_va?: number | string;
+  l_j?: number | string;
 
-  r_bc?: number;
+  r_bc?: number | string;
   r_oz?: number;
   r_diam?: number;
-  r_sph?: number;
+  r_sph?: number | string;
   r_cyl?: number;
   r_ax?: number;
-  r_read_ad?: number;
-  r_va?: number;
-  r_j?: number;
+  r_read_ad?: number | string;
+  r_va?: number | string;
+  r_j?: number | string;
 }
 
 
@@ -1232,6 +1237,15 @@ export interface MaddoxRodExam {
   wc_r_v?: number;
   wc_l_h?: number;
   wc_l_v?: number;
+  schema_version?: 2;
+  with_horizontal_prism?: number | string;
+  with_horizontal_direction?: string;
+  with_vertical_prism?: number | string;
+  with_vertical_direction?: string;
+  without_horizontal_prism?: number | string;
+  without_horizontal_direction?: string;
+  without_vertical_prism?: number | string;
+  without_vertical_direction?: string;
 }
 
 export interface StereoTestExam {
@@ -1240,6 +1254,8 @@ export interface StereoTestExam {
   fly_result?: boolean;
   circle_score?: number;
   circle_max?: number;
+  circle_9_score?: number;
+  circle_3_score?: number;
 }
 
 export interface RGExam {

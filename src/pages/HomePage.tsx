@@ -17,11 +17,8 @@ import { getDashboardHome } from "@/lib/db/dashboard-db"
 import { Appointment, Client, ExamLayout, Settings, User } from "@/lib/db/schema-interface"
 import {
   format,
-  isToday,
   startOfMonth,
   endOfMonth,
-  isWithinInterval,
-  parseISO,
   startOfWeek,
   endOfWeek,
   addDays,
@@ -37,10 +34,10 @@ import { toast } from "sonner"
 import { useUser } from "@/contexts/UserContext"
 import { useNavigate } from "@tanstack/react-router"
 import { CalendarView, AppointmentBlock, DragData, DragPosition, ResizeData } from "./HomePage/types"
-import { 
-  timeToMinutes, 
-  minutesToTime, 
-  getAppointmentEndTime, 
+import {
+  timeToMinutes,
+  minutesToTime,
+  getAppointmentEndTime,
   getAppointmentTimeRange,
   createUserColorMap,
   isUserOnVacation as isUserOnVacationUtil
@@ -66,7 +63,7 @@ function flattenActiveExamLayouts(layouts: ExamLayout[]): ExamLayout[] {
 
 export default function HomePage() {
   const [currentDate, setCurrentDate] = useState<Date>(new Date())
-  const [view, setView] = useState<CalendarView>('week')
+  const [view, setView] = useState<CalendarView>("week")
   const [appointments, setAppointments] = useState<Appointment[]>([])
   const [clients, setClients] = useState<Client[]>([])
   const [dashboardSettings, setDashboardSettings] = useState<Settings | null>(null)
@@ -79,8 +76,11 @@ export default function HomePage() {
 
   const [users, setUsers] = useState<User[]>([])
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
-  const [selectedTimeSlot, setSelectedTimeSlot] = useState<{ date: Date; time: string }>({ date: new Date(), time: '' })
-  const [formData, setFormData] = useState<Omit<Appointment, 'id'>>({
+  const [selectedTimeSlot, setSelectedTimeSlot] = useState<{
+    date: Date
+    time: string
+  }>({ date: new Date(), time: "" })
+  const [formData, setFormData] = useState<Omit<Appointment, "id">>({
     client_id: 0,
     user_id: currentUser?.id,
     date: undefined,
@@ -93,8 +93,8 @@ export default function HomePage() {
 
   useEffect(() => {
     if (currentUser?.id) {
-      setFormData(prev => ({ ...prev, user_id: currentUser.id }))
-      setNewClientFormData(prev => ({ ...prev, user_id: currentUser.id }))
+      setFormData((prev) => ({ ...prev, user_id: currentUser.id }))
+      setNewClientFormData((prev) => ({ ...prev, user_id: currentUser.id }))
     }
   }, [currentUser?.id])
 
@@ -122,8 +122,17 @@ export default function HomePage() {
   const [copiedAppointment, setCopiedAppointment] = useState<Appointment | null>(null)
   const [movingAppointment, setMovingAppointment] = useState<Appointment | null>(null)
   const [selectedAppointmentForCopy, setSelectedAppointmentForCopy] = useState<Appointment | null>(null)
-  const [slotMenu, setSlotMenu] = useState<{ x: number; y: number; date: Date; time: string } | null>(null)
-  const [appointmentMenu, setAppointmentMenu] = useState<{ x: number; y: number; appointment: Appointment } | null>(null)
+  const [slotMenu, setSlotMenu] = useState<{
+    x: number
+    y: number
+    date: Date
+    time: string
+  } | null>(null)
+  const [appointmentMenu, setAppointmentMenu] = useState<{
+    x: number
+    y: number
+    appointment: Appointment
+  } | null>(null)
   const [saving, setSaving] = useState(false)
   const [isSavingNewClientAppointment, setIsSavingNewClientAppointment] = useState(false)
   const [newClientFormData, setNewClientFormData] = useState({
@@ -137,7 +146,7 @@ export default function HomePage() {
     duration: 30,
     exam_name: "",
     exam_layout_id: null as number | null,
-    note: "",
+    note: ""
   })
 
   const calendarRef = useRef<HTMLDivElement | null>(null)
@@ -156,50 +165,58 @@ export default function HomePage() {
     let cancelled = false
     const year = currentDate.getFullYear()
     const years = [year - 1, year, year + 1]
-    void Promise.all(years.map(async targetYear => {
-      const response = await apiClient.getClinicHolidays(currentClinic.id, targetYear)
-      if (response.error) throw new Error(response.error)
-      return response.data || []
-    })).then(results => {
-      if (cancelled) return
-      setCalendarHolidays(results.flat())
-    }).catch(error => {
-      if (!cancelled) console.error("Error loading clinic holidays:", error)
-    })
-    return () => { cancelled = true }
-  }, [currentClinic?.id, currentDate.getFullYear()])
-  
-
-  const loadData = useCallback(async (startDate: Date, endDate: Date) => {
-    try {
-      setLoading(true)
-      
-      if (currentClinic?.id) {
-        const s = format(startDate, 'yyyy-MM-dd')
-        const e = format(endDate, 'yyyy-MM-dd')
-        
-        const data = await getDashboardHome(currentClinic.id, s, e)
-        setAppointments(data.appointments)
-        setClients(data.clients)
-        setDashboardSettings(data.settings)
-        const mergedUsers = (() => {
-          const list = data.users || []
-          if (currentUser?.id && !list.some(u => u.id === currentUser.id)) {
-            return [...list, currentUser as User]
-          }
-          return list
-        })()
-        setUsers(mergedUsers)
-        loadedStartRef.current = startDate
-        loadedEndRef.current = endDate
-        loadedClinicIdRef.current = currentClinic.id
-      }
-    } catch (error) {
-      console.error('Error loading dashboard data:', error)
-    } finally {
-      setLoading(false)
+    void Promise.all(
+      years.map(async (targetYear) => {
+        const response = await apiClient.getClinicHolidays(currentClinic.id, targetYear)
+        if (response.error) throw new Error(response.error)
+        return response.data || []
+      })
+    )
+      .then((results) => {
+        if (cancelled) return
+        setCalendarHolidays(results.flat())
+      })
+      .catch((error) => {
+        if (!cancelled) console.error("Error loading clinic holidays:", error)
+      })
+    return () => {
+      cancelled = true
     }
-  }, [currentClinic?.id, currentUser])
+  }, [currentClinic?.id, currentDate.getFullYear()])
+
+  const loadData = useCallback(
+    async (startDate: Date, endDate: Date) => {
+      try {
+        setLoading(true)
+
+        if (currentClinic?.id) {
+          const s = format(startDate, "yyyy-MM-dd")
+          const e = format(endDate, "yyyy-MM-dd")
+
+          const data = await getDashboardHome(currentClinic.id, s, e)
+          setAppointments(data.appointments)
+          setClients(data.clients)
+          setDashboardSettings(data.settings)
+          const mergedUsers = (() => {
+            const list = data.users || []
+            if (currentUser?.id && !list.some((u) => u.id === currentUser.id)) {
+              return [...list, currentUser as User]
+            }
+            return list
+          })()
+          setUsers(mergedUsers)
+          loadedStartRef.current = startDate
+          loadedEndRef.current = endDate
+          loadedClinicIdRef.current = currentClinic.id
+        }
+      } catch (error) {
+        console.error("Error loading dashboard data:", error)
+      } finally {
+        setLoading(false)
+      }
+    },
+    [currentClinic?.id, currentUser]
+  )
 
   useEffect(() => {
     if (!currentClinic?.id) return
@@ -222,7 +239,10 @@ export default function HomePage() {
   useEffect(() => {
     if (!isClientSelectOpen && selectedClient) {
       // Ensure default examiner is current user when opening create modal
-      setFormData(prev => ({ ...prev, user_id: currentUser?.id || prev.user_id }))
+      setFormData((prev) => ({
+        ...prev,
+        user_id: currentUser?.id || prev.user_id
+      }))
       setIsCreateModalOpen(true)
     }
   }, [isClientSelectOpen, selectedClient, currentUser?.id])
@@ -230,7 +250,7 @@ export default function HomePage() {
   // Ensure the default examiner in the modal is the current user when modal opens without client selection path (e.g., editing or direct open)
   useEffect(() => {
     if (isCreateModalOpen && !formData.user_id && currentUser?.id) {
-      setFormData(prev => ({ ...prev, user_id: currentUser.id }))
+      setFormData((prev) => ({ ...prev, user_id: currentUser.id }))
     }
   }, [isCreateModalOpen, currentUser?.id])
 
@@ -239,9 +259,9 @@ export default function HomePage() {
       // Use requestAnimationFrame instead of setTimeout for smoother cleanup
       requestAnimationFrame(() => {
         document.body.focus()
-        const backdrops = document.querySelectorAll('[data-radix-portal]')
-        backdrops.forEach(backdrop => {
-          if (backdrop.innerHTML === '') {
+        const backdrops = document.querySelectorAll("[data-radix-portal]")
+        backdrops.forEach((backdrop) => {
+          if (backdrop.innerHTML === "") {
             backdrop.remove()
           }
         })
@@ -266,26 +286,35 @@ export default function HomePage() {
   }, [users])
 
   // Helper function to get user color (now memoized)
-  const getUserColor = useCallback((userId?: number) => {
-    if (!userId) return '#3b82f6'
-    return userColorMap.get(userId) || '#3b82f6'
-  }, [userColorMap])
+  const getUserColor = useCallback(
+    (userId?: number) => {
+      if (!userId) return "#3b82f6"
+      return userColorMap.get(userId) || "#3b82f6"
+    },
+    [userColorMap]
+  )
 
   // Get appointment duration (from database or default)
-  const getAppointmentDuration = useCallback((appointment: Appointment) => {
-    return appointment.duration || APPOINTMENT_DURATION
-  }, [APPOINTMENT_DURATION])
+  const getAppointmentDuration = useCallback(
+    (appointment: Appointment) => {
+      return appointment.duration || APPOINTMENT_DURATION
+    },
+    [APPOINTMENT_DURATION]
+  )
 
   // Navigation functions
-  const navigateCalendar = useCallback((direction: 'prev' | 'next') => {
-    if (view === 'day') {
-      setCurrentDate(direction === 'next' ? addDays(currentDate, 1) : subDays(currentDate, 1))
-    } else if (view === 'week') {
-      setCurrentDate(direction === 'next' ? addWeeks(currentDate, 1) : subWeeks(currentDate, 1))
-    } else if (view === 'month') {
-      setCurrentDate(direction === 'next' ? addMonths(currentDate, 1) : subMonths(currentDate, 1))
-    }
-  }, [view, currentDate])
+  const navigateCalendar = useCallback(
+    (direction: "prev" | "next") => {
+      if (view === "day") {
+        setCurrentDate(direction === "next" ? addDays(currentDate, 1) : subDays(currentDate, 1))
+      } else if (view === "week") {
+        setCurrentDate(direction === "next" ? addWeeks(currentDate, 1) : subWeeks(currentDate, 1))
+      } else if (view === "month") {
+        setCurrentDate(direction === "next" ? addMonths(currentDate, 1) : subMonths(currentDate, 1))
+      }
+    },
+    [view, currentDate]
+  )
 
   const goToToday = useCallback(() => {
     setCurrentDate(new Date())
@@ -293,9 +322,9 @@ export default function HomePage() {
 
   // Memoized visible dates to prevent recalculation on every render
   const visibleDates = useMemo(() => {
-    if (view === 'day') {
+    if (view === "day") {
       return [currentDate]
-    } else if (view === 'week') {
+    } else if (view === "week") {
       const start = startOfWeek(currentDate, { weekStartsOn: 0 })
       return Array.from({ length: 7 }, (_, i) => addDays(start, i))
     } else {
@@ -314,20 +343,23 @@ export default function HomePage() {
   }, [currentDate, view])
 
   // Vacation helper
-  const isUserOnVacation = useCallback((userId?: number, dateStr?: string) => {
-    return isUserOnVacationUtil(users, userId, dateStr)
-  }, [users])
+  const isUserOnVacation = useCallback(
+    (userId?: number, dateStr?: string) => {
+      return isUserOnVacationUtil(users, userId, dateStr)
+    },
+    [users]
+  )
 
   // Memoized appointments grouped by date for performance
   const appointmentsByDate = useMemo(() => {
     if (!appointments.length) return new Map<string, Appointment[]>()
-    
+
     const dateMap = new Map<string, Appointment[]>()
-    
-    appointments.forEach(appointment => {
+
+    appointments.forEach((appointment) => {
       if (!appointment.date) return
       try {
-        const dateStr = format(new Date(appointment.date), 'yyyy-MM-dd')
+        const dateStr = format(new Date(appointment.date), "yyyy-MM-dd")
         if (!dateMap.has(dateStr)) {
           dateMap.set(dateStr, [])
         }
@@ -336,22 +368,25 @@ export default function HomePage() {
         // Invalid date, skip
       }
     })
-    
+
     return dateMap
   }, [appointments])
 
   // Optimized function to get appointments for a specific date
-  const getAppointmentsForDate = useCallback((date: Date) => {
-    const dateStr = format(date, 'yyyy-MM-dd')
-    return appointmentsByDate.get(dateStr) || []
-  }, [appointmentsByDate])
+  const getAppointmentsForDate = useCallback(
+    (date: Date) => {
+      const dateStr = format(date, "yyyy-MM-dd")
+      return appointmentsByDate.get(dateStr) || []
+    },
+    [appointmentsByDate]
+  )
 
   // Memoized client lookup for performance
   const clientsMap = useMemo(() => {
     if (!clients.length) return new Map<number, Client>()
-    
+
     const map = new Map<number, Client>()
-    clients.forEach(client => {
+    clients.forEach((client) => {
       if (client.id) {
         map.set(client.id, client)
       }
@@ -380,29 +415,32 @@ export default function HomePage() {
   })
 
   // Get dynamic appointment time range for resizing (must be after useDragAndResize)
-  const getDynamicTimeRange = useCallback((appointment: Appointment) => {
-    if (resizeData && resizeData.appointmentId === appointment.id) {
-      // Show current resize state
-      const currentAppointment = appointments.find(a => a.id === appointment.id)
-      if (currentAppointment) {
-        // Calculate time range based on resize type and current duration
-        if (resizeData.type === 'top') {
-          // Top resize: start time changed, end time stays the same
-          return `${currentAppointment.time} - ${resizeData.originalEnd}`
-        } else {
-          // Bottom resize: start time stays the same, calculate end time from duration
-          const startTime = resizeData.originalStart
-          const duration = currentAppointment.duration || getAppointmentDuration(currentAppointment)
-          const endTime = getAppointmentEndTime(startTime, duration)
-          return `${startTime} - ${endTime}`
+  const getDynamicTimeRange = useCallback(
+    (appointment: Appointment) => {
+      if (resizeData && resizeData.appointmentId === appointment.id) {
+        // Show current resize state
+        const currentAppointment = appointments.find((a) => a.id === appointment.id)
+        if (currentAppointment) {
+          // Calculate time range based on resize type and current duration
+          if (resizeData.type === "top") {
+            // Top resize: start time changed, end time stays the same
+            return `${currentAppointment.time} - ${resizeData.originalEnd}`
+          } else {
+            // Bottom resize: start time stays the same, calculate end time from duration
+            const startTime = resizeData.originalStart
+            const duration = currentAppointment.duration || getAppointmentDuration(currentAppointment)
+            const endTime = getAppointmentEndTime(startTime, duration)
+            return `${startTime} - ${endTime}`
+          }
         }
       }
-    }
 
-    // Normal display using appointment's actual duration
-    const duration = getAppointmentDuration(appointment)
-    return getAppointmentTimeRange(appointment.time || '', duration)
-  }, [resizeData, appointments, getAppointmentDuration])
+      // Normal display using appointment's actual duration
+      const duration = getAppointmentDuration(appointment)
+      return getAppointmentTimeRange(appointment.time || "", duration)
+    },
+    [resizeData, appointments, getAppointmentDuration]
+  )
 
   // Optimized appointment blocks calculation with custom hook
   const { getAppointmentBlocks } = useAppointmentBlocks({
@@ -424,7 +462,7 @@ export default function HomePage() {
         startMinutes,
         durationMinutes
       }
-    }).filter(slot => slot.durationMinutes > 0)
+    }).filter((slot) => slot.durationMinutes > 0)
   }, [totalWorkMinutes, workStartMinutes, workEndMinutes])
 
   // Form and modal handlers
@@ -443,101 +481,113 @@ export default function HomePage() {
   }, [currentUser?.id, APPOINTMENT_DURATION])
 
   // Handle time slot click for creating appointments
-  const moveAppointmentToSlot = useCallback(async (appointment: Appointment, date: Date, time: string) => {
-    if (!appointment.id) return
-    const dateStr = format(date, 'yyyy-MM-dd')
-    const movedAppointment = {
-      ...appointment,
-      clinic_id: appointment.clinic_id || currentClinic?.id,
-      date: dateStr,
-      time,
-    }
-    const originalAppointment = { ...appointment }
-
-    setMovingAppointment(null)
-    setAppointments(prev => prev.map(apt => apt.id === appointment.id ? movedAppointment : apt))
-
-    try {
-      if (isUserOnVacation(movedAppointment.user_id, dateStr)) {
-        toast.error('לא ניתן להעביר תור ליום חופשה של המשתמש')
-        setAppointments(prev => prev.map(apt => apt.id === appointment.id ? originalAppointment : apt))
-        return
+  const moveAppointmentToSlot = useCallback(
+    async (appointment: Appointment, date: Date, time: string) => {
+      if (!appointment.id) return
+      const dateStr = format(date, "yyyy-MM-dd")
+      const movedAppointment = {
+        ...appointment,
+        clinic_id: appointment.clinic_id || currentClinic?.id,
+        date: dateStr,
+        time
       }
+      const originalAppointment = { ...appointment }
 
-      const result = await updateAppointment(movedAppointment)
-      if (result) {
-        setAppointments(prev => prev.map(apt => apt.id === appointment.id ? { ...apt, ...result } : apt))
-        toast.success("התור הועבר בהצלחה")
-      } else {
+      setMovingAppointment(null)
+      setAppointments((prev) => prev.map((apt) => (apt.id === appointment.id ? movedAppointment : apt)))
+
+      try {
+        if (isUserOnVacation(movedAppointment.user_id, dateStr)) {
+          toast.error("לא ניתן להעביר תור ליום חופשה של המשתמש")
+          setAppointments((prev) => prev.map((apt) => (apt.id === appointment.id ? originalAppointment : apt)))
+          return
+        }
+
+        const result = await updateAppointment(movedAppointment)
+        if (result) {
+          setAppointments((prev) => prev.map((apt) => (apt.id === appointment.id ? { ...apt, ...result } : apt)))
+          toast.success("התור הועבר בהצלחה")
+        } else {
+          toast.error("שגיאה בהעברת התור")
+          setAppointments((prev) => prev.map((apt) => (apt.id === appointment.id ? originalAppointment : apt)))
+        }
+      } catch (error) {
+        console.error("Error moving appointment:", error)
         toast.error("שגיאה בהעברת התור")
-        setAppointments(prev => prev.map(apt => apt.id === appointment.id ? originalAppointment : apt))
+        setAppointments((prev) => prev.map((apt) => (apt.id === appointment.id ? originalAppointment : apt)))
       }
-    } catch (error) {
-      console.error("Error moving appointment:", error)
-      toast.error("שגיאה בהעברת התור")
-      setAppointments(prev => prev.map(apt => apt.id === appointment.id ? originalAppointment : apt))
-    }
-  }, [currentClinic?.id, isUserOnVacation])
+    },
+    [currentClinic?.id, isUserOnVacation]
+  )
 
-  const pasteAppointmentToSlot = useCallback(async (date: Date, time: string) => {
-    if (!copiedAppointment) return
-    const appointmentData = {
-      client_id: copiedAppointment.client_id,
-      clinic_id: currentClinic?.id || copiedAppointment.clinic_id,
-      user_id: copiedAppointment.user_id,
-      date: format(date, 'yyyy-MM-dd'),
-      time,
-      duration: copiedAppointment.duration || APPOINTMENT_DURATION,
-      exam_name: copiedAppointment.exam_name,
-      exam_layout_id: copiedAppointment.exam_layout_id || null,
-      note: copiedAppointment.note,
-    }
-    try {
-      const result = await createAppointment(appointmentData)
-      if (result) {
-        setAppointments(prev => [...prev, result])
-        toast.success("התור הודבק בהצלחה")
-      } else {
+  const pasteAppointmentToSlot = useCallback(
+    async (date: Date, time: string) => {
+      if (!copiedAppointment) return
+      const appointmentData = {
+        client_id: copiedAppointment.client_id,
+        clinic_id: currentClinic?.id || copiedAppointment.clinic_id,
+        user_id: copiedAppointment.user_id,
+        date: format(date, "yyyy-MM-dd"),
+        time,
+        duration: copiedAppointment.duration || APPOINTMENT_DURATION,
+        exam_name: copiedAppointment.exam_name,
+        exam_layout_id: copiedAppointment.exam_layout_id || null,
+        note: copiedAppointment.note
+      }
+      try {
+        const result = await createAppointment(appointmentData)
+        if (result) {
+          setAppointments((prev) => [...prev, result])
+          toast.success("התור הודבק בהצלחה")
+        } else {
+          toast.error("שגיאה בהדבקת התור")
+        }
+      } catch (error) {
+        console.error("Error pasting appointment:", error)
         toast.error("שגיאה בהדבקת התור")
       }
-    } catch (error) {
-      console.error("Error pasting appointment:", error)
-      toast.error("שגיאה בהדבקת התור")
-    }
-  }, [APPOINTMENT_DURATION, copiedAppointment, currentClinic?.id])
+    },
+    [APPOINTMENT_DURATION, copiedAppointment, currentClinic?.id]
+  )
 
-  const prepareSlotAppointmentData = useCallback((date: Date, time: string) => {
-    const dateStr = format(date, 'yyyy-MM-dd')
-    setSelectedTimeSlot({ date, time })
-    resetAllForms()
-    setFormData({
-      client_id: 0,
-      user_id: currentUser?.id,
-      date: dateStr,
-      time: time,
-      duration: APPOINTMENT_DURATION,
-      exam_name: '',
-      exam_layout_id: null,
-      note: ''
-    })
-  }, [resetAllForms, currentUser?.id, APPOINTMENT_DURATION])
+  const prepareSlotAppointmentData = useCallback(
+    (date: Date, time: string) => {
+      const dateStr = format(date, "yyyy-MM-dd")
+      setSelectedTimeSlot({ date, time })
+      resetAllForms()
+      setFormData({
+        client_id: 0,
+        user_id: currentUser?.id,
+        date: dateStr,
+        time: time,
+        duration: APPOINTMENT_DURATION,
+        exam_name: "",
+        exam_layout_id: null,
+        note: ""
+      })
+    },
+    [resetAllForms, currentUser?.id, APPOINTMENT_DURATION]
+  )
 
-  const handleTimeSlotClick = useCallback((date: Date, time: string, event?: React.MouseEvent) => {
-    event?.preventDefault()
-    event?.stopPropagation()
-    setAppointmentMenu(null)
-    if (movingAppointment) {
-      moveAppointmentToSlot(movingAppointment, date, time)
-      return
-    }
-    prepareSlotAppointmentData(date, time)
-    setSlotMenu({
-      x: event?.clientX ?? window.innerWidth / 2,
-      y: event?.clientY ?? window.innerHeight / 2,
-      date,
-      time,
-    })
-  }, [movingAppointment, moveAppointmentToSlot, prepareSlotAppointmentData])
+  const handleTimeSlotClick = useCallback(
+    (date: Date, time: string, event?: React.MouseEvent) => {
+      event?.preventDefault()
+      event?.stopPropagation()
+      setAppointmentMenu(null)
+      if (movingAppointment) {
+        moveAppointmentToSlot(movingAppointment, date, time)
+        return
+      }
+      prepareSlotAppointmentData(date, time)
+      setSlotMenu({
+        x: event?.clientX ?? window.innerWidth / 2,
+        y: event?.clientY ?? window.innerHeight / 2,
+        date,
+        time
+      })
+    },
+    [movingAppointment, moveAppointmentToSlot, prepareSlotAppointmentData]
+  )
 
   const closeAllDialogs = useCallback(() => {
     setIsCreateModalOpen(false)
@@ -547,66 +597,72 @@ export default function HomePage() {
     resetAllForms()
   }, [resetAllForms])
 
-  const openEditDialog = useCallback((appointment: Appointment) => {
-    try {
-      setEditingAppointment(appointment)
-      // Set form immediately and open modal without waiting for network
-      setFormData({
-        client_id: appointment.client_id,
-        user_id: appointment.user_id || currentUser?.id,
-        date: appointment.date || '',
-        time: appointment.time || '',
-        duration: appointment.duration || APPOINTMENT_DURATION,
-        exam_name: appointment.exam_name || '',
-        exam_layout_id: appointment.exam_layout_id || null,
-        note: appointment.note || ''
-      })
-      // Try to resolve client from local map first
-      const localClient = clientsMap.get(appointment.client_id)
-      if (localClient) {
-        setSelectedClient(localClient)
-      } else {
-        // Background fetch if not available locally
-        getClientById(appointment.client_id)
-          .then((client) => client && setSelectedClient(client))
-          .catch((error) => console.error('Error loading client (background):', error))
+  const openEditDialog = useCallback(
+    (appointment: Appointment) => {
+      try {
+        setEditingAppointment(appointment)
+        // Set form immediately and open modal without waiting for network
+        setFormData({
+          client_id: appointment.client_id,
+          user_id: appointment.user_id || currentUser?.id,
+          date: appointment.date || "",
+          time: appointment.time || "",
+          duration: appointment.duration || APPOINTMENT_DURATION,
+          exam_name: appointment.exam_name || "",
+          exam_layout_id: appointment.exam_layout_id || null,
+          note: appointment.note || ""
+        })
+        // Try to resolve client from local map first
+        const localClient = clientsMap.get(appointment.client_id)
+        if (localClient) {
+          setSelectedClient(localClient)
+        } else {
+          // Background fetch if not available locally
+          getClientById(appointment.client_id)
+            .then((client) => client && setSelectedClient(client))
+            .catch((error) => console.error("Error loading client (background):", error))
+        }
+        setIsCreateModalOpen(true)
+      } catch (error) {
+        console.error("Error preparing appointment for edit:", error)
+        setIsCreateModalOpen(true)
       }
-      setIsCreateModalOpen(true)
-    } catch (error) {
-      console.error('Error preparing appointment for edit:', error)
-      setIsCreateModalOpen(true)
-    }
-  }, [currentUser?.id, APPOINTMENT_DURATION, clientsMap])
+    },
+    [currentUser?.id, APPOINTMENT_DURATION, clientsMap]
+  )
 
-  const handleClientSelect = useCallback(async (selectedClientId: number) => {
-    try {
-      const client = await getClientById(selectedClientId)
-      if (client) {
-        setSelectedClient(client)
-        setFormData(prev => ({
-          ...prev,
-          client_id: selectedClientId,
-          user_id: currentUser?.id || prev.user_id,
-          date: format(selectedTimeSlot.date, 'yyyy-MM-dd'),
-          time: selectedTimeSlot.time,
-          duration: APPOINTMENT_DURATION,
-          exam_name: '',
-          exam_layout_id: null,
-          note: ''
-        }))
-        setIsClientSelectOpen(false)
+  const handleClientSelect = useCallback(
+    async (selectedClientId: number) => {
+      try {
+        const client = await getClientById(selectedClientId)
+        if (client) {
+          setSelectedClient(client)
+          setFormData((prev) => ({
+            ...prev,
+            client_id: selectedClientId,
+            user_id: currentUser?.id || prev.user_id,
+            date: format(selectedTimeSlot.date, "yyyy-MM-dd"),
+            time: selectedTimeSlot.time,
+            duration: APPOINTMENT_DURATION,
+            exam_name: "",
+            exam_layout_id: null,
+            note: ""
+          }))
+          setIsClientSelectOpen(false)
+        }
+      } catch (error) {
+        console.error("Error loading client:", error)
+        toast.error("שגיאה בטעינת פרטי הלקוח")
       }
-    } catch (error) {
-      console.error('Error loading client:', error)
-      toast.error("שגיאה בטעינת פרטי הלקוח")
-    }
-  }, [currentUser?.id, selectedTimeSlot, APPOINTMENT_DURATION])
+    },
+    [currentUser?.id, selectedTimeSlot, APPOINTMENT_DURATION]
+  )
 
   const handleSaveAppointment = useCallback(async () => {
     try {
       setSaving(true)
       if (formData.date && isUserOnVacation(formData.user_id, formData.date)) {
-        toast.error('לא ניתן לקבוע תור ביום חופשה של המשתמש')
+        toast.error("לא ניתן לקבוע תור ביום חופשה של המשתמש")
         return
       }
       if (!formData.client_id || formData.client_id <= 0) {
@@ -619,9 +675,7 @@ export default function HomePage() {
         const result = await updateAppointment(updatedAppointment)
         if (result) {
           toast.success("התור עודכן בהצלחה")
-          setAppointments(prev => prev.map(apt =>
-            apt.id === updatedAppointment.id ? updatedAppointment : apt
-          ))
+          setAppointments((prev) => prev.map((apt) => (apt.id === updatedAppointment.id ? updatedAppointment : apt)))
           closeAllDialogs()
         } else {
           toast.error("שגיאה בעדכון התור")
@@ -639,20 +693,20 @@ export default function HomePage() {
           exam_layout_id: formData.exam_layout_id,
           note: formData.note
         }
-        
-        console.log('Sending appointment data from HomePage:', appointmentData);
-        
+
+        console.log("Sending appointment data from HomePage:", appointmentData)
+
         const result = await createAppointment(appointmentData)
         if (result) {
           toast.success("התור נוצר בהצלחה")
-          setAppointments(prev => [...prev, result])
+          setAppointments((prev) => [...prev, result])
           closeAllDialogs()
         } else {
           toast.error("שגיאה ביצירת התור")
         }
       }
     } catch (error) {
-      console.error('Error saving appointment:', error)
+      console.error("Error saving appointment:", error)
       toast.error("שגיאה בשמירת התור")
     } finally {
       setSaving(false)
@@ -660,50 +714,56 @@ export default function HomePage() {
   }, [formData, isUserOnVacation, editingAppointment, closeAllDialogs, currentClinic?.id])
 
   const handleDeleteAppointment = useCallback(async (appointmentId: number) => {
-    if (!confirm('האם אתה בטוח שברצונך למחוק את התור?')) return
+    if (!confirm("האם אתה בטוח שברצונך למחוק את התור?")) return
 
     try {
       const result = await deleteAppointment(appointmentId)
       if (result) {
         toast.success("התור נמחק בהצלחה")
         // Remove from local state instead of reloading all data
-        setAppointments(prev => prev.filter(apt => apt.id !== appointmentId))
+        setAppointments((prev) => prev.filter((apt) => apt.id !== appointmentId))
       } else {
         toast.error("שגיאה במחיקת התור")
       }
     } catch (error) {
-      console.error('Error deleting appointment:', error)
+      console.error("Error deleting appointment:", error)
       toast.error("שגיאה במחיקת התור")
     }
   }, [])
 
   const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
-    setFormData(prev => ({ ...prev, [name]: value }))
+    setFormData((prev) => ({ ...prev, [name]: value }))
   }, [])
 
   const handleNewClientInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
-    setNewClientFormData(prev => ({ ...prev, [name]: value }))
+    setNewClientFormData((prev) => ({ ...prev, [name]: value }))
   }, [])
 
-  const handleExamLayoutChange = useCallback((layoutId: number | null) => {
-    const layout = activeExamLayouts.find(item => item.id === layoutId)
-    setFormData(prev => ({
-      ...prev,
-      exam_layout_id: layout?.id || null,
-      exam_name: layout?.name || prev.exam_name || '',
-    }))
-  }, [activeExamLayouts])
+  const handleExamLayoutChange = useCallback(
+    (layoutId: number | null) => {
+      const layout = activeExamLayouts.find((item) => item.id === layoutId)
+      setFormData((prev) => ({
+        ...prev,
+        exam_layout_id: layout?.id || null,
+        exam_name: layout?.name || prev.exam_name || ""
+      }))
+    },
+    [activeExamLayouts]
+  )
 
-  const handleNewClientExamLayoutChange = useCallback((layoutId: number | null) => {
-    const layout = activeExamLayouts.find(item => item.id === layoutId)
-    setNewClientFormData(prev => ({
-      ...prev,
-      exam_layout_id: layout?.id || null,
-      exam_name: layout?.name || prev.exam_name,
-    }))
-  }, [activeExamLayouts])
+  const handleNewClientExamLayoutChange = useCallback(
+    (layoutId: number | null) => {
+      const layout = activeExamLayouts.find((item) => item.id === layoutId)
+      setNewClientFormData((prev) => ({
+        ...prev,
+        exam_layout_id: layout?.id || null,
+        exam_name: layout?.name || prev.exam_name
+      }))
+    },
+    [activeExamLayouts]
+  )
 
   const openExistingClientFlowFromSlot = useCallback(() => {
     setSlotMenu(null)
@@ -718,12 +778,12 @@ export default function HomePage() {
       phone_mobile: "",
       email: "",
       user_id: currentUser?.id,
-      date: formData.date || format(selectedTimeSlot.date, 'yyyy-MM-dd'),
+      date: formData.date || format(selectedTimeSlot.date, "yyyy-MM-dd"),
       time: formData.time || selectedTimeSlot.time,
       duration: formData.duration || APPOINTMENT_DURATION,
       exam_name: "",
       exam_layout_id: null,
-      note: "",
+      note: ""
     })
     setIsNewClientAppointmentOpen(true)
   }, [APPOINTMENT_DURATION, currentUser?.id, formData.date, formData.duration, formData.time, selectedTimeSlot])
@@ -740,7 +800,7 @@ export default function HomePage() {
         last_name: newClientFormData.last_name,
         phone_mobile: newClientFormData.phone_mobile,
         email: newClientFormData.email,
-        clinic_id: currentClinic?.id,
+        clinic_id: currentClinic?.id
       })
       if (!newClient?.id) {
         toast.error("שגיאה ביצירת הלקוח")
@@ -756,11 +816,11 @@ export default function HomePage() {
         duration: newClientFormData.duration,
         exam_name: newClientFormData.exam_name,
         exam_layout_id: newClientFormData.exam_layout_id,
-        note: newClientFormData.note,
+        note: newClientFormData.note
       })
       if (result) {
-        setClients(prev => [...prev, newClient])
-        setAppointments(prev => [...prev, result])
+        setClients((prev) => [...prev, newClient])
+        setAppointments((prev) => [...prev, result])
         toast.success("לקוח חדש ותור נוצרו בהצלחה")
         closeAllDialogs()
       } else {
@@ -787,19 +847,22 @@ export default function HomePage() {
     toast.info("בחר מיקום חדש לתור")
   }, [])
 
-  const handleStartExam = useCallback((appointment?: Appointment | null) => {
-    const target = appointment || editingAppointment || formData
-    if (!target.client_id || !target.exam_layout_id) {
-      toast.error("יש לבחור סוג בדיקה לפני התחלת בדיקה")
-      return
-    }
-    setAppointmentMenu(null)
-    navigate({
-      to: "/clients/$clientId/exams/new",
-      params: { clientId: String(target.client_id) },
-      search: { layoutId: String(target.exam_layout_id) },
-    })
-  }, [editingAppointment, formData, navigate])
+  const handleStartExam = useCallback(
+    (appointment?: Appointment | null) => {
+      const target = appointment || editingAppointment || formData
+      if (!target.client_id || !target.exam_layout_id) {
+        toast.error("יש לבחור סוג בדיקה לפני התחלת בדיקה")
+        return
+      }
+      setAppointmentMenu(null)
+      navigate({
+        to: "/clients/$clientId/exams/new",
+        params: { clientId: String(target.client_id) },
+        search: { layoutId: String(target.exam_layout_id) }
+      })
+    },
+    [editingAppointment, formData, navigate]
+  )
 
   const handleAppointmentContextMenu = useCallback((event: React.MouseEvent, appointment: Appointment) => {
     event.preventDefault()
@@ -809,7 +872,7 @@ export default function HomePage() {
     setAppointmentMenu({
       x: event.clientX,
       y: event.clientY,
-      appointment,
+      appointment
     })
   }, [])
 
@@ -833,11 +896,7 @@ export default function HomePage() {
   useEffect(() => {
     const handleDocumentMouseDown = (event: MouseEvent) => {
       const target = event.target as Node
-      if (
-        movingAppointment &&
-        calendarMoveScopeRef.current &&
-        !calendarMoveScopeRef.current.contains(target)
-      ) {
+      if (movingAppointment && calendarMoveScopeRef.current && !calendarMoveScopeRef.current.contains(target)) {
         setMovingAppointment(null)
       }
       if (slotMenu || appointmentMenu) {
@@ -852,60 +911,11 @@ export default function HomePage() {
     return () => document.removeEventListener("mousedown", handleDocumentMouseDown)
   }, [appointmentMenu, movingAppointment, slotMenu])
 
-  
-  // Memoized statistics calculations
-  const todayAppointments = useMemo(() => {
-    return appointments.filter(appointment => {
-      if (!appointment.date) return false
-      try {
-        const appointmentDate = new Date(appointment.date)
-        return isToday(appointmentDate)
-      } catch {
-        return false
-      }
-    })
-  }, [appointments])
-
-  const thisMonthNewClients = useMemo(() => {
-    return clients.filter(client => {
-      if (!client.file_creation_date) return false
-      try {
-        const creationDate = new Date(client.file_creation_date)
-        const now = new Date()
-        return isWithinInterval(creationDate, {
-          start: startOfMonth(now),
-          end: endOfMonth(now)
-        })
-      } catch {
-        return false
-      }
-    })
-  }, [clients])
-
-  // Memoized work schedule calculations
-  const workScheduleInfo = useMemo(() => {
-    const workStartTime = parseISO(`2000-01-01T${WORK_START}`)
-    const workEndTime = parseISO(`2000-01-01T${WORK_END}`)
-    const WORK_DAY_MINUTES = (workEndTime.getTime() - workStartTime.getTime()) / (1000 * 60)
-    const TOTAL_SLOTS = Math.floor(WORK_DAY_MINUTES / APPOINTMENT_DURATION)
-    
-    return {
-      workStartTime,
-      workEndTime, 
-      WORK_DAY_MINUTES,
-      TOTAL_SLOTS
-    }
-  }, [WORK_START, WORK_END, APPOINTMENT_DURATION])
-
-  const todayFreeSlots = useMemo(() => {
-    return workScheduleInfo.TOTAL_SLOTS - todayAppointments.length
-  }, [workScheduleInfo.TOTAL_SLOTS, todayAppointments.length])
-
   if (loading) {
     return (
       <>
-        <SiteHeader title={ "לוח זמנים"} />
-        <div className="flex flex-col bg-muted/50 flex-1 gap-6" dir="rtl" style={{ scrollbarWidth: 'none' }}>
+        <SiteHeader title={"לוח זמנים"} />
+        <div className="bg-muted/50 flex flex-1 flex-col gap-6" dir="rtl" style={{ scrollbarWidth: "none" }}>
           <div className="flex items-center justify-between p-6 pb-5">
             <div className="flex items-center gap-4">
               <Skeleton className="h-9 w-16" />
@@ -915,50 +925,50 @@ export default function HomePage() {
               </div>
               <Skeleton className="h-6 w-44" />
             </div>
-            <div className="flex items-center gap-2 bg-card shadow-md rounded-md p-1">
+            <div className="bg-card flex items-center gap-2 rounded-md p-1 shadow-md">
               <Skeleton className="h-8 w-14" />
               <Skeleton className="h-8 w-14" />
               <Skeleton className="h-8 w-14" />
             </div>
           </div>
 
-          <div className="flex gap-6 px-4 lg:px-6 flex-1">
+          <div className="flex flex-1 gap-6 px-4 lg:px-6">
             <div className="w-72 space-y-4">
-              <Card className="bg-card  p-2 justify-center">
-                <CardContent className="p-0 justify-center">
-                  <Skeleton className="w-full h-[350px]" />
+              <Card className="bg-card justify-center p-2">
+                <CardContent className="justify-center p-0">
+                  <Skeleton className="h-[350px] w-full" />
                 </CardContent>
               </Card>
 
-              <div className="grid gap-4 grid-cols-2">
-                <Card className="bg-card  py-4">
-                  <CardHeader className="flex flex-row items-center mb-[-10px] justify-between space-y-0 ">
+              <div className="grid grid-cols-2 gap-4">
+                <Card className="bg-card py-4">
+                  <CardHeader className="mb-[-10px] flex flex-row items-center justify-between space-y-0">
                     <Skeleton className="h-4 w-24" />
                     <Skeleton className="h-4 w-4 rounded-full" />
                   </CardHeader>
                   <CardContent>
                     <Skeleton className="h-7 w-16" />
-                    <Skeleton className="h-3 w-28 mt-2" />
+                    <Skeleton className="mt-2 h-3 w-28" />
                   </CardContent>
                 </Card>
 
-                <Card className="bg-card  py-4">
-                  <CardHeader className="flex flex-row items-center mb-[-10px] justify-between space-y-0 ">
+                <Card className="bg-card py-4">
+                  <CardHeader className="mb-[-10px] flex flex-row items-center justify-between space-y-0">
                     <Skeleton className="h-4 w-24" />
                     <Skeleton className="h-4 w-4 rounded-full" />
                   </CardHeader>
                   <CardContent>
                     <Skeleton className="h-7 w-16" />
-                    <Skeleton className="h-3 w-24 mt-2" />
+                    <Skeleton className="mt-2 h-3 w-24" />
                   </CardContent>
                 </Card>
               </div>
             </div>
 
-            <div className="flex-1 flex flex-col justify-end rounded-xl">
-              <Card className="bg-card rounded-t-xl  p-0">
-                <CardContent className="p-2 pt-2 rounded-xl">
-                  <Skeleton className="w-full rounded-t-xl" style={{ height: 'calc(100vh - 200px)' }} />
+            <div className="flex flex-1 flex-col rounded-xl">
+              <Card className="bg-card rounded-t-xl p-0">
+                <CardContent className="rounded-xl p-2 pt-2">
+                  <Skeleton className="w-full rounded-t-xl" style={{ height: "calc(100vh - 200px)" }} />
                 </CardContent>
               </Card>
             </div>
@@ -970,8 +980,13 @@ export default function HomePage() {
 
   return (
     <>
-      <SiteHeader title={ "לוח זמנים"} />
-      <div ref={calendarMoveScopeRef} className="flex flex-col bg-muted/50 flex-1" dir="rtl" style={{ scrollbarWidth: 'none' }}>
+      <SiteHeader title={"לוח זמנים"} />
+      <div
+        ref={calendarMoveScopeRef}
+        className="bg-muted/50 flex flex-1 flex-col"
+        dir="rtl"
+        style={{ scrollbarWidth: "none" }}
+      >
         {/* Calendar Header */}
         <CalendarHeader
           currentDate={currentDate}
@@ -981,24 +996,25 @@ export default function HomePage() {
           onViewChange={setView}
         />
 
-        <div className="flex gap-6 px-4 lg:px-6 flex-1">
+        <div className="flex flex-1 gap-6 px-4 lg:px-6">
           {/* Statistics Sidebar */}
           <StatisticsSidebar
             currentDate={currentDate}
             onDateSelect={setCurrentDate}
-            todayAppointmentsCount={todayAppointments.length}
-            todayFreeSlots={todayFreeSlots}
-            totalSlots={workScheduleInfo.TOTAL_SLOTS}
-            appointmentDuration={APPOINTMENT_DURATION}
+            appointments={appointments}
+            workStart={WORK_START}
+            workEnd={WORK_END}
+            breakStart={BREAK_START}
+            breakEnd={BREAK_END}
             currentUser={currentUser}
             holidaysByDate={calendarHolidayMap}
           />
 
           {/* Main Calendar View */}
-          <div className="flex-1 flex flex-col justify-end rounded-xl">
-            <Card className="bg-card rounded-t-xl  p-0">
-              <CardContent className="p-0 pt-0 rounded-xl">
-                {view === 'month' ? (
+          <div className="flex flex-1 flex-col rounded-xl">
+            <Card className="bg-card rounded-t-xl p-0">
+              <CardContent className="rounded-xl p-0 pt-0">
+                {view === "month" ? (
                   <MonthView
                     visibleDates={visibleDates}
                     currentDate={currentDate}
@@ -1059,7 +1075,7 @@ export default function HomePage() {
           onInputChange={handleInputChange}
           onSave={handleSaveAppointment}
           onDelete={handleDeleteAppointment}
-          onUserChange={(userId) => setFormData(prev => ({ ...prev, user_id: userId }))}
+          onUserChange={(userId) => setFormData((prev) => ({ ...prev, user_id: userId }))}
           onExamLayoutChange={handleExamLayoutChange}
           onStartExam={() => handleStartExam()}
         />
@@ -1067,14 +1083,14 @@ export default function HomePage() {
         {slotMenu && (
           <div
             data-calendar-menu
-            className="fixed z-50 min-w-52 rounded-md border bg-card p-1 text-sm shadow-lg"
+            className="bg-card fixed z-50 min-w-52 rounded-md border p-1 text-sm shadow-lg"
             style={{ left: slotMenu.x, top: slotMenu.y }}
             dir="rtl"
           >
             {copiedAppointment && (
               <button
                 type="button"
-                className="flex w-full items-center gap-2 rounded-sm px-3 py-2 text-right hover:bg-muted"
+                className="hover:bg-muted flex w-full items-center gap-2 rounded-sm px-3 py-2 text-right"
                 onClick={() => {
                   pasteAppointmentToSlot(slotMenu.date, slotMenu.time)
                   setSlotMenu(null)
@@ -1086,7 +1102,7 @@ export default function HomePage() {
             )}
             <button
               type="button"
-              className="flex w-full items-center gap-2 rounded-sm px-3 py-2 text-right hover:bg-muted"
+              className="hover:bg-muted flex w-full items-center gap-2 rounded-sm px-3 py-2 text-right"
               onClick={openExistingClientFlowFromSlot}
             >
               <Users className="h-4 w-4" />
@@ -1094,7 +1110,7 @@ export default function HomePage() {
             </button>
             <button
               type="button"
-              className="flex w-full items-center gap-2 rounded-sm px-3 py-2 text-right hover:bg-muted"
+              className="hover:bg-muted flex w-full items-center gap-2 rounded-sm px-3 py-2 text-right"
               onClick={openNewClientFlowFromSlot}
             >
               <UserPlus className="h-4 w-4" />
@@ -1106,13 +1122,13 @@ export default function HomePage() {
         {appointmentMenu && (
           <div
             data-calendar-menu
-            className="fixed z-50 min-w-44 rounded-md border bg-card p-1 text-sm shadow-lg"
+            className="bg-card fixed z-50 min-w-44 rounded-md border p-1 text-sm shadow-lg"
             style={{ left: appointmentMenu.x, top: appointmentMenu.y }}
             dir="rtl"
           >
             <button
               type="button"
-              className="flex w-full items-center gap-2 rounded-sm px-3 py-2 text-right hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
+              className="hover:bg-muted flex w-full items-center gap-2 rounded-sm px-3 py-2 text-right disabled:cursor-not-allowed disabled:opacity-50"
               disabled={!appointmentMenu.appointment.exam_layout_id}
               onClick={() => handleStartExam(appointmentMenu.appointment)}
             >
@@ -1121,7 +1137,7 @@ export default function HomePage() {
             </button>
             <button
               type="button"
-              className="flex w-full items-center gap-2 rounded-sm px-3 py-2 text-right hover:bg-muted"
+              className="hover:bg-muted flex w-full items-center gap-2 rounded-sm px-3 py-2 text-right"
               onClick={() => handleCopyAppointment(appointmentMenu.appointment)}
             >
               <Copy className="h-4 w-4" />
@@ -1129,7 +1145,7 @@ export default function HomePage() {
             </button>
             <button
               type="button"
-              className="flex w-full items-center gap-2 rounded-sm px-3 py-2 text-right hover:bg-muted"
+              className="hover:bg-muted flex w-full items-center gap-2 rounded-sm px-3 py-2 text-right"
               onClick={() => handleStartMoveAppointment(appointmentMenu.appointment)}
             >
               <Move className="h-4 w-4" />
@@ -1137,7 +1153,7 @@ export default function HomePage() {
             </button>
             <button
               type="button"
-              className="flex w-full items-center gap-2 rounded-sm px-3 py-2 text-right text-destructive hover:bg-destructive/10"
+              className="text-destructive hover:bg-destructive/10 flex w-full items-center gap-2 rounded-sm px-3 py-2 text-right"
               onClick={() => {
                 handleDeleteAppointment(appointmentMenu.appointment.id!)
                 setAppointmentMenu(null)
@@ -1158,57 +1174,122 @@ export default function HomePage() {
           <div className="grid max-h-[60vh] gap-4 overflow-auto p-1" style={{ scrollbarWidth: "none" }}>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="calendar-new-first-name" className="block text-right">שם פרטי *</Label>
-                <Input id="calendar-new-first-name" name="first_name" value={newClientFormData.first_name} onChange={handleNewClientInputChange} dir="rtl" />
+                <Label htmlFor="calendar-new-first-name" className="block text-right">
+                  שם פרטי *
+                </Label>
+                <Input
+                  id="calendar-new-first-name"
+                  name="first_name"
+                  value={newClientFormData.first_name}
+                  onChange={handleNewClientInputChange}
+                  dir="rtl"
+                />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="calendar-new-last-name" className="block text-right">שם משפחה *</Label>
-                <Input id="calendar-new-last-name" name="last_name" value={newClientFormData.last_name} onChange={handleNewClientInputChange} dir="rtl" />
+                <Label htmlFor="calendar-new-last-name" className="block text-right">
+                  שם משפחה *
+                </Label>
+                <Input
+                  id="calendar-new-last-name"
+                  name="last_name"
+                  value={newClientFormData.last_name}
+                  onChange={handleNewClientInputChange}
+                  dir="rtl"
+                />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="calendar-new-email" className="block text-right">אימייל</Label>
-                <Input id="calendar-new-email" name="email" type="email" value={newClientFormData.email} onChange={handleNewClientInputChange} dir="rtl" />
+                <Label htmlFor="calendar-new-email" className="block text-right">
+                  אימייל
+                </Label>
+                <Input
+                  id="calendar-new-email"
+                  name="email"
+                  type="email"
+                  value={newClientFormData.email}
+                  onChange={handleNewClientInputChange}
+                  dir="rtl"
+                />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="calendar-new-phone" className="block text-right">טלפון נייד</Label>
-                <Input id="calendar-new-phone" name="phone_mobile" value={newClientFormData.phone_mobile} onChange={handleNewClientInputChange} dir="rtl" />
+                <Label htmlFor="calendar-new-phone" className="block text-right">
+                  טלפון נייד
+                </Label>
+                <Input
+                  id="calendar-new-phone"
+                  name="phone_mobile"
+                  value={newClientFormData.phone_mobile}
+                  onChange={handleNewClientInputChange}
+                  dir="rtl"
+                />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="calendar-new-time" className="block text-right">שעה</Label>
-                <TimeInput id="calendar-new-time" name="time" value={newClientFormData.time} onChange={handleNewClientInputChange} />
+                <Label htmlFor="calendar-new-time" className="block text-right">
+                  שעה
+                </Label>
+                <TimeInput
+                  id="calendar-new-time"
+                  name="time"
+                  value={newClientFormData.time}
+                  onChange={handleNewClientInputChange}
+                />
               </div>
               <div className="space-y-2">
                 <Label className="block text-right">תאריך</Label>
-                <DateInput name="date" value={newClientFormData.date} onChange={handleNewClientInputChange} className="justify-end" />
+                <DateInput
+                  name="date"
+                  value={newClientFormData.date}
+                  onChange={handleNewClientInputChange}
+                  className="justify-end"
+                />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label className="block text-right">סוג בדיקה</Label>
                 <select
-                  className="h-9 w-full rounded-md border border-input bg-card px-3 text-sm"
+                  className="border-input bg-card h-9 w-full rounded-md border px-3 text-sm"
                   value={newClientFormData.exam_layout_id ? String(newClientFormData.exam_layout_id) : ""}
-                  onChange={(event) => handleNewClientExamLayoutChange(event.target.value ? Number(event.target.value) : null)}
+                  onChange={(event) =>
+                    handleNewClientExamLayoutChange(event.target.value ? Number(event.target.value) : null)
+                  }
                   dir="rtl"
                 >
                   <option value="">בחר סוג בדיקה</option>
-                  {activeExamLayouts.map(layout => (
-                    <option key={layout.id} value={layout.id}>{layout.name}</option>
+                  {activeExamLayouts.map((layout) => (
+                    <option key={layout.id} value={layout.id}>
+                      {layout.name}
+                    </option>
                   ))}
                 </select>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="calendar-new-duration" className="block text-right">משך</Label>
-                <Input id="calendar-new-duration" name="duration" type="number" value={newClientFormData.duration} onChange={handleNewClientInputChange} />
+                <Label htmlFor="calendar-new-duration" className="block text-right">
+                  משך
+                </Label>
+                <Input
+                  id="calendar-new-duration"
+                  name="duration"
+                  type="number"
+                  value={newClientFormData.duration}
+                  onChange={handleNewClientInputChange}
+                />
               </div>
             </div>
             <div className="space-y-2 pb-2">
-              <Label htmlFor="calendar-new-note" className="block text-right">הערות</Label>
-              <Textarea id="calendar-new-note" name="note" value={newClientFormData.note} onChange={handleNewClientInputChange} dir="rtl" />
+              <Label htmlFor="calendar-new-note" className="block text-right">
+                הערות
+              </Label>
+              <Textarea
+                id="calendar-new-note"
+                name="note"
+                value={newClientFormData.note}
+                onChange={handleNewClientInputChange}
+                dir="rtl"
+              />
             </div>
           </div>
           <div className="mt-4 flex justify-start gap-2">
@@ -1216,7 +1297,9 @@ export default function HomePage() {
               {isSavingNewClientAppointment && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               שמור
             </Button>
-            <Button variant="outline" onClick={closeAllDialogs}>ביטול</Button>
+            <Button variant="outline" onClick={closeAllDialogs}>
+              ביטול
+            </Button>
           </div>
         </CustomModal>
       </div>

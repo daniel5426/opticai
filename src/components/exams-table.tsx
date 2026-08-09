@@ -1,79 +1,64 @@
-import React, { useState, useEffect } from "react";
-import { useNavigate } from "@tanstack/react-router";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Plus, Trash2 } from "lucide-react";
-import { OpticalExam, ExamLayout } from "@/lib/db/schema-interface";
-import { ClientSelectModal } from "@/components/ClientSelectModal";
-import { CustomModal } from "@/components/ui/custom-modal";
-import { deleteExam } from "@/lib/db/exams-db";
-import { getAllExamLayouts } from "@/lib/db/exam-layouts-db";
-import { toast } from "sonner";
-import { Skeleton } from "@/components/ui/skeleton";
-import { DateSearchHelper } from "@/lib/date-search-helper";
-import { useUser } from "@/contexts/UserContext";
-import { Eye } from "lucide-react";
-import { ExamPreviewModal } from "@/components/exam/ExamPreviewModal";
-import { TableFiltersBar } from "@/components/table-filters-bar";
-import { ALL_FILTER_VALUE } from "@/lib/table-filters";
-import { SortableTableHead } from "@/components/sortable-table-head";
-import { SortColumns, SortState, sortRows } from "@/lib/table-sorting";
+import React, { useState, useEffect } from "react"
+import { useNavigate } from "@tanstack/react-router"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Button } from "@/components/ui/button"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { Plus, Trash2 } from "lucide-react"
+import { OpticalExam, ExamLayout } from "@/lib/db/schema-interface"
+import { ClientSelectModal } from "@/components/ClientSelectModal"
+import { CustomModal } from "@/components/ui/custom-modal"
+import { deleteExam } from "@/lib/db/exams-db"
+import { getAllExamLayouts } from "@/lib/db/exam-layouts-db"
+import { toast } from "sonner"
+import { Skeleton } from "@/components/ui/skeleton"
+import { DateSearchHelper } from "@/lib/date-search-helper"
+import { useUser } from "@/contexts/UserContext"
+import { Eye } from "lucide-react"
+import { ExamPreviewModal } from "@/components/exam/ExamPreviewModal"
+import { TableFiltersBar } from "@/components/table-filters-bar"
+import { TablePagination } from "@/components/table-pagination"
+import { ALL_FILTER_VALUE } from "@/lib/table-filters"
+import { SortableTableHead } from "@/components/sortable-table-head"
+import { SortColumns, SortState, sortRows } from "@/lib/table-sorting"
 
 interface ExamWithNames extends OpticalExam {
-  username?: string;
-  clientName?: string;
-  clinic?: string;
-  full_name?: string;
+  username?: string
+  clientName?: string
+  clinic?: string
+  full_name?: string
 }
 
 interface ExamsTableProps {
-  data: ExamWithNames[];
-  clientId: number;
-  onExamDeleted: (examId: number) => void;
-  onExamDeleteFailed: () => void;
-  loading: boolean;
+  data: ExamWithNames[]
+  clientId: number
+  onExamDeleted: (examId: number) => void
+  onExamDeleteFailed: () => void
+  loading: boolean
   pagination?: {
-    page: number;
-    pageSize: number;
-    total: number;
-    setPage: (p: number) => void;
-  };
-  searchQuery?: string;
-  onSearchChange?: (q: string) => void;
-  serverFiltered?: boolean;
-  testNameFilter?: string;
-  onTestNameFilterChange?: (value: string) => void;
-  sort?: SortState;
-  onSortChange?: (sort: SortState) => void;
+    page: number
+    pageSize: number
+    total: number
+    setPage: (p: number) => void
+  }
+  searchQuery?: string
+  onSearchChange?: (q: string) => void
+  serverFiltered?: boolean
+  testNameFilter?: string
+  onTestNameFilterChange?: (value: string) => void
+  sort?: SortState
+  onSortChange?: (sort: SortState) => void
 }
 
 function filterActiveLayouts(layouts: ExamLayout[]): ExamLayout[] {
   return layouts
     .map((layout) => {
-      const children = layout.children
-        ? filterActiveLayouts(layout.children)
-        : undefined;
+      const children = layout.children ? filterActiveLayouts(layout.children) : undefined
       if (layout.is_group) {
-        return layout.is_active !== false && children && children.length > 0
-          ? { ...layout, children }
-          : null;
+        return layout.is_active !== false && children && children.length > 0 ? { ...layout, children } : null
       }
-      return layout.is_active === false ? null : { ...layout, children };
+      return layout.is_active === false ? null : { ...layout, children }
     })
-    .filter(Boolean) as ExamLayout[];
+    .filter(Boolean) as ExamLayout[]
 }
 
 export function ExamsTable({
@@ -89,132 +74,121 @@ export function ExamsTable({
   testNameFilter: externalTestNameFilter,
   onTestNameFilterChange,
   sort,
-  onSortChange,
+  onSortChange
 }: ExamsTableProps) {
-  const [searchQuery, setSearchQuery] = useState("");
-  const [localSort, setLocalSort] = useState<SortState | undefined>();
-  const searchValue =
-    externalSearch !== undefined ? externalSearch : searchQuery;
-  const navigate = useNavigate();
-  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-  const [examToDelete, setExamToDelete] = useState<ExamWithNames | null>(null);
-  const [activeLayouts, setActiveLayouts] = useState<ExamLayout[]>([]);
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const { currentClinic } = useUser();
-  const [previewExamId, setPreviewExamId] = useState<number | null>(null);
-  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
-  const [selectedTestName, setSelectedTestName] =
-    useState<string>(ALL_FILTER_VALUE);
-  const testNameFilter = externalTestNameFilter ?? selectedTestName;
-  const activeSort = sort ?? localSort;
-  const handleSortChange = onSortChange ?? setLocalSort;
+  const [searchQuery, setSearchQuery] = useState("")
+  const [localSort, setLocalSort] = useState<SortState | undefined>()
+  const searchValue = externalSearch !== undefined ? externalSearch : searchQuery
+  const navigate = useNavigate()
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
+  const [examToDelete, setExamToDelete] = useState<ExamWithNames | null>(null)
+  const [activeLayouts, setActiveLayouts] = useState<ExamLayout[]>([])
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false)
+  const { currentClinic } = useUser()
+  const [previewExamId, setPreviewExamId] = useState<number | null>(null)
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false)
+  const [selectedTestName, setSelectedTestName] = useState<string>(ALL_FILTER_VALUE)
+  const testNameFilter = externalTestNameFilter ?? selectedTestName
+  const activeSort = sort ?? localSort
+  const handleSortChange = onSortChange ?? setLocalSort
 
-  const sortColumns = React.useMemo<SortColumns<ExamWithNames>>(() => ({
-    exam_date: { getValue: (exam) => exam.exam_date, type: "date" },
-    test_name: { getValue: (exam) => exam.test_name },
-    client: { getValue: (exam) => exam.clientName },
-    clinic: { getValue: (exam) => exam.clinic },
-    examiner: { getValue: (exam) => exam.full_name || exam.username },
-  }), []);
+  const sortColumns = React.useMemo<SortColumns<ExamWithNames>>(
+    () => ({
+      exam_date: { getValue: (exam) => exam.exam_date, type: "date" },
+      test_name: { getValue: (exam) => exam.test_name },
+      client: { getValue: (exam) => exam.clientName },
+      clinic: { getValue: (exam) => exam.clinic },
+      examiner: { getValue: (exam) => exam.full_name || exam.username }
+    }),
+    []
+  )
 
   useEffect(() => {
     const fetchActiveLayouts = async () => {
       if (!currentClinic?.id) {
-        setActiveLayouts([]);
-        return;
+        setActiveLayouts([])
+        return
       }
       try {
-        const layouts = await getAllExamLayouts(currentClinic?.id);
-        setActiveLayouts(filterActiveLayouts(layouts));
+        const layouts = await getAllExamLayouts(currentClinic?.id)
+        setActiveLayouts(filterActiveLayouts(layouts))
       } catch (error) {
-        console.error("Error fetching active layouts:", error);
+        console.error("Error fetching active layouts:", error)
       }
-    };
-    fetchActiveLayouts();
-  }, [currentClinic?.id]);
+    }
+    fetchActiveLayouts()
+  }, [currentClinic?.id])
 
   const handleTestNameFilterChange = (value: string) => {
     if (onTestNameFilterChange) {
-      onTestNameFilterChange(value);
-      return;
+      onTestNameFilterChange(value)
+      return
     }
-    setSelectedTestName(value);
-  };
+    setSelectedTestName(value)
+  }
 
   const filteredData = React.useMemo(() => {
-    let result = data;
+    let result = data
 
     if (!serverFiltered && testNameFilter !== ALL_FILTER_VALUE) {
-      result = result.filter((exam) => exam.test_name === testNameFilter);
+      result = result.filter((exam) => exam.test_name === testNameFilter)
     }
 
-    const searchLower = serverFiltered ? "" : searchValue.toLowerCase().trim();
+    const searchLower = serverFiltered ? "" : searchValue.toLowerCase().trim()
     if (!searchLower) {
-      return result;
+      return result
     }
 
     return result.filter((exam) => {
-      const fullName = (exam.full_name || exam.username || "").toLowerCase();
-      const clinic = (exam.clinic || "").toLowerCase();
-      const testName = (exam.test_name || "").toLowerCase();
+      const fullName = (exam.full_name || exam.username || "").toLowerCase()
+      const clinic = (exam.clinic || "").toLowerCase()
+      const testName = (exam.test_name || "").toLowerCase()
 
-      if (
-        fullName.includes(searchLower) ||
-        clinic.includes(searchLower) ||
-        testName.includes(searchLower)
-      ) {
-        return true;
+      if (fullName.includes(searchLower) || clinic.includes(searchLower) || testName.includes(searchLower)) {
+        return true
       }
 
-      return DateSearchHelper.matchesDate(searchLower, exam.exam_date);
-    });
-  }, [data, searchValue, testNameFilter, serverFiltered]);
+      return DateSearchHelper.matchesDate(searchLower, exam.exam_date)
+    })
+  }, [data, searchValue, testNameFilter, serverFiltered])
 
   const displayData = React.useMemo(() => {
-    return onSortChange ? filteredData : sortRows(filteredData, activeSort, sortColumns);
-  }, [activeSort, filteredData, onSortChange, sortColumns]);
+    return onSortChange ? filteredData : sortRows(filteredData, activeSort, sortColumns)
+  }, [activeSort, filteredData, onSortChange, sortColumns])
 
   const uniqueTestNames = React.useMemo(() => {
-    return Array.from(
-      new Set(data.map((exam) => exam.test_name).filter(Boolean)),
-    );
-  }, [data]);
+    return Array.from(new Set(data.map((exam) => exam.test_name).filter(Boolean)))
+  }, [data])
 
   const handleDeleteConfirm = async () => {
     if (examToDelete && examToDelete.id !== undefined) {
       try {
-        const deletedExamId = examToDelete.id;
+        const deletedExamId = examToDelete.id
         // Optimistically update the UI
-        onExamDeleted(deletedExamId);
-        toast.success("בדיקה נמחקה בהצלחה");
+        onExamDeleted(deletedExamId)
+        toast.success("בדיקה נמחקה בהצלחה")
 
-        const success = await deleteExam(deletedExamId);
+        const success = await deleteExam(deletedExamId)
         if (!success) {
           // Revert optimistic update if API call fails (you might need to refetch or pass original data back)
-          toast.error("אירעה שגיאה בעת מחיקת הבדיקה. מרענן נתונים...");
-          onExamDeleteFailed(); // Trigger full refresh
+          toast.error("אירעה שגיאה בעת מחיקת הבדיקה. מרענן נתונים...")
+          onExamDeleteFailed() // Trigger full refresh
         }
       } catch (error) {
-        toast.error("אירעה שגיאה בעת מחיקת הבדיקה");
-        onExamDeleteFailed(); // Trigger full refresh on error
+        toast.error("אירעה שגיאה בעת מחיקת הבדיקה")
+        onExamDeleteFailed() // Trigger full refresh on error
       } finally {
-        setExamToDelete(null);
+        setExamToDelete(null)
       }
     }
-    setIsDeleteModalOpen(false);
-  };
+    setIsDeleteModalOpen(false)
+  }
 
   return (
-    <div
-      className="mb-10 space-y-2.5"
-      dir="rtl"
-      style={{ scrollbarWidth: "none" }}
-    >
+    <div className="space-y-2.5" dir="rtl" style={{ scrollbarWidth: "none" }}>
       <TableFiltersBar
         searchValue={searchValue}
-        onSearchChange={(value) =>
-          onSearchChange ? onSearchChange(value) : setSearchQuery(value)
-        }
+        onSearchChange={(value) => (onSearchChange ? onSearchChange(value) : setSearchQuery(value))}
         searchPlaceholder="חיפוש בדיקות…"
         filters={[
           {
@@ -226,27 +200,22 @@ export function ExamsTable({
               { value: ALL_FILTER_VALUE, label: "כל הבדיקות" },
               ...uniqueTestNames.map((testName) => ({
                 value: testName || "unknown",
-                label: testName || "unknown",
-              })),
+                label: testName || "unknown"
+              }))
             ],
-            widthClassName: "w-[190px]",
-          },
+            widthClassName: "w-[190px]"
+          }
         ]}
-        hasActiveFilters={
-          Boolean(searchValue.trim()) || testNameFilter !== ALL_FILTER_VALUE
-        }
+        hasActiveFilters={Boolean(searchValue.trim()) || testNameFilter !== ALL_FILTER_VALUE}
         onReset={() => {
-          if (onSearchChange) onSearchChange("");
-          else setSearchQuery("");
-          handleTestNameFilterChange(ALL_FILTER_VALUE);
+          if (onSearchChange) onSearchChange("")
+          else setSearchQuery("")
+          handleTestNameFilterChange(ALL_FILTER_VALUE)
         }}
         actions={
           clientId > 0 ? (
             activeLayouts.length > 0 ? (
-              <DropdownMenu
-                open={isDropdownOpen}
-                onOpenChange={setIsDropdownOpen}
-              >
+              <DropdownMenu open={isDropdownOpen} onOpenChange={setIsDropdownOpen}>
                 <DropdownMenuTrigger dir="rtl" asChild>
                   <Button>
                     <Plus className="h-4 w-4" />
@@ -261,9 +230,9 @@ export function ExamsTable({
                         navigate({
                           to: "/clients/$clientId/exams/new",
                           params: { clientId: String(clientId) },
-                          search: { layoutId: String(layout.id) },
-                        });
-                        setIsDropdownOpen(false);
+                          search: { layoutId: String(layout.id) }
+                        })
+                        setIsDropdownOpen(false)
                       }}
                     >
                       {layout.name}
@@ -283,8 +252,8 @@ export function ExamsTable({
                 navigate({
                   to: "/clients/$clientId/exams/new",
                   params: { clientId: String(selectedClientId) },
-                  search: layoutId ? { layoutId: String(layoutId) } : undefined,
-                });
+                  search: layoutId ? { layoutId: String(layoutId) } : undefined
+                })
               }}
             />
           )
@@ -299,13 +268,48 @@ export function ExamsTable({
         >
           <TableHeader className="bg-card sticky top-0 z-0">
             <TableRow>
-              <SortableTableHead sortKey="exam_date" sort={activeSort} onSortChange={handleSortChange} className="text-right">תאריך בדיקה</SortableTableHead>
-              <SortableTableHead sortKey="test_name" sort={activeSort} onSortChange={handleSortChange} className="text-right">סוג בדיקה</SortableTableHead>
+              <SortableTableHead
+                sortKey="exam_date"
+                sort={activeSort}
+                onSortChange={handleSortChange}
+                className="text-right"
+              >
+                תאריך בדיקה
+              </SortableTableHead>
+              <SortableTableHead
+                sortKey="test_name"
+                sort={activeSort}
+                onSortChange={handleSortChange}
+                className="text-right"
+              >
+                סוג בדיקה
+              </SortableTableHead>
               {clientId === 0 && (
-                <SortableTableHead sortKey="client" sort={activeSort} onSortChange={handleSortChange} className="text-right">לקוח</SortableTableHead>
+                <SortableTableHead
+                  sortKey="client"
+                  sort={activeSort}
+                  onSortChange={handleSortChange}
+                  className="text-right"
+                >
+                  לקוח
+                </SortableTableHead>
               )}
-              <SortableTableHead sortKey="clinic" sort={activeSort} onSortChange={handleSortChange} className="text-right">סניף</SortableTableHead>
-              <SortableTableHead sortKey="examiner" sort={activeSort} onSortChange={handleSortChange} className="text-right">בודק</SortableTableHead>
+              <SortableTableHead
+                sortKey="clinic"
+                sort={activeSort}
+                onSortChange={handleSortChange}
+                className="text-right"
+              >
+                סניף
+              </SortableTableHead>
+              <SortableTableHead
+                sortKey="examiner"
+                sort={activeSort}
+                onSortChange={handleSortChange}
+                className="text-right"
+              >
+                בודק
+              </SortableTableHead>
               <TableHead className="w-[50px] text-right"></TableHead>
             </TableRow>
           </TableHeader>
@@ -340,16 +344,12 @@ export function ExamsTable({
                       to: "/clients/$clientId/exams/$examId",
                       params: {
                         clientId: String(exam.client_id),
-                        examId: String(exam.id),
-                      },
-                    });
+                        examId: String(exam.id)
+                      }
+                    })
                   }}
                 >
-                  <TableCell>
-                    {exam.exam_date
-                      ? new Date(exam.exam_date).toLocaleDateString("he-IL")
-                      : ""}
-                  </TableCell>
+                  <TableCell>{exam.exam_date ? new Date(exam.exam_date).toLocaleDateString("he-IL") : ""}</TableCell>
                   <TableCell>{exam.test_name}</TableCell>
                   {clientId === 0 && (
                     <TableCell>
@@ -357,13 +357,13 @@ export function ExamsTable({
                         type="button"
                         className="text-blue-600 hover:underline"
                         onClick={(e) => {
-                          e.stopPropagation();
+                          e.stopPropagation()
                           if (exam.client_id) {
                             navigate({
                               to: "/clients/$clientId",
                               params: { clientId: String(exam.client_id) },
-                              search: { tab: "exams" },
-                            });
+                              search: { tab: "exams" }
+                            })
                           }
                         }}
                       >
@@ -378,9 +378,9 @@ export function ExamsTable({
                       variant="ghost"
                       className="h-8 w-8 p-0"
                       onClick={(e) => {
-                        e.stopPropagation();
-                        setExamToDelete(exam);
-                        setIsDeleteModalOpen(true);
+                        e.stopPropagation()
+                        setExamToDelete(exam)
+                        setIsDeleteModalOpen(true)
                       }}
                       title="מחיקה"
                     >
@@ -390,9 +390,9 @@ export function ExamsTable({
                       variant="ghost"
                       className="h-8 w-8 p-0"
                       onClick={(e) => {
-                        e.stopPropagation();
-                        setPreviewExamId(exam.id || null);
-                        setIsPreviewOpen(true);
+                        e.stopPropagation()
+                        setPreviewExamId(exam.id || null)
+                        setIsPreviewOpen(true)
                       }}
                       title="צפייה מהירה"
                     >
@@ -403,10 +403,7 @@ export function ExamsTable({
               ))
             ) : (
               <TableRow>
-                <TableCell
-                  colSpan={clientId === 0 ? 6 : 5}
-                  className="h-24 text-center"
-                >
+                <TableCell colSpan={clientId === 0 ? 6 : 5} className="h-24 text-center">
                   לא נמצאו בדיקות לתצוגה
                 </TableCell>
               </TableRow>
@@ -415,44 +412,15 @@ export function ExamsTable({
         </Table>
       </div>
 
-      {pagination && (
-        <div className="mt-4 flex items-center justify-between">
-          <div className="text-muted-foreground text-sm">
-            עמוד {pagination.page} מתוך{" "}
-            {Math.max(
-              1,
-              Math.ceil((pagination.total || 0) / (pagination.pageSize || 1)),
-            )}{" "}
-            · סה"כ {pagination.total || 0}
-          </div>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={loading || pagination.page <= 1}
-              onClick={() =>
-                pagination.setPage(Math.max(1, pagination.page - 1))
-              }
-            >
-              הקודם
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={
-                loading ||
-                pagination.page >=
-                  Math.ceil(
-                    (pagination.total || 0) / (pagination.pageSize || 1),
-                  )
-              }
-              onClick={() => pagination.setPage(pagination.page + 1)}
-            >
-              הבא
-            </Button>
-          </div>
-        </div>
-      )}
+      {pagination ? (
+        <TablePagination
+          page={pagination.page}
+          pageSize={pagination.pageSize}
+          total={pagination.total}
+          onPageChange={pagination.setPage}
+          loading={loading}
+        />
+      ) : null}
 
       <CustomModal
         isOpen={isDeleteModalOpen}
@@ -475,54 +443,52 @@ export function ExamsTable({
         onClose={() => setIsPreviewOpen(false)}
         examId={previewExamId}
         onNext={() => {
-          const index = displayData.findIndex((e) => e.id === previewExamId);
+          const index = displayData.findIndex((e) => e.id === previewExamId)
           if (index < displayData.length - 1) {
-            setPreviewExamId(displayData[index + 1].id || null);
+            setPreviewExamId(displayData[index + 1].id || null)
           }
         }}
         onPrev={() => {
-          const index = displayData.findIndex((e) => e.id === previewExamId);
+          const index = displayData.findIndex((e) => e.id === previewExamId)
           if (index > 0) {
-            setPreviewExamId(displayData[index - 1].id || null);
+            setPreviewExamId(displayData[index - 1].id || null)
           }
         }}
         hasNext={(() => {
-          const index = displayData.findIndex((e) => e.id === previewExamId);
-          return index !== -1 && index < displayData.length - 1;
+          const index = displayData.findIndex((e) => e.id === previewExamId)
+          return index !== -1 && index < displayData.length - 1
         })()}
         hasPrev={(() => {
-          const index = displayData.findIndex((e) => e.id === previewExamId);
-          return index > 0;
+          const index = displayData.findIndex((e) => e.id === previewExamId)
+          return index > 0
         })()}
       />
     </div>
-  );
+  )
 }
 
 function NewExamButtonWithoutClient({
   activeLayouts,
-  onClientSelect,
+  onClientSelect
 }: {
-  activeLayouts: ExamLayout[];
-  onClientSelect: (clientId: number, layoutId?: number) => void;
+  activeLayouts: ExamLayout[]
+  onClientSelect: (clientId: number, layoutId?: number) => void
 }) {
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const [isClientModalOpen, setIsClientModalOpen] = useState(false);
-  const [selectedLayoutId, setSelectedLayoutId] = useState<
-    number | undefined
-  >();
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false)
+  const [isClientModalOpen, setIsClientModalOpen] = useState(false)
+  const [selectedLayoutId, setSelectedLayoutId] = useState<number | undefined>()
 
   const handleLayoutSelect = (layoutId: number) => {
-    setSelectedLayoutId(layoutId);
-    setIsDropdownOpen(false);
-    setIsClientModalOpen(true);
-  };
+    setSelectedLayoutId(layoutId)
+    setIsDropdownOpen(false)
+    setIsClientModalOpen(true)
+  }
 
   const handleClientSelect = (clientId: number) => {
-    onClientSelect(clientId, selectedLayoutId);
-    setIsClientModalOpen(false);
-    setSelectedLayoutId(undefined);
-  };
+    onClientSelect(clientId, selectedLayoutId)
+    setIsClientModalOpen(false)
+    setSelectedLayoutId(undefined)
+  }
 
   if (activeLayouts.length > 0) {
     return (
@@ -535,11 +501,7 @@ function NewExamButtonWithoutClient({
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start">
             {activeLayouts.map((layout) => (
-              <DropdownMenuItem
-                dir="rtl"
-                key={layout.id}
-                onClick={() => handleLayoutSelect(layout.id!)}
-              >
+              <DropdownMenuItem dir="rtl" key={layout.id} onClick={() => handleLayoutSelect(layout.id!)}>
                 {layout.name}
               </DropdownMenuItem>
             ))}
@@ -548,18 +510,18 @@ function NewExamButtonWithoutClient({
         <ClientSelectModal
           isOpen={isClientModalOpen}
           onClose={() => {
-            setIsClientModalOpen(false);
-            setSelectedLayoutId(undefined);
+            setIsClientModalOpen(false)
+            setSelectedLayoutId(undefined)
           }}
           onClientSelect={handleClientSelect}
         />
       </>
-    );
+    )
   }
 
   return (
     <Button>
       <Plus className="h-4 w-4" />
     </Button>
-  );
+  )
 }

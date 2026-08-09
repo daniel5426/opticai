@@ -1,4 +1,5 @@
 import { createRoute } from "@tanstack/react-router";
+import { lazy } from "react";
 import { RootRoute } from "./__root";
 import HomePage from "../pages/HomePage";
 import ControlCenterPage from "../pages/ControlCenterPage";
@@ -27,6 +28,7 @@ import CampaignsPage from "@/pages/CampaignsPage";
 import ReferralDetailPage from "../pages/ReferralDetailPage";
 import AllExamsPage from "@/pages/AllExamsPage";
 import AllOrdersPage from "@/pages/AllOrdersPage";
+import InventoryPage from "@/pages/InventoryPage";
 import AllUsersPage from "@/pages/AllUsersPage";
 import AuthCallbackPage from "@/pages/AuthCallbackPage";
 import GoogleAuthCallbackPage from "@/pages/GoogleAuthCallbackPage";
@@ -224,6 +226,12 @@ export const AllOrdersRoute = createRoute({
   component: AllOrdersPage,
 });
 
+export const InventoryRoute = createRoute({
+  getParentRoute: () => RootRoute,
+  path: "/inventory",
+  component: InventoryPage,
+});
+
 
 export const AllReferralsRoute = createRoute({
   getParentRoute: () => RootRoute,
@@ -326,6 +334,16 @@ export const CampaignsRoute = createRoute({
   component: CampaignsPage,
 });
 
+const localUiTestRoutes = import.meta.env.DEV
+  ? [
+      createRoute({
+        getParentRoute: () => RootRoute,
+        path: "/dev/ui-tests",
+        component: lazy(() => import("@/pages/LocalUiTestsPage")),
+      }),
+    ]
+  : [];
+
 export const AuthCallbackRoute = createRoute({
   getParentRoute: () => RootRoute,
   path: "/auth/callback",
@@ -359,6 +377,7 @@ export const rootTree = RootRoute.addChildren([
   ReferralCreateRoute,
   AllExamsRoute,
   AllOrdersRoute,
+  InventoryRoute,
   AllReferralsRoute,
   AllAppointmentsRoute,
   AllFilesRoute,
@@ -370,6 +389,7 @@ export const rootTree = RootRoute.addChildren([
   ExamLayoutEditorDetailRoute,
   WorkerStatsRoute,
   CampaignsRoute,
+  ...localUiTestRoutes,
   AuthCallbackRoute,
   GoogleAuthCallbackRoute,
 ]);

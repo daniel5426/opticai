@@ -185,6 +185,23 @@ export const isNonEmptyComponent = (key: string, value: any) => {
     "comb_va",
     "comb_j",
   ];
+  const specialOldRefractionExtension = [
+    ...specialOldRefraction,
+    "r_pr_h",
+    "r_base_h",
+    "r_pr_v",
+    "r_base_v",
+    "r_pd_far",
+    "r_pd_close",
+    "l_pr_h",
+    "l_base_h",
+    "l_pr_v",
+    "l_base_v",
+    "l_pd_far",
+    "l_pd_close",
+    "comb_pd_far",
+    "comb_pd_close",
+  ];
 
   const specialRetinoscop = [
     "r_sph",
@@ -216,6 +233,15 @@ export const isNonEmptyComponent = (key: string, value: any) => {
     // The replacement Cover Test is a standard single-instance card.
   } else if (key.startsWith("cover-test-")) {
     return specialCover.some((k) => isMeaningfulValue((value as any)[k]));
+  }
+
+  if (
+    key.startsWith("old-refraction-extension-") ||
+    key === "old-refraction-extension"
+  ) {
+    return specialOldRefractionExtension.some((k) =>
+      isMeaningfulValue((value as any)[k]),
+    );
   }
 
   if (key.startsWith("old-refraction-") || key === "old-refraction") {
@@ -272,11 +298,13 @@ export const computeCardGridCols = (
 const CARD_MIN_GRID_COL_OVERRIDES: Partial<Record<CardItem["type"], number>> = {
   "stereo-test": 4,
   rg: 6,
-  "maddox-rod": 8,
   "contact-lens-diameters": 4,
   "schirmer-test": 4,
   "corneal-topography": 8,
-  keratometer: 7,
+  keratometer: 8,
+  "keratometer-contact-lens": 11,
+  "maddox-rod": 9,
+  retinoscop: 11,
   "diopter-adjustment-panel": 8,
 };
 
@@ -751,6 +779,11 @@ export const resolveFullDataSourceInstanceId = (
     const fallbackId =
       cardId || componentKey.slice("cover-test-".length).split("-")[0];
     if (fallbackId) prefixes.push(`cover-test-${fallbackId}-`);
+  } else if (componentKey.startsWith("old-refraction-extension-")) {
+    const fallbackId =
+      cardId ||
+      componentKey.slice("old-refraction-extension-".length).split("-")[0];
+    if (fallbackId) prefixes.push(`old-refraction-extension-${fallbackId}-`);
   } else if (componentKey.startsWith("old-refraction-")) {
     const fallbackId =
       cardId || componentKey.slice("old-refraction-".length).split("-")[0];

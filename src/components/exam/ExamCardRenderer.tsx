@@ -102,6 +102,7 @@ const componentsWithMiddleRow: CardItem["type"][] = [
   "final-subjective",
   "final-prescription",
   "compact-prescription",
+  "retinoscop",
   "corneal-topography",
   "anamnesis",
   "over-refraction",
@@ -110,7 +111,6 @@ const componentsWithMiddleRow: CardItem["type"][] = [
 const componentsDontHaveMiddleRow: CardItem["type"][] = [
   "objective",
   "addition",
-  "retinoscop",
   "retinoscop-dilation",
   "uncorrected-va",
   "keratometer",
@@ -128,6 +128,9 @@ const componentsDontHaveMiddleRow: CardItem["type"][] = [
   "ocular-motor-assessment",
   "npc",
 ];
+
+export const componentHasMiddleRow = (type: CardItem["type"]) =>
+  componentsWithMiddleRow.includes(type);
 
 const componentsWithEyeRowCopy: CardItem["type"][] = [
   "old-refraction",
@@ -244,6 +247,19 @@ export interface DetailProps {
     tabIdx: number,
     newType: string,
   ) => void;
+  oldRefractionExtensionTabs?: Record<string, string[]>;
+  activeOldRefractionExtensionTabs?: Record<string, string>;
+  setActiveOldRefractionExtensionTabs?: React.Dispatch<
+    React.SetStateAction<Record<string, string>>
+  >;
+  addOldRefractionExtensionTab?: (cardId: string, type: string) => void;
+  removeOldRefractionExtensionTab?: (cardId: string, tabIdx: number) => void;
+  duplicateOldRefractionExtensionTab?: (cardId: string, tabIdx: number) => void;
+  updateOldRefractionExtensionTabType?: (
+    cardId: string,
+    tabIdx: number,
+    newType: string,
+  ) => void;
   availableExamLayouts?: ExamLayout[];
   onSelectLayout?: (layoutId: number) => void | Promise<void>;
   isLayoutSelectionLoading?: boolean;
@@ -321,7 +337,7 @@ const getExamFormData = (
     case "fusion-range":
       return { layout_instance_id: 0 } as FusionRangeExam;
     case "maddox-rod":
-      return { layout_instance_id: 0 } as MaddoxRodExam;
+      return { layout_instance_id: 0, schema_version: 2 } as MaddoxRodExam;
     case "stereo-test":
       return { layout_instance_id: 0 } as StereoTestExam;
     case "rg":
@@ -401,6 +417,19 @@ export const createDetailProps = (
     setActiveOldRefractionTabs?: React.Dispatch<
       React.SetStateAction<Record<string, string>>
     >;
+    oldRefractionExtensionTabs?: Record<string, string[]>;
+    activeOldRefractionExtensionTabs?: Record<string, string>;
+    setActiveOldRefractionExtensionTabs?: React.Dispatch<
+      React.SetStateAction<Record<string, string>>
+    >;
+    addOldRefractionExtensionTab?: (cardId: string, type: string) => void;
+    removeOldRefractionExtensionTab?: (cardId: string, tabIdx: number) => void;
+    duplicateOldRefractionExtensionTab?: (cardId: string, tabIdx: number) => void;
+    updateOldRefractionExtensionTabType?: (
+      cardId: string,
+      tabIdx: number,
+      newType: string,
+    ) => void;
   },
 ): DetailProps => {
   return {
@@ -473,13 +502,13 @@ export const getColumnCount = (
     case "addition":
       return 6;
     case "retinoscop":
-      return 6;
+      return 7;
     case "retinoscop-dilation":
       return 6;
     case "uncorrected-va":
       return 3;
     case "keratometer":
-      return 3;
+      return 4;
     case "keratometer-full":
       return 9;
     case "corneal-topography":
@@ -499,7 +528,7 @@ export const getColumnCount = (
     case "contact-lens-details":
       return 10;
     case "keratometer-contact-lens":
-      return 6;
+      return 7;
     case "contact-lens-exam":
       return 7;
     case "old-contact-lenses":
@@ -511,9 +540,9 @@ export const getColumnCount = (
     case "fusion-range":
       return 5;
     case "maddox-rod":
-      return 5;
+      return 6;
     case "stereo-test":
-      return 2;
+      return 4;
     case "rg":
       return 3;
     case "ocular-motor-assessment":
@@ -543,7 +572,7 @@ export const getMaxWidth = (
     case "sensation-vision-stability":
       return 1000;
     case "stereo-test":
-      return 200;
+      return 400;
     default: {
       const col = getColumnCount(type, mode);
       return typeof col === "number" ? col * 90 : col.fixedPx;
@@ -934,7 +963,7 @@ export const ExamCardRenderer = React.memo<RenderCardProps>(
       ) : null;
 
     const hasSiblingWithMiddleRow = rowCards.some((c) =>
-      componentsWithMiddleRow.includes(c.type),
+      componentHasMiddleRow(c.type),
     );
     const isComponentWithoutMiddleRow = componentsDontHaveMiddleRow.includes(
       item.type,
@@ -1279,32 +1308,112 @@ export const ExamCardRenderer = React.memo<RenderCardProps>(
         );
       }
 
-      case "old-refraction-extension":
+      case "old-refraction-extension": {
+        const extensionTabs =
+          detailProps?.oldRefractionExtensionTabs?.[item.id] || [];
+        const requestedActiveId =
+          detailProps?.activeOldRefractionExtensionTabs?.[item.id];
+        const activeTabId =
+          requestedActiveId && extensionTabs.includes(requestedActiveId)
+            ? requestedActiveId
+            : extensionTabs[0];
+        const activeTabIndex = activeTabId
+          ? Math.max(0, extensionTabs.indexOf(activeTabId))
+          : 0;
+        const activeKey = activeTabId
+          ? `old-refraction-extension-${item.id}-${activeTabId}`
+          : undefined;
+        const activeData: OldRefractionExtensionExam =
+          activeKey && detailProps?.examFormData?.[activeKey]
+            ? (detailProps.examFormData[
+                activeKey
+              ] as OldRefractionExtensionExam)
+            : { layout_instance_id: detailProps?.layoutInstanceId ?? 0 };
+        const allTabsData = extensionTabs.map((tabId) => {
+          const key = `old-refraction-extension-${item.id}-${tabId}`;
+          return (
+            (detailProps?.examFormData?.[
+              key
+            ] as OldRefractionExtensionExam) || {
+              layout_instance_id: detailProps?.layoutInstanceId ?? 0,
+            }
+          );
+        });
+        const setActiveTab = (index: number) => {
+          const tabId = extensionTabs[index];
+          if (!tabId) return;
+          detailProps?.setActiveOldRefractionExtensionTabs?.({
+            ...detailProps.activeOldRefractionExtensionTabs,
+            [item.id]: tabId,
+          });
+          forceUpdate();
+        };
+        const onChange = (
+          field: keyof OldRefractionExtensionExam,
+          value: string,
+        ) => {
+          if (!activeKey || !activeTabId) return;
+          const handler = detailProps?.fieldHandlers?.[activeKey];
+          if (handler) {
+            handler(field, value);
+            return;
+          }
+          detailProps?.setExamFormData?.((previous) => ({
+            ...previous,
+            [activeKey]: {
+              ...((previous?.[activeKey] as Record<string, unknown>) || {}),
+              card_instance_id: activeTabId,
+              card_id: item.id,
+              tab_index: activeTabIndex,
+              layout_instance_id:
+                (previous?.[activeKey] as Record<string, unknown>)
+                  ?.layout_instance_id ?? detailProps?.layoutInstanceId,
+              [field]: value,
+            },
+          }));
+        };
+
         return (
           <div
             className={`relative h-full ${matchHeight ? "flex flex-col" : ""}`}
           >
             {toolbox}
             <OldRefractionExtensionTab
-              oldRefractionExtensionData={
-                getExamData(
-                  "old-refraction-extension",
-                  item.id,
-                ) as OldRefractionExtensionExam
-              }
-              onOldRefractionExtensionChange={getChangeHandler(
-                "old-refraction-extension",
-                item.id,
-              )}
+              oldRefractionExtensionData={activeData}
+              onOldRefractionExtensionChange={onChange}
               isEditing={mode === "detail" ? detailProps!.isEditing : false}
               onMultifocalClick={
                 legacyHandlers.handleMultifocalOldRefractionExtension ||
                 (() => {})
               }
               hideEyeLabels={finalHideEyeLabels}
+              tabCount={extensionTabs.length}
+              activeTab={activeTabIndex}
+              onTabChange={setActiveTab}
+              onAddTab={(type) =>
+                detailProps?.addOldRefractionExtensionTab?.(item.id, type)
+              }
+              onDeleteTab={(index) =>
+                detailProps?.removeOldRefractionExtensionTab?.(item.id, index)
+              }
+              onDuplicateTab={(index) =>
+                detailProps?.duplicateOldRefractionExtensionTab?.(
+                  item.id,
+                  index,
+                )
+              }
+              onUpdateType={(index, type) =>
+                detailProps?.updateOldRefractionExtensionTabType?.(
+                  item.id,
+                  index,
+                  type,
+                )
+              }
+              allTabsData={allTabsData}
             />
           </div>
         );
+      }
 
       case "objective":
         return (
@@ -1858,7 +1967,7 @@ export const ExamCardRenderer = React.memo<RenderCardProps>(
               value={notesData.note || ""}
               onChange={(value) => onNotesChange("note", value)}
               disabled={!detailProps?.isEditing}
-              height={matchHeight ? "full" : undefined}
+              height="full"
               placeholder={detailProps?.isEditing ? "הערות..." : ""}
             />
           </div>
@@ -2235,6 +2344,32 @@ export const ExamCardRenderer = React.memo<RenderCardProps>(
         // Check resolved active tab data
         if (nextActiveId) {
           const key = `old-refraction-${id}-${nextActiveId}`;
+          if (prevData[key] !== nextData[key]) return false;
+        }
+        return true;
+      }
+
+      if (type === "old-refraction-extension") {
+        const prevTabs =
+          prev.detailProps.oldRefractionExtensionTabs?.[id] || [];
+        const nextTabs =
+          next.detailProps.oldRefractionExtensionTabs?.[id] || [];
+        if (prevTabs.length !== nextTabs.length) return false;
+        const nextRequested =
+          next.detailProps.activeOldRefractionExtensionTabs?.[id];
+        const prevRequested =
+          prev.detailProps.activeOldRefractionExtensionTabs?.[id];
+        const nextActive =
+          nextRequested && nextTabs.includes(nextRequested)
+            ? nextRequested
+            : nextTabs[0];
+        const prevActive =
+          prevRequested && prevTabs.includes(prevRequested)
+            ? prevRequested
+            : prevTabs[0];
+        if (prevActive !== nextActive) return false;
+        if (nextActive) {
+          const key = `old-refraction-extension-${id}-${nextActive}`;
           if (prevData[key] !== nextData[key]) return false;
         }
         return true;

@@ -22,6 +22,18 @@ import {
   PrescriptionSearchResult, ClientMergeResult
 } from './db/schema-interface';
 import { CalendarHoliday } from './clinic-holidays';
+import {
+  CatalogVariant,
+  DiscoveryCandidate,
+  InventoryMovement,
+  InventorySelection,
+} from './inventory';
+import type {
+  AnalyticsRange,
+  CompanyAnalyticsResponse,
+  InventoryAnalyticsResponse,
+  WorkforceAnalyticsResponse,
+} from "./analytics";
 
 function normalizeApiBaseUrl(rawUrl?: string): string {
   const fallback = 'http://localhost:8001/api/v1';
@@ -67,6 +79,23 @@ function getFallbackApiBaseUrl(baseUrl: string): string | null {
 interface ApiResponse<T> {
   data?: T;
   error?: string;
+  errorDetail?: unknown;
+  status?: number;
+}
+
+export interface SubscriptionSummary {
+  status: 'pending_checkout' | 'trialing' | 'active' | 'legacy_active' | 'past_due' | 'read_only' | 'cancelled';
+  access_mode: 'full' | 'billing_only' | 'read_only';
+  plan_code: string;
+  pending_plan_code: string | null;
+  usage: { clinics: number; staff: number };
+  limits: { clinics: number | null; staff: number | null };
+  trial_ends_at: string | null;
+  current_period_ends_at: string | null;
+  grace_ends_at: string | null;
+  cancel_at_period_end: boolean;
+  pending_change_at: string | null;
+  can_manage_billing: boolean;
 }
 
 export interface AuthPayload {
@@ -206,6 +235,11 @@ class ApiClient {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
+        const emitSubscriptionError = (statusCode: number, detail: unknown) => {
+          if (typeof window !== 'undefined' && (statusCode === 402 || statusCode === 409)) {
+            window.dispatchEvent(new CustomEvent('subscription:attention', { detail: { status: statusCode, detail } }));
+          }
+        };
         if (response.status === 401) {
           const hadAuthHeader = Boolean(headers['Authorization']);
           if (hadAuthHeader && !isPublicEndpoint && !suppressUnauthorized) {
@@ -220,7 +254,9 @@ class ApiClient {
               }
               if (response.status !== 401) {
                 const retryError = await response.json().catch(() => errorData);
-                return { error: (retryError && (retryError as any).detail) || `HTTP ${response.status}` };
+                const detail = (retryError && (retryError as any).detail) || `HTTP ${response.status}`;
+                emitSubscriptionError(response.status, detail);
+                return { error: typeof detail === 'string' ? detail : (detail?.code || `HTTP ${response.status}`), errorDetail: detail, status: response.status };
               }
             }
             this.clearToken();
@@ -238,7 +274,9 @@ class ApiClient {
           }
         }
         const second = await response.json().catch(() => errorData);
-        return { error: (second && (second as any).detail) || `HTTP ${response.status}` };
+        const detail = (second && (second as any).detail) || `HTTP ${response.status}`;
+        emitSubscriptionError(response.status, detail);
+        return { error: typeof detail === 'string' ? detail : (detail?.code || `HTTP ${response.status}`), errorDetail: detail, status: response.status };
       }
 
       const data = await response.json();
@@ -323,6 +361,14 @@ class ApiClient {
     const response = await this.getCurrentSession(options);
     if (response.error) return { error: response.error } as ApiResponse<User>;
     return { data: response.data?.user } as ApiResponse<User>;
+  }
+
+  async getSubscriptionSummary() {
+    return this.request<SubscriptionSummary>('/subscriptions/me');
+  }
+
+  async createBillingPortalSession() {
+    return this.request<{ url: string }>('/subscriptions/portal-session', { method: 'POST', body: '{}' });
   }
 
   async createClinicSession(data: { clinic_unique_id: string; pin?: string; device_id: string }) {
@@ -1187,6 +1233,185 @@ class ApiClient {
     });
   }
 
+  // Inventory and catalog
+  async getInventoryVariants(
+    clinicId: number,
+    options?: {
+      category?: "frame" | "contact_lens";
+      search?: string;
+      barcode?: string;
+      includeArchived?: boolean;
+      stockableOnly?: boolean;
+    },
+  ) {
+    const params = new URLSearchParams({ clinic_id: String(clinicId) });
+    if (options?.category) params.set("category", options.category);
+    if (options?.search) params.set("search", options.search);
+    if (options?.barcode) params.set("barcode", options.barcode);
+    if (options?.includeArchived) params.set("include_archived", "true");
+    if (options?.stockableOnly) params.set("stockable_only", "true");
+    return this.request<{ items: CatalogVariant[]; total: number; clinic_id: number }>(
+      "/inventory/variants?" + params.toString(),
+    );
+  }
+
+  async getInventorySummary(clinicId: number) {
+    return this.request<Record<string, number>>(
+      "/inventory/summary?clinic_id=" + clinicId,
+    );
+  }
+
+  async createCatalogEntry(payload: any) {
+    return this.request<CatalogVariant>("/inventory/catalog", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async updateCatalogProduct(productId: number, payload: any) {
+    return this.request("/inventory/products/" + productId, {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async updateCatalogVariant(variantId: number, payload: any) {
+    return this.request<CatalogVariant>("/inventory/variants/" + variantId, {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async updateCatalogEntry(variantId: number, payload: any) {
+    return this.request<CatalogVariant>("/inventory/catalog/" + variantId, {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async archiveCatalogVariant(variantId: number, restore = false) {
+    return this.request<CatalogVariant>(
+      "/inventory/variants/" + variantId + "/archive?restore=" + restore,
+      { method: "POST" },
+    );
+  }
+
+  async adjustInventoryBalance(variantId: number, payload: any) {
+    return this.request("/inventory/balances/" + variantId + "/adjust", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async updateInventoryPolicy(variantId: number, payload: any) {
+    return this.request("/inventory/balances/" + variantId + "/policy", {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async submitInventoryCount(payload: any) {
+    return this.request("/inventory/counts", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async getInventoryMovements(clinicId: number, variantId?: number) {
+    const params = new URLSearchParams({ clinic_id: String(clinicId) });
+    if (variantId) params.set("variant_id", String(variantId));
+    return this.request<{ items: InventoryMovement[] }>(
+      "/inventory/movements?" + params.toString(),
+    );
+  }
+
+  async getOrderInventoryAllocations(kind: "regular" | "contact", orderId: number) {
+    return this.request<{ items: InventorySelection[] }>(
+      "/inventory/orders/" + kind + "/" + orderId + "/allocations",
+    );
+  }
+
+  async getInventorySettings() {
+    return this.request<{
+      default_reorder_point: number;
+      default_target_quantity: number;
+      discovery_intro_acknowledged: boolean;
+      should_offer_discovery: boolean;
+      existing_order_count: number;
+    }>("/inventory/settings");
+  }
+
+  async acknowledgeInventoryDiscovery() {
+    return this.request("/inventory/settings/acknowledge-discovery", {
+      method: "POST",
+    });
+  }
+
+  async previewInventoryDiscovery() {
+    return this.request<{
+      candidates: DiscoveryCandidate[];
+      summary: Record<string, number>;
+    }>("/inventory/discovery/preview", { method: "POST" });
+  }
+
+  async confirmInventoryDiscovery(candidates: DiscoveryCandidate[]) {
+    return this.request("/inventory/discovery/confirm", {
+      method: "POST",
+      body: JSON.stringify({ candidates }),
+    });
+  }
+
+  async previewInventoryImport(csvText: string) {
+    return this.request<any>("/inventory/import/preview", {
+      method: "POST",
+      body: JSON.stringify({ csv_text: csvText }),
+    });
+  }
+
+  async commitInventoryImport(clinicId: number, rows: any[], importId: string) {
+    return this.request<any>("/inventory/import/commit", {
+      method: "POST",
+      body: JSON.stringify({ clinic_id: clinicId, rows, import_id: importId }),
+    });
+  }
+
+  async getInventoryInsights(clinicId: number, range?: AnalyticsRange) {
+    const params = new URLSearchParams({ clinic_id: String(clinicId) });
+    if (range) {
+      params.set("start_date", range.startDate);
+      params.set("end_date", range.endDate);
+      params.set("bucket", range.bucket);
+    } else {
+      params.set("days", "90");
+    }
+    return this.request<InventoryAnalyticsResponse>("/inventory/insights?" + params.toString());
+  }
+
+  async downloadInventoryCsv(
+    clinicId: number,
+    filters?: { category?: string; search?: string },
+  ): Promise<ApiResponse<string>> {
+    const params = new URLSearchParams({ clinic_id: String(clinicId) });
+    if (filters?.category) params.set("category", filters.category);
+    if (filters?.search) params.set("search", filters.search);
+    const endpoint = "/inventory/export?" + params.toString();
+    try {
+      const headers: Record<string, string> = {};
+      if (this.token) headers.Authorization = "Bearer " + this.token;
+      const response = await fetch(this.baseUrl + endpoint, {
+        headers,
+        cache: "no-store",
+      });
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        return { error: error?.detail || "HTTP " + response.status };
+      }
+      return { data: await response.text() };
+    } catch (error) {
+      return { error: error instanceof Error ? error.message : "Network error" };
+    }
+  }
+
   // Order unified data
   async getOrderData(orderId: number) {
     return this.request(`/orders/${orderId}/data`);
@@ -1405,6 +1630,17 @@ class ApiClient {
 
   async getWorkShiftStats(userId: number, year: number, month: number) {
     return this.request(`/work-shifts/user/${userId}/stats/${year}/${month}`);
+  }
+
+  async getWorkforceAnalytics(userId: number, range: AnalyticsRange) {
+    const params = new URLSearchParams({
+      start_date: range.startDate,
+      end_date: range.endDate,
+      bucket: range.bucket,
+    });
+    return this.request<WorkforceAnalyticsResponse>(
+      `/work-shifts/analytics/${userId}?${params.toString()}`,
+    );
   }
 
   // Campaigns
@@ -1788,6 +2024,18 @@ class ApiClient {
   // Control Center aggregated endpoints
   async getControlCenterDashboard(companyId: number) {
     return this.request(`/control-center/dashboard/${companyId}`);
+  }
+
+  async getControlCenterAnalytics(companyId: number, range: AnalyticsRange, clinicId?: number) {
+    const params = new URLSearchParams({
+      start_date: range.startDate,
+      end_date: range.endDate,
+      bucket: range.bucket,
+    });
+    if (clinicId) params.set("clinic_id", String(clinicId));
+    return this.request<CompanyAnalyticsResponse>(
+      `/control-center/analytics/${companyId}?${params.toString()}`,
+    );
   }
 
   async getControlCenterUsers(companyId: number) {
@@ -2187,6 +2435,12 @@ class ApiClient {
 
   async getMigrationImport(jobId: string) {
     return this.request(`/migration/imports/${jobId}`);
+  }
+
+  async getMigrationReportDownload(jobId: string) {
+    return this.request<{ url: string; file_name: string }>(
+      `/migration/imports/${jobId}/report-download`,
+    );
   }
 
   async getMigrationSourceDataSummary(

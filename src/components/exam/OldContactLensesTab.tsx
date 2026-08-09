@@ -147,6 +147,7 @@ export function OldContactLensesTab({ data, onChange, isEditing, hideEyeLabels =
                       disabled={!isEditing}
                       textOptions={(colProps as any).textOptions}
                       textValueAliases={(colProps as any).textValueAliases}
+                      textDisplayAliases={(colProps as any).displayAliases}
                       numericProps={{
                         step: (colProps as any).step,
                         min: (colProps as any).min,
@@ -257,6 +258,7 @@ export function OldContactLensesTab({ data, onChange, isEditing, hideEyeLabels =
                       disabled={!isEditing}
                       textOptions={(colProps as any).textOptions}
                       textValueAliases={(colProps as any).textValueAliases}
+                      textDisplayAliases={(colProps as any).displayAliases}
                       numericProps={{
                         step: (colProps as any).step,
                         min: (colProps as any).min,

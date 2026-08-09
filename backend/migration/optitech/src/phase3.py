@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 import argparse
-from dataclasses import dataclass
-from datetime import date, datetime
+from dataclasses import dataclass, replace
+from datetime import date, datetime, timedelta
+from contextvars import ContextVar
 import mimetypes
 from pathlib import Path
 import shutil
 import sys
-from typing import Any, Dict, Iterable, Iterator, List, Mapping, Optional, Sequence, Tuple
+from typing import Any, Callable, Dict, Iterable, Iterator, List, Mapping, Optional, Sequence, Tuple
 
 CURRENT_FILE = Path(__file__).resolve()
 for path in (CURRENT_FILE.parents[4], CURRENT_FILE.parents[3]):
@@ -28,6 +29,7 @@ try:
         MedicalLog,
         OpticalExam,
         Order,
+        WorkShift,
     )
     from services.prescription_search_index import rebuild_clinic_prescription_search_index
 except ModuleNotFoundError:
@@ -40,6 +42,7 @@ except ModuleNotFoundError:
         MedicalLog,
         OpticalExam,
         Order,
+        WorkShift,
     )
     from backend.services.prescription_search_index import rebuild_clinic_prescription_search_index
 
@@ -59,12 +62,17 @@ from .records import (
     NormalizedGlassesExamSeed,
     NormalizedMedicalNoteSeed,
     NormalizedOrderSeed,
+    NormalizedWorkShiftSeed,
     normalize_appointment_row,
     normalize_contact_lens_exam_row,
     normalize_file_row,
     normalize_glasses_exam_row,
     normalize_medical_note_row,
     normalize_order_row,
+    normalize_previous_refraction_row,
+    normalize_work_shift_row,
+    parse_access_date,
+    parse_intish,
 )
 from .trace import (
     OPTITECH_SOURCE_SYSTEM,
@@ -74,6 +82,7 @@ from .trace import (
     load_target_rows,
     load_trace_links,
     upsert_source_link,
+    can_resume_source_link,
 )
 from .validate_phase3 import (
     create_unmapped_field_report,
@@ -91,6 +100,7 @@ PHASE3_DOMAINS: Tuple[str, ...] = (
     "files",
     "medical_notes",
     "appointments",
+    "work_shifts",
 )
 PRESCRIPTION_INDEX_DOMAINS = {"glasses_exams", "contact_lens_exams", "orders"}
 DOMAIN_BATCH_SIZES: Mapping[str, int] = {
@@ -100,8 +110,19 @@ DOMAIN_BATCH_SIZES: Mapping[str, int] = {
     "files": 200,
     "medical_notes": 500,
     "appointments": 500,
+    "work_shifts": 1000,
 }
 MIGRATED_SCANS_DIR = WORKSPACE_ROOT / "artifacts" / "migrated_scans"
+_batch_progress_callback: ContextVar[Optional[Callable[[str, Dict[str, int]], None]]] = ContextVar(
+    "optitech_batch_progress_callback",
+    default=None,
+)
+
+
+def emit_batch_progress(domain: str, counters: "DomainCounters") -> None:
+    callback = _batch_progress_callback.get()
+    if callback:
+        callback(domain, counters.as_dict())
 
 
 @dataclass
@@ -304,9 +325,9 @@ def normalize_note_value(value: Optional[str]) -> Optional[str]:
     return "\n".join(normalized_lines) if normalized_lines else None
 
 
-def normalize_prism_pair(prism: Optional[float], base: Optional[float]) -> Tuple[Optional[float], Optional[str]]:
+def normalize_prism_pair(prism: Optional[float], base: Any) -> Tuple[Optional[float], Optional[str]]:
     effective_prism = None if prism in (None, 0, 0.0) else prism
-    effective_base = stringify_base(base) if effective_prism is not None and base not in (None, 0, 0.0) else None
+    effective_base = str(base) if effective_prism is not None and base not in (None, "", 0, 0.0) else None
     return effective_prism, effective_base
 
 
@@ -368,11 +389,13 @@ def build_glasses_objective_payload(
     return payload if len(payload) > 1 else None
 
 
-def build_glasses_subjective_payload(
+def build_glasses_final_prescription_payload(
     seed: NormalizedGlassesExamSeed,
     *,
-    layout_instance_id: int,
+    layout_instance_id: Optional[int] = None,
 ) -> Optional[Dict[str, Any]]:
+    # Non-P fields are the current OptiTech prescription. P* fields are prior
+    # refractions and must never become the final prescription.
     r_pris, r_base = normalize_prism_pair(seed.subjective.get("r_pris"), seed.subjective.get("r_base"))
     l_pris, l_base = normalize_prism_pair(seed.subjective.get("l_pris"), seed.subjective.get("l_base"))
     payload = strip_none(
@@ -391,85 +414,14 @@ def build_glasses_subjective_payload(
             "r_va": seed.subjective.get("r_va"),
             "l_va": seed.subjective.get("l_va"),
             "comb_va": seed.subjective.get("comb_va"),
-            "r_ph": seed.subjective.get("r_ph"),
-            "l_ph": seed.subjective.get("l_ph"),
-            "r_pd_close": seed.subjective.get("r_pd_close"),
-            "l_pd_close": seed.subjective.get("l_pd_close"),
-            "comb_pd_close": seed.subjective.get("comb_pd_close"),
+            "r_ad": seed.additional.get("r_read"),
+            "l_ad": seed.additional.get("l_read"),
             "r_pd_far": seed.subjective.get("r_pd_far"),
             "l_pd_far": seed.subjective.get("l_pd_far"),
             "comb_pd_far": seed.subjective.get("comb_pd_far"),
-        }
-    )
-    return payload if len(payload) > 1 else None
-
-
-def build_glasses_final_subjective_payload(
-    seed: NormalizedGlassesExamSeed,
-    *,
-    layout_instance_id: Optional[int] = None,
-) -> Optional[Dict[str, Any]]:
-    r_pris, r_base = normalize_prism_pair(seed.final_prescription.get("r_pris"), seed.final_prescription.get("r_base"))
-    l_pris, l_base = normalize_prism_pair(seed.final_prescription.get("l_pris"), seed.final_prescription.get("l_base"))
-    payload = strip_none(
-        {
-            "layout_instance_id": layout_instance_id,
-            "r_sph": seed.final_prescription.get("r_sph"),
-            "l_sph": seed.final_prescription.get("l_sph"),
-            "r_cyl": seed.final_prescription.get("r_cyl"),
-            "l_cyl": seed.final_prescription.get("l_cyl"),
-            "r_ax": seed.final_prescription.get("r_ax"),
-            "l_ax": seed.final_prescription.get("l_ax"),
-            "r_pris": r_pris,
-            "l_pris": l_pris,
-            "r_base": r_base,
-            "l_base": l_base,
-            "r_va": seed.final_prescription.get("r_va"),
-            "l_va": seed.final_prescription.get("l_va"),
-            "comb_va": seed.final_prescription.get("comb_va"),
-            "r_j": seed.additional.get("r_j_final"),
-            "l_j": seed.additional.get("l_j_final"),
-            "r_pd_far": seed.final_prescription.get("r_pd_far"),
-            "l_pd_far": seed.final_prescription.get("l_pd_far"),
-            "comb_pd_far": seed.final_prescription.get("comb_pd_far"),
-            "r_pd_close": seed.final_prescription.get("r_pd_close"),
-            "l_pd_close": seed.final_prescription.get("l_pd_close"),
-            "comb_pd_close": seed.final_prescription.get("comb_pd_close"),
-        }
-    )
-    if layout_instance_id is None:
-        payload.pop("layout_instance_id", None)
-    return payload if set(payload) - {"layout_instance_id"} else None
-
-
-def build_glasses_final_prescription_payload(
-    seed: NormalizedGlassesExamSeed,
-    *,
-    layout_instance_id: Optional[int] = None,
-) -> Optional[Dict[str, Any]]:
-    r_pris, r_base = normalize_prism_pair(seed.final_prescription.get("r_pris"), seed.final_prescription.get("r_base"))
-    l_pris, l_base = normalize_prism_pair(seed.final_prescription.get("l_pris"), seed.final_prescription.get("l_base"))
-    payload = strip_none(
-        {
-            "layout_instance_id": layout_instance_id,
-            "r_sph": seed.final_prescription.get("r_sph"),
-            "l_sph": seed.final_prescription.get("l_sph"),
-            "r_cyl": seed.final_prescription.get("r_cyl"),
-            "l_cyl": seed.final_prescription.get("l_cyl"),
-            "r_ax": seed.final_prescription.get("r_ax"),
-            "l_ax": seed.final_prescription.get("l_ax"),
-            "r_pris": r_pris,
-            "l_pris": l_pris,
-            "r_base": r_base,
-            "l_base": l_base,
-            "r_va": seed.final_prescription.get("r_va"),
-            "l_va": seed.final_prescription.get("l_va"),
-            "comb_va": seed.final_prescription.get("comb_va"),
-            "r_ad": seed.additional.get("r_read_final"),
-            "l_ad": seed.additional.get("l_read_final"),
-            "r_pd": seed.final_prescription.get("r_pd_far"),
-            "l_pd": seed.final_prescription.get("l_pd_far"),
-            "comb_pd": seed.final_prescription.get("comb_pd_far"),
+            "r_pd_close": seed.subjective.get("r_pd_close"),
+            "l_pd_close": seed.subjective.get("l_pd_close"),
+            "comb_pd_close": seed.subjective.get("comb_pd_close"),
             "r_high": seed.additional.get("r_high"),
             "l_high": seed.additional.get("l_high"),
         }
@@ -477,6 +429,89 @@ def build_glasses_final_prescription_payload(
     if layout_instance_id is None:
         payload.pop("layout_instance_id", None)
     return payload if set(payload) - {"layout_instance_id"} else None
+
+
+def build_glasses_uncorrected_va_payload(
+    seed: NormalizedGlassesExamSeed,
+    *,
+    layout_instance_id: int,
+) -> Optional[Dict[str, Any]]:
+    payload = strip_none(
+        {
+            "layout_instance_id": layout_instance_id,
+            "r_fv": seed.additional.get("fvr"),
+            "l_fv": seed.additional.get("fvl"),
+        }
+    )
+    return payload if len(payload) > 1 else None
+
+
+def _meaningful_refraction(tab: Mapping[str, Any]) -> bool:
+    ignored = {
+        "type", "legacy_prev_id", "legacy_slot", "legacy_comment",
+        "trace_pd_far", "trace_secondary_prism",
+        "r_pd_far", "l_pd_far", "comb_pd_far",
+        "r_pd_close", "l_pd_close", "comb_pd_close", "r_ph", "l_ph",
+    }
+    return any(value not in (None, "") for key, value in tab.items() if key not in ignored)
+
+
+def build_glasses_old_refraction_tabs(
+    seed: NormalizedGlassesExamSeed,
+    *,
+    layout_instance_id: int,
+) -> Dict[str, Any]:
+    candidates: List[Dict[str, Any]] = []
+    if _meaningful_refraction(seed.final_prescription):
+        candidates.append(dict(seed.final_prescription))
+    candidates.extend(
+        tab
+        for tab in seed.extra_context.get("previous_refractions", [])
+        if isinstance(tab, dict) and _meaningful_refraction(tab)
+    )
+    candidates = candidates[:5]
+    if not candidates:
+        return {}
+
+    card_id = "old-refraction-1"
+    result: Dict[str, Any] = {}
+    metadata: List[Dict[str, Any]] = []
+    for index, source in enumerate(candidates):
+        tab_id = f"optitech-{index + 1}"
+        glasses_type = str(source.get("type") or "רחוק")
+        r_pris, r_base = normalize_prism_pair(source.get("r_pris"), source.get("r_base"))
+        l_pris, l_base = normalize_prism_pair(source.get("l_pris"), source.get("l_base"))
+        block = strip_none(
+            {
+                "layout_instance_id": layout_instance_id,
+                "card_id": card_id,
+                "card_instance_id": tab_id,
+                "tab_index": index,
+                "r_sph": source.get("r_sph"),
+                "l_sph": source.get("l_sph"),
+                "r_cyl": source.get("r_cyl"),
+                "l_cyl": source.get("l_cyl"),
+                "r_ax": source.get("r_ax"),
+                "l_ax": source.get("l_ax"),
+                "r_pris": r_pris,
+                "l_pris": l_pris,
+                "r_base": r_base,
+                "l_base": l_base,
+                "r_va": source.get("r_va"),
+                "l_va": source.get("l_va"),
+                "comb_va": source.get("comb_va"),
+                "r_ad": source.get("r_ad"),
+                "l_ad": source.get("l_ad"),
+                "r_j": source.get("r_j"),
+                "l_j": source.get("l_j"),
+                "r_glasses_type": glasses_type,
+                "l_glasses_type": glasses_type,
+            }
+        )
+        result[f"old-refraction-{card_id}-{tab_id}"] = block
+        metadata.append({"id": tab_id, "index": index, "type": glasses_type})
+    result["__ui"] = {"tabsByCard": {f"old-refraction:{card_id}": metadata}}
+    return result
 
 
 def build_glasses_addition_payload(
@@ -511,8 +546,8 @@ def build_glasses_exam_data(
 ) -> Dict[str, Any]:
     exam_data: Dict[str, Any] = {}
     objective = build_glasses_objective_payload(seed, layout_instance_id=layout_instance_id)
-    subjective = build_glasses_subjective_payload(seed, layout_instance_id=layout_instance_id)
-    final_subjective = build_glasses_final_subjective_payload(seed, layout_instance_id=layout_instance_id)
+    uncorrected_va = build_glasses_uncorrected_va_payload(seed, layout_instance_id=layout_instance_id)
+    old_refraction = build_glasses_old_refraction_tabs(seed, layout_instance_id=layout_instance_id)
     final_prescription = build_glasses_final_prescription_payload(seed, layout_instance_id=layout_instance_id)
     addition = build_glasses_addition_payload(seed, layout_instance_id=layout_instance_id)
     notes = build_exam_notes_payload(
@@ -521,16 +556,14 @@ def build_glasses_exam_data(
             (
                 ("Comments", seed.comments),
                 ("Objective Comment", seed.objective_comment),
-                ("Recheck Date", iso_date(seed.recheck_date)),
             )
         ),
     )
     if objective:
         exam_data["objective"] = objective
-    if subjective:
-        exam_data["subjective"] = subjective
-    if final_subjective:
-        exam_data["final-subjective"] = final_subjective
+    if uncorrected_va:
+        exam_data["uncorrected-va"] = uncorrected_va
+    exam_data.update(old_refraction)
     if final_prescription:
         exam_data["final-prescription"] = final_prescription
     if addition:
@@ -666,7 +699,7 @@ def build_contact_lens_details_payload(
     )
     if layout_instance_id is None:
         payload.pop("layout_instance_id", None)
-    return payload if payload else None
+    return payload if set(payload) - {"layout_instance_id"} else None
 
 
 def build_contact_lens_exam_payload(
@@ -678,7 +711,6 @@ def build_contact_lens_exam_payload(
         {
             "layout_instance_id": layout_instance_id,
             "l_bc": seed.lens_values.get("l_bc_1"),
-            "l_bc_2": seed.lens_values.get("l_bc_2"),
             "l_oz": seed.lens_values.get("l_oz"),
             "l_diam": seed.lens_values.get("l_diam"),
             "l_sph": seed.lens_values.get("l_sph"),
@@ -687,7 +719,6 @@ def build_contact_lens_exam_payload(
             "l_read_ad": seed.lens_values.get("l_add"),
             "l_va": seed.lens_values.get("l_va"),
             "r_bc": seed.lens_values.get("r_bc_1"),
-            "r_bc_2": seed.lens_values.get("r_bc_2"),
             "r_oz": seed.lens_values.get("r_oz"),
             "r_diam": seed.lens_values.get("r_diam"),
             "r_sph": seed.lens_values.get("r_sph"),
@@ -700,7 +731,7 @@ def build_contact_lens_exam_payload(
     )
     if layout_instance_id is None:
         payload.pop("layout_instance_id", None)
-    return payload if payload else None
+    return payload if set(payload) - {"layout_instance_id"} else None
 
 
 def build_contact_lens_diameters_payload(
@@ -717,7 +748,7 @@ def build_contact_lens_diameters_payload(
     )
     if layout_instance_id is None:
         payload.pop("layout_instance_id", None)
-    return payload if payload else None
+    return payload if set(payload) - {"layout_instance_id"} else None
 
 
 def build_contact_lens_keratometer_payload(
@@ -725,10 +756,20 @@ def build_contact_lens_keratometer_payload(
     *,
     layout_instance_id: Optional[int] = None,
 ) -> Optional[Dict[str, Any]]:
-    left_rh = seed.keratometry.get("l_h")
-    left_rv = seed.keratometry.get("l_v")
-    right_rh = seed.keratometry.get("r_h")
-    right_rv = seed.keratometry.get("r_v")
+    def to_mm(value: Any) -> Optional[float]:
+        if value is None:
+            return None
+        numeric = float(value)
+        if 6 <= numeric <= 10:
+            return round(numeric, 2)
+        if 35 <= numeric <= 60:
+            return round(337.5 / numeric, 2)
+        return None
+
+    left_rh = to_mm(seed.keratometry.get("l_h"))
+    left_rv = to_mm(seed.keratometry.get("l_v"))
+    right_rh = to_mm(seed.keratometry.get("r_h"))
+    right_rv = to_mm(seed.keratometry.get("r_v"))
     payload = strip_none(
         {
             "layout_instance_id": layout_instance_id,
@@ -746,7 +787,7 @@ def build_contact_lens_keratometer_payload(
     )
     if layout_instance_id is None:
         payload.pop("layout_instance_id", None)
-    return payload if payload else None
+    return payload if set(payload) - {"layout_instance_id"} else None
 
 
 def build_contact_lens_order_payload(
@@ -801,7 +842,12 @@ def build_contact_lens_order_payload(
     )
     if layout_instance_id is None:
         payload.pop("layout_instance_id", None)
-    return payload if payload else None
+    substantive = set(payload) - {
+        "layout_instance_id",
+        "branch",
+        "supply_in_branch",
+    }
+    return payload if substantive else None
 
 
 def build_contact_lens_exam_data(
@@ -859,7 +905,6 @@ def build_contact_lens_exam_data(
         note=build_notes_text(
             (
                 ("Comments", seed.comments),
-                ("Recheck Date", iso_date(seed.recheck_date)),
             )
         ),
     )
@@ -951,74 +996,62 @@ def build_regular_order_data(
     matched_exam: Optional[GlassesOrderMatch],
 ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
     frame_size = parse_frame_size(seed.frame.get("frame_size"))
+    lens_model = resolve_lookup_value(
+        catalog, table_name="tblCrdGlassModel", key=seed.lens.get("lens_model_id"),
+        unresolved_dependencies=unresolved_dependencies, domain="orders",
+        raw_row_ref=seed.source_ref.raw_row_ref, source_per_id=seed.source_per_id,
+        source_user_id=seed.source_user_id, dependency_name="glass_model",
+    )
+    lens_color = resolve_lookup_value(
+        catalog, table_name="tblCrdGlassColor", key=seed.lens.get("lens_color_id"),
+        unresolved_dependencies=unresolved_dependencies, domain="orders",
+        raw_row_ref=seed.source_ref.raw_row_ref, source_per_id=seed.source_per_id,
+        source_user_id=seed.source_user_id, dependency_name="glass_color",
+    )
+    lens_coating = resolve_lookup_value(
+        catalog, table_name="tblCrdGlassCoat", key=seed.lens.get("lens_coat_id"),
+        unresolved_dependencies=unresolved_dependencies, domain="orders",
+        raw_row_ref=seed.source_ref.raw_row_ref, source_per_id=seed.source_per_id,
+        source_user_id=seed.source_user_id, dependency_name="glass_coat",
+    )
+    lens_material = resolve_lookup_value(
+        catalog, table_name="tblCrdGlassMater", key=seed.lens.get("lens_material_id"),
+        unresolved_dependencies=unresolved_dependencies, domain="orders",
+        raw_row_ref=seed.source_ref.raw_row_ref, source_per_id=seed.source_per_id,
+        source_user_id=seed.source_user_id, dependency_name="glass_material",
+    )
+    lens_supplier = resolve_lookup_value(
+        catalog, table_name="tblCrdBuysWorkSapaks", key=seed.supplier_id,
+        unresolved_dependencies=unresolved_dependencies, domain="orders",
+        raw_row_ref=seed.source_ref.raw_row_ref, source_per_id=seed.source_per_id,
+        source_user_id=seed.source_user_id, dependency_name="work_supplier",
+    )
+    lens_brand = resolve_lookup_value(
+        catalog, table_name="tblCrdGlassBrand", key=seed.lens.get("lens_brand_id"),
+        unresolved_dependencies=unresolved_dependencies, domain="orders",
+        raw_row_ref=seed.source_ref.raw_row_ref, source_per_id=seed.source_per_id,
+        source_user_id=seed.source_user_id, dependency_name="glass_brand",
+    )
+    lens_role = resolve_lookup_value(
+        catalog, table_name="tblCrdGlassRole", key=seed.lens.get("lens_role_id"),
+        unresolved_dependencies=unresolved_dependencies, domain="orders",
+        raw_row_ref=seed.source_ref.raw_row_ref, source_per_id=seed.source_per_id,
+        source_user_id=seed.source_user_id, dependency_name="glass_role",
+    )
     lens = strip_none(
         {
-            "right_model": resolve_lookup_value(
-                catalog,
-                table_name="tblCrdGlassModel",
-                key=seed.lens.get("lens_model_id"),
-                unresolved_dependencies=unresolved_dependencies,
-                domain="orders",
-                raw_row_ref=seed.source_ref.raw_row_ref,
-                source_per_id=seed.source_per_id,
-                source_user_id=seed.source_user_id,
-                dependency_name="glass_model",
-            ),
-            "left_model": resolve_lookup_value(
-                catalog,
-                table_name="tblCrdGlassModel",
-                key=seed.lens.get("lens_model_id"),
-                unresolved_dependencies=unresolved_dependencies,
-                domain="orders",
-                raw_row_ref=seed.source_ref.raw_row_ref,
-                source_per_id=seed.source_per_id,
-                source_user_id=seed.source_user_id,
-                dependency_name="glass_model",
-            ),
-            "color": resolve_lookup_value(
-                catalog,
-                table_name="tblCrdGlassColor",
-                key=seed.lens.get("lens_color_id"),
-                unresolved_dependencies=unresolved_dependencies,
-                domain="orders",
-                raw_row_ref=seed.source_ref.raw_row_ref,
-                source_per_id=seed.source_per_id,
-                source_user_id=seed.source_user_id,
-                dependency_name="glass_color",
-            ),
-            "coating": resolve_lookup_value(
-                catalog,
-                table_name="tblCrdGlassCoat",
-                key=seed.lens.get("lens_coat_id"),
-                unresolved_dependencies=unresolved_dependencies,
-                domain="orders",
-                raw_row_ref=seed.source_ref.raw_row_ref,
-                source_per_id=seed.source_per_id,
-                source_user_id=seed.source_user_id,
-                dependency_name="glass_coat",
-            ),
-            "material": resolve_lookup_value(
-                catalog,
-                table_name="tblCrdGlassMater",
-                key=seed.lens.get("lens_material_id"),
-                unresolved_dependencies=unresolved_dependencies,
-                domain="orders",
-                raw_row_ref=seed.source_ref.raw_row_ref,
-                source_per_id=seed.source_per_id,
-                source_user_id=seed.source_user_id,
-                dependency_name="glass_material",
-            ),
-            "supplier": resolve_lookup_value(
-                catalog,
-                table_name="tblCrdBuysWorkSapaks",
-                key=seed.supplier_id,
-                unresolved_dependencies=unresolved_dependencies,
-                domain="orders",
-                raw_row_ref=seed.source_ref.raw_row_ref,
-                source_per_id=seed.source_per_id,
-                source_user_id=seed.source_user_id,
-                dependency_name="work_supplier",
-            ),
+            "right_model": lens_model,
+            "left_model": lens_model,
+            "right_color": lens_color,
+            "left_color": lens_color,
+            "right_coating": lens_coating,
+            "left_coating": lens_coating,
+            "right_material": lens_material,
+            "left_material": lens_material,
+            "right_supplier": lens_supplier,
+            "left_supplier": lens_supplier,
+            "right_diameter": seed.lens.get("diameter"),
+            "left_diameter": seed.lens.get("diameter"),
         }
     )
     frame = strip_none(
@@ -1121,6 +1154,8 @@ def build_regular_order_data(
         "frame_sold": seed.frame.get("frame_sold"),
         "diameter": seed.lens.get("diameter"),
         "segment": seed.lens.get("segment"),
+        "glass_brand": lens_brand,
+        "glass_role": lens_role,
         "work_type_id": seed.work_type_id,
     }
     return order_data, unmapped_fields
@@ -1287,8 +1322,33 @@ def store_scan_if_needed(
 
 
 def iter_glasses_exam_seeds() -> Iterator[NormalizedGlassesExamSeed]:
+    previous_by_exam: Dict[Tuple[int, str], List[Dict[str, Any]]] = {}
+    previous_rows = sorted(
+        iter_exported_rows("tblCrdGlassChecksPrevs"),
+        key=lambda row: (
+            parse_intish(row.get("PerId")) or 0,
+            str(row.get("CheckDate") or ""),
+            parse_intish(row.get("PrevId")) or 0,
+        ),
+    )
+    for row in previous_rows:
+        per_id = parse_intish(row.get("PerId"))
+        check_date = parse_access_date(row.get("CheckDate"))
+        if per_id is None or check_date is None:
+            continue
+        previous_by_exam.setdefault((per_id, check_date.isoformat()), []).extend(
+            normalize_previous_refraction_row(row)
+        )
     for row in iter_exported_rows("tblCrdGlassChecks"):
-        yield normalize_glasses_exam_row(row)
+        seed = normalize_glasses_exam_row(row)
+        key = build_order_exact_key(seed.source_per_id, seed.check_date)
+        yield replace(
+            seed,
+            extra_context={
+                **seed.extra_context,
+                "previous_refractions": previous_by_exam.get(key, []) if key else [],
+            },
+        )
 
 
 def iter_contact_lens_exam_seeds() -> Iterator[NormalizedContactLensExamSeed]:
@@ -1314,6 +1374,11 @@ def iter_medical_note_seeds() -> Iterator[NormalizedMedicalNoteSeed]:
 def iter_appointment_seeds() -> Iterator[NormalizedAppointmentSeed]:
     for row in iter_exported_rows("tblClndrApt"):
         yield normalize_appointment_row(row)
+
+
+def iter_work_shift_seeds() -> Iterator[NormalizedWorkShiftSeed]:
+    for row in iter_exported_rows("tblClndrWrk"):
+        yield normalize_work_shift_row(row)
 
 
 def build_glasses_match_index_from_source(
@@ -1436,9 +1501,55 @@ def upsert_glasses_exams(
             record_unmapped_values(
                 unmapped_report,
                 domain="glasses_exams",
-                values={"source_user_id": seed.source_user_id},
+                values={
+                    "source_user_id": seed.source_user_id,
+                    "previous_pd": ({
+                        key: seed.final_prescription.get(key)
+                        for key in (
+                            "r_pd_far", "l_pd_far", "comb_pd_far",
+                            "r_pd_close", "l_pd_close", "comb_pd_close",
+                        )
+                        if seed.final_prescription.get(key) is not None
+                    } or None),
+                    "secondary_prism": ({
+                        key: seed.additional.get(key)
+                        for key in ("ext_r_pris", "ext_l_pris", "ext_r_base", "ext_l_base")
+                        if seed.additional.get(key) is not None
+                    } or None),
+                    "previous_refraction_trace": ([
+                        {
+                            "legacy_prev_id": tab.get("legacy_prev_id"),
+                            "legacy_slot": tab.get("legacy_slot"),
+                            "pd_far": tab.get("trace_pd_far"),
+                            "secondary_prism": tab.get("trace_secondary_prism"),
+                        }
+                        for tab in seed.extra_context.get("previous_refractions", [])
+                        if isinstance(tab, dict)
+                        and any(
+                            value is not None
+                            for group in (tab.get("trace_pd_far"), tab.get("trace_secondary_prism"))
+                            if isinstance(group, dict)
+                            for value in group.values()
+                        )
+                    ] or None),
+                },
             )
             link = exam_links.get(raw_row_ref)
+            instance_link = instance_links.get(raw_row_ref)
+            if (
+                (link and not can_resume_source_link(link, migration_job_id))
+                or (instance_link and not can_resume_source_link(instance_link, migration_job_id))
+            ):
+                counters.skipped += 1
+                record_skip(
+                    skipped_rows,
+                    domain="glasses_exams",
+                    reason="existing_non_resumable_import",
+                    raw_row_ref=raw_row_ref,
+                    source_per_id=seed.source_per_id,
+                    source_user_id=seed.source_user_id,
+                )
+                continue
             exam = exam_targets.get(link.target_id) if link else None
             if exam is None:
                 exam = OpticalExam(**payload)
@@ -1458,7 +1569,7 @@ def upsert_glasses_exams(
                     "exam": exam,
                     "exam_payload": payload,
                     "exam_link": link,
-                    "instance_link": instance_links.get(raw_row_ref),
+                    "instance_link": instance_link,
                     "instance": instance_targets.get(instance_links[raw_row_ref].target_id)
                     if raw_row_ref in instance_links
                     else None,
@@ -1544,6 +1655,7 @@ def upsert_glasses_exams(
         db.flush()
         if commit_each_batch:
             db.commit()
+        emit_batch_progress("glasses_exams", counters)
     return counters, skipped_rows, unresolved_dependencies, match_index
 
 
@@ -1638,11 +1750,38 @@ def upsert_contact_lens_exams(
                     "source_user_id": seed.source_user_id,
                     "pr_right": seed.lens_values.get("r_pr"),
                     "pr_left": seed.lens_values.get("l_pr"),
+                    "bc2_right": seed.lens_values.get("r_bc_2"),
+                    "bc2_left": seed.lens_values.get("l_bc_2"),
+                    "invalid_oz_right": (
+                        seed.source_ref.raw_payload.get("OZR")
+                        if "r_oz" not in seed.lens_values
+                        else None
+                    ),
+                    "invalid_oz_left": (
+                        seed.source_ref.raw_payload.get("OZL")
+                        if "l_oz" not in seed.lens_values
+                        else None
+                    ),
                     "eye_lid_key": seed.tear_metrics.get("eye_lid_key"),
                     "eye_color": seed.tear_metrics.get("eye_color"),
                 },
             )
             link = exam_links.get(raw_row_ref)
+            instance_link = instance_links.get(raw_row_ref)
+            if (
+                (link and not can_resume_source_link(link, migration_job_id))
+                or (instance_link and not can_resume_source_link(instance_link, migration_job_id))
+            ):
+                counters.skipped += 1
+                record_skip(
+                    skipped_rows,
+                    domain="contact_lens_exams",
+                    reason="existing_non_resumable_import",
+                    raw_row_ref=raw_row_ref,
+                    source_per_id=seed.source_per_id,
+                    source_user_id=seed.source_user_id,
+                )
+                continue
             exam = exam_targets.get(link.target_id) if link else None
             if exam is None:
                 exam = OpticalExam(**payload)
@@ -1662,7 +1801,7 @@ def upsert_contact_lens_exams(
                     "exam": exam,
                     "exam_payload": payload,
                     "exam_link": link,
-                    "instance_link": instance_links.get(raw_row_ref),
+                    "instance_link": instance_link,
                     "instance": instance_targets.get(instance_links[raw_row_ref].target_id)
                     if raw_row_ref in instance_links
                     else None,
@@ -1760,6 +1899,7 @@ def upsert_contact_lens_exams(
         db.flush()
         if commit_each_batch:
             db.commit()
+        emit_batch_progress("contact_lens_exams", counters)
     return counters, skipped_rows, unresolved_dependencies, match_index
 
 
@@ -1880,6 +2020,17 @@ def upsert_orders(
                         source_user_id=seed.source_user_id,
                         source_value=iso_date(seed.related_exam_date),
                     )
+            if link and not can_resume_source_link(link, migration_job_id):
+                counters.skipped += 1
+                record_skip(
+                    skipped_rows,
+                    domain="orders",
+                    reason="existing_non_resumable_import",
+                    raw_row_ref=raw_row_ref,
+                    source_per_id=seed.source_per_id,
+                    source_user_id=seed.source_user_id,
+                )
+                continue
             if target_model == "Order" and matched_glasses is None and seed.related_exam_date is not None:
                 record_unresolved(
                     unresolved_dependencies,
@@ -1956,6 +2107,7 @@ def upsert_orders(
         db.flush()
         if commit_each_batch:
             db.commit()
+        emit_batch_progress("orders", counters)
     return counters, skipped_rows, unresolved_dependencies
 
 
@@ -1969,6 +2121,7 @@ def upsert_files(
     unmapped_report: Dict[str, Dict[str, Dict[str, Any]]],
     dry_run: bool,
     storage: Optional[Any] = None,
+    migration_job_id: Optional[str] = None,
     commit_each_batch: bool = False,
 ) -> Tuple[DomainCounters, List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]]]:
     counters = DomainCounters()
@@ -2028,6 +2181,7 @@ def upsert_files(
                 seed=seed,
                 dry_run=dry_run,
                 storage=storage,
+                migration_job_id=migration_job_id,
             )
             if storage_key is None:
                 counters.skipped += 1
@@ -2063,6 +2217,17 @@ def upsert_files(
                 },
             )
             link = file_links.get(raw_row_ref)
+            if link and not can_resume_source_link(link, migration_job_id):
+                counters.skipped += 1
+                record_skip(
+                    skipped_rows,
+                    domain="files",
+                    reason="existing_non_resumable_import",
+                    raw_row_ref=raw_row_ref,
+                    source_per_id=seed.source_per_id,
+                    source_user_id=seed.source_user_id,
+                )
+                continue
             target = file_targets.get(link.target_id) if link else None
             if target is None:
                 target = File(**payload)
@@ -2112,12 +2277,14 @@ def upsert_files(
                 clinic_id=clinic.id,
                 company_id=clinic.company_id,
                 payload=trace_payload,
+                migration_job_id=migration_job_id,
                 existing_link=item["link"],
             )
             file_links[saved_link.raw_row_ref] = saved_link
         db.flush()
         if commit_each_batch:
             db.commit()
+        emit_batch_progress("files", counters)
     return counters, skipped_rows, unresolved_dependencies, missing_scans
 
 
@@ -2129,6 +2296,7 @@ def upsert_medical_notes(
     client_map: Mapping[int, int],
     user_map: Mapping[int, int],
     unmapped_report: Dict[str, Dict[str, Dict[str, Any]]],
+    migration_job_id: Optional[str] = None,
     commit_each_batch: bool = False,
 ) -> Tuple[DomainCounters, List[Dict[str, Any]], List[Dict[str, Any]]]:
     counters = DomainCounters()
@@ -2195,6 +2363,17 @@ def upsert_medical_notes(
                 values={"source_user_id": seed.source_user_id},
             )
             link = links.get(raw_row_ref)
+            if link and not can_resume_source_link(link, migration_job_id):
+                counters.skipped += 1
+                record_skip(
+                    skipped_rows,
+                    domain="medical_notes",
+                    reason="existing_non_resumable_import",
+                    raw_row_ref=raw_row_ref,
+                    source_per_id=seed.source_per_id,
+                    source_user_id=seed.source_user_id,
+                )
+                continue
             target = targets.get(link.target_id) if link else None
             if target is None:
                 target = MedicalLog(**payload)
@@ -2239,12 +2418,14 @@ def upsert_medical_notes(
                 clinic_id=clinic.id,
                 company_id=clinic.company_id,
                 payload=trace_payload,
+                migration_job_id=migration_job_id,
                 existing_link=item["link"],
             )
             links[saved_link.raw_row_ref] = saved_link
         db.flush()
         if commit_each_batch:
             db.commit()
+        emit_batch_progress("medical_notes", counters)
     return counters, skipped_rows, unresolved_dependencies
 
 
@@ -2256,6 +2437,7 @@ def upsert_appointments(
     client_map: Mapping[int, int],
     user_map: Mapping[int, int],
     unmapped_report: Dict[str, Dict[str, Dict[str, Any]]],
+    migration_job_id: Optional[str] = None,
     commit_each_batch: bool = False,
 ) -> Tuple[DomainCounters, List[Dict[str, Any]], List[Dict[str, Any]]]:
     counters = DomainCounters()
@@ -2321,6 +2503,17 @@ def upsert_appointments(
                 values={"source_user_id": seed.source_user_id},
             )
             link = links.get(raw_row_ref)
+            if link and not can_resume_source_link(link, migration_job_id):
+                counters.skipped += 1
+                record_skip(
+                    skipped_rows,
+                    domain="appointments",
+                    reason="existing_non_resumable_import",
+                    raw_row_ref=raw_row_ref,
+                    source_per_id=seed.source_per_id,
+                    source_user_id=seed.source_user_id,
+                )
+                continue
             target = targets.get(link.target_id) if link else None
             if target is None:
                 target = Appointment(**payload)
@@ -2365,13 +2558,150 @@ def upsert_appointments(
                 clinic_id=clinic.id,
                 company_id=clinic.company_id,
                 payload=trace_payload,
+                migration_job_id=migration_job_id,
                 existing_link=item["link"],
             )
             links[saved_link.raw_row_ref] = saved_link
         db.flush()
         if commit_each_batch:
             db.commit()
+        emit_batch_progress("appointments", counters)
     return counters, skipped_rows, unresolved_dependencies
+
+
+def build_work_shift_payload(seed: NormalizedWorkShiftSeed) -> Tuple[Dict[str, Any], List[str]]:
+    warnings: List[str] = []
+    start = seed.start_time
+    end = seed.end_time
+    duration = seed.work_minutes
+
+    if start and end:
+        start_dt = datetime.strptime(start, "%H:%M:%S")
+        end_dt = datetime.strptime(end, "%H:%M:%S")
+        measured = int((end_dt - start_dt).total_seconds() // 60)
+        duration = measured if measured >= 0 else (duration or 0)
+    elif start:
+        duration = duration or 0
+        end = (datetime.strptime(start, "%H:%M:%S") + timedelta(minutes=duration)).strftime("%H:%M:%S")
+        warnings.append("missing_end_reconstructed_from_wrk_time")
+    else:
+        start = "00:00:00"
+        duration = duration or 0
+        end = (datetime.strptime(start, "%H:%M:%S") + timedelta(minutes=duration)).strftime("%H:%M:%S")
+        warnings.append("missing_start_reconstructed_at_midnight")
+
+    return {
+        "start_time": start,
+        "end_time": end or start,
+        "duration_minutes": max(0, int(duration or 0)),
+        "date": iso_date(seed.work_date) or "1970-01-01",
+        "status": "completed",
+    }, warnings
+
+
+def upsert_work_shifts(
+    db: Session,
+    *,
+    seeds: Iterable[NormalizedWorkShiftSeed],
+    clinic: Clinic,
+    user_map: Mapping[int, int],
+    migration_job_id: Optional[str] = None,
+    commit_each_batch: bool = False,
+) -> Tuple[DomainCounters, List[Dict[str, Any]], List[Dict[str, Any]]]:
+    counters = DomainCounters()
+    skipped_rows: List[Dict[str, Any]] = []
+    warnings: List[Dict[str, Any]] = []
+    links = load_trace_links(
+        db,
+        clinic_id=clinic.id,
+        target_model="WorkShift",
+        source_table="tblClndrWrk",
+    )
+
+    for seed_batch in iter_batches(seeds, DOMAIN_BATCH_SIZES["work_shifts"]):
+        targets = load_target_rows(
+            db,
+            target_model="WorkShift",
+            target_ids=[
+                links[seed.source_ref.raw_row_ref].target_id
+                for seed in seed_batch
+                if seed.source_ref.raw_row_ref in links
+                and can_resume_source_link(links[seed.source_ref.raw_row_ref], migration_job_id)
+            ],
+        )
+        pending: List[Tuple[NormalizedWorkShiftSeed, WorkShift, Dict[str, Any], Any, List[str]]] = []
+        for seed in seed_batch:
+            counters.processed += 1
+            raw_ref = seed.source_ref.raw_row_ref
+            link = links.get(raw_ref or "")
+            if link and not can_resume_source_link(link, migration_job_id):
+                counters.skipped += 1
+                record_skip(
+                    skipped_rows,
+                    domain="work_shifts",
+                    reason="existing_non_resumable_import",
+                    raw_row_ref=raw_ref,
+                    source_per_id=None,
+                    source_user_id=seed.source_user_id,
+                )
+                continue
+            target_user_id = user_map.get(seed.source_user_id or -1)
+            if target_user_id is None or seed.work_date is None:
+                counters.skipped += 1
+                record_skip(
+                    skipped_rows,
+                    domain="work_shifts",
+                    reason="missing_user_mapping_or_date",
+                    raw_row_ref=raw_ref,
+                    source_per_id=None,
+                    source_user_id=seed.source_user_id,
+                )
+                continue
+            payload, reconstruction_warnings = build_work_shift_payload(seed)
+            payload["user_id"] = target_user_id
+            target = targets.get(link.target_id) if link else None
+            if target is None:
+                target = WorkShift(**payload)
+                db.add(target)
+                counters.created += 1
+            else:
+                apply_payload(target, payload)
+                counters.updated += 1
+            pending.append((seed, target, payload, link, reconstruction_warnings))
+        if not pending:
+            continue
+        db.flush()
+        for seed, target, payload, link, reconstruction_warnings in pending:
+            warning_payload = {
+                "raw_row_ref": seed.source_ref.raw_row_ref,
+                "source_user_id": seed.source_user_id,
+                "warnings": reconstruction_warnings,
+            }
+            if reconstruction_warnings:
+                warnings.append(warning_payload)
+            trace_payload = build_trace_payload(
+                seed,
+                payload,
+                {"reconstruction_warnings": reconstruction_warnings},
+            )
+            saved = upsert_source_link(
+                db,
+                source_ref=seed.source_ref,
+                source_per_id=None,
+                source_user_id=seed.source_user_id,
+                target_model="WorkShift",
+                target_id=target.id,
+                clinic_id=clinic.id,
+                company_id=clinic.company_id,
+                payload=trace_payload,
+                migration_job_id=migration_job_id,
+                existing_link=link,
+            )
+            links[saved.raw_row_ref] = saved
+        if commit_each_batch:
+            db.commit()
+        emit_batch_progress("work_shifts", counters)
+    return counters, skipped_rows, warnings
 
 
 def execute_phase3(
@@ -2382,6 +2712,7 @@ def execute_phase3(
     report_dir: Optional[Path] = None,
     storage: Optional[Any] = None,
     migration_job_id: Optional[str] = None,
+    on_batch_progress: Optional[Callable[[str, Dict[str, int]], None]] = None,
 ) -> Dict[str, Any]:
     try:
         from database import SessionLocal
@@ -2390,6 +2721,7 @@ def execute_phase3(
     selected_domains = tuple(domains) if domains else PHASE3_DOMAINS
     report_dir = report_dir or default_report_dir()
     db = SessionLocal()
+    progress_token = _batch_progress_callback.set(on_batch_progress)
     try:
         db.execute(text("SET statement_timeout TO 0"))
         clinic = resolve_target_binding(db, target_clinic_id)
@@ -2401,6 +2733,7 @@ def execute_phase3(
 
         summary: Dict[str, Any] = {
             "source_system": OPTITECH_SOURCE_SYSTEM,
+            "mapping_version": 2,
             "target_clinic_id": clinic.id,
             "target_company_id": clinic.company_id,
             "dry_run": dry_run,
@@ -2487,6 +2820,7 @@ def execute_phase3(
                 unmapped_report=unmapped_report,
                 dry_run=dry_run,
                 storage=storage,
+                migration_job_id=migration_job_id,
                 commit_each_batch=not dry_run,
             )
             summary["files"] = counters.as_dict()
@@ -2503,6 +2837,7 @@ def execute_phase3(
                 client_map=client_map,
                 user_map=user_map,
                 unmapped_report=unmapped_report,
+                migration_job_id=migration_job_id,
                 commit_each_batch=not dry_run,
             )
             summary["medical_notes"] = counters.as_dict()
@@ -2518,11 +2853,31 @@ def execute_phase3(
                 client_map=client_map,
                 user_map=user_map,
                 unmapped_report=unmapped_report,
+                migration_job_id=migration_job_id,
                 commit_each_batch=not dry_run,
             )
             summary["appointments"] = counters.as_dict()
             skipped_rows.extend(domain_skips)
             unresolved_dependencies.extend(domain_unresolved)
+            if not dry_run:
+                db.commit()
+        if "work_shifts" in selected_domains:
+            counters, domain_skips, shift_warnings = upsert_work_shifts(
+                db,
+                seeds=iter_work_shift_seeds(),
+                clinic=clinic,
+                user_map=user_map,
+                migration_job_id=migration_job_id,
+                commit_each_batch=not dry_run,
+            )
+            summary["work_shifts"] = {
+                **counters.as_dict(),
+                "reconstruction_warnings": len(shift_warnings),
+            }
+            skipped_rows.extend(domain_skips)
+            unresolved_dependencies.extend(
+                {"domain": "work_shifts", **warning} for warning in shift_warnings
+            )
             if not dry_run:
                 db.commit()
 
@@ -2536,6 +2891,20 @@ def execute_phase3(
         summary["skipped_rows_count"] = len(skipped_rows)
         summary["unresolved_dependencies_count"] = len(unresolved_dependencies)
         summary["missing_scans_count"] = len(missing_scans)
+        summary["unmatched_orders_count"] = sum(
+            1
+            for item in unresolved_dependencies
+            if item.get("domain") == "orders"
+            and item.get("dependency") in {
+                "glasses_exam_exact_match",
+                "contact_lens_exam_exact_match",
+            }
+        )
+        summary["reconstruction_warnings_count"] = sum(
+            1
+            for item in unresolved_dependencies
+            if item.get("domain") == "work_shifts" and item.get("warnings")
+        )
         unmapped_source_fields = finalize_unmapped_field_report(unmapped_report)
         if dry_run:
             db.rollback()
@@ -2555,6 +2924,7 @@ def execute_phase3(
         db.rollback()
         raise
     finally:
+        _batch_progress_callback.reset(progress_token)
         db.close()
 
 

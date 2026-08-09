@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react"
 import { useNavigate, useSearch } from "@tanstack/react-router"
 import { SiteHeader } from "@/components/site-header"
+import { ListPageHeader } from "@/components/list-page-header"
 import { getPaginatedReferrals } from "@/lib/db/referral-db"
 import { Referral } from "@/lib/db/schema-interface"
 import { ReferralTable } from "@/components/referral-table"
@@ -21,7 +22,7 @@ export default function AllReferralsPage() {
   const { startSearchRequest, updateLatestSearch } = useLatestTableSearchRequest(searchInput)
   const activeSort = React.useMemo(
     () => parseSortSearch(search.sort, { key: "date", direction: "desc" }),
-    [search.sort],
+    [search.sort]
   )
 
   useEffect(() => {
@@ -34,7 +35,15 @@ export default function AllReferralsPage() {
     setSearchInput(value)
   }
 
-  const buildSearchState = (overrides?: Partial<{ q: string; page: number; urgency: string; referralType: string; sort: string }>) =>
+  const buildSearchState = (
+    overrides?: Partial<{
+      q: string
+      page: number
+      urgency: string
+      referralType: string
+      sort: string
+    }>
+  ) =>
     buildTableSearch(
       {
         q: searchInput.trim(),
@@ -42,15 +51,15 @@ export default function AllReferralsPage() {
         urgency: search.urgency,
         referralType: search.referralType,
         sort: search.sort,
-        ...overrides,
+        ...overrides
       },
       {
         q: "",
         page: 1,
         urgency: ALL_FILTER_VALUE,
         referralType: ALL_FILTER_VALUE,
-        sort: "",
-      },
+        sort: ""
+      }
     )
 
   useEffect(() => {
@@ -58,7 +67,7 @@ export default function AllReferralsPage() {
       if (searchInput === search.q) return
       navigate({
         to: "/referrals",
-        search: buildSearchState({ q: searchInput.trim(), page: 1 }),
+        search: buildSearchState({ q: searchInput.trim(), page: 1 })
       })
     }, TABLE_SEARCH_DEBOUNCE_MS)
     return () => clearTimeout(t)
@@ -75,13 +84,13 @@ export default function AllReferralsPage() {
         order: sortToOrder(activeSort, "date_desc"),
         q: search.q || undefined,
         urgencyLevel: search.urgency !== ALL_FILTER_VALUE ? search.urgency : undefined,
-        referralType: search.referralType !== ALL_FILTER_VALUE ? search.referralType : undefined,
+        referralType: search.referralType !== ALL_FILTER_VALUE ? search.referralType : undefined
       })
       if (!canCommit()) return
       setReferrals(items)
       setTotal(total)
     } catch (error) {
-      console.error('Error loading data:', error)
+      console.error("Error loading data:", error)
     } finally {
       if (canCommit()) {
         setLoading(false)
@@ -93,18 +102,27 @@ export default function AllReferralsPage() {
     if (currentClinic) {
       loadData()
     }
-  }, [activeSort, currentClinic, pageSize, search.page, search.q, search.referralType, search.urgency, startSearchRequest])
+  }, [
+    activeSort,
+    currentClinic,
+    pageSize,
+    search.page,
+    search.q,
+    search.referralType,
+    search.urgency,
+    startSearchRequest
+  ])
 
   const handleReferralDeleted = (deletedReferralId: number) => {
-    setReferrals(prevReferrals => prevReferrals.filter(referral => referral.id !== deletedReferralId))
+    setReferrals((prevReferrals) => prevReferrals.filter((referral) => referral.id !== deletedReferralId))
     // Move to previous page if we deleted the last item on the current page
     if (referrals.length === 1 && search.page > 1) {
       navigate({
         to: "/referrals",
-        search: buildSearchState({ page: search.page - 1 }),
+        search: buildSearchState({ page: search.page - 1 })
       })
     } else {
-      setTotal(prev => prev - 1)
+      setTotal((prev) => prev - 1)
     }
   }
 
@@ -115,13 +133,11 @@ export default function AllReferralsPage() {
   return (
     <>
       <SiteHeader title="הפניות" />
-      <div className="flex flex-col flex-1 p-4 lg:p-6" dir="rtl" style={{scrollbarWidth: 'none'}}>
-        <div className="flex items-center justify-between mb-4">
-          <h1 className="text-xl font-bold">כל ההפניות</h1>
-        </div>
-        <ReferralTable 
-          referrals={referrals} 
-          onReferralDeleted={handleReferralDeleted} 
+      <div className="flex flex-1 flex-col p-4 lg:p-6" dir="rtl" style={{ scrollbarWidth: "none" }}>
+        <ListPageHeader title="כל ההפניות" description="הפניות, סטטוסים ומעקב טיפול" />
+        <ReferralTable
+          referrals={referrals}
+          onReferralDeleted={handleReferralDeleted}
           onReferralDeleteFailed={handleReferralDeleteFailed}
           clientId={0}
           loading={loading}
@@ -132,21 +148,21 @@ export default function AllReferralsPage() {
           onUrgencyFilterChange={(value) =>
             navigate({
               to: "/referrals",
-              search: buildSearchState({ urgency: value, page: 1 }),
+              search: buildSearchState({ urgency: value, page: 1 })
             })
           }
           referralTypeFilter={search.referralType}
           onReferralTypeFilterChange={(value) =>
             navigate({
               to: "/referrals",
-              search: buildSearchState({ referralType: value, page: 1 }),
+              search: buildSearchState({ referralType: value, page: 1 })
             })
           }
           sort={activeSort}
           onSortChange={(sort) =>
             navigate({
               to: "/referrals",
-              search: buildSearchState({ sort: sortToSearch(sort), page: 1 }),
+              search: buildSearchState({ sort: sortToSearch(sort), page: 1 })
             })
           }
           pagination={{
@@ -156,11 +172,11 @@ export default function AllReferralsPage() {
             setPage: (page) =>
               navigate({
                 to: "/referrals",
-                search: buildSearchState({ page }),
-              }),
+                search: buildSearchState({ page })
+              })
           }}
         />
       </div>
     </>
   )
-} 
+}

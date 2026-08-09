@@ -130,6 +130,7 @@ export function OverRefractionTab({
           disabled={!isEditing}
           textOptions={config.textOptions}
           textValueAliases={config.textValueAliases}
+          textDisplayAliases={config.displayAliases}
           numericProps={{
             step: config.step,
             min: config.min,

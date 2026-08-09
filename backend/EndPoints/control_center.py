@@ -5,12 +5,33 @@ from sqlalchemy.orm import Session
 from database import get_db
 from models import Company, Clinic, User as UserModel, Appointment
 from datetime import date, datetime, timedelta
-from schemas import Company as CompanySchema, Clinic as ClinicSchema, User as UserSchema
+from schemas import Company as CompanySchema, Clinic as ClinicSchema, User as UserSchema, ControlCenterAnalyticsResponse
 from sqlalchemy import func
 from auth import get_current_user
 from security.scope import require_company_admin
+from services.analytics_service import build_company_analytics, resolve_analytics_window
 
 router = APIRouter(prefix="/control-center", tags=["control-center"])
+
+
+@router.get("/analytics/{company_id}", response_model=ControlCenterAnalyticsResponse)
+def get_company_analytics(
+    company_id: int,
+    start_date: date | None = None,
+    end_date: date | None = None,
+    bucket: str | None = None,
+    clinic_id: int | None = None,
+    db: Session = Depends(get_db),
+    current_user: UserModel = Depends(get_current_user),
+) -> Dict[str, Any]:
+    require_company_admin(db, current_user, company_id)
+    window = resolve_analytics_window(start_date, end_date, bucket)
+    return build_company_analytics(
+        db,
+        company_id=company_id,
+        window=window,
+        clinic_id=clinic_id,
+    )
 
 def _get_company_or_404(db: Session, company_id: int) -> Company:
     company = db.query(Company).filter(Company.id == company_id).first()

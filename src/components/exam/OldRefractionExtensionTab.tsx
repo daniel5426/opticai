@@ -1,18 +1,20 @@
 import React, { useState, useRef } from "react"
 import { Card, CardContent } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
 import { OldRefractionExtensionExam } from "@/lib/db/schema-interface"
 import { ChevronUp, ChevronDown } from "lucide-react"
 
 import { VASelect } from "./shared/VASelect"
 import { EXAM_FIELDS, PDFieldConfigProvider } from "./data/exam-field-definitions"
 import { BASE_VALUES_SIMPLE, PDCalculationUtils } from "./data/exam-constants"
-import { FastInput, FastSelect, inputSyncManager } from "./shared/OptimizedInputs"
+import { FastInput, FastSelect } from "./shared/OptimizedInputs"
 import { usePrescriptionLogic } from "./shared/usePrescriptionLogic"
 import { CylTitle } from "./shared/CylTitle"
 import { NVJSelect } from "./shared/NVJSelect"
 import { ToggleTextNumberInput } from "./shared/ToggleTextNumberInput"
 import { copyEyeRowFields } from "./shared/copyEyeRowFields"
+import { useAxisWarning } from "./shared/useAxisWarning"
+import { AxisWarningInput } from "./shared/AxisWarningInput"
+import { RefractionTabsHeader } from "./shared/RefractionTabsHeader"
 
 interface OldRefractionExtensionTabProps {
   oldRefractionExtensionData: OldRefractionExtensionExam;
@@ -20,6 +22,14 @@ interface OldRefractionExtensionTabProps {
   isEditing: boolean;
   onMultifocalClick: () => void;
   hideEyeLabels?: boolean;
+  tabCount: number;
+  activeTab: number;
+  onTabChange: (tabIdx: number) => void;
+  onAddTab: (type: string) => void;
+  onDeleteTab?: (tabIdx: number) => void;
+  onDuplicateTab?: (tabIdx: number) => void;
+  onUpdateType?: (tabIdx: number, newType: string) => void;
+  allTabsData?: OldRefractionExtensionExam[];
 }
 
 export function OldRefractionExtensionTab({
@@ -27,12 +37,26 @@ export function OldRefractionExtensionTab({
   onOldRefractionExtensionChange,
   isEditing,
   onMultifocalClick,
-  hideEyeLabels = false
+  hideEyeLabels = false,
+  tabCount,
+  activeTab,
+  onTabChange,
+  onAddTab,
+  onDeleteTab,
+  onDuplicateTab,
+  onUpdateType,
+  allTabsData = [],
 }: OldRefractionExtensionTabProps) {
   const [hoveredEye, setHoveredEye] = useState<"R" | "L" | null>(null);
 
   const dataRef = useRef(oldRefractionExtensionData);
   dataRef.current = oldRefractionExtensionData;
+
+  const { fieldWarnings, handleAxisChange, handleAxisBlur } = useAxisWarning(
+    oldRefractionExtensionData,
+    onOldRefractionExtensionChange,
+    isEditing,
+  );
 
   const { handleManualTranspose, getPowerWarningMessage } = usePrescriptionLogic(
     oldRefractionExtensionData,
@@ -60,6 +84,7 @@ export function OldRefractionExtensionTab({
   const getFieldValue = (eye: "R" | "L" | "C", field: string, data = oldRefractionExtensionData) => {
     if (eye === "C") {
       if (field === "va") return data.comb_va?.toString() || "";
+      if (field === "j") return data.comb_j?.toString() || "";
       if (field === "pd_far") return data.comb_pd_far?.toString() || "";
       if (field === "pd_close") return data.comb_pd_close?.toString() || "";
       return "";
@@ -82,8 +107,14 @@ export function OldRefractionExtensionTab({
       return;
     }
 
+    if (eye !== "C" && (field === "cyl" || field === "ax")) {
+      handleAxisChange(eye, field, value);
+      return;
+    }
+
     if (eye === "C") {
       if (field === "va") onOldRefractionExtensionChange("comb_va", value);
+      if (field === "j") onOldRefractionExtensionChange("comb_j", value);
     } else {
       const eyeField = `${eye.toLowerCase()}_${field}` as keyof OldRefractionExtensionExam;
       onOldRefractionExtensionChange(eyeField, value);
@@ -105,6 +136,7 @@ export function OldRefractionExtensionTab({
           onChange={(newValue) => handleChange(eye, key, newValue)}
           disabled={!isEditing}
           options={baseOptions}
+          allowImportedValue
           size="xs"
           triggerClassName="h-8 text-xs w-full"
           center={column.center}
@@ -132,6 +164,27 @@ export function OldRefractionExtensionTab({
       );
     }
 
+    if ((key === "cyl" || key === "ax") && eye !== "C") {
+      const warnings = fieldWarnings[eye];
+      return (
+        <AxisWarningInput
+          {...finalProps}
+          eye={eye}
+          field={key}
+          value={value}
+          missingAxis={warnings.missingAxis}
+          missingCyl={warnings.missingCyl}
+          isEditing={isEditing}
+          onValueChange={handleAxisChange}
+          onBlur={(warningEye, warningField, nextValue) =>
+            handleAxisBlur(warningEye, warningField, nextValue, min, max)
+          }
+          aria-invalid={key === "cyl" && getPowerWarningMessage(eye) ? true : undefined}
+          warningMessage={key === "cyl" ? getPowerWarningMessage(eye) : null}
+        />
+      );
+    }
+
     if (key === "sph" && eye !== "C") {
       return (
         <ToggleTextNumberInput
@@ -140,6 +193,7 @@ export function OldRefractionExtensionTab({
           disabled={!isEditing}
           textOptions={column.textOptions}
           textValueAliases={column.textValueAliases}
+          textDisplayAliases={column.displayAliases}
           numericProps={{
             step,
             min,
@@ -174,9 +228,20 @@ export function OldRefractionExtensionTab({
     <Card className="w-full examcard pb-4 pt-3">
       <CardContent className="px-4" style={{ scrollbarWidth: 'none' }}>
         <div className="space-y-3">
-          <div className="text-center">
-            <h3 className="font-medium text-muted-foreground">Old Refraction E</h3>
-          </div>
+          <RefractionTabsHeader
+            title="Old Refraction E"
+            tabCount={tabCount}
+            activeTab={activeTab}
+            tabTypes={allTabsData.map(
+              (tab) => tab.r_glasses_type || tab.l_glasses_type,
+            )}
+            isEditing={isEditing}
+            onTabChange={onTabChange}
+            onAddTab={onAddTab}
+            onDeleteTab={onDeleteTab}
+            onDuplicateTab={onDuplicateTab}
+            onUpdateType={onUpdateType}
+          />
 
           <div className={`grid ${hideEyeLabels ? 'grid-cols-[repeat(12,1fr)]' : 'grid-cols-[20px_repeat(12,1fr)]'} gap-2 items-center`}>
             {!hideEyeLabels && <div></div>}
@@ -213,7 +278,7 @@ export function OldRefractionExtensionTab({
             </div>}
             {columns.map((column) => {
               const { key } = column;
-              if (key === 'va' || key === 'pd_far' || key === 'pd_close') {
+              if (key === 'va' || key === 'j' || key === 'pd_far' || key === 'pd_close') {
                 return (
                   <div key={`c-${key}-input`}>
                     {renderField("C", column)}

@@ -1,18 +1,19 @@
 import React, { useState, useEffect } from "react"
 import { useNavigate, useSearch } from "@tanstack/react-router"
 import { SiteHeader } from "@/components/site-header"
+import { ListPageHeader } from "@/components/list-page-header"
 import { UsersTable } from "@/components/users-table"
 import { UserModal } from "@/components/UserModal"
 import { getPaginatedUsers } from "@/lib/db/users-db"
 import { User } from "@/lib/db/schema-interface"
 import { useUser } from "@/contexts/UserContext"
-import { ROLE_LEVELS, isRoleAtLeast } from '@/lib/role-levels'
+import { ROLE_LEVELS, isRoleAtLeast } from "@/lib/role-levels"
 import { ALL_FILTER_VALUE } from "@/lib/table-filters"
 import { TABLE_SEARCH_DEBOUNCE_MS, buildTableSearch, useLatestTableSearchRequest } from "@/lib/list-page-search"
 import { parseSortSearch, sortToOrder, sortToSearch } from "@/lib/table-sorting"
 
 interface UserWithClinic extends User {
-  clinic_name?: string;
+  clinic_name?: string
 }
 
 export default function AllUsersPage() {
@@ -27,10 +28,7 @@ export default function AllUsersPage() {
   const [editingUser, setEditingUser] = useState<UserWithClinic | null>(null)
   const [searchInput, setSearchInput] = useState(search.q)
   const { startSearchRequest, updateLatestSearch } = useLatestTableSearchRequest(searchInput)
-  const activeSort = React.useMemo(
-    () => parseSortSearch(search.sort, { key: "id", direction: "desc" }),
-    [search.sort],
-  )
+  const activeSort = React.useMemo(() => parseSortSearch(search.sort, { key: "id", direction: "desc" }), [search.sort])
 
   useEffect(() => {
     updateLatestSearch(search.q)
@@ -43,7 +41,13 @@ export default function AllUsersPage() {
   }
 
   const buildSearchState = (
-    overrides?: Partial<{ q: string; page: number; role: string; clinicScope: string; sort: string }>
+    overrides?: Partial<{
+      q: string
+      page: number
+      role: string
+      clinicScope: string
+      sort: string
+    }>
   ) =>
     buildTableSearch(
       {
@@ -52,15 +56,15 @@ export default function AllUsersPage() {
         role: search.role,
         clinicScope: search.clinicScope,
         sort: search.sort,
-        ...overrides,
+        ...overrides
       },
       {
         q: "",
         page: 1,
         role: ALL_FILTER_VALUE,
         clinicScope: ALL_FILTER_VALUE,
-        sort: "",
-      },
+        sort: ""
+      }
     )
 
   useEffect(() => {
@@ -68,7 +72,7 @@ export default function AllUsersPage() {
       if (searchInput === search.q) return
       navigate({
         to: "/users",
-        search: buildSearchState({ q: searchInput.trim(), page: 1 }),
+        search: buildSearchState({ q: searchInput.trim(), page: 1 })
       })
     }, TABLE_SEARCH_DEBOUNCE_MS)
     return () => clearTimeout(t)
@@ -85,16 +89,13 @@ export default function AllUsersPage() {
         order: sortToOrder(activeSort, "id_desc"),
         q: search.q || undefined,
         roleLevel: search.role !== ALL_FILTER_VALUE ? Number(search.role) : undefined,
-        clinic_id:
-          search.clinicScope === "current" && currentClinic?.id
-            ? currentClinic.id
-            : undefined,
+        clinic_id: search.clinicScope === "current" && currentClinic?.id ? currentClinic.id : undefined
       })
       if (!canCommit()) return
       setUsers(items as UserWithClinic[])
       setTotal(total)
     } catch (error) {
-      console.error('Error loading users:', error)
+      console.error("Error loading users:", error)
     } finally {
       if (canCommit()) {
         setLoading(false)
@@ -104,18 +105,27 @@ export default function AllUsersPage() {
 
   useEffect(() => {
     loadUsers()
-  }, [activeSort, currentClinic?.id, pageSize, search.clinicScope, search.page, search.q, search.role, startSearchRequest])
+  }, [
+    activeSort,
+    currentClinic?.id,
+    pageSize,
+    search.clinicScope,
+    search.page,
+    search.q,
+    search.role,
+    startSearchRequest
+  ])
 
   const handleUserDeleted = (userId: number) => {
-    setUsers(prevUsers => prevUsers.filter(user => user.id !== userId))
+    setUsers((prevUsers) => prevUsers.filter((user) => user.id !== userId))
     if (users.length === 1 && search.page > 1) {
       navigate({
         to: "/users",
-        search: buildSearchState({ page: search.page - 1 }),
+        search: buildSearchState({ page: search.page - 1 })
       })
       return
     }
-    setTotal(prevTotal => prevTotal - 1)
+    setTotal((prevTotal) => prevTotal - 1)
   }
 
   const handleUserDeleteFailed = () => {
@@ -123,11 +133,7 @@ export default function AllUsersPage() {
   }
 
   const handleUserUpdated = (updatedUser: UserWithClinic) => {
-    setUsers(prevUsers => 
-      prevUsers.map(user => 
-        user.id === updatedUser.id ? updatedUser : user
-      )
-    )
+    setUsers((prevUsers) => prevUsers.map((user) => (user.id === updatedUser.id ? updatedUser : user)))
   }
 
   const handleUserUpdateFailed = () => {
@@ -160,10 +166,8 @@ export default function AllUsersPage() {
     return (
       <>
         <SiteHeader title="משתמשים" />
-        <div className="flex flex-col flex-1 p-4 lg:p-6" dir="rtl" style={{scrollbarWidth: 'none'}}>
-          <div className="text-center text-muted-foreground">
-            אין לך הרשאה לצפות במשתמשים
-          </div>
+        <div className="flex flex-1 flex-col p-4 lg:p-6" dir="rtl" style={{ scrollbarWidth: "none" }}>
+          <div className="text-muted-foreground text-center">אין לך הרשאה לצפות במשתמשים</div>
         </div>
       </>
     )
@@ -172,15 +176,13 @@ export default function AllUsersPage() {
   return (
     <>
       <SiteHeader title="משתמשים" />
-      <div className="flex flex-col flex-1 p-4 lg:p-6" dir="rtl" style={{scrollbarWidth: 'none'}}>
+      <div className="flex flex-1 flex-col p-4 lg:p-6" dir="rtl" style={{ scrollbarWidth: "none" }}>
         <div className="@container/main flex flex-col gap-2">
           <div className="flex flex-col gap-2 md:gap-0">
-            <div className="flex items-center justify-between mb-4">
-              <h1 className="text-xl font-bold">כל המשתמשים</h1>
-            </div>
+            <ListPageHeader title="כל המשתמשים" description="משתמשים, תפקידים והרשאות במרפאה" />
 
-            <UsersTable 
-              data={users} 
+            <UsersTable
+              data={users}
               onUserDeleted={handleUserDeleted}
               onUserDeleteFailed={handleUserDeleteFailed}
               onUserUpdated={handleUserUpdated}
@@ -195,21 +197,24 @@ export default function AllUsersPage() {
               onRoleFilterChange={(value) =>
                 navigate({
                   to: "/users",
-                  search: buildSearchState({ role: value, page: 1 }),
+                  search: buildSearchState({ role: value, page: 1 })
                 })
               }
               clinicScopeFilter={search.clinicScope}
               onClinicScopeFilterChange={(value) =>
                 navigate({
                   to: "/users",
-                  search: buildSearchState({ clinicScope: value, page: 1 }),
+                  search: buildSearchState({ clinicScope: value, page: 1 })
                 })
               }
               sort={activeSort}
               onSortChange={(sort) =>
                 navigate({
                   to: "/users",
-                  search: buildSearchState({ sort: sortToSearch(sort), page: 1 }),
+                  search: buildSearchState({
+                    sort: sortToSearch(sort),
+                    page: 1
+                  })
                 })
               }
               companyId={currentUser?.company_id}
@@ -222,17 +227,17 @@ export default function AllUsersPage() {
                 setPage: (page) =>
                   navigate({
                     to: "/users",
-                    search: buildSearchState({ page }),
-                  }),
+                    search: buildSearchState({ page })
+                  })
               }}
             />
-            
+
             <div className="h-12"></div>
           </div>
         </div>
       </div>
 
-      <UserModal 
+      <UserModal
         isOpen={isUserModalOpen}
         onClose={handleUserModalClose}
         editingUser={editingUser as any}

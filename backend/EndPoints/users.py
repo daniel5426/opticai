@@ -10,6 +10,7 @@ from auth import decrypt_secret, encrypt_secret, get_current_user, get_password_
 from models import User as UserModel
 from utils.storage import upload_base64_image
 from utils.table_search import build_all_terms_search_condition, search_blob
+from services.subscription_service import enforce_limit
 from security.scope import (
     assert_clinic_belongs_to_company,
     get_allowed_clinic_ids,
@@ -143,6 +144,8 @@ def create_user(
         )
     if current_user.role_level < CEO_LEVEL and user.role_level >= CEO_LEVEL:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
+    if user.is_active:
+        enforce_limit(db, company_id, "staff")
     
     existing_user = db.query(User).filter(User.username == user.username).first()
     if existing_user:
@@ -505,6 +508,8 @@ def update_user(
     
     update_data = user.dict(exclude_unset=True)
     _validate_user_update_scope(db, current_user, update_data)
+    if update_data.get("is_active") is True and not db_user.is_active:
+        enforce_limit(db, resolve_company_id(db, current_user), "staff")
     if update_data.get('profile_picture'):
         try:
             update_data['profile_picture'] = upload_base64_image(update_data['profile_picture'], f"users/{user_id}/profile")

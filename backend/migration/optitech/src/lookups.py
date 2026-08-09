@@ -16,6 +16,10 @@ from .records import clean_text, parse_intish
 
 
 LOOKUP_NAME_COLUMNS: Mapping[str, str] = {
+    "tblCitys": "CityName",
+    "tblRefs": "RefName",
+    "tblRefsSub1": "RefsSub1Name",
+    "tblRefsSub2": "RefsSub2Name",
     "tblCrdGlassBrand": "GlassBrandName",
     "tblCrdGlassCoat": "GlassCoatName",
     "tblCrdGlassColor": "GlassColorName",
@@ -40,6 +44,10 @@ LOOKUP_NAME_COLUMNS: Mapping[str, str] = {
 }
 
 LOOKUP_ID_COLUMNS: Mapping[str, str] = {
+    "tblCitys": "CityId",
+    "tblRefs": "RefId",
+    "tblRefsSub1": "RefsSub1Id",
+    "tblRefsSub2": "RefsSub2Id",
     "tblCrdGlassBrand": "GlassBrandId",
     "tblCrdGlassCoat": "GlassCoatId",
     "tblCrdGlassColor": "GlassColorId",

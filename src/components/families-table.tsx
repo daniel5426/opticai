@@ -2,20 +2,14 @@ import * as React from "react"
 import { Family } from "@/lib/db/schema-interface"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Edit2, Trash2 } from "lucide-react"
 import { CustomModal } from "@/components/ui/custom-modal"
 import { deleteFamily } from "@/lib/db/family-db"
 import { toast } from "sonner"
 import { Skeleton } from "@/components/ui/skeleton"
 import { SortableTableHead } from "@/components/sortable-table-head"
+import { TablePagination } from "@/components/table-pagination"
 import { SortColumns, SortState, sortRows } from "@/lib/table-sorting"
 import { DateSearchHelper } from "@/lib/date-search-helper"
 
@@ -31,18 +25,23 @@ interface FamiliesTableProps {
   serverFiltered?: boolean
   hideSearch?: boolean
   loading?: boolean
-  pagination?: { page: number; pageSize: number; total: number; setPage: (p: number) => void }
+  pagination?: {
+    page: number
+    pageSize: number
+    total: number
+    setPage: (p: number) => void
+  }
   companyId?: number
   currentClinicId?: number
   sort?: SortState
   onSortChange?: (sort: SortState) => void
 }
 
-export function FamiliesTable({ 
-  data, 
-  onFamilySelected, 
-  onFamilyEdit, 
-  onFamilyDeleted, 
+export function FamiliesTable({
+  data,
+  onFamilySelected,
+  onFamilyEdit,
+  onFamilyDeleted,
   onFamilyDeleteFailed,
   selectedFamilyId,
   searchQuery: externalSearchQuery,
@@ -54,7 +53,7 @@ export function FamiliesTable({
   companyId,
   currentClinicId,
   sort,
-  onSortChange,
+  onSortChange
 }: FamiliesTableProps) {
   const [internalSearchQuery, setInternalSearchQuery] = React.useState("")
   const [localSort, setLocalSort] = React.useState<SortState | undefined>()
@@ -68,18 +67,24 @@ export function FamiliesTable({
   const activeSort = sort ?? localSort
   const handleSortChange = onSortChange ?? setLocalSort
 
-  const sortColumns = React.useMemo<SortColumns<Family>>(() => ({
-    name: { getValue: (family) => family.name },
-    member_count: { getValue: (family) => memberCounts[family.id!] || 0, type: "number" },
-    created_date: { getValue: (family) => family.created_date, type: "date" },
-  }), [memberCounts])
+  const sortColumns = React.useMemo<SortColumns<Family>>(
+    () => ({
+      name: { getValue: (family) => family.name },
+      member_count: {
+        getValue: (family) => memberCounts[family.id!] || 0,
+        type: "number"
+      },
+      created_date: { getValue: (family) => family.created_date, type: "date" }
+    }),
+    [memberCounts]
+  )
 
   // Effect to notify parent about filter change if needed, or handle locally if data is all-loaded
-  // But here 'data' is passed from parent. Parent normally handles fetching? 
-  // Wait, if pagination is used, parent fetches. If parent fetches, parent needs to know about this filter. 
+  // But here 'data' is passed from parent. Parent normally handles fetching?
+  // Wait, if pagination is used, parent fetches. If parent fetches, parent needs to know about this filter.
   // If the parent is just passing data (client-side filter), we do it here.
-  // Assuming 'data' contains what we need. If server-side pagination, 
-  // we might need a callback onClinicFilterChange. 
+  // Assuming 'data' contains what we need. If server-side pagination,
+  // we might need a callback onClinicFilterChange.
   // For now, if 'data' is passed, we filter 'data' locally if it's client side,
   // OR the parent should pass a callback.
   // However, looking at the code, it seems 'data' is passed.
@@ -87,16 +92,17 @@ export function FamiliesTable({
   // If we filter, we just filter 'data'.
 
   const filteredData = React.useMemo(() => {
-    let result = data;
+    let result = data
 
     if (showCurrentClinicOnly && currentClinicId) {
-      result = result.filter(f => f.clinic_id === currentClinicId);
+      result = result.filter((f) => f.clinic_id === currentClinicId)
     }
 
     if (!serverFiltered && !isExternalSearch && searchQuery) {
-      result = result.filter((family) =>
-        family.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        DateSearchHelper.matchesDate(searchQuery, family.created_date)
+      result = result.filter(
+        (family) =>
+          family.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          DateSearchHelper.matchesDate(searchQuery, family.created_date)
       )
     }
     return result
@@ -118,9 +124,7 @@ export function FamiliesTable({
     const counts: Record<number, number> = {}
     for (const family of data) {
       if (family.id) {
-        counts[family.id] = typeof family.member_count === 'number' 
-          ? family.member_count 
-          : (family.clients?.length || 0)
+        counts[family.id] = typeof family.member_count === "number" ? family.member_count : family.clients?.length || 0
       }
     }
     setMemberCounts(counts)
@@ -153,14 +157,14 @@ export function FamiliesTable({
   }
 
   return (
-    <div className="space-y-4 mb-10" dir="rtl">
+    <div className="space-y-2.5" dir="rtl">
       {!hideSearch && (
         <div className="flex items-center justify-between">
           <Input
             placeholder="חיפוש משפחות..."
             value={searchQuery}
             onChange={(e) => handleSearchChange(e.target.value)}
-            className="w-[250px] bg-card dark:bg-card"
+            className="bg-card dark:bg-card w-[250px]"
             dir="rtl"
           />
           <div className="flex items-center gap-2">
@@ -178,13 +182,38 @@ export function FamiliesTable({
         </div>
       )}
 
-      <div className="rounded-md bg-card">
-        <Table dir="rtl" containerClassName="max-h-[70vh] overflow-y-auto overscroll-contain" containerStyle={{ scrollbarWidth: 'none' }}>
-          <TableHeader className="sticky top-0 bg-card">
+      <div className="bg-card rounded-md">
+        <Table
+          dir="rtl"
+          containerClassName="max-h-[70vh] overflow-y-auto overscroll-contain"
+          containerStyle={{ scrollbarWidth: "none" }}
+        >
+          <TableHeader className="bg-card sticky top-0">
             <TableRow>
-              <SortableTableHead sortKey="name" sort={activeSort} onSortChange={handleSortChange} className="text-right">שם המשפחה</SortableTableHead>
-              <SortableTableHead sortKey="member_count" sort={activeSort} onSortChange={handleSortChange} className="text-right">מספר חברים</SortableTableHead>
-              <SortableTableHead sortKey="created_date" sort={activeSort} onSortChange={handleSortChange} className="text-right">נוצר בתאריך</SortableTableHead>
+              <SortableTableHead
+                sortKey="name"
+                sort={activeSort}
+                onSortChange={handleSortChange}
+                className="text-right"
+              >
+                שם המשפחה
+              </SortableTableHead>
+              <SortableTableHead
+                sortKey="member_count"
+                sort={activeSort}
+                onSortChange={handleSortChange}
+                className="text-right"
+              >
+                מספר חברים
+              </SortableTableHead>
+              <SortableTableHead
+                sortKey="created_date"
+                sort={activeSort}
+                onSortChange={handleSortChange}
+                className="text-right"
+              >
+                נוצר בתאריך
+              </SortableTableHead>
               <TableHead className="w-[100px] text-right">פעולות</TableHead>
             </TableRow>
           </TableHeader>
@@ -193,16 +222,16 @@ export function FamiliesTable({
               Array.from({ length: 14 }).map((_, i) => (
                 <TableRow key={i}>
                   <TableCell>
-                    <Skeleton className="w-[70%] h-4 my-2" />
+                    <Skeleton className="my-2 h-4 w-[70%]" />
                   </TableCell>
                   <TableCell>
-                    <Skeleton className="w-[70%] h-4 my-2" />
+                    <Skeleton className="my-2 h-4 w-[70%]" />
                   </TableCell>
                   <TableCell>
-                    <Skeleton className="w-[70%] h-4 my-2" />
+                    <Skeleton className="my-2 h-4 w-[70%]" />
                   </TableCell>
                   <TableCell>
-                    <Skeleton className="w-[70%] h-4 my-2" />
+                    <Skeleton className="my-2 h-4 w-[70%]" />
                   </TableCell>
                 </TableRow>
               ))
@@ -210,47 +239,44 @@ export function FamiliesTable({
               displayData.map((family) => (
                 <TableRow
                   key={family.id}
-                  className={`cursor-pointer hover:bg-muted/50 ${
-                    selectedFamilyId === family.id ? 'bg-muted border-r-2 border-primary' : ''
+                  className={`hover:bg-muted/50 cursor-pointer ${
+                    selectedFamilyId === family.id ? "bg-muted border-primary border-r-2" : ""
                   }`}
                   onClick={() => handleRowClick(family)}
                 >
                   <TableCell className="font-medium">{family.name}</TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
-                      <span className="inline-flex items-center justify-center w-6 h-6 bg-primary/10 text-primary rounded-full text-sm font-medium">
+                      <span className="bg-primary/10 text-primary inline-flex h-6 w-6 items-center justify-center rounded-full text-sm font-medium">
                         {memberCounts[family.id!] || 0}
                       </span>
-                      <span className="text-sm text-muted-foreground">חברים</span>
+                      <span className="text-muted-foreground text-sm">חברים</span>
                     </div>
                   </TableCell>
                   <TableCell>
-                    {family.created_date 
-                      ? new Date(family.created_date).toLocaleDateString('he-IL')
-                      : 'לא זמין'
-                    }
+                    {family.created_date ? new Date(family.created_date).toLocaleDateString("he-IL") : "לא זמין"}
                   </TableCell>
                   <TableCell>
                     <div className="flex gap-1">
-                      <Button 
-                        variant="ghost" 
-                        className="h-8 w-8 p-0" 
+                      <Button
+                        variant="ghost"
+                        className="h-8 w-8 p-0"
                         onClick={(e) => {
                           e.stopPropagation()
                           onFamilyEdit?.(family)
-                        }} 
+                        }}
                         title="עריכה"
                       >
                         <Edit2 className="h-4 w-4" />
                       </Button>
-                      <Button 
-                        variant="ghost" 
-                        className="h-8 w-8 p-0" 
+                      <Button
+                        variant="ghost"
+                        className="h-8 w-8 p-0"
                         onClick={(e) => {
                           e.stopPropagation()
                           setFamilyToDelete(family)
                           setIsDeleteModalOpen(true)
-                        }} 
+                        }}
                         title="מחיקה"
                       >
                         <Trash2 className="h-4 w-4 text-red-600" />
@@ -261,8 +287,8 @@ export function FamiliesTable({
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={4} className="h-24 text-center text-muted-foreground">
-                  {searchQuery ? 'לא נמצאו משפחות המתאימות לחיפוש' : 'לא נמצאו משפחות'}
+                <TableCell colSpan={4} className="text-muted-foreground h-24 text-center">
+                  {searchQuery ? "לא נמצאו משפחות המתאימות לחיפוש" : "לא נמצאו משפחות"}
                 </TableCell>
               </TableRow>
             )}
@@ -271,25 +297,13 @@ export function FamiliesTable({
       </div>
 
       {pagination && (
-        <div className="flex items-center justify-between mt-4">
-          <div className="text-sm text-muted-foreground">
-            עמוד {pagination.page} מתוך {Math.max(1, Math.ceil((pagination.total || 0) / (pagination.pageSize || 1)))} · סה"כ {pagination.total || 0}
-          </div>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={loading || pagination.page <= 1}
-              onClick={() => pagination.setPage(Math.max(1, pagination.page - 1))}
-            >הקודם</Button>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={loading || pagination.page >= Math.ceil((pagination.total || 0) / (pagination.pageSize || 1))}
-              onClick={() => pagination.setPage(pagination.page + 1)}
-            >הבא</Button>
-          </div>
-        </div>
+        <TablePagination
+          page={pagination.page}
+          pageSize={pagination.pageSize}
+          total={pagination.total}
+          onPageChange={pagination.setPage}
+          loading={loading}
+        />
       )}
 
       <CustomModal
@@ -297,7 +311,7 @@ export function FamiliesTable({
         onClose={() => setIsDeleteModalOpen(false)}
         title="מחיקת משפחה"
         description={
-          familyToDelete 
+          familyToDelete
             ? `האם אתה בטוח שברצונך למחוק את המשפחה "${familyToDelete.name}"? פעולה זו תסיר את כל הלקוחות מהמשפחה אבל לא תמחק את הלקוחות עצמם.`
             : "האם אתה בטוח שברצונך למחוק משפחה זו?"
         }

@@ -1,13 +1,6 @@
 import React, { useState } from "react"
 import { useNavigate } from "@tanstack/react-router"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { DateInput } from "@/components/ui/date"
@@ -22,7 +15,7 @@ import {
   DropdownMenuSub,
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
-  DropdownMenuTrigger,
+  DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu"
 import { OrderPreviewModal } from "./orders/OrderPreviewModal"
 import { ExamCardPreviewModal } from "./exam/ExamCardPreviewModal"
@@ -36,6 +29,7 @@ import { toast } from "sonner"
 import { Skeleton } from "@/components/ui/skeleton"
 import { DateSearchHelper } from "@/lib/date-search-helper"
 import { TableFiltersBar } from "@/components/table-filters-bar"
+import { TablePagination } from "@/components/table-pagination"
 import { ORDER_KIND_OPTIONS, ORDER_STATUS_FILTER_OPTIONS, type OrderKindFilter } from "@/lib/table-filters"
 import { SortableTableHead } from "@/components/sortable-table-head"
 import { SortColumns, SortState, sortRows } from "@/lib/table-sorting"
@@ -43,20 +37,17 @@ import {
   ADDITION_ADD_TYPE_LABELS,
   getAdditionAddTypeOptions,
   type AdditionAddSourceMap,
-  type AdditionAddType,
+  type AdditionAddType
 } from "@/lib/addition-add-sources"
 import { formatBillingAmount, getBillingBalance, getBillingPaymentStatus } from "@/lib/billing-payment-status"
-import {
-  emitBillingPaymentsChanged,
-  onBillingPaymentsChanged,
-} from "@/lib/billing-events"
+import { emitBillingPaymentsChanged, onBillingPaymentsChanged } from "@/lib/billing-events"
 
-const MONEY_STEP = "0.01";
+const MONEY_STEP = "0.01"
 
 function getLocalDateInputValue() {
-  const now = new Date();
-  const offsetMs = now.getTimezoneOffset() * 60_000;
-  return new Date(now.getTime() - offsetMs).toISOString().slice(0, 10);
+  const now = new Date()
+  const offsetMs = now.getTimezoneOffset() * 60_000
+  return new Date(now.getTime() - offsetMs).toISOString().slice(0, 10)
 }
 
 interface OrdersTableProps {
@@ -69,7 +60,12 @@ interface OrdersTableProps {
   onOrderDeleteFailed: () => void
   onOrderStatusChange: (order: Order, nextStatus: string) => Promise<void>
   loading: boolean
-  pagination?: { page: number; pageSize: number; total: number; setPage: (p: number) => void }
+  pagination?: {
+    page: number
+    pageSize: number
+    total: number
+    setPage: (p: number) => void
+  }
   searchQuery?: string
   onSearchChange?: (q: string) => void
   serverFiltered?: boolean
@@ -100,7 +96,7 @@ export function OrdersTable({
   statusFilter: externalStatusFilter,
   onStatusFilterChange,
   sort,
-  onSortChange,
+  onSortChange
 }: OrdersTableProps) {
   const navigate = useNavigate()
   const [internalSearch, setInternalSearch] = useState("")
@@ -113,16 +109,29 @@ export function OrdersTable({
   const [previewOrderId, setPreviewOrderId] = useState<number | null>(null)
   const [previewOrderIsContact, setPreviewOrderIsContact] = useState(false)
   const [isClientModalOpen, setIsClientModalOpen] = useState(false)
-  const [pendingSelection, setPendingSelection] = useState<{ type: 'contact' | 'regular' } | null>(null)
+  const [pendingSelection, setPendingSelection] = useState<{
+    type: "contact" | "regular"
+  } | null>(null)
   const [isCardPreviewOpen, setIsCardPreviewOpen] = useState(false)
-  const [cardPreviewType, setCardPreviewType] = useState<'final-prescription' | 'contact-lens-exam'>('final-prescription')
+  const [cardPreviewType, setCardPreviewType] = useState<"final-prescription" | "contact-lens-exam">(
+    "final-prescription"
+  )
   const [savingStatusIds, setSavingStatusIds] = useState<Record<number, boolean>>({})
   const [savingPaymentStatusIds, setSavingPaymentStatusIds] = useState<Record<number, boolean>>({})
   const [paymentDropdownOrderId, setPaymentDropdownOrderId] = useState<number | null>(null)
   const [newPaymentDrafts, setNewPaymentDrafts] = useState<Record<number, string>>({})
   const [paymentDateDrafts, setPaymentDateDrafts] = useState<Record<number, string>>({})
   const [paymentHistory, setPaymentHistory] = useState<Record<number, BillingPayment[]>>({})
-  const [billingOverrides, setBillingOverrides] = useState<Record<number, { billing_id?: number; total_after_discount?: number; prepayment_amount?: number }>>({})
+  const [billingOverrides, setBillingOverrides] = useState<
+    Record<
+      number,
+      {
+        billing_id?: number
+        total_after_discount?: number
+        prepayment_amount?: number
+      }
+    >
+  >({})
   const [exportingDocxIds, setExportingDocxIds] = useState<Record<string, boolean>>({})
   const [exportingPdfIds, setExportingPdfIds] = useState<Record<string, boolean>>({})
   const [printingPdfIds, setPrintingPdfIds] = useState<Record<string, boolean>>({})
@@ -142,17 +151,20 @@ export function OrdersTable({
     return new Map(users.map((user) => [user.id, user]))
   }, [users])
 
-  const getExaminerName = React.useCallback((order: Order) => {
-    const orderUser = order.user_id ? usersById.get(order.user_id) : undefined
-    return (
-      orderUser?.full_name ||
-      orderUser?.username ||
-      (order as any).examiner_name ||
-      (order as any).full_name ||
-      (order as any).username ||
-      ""
-    )
-  }, [usersById])
+  const getExaminerName = React.useCallback(
+    (order: Order) => {
+      const orderUser = order.user_id ? usersById.get(order.user_id) : undefined
+      return (
+        orderUser?.full_name ||
+        orderUser?.username ||
+        (order as any).examiner_name ||
+        (order as any).full_name ||
+        (order as any).username ||
+        ""
+      )
+    },
+    [usersById]
+  )
 
   const handleSearchChange = (value: string) => {
     if (onSearchChange) {
@@ -179,161 +191,162 @@ export function OrdersTable({
     setInternalStatusFilter(value)
   }
   const openRegularOrderFromLatestExam = (addType?: AdditionAddType) => {
-    if (!latestExamId) return;
+    if (!latestExamId) return
     navigate({
       to: "/clients/$clientId/orders/new",
       params: { clientId: String(clientId) },
       search: {
         importSourceId: String(latestExamId),
         importSourceType: "exam",
-        ...(addType ? { addType } : {}),
-      },
-    });
-  };
+        ...(addType ? { addType } : {})
+      }
+    })
+  }
 
-  const handleCreateOrder = (type: 'contact' | 'regular') => {
+  const handleCreateOrder = (type: "contact" | "regular") => {
     if (clientId > 0) {
       navigate({
         to: "/clients/$clientId/orders/new",
         params: { clientId: String(clientId) },
-        search: type === 'contact' ? { type: 'contact' } : {}
-      });
+        search: type === "contact" ? { type: "contact" } : {}
+      })
     } else {
-      setPendingSelection({ type });
-      setIsClientModalOpen(true);
+      setPendingSelection({ type })
+      setIsClientModalOpen(true)
     }
-  };
+  }
 
   const handleClientSelect = (selectedClientId: number) => {
     if (pendingSelection) {
       navigate({
         to: "/clients/$clientId/orders/new",
         params: { clientId: String(selectedClientId) },
-        search: pendingSelection.type === 'contact' ? { type: 'contact' } : {}
-      });
-      setPendingSelection(null);
+        search: pendingSelection.type === "contact" ? { type: "contact" } : {}
+      })
+      setPendingSelection(null)
     }
-    setIsClientModalOpen(false);
-  };
+    setIsClientModalOpen(false)
+  }
 
   const handleDeleteConfirm = async () => {
-    const selected = orderToDelete;
+    const selected = orderToDelete
     if (!selected || selected.id === undefined) {
-      setIsDeleteModalOpen(false);
-      return;
+      setIsDeleteModalOpen(false)
+      return
     }
 
     // Close modal immediately
-    setIsDeleteModalOpen(false);
-    setOrderToDelete(null);
+    setIsDeleteModalOpen(false)
+    setOrderToDelete(null)
 
     try {
-      const deletedOrderId = selected.id;
-      onOrderDeleted(deletedOrderId);
-      toast.success("הזמנה נמחקה בהצלחה");
+      const deletedOrderId = selected.id
+      onOrderDeleted(deletedOrderId)
+      toast.success("הזמנה נמחקה בהצלחה")
 
-      const isContact = Boolean((selected as any).__contact);
-      const success = await (isContact
-        ? deleteContactLensOrder(deletedOrderId)
-        : deleteOrder(deletedOrderId));
+      const isContact = Boolean((selected as any).__contact)
+      const success = await (isContact ? deleteContactLensOrder(deletedOrderId) : deleteOrder(deletedOrderId))
       if (!success) {
-        toast.error("אירעה שגיאה בעת מחיקת ההזמנה. מרענן נתונים...");
-        onOrderDeleteFailed();
+        toast.error("אירעה שגיאה בעת מחיקת ההזמנה. מרענן נתונים...")
+        onOrderDeleteFailed()
       }
     } catch (error) {
-      toast.error("אירעה שגיאה בעת מחיקת ההזמנה");
-      onOrderDeleteFailed();
+      toast.error("אירעה שגיאה בעת מחיקת ההזמנה")
+      onOrderDeleteFailed()
     }
-  };
+  }
 
   const handleExportDocx = async (order: Order) => {
-    const isContact = Boolean((order as any).__contact);
-    const exportKey = order.id ? `${isContact ? "contact" : "regular"}:${order.id}` : "";
+    const isContact = Boolean((order as any).__contact)
+    const exportKey = order.id ? `${isContact ? "contact" : "regular"}:${order.id}` : ""
 
     try {
       if (!order.id) {
-        toast.error("לא ניתן לייצא הזמנה ללא מזהה");
-        return;
+        toast.error("לא ניתן לייצא הזמנה ללא מזהה")
+        return
       }
-      if (exportingDocxIds[exportKey]) return;
+      if (exportingDocxIds[exportKey]) return
 
-      setExportingDocxIds((prev) => ({ ...prev, [exportKey]: true }));
+      setExportingDocxIds((prev) => ({ ...prev, [exportKey]: true }))
       await exportOrderToDocx({
         orderId: order.id,
-        kind: isContact ? "contact" : "regular",
-      });
-      toast.success("הדוח יוצא בהצלחה");
+        kind: isContact ? "contact" : "regular"
+      })
+      toast.success("הדוח יוצא בהצלחה")
     } catch (error) {
-      console.error("Error exporting DOCX:", error);
-      toast.error("שגיאה ביצירת הדוח");
+      console.error("Error exporting DOCX:", error)
+      toast.error("שגיאה ביצירת הדוח")
     } finally {
       if (exportKey) {
-        setExportingDocxIds((prev) => ({ ...prev, [exportKey]: false }));
+        setExportingDocxIds((prev) => ({ ...prev, [exportKey]: false }))
       }
     }
-  };
+  }
 
   const handleExportPdf = async (order: Order) => {
-    const isContact = Boolean((order as any).__contact);
-    const exportKey = order.id ? `${isContact ? "contact" : "regular"}:${order.id}` : "";
+    const isContact = Boolean((order as any).__contact)
+    const exportKey = order.id ? `${isContact ? "contact" : "regular"}:${order.id}` : ""
 
     try {
       if (!order.id) {
-        toast.error("לא ניתן לייצא הזמנה ללא מזהה");
-        return;
+        toast.error("לא ניתן לייצא הזמנה ללא מזהה")
+        return
       }
-      if (exportingPdfIds[exportKey]) return;
+      if (exportingPdfIds[exportKey]) return
 
-      setExportingPdfIds((prev) => ({ ...prev, [exportKey]: true }));
+      setExportingPdfIds((prev) => ({ ...prev, [exportKey]: true }))
       const result = await exportOrderToPdf({
         orderId: order.id,
-        kind: isContact ? "contact" : "regular",
-      });
+        kind: isContact ? "contact" : "regular"
+      })
       if (result.success) {
-        toast.success("PDF נוצר בהצלחה");
+        toast.success("PDF נוצר בהצלחה")
       } else if (!result.canceled) {
-        throw new Error(result.error || "PDF export failed");
+        throw new Error(result.error || "PDF export failed")
       }
     } catch (error) {
-      console.error("Error exporting PDF:", error);
-      toast.error("שגיאה ביצירת PDF");
+      console.error("Error exporting PDF:", error)
+      toast.error("שגיאה ביצירת PDF")
     } finally {
       if (exportKey) {
-        setExportingPdfIds((prev) => ({ ...prev, [exportKey]: false }));
+        setExportingPdfIds((prev) => ({ ...prev, [exportKey]: false }))
       }
     }
-  };
+  }
 
   const handlePrintPdf = async (order: Order) => {
     try {
       if (!order.id) {
-        toast.error("לא ניתן להדפיס הזמנה ללא מזהה");
-        return;
+        toast.error("לא ניתן להדפיס הזמנה ללא מזהה")
+        return
       }
-      const kind = (order as any).__contact ? "contact" : "regular";
-      const exportKey = `${kind}:${order.id}`;
-      if (printingPdfIds[exportKey]) return;
+      const kind = (order as any).__contact ? "contact" : "regular"
+      const exportKey = `${kind}:${order.id}`
+      if (printingPdfIds[exportKey]) return
 
-      setPrintingPdfIds((prev) => ({ ...prev, [exportKey]: true }));
+      setPrintingPdfIds((prev) => ({ ...prev, [exportKey]: true }))
       const result = await printOrderPdf({
         orderId: order.id,
-        kind,
-      });
+        kind
+      })
       if (result.success) {
-        toast.success("PDF נפתח להדפסה");
+        toast.success("PDF נפתח להדפסה")
       } else {
-        throw new Error(result.error || "Print failed");
+        throw new Error(result.error || "Print failed")
       }
     } catch (error) {
-      console.error("Error printing PDF:", error);
-      toast.error("שגיאה בהדפסה");
+      console.error("Error printing PDF:", error)
+      toast.error("שגיאה בהדפסה")
     } finally {
       if (order.id) {
-        const kind = (order as any).__contact ? "contact" : "regular";
-        setPrintingPdfIds((prev) => ({ ...prev, [`${kind}:${order.id}`]: false }));
+        const kind = (order as any).__contact ? "contact" : "regular"
+        setPrintingPdfIds((prev) => ({
+          ...prev,
+          [`${kind}:${order.id}`]: false
+        }))
       }
     }
-  };
+  }
 
   const filteredData = React.useMemo(() => {
     let result = data
@@ -350,10 +363,7 @@ export function OrdersTable({
     if (!serverFiltered && statusFilter !== "all") {
       result = result.filter((order) => {
         if (!order.id) return false
-        const effectiveStatus =
-          (order as any).order_status ??
-          (order as any)?.order_data?.details?.order_status ??
-          ""
+        const effectiveStatus = (order as any).order_status ?? (order as any)?.order_data?.details?.order_status ?? ""
         return effectiveStatus === statusFilter
       })
     }
@@ -364,9 +374,9 @@ export function OrdersTable({
     }
 
     return result.filter((order) => {
-      const clientName = ((order as any).clientName || '').toLowerCase()
+      const clientName = ((order as any).clientName || "").toLowerCase()
       const username = getExaminerName(order).toLowerCase()
-      const orderType = (order.type || '').toLowerCase()
+      const orderType = (order.type || "").toLowerCase()
 
       if (clientName.includes(searchLower) || username.includes(searchLower) || orderType.includes(searchLower)) {
         return true
@@ -377,221 +387,242 @@ export function OrdersTable({
   }, [data, getExaminerName, kindFilter, searchValue, statusFilter, serverFiltered])
 
   const getOrderStatus = React.useCallback((order: Order) => {
-    if (!order.id) return "";
-    return (
-      (order as any).order_status ||
-      (order as any)?.order_data?.details?.order_status ||
-      ""
-    );
-  }, []);
+    if (!order.id) return ""
+    return (order as any).order_status || (order as any)?.order_data?.details?.order_status || ""
+  }, [])
 
-  const getPaymentStatus = React.useCallback((order: Order) => {
-    if (!order.id) return "";
-    const override = billingOverrides[order.id];
-    const total = Number(override?.total_after_discount ?? (order as any).billing_total_after_discount) || 0;
-    if (total <= 0) return "ללא מחיר";
-    return getBillingPaymentStatus(total, override?.prepayment_amount ?? (order as any).billing_prepayment_amount);
-  }, [billingOverrides]);
+  const getPaymentStatus = React.useCallback(
+    (order: Order) => {
+      if (!order.id) return ""
+      const override = billingOverrides[order.id]
+      const total = Number(override?.total_after_discount ?? (order as any).billing_total_after_discount) || 0
+      if (total <= 0) return "ללא מחיר"
+      return getBillingPaymentStatus(total, override?.prepayment_amount ?? (order as any).billing_prepayment_amount)
+    },
+    [billingOverrides]
+  )
 
-  const getBillingId = React.useCallback((order: Order) => {
-    if (!order.id) return undefined;
-    return billingOverrides[order.id]?.billing_id || (order as any).billing_id;
-  }, [billingOverrides]);
+  const getBillingId = React.useCallback(
+    (order: Order) => {
+      if (!order.id) return undefined
+      return billingOverrides[order.id]?.billing_id || (order as any).billing_id
+    },
+    [billingOverrides]
+  )
 
-  const getBillingTotal = React.useCallback((order: Order) => {
-    if (!order.id) return 0;
-    return Number(billingOverrides[order.id]?.total_after_discount ?? (order as any).billing_total_after_discount) || 0;
-  }, [billingOverrides]);
+  const getBillingTotal = React.useCallback(
+    (order: Order) => {
+      if (!order.id) return 0
+      return (
+        Number(billingOverrides[order.id]?.total_after_discount ?? (order as any).billing_total_after_discount) || 0
+      )
+    },
+    [billingOverrides]
+  )
 
-  const getBillingPaid = React.useCallback((order: Order) => {
-    if (!order.id) return 0;
-    return Number(billingOverrides[order.id]?.prepayment_amount ?? (order as any).billing_prepayment_amount) || 0;
-  }, [billingOverrides]);
+  const getBillingPaid = React.useCallback(
+    (order: Order) => {
+      if (!order.id) return 0
+      return Number(billingOverrides[order.id]?.prepayment_amount ?? (order as any).billing_prepayment_amount) || 0
+    },
+    [billingOverrides]
+  )
 
   React.useEffect(() => {
     return onBillingPaymentsChanged((detail) => {
       const matchingOrders = data.filter((order) => {
-        if (!order.id) return false;
-        const isContact = Boolean((order as any).__contact);
+        if (!order.id) return false
+        const isContact = Boolean((order as any).__contact)
         return (
           (order as any).billing_id === detail.billingId ||
           (!isContact && detail.orderId === order.id) ||
           (isContact && detail.contactLensId === order.id)
-        );
-      });
-      if (matchingOrders.length === 0) return;
+        )
+      })
+      if (matchingOrders.length === 0) return
 
       setBillingOverrides((prev) => {
-        const next = { ...prev };
+        const next = { ...prev }
         matchingOrders.forEach((order) => {
           next[order.id!] = {
             billing_id: detail.billingId,
             total_after_discount:
-              prev[order.id!]?.total_after_discount ??
-              (Number((order as any).billing_total_after_discount) || 0),
-            prepayment_amount: detail.prepaymentAmount,
-          };
-        });
-        return next;
-      });
+              prev[order.id!]?.total_after_discount ?? (Number((order as any).billing_total_after_discount) || 0),
+            prepayment_amount: detail.prepaymentAmount
+          }
+        })
+        return next
+      })
 
       if (detail.payments) {
         setPaymentHistory((prev) => {
-          const next = { ...prev };
+          const next = { ...prev }
           matchingOrders.forEach((order) => {
-            next[order.id!] = detail.payments!;
-          });
-          return next;
-        });
+            next[order.id!] = detail.payments!
+          })
+          return next
+        })
       }
-    });
-  }, [data]);
+    })
+  }, [data])
 
-  const sortColumns = React.useMemo<SortColumns<Order>>(() => ({
-    order_date: { getValue: (order) => order.order_date, type: "date" },
-    type: { getValue: (order) => order.type },
-    kind: { getValue: (order) => ((order as any).__contact ? "עדשות מגע" : "הזמנה רגילה") },
-    client: { getValue: (order) => (order as any).clientName },
-    payment_status: { getValue: getPaymentStatus },
-    status: { getValue: getOrderStatus },
-  }), [getOrderStatus, getPaymentStatus])
+  const sortColumns = React.useMemo<SortColumns<Order>>(
+    () => ({
+      order_date: { getValue: (order) => order.order_date, type: "date" },
+      type: { getValue: (order) => order.type },
+      kind: {
+        getValue: (order) => ((order as any).__contact ? "עדשות מגע" : "הזמנה רגילה")
+      },
+      client: { getValue: (order) => (order as any).clientName },
+      payment_status: { getValue: getPaymentStatus },
+      status: { getValue: getOrderStatus }
+    }),
+    [getOrderStatus, getPaymentStatus]
+  )
 
   const displayData = React.useMemo(() => {
     return onSortChange ? filteredData : sortRows(filteredData, activeSort, sortColumns)
   }, [activeSort, filteredData, onSortChange, sortColumns])
 
-  const tableColumnCount = clientId === 0 ? 7 : 6;
+  const tableColumnCount = clientId === 0 ? 7 : 6
 
   const handleStatusChange = async (order: Order, nextStatus: string) => {
-    if (!order.id) return;
-    const orderId = order.id;
+    if (!order.id) return
+    const orderId = order.id
 
-    setSavingStatusIds((prev) => ({ ...prev, [orderId]: true }));
+    setSavingStatusIds((prev) => ({ ...prev, [orderId]: true }))
 
     try {
-      await onOrderStatusChange(order, nextStatus);
-      toast.success("סטטוס הזמנה עודכן");
+      await onOrderStatusChange(order, nextStatus)
+      toast.success("סטטוס הזמנה עודכן")
     } catch (error) {
-      toast.error("שגיאה בעדכון סטטוס הזמנה");
+      toast.error("שגיאה בעדכון סטטוס הזמנה")
     } finally {
-      setSavingStatusIds((prev) => ({ ...prev, [orderId]: false }));
+      setSavingStatusIds((prev) => ({ ...prev, [orderId]: false }))
     }
-  };
+  }
 
   const loadPaymentHistory = async (order: Order) => {
-    if (!order.id) return;
-    const orderId = order.id;
-    const billingId = getBillingId(order);
-    if (!billingId) return;
-    const payments = await getBillingPayments(billingId);
-    setPaymentHistory((prev) => ({ ...prev, [orderId]: payments }));
-  };
+    if (!order.id) return
+    const orderId = order.id
+    const billingId = getBillingId(order)
+    if (!billingId) return
+    const payments = await getBillingPayments(billingId)
+    setPaymentHistory((prev) => ({ ...prev, [orderId]: payments }))
+  }
 
   const ensureBillingForPayment = async (order: Order) => {
-    if (!order.id) return null;
-    const billingId = getBillingId(order);
-    if (billingId) return billingId;
+    if (!order.id) return null
+    const billingId = getBillingId(order)
+    if (billingId) return billingId
 
-    const total = getBillingTotal(order);
+    const total = getBillingTotal(order)
     const saved = await createBilling(
       (order as any).__contact
         ? { contact_lens_id: order.id, total_after_discount: total }
-        : { order_id: order.id, total_after_discount: total },
-    );
-    if (!saved?.id) return null;
+        : { order_id: order.id, total_after_discount: total }
+    )
+    if (!saved?.id) return null
     setBillingOverrides((prev) => ({
       ...prev,
       [order.id!]: {
         billing_id: saved.id,
         total_after_discount: saved.total_after_discount ?? total,
-        prepayment_amount: saved.prepayment_amount ?? getBillingPaid(order),
-      },
-    }));
-    return saved.id;
-  };
+        prepayment_amount: saved.prepayment_amount ?? getBillingPaid(order)
+      }
+    }))
+    return saved.id
+  }
 
   const applyPaymentChange = async (
     order: Order,
     amount: number,
     paidAt: string,
     kind: "payment" | "adjustment",
-    successMessage: string,
+    successMessage: string
   ) => {
-    if (!order.id) return null;
-    const orderId = order.id;
-    const previous = billingOverrides[orderId];
-    const total = getBillingTotal(order);
-    const currentPaid = getBillingPaid(order);
-    const nextPaid = currentPaid + amount;
+    if (!order.id) return null
+    const orderId = order.id
+    const previous = billingOverrides[orderId]
+    const total = getBillingTotal(order)
+    const currentPaid = getBillingPaid(order)
+    const nextPaid = currentPaid + amount
 
-    setSavingPaymentStatusIds((prev) => ({ ...prev, [orderId]: true }));
+    setSavingPaymentStatusIds((prev) => ({ ...prev, [orderId]: true }))
     setBillingOverrides((prev) => ({
       ...prev,
-      [orderId]: { billing_id: getBillingId(order), total_after_discount: total, prepayment_amount: nextPaid },
-    }));
+      [orderId]: {
+        billing_id: getBillingId(order),
+        total_after_discount: total,
+        prepayment_amount: nextPaid
+      }
+    }))
 
     try {
-      const billingId = await ensureBillingForPayment(order);
-      if (!billingId) throw new Error("billing creation failed");
+      const billingId = await ensureBillingForPayment(order)
+      if (!billingId) throw new Error("billing creation failed")
       const savedPayment = await createBillingPayment(billingId, {
         amount,
         paid_at: paidAt,
-        kind,
-      });
-      if (!savedPayment) throw new Error("payment save failed");
+        kind
+      })
+      if (!savedPayment) throw new Error("payment save failed")
       setBillingOverrides((prev) => ({
         ...prev,
         [orderId]: {
           billing_id: billingId,
           total_after_discount: total,
-          prepayment_amount: nextPaid,
-        },
-      }));
+          prepayment_amount: nextPaid
+        }
+      }))
       setPaymentHistory((prev) => ({
         ...prev,
-        [orderId]: [savedPayment, ...(prev[orderId] || [])],
-      }));
+        [orderId]: [savedPayment, ...(prev[orderId] || [])]
+      }))
       emitBillingPaymentsChanged({
         billingId,
         prepaymentAmount: nextPaid,
         payments: [savedPayment, ...(paymentHistory[orderId] || [])],
         orderId: (order as any).__contact ? undefined : order.id,
-        contactLensId: (order as any).__contact ? order.id : undefined,
-      });
-      toast.success(successMessage);
-      return savedPayment;
+        contactLensId: (order as any).__contact ? order.id : undefined
+      })
+      toast.success(successMessage)
+      return savedPayment
     } catch (error) {
       setBillingOverrides((prev) => {
-        const next = { ...prev };
-        if (previous) next[orderId] = previous;
-        else delete next[orderId];
-        return next;
-      });
-      toast.error("שגיאה בעדכון תשלום");
-      return null;
+        const next = { ...prev }
+        if (previous) next[orderId] = previous
+        else delete next[orderId]
+        return next
+      })
+      toast.error("שגיאה בעדכון תשלום")
+      return null
     } finally {
-      setSavingPaymentStatusIds((prev) => ({ ...prev, [orderId]: false }));
+      setSavingPaymentStatusIds((prev) => ({ ...prev, [orderId]: false }))
     }
-  };
+  }
 
   const handleNewPaymentSave = async (order: Order) => {
-    if (!order.id) return;
-    const orderId = order.id;
-    const amount = Number.parseFloat(newPaymentDrafts[orderId] ?? "");
-    const paidAt = paymentDateDrafts[orderId] || getLocalDateInputValue();
+    if (!order.id) return
+    const orderId = order.id
+    const amount = Number.parseFloat(newPaymentDrafts[orderId] ?? "")
+    const paidAt = paymentDateDrafts[orderId] || getLocalDateInputValue()
     if (!Number.isFinite(amount) || amount <= 0) {
-      toast.error("יש להזין סכום תשלום חיובי");
-      return;
+      toast.error("יש להזין סכום תשלום חיובי")
+      return
     }
-    const saved = await applyPaymentChange(order, amount, paidAt, "payment", "תשלום נוסף נשמר");
+    const saved = await applyPaymentChange(order, amount, paidAt, "payment", "תשלום נוסף נשמר")
     if (saved) {
-      setNewPaymentDrafts((prev) => ({ ...prev, [orderId]: "" }));
-      setPaymentDateDrafts((prev) => ({ ...prev, [orderId]: getLocalDateInputValue() }));
+      setNewPaymentDrafts((prev) => ({ ...prev, [orderId]: "" }))
+      setPaymentDateDrafts((prev) => ({
+        ...prev,
+        [orderId]: getLocalDateInputValue()
+      }))
     }
-  };
+  }
 
   return (
-    <div className="space-y-2.5 mb-10" style={{ scrollbarWidth: 'none' }}>
+    <div className="space-y-2.5" style={{ scrollbarWidth: "none" }}>
       <TableFiltersBar
         searchValue={searchValue}
         onSearchChange={handleSearchChange}
@@ -603,7 +634,7 @@ export function OrdersTable({
             onChange: handleKindFilterChange,
             placeholder: "סוג הזמנה",
             options: ORDER_KIND_OPTIONS,
-            widthClassName: "w-[170px]",
+            widthClassName: "w-[170px]"
           },
           {
             key: "status",
@@ -611,8 +642,8 @@ export function OrdersTable({
             onChange: handleStatusFilterUpdate,
             placeholder: "סטטוס",
             options: ORDER_STATUS_FILTER_OPTIONS,
-            widthClassName: "w-[190px]",
-          },
+            widthClassName: "w-[190px]"
+          }
         ]}
         hasActiveFilters={Boolean(searchValue.trim()) || kindFilter !== "all" || statusFilter !== "all"}
         onReset={() => {
@@ -624,30 +655,23 @@ export function OrdersTable({
           <>
             {clientId === 0 ? (
               <>
-                <Button onClick={() => handleCreateOrder('regular')}>משקפיים</Button>
-                <Button variant="secondary" onClick={() => handleCreateOrder('contact')}>
+                <Button onClick={() => handleCreateOrder("regular")}>משקפיים</Button>
+                <Button variant="secondary" onClick={() => handleCreateOrder("contact")}>
                   עדשות מגע
                 </Button>
               </>
             ) : (
               <>
-	                <DropdownMenu dir="ltr">
-	                  <DropdownMenuTrigger asChild>
-	                    <Button>משקפיים</Button>
-	                  </DropdownMenuTrigger>
-	                  <DropdownMenuContent align="end">
-	                    {isLatestContextLoading && (
-	                      <DropdownMenuItem disabled>
-	                        טוען אפשרויות ייבוא...
-	                      </DropdownMenuItem>
-	                    )}
-	                    {latestExamId && (
-                      latestExamAddTypeOptions.length > 0 ? (
+                <DropdownMenu dir="ltr">
+                  <DropdownMenuTrigger asChild>
+                    <Button>משקפיים</Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    {isLatestContextLoading && <DropdownMenuItem disabled>טוען אפשרויות ייבוא...</DropdownMenuItem>}
+                    {latestExamId &&
+                      (latestExamAddTypeOptions.length > 0 ? (
                         <DropdownMenuSub>
-                          <DropdownMenuSubTrigger
-                            hideIcon
-                            className="flex items-center justify-between gap-4"
-                          >
+                          <DropdownMenuSubTrigger hideIcon className="flex items-center justify-between gap-4">
                             <span>מבדיקה אחרונה</span>
                             <Button
                               variant="ghost"
@@ -655,21 +679,18 @@ export function OrdersTable({
                               className="h-6 w-6"
                               aria-label="תצוגה מקדימה של בדיקה אחרונה"
                               onClick={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                setCardPreviewType('final-prescription');
-                                setIsCardPreviewOpen(true);
+                                e.preventDefault()
+                                e.stopPropagation()
+                                setCardPreviewType("final-prescription")
+                                setIsCardPreviewOpen(true)
                               }}
                             >
                               <Eye className="h-4 w-4" />
                             </Button>
                           </DropdownMenuSubTrigger>
-	                          <DropdownMenuSubContent alignOffset={-4}>
+                          <DropdownMenuSubContent alignOffset={-4}>
                             {latestExamAddTypeOptions.map((type) => (
-                              <DropdownMenuItem
-                                key={type}
-                                onClick={() => openRegularOrderFromLatestExam(type)}
-                              >
+                              <DropdownMenuItem key={type} onClick={() => openRegularOrderFromLatestExam(type)}>
                                 {ADDITION_ADD_TYPE_LABELS[type]}
                               </DropdownMenuItem>
                             ))}
@@ -687,24 +708,28 @@ export function OrdersTable({
                             className="h-6 w-6"
                             aria-label="תצוגה מקדימה של בדיקה אחרונה"
                             onClick={(e) => {
-                              e.stopPropagation();
-                              setCardPreviewType('final-prescription');
-                              setIsCardPreviewOpen(true);
+                              e.stopPropagation()
+                              setCardPreviewType("final-prescription")
+                              setIsCardPreviewOpen(true)
                             }}
                           >
                             <Eye className="h-4 w-4" />
                           </Button>
                         </DropdownMenuItem>
-                      )
-                    )}
+                      ))}
                     {latestOrderId && (
                       <DropdownMenuItem
                         className="flex items-center justify-between gap-4"
-                        onClick={() => navigate({
-                          to: "/clients/$clientId/orders/new",
-                          params: { clientId: String(clientId) },
-                          search: { importSourceId: String(latestOrderId), importSourceType: 'order' }
-                        })}
+                        onClick={() =>
+                          navigate({
+                            to: "/clients/$clientId/orders/new",
+                            params: { clientId: String(clientId) },
+                            search: {
+                              importSourceId: String(latestOrderId),
+                              importSourceType: "order"
+                            }
+                          })
+                        }
                       >
                         <span>מהזמנה אחרונה</span>
                         <Button
@@ -713,42 +738,40 @@ export function OrdersTable({
                           className="h-6 w-6"
                           aria-label="תצוגה מקדימה של הזמנה אחרונה"
                           onClick={(e) => {
-                            e.stopPropagation();
-                            setPreviewOrderId(latestOrderId);
-                            setPreviewOrderIsContact(false);
-                            setIsPreviewOrderOpen(true);
+                            e.stopPropagation()
+                            setPreviewOrderId(latestOrderId)
+                            setPreviewOrderIsContact(false)
+                            setIsPreviewOrderOpen(true)
                           }}
                         >
                           <Eye className="h-4 w-4" />
                         </Button>
                       </DropdownMenuItem>
                     )}
-                    <DropdownMenuItem onClick={() => handleCreateOrder('regular')}>
-                      משקפיים
-                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleCreateOrder("regular")}>משקפיים</DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
 
-	                <DropdownMenu dir="rtl">
-	                  <DropdownMenuTrigger asChild>
-	                    <Button variant="secondary">
-	                      עדשות מגע
-	                    </Button>
-	                  </DropdownMenuTrigger>
-	                  <DropdownMenuContent align="end">
-	                    {isLatestContextLoading && (
-	                      <DropdownMenuItem disabled>
-	                        טוען אפשרויות ייבוא...
-	                      </DropdownMenuItem>
-	                    )}
-	                    {latestExamId && (
+                <DropdownMenu dir="rtl">
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="secondary">עדשות מגע</Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    {isLatestContextLoading && <DropdownMenuItem disabled>טוען אפשרויות ייבוא...</DropdownMenuItem>}
+                    {latestExamId && (
                       <DropdownMenuItem
                         className="flex items-center justify-between gap-4"
-                        onClick={() => navigate({
-                          to: "/clients/$clientId/orders/new",
-                          params: { clientId: String(clientId) },
-                          search: { type: 'contact', importSourceId: String(latestExamId), importSourceType: 'exam' }
-                        })}
+                        onClick={() =>
+                          navigate({
+                            to: "/clients/$clientId/orders/new",
+                            params: { clientId: String(clientId) },
+                            search: {
+                              type: "contact",
+                              importSourceId: String(latestExamId),
+                              importSourceType: "exam"
+                            }
+                          })
+                        }
                       >
                         <span>מבדיקה אחרונה</span>
                         <Button
@@ -757,9 +780,9 @@ export function OrdersTable({
                           className="h-6 w-6"
                           aria-label="תצוגה מקדימה של בדיקת עדשות מגע"
                           onClick={(e) => {
-                            e.stopPropagation();
-                            setCardPreviewType('contact-lens-exam');
-                            setIsCardPreviewOpen(true);
+                            e.stopPropagation()
+                            setCardPreviewType("contact-lens-exam")
+                            setIsCardPreviewOpen(true)
                           }}
                         >
                           <Eye className="h-4 w-4" />
@@ -769,11 +792,17 @@ export function OrdersTable({
                     {latestContactOrderId && (
                       <DropdownMenuItem
                         className="flex items-center justify-between gap-4"
-                        onClick={() => navigate({
-                          to: "/clients/$clientId/orders/new",
-                          params: { clientId: String(clientId) },
-                          search: { type: 'contact', importSourceId: String(latestContactOrderId), importSourceType: 'order' }
-                        })}
+                        onClick={() =>
+                          navigate({
+                            to: "/clients/$clientId/orders/new",
+                            params: { clientId: String(clientId) },
+                            search: {
+                              type: "contact",
+                              importSourceId: String(latestContactOrderId),
+                              importSourceType: "order"
+                            }
+                          })
+                        }
                       >
                         <span>מהזמנה אחרונה</span>
                         <Button
@@ -782,19 +811,17 @@ export function OrdersTable({
                           className="h-6 w-6"
                           aria-label="תצוגה מקדימה של הזמנת עדשות מגע אחרונה"
                           onClick={(e) => {
-                            e.stopPropagation();
-                            setPreviewOrderId(latestContactOrderId);
-                            setPreviewOrderIsContact(true);
-                            setIsPreviewOrderOpen(true);
+                            e.stopPropagation()
+                            setPreviewOrderId(latestContactOrderId)
+                            setPreviewOrderIsContact(true)
+                            setIsPreviewOrderOpen(true)
                           }}
                         >
                           <Eye className="h-4 w-4" />
                         </Button>
                       </DropdownMenuItem>
                     )}
-                    <DropdownMenuItem onClick={() => handleCreateOrder('contact')}>
-                      עדשות מגע
-                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleCreateOrder("contact")}>עדשות מגע</DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
               </>
@@ -822,41 +849,89 @@ export function OrdersTable({
         orderId={previewOrderId}
         isContact={previewOrderIsContact}
         onNext={() => {
-          const index = displayData.findIndex((o) => o.id === previewOrderId);
+          const index = displayData.findIndex((o) => o.id === previewOrderId)
           if (index !== -1 && index < displayData.length - 1) {
-            const nextOrder = displayData[index + 1];
-            setPreviewOrderId(nextOrder.id || null);
-            setPreviewOrderIsContact(Boolean((nextOrder as any).__contact));
+            const nextOrder = displayData[index + 1]
+            setPreviewOrderId(nextOrder.id || null)
+            setPreviewOrderIsContact(Boolean((nextOrder as any).__contact))
           }
         }}
         onPrev={() => {
-          const index = displayData.findIndex((o) => o.id === previewOrderId);
+          const index = displayData.findIndex((o) => o.id === previewOrderId)
           if (index > 0) {
-            const prevOrder = displayData[index - 1];
-            setPreviewOrderId(prevOrder.id || null);
-            setPreviewOrderIsContact(Boolean((prevOrder as any).__contact));
+            const prevOrder = displayData[index - 1]
+            setPreviewOrderId(prevOrder.id || null)
+            setPreviewOrderIsContact(Boolean((prevOrder as any).__contact))
           }
         }}
         hasNext={(() => {
-          const index = displayData.findIndex((o) => o.id === previewOrderId);
-          return index !== -1 && index < displayData.length - 1;
+          const index = displayData.findIndex((o) => o.id === previewOrderId)
+          return index !== -1 && index < displayData.length - 1
         })()}
         hasPrev={(() => {
-          const index = displayData.findIndex((o) => o.id === previewOrderId);
-          return index > 0;
+          const index = displayData.findIndex((o) => o.id === previewOrderId)
+          return index > 0
         })()}
       />
 
-      <div className="rounded-md bg-card">
-        <Table dir="rtl" containerClassName="max-h-[70vh] overflow-y-auto overscroll-contain" containerStyle={{ scrollbarWidth: 'none' }}>
-          <TableHeader className="sticky top-0  bg-card">
+      <div className="bg-card rounded-md">
+        <Table
+          dir="rtl"
+          containerClassName="max-h-[70vh] overflow-y-auto overscroll-contain"
+          containerStyle={{ scrollbarWidth: "none" }}
+        >
+          <TableHeader className="bg-card sticky top-0">
             <TableRow>
-              <SortableTableHead sortKey="order_date" sort={activeSort} onSortChange={handleSortChange} className="text-right">תאריך הזמנה</SortableTableHead>
-              <SortableTableHead sortKey="type" sort={activeSort} onSortChange={handleSortChange} className="text-right">סוג הזמנה</SortableTableHead>
-              <SortableTableHead sortKey="kind" sort={activeSort} onSortChange={handleSortChange} className="text-right">סוג</SortableTableHead>
-              {clientId === 0 && <SortableTableHead sortKey="client" sort={activeSort} onSortChange={handleSortChange} className="text-right">לקוח</SortableTableHead>}
-              <SortableTableHead sortKey="payment_status" sort={activeSort} onSortChange={handleSortChange} className="text-right">תשלום</SortableTableHead>
-              <SortableTableHead sortKey="status" sort={activeSort} onSortChange={handleSortChange} className="text-right">סטטוס</SortableTableHead>
+              <SortableTableHead
+                sortKey="order_date"
+                sort={activeSort}
+                onSortChange={handleSortChange}
+                className="text-right"
+              >
+                תאריך הזמנה
+              </SortableTableHead>
+              <SortableTableHead
+                sortKey="type"
+                sort={activeSort}
+                onSortChange={handleSortChange}
+                className="text-right"
+              >
+                סוג הזמנה
+              </SortableTableHead>
+              <SortableTableHead
+                sortKey="kind"
+                sort={activeSort}
+                onSortChange={handleSortChange}
+                className="text-right"
+              >
+                סוג
+              </SortableTableHead>
+              {clientId === 0 && (
+                <SortableTableHead
+                  sortKey="client"
+                  sort={activeSort}
+                  onSortChange={handleSortChange}
+                  className="text-right"
+                >
+                  לקוח
+                </SortableTableHead>
+              )}
+              <SortableTableHead
+                sortKey="payment_status"
+                sort={activeSort}
+                onSortChange={handleSortChange}
+                className="text-right"
+              >
+                תשלום
+              </SortableTableHead>
+              <SortableTableHead
+                sortKey="status"
+                sort={activeSort}
+                onSortChange={handleSortChange}
+                className="text-right"
+              >
+                סטטוס
+              </SortableTableHead>
               <TableHead className="w-[80px] text-right"></TableHead>
             </TableRow>
           </TableHeader>
@@ -866,7 +941,7 @@ export function OrdersTable({
                 <TableRow key={i}>
                   {Array.from({ length: tableColumnCount }).map((_, cellIndex) => (
                     <TableCell key={cellIndex}>
-                      <Skeleton className="w-[70%] h-4 my-2" />
+                      <Skeleton className="my-2 h-4 w-[70%]" />
                     </TableCell>
                   ))}
                 </TableRow>
@@ -875,48 +950,52 @@ export function OrdersTable({
               displayData.map((order) => {
                 const isExportingDocx = order.id
                   ? Boolean(exportingDocxIds[`${(order as any).__contact ? "contact" : "regular"}:${order.id}`])
-                  : false;
+                  : false
                 const isExportingPdf = order.id
                   ? Boolean(exportingPdfIds[`${(order as any).__contact ? "contact" : "regular"}:${order.id}`])
-                  : false;
+                  : false
                 const isPrintingPdf = order.id
                   ? Boolean(printingPdfIds[`${(order as any).__contact ? "contact" : "regular"}:${order.id}`])
-                  : false;
-                const hasBillingPrice = getBillingTotal(order) > 0;
+                  : false
+                const hasBillingPrice = getBillingTotal(order) > 0
                 return (
                   <TableRow
                     key={order.id}
                     className="cursor-pointer"
                     onClick={() => {
                       if (order.id !== undefined) {
-                        const orderClientId = clientId > 0 ? clientId : order.client_id;
+                        const orderClientId = clientId > 0 ? clientId : order.client_id
                         navigate({
                           to: "/clients/$clientId/orders/$orderId",
                           params: {
                             clientId: String(orderClientId),
                             orderId: String(order.id)
                           },
-                          search: (order as any).__contact ? { type: 'contact' } : undefined
-                        });
+                          search: (order as any).__contact ? { type: "contact" } : undefined
+                        })
                       }
                     }}
                   >
                     <TableCell>
-                      {order.order_date ? new Date(order.order_date).toLocaleDateString('he-IL') : ''}
+                      {order.order_date ? new Date(order.order_date).toLocaleDateString("he-IL") : ""}
                     </TableCell>
                     <TableCell>{order.type}</TableCell>
-                    <TableCell>{(order as any).__contact ? 'עדשות מגע' : 'הזמנה רגילה'}</TableCell>
+                    <TableCell>{(order as any).__contact ? "עדשות מגע" : "הזמנה רגילה"}</TableCell>
                     {clientId === 0 && (
                       <TableCell>
                         <button
                           type="button"
                           className="text-blue-600 hover:underline"
-                          onClick={e => {
-                            e.stopPropagation();
-                            navigate({ to: "/clients/$clientId", params: { clientId: String(order.client_id) }, search: { tab: 'orders' } })
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            navigate({
+                              to: "/clients/$clientId",
+                              params: { clientId: String(order.client_id) },
+                              search: { tab: "orders" }
+                            })
                           }}
                         >
-                          {(order as any).clientName || ''}
+                          {(order as any).clientName || ""}
                         </button>
                       </TableCell>
                     )}
@@ -926,17 +1005,20 @@ export function OrdersTable({
                           dir="rtl"
                           open={paymentDropdownOrderId === order.id}
                           onOpenChange={(open) => {
-                            if (!order.id) return;
+                            if (!order.id) return
                             if (open) {
-                              setPaymentDropdownOrderId(order.id);
-                              setNewPaymentDrafts((prev) => ({ ...prev, [order.id!]: "" }));
+                              setPaymentDropdownOrderId(order.id)
+                              setNewPaymentDrafts((prev) => ({
+                                ...prev,
+                                [order.id!]: ""
+                              }))
                               setPaymentDateDrafts((prev) => ({
                                 ...prev,
-                                [order.id!]: prev[order.id!] || getLocalDateInputValue(),
-                              }));
-                              void loadPaymentHistory(order);
+                                [order.id!]: prev[order.id!] || getLocalDateInputValue()
+                              }))
+                              void loadPaymentHistory(order)
                             } else {
-                              setPaymentDropdownOrderId(null);
+                              setPaymentDropdownOrderId(null)
                             }
                           }}
                         >
@@ -954,50 +1036,55 @@ export function OrdersTable({
                               </Badge>
                             </button>
                           </DropdownMenuTrigger>
-                          <DropdownMenuContent
-                            align="start"
-                            className="w-80 p-3"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <div className="mb-3 rounded-md border bg-muted/30 px-3 py-2 text-sm">
+                          <DropdownMenuContent align="start" className="w-80 p-3" onClick={(e) => e.stopPropagation()}>
+                            <div className="bg-muted/30 mb-3 rounded-md border px-3 py-2 text-sm">
                               <div className="flex items-center justify-between gap-3">
                                 <span className="text-muted-foreground">שולם / סה"כ</span>
                                 <span className="font-medium tabular-nums">
-                                  {formatBillingAmount(getBillingPaid(order))} / {formatBillingAmount(getBillingTotal(order))}
+                                  {formatBillingAmount(getBillingPaid(order))} /{" "}
+                                  {formatBillingAmount(getBillingTotal(order))}
                                 </span>
                               </div>
                               <div className="mt-1 flex items-center justify-between gap-3 border-t pt-1">
                                 <span className="text-muted-foreground">יתרה לתשלום</span>
                                 <span className="font-medium tabular-nums">
-                                  {formatBillingAmount(getBillingBalance(getBillingTotal(order), getBillingPaid(order)))}
+                                  {formatBillingAmount(
+                                    getBillingBalance(getBillingTotal(order), getBillingPaid(order))
+                                  )}
                                 </span>
                               </div>
                             </div>
 
                             <div className="border-t pt-3">
-                              <div className="mb-2 text-xs font-medium text-muted-foreground">תשלום חדש</div>
+                              <div className="text-muted-foreground mb-2 text-xs font-medium">תשלום חדש</div>
                               <div className="grid grid-cols-2 gap-3">
                                 <div>
-                                  <div className="mb-1 text-xs text-muted-foreground">סכום</div>
+                                  <div className="text-muted-foreground mb-1 text-xs">סכום</div>
                                   <Input
                                     type="number"
                                     step={MONEY_STEP}
-                                    value={order.id ? newPaymentDrafts[order.id] ?? "" : ""}
+                                    value={order.id ? (newPaymentDrafts[order.id] ?? "") : ""}
                                     onChange={(e) => {
-                                      if (!order.id) return;
-                                      setNewPaymentDrafts((prev) => ({ ...prev, [order.id!]: e.target.value }));
+                                      if (!order.id) return
+                                      setNewPaymentDrafts((prev) => ({
+                                        ...prev,
+                                        [order.id!]: e.target.value
+                                      }))
                                     }}
                                     className="h-9"
                                   />
                                 </div>
                                 <div>
-                                  <div className="mb-1 text-xs text-muted-foreground">תאריך</div>
+                                  <div className="text-muted-foreground mb-1 text-xs">תאריך</div>
                                   <DateInput
                                     name="payment_date"
-                                    value={order.id ? paymentDateDrafts[order.id] ?? getLocalDateInputValue() : ""}
+                                    value={order.id ? (paymentDateDrafts[order.id] ?? getLocalDateInputValue()) : ""}
                                     onChange={(e) => {
-                                      if (!order.id) return;
-                                      setPaymentDateDrafts((prev) => ({ ...prev, [order.id!]: e.target.value }));
+                                      if (!order.id) return
+                                      setPaymentDateDrafts((prev) => ({
+                                        ...prev,
+                                        [order.id!]: e.target.value
+                                      }))
                                     }}
                                     className="h-9"
                                   />
@@ -1007,8 +1094,8 @@ export function OrdersTable({
                                 <Button
                                   size="sm"
                                   onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleNewPaymentSave(order);
+                                    e.stopPropagation()
+                                    handleNewPaymentSave(order)
                                   }}
                                   disabled={!!savingPaymentStatusIds[order.id || -1]}
                                 >
@@ -1019,7 +1106,7 @@ export function OrdersTable({
 
                             {order.id && (paymentHistory[order.id] || []).length > 0 && (
                               <div className="mt-4 border-t pt-3">
-                                <div className="mb-2 text-xs font-medium text-muted-foreground">תשלומים אחרונים</div>
+                                <div className="text-muted-foreground mb-2 text-xs font-medium">תשלומים אחרונים</div>
                                 <div className="space-y-1.5 text-xs">
                                   {(paymentHistory[order.id] || []).slice(0, 3).map((payment) => (
                                     <div key={payment.id} className="flex items-center justify-between">
@@ -1036,7 +1123,7 @@ export function OrdersTable({
                           </DropdownMenuContent>
                         </DropdownMenu>
                       ) : (
-                        <Badge variant="outline" className="cursor-default text-muted-foreground">
+                        <Badge variant="outline" className="text-muted-foreground cursor-default">
                           ללא מחיר
                         </Badge>
                       )}
@@ -1051,9 +1138,7 @@ export function OrdersTable({
                             disabled={!!savingStatusIds[order.id || -1]}
                           >
                             <Badge variant="outline" className="hover:bg-accent/70">
-                              {savingStatusIds[order.id || -1]
-                                ? "שומר..."
-                                : getOrderStatus(order) || "ללא סטטוס"}
+                              {savingStatusIds[order.id || -1] ? "שומר..." : getOrderStatus(order) || "ללא סטטוס"}
                             </Badge>
                           </button>
                         </DropdownMenuTrigger>
@@ -1062,8 +1147,8 @@ export function OrdersTable({
                             <DropdownMenuItem
                               key={status}
                               onClick={(e) => {
-                                e.stopPropagation();
-                                handleStatusChange(order, status);
+                                e.stopPropagation()
+                                handleStatusChange(order, status)
                               }}
                             >
                               {status}
@@ -1078,22 +1163,22 @@ export function OrdersTable({
                           variant="ghost"
                           className="h-8 w-8 p-0"
                           onClick={(e) => {
-                            e.stopPropagation();
-                            setPreviewOrderId(order.id || null);
-                            setPreviewOrderIsContact(Boolean((order as any).__contact));
-                            setIsPreviewOrderOpen(true);
+                            e.stopPropagation()
+                            setPreviewOrderId(order.id || null)
+                            setPreviewOrderIsContact(Boolean((order as any).__contact))
+                            setIsPreviewOrderOpen(true)
                           }}
                           title="צפייה מהירה"
                         >
-                          <Eye className="h-4 w-4 text-muted-foreground" />
+                          <Eye className="text-muted-foreground h-4 w-4" />
                         </Button>
                         <Button
                           variant="ghost"
                           className="h-8 w-8 p-0"
                           disabled={isPrintingPdf}
                           onClick={(e) => {
-                            e.stopPropagation();
-                            handlePrintPdf(order);
+                            e.stopPropagation()
+                            handlePrintPdf(order)
                           }}
                           title="הדפסה"
                         >
@@ -1122,8 +1207,8 @@ export function OrdersTable({
                           <DropdownMenuContent align="end">
                             <DropdownMenuItem
                               onClick={(e) => {
-                                e.stopPropagation();
-                                handleExportPdf(order);
+                                e.stopPropagation()
+                                handleExportPdf(order)
                               }}
                             >
                               <FileDown className="ml-2 h-4 w-4" />
@@ -1131,8 +1216,8 @@ export function OrdersTable({
                             </DropdownMenuItem>
                             <DropdownMenuItem
                               onClick={(e) => {
-                                e.stopPropagation();
-                                handleExportDocx(order);
+                                e.stopPropagation()
+                                handleExportDocx(order)
                               }}
                             >
                               <FileText className="ml-2 h-4 w-4" />
@@ -1144,9 +1229,9 @@ export function OrdersTable({
                           variant="ghost"
                           className="h-8 w-8 p-0"
                           onClick={(e) => {
-                            e.stopPropagation();
-                            setOrderToDelete(order);
-                            setIsDeleteModalOpen(true);
+                            e.stopPropagation()
+                            setOrderToDelete(order)
+                            setIsDeleteModalOpen(true)
                           }}
                           title="מחיקה"
                         >
@@ -1159,10 +1244,7 @@ export function OrdersTable({
               })
             ) : (
               <TableRow>
-                <TableCell
-                  colSpan={tableColumnCount}
-                  className="h-24 text-center text-muted-foreground"
-                >
+                <TableCell colSpan={tableColumnCount} className="text-muted-foreground h-24 text-center">
                   לא נמצאו הזמנות לתצוגה
                 </TableCell>
               </TableRow>
@@ -1172,36 +1254,28 @@ export function OrdersTable({
       </div>
 
       {pagination && (
-        <div className="flex items-center justify-between mt-4">
-          <div className="text-sm text-muted-foreground">
-            עמוד {pagination.page} מתוך {Math.max(1, Math.ceil((pagination.total || 0) / (pagination.pageSize || 1)))} · סה"כ {pagination.total || 0}
-          </div>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={loading || pagination.page <= 1}
-              onClick={() => pagination.setPage(Math.max(1, pagination.page - 1))}
-            >הקודם</Button>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={loading || pagination.page >= Math.ceil((pagination.total || 0) / (pagination.pageSize || 1))}
-              onClick={() => pagination.setPage(pagination.page + 1)}
-            >הבא</Button>
-          </div>
-        </div>
+        <TablePagination
+          page={pagination.page}
+          pageSize={pagination.pageSize}
+          total={pagination.total}
+          onPageChange={pagination.setPage}
+          loading={loading}
+        />
       )}
 
       <CustomModal
         isOpen={isDeleteModalOpen}
         onClose={() => setIsDeleteModalOpen(false)}
         title="מחיקת הזמנה"
-        description={orderToDelete ? `האם אתה בטוח שברצונך למחוק את הזמנה מס' ${orderToDelete.id} מיום ${orderToDelete.order_date ? new Date(orderToDelete.order_date).toLocaleDateString('he-IL') : ''}?` : "האם אתה בטוח שברצונך למחוק את ההזמנה?"}
+        description={
+          orderToDelete
+            ? `האם אתה בטוח שברצונך למחוק את הזמנה מס' ${orderToDelete.id} מיום ${orderToDelete.order_date ? new Date(orderToDelete.order_date).toLocaleDateString("he-IL") : ""}?`
+            : "האם אתה בטוח שברצונך למחוק את ההזמנה?"
+        }
         onConfirm={handleDeleteConfirm}
         confirmText="מחק"
         cancelText="בטל"
       />
     </div>
   )
-} 
+}

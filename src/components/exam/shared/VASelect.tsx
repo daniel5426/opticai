@@ -209,7 +209,8 @@ export const VASelect = memo(function VASelect({
   const options: readonly string[] = meterOptions?.options || sortedCanonicalOptions
   const displayToCanonicalOption = meterOptions?.displayToCanonicalOption
     
-  const selectValue = options.includes(localBase) ? localBase : ""
+  const importedValue = localBase && !options.includes(localBase) ? localBase : null
+  const selectValue = localBase
 
   useEffect(() => {
     setModifier(currentMod)
@@ -317,6 +318,11 @@ export const VASelect = memo(function VASelect({
             <SelectValue placeholder="" />
           </SelectTrigger>
           <SelectContent className="min-w-16 w-fit">
+            {importedValue && (
+              <SelectItem value={importedValue} dir="ltr" className="justify-center">
+                {importedValue} (I)
+              </SelectItem>
+            )}
             {options.map((opt) => (
               <SelectItem key={opt} value={opt} dir="ltr" className="justify-center">
                 {opt}

@@ -23,6 +23,10 @@ vi.mock("@/lib/db/family-db", () => ({
   removeClientFromFamily: vi.fn(),
 }))
 
+vi.mock("@/components/migration/ImportedSourceDataDialog", () => ({
+  ImportedSourceDataDialog: () => null,
+}))
+
 describe("client details editor helpers", () => {
   test("normalizes legacy loaded client values at the boundary", () => {
     const draft = normalizeClientForDraft({
@@ -116,6 +120,21 @@ describe("ClientDetailsTab select display", () => {
       expect(screen.getAllByText("כללית").length).toBeGreaterThan(0)
       expect(screen.getAllByText("מושלם זהב").length).toBeGreaterThan(0)
     })
+  })
+
+  test("keeps additional phone and address number in independent inputs", () => {
+    render(
+      <ClientDetailsTab
+        draft={{ id: 1, additional_phone: "03-5555555", address_number: "12/4" } as Client}
+        isEditing={false}
+        formRef={{ current: null }}
+        onFieldChange={vi.fn()}
+        onStartEdit={vi.fn()}
+        onSave={vi.fn()}
+      />
+    )
+    expect(screen.getByDisplayValue("03-5555555")).toHaveAttribute("name", "additional_phone")
+    expect(screen.getByDisplayValue("12/4")).toHaveAttribute("name", "address_number")
   })
 
   test("selecting a family emits a numeric family_id for new-client drafts", async () => {

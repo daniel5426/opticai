@@ -111,6 +111,7 @@ export function FinalSubjectiveTab({
             onChange={(val) => handleChange(eye, key, val)}
             disabled={!isEditing}
             options={options || []}
+            allowImportedValue
             size="xs"
             triggerClassName="h-8 text-xs w-full disabled:opacity-100"
             center={col.center}
@@ -129,6 +130,7 @@ export function FinalSubjectiveTab({
               disabled={!isEditing}
               textOptions={(pdProps as any).textOptions}
               textValueAliases={(pdProps as any).textValueAliases}
+              textDisplayAliases={(pdProps as any).displayAliases}
               numericProps={{
                 step: (pdProps as any).step,
                 min: (pdProps as any).min,

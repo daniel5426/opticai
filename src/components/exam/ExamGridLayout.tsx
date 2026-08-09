@@ -78,7 +78,11 @@ export function ExamGridLayout({
         return (
           <div
             key={item.id}
-            className={cn("min-w-0", itemClassName)}
+            className={cn(
+              "min-w-0",
+              item.type === "notes" && "h-full self-stretch",
+              itemClassName,
+            )}
             style={{
               gridColumn: `${item.x + 1} / span ${item.w}`,
               gridRow: item.y + 1,

@@ -24,6 +24,8 @@ import {
   IconLayoutGrid,
   IconChartLine,
   IconUserCog,
+  IconFlask,
+  IconPackages,
 } from "@tabler/icons-react"
 import { NavDocuments } from "@/components/nav-documents"
 import { NavMain } from "@/components/nav-main"
@@ -72,6 +74,11 @@ const getNavData = (currentUser?: User) => ({
       title: "קמפיינים",
       url: "/campaigns",
       icon: IconChartBar,
+    }] : []),
+    ...(showBetaSidebarItems ? [{
+      title: "בדיקות UI",
+      url: "/dev/ui-tests",
+      icon: IconFlask,
     }] : [])
   ],
   navSecondary: [
@@ -96,6 +103,11 @@ const getNavData = (currentUser?: User) => ({
       name: "הזמנות",
       url: "/orders",
       icon: IconShoppingCart,
+    },
+    {
+      name: "מלאי ואספקה",
+      url: "/inventory",
+      icon: IconPackages,
     },
     {
       name: "הפניות",

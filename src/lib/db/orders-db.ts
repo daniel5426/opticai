@@ -204,12 +204,13 @@ export async function upsertOrderFull(payload: any): Promise<any | null> {
     const response = await apiClient.upsertOrderFull(payload);
     if ((response as any).error) {
       console.error('Error upserting order full:', (response as any).error);
-      return null;
+      const detail = (response as any).error;
+      throw new Error(typeof detail === 'string' ? detail : JSON.stringify(detail));
     }
     return (response as any).data || null;
   } catch (error) {
     console.error('Error upserting order full:', error);
-    return null;
+    throw error;
   }
 }
 
@@ -246,12 +247,13 @@ export async function upsertContactLensOrderFull(payload: any): Promise<any | nu
     const response = await apiClient.upsertContactLensOrderFull(payload);
     if ((response as any).error) {
       console.error('Error upserting contact lens order full:', (response as any).error);
-      return null;
+      const detail = (response as any).error;
+      throw new Error(typeof detail === 'string' ? detail : JSON.stringify(detail));
     }
     return (response as any).data || null;
   } catch (error) {
     console.error('Error upserting contact lens order full:', error);
-    return null;
+    throw error;
   }
 }
 

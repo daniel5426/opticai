@@ -6,6 +6,67 @@ import { Company } from "@/lib/db/schema-interface";
 const THEME_KEY = "theme";
 const USER_THEME_PREFIX = "user_theme_";
 const COMPANY_THEME_CACHE_KEY = "company_theme_colors";
+const COLOR_THEME_KEY = "color_theme";
+const USER_COLOR_THEME_PREFIX = "user_color_theme_";
+
+export type ColorTheme =
+  | "blue"
+  | "neutral"
+  | "forest"
+  | "bronze"
+  | "plum"
+  | "monochrome"
+  | "openai";
+
+const COLOR_THEMES: Record<ColorTheme, {
+  primary: string;
+  secondary: string;
+  muted: string;
+  accent: string;
+}> = {
+  blue: {
+    primary: "#2256aa",
+    secondary: "#cce9ff",
+    muted: "#f7fafc",
+    accent: "#e6f2ff",
+  },
+  neutral: {
+    primary: "#3f3f46",
+    secondary: "#f4f4f5",
+    muted: "#fafafa",
+    accent: "#f4f4f5",
+  },
+  forest: {
+    primary: "#386451",
+    secondary: "#e7f2eb",
+    muted: "#f8fbf9",
+    accent: "#e7f2eb",
+  },
+  bronze: {
+    primary: "#87613f",
+    secondary: "#f7eee4",
+    muted: "#fdfaf7",
+    accent: "#f7eee4",
+  },
+  plum: {
+    primary: "#65516f",
+    secondary: "#f1e9f4",
+    muted: "#fbf9fc",
+    accent: "#f1e9f4",
+  },
+  monochrome: {
+    primary: "#0a0a0a",
+    secondary: "#f5f5f5",
+    muted: "#fafafa",
+    accent: "#f5f5f5",
+  },
+  openai: {
+    primary: "#0f766e",
+    secondary: "#e7f5f2",
+    muted: "#f7fcfa",
+    accent: "#e7f5f2",
+  },
+};
 
 // Helper function to wait for themeMode to be available
 async function waitForThemeMode(maxWaitMs: number = 1000): Promise<boolean> {
@@ -56,6 +117,55 @@ function hexToHsl(hex: string): string {
   return `${Math.round(h * 360)} ${Math.round(s * 100)}% ${Math.round(l * 100)}%`;
 }
 
+export function getColorThemeKey(userId: number): string {
+  return `${USER_COLOR_THEME_PREFIX}${userId}`;
+}
+
+function isColorTheme(value: string | null): value is ColorTheme {
+  return value !== null && Object.prototype.hasOwnProperty.call(COLOR_THEMES, value);
+}
+
+export function getColorTheme(userId?: number): ColorTheme {
+  const storedTheme = localStorage.getItem(
+    userId ? getColorThemeKey(userId) : COLOR_THEME_KEY,
+  );
+
+  return isColorTheme(storedTheme) ? storedTheme : "neutral";
+}
+
+function applyColorThemeValues(theme: ColorTheme): void {
+  const root = document.documentElement;
+
+  if (root.classList.contains("dark")) {
+    ["--primary", "--secondary", "--muted", "--accent"].forEach((token) =>
+      root.style.removeProperty(token),
+    );
+    return;
+  }
+
+  const colors = COLOR_THEMES[theme];
+  root.style.setProperty("--primary", hexToHsl(colors.primary));
+  root.style.setProperty("--secondary", hexToHsl(colors.secondary));
+  root.style.setProperty("--muted", hexToHsl(colors.muted));
+  root.style.setProperty("--accent", hexToHsl(colors.accent));
+}
+
+export function applyColorTheme(userId?: number): void {
+  applyColorThemeValues(getColorTheme(userId));
+}
+
+export function previewColorTheme(theme: ColorTheme): void {
+  applyColorThemeValues(theme);
+}
+
+export function setColorTheme(theme: ColorTheme, userId?: number): void {
+  localStorage.setItem(COLOR_THEME_KEY, theme);
+  if (userId) {
+    localStorage.setItem(getColorThemeKey(userId), theme);
+  }
+  applyColorTheme(userId);
+}
+
 // Cache company theme colors in localStorage
 export function cacheCompanyThemeColors(company: Company | null): void {
   if (!company) {
@@ -64,8 +174,8 @@ export function cacheCompanyThemeColors(company: Company | null): void {
   }
   
   const cache = {
-    primary: company.primary_theme_color || '#2256aa',
-    secondary: company.secondary_theme_color || '#cce9ff'
+    primary: company.primary_theme_color || '#3f3f46',
+    secondary: company.secondary_theme_color || '#f4f4f5'
   };
   localStorage.setItem(COMPANY_THEME_CACHE_KEY, JSON.stringify(cache));
 }
@@ -85,43 +195,7 @@ export function getCompanyThemeColors(): { primary: string; secondary: string } 
 
 // Apply company theme colors synchronously (no async database calls)
 export function applyCompanyThemeColors(company?: Company | null): void {
-  const root = document.documentElement;
-  
-  // Don't apply custom colors in dark mode
-  if (root.classList.contains('dark')) {
-    root.style.removeProperty('--primary');
-    root.style.removeProperty('--secondary');
-    return;
-  }
-
-  let colors = null;
-  
-  // If company provided directly, use it
-  if (company?.primary_theme_color || company?.secondary_theme_color) {
-    colors = {
-      primary: company.primary_theme_color || '#2256aa',
-      secondary: company.secondary_theme_color || '#cce9ff'
-    };
-  } else {
-    // Otherwise get from cache
-    colors = getCompanyThemeColors();
-  }
-
-  if (colors) {
-    try {
-      if (colors.primary) {
-        const primaryHsl = hexToHsl(colors.primary);
-        root.style.setProperty('--primary', primaryHsl);
-      }
-      
-      if (colors.secondary) {
-        const secondaryHsl = hexToHsl(colors.secondary);
-        root.style.setProperty('--secondary', secondaryHsl);
-      }
-    } catch (error) {
-      console.error('Error applying company theme colors:', error);
-    }
-  }
+  applyColorTheme();
 }
 
 // Legacy function - now just calls applyCompanyThemeColors
@@ -321,6 +395,7 @@ export async function applyUserThemeComplete(userId: number, providedUser?: any)
 
     // Determine theme preference
     let userTheme: ThemeMode = user.theme_preference || 'system';
+    localStorage.setItem(COLOR_THEME_KEY, getColorTheme(userId));
     
     // Update localStorage for future quick access
     localStorage.setItem(getUserThemeKey(userId), userTheme);

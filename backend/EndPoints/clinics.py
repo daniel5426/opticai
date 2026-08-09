@@ -8,6 +8,7 @@ from auth import get_current_user, get_password_hash
 from models import User
 from services.default_exam_layouts import ensure_default_exam_layouts_for_clinic
 from services.lookup_defaults import seed_default_lookup_values_for_clinic
+from services.subscription_service import enforce_limit
 from security.scope import assert_clinic_scope, assert_company_access, require_company_admin, resolve_company_id
 import uuid
 
@@ -40,6 +41,8 @@ def create_clinic(
 
     clinic_payload = clinic.dict()
     assert_company_access(db, current_user, clinic_payload["company_id"])
+    if clinic_payload.get("is_active", True):
+        enforce_limit(db, clinic_payload["company_id"], "clinics")
     clinic_payload.pop("has_entry_pin", None)
     clinic_payload.pop("remove_entry_pin", None)
     entry_pin = (clinic_payload.pop("entry_pin", None) or "").strip()
@@ -135,6 +138,8 @@ def update_clinic(
     assert_clinic_scope(db, current_user, clinic_id)
     
     update_data = clinic.dict(exclude_unset=True)
+    if update_data.get("is_active") is True and not db_clinic.is_active:
+        enforce_limit(db, db_clinic.company_id, "clinics")
     if "company_id" in update_data:
         assert_company_access(db, current_user, update_data["company_id"])
     entry_pin = update_data.pop("entry_pin", None)

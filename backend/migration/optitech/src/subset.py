@@ -16,6 +16,7 @@ TABLES_WITH_PER_ID = {
     "tblPerPicture": "PerId",
     "tblCrdDiags": "PerId",
     "tblClndrApt": "PerID",
+    "tblCrdGlassChecksPrevs": "PerId",
 }
 
 DOMAIN_BY_TABLE = {
@@ -26,6 +27,8 @@ DOMAIN_BY_TABLE = {
     "tblPerPicture": "files",
     "tblCrdDiags": "medical_notes",
     "tblClndrApt": "appointments",
+    "tblCrdGlassChecksPrevs": "glasses_exams",
+    "tblClndrWrk": "work_shifts",
 }
 
 
@@ -112,4 +115,3 @@ def build_pilot_subset_report(
         "population_size": len(client_ids),
         "random_sample_size": len(random_sample),
     }
-

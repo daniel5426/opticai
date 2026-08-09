@@ -1,8 +1,12 @@
 import { describe, expect, test } from "vitest";
-import { getColumnCount } from "@/components/exam/ExamCardRenderer";
+import {
+  componentHasMiddleRow,
+  getColumnCount,
+} from "@/components/exam/ExamCardRenderer";
 import { EXAM_FIELDS } from "@/components/exam/data/exam-field-definitions";
 import { examComponentRegistry } from "@/lib/exam-component-registry";
 import { ExamFieldMapper } from "@/lib/exam-field-mappings";
+import { computeCardMinGridCols } from "@/pages/exam-detail/utils";
 
 describe("exam card extension contract", () => {
   test("uses centralized NPC and Cover Test constraints", () => {
@@ -56,5 +60,14 @@ describe("exam card extension contract", () => {
   test("gives both cards stable layout widths", () => {
     expect(getColumnCount("npc", "detail")).toBe(7);
     expect(getColumnCount("cover-test-v2", "detail")).toBe(8);
+    expect(getColumnCount("keratometer", "detail")).toBe(4);
+    expect(getColumnCount("keratometer-contact-lens", "detail")).toBe(7);
+    expect(getColumnCount("maddox-rod", "detail")).toBe(6);
+    expect(getColumnCount("retinoscop", "detail")).toBe(7);
+    expect(computeCardMinGridCols("keratometer")).toBe(8);
+    expect(computeCardMinGridCols("keratometer-contact-lens")).toBe(11);
+    expect(computeCardMinGridCols("maddox-rod")).toBe(9);
+    expect(computeCardMinGridCols("retinoscop")).toBe(11);
+    expect(componentHasMiddleRow("retinoscop")).toBe(true);
   });
 });

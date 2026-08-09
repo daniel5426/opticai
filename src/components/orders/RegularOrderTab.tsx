@@ -23,6 +23,12 @@ import {
 import { useUser } from "@/contexts/UserContext";
 import { apiClient } from "@/lib/api-client";
 import { ORDER_STATUS_OPTIONS } from "@/lib/order-status";
+import { CatalogVariantPicker } from "@/components/inventory/CatalogVariantPicker";
+import {
+  CatalogVariant,
+  FulfillmentSource,
+  InventorySelection,
+} from "@/lib/inventory";
 
 type OrderLens = {
   order_id: number;
@@ -194,6 +200,12 @@ interface RegularOrderTabProps {
   lensFrameTab: LensFrameTab;
   onLensFieldChange: (field: keyof OrderLens, value: string) => void;
   onFrameFieldChange: (field: keyof Frame, value: string) => void;
+  selectedFrameInventory?: InventorySelection | null;
+  onFrameInventorySelect: (
+    variant: CatalogVariant,
+    source: FulfillmentSource,
+  ) => void;
+  onFrameInventoryClear: () => void;
   orderDetailsFormData: OrderDetails;
   setOrderDetailsFormData: React.Dispatch<React.SetStateAction<OrderDetails>>;
   clientOrderIndex?: number | null;
@@ -217,6 +229,9 @@ export default function RegularOrderTab({
   lensFrameTab,
   onLensFieldChange,
   onFrameFieldChange,
+  selectedFrameInventory,
+  onFrameInventorySelect,
+  onFrameInventoryClear,
   orderDetailsFormData,
   setOrderDetailsFormData,
   clientOrderIndex,
@@ -633,6 +648,21 @@ export default function RegularOrderTab({
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-3">
+                    {currentClinic?.id ? (
+                      <CatalogVariantPicker
+                        category="frame"
+                        clinicId={currentClinic.id}
+                        selected={selectedFrameInventory?.variant}
+                        selectedSource={selectedFrameInventory?.fulfillment_source}
+                        disabled={
+                          !isEditing ||
+                          selectedFrameInventory?.lifecycle_state === "consumed"
+                        }
+                        title="בחירת מסגרת מהקטלוג"
+                        onSelect={onFrameInventorySelect}
+                        onClear={onFrameInventoryClear}
+                      />
+                    ) : null}
                     <div className="grid gap-3 md:grid-cols-4">
                       <div>
                         <Label className={labelClass}>שם ספק</Label>

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Card, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 import {
   Select,
@@ -25,6 +25,12 @@ import {
 } from "@/lib/exam-clipboard";
 import { inputSyncManager } from "@/components/exam/shared/OptimizedInputs";
 import { toast } from "sonner";
+import { CatalogVariantPicker } from "@/components/inventory/CatalogVariantPicker";
+import {
+  CatalogVariant,
+  FulfillmentSource,
+  InventorySelection,
+} from "@/lib/inventory";
 
 interface ContactOrderTabProps {
   formRef: React.RefObject<HTMLFormElement | null>;
@@ -36,6 +42,19 @@ interface ContactOrderTabProps {
   setContactLensDetailsData: React.Dispatch<React.SetStateAction<any>>;
   contactLensExamData: any;
   setContactLensExamData: React.Dispatch<React.SetStateAction<any>>;
+  clinicId?: number;
+  rightInventorySelection?: InventorySelection | null;
+  leftInventorySelection?: InventorySelection | null;
+  onInventorySelect: (
+    side: "right" | "left",
+    variant: CatalogVariant,
+    source: FulfillmentSource,
+  ) => void;
+  onInventoryClear: (side: "right" | "left") => void;
+  onInventoryRelevantFieldChange: (
+    field: string,
+    value: unknown,
+  ) => boolean | void;
   clientOrderIndex?: number | null;
 }
 
@@ -49,6 +68,12 @@ export default function ContactOrderTab({
   setContactLensDetailsData,
   contactLensExamData,
   setContactLensExamData,
+  clinicId,
+  rightInventorySelection,
+  leftInventorySelection,
+  onInventorySelect,
+  onInventoryClear,
+  onInventoryRelevantFieldChange,
   clientOrderIndex,
 }: ContactOrderTabProps) {
   const [clipboardSourceType, setClipboardSourceType] =
@@ -68,32 +93,32 @@ export default function ContactOrderTab({
   };
 
   const applyToContactLensExam = (nextData: Record<string, unknown>) => {
+    const allowedEntries = Object.entries(nextData).filter(([key, value]) =>
+      key !== "id" &&
+      key !== "layout_instance_id" &&
+      value !== undefined &&
+      onInventoryRelevantFieldChange(key, value) !== false,
+    );
     setContactLensExamData((prev: any) => {
       const updated = { ...prev };
-      Object.entries(nextData).forEach(([key, value]) => {
-        if (
-          key !== "id" &&
-          key !== "layout_instance_id" &&
-          value !== undefined
-        ) {
-          updated[key] = value;
-        }
+      allowedEntries.forEach(([key, value]) => {
+        updated[key] = value;
       });
       return updated;
     });
   };
 
   const applyToContactLensDetails = (nextData: Record<string, unknown>) => {
+    const allowedEntries = Object.entries(nextData).filter(([key, value]) =>
+      key !== "id" &&
+      key !== "layout_instance_id" &&
+      value !== undefined &&
+      onInventoryRelevantFieldChange(key, value) !== false,
+    );
     setContactLensDetailsData((prev: any) => {
       const updated = { ...prev };
-      Object.entries(nextData).forEach(([key, value]) => {
-        if (
-          key !== "id" &&
-          key !== "layout_instance_id" &&
-          value !== undefined
-        ) {
-          updated[key] = value;
-        }
+      allowedEntries.forEach(([key, value]) => {
+        updated[key] = value;
       });
       return updated;
     });
@@ -179,6 +204,47 @@ export default function ContactOrderTab({
       style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
     >
       <div className="grid grid-cols-1 gap-4">
+        {clinicId ? (
+          <Card className="examcard" dir="rtl">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-muted-foreground text-center font-medium">
+                בחירת עדשות מהקטלוג
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-3 lg:grid-cols-2">
+              <CatalogVariantPicker
+                category="contact_lens"
+                clinicId={clinicId}
+                selected={rightInventorySelection?.variant}
+                selectedSource={rightInventorySelection?.fulfillment_source}
+                disabled={
+                  !isEditing ||
+                  rightInventorySelection?.lifecycle_state === "consumed"
+                }
+                title="עין ימין"
+                onSelect={(variant, source) =>
+                  onInventorySelect("right", variant, source)
+                }
+                onClear={() => onInventoryClear("right")}
+              />
+              <CatalogVariantPicker
+                category="contact_lens"
+                clinicId={clinicId}
+                selected={leftInventorySelection?.variant}
+                selectedSource={leftInventorySelection?.fulfillment_source}
+                disabled={
+                  !isEditing ||
+                  leftInventorySelection?.lifecycle_state === "consumed"
+                }
+                title="עין שמאל"
+                onSelect={(variant, source) =>
+                  onInventorySelect("left", variant, source)
+                }
+                onClear={() => onInventoryClear("left")}
+              />
+            </CardContent>
+          </Card>
+        ) : null}
         {/* Two-column layout for the top section */}
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-4" dir="rtl">
           <div className="lg:col-span-1">
@@ -315,12 +381,17 @@ export default function ContactOrderTab({
               />
               <ContactLensExamTab
                 contactLensExamData={contactLensExamData}
-                onContactLensExamChange={(field, value) =>
+                onContactLensExamChange={(field, value) => {
+                  if (
+                    onInventoryRelevantFieldChange(String(field), value) === false
+                  ) {
+                    return;
+                  }
                   setContactLensExamData((prev: any) => ({
                     ...prev,
                     [field]: value,
-                  }))
-                }
+                  }));
+                }}
                 isEditing={isEditing}
               />
             </div>
@@ -343,12 +414,17 @@ export default function ContactOrderTab({
               />
               <ContactLensDetailsTab
                 contactLensDetailsData={contactLensDetailsData}
-                onContactLensDetailsChange={(field, value) =>
+                onContactLensDetailsChange={(field, value) => {
+                  if (
+                    onInventoryRelevantFieldChange(String(field), value) === false
+                  ) {
+                    return;
+                  }
                   setContactLensDetailsData((prev: any) => ({
                     ...prev,
                     [field]: value,
-                  }))
-                }
+                  }));
+                }}
                 isEditing={isEditing}
               />
             </div>

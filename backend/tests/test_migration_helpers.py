@@ -95,9 +95,8 @@ def test_build_exam_data_uses_current_keys():
 
     assert "old-refraction-old-refraction-1-legacy" in exam_data
     assert exam_data["old-refraction-old-refraction-1-legacy"]["card_id"] == "old-refraction-1"
-    assert "cover-test-cover-test-1-legacy" in exam_data
-    assert exam_data["cover-test-cover-test-1-legacy"]["card_id"] == "cover-test-1"
-    assert "sensation-vision-stability-sensation-vision-stability-1" in exam_data
+    assert not any(key.startswith("cover-test-") for key in exam_data)
+    assert "sensation-vision-stability-sensation-vision-stability-1" not in exam_data
     assert exam_data["objective-objective-1"]["r_se"] == 5.25
     assert exam_data["objective-objective-1"]["l_se"] == -0.5
 
@@ -153,6 +152,59 @@ def test_migrate_optical_exams_includes_expanded_only_rows(tmp_path):
         assert instance.exam_data["subjective-subjective-1"]["r_sph"] == 2.0
 
 
+def test_contact_fit_creates_separate_exam_with_exact_cards(tmp_path):
+    for filename, fields in (
+        ("optic_eye_tests.csv", ["code", "account_code"]),
+        ("optic_exp_eyetests.csv", ["code", "account_code"]),
+        ("optic_device_data.csv", ["code", "account_code"]),
+    ):
+        with (tmp_path / filename).open("w", newline="", encoding="utf-8") as handle:
+            csv.DictWriter(handle, fieldnames=fields).writeheader()
+    contact_fields = [
+        "code", "account_code", "branch_code", "fit_date", "obs_right_feeling", "obs_left_sight",
+        "old_right_type", "old_right_sph", "obj_right_sph", "or_right_sph", "fit_remark",
+        "obs_remarks", "fit_remarks", "bino_mr_h_with", "bino_mr_h_addw", "bino_st_fly",
+        "bino_st_cir_9", "bino_st_cir_3", "bino_ct_fv_exo_p", "bino_rg_selection",
+    ]
+    with (tmp_path / "optic_contact_fit.csv").open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=contact_fields)
+        writer.writeheader()
+        writer.writerow({
+            "code": "fit-1", "account_code": "101", "branch_code": "A", "fit_date": "2022-03-04",
+            "obs_right_feeling": "good", "obs_left_sight": "clear", "old_right_type": "soft",
+            "old_right_sph": "-0125", "obj_right_sph": "-0100", "or_right_sph": "-0050",
+            "fit_remark": "fit", "obs_remarks": "observation", "fit_remarks": "follow up",
+            "bino_mr_h_with": "2", "bino_mr_h_addw": "EXO", "bino_st_fly": "1",
+            "bino_st_cir_9": "4", "bino_st_cir_3": "1", "bino_ct_fv_exo_p": "9",
+            "bino_rg_selection": "1",
+        })
+
+    engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False}, poolclass=StaticPool)
+    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+    Base.metadata.create_all(bind=engine)
+    with SessionLocal() as db:
+        company = Company(name="A", owner_full_name="Owner A")
+        db.add(company); db.flush()
+        clinic = Clinic(company_id=company.id, name="Selected", unique_id="selected")
+        db.add(clinic); db.flush()
+        user = User(company_id=company.id, clinic_id=clinic.id, username="admin", role_level=5)
+        client = Client(id=101, company_id=company.id, clinic_id=clinic.id, first_name="Test")
+        db.add_all([user, client]); db.commit()
+        migration.migrate_optical_exams(db, str(tmp_path), {"101": 101}, {"A": clinic.id}, user.id)
+        exam = db.query(OpticalExam).one()
+        assert exam.type == "contact_fit"
+        assert str(exam.exam_date) == "2022-03-04"
+        data = db.query(ExamLayoutInstance).filter_by(exam_id=exam.id).one().exam_data
+        assert data["sensation-vision-stability"]["r_sensation"] == "good"
+        assert data["old-contact-lenses"]["r_sph"] == -1.25
+        assert data["objective"]["r_sph"] == -1.0
+        assert data["over-refraction"]["r_sph"] == -0.5
+        assert data["maddox-rod"]["with_horizontal_direction"] == "EXO"
+        assert data["stereo-test"]["circle_3_score"] == 1
+        assert "cover-test" not in data and "rg" not in data
+        assert len([key for key in data if key.startswith("notes-notes-")]) == 3
+
+
 def test_addition_j_values_are_normalized():
     exam_data = migration.build_exam_data_from_eye_tests(
         {
@@ -168,6 +220,94 @@ def test_addition_j_values_are_normalized():
     assert migration.normalize_j_value("22") == "J22"
 
 
+def test_lossless_optical_values_fcc_va_base_and_pd_mapping():
+    exam_data = migration.build_exam_data_from_eye_tests(
+        {},
+        {
+            "sub_r_sph": "Ambli", "sub_r_va": "6/12+2", "sub_r_baseh": "BI",
+            "sub_b_pd": "62", "add_right_fcc": "0111",
+            "sub_f_r_far_pd": "31", "sub_f_r_near_pd": "29",
+            "sub_f_b_far_pd": "62", "sub_f_b_near_pd": "58",
+            "sub_r_add_at": "0125",
+        },
+    )
+    subjective = exam_data["subjective-subjective-1"]
+    assert subjective["r_sph"] == "Ambli"
+    assert subjective["r_va"] == "6/12+2"
+    assert subjective["r_base"] == "IN"
+    assert subjective["comb_pd_far"] == 62
+    assert subjective["comb_pd_close"] is None
+    assert exam_data["addition-addition-1"]["r_fcc"] == 1.11
+    final = exam_data["final-prescription-final-prescription-1"]
+    assert final["r_pd_far"] == 31
+    assert final["r_pd_close"] == 29
+    assert final["comb_pd_close"] == 58
+    compact = exam_data["compact-prescription-compact-prescription-1"]
+    assert compact["r_ad"] == 1.25
+
+
+def test_maddox_stereo_and_ambiguous_binocular_mappings():
+    data = migration.build_exam_data_from_eye_tests({}, {
+        "bino_mr_h_with": "2", "bino_mr_h_addw": "EXO",
+        "bino_mt_v_with": "4", "bino_mr_v_addw": "R/L",
+        "bino_mr_h_no": "3", "bino_mr_h_addn": "ESO",
+        "bino_mr_v_no": "5", "bino_mr_v_addn": "L/R",
+        "bino_st_fly": "1", "bino_st_cir_9": "4", "bino_st_cir_3": "1",
+        "bino_ct_fv_exo_p": "9", "bino_rg_selection": "1",
+    })
+    maddox = data["maddox-rod-maddox-rod-1"]
+    assert maddox["schema_version"] == 2
+    assert maddox["with_horizontal_prism"] == 2
+    assert maddox["with_vertical_direction"] == "R/L"
+    stereo = data["stereo-test-stereo-test-1"]
+    assert stereo["fly_result"] is True
+    assert stereo["circle_9_score"] == 4
+    assert stereo["circle_3_score"] == 1
+    assert "cover-test" not in data
+    assert "rg" not in data
+
+
+def test_old_refraction_tabs_use_legacy_type_not_source_or_lens():
+    data = migration.build_exam_data_from_eye_tests({}, {
+        "old1_type": "מרחק", "old1_source": "source", "old1_lens": "lens", "old1_r_sph": "0100",
+        "old2_type": "למחשב", "old2_l_sph": "0200",
+    })
+    first = data["old-refraction-old-refraction-1-1"]
+    second = data["old-refraction-old-refraction-1-2"]
+    assert first["r_glasses_type"] == "רחוק"
+    assert first["legacy_glasses_type"] == "מרחק"
+    assert second["l_glasses_type"] == "קרוב"
+
+
+def test_keratometer_sources_detect_mm_and_diopters():
+    assert migration.build_keratometer({"cr_rv_right": "45", "cr_rh_right": "7.5"}) == {
+        "r_k1": 7.5, "l_k1": None, "r_k2": 7.5, "l_k2": None, "r_axis": None, "l_axis": None,
+    }
+    full = migration.build_exam_data_from_eye_tests({}, {
+        "obj_k_r_dpt1": "7.5", "obj_k_r_dpt2": "45",
+        "obj_k_l_mm1": "7.8", "obj_k_l_mm2": "43.27",
+    })["keratometer-full"]
+    assert full["r_mm_k1"] == 7.5 and full["r_dpt_k1"] == 45
+    assert full["r_dpt_k2"] == 45 and full["r_mm_k2"] == 7.5
+    assert full["l_dpt_k1"] == round(337.5 / 7.8, 2)
+
+
+def test_referrer_resolves_latest_active_full_hierarchy(tmp_path):
+    fixtures = {
+        "optic_tv_incoming_source_a.csv": (["code", "source_name"], [["1", "Doctor"]]),
+        "optic_tv_incoming_source_b.csv": (["code", "source_name", "level_a"], [["2", "Clinic", "1"]]),
+        "optic_tv_incoming_source_c.csv": (["code", "source_name", "level_a", "level_b"], [["3", "Campaign", "1", "2"]]),
+        "account_incoming_source.csv": (
+            ["code", "account_code", "source_date", "level_a", "level_b", "level_c", "source_remark", "is_active"],
+            [["1", "101", "2020-01-01", "1", "2", "3", "old", "1"], ["2", "101", "2021-01-01", "1", "2", "3", "friend", "1"]],
+        ),
+    }
+    for filename, (fields, rows) in fixtures.items():
+        with (tmp_path / filename).open("w", newline="", encoding="utf-8") as handle:
+            writer = csv.writer(handle); writer.writerow(fields); writer.writerows(rows)
+    assert migration.load_incoming_source_referrers(str(tmp_path))["101"] == "Doctor / Clinic / Campaign — friend"
+
+
 def test_default_layout_contains_expected_cards():
     layout = json.loads(migration.build_default_migrated_layout_data())
     assert layout["version"] == 2
@@ -175,6 +315,12 @@ def test_default_layout_contains_expected_cards():
     card_ids = [item["id"] for item in layout["items"]]
     assert "old-refraction-1" in card_ids
     assert "sensation-vision-stability-1" in card_ids
+    widths = {item["id"]: item["w"] for item in layout["items"]}
+    assert widths["keratometer-1"] == 6
+    assert widths["maddox-rod-1"] == 9
+    assert widths["retinoscop-1"] == 11
+    contact_fit_layout = json.loads(migration.build_contact_fit_layout_data())
+    assert next(item["w"] for item in contact_fit_layout["items"] if item["id"] == "maddox-rod-1") == 9
 
 
 def test_write_legacy_blob_file_persists_content(tmp_path, monkeypatch):

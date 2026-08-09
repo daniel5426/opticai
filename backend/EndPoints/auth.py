@@ -271,6 +271,11 @@ def _create_pending_setup(
 
 @router.post("/register/start")
 async def register_start(request: RegisterStartRequest, db: Session = Depends(get_db)):
+    if settings.WEB_SIGNUP_REQUIRED:
+        raise HTTPException(
+            status_code=status.HTTP_426_UPGRADE_REQUIRED,
+            detail={"code": "web_signup_required", "signup_url": f"{settings.SITE_URL}/signup"},
+        )
     if "@" not in request.email:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Valid email is required")
     _check_rate_limit(f"register:{request.email.lower()}", limit=5)

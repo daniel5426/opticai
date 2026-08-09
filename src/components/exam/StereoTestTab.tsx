@@ -12,27 +12,8 @@ interface StereoTestTabProps {
 }
 
 export function StereoTestTab({ stereoTestData, onStereoTestChange, isEditing, needsMiddleSpacer = false }: StereoTestTabProps) {
-  const handleCircleScoreChange = (value: string) => {
-    const nextScore = parseInt(value) || 0
-    const maxScore = Number(stereoTestData.circle_max || 0)
-    const finalScore = maxScore > 0 && nextScore > maxScore ? maxScore : nextScore
-    onStereoTestChange('circle_score', finalScore)
-  }
-
-  const handleCircleMaxChange = (value: string) => {
-    const nextMax = parseInt(value) || 0
-    onStereoTestChange('circle_max', nextMax)
-    const currentScore = Number(stereoTestData.circle_score || 0)
-    if (currentScore > nextMax) {
-      onStereoTestChange('circle_score', nextMax)
-    }
-  }
-
-  const circleScoreMax = () => {
-    const maxScore = Number(stereoTestData.circle_max || 0)
-    if (!maxScore) return EXAM_FIELDS.STEREO_CIRCLE.max
-    return Math.min(EXAM_FIELDS.STEREO_CIRCLE.max, maxScore)
-  }
+  const score9 = stereoTestData.circle_9_score ?? stereoTestData.circle_score
+  const score3 = stereoTestData.circle_3_score ?? stereoTestData.circle_max
 
   return (
     <Card className="w-full examcard pb-4 pt-3" >
@@ -50,7 +31,7 @@ export function StereoTestTab({ stereoTestData, onStereoTestChange, isEditing, n
               value={stereoTestData.fly_result === true ? "pass" : stereoTestData.fly_result === false ? "fail" : ""}
               onChange={(value) => onStereoTestChange('fly_result', value === 'pass')}
               disabled={!isEditing}
-              options={EXAM_FIELDS.STEREO_FLY.options || []}
+              options={[{ value: "pass", label: "Positive" }, { value: "fail", label: "Negative" }]}
               size="xs"
               triggerClassName={`h-8 pr-4 text-center disabled:opacity-100 disabled:cursor-default`}
             />
@@ -63,30 +44,27 @@ export function StereoTestTab({ stereoTestData, onStereoTestChange, isEditing, n
             )}
 
             <div className="text-sm text-muted-foreground font-medium text-right">{EXAM_FIELDS.STEREO_CIRCLE.label}</div>
-            <div className="flex items-center gap-1">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="flex items-center gap-1">
               <FastInput
                 type="number"
                 min={EXAM_FIELDS.STEREO_CIRCLE.min}
-                max={circleScoreMax()}
+                max={9}
                 step={EXAM_FIELDS.STEREO_CIRCLE.step}
-                value={String(stereoTestData.circle_score || "")}
-                onChange={handleCircleScoreChange}
+                value={String(score9 ?? "")}
+                onChange={(value) => onStereoTestChange('circle_9_score', Math.min(9, Math.max(0, Number(value))))}
                 disabled={!isEditing}
                 className={`h-8 text-xs flex-1 ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
                 placeholder="0"
               />
-              <span className="text-xs text-muted-foreground">/</span>
-              <FastInput
-                type="number"
-                min={EXAM_FIELDS.STEREO_CIRCLE.min}
-                max={EXAM_FIELDS.STEREO_CIRCLE.max}
-                step={EXAM_FIELDS.STEREO_CIRCLE.step}
-                value={String(stereoTestData.circle_max || "")}
-                onChange={handleCircleMaxChange}
-                disabled={!isEditing}
-                className={`h-8 text-xs flex-1 ${isEditing ? 'bg-white' : 'bg-accent/50'} disabled:opacity-100 disabled:cursor-default`}
-                placeholder="3"
-              />
+              <span className="text-xs text-muted-foreground">/ 9</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <FastInput type="number" min={0} max={3} step={1} value={String(score3 ?? "")}
+                  onChange={(value) => onStereoTestChange('circle_3_score', Math.min(3, Math.max(0, Number(value))))}
+                  disabled={!isEditing} className="h-8 min-w-0 flex-1 text-xs disabled:cursor-default disabled:opacity-100" />
+                <span className="text-xs text-muted-foreground">/ 3</span>
+              </div>
             </div>
           </div>
         </div>

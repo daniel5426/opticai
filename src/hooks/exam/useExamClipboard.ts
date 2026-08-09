@@ -13,6 +13,8 @@ interface UseExamClipboardParams {
   computedCoverTestTabs: Record<string, string[]>;
   activeOldRefractionTabs: Record<string, string>;
   computedOldRefractionTabs: Record<string, string[]>;
+  activeOldRefractionExtensionTabs: Record<string, string>;
+  computedOldRefractionExtensionTabs: Record<string, string[]>;
 }
 
 export function useExamClipboard({
@@ -22,6 +24,8 @@ export function useExamClipboard({
   computedCoverTestTabs,
   activeOldRefractionTabs,
   computedOldRefractionTabs,
+  activeOldRefractionExtensionTabs,
+  computedOldRefractionExtensionTabs,
 }: UseExamClipboardParams) {
   const [clipboardContentType, setClipboardContentType] =
     useState<ExamComponentType | null>(getClipboardContentType());
@@ -46,6 +50,12 @@ export function useExamClipboard({
         const activeTabId = activeOldRefractionTabs[cardId] || computedOldRefractionTabs[cardId]?.[0];
         const key = `old-refraction-${cardId}-${activeTabId}`;
         cardData = examFormData[key];
+      } else if (cardType === "old-refraction-extension") {
+        const activeTabId =
+          activeOldRefractionExtensionTabs[cardId] ||
+          computedOldRefractionExtensionTabs[cardId]?.[0];
+        const key = `old-refraction-extension-${cardId}-${activeTabId}`;
+        cardData = examFormData[key];
       } else {
         // Prefer instance-specific key, fallback to base type
         cardData = examFormData[`${cardType}-${cardId}`] || examFormData[cardType];
@@ -61,7 +71,7 @@ export function useExamClipboard({
         duration: 2000,
       });
     },
-    [getExamFormData, activeCoverTestTabs, computedCoverTestTabs, activeOldRefractionTabs, computedOldRefractionTabs],
+    [getExamFormData, activeCoverTestTabs, computedCoverTestTabs, activeOldRefractionTabs, computedOldRefractionTabs, activeOldRefractionExtensionTabs, computedOldRefractionExtensionTabs],
   );
 
   const handlePaste = useCallback(
@@ -92,6 +102,13 @@ export function useExamClipboard({
         // activeOldRefractionTabs now stores tabId directly
         const activeTabId = activeOldRefractionTabs[targetCardId] || computedOldRefractionTabs[targetCardId]?.[0];
         const key = `old-refraction-${targetCardId}-${activeTabId}`;
+        targetData = examFormData[key];
+        targetChangeHandler = fieldHandlers[key];
+      } else if (targetType === "old-refraction-extension") {
+        const activeTabId =
+          activeOldRefractionExtensionTabs[targetCardId] ||
+          computedOldRefractionExtensionTabs[targetCardId]?.[0];
+        const key = `old-refraction-extension-${targetCardId}-${activeTabId}`;
         targetData = examFormData[key];
         targetChangeHandler = fieldHandlers[key];
       } else {
@@ -135,7 +152,7 @@ export function useExamClipboard({
         duration: 2000,
       });
     },
-    [getExamFormData, fieldHandlers, activeCoverTestTabs, computedCoverTestTabs, activeOldRefractionTabs, computedOldRefractionTabs],
+    [getExamFormData, fieldHandlers, activeCoverTestTabs, computedCoverTestTabs, activeOldRefractionTabs, computedOldRefractionTabs, activeOldRefractionExtensionTabs, computedOldRefractionExtensionTabs],
   );
 
   return {

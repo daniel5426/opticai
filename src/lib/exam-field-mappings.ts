@@ -220,7 +220,7 @@ export class ExamFieldMapper {
       case 'old-refraction':
         return ['r_sph', 'r_cyl', 'r_ax', 'r_pris', 'r_base', 'r_va', 'r_ad', 'l_sph', 'l_cyl', 'l_ax', 'l_pris', 'l_base', 'l_va', 'l_ad', 'comb_va', 'r_j', 'l_j', 'comb_j']
       case 'old-refraction-extension':
-        return ['r_sph', 'r_cyl', 'r_ax', 'r_pr_h', 'r_base_h', 'r_pr_v', 'r_base_v', 'r_va', 'r_ad', 'r_j', 'r_pd_far', 'r_pd_close', 'l_sph', 'l_cyl', 'l_ax', 'l_pr_h', 'l_base_h', 'l_pr_v', 'l_base_v', 'l_va', 'l_ad', 'l_j', 'l_pd_far', 'l_pd_close', 'comb_va', 'comb_pd_far', 'comb_pd_close']
+        return ['r_sph', 'r_cyl', 'r_ax', 'r_pr_h', 'r_base_h', 'r_pr_v', 'r_base_v', 'r_va', 'r_ad', 'r_j', 'r_pd_far', 'r_pd_close', 'l_sph', 'l_cyl', 'l_ax', 'l_pr_h', 'l_base_h', 'l_pr_v', 'l_base_v', 'l_va', 'l_ad', 'l_j', 'l_pd_far', 'l_pd_close', 'comb_va', 'comb_j', 'comb_pd_far', 'comb_pd_close', 'r_glasses_type', 'l_glasses_type']
       case 'objective':
         return ['r_sph', 'r_cyl', 'r_ax', 'r_se', 'l_sph', 'l_cyl', 'l_ax', 'l_se']
       case 'subjective':
@@ -274,7 +274,7 @@ export class ExamFieldMapper {
       case 'keratometer-contact-lens':
         return ['r_rh', 'r_rv', 'r_avg', 'r_cyl', 'r_ax', 'r_ecc', 'l_rh', 'l_rv', 'l_avg', 'l_cyl', 'l_ax', 'l_ecc']
       case 'contact-lens-exam':
-        return ['r_bc', 'r_oz', 'r_diam', 'r_sph', 'r_cyl', 'r_ax', 'r_read_ad', 'r_dd', 'r_va', 'r_j', 'l_bc', 'l_oz', 'l_diam', 'l_sph', 'l_cyl', 'l_ax', 'l_read_ad', 'l_dd', 'l_va', 'l_j', 'comb_va']
+        return ['r_bc', 'r_oz', 'r_diam', 'r_sph', 'r_cyl', 'r_ax', 'r_read_ad', 'r_dd', 'r_va', 'r_j', 'l_bc', 'l_oz', 'l_diam', 'l_sph', 'l_cyl', 'l_ax', 'l_read_ad', 'l_dd', 'l_va', 'l_j', 'comb_va', 'comb_j']
       case 'contact-lens-order':
         return ['contact_lens_id', 'clinic_id', 'supply_in_clinic_id', 'order_status', 'advisor', 'deliverer', 'delivery_date', 'priority', 'guaranteed_date', 'approval_date', 'cleaning_solution', 'disinfection_solution', 'rinsing_solution']
       case 'over-refraction':
@@ -304,11 +304,14 @@ export class ExamFieldMapper {
         ];
       case 'maddox-rod':
         return [
-          'c_r_h', 'c_r_v', 'c_l_h', 'c_l_v', 'wc_r_h', 'wc_r_v', 'wc_l_h', 'wc_l_v'
+          'c_r_h', 'c_r_v', 'c_l_h', 'c_l_v', 'wc_r_h', 'wc_r_v', 'wc_l_h', 'wc_l_v',
+          'schema_version', 'with_horizontal_prism', 'with_horizontal_direction',
+          'with_vertical_prism', 'with_vertical_direction', 'without_horizontal_prism',
+          'without_horizontal_direction', 'without_vertical_prism', 'without_vertical_direction'
         ];
       case 'stereo-test':
         return [
-          'fly_result', 'circle_score', 'circle_max'
+          'fly_result', 'circle_score', 'circle_max', 'circle_9_score', 'circle_3_score'
         ];
       case 'rg':
         return [

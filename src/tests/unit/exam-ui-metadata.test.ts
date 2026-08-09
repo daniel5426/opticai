@@ -653,3 +653,107 @@ describe("internal full data tab helpers", () => {
     expect(isPersistableLayoutTab(realTab)).toBe(true);
   });
 });
+
+describe("old refraction extension compatibility", () => {
+  test("wraps a legacy single-card extension in one Distance tab", () => {
+    const layoutRows: CardRow[] = [
+      {
+        id: "row-extension",
+        cards: [
+          {
+            id: "old-refraction-extension-1",
+            type: "old-refraction-extension",
+          },
+        ],
+      },
+    ];
+    const normalized = ensureLayoutDataForRows(
+      {
+        "old-refraction-extension": {
+          layout_instance_id: 42,
+          r_pr_h: 2,
+          r_base_h: "IN",
+          comb_j: "J2-1",
+          comb_pd_far: 63,
+        },
+      },
+      layoutRows,
+      42,
+    );
+    const key =
+      "old-refraction-extension-old-refraction-extension-1-old-refraction-extension-1-default";
+
+    expect(normalized.changed).toBe(true);
+    expect(normalized.examData[key]).toMatchObject({
+      r_pr_h: 2,
+      r_base_h: "IN",
+      comb_j: "J2-1",
+      comb_pd_far: 63,
+      r_glasses_type: "רחוק",
+      l_glasses_type: "רחוק",
+    });
+    expect(
+      getTabsForCard(
+        normalized.examData,
+        "old-refraction-extension",
+        "old-refraction-extension-1",
+      ),
+    ).toEqual([
+      {
+        id: "old-refraction-extension-1-default",
+        index: 0,
+        type: "רחוק",
+      },
+    ]);
+  });
+
+  test("rebinds extension tabs without losing extended-only fields", () => {
+    const data = setTabsForCard(
+      {
+        "old-refraction-extension-old-extension-tab-a": {
+          layout_instance_id: 42,
+          card_id: "old-extension",
+          card_instance_id: "tab-a",
+          tab_index: 0,
+          r_pr_v: 3,
+          r_base_v: "UP",
+          r_pd_close: 30,
+        },
+      },
+      "old-refraction-extension",
+      "old-extension",
+      [{ id: "tab-a", index: 0, type: "קרוב" }],
+    );
+    const layoutRows: CardRow[] = [
+      {
+        id: "row-extension",
+        cards: [
+          {
+            id: "new-extension",
+            type: "old-refraction-extension",
+          },
+        ],
+      },
+    ];
+
+    const normalized = ensureLayoutDataForRows(data, layoutRows, 42);
+
+    expect(
+      normalized.examData[
+        "old-refraction-extension-new-extension-tab-a"
+      ],
+    ).toMatchObject({
+      r_pr_v: 3,
+      r_base_v: "UP",
+      r_pd_close: 30,
+      card_id: "new-extension",
+    });
+    expect(
+      getTabsForCard(
+        normalized.examData,
+        "old-refraction-extension",
+        "new-extension",
+      ),
+    ).toEqual([{ id: "tab-a", index: 0, type: "קרוב" }]);
+  });
+});

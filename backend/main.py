@@ -8,9 +8,10 @@ from fastapi.middleware.gzip import GZipMiddleware
 import logging
 from fastapi.middleware.cors import CORSMiddleware
 import config
-from EndPoints import auth, companies, clinics, users, clients, families, appointments, medical_logs, orders, referrals, files, settings, work_shifts, lookups, campaigns, billing, chats, email_logs, exam_layouts, exams, unified_exam_data, ai, ai_sidebar, control_center, dashboard, search, whatsapp_webhook, whatsapp, softoptic_migration, migration, migration_source_data, clinic_data_prune, clinic_holidays
+from EndPoints import auth, companies, clinics, users, clients, families, appointments, medical_logs, orders, referrals, files, settings, work_shifts, lookups, campaigns, billing, chats, email_logs, exam_layouts, exams, unified_exam_data, ai, ai_sidebar, control_center, dashboard, search, whatsapp_webhook, whatsapp, softoptic_migration, migration, migration_source_data, clinic_data_prune, clinic_holidays, inventory, plans, subscriptions, web_auth
 import httpx
 import json
+from jose import JWTError, jwt
 from fastapi.responses import StreamingResponse
 
 logging.basicConfig(level=logging.INFO)
@@ -55,6 +56,52 @@ app.add_middleware(
 
 app.add_middleware(GZipMiddleware, minimum_size=1024)
 
+
+@app.middleware("http")
+async def enforce_subscription_access(request, call_next):
+    """Enforce only after rollout explicitly switches to `enforce`.
+
+    Legacy companies resolve to full access. Billing/auth/recovery endpoints remain
+    available even when the product workspace is read-only.
+    """
+    if (
+        config.settings.SUBSCRIPTION_ENFORCEMENT_MODE != "enforce"
+        or request.method in {"GET", "HEAD", "OPTIONS"}
+        or request.url.path.startswith(f"{config.settings.API_V1_STR}/auth")
+        or request.url.path.startswith(f"{config.settings.API_V1_STR}/subscriptions")
+    ):
+        return await call_next(request)
+    authorization = request.headers.get("authorization", "")
+    if not authorization.lower().startswith("bearer "):
+        return await call_next(request)
+    try:
+        payload = jwt.decode(
+            authorization.split(" ", 1)[1],
+            config.settings.SECRET_KEY,
+            algorithms=[config.settings.ALGORITHM],
+            options={"verify_aud": False},
+        )
+        company_id = int(payload.get("company_id"))
+    except (JWTError, TypeError, ValueError):
+        return await call_next(request)
+
+    from database import SessionLocal
+    from services.subscription_service import access_mode, ensure_legacy_subscription
+    db = SessionLocal()
+    try:
+        subscription = ensure_legacy_subscription(db, company_id)
+        mode = access_mode(subscription)
+        db.commit()
+    finally:
+        db.close()
+    if mode != "full":
+        code = "subscription_required" if mode == "billing_only" else "account_read_only"
+        return ORJSONResponse(
+            status_code=402,
+            content={"detail": {"code": code, "access_mode": mode, "billing_url": f"{config.settings.SITE_URL}/account/billing"}},
+        )
+    return await call_next(request)
+
 app.include_router(auth.router, prefix=config.settings.API_V1_STR)
 app.include_router(companies.router, prefix=config.settings.API_V1_STR)
 app.include_router(clinics.router, prefix=config.settings.API_V1_STR)
@@ -90,6 +137,10 @@ app.include_router(migration.router, prefix=config.settings.API_V1_STR)
 app.include_router(migration_source_data.router, prefix=config.settings.API_V1_STR)
 app.include_router(clinic_data_prune.router, prefix=config.settings.API_V1_STR)
 app.include_router(clinic_holidays.router, prefix=config.settings.API_V1_STR)
+app.include_router(inventory.router, prefix=config.settings.API_V1_STR)
+app.include_router(plans.router, prefix=config.settings.API_V1_STR)
+app.include_router(subscriptions.router, prefix=config.settings.API_V1_STR)
+app.include_router(web_auth.router, prefix=config.settings.API_V1_STR)
 
 
 @app.get("/health")

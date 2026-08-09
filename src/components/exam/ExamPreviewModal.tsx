@@ -69,6 +69,8 @@ export function ExamPreviewModal({
   const [activeOldRefractionTabs, setActiveOldRefractionTabs] = useState<
     Record<string, string>
   >({});
+  const [activeOldRefractionExtensionTabs, setActiveOldRefractionExtensionTabs] =
+    useState<Record<string, string>>({});
   const [activeCoverTestTabs, setActiveCoverTestTabs] = useState<
     Record<string, number>
   >({});
@@ -83,6 +85,11 @@ export function ExamPreviewModal({
     [cardRows, examFormData],
   );
 
+  const oldRefractionExtensionTabs = useMemo(
+    () => buildOldRefractionExtensionTabs(cardRows, examFormData),
+    [cardRows, examFormData],
+  );
+
   const resolvedActiveOldRefractionTabs = useMemo(() => {
     return Object.fromEntries(
       Object.entries(oldRefractionTabs).map(([cardId, tabs]) => [
@@ -94,6 +101,18 @@ export function ExamPreviewModal({
       ]),
     );
   }, [oldRefractionTabs, activeOldRefractionTabs]);
+
+  const resolvedActiveOldRefractionExtensionTabs = useMemo(() => {
+    return Object.fromEntries(
+      Object.entries(oldRefractionExtensionTabs).map(([cardId, tabs]) => [
+        cardId,
+        activeOldRefractionExtensionTabs[cardId] &&
+        tabs.includes(activeOldRefractionExtensionTabs[cardId])
+          ? activeOldRefractionExtensionTabs[cardId]
+          : tabs[0],
+      ]),
+    );
+  }, [oldRefractionExtensionTabs, activeOldRefractionExtensionTabs]);
 
   const previewItems = useMemo(
     () => (gridItems.length ? gridItems : legacyRowsToGridItems(cardRows)),
@@ -123,6 +142,7 @@ export function ExamPreviewModal({
       setExamFormData({});
       setExamFormDataByInstance({});
       setActiveOldRefractionTabs({});
+      setActiveOldRefractionExtensionTabs({});
       setActiveCoverTestTabs({});
       setActiveInstanceId(null);
     }
@@ -209,6 +229,7 @@ export function ExamPreviewModal({
     applyLayoutStructure(tab.layout_data);
     setExamFormData(examFormDataByInstance[id] || {});
     setActiveOldRefractionTabs({});
+    setActiveOldRefractionExtensionTabs({});
     setActiveCoverTestTabs({});
   };
 
@@ -333,6 +354,10 @@ export function ExamPreviewModal({
                       oldRefractionTabs,
                       activeOldRefractionTabs: resolvedActiveOldRefractionTabs,
                       setActiveOldRefractionTabs,
+                      oldRefractionExtensionTabs,
+                      activeOldRefractionExtensionTabs:
+                        resolvedActiveOldRefractionExtensionTabs,
+                      setActiveOldRefractionExtensionTabs,
                       coverTestTabs,
                       activeCoverTestTabs,
                       setActiveCoverTestTabs,
@@ -358,7 +383,7 @@ export function ExamPreviewModal({
 function buildTabsByCard(
   cardRows: CardRow[],
   examFormData: Record<string, any>,
-  type: "cover-test" | "old-refraction",
+  type: "cover-test" | "old-refraction" | "old-refraction-extension",
 ): Record<string, string[]> {
   const cardIds = cardRows.flatMap((row) =>
     row.cards.filter((card) => card.type === type).map((card) => card.id),
@@ -388,4 +413,15 @@ function buildOldRefractionTabs(
   examFormData: Record<string, any>,
 ): Record<string, string[]> {
   return buildTabsByCard(cardRows, examFormData, "old-refraction");
+}
+
+function buildOldRefractionExtensionTabs(
+  cardRows: CardRow[],
+  examFormData: Record<string, any>,
+): Record<string, string[]> {
+  return buildTabsByCard(
+    cardRows,
+    examFormData,
+    "old-refraction-extension",
+  );
 }

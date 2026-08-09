@@ -521,6 +521,13 @@ export default function ExamDetailPage({
     removeOldRefractionTab,
     duplicateOldRefractionTab,
     updateOldRefractionTabType,
+    computedOldRefractionExtensionTabs,
+    activeOldRefractionExtensionTabs,
+    setActiveOldRefractionExtensionTabs,
+    addOldRefractionExtensionTab,
+    removeOldRefractionExtensionTab,
+    duplicateOldRefractionExtensionTab,
+    updateOldRefractionExtensionTabType,
   } = useOldRefractionTabs({
     cardRows,
     examFormData,
@@ -711,6 +718,29 @@ export default function ExamDetailPage({
                 });
               };
             });
+          } else if (type === "old-refraction-extension") {
+            const tabIds = computedOldRefractionExtensionTabs[cardId] || [];
+            tabIds.forEach((tabId) => {
+              const key = `old-refraction-extension-${cardId}-${tabId}`;
+              handlers[key] = (field, value) => {
+                setExamFormData((prev) => {
+                  const tabIndex = tabIds.indexOf(tabId);
+                  const prevTab = prev[key] || {};
+                  const normalized = normalizeFieldValue(prevTab[field], value);
+                  const nextTab = {
+                    ...prevTab,
+                    card_instance_id: tabId,
+                    card_id: cardId,
+                    tab_index: tabIndex,
+                    layout_instance_id:
+                      prevTab.layout_instance_id ?? activeInstanceId,
+                  };
+                  if (normalized === undefined) delete nextTab[field];
+                  else nextTab[field] = normalized;
+                  return { ...prev, [key]: nextTab };
+                });
+              };
+            });
           } else {
             handlers[key] = generateHandler(key, type);
           }
@@ -725,6 +755,7 @@ export default function ExamDetailPage({
     cardRows,
     computedCoverTestTabs,
     computedOldRefractionTabs,
+    computedOldRefractionExtensionTabs,
   ]);
 
   const examFormDataRef = useRef(examFormData);
@@ -753,6 +784,8 @@ export default function ExamDetailPage({
     computedCoverTestTabs,
     activeOldRefractionTabs,
     computedOldRefractionTabs,
+    activeOldRefractionExtensionTabs,
+    computedOldRefractionExtensionTabs,
   });
 
   // Layout tabs hook
@@ -1513,6 +1546,19 @@ export default function ExamDetailPage({
           removeOldRefractionTab: removeOldRefractionTab as any,
           duplicateOldRefractionTab: duplicateOldRefractionTab as any,
           updateOldRefractionTabType: updateOldRefractionTabType as any,
+          oldRefractionExtensionTabs:
+            computedOldRefractionExtensionTabs as any,
+          activeOldRefractionExtensionTabs:
+            activeOldRefractionExtensionTabs as any,
+          setActiveOldRefractionExtensionTabs:
+            setActiveOldRefractionExtensionTabs as any,
+          addOldRefractionExtensionTab: addOldRefractionExtensionTab as any,
+          removeOldRefractionExtensionTab:
+            removeOldRefractionExtensionTab as any,
+          duplicateOldRefractionExtensionTab:
+            duplicateOldRefractionExtensionTab as any,
+          updateOldRefractionExtensionTabType:
+            updateOldRefractionExtensionTabType as any,
           layoutInstanceId: activeInstanceId,
           setExamFormData: setExamFormData,
         } as any,
@@ -1530,6 +1576,8 @@ export default function ExamDetailPage({
       activeCoverTestTabs,
       computedOldRefractionTabs,
       activeOldRefractionTabs,
+      computedOldRefractionExtensionTabs,
+      activeOldRefractionExtensionTabs,
       activeInstanceId,
     ],
   );
@@ -1769,6 +1817,12 @@ export default function ExamDetailPage({
               computedCoverTestTabs={computedCoverTestTabs}
               activeOldRefractionTabs={activeOldRefractionTabs}
               computedOldRefractionTabs={computedOldRefractionTabs}
+              activeOldRefractionExtensionTabs={
+                activeOldRefractionExtensionTabs
+              }
+              computedOldRefractionExtensionTabs={
+                computedOldRefractionExtensionTabs
+              }
               examFormData={examFormData}
               setExamFormData={setExamFormData}
               toolboxActions={toolboxActions}

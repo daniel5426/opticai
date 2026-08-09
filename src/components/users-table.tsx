@@ -1,14 +1,7 @@
 import * as React from "react"
 import { User } from "@/lib/db/schema-interface"
 import { Button } from "@/components/ui/button"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { PlusIcon, Trash2, Edit, UserCheck, UserX } from "lucide-react"
 import { CustomModal } from "@/components/ui/custom-modal"
 import { deleteUser, updateUser } from "@/lib/db/users-db"
@@ -17,13 +10,14 @@ import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { ROLE_LEVELS, getRoleBadgeVariant, getRoleLabel, isRoleAtLeast } from "@/lib/role-levels"
 import { TableFiltersBar } from "@/components/table-filters-bar"
+import { TablePagination } from "@/components/table-pagination"
 import { ALL_FILTER_VALUE, USER_CLINIC_SCOPE_OPTIONS, USER_ROLE_FILTER_OPTIONS } from "@/lib/table-filters"
 import { SortableTableHead } from "@/components/sortable-table-head"
 import { SortColumns, SortState, sortRows } from "@/lib/table-sorting"
 import { DateSearchHelper } from "@/lib/date-search-helper"
 
 interface UserWithClinic extends User {
-  clinic_name?: string;
+  clinic_name?: string
 }
 
 interface UsersTableProps {
@@ -40,7 +34,12 @@ interface UsersTableProps {
   onNewUser?: () => void
   onEditUser?: (user: UserWithClinic) => void
   loading?: boolean
-  pagination?: { page: number; pageSize: number; total: number; setPage: (p: number) => void }
+  pagination?: {
+    page: number
+    pageSize: number
+    total: number
+    setPage: (p: number) => void
+  }
   companyId?: number
   currentClinicId?: number
   roleFilter?: string
@@ -51,9 +50,9 @@ interface UsersTableProps {
   onSortChange?: (sort: SortState) => void
 }
 
-export function UsersTable({ 
-  data, 
-  onUserDeleted, 
+export function UsersTable({
+  data,
+  onUserDeleted,
   onUserDeleteFailed,
   onUserUpdated,
   onUserUpdateFailed,
@@ -73,7 +72,7 @@ export function UsersTable({
   clinicScopeFilter: externalClinicScopeFilter,
   onClinicScopeFilterChange,
   sort,
-  onSortChange,
+  onSortChange
 }: UsersTableProps) {
   const [internalSearchQuery, setInternalSearchQuery] = React.useState("")
   const [selectedRole, setSelectedRole] = React.useState<string>(ALL_FILTER_VALUE)
@@ -88,15 +87,18 @@ export function UsersTable({
   const activeSort = sort ?? localSort
   const handleSortChange = onSortChange ?? setLocalSort
 
-  const sortColumns = React.useMemo<SortColumns<UserWithClinic>>(() => ({
-    id: { getValue: (user) => user.id, type: "number" },
-    name: { getValue: (user) => user.full_name || user.username },
-    role: { getValue: (user) => user.role_level, type: "number" },
-    email: { getValue: (user) => user.email },
-    phone: { getValue: (user) => user.phone },
-    clinic: { getValue: (user) => user.clinic_name || "גלובלי" },
-    status: { getValue: (user) => user.is_active, type: "boolean" },
-  }), [])
+  const sortColumns = React.useMemo<SortColumns<UserWithClinic>>(
+    () => ({
+      id: { getValue: (user) => user.id, type: "number" },
+      name: { getValue: (user) => user.full_name || user.username },
+      role: { getValue: (user) => user.role_level, type: "number" },
+      email: { getValue: (user) => user.email },
+      phone: { getValue: (user) => user.phone },
+      clinic: { getValue: (user) => user.clinic_name || "גלובלי" },
+      status: { getValue: (user) => user.is_active, type: "boolean" }
+    }),
+    []
+  )
 
   const handleSearchChange = (value: string) => {
     if (onSearchChange) {
@@ -124,23 +126,24 @@ export function UsersTable({
 
   const filteredData = React.useMemo(() => {
     let result = data
-    
+
     if (!serverFiltered && clinicScopeFilter === "current" && currentClinicId) {
-       result = result.filter(u => u.clinic_id === currentClinicId)
+      result = result.filter((u) => u.clinic_id === currentClinicId)
     }
 
     if (!serverFiltered && roleFilter !== ALL_FILTER_VALUE) {
-      result = result.filter(u => u.role_level === Number(roleFilter))
+      result = result.filter((u) => u.role_level === Number(roleFilter))
     }
 
     if (!serverFiltered && searchQuery) {
-      result = result.filter((user) =>
-        user.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        user.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        user.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        user.phone?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        DateSearchHelper.matchesDate(searchQuery, user.created_at) ||
-        DateSearchHelper.matchesDate(searchQuery, user.updated_at)
+      result = result.filter(
+        (user) =>
+          user.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          user.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          user.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          user.phone?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          DateSearchHelper.matchesDate(searchQuery, user.created_at) ||
+          DateSearchHelper.matchesDate(searchQuery, user.updated_at)
       )
     }
     return result
@@ -151,15 +154,15 @@ export function UsersTable({
   }, [activeSort, filteredData, onSortChange, sortColumns])
 
   const handleDeleteClick = (user: UserWithClinic) => {
-    const ceoCount = data.filter(u => isRoleAtLeast(u.role_level, ROLE_LEVELS.ceo)).length
+    const ceoCount = data.filter((u) => isRoleAtLeast(u.role_level, ROLE_LEVELS.ceo)).length
 
     if (isRoleAtLeast(user.role_level, ROLE_LEVELS.ceo) && ceoCount === 1) {
-      toast.warning('לא ניתן למחוק את מנכ"ל החברה היחיד. יש להוסיף מנכ"ל נוסף לפני מחיקת משתמש זה.');
-      return;
+      toast.warning('לא ניתן למחוק את מנכ"ל החברה היחיד. יש להוסיף מנכ"ל נוסף לפני מחיקת משתמש זה.')
+      return
     }
-    
-    setUserToDelete(user);
-    setIsDeleteModalOpen(true);
+
+    setUserToDelete(user)
+    setIsDeleteModalOpen(true)
   }
 
   const handleDeleteConfirm = async () => {
@@ -192,22 +195,22 @@ export function UsersTable({
       }
 
       const result = await updateUser(updatedUser)
-      
+
       if (result) {
-        toast.success(`המשתמש ${user.is_active ? 'הושבת' : 'הופעל'} בהצלחה`)
+        toast.success(`המשתמש ${user.is_active ? "הושבת" : "הופעל"} בהצלחה`)
         onUserUpdated?.(updatedUser)
       } else {
-        toast.error('שגיאה בעדכון סטטוס המשתמש')
+        toast.error("שגיאה בעדכון סטטוס המשתמש")
         onUserUpdateFailed?.()
       }
     } catch (error) {
-      toast.error('שגיאה בעדכון סטטוס המשתמש')
+      toast.error("שגיאה בעדכון סטטוס המשתמש")
       onUserUpdateFailed?.()
     }
   }
 
   return (
-    <div className="space-y-2.5 mb-10" dir="rtl">
+    <div className="space-y-2.5" dir="rtl">
       {!hideSearch && (
         <TableFiltersBar
           searchValue={searchQuery}
@@ -220,7 +223,7 @@ export function UsersTable({
               onChange: handleRoleFilterChange,
               placeholder: "תפקיד",
               options: USER_ROLE_FILTER_OPTIONS,
-              widthClassName: "w-[150px]",
+              widthClassName: "w-[150px]"
             },
             ...(companyId && currentClinicId
               ? [
@@ -230,15 +233,13 @@ export function UsersTable({
                     onChange: handleClinicScopeFilterChange,
                     placeholder: "מרפאה",
                     options: USER_CLINIC_SCOPE_OPTIONS,
-                    widthClassName: "w-[170px]",
-                  },
+                    widthClassName: "w-[170px]"
+                  }
                 ]
-              : []),
+              : [])
           ]}
           hasActiveFilters={
-            Boolean(searchQuery.trim()) ||
-            roleFilter !== ALL_FILTER_VALUE ||
-            clinicScopeFilter !== ALL_FILTER_VALUE
+            Boolean(searchQuery.trim()) || roleFilter !== ALL_FILTER_VALUE || clinicScopeFilter !== ALL_FILTER_VALUE
           }
           onReset={() => {
             handleSearchChange("")
@@ -256,17 +257,65 @@ export function UsersTable({
         />
       )}
 
-      <div className="rounded-md bg-card">
-        <Table dir="rtl" containerClassName="max-h-[70vh] overflow-y-auto overscroll-contain" containerStyle={{ scrollbarWidth: 'none' }}>
-          <TableHeader className="sticky top-0  bg-card">
+      <div className="bg-card rounded-md">
+        <Table
+          dir="rtl"
+          containerClassName="max-h-[70vh] overflow-y-auto overscroll-contain"
+          containerStyle={{ scrollbarWidth: "none" }}
+        >
+          <TableHeader className="bg-card sticky top-0">
             <TableRow>
-              <SortableTableHead sortKey="id" sort={activeSort} onSortChange={handleSortChange} className="text-right">מס' משתמש</SortableTableHead>
-              <SortableTableHead sortKey="name" sort={activeSort} onSortChange={handleSortChange} className="text-right">שם מלא</SortableTableHead>
-              <SortableTableHead sortKey="role" sort={activeSort} onSortChange={handleSortChange} className="text-right">תפקיד</SortableTableHead>
-              <SortableTableHead sortKey="email" sort={activeSort} onSortChange={handleSortChange} className="text-right">אימייל</SortableTableHead>
-              <SortableTableHead sortKey="phone" sort={activeSort} onSortChange={handleSortChange} className="text-right">טלפון</SortableTableHead>
-              <SortableTableHead sortKey="clinic" sort={activeSort} onSortChange={handleSortChange} className="text-right">מרפאה</SortableTableHead>
-              <SortableTableHead sortKey="status" sort={activeSort} onSortChange={handleSortChange} className="text-right">סטטוס</SortableTableHead>
+              <SortableTableHead sortKey="id" sort={activeSort} onSortChange={handleSortChange} className="text-right">
+                מס' משתמש
+              </SortableTableHead>
+              <SortableTableHead
+                sortKey="name"
+                sort={activeSort}
+                onSortChange={handleSortChange}
+                className="text-right"
+              >
+                שם מלא
+              </SortableTableHead>
+              <SortableTableHead
+                sortKey="role"
+                sort={activeSort}
+                onSortChange={handleSortChange}
+                className="text-right"
+              >
+                תפקיד
+              </SortableTableHead>
+              <SortableTableHead
+                sortKey="email"
+                sort={activeSort}
+                onSortChange={handleSortChange}
+                className="text-right"
+              >
+                אימייל
+              </SortableTableHead>
+              <SortableTableHead
+                sortKey="phone"
+                sort={activeSort}
+                onSortChange={handleSortChange}
+                className="text-right"
+              >
+                טלפון
+              </SortableTableHead>
+              <SortableTableHead
+                sortKey="clinic"
+                sort={activeSort}
+                onSortChange={handleSortChange}
+                className="text-right"
+              >
+                מרפאה
+              </SortableTableHead>
+              <SortableTableHead
+                sortKey="status"
+                sort={activeSort}
+                onSortChange={handleSortChange}
+                className="text-right"
+              >
+                סטטוס
+              </SortableTableHead>
               <TableHead className="w-[100px] text-right">פעולות</TableHead>
             </TableRow>
           </TableHeader>
@@ -275,28 +324,28 @@ export function UsersTable({
               Array.from({ length: 14 }).map((_, i) => (
                 <TableRow key={i}>
                   <TableCell>
-                    <Skeleton className="w-[70%] h-4 my-2" />
+                    <Skeleton className="my-2 h-4 w-[70%]" />
                   </TableCell>
                   <TableCell>
-                    <Skeleton className="w-[70%] h-4 my-2" />
+                    <Skeleton className="my-2 h-4 w-[70%]" />
                   </TableCell>
                   <TableCell>
-                    <Skeleton className="w-[70%] h-4 my-2" />
+                    <Skeleton className="my-2 h-4 w-[70%]" />
                   </TableCell>
                   <TableCell>
-                    <Skeleton className="w-[70%] h-4 my-2" />
+                    <Skeleton className="my-2 h-4 w-[70%]" />
                   </TableCell>
                   <TableCell>
-                    <Skeleton className="w-[70%] h-4 my-2" />
+                    <Skeleton className="my-2 h-4 w-[70%]" />
                   </TableCell>
                   <TableCell>
-                    <Skeleton className="w-[70%] h-4 my-2 " />
+                    <Skeleton className="my-2 h-4 w-[70%]" />
                   </TableCell>
                   <TableCell>
-                    <Skeleton className="w-[70%] h-4 my-2" />
+                    <Skeleton className="my-2 h-4 w-[70%]" />
                   </TableCell>
                   <TableCell>
-                    <Skeleton className="w-[70%] h-4 my-2" />
+                    <Skeleton className="my-2 h-4 w-[70%]" />
                   </TableCell>
                 </TableRow>
               ))
@@ -306,9 +355,7 @@ export function UsersTable({
                   <TableCell className="font-medium">{user.id}</TableCell>
                   <TableCell>{user.full_name || user.username || ""}</TableCell>
                   <TableCell>
-                    <Badge variant={getRoleBadgeVariant(user.role_level)}>
-                      {getRoleLabel(user.role_level)}
-                    </Badge>
+                    <Badge variant={getRoleBadgeVariant(user.role_level)}>{getRoleLabel(user.role_level)}</Badge>
                   </TableCell>
                   <TableCell>{user.email || ""}</TableCell>
                   <TableCell>{user.phone || ""}</TableCell>
@@ -320,17 +367,12 @@ export function UsersTable({
                   </TableCell>
                   <TableCell>
                     <div className="flex gap-1">
-                      <Button 
-                        variant="ghost" 
-                        className="h-8 w-8 p-0" 
-                        onClick={() => onEditUser?.(user)}
-                        title="עריכה"
-                      >
+                      <Button variant="ghost" className="h-8 w-8 p-0" onClick={() => onEditUser?.(user)} title="עריכה">
                         <Edit className="h-4 w-4" />
                       </Button>
-                      <Button 
-                        variant="ghost" 
-                        className="h-8 w-8 p-0" 
+                      <Button
+                        variant="ghost"
+                        className="h-8 w-8 p-0"
                         onClick={() => handleToggleUserStatus(user)}
                         title={user.is_active ? "השבתה" : "הפעלה"}
                       >
@@ -340,10 +382,10 @@ export function UsersTable({
                           <UserCheck className="h-4 w-4 text-green-600" />
                         )}
                       </Button>
-                      <Button 
-                        variant="ghost" 
-                        className="h-8 w-8 p-0" 
-                        onClick={() => handleDeleteClick(user)} 
+                      <Button
+                        variant="ghost"
+                        className="h-8 w-8 p-0"
+                        onClick={() => handleDeleteClick(user)}
                         title="מחיקה"
                       >
                         <Trash2 className="h-4 w-4 text-red-600" />
@@ -354,7 +396,7 @@ export function UsersTable({
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={8} className="h-24 text-center text-muted-foreground">
+                <TableCell colSpan={8} className="text-muted-foreground h-24 text-center">
                   לא נמצאו משתמשים לתצוגה
                 </TableCell>
               </TableRow>
@@ -363,33 +405,25 @@ export function UsersTable({
         </Table>
       </div>
 
-      {pagination && (
-        <div className="flex items-center justify-between mt-4">
-          <div className="text-sm text-muted-foreground">
-            עמוד {pagination.page} מתוך {Math.max(1, Math.ceil((pagination.total || 0) / (pagination.pageSize || 1)))} · סה"כ {pagination.total || 0}
-          </div>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={loading || pagination.page <= 1}
-              onClick={() => pagination.setPage(Math.max(1, pagination.page - 1))}
-            >הקודם</Button>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={loading || pagination.page >= Math.ceil((pagination.total || 0) / (pagination.pageSize || 1))}
-              onClick={() => pagination.setPage(pagination.page + 1)}
-            >הבא</Button>
-          </div>
-        </div>
-      )}
+      {pagination ? (
+        <TablePagination
+          page={pagination.page}
+          pageSize={pagination.pageSize}
+          total={pagination.total}
+          onPageChange={pagination.setPage}
+          loading={loading}
+        />
+      ) : null}
 
       <CustomModal
         isOpen={isDeleteModalOpen}
         onClose={() => setIsDeleteModalOpen(false)}
         title="מחיקת משתמש"
-        description={userToDelete ? `האם אתה בטוח שברצונך למחוק את המשתמש ${userToDelete.full_name || userToDelete.username}? פעולה זו אינה הפיכה.` : "האם אתה בטוח שברצונך למחוק משתמש זה? פעולה זו אינה הפיכה."}
+        description={
+          userToDelete
+            ? `האם אתה בטוח שברצונך למחוק את המשתמש ${userToDelete.full_name || userToDelete.username}? פעולה זו אינה הפיכה.`
+            : "האם אתה בטוח שברצונך למחוק משתמש זה? פעולה זו אינה הפיכה."
+        }
         onConfirm={handleDeleteConfirm}
         confirmText="מחק"
         className="text-center"
@@ -398,4 +432,4 @@ export function UsersTable({
       />
     </div>
   )
-} 
+}

@@ -229,8 +229,8 @@ export default function SettingsPage() {
     email: '',
     phone: '',
     profile_picture: '',
-    primary_theme_color: '#2256aa',
-    secondary_theme_color: '#cce9ff',
+    primary_theme_color: '#3f3f46',
+    secondary_theme_color: '#f4f4f5',
     theme_preference: 'system',//8b5cf6, 3b82f6
     system_vacation_dates: [],
     added_vacation_dates: [],
@@ -334,8 +334,8 @@ export default function SettingsPage() {
           email: currentUser.email || '',
           phone: currentUser.phone || '',
           profile_picture: currentUser.profile_picture || '',
-          primary_theme_color: currentUser.primary_theme_color || '#2256aa',
-          secondary_theme_color: currentUser.secondary_theme_color || '#cce9ff',
+          primary_theme_color: currentUser.primary_theme_color || '#3f3f46',
+          secondary_theme_color: currentUser.secondary_theme_color || '#f4f4f5',
           theme_preference: currentUser.theme_preference || 'system',
           system_vacation_dates: currentUser.system_vacation_dates || [],
           added_vacation_dates: currentUser.added_vacation_dates || [],
@@ -512,8 +512,8 @@ export default function SettingsPage() {
           email: updatedUser.email ?? personalProfile.email ?? '',
           phone: updatedUser.phone ?? personalProfile.phone ?? '',
           profile_picture: updatedUser.profile_picture ?? personalProfile.profile_picture ?? '',
-          primary_theme_color: updatedUser.primary_theme_color ?? personalProfile.primary_theme_color ?? '#2256aa',
-          secondary_theme_color: updatedUser.secondary_theme_color ?? personalProfile.secondary_theme_color ?? '#cce9ff',
+          primary_theme_color: updatedUser.primary_theme_color ?? personalProfile.primary_theme_color ?? '#3f3f46',
+          secondary_theme_color: updatedUser.secondary_theme_color ?? personalProfile.secondary_theme_color ?? '#f4f4f5',
           theme_preference: updatedUser.theme_preference ?? personalProfile.theme_preference ?? 'system',
           system_vacation_dates: updatedUser.system_vacation_dates !== undefined && updatedUser.system_vacation_dates !== null
             ? normalizeDates(updatedUser.system_vacation_dates)

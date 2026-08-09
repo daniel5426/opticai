@@ -28,6 +28,45 @@ def test_typed_parsers_handle_access_values():
     assert records.parse_access_time("12/30/99 22:15:00") == "22:15:00"
 
 
+def test_optical_parsers_preserve_and_normalize_supported_values():
+    assert records.parse_optical_value("Balanc") == "Balance"
+    assert records.parse_optical_value("Ambliyopya") == "Amblyopia"
+    assert records.parse_optical_value("Oclude") == "Occluder"
+    assert records.parse_optical_value("Matt") == "Frosted / Matte"
+    assert records.parse_optical_value("legacy text") == "legacy text"
+    assert records.parse_modified_acuity("6/6-3") == "6/6-3"
+    assert records.parse_modified_acuity("J2+1") == "J2+1"
+    assert records.parse_contact_add("med") == "Medium"
+    assert records.parse_contact_add("+1.25") == 1.25
+    assert records.normalize_base("BI") == "IN"
+    assert records.normalize_base("base out") == "OUT"
+
+
+def test_contact_normalizer_keeps_bc_aliases_and_rejects_text_oz():
+    seed = records.normalize_contact_lens_exam_row(
+        {
+            "PerId": "1",
+            "CheckDate": "2026-01-01 00:00:00",
+            "BC1R": "Flt",
+            "BC1L": "Stp",
+            "BC2R": "8.9",
+            "OZR": "wide",
+            "OZL": "8.1",
+            "AddR": "Hi",
+            "VAR": "6/6-2",
+        }
+    )
+
+    assert seed.lens_values["r_bc_1"] == "Flat"
+    assert seed.lens_values["l_bc_1"] == "Steep"
+    assert seed.lens_values["r_bc_2"] == 8.9
+    assert "r_oz" not in seed.lens_values
+    assert seed.lens_values["l_oz"] == 8.1
+    assert seed.lens_values["r_add"] == "High"
+    assert seed.lens_values["r_va"] == "6/6-2"
+    assert seed.source_ref.raw_payload["OZR"] == "wide"
+
+
 def test_export_table_to_tsv_writes_utf8(monkeypatch, tmp_path):
     monkeypatch.setattr(reader, "export_table_text", lambda table_name, source_db=reader.SOURCE_DB_PATH: "a\tb\n1\t2\n")
 

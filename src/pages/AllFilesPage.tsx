@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react"
 import { useNavigate, useSearch } from "@tanstack/react-router"
 import { SiteHeader } from "@/components/site-header"
+import { ListPageHeader } from "@/components/list-page-header"
 import { getPaginatedFiles } from "@/lib/db/files-db"
 import { File } from "@/lib/db/schema-interface"
 import { FilesTable } from "@/components/files-table"
@@ -21,7 +22,7 @@ export default function AllFilesPage() {
   const { startSearchRequest, updateLatestSearch } = useLatestTableSearchRequest(searchInput)
   const activeSort = React.useMemo(
     () => parseSortSearch(search.sort, { key: "upload_date", direction: "desc" }),
-    [search.sort],
+    [search.sort]
   )
 
   useEffect(() => {
@@ -34,21 +35,28 @@ export default function AllFilesPage() {
     setSearchInput(value)
   }
 
-  const buildSearchState = (overrides?: Partial<{ q: string; page: number; fileCategory: string; sort: string }>) =>
+  const buildSearchState = (
+    overrides?: Partial<{
+      q: string
+      page: number
+      fileCategory: string
+      sort: string
+    }>
+  ) =>
     buildTableSearch(
       {
         q: searchInput.trim(),
         page: search.page,
         fileCategory: search.fileCategory,
         sort: search.sort,
-        ...overrides,
+        ...overrides
       },
       {
         q: "",
         page: 1,
         fileCategory: ALL_FILTER_VALUE,
-        sort: "",
-      },
+        sort: ""
+      }
     )
 
   useEffect(() => {
@@ -56,7 +64,7 @@ export default function AllFilesPage() {
       if (searchInput === search.q) return
       navigate({
         to: "/files",
-        search: buildSearchState({ q: searchInput.trim(), page: 1 }),
+        search: buildSearchState({ q: searchInput.trim(), page: 1 })
       })
     }, TABLE_SEARCH_DEBOUNCE_MS)
     return () => clearTimeout(t)
@@ -72,13 +80,13 @@ export default function AllFilesPage() {
         offset,
         order: sortToOrder(activeSort, "upload_date_desc"),
         q: search.q || undefined,
-        fileCategory: search.fileCategory !== ALL_FILTER_VALUE ? search.fileCategory : undefined,
+        fileCategory: search.fileCategory !== ALL_FILTER_VALUE ? search.fileCategory : undefined
       })
       if (!canCommit()) return
       setFiles(items)
       setTotal(total)
     } catch (error) {
-      console.error('Error loading files:', error)
+      console.error("Error loading files:", error)
     } finally {
       if (canCommit()) {
         setLoading(false)
@@ -93,15 +101,15 @@ export default function AllFilesPage() {
   }, [activeSort, currentClinic, pageSize, search.fileCategory, search.page, search.q, startSearchRequest])
 
   const handleFileDeleted = (deletedFileId: number) => {
-    setFiles(prevFiles => prevFiles.filter(file => file.id !== deletedFileId))
+    setFiles((prevFiles) => prevFiles.filter((file) => file.id !== deletedFileId))
     // Move to previous page if we deleted the last item on the current page
     if (files.length === 1 && search.page > 1) {
       navigate({
         to: "/files",
-        search: buildSearchState({ page: search.page - 1 }),
+        search: buildSearchState({ page: search.page - 1 })
       })
     } else {
-      setTotal(prev => prev - 1)
+      setTotal((prev) => prev - 1)
     }
   }
 
@@ -110,23 +118,17 @@ export default function AllFilesPage() {
   }
 
   const handleFileUpdated = (updatedFile: File) => {
-    setFiles(prevFiles => prevFiles.map(file => file.id === updatedFile.id ? updatedFile : file))
+    setFiles((prevFiles) => prevFiles.map((file) => (file.id === updatedFile.id ? updatedFile : file)))
   }
 
   return (
     <>
       <SiteHeader title="מסמכים" />
-      <div 
-        className="flex flex-col flex-1 p-4 lg:p-6 overflow-auto" 
-        dir="rtl" 
-        style={{scrollbarWidth: 'none'}}
-      >
-        <div className="flex items-center justify-between mb-4">
-          <h1 className="text-xl font-bold">כל הקבצים</h1>
-        </div>
-        <FilesTable 
-          data={files} 
-          clientId={0} 
+      <div className="flex flex-1 flex-col overflow-auto p-4 lg:p-6" dir="rtl" style={{ scrollbarWidth: "none" }}>
+        <ListPageHeader title="כל הקבצים" description="מסמכים וקבצים של לקוחות המרפאה" />
+        <FilesTable
+          data={files}
+          clientId={0}
           onFileUploaded={loadFiles}
           onFileUpdated={handleFileUpdated}
           onFileDeleted={handleFileDeleted}
@@ -138,14 +140,14 @@ export default function AllFilesPage() {
           onFileCategoryFilterChange={(value) =>
             navigate({
               to: "/files",
-              search: buildSearchState({ fileCategory: value, page: 1 }),
+              search: buildSearchState({ fileCategory: value, page: 1 })
             })
           }
           sort={activeSort}
           onSortChange={(sort) =>
             navigate({
               to: "/files",
-              search: buildSearchState({ sort: sortToSearch(sort), page: 1 }),
+              search: buildSearchState({ sort: sortToSearch(sort), page: 1 })
             })
           }
           loading={loading}
@@ -156,11 +158,11 @@ export default function AllFilesPage() {
             setPage: (page) =>
               navigate({
                 to: "/files",
-                search: buildSearchState({ page }),
-              }),
+                search: buildSearchState({ page })
+              })
           }}
         />
       </div>
     </>
   )
-} 
+}

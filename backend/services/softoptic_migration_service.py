@@ -91,6 +91,8 @@ OPTIONAL_CSV_FILES = (
     "optic_exp_eyetests.csv",
     "optic_glasses_presc.csv",
     "optic_contact_presc.csv",
+    "optic_contact_fit.csv",
+    "optic_device_data.csv",
     "optic_contact_lens_chk.csv",
     "optic_reference.csv",
     "optic_presc_prices.csv",
@@ -98,6 +100,10 @@ OPTIONAL_CSV_FILES = (
     "account_files_blob.csv",
     "account_memos.csv",
     "diary_timetab.csv",
+    "account_incoming_source.csv",
+    "optic_tv_incoming_source_a.csv",
+    "optic_tv_incoming_source_b.csv",
+    "optic_tv_incoming_source_c.csv",
 )
 
 TRACKED_CLINIC_MODELS: Dict[str, Any] = {

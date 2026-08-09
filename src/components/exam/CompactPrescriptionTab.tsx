@@ -110,6 +110,7 @@ export function CompactPrescriptionTab({
             onChange={(value) => handleChange(eye, key, value)}
             disabled={!isEditing}
             options={options || []}
+            allowImportedValue
             size="xs"
             triggerClassName="h-8 text-xs w-full"
             center={col.center}
@@ -143,6 +144,7 @@ export function CompactPrescriptionTab({
               disabled={!isEditing}
               textOptions={colProps.textOptions}
               textValueAliases={colProps.textValueAliases}
+              textDisplayAliases={colProps.displayAliases}
               numericProps={{
                 step,
                 min: colProps.min,

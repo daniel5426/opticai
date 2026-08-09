@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react"
 import { useNavigate, useSearch } from "@tanstack/react-router"
 import { SiteHeader } from "@/components/site-header"
+import { ListPageHeader } from "@/components/list-page-header"
 import { getPaginatedAppointments } from "@/lib/db/appointments-db"
 import { Appointment } from "@/lib/db/schema-interface"
 import { AppointmentsTable } from "@/components/appointments-table"
@@ -21,7 +22,7 @@ export default function AllAppointmentsPage() {
   const { startSearchRequest, updateLatestSearch } = useLatestTableSearchRequest(searchInput)
   const activeSort = React.useMemo(
     () => parseSortSearch(search.sort, { key: "date", direction: "desc" }),
-    [search.sort],
+    [search.sort]
   )
 
   useEffect(() => {
@@ -34,7 +35,15 @@ export default function AllAppointmentsPage() {
     setSearchInput(value)
   }
 
-  const buildSearchState = (overrides?: Partial<{ q: string; page: number; dateScope: string; examName: string; sort: string }>) =>
+  const buildSearchState = (
+    overrides?: Partial<{
+      q: string
+      page: number
+      dateScope: string
+      examName: string
+      sort: string
+    }>
+  ) =>
     buildTableSearch(
       {
         q: searchInput.trim(),
@@ -42,15 +51,15 @@ export default function AllAppointmentsPage() {
         dateScope: search.dateScope,
         examName: search.examName,
         sort: search.sort,
-        ...overrides,
+        ...overrides
       },
       {
         q: "",
         page: 1,
         dateScope: ALL_FILTER_VALUE,
         examName: ALL_FILTER_VALUE,
-        sort: "",
-      },
+        sort: ""
+      }
     )
 
   useEffect(() => {
@@ -58,7 +67,7 @@ export default function AllAppointmentsPage() {
       if (searchInput === search.q) return
       navigate({
         to: "/appointments",
-        search: buildSearchState({ q: searchInput.trim(), page: 1 }),
+        search: buildSearchState({ q: searchInput.trim(), page: 1 })
       })
     }, TABLE_SEARCH_DEBOUNCE_MS)
     return () => clearTimeout(t)
@@ -75,13 +84,13 @@ export default function AllAppointmentsPage() {
         order: sortToOrder(activeSort, "date_desc"),
         q: search.q || undefined,
         dateScope: search.dateScope !== ALL_FILTER_VALUE ? search.dateScope : undefined,
-        examName: search.examName !== ALL_FILTER_VALUE ? search.examName : undefined,
+        examName: search.examName !== ALL_FILTER_VALUE ? search.examName : undefined
       })
       if (!canCommit()) return
       setAppointments(items)
       setTotal(total)
     } catch (error) {
-      console.error('Error loading data:', error)
+      console.error("Error loading data:", error)
     } finally {
       if (canCommit()) {
         setLoading(false)
@@ -93,18 +102,29 @@ export default function AllAppointmentsPage() {
     if (currentClinic) {
       loadData()
     }
-  }, [activeSort, currentClinic, pageSize, search.dateScope, search.examName, search.page, search.q, startSearchRequest])
+  }, [
+    activeSort,
+    currentClinic,
+    pageSize,
+    search.dateScope,
+    search.examName,
+    search.page,
+    search.q,
+    startSearchRequest
+  ])
 
   const handleAppointmentDeleted = (deletedAppointmentId: number) => {
-    setAppointments(prevAppointments => prevAppointments.filter(appointment => appointment.id !== deletedAppointmentId))
+    setAppointments((prevAppointments) =>
+      prevAppointments.filter((appointment) => appointment.id !== deletedAppointmentId)
+    )
     // Move to previous page if we deleted the last item on the current page
     if (appointments.length === 1 && search.page > 1) {
       navigate({
         to: "/appointments",
-        search: buildSearchState({ page: search.page - 1 }),
+        search: buildSearchState({ page: search.page - 1 })
       })
     } else {
-      setTotal(prev => prev - 1)
+      setTotal((prev) => prev - 1)
     }
   }
 
@@ -119,13 +139,11 @@ export default function AllAppointmentsPage() {
   return (
     <>
       <SiteHeader title="תורים" />
-      <div className="flex flex-col flex-1 p-4 lg:p-6" dir="rtl" style={{scrollbarWidth: 'none'}}>
-        <div className="flex items-center justify-between mb-4">
-          <h1 className="text-xl font-bold">כל התורים</h1>
-        </div>
-        <AppointmentsTable 
-          data={appointments} 
-          clientId={0} 
+      <div className="flex flex-1 flex-col p-4 lg:p-6" dir="rtl" style={{ scrollbarWidth: "none" }}>
+        <ListPageHeader title="כל התורים" description="ניהול תורים, זמינות ולוחות זמנים" />
+        <AppointmentsTable
+          data={appointments}
+          clientId={0}
           onAppointmentChange={handleAppointmentChange}
           onAppointmentDeleted={handleAppointmentDeleted}
           onAppointmentDeleteFailed={handleAppointmentDeleteFailed}
@@ -136,21 +154,21 @@ export default function AllAppointmentsPage() {
           onDateScopeFilterChange={(value) =>
             navigate({
               to: "/appointments",
-              search: buildSearchState({ dateScope: value, page: 1 }),
+              search: buildSearchState({ dateScope: value, page: 1 })
             })
           }
           examTypeFilter={search.examName}
           onExamTypeFilterChange={(value) =>
             navigate({
               to: "/appointments",
-              search: buildSearchState({ examName: value, page: 1 }),
+              search: buildSearchState({ examName: value, page: 1 })
             })
           }
           sort={activeSort}
           onSortChange={(sort) =>
             navigate({
               to: "/appointments",
-              search: buildSearchState({ sort: sortToSearch(sort), page: 1 }),
+              search: buildSearchState({ sort: sortToSearch(sort), page: 1 })
             })
           }
           loading={loading}
@@ -161,11 +179,11 @@ export default function AllAppointmentsPage() {
             setPage: (page) =>
               navigate({
                 to: "/appointments",
-                search: buildSearchState({ page }),
-              }),
+                search: buildSearchState({ page })
+              })
           }}
         />
       </div>
     </>
   )
-} 
+}

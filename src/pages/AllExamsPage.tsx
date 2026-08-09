@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react"
 import { useNavigate, useSearch } from "@tanstack/react-router"
 import { SiteHeader } from "@/components/site-header"
+import { ListPageHeader } from "@/components/list-page-header"
 import { getPaginatedEnrichedExams } from "@/lib/db/exams-db"
 import { OpticalExam } from "@/lib/db/schema-interface"
 import { ExamsTable } from "@/components/exams-table"
@@ -23,7 +24,7 @@ export default function AllExamsPage() {
   const { startSearchRequest, updateLatestSearch } = useLatestTableSearchRequest(searchInput)
   const activeSort = React.useMemo(
     () => parseSortSearch(search.sort, { key: "exam_date", direction: "desc" }),
-    [search.sort],
+    [search.sort]
   )
 
   useEffect(() => {
@@ -36,30 +37,40 @@ export default function AllExamsPage() {
     setSearchInput(value)
   }
 
-  const buildSearchState = useCallback((overrides?: Partial<{ q: string; page: number; testName: string; sort: string }>) => {
-    return buildTableSearch(
-      {
-        q: searchInput.trim(),
-        page: search.page,
-        testName: search.testName,
-        sort: search.sort,
-        ...overrides,
-      },
-      {
-        q: "",
-        page: 1,
-        testName: ALL_FILTER_VALUE,
-        sort: "",
-      },
-    )
-  }, [search.page, search.sort, search.testName, searchInput])
+  const buildSearchState = useCallback(
+    (
+      overrides?: Partial<{
+        q: string
+        page: number
+        testName: string
+        sort: string
+      }>
+    ) => {
+      return buildTableSearch(
+        {
+          q: searchInput.trim(),
+          page: search.page,
+          testName: search.testName,
+          sort: search.sort,
+          ...overrides
+        },
+        {
+          q: "",
+          page: 1,
+          testName: ALL_FILTER_VALUE,
+          sort: ""
+        }
+      )
+    },
+    [search.page, search.sort, search.testName, searchInput]
+  )
 
   useEffect(() => {
     const t = setTimeout(() => {
       if (searchInput === search.q) return
       navigate({
         to: "/exams",
-        search: buildSearchState({ q: searchInput.trim(), page: 1 }),
+        search: buildSearchState({ q: searchInput.trim(), page: 1 })
       })
     }, TABLE_SEARCH_DEBOUNCE_MS)
     return () => clearTimeout(t)
@@ -70,18 +81,18 @@ export default function AllExamsPage() {
     try {
       setLoading(true)
       const offset = (search.page - 1) * pageSize
-      const { items, total } = await getPaginatedEnrichedExams('exam', currentClinic?.id, {
+      const { items, total } = await getPaginatedEnrichedExams("exam", currentClinic?.id, {
         limit: pageSize,
         offset,
         order: sortToOrder(activeSort, "exam_date_desc"),
         q: search.q || undefined,
-        testName: search.testName !== ALL_FILTER_VALUE ? search.testName : undefined,
+        testName: search.testName !== ALL_FILTER_VALUE ? search.testName : undefined
       })
       if (!canCommit()) return
       setExams(items)
       setTotal(total)
     } catch (error) {
-      console.error('Error loading data:', error)
+      console.error("Error loading data:", error)
     } finally {
       if (canCommit()) {
         setLoading(false)
@@ -96,14 +107,14 @@ export default function AllExamsPage() {
   }, [loadData, currentClinic])
 
   const handleExamDeleted = (deletedExamId: number) => {
-    setExams(prevExams => {
-      const updated = prevExams.filter(exam => exam.id !== deletedExamId)
+    setExams((prevExams) => {
+      const updated = prevExams.filter((exam) => exam.id !== deletedExamId)
       const newTotal = Math.max(0, total - 1)
       setTotal(newTotal)
       if (updated.length === 0 && search.page > 1) {
         navigate({
           to: "/exams",
-          search: buildSearchState({ page: Math.max(1, search.page - 1) }),
+          search: buildSearchState({ page: Math.max(1, search.page - 1) })
         })
       }
       return updated
@@ -112,20 +123,18 @@ export default function AllExamsPage() {
 
   const handleExamDeleteFailed = () => {
     loadData()
-  } 
+  }
 
   return (
     <>
       <SiteHeader title="בדיקות" />
-      <div className="flex flex-col flex-1 p-4 lg:p-6" dir="rtl" style={{scrollbarWidth: 'none'}}>
-        <div className="flex items-center justify-between mb-4">
-          <h1 className="text-xl font-bold">כל הבדיקות</h1>
-        </div>
-        <ExamsTable 
-          data={exams} 
-          clientId={0} 
-          onExamDeleted={handleExamDeleted} 
-          onExamDeleteFailed={handleExamDeleteFailed} 
+      <div className="flex flex-1 flex-col p-4 lg:p-6" dir="rtl" style={{ scrollbarWidth: "none" }}>
+        <ListPageHeader title="כל הבדיקות" description="בדיקות ראייה ורשומות קליניות" />
+        <ExamsTable
+          data={exams}
+          clientId={0}
+          onExamDeleted={handleExamDeleted}
+          onExamDeleteFailed={handleExamDeleteFailed}
           searchQuery={searchInput}
           onSearchChange={handleSearchInputChange}
           serverFiltered={true}
@@ -133,17 +142,17 @@ export default function AllExamsPage() {
           onTestNameFilterChange={(value) =>
             navigate({
               to: "/exams",
-              search: buildSearchState({ testName: value, page: 1 }),
+              search: buildSearchState({ testName: value, page: 1 })
             })
           }
           sort={activeSort}
           onSortChange={(sort) =>
             navigate({
               to: "/exams",
-              search: buildSearchState({ sort: sortToSearch(sort), page: 1 }),
+              search: buildSearchState({ sort: sortToSearch(sort), page: 1 })
             })
           }
-          loading={loading} 
+          loading={loading}
           pagination={{
             page: search.page,
             pageSize,
@@ -151,11 +160,11 @@ export default function AllExamsPage() {
             setPage: (page) =>
               navigate({
                 to: "/exams",
-                search: buildSearchState({ page }),
-              }),
+                search: buildSearchState({ page })
+              })
           }}
         />
       </div>
     </>
   )
-} 
+}

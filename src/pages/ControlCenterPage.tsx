@@ -267,14 +267,11 @@ export default function ControlCenterPage() {
                     onPrevious={handlePreviousStep}
                   />
                 ) : isRegisterMode ? (
-                  <RegisterForm
-                    form={registerForm}
-                    setForm={setRegisterForm}
-                    loading={loading}
-                    onSubmit={handleRegister}
-                    onGoogleClick={handleGoogleLogin}
-                    onToggleMode={() => setIsRegisterMode(false)}
-                  />
+                  <div className="flex flex-col justify-center gap-6 p-8 text-right" dir="rtl">
+                    <div><h2 className="text-2xl font-semibold">פתיחת חשבון חדש באתר Prysm</h2><p className="mt-2 text-sm leading-6 text-muted-foreground">בחרו תוכנית, אשרו אימייל והתחילו חודש ניסיון דרך תהליך ההרשמה המאובטח באתר.</p></div>
+                    <Button type="button" className="w-full" onClick={() => window.electronAPI.openExternalAuthUrl("https://prysm.co.il/signup")}>פתיחת אתר ההרשמה</Button>
+                    <Button type="button" variant="ghost" onClick={() => setIsRegisterMode(false)}>חזרה להתחברות</Button>
+                  </div>
                 ) : (
                   <LoginForm
                     form={loginForm}

@@ -3,20 +3,14 @@ import { useNavigate } from "@tanstack/react-router"
 import { Client } from "@/lib/db/schema-interface"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { PlusIcon, Trash2 } from "lucide-react"
 import { CustomModal } from "@/components/ui/custom-modal"
 import { deleteClient } from "@/lib/db/clients-db"
 import { toast } from "sonner"
 import { Skeleton } from "@/components/ui/skeleton"
 import { TableFiltersBar } from "@/components/table-filters-bar"
+import { TablePagination } from "@/components/table-pagination"
 import { GENDER_FILTER_OPTIONS } from "@/lib/table-filters"
 import { SortableTableHead } from "@/components/sortable-table-head"
 import { SortColumns, SortState, sortRows } from "@/lib/table-sorting"
@@ -35,7 +29,12 @@ interface ClientsTableProps {
   hideNewButton?: boolean
   compactMode?: boolean
   loading?: boolean
-  pagination?: { page: number; pageSize: number; total: number; setPage: (p: number) => void }
+  pagination?: {
+    page: number
+    pageSize: number
+    total: number
+    setPage: (p: number) => void
+  }
   genderFilter?: string
   onGenderFilterChange?: (value: string) => void
   toolbarActions?: React.ReactNode
@@ -47,9 +46,9 @@ interface ClientsTableProps {
   onToggleMergeClient?: (client: Client) => void
 }
 
-export function ClientsTable({ 
-  data, 
-  onClientDeleted, 
+export function ClientsTable({
+  data,
+  onClientDeleted,
   onClientDeleteFailed,
   selectedFamilyId,
   showFamilyColumn = false,
@@ -69,7 +68,7 @@ export function ClientsTable({
   mergeMode = false,
   selectedMergeClientIds = [],
   selectedMergeClients = [],
-  onToggleMergeClient,
+  onToggleMergeClient
 }: ClientsTableProps) {
   const [internalSearchQuery, setInternalSearchQuery] = React.useState("")
   const [selectedGender, setSelectedGender] = React.useState<string>("all")
@@ -83,16 +82,19 @@ export function ClientsTable({
   const activeSort = sort ?? localSort
   const handleSortChange = onSortChange ?? setLocalSort
 
-  const sortColumns = React.useMemo<SortColumns<Client>>(() => ({
-    id: { getValue: (client) => client.id, type: "number" },
-    first_name: { getValue: (client) => client.first_name },
-    last_name: { getValue: (client) => client.last_name },
-    gender: { getValue: (client) => client.gender },
-    national_id: { getValue: (client) => client.national_id },
-    phone_mobile: { getValue: (client) => client.phone_mobile },
-    email: { getValue: (client) => client.email },
-    family_role: { getValue: (client) => client.family_role },
-  }), [])
+  const sortColumns = React.useMemo<SortColumns<Client>>(
+    () => ({
+      id: { getValue: (client) => client.id, type: "number" },
+      first_name: { getValue: (client) => client.first_name },
+      last_name: { getValue: (client) => client.last_name },
+      gender: { getValue: (client) => client.gender },
+      national_id: { getValue: (client) => client.national_id },
+      phone_mobile: { getValue: (client) => client.phone_mobile },
+      email: { getValue: (client) => client.email },
+      family_role: { getValue: (client) => client.family_role }
+    }),
+    []
+  )
 
   const handleSearchChange = (value: string) => {
     if (onSearchChange) {
@@ -122,7 +124,7 @@ export function ClientsTable({
     }
 
     if (!serverFiltered && genderFilter !== "all") {
-      filtered = filtered.filter(client => client.gender === genderFilter)
+      filtered = filtered.filter((client) => client.gender === genderFilter)
     }
 
     if (!serverFiltered && searchQuery && filtered.length > 0) {
@@ -132,18 +134,15 @@ export function ClientsTable({
           client.last_name,
           client.national_id,
           client.phone_mobile,
-          client.email,
+          client.email
         ]
 
-        return searchableFields.some(
-          (field) =>
-            field && field.toLowerCase().includes(searchQuery.toLowerCase()),
-        ) || [
-          client.date_of_birth,
-          client.file_creation_date,
-          client.membership_end,
-          client.service_end,
-        ].some((date) => DateSearchHelper.matchesDate(searchQuery, date))
+        return (
+          searchableFields.some((field) => field && field.toLowerCase().includes(searchQuery.toLowerCase())) ||
+          [client.date_of_birth, client.file_creation_date, client.membership_end, client.service_end].some((date) =>
+            DateSearchHelper.matchesDate(searchQuery, date)
+          )
+        )
       })
     }
 
@@ -179,17 +178,22 @@ export function ClientsTable({
   const handleRowClick = (clientId: number | undefined) => {
     if (clientId === undefined) return
     if (mergeMode) {
-      const client = displayData.find(item => item.id === clientId) || selectedMergeClients.find(item => item.id === clientId)
+      const client =
+        displayData.find((item) => item.id === clientId) || selectedMergeClients.find((item) => item.id === clientId)
       if (client) onToggleMergeClient?.(client)
       return
     }
-    navigate({ to: "/clients/$clientId", params: { clientId: String(clientId) }, search: { tab: "details" } })
+    navigate({
+      to: "/clients/$clientId",
+      params: { clientId: String(clientId) },
+      search: { tab: "details" }
+    })
   }
 
-  const columnsCount = (compactMode ? (showFamilyColumn ? 6 : 5) : (showFamilyColumn ? 9 : 8)) + (mergeMode ? 1 : 0)
+  const columnsCount = (compactMode ? (showFamilyColumn ? 6 : 5) : showFamilyColumn ? 9 : 8) + (mergeMode ? 1 : 0)
 
   return (
-    <div className="space-y-2.5 mb-10" dir="rtl" style={{ scrollbarWidth: 'none' }}>
+    <div className="space-y-2.5" dir="rtl" style={{ scrollbarWidth: "none" }}>
       {!hideSearch && (
         <TableFiltersBar
           searchValue={searchQuery}
@@ -202,8 +206,8 @@ export function ClientsTable({
               onChange: handleGenderFilterChange,
               placeholder: "מגדר",
               options: GENDER_FILTER_OPTIONS,
-              widthClassName: "w-[130px]",
-            },
+              widthClassName: "w-[130px]"
+            }
           ]}
           hasActiveFilters={Boolean(searchQuery.trim()) || genderFilter !== "all"}
           onReset={() => {
@@ -224,37 +228,101 @@ export function ClientsTable({
         />
       )}
 
-      <div className="rounded-md bg-card">
+      <div className="bg-card rounded-md">
         <Table
           dir="rtl"
           containerClassName="max-h-[70vh] overflow-y-auto overscroll-contain"
-          containerStyle={{ scrollbarWidth: 'none' }}
+          containerStyle={{ scrollbarWidth: "none" }}
         >
-          <TableHeader className="sticky top-0 bg-card">
+          <TableHeader className="bg-card sticky top-0">
             <TableRow>
-              {mergeMode && <TableHead className="w-[44px] !p-0 text-right sticky top-0 z-20 bg-card"></TableHead>}
-              <SortableTableHead sortKey="id" sort={activeSort} onSortChange={handleSortChange} className="text-right sticky top-0 z-20 bg-card">מס' לקוח</SortableTableHead>
-              <SortableTableHead sortKey="first_name" sort={activeSort} onSortChange={handleSortChange} className="text-right sticky top-0 z-20 bg-card">שם פרטי</SortableTableHead>
-              <SortableTableHead sortKey="last_name" sort={activeSort} onSortChange={handleSortChange} className="text-right sticky top-0 z-20 bg-card">שם משפחה</SortableTableHead>
-              {!compactMode && <SortableTableHead sortKey="gender" sort={activeSort} onSortChange={handleSortChange} className="text-right sticky top-0 z-20 bg-card">מגדר</SortableTableHead>}
-              <SortableTableHead sortKey="national_id" sort={activeSort} onSortChange={handleSortChange} className="text-right sticky top-0 z-20 bg-card">ת.ז.</SortableTableHead>
-              {!compactMode && <SortableTableHead sortKey="phone_mobile" sort={activeSort} onSortChange={handleSortChange} className="text-right sticky top-0 z-20 bg-card">נייד</SortableTableHead>}
-              {!compactMode && <SortableTableHead sortKey="email" sort={activeSort} onSortChange={handleSortChange} className="text-right sticky top-0 z-20 bg-card">אימייל</SortableTableHead>}
-              {showFamilyColumn && <SortableTableHead sortKey="family_role" sort={activeSort} onSortChange={handleSortChange} className="text-right sticky top-0 z-20 bg-card">תפקיד במשפחה</SortableTableHead>}
-              <TableHead className="w-[50px] text-right sticky top-0 z-20 bg-card"></TableHead>
+              {mergeMode && <TableHead className="bg-card sticky top-0 z-20 w-[44px] !p-0 text-right"></TableHead>}
+              <SortableTableHead
+                sortKey="id"
+                sort={activeSort}
+                onSortChange={handleSortChange}
+                className="bg-card sticky top-0 z-20 text-right"
+              >
+                מס' לקוח
+              </SortableTableHead>
+              <SortableTableHead
+                sortKey="first_name"
+                sort={activeSort}
+                onSortChange={handleSortChange}
+                className="bg-card sticky top-0 z-20 text-right"
+              >
+                שם פרטי
+              </SortableTableHead>
+              <SortableTableHead
+                sortKey="last_name"
+                sort={activeSort}
+                onSortChange={handleSortChange}
+                className="bg-card sticky top-0 z-20 text-right"
+              >
+                שם משפחה
+              </SortableTableHead>
+              {!compactMode && (
+                <SortableTableHead
+                  sortKey="gender"
+                  sort={activeSort}
+                  onSortChange={handleSortChange}
+                  className="bg-card sticky top-0 z-20 text-right"
+                >
+                  מגדר
+                </SortableTableHead>
+              )}
+              <SortableTableHead
+                sortKey="national_id"
+                sort={activeSort}
+                onSortChange={handleSortChange}
+                className="bg-card sticky top-0 z-20 text-right"
+              >
+                ת.ז.
+              </SortableTableHead>
+              {!compactMode && (
+                <SortableTableHead
+                  sortKey="phone_mobile"
+                  sort={activeSort}
+                  onSortChange={handleSortChange}
+                  className="bg-card sticky top-0 z-20 text-right"
+                >
+                  נייד
+                </SortableTableHead>
+              )}
+              {!compactMode && (
+                <SortableTableHead
+                  sortKey="email"
+                  sort={activeSort}
+                  onSortChange={handleSortChange}
+                  className="bg-card sticky top-0 z-20 text-right"
+                >
+                  אימייל
+                </SortableTableHead>
+              )}
+              {showFamilyColumn && (
+                <SortableTableHead
+                  sortKey="family_role"
+                  sort={activeSort}
+                  onSortChange={handleSortChange}
+                  className="bg-card sticky top-0 z-20 text-right"
+                >
+                  תפקיד במשפחה
+                </SortableTableHead>
+              )}
+              <TableHead className="bg-card sticky top-0 z-20 w-[50px] text-right"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {mergeMode && selectedMergeClients.length > 0 && (
-              <TableRow className="sticky top-10 z-10 bg-muted/90 hover:bg-muted/90">
+              <TableRow className="bg-muted/90 hover:bg-muted/90 sticky top-10 z-10">
                 <TableCell colSpan={columnsCount} className="!p-0">
                   <div className="flex flex-wrap items-center gap-2 px-4 py-2 text-xs">
-                    <span className="font-medium text-muted-foreground">לקוחות שנבחרו למיזוג</span>
+                    <span className="text-muted-foreground font-medium">לקוחות שנבחרו למיזוג</span>
                     {selectedMergeClients.map((client) => (
                       <button
                         key={`selected-${client.id}`}
                         type="button"
-                        className="inline-flex max-w-[240px] items-center gap-2 rounded-md border bg-background px-2 py-1 text-right hover:bg-accent"
+                        className="bg-background hover:bg-accent inline-flex max-w-[240px] items-center gap-2 rounded-md border px-2 py-1 text-right"
                         onClick={() => onToggleMergeClient?.(client)}
                       >
                         <Checkbox checked={true} className="pointer-events-none h-3.5 w-3.5" />
@@ -273,54 +341,50 @@ export function ClientsTable({
                   {mergeMode && (
                     <TableCell className="w-[44px] !p-0">
                       <div className="flex h-full min-h-9 items-center justify-center">
-                        <Skeleton className="h-4 w-4 my-2" />
+                        <Skeleton className="my-2 h-4 w-4" />
                       </div>
                     </TableCell>
                   )}
                   <TableCell>
-                    <Skeleton className="w-[20%] h-4 my-2" />
+                    <Skeleton className="my-2 h-4 w-[20%]" />
                   </TableCell>
                   <TableCell>
-                    <Skeleton className="w-[70%] h-4 my-2" />
+                    <Skeleton className="my-2 h-4 w-[70%]" />
                   </TableCell>
                   <TableCell>
-                    <Skeleton className="w-[70%] h-4 my-2" />
+                    <Skeleton className="my-2 h-4 w-[70%]" />
                   </TableCell>
                   {!compactMode && (
                     <TableCell>
-                      <Skeleton className="w-[70%] h-4 my-2" />
+                      <Skeleton className="my-2 h-4 w-[70%]" />
                     </TableCell>
                   )}
                   <TableCell>
-                    <Skeleton className="w-[70%] h-4 my-2" />
+                    <Skeleton className="my-2 h-4 w-[70%]" />
                   </TableCell>
                   {!compactMode && (
                     <TableCell>
-                      <Skeleton className="w-[70%] h-4 my-2" />
+                      <Skeleton className="my-2 h-4 w-[70%]" />
                     </TableCell>
                   )}
                   {!compactMode && (
                     <TableCell>
-                      <Skeleton className="w-[70%] h-4 my-2" />
+                      <Skeleton className="my-2 h-4 w-[70%]" />
                     </TableCell>
                   )}
                   {showFamilyColumn && (
                     <TableCell>
-                      <Skeleton className="w-[70%] h-4 my-2" />
+                      <Skeleton className="my-2 h-4 w-[70%]" />
                     </TableCell>
                   )}
                   <TableCell>
-                    <Skeleton className="w-[70%] h-4 my-2" />
+                    <Skeleton className="my-2 h-4 w-[70%]" />
                   </TableCell>
                 </TableRow>
               ))
             ) : displayData.length > 0 ? (
               displayData.map((client) => (
-                <TableRow
-                  key={client.id}
-                  className="cursor-pointer"
-                  onClick={() => handleRowClick(client.id)}
-                >
+                <TableRow key={client.id} className="cursor-pointer" onClick={() => handleRowClick(client.id)}>
                   {mergeMode && (
                     <TableCell className="w-[44px] !p-0">
                       <div className="flex h-full min-h-9 items-center justify-center">
@@ -341,14 +405,14 @@ export function ClientsTable({
                   {!compactMode && <TableCell>{client.email || ""}</TableCell>}
                   {showFamilyColumn && <TableCell>{client.family_role || ""}</TableCell>}
                   <TableCell>
-                    <Button 
-                      variant="ghost" 
-                      className="h-8 w-8 p-0" 
+                    <Button
+                      variant="ghost"
+                      className="h-8 w-8 p-0"
                       onClick={(e) => {
-                        e.stopPropagation();
-                        setClientToDelete(client);
-                        setIsDeleteModalOpen(true);
-                      }} 
+                        e.stopPropagation()
+                        setClientToDelete(client)
+                        setIsDeleteModalOpen(true)
+                      }}
                       title="מחיקה"
                     >
                       <Trash2 className="h-4 w-4 text-red-600" />
@@ -358,9 +422,12 @@ export function ClientsTable({
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={columnsCount} className="h-24 text-center text-muted-foreground">
-                  {showFamilyColumn && !selectedFamilyId ? 'בחר משפחה כדי לראות את חבריה' : 
-                   selectedFamilyId ? 'לא נמצאו לקוחות במשפחה זו' : 'לא נמצאו לקוחות לתצוגה'}
+                <TableCell colSpan={columnsCount} className="text-muted-foreground h-24 text-center">
+                  {showFamilyColumn && !selectedFamilyId
+                    ? "בחר משפחה כדי לראות את חבריה"
+                    : selectedFamilyId
+                      ? "לא נמצאו לקוחות במשפחה זו"
+                      : "לא נמצאו לקוחות לתצוגה"}
                 </TableCell>
               </TableRow>
             )}
@@ -368,33 +435,25 @@ export function ClientsTable({
         </Table>
       </div>
 
-      {pagination && (
-        <div className="flex items-center justify-between mt-4">
-          <div className="text-sm text-muted-foreground">
-            עמוד {pagination.page} מתוך {Math.max(1, Math.ceil((pagination.total || 0) / (pagination.pageSize || 1)))} · סה"כ {pagination.total || 0}
-          </div>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={loading || pagination.page <= 1}
-              onClick={() => pagination.setPage(Math.max(1, pagination.page - 1))}
-            >הקודם</Button>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={loading || pagination.page >= Math.ceil((pagination.total || 0) / (pagination.pageSize || 1))}
-              onClick={() => pagination.setPage(pagination.page + 1)}
-            >הבא</Button>
-          </div>
-        </div>
-      )}
+      {pagination ? (
+        <TablePagination
+          page={pagination.page}
+          pageSize={pagination.pageSize}
+          total={pagination.total}
+          onPageChange={pagination.setPage}
+          loading={loading}
+        />
+      ) : null}
 
       <CustomModal
         isOpen={isDeleteModalOpen}
         onClose={() => setIsDeleteModalOpen(false)}
         title="מחיקת לקוח"
-        description={clientToDelete ? `האם אתה בטוח שברצונך למחוק את הלקוח ${clientToDelete.first_name} ${clientToDelete.last_name}? פעולה זו אינה הפיכה.` : "האם אתה בטוח שברצונך למחוק לקוח זה? פעולה זו אינה הפיכה."}
+        description={
+          clientToDelete
+            ? `האם אתה בטוח שברצונך למחוק את הלקוח ${clientToDelete.first_name} ${clientToDelete.last_name}? פעולה זו אינה הפיכה.`
+            : "האם אתה בטוח שברצונך למחוק לקוח זה? פעולה זו אינה הפיכה."
+        }
         onConfirm={handleDeleteConfirm}
         confirmText="מחק"
         className="text-center"

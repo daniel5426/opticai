@@ -11,7 +11,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from backend.migration.optitech.src import phase2, records
-from backend.migration.optitech.src.trace import clear_stale_raw_snapshots, load_trace_index
+from backend.migration.optitech.src.trace import load_trace_index
 from models import Base, Client, Clinic, Company
 
 
@@ -54,6 +54,37 @@ def test_family_seed_prefers_head_name_and_detects_mixed_variants():
     assert summary["mixed_last_name_family_sample"][0]["legacy_family_id"] == 99
 
 
+def test_client_payload_resolves_city_and_complete_referrer_hierarchy():
+    seed = records.normalize_client_row(
+        {
+            "PerId": "7",
+            "Address": "Main 12",
+            "CityId": "3",
+            "RefId": "10",
+            "RefsSub1Id": "11",
+            "RefsSub2Id": "12",
+        }
+    )
+    payload = phase2.client_payload_from_seed(
+        seed,
+        clinic_id=1,
+        company_id=2,
+        family_target_id=None,
+        catalog={
+            "tblCitys": {3: "Haifa"},
+            "tblRefs": {10: "Doctor"},
+            "tblRefsSub1": {11: "Clinic"},
+            "tblRefsSub2": {12: "Campaign"},
+        },
+    )
+
+    assert payload["address_city"] == "Haifa"
+    assert payload["address_street"] == "Main 12"
+    assert payload["address_number"] is None
+    assert payload["referring_party"] == "Doctor / Clinic / Campaign"
+    assert payload["status"] is None
+
+
 def test_user_payload_mapping_applies_role_and_inactive_rules():
     inactive_seed = records.normalize_user_row(
         {"UserId": "203", "FirstName": "ראשונה", "LastName": "הפעלה", "LevelId": "5"}
@@ -62,15 +93,20 @@ def test_user_payload_mapping_applies_role_and_inactive_rules():
         {"UserId": "248", "FirstName": "לנה", "LastName": "צרניאקוב", "LevelId": "4", "CellPhone": "050"}
     )
 
-    inactive_payload = phase2.user_payload_from_seed(inactive_seed, clinic_id=1, company_id=2)
-    active_payload = phase2.user_payload_from_seed(active_seed, clinic_id=1, company_id=2)
+    inactive_payload = phase2.user_payload_from_seed(
+        inactive_seed, clinic_id=1, company_id=2, source_fingerprint="Clinic-A/2026"
+    )
+    active_payload = phase2.user_payload_from_seed(
+        active_seed, clinic_id=1, company_id=2, source_fingerprint="Clinic-A/2026"
+    )
 
-    assert inactive_payload["username"] == "optitech-user-203"
+    assert inactive_payload["username"] == "optitech-clinica2026-user-203"
     assert inactive_payload["role_level"] == 4
     assert inactive_payload["is_active"] is False
     assert inactive_payload["password"] is None
     assert active_payload["role_level"] == 3
-    assert active_payload["is_active"] is True
+    assert active_payload["is_active"] is False
+    assert active_payload["password"] is None
     assert active_payload["phone"] == "050"
 
 
@@ -88,6 +124,7 @@ def test_client_trace_rerun_updates_existing_target_without_duplicates():
         clinic_id=clinic.id,
         company_id=company.id,
         unmapped_report={},
+        migration_job_id="job-1",
     )
     db.commit()
 
@@ -101,6 +138,7 @@ def test_client_trace_rerun_updates_existing_target_without_duplicates():
         clinic_id=clinic.id,
         company_id=company.id,
         unmapped_report={},
+        migration_job_id="job-1",
     )
     db.commit()
 
@@ -130,6 +168,7 @@ def test_client_trace_recreates_deleted_target_and_repoints_trace():
         clinic_id=clinic.id,
         company_id=company.id,
         unmapped_report={},
+        migration_job_id="job-1",
     )
     db.commit()
     first_client = db.query(Client).one()
@@ -145,6 +184,7 @@ def test_client_trace_recreates_deleted_target_and_repoints_trace():
         clinic_id=clinic.id,
         company_id=company.id,
         unmapped_report={},
+        migration_job_id="job-1",
     )
     db.commit()
 
@@ -188,7 +228,7 @@ def test_client_trace_retains_raw_source_only_for_job_backed_imports():
     assert db.get(type(link), link.id).raw_payload == raw_row
 
 
-def test_completed_optitech_reimport_clears_stale_raw_snapshots():
+def test_new_v2_job_does_not_mutate_previous_import_links():
     db = _build_session()
     company, clinic = _create_company_and_clinic(db)
     first_row = {"PerId": "123", "FirstName": "First"}
@@ -214,12 +254,13 @@ def test_completed_optitech_reimport_clears_stale_raw_snapshots():
         unmapped_report={},
         migration_job_id="job-2",
     )
-    clear_stale_raw_snapshots(db, clinic_id=clinic.id, migration_job_id="job-2")
     db.commit()
 
     links, _ = load_trace_index(db, clinic_id=clinic.id, target_model="Client")
-    assert links["tblPerData:PerId=123"].migration_job_id == "job-2"
-    assert links["tblPerData:PerId=456"].raw_payload is None
+    assert links["tblPerData:PerId=123"].migration_job_id == "job-1"
+    assert links["tblPerData:PerId=123"].raw_payload == first_row
+    assert links["tblPerData:PerId=456"].raw_payload == stale_row
+    assert db.query(Client).filter(Client.first_name == "Current").count() == 0
 
 
 def test_trace_write_failure_aborts_the_import_unit(monkeypatch):

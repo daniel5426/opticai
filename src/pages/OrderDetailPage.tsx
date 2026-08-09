@@ -67,6 +67,7 @@ type Frame = {
   width?: number;
   height?: number;
   length?: number;
+  warranty_expiration?: string;
 };
 
 type LensFrameTab = {
@@ -135,6 +136,13 @@ import { inputSyncManager } from "@/components/exam/shared/OptimizedInputs";
 import { flushSync } from "react-dom";
 import { syncSavedClientOrder } from "@/hooks/client/clientTabCache";
 import { ImportedSourceDataDialog } from "@/components/migration/ImportedSourceDataDialog";
+import { apiClient } from "@/lib/api-client";
+import {
+  CatalogVariant,
+  FulfillmentSource,
+  InventoryComponent,
+  InventorySelection,
+} from "@/lib/inventory";
 
 interface OrderDetailPageProps {
   mode?: "view" | "edit" | "new";
@@ -333,6 +341,11 @@ export default function OrderDetailPage({
   const [keratoCLData, setKeratoCLData] = useState<any>({});
   const [schirmerData, setSchirmerData] = useState<any>({});
   const [diametersData, setDiametersData] = useState<any>({});
+  const [inventorySelections, setInventorySelections] = useState<
+    InventorySelection[]
+  >([]);
+  const [inventorySelectionsLoaded, setInventorySelectionsLoaded] =
+    useState(isNewMode);
 
   const [formData, setFormData] = useState<Order>(() => {
     if (isNewMode) {
@@ -386,6 +399,7 @@ export default function OrderDetailPage({
   const schirmerDataRef = useRef(schirmerData);
   const diametersDataRef = useRef(diametersData);
   const orderLineItemsRef = useRef(orderLineItems);
+  const inventorySelectionsRef = useRef(inventorySelections);
 
   useEffect(() => {
     formDataRef.current = formData;
@@ -453,6 +467,9 @@ export default function OrderDetailPage({
   useEffect(() => {
     orderLineItemsRef.current = orderLineItems;
   }, [orderLineItems]);
+  useEffect(() => {
+    inventorySelectionsRef.current = inventorySelections;
+  }, [inventorySelections]);
 
   const type: ExamComponentType = "final-prescription";
   const getExamFormData = useCallback(
@@ -477,6 +494,7 @@ export default function OrderDetailPage({
         diametersData,
         orderLineItems,
         deletedOrderLineItemIds,
+        inventorySelections,
       }),
     [
       isContactMode,
@@ -493,6 +511,7 @@ export default function OrderDetailPage({
       diametersData,
       orderLineItems,
       deletedOrderLineItemIds,
+      inventorySelections,
     ],
   );
 
@@ -603,6 +622,35 @@ export default function OrderDetailPage({
         // Load users for display purposes
         const usersData = await getAllUsers();
         setUsers(usersData);
+
+        if (orderId) {
+          setInventorySelectionsLoaded(false);
+          try {
+            const allocationResponse = await apiClient.getOrderInventoryAllocations(
+              isContactMode ? "contact" : "regular",
+              Number(orderId),
+            );
+            if (!allocationResponse.error) {
+              const activeAllocations = (allocationResponse.data?.items || []).filter(
+                (selection) =>
+                  selection.lifecycle_state !== "released" &&
+                  selection.lifecycle_state !== "detached",
+              );
+              setInventorySelections(activeAllocations);
+              inventorySelectionsRef.current = activeAllocations;
+              setInventorySelectionsLoaded(true);
+            }
+          } catch (allocationError) {
+            console.warn(
+              "Inventory allocations are unavailable; preserving legacy order behavior",
+              allocationError,
+            );
+          }
+        } else {
+          setInventorySelections([]);
+          inventorySelectionsRef.current = [];
+          setInventorySelectionsLoaded(true);
+        }
 
         if (orderId && !isContactMode) {
           const orderData = await getOrderById(Number(orderId));
@@ -960,6 +1008,258 @@ export default function OrderDetailPage({
     }
   }, [order, billing, finalPrescription]);
 
+  const selectionFor = (component: InventoryComponent) =>
+    inventorySelections.find((selection) => selection.component === component) ||
+    null;
+
+  const replaceSuggestedBillingLine = (
+    previous: InventorySelection | null,
+    variant: CatalogVariant | null,
+    quantity: number,
+  ) => {
+    setOrderLineItems((currentItems) => {
+      const previousSku = previous?.variant?.sku;
+      const previousDescription = previous?.variant?.display_name;
+      const matchesPrevious = (item: OrderLineItem) =>
+        previousSku
+          ? item.sku === previousSku
+          : Boolean(previousDescription && item.description === previousDescription);
+      const previousIndex = previous
+        ? currentItems.findIndex(matchesPrevious)
+        : -1;
+      let nextItems = [...currentItems];
+
+      if (!variant || variant.default_retail == null) {
+        if (previousIndex >= 0) nextItems.splice(previousIndex, 1);
+        orderLineItemsRef.current = nextItems;
+        return nextItems;
+      }
+
+      const suggestedItem: OrderLineItem = {
+        id:
+          previousIndex >= 0
+            ? nextItems[previousIndex].id
+            : -(
+                Math.max(
+                  0,
+                  ...nextItems.map((item) => Math.abs(item.id || 0)),
+                ) + 1
+              ),
+        billings_id:
+          previousIndex >= 0
+            ? nextItems[previousIndex].billings_id
+            : billingFormDataRef.current.id || 0,
+        sku: variant.sku || "",
+        description: variant.display_name,
+        supplied_by: "חנות",
+        supplied: false,
+        price: variant.default_retail,
+        quantity,
+        discount: 0,
+        line_total: Math.round(variant.default_retail * quantity * 100) / 100,
+      };
+      if (previousIndex >= 0) nextItems[previousIndex] = suggestedItem;
+      else nextItems.push(suggestedItem);
+      orderLineItemsRef.current = nextItems;
+      return nextItems;
+    });
+  };
+
+  const commitInventorySelection = (
+    component: InventoryComponent,
+    variant: CatalogVariant,
+    fulfillmentSource: FulfillmentSource,
+    quantity: number,
+  ) => {
+    const previous =
+      inventorySelectionsRef.current.find(
+        (selection) => selection.component === component,
+      ) || null;
+    const nextSelection: InventorySelection = {
+      component,
+      variant_id: variant.id,
+      quantity,
+      fulfillment_source: fulfillmentSource,
+      lifecycle_state:
+        fulfillmentSource === "inventory" ? "reserved" : "supplier_ordered",
+      variant,
+    };
+    const next = [
+      ...inventorySelectionsRef.current.filter(
+        (selection) => selection.component !== component,
+      ),
+      nextSelection,
+    ];
+    inventorySelectionsRef.current = next;
+    setInventorySelections(next);
+    setInventorySelectionsLoaded(true);
+    replaceSuggestedBillingLine(previous, variant, quantity);
+  };
+
+  const clearInventorySelection = (component: InventoryComponent) => {
+    const previous =
+      inventorySelectionsRef.current.find(
+        (selection) => selection.component === component,
+      ) || null;
+    if (previous?.lifecycle_state === "consumed") {
+      toast.error("לא ניתן לשנות פריט מלאי לאחר מסירת ההזמנה");
+      return false;
+    }
+    const next = inventorySelectionsRef.current.filter(
+      (selection) => selection.component !== component,
+    );
+    inventorySelectionsRef.current = next;
+    setInventorySelections(next);
+    replaceSuggestedBillingLine(previous, null, 1);
+    return true;
+  };
+
+  const handleFrameInventorySelect = (
+    variant: CatalogVariant,
+    fulfillmentSource: FulfillmentSource,
+  ) => {
+    const attributes = variant.attributes || {};
+    const numberOrUndefined = (value: unknown) => {
+      const number = Number(value);
+      return value === "" || value == null || Number.isNaN(number)
+        ? undefined
+        : number;
+    };
+    setLensFrameTab((current) => ({
+      ...current,
+      frame: {
+        ...current.frame,
+        manufacturer: variant.product.brand || undefined,
+        model: variant.product.model,
+        supplier:
+          variant.product.preferred_supplier || current.frame.supplier,
+        color: String(attributes.color || "") || undefined,
+        width: numberOrUndefined(attributes.eye_size),
+        bridge: numberOrUndefined(attributes.bridge),
+        height: numberOrUndefined(attributes.height),
+        length: numberOrUndefined(attributes.temple_length),
+        supplied_by: "חנות",
+      },
+    }));
+    commitInventorySelection("frame", variant, fulfillmentSource, 1);
+  };
+
+  const handleContactInventorySelect = (
+    side: "right" | "left",
+    variant: CatalogVariant,
+    fulfillmentSource: FulfillmentSource,
+  ) => {
+    const prefix = side === "right" ? "r" : "l";
+    const component: InventoryComponent =
+      side === "right" ? "contact_right" : "contact_left";
+    const attributes = variant.attributes || {};
+    const existingQuantity = Number(
+      contactLensDetailsDataRef.current?.[`${prefix}_quantity`],
+    );
+    const quantity =
+      Number.isInteger(existingQuantity) && existingQuantity > 0
+        ? existingQuantity
+        : 1;
+    setContactLensDetailsData((current: any) => ({
+      ...current,
+      [`${prefix}_type`]: variant.product.product_type || "",
+      [`${prefix}_model`]: variant.product.model,
+      [`${prefix}_supplier`]:
+        variant.product.preferred_supplier || current[`${prefix}_supplier`] || "",
+      [`${prefix}_material`]: variant.product.material || "",
+      [`${prefix}_color`]: attributes.color || "",
+      [`${prefix}_quantity`]: quantity,
+    }));
+    setContactLensExamData((current: any) => ({
+      ...current,
+      [`${prefix}_sph`]: attributes.sph ?? "",
+      [`${prefix}_bc`]: attributes.bc ?? "",
+      [`${prefix}_diam`]: attributes.dia ?? "",
+      [`${prefix}_cyl`]: attributes.cyl ?? "",
+      [`${prefix}_ax`]: attributes.axis ?? "",
+      [`${prefix}_read_ad`]: attributes.add ?? "",
+    }));
+    commitInventorySelection(component, variant, fulfillmentSource, quantity);
+  };
+
+  const handleContactInventoryRelevantFieldChange = (
+    field: string,
+    value: unknown,
+  ) => {
+    const side = field.startsWith("r_")
+      ? "right"
+      : field.startsWith("l_")
+        ? "left"
+        : null;
+    if (!side) return true;
+    const suffix = field.slice(2);
+    const identityFields = new Set([
+      "type",
+      "model",
+      "supplier",
+      "material",
+      "color",
+      "sph",
+      "bc",
+      "diam",
+      "cyl",
+      "ax",
+      "read_ad",
+    ]);
+    if (suffix !== "quantity" && !identityFields.has(suffix)) return true;
+
+    const component: InventoryComponent =
+      side === "right" ? "contact_right" : "contact_left";
+    const selection =
+      inventorySelectionsRef.current.find(
+        (entry) => entry.component === component,
+      ) || null;
+    if (!selection) return true;
+    const currentValue =
+      contactLensExamDataRef.current?.[field] ??
+      contactLensDetailsDataRef.current?.[field];
+    if (String(currentValue ?? "") === String(value ?? "")) return true;
+    if (selection.lifecycle_state === "consumed") {
+      toast.error("לא ניתן לשנות פריט מלאי לאחר מסירת ההזמנה");
+      return false;
+    }
+    if (suffix === "quantity") {
+      const quantity = Number(value);
+      if (!Number.isInteger(quantity) || quantity <= 0) {
+        toast.error("כמות מלאי חייבת להיות מספר שלם וחיובי");
+        return false;
+      }
+      commitInventorySelection(
+        component,
+        selection.variant!,
+        selection.fulfillment_source,
+        quantity,
+      );
+      return true;
+    }
+    clearInventorySelection(component);
+    return true;
+  };
+
+  const applySavedInventoryAllocations = (saved: unknown) => {
+    if (!Array.isArray(saved)) return inventorySelectionsRef.current;
+    const active = (saved as InventorySelection[]).filter(
+      (selection) =>
+        selection.lifecycle_state !== "released" &&
+        selection.lifecycle_state !== "detached",
+    );
+    const next = active.map((selection) => ({
+      ...selection,
+      variant:
+        inventorySelectionsRef.current.find(
+          (current) => current.variant_id === selection.variant_id,
+        )?.variant || selection.variant,
+    }));
+    inventorySelectionsRef.current = next;
+    setInventorySelections(next);
+    return next;
+  };
+
   const handleInputChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
   ) => {
@@ -992,6 +1292,17 @@ export default function OrderDetailPage({
   };
 
   const handleFrameFieldChange = (field: keyof Frame, value: string) => {
+    if (field !== "warranty_expiration") {
+      const currentFrameSelection =
+        inventorySelectionsRef.current.find(
+          (selection) => selection.component === "frame",
+        ) || null;
+      if (currentFrameSelection?.lifecycle_state === "consumed") {
+        toast.error("לא ניתן לשנות מסגרת מהמלאי לאחר מסירת ההזמנה");
+        return;
+      }
+      if (currentFrameSelection) clearInventorySelection("frame");
+    }
     const numericFields: (keyof Frame)[] = [
       "bridge",
       "width",
@@ -1114,6 +1425,14 @@ export default function OrderDetailPage({
     const currentSchirmerData = schirmerDataRef.current;
     const currentDiametersData = diametersDataRef.current;
     const currentOrderLineItems = orderLineItemsRef.current;
+    const serializedInventorySelections = inventorySelectionsRef.current.map(
+      ({ component, variant_id, quantity, fulfillment_source }) => ({
+        component,
+        variant_id,
+        quantity,
+        fulfillment_source,
+      }),
+    );
     const existingRegularOrderId =
       Number(currentFormData.id || order?.id || orderId) || undefined;
     const existingContactOrderId =
@@ -1236,6 +1555,9 @@ export default function OrderDetailPage({
             },
           ),
         };
+        if (inventorySelectionsLoaded) {
+          payload.inventory_selections = serializedInventorySelections;
+        }
         console.log(
           "Contact lens order payload:",
           JSON.stringify(payload, null, 2),
@@ -1290,6 +1612,9 @@ export default function OrderDetailPage({
           );
           setOrderLineItems(updatedLineItems as any);
           setDeletedOrderLineItemIds([]);
+          const nextInventorySelections = applySavedInventoryAllocations(
+            upsertResult.inventory_allocations,
+          );
 
           const nextBillingFormData = updatedBilling
             ? { ...billingFormData, ...(updatedBilling as any) }
@@ -1326,6 +1651,7 @@ export default function OrderDetailPage({
             diametersData: nextDiametersData,
             orderLineItems: updatedLineItems as any,
             deletedOrderLineItemIds: [],
+            inventorySelections: nextInventorySelections,
           });
 
           syncSavedClientOrder(queryClient, {
@@ -1346,7 +1672,12 @@ export default function OrderDetailPage({
           }
         } catch (error) {
           console.error("Error saving contact order:", error);
-          toast.error("שגיאה בשמירת ההזמנה (רשת)");
+          const message = error instanceof Error ? error.message : "";
+          toast.error(
+            message.includes("Insufficient available stock")
+              ? "המלאי השתנה ואין עוד כמות זמינה. פתח את בחירת הקטלוג ובחר הזמנה מספק."
+              : message || "שגיאה בשמירת ההזמנה",
+          );
           setIsEditing(true);
         }
         return;
@@ -1450,6 +1781,9 @@ export default function OrderDetailPage({
           },
         ),
       };
+      if (inventorySelectionsLoaded) {
+        payload.inventory_selections = serializedInventorySelections;
+      }
 
       console.log("Regular order payload:", JSON.stringify(payload, null, 2));
       console.log("Order line items count:", orderLineItems.length);
@@ -1547,6 +1881,9 @@ export default function OrderDetailPage({
         );
         setOrderLineItems(updatedLineItems);
         setDeletedOrderLineItemIds([]);
+        const nextInventorySelections = applySavedInventoryAllocations(
+          upsertResult.inventory_allocations,
+        );
 
         const nextBillingFormData = updatedBilling
           ? { ...billingFormData, ...(updatedBilling as any) }
@@ -1567,6 +1904,7 @@ export default function OrderDetailPage({
           diametersData,
           orderLineItems: updatedLineItems,
           deletedOrderLineItemIds: [],
+          inventorySelections: nextInventorySelections,
         });
 
         syncSavedClientOrder(queryClient, nextFormData);
@@ -1584,7 +1922,12 @@ export default function OrderDetailPage({
         }
       } catch (error) {
         console.error("Error saving regular order:", error);
-        toast.error("שגיאה בשמירת ההזמנה (רשת)");
+        const message = error instanceof Error ? error.message : "";
+        toast.error(
+          message.includes("Insufficient available stock")
+            ? "המלאי השתנה ואין עוד כמות זמינה. פתח את בחירת הקטלוג ובחר הזמנה מספק."
+            : message || "שגיאה בשמירת ההזמנה",
+        );
         setIsEditing(true);
       }
     } finally {
@@ -1972,6 +2315,9 @@ export default function OrderDetailPage({
                   lensFrameTab={lensFrameTab}
                   onLensFieldChange={handleLensFieldChange}
                   onFrameFieldChange={handleFrameFieldChange}
+                  selectedFrameInventory={selectionFor("frame")}
+                  onFrameInventorySelect={handleFrameInventorySelect}
+                  onFrameInventoryClear={() => clearInventorySelection("frame")}
                   orderDetailsFormData={orderDetailsFormData}
                   setOrderDetailsFormData={setOrderDetailsFormData}
                   clientOrderIndex={clientOrderIndex}
@@ -1991,6 +2337,20 @@ export default function OrderDetailPage({
                   setContactLensDetailsData={setContactLensDetailsData}
                   contactLensExamData={contactLensExamData}
                   setContactLensExamData={setContactLensExamData}
+                  clinicId={Number(
+                    contactFormData.clinic_id || currentClinic?.id || 0,
+                  )}
+                  rightInventorySelection={selectionFor("contact_right")}
+                  leftInventorySelection={selectionFor("contact_left")}
+                  onInventorySelect={handleContactInventorySelect}
+                  onInventoryClear={(side) =>
+                    clearInventorySelection(
+                      side === "right" ? "contact_right" : "contact_left",
+                    )
+                  }
+                  onInventoryRelevantFieldChange={
+                    handleContactInventoryRelevantFieldChange
+                  }
                   clientOrderIndex={clientOrderIndex}
                 />
               </TabsContent>

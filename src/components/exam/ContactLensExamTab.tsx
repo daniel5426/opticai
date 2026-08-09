@@ -9,6 +9,10 @@ import { CylTitle } from "./shared/CylTitle";
 import { useAxisWarning } from "./shared/useAxisWarning";
 import { AxisWarningInput } from "./shared/AxisWarningInput";
 import { ToggleTextNumberInput } from "./shared/ToggleTextNumberInput";
+import { VASelect } from "./shared/VASelect";
+import { NVJSelect } from "./shared/NVJSelect";
+
+const CONTACT_ADD_OPTIONS = ["Low", "Medium", "High"];
 
 interface ContactLensExamTabProps {
   contactLensExamData: ContactLensExam;
@@ -26,7 +30,6 @@ export function ContactLensExamTab({
   onContactLensExamChange,
   isEditing,
   hideEyeLabels = false,
-  needsMiddleSpacer = false,
 }: ContactLensExamTabProps) {
   const [hoveredEye, setHoveredEye] = useState<"R" | "L" | null>(null);
 
@@ -53,14 +56,24 @@ export function ContactLensExamTab({
     { key: "cyl", ...EXAM_FIELDS.CYL },
     { key: "ax", ...EXAM_FIELDS.AXIS },
     { key: "read_ad", ...EXAM_FIELDS.READ_AD },
+    { key: "va", ...EXAM_FIELDS.VA, type: "va" },
+    { key: "j", ...EXAM_FIELDS.J, type: "j" },
   ];
 
-  const getFieldValue = (eye: "R" | "L", field: string) => {
+  const getFieldValue = (eye: "R" | "L" | "C", field: string) => {
+    if (eye === "C") {
+      const combinedField = `comb_${field}` as keyof ContactLensExam;
+      return contactLensExamData[combinedField]?.toString() || "";
+    }
     const eyeField = `${eye.toLowerCase()}_${field}` as keyof ContactLensExam;
     return contactLensExamData[eyeField]?.toString() || "";
   };
 
-  const handleChange = (eye: "R" | "L", field: string, value: string) => {
+  const handleChange = (eye: "R" | "L" | "C", field: string, value: string) => {
+    if (eye === "C") {
+      onContactLensExamChange(`comb_${field}` as keyof ContactLensExam, value);
+      return;
+    }
     if (field === "cyl" || field === "ax") {
       handleAxisChange(eye as "R" | "L", field as "cyl" | "ax", value);
     } else {
@@ -98,7 +111,7 @@ export function ContactLensExamTab({
           </div>
 
           <div
-            className={`grid ${hideEyeLabels ? "grid-cols-[repeat(7,1fr)]" : "grid-cols-[20px_repeat(7,1fr)]"} items-center gap-2`}
+            className={`grid ${hideEyeLabels ? "grid-cols-[repeat(9,1fr)]" : "grid-cols-[20px_repeat(9,1fr)]"} items-center gap-2`}
           >
             {!hideEyeLabels && <div></div>}
             {columns.map(({ key, label }) => (
@@ -158,6 +171,7 @@ export function ContactLensExamTab({
                     disabled={!isEditing}
                     textOptions={colProps.textOptions}
                     textValueAliases={colProps.textValueAliases}
+                    textDisplayAliases={colProps.displayAliases}
                     numericProps={{
                       step,
                       min,
@@ -176,6 +190,7 @@ export function ContactLensExamTab({
                     disabled={!isEditing}
                     textOptions={colProps.textOptions}
                     textValueAliases={colProps.textValueAliases}
+                    textDisplayAliases={colProps.displayAliases}
                     numericProps={{
                       step,
                       min,
@@ -184,6 +199,32 @@ export function ContactLensExamTab({
                       suffix: colProps.suffix,
                       className: `h-8 text-xs ${isEditing ? "bg-white" : "bg-accent/50"} disabled:opacity-100 disabled:cursor-default`,
                     }}
+                  />
+                ) : key === "read_ad" ? (
+                  <ToggleTextNumberInput
+                    value={getFieldValue("R", key)}
+                    onChange={(val) => handleChange("R", key, val)}
+                    disabled={!isEditing}
+                    textOptions={CONTACT_ADD_OPTIONS}
+                    numericProps={{
+                      step,
+                      min,
+                      max,
+                      showPlus: colProps.showPlus,
+                      className: `h-8 text-xs ${isEditing ? "bg-white" : "bg-accent/50"} disabled:cursor-default disabled:opacity-100`,
+                    }}
+                  />
+                ) : key === "va" ? (
+                  <VASelect
+                    value={getFieldValue("R", key)}
+                    onChange={(val) => handleChange("R", key, val)}
+                    disabled={!isEditing}
+                  />
+                ) : key === "j" ? (
+                  <NVJSelect
+                    value={getFieldValue("R", key)}
+                    onChange={(val) => handleChange("R", key, val)}
+                    disabled={!isEditing}
                   />
                 ) : (
                   <FastInput
@@ -202,14 +243,24 @@ export function ContactLensExamTab({
               </div>
             ))}
 
-            {needsMiddleSpacer && (
-              <>
-                {!hideEyeLabels && <div className="h-8" />}
-                {columns.map(({ key }) => (
-                  <div key={`spacer-${key}`} className="h-8" />
-                ))}
-              </>
-            )}
+            {!hideEyeLabels && <div className="h-8" />}
+            {columns.map(({ key }) => (
+              <div key={`combined-${key}`} className="h-8">
+                {key === "va" ? (
+                  <VASelect
+                    value={getFieldValue("C", key)}
+                    onChange={(val) => handleChange("C", key, val)}
+                    disabled={!isEditing}
+                  />
+                ) : key === "j" ? (
+                  <NVJSelect
+                    value={getFieldValue("C", key)}
+                    onChange={(val) => handleChange("C", key, val)}
+                    disabled={!isEditing}
+                  />
+                ) : null}
+              </div>
+            ))}
 
             {!hideEyeLabels && (
               <div className="flex items-center justify-center">
@@ -253,6 +304,7 @@ export function ContactLensExamTab({
                     disabled={!isEditing}
                     textOptions={colProps.textOptions}
                     textValueAliases={colProps.textValueAliases}
+                    textDisplayAliases={colProps.displayAliases}
                     numericProps={{
                       step,
                       min,
@@ -271,6 +323,7 @@ export function ContactLensExamTab({
                     disabled={!isEditing}
                     textOptions={colProps.textOptions}
                     textValueAliases={colProps.textValueAliases}
+                    textDisplayAliases={colProps.displayAliases}
                     numericProps={{
                       step,
                       min,
@@ -279,6 +332,32 @@ export function ContactLensExamTab({
                       suffix: colProps.suffix,
                       className: `h-8 text-xs ${isEditing ? "bg-white" : "bg-accent/50"} disabled:opacity-100 disabled:cursor-default`,
                     }}
+                  />
+                ) : key === "read_ad" ? (
+                  <ToggleTextNumberInput
+                    value={getFieldValue("L", key)}
+                    onChange={(val) => handleChange("L", key, val)}
+                    disabled={!isEditing}
+                    textOptions={CONTACT_ADD_OPTIONS}
+                    numericProps={{
+                      step,
+                      min,
+                      max,
+                      showPlus: colProps.showPlus,
+                      className: `h-8 text-xs ${isEditing ? "bg-white" : "bg-accent/50"} disabled:cursor-default disabled:opacity-100`,
+                    }}
+                  />
+                ) : key === "va" ? (
+                  <VASelect
+                    value={getFieldValue("L", key)}
+                    onChange={(val) => handleChange("L", key, val)}
+                    disabled={!isEditing}
+                  />
+                ) : key === "j" ? (
+                  <NVJSelect
+                    value={getFieldValue("L", key)}
+                    onChange={(val) => handleChange("L", key, val)}
+                    disabled={!isEditing}
                   />
                 ) : (
                   <FastInput

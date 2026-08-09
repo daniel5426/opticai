@@ -535,6 +535,18 @@ export function ClientDetailsTab({
                 />
               </div>
               <div className="space-y-2">
+                <ModernLabel>מספר בית/דירה</ModernLabel>
+                <Input
+                  type="text"
+                  name="address_number"
+                  value={formData.address_number || ''}
+                  onChange={handleInputChange}
+                  disabled={!showEditableFields}
+                  className={`text-sm h-9 disabled:opacity-100 disabled:cursor-default`}
+                  placeholder={showEditableFields ? "הכנס מספר בית/דירה" : ""}
+                />
+              </div>
+              <div className="space-y-2">
                 <ModernLabel>טלפון נייד</ModernLabel>
                 <Input
                   type="tel"
@@ -573,13 +585,13 @@ export function ClientDetailsTab({
               <div className="space-y-2">
                 <ModernLabel>טלפון נוסף</ModernLabel>
                 <Input
-                  type="text"
-                  name="address_number"
-                  value={formData.address_number || ''}
+                  type="tel"
+                  name="additional_phone"
+                  value={formData.additional_phone || ''}
                   onChange={handleInputChange}
                   disabled={!showEditableFields}
                   className={`text-sm h-9 disabled:opacity-100 disabled:cursor-default`}
-                  placeholder={showEditableFields ? "הכנס מספר" : ""}
+                  placeholder={showEditableFields ? "הכנס טלפון נוסף" : ""}
                 />
               </div>
 

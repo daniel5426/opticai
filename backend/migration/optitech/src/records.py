@@ -15,11 +15,13 @@ TABLE_PRIMARY_KEYS: Dict[str, Tuple[str, ...]] = {
     "tblPerData_FamId": ("FamId",),
     "tblUsers": ("UserId",),
     "tblCrdGlassChecks": ("PerId", "CheckDate"),
+    "tblCrdGlassChecksPrevs": ("PerId", "CheckDate", "PrevId"),
     "tblCrdClensChecks": ("PerId", "CheckDate"),
     "tblCrdBuysWorks": ("WorkId",),
     "tblPerPicture": ("PerPicId",),
     "tblCrdDiags": ("PerId", "CheckDate"),
     "tblClndrApt": ("AptNum",),
+    "tblClndrWrk": ("WrkId",),
     "tblCrdGlassBrand": ("GlassBrandId",),
     "tblCrdGlassCoat": ("GlassCoatId",),
     "tblCrdGlassColor": ("GlassColorId",),
@@ -48,6 +50,37 @@ TABLE_PRIMARY_KEYS: Dict[str, Tuple[str, ...]] = {
 NULL_LIKE = {"", "null", "none", "nan"}
 OPTICAL_ZERO_LIKE = {"plano", "pl", "plan", "+0", "-0", "0.00", "0"}
 OPTICAL_FLAT_LIKE = {"flt", "flat"}
+OPTICAL_STEEP_LIKE = {"stp", "steep"}
+
+SPH_ALIASES = {
+    "balance": "Balance",
+    "balanc": "Balance",
+    "amblyopia": "Amblyopia",
+    "amblyopya": "Amblyopia",
+    "ambliyopia": "Amblyopia",
+    "ambliyopya": "Amblyopia",
+    "ambli": "Amblyopia",
+    "occluder": "Occluder",
+    "occlud": "Occluder",
+    "occlude": "Occluder",
+    "oclude": "Occluder",
+    "frosted": "Frosted / Matte",
+    "frostedmatte": "Frosted / Matte",
+    "matte": "Frosted / Matte",
+    "matt": "Frosted / Matte",
+}
+CONTACT_ADD_ALIASES = {
+    "low": "Low",
+    "lo": "Low",
+    "l": "Low",
+    "medium": "Medium",
+    "med": "Medium",
+    "mid": "Medium",
+    "m": "Medium",
+    "high": "High",
+    "hi": "High",
+    "h": "High",
+}
 
 
 def clean_text(value: Any) -> Optional[str]:
@@ -111,6 +144,81 @@ def parse_optical_float(value: Any) -> Optional[float]:
         except ValueError:
             return None
     return None
+
+
+def parse_optical_value(value: Any) -> Optional[float | str]:
+    """Parse numeric optics losslessly while canonicalizing supported SPH text."""
+    text = clean_text(value)
+    if text is None:
+        return None
+    lowered = text.lower()
+    if lowered in OPTICAL_ZERO_LIKE:
+        return 0.0
+    canonical = SPH_ALIASES.get(re.sub(r"[^a-z]", "", lowered))
+    if canonical:
+        return canonical
+    numeric = parse_floatish(text)
+    return numeric if numeric is not None else text
+
+
+def parse_modified_acuity(value: Any) -> Optional[str]:
+    """Keep the complete VA/J token, including modifiers such as ±1..±3."""
+    return clean_text(value)
+
+
+def parse_contact_add(value: Any) -> Optional[float | str]:
+    text = clean_text(value)
+    if text is None:
+        return None
+    numeric = parse_floatish(text)
+    if numeric is not None:
+        return numeric
+    return CONTACT_ADD_ALIASES.get(re.sub(r"[^a-z]", "", text.lower()), text)
+
+
+def parse_contact_bc(value: Any) -> Optional[float | str]:
+    text = clean_text(value)
+    if text is None:
+        return None
+    lowered = text.lower()
+    if lowered in OPTICAL_FLAT_LIKE:
+        return "Flat"
+    if lowered in OPTICAL_STEEP_LIKE:
+        return "Steep"
+    numeric = parse_floatish(text)
+    return numeric if numeric is not None else text
+
+
+def parse_numeric_only(value: Any) -> Optional[float]:
+    return parse_floatish(value)
+
+
+def normalize_base(value: Any) -> Optional[str]:
+    text = clean_text(value)
+    if text is None:
+        return None
+    normalized = re.sub(r"[^a-z0-9]", "", text.lower())
+    aliases = {
+        "2": "DOWN",
+        "down": "DOWN",
+        "d": "DOWN",
+        "3": "IN",
+        "in": "IN",
+        "basein": "IN",
+        "bi": "IN",
+        "4": "UP",
+        "up": "UP",
+        "u": "UP",
+        "5": "OUT",
+        "out": "OUT",
+        "baseout": "OUT",
+        "bo": "OUT",
+        "1": "180",
+        "180": "180",
+    }
+    if normalized in {"", "0", "none"}:
+        return None
+    return aliases.get(normalized, text.upper())
 
 
 def parse_access_date(value: Any) -> Optional[date]:
@@ -236,6 +344,8 @@ class NormalizedClientSeed(NormalizedSeedBase):
     discount_id: Optional[int] = None
     group_id: Optional[int] = None
     referral_id: Optional[int] = None
+    referral_sub1_id: Optional[int] = None
+    referral_sub2_id: Optional[int] = None
     notes: Optional[str] = None
     hidden_note: Optional[str] = None
     wants_laser: Optional[bool] = None
@@ -283,6 +393,15 @@ class NormalizedGlassesExamSeed(NormalizedSeedBase):
     additional: Dict[str, Any] = field(default_factory=dict)
     comments: Optional[str] = None
     objective_comment: Optional[str] = None
+
+
+@dataclass(frozen=True)
+class NormalizedWorkShiftSeed(NormalizedSeedBase):
+    legacy_work_shift_id: Optional[int] = None
+    work_date: Optional[date] = None
+    work_minutes: Optional[int] = None
+    start_time: Optional[str] = None
+    end_time: Optional[str] = None
 
 
 @dataclass(frozen=True)
@@ -399,6 +518,8 @@ def normalize_client_row(
         discount_id=parse_intish(row.get("DiscountId")),
         group_id=parse_intish(row.get("GroupId")),
         referral_id=parse_intish(row.get("RefId")),
+        referral_sub1_id=parse_intish(row.get("RefsSub1Id")),
+        referral_sub2_id=parse_intish(row.get("RefsSub2Id")),
         notes=clean_text(row.get("Comment")),
         hidden_note=clean_text(row.get("HidCom")),
         wants_laser=parse_boolish(row.get("WantsLaser")),
@@ -444,37 +565,37 @@ def normalize_glasses_exam_row(
     raw_row_ref: Optional[str] = None,
 ) -> NormalizedGlassesExamSeed:
     objective = {
-        "r_sph": parse_optical_float(row.get("ObjSphR")),
-        "l_sph": parse_optical_float(row.get("ObjSphL")),
+        "r_sph": parse_optical_value(row.get("ObjSphR")),
+        "l_sph": parse_optical_value(row.get("ObjSphL")),
         "r_cyl": parse_floatish(row.get("ObjCylR")),
         "l_cyl": parse_floatish(row.get("ObjCylL")),
         "r_ax": parse_intish(row.get("ObjAxR")),
         "l_ax": parse_intish(row.get("ObjAxL")),
-        "r_se": parse_optical_float(row.get("ObjSphEsR")),
-        "l_se": parse_optical_float(row.get("ObjSphEsL")),
+        "r_se": parse_optical_value(row.get("ObjSphEsR")),
+        "l_se": parse_optical_value(row.get("ObjSphEsL")),
         "comb_pd": parse_floatish(row.get("ObjPD")),
-        "r_va": parse_optical_float(row.get("ObjVAR")),
-        "l_va": parse_optical_float(row.get("ObjVAL")),
-        "comb_va": parse_optical_float(row.get("ObjVA")),
+        "r_va": parse_modified_acuity(row.get("ObjVAR")),
+        "l_va": parse_modified_acuity(row.get("ObjVAL")),
+        "comb_va": parse_modified_acuity(row.get("ObjVA")),
         "r_add": parse_floatish(row.get("ObjAddR")),
         "l_add": parse_floatish(row.get("ObjAddL")),
         "r_j": clean_text(row.get("ObjJR")),
         "l_j": clean_text(row.get("ObjJL")),
     }
     subjective = {
-        "r_sph": parse_optical_float(row.get("SphR")),
-        "l_sph": parse_optical_float(row.get("SphL")),
+        "r_sph": parse_optical_value(row.get("SphR")),
+        "l_sph": parse_optical_value(row.get("SphL")),
         "r_cyl": parse_floatish(row.get("CylR")),
         "l_cyl": parse_floatish(row.get("CylL")),
         "r_ax": parse_intish(row.get("AxR")),
         "l_ax": parse_intish(row.get("AxL")),
         "r_pris": parse_floatish(row.get("PrisR")),
         "l_pris": parse_floatish(row.get("PrisL")),
-        "r_base": parse_floatish(row.get("BaseR")),
-        "l_base": parse_floatish(row.get("BaseL")),
-        "r_va": parse_optical_float(row.get("VAR")),
-        "l_va": parse_optical_float(row.get("VAL")),
-        "comb_va": parse_optical_float(row.get("VA")),
+        "r_base": normalize_base(row.get("BaseR")),
+        "l_base": normalize_base(row.get("BaseL")),
+        "r_va": parse_modified_acuity(row.get("VAR")),
+        "l_va": parse_modified_acuity(row.get("VAL")),
+        "comb_va": parse_modified_acuity(row.get("VA")),
         "r_ph": clean_text(row.get("PHR")),
         "l_ph": clean_text(row.get("PHL")),
         "r_pd_far": parse_floatish(row.get("PDDistR")),
@@ -485,19 +606,19 @@ def normalize_glasses_exam_row(
         "comb_pd_close": parse_floatish(row.get("PDReadA")),
     }
     final_prescription = {
-        "r_sph": parse_optical_float(row.get("PSphR")),
-        "l_sph": parse_optical_float(row.get("PSphL")),
+        "r_sph": parse_optical_value(row.get("PSphR")),
+        "l_sph": parse_optical_value(row.get("PSphL")),
         "r_cyl": parse_floatish(row.get("PCylR")),
         "l_cyl": parse_floatish(row.get("PCylL")),
         "r_ax": parse_intish(row.get("PAxR")),
         "l_ax": parse_intish(row.get("PAxL")),
         "r_pris": parse_floatish(row.get("PPrisR")),
         "l_pris": parse_floatish(row.get("PPrisL")),
-        "r_base": parse_floatish(row.get("PBaseR")),
-        "l_base": parse_floatish(row.get("PBaseL")),
-        "r_va": parse_optical_float(row.get("PVAR")),
-        "l_va": parse_optical_float(row.get("PVAL")),
-        "comb_va": parse_optical_float(row.get("PVA")),
+        "r_base": normalize_base(row.get("PBaseR")),
+        "l_base": normalize_base(row.get("PBaseL")),
+        "r_va": parse_modified_acuity(row.get("PVAR")),
+        "l_va": parse_modified_acuity(row.get("PVAL")),
+        "comb_va": parse_modified_acuity(row.get("PVA")),
         "r_ph": clean_text(row.get("PPHR")),
         "l_ph": clean_text(row.get("PPHL")),
         "r_pd_far": parse_floatish(row.get("PPDDistR")),
@@ -506,6 +627,17 @@ def normalize_glasses_exam_row(
         "r_pd_close": parse_floatish(row.get("PPDReadR")),
         "l_pd_close": parse_floatish(row.get("PPDReadL")),
         "comb_pd_close": parse_floatish(row.get("PPDReadA")),
+        "r_ad": parse_floatish(row.get("PReadR")),
+        "l_ad": parse_floatish(row.get("PReadL")),
+        "r_j": parse_modified_acuity(row.get("PJR")),
+        "l_j": parse_modified_acuity(row.get("PJL")),
+        "type": (
+            "מולטיפוקל"
+            if any(parse_floatish(row.get(name)) not in (None, 0, 0.0) for name in ("PMulR", "PMulL"))
+            else "ביפוקל"
+            if any(parse_floatish(row.get(name)) not in (None, 0, 0.0) for name in ("PBifR", "PBifL"))
+            else "רחוק"
+        ),
     }
     additional = {
         "r_read": parse_floatish(row.get("ReadR")),
@@ -532,8 +664,10 @@ def normalize_glasses_exam_row(
         "iop_right": parse_floatish(row.get("IOPR")),
         "ext_r_pris": parse_floatish(row.get("ExtPrisR")),
         "ext_l_pris": parse_floatish(row.get("ExtPrisL")),
-        "ext_r_base": parse_floatish(row.get("ExtBaseR")),
-        "ext_l_base": parse_floatish(row.get("ExtBaseL")),
+        "ext_r_base": normalize_base(row.get("ExtBaseR")),
+        "ext_l_base": normalize_base(row.get("ExtBaseL")),
+        "fvr": parse_modified_acuity(row.get("FVR")),
+        "fvl": parse_modified_acuity(row.get("FVL")),
     }
     return NormalizedGlassesExamSeed(
         source_ref=build_source_ref("tblCrdGlassChecks", row, raw_row_ref),
@@ -582,25 +716,25 @@ def normalize_contact_lens_exam_row(
     lens_values = {
         "r_diam": parse_floatish(row.get("DiamR")),
         "l_diam": parse_floatish(row.get("DiamL")),
-        "r_bc_1": parse_optical_float(row.get("BC1R")),
-        "l_bc_1": parse_optical_float(row.get("BC1L")),
+        "r_bc_1": parse_contact_bc(row.get("BC1R")),
+        "l_bc_1": parse_contact_bc(row.get("BC1L")),
         "r_bc_2": parse_floatish(row.get("BC2R")),
         "l_bc_2": parse_floatish(row.get("BC2L")),
-        "r_oz": clean_text(row.get("OZR")),
-        "l_oz": clean_text(row.get("OZL")),
+        "r_oz": parse_numeric_only(row.get("OZR")),
+        "l_oz": parse_numeric_only(row.get("OZL")),
         "r_pr": parse_floatish(row.get("PrR")),
         "l_pr": parse_floatish(row.get("PrL")),
-        "r_sph": parse_optical_float(row.get("SphR")),
-        "l_sph": parse_optical_float(row.get("SphL")),
+        "r_sph": parse_optical_value(row.get("SphR")),
+        "l_sph": parse_optical_value(row.get("SphL")),
         "r_cyl": parse_floatish(row.get("CylR")),
         "l_cyl": parse_floatish(row.get("CylL")),
         "r_ax": parse_intish(row.get("AxR")),
         "l_ax": parse_intish(row.get("AxL")),
-        "r_add": parse_optical_float(row.get("AddR")),
-        "l_add": parse_optical_float(row.get("AddL")),
-        "r_va": parse_optical_float(row.get("VAR")),
-        "l_va": parse_optical_float(row.get("VAL")),
-        "comb_va": parse_optical_float(row.get("VA")),
+        "r_add": parse_contact_add(row.get("AddR")),
+        "l_add": parse_contact_add(row.get("AddL")),
+        "r_va": parse_modified_acuity(row.get("VAR")),
+        "l_va": parse_modified_acuity(row.get("VAL")),
+        "comb_va": parse_modified_acuity(row.get("VA")),
         "r_ph": clean_text(row.get("PHR")),
         "l_ph": clean_text(row.get("PHL")),
     }
@@ -636,6 +770,52 @@ def normalize_contact_lens_exam_row(
         care_solutions={k: v for k, v in care_solutions.items() if v is not None},
         comments=clean_text(row.get("Comments")),
     )
+
+
+def normalize_previous_refraction_row(row: Mapping[str, Any]) -> list[Dict[str, Any]]:
+    """Expand one tblCrdGlassChecksPrevs row into its substantive refractions."""
+    tabs: list[Dict[str, Any]] = []
+    for index in range(1, 5):
+        tab = {
+            "r_sph": parse_optical_value(row.get(f"SphR{index}")),
+            "l_sph": parse_optical_value(row.get(f"SphL{index}")),
+            "r_cyl": parse_floatish(row.get(f"CylR{index}")),
+            "l_cyl": parse_floatish(row.get(f"CylL{index}")),
+            "r_ax": parse_intish(row.get(f"AxR{index}")),
+            "l_ax": parse_intish(row.get(f"AxL{index}")),
+            "r_pris": parse_floatish(row.get(f"PrisR{index}")),
+            "l_pris": parse_floatish(row.get(f"PrisL{index}")),
+            "r_base": normalize_base(row.get(f"BaseR{index}")),
+            "l_base": normalize_base(row.get(f"BaseL{index}")),
+            "r_va": parse_modified_acuity(row.get(f"VAR{index}")),
+            "l_va": parse_modified_acuity(row.get(f"VAL{index}")),
+            "comb_va": parse_modified_acuity(row.get(f"VA{index}")),
+            "r_ad": parse_floatish(row.get(f"AddR{index}")),
+            "l_ad": parse_floatish(row.get(f"AddL{index}")),
+            "type": "רחוק",
+            "legacy_prev_id": parse_intish(row.get("PrevId")),
+            "legacy_slot": index,
+            "legacy_comment": clean_text(row.get(f"Comments{index}")),
+            # Semantics are incomplete; retain these in trace instead of the card.
+            "trace_pd_far": {
+                "r": parse_floatish(row.get(f"PDDistR{index}")),
+                "l": parse_floatish(row.get(f"PDDistL{index}")),
+                "combined": parse_floatish(row.get(f"PDDistA{index}")),
+            },
+            "trace_secondary_prism": {
+                "r": parse_floatish(row.get(f"ExtPrisR{index}")),
+                "l": parse_floatish(row.get(f"ExtPrisL{index}")),
+                "r_base": normalize_base(row.get(f"ExtBaseR{index}")),
+                "l_base": normalize_base(row.get(f"ExtBaseL{index}")),
+            },
+        }
+        content_fields = (
+            "r_sph", "l_sph", "r_cyl", "l_cyl", "r_ax", "l_ax",
+            "r_pris", "l_pris", "r_va", "l_va", "comb_va", "r_ad", "l_ad",
+        )
+        if any(tab.get(field) not in (None, "", 0, 0.0) for field in content_fields):
+            tabs.append(tab)
+    return tabs
 
 
 def normalize_order_row(
@@ -736,4 +916,21 @@ def normalize_appointment_row(
         description=clean_text(row.get("AptDesc")),
         took_place=parse_boolish(row.get("TookPlace")),
         reminder=parse_boolish(row.get("Reminder")),
+    )
+
+
+def normalize_work_shift_row(
+    row: Mapping[str, Any],
+    raw_row_ref: Optional[str] = None,
+) -> NormalizedWorkShiftSeed:
+    work_hours = parse_floatish(row.get("WrkTime"))
+    return NormalizedWorkShiftSeed(
+        source_ref=build_source_ref("tblClndrWrk", row, raw_row_ref),
+        source_per_id=None,
+        source_user_id=parse_intish(row.get("UserID")),
+        legacy_work_shift_id=parse_intish(row.get("WrkId")),
+        work_date=parse_access_date(row.get("WrkDate")),
+        work_minutes=max(0, int(round(work_hours * 60))) if work_hours is not None else None,
+        start_time=parse_access_time(row.get("StartTime")),
+        end_time=parse_access_time(row.get("EndTime")),
     )

@@ -17,8 +17,8 @@ CONTACT_LENS_LAYOUT_NAME = "OptiTech Imported Contact Lens Layout"
 
 GLASSES_COMPONENTS: Tuple[str, ...] = (
     "objective",
-    "subjective",
-    "final-subjective",
+    "uncorrected-va",
+    "old-refraction",
     "final-prescription",
     "addition",
     "notes",
@@ -61,7 +61,7 @@ COMPONENT_LEGACY_COLUMNS = {
     "contact-lens-diameters": 2,
     "contact-lens-details": 10,
     "keratometer-contact-lens": 6,
-    "contact-lens-exam": 7,
+    "contact-lens-exam": 9,
     "old-contact-lenses": 13,
     "over-refraction": 9,
     "sensation-vision-stability": 5,
@@ -131,7 +131,13 @@ def ensure_phase3_exam_layouts(db: Session, clinic: Clinic) -> tuple[ExamLayout,
 
 
 def _component_type_from_exam_data_key(key: str) -> str:
-    return "notes" if key.startswith("notes-") else key
+    if key == "__ui":
+        return "__ui"
+    if key.startswith("notes-"):
+        return "notes"
+    if key.startswith("old-refraction-") and not key.startswith("old-refraction-extension-"):
+        return "old-refraction"
+    return key
 
 
 def ensure_exam_layout(

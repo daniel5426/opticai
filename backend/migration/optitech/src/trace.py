@@ -30,6 +30,7 @@ try:
         OpticalExam,
         Order,
         User,
+        WorkShift,
     )
 except ModuleNotFoundError:
     from backend.models import (
@@ -44,12 +45,14 @@ except ModuleNotFoundError:
         OpticalExam,
         Order,
         User,
+        WorkShift,
     )
 
 from .records import SourceRef
 
 
 OPTITECH_SOURCE_SYSTEM = "optitech"
+OPTITECH_MAPPING_VERSION = 2
 PHASE2_TARGET_MODELS: Dict[str, Type[Any]] = {
     "Client": Client,
     "Family": Family,
@@ -64,11 +67,11 @@ TARGET_MODELS: Dict[str, Type[Any]] = {
     "File": File,
     "MedicalLog": MedicalLog,
     "Appointment": Appointment,
+    "WorkShift": WorkShift,
 }
 RAW_SNAPSHOT_TARGET_MODELS: Tuple[str, ...] = (
     "Client",
     "OpticalExam",
-    "ExamLayoutInstance",
     "Order",
     "ContactLensOrder",
 )
@@ -115,11 +118,26 @@ def build_trace_payload(
 ) -> Dict[str, Any]:
     return to_jsonable(
         {
+            "mapping_version": OPTITECH_MAPPING_VERSION,
             "source_ref": getattr(normalized_seed, "source_ref", None),
             "normalized_seed": normalized_seed,
             "target_payload": dict(target_payload),
             "unmapped_fields": dict(unmapped_fields),
         }
+    )
+
+
+def can_resume_source_link(
+    link: Optional[MigrationSourceLink],
+    migration_job_id: Optional[str],
+) -> bool:
+    if link is None:
+        return True
+    payload = link.payload if isinstance(link.payload, dict) else {}
+    return (
+        payload.get("mapping_version") == OPTITECH_MAPPING_VERSION
+        and migration_job_id is not None
+        and link.migration_job_id == migration_job_id
     )
 
 
@@ -274,9 +292,15 @@ def upsert_source_link(
             company_id=company_id,
             payload=to_jsonable(payload),
             migration_job_id=migration_job_id,
-            raw_payload=to_jsonable(source_ref.raw_payload) if migration_job_id else None,
-            raw_payload_sha256=raw_payload_hash(source_ref.raw_payload) if migration_job_id else None,
-            raw_captured_at=datetime.now(timezone.utc) if migration_job_id else None,
+            raw_payload=to_jsonable(source_ref.raw_payload)
+            if migration_job_id and target_model in RAW_SNAPSHOT_TARGET_MODELS
+            else None,
+            raw_payload_sha256=raw_payload_hash(source_ref.raw_payload)
+            if migration_job_id and target_model in RAW_SNAPSHOT_TARGET_MODELS
+            else None,
+            raw_captured_at=datetime.now(timezone.utc)
+            if migration_job_id and target_model in RAW_SNAPSHOT_TARGET_MODELS
+            else None,
         )
         db.add(link)
     else:
@@ -289,6 +313,7 @@ def upsert_source_link(
         link.payload = to_jsonable(payload)
         if migration_job_id:
             link.migration_job_id = migration_job_id
+        if migration_job_id and target_model in RAW_SNAPSHOT_TARGET_MODELS:
             link.raw_payload = to_jsonable(source_ref.raw_payload)
             link.raw_payload_sha256 = raw_payload_hash(source_ref.raw_payload)
             link.raw_captured_at = datetime.now(timezone.utc)

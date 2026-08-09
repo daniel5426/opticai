@@ -1,14 +1,7 @@
 import React from "react"
 import { useState, useRef, useCallback } from "react"
 import { useNavigate } from "@tanstack/react-router"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
 import { File, FileText, FileImage, FileVideo, FileAudio, Upload, Download, Trash2, Pencil } from "lucide-react"
 import { File as FileType } from "@/lib/db/schema-interface"
@@ -19,6 +12,7 @@ import { toast } from "sonner"
 import { CustomModal } from "@/components/ui/custom-modal"
 import { Skeleton } from "@/components/ui/skeleton"
 import { TableFiltersBar } from "@/components/table-filters-bar"
+import { TablePagination } from "@/components/table-pagination"
 import { ALL_FILTER_VALUE, FILE_CATEGORY_OPTIONS, normalizeFileCategory } from "@/lib/table-filters"
 import { SortableTableHead } from "@/components/sortable-table-head"
 import { SortColumns, SortState, sortRows } from "@/lib/table-sorting"
@@ -34,7 +28,12 @@ interface FilesTableProps {
   onFileUpdated?: (file: FileType) => void
   onClientSelectForUpload?: (files: FileList, clientId: number) => void
   loading: boolean
-  pagination?: { page: number; pageSize: number; total: number; setPage: (p: number) => void }
+  pagination?: {
+    page: number
+    pageSize: number
+    total: number
+    setPage: (p: number) => void
+  }
   searchQuery?: string
   onSearchChange?: (query: string) => void
   serverFiltered?: boolean
@@ -60,7 +59,7 @@ export function FilesTable({
   fileCategoryFilter: externalFileCategoryFilter,
   onFileCategoryFilterChange,
   sort,
-  onSortChange,
+  onSortChange
 }: FilesTableProps) {
   const [searchQuery, setSearchQuery] = useState("")
   const [localSort, setLocalSort] = useState<SortState | undefined>()
@@ -91,65 +90,70 @@ export function FilesTable({
     setSelectedFileCategory(value)
   }
 
-
-
-  const getClientName = (file: FileType): string => file.client_full_name || ''
+  const getClientName = (file: FileType): string => file.client_full_name || ""
 
   const getFileIcon = (fileType?: string) => {
     if (!fileType) return <File className="h-4 w-4" />
-    
-    if (fileType.startsWith('image/')) return <FileImage className="h-4 w-4" />
-    if (fileType.startsWith('video/')) return <FileVideo className="h-4 w-4" />
-    if (fileType.startsWith('audio/')) return <FileAudio className="h-4 w-4" />
-    if (fileType.includes('text') || fileType.includes('document')) return <FileText className="h-4 w-4" />
-    
+
+    if (fileType.startsWith("image/")) return <FileImage className="h-4 w-4" />
+    if (fileType.startsWith("video/")) return <FileVideo className="h-4 w-4" />
+    if (fileType.startsWith("audio/")) return <FileAudio className="h-4 w-4" />
+    if (fileType.includes("text") || fileType.includes("document")) return <FileText className="h-4 w-4" />
+
     return <File className="h-4 w-4" />
   }
 
   const getSimpleFileType = (mimeType?: string): string => {
-    if (!mimeType) return 'קובץ'
-    
-    if (mimeType.startsWith('image/')) return 'תמונה'
-    if (mimeType.startsWith('video/')) return 'וידאו'
-    if (mimeType.startsWith('audio/')) return 'אודיו'
-    if (mimeType.includes('pdf')) return 'PDF'
-    if (mimeType.includes('word') || mimeType.includes('document')) return 'Word'
-    if (mimeType.includes('excel') || mimeType.includes('spreadsheet')) return 'Excel'
-    if (mimeType.includes('powerpoint') || mimeType.includes('presentation')) return 'PowerPoint'
-    if (mimeType.includes('text')) return 'טקסט'
-    if (mimeType.includes('zip') || mimeType.includes('rar') || mimeType.includes('7z') || mimeType.includes('gzip') || mimeType.includes('archive')) return 'ארכיון'
-    
-    return 'קובץ'
+    if (!mimeType) return "קובץ"
+
+    if (mimeType.startsWith("image/")) return "תמונה"
+    if (mimeType.startsWith("video/")) return "וידאו"
+    if (mimeType.startsWith("audio/")) return "אודיו"
+    if (mimeType.includes("pdf")) return "PDF"
+    if (mimeType.includes("word") || mimeType.includes("document")) return "Word"
+    if (mimeType.includes("excel") || mimeType.includes("spreadsheet")) return "Excel"
+    if (mimeType.includes("powerpoint") || mimeType.includes("presentation")) return "PowerPoint"
+    if (mimeType.includes("text")) return "טקסט"
+    if (
+      mimeType.includes("zip") ||
+      mimeType.includes("rar") ||
+      mimeType.includes("7z") ||
+      mimeType.includes("gzip") ||
+      mimeType.includes("archive")
+    )
+      return "ארכיון"
+
+    return "קובץ"
   }
 
   const formatFileSize = (bytes?: number): string => {
-    if (!bytes) return ''
-    const sizes = ['B', 'KB', 'MB', 'GB']
+    if (!bytes) return ""
+    const sizes = ["B", "KB", "MB", "GB"]
     const i = Math.floor(Math.log(bytes) / Math.log(1024))
-    return Math.round(bytes / Math.pow(1024, i) * 100) / 100 + ' ' + sizes[i]
+    return Math.round((bytes / Math.pow(1024, i)) * 100) / 100 + " " + sizes[i]
   }
 
   const handleDeleteConfirm = async () => {
     if (fileToDelete && fileToDelete.id !== undefined) {
       try {
-        const deletedFileId = fileToDelete.id;
-        const success = await deleteFile(deletedFileId);
+        const deletedFileId = fileToDelete.id
+        const success = await deleteFile(deletedFileId)
         if (success) {
-          onFileDeleted(deletedFileId);
-          toast.success("הקובץ נמחק בהצלחה");
+          onFileDeleted(deletedFileId)
+          toast.success("הקובץ נמחק בהצלחה")
         } else {
-          toast.error("שגיאה במחיקת הקובץ. מרענן נתונים...");
-          onFileDeleteFailed();
+          toast.error("שגיאה במחיקת הקובץ. מרענן נתונים...")
+          onFileDeleteFailed()
         }
       } catch (error) {
-        console.error('Error deleting file:', error);
-        toast.error("שגיאה במחיקת הקובץ");
-        onFileDeleteFailed();
+        console.error("Error deleting file:", error)
+        toast.error("שגיאה במחיקת הקובץ")
+        onFileDeleteFailed()
       } finally {
-        setFileToDelete(null);
+        setFileToDelete(null)
       }
     }
-    setIsDeleteModalOpen(false);
+    setIsDeleteModalOpen(false)
   }
 
   const handleRenameConfirm = async () => {
@@ -165,7 +169,7 @@ export function FilesTable({
       const updated = await saveFileMetadata({
         id: fileToRename.id,
         file_name: nextName,
-        notes: fileToRename.notes,
+        notes: fileToRename.notes
       })
       if (!updated) {
         toast.error("שגיאה בעדכון שם הקובץ")
@@ -176,7 +180,7 @@ export function FilesTable({
       setIsRenameModalOpen(false)
       setFileToRename(null)
     } catch (error) {
-      console.error('Error renaming file:', error)
+      console.error("Error renaming file:", error)
       toast.error("שגיאה בעדכון שם הקובץ")
     } finally {
       setIsRenaming(false)
@@ -185,31 +189,31 @@ export function FilesTable({
 
   const handleDownload = async (file: FileType) => {
     if (!file.id) return
-    setIsDownloading(prev => ({ ...prev, [file.id!]: true }))
+    setIsDownloading((prev) => ({ ...prev, [file.id!]: true }))
     try {
       const res = await apiClient.getFileDownloadUrl(file.id)
       if (!res.data?.url) {
-        toast.error('שגיאה ביצירת קישור הורדה')
+        toast.error("שגיאה ביצירת קישור הורדה")
         return
       }
       const response = await fetch(res.data.url)
       if (!response.ok) {
-        toast.error('שגיאה בהורדת הקובץ')
+        toast.error("שגיאה בהורדת הקובץ")
         return
       }
       const blob = await response.blob()
       const url = URL.createObjectURL(blob)
-      const link = document.createElement('a')
+      const link = document.createElement("a")
       link.href = url
-      link.download = file.file_name || 'download'
+      link.download = file.file_name || "download"
       document.body.appendChild(link)
       link.click()
       document.body.removeChild(link)
       URL.revokeObjectURL(url)
     } catch (e) {
-      toast.error('שגיאה בהורדת הקובץ')
+      toast.error("שגיאה בהורדת הקובץ")
     } finally {
-      setIsDownloading(prev => ({ ...prev, [file.id!]: false }))
+      setIsDownloading((prev) => ({ ...prev, [file.id!]: false }))
     }
   }
 
@@ -220,16 +224,16 @@ export function FilesTable({
     try {
       for (let i = 0; i < files.length; i++) {
         const file = files[i]
-        
+
         if (file.size > 25 * 1024 * 1024) {
           toast.error(`קובץ "${file.name}" גדול מדי (מעל 25MB)`)
           continue
         }
 
         const form = new FormData()
-        form.append('client_id', String(targetClientId))
-        form.append('notes', '')
-        form.append('upload', file, file.name)
+        form.append("client_id", String(targetClientId))
+        form.append("notes", "")
+        form.append("upload", file, file.name)
 
         const result = await createFile(form)
         if (result) {
@@ -241,7 +245,7 @@ export function FilesTable({
       }
       onFileUploaded?.()
     } catch (error) {
-      console.error('Error uploading files:', error)
+      console.error("Error uploading files:", error)
       toast.error("שגיאה בהעלאת המסמך")
     } finally {
       setIsUploading(false)
@@ -262,21 +266,24 @@ export function FilesTable({
     }
   }, [])
 
-  const handleDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    setIsDragOver(false)
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault()
+      e.stopPropagation()
+      setIsDragOver(false)
 
-    const files = e.dataTransfer.files
-    if (files && files.length > 0) {
-      if (clientId > 0) {
-        handleFileUpload(files, clientId)
-      } else {
-        setPendingFiles(files)
-        setShowClientSelect(true)
+      const files = e.dataTransfer.files
+      if (files && files.length > 0) {
+        if (clientId > 0) {
+          handleFileUpload(files, clientId)
+        } else {
+          setPendingFiles(files)
+          setShowClientSelect(true)
+        }
       }
-    }
-  }, [clientId])
+    },
+    [clientId]
+  )
 
   const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files
@@ -298,7 +305,7 @@ export function FilesTable({
         handleFileUpload(fileListCopy, clientId)
         // Reset input after upload for client-specific pages
         if (fileInputRef.current) {
-          fileInputRef.current.value = ''
+          fileInputRef.current.value = ""
         }
       } else {
         setPendingFiles(fileListCopy)
@@ -316,13 +323,17 @@ export function FilesTable({
     setShowClientSelect(false)
     // Reset input after client selection and upload
     if (fileInputRef.current) {
-      fileInputRef.current.value = ''
+      fileInputRef.current.value = ""
     }
   }
 
   const filteredData = React.useMemo(() => {
     return data.filter((file) => {
-      if (!serverFiltered && fileCategoryFilter !== ALL_FILTER_VALUE && normalizeFileCategory(file.file_type) !== fileCategoryFilter) {
+      if (
+        !serverFiltered &&
+        fileCategoryFilter !== ALL_FILTER_VALUE &&
+        normalizeFileCategory(file.file_type) !== fileCategoryFilter
+      ) {
         return false
       }
 
@@ -331,12 +342,7 @@ export function FilesTable({
         return true
       }
 
-      const searchableFields = [
-        file.file_name || '',
-        file.file_type || '',
-        getClientName(file),
-        file.notes || ''
-      ]
+      const searchableFields = [file.file_name || "", file.file_type || "", getClientName(file), file.notes || ""]
 
       return (
         searchableFields.some((field) => field.toLowerCase().includes(normalizedSearch)) ||
@@ -345,36 +351,39 @@ export function FilesTable({
     })
   }, [data, fileCategoryFilter, searchValue, serverFiltered])
 
-  const sortColumns = React.useMemo<SortColumns<FileType>>(() => ({
-    file_name: { getValue: (file) => file.file_name },
-    type: { getValue: (file) => getSimpleFileType(file.file_type) },
-    file_size: { getValue: (file) => file.file_size, type: "number" },
-    upload_date: { getValue: (file) => file.upload_date, type: "date" },
-    client: { getValue: getClientName },
-  }), [])
+  const sortColumns = React.useMemo<SortColumns<FileType>>(
+    () => ({
+      file_name: { getValue: (file) => file.file_name },
+      type: { getValue: (file) => getSimpleFileType(file.file_type) },
+      file_size: { getValue: (file) => file.file_size, type: "number" },
+      upload_date: { getValue: (file) => file.upload_date, type: "date" },
+      client: { getValue: getClientName }
+    }),
+    []
+  )
 
   const displayData = React.useMemo(() => {
     return onSortChange ? filteredData : sortRows(filteredData, activeSort, sortColumns)
   }, [activeSort, filteredData, onSortChange, sortColumns])
 
   return (
-    <div 
-      className="relative space-y-2.5 mb-10" 
-      style={{scrollbarWidth: 'none'}}
+    <div
+      className="relative space-y-2.5"
+      style={{ scrollbarWidth: "none" }}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
       {isDragOver && (
-        <div className="absolute inset-0 bg-blue-500/20 border-2 border-dashed border-blue-500 flex items-center justify-center z-10 rounded-md">
-          <div className="bg-white dark:bg-gray-800 p-8 rounded-lg shadow-lg text-center">
-            <Upload className="h-16 w-16 mx-auto mb-4 text-blue-500" />
+        <div className="absolute inset-0 z-10 flex items-center justify-center rounded-md border-2 border-dashed border-blue-500 bg-blue-500/20">
+          <div className="rounded-lg bg-white p-8 text-center shadow-lg dark:bg-gray-800">
+            <Upload className="mx-auto mb-4 h-16 w-16 text-blue-500" />
             <p className="text-2xl font-medium">שחרר כדי להעלות מסמכים</p>
-            {clientId === 0 && <p className="text-lg text-muted-foreground mt-2">תתבקש לבחור לקוח</p>}
+            {clientId === 0 && <p className="text-muted-foreground mt-2 text-lg">תתבקש לבחור לקוח</p>}
           </div>
         </div>
       )}
-      
+
       <TableFiltersBar
         searchValue={searchValue}
         onSearchChange={(value) => (onSearchChange ? onSearchChange(value) : setSearchQuery(value))}
@@ -386,8 +395,8 @@ export function FilesTable({
             onChange: handleFileCategoryFilterChange,
             placeholder: "קטגוריה",
             options: FILE_CATEGORY_OPTIONS,
-            widthClassName: "w-[170px]",
-          },
+            widthClassName: "w-[170px]"
+          }
         ]}
         hasActiveFilters={Boolean(searchValue.trim()) || fileCategoryFilter !== ALL_FILTER_VALUE}
         onReset={() => {
@@ -396,35 +405,67 @@ export function FilesTable({
           handleFileCategoryFilterChange(ALL_FILTER_VALUE)
         }}
         actions={
-          <Button
-            onClick={() => fileInputRef.current?.click()}
-            disabled={isUploading}
-          >
-            {isUploading ? 'מעלה...' : 'העלאת קובץ'}
-            <Upload className="h-4 w-4 mr-2" />
+          <Button onClick={() => fileInputRef.current?.click()} disabled={isUploading}>
+            {isUploading ? "מעלה..." : "העלאת קובץ"}
+            <Upload className="mr-2 h-4 w-4" />
           </Button>
         }
       />
 
-        <input
-          ref={fileInputRef}
-          type="file"
-          className="hidden"
-          multiple
-          onChange={handleFileInputChange}
-        />
+      <input ref={fileInputRef} type="file" className="hidden" multiple onChange={handleFileInputChange} />
 
-      <div className="rounded-md bg-card">
-        <Table dir="rtl" containerClassName="max-h-[70vh] overflow-y-auto overscroll-contain" containerStyle={{ scrollbarWidth: 'none' }}>
-          <TableHeader className="sticky top-0  bg-card">
+      <div className="bg-card rounded-md">
+        <Table
+          dir="rtl"
+          containerClassName="max-h-[70vh] overflow-y-auto overscroll-contain"
+          containerStyle={{ scrollbarWidth: "none" }}
+        >
+          <TableHeader className="bg-card sticky top-0">
             <TableRow>
-              <TableHead className="text-right w-[50px]"></TableHead>
-              <SortableTableHead sortKey="file_name" sort={activeSort} onSortChange={handleSortChange} className="text-right">שם הקובץ</SortableTableHead>
-              <SortableTableHead sortKey="type" sort={activeSort} onSortChange={handleSortChange} className="text-right">סוג</SortableTableHead>
-              <SortableTableHead sortKey="file_size" sort={activeSort} onSortChange={handleSortChange} className="text-right">גודל</SortableTableHead>
-              <SortableTableHead sortKey="upload_date" sort={activeSort} onSortChange={handleSortChange} className="text-right">תאריך העלאה</SortableTableHead>
-              {clientId === 0 && <SortableTableHead sortKey="client" sort={activeSort} onSortChange={handleSortChange} className="text-right">לקוח</SortableTableHead>}
-              <TableHead className="text-right w-[50px]"></TableHead>
+              <TableHead className="w-[50px] text-right"></TableHead>
+              <SortableTableHead
+                sortKey="file_name"
+                sort={activeSort}
+                onSortChange={handleSortChange}
+                className="text-right"
+              >
+                שם הקובץ
+              </SortableTableHead>
+              <SortableTableHead
+                sortKey="type"
+                sort={activeSort}
+                onSortChange={handleSortChange}
+                className="text-right"
+              >
+                סוג
+              </SortableTableHead>
+              <SortableTableHead
+                sortKey="file_size"
+                sort={activeSort}
+                onSortChange={handleSortChange}
+                className="text-right"
+              >
+                גודל
+              </SortableTableHead>
+              <SortableTableHead
+                sortKey="upload_date"
+                sort={activeSort}
+                onSortChange={handleSortChange}
+                className="text-right"
+              >
+                תאריך העלאה
+              </SortableTableHead>
+              {clientId === 0 && (
+                <SortableTableHead
+                  sortKey="client"
+                  sort={activeSort}
+                  onSortChange={handleSortChange}
+                  className="text-right"
+                >
+                  לקוח
+                </SortableTableHead>
+              )}
+              <TableHead className="w-[50px] text-right"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -432,27 +473,27 @@ export function FilesTable({
               Array.from({ length: 14 }).map((_, i) => (
                 <TableRow key={i}>
                   <TableCell>
-                    <Skeleton className="w-[70%] h-4 my-2" />
+                    <Skeleton className="my-2 h-4 w-[70%]" />
                   </TableCell>
                   <TableCell>
-                    <Skeleton className="w-[70%] h-4 my-2 " />
+                    <Skeleton className="my-2 h-4 w-[70%]" />
                   </TableCell>
                   <TableCell>
-                    <Skeleton className="w-[70%] h-4 my-2" />
+                    <Skeleton className="my-2 h-4 w-[70%]" />
                   </TableCell>
                   <TableCell>
-                    <Skeleton className="w-[70%] h-4 my-2" />
+                    <Skeleton className="my-2 h-4 w-[70%]" />
                   </TableCell>
                   <TableCell>
-                    <Skeleton className="w-[70%] h-4 my-2" />
+                    <Skeleton className="my-2 h-4 w-[70%]" />
                   </TableCell>
                   {clientId === 0 && (
                     <TableCell>
-                      <Skeleton className="w-[70%] h-4 my-2   " />
+                      <Skeleton className="my-2 h-4 w-[70%]" />
                     </TableCell>
                   )}
                   <TableCell>
-                    <Skeleton className="w-[70%] h-4 my-2" />
+                    <Skeleton className="my-2 h-4 w-[70%]" />
                   </TableCell>
                 </TableRow>
               ))
@@ -463,16 +504,20 @@ export function FilesTable({
                   <TableCell className="font-medium">{file.file_name}</TableCell>
                   <TableCell>{getSimpleFileType(file.file_type)}</TableCell>
                   <TableCell>{formatFileSize(file.file_size)}</TableCell>
-                  <TableCell>{file.upload_date ? new Date(file.upload_date).toLocaleDateString('he-IL') : ''}</TableCell>
+                  <TableCell>
+                    {file.upload_date ? new Date(file.upload_date).toLocaleDateString("he-IL") : ""}
+                  </TableCell>
                   {clientId === 0 && (
                     <TableCell>
                       <button
                         type="button"
-                        onClick={() => navigate({
-                          to: "/clients/$clientId",
-                          params: { clientId: String(file.client_id) },
-                          search: { tab: 'files' }
-                        })}
+                        onClick={() =>
+                          navigate({
+                            to: "/clients/$clientId",
+                            params: { clientId: String(file.client_id) },
+                            search: { tab: "files" }
+                          })
+                        }
                         className="text-blue-600 hover:underline"
                       >
                         {getClientName(file)}
@@ -489,24 +534,24 @@ export function FilesTable({
                         disabled={Boolean(file.id && isDownloading[file.id])}
                       >
                         {file.id && isDownloading[file.id] ? (
-                          <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                          <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
                         ) : (
                           <Download className="h-4 w-4" />
                         )}
-	                      </Button>
-	                      <Button
-	                        variant="ghost"
-	                        className="h-8 w-8 p-0"
-	                        onClick={() => {
-	                          setFileToRename(file)
-	                          setRenameValue(file.file_name || '')
-	                          setIsRenameModalOpen(true)
-	                        }}
-	                        title="שינוי שם"
-	                      >
-	                        <Pencil className="h-4 w-4" />
-	                      </Button>
-	                      <Button
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        className="h-8 w-8 p-0"
+                        onClick={() => {
+                          setFileToRename(file)
+                          setRenameValue(file.file_name || "")
+                          setIsRenameModalOpen(true)
+                        }}
+                        title="שינוי שם"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button
                         variant="ghost"
                         className="h-8 w-8 p-0"
                         onClick={() => {
@@ -523,7 +568,7 @@ export function FilesTable({
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
+                <TableCell colSpan={7} className="text-muted-foreground h-24 text-center">
                   לא נמצאו מסמכים.
                 </TableCell>
               </TableRow>
@@ -533,27 +578,15 @@ export function FilesTable({
       </div>
 
       {pagination && (
-        <div className="flex items-center justify-between mt-4">
-          <div className="text-sm text-muted-foreground">
-            עמוד {pagination.page} מתוך {Math.max(1, Math.ceil((pagination.total || 0) / (pagination.pageSize || 1)))} · סה"כ {pagination.total || 0}
-          </div>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={loading || pagination.page <= 1}
-              onClick={() => pagination.setPage(Math.max(1, pagination.page - 1))}
-            >הקודם</Button>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={loading || pagination.page >= Math.ceil((pagination.total || 0) / (pagination.pageSize || 1))}
-              onClick={() => pagination.setPage(pagination.page + 1)}
-            >הבא</Button>
-          </div>
-        </div>
+        <TablePagination
+          page={pagination.page}
+          pageSize={pagination.pageSize}
+          total={pagination.total}
+          onPageChange={pagination.setPage}
+          loading={loading}
+        />
       )}
-      
+
       <ClientSelectModal
         triggerText=""
         onClientSelect={handleClientSelectForFiles}
@@ -564,40 +597,44 @@ export function FilesTable({
         }}
       />
 
-	      <CustomModal
-	        isOpen={isDeleteModalOpen}
+      <CustomModal
+        isOpen={isDeleteModalOpen}
         onClose={() => setIsDeleteModalOpen(false)}
         title="מחיקת קובץ"
-        description={fileToDelete ? `האם אתה בטוח שברצונך למחוק את הקובץ "${fileToDelete.file_name}"?` : "האם אתה בטוח שברצונך למחוק את הקובץ?"}
+        description={
+          fileToDelete
+            ? `האם אתה בטוח שברצונך למחוק את הקובץ "${fileToDelete.file_name}"?`
+            : "האם אתה בטוח שברצונך למחוק את הקובץ?"
+        }
         onConfirm={handleDeleteConfirm}
         confirmText="מחק"
-	        cancelText="בטל"
-	      />
+        cancelText="בטל"
+      />
 
-	      <CustomModal
-	        isOpen={isRenameModalOpen}
-	        onClose={() => {
-	          setIsRenameModalOpen(false)
-	          setFileToRename(null)
-	        }}
-	        title="שינוי שם קובץ"
-	        onConfirm={handleRenameConfirm}
-	        confirmText="שמור"
-	        cancelText="בטל"
-	        isLoading={isRenaming}
-	      >
-	        <Input
-	          value={renameValue}
-	          onChange={(event) => setRenameValue(event.target.value)}
-	          onKeyDown={(event) => {
-	            if (event.key === 'Enter') {
-	              event.preventDefault()
-	              handleRenameConfirm()
-	            }
-	          }}
-	          autoFocus
-	        />
-	      </CustomModal>
-	    </div>
+      <CustomModal
+        isOpen={isRenameModalOpen}
+        onClose={() => {
+          setIsRenameModalOpen(false)
+          setFileToRename(null)
+        }}
+        title="שינוי שם קובץ"
+        onConfirm={handleRenameConfirm}
+        confirmText="שמור"
+        cancelText="בטל"
+        isLoading={isRenaming}
+      >
+        <Input
+          value={renameValue}
+          onChange={(event) => setRenameValue(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault()
+              handleRenameConfirm()
+            }
+          }}
+          autoFocus
+        />
+      </CustomModal>
+    </div>
   )
-} 
+}

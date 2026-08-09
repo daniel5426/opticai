@@ -70,6 +70,22 @@ class Settings:
     # Google OAuth
     GOOGLE_DESKTOP_CLIENT_ID: str = os.getenv("GOOGLE_DESKTOP_CLIENT_ID", "")
     GOOGLE_DESKTOP_CLIENT_SECRET: str = os.getenv("GOOGLE_DESKTOP_CLIENT_SECRET", "")
+    GOOGLE_WEB_CLIENT_ID: str = os.getenv("GOOGLE_WEB_CLIENT_ID", "")
+
+    # Website signup, billing, and transactional email
+    SITE_URL: str = os.getenv("SITE_URL", "https://prysm.co.il").rstrip("/")
+    STRIPE_SECRET_KEY: str = os.getenv("STRIPE_SECRET_KEY", "")
+    STRIPE_WEBHOOK_SECRET: str = os.getenv("STRIPE_WEBHOOK_SECRET", "")
+    STRIPE_ESSENTIAL_PRICE_ID: str = os.getenv("STRIPE_ESSENTIAL_PRICE_ID", "")
+    STRIPE_GROWTH_PRICE_ID: str = os.getenv("STRIPE_GROWTH_PRICE_ID", "")
+    STRIPE_NETWORK_PRICE_ID: str = os.getenv("STRIPE_NETWORK_PRICE_ID", "")
+    STRIPE_PORTAL_CONFIGURATION_ID: str = os.getenv("STRIPE_PORTAL_CONFIGURATION_ID", "")
+    RESEND_API_KEY: str = os.getenv("RESEND_API_KEY", "")
+    EMAIL_FROM: str = os.getenv("EMAIL_FROM", "Prysm <hello@prysm.co.il>")
+    TERMS_VERSION: str = os.getenv("TERMS_VERSION", "2026-08-09")
+    PRIVACY_VERSION: str = os.getenv("PRIVACY_VERSION", "2026-08-09")
+    SUBSCRIPTION_ENFORCEMENT_MODE: str = os.getenv("SUBSCRIPTION_ENFORCEMENT_MODE", "off").strip().lower()
+    WEB_SIGNUP_REQUIRED: bool = os.getenv("WEB_SIGNUP_REQUIRED", "false").strip().lower() in {"1", "true", "yes"}
 
     # WhatsApp
     WHATSAPP_ACCESS_TOKEN: str = os.getenv("WHATSAPP_ACCESS_TOKEN", "")
@@ -98,6 +114,8 @@ class Settings:
 
         if "*" in self.BACKEND_CORS_ORIGINS and not self.ALLOW_WILDCARD_CORS_IN_PRODUCTION:
             errors.append("Wildcard CORS is blocked in production unless ALLOW_WILDCARD_CORS_IN_PRODUCTION=true")
+        if self.SUBSCRIPTION_ENFORCEMENT_MODE not in {"off", "shadow", "enforce"}:
+            errors.append("SUBSCRIPTION_ENFORCEMENT_MODE must be off, shadow, or enforce")
 
         required = {
             "SUPABASE_URL": self.SUPABASE_URL,

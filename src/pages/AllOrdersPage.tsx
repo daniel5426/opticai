@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react"
 import { useSearch, useNavigate } from "@tanstack/react-router"
 import { SiteHeader } from "@/components/site-header"
+import { ListPageHeader } from "@/components/list-page-header"
 import { getPaginatedOrders, saveOrderDetailsComponent, updateContactLensOrder } from "@/lib/db/orders-db"
 import { Order } from "@/lib/db/schema-interface"
 import { OrdersTable } from "@/components/orders-table"
@@ -24,7 +25,7 @@ export default function AllOrdersPage() {
   const usersQuery = useUsersQuery(currentClinic?.id)
   const activeSort = React.useMemo(
     () => parseSortSearch(search.sort, { key: "order_date", direction: "desc" }),
-    [search.sort],
+    [search.sort]
   )
 
   useEffect(() => {
@@ -37,32 +38,43 @@ export default function AllOrdersPage() {
     setSearchInput(value)
   }
 
-  const buildSearchState = useCallback((overrides?: Partial<{ q: string; page: number; kind: string; status: string; sort: string }>) => {
-    return buildTableSearch(
-      {
-        q: searchInput.trim(),
-        page: search.page,
-        kind: search.kind,
-        status: search.status,
-        sort: search.sort,
-        ...overrides,
-      },
-      {
-        q: "",
-        page: 1,
-        kind: ALL_FILTER_VALUE,
-        status: ALL_FILTER_VALUE,
-        sort: "",
-      },
-    )
-  }, [search.kind, search.page, search.sort, search.status, searchInput])
+  const buildSearchState = useCallback(
+    (
+      overrides?: Partial<{
+        q: string
+        page: number
+        kind: string
+        status: string
+        sort: string
+      }>
+    ) => {
+      return buildTableSearch(
+        {
+          q: searchInput.trim(),
+          page: search.page,
+          kind: search.kind,
+          status: search.status,
+          sort: search.sort,
+          ...overrides
+        },
+        {
+          q: "",
+          page: 1,
+          kind: ALL_FILTER_VALUE,
+          status: ALL_FILTER_VALUE,
+          sort: ""
+        }
+      )
+    },
+    [search.kind, search.page, search.sort, search.status, searchInput]
+  )
 
   useEffect(() => {
     const t = setTimeout(() => {
       if (searchInput === search.q) return
       navigate({
         to: "/orders",
-        search: buildSearchState({ q: searchInput.trim(), page: 1 }),
+        search: buildSearchState({ q: searchInput.trim(), page: 1 })
       })
     }, TABLE_SEARCH_DEBOUNCE_MS)
     return () => clearTimeout(t)
@@ -79,13 +91,13 @@ export default function AllOrdersPage() {
         order: sortToOrder(activeSort, "date_desc"),
         q: search.q || undefined,
         kind: search.kind !== ALL_FILTER_VALUE ? search.kind : undefined,
-        status: search.status !== ALL_FILTER_VALUE ? search.status : undefined,
+        status: search.status !== ALL_FILTER_VALUE ? search.status : undefined
       })
       if (!canCommit()) return
       setOrders(items)
       setTotal(total)
     } catch (error) {
-      console.error('Error loading data:', error)
+      console.error("Error loading data:", error)
     } finally {
       if (canCommit()) {
         setLoading(false)
@@ -106,15 +118,15 @@ export default function AllOrdersPage() {
   }, [currentClinic, loadData])
 
   const handleOrderDeleted = (deletedOrderId: number) => {
-    setOrders(prevOrders => prevOrders.filter(order => order.id !== deletedOrderId))
+    setOrders((prevOrders) => prevOrders.filter((order) => order.id !== deletedOrderId))
     // Move to previous page if we deleted the last item on the current page
     if (orders.length === 1 && search.page > 1) {
       navigate({
         to: "/orders",
-        search: buildSearchState({ page: search.page - 1 }),
+        search: buildSearchState({ page: search.page - 1 })
       })
     } else {
-      setTotal(prev => prev - 1)
+      setTotal((prev) => prev - 1)
     }
   }
 
@@ -134,9 +146,9 @@ export default function AllOrdersPage() {
         ...orderData,
         details: {
           ...details,
-          order_status: nextStatus,
-        },
-      },
+          order_status: nextStatus
+        }
+      }
     }
 
     setOrders((current) => current.map((item) => (item.id === order.id ? optimisticOrder : item)))
@@ -145,13 +157,13 @@ export default function AllOrdersPage() {
       if ((order as any).__contact) {
         const updated = await updateContactLensOrder({
           ...(order as any),
-          order_status: nextStatus,
+          order_status: nextStatus
         })
         if (!updated) throw new Error("contact update failed")
       } else {
         const saved = await saveOrderDetailsComponent(order.id, {
           ...details,
-          order_status: nextStatus,
+          order_status: nextStatus
         })
         if (!saved) throw new Error("order status save failed")
       }
@@ -164,15 +176,13 @@ export default function AllOrdersPage() {
   return (
     <>
       <SiteHeader title="הזמנות" />
-      <div className="flex flex-col flex-1 p-4 lg:p-6" dir="rtl" style={{scrollbarWidth: 'none'}}>
-        <div className="flex items-center justify-between mb-4">
-          <h1 className="text-xl font-bold">כל ההזמנות</h1>
-        </div>
-        <OrdersTable 
-          data={orders} 
-          clientId={0} 
+      <div className="flex flex-1 flex-col p-4 lg:p-6" dir="rtl" style={{ scrollbarWidth: "none" }}>
+        <ListPageHeader title="כל ההזמנות" description="מעקב אחר הזמנות משקפיים ועדשות מגע" />
+        <OrdersTable
+          data={orders}
+          clientId={0}
           users={usersQuery.data || []}
-          onOrderDeleted={handleOrderDeleted} 
+          onOrderDeleted={handleOrderDeleted}
           onOrderDeleteFailed={handleOrderDeleteFailed}
           onOrderStatusChange={handleOrderStatusChange}
           searchQuery={searchInput}
@@ -182,21 +192,21 @@ export default function AllOrdersPage() {
           onKindFilterChange={(value) =>
             navigate({
               to: "/orders",
-              search: buildSearchState({ kind: value, page: 1 }),
+              search: buildSearchState({ kind: value, page: 1 })
             })
           }
           statusFilter={search.status}
           onStatusFilterChange={(value) =>
             navigate({
               to: "/orders",
-              search: buildSearchState({ status: value, page: 1 }),
+              search: buildSearchState({ status: value, page: 1 })
             })
           }
           sort={activeSort}
           onSortChange={(sort) =>
             navigate({
               to: "/orders",
-              search: buildSearchState({ sort: sortToSearch(sort), page: 1 }),
+              search: buildSearchState({ sort: sortToSearch(sort), page: 1 })
             })
           }
           loading={loading}
@@ -207,11 +217,11 @@ export default function AllOrdersPage() {
             setPage: (page) =>
               navigate({
                 to: "/orders",
-                search: buildSearchState({ page }),
-              }),
+                search: buildSearchState({ page })
+              })
           }}
         />
       </div>
     </>
   )
-} 
+}

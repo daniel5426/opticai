@@ -457,6 +457,19 @@ type SoftOpticUploadStatus = {
   error?: string;
 };
 
+async function cleanupUploadedMigrationArtifacts(zipPath: string) {
+  const tempRoot = path.resolve(app.getPath("temp"));
+  const resolvedZip = path.resolve(zipPath);
+  if (!resolvedZip.startsWith(`${tempRoot}${path.sep}`)) return;
+  const exportDir = resolvedZip.toLowerCase().endsWith(".zip")
+    ? resolvedZip.slice(0, -4)
+    : "";
+  await fs.promises.rm(resolvedZip, { force: true });
+  if (exportDir && exportDir.startsWith(`${tempRoot}${path.sep}`)) {
+    await fs.promises.rm(exportDir, { recursive: true, force: true });
+  }
+}
+
 function getSoftOpticExportJobsPath() {
   return path.join(app.getPath("userData"), "softoptic-export-jobs.json");
 }
@@ -623,7 +636,11 @@ async function scanOptiTechCandidates(): Promise<{ supported: boolean; candidate
   return { supported: true, candidates };
 }
 
-async function exportOptiTechCandidate(candidate: SoftOpticCandidate, includeDocuments = false) {
+async function exportOptiTechCandidate(
+  candidate: SoftOpticCandidate,
+  includeDocuments = false,
+  clientImportLimit?: number | null,
+) {
   if (process.platform !== "win32") return { success: false, error: "OptiTech import is available only on Windows" };
   if (!candidate.dbFile || !fs.existsSync(candidate.dbFile)) return { success: false, error: "OptiTech database was not found" };
   const exporterPath = getOptiTechExporterPath();
@@ -637,6 +654,7 @@ async function exportOptiTechCandidate(candidate: SoftOpticCandidate, includeDoc
   ];
   if (candidate.documentPath) args.push("-ScansDir", candidate.documentPath);
   if (includeDocuments) args.push("-IncludeDocuments");
+  if (clientImportLimit) args.push("-ClientLimit", String(clientImportLimit));
   try {
     await runProcess(getWindowsPowerShellPath(), args, { cwd: outputDir });
     const manifest = JSON.parse(await fs.promises.readFile(path.join(outputDir, "manifest.json"), "utf-8"));
@@ -649,6 +667,7 @@ async function exportOptiTechCandidate(candidate: SoftOpticCandidate, includeDoc
       appointments: tableCounts.tblClndrApt || 0,
       external_documents: manifest.documents?.file_count || 0,
       sourceFingerprint: manifest.source_fingerprint,
+      clientImportLimit: manifest.client_limit ?? null,
       manifest,
     };
     const zipPath = `${outputDir}.zip`;
@@ -1003,7 +1022,11 @@ async function startMigrationExportJob(payload: {
   await saveSoftOpticExportStatus(status);
   void (async () => {
     try {
-      const result = await exportOptiTechCandidate(payload.candidate, Boolean(payload.includeDocuments));
+      const result = await exportOptiTechCandidate(
+        payload.candidate,
+        Boolean(payload.includeDocuments),
+        payload.clientImportLimit,
+      );
       await saveSoftOpticExportStatus(result.success && result.zipPath ? {
         ...status,
         status: "completed",
@@ -1220,6 +1243,7 @@ async function uploadSoftOpticBundle(payload: { apiBaseUrl: string; jobId: strin
       transferredBytes: stat.size,
       totalBytes: stat.size,
     });
+    await cleanupUploadedMigrationArtifacts(payload.zipPath);
     return { success: true, data };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

@@ -154,6 +154,7 @@ export function ObjectiveTab({
                     disabled={!isEditing}
                     textOptions={(inputProps as any).textOptions}
                     textValueAliases={(inputProps as any).textValueAliases}
+                    textDisplayAliases={(inputProps as any).displayAliases}
                     numericProps={{
                       step: (inputProps as any).step,
                       min: (inputProps as any).min,
@@ -232,6 +233,7 @@ export function ObjectiveTab({
                     disabled={!isEditing}
                     textOptions={(inputProps as any).textOptions}
                     textValueAliases={(inputProps as any).textValueAliases}
+                    textDisplayAliases={(inputProps as any).displayAliases}
                     numericProps={{
                       step: (inputProps as any).step,
                       min: (inputProps as any).min,

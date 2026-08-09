@@ -25,6 +25,11 @@ from services.prescription_search_index import (
     rebuild_contact_lens_order_index,
     rebuild_order_index,
 )
+from services.inventory_service import (
+    allocation_dict,
+    reconcile_order_allocations,
+    release_order_allocations_for_delete,
+)
 
 router = APIRouter(prefix="/orders", tags=["orders"])
 
@@ -261,6 +266,15 @@ def update_order(
     update_fields = _prepare_update_payload(db, current_user, db_order, Order, order.dict(exclude_unset=True))
     for field, value in update_fields.items():
         setattr(db_order, field, value)
+    reconcile_order_allocations(
+        db,
+        order=db_order,
+        current_user=current_user,
+        company_id=resolve_company_id(db, current_user),
+        selections_present=False,
+        selections=None,
+        contact=False,
+    )
     rebuild_order_index(db, db_order)
     db.commit()
     # bump client_updated_date
@@ -279,6 +293,12 @@ def update_order(
 def delete_order(order_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     order = get_scoped_order(db, current_user, order_id)
     client_id = order.client_id
+    release_order_allocations_for_delete(
+        db,
+        order=order,
+        current_user=current_user,
+        contact=False,
+    )
     delete_source_index_rows(db, "order", order.id)
     db.delete(order)
     db.commit()
@@ -314,6 +334,15 @@ async def save_order_data(
     except Exception as e:
         raise HTTPException(status_code=422, detail=f"Invalid JSON: {str(e)}")
     order.order_data = data
+    reconcile_order_allocations(
+        db,
+        order=order,
+        current_user=current_user,
+        company_id=resolve_company_id(db, current_user),
+        selections_present=False,
+        selections=None,
+        contact=False,
+    )
     rebuild_order_index(db, order)
     db.commit()
     # bump client_updated_date
@@ -357,6 +386,15 @@ async def save_order_component_data(
     data = order.order_data or {}
     data[component_type] = component_data
     order.order_data = data
+    reconcile_order_allocations(
+        db,
+        order=order,
+        current_user=current_user,
+        company_id=resolve_company_id(db, current_user),
+        selections_present=False,
+        selections=None,
+        contact=False,
+    )
     rebuild_order_index(db, order)
     db.commit()
     # bump client_updated_date
@@ -415,6 +453,68 @@ def _prepare_update_payload(db: Session, current_user: User, db_obj, model, data
     scoped_candidate = _prepare_model_payload(db, current_user, model, candidate)
     return {k: scoped_candidate[k] for k in update if k in scoped_candidate}
 
+
+def _upsert_billing_and_items(
+    db: Session,
+    current_user: User,
+    *,
+    billing_data: Any,
+    line_items: Any,
+    order_id: int | None = None,
+    contact_lens_order_id: int | None = None,
+):
+    if not isinstance(billing_data, dict):
+        return None
+    filtered_billing_data = filter_model_data(Billing, billing_data)
+    if billing_data.get("id"):
+        db_billing = get_scoped_billing(db, current_user, billing_data["id"])
+    elif order_id is not None:
+        db_billing = db.query(Billing).filter(Billing.order_id == order_id).first()
+    else:
+        db_billing = db.query(Billing).filter(Billing.contact_lens_id == contact_lens_order_id).first()
+
+    if db_billing:
+        for key, value in filtered_billing_data.items():
+            if key not in {"id", "order_id", "contact_lens_id", "line_items"}:
+                setattr(db_billing, key, value)
+    else:
+        create_data = {
+            **filtered_billing_data,
+            "order_id": order_id,
+            "contact_lens_id": contact_lens_order_id,
+        }
+        create_data.pop("id", None)
+        db_billing = Billing(**create_data)
+        db.add(db_billing)
+    db.flush()
+
+    if isinstance(line_items, list):
+        existing = {
+            item.id: item
+            for item in db.query(OrderLineItem).filter(OrderLineItem.billings_id == db_billing.id).all()
+        }
+        sent_ids = set()
+        for item in line_items:
+            if not isinstance(item, dict):
+                continue
+            filtered = filter_model_data(OrderLineItem, item)
+            item_id = item.get("id")
+            if item_id and item_id in existing:
+                db_item = existing[item_id]
+                for key, value in filtered.items():
+                    if key not in {"id", "billings_id"}:
+                        setattr(db_item, key, value)
+                sent_ids.add(item_id)
+            elif not item_id:
+                filtered.pop("id", None)
+                filtered["billings_id"] = db_billing.id
+                db.add(OrderLineItem(**filtered))
+        for existing_id, db_item in existing.items():
+            if existing_id not in sent_ids:
+                db.delete(db_item)
+    db.flush()
+    return db_billing
+
 # Combined create/update with billing and line items
 @router.post("/upsert-full")
 def upsert_order_full(
@@ -423,104 +523,54 @@ def upsert_order_full(
     current_user: User = Depends(get_current_user),
 ):
     order_data = payload.get("order")
-    billing_data = payload.get("billing")
-    line_items = payload.get("line_items", [])
-
     if not isinstance(order_data, dict):
         raise HTTPException(status_code=422, detail="order payload missing or invalid")
 
     order_id = order_data.get("id")
-    filtered_order_data = _prepare_model_payload(db, current_user, Order, order_data)
-    
     if order_id:
         db_order = get_scoped_order(db, current_user, order_id)
-        filtered_order_data = _prepare_update_payload(db, current_user, db_order, Order, order_data)
-        for k, v in filtered_order_data.items():
-            if k == "id":
-                continue
-            setattr(db_order, k, v)
-        db.commit()
-        db.refresh(db_order)
+        for key, value in _prepare_update_payload(db, current_user, db_order, Order, order_data).items():
+            if key != "id":
+                setattr(db_order, key, value)
     else:
-        db_order = Order(**filtered_order_data)
+        db_order = Order(**_prepare_model_payload(db, current_user, Order, order_data))
         db.add(db_order)
-        db.commit()
-        db.refresh(db_order)
+    db.flush()
+
+    allocations = reconcile_order_allocations(
+        db,
+        order=db_order,
+        current_user=current_user,
+        company_id=resolve_company_id(db, current_user),
+        selections_present="inventory_selections" in payload,
+        selections=payload.get("inventory_selections"),
+        contact=False,
+    )
+    billing_result = _upsert_billing_and_items(
+        db,
+        current_user,
+        billing_data=payload.get("billing"),
+        line_items=payload.get("line_items", []),
+        order_id=db_order.id,
+    )
     rebuild_order_index(db, db_order)
+    if db_order.client_id:
+        client = db.query(Client).filter(Client.id == db_order.client_id).first()
+        if client:
+            client.client_updated_date = func.now()
     db.commit()
+    db.refresh(db_order)
 
-    billing_result = None
-    if isinstance(billing_data, dict):
-        filtered_billing_data = filter_model_data(Billing, billing_data)
-        db_billing = None
-        
-        # Try to find existing billing
-        if billing_data.get("id"):
-            db_billing = get_scoped_billing(db, current_user, billing_data["id"])
-        else:
-            db_billing = db.query(Billing).filter(Billing.order_id == db_order.id).first()
-            
-        if db_billing:
-            # Update existing billing
-            for k, v in filtered_billing_data.items():
-                if k == "id" or k == "order_id" or k == "contact_lens_id" or k == "line_items":
-                    continue
-                setattr(db_billing, k, v)
-            db.commit()
-            db.refresh(db_billing)
-        else:
-            # Create new billing
-            to_create = {**filtered_billing_data, "order_id": db_order.id}
-            db_billing = Billing(**to_create)
-            db.add(db_billing)
-            db.commit()
-            db.refresh(db_billing)
-        billing_result = db_billing
-
-        if isinstance(line_items, list):
-            existing = {li.id: li for li in db.query(OrderLineItem).filter(OrderLineItem.billings_id == db_billing.id).all()}
-            sent_ids = set()
-            for item in line_items:
-                if not isinstance(item, dict):
-                    continue
-                
-                filtered_item_data = filter_model_data(OrderLineItem, item)
-                
-                if item.get("id"):
-                    li = existing.get(item["id"])
-                    if not li:
-                        continue
-                    for k, v in filtered_item_data.items():
-                        if k == "id":
-                            continue
-                        setattr(li, k, v)
-                    sent_ids.add(item["id"])
-                else:
-                    db_item = OrderLineItem(**{**filtered_item_data, "billings_id": db_billing.id})
-                    db.add(db_item)
-            # delete items not present in payload
-            for existing_id, li in existing.items():
-                if existing_id not in sent_ids:
-                    db.delete(li)
-            db.commit()
-            print(f"Saved {len(line_items)} line items for order {db_order.id}")
-
-
-    try:
-        if db_order.client_id:
-            client = db.query(Client).filter(Client.id == db_order.client_id).first()
-            if client:
-                client.client_updated_date = func.now()
-                db.commit()
-    except Exception:
-        pass
-
-    response: Dict[str, Any] = {"order": db_order}
+    response: Dict[str, Any] = {
+        "order": db_order,
+        "inventory_allocations": [allocation_dict(allocation) for allocation in allocations],
+    }
     if billing_result:
+        db.refresh(billing_result)
         response["billing"] = billing_result
-        # include line items in response
-        items = db.query(OrderLineItem).filter(OrderLineItem.billings_id == billing_result.id).all()
-        response["line_items"] = items
+        response["line_items"] = db.query(OrderLineItem).filter(
+            OrderLineItem.billings_id == billing_result.id
+        ).all()
     return response
  
 # Contact Lens Orders endpoints and unified upsert
@@ -592,6 +642,15 @@ def update_contact_lens_order(
     update_fields = _prepare_update_payload(db, current_user, db_order, ContactLensOrder, order.dict(exclude_unset=True))
     for field, value in update_fields.items():
         setattr(db_order, field, value)
+    reconcile_order_allocations(
+        db,
+        order=db_order,
+        current_user=current_user,
+        company_id=resolve_company_id(db, current_user),
+        selections_present=False,
+        selections=None,
+        contact=True,
+    )
     rebuild_contact_lens_order_index(db, db_order)
     db.commit()
     try:
@@ -613,6 +672,12 @@ def delete_contact_lens_order(
 ):
     order = get_scoped_contact_lens_order(db, current_user, order_id)
     client_id = order.client_id
+    release_order_allocations_for_delete(
+        db,
+        order=order,
+        current_user=current_user,
+        contact=True,
+    )
     delete_source_index_rows(db, "contact_lens_order", order.id)
     db.delete(order)
     db.commit()
@@ -633,102 +698,57 @@ def upsert_contact_lens_order_full(
     current_user: User = Depends(get_current_user),
 ):
     order_data = payload.get("order")
-    billing_data = payload.get("billing")
-    line_items = payload.get("line_items", [])
-
     if not isinstance(order_data, dict):
         raise HTTPException(status_code=422, detail="order payload missing or invalid")
 
     order_id = order_data.get("id")
-    filtered_order_data = _prepare_model_payload(db, current_user, ContactLensOrder, order_data)
-
     if order_id:
         db_order = get_scoped_contact_lens_order(db, current_user, order_id)
-        filtered_order_data = _prepare_update_payload(db, current_user, db_order, ContactLensOrder, order_data)
-        for k, v in filtered_order_data.items():
-            if k == "id":
-                continue
-            setattr(db_order, k, v)
-        db.commit()
-        db.refresh(db_order)
+        for key, value in _prepare_update_payload(
+            db, current_user, db_order, ContactLensOrder, order_data
+        ).items():
+            if key != "id":
+                setattr(db_order, key, value)
     else:
-        db_order = ContactLensOrder(**filtered_order_data)
+        db_order = ContactLensOrder(
+            **_prepare_model_payload(db, current_user, ContactLensOrder, order_data)
+        )
         db.add(db_order)
-        db.commit()
-        db.refresh(db_order)
+    db.flush()
+
+    allocations = reconcile_order_allocations(
+        db,
+        order=db_order,
+        current_user=current_user,
+        company_id=resolve_company_id(db, current_user),
+        selections_present="inventory_selections" in payload,
+        selections=payload.get("inventory_selections"),
+        contact=True,
+    )
+    billing_result = _upsert_billing_and_items(
+        db,
+        current_user,
+        billing_data=payload.get("billing"),
+        line_items=payload.get("line_items", []),
+        contact_lens_order_id=db_order.id,
+    )
     rebuild_contact_lens_order_index(db, db_order)
+    if db_order.client_id:
+        client = db.query(Client).filter(Client.id == db_order.client_id).first()
+        if client:
+            client.client_updated_date = func.now()
     db.commit()
+    db.refresh(db_order)
 
-    billing_result = None
-    if isinstance(billing_data, dict):
-        filtered_billing_data = filter_model_data(Billing, billing_data)
-        db_billing = None
-        
-        # Try to find existing billing
-        if billing_data.get("id"):
-            db_billing = get_scoped_billing(db, current_user, billing_data["id"])
-        else:
-            db_billing = db.query(Billing).filter(Billing.contact_lens_id == db_order.id).first()
-            
-        if db_billing:
-            # Update existing billing
-            for k, v in filtered_billing_data.items():
-                if k == "id" or k == "order_id" or k == "contact_lens_id" or k == "line_items":
-                    continue
-                setattr(db_billing, k, v)
-            db.commit()
-            db.refresh(db_billing)
-        else:
-            # Create new billing
-            to_create = {**filtered_billing_data, "contact_lens_id": db_order.id}
-            db_billing = Billing(**to_create)
-            db.add(db_billing)
-            db.commit()
-            db.refresh(db_billing)
-        billing_result = db_billing
-
-        if isinstance(line_items, list):
-            existing = {li.id: li for li in db.query(OrderLineItem).filter(OrderLineItem.billings_id == db_billing.id).all()}
-            sent_ids = set()
-            for item in line_items:
-                if not isinstance(item, dict):
-                    continue
-                
-                filtered_item_data = filter_model_data(OrderLineItem, item)
-                
-                if item.get("id"):
-                    li = existing.get(item["id"]) 
-                    if not li:
-                        continue
-                    for k, v in filtered_item_data.items():
-                        if k == "id":
-                            continue
-                        setattr(li, k, v)
-                    sent_ids.add(item["id"])
-                else:
-                    db_item = OrderLineItem(**{**filtered_item_data, "billings_id": db_billing.id})
-                    db.add(db_item)
-            # delete items not present in payload
-            for existing_id, li in existing.items():
-                if existing_id not in sent_ids:
-                    db.delete(li)
-            db.commit()
-            print(f"Saved {len(line_items)} line items for contact lens order {db_order.id}")
-
-
-    try:
-        if db_order.client_id:
-            client = db.query(Client).filter(Client.id == db_order.client_id).first()
-            if client:
-                client.client_updated_date = func.now()
-                db.commit()
-    except Exception:
-        pass
-
-    response: Dict[str, Any] = {"order": db_order}
+    response: Dict[str, Any] = {
+        "order": db_order,
+        "inventory_allocations": [allocation_dict(allocation) for allocation in allocations],
+    }
     if billing_result:
+        db.refresh(billing_result)
         response["billing"] = billing_result
-        items = db.query(OrderLineItem).filter(OrderLineItem.billings_id == billing_result.id).all()
-        response["line_items"] = items
+        response["line_items"] = db.query(OrderLineItem).filter(
+            OrderLineItem.billings_id == billing_result.id
+        ).all()
     return response
  

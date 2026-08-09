@@ -5,6 +5,47 @@ from sqlalchemy import Column, Integer, String, DateTime, Boolean, ForeignKey, D
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 
+
+class AnalyticsRangeResponse(BaseModel):
+    start_date: date
+    end_date: date
+    previous_start: date
+    previous_end: date
+    bucket: Literal["day", "week", "month"]
+
+
+class AnalyticsMetricPoint(BaseModel):
+    bucket: str
+    label: str
+    value: float
+
+
+class AnalyticsMetricResponse(BaseModel):
+    key: str
+    label: str
+    value: float
+    previous: float
+    change_percent: Optional[float] = None
+    series: List[AnalyticsMetricPoint] = Field(default_factory=list)
+    context: Optional[str] = None
+    snapshot: bool = False
+
+
+class ControlCenterAnalyticsResponse(BaseModel):
+    range: AnalyticsRangeResponse
+    metrics: List[AnalyticsMetricResponse]
+    financial_series: List[Dict[str, Any]]
+    activity: Dict[str, Any]
+    clinic_ranking: List[Dict[str, Any]]
+    order_mix: List[Dict[str, Any]]
+    top_products: List[Dict[str, Any]]
+
+
+class WorkforceAnalyticsResponse(BaseModel):
+    range: AnalyticsRangeResponse
+    metrics: List[AnalyticsMetricResponse]
+    series: List[Dict[str, Any]]
+
 # Base schemas
 class CompanyBase(BaseModel):
     name: str
@@ -239,6 +280,7 @@ class ClientBase(BaseModel):
     phone_home: Optional[str] = None
     phone_work: Optional[str] = None
     phone_mobile: Optional[str] = None
+    additional_phone: Optional[str] = None
     fax: Optional[str] = None
     email: Optional[str] = None
     service_center: Optional[str] = None

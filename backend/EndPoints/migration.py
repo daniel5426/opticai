@@ -63,14 +63,19 @@ def create_import(
     client_limit = options.get("client_import_limit")
     if client_limit is not None and (not isinstance(client_limit, int) or client_limit < 1):
         raise HTTPException(status_code=422, detail="client_import_limit must be a positive integer")
+    source_metadata = payload.get("source_metadata") if isinstance(payload.get("source_metadata"), dict) else {}
+    export_summary = payload.get("export_summary") if isinstance(payload.get("export_summary"), dict) else {}
+    if source_system == "optitech":
+        source_metadata = {**source_metadata, "mapping_version": 2}
+        export_summary = {**export_summary, "mapping_version": 2}
     try:
         job = create_job(
             db,
             job_id=uuid4().hex,
             clinic=clinic,
             current_user=current_user,
-            source_metadata=payload.get("source_metadata") if isinstance(payload.get("source_metadata"), dict) else {},
-            export_summary=payload.get("export_summary") if isinstance(payload.get("export_summary"), dict) else {},
+            source_metadata=source_metadata,
+            export_summary=export_summary,
             include_documents=bool(options.get("include_documents")),
             client_import_limit=client_limit,
             source_system=source_system,
@@ -106,6 +111,23 @@ def list_imports(
 @router.get("/imports/{job_id}")
 def get_import(job_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     return job_to_dict(_get_job(db, current_user, job_id))
+
+
+@router.get("/imports/{job_id}/report-download")
+def download_import_report(
+    job_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    storage: FileStorageService = Depends(get_file_storage_service),
+):
+    job = _get_job(db, current_user, job_id)
+    report = (job.import_summary or {}).get("report")
+    if not isinstance(report, dict) or not report.get("bucket") or not report.get("key"):
+        raise HTTPException(status_code=404, detail="Migration report is not available")
+    return {
+        "url": storage.create_signed_url(report["bucket"], report["key"], expires_in=900),
+        "file_name": f"optitech-migration-{job.id}.zip",
+    }
 
 
 @router.post("/imports/{job_id}/bundle-upload-url")

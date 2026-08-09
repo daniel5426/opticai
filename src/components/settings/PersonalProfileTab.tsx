@@ -306,7 +306,7 @@ export function PersonalProfileTab({
               <div className="relative group shrink-0">
                 <input
                   type="color"
-                  value={getSafeHexColor(personalProfile.primary_theme_color, '#2256aa')}
+                  value={getSafeHexColor(personalProfile.primary_theme_color, '#3f3f46')}
                   onChange={(e) => onProfileChange('primary_theme_color', e.target.value)}
                   className="absolute inset-0 opacity-0 w-8 h-8 cursor-pointer p-0 z-10"
                 />

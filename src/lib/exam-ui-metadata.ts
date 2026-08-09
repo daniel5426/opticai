@@ -6,7 +6,10 @@ import {
 
 export const EXAM_DATA_UI_KEY = "__ui";
 
-export type TabMetadataComponentType = "cover-test" | "old-refraction";
+export type TabMetadataComponentType =
+  | "cover-test"
+  | "old-refraction"
+  | "old-refraction-extension";
 
 export interface ExamCardTabMetadata {
   id: string;
@@ -38,6 +41,10 @@ const TAB_DEFAULTS_BY_TYPE: Record<
     r_glasses_type: "רחוק",
     l_glasses_type: "רחוק",
   },
+  "old-refraction-extension": {
+    r_glasses_type: "רחוק",
+    l_glasses_type: "רחוק",
+  },
 };
 
 const DEFAULT_OLD_REFRACTION_TYPE = "רחוק";
@@ -63,6 +70,20 @@ const OLD_REFRACTION_CONTENT_FIELDS = [
   "l_j",
   "comb_va",
   "comb_j",
+  "r_pr_h",
+  "l_pr_h",
+  "r_base_h",
+  "l_base_h",
+  "r_pr_v",
+  "l_pr_v",
+  "r_base_v",
+  "l_base_v",
+  "r_pd_far",
+  "l_pd_far",
+  "comb_pd_far",
+  "r_pd_close",
+  "l_pd_close",
+  "comb_pd_close",
 ];
 
 export const getTabsByCardKey = (
@@ -110,7 +131,7 @@ const normalizeTabMetadataDefaults = (
   cardId: string,
   tabs: ExamCardTabMetadata[],
 ) => {
-  if (type !== "old-refraction") return tabs;
+  if (type !== "old-refraction" && type !== "old-refraction-extension") return tabs;
 
   return tabs.map((tab) => {
     const tabData = examData[getTabDataKey(type, cardId, tab.id)];
@@ -123,6 +144,7 @@ const normalizeTabMetadataDefaults = (
 
 const backfillOldRefractionTabDataDefaults = (
   examData: Record<string, any>,
+  type: "old-refraction" | "old-refraction-extension",
   cardId: string,
   tabs: ExamCardTabMetadata[],
 ) => {
@@ -130,7 +152,7 @@ const backfillOldRefractionTabDataDefaults = (
   let changed = false;
 
   tabs.forEach((tab) => {
-    const key = getTabDataKey("old-refraction", cardId, tab.id);
+    const key = getTabDataKey(type, cardId, tab.id);
     const tabData = next[key];
     if (!tabData || typeof tabData !== "object") return;
 
@@ -192,7 +214,7 @@ export const deriveLegacyTabsForCard = (
       return {
         id,
         index: Number(data.tab_index ?? 0) || 0,
-        ...(type === "old-refraction"
+        ...(type === "old-refraction" || type === "old-refraction-extension"
           ? { type: getOldRefractionTabType(data) }
           : {}),
       };
@@ -265,21 +287,30 @@ const isMeaningfulOldRefractionData = (
     return value != null && String(value).trim() !== "";
   });
 
-const isOldRefractionTabDataKey = (key: string) =>
-  key.startsWith(OLD_REFRACTION_PREFIX) &&
-  !key.startsWith(OLD_REFRACTION_EXTENSION_PREFIX);
+const isRefractionTabDataKey = (
+  key: string,
+  type: "old-refraction" | "old-refraction-extension",
+) =>
+  type === "old-refraction-extension"
+    ? key.startsWith(`${OLD_REFRACTION_EXTENSION_PREFIX}-`)
+    : key.startsWith(OLD_REFRACTION_PREFIX) &&
+      !key.startsWith(OLD_REFRACTION_EXTENSION_PREFIX);
 
-const buildOldRefractionMetadataKeyMap = (examData: Record<string, any>) => {
+const buildRefractionMetadataKeyMap = (
+  examData: Record<string, any>,
+  type: "old-refraction" | "old-refraction-extension",
+) => {
   const keyToCardId = new Map<string, string>();
   const tabsByCard = getExamDataUi(examData).tabsByCard || {};
 
   Object.entries(tabsByCard).forEach(([key, tabs]) => {
-    if (!key.startsWith("old-refraction:") || !Array.isArray(tabs)) return;
-    const cardId = key.slice("old-refraction:".length);
+    const metadataPrefix = `${type}:`;
+    if (!key.startsWith(metadataPrefix) || !Array.isArray(tabs)) return;
+    const cardId = key.slice(metadataPrefix.length);
     tabs.forEach((tab) => {
       if (tab?.id) {
         keyToCardId.set(
-          getTabDataKey("old-refraction", cardId, tab.id),
+          getTabDataKey(type, cardId, tab.id),
           cardId,
         );
       }
@@ -289,10 +320,11 @@ const buildOldRefractionMetadataKeyMap = (examData: Record<string, any>) => {
   return keyToCardId;
 };
 
-const resolveOldRefractionCardIdFromKey = (
+const resolveRefractionCardIdFromKey = (
   key: string,
   data: Record<string, any>,
   metadataKeyMap: Map<string, string>,
+  type: "old-refraction" | "old-refraction-extension",
 ) => {
   if (typeof data.card_id === "string" && data.card_id.trim() !== "") {
     return data.card_id;
@@ -301,8 +333,9 @@ const resolveOldRefractionCardIdFromKey = (
   const metadataCardId = metadataKeyMap.get(key);
   if (metadataCardId) return metadataCardId;
 
-  if (!isOldRefractionTabDataKey(key)) return null;
-  const suffix = key.slice(OLD_REFRACTION_PREFIX.length);
+  if (!isRefractionTabDataKey(key, type)) return null;
+  const prefix = `${type}-`;
+  const suffix = key.slice(prefix.length);
   const tabId = data.card_instance_id;
   if (tabId != null && String(tabId) !== "" && suffix.endsWith(`-${tabId}`)) {
     return suffix.slice(0, -String(tabId).length - 1) || suffix;
@@ -311,30 +344,32 @@ const resolveOldRefractionCardIdFromKey = (
   return null;
 };
 
-const rebindOrphanedOldRefractionTabsForRows = (
+const rebindOrphanedRefractionTabsForRows = (
   examData: Record<string, any>,
   cardRows: CardRow[],
+  type: "old-refraction" | "old-refraction-extension",
 ) => {
-  const visibleCardIds = collectCardIdsByType(cardRows, "old-refraction");
+  const visibleCardIds = collectCardIdsByType(cardRows, type);
   if (visibleCardIds.length === 0) return { examData, changed: false };
 
   const visibleCardIdSet = new Set(visibleCardIds);
   const emptyTargetCardIds = visibleCardIds.filter(
-    (cardId) => getTabsForCard(examData, "old-refraction", cardId).length === 0,
+    (cardId) => getTabsForCard(examData, type, cardId).length === 0,
   );
   if (emptyTargetCardIds.length === 0) return { examData, changed: false };
 
-  const metadataKeyMap = buildOldRefractionMetadataKeyMap(examData);
+  const metadataKeyMap = buildRefractionMetadataKeyMap(examData, type);
   const sourceOrderByCardId = new Map<string, number>();
 
   Object.entries(examData).forEach(([key, value], order) => {
-    if (!isOldRefractionTabDataKey(key)) return;
+    if (!isRefractionTabDataKey(key, type)) return;
     if (!value || typeof value !== "object") return;
 
-    const cardId = resolveOldRefractionCardIdFromKey(
+    const cardId = resolveRefractionCardIdFromKey(
       key,
       value as Record<string, any>,
       metadataKeyMap,
+      type,
     );
     if (!cardId || visibleCardIdSet.has(cardId)) return;
     if (!sourceOrderByCardId.has(cardId))
@@ -343,15 +378,15 @@ const rebindOrphanedOldRefractionTabsForRows = (
 
   const sourceGroups = Array.from(sourceOrderByCardId.entries())
     .map(([cardId, order]) => {
-      const tabs = getTabsForCard(examData, "old-refraction", cardId).filter(
+      const tabs = getTabsForCard(examData, type, cardId).filter(
         (tab) => {
-          const key = getTabDataKey("old-refraction", cardId, tab.id);
+          const key = getTabDataKey(type, cardId, tab.id);
           return !!examData[key] && typeof examData[key] === "object";
         },
       );
       const hasMeaningfulData = tabs.some((tab) =>
         isMeaningfulOldRefractionData(
-          examData[getTabDataKey("old-refraction", cardId, tab.id)],
+          examData[getTabDataKey(type, cardId, tab.id)],
         ),
       );
       return { cardId, order, tabs, hasMeaningfulData };
@@ -377,11 +412,11 @@ const rebindOrphanedOldRefractionTabsForRows = (
 
     sourceGroup.tabs.forEach((tab, tabIndex) => {
       const sourceKey = getTabDataKey(
-        "old-refraction",
+        type,
         sourceGroup.cardId,
         tab.id,
       );
-      const targetKey = getTabDataKey("old-refraction", targetCardId, tab.id);
+      const targetKey = getTabDataKey(type, targetCardId, tab.id);
       const sourceData = next[sourceKey];
       if (!sourceData || typeof sourceData !== "object") return;
 
@@ -396,8 +431,8 @@ const rebindOrphanedOldRefractionTabsForRows = (
     });
 
     if (movedTabs.length > 0) {
-      next = setTabsForCard(next, "old-refraction", sourceGroup.cardId, []);
-      next = setTabsForCard(next, "old-refraction", targetCardId, movedTabs);
+      next = setTabsForCard(next, type, sourceGroup.cardId, []);
+      next = setTabsForCard(next, type, targetCardId, movedTabs);
     }
   });
 
@@ -411,7 +446,7 @@ export const ensureTabsMetadataForRows = (
   let next = examData;
   let changed = false;
 
-  (["cover-test", "old-refraction"] as const).forEach((type) => {
+  (["cover-test", "old-refraction", "old-refraction-extension"] as const).forEach((type) => {
     collectCardIdsByType(cardRows, type).forEach((cardId) => {
       const metadataTabs = getMetadataTabsForCard(next, type, cardId);
       const rawTabs =
@@ -421,7 +456,7 @@ export const ensureTabsMetadataForRows = (
       const tabs = normalizeTabMetadataDefaults(next, type, cardId, rawTabs);
       const missingMetadata = !metadataTabs;
       const missingOldRefractionTypes =
-        type === "old-refraction" &&
+        (type === "old-refraction" || type === "old-refraction-extension") &&
         rawTabs.some((tab, index) => tab.type !== tabs[index].type);
 
       if (missingMetadata || missingOldRefractionTypes) {
@@ -429,9 +464,10 @@ export const ensureTabsMetadataForRows = (
         changed = true;
       }
 
-      if (type === "old-refraction") {
+      if (type === "old-refraction" || type === "old-refraction-extension") {
         const backfilled = backfillOldRefractionTabDataDefaults(
           next,
+          type,
           cardId,
           tabs,
         );
@@ -456,13 +492,22 @@ export const ensureLayoutDataForRows = (
     normalizeNpcExamData(examData),
     cardRows,
   );
-  const recoveredOldRefraction = rebindOrphanedOldRefractionTabsForRows(
+  const recoveredOldRefraction = rebindOrphanedRefractionTabsForRows(
     normalizedTabs.examData,
     cardRows,
+    "old-refraction",
   );
-  let next = recoveredOldRefraction.examData;
+  const recoveredOldRefractionExtension = rebindOrphanedRefractionTabsForRows(
+    recoveredOldRefraction.examData,
+    cardRows,
+    "old-refraction-extension",
+  );
+  let next = recoveredOldRefractionExtension.examData;
   let changed =
-    hasLegacyNpcData || normalizedTabs.changed || recoveredOldRefraction.changed;
+    hasLegacyNpcData ||
+    normalizedTabs.changed ||
+    recoveredOldRefraction.changed ||
+    recoveredOldRefractionExtension.changed;
   const firstCardKeyByType: Record<string, string> = {};
 
   const ensureMutable = () => {
@@ -512,7 +557,11 @@ export const ensureLayoutDataForRows = (
         }
       }
 
-      if (type === "cover-test" || type === "old-refraction") {
+      if (
+        type === "cover-test" ||
+        type === "old-refraction" ||
+        type === "old-refraction-extension"
+      ) {
         const tabs = getTabsForCard(next, type, card.id);
         if (tabs.length === 0) {
           ensureMutable();
@@ -531,7 +580,9 @@ export const ensureLayoutDataForRows = (
             {
               id: tabId,
               index: 0,
-              ...(type === "old-refraction" ? { type: "רחוק" } : {}),
+              ...(type === "old-refraction" || type === "old-refraction-extension"
+                ? { type: "רחוק" }
+                : {}),
             },
           ]);
         }

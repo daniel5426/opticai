@@ -24,6 +24,48 @@ export function MaddoxRodTab({
   isEditing,
   needsMiddleSpacer = true,
 }: MaddoxRodTabProps) {
+  if (maddoxRodData.schema_version === 2) {
+    const rows = [
+      { prefix: "with", label: "עם תיקון" },
+      { prefix: "without", label: "בלי תיקון" },
+    ] as const;
+    const measurement = (prefix: "with" | "without", axis: "horizontal" | "vertical") => {
+      const prismKey = `${prefix}_${axis}_prism` as keyof MaddoxRodExam;
+      const directionKey = `${prefix}_${axis}_direction` as keyof MaddoxRodExam;
+      return (
+        <div className="grid grid-cols-2 gap-2">
+          <div className="relative">
+            <FastInput type="number" step="0.25" value={String(maddoxRodData[prismKey] ?? "")}
+              onChange={(value) => onMaddoxRodChange(prismKey, value)} disabled={!isEditing}
+              className="h-8 pr-7 text-xs disabled:cursor-default disabled:opacity-100" />
+            <Triangle size={16} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
+          </div>
+          <FastInput value={String(maddoxRodData[directionKey] ?? "")}
+            onChange={(value) => onMaddoxRodChange(directionKey, value)} disabled={!isEditing}
+            className="h-8 text-xs disabled:cursor-default disabled:opacity-100" />
+        </div>
+      );
+    };
+    return (
+      <Card className="w-full examcard pb-4 pt-3">
+        <CardContent className="px-4" style={{ direction: "ltr" }}>
+          <h3 className="mb-3 text-center font-medium text-muted-foreground">Maddox Rod</h3>
+          <div className="grid grid-cols-[1fr_1fr_76px] items-center gap-2">
+            <div className="text-center text-xs font-medium text-muted-foreground">Horizontal</div>
+            <div className="text-center text-xs font-medium text-muted-foreground">Vertical</div>
+            <div />
+            {rows.map(({ prefix, label }) => (
+              <React.Fragment key={prefix}>
+                {measurement(prefix, "horizontal")}
+                {measurement(prefix, "vertical")}
+                <div className="text-right text-sm text-muted-foreground" dir="rtl">{label}</div>
+              </React.Fragment>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
   return (
     <Card className="w-full examcard pt-3 pb-4">
       <CardContent

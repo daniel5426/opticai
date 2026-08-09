@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react"
-import { AlertTriangle, CheckCircle2, Database, FileArchive, FolderSearch, Pause, Play, RefreshCw, UploadCloud, XCircle } from "lucide-react"
+import { AlertTriangle, CheckCircle2, Database, Download, FileArchive, FolderSearch, Pause, Play, RefreshCw, UploadCloud, XCircle } from "lucide-react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
@@ -457,7 +457,22 @@ export function SoftOpticMigrationTab({ clinicId, sourceSystem = "softoptic" }: 
     if (exportStorageKey) window.localStorage.removeItem(exportStorageKey)
   }
 
+  const downloadReport = async () => {
+    if (!job?.id) return
+    const response = await apiClient.getMigrationReportDownload(job.id)
+    if (response.data?.url) {
+      window.open(response.data.url, "_blank", "noopener,noreferrer")
+    } else {
+      toast.error(response.error || "Migration report is not available")
+    }
+  }
+
   const busy = ["scanning", "exporting"].includes(phase) || uploadInFlight
+  const optiTechLiveCounts = sourceSystem === "optitech" && job?.import_summary?.live_counts
+    ? job.import_summary.live_counts as Record<string, Record<string, number>>
+    : null
+  const optiTechPhase3 = sourceSystem === "optitech" ? job?.import_summary?.phase3 : null
+  const optiTechExport = sourceSystem === "optitech" ? job?.import_summary?.export : null
   const limitLocked = !["idle", "scanning", "selecting"].includes(phase) || Boolean(exportJobId) || Boolean(job?.id)
   const canUpload = Boolean(
     clinicId &&
@@ -537,6 +552,12 @@ export function SoftOpticMigrationTab({ clinicId, sourceSystem = "softoptic" }: 
               <RefreshCw className="ml-2 h-4 w-4" />
               איפוס
             </Button>
+            {job?.import_summary?.report?.available && (
+              <Button variant="outline" onClick={downloadReport}>
+                <Download className="ml-2 h-4 w-4" />
+                Download report
+              </Button>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -662,6 +683,7 @@ export function SoftOpticMigrationTab({ clinicId, sourceSystem = "softoptic" }: 
           </CardHeader>
           <CardContent className="space-y-3 text-right text-sm">
             <p>מזהה פעולה: <span dir="ltr">{job.id}</span></p>
+            {phase === "paused" && <Badge variant="secondary">הייבוא מושהה וניתן להמשיך</Badge>}
             {job.warnings?.length > 0 && (
               <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-amber-900">
                 {job.warnings.slice(0, 5).map((warning: string) => <div key={warning}>{warning}</div>)}
@@ -675,6 +697,38 @@ export function SoftOpticMigrationTab({ clinicId, sourceSystem = "softoptic" }: 
                     <span className="mr-2 text-muted-foreground">{key}</span>
                   </div>
                 ))}
+              </div>
+            )}
+            {optiTechLiveCounts && (
+              <div className="grid gap-2 md:grid-cols-3">
+                {Object.entries(optiTechLiveCounts).map(([domain, counts]) => (
+                  <div key={domain} className="rounded-md border px-3 py-2">
+                    <div className="font-medium" dir="ltr">{domain}</div>
+                    <div className="text-xs text-muted-foreground" dir="ltr">
+                      {Number(counts.processed || 0)} processed · {Number(counts.created || 0)} created · {Number(counts.updated || 0)} updated · {Number(counts.skipped || 0)} skipped
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            {(optiTechPhase3 || optiTechExport) && (
+              <div className="grid gap-2 md:grid-cols-4">
+                <div className="rounded-md border px-3 py-2">
+                  <div className="font-medium">{Number(optiTechPhase3?.missing_scans_count || optiTechExport?.missing_referenced_scans || 0)}</div>
+                  <div className="text-xs text-muted-foreground">סריקות חסרות</div>
+                </div>
+                <div className="rounded-md border px-3 py-2">
+                  <div className="font-medium">{Number(optiTechExport?.unreferenced_scans || 0)}</div>
+                  <div className="text-xs text-muted-foreground">סריקות ללא הפניה</div>
+                </div>
+                <div className="rounded-md border px-3 py-2">
+                  <div className="font-medium">{Number(optiTechPhase3?.unmatched_orders_count || 0)}</div>
+                  <div className="text-xs text-muted-foreground">הזמנות ללא בדיקה תואמת</div>
+                </div>
+                <div className="rounded-md border px-3 py-2">
+                  <div className="font-medium">{Number(optiTechPhase3?.reconstruction_warnings_count || 0)}</div>
+                  <div className="text-xs text-muted-foreground">משמרות ששוחזרו</div>
+                </div>
               </div>
             )}
           </CardContent>

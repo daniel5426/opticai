@@ -2,6 +2,7 @@
 
 - Be concise and to the point. Avoid long, repetitive descriptions.
 - Always respond in English unless the user explicitly asks for another language.
+- Before making UI changes, read and follow `design.md`. Reuse its shared page, toolbar, table, dialog, and RTL conventions.
 
 ## Production Compatibility And Migrations
 

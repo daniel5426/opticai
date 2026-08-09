@@ -28,9 +28,15 @@ CORE_TABLES: Sequence[str] = (
     "tblPerPicture",
     "tblCrdDiags",
     "tblClndrApt",
+    "tblCrdGlassChecksPrevs",
+    "tblClndrWrk",
 )
 
 LOOKUP_TABLES: Sequence[str] = (
+    "tblCitys",
+    "tblRefs",
+    "tblRefsSub1",
+    "tblRefsSub2",
     "tblCrdGlassBrand",
     "tblCrdGlassCoat",
     "tblCrdGlassColor",
@@ -132,6 +138,18 @@ FOUNDATION_MAPPING: Mapping[str, Mapping[str, Any]] = {
         "primary_key": ["AptNum"],
         "subset_identity_field": "PerID",
         "lookup_dependencies": [],
+    },
+    "tblCrdGlassChecksPrevs": {
+        "normalized_record": "PreviousRefractionTabs",
+        "primary_key": ["PerId", "CheckDate", "PrevId"],
+        "subset_identity_field": "PerId",
+        "lookup_dependencies": [],
+    },
+    "tblClndrWrk": {
+        "normalized_record": "NormalizedWorkShiftSeed",
+        "primary_key": ["WrkId"],
+        "subset_identity_field": None,
+        "lookup_dependencies": ["tblUsers"],
     },
 }
 

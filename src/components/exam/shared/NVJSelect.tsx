@@ -22,6 +22,7 @@ export const NVJSelect = memo(function NVJSelect({
       onChange={onChange}
       disabled={disabled}
       options={NV_J_VALUES}
+      allowImportedValue
       size="xs"
       triggerClassName={`h-8 text-xs w-full ${className}`}
       center={EXAM_FIELDS.J.center}

@@ -8,6 +8,7 @@ vi.mock("@/lib/api-client", () => ({
     login: vi.fn(),
     getUsers: vi.fn(() => Promise.resolve([])),
     getClients: vi.fn(() => Promise.resolve([])),
+    getLookupTable: vi.fn(() => Promise.resolve({ data: [] })),
   },
 }));
 

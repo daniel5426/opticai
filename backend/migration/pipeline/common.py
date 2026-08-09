@@ -167,7 +167,7 @@ MIGRATED_LAYOUT_COMPONENTS: List[str] = [
     "keratometer",
     "keratometer-full",
     "corneal-topography",
-    "cover-test",
+    "cover-test-v2",
     "anamnesis",
     "schirmer-test",
     "contact-lens-diameters",
@@ -259,6 +259,15 @@ def parse_optical_float(value: Optional[str]) -> Optional[float]:
     return None
 
 
+def parse_optical_value(value: Optional[str]) -> Optional[Any]:
+    """Parse known optical numbers without discarding legacy text values."""
+    cleaned = clean_legacy_text(value)
+    if cleaned is None:
+        return None
+    parsed = parse_optical_float(cleaned)
+    return parsed if parsed is not None else cleaned
+
+
 def parse_float(value: Optional[str]) -> Optional[float]:
     serialized = serialize_number(value)
     if serialized is None:
@@ -279,21 +288,22 @@ def parse_int(value: Optional[str]) -> Optional[int]:
         return None
 
 
-def parse_visual_acuity(value: Optional[str]) -> Optional[float]:
+def parse_visual_acuity(value: Optional[str]) -> Optional[Any]:
+    """Keep VA lossless; supported values are interpreted by the UI."""
+    return clean_legacy_text(value)
+
+
+def normalize_base_value(value: Optional[str]) -> Optional[str]:
     s = clean_legacy_text(value)
     if s is None:
         return None
-    match = re.match(r'^([+-]?\d+\.?\d*)', s)
-    if match:
-        base_str = match.group(1)
-        try:
-            base_value = float(base_str)
-            if base_value > 1:
-                return base_value / 10.0
-            return base_value
-        except ValueError:
-            return None
-    return None
+    aliases = {
+        "BI": "IN", "BASE IN": "IN", "IN": "IN",
+        "BO": "OUT", "BASE OUT": "OUT", "OUT": "OUT",
+        "BU": "UP", "BASE UP": "UP", "UP": "UP",
+        "BD": "DOWN", "BASE DOWN": "DOWN", "DOWN": "DOWN",
+    }
+    return aliases.get(s.upper(), s)
 
 
 def parse_bool_flag(value: Optional[str]) -> Optional[bool]:
@@ -453,26 +463,27 @@ def build_default_migrated_layout_data() -> str:
         "final-prescription": 8,
         "compact-prescription": 8,
         "addition": 6,
-        "retinoscop": 6,
+        "retinoscop": 7,
         "retinoscop-dilation": 6,
         "uncorrected-va": 3,
-        "keratometer": 3,
+        "keratometer": 4,
         "keratometer-full": 9,
         "corneal-topography": 1,
         "cover-test": 4,
+        "cover-test-v2": 8,
         "notes": 5,
         "anamnesis": 11,
         "schirmer-test": 2,
         "contact-lens-diameters": 2,
         "contact-lens-details": 10,
-        "keratometer-contact-lens": 6,
+        "keratometer-contact-lens": 7,
         "contact-lens-exam": 7,
         "old-contact-lenses": 13,
         "over-refraction": 9,
         "sensation-vision-stability": 5,
         "fusion-range": 5,
-        "maddox-rod": 5,
-        "stereo-test": 2,
+        "maddox-rod": 6,
+        "stereo-test": 4,
         "rg": 3,
         "ocular-motor-assessment": 5,
     }
@@ -492,6 +503,27 @@ def build_default_migrated_layout_data() -> str:
             }
         )
     return json.dumps({"version": 2, "grid": {"columns": grid_columns}, "items": items})
+
+
+def build_contact_fit_layout_data() -> str:
+    components = [
+        ("sensation-vision-stability", "sensation-vision-stability-1", 9),
+        ("old-contact-lenses", "old-contact-lenses-1", 20),
+        ("objective", "objective-1", 6),
+        ("over-refraction", "over-refraction-1", 14),
+        ("fusion-range", "fusion-range-1", 8),
+        ("maddox-rod", "maddox-rod-1", 9),
+        ("stereo-test", "stereo-test-1", 6),
+        ("cover-test-v2", "cover-test-v2-1", 12),
+        ("notes", "notes-1", 8),
+        ("notes", "notes-2", 8),
+        ("notes", "notes-3", 8),
+    ]
+    items = [
+        {"id": card_id, "type": component_type, "showEyeLabels": True, "x": 0, "y": index, "w": width}
+        for index, (component_type, card_id, width) in enumerate(components)
+    ]
+    return json.dumps({"version": 2, "grid": {"columns": 24}, "items": items})
 
 
 def get_migrated_card_id(component_type: str) -> str:
@@ -530,6 +562,10 @@ def _build_component_entry(component_type: str, payload: Dict[str, Any]) -> Dict
         f"{component_type}-{card_id}": block,
         component_type: block,
     }
+
+
+def build_component_entry(component_type: str, payload: Dict[str, Any]) -> Dict[str, Any]:
+    return _build_component_entry(component_type, payload)
 
 
 def load_file_blob_map(csv_dir: str) -> Dict[str, str]:
@@ -752,16 +788,87 @@ def build_objective(row: Dict[str, Any]) -> Optional[Dict[str, Any]]:
 
 def build_keratometer(row: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     r = {
-        "r_k1": parse_float(row.get("cr_rv_right")),
-        "l_k1": parse_float(row.get("cr_rv_left")),
-        "r_k2": parse_float(row.get("cr_rh_right")),
-        "l_k2": parse_float(row.get("cr_rh_left")),
+        "r_k1": keratometer_mm(row.get("cr_rv_right")),
+        "l_k1": keratometer_mm(row.get("cr_rv_left")),
+        "r_k2": keratometer_mm(row.get("cr_rh_right")),
+        "l_k2": keratometer_mm(row.get("cr_rh_left")),
         "r_axis": parse_int(row.get("cr_ax_right")),
         "l_axis": parse_int(row.get("cr_ax_left")),
     }
     if any(v is not None for v in r.values()):
         return r
     return None
+
+
+def normalize_keratometer_pair(primary: Any, counterpart: Any) -> Tuple[Optional[float], Optional[float]]:
+    """Return (diopters, mm), detecting mislabeled legacy values."""
+    first = parse_float(primary)
+    second = parse_float(counterpart)
+    values = [value for value in (first, second) if value is not None]
+    dpt = next((value for value in values if 35 <= value <= 60), None)
+    mm = next((value for value in values if 6 <= value <= 10), None)
+    if dpt is None and mm:
+        dpt = round(337.5 / mm, 2)
+    if mm is None and dpt:
+        mm = round(337.5 / dpt, 2)
+    return dpt, mm
+
+
+def keratometer_mm(value: Any) -> Optional[float]:
+    return normalize_keratometer_pair(value, None)[1]
+
+
+OLD_REFRACTION_TYPE_ALIASES = {
+    "מרחק": "רחוק", "רחוק": "רחוק", "קרוב": "קרוב", "קריאה": "קרוב",
+    "מחשב": "קרוב", "למחשב": "קרוב", "מולטיפוקל": "מולטיפוקל", "ביפוקל": "ביפוקל",
+}
+
+
+def build_old_refraction_tabs(expanded: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    if not expanded:
+        return {}
+    result: Dict[str, Any] = {}
+    card_id = get_migrated_card_id("old-refraction")
+    tabs = []
+    for index in range(1, 4):
+        prefix = f"old{index}"
+        legacy_type = clean_legacy_text(expanded.get(f"{prefix}_type"))
+        glasses_type = OLD_REFRACTION_TYPE_ALIASES.get(legacy_type or "")
+        block = {
+            "r_sph": parse_optical_value(expanded.get(f"{prefix}_r_sph")),
+            "l_sph": parse_optical_value(expanded.get(f"{prefix}_l_sph")),
+            "r_cyl": parse_optical_value(expanded.get(f"{prefix}_r_cyl")),
+            "l_cyl": parse_optical_value(expanded.get(f"{prefix}_l_cyl")),
+            "r_ax": parse_int(expanded.get(f"{prefix}_r_ax")),
+            "l_ax": parse_int(expanded.get(f"{prefix}_l_ax")),
+            "r_pris": parse_float(expanded.get(f"{prefix}_r_prish")),
+            "l_pris": parse_float(expanded.get(f"{prefix}_l_prish")),
+            "r_base": normalize_base_value(expanded.get(f"{prefix}_r_baseh")),
+            "l_base": normalize_base_value(expanded.get(f"{prefix}_l_baseh")),
+            "r_va": parse_visual_acuity(expanded.get(f"{prefix}_r_va")),
+            "l_va": parse_visual_acuity(expanded.get(f"{prefix}_l_va")),
+            "r_ad": parse_optical_value(expanded.get(f"{prefix}_r_add")),
+            "l_ad": parse_optical_value(expanded.get(f"{prefix}_l_add")),
+            "r_j": normalize_j_value(expanded.get(f"{prefix}_r_j")),
+            "l_j": normalize_j_value(expanded.get(f"{prefix}_l_j")),
+            "comb_va": parse_visual_acuity(expanded.get(f"{prefix}_b_va")),
+            "r_glasses_type": glasses_type,
+            "l_glasses_type": glasses_type,
+            "legacy_glasses_type": legacy_type,
+            "card_id": card_id,
+            "card_instance_id": str(index),
+            "tab_index": index - 1,
+        }
+        meaningful = any(v is not None for k, v in block.items() if k not in {"card_id", "card_instance_id", "tab_index"})
+        if not meaningful:
+            continue
+        result[f"old-refraction-{card_id}-{index}"] = block
+        tabs.append({"id": str(index), "index": len(tabs), **({"type": glasses_type} if glasses_type else {})})
+        if "old-refraction" not in result:
+            result["old-refraction"] = block
+    if tabs:
+        result["__ui"] = {"tabsByCard": {f"old-refraction:{card_id}": tabs}}
+    return result
 
 
 def build_subjective(row: Dict[str, Any]) -> Optional[Dict[str, Any]]:
@@ -870,6 +977,14 @@ def _get_optical_float(expanded: Optional[Dict[str, Any]], row: Dict[str, Any], 
     return _pick_value(expanded, row, expanded_keys, row_keys, parse_optical_float)
 
 
+def _get_optical_value(expanded: Optional[Dict[str, Any]], row: Dict[str, Any], expanded_keys: Optional[List[str]] = None, row_keys: Optional[List[str]] = None) -> Optional[Any]:
+    return _pick_value(expanded, row, expanded_keys, row_keys, parse_optical_value)
+
+
+def _get_base(expanded: Optional[Dict[str, Any]], row: Dict[str, Any], expanded_keys: Optional[List[str]] = None, row_keys: Optional[List[str]] = None) -> Optional[str]:
+    return _pick_value(expanded, row, expanded_keys, row_keys, normalize_base_value)
+
+
 def _get_int(expanded: Optional[Dict[str, Any]], row: Dict[str, Any], expanded_keys: Optional[List[str]] = None, row_keys: Optional[List[str]] = None) -> Optional[int]:
     return _pick_value(expanded, row, expanded_keys, row_keys, parse_int)
 
@@ -878,13 +993,12 @@ def _get_bool(expanded: Optional[Dict[str, Any]], row: Dict[str, Any], expanded_
     return _pick_value(expanded, row, expanded_keys, row_keys, parse_bool_flag)
 
 
-def _get_va(expanded: Optional[Dict[str, Any]], row: Dict[str, Any], expanded_keys: Optional[List[str]] = None, row_keys: Optional[List[str]] = None) -> Optional[float]:
+def _get_va(expanded: Optional[Dict[str, Any]], row: Dict[str, Any], expanded_keys: Optional[List[str]] = None, row_keys: Optional[List[str]] = None) -> Optional[Any]:
     return _pick_value(expanded, row, expanded_keys, row_keys, parse_visual_acuity)
 
 
 def _build_old_ref_component(row: Dict[str, Any], expanded: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
     data = {
-        "role": _get_str(expanded, row, ["old1_type"], None, True),
         "source": _get_str(expanded, row, ["old1_source"], None, True),
         "contacts": _get_str(expanded, row, ["old1_lens"], None, True),
     }
@@ -895,10 +1009,10 @@ def _build_old_ref_component(row: Dict[str, Any], expanded: Optional[Dict[str, A
 
 def _build_objective_component(row: Dict[str, Any], expanded: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
     data = {
-        "r_sph": _get_optical_float(expanded, row, ["obj_r_sph"], ["ob_right_sph"]),
-        "l_sph": _get_optical_float(expanded, row, ["obj_l_sph"], ["ob_left_sph"]),
-        "r_cyl": _get_optical_float(expanded, row, ["obj_r_cyl"], ["ob_right_cyl"]),
-        "l_cyl": _get_optical_float(expanded, row, ["obj_l_cyl"], ["ob_left_cyl"]),
+        "r_sph": _get_optical_value(expanded, row, ["obj_r_sph"], ["ob_right_sph"]),
+        "l_sph": _get_optical_value(expanded, row, ["obj_l_sph"], ["ob_left_sph"]),
+        "r_cyl": _get_optical_value(expanded, row, ["obj_r_cyl"], ["ob_right_cyl"]),
+        "l_cyl": _get_optical_value(expanded, row, ["obj_l_cyl"], ["ob_left_cyl"]),
         "r_ax": _get_int(expanded, row, ["obj_r_ax"], ["ob_right_ax"]),
         "l_ax": _get_int(expanded, row, ["obj_l_ax"], ["ob_left_ax"]),
         "r_se": _get_optical_float(expanded, row, ["ob_right_se"], ["ob_right_se"]),
@@ -915,16 +1029,16 @@ def _build_subjective_component(row: Dict[str, Any], expanded: Optional[Dict[str
         "l_fa": _get_str(expanded, row, ["sb_left_fa"], ["sb_left_fa"]),
         "r_fa_tuning": _get_float(expanded, row, ["sb_right_fa_add"], ["sb_right_fa_add"]),
         "l_fa_tuning": _get_float(expanded, row, ["sb_left_fa_add"], ["sb_left_fa_add"]),
-        "r_sph": _get_optical_float(expanded, row, ["sub_r_sph"], ["sb_right_sph"]),
-        "l_sph": _get_optical_float(expanded, row, ["sub_l_sph"], ["sb_left_sph"]),
-        "r_cyl": _get_optical_float(expanded, row, ["sub_r_cyl"], ["sb_right_cyl"]),
-        "l_cyl": _get_optical_float(expanded, row, ["sub_l_cyl"], ["sb_left_cyl"]),
+        "r_sph": _get_optical_value(expanded, row, ["sub_r_sph"], ["sb_right_sph"]),
+        "l_sph": _get_optical_value(expanded, row, ["sub_l_sph"], ["sb_left_sph"]),
+        "r_cyl": _get_optical_value(expanded, row, ["sub_r_cyl"], ["sb_right_cyl"]),
+        "l_cyl": _get_optical_value(expanded, row, ["sub_l_cyl"], ["sb_left_cyl"]),
         "r_ax": _get_int(expanded, row, ["sub_r_ax"], ["sb_right_ax"]),
         "l_ax": _get_int(expanded, row, ["sub_l_ax"], ["sb_left_ax"]),
         "r_pris": _get_float(expanded, row, ["sub_r_prish"], ["sb_right_pris"]),
         "l_pris": _get_float(expanded, row, ["sub_l_prish"], ["sb_left_pris"]),
-        "r_base": _get_str(expanded, row, ["sub_r_baseh"], ["sb_right_base"]),
-        "l_base": _get_str(expanded, row, ["sub_l_baseh"], ["sb_left_base"]),
+        "r_base": _get_base(expanded, row, ["sub_r_baseh"], ["sb_right_base"]),
+        "l_base": _get_base(expanded, row, ["sub_l_baseh"], ["sb_left_base"]),
         "r_va": _get_va(expanded, row, ["sub_r_va"], ["sb_right_va"]),
         "l_va": _get_va(expanded, row, ["sub_l_va"], ["sb_left_va"]),
         "r_ph": _get_str(expanded, row, ["sub_r_ph"], ["sb_right_ph"]),
@@ -934,8 +1048,8 @@ def _build_subjective_component(row: Dict[str, Any], expanded: Optional[Dict[str
         "r_pd_far": _get_float(expanded, row, ["patient_r_pd"], ["sb_right_far_pd"]),
         "l_pd_far": _get_float(expanded, row, ["patient_l_pd"], ["sb_left_far_pd"]),
         "comb_va": _get_va(expanded, row, ["sub_b_va"], ["sb_mid_va"]),
-        "comb_pd_close": _get_float(expanded, row, ["sub_b_pd"], ["sb_mid_near_pd"]),
-        "comb_pd_far": _get_float(expanded, row, ["patient_b_pd"], ["sb_mid_far_pd"]),
+        "comb_pd_close": _get_float(None, row, None, ["sb_mid_near_pd"]),
+        "comb_pd_far": _get_float(expanded, row, ["patient_b_pd", "sub_b_pd"], ["sb_mid_far_pd"]),
     }
     if any(v is not None for v in data.values()):
         return data
@@ -944,8 +1058,8 @@ def _build_subjective_component(row: Dict[str, Any], expanded: Optional[Dict[str
 
 def _build_addition_component(row: Dict[str, Any], expanded: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
     data = {
-        "r_fcc": _get_str(expanded, row, ["add_right_fcc"], ["add_right_fcc"]),
-        "l_fcc": _get_str(expanded, row, ["add_left_fcc"], ["add_left_fcc"]),
+        "r_fcc": _get_optical_value(expanded, row, ["add_right_fcc"], ["add_right_fcc"]),
+        "l_fcc": _get_optical_value(expanded, row, ["add_left_fcc"], ["add_left_fcc"]),
         "r_read": _get_float(expanded, row, ["add_right_read", "sub_r_read"], ["add_right_read"]),
         "l_read": _get_float(expanded, row, ["add_left_read", "sub_l_read"], ["add_left_read"]),
         "r_int": _get_float(expanded, row, ["add_right_int", "sub_r_int"], ["add_right_int"]),
@@ -966,16 +1080,16 @@ def _build_addition_component(row: Dict[str, Any], expanded: Optional[Dict[str, 
 
 def _build_old_refraction_component(row: Dict[str, Any], expanded: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
     data = {
-        "r_sph": _get_optical_float(expanded, row, ["or_right_sph"], ["or_right_sph"]),
-        "l_sph": _get_optical_float(expanded, row, ["or_left_sph"], ["or_left_sph"]),
-        "r_cyl": _get_optical_float(expanded, row, ["or_right_cyl"], ["or_right_cyl"]),
-        "l_cyl": _get_optical_float(expanded, row, ["or_left_cyl"], ["or_left_cyl"]),
+        "r_sph": _get_optical_value(expanded, row, ["or_right_sph"], ["or_right_sph"]),
+        "l_sph": _get_optical_value(expanded, row, ["or_left_sph"], ["or_left_sph"]),
+        "r_cyl": _get_optical_value(expanded, row, ["or_right_cyl"], ["or_right_cyl"]),
+        "l_cyl": _get_optical_value(expanded, row, ["or_left_cyl"], ["or_left_cyl"]),
         "r_ax": _get_int(expanded, row, ["or_right_ax"], ["or_right_ax"]),
         "l_ax": _get_int(expanded, row, ["or_left_ax"], ["or_left_ax"]),
         "r_pris": _get_float(expanded, row, ["or_right_pris"], ["or_right_pris"]),
         "l_pris": _get_float(expanded, row, ["or_left_pris"], ["or_left_pris"]),
-        "r_base": _get_str(expanded, row, ["or_right_base"], ["or_right_base"]),
-        "l_base": _get_str(expanded, row, ["or_left_base"], ["or_left_base"]),
+        "r_base": _get_base(expanded, row, ["or_right_base"], ["or_right_base"]),
+        "l_base": _get_base(expanded, row, ["or_left_base"], ["or_left_base"]),
         "r_va": _get_va(expanded, row, ["or_right_va"], ["or_right_va"]),
         "l_va": _get_va(expanded, row, ["or_left_va"], ["or_left_va"]),
         "r_ad": _get_optical_float(expanded, row, ["or_right_add"], ["or_right_add"]),
@@ -989,26 +1103,26 @@ def _build_old_refraction_component(row: Dict[str, Any], expanded: Optional[Dict
 
 def _build_old_refraction_extension_component(row: Dict[str, Any], expanded: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
     data = {
-        "r_sph": _get_optical_float(expanded, row, ["old1_r_sph"]),
-        "l_sph": _get_optical_float(expanded, row, ["old1_l_sph"]),
-        "r_cyl": _get_optical_float(expanded, row, ["old1_r_cyl"]),
-        "l_cyl": _get_optical_float(expanded, row, ["old1_l_cyl"]),
+        "r_sph": _get_optical_value(expanded, row, ["old1_r_sph"]),
+        "l_sph": _get_optical_value(expanded, row, ["old1_l_sph"]),
+        "r_cyl": _get_optical_value(expanded, row, ["old1_r_cyl"]),
+        "l_cyl": _get_optical_value(expanded, row, ["old1_l_cyl"]),
         "r_ax": _get_int(expanded, row, ["old1_r_ax"]),
         "l_ax": _get_int(expanded, row, ["old1_l_ax"]),
         "r_pr_h": _get_float(expanded, row, ["old1_r_prish"]),
         "l_pr_h": _get_float(expanded, row, ["old1_l_prish"]),
-        "r_base_h": _get_str(expanded, row, ["old1_r_baseh"]),
-        "l_base_h": _get_str(expanded, row, ["old1_l_baseh"]),
+        "r_base_h": _get_base(expanded, row, ["old1_r_baseh"]),
+        "l_base_h": _get_base(expanded, row, ["old1_l_baseh"]),
         "r_pr_v": _get_float(expanded, row, ["old1_r_prisv"]),
         "l_pr_v": _get_float(expanded, row, ["old1_l_prisv"]),
-        "r_base_v": _get_str(expanded, row, ["old1_r_basev"]),
-        "l_base_v": _get_str(expanded, row, ["old1_l_basev"]),
+        "r_base_v": _get_base(expanded, row, ["old1_r_basev"]),
+        "l_base_v": _get_base(expanded, row, ["old1_l_basev"]),
         "r_va": _get_va(expanded, row, ["old1_r_va"]),
         "l_va": _get_va(expanded, row, ["old1_l_va"]),
         "r_ad": _get_optical_float(expanded, row, ["old1_r_add"]),
         "l_ad": _get_optical_float(expanded, row, ["old1_l_add"]),
-        "r_j": _get_str(expanded, row, ["old1_r_j"]),
-        "l_j": _get_str(expanded, row, ["old1_l_j"]),
+        "r_j": normalize_j_value(_get_str(expanded, row, ["old1_r_j"])),
+        "l_j": normalize_j_value(_get_str(expanded, row, ["old1_l_j"])),
         "r_pd_far": _get_float(expanded, row, ["old1_r_pd"]),
         "l_pd_far": _get_float(expanded, row, ["old1_l_pd"]),
         "comb_va": _get_va(expanded, row, ["old1_b_va"]),
@@ -1021,20 +1135,20 @@ def _build_old_refraction_extension_component(row: Dict[str, Any], expanded: Opt
 
 def _build_final_subjective_component(row: Dict[str, Any], expanded: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
     data = {
-        "r_sph": _get_optical_float(expanded, row, ["sub_f_r_sph"]),
-        "l_sph": _get_optical_float(expanded, row, ["sub_f_l_sph"]),
-        "r_cyl": _get_optical_float(expanded, row, ["sub_f_r_cyl"]),
-        "l_cyl": _get_optical_float(expanded, row, ["sub_f_l_cyl"]),
+        "r_sph": _get_optical_value(expanded, row, ["sub_f_r_sph"]),
+        "l_sph": _get_optical_value(expanded, row, ["sub_f_l_sph"]),
+        "r_cyl": _get_optical_value(expanded, row, ["sub_f_r_cyl"]),
+        "l_cyl": _get_optical_value(expanded, row, ["sub_f_l_cyl"]),
         "r_ax": _get_int(expanded, row, ["sub_f_r_ax"]),
         "l_ax": _get_int(expanded, row, ["sub_f_l_ax"]),
         "r_pris": _get_float(expanded, row, ["sub_f_r_prish"]),
         "l_pris": _get_float(expanded, row, ["sub_f_l_prish"]),
-        "r_base": _get_str(expanded, row, ["sub_f_r_baseh"]),
-        "l_base": _get_str(expanded, row, ["sub_f_l_baseh"]),
+        "r_base": _get_base(expanded, row, ["sub_f_r_baseh"]),
+        "l_base": _get_base(expanded, row, ["sub_f_l_baseh"]),
         "r_va": _get_va(expanded, row, ["sub_f_r_va"]),
         "l_va": _get_va(expanded, row, ["sub_f_l_va"]),
-        "r_j": _get_str(expanded, row, ["sub_f_r_j"]),
-        "l_j": _get_str(expanded, row, ["sub_f_l_j"]),
+        "r_j": normalize_j_value(_get_str(expanded, row, ["sub_f_r_j"])),
+        "l_j": normalize_j_value(_get_str(expanded, row, ["sub_f_l_j"])),
         "r_pd_far": _get_float(expanded, row, ["sub_f_r_far_pd"]),
         "l_pd_far": _get_float(expanded, row, ["sub_f_l_far_pd"]),
         "r_pd_close": _get_float(expanded, row, ["sub_f_r_near_pd"]),
@@ -1050,16 +1164,45 @@ def _build_final_subjective_component(row: Dict[str, Any], expanded: Optional[Di
 
 def _build_final_prescription_component(row: Dict[str, Any], expanded: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
     data = {
-        "r_sph": _get_optical_float(expanded, row, ["sub_f_r_sph"]),
-        "l_sph": _get_optical_float(expanded, row, ["sub_f_l_sph"]),
-        "r_cyl": _get_optical_float(expanded, row, ["sub_f_r_cyl"]),
-        "l_cyl": _get_optical_float(expanded, row, ["sub_f_l_cyl"]),
+        "r_sph": _get_optical_value(expanded, row, ["sub_f_r_sph"]),
+        "l_sph": _get_optical_value(expanded, row, ["sub_f_l_sph"]),
+        "r_cyl": _get_optical_value(expanded, row, ["sub_f_r_cyl"]),
+        "l_cyl": _get_optical_value(expanded, row, ["sub_f_l_cyl"]),
         "r_ax": _get_int(expanded, row, ["sub_f_r_ax"]),
         "l_ax": _get_int(expanded, row, ["sub_f_l_ax"]),
         "r_pris": _get_float(expanded, row, ["sub_f_r_prish"]),
         "l_pris": _get_float(expanded, row, ["sub_f_l_prish"]),
-        "r_base": _get_str(expanded, row, ["sub_f_r_baseh"]),
-        "l_base": _get_str(expanded, row, ["sub_f_l_baseh"]),
+        "r_base": _get_base(expanded, row, ["sub_f_r_baseh"]),
+        "l_base": _get_base(expanded, row, ["sub_f_l_baseh"]),
+        "r_va": _get_va(expanded, row, ["sub_f_r_va"]),
+        "l_va": _get_va(expanded, row, ["sub_f_l_va"]),
+        "r_ad": _get_optical_float(expanded, row, ["sub_r_add_at"]),
+        "l_ad": _get_optical_float(expanded, row, ["sub_l_add_at"]),
+        "r_pd_far": _get_float(expanded, row, ["sub_f_r_far_pd"]),
+        "l_pd_far": _get_float(expanded, row, ["sub_f_l_far_pd"]),
+        "r_pd_close": _get_float(expanded, row, ["sub_f_r_near_pd"]),
+        "l_pd_close": _get_float(expanded, row, ["sub_f_l_near_pd"]),
+        "comb_va": _get_va(expanded, row, ["sub_f_b_va"]),
+        "comb_pd_far": _get_float(expanded, row, ["sub_f_b_far_pd"]),
+        "comb_pd_close": _get_float(expanded, row, ["sub_f_b_near_pd"]),
+    }
+    if any(v is not None for v in data.values()):
+        return data
+    return None
+
+
+def _build_compact_prescription_component(row: Dict[str, Any], expanded: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    data = {
+        "r_sph": _get_optical_value(expanded, row, ["sub_f_r_sph"]),
+        "l_sph": _get_optical_value(expanded, row, ["sub_f_l_sph"]),
+        "r_cyl": _get_optical_value(expanded, row, ["sub_f_r_cyl"]),
+        "l_cyl": _get_optical_value(expanded, row, ["sub_f_l_cyl"]),
+        "r_ax": _get_int(expanded, row, ["sub_f_r_ax"]),
+        "l_ax": _get_int(expanded, row, ["sub_f_l_ax"]),
+        "r_pris": _get_float(expanded, row, ["sub_f_r_prish"]),
+        "l_pris": _get_float(expanded, row, ["sub_f_l_prish"]),
+        "r_base": _get_base(expanded, row, ["sub_f_r_baseh"]),
+        "l_base": _get_base(expanded, row, ["sub_f_l_baseh"]),
         "r_va": _get_va(expanded, row, ["sub_f_r_va"]),
         "l_va": _get_va(expanded, row, ["sub_f_l_va"]),
         "r_ad": _get_optical_float(expanded, row, ["sub_r_add_at"]),
@@ -1074,38 +1217,12 @@ def _build_final_prescription_component(row: Dict[str, Any], expanded: Optional[
     return None
 
 
-def _build_compact_prescription_component(row: Dict[str, Any], expanded: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
-    data = {
-        "r_sph": _get_optical_float(expanded, row, ["sub_f_r_sph"]),
-        "l_sph": _get_optical_float(expanded, row, ["sub_f_l_sph"]),
-        "r_cyl": _get_optical_float(expanded, row, ["sub_f_r_cyl"]),
-        "l_cyl": _get_optical_float(expanded, row, ["sub_f_l_cyl"]),
-        "r_ax": _get_int(expanded, row, ["sub_f_r_ax"]),
-        "l_ax": _get_int(expanded, row, ["sub_f_l_ax"]),
-        "r_pris": _get_float(expanded, row, ["sub_f_r_prish"]),
-        "l_pris": _get_float(expanded, row, ["sub_f_l_prish"]),
-        "r_base": _get_str(expanded, row, ["sub_f_r_baseh"]),
-        "l_base": _get_str(expanded, row, ["sub_f_l_baseh"]),
-        "r_va": _get_va(expanded, row, ["sub_f_r_va"]),
-        "l_va": _get_va(expanded, row, ["sub_f_l_va"]),
-        "r_ad": _get_optical_float(expanded, row, ["sub_f_r_near_pd"]),
-        "l_ad": _get_optical_float(expanded, row, ["sub_f_l_near_pd"]),
-        "r_pd": _get_float(expanded, row, ["sub_f_r_far_pd"]),
-        "l_pd": _get_float(expanded, row, ["sub_f_l_far_pd"]),
-        "comb_va": _get_va(expanded, row, ["sub_f_b_va"]),
-        "comb_pd": _get_float(expanded, row, ["sub_f_b_far_pd"]),
-    }
-    if any(v is not None for v in data.values()):
-        return data
-    return None
-
-
 def _build_retinoscop_component(row: Dict[str, Any], expanded: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
     data = {
-        "r_sph": _get_optical_float(expanded, row, ["obj_r_sph"]),
-        "l_sph": _get_optical_float(expanded, row, ["obj_l_sph"]),
-        "r_cyl": _get_optical_float(expanded, row, ["obj_r_cyl"]),
-        "l_cyl": _get_optical_float(expanded, row, ["obj_l_cyl"]),
+        "r_sph": _get_optical_value(expanded, row, ["obj_r_sph"]),
+        "l_sph": _get_optical_value(expanded, row, ["obj_l_sph"]),
+        "r_cyl": _get_optical_value(expanded, row, ["obj_r_cyl"]),
+        "l_cyl": _get_optical_value(expanded, row, ["obj_l_cyl"]),
         "r_ax": _get_int(expanded, row, ["obj_r_ax"]),
         "l_ax": _get_int(expanded, row, ["obj_l_ax"]),
         "r_reflex": _get_str(expanded, row, ["obj_r_reflax"]),
@@ -1118,10 +1235,10 @@ def _build_retinoscop_component(row: Dict[str, Any], expanded: Optional[Dict[str
 
 def _build_retinoscop_dilation_component(row: Dict[str, Any], expanded: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
     data = {
-        "r_sph": _get_optical_float(expanded, row, ["obj_w_r_sph"]),
-        "l_sph": _get_optical_float(expanded, row, ["obj_w_l_sph"]),
-        "r_cyl": _get_optical_float(expanded, row, ["obj_w_r_cyl"]),
-        "l_cyl": _get_optical_float(expanded, row, ["obj_w_l_cyl"]),
+        "r_sph": _get_optical_value(expanded, row, ["obj_w_r_sph"]),
+        "l_sph": _get_optical_value(expanded, row, ["obj_w_l_sph"]),
+        "r_cyl": _get_optical_value(expanded, row, ["obj_w_r_cyl"]),
+        "l_cyl": _get_optical_value(expanded, row, ["obj_w_l_cyl"]),
         "r_ax": _get_int(expanded, row, ["obj_w_r_ax"]),
         "l_ax": _get_int(expanded, row, ["obj_w_l_ax"]),
         "r_reflex": _get_str(expanded, row, ["obj_w_r_reflax"]),
@@ -1161,15 +1278,15 @@ def _build_keratometer_component(row: Dict[str, Any], expanded: Optional[Dict[st
 
 
 def _build_keratometer_full_component(row: Dict[str, Any], expanded: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    r_dpt_1, r_mm_1 = normalize_keratometer_pair(expanded.get("obj_k_r_dpt1") if expanded else None, expanded.get("obj_k_r_mm1") if expanded else None)
+    r_dpt_2, r_mm_2 = normalize_keratometer_pair(expanded.get("obj_k_r_dpt2") if expanded else None, expanded.get("obj_k_r_mm2") if expanded else None)
+    l_dpt_1, l_mm_1 = normalize_keratometer_pair(expanded.get("obj_k_l_dpt1") if expanded else None, expanded.get("obj_k_l_mm1") if expanded else None)
+    l_dpt_2, l_mm_2 = normalize_keratometer_pair(expanded.get("obj_k_l_dpt2") if expanded else None, expanded.get("obj_k_l_mm2") if expanded else None)
     data = {
-        "r_dpt_k1": _get_float(expanded, row, ["obj_k_r_dpt1"]),
-        "r_dpt_k2": _get_float(expanded, row, ["obj_k_r_dpt2"]),
-        "l_dpt_k1": _get_float(expanded, row, ["obj_k_l_dpt1"]),
-        "l_dpt_k2": _get_float(expanded, row, ["obj_k_l_dpt2"]),
-        "r_mm_k1": _get_float(expanded, row, ["obj_k_r_mm1"]),
-        "r_mm_k2": _get_float(expanded, row, ["obj_k_r_mm2"]),
-        "l_mm_k1": _get_float(expanded, row, ["obj_k_l_mm1"]),
-        "l_mm_k2": _get_float(expanded, row, ["obj_k_l_mm2"]),
+        "r_dpt_k1": r_dpt_1, "r_dpt_k2": r_dpt_2,
+        "l_dpt_k1": l_dpt_1, "l_dpt_k2": l_dpt_2,
+        "r_mm_k1": r_mm_1, "r_mm_k2": r_mm_2,
+        "l_mm_k1": l_mm_1, "l_mm_k2": l_mm_2,
         "r_mer_k1": _get_float(expanded, row, ["obj_k_r_mer1"]),
         "r_mer_k2": _get_float(expanded, row, ["obj_k_r_mer2"]),
         "l_mer_k1": _get_float(expanded, row, ["obj_k_l_mer1"]),
@@ -1247,16 +1364,17 @@ def _build_fusion_range_component(row: Dict[str, Any], expanded: Optional[Dict[s
 
 def _build_maddox_rod_component(row: Dict[str, Any], expanded: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
     data = {
-        "c_r_h": _get_str(expanded, row, ["bino_mr_h_with"]),
-        "c_r_v": _get_str(expanded, row, ["bino_mr_v_with"]),
-        "c_l_h": _get_str(expanded, row, ["bino_mr_h_no"]),
-        "c_l_v": _get_str(expanded, row, ["bino_mr_v_no"]),
-        "wc_r_h": _get_str(expanded, row, ["bino_mr_h_addw"]),
-        "wc_r_v": _get_str(expanded, row, ["bino_mr_v_addw"]),
-        "wc_l_h": _get_str(expanded, row, ["bino_mr_h_addn"]),
-        "wc_l_v": _get_str(expanded, row, ["bino_mr_v_addn"]),
+        "schema_version": 2,
+        "with_horizontal_prism": _get_optical_value(expanded, row, ["bino_mr_h_with"]),
+        "with_horizontal_direction": _get_str(expanded, row, ["bino_mr_h_addw"]),
+        "with_vertical_prism": _get_optical_value(expanded, row, ["bino_mt_v_with"]),
+        "with_vertical_direction": _get_str(expanded, row, ["bino_mr_v_addw"]),
+        "without_horizontal_prism": _get_optical_value(expanded, row, ["bino_mr_h_no"]),
+        "without_horizontal_direction": _get_str(expanded, row, ["bino_mr_h_addn"]),
+        "without_vertical_prism": _get_optical_value(expanded, row, ["bino_mr_v_no"]),
+        "without_vertical_direction": _get_str(expanded, row, ["bino_mr_v_addn"]),
     }
-    if any(data.values()):
+    if any(v is not None for k, v in data.items() if k != "schema_version"):
         return data
     return None
 
@@ -1265,8 +1383,8 @@ def _build_stereo_test_component(row: Dict[str, Any], expanded: Optional[Dict[st
     fly_result = _get_bool(expanded, row, ["bino_st_fly"])
     data = {
         "fly_result": fly_result,
-        "circle_score": _get_float(expanded, row, ["bino_st_cir_9"]),
-        "circle_max": _get_float(expanded, row, ["bino_st_cir_3"]),
+        "circle_9_score": _get_float(expanded, row, ["bino_st_cir_9"]),
+        "circle_3_score": _get_float(expanded, row, ["bino_st_cir_3"]),
     }
     if any(v is not None for v in data.values()):
         return data
@@ -1274,12 +1392,8 @@ def _build_stereo_test_component(row: Dict[str, Any], expanded: Optional[Dict[st
 
 
 def _build_rg_component(row: Dict[str, Any], expanded: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
-    data = {
-        "rg_status": _get_str(expanded, row, ["bino_rg_selection"], None, True),
-        "suppressed_eye": _get_str(expanded, row, ["bino_rg_supp_eye"], None, True),
-    }
-    if any(data.values()):
-        return data
+    # Legacy codes have no reliable codebook; a wrong semantic mapping is worse
+    # than an intentionally empty card.
     return None
 
 
@@ -1328,7 +1442,6 @@ def build_exam_data_from_eye_tests(row: Dict[str, Any], expanded: Optional[Dict[
     data: Dict[str, Any] = {}
     builders: List[Tuple[str, Any]] = [
         ("old-ref", _build_old_ref_component),
-        ("old-refraction", _build_old_refraction_component),
         ("old-refraction-extension", _build_old_refraction_extension_component),
         ("objective", _build_objective_component),
         ("subjective", _build_subjective_component),
@@ -1339,23 +1452,107 @@ def build_exam_data_from_eye_tests(row: Dict[str, Any], expanded: Optional[Dict[
         ("retinoscop", _build_retinoscop_component),
         ("retinoscop-dilation", _build_retinoscop_dilation_component),
         ("uncorrected-va", _build_uncorrected_va_component),
-        ("keratometer", _build_keratometer_component),
         ("keratometer-full", _build_keratometer_full_component),
         ("corneal-topography", _build_corneal_topography_component),
         ("anamnesis", _build_anamnesis_component),
-        ("cover-test", _build_cover_test_component),
         ("fusion-range", _build_fusion_range_component),
         ("maddox-rod", _build_maddox_rod_component),
         ("stereo-test", _build_stereo_test_component),
         ("rg", _build_rg_component),
         ("schirmer-test", _build_schirmer_component),
         ("contact-lens-diameters", _build_contact_lens_diameters_component),
-        ("sensation-vision-stability", _build_sensation_vision_stability_component),
     ]
     for key, builder in builders:
         block = builder(row, expanded)
         if block:
             data.update(_build_component_entry(key, block))
+    old_tabs = build_old_refraction_tabs(expanded)
+    if old_tabs:
+        data.update(old_tabs)
+    else:
+        block = _build_old_refraction_component(row, expanded)
+        if block:
+            data.update(_build_component_entry("old-refraction", block))
+    warnings: List[str] = []
+    for component_key, block in data.items():
+        if not isinstance(block, dict) or component_key == "__ui":
+            continue
+        card_instance_id = block.get("card_instance_id")
+        if card_instance_id and component_key.endswith(str(card_instance_id)):
+            continue
+        for eye in ("r", "l", "comb"):
+            far, near = block.get(f"{eye}_pd_far"), block.get(f"{eye}_pd_close")
+            if isinstance(far, (int, float)) and isinstance(near, (int, float)) and near > far:
+                warning = f"{component_key}: {eye.upper()} Near PD ({near}) exceeds Far PD ({far})"
+                if warning not in warnings:
+                    warnings.append(warning)
+    if warnings:
+        data["migration_warnings"] = warnings
+    return data
+
+
+def build_contact_fit_exam_data(row: Dict[str, Any]) -> Dict[str, Any]:
+    data: Dict[str, Any] = {}
+    observation = {
+        "r_sensation": clean_legacy_text(row.get("obs_right_feeling")),
+        "l_sensation": clean_legacy_text(row.get("obs_left_feeling")),
+        "r_vision": clean_legacy_text(row.get("obs_right_sight")),
+        "l_vision": clean_legacy_text(row.get("obs_left_sight")),
+        "r_stability": clean_legacy_text(row.get("obs_right_stability")),
+        "l_stability": clean_legacy_text(row.get("obs_left_stability")),
+        "r_movement": clean_legacy_text(row.get("obs_right_movement")),
+        "l_movement": clean_legacy_text(row.get("obs_left_movement")),
+        "r_recommendations": clean_legacy_text(row.get("obs_right_recommend")),
+        "l_recommendations": clean_legacy_text(row.get("obs_left_recommend")),
+    }
+    if any(v is not None for v in observation.values()):
+        data.update(_build_component_entry("sensation-vision-stability", observation))
+
+    old_lenses = {
+        "r_lens_type": clean_legacy_text(row.get("old_right_type")), "l_lens_type": clean_legacy_text(row.get("old_left_type")),
+        "r_supplier": clean_legacy_text(row.get("old_right_manuf")), "l_supplier": clean_legacy_text(row.get("old_left_manuf")),
+        "r_model": clean_legacy_text(row.get("old_right_model")), "l_model": clean_legacy_text(row.get("old_left_model")),
+        "r_bc": parse_float(row.get("old_right_bc")), "l_bc": parse_float(row.get("old_left_bc")),
+        "r_diam": parse_float(row.get("old_right_diam")), "l_diam": parse_float(row.get("old_left_diam")),
+        "r_sph": parse_optical_value(row.get("old_right_sph")), "l_sph": parse_optical_value(row.get("old_left_sph")),
+        "r_cyl": parse_optical_value(row.get("old_right_cyl")), "l_cyl": parse_optical_value(row.get("old_left_cyl")),
+        "r_ax": parse_int(row.get("old_right_ax")), "l_ax": parse_int(row.get("old_left_ax")),
+        "r_va": parse_visual_acuity(row.get("old_right_va")), "l_va": parse_visual_acuity(row.get("old_left_va")),
+        "r_j": normalize_j_value(row.get("old_right_j")), "l_j": normalize_j_value(row.get("old_left_j")),
+        "comb_va": parse_visual_acuity(row.get("old_both_va")), "comb_j": normalize_j_value(row.get("old_both_j")),
+    }
+    if any(v is not None for v in old_lenses.values()): data.update(_build_component_entry("old-contact-lenses", old_lenses))
+
+    objective = {
+        "r_sph": parse_optical_value(row.get("obj_right_sph")), "l_sph": parse_optical_value(row.get("obj_left_sph")),
+        "r_cyl": parse_optical_value(row.get("obj_right_cyl")), "l_cyl": parse_optical_value(row.get("obj_left_cyl")),
+        "r_ax": parse_int(row.get("obj_right_ax")), "l_ax": parse_int(row.get("obj_left_ax")),
+    }
+    if any(v is not None for v in objective.values()): data.update(_build_component_entry("objective", objective))
+    over = {
+        "r_sph": parse_optical_value(row.get("or_right_sph")), "l_sph": parse_optical_value(row.get("or_left_sph")),
+        "r_cyl": parse_optical_value(row.get("or_right_cyl")), "l_cyl": parse_optical_value(row.get("or_left_cyl")),
+        "r_ax": parse_int(row.get("or_right_ax")), "l_ax": parse_int(row.get("or_left_ax")),
+        "r_add": parse_optical_value(row.get("or_right_add")), "l_add": parse_optical_value(row.get("or_left_add")),
+        "r_va": parse_visual_acuity(row.get("or_right_va")), "l_va": parse_visual_acuity(row.get("or_left_va")),
+        "r_j": normalize_j_value(row.get("or_right_j")), "l_j": normalize_j_value(row.get("or_left_j")),
+        "r_florescent": clean_legacy_text(row.get("or_right_florescent")), "l_florescent": clean_legacy_text(row.get("or_left_florescent")),
+        "r_bio_m": clean_legacy_text(row.get("or_right_biom")), "l_bio_m": clean_legacy_text(row.get("or_left_biom")),
+        "comb_va": parse_visual_acuity(row.get("or_both_va")), "comb_j": normalize_j_value(row.get("or_both_j")),
+    }
+    if any(v is not None for v in over.values()): data.update(_build_component_entry("over-refraction", over))
+    for builder_key, builder in (("maddox-rod", _build_maddox_rod_component), ("stereo-test", _build_stereo_test_component), ("fusion-range", _build_fusion_range_component)):
+        block = builder(row, row)
+        if block: data.update(_build_component_entry(builder_key, block))
+    notes = [("Fit remark", row.get("fit_remark")), ("Observation remarks", row.get("obs_remarks")), ("Fit remarks", row.get("fit_remarks"))]
+    note_index = 0
+    for title, raw_note in notes:
+        note = clean_legacy_text(raw_note)
+        if not note: continue
+        note_index += 1
+        card_id = f"notes-{note_index}"
+        data[f"notes-{card_id}"] = {"card_instance_id": card_id, "title": title, "note": note}
+        if "notes" not in data: data["notes"] = data[f"notes-{card_id}"]
     return data
 
 

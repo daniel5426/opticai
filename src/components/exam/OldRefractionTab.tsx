@@ -1,18 +1,12 @@
 import React, { useState, useRef, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { OldRefractionExam } from "@/lib/db/schema-interface";
-import { ChevronUp, ChevronDown, Plus } from "lucide-react";
+import { ChevronUp, ChevronDown } from "lucide-react";
 import { EXAM_FIELDS } from "./data/exam-field-definitions";
 import { BASE_VALUES } from "./data/exam-constants";
 import { VASelect } from "./shared/VASelect";
 import { NVJSelect } from "./shared/NVJSelect";
 import { cn } from "@/utils/tailwind";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import {
   FastInput,
   FastSelect,
@@ -24,6 +18,7 @@ import { useAxisWarning } from "./shared/useAxisWarning";
 import { AxisWarningInput } from "./shared/AxisWarningInput";
 import { ToggleTextNumberInput } from "./shared/ToggleTextNumberInput";
 import { copyEyeRowFields } from "./shared/copyEyeRowFields";
+import { RefractionTabsHeader } from "./shared/RefractionTabsHeader";
 
 interface OldRefractionTabProps {
   oldRefractionData: OldRefractionExam;
@@ -60,7 +55,6 @@ export const OldRefractionTab = React.memo(function OldRefractionTab({
   allTabsData = [],
 }: OldRefractionTabProps) {
   const [hoveredEye, setHoveredEye] = useState<"R" | "L" | null>(null);
-  const [dropdownTabIdx, setDropdownTabIdx] = useState<number | null>(null);
   const { fieldWarnings, handleAxisChange, handleAxisBlur } = useAxisWarning(
     oldRefractionData,
     onOldRefractionChange,
@@ -80,8 +74,6 @@ export const OldRefractionTab = React.memo(function OldRefractionTab({
     inputSyncManager.flush();
     handleManualTranspose();
   }, [handleManualTranspose]);
-
-  const glassesTypeOptions = ["רחוק", "קרוב", "מולטיפוקל", "ביפוקל"];
 
   const mainColumns = [
     { key: "sph", ...EXAM_FIELDS.SPH },
@@ -144,6 +136,7 @@ export const OldRefractionTab = React.memo(function OldRefractionTab({
           onChange={(val) => handleChange(eye, key, val)}
           disabled={!isEditing}
           options={options || []}
+          allowImportedValue
           size="xs"
           triggerClassName="h-8 text-xs w-full disabled:opacity-100"
           center={col.center}
@@ -207,6 +200,7 @@ export const OldRefractionTab = React.memo(function OldRefractionTab({
           disabled={!isEditing}
           textOptions={(inputProps as any).textOptions}
           textValueAliases={(inputProps as any).textValueAliases}
+          textDisplayAliases={(inputProps as any).displayAliases}
           numericProps={{
             step: (inputProps as any).step,
             min: (inputProps as any).min,
@@ -238,152 +232,24 @@ export const OldRefractionTab = React.memo(function OldRefractionTab({
     );
   };
 
-  const handleTabClick = (idx: number) => {
-    onTabChange(idx);
-    setDropdownTabIdx(null);
-  };
-
-  const handleTabContextMenu = (idx: number, e: React.MouseEvent) => {
-    e.preventDefault();
-    if (isEditing) {
-      setDropdownTabIdx(idx);
-    }
-  };
-
   return (
     <Card className="examcard w-full pt-3 pb-4">
       <CardContent className="px-4" style={{ scrollbarWidth: "none" }}>
         <div className="space-y-3">
-          <div className="relative flex items-center" style={{ minHeight: 24 }}>
-            {/* Tab bar: absolutely positioned to the left (same as CoverTest) */}
-            <div
-              className="bg-accent absolute left-0 flex items-center justify-start gap-0 rounded-md pr-1"
-              style={{ direction: "rtl" }}
-            >
-              {Array.from({ length: tabCount })
-                .map((_, idx) => tabCount - 1 - idx)
-                .map((revIdx) => {
-                  const tabData = allTabsData[revIdx];
-                  const currentType = tabData?.r_glasses_type;
-                  const typeLabel = currentType || (revIdx + 1).toString();
-                  const otherTypes = glassesTypeOptions.filter(
-                    (t) => t !== currentType,
-                  );
-
-                  return (
-                    <DropdownMenu
-                      key={revIdx}
-                      open={dropdownTabIdx === revIdx}
-                      onOpenChange={(open) => {
-                        if (!open) setDropdownTabIdx(null);
-                      }}
-                      dir="rtl"
-                      modal={false}
-                    >
-                      <DropdownMenuTrigger asChild>
-                        <button
-                          type="button"
-                          className={`rounded border-none px-2 text-xs font-bold transition-all duration-150 ${activeTab === revIdx ? "bg-secondary text-primary" : "text-muted-foreground hover:bg-accent bg-transparent"}`}
-                          onClick={() => handleTabClick(revIdx)}
-                          onContextMenu={(e) => handleTabContextMenu(revIdx, e)}
-                          style={{ outline: "none" }}
-                        >
-                          {typeLabel}
-                        </button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent
-                        align="center"
-                        sideOffset={4}
-                        style={{ zIndex: 1000 }}
-                      >
-                        <DropdownMenuItem
-                          onClick={() => {
-                            if (isEditing && tabCount > 1 && onDeleteTab) {
-                              onDeleteTab(revIdx);
-                              setDropdownTabIdx(null);
-                            }
-                          }}
-                          className={`text-destructive ${tabCount <= 1 || !isEditing ? "pointer-events-none opacity-50" : ""}`}
-                          disabled={tabCount <= 1 || !isEditing}
-                        >
-                          מחק
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={() => {
-                            if (isEditing && onDuplicateTab) {
-                              onDuplicateTab(revIdx);
-                              setDropdownTabIdx(null);
-                            }
-                          }}
-                          disabled={!isEditing}
-                        >
-                          שכפל
-                        </DropdownMenuItem>
-                        {otherTypes.length > 0 && isEditing && (
-                          <>
-                            <div className="bg-muted my-1 h-px" />
-                            <div className="text-muted-foreground px-2 py-1 text-right text-[10px] font-medium">
-                              שנה סוג ל:
-                            </div>
-                            {otherTypes.map((type) => (
-                              <DropdownMenuItem
-                                key={type}
-                                onClick={() => {
-                                  onUpdateType?.(revIdx, type);
-                                  setDropdownTabIdx(null);
-                                }}
-                              >
-                                {type}
-                              </DropdownMenuItem>
-                            ))}
-                          </>
-                        )}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  );
-                })}
-              <DropdownMenu dir="rtl" modal={false}>
-                <DropdownMenuTrigger asChild>
-                  <button
-                    type="button"
-                    className="hover:bg-accent flex items-center justify-center rounded-full border-none bg-transparent p-1"
-                    disabled={!isEditing || tabCount >= 5}
-                    style={{
-                      outline: "none",
-                      opacity: isEditing && tabCount < 5 ? 1 : 0.5,
-                      pointerEvents:
-                        isEditing && tabCount < 5 ? "auto" : "none",
-                      transition: "opacity 0.2s",
-                    }}
-                    title="הוסף טאב"
-                  >
-                    <Plus size={16} />
-                  </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent
-                  align="center"
-                  sideOffset={4}
-                  style={{ zIndex: 1000 }}
-                >
-                  <div className="text-muted-foreground px-2 py-1 text-right text-[10px] font-medium">
-                    בחר סוג רפרקציה:
-                  </div>
-                  {glassesTypeOptions.map((type) => (
-                    <DropdownMenuItem key={type} onClick={() => onAddTab(type)}>
-                      {type}
-                    </DropdownMenuItem>
-                  ))}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-
-            {/* Title: centered */}
-            <div className="flex-1 text-center">
-              <h3 className="text-muted-foreground font-medium">
-                Old Refraction
-              </h3>
-            </div>
-          </div>
+          <RefractionTabsHeader
+            title="Old Refraction"
+            tabCount={tabCount}
+            activeTab={activeTab}
+            tabTypes={allTabsData.map(
+              (tab) => tab.r_glasses_type || tab.l_glasses_type,
+            )}
+            isEditing={isEditing}
+            onTabChange={onTabChange}
+            onAddTab={onAddTab}
+            onDeleteTab={onDeleteTab}
+            onDuplicateTab={onDuplicateTab}
+            onUpdateType={onUpdateType}
+          />
 
           <div
             className={`grid ${hideEyeLabels ? "grid-cols-[repeat(8,1fr)]" : "grid-cols-[20px_repeat(8,1fr)]"} items-center gap-2`}

@@ -152,6 +152,7 @@ export const SubjectiveTab = React.memo(function SubjectiveTab({
                     disabled={!isEditing}
                     textOptions={(colProps as any).textOptions}
                     textValueAliases={(colProps as any).textValueAliases}
+                    textDisplayAliases={(colProps as any).displayAliases}
                     numericProps={{
                       step: (colProps as any).step,
                       min: (colProps as any).min,
@@ -169,6 +170,7 @@ export const SubjectiveTab = React.memo(function SubjectiveTab({
                     onChange={(value) => handleChange("R", key, value)}
                     disabled={!isEditing}
                     options={(colProps as any).options || []}
+                    allowImportedValue
                     size="xs"
                     triggerClassName="h-8 text-xs w-full"
                     center={(colProps as any).center}
@@ -262,6 +264,7 @@ export const SubjectiveTab = React.memo(function SubjectiveTab({
                     disabled={!isEditing}
                     textOptions={(colProps as any).textOptions}
                     textValueAliases={(colProps as any).textValueAliases}
+                    textDisplayAliases={(colProps as any).displayAliases}
                     numericProps={{
                       step: (colProps as any).step,
                       min: (colProps as any).min,
@@ -279,6 +282,7 @@ export const SubjectiveTab = React.memo(function SubjectiveTab({
                     onChange={(value) => handleChange("L", key, value)}
                     disabled={!isEditing}
                     options={(colProps as any).options || []}
+                    allowImportedValue
                     size="xs"
                     triggerClassName="h-8 text-xs w-full"
                     center={(colProps as any).center}

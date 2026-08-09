@@ -27,6 +27,8 @@ interface ExamLayoutRendererProps {
   computedCoverTestTabs: Record<string, string[]>;
   activeOldRefractionTabs: Record<string, string>;
   computedOldRefractionTabs: Record<string, string[]>;
+  activeOldRefractionExtensionTabs: Record<string, string>;
+  computedOldRefractionExtensionTabs: Record<string, string[]>;
   examFormData: Record<string, any>;
   setExamFormData: React.Dispatch<React.SetStateAction<Record<string, any>>>;
   toolboxActions: {
@@ -70,6 +72,8 @@ export function ExamLayoutRenderer({
   computedCoverTestTabs,
   activeOldRefractionTabs,
   computedOldRefractionTabs,
+  activeOldRefractionExtensionTabs,
+  computedOldRefractionExtensionTabs,
   examFormData,
   setExamFormData,
   toolboxActions,
@@ -172,6 +176,13 @@ export function ExamLayoutRenderer({
       return activeTabId
         ? `old-refraction-${card.id}-${activeTabId}`
         : undefined;
+    } else if (card.type === "old-refraction-extension") {
+      const activeTabId =
+        activeOldRefractionExtensionTabs[card.id] ||
+        computedOldRefractionExtensionTabs[card.id]?.[0];
+      return activeTabId
+        ? `old-refraction-extension-${card.id}-${activeTabId}`
+        : undefined;
     }
     return `${card.type}-${card.id}`;
   };
@@ -228,6 +239,7 @@ export function ExamLayoutRenderer({
           return (
             <div
               data-clinical-nav-card="true"
+              className={item.type === "notes" ? "h-full" : undefined}
               style={{
                 contentVisibility: "auto",
                 containIntrinsicSize: "0 190px",

@@ -18,6 +18,7 @@ import { ImageInput } from "@/components/ui/image-input"
 import { ColorInput } from "@/components/ui/color-input"
 import { AboutTab } from "@/components/settings/AboutTab"
 import { WhatsAppTab } from "@/components/settings/WhatsAppTab"
+import { SubscriptionTab } from "@/components/settings/SubscriptionTab"
 import { ROLE_LEVELS, getRoleBadgeVariant, getRoleLabel, isRoleAtLeast } from "@/lib/role-levels"
 
 export default function ControlCenterSettingsPage() {
@@ -40,8 +41,8 @@ export default function ControlCenterSettingsPage() {
     contact_phone: '',
     address: '',
     logo_path: '',
-    primary_theme_color: '#2256aa',
-    secondary_theme_color: '#cce9ff'
+    primary_theme_color: '#3f3f46',
+    secondary_theme_color: '#f4f4f5'
   })
 
   const [personalProfile, setPersonalProfile] = useState<Partial<User>>({
@@ -49,8 +50,8 @@ export default function ControlCenterSettingsPage() {
     email: '',
     phone: '',
     profile_picture: '',
-    primary_theme_color: '#2256aa',
-    secondary_theme_color: '#cce9ff',
+    primary_theme_color: '#3f3f46',
+    secondary_theme_color: '#f4f4f5',
     theme_preference: 'system'
   })
   const [profileColorUpdateTimeout, setProfileColorUpdateTimeout] = useState<NodeJS.Timeout | null>(null)
@@ -101,8 +102,8 @@ export default function ControlCenterSettingsPage() {
             contact_phone: companyData.contact_phone || '',
             address: companyData.address || '',
             logo_path: companyData.logo_path || '',
-            primary_theme_color: companyData.primary_theme_color || '#2256aa',
-            secondary_theme_color: companyData.secondary_theme_color || '#cce9ff',
+            primary_theme_color: companyData.primary_theme_color || '#3f3f46',
+            secondary_theme_color: companyData.secondary_theme_color || '#f4f4f5',
             whatsapp_access_token: companyData.whatsapp_access_token || '',
             whatsapp_phone_number_id: companyData.whatsapp_phone_number_id || '',
             whatsapp_verify_token: companyData.whatsapp_verify_token || ''
@@ -124,8 +125,8 @@ export default function ControlCenterSettingsPage() {
             email: currentUser.email || '',
             phone: currentUser.phone || '',
             profile_picture: currentUser.profile_picture || '',
-            primary_theme_color: currentUser.primary_theme_color || '#2256aa',
-            secondary_theme_color: currentUser.secondary_theme_color || '#cce9ff',
+            primary_theme_color: currentUser.primary_theme_color || '#3f3f46',
+            secondary_theme_color: currentUser.secondary_theme_color || '#f4f4f5',
             theme_preference: currentUser.theme_preference || 'system'
           })
         }
@@ -216,8 +217,8 @@ export default function ControlCenterSettingsPage() {
           contact_phone: data.company.contact_phone || '',
           address: data.company.address || '',
           logo_path: data.company.logo_path || '',
-          primary_theme_color: data.company.primary_theme_color || '#2256aa',
-          secondary_theme_color: data.company.secondary_theme_color || '#cce9ff',
+          primary_theme_color: data.company.primary_theme_color || '#3f3f46',
+          secondary_theme_color: data.company.secondary_theme_color || '#f4f4f5',
           whatsapp_access_token: data.company.whatsapp_access_token || '',
           whatsapp_phone_number_id: data.company.whatsapp_phone_number_id || '',
           whatsapp_verify_token: data.company.whatsapp_verify_token || ''
@@ -235,8 +236,8 @@ export default function ControlCenterSettingsPage() {
           email: updatedUser.email || '',
           phone: updatedUser.phone || '',
           profile_picture: updatedUser.profile_picture || '',
-          primary_theme_color: updatedUser.primary_theme_color || '#2256aa',
-          secondary_theme_color: updatedUser.secondary_theme_color || '#cce9ff',
+          primary_theme_color: updatedUser.primary_theme_color || '#3f3f46',
+          secondary_theme_color: updatedUser.secondary_theme_color || '#f4f4f5',
           theme_preference: updatedUser.theme_preference || 'system'
         })
         await setCurrentUser(updatedUser, true) // Skip navigation when just updating profile
@@ -722,7 +723,7 @@ export default function ControlCenterSettingsPage() {
                             <Label className="text-right block text-sm font-medium">צבע ראשי</Label>
                             <div className="flex items-center gap-4">
                               <ColorInput
-                                value={localCompany.primary_theme_color || '#2256aa'}
+                                value={localCompany.primary_theme_color || '#3f3f46'}
                                 onChange={(e) => {
                                   handleCompanyChange('primary_theme_color', e.target.value);
                                   // Apply preview immediately
@@ -752,11 +753,11 @@ export default function ControlCenterSettingsPage() {
                                   }, 150);
                                   setProfileColorUpdateTimeout(timeout);
                                 }}
-                                fallbackColor="#2256aa"
+                                fallbackColor="#3f3f46"
                               />
                               <div className="flex-1">
                                 <Input
-                                  value={localCompany.primary_theme_color || '#2256aa'}
+                                  value={localCompany.primary_theme_color || '#3f3f46'}
                                   onChange={(e) => {
                                     handleCompanyChange('primary_theme_color', e.target.value);
                                     // Apply preview immediately
@@ -797,7 +798,7 @@ export default function ControlCenterSettingsPage() {
                             <Label className="text-right block text-sm font-medium">צבע משני</Label>
                             <div className="flex items-center gap-4">
                               <ColorInput
-                                value={localCompany.secondary_theme_color || '#cce9ff'}
+                                value={localCompany.secondary_theme_color || '#f4f4f5'}
                                 onChange={(e) => {
                                   handleCompanyChange('secondary_theme_color', e.target.value);
                                   // Apply preview immediately
@@ -827,11 +828,11 @@ export default function ControlCenterSettingsPage() {
                                   }, 150);
                                   setProfileColorUpdateTimeout(timeout);
                                 }}
-                                fallbackColor="#cce9ff"
+                                fallbackColor="#f4f4f5"
                               />
                               <div className="flex-1">
                                 <Input
-                                  value={localCompany.secondary_theme_color || '#cce9ff'}
+                                  value={localCompany.secondary_theme_color || '#f4f4f5'}
                                   onChange={(e) => {
                                     handleCompanyChange('secondary_theme_color', e.target.value);
                                     // Apply preview immediately
@@ -952,7 +953,7 @@ export default function ControlCenterSettingsPage() {
                             <ColorInput
                               value={personalProfile.primary_theme_color}
                               onChange={(e) => handlePersonalProfileChange('primary_theme_color', e.target.value)}
-                              fallbackColor="#2256aa"
+                              fallbackColor="#3f3f46"
                             />
                             <div className="flex-1">
                               <Input
@@ -1158,6 +1159,10 @@ export default function ControlCenterSettingsPage() {
                     <AboutTab />
                   </TabsContent>
 
+                  <TabsContent value="subscription" className="space-y-6 mt-0">
+                    <SubscriptionTab />
+                  </TabsContent>
+
                   <TabsContent value="whatsapp" className="space-y-6 mt-0">
                     <WhatsAppTab 
                       formData={localCompany}
@@ -1173,6 +1178,9 @@ export default function ControlCenterSettingsPage() {
                     <TabsTrigger value="personal-profile" className="w-full justify-end text-right">פרופיל אישי</TabsTrigger>
                     {isRoleAtLeast(currentUser?.role_level, ROLE_LEVELS.ceo) && (
                       <TabsTrigger value="users" className="w-full justify-end text-right">ניהול משתמשים</TabsTrigger>
+                    )}
+                    {isRoleAtLeast(currentUser?.role_level, ROLE_LEVELS.ceo) && (
+                      <TabsTrigger value="subscription" className="w-full justify-end text-right">תוכנית ומנוי</TabsTrigger>
                     )}
                     <TabsTrigger value="about" className="w-full justify-end text-right">אודות האפליקציה</TabsTrigger>
                   </TabsList>

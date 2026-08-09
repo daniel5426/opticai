@@ -19,6 +19,7 @@ interface ToggleTextNumberInputProps {
   disabled?: boolean;
   textOptions?: string[];
   textValueAliases?: Record<string, string>;
+  textDisplayAliases?: Record<string, string>;
   numericProps?: Omit<
     React.ComponentProps<typeof FastInput>,
     "value" | "onChange" | "disabled" | "type"
@@ -32,6 +33,7 @@ export function ToggleTextNumberInput({
   disabled = false,
   textOptions = [],
   textValueAliases = {},
+  textDisplayAliases = {},
   numericProps,
   className,
 }: ToggleTextNumberInputProps) {
@@ -75,21 +77,35 @@ export function ToggleTextNumberInput({
 
   const normalizedValue = value.trim();
   const normalizedUnsignedValue = normalizedValue.replace(/^\+/, "");
+  const displayAlias = useMemo(() => {
+    const match = Object.entries(textDisplayAliases).find(
+      ([legacy]) => legacy.toLowerCase() === normalizedValue.toLowerCase(),
+    );
+    return match?.[1];
+  }, [normalizedValue, textDisplayAliases]);
+  const canonicalTextValue = displayAlias || normalizedValue;
+
+  const isImportedValue = normalizedValue !== "" &&
+    !Number.isFinite(Number(normalizedUnsignedValue)) &&
+    !textOptions.includes(canonicalTextValue) &&
+    !reverseAliases[normalizedValue] &&
+    !reverseAliases[normalizedUnsignedValue];
 
   const isTextValue =
-    textOptions.includes(normalizedValue) ||
+    textOptions.includes(canonicalTextValue) ||
     !!reverseAliases[normalizedValue] ||
-    !!reverseAliases[normalizedUnsignedValue];
+    !!reverseAliases[normalizedUnsignedValue] ||
+    isImportedValue;
 
   const selectValue = useMemo(() => {
-    if (textOptions.includes(normalizedValue)) return normalizedValue;
+    if (textOptions.includes(canonicalTextValue)) return canonicalTextValue;
     if (reverseAliases[normalizedValue]) return reverseAliases[normalizedValue];
     if (reverseAliases[normalizedUnsignedValue])
       return reverseAliases[normalizedUnsignedValue];
     return "";
-  }, [normalizedValue, normalizedUnsignedValue, textOptions, reverseAliases]);
+  }, [canonicalTextValue, normalizedValue, normalizedUnsignedValue, textOptions, reverseAliases]);
 
-  const displayValue = isTextValue ? selectValue : value;
+  const displayValue = isImportedValue ? `${value} (I)` : isTextValue ? selectValue : value;
   const shownValue = optimisticText ?? displayValue;
   const isShownAsText = isTextValue || !!optimisticText;
   const effectiveSuffix = isShownAsText ? undefined : numericProps?.suffix;
@@ -272,6 +288,7 @@ export function ToggleTextNumberInput({
             onChange?.(stored);
             return;
           }
+          if (isImportedValue && val !== "" && !Number.isFinite(Number(val))) return;
           setOptimisticText(null);
           onChange?.(val);
         }}

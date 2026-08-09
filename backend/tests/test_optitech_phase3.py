@@ -12,7 +12,7 @@ from sqlalchemy.orm import sessionmaker
 from backend.migration.optitech.src import phase3, records
 from backend.migration.optitech.src.exam_layouts import ensure_phase3_exam_layouts
 from backend.migration.optitech.src.trace import load_trace_links
-from models import Appointment, Base, Clinic, Company, ExamLayoutInstance, OpticalExam, Order, User
+from models import Appointment, Base, Clinic, Company, ExamLayoutInstance, OpticalExam, Order, User, WorkShift
 
 
 def _build_session():
@@ -97,13 +97,63 @@ def test_build_glasses_exam_data_uses_canonical_keys():
     exam_data = phase3.build_glasses_exam_data(seed, layout_instance_id=77)
 
     assert "objective" in exam_data
-    assert "subjective" in exam_data
-    assert "final-subjective" in exam_data
     assert "final-prescription" in exam_data
+    assert any(key.startswith("old-refraction-old-refraction-1-") for key in exam_data)
     assert "notes-notes-1" in exam_data
     assert "objective-objective-1" not in exam_data
     assert exam_data["objective"]["layout_instance_id"] == 77
     assert exam_data["notes-notes-1"]["card_instance_id"] == "notes-1"
+
+
+def test_main_prescription_and_previous_prescription_are_kept_separate():
+    seed = records.normalize_glasses_exam_row(
+        {
+            "PerId": "123",
+            "CheckDate": "2026-01-01 00:00:00",
+            "SphR": "-1.00",
+            "ReadR": "1.25",
+            "PBaseR": "OUT",
+            "PPrisR": "2",
+            "PSphR": "-2.00",
+            "PMulR": "1",
+            "PJR": "J2-1",
+        }
+    )
+
+    exam_data = phase3.build_glasses_exam_data(seed, layout_instance_id=7)
+    final = exam_data["final-prescription"]
+    old_key = next(key for key in exam_data if key.startswith("old-refraction-old-refraction-1-"))
+    old = exam_data[old_key]
+
+    assert final["r_sph"] == -1.0
+    assert final["r_ad"] == 1.25
+    assert old["r_sph"] == -2.0
+    assert old["r_pris"] == 2.0
+    assert old["r_base"] == "OUT"
+    assert old["r_j"] == "J2-1"
+    assert old["r_glasses_type"] == "מולטיפוקל"
+    assert exam_data["__ui"]["tabsByCard"]["old-refraction:old-refraction-1"][0]["type"] == "מולטיפוקל"
+
+
+def test_previous_refraction_detail_keeps_rare_extended_values_trace_only():
+    tabs = records.normalize_previous_refraction_row(
+        {
+            "PrevId": "9",
+            "SphR1": "-3.00",
+            "PDDistR1": "31",
+            "ExtPrisR1": "2",
+            "ExtBaseR1": "IN",
+        }
+    )
+
+    assert tabs[0]["r_sph"] == -3.0
+    assert tabs[0]["trace_pd_far"]["r"] == 31.0
+    assert tabs[0]["trace_secondary_prism"] == {
+        "r": 2.0,
+        "l": None,
+        "r_base": "IN",
+        "l_base": None,
+    }
 
 
 def test_build_glasses_exam_data_omits_final_cards_when_only_zero_prism_base_exists():
@@ -118,7 +168,6 @@ def test_build_glasses_exam_data_omits_final_cards_when_only_zero_prism_base_exi
 
     exam_data = phase3.build_glasses_exam_data(seed, layout_instance_id=77)
 
-    assert "final-subjective" not in exam_data
     assert "final-prescription" not in exam_data
 
 
@@ -184,6 +233,39 @@ def test_build_contact_lens_exam_data_uses_canonical_keys():
     assert "contact-lens-order" in exam_data
     assert exam_data["contact-lens-details"]["r_supplier"] == "J&J"
     assert exam_data["contact-lens-order"]["branch"] == "Clinic"
+    assert exam_data["contact-lens-exam"]["r_va"] == "6"
+    assert "r_bc_2" not in exam_data["contact-lens-exam"]
+
+
+def test_contact_exam_suppresses_empty_card_and_keeps_invalid_oz_in_trace():
+    empty_seed = records.normalize_contact_lens_exam_row(
+        {"PerId": "3", "CheckDate": "2026-01-01 00:00:00", "OZR": "wide"}
+    )
+    exam_data = phase3.build_contact_lens_exam_data(
+        empty_seed,
+        layout_instance_id=8,
+        catalog=_minimal_lookup_catalog(),
+        clinic_name="Clinic",
+        unresolved_dependencies=[],
+    )
+
+    assert "contact-lens-exam" not in exam_data
+    assert empty_seed.source_ref.raw_payload["OZR"] == "wide"
+
+
+def test_keratometry_detects_diopters_and_millimeters():
+    seed = records.normalize_contact_lens_exam_row(
+        {
+            "PerId": "3",
+            "CheckDate": "2026-01-01 00:00:00",
+            "rHR": "45",
+            "rVR": "7.5",
+        }
+    )
+    payload = phase3.build_contact_lens_keratometer_payload(seed, layout_instance_id=8)
+
+    assert payload["r_rh"] == 7.5
+    assert payload["r_rv"] == 7.5
 
 
 def test_ensure_phase3_exam_layouts_creates_scoped_layouts():
@@ -232,7 +314,7 @@ def test_upsert_glasses_exams_rerun_updates_and_keeps_dual_trace():
         layout_id=glasses_layout.id,
         layout_data=glasses_layout.layout_data,
         unmapped_report={},
-        migration_job_id="job-2",
+        migration_job_id="job-1",
     )
     db.commit()
 
@@ -251,14 +333,13 @@ def test_upsert_glasses_exams_rerun_updates_and_keeps_dual_trace():
     assert layout["version"] == 2
     assert layout["grid"]["columns"] == 24
     assert [item["type"] for item in layout["items"]] == [
-        "final-subjective",
-        "final-prescription",
+        "old-refraction",
         "notes",
     ]
     assert exam_links["tblCrdGlassChecks:PerId=123|CheckDate=11/26/00 00:00:00"].target_id == exams[0].id
     assert instance_links["tblCrdGlassChecks:PerId=123|CheckDate=11/26/00 00:00:00"].target_id == instances[0].id
     assert exam_links["tblCrdGlassChecks:PerId=123|CheckDate=11/26/00 00:00:00"].raw_payload["Comments"] == "updated"
-    assert instance_links["tblCrdGlassChecks:PerId=123|CheckDate=11/26/00 00:00:00"].migration_job_id == "job-2"
+    assert instance_links["tblCrdGlassChecks:PerId=123|CheckDate=11/26/00 00:00:00"].migration_job_id == "job-1"
 
 
 def test_upsert_glasses_exams_recreates_deleted_targets_and_repoints_dual_trace():
@@ -279,6 +360,7 @@ def test_upsert_glasses_exams_recreates_deleted_targets_and_repoints_dual_trace(
         layout_id=glasses_layout.id,
         layout_data=glasses_layout.layout_data,
         unmapped_report={},
+        migration_job_id="job-1",
     )
     db.commit()
 
@@ -297,6 +379,7 @@ def test_upsert_glasses_exams_recreates_deleted_targets_and_repoints_dual_trace(
         layout_id=glasses_layout.id,
         layout_data=glasses_layout.layout_data,
         unmapped_report={},
+        migration_job_id="job-1",
     )
     db.commit()
 
@@ -441,3 +524,71 @@ def test_upsert_appointments_skips_unmapped_client():
     assert counters.skipped == 1
     assert skipped_rows[0]["reason"] == "missing_phase2_client_mapping"
     assert db.query(Appointment).count() == 0
+
+
+def test_work_shift_payload_reconstructs_missing_times():
+    complete = records.normalize_work_shift_row(
+        {
+            "WrkId": "1",
+            "UserID": "4",
+            "WrkDate": "2026-01-02",
+            "StartTime": "08:00:00",
+            "EndTime": "16:30:00",
+            "WrkTime": "8",
+        }
+    )
+    missing_end = records.normalize_work_shift_row(
+        {
+            "WrkId": "2",
+            "UserID": "4",
+            "WrkDate": "2026-01-02",
+            "StartTime": "09:00:00",
+            "WrkTime": "2.5",
+        }
+    )
+    missing_start = records.normalize_work_shift_row(
+        {"WrkId": "3", "UserID": "4", "WrkDate": "2026-01-02", "WrkTime": "1.25"}
+    )
+
+    complete_payload, complete_warnings = phase3.build_work_shift_payload(complete)
+    end_payload, end_warnings = phase3.build_work_shift_payload(missing_end)
+    start_payload, start_warnings = phase3.build_work_shift_payload(missing_start)
+
+    assert complete_payload["duration_minutes"] == 510
+    assert complete_warnings == []
+    assert end_payload["end_time"] == "11:30:00"
+    assert end_warnings == ["missing_end_reconstructed_from_wrk_time"]
+    assert start_payload["start_time"] == "00:00:00"
+    assert start_payload["end_time"] == "01:15:00"
+    assert start_warnings == ["missing_start_reconstructed_at_midnight"]
+
+
+def test_work_shift_upsert_links_user_and_resumes_only_same_v2_job():
+    db = _build_session()
+    company, clinic = _create_company_and_clinic(db)
+    user = _create_user(db, company.id, clinic.id)
+    seed = records.normalize_work_shift_row(
+        {"WrkId": "1", "UserID": "4", "WrkDate": "2026-01-02", "WrkTime": "1"}
+    )
+
+    first, _, warnings = phase3.upsert_work_shifts(
+        db, seeds=[seed], clinic=clinic, user_map={4: user.id}, migration_job_id="job-1"
+    )
+    db.commit()
+    same_job, _, _ = phase3.upsert_work_shifts(
+        db, seeds=[seed], clinic=clinic, user_map={4: user.id}, migration_job_id="job-1"
+    )
+    db.commit()
+    new_job, skipped, _ = phase3.upsert_work_shifts(
+        db, seeds=[seed], clinic=clinic, user_map={4: user.id}, migration_job_id="job-2"
+    )
+    db.commit()
+
+    shift = db.query(WorkShift).one()
+    assert first.created == 1
+    assert same_job.updated == 1
+    assert new_job.skipped == 1
+    assert skipped[0]["reason"] == "existing_non_resumable_import"
+    assert shift.user_id == user.id
+    assert shift.status == "completed"
+    assert warnings[0]["warnings"] == ["missing_start_reconstructed_at_midnight"]

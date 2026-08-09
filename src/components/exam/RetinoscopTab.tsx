@@ -197,6 +197,7 @@ export function RetinoscopTab({
                     disabled={!isEditing}
                     textOptions={colProps.textOptions}
                     textValueAliases={colProps.textValueAliases}
+                    textDisplayAliases={colProps.displayAliases}
                     numericProps={{
                       step: colProps.step,
                       min: colProps.min,
@@ -310,6 +311,7 @@ export function RetinoscopTab({
                     disabled={!isEditing}
                     textOptions={colProps.textOptions}
                     textValueAliases={colProps.textValueAliases}
+                    textDisplayAliases={colProps.displayAliases}
                     numericProps={{
                       step: colProps.step,
                       min: colProps.min,
