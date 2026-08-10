@@ -102,6 +102,50 @@ def _source_snapshot_hash(payload: Dict[str, Any]) -> str:
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
+def source_row_ref(
+    *,
+    source_table: str,
+    source_row: Dict[str, Any],
+    identifier_fields: Tuple[str, ...] = (),
+    row_number: Optional[int] = None,
+) -> str:
+    """Build the stable source identifier used by migration trace links."""
+    raw_payload = _source_snapshot_json(dict(source_row))
+    primary_key_parts = [
+        [field, str(source_row.get(field) or "")]
+        for field in identifier_fields
+        if source_row.get(field) not in (None, "")
+    ]
+    if not primary_key_parts:
+        primary_key_parts = [["row_sha256", _source_snapshot_hash(raw_payload)]]
+    if row_number is not None:
+        primary_key_parts.append(["row_number", str(row_number)])
+    return f"{source_table}:" + ":".join(
+        f"{field}={value}" for field, value in primary_key_parts
+    )
+
+
+def existing_job_source_refs(
+    db: Session,
+    trace_context: Optional[Dict[str, Any]],
+    *,
+    target_model: str,
+    source_tables: Tuple[str, ...],
+) -> Set[str]:
+    """Return rows already persisted by this job, for safe idempotent resume."""
+    if not trace_context:
+        return set()
+    return {
+        raw_row_ref
+        for (raw_row_ref,) in db.query(MigrationSourceLink.raw_row_ref).filter(
+            MigrationSourceLink.source_system == trace_context["source_system"],
+            MigrationSourceLink.migration_job_id == trace_context["migration_job_id"],
+            MigrationSourceLink.target_model == target_model,
+            MigrationSourceLink.source_table.in_(source_tables),
+        )
+    }
+
+
 def record_raw_source_link(
     db: Session,
     trace_context: Optional[Dict[str, Any]],
@@ -129,8 +173,11 @@ def record_raw_source_link(
         primary_key_parts = [["row_sha256", _source_snapshot_hash(raw_payload)]]
     if row_number is not None:
         primary_key_parts.append(["row_number", str(row_number)])
-    raw_row_ref = f"{source_table}:" + ":".join(
-        f"{field}={value}" for field, value in primary_key_parts
+    raw_row_ref = source_row_ref(
+        source_table=source_table,
+        source_row=source_row,
+        identifier_fields=identifier_fields,
+        row_number=row_number,
     )
 
     db.add(

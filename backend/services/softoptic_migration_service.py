@@ -842,12 +842,6 @@ def resume_job(db: Session, job: SoftOpticMigrationJob) -> SoftOpticMigrationJob
         raise HTTPException(status_code=409, detail="Only paused or failed jobs can be resumed")
     if not job.bundle_storage_bucket or not job.bundle_storage_key:
         raise HTTPException(status_code=409, detail="Migration bundle is missing")
-    if not phase_completed(job, "clinical"):
-        deleted = cleanup_partial_softoptic_clinical_import(db, job)
-        if deleted:
-            warnings = list(job.warnings or [])
-            warnings.append("Removed uncheckpointed clinical rows before resuming the migration.")
-            job.warnings = warnings
     job.status = "queued"
     job.step = "ממתין לעובד ייבוא"
     job.pause_requested = False

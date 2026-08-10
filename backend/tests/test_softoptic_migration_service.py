@@ -233,7 +233,7 @@ def test_softoptic_import_respects_client_import_limit(tmp_path):
         assert job.import_summary["client_imported_count"] == 1
 
 
-def test_resume_removes_only_uncheckpointed_clinical_rows(tmp_path):
+def test_resume_preserves_uncheckpointed_clinical_rows_for_idempotent_resume(tmp_path):
     SessionLocal = _session_factory()
     bundle_path, _ = _write_bundle(tmp_path)
 
@@ -281,10 +281,10 @@ def test_resume_removes_only_uncheckpointed_clinical_rows(tmp_path):
 
         resume_job(db, job)
 
-        assert db.get(OpticalExam, exam_id) is None
-        assert db.query(ExamLayoutInstance).count() == 0
+        assert db.get(OpticalExam, exam_id) is not None
+        assert db.query(ExamLayoutInstance).count() == 1
         assert db.get(Client, client.id) is not None
-        assert db.query(MigrationSourceLink).filter_by(target_model="OpticalExam").count() == 0
+        assert db.query(MigrationSourceLink).filter_by(target_model="OpticalExam").count() == 1
         assert db.query(MigrationSourceLink).filter_by(target_model="Client").count() == 1
         assert job.status == "queued"
 

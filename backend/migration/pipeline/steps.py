@@ -557,6 +557,12 @@ def migrate_optical_exams(
         if clean_legacy_text(row.get("code"))
     }
     print(f"[exams] loaded {len(expanded_rows)} expanded exam rows", flush=True)
+    existing_exam_refs = existing_job_source_refs(
+        db,
+        trace_context,
+        target_model="OpticalExam",
+        source_tables=("optic_eye_tests.csv", "optic_exp_eyetests.csv", "optic_contact_fit.csv"),
+    )
     
     count = 0
     pending = 0
@@ -579,8 +585,18 @@ def migrate_optical_exams(
         print(f"[exams] added {expanded_only_count} expanded-only exam rows", flush=True)
 
     skipped_count = 0
+    resumed_count = 0
     sample_missing_codes = []
     for r, expanded_row, has_base_source in iter_exam_rows():
+        source_table = "optic_eye_tests.csv" if has_base_source else "optic_exp_eyetests.csv"
+        source_ref = source_row_ref(
+            source_table=source_table,
+            source_row=r,
+            identifier_fields=("code", "account_code"),
+        )
+        if source_ref in existing_exam_refs:
+            resumed_count += 1
+            continue
         raw_account_code = r.get("account_code")
         if raw_account_code is None:
             skipped_count += 1
@@ -713,6 +729,15 @@ def migrate_optical_exams(
     db.commit()
     contact_fit_count = 0
     for row_number, row in enumerate(read_csv_streaming(csv_dir, "optic_contact_fit.csv"), start=2):
+        source_ref = source_row_ref(
+            source_table="optic_contact_fit.csv",
+            source_row=row,
+            identifier_fields=("code", "account_code", "fit_date"),
+            row_number=row_number,
+        )
+        if source_ref in existing_exam_refs:
+            resumed_count += 1
+            continue
         account_code = clean_legacy_text(row.get("account_code"))
         if not account_code or account_code not in account_to_client:
             continue
@@ -739,7 +764,7 @@ def migrate_optical_exams(
     debug_msg = ""
     if sample_missing_codes:
         debug_msg = f", sample missing codes: {sample_missing_codes[:3]}"
-    print(f"[exams] inserted total: {count}, contact fits: {contact_fit_count}, skipped: {skipped_count}{debug_msg}, took {time.time()-t0:.2f}s", flush=True)
+    print(f"[exams] inserted total: {count}, contact fits: {contact_fit_count}, resumed: {resumed_count}, skipped: {skipped_count}{debug_msg}, took {time.time()-t0:.2f}s", flush=True)
 
 
 def migrate_contact_lens_orders(
@@ -755,12 +780,37 @@ def migrate_contact_lens_orders(
     print(f"[cl_orders] filtering orders to {len(valid_account_codes)} valid account codes", flush=True)
     rows_iter = read_csv_streaming(csv_dir, "optic_contact_presc.csv")
     presc_price_rows = _group_presc_price_rows(csv_dir)
+    existing_order_refs = existing_job_source_refs(
+        db,
+        trace_context,
+        target_model="ContactLensOrder",
+        source_tables=("optic_contact_presc.csv",),
+    )
     presc_code_to_order_id: Dict[str, int] = {}
     count = 0
     skipped_count = 0
+    resumed_count = 0
     pending = 0
     commit_batch_size = int(os.environ.get("MIGRATION_ORDER_COMMIT_BATCH_SIZE", "1000"))
     for r in rows_iter:
+        source_ref = source_row_ref(
+            source_table="optic_contact_presc.csv",
+            source_row=r,
+            identifier_fields=("code", "account_code"),
+        )
+        if source_ref in existing_order_refs:
+            resumed_count += 1
+            code = clean_legacy_text(r.get("code"))
+            if code:
+                existing_link = db.query(MigrationSourceLink.target_id).filter(
+                    MigrationSourceLink.source_system == trace_context["source_system"],
+                    MigrationSourceLink.migration_job_id == trace_context["migration_job_id"],
+                    MigrationSourceLink.target_model == "ContactLensOrder",
+                    MigrationSourceLink.raw_row_ref == source_ref,
+                ).scalar()
+                if existing_link:
+                    presc_code_to_order_id[code] = existing_link
+            continue
         raw_account_code = r.get("account_code")
         if raw_account_code is None:
             skipped_count += 1
@@ -1036,7 +1086,7 @@ def migrate_contact_lens_orders(
         if commit_batch_size > 0 and count % commit_batch_size == 0:
             db.commit()
     db.commit()
-    print(f"[cl_orders] inserted total: {count}, skipped: {skipped_count}, took {time.time()-t0:.2f}s", flush=True)
+    print(f"[cl_orders] inserted total: {count}, resumed: {resumed_count}, skipped: {skipped_count}, took {time.time()-t0:.2f}s", flush=True)
     return presc_code_to_order_id
 
 
@@ -1052,8 +1102,15 @@ def migrate_regular_orders(
     rows_iter = read_csv_streaming(csv_dir, "optic_glasses_presc.csv")
     order_type_lookup = _build_lookup_code_name_map(csv_dir, "optic_tv_order_type.csv")
     presc_price_rows = _group_presc_price_rows(csv_dir)
+    existing_order_refs = existing_job_source_refs(
+        db,
+        trace_context,
+        target_model="Order",
+        source_tables=("optic_glasses_presc.csv",),
+    )
     count = 0
     skipped_count = 0
+    resumed_count = 0
     commit_batch_size = int(os.environ.get("MIGRATION_ORDER_COMMIT_BATCH_SIZE", "1000"))
     resume_skip_rows = int(os.environ.get("MIGRATION_REGULAR_ORDER_SKIP_ROWS", "0") or "0")
     seen_valid_rows = 0
@@ -1061,6 +1118,14 @@ def migrate_regular_orders(
         print(f"[orders] resume mode: skipping first {resume_skip_rows} valid source rows", flush=True)
 
     for r in rows_iter:
+        source_ref = source_row_ref(
+            source_table="optic_glasses_presc.csv",
+            source_row=r,
+            identifier_fields=("code", "account_code"),
+        )
+        if source_ref in existing_order_refs:
+            resumed_count += 1
+            continue
         account_code = clean_legacy_text(r.get("account_code"))
         if not account_code or account_code not in account_to_client:
             skipped_count += 1
@@ -1295,7 +1360,7 @@ def migrate_regular_orders(
             db.commit()
 
     db.commit()
-    print(f"[orders] inserted total: {count}, skipped: {skipped_count}, took {time.time()-t0:.2f}s", flush=True)
+    print(f"[orders] inserted total: {count}, resumed: {resumed_count}, skipped: {skipped_count}, took {time.time()-t0:.2f}s", flush=True)
 
 
 def enrich_from_contact_lens_chk(
@@ -1307,9 +1372,27 @@ def enrich_from_contact_lens_chk(
 ):
     t0 = time.time()
     rows_iter = read_csv_streaming(csv_dir, "optic_contact_lens_chk.csv")
+    existing_exam_refs = existing_job_source_refs(
+        db,
+        trace_context,
+        target_model="OpticalExam",
+        source_tables=("optic_contact_lens_chk.csv",),
+    )
+    existing_order_refs = existing_job_source_refs(
+        db,
+        trace_context,
+        target_model="ContactLensOrder",
+        source_tables=("optic_contact_lens_chk.csv",),
+    )
     updated_exams = 0
     updated_orders = 0
     for row_number, r in enumerate(rows_iter, start=2):
+        source_ref = source_row_ref(
+            source_table="optic_contact_lens_chk.csv",
+            source_row=r,
+            identifier_fields=("contact_presc_code", "account_code", "last_action", "tested_eye"),
+            row_number=row_number,
+        )
         account_code = str(r.get("account_code")) if r.get("account_code") else None
         if not account_code or account_code not in account_to_client:
             continue
@@ -1343,7 +1426,7 @@ def enrich_from_contact_lens_chk(
                 else:
                     exam = exams[-1]
 
-        if exam:
+        if exam and source_ref not in existing_exam_refs:
             li = db.execute(select(ExamLayoutInstance).where(ExamLayoutInstance.exam_id == exam.id)).scalars().first()
             if li:
                 data = dict(li.exam_data or {})
@@ -1379,7 +1462,7 @@ def enrich_from_contact_lens_chk(
                         row_number=row_number,
                     )
 
-        if order:
+        if order and source_ref not in existing_order_refs:
             data = dict(order.order_data or {})
             exam_block = dict(data.get("contact-lens-exam") or {})
             details_block = dict(data.get("contact-lens-details") or {})

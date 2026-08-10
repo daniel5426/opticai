@@ -152,6 +152,43 @@ def test_migrate_optical_exams_includes_expanded_only_rows(tmp_path):
         assert instance.exam_data["subjective-subjective-1"]["r_sph"] == 2.0
 
 
+def test_migrate_optical_exams_resume_skips_rows_already_linked_to_same_job(tmp_path):
+    for filename, fields in (
+        ("optic_eye_tests.csv", ["code", "account_code", "branch_code", "test_date"]),
+        ("optic_exp_eyetests.csv", ["code", "account_code"]),
+        ("optic_device_data.csv", ["code", "account_code"]),
+        ("optic_contact_fit.csv", ["code", "account_code", "branch_code", "fit_date"]),
+    ):
+        with (tmp_path / filename).open("w", newline="", encoding="utf-8") as handle:
+            writer = csv.DictWriter(handle, fieldnames=fields)
+            writer.writeheader()
+            if filename == "optic_eye_tests.csv":
+                writer.writerow({"code": "1", "account_code": "101", "branch_code": "A", "test_date": "2020-01-01"})
+            if filename == "optic_contact_fit.csv":
+                writer.writerow({"code": "fit-1", "account_code": "101", "branch_code": "A", "fit_date": "2021-01-01"})
+
+    engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False}, poolclass=StaticPool)
+    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+    Base.metadata.create_all(bind=engine)
+    with SessionLocal() as db:
+        company = Company(name="A", owner_full_name="Owner A")
+        db.add(company); db.flush()
+        clinic = Clinic(company_id=company.id, name="Selected", unique_id="selected")
+        db.add(clinic); db.flush()
+        user = User(company_id=company.id, clinic_id=clinic.id, username="admin", role_level=5)
+        client = Client(id=101, company_id=company.id, clinic_id=clinic.id, first_name="Test")
+        db.add_all([user, client]); db.commit()
+        trace_context = {"source_system": "softoptic", "company_id": company.id, "migration_job_id": "job-1"}
+
+        for _ in range(2):
+            migration.migrate_optical_exams(
+                db, str(tmp_path), {"101": client.id}, {"A": clinic.id}, user.id, trace_context,
+            )
+
+        assert db.query(OpticalExam).count() == 2
+        assert db.query(ExamLayoutInstance).count() == 2
+
+
 def test_contact_fit_creates_separate_exam_with_exact_cards(tmp_path):
     for filename, fields in (
         ("optic_eye_tests.csv", ["code", "account_code"]),
