@@ -1,5 +1,6 @@
 import csv
 import io
+import math
 from collections import defaultdict
 from datetime import date, datetime, timedelta, timezone
 from typing import Any, Optional
@@ -871,12 +872,147 @@ def _csv_row_to_payload(row: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _import_row_number(row: Any, index: int) -> int:
+    if isinstance(row, dict):
+        try:
+            value = int(row.get("row_number"))
+            if value > 0:
+                return value
+        except (TypeError, ValueError):
+            pass
+    return index + 1
+
+
+def _import_bool(value: Any) -> bool:
+    if isinstance(value, str):
+        return value.strip().casefold() not in {"false", "0", "no"}
+    return bool(value)
+
+
+def _import_quantity(value: Any, field: str) -> int:
+    if isinstance(value, bool):
+        raise ValueError(f"{field} must be an integer")
+    try:
+        number = float(value or 0)
+    except (TypeError, ValueError):
+        raise ValueError(f"{field} must be an integer")
+    if not math.isfinite(number) or not number.is_integer():
+        raise ValueError(f"{field} must be an integer")
+    quantity = int(number)
+    if quantity < 0:
+        raise ValueError(f"{field} cannot be negative")
+    return quantity
+
+
+def _validated_import_rows(
+    db: Session,
+    *,
+    company_id: int,
+    rows: list[Any],
+) -> list[dict[str, Any]]:
+    """Normalize every submitted row; preview metadata is deliberately ignored."""
+    results: list[dict[str, Any]] = []
+    seen_fingerprints: set[str] = set()
+    seen_skus: set[str] = set()
+    seen_barcodes: set[str] = set()
+
+    for index, row in enumerate(rows):
+        row_number = _import_row_number(row, index)
+        submitted = row.get("data") if isinstance(row, dict) else None
+        errors: list[str] = []
+        cleaned: dict[str, Any] | None = None
+        fingerprint = ""
+        if not isinstance(submitted, dict):
+            errors.append("Row data is required")
+        else:
+            category = submitted.get("category")
+            product_data = submitted.get("product")
+            variant_data = submitted.get("variant")
+            if not isinstance(product_data, dict):
+                errors.append("Product data is required")
+            if not isinstance(variant_data, dict):
+                errors.append("Variant data is required")
+            attributes_data = variant_data.get("attributes") if isinstance(variant_data, dict) else None
+            if attributes_data not in (None, {}) and not isinstance(attributes_data, dict):
+                errors.append("Variant attributes must be an object")
+            if not errors:
+                try:
+                    cleaned_product = validate_product_data(str(category or ""), product_data)
+                    requested_stockable = _import_bool(variant_data.get("is_stockable", True))
+                    attributes, complete, missing = validate_variant_attributes(
+                        str(category or ""),
+                        cleaned_product,
+                        attributes_data or {},
+                        requested_stockable=requested_stockable,
+                    )
+                    cleaned_variant = {
+                        "attributes": attributes,
+                        "sku": str(variant_data.get("sku") or "").strip() or None,
+                        "barcode": str(variant_data.get("barcode") or "").strip() or None,
+                        "default_cost": _validate_price(variant_data.get("default_cost"), "default_cost"),
+                        "default_retail": _validate_price(variant_data.get("default_retail"), "default_retail"),
+                        "is_stockable": requested_stockable and complete,
+                    }
+                    fingerprint = normalized_variant_fingerprint(
+                        str(category or ""), cleaned_product, attributes
+                    )
+                    quantities = {
+                        field: _import_quantity(submitted.get(field), field)
+                        for field in ("on_hand", "reorder_point", "target_quantity")
+                    }
+                    if quantities["target_quantity"] and quantities["target_quantity"] < quantities["reorder_point"]:
+                        errors.append("target_quantity cannot be below reorder_point")
+                    if missing:
+                        errors.append("Missing: " + ", ".join(missing))
+                    cleaned = {
+                        "category": str(category or ""),
+                        "product": cleaned_product,
+                        "variant": cleaned_variant,
+                        **quantities,
+                    }
+                except (HTTPException, ValueError) as exc:
+                    detail = exc.detail.get("message") if isinstance(exc, HTTPException) and isinstance(exc.detail, dict) else (exc.detail if isinstance(exc, HTTPException) else str(exc))
+                    errors.append(str(detail))
+
+        if fingerprint:
+            if fingerprint in seen_fingerprints:
+                errors.append("Duplicate row in file")
+            seen_fingerprints.add(fingerprint)
+            if db.query(CatalogVariant.id).filter(
+                CatalogVariant.company_id == company_id,
+                CatalogVariant.normalized_fingerprint == fingerprint,
+            ).first():
+                errors.append("Variant already exists")
+        if cleaned:
+            for field, seen_values in (("sku", seen_skus), ("barcode", seen_barcodes)):
+                value = cleaned["variant"][field]
+                if not value:
+                    continue
+                if value in seen_values:
+                    errors.append(f"Duplicate {field} in file")
+                seen_values.add(value)
+                if db.query(CatalogVariant.id).filter(
+                    CatalogVariant.company_id == company_id,
+                    getattr(CatalogVariant, field) == value,
+                ).first():
+                    errors.append(f"{field} already exists")
+        results.append({
+            "row_number": row_number,
+            "status": "valid" if not errors else "invalid",
+            "errors": errors,
+            "fingerprint": fingerprint,
+            "data": cleaned,
+        })
+    return results
+
+
 @router.post("/import/preview")
 def preview_import(
     payload: dict[str, Any],
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    require_inventory_write(current_user)
     company_id = resolve_company_id(db, current_user)
     csv_text = payload.get("csv_text")
     if not isinstance(csv_text, str) or not csv_text.strip():
@@ -889,76 +1025,11 @@ def preview_import(
     if not source_rows:
         raise HTTPException(status_code=422, detail="CSV has no data rows")
 
-    results = []
-    seen: set[str] = set()
-    seen_skus: set[str] = set()
-    seen_barcodes: set[str] = set()
-    for index, source in enumerate(source_rows, start=2):
-        mapped = _csv_row_to_payload(source)
-        errors: list[str] = []
-        fingerprint = ""
-        try:
-            cleaned_product = validate_product_data(mapped["category"], mapped["product"])
-            attributes, complete, missing = validate_variant_attributes(
-                mapped["category"],
-                cleaned_product,
-                mapped["variant"]["attributes"],
-                requested_stockable=bool(mapped["variant"]["is_stockable"]),
-            )
-            mapped["product"] = cleaned_product
-            mapped["variant"]["attributes"] = attributes
-            mapped["variant"]["is_stockable"] = complete and bool(mapped["variant"]["is_stockable"])
-            mapped["variant"]["default_cost"] = _validate_price(
-                mapped["variant"].get("default_cost"),
-                "default_cost",
-            )
-            mapped["variant"]["default_retail"] = _validate_price(
-                mapped["variant"].get("default_retail"),
-                "default_retail",
-            )
-            fingerprint = normalized_variant_fingerprint(mapped["category"], cleaned_product, attributes)
-            if fingerprint in seen:
-                errors.append("Duplicate row in file")
-            seen.add(fingerprint)
-            if db.query(CatalogVariant.id).filter(
-                CatalogVariant.company_id == company_id,
-                CatalogVariant.normalized_fingerprint == fingerprint,
-            ).first():
-                errors.append("Variant already exists")
-            for field, seen_values in (
-                ("sku", seen_skus),
-                ("barcode", seen_barcodes),
-            ):
-                value = str(mapped["variant"].get(field) or "").strip()
-                if not value:
-                    continue
-                if value in seen_values:
-                    errors.append(f"Duplicate {field} in file")
-                seen_values.add(value)
-                if db.query(CatalogVariant.id).filter(
-                    CatalogVariant.company_id == company_id,
-                    getattr(CatalogVariant, field) == value,
-                ).first():
-                    errors.append(f"{field} already exists")
-            if missing:
-                errors.append("Missing: " + ", ".join(missing))
-            for quantity_field in ("on_hand", "reorder_point", "target_quantity"):
-                try:
-                    mapped[quantity_field] = int(float(mapped[quantity_field] or 0))
-                    if mapped[quantity_field] < 0:
-                        errors.append(f"{quantity_field} cannot be negative")
-                except (TypeError, ValueError):
-                    errors.append(f"{quantity_field} must be an integer")
-        except HTTPException as exc:
-            detail = exc.detail.get("message") if isinstance(exc.detail, dict) else exc.detail
-            errors.append(str(detail))
-        results.append({
-            "row_number": index,
-            "status": "valid" if not errors else "invalid",
-            "errors": errors,
-            "fingerprint": fingerprint,
-            "data": mapped,
-        })
+    results = _validated_import_rows(
+        db,
+        company_id=company_id,
+        rows=[{"row_number": index, "data": _csv_row_to_payload(source)} for index, source in enumerate(source_rows, start=2)],
+    )
     return {
         "rows": results,
         "total": len(results),
@@ -978,19 +1049,22 @@ def commit_import(
     clinic_id = normalize_clinic_id_for_company(db, current_user, payload.get("clinic_id"))
     rows = payload.get("rows")
     if not isinstance(rows, list) or not rows:
-        raise HTTPException(status_code=422, detail="Validated import rows are required")
+        raise HTTPException(status_code=422, detail="Import rows are required")
+    validated_rows = _validated_import_rows(db, company_id=company_id, rows=rows)
     created = 0
-    skipped = 0
-    for index, row in enumerate(rows):
-        data = row.get("data") if isinstance(row, dict) else None
-        if not isinstance(data, dict) or row.get("status") != "valid":
-            skipped += 1
+    invalid_rows = [row for row in validated_rows if row["status"] != "valid"]
+    skipped = len(invalid_rows)
+    for row in validated_rows:
+        if row["status"] == "valid" and row["data"]:
+            _guard_cost_write(current_user, row["data"].get("variant") or {})
+    for index, row in enumerate(validated_rows):
+        data = row["data"]
+        if row["status"] != "valid" or not data:
             continue
-        _guard_cost_write(current_user, data.get("variant") or {})
         product = create_product(db, company_id=company_id, category=data["category"], data=data["product"])
         before_id = db.query(CatalogVariant.id).filter(
             CatalogVariant.company_id == company_id,
-            CatalogVariant.normalized_fingerprint == row.get("fingerprint"),
+            CatalogVariant.normalized_fingerprint == row["fingerprint"],
         ).scalar()
         variant = create_variant(db, company_id=company_id, product=product, data=data["variant"])
         if before_id:
@@ -1020,7 +1094,14 @@ def commit_import(
             )
         created += 1
     _commit_or_conflict(db, "Import contains a duplicate SKU, barcode, or variant")
-    return {"created": created, "skipped": skipped}
+    return {
+        "created": created,
+        "skipped": skipped,
+        "validation_errors": [
+            {"row_number": row["row_number"], "errors": row["errors"]}
+            for row in invalid_rows
+        ],
+    }
 
 
 @router.get("/export", response_class=PlainTextResponse)

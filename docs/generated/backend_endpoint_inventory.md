@@ -1,9 +1,9 @@
 # Backend Endpoint Inventory
 
-Last Updated: 2026-04-09
+Last Updated: 2026-08-09
 
 ## Summary
-Current FastAPI endpoint module count with explicit route decorators: 28.
+Current FastAPI endpoint module count with explicit route decorators: 29.
 
 | Module | Route Count | Purpose | Example Paths |
 | --- | ---: | --- | --- |
@@ -16,6 +16,7 @@ Current FastAPI endpoint module count with explicit route decorators: 28.
 | `appointments.py` | 10 | Appointment CRUD, stats, Google event id updates | `/appointments`, `/appointments/paginated` |
 | `medical_logs.py` | 6 | Medical log CRUD | `/medical-logs`, `/medical-logs/client/{client_id}` |
 | `orders.py` | 19 | Orders, contact lens orders, structured component data, upsert-full | `/orders`, `/contact-lens-orders`, `/orders/upsert-full` |
+| `inventory.py` | 21 | Company catalog, clinic stock balances, allocations, discovery, CSV, and insights | `/inventory/variants`, `/inventory/balances/{variant_id}/adjust`, `/inventory/import/commit` |
 | `billing.py` | 13 | Billing and line items | `/billing`, `/order-line-items` |
 | `referrals.py` | 12 | Referral CRUD plus componentized referral data | `/referrals`, `/referrals/{referral_id}/data` |
 | `files.py` | 8 | File CRUD, pagination, download URL | `/files`, `/files/{file_id}/download-url` |

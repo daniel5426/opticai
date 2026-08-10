@@ -1051,12 +1051,25 @@ function ImportDialog({
     setCommitting(true);
     const response = await apiClient.commitInventoryImport(
       clinicId,
-      preview.rows,
+      preview.rows.filter((row: any) => row.status === "valid"),
       "desktop-" + Date.now(),
     );
     setCommitting(false);
     if (response.error) {
-      toast.error(String(response.error));
+      const detail = response.errorDetail as
+        | { message?: string; rows?: { row_number?: number; errors?: string[] }[] }
+        | undefined;
+      const rowError = detail?.rows?.[0];
+      toast.error(
+        rowError
+          ? `שורה ${rowError.row_number}: ${(rowError.errors || []).join(" · ")}`
+          : detail?.message || String(response.error),
+      );
+      return;
+    }
+    if (response.data?.validation_errors?.length) {
+      const first = response.data.validation_errors[0];
+      toast.error(`שורה ${first.row_number}: ${first.errors.join(" · ")}`);
       return;
     }
     toast.success((response.data?.created || 0) + " פריטים יובאו");

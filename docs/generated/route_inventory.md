@@ -1,9 +1,9 @@
 # Route Inventory
 
-Last Updated: 2026-04-30
+Last Updated: 2026-08-09
 
 ## Summary
-Current renderer route count: 35.
+Current renderer route count: 36.
 
 | Path | Page | Surface | Notes |
 | --- | --- | --- | --- |
@@ -29,6 +29,7 @@ Current renderer route count: 35.
 | `/clients/$clientId/referrals/new` | `ReferralDetailPage` | Referrals | Referral create/edit reuse |
 | `/exams` | `AllExamsPage` | Exams | Global exam list |
 | `/orders` | `AllOrdersPage` | Orders | Global order list |
+| `/inventory` | `InventoryPage` | Inventory | Company catalog and clinic inventory balances |
 | `/referrals` | `AllReferralsPage` | Referrals | Global referral list |
 | `/appointments` | `AllAppointmentsPage` | Scheduling | Global appointments list |
 | `/files` | `AllFilesPage` | Files | Global files list |
