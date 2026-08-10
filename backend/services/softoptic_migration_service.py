@@ -466,6 +466,86 @@ def cleanup_previous_softoptic_import(db: Session, clinic_id: int, storage: Opti
     return deleted
 
 
+PARTIAL_CLINICAL_TARGET_MODELS = {
+    "OpticalExam",
+    "ExamLayoutInstance",
+    "Order",
+    "ContactLensOrder",
+    "Referral",
+    "Billing",
+    "BillingPayment",
+    "OrderLineItem",
+}
+
+
+def cleanup_partial_softoptic_clinical_import(db: Session, job: SoftOpticMigrationJob) -> dict[str, int]:
+    """Remove only this job's uncheckpointed clinical rows before a retry."""
+    links = (
+        db.query(MigrationSourceLink)
+        .filter(MigrationSourceLink.source_system == SOFTOPTIC_SOURCE_SYSTEM)
+        .filter(MigrationSourceLink.migration_job_id == job.id)
+        .filter(MigrationSourceLink.target_model.in_(PARTIAL_CLINICAL_TARGET_MODELS))
+        .all()
+    )
+    if not links:
+        return {}
+
+    ids_by_model = {model: sorted(set(ids)) for model, ids in _ids_by_model(links).items()}
+    deleted: dict[str, int] = {}
+    exam_ids = ids_by_model.get("OpticalExam", [])
+    order_ids = ids_by_model.get("Order", [])
+    contact_order_ids = ids_by_model.get("ContactLensOrder", [])
+
+    index_deleted = 0
+    for target_model, source_type in [
+        ("ExamLayoutInstance", "exam"),
+        ("Order", "order"),
+        ("ContactLensOrder", "contact_lens_order"),
+        ("Referral", "referral"),
+    ]:
+        index_deleted += delete_source_index_rows_bulk(
+            db,
+            source_type,
+            ids_by_model.get(target_model, []),
+            batch_size=SOFTOPTIC_DELETE_CHUNK_SIZE,
+        )
+    if index_deleted:
+        deleted["PrescriptionSearchIndex"] = index_deleted
+
+    billing_filters = []
+    if order_ids:
+        billing_filters.append(Billing.order_id.in_(order_ids))
+    if contact_order_ids:
+        billing_filters.append(Billing.contact_lens_id.in_(contact_order_ids))
+    billing_ids = [row[0] for row in db.query(Billing.id).filter(or_(*billing_filters)).all()] if billing_filters else []
+    if billing_ids:
+        deleted["BillingPayment"] = db.query(BillingPayment).filter(BillingPayment.billing_id.in_(billing_ids)).delete(synchronize_session=False)
+        deleted["OrderLineItem"] = db.query(OrderLineItem).filter(OrderLineItem.billings_id.in_(billing_ids)).delete(synchronize_session=False)
+        deleted["Billing"] = db.query(Billing).filter(Billing.id.in_(billing_ids)).delete(synchronize_session=False)
+
+    if exam_ids:
+        deleted["ExamLayoutInstance"] = db.query(ExamLayoutInstance).filter(ExamLayoutInstance.exam_id.in_(exam_ids)).delete(synchronize_session=False)
+
+    for target_model, model in [
+        ("OpticalExam", OpticalExam),
+        ("ContactLensOrder", ContactLensOrder),
+        ("Order", Order),
+        ("Referral", Referral),
+    ]:
+        ids = ids_by_model.get(target_model, [])
+        if ids:
+            deleted[target_model] = db.query(model).filter(model.id.in_(ids)).delete(synchronize_session=False)
+
+    deleted["MigrationSourceLink"] = (
+        db.query(MigrationSourceLink)
+        .filter(MigrationSourceLink.source_system == SOFTOPTIC_SOURCE_SYSTEM)
+        .filter(MigrationSourceLink.migration_job_id == job.id)
+        .filter(MigrationSourceLink.target_model.in_(PARTIAL_CLINICAL_TARGET_MODELS))
+        .delete(synchronize_session=False)
+    )
+    return {name: count for name, count in deleted.items() if count}
+
+
 def _track_new_rows(
     db: Session,
     *,
@@ -746,6 +826,12 @@ def resume_job(db: Session, job: SoftOpticMigrationJob) -> SoftOpticMigrationJob
         raise HTTPException(status_code=409, detail="Only paused or failed jobs can be resumed")
     if not job.bundle_storage_bucket or not job.bundle_storage_key:
         raise HTTPException(status_code=409, detail="Migration bundle is missing")
+    if not phase_completed(job, "clinical"):
+        deleted = cleanup_partial_softoptic_clinical_import(db, job)
+        if deleted:
+            warnings = list(job.warnings or [])
+            warnings.append("Removed uncheckpointed clinical rows before resuming the migration.")
+            job.warnings = warnings
     job.status = "queued"
     job.step = "ממתין לעובד ייבוא"
     job.pause_requested = False

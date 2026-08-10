@@ -13,7 +13,9 @@ from models import (
     Client,
     Clinic,
     Company,
+    ExamLayoutInstance,
     MigrationSourceLink,
+    OpticalExam,
     Order,
     OrderLineItem,
     SoftOpticMigrationJob,
@@ -25,6 +27,7 @@ from services.softoptic_migration_service import (
     complete_bundle_direct_upload,
     cleanup_previous_softoptic_import,
     prepare_bundle_direct_upload,
+    resume_job,
     run_softoptic_import,
     softoptic_bundle_storage_location,
     update_job,
@@ -228,6 +231,62 @@ def test_softoptic_import_respects_client_import_limit(tmp_path):
         db.refresh(job)
         assert job.import_summary["client_import_limit"] == 1
         assert job.import_summary["client_imported_count"] == 1
+
+
+def test_resume_removes_only_uncheckpointed_clinical_rows(tmp_path):
+    SessionLocal = _session_factory()
+    bundle_path, _ = _write_bundle(tmp_path)
+
+    with SessionLocal() as db:
+        job, clinic = _seed_job(db, bundle_path)
+        job.status = "failed"
+        job.bundle_storage_bucket = "migration-bundles"
+        job.bundle_storage_key = "jobs/job1.zip"
+        job.checkpoint = {"completed_phases": ["validation", "cleanup", "clients"]}
+        client = Client(company_id=clinic.company_id, clinic_id=clinic.id, first_name="Imported")
+        db.add(client)
+        db.flush()
+        exam = OpticalExam(client_id=client.id, clinic_id=clinic.id, test_name="Partial")
+        db.add(exam)
+        db.flush()
+        exam_id = exam.id
+        db.add(ExamLayoutInstance(exam_id=exam.id, exam_data={}))
+        db.add_all([
+            MigrationSourceLink(
+                source_system=SOFTOPTIC_SOURCE_SYSTEM,
+                source_table="account.csv",
+                raw_row_ref="account.csv:account_code=101",
+                source_primary_key_parts=[["account_code", "101"]],
+                target_model="Client",
+                target_id=client.id,
+                clinic_id=clinic.id,
+                company_id=clinic.company_id,
+                migration_job_id=job.id,
+                payload={},
+            ),
+            MigrationSourceLink(
+                source_system=SOFTOPTIC_SOURCE_SYSTEM,
+                source_table="optic_eye_tests.csv",
+                raw_row_ref="optic_eye_tests.csv:code=1:account_code=101",
+                source_primary_key_parts=[["code", "1"], ["account_code", "101"]],
+                target_model="OpticalExam",
+                target_id=exam.id,
+                clinic_id=clinic.id,
+                company_id=clinic.company_id,
+                migration_job_id=job.id,
+                payload={},
+            ),
+        ])
+        db.commit()
+
+        resume_job(db, job)
+
+        assert db.get(OpticalExam, exam_id) is None
+        assert db.query(ExamLayoutInstance).count() == 0
+        assert db.get(Client, client.id) is not None
+        assert db.query(MigrationSourceLink).filter_by(target_model="OpticalExam").count() == 0
+        assert db.query(MigrationSourceLink).filter_by(target_model="Client").count() == 1
+        assert job.status == "queued"
 
 
 def test_prepare_bundle_direct_upload_requires_awaiting_upload(tmp_path):
