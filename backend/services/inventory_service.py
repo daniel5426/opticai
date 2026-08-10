@@ -6,6 +6,8 @@ from datetime import date, datetime, timezone
 from typing import Any, Iterable, Optional
 
 from fastapi import HTTPException
+from sqlalchemy.dialects.postgresql import insert as postgresql_insert
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from models import (
@@ -397,29 +399,53 @@ def get_or_create_balance(
     variant_id: int,
     lock: bool = False,
 ) -> InventoryBalance:
-    query = db.query(InventoryBalance).filter(
-        InventoryBalance.company_id == company_id,
-        InventoryBalance.clinic_id == clinic_id,
-        InventoryBalance.variant_id == variant_id,
-    )
-    if lock:
-        query = query.with_for_update()
-    balance = query.first()
+    def balance_query():
+        query = db.query(InventoryBalance).filter(
+            InventoryBalance.company_id == company_id,
+            InventoryBalance.clinic_id == clinic_id,
+            InventoryBalance.variant_id == variant_id,
+        )
+        if lock:
+            query = query.with_for_update()
+        return query
+
+    balance = balance_query().first()
     if balance:
         return balance
-    balance = InventoryBalance(
-        company_id=company_id,
-        clinic_id=clinic_id,
-        variant_id=variant_id,
-        on_hand=0,
-        reserved=0,
-        reorder_point=0,
-        target_quantity=0,
-        version=1,
-    )
-    db.add(balance)
-    db.flush()
-    return balance
+
+    values = {
+        "company_id": company_id,
+        "clinic_id": clinic_id,
+        "variant_id": variant_id,
+        "on_hand": 0,
+        "reserved": 0,
+        "reorder_point": 0,
+        "target_quantity": 0,
+        "version": 1,
+    }
+    if db.get_bind().dialect.name == "postgresql":
+        # A row lock cannot protect an absent row. Let the unique constraint
+        # serialize first creation, then load the winning row for the caller.
+        db.execute(
+            postgresql_insert(InventoryBalance)
+            .values(**values)
+            .on_conflict_do_nothing(index_elements=("clinic_id", "variant_id"))
+        )
+        return balance_query().one()
+
+    # Keep test/dev database support safe as well. The savepoint leaves the
+    # outer transaction usable when another writer wins the unique constraint.
+    try:
+        with db.begin_nested():
+            balance = InventoryBalance(**values)
+            db.add(balance)
+            db.flush()
+        return balance
+    except IntegrityError:
+        balance = balance_query().first()
+        if balance:
+            return balance
+        raise
 
 
 def apply_balance_change(

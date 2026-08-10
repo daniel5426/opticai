@@ -1,8 +1,10 @@
 import os
 import sys
 from pathlib import Path
+from unittest.mock import MagicMock
 
 from fastapi.testclient import TestClient
+from sqlalchemy.dialects import postgresql
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
@@ -32,6 +34,7 @@ from models import (
     OrderInventoryAllocation,
     User,
 )
+from services.inventory_service import get_or_create_balance
 
 
 def _session_factory():
@@ -181,6 +184,35 @@ def test_first_stock_adjustment_accepts_the_listed_synthetic_balance_version():
         assert adjusted.status_code == 200, adjusted.text
         assert adjusted.json()["on_hand"] == 1
         assert adjusted.json()["version"] == 2
+
+
+def test_postgres_balance_creation_uses_conflict_safe_insert_then_locks_winner():
+    initial_query = MagicMock()
+    initial_query.filter.return_value = initial_query
+    initial_query.with_for_update.return_value = initial_query
+    initial_query.first.return_value = None
+    winner = InventoryBalance(id=42, company_id=1, clinic_id=2, variant_id=3, version=1)
+    winning_query = MagicMock()
+    winning_query.filter.return_value = winning_query
+    winning_query.with_for_update.return_value = winning_query
+    winning_query.one.return_value = winner
+    db = MagicMock()
+    db.query.side_effect = [initial_query, winning_query]
+    db.get_bind.return_value.dialect.name = "postgresql"
+
+    balance = get_or_create_balance(
+        db,
+        company_id=1,
+        clinic_id=2,
+        variant_id=3,
+        lock=True,
+    )
+
+    assert balance is winner
+    winning_query.with_for_update.assert_called_once()
+    statement = db.execute.call_args.args[0]
+    sql = str(statement.compile(dialect=postgresql.dialect()))
+    assert "ON CONFLICT (clinic_id, variant_id) DO NOTHING" in sql
 
 
 def test_inventory_reservation_and_legacy_delivery_are_atomic():
@@ -443,3 +475,95 @@ def test_import_preview_reports_invalid_rows_without_writing():
     with factory() as db:
         assert db.query(CatalogProduct).count() == 0
         assert db.query(InventoryMovement).count() == 0
+
+
+def test_import_preview_requires_inventory_write_access():
+    factory = _session_factory()
+    ids = _seed(factory)
+    with _client(factory, ids["viewer"]) as client:
+        preview = client.post(
+            "/api/v1/inventory/import/preview",
+            json={"csv_text": "category,brand,model,color,eye_size\nframe,Ray-Ban,RX,Black,50\n"},
+        )
+        assert preview.status_code == 403
+
+
+def test_import_commit_revalidates_rows_instead_of_trusting_preview_metadata():
+    factory = _session_factory()
+    ids = _seed(factory)
+    csv_text = (
+        "category,brand,model,color,eye_size,on_hand,reorder_point,target_quantity\n"
+        "frame,Ray-Ban,RX,Black,50,3,1,5\n"
+    )
+    with _client(factory, ids["worker"]) as client:
+        preview = client.post("/api/v1/inventory/import/preview", json={"csv_text": csv_text})
+        assert preview.status_code == 200, preview.text
+        row = preview.json()["rows"][0]
+
+        # Metadata from a browser is informational only; valid data is recomputed.
+        row["status"] = "invalid"
+        row["fingerprint"] = "forged"
+        committed = client.post(
+            "/api/v1/inventory/import/commit",
+            json={"clinic_id": ids["clinic"], "rows": [row], "import_id": "tampered-metadata"},
+        )
+        assert committed.status_code == 200, committed.text
+        assert committed.json()["created"] == 1
+
+    with factory() as db:
+        balance = db.query(InventoryBalance).one()
+        assert (balance.on_hand, balance.reorder_point, balance.target_quantity) == (3, 1, 5)
+
+
+def test_import_commit_rejects_tampered_quantities_policy_and_duplicates():
+    factory = _session_factory()
+    ids = _seed(factory)
+    csv_text = (
+        "category,brand,model,color,eye_size,on_hand,reorder_point,target_quantity\n"
+        "frame,Ray-Ban,RX,Black,50,3,1,5\n"
+    )
+    with _client(factory, ids["worker"]) as client:
+        preview = client.post("/api/v1/inventory/import/preview", json={"csv_text": csv_text})
+        assert preview.status_code == 200, preview.text
+        row = preview.json()["rows"][0]
+
+        invalid_quantity = {
+            **row,
+            "data": {
+                **row["data"],
+                "product": {**row["data"]["product"], "model": "Bad quantity"},
+                "on_hand": -1,
+            },
+            "status": "valid",
+        }
+        invalid_policy = {
+            **row,
+            "data": {
+                **row["data"],
+                "product": {**row["data"]["product"], "model": "Bad policy"},
+                "reorder_point": 5,
+                "target_quantity": 2,
+            },
+            "status": "valid",
+        }
+        duplicate = {**row, "status": "valid", "fingerprint": "not-used"}
+        committed = client.post(
+            "/api/v1/inventory/import/commit",
+            json={
+                "clinic_id": ids["clinic"],
+                "rows": [invalid_quantity, invalid_policy, duplicate, {**duplicate}],
+                "import_id": "tampered-invalid",
+            },
+        )
+        assert committed.status_code == 200, committed.text
+        body = committed.json()
+        assert body["created"] == 1
+        assert body["skipped"] == 3
+        assert any("on_hand cannot be negative" in error["errors"] for error in body["validation_errors"])
+        assert any("target_quantity cannot be below reorder_point" in error["errors"] for error in body["validation_errors"])
+        assert any("Duplicate row in file" in error["errors"] for error in body["validation_errors"])
+
+    with factory() as db:
+        assert db.query(CatalogVariant).count() == 1
+        balance = db.query(InventoryBalance).one()
+        assert (balance.on_hand, balance.reorder_point, balance.target_quantity) == (3, 1, 5)
